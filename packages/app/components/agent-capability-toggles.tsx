@@ -26,6 +26,7 @@ import { Switch } from '@oxy.so/bloom/switch';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { CAPABILITY_FAMILIES } from '@/lib/constants/capability-families';
+import { useTranslation } from '@/lib/hooks/use-translation';
 
 interface AgentCapabilityTogglesProps {
   /** Group heading, since the group belongs to this component. */
@@ -45,6 +46,7 @@ export function AgentCapabilityToggles({
   disabled,
 }: AgentCapabilityTogglesProps) {
   const { colors } = useColorScheme();
+  const { t } = useTranslation();
 
   /**
    * Toggling a FAMILY leaves every connector grant untouched.
@@ -65,12 +67,12 @@ export function AgentCapabilityToggles({
           <SettingsListItem
             key={id}
             icon={<Icon width={18} fill={granted ? colors.foreground : colors.mutedForeground} />}
-            title={label}
-            description={description}
+            title={t(label)}
+            description={t(description)}
             disabled={disabled}
             showChevron={false}
             rightElement={
-              <Switch accessibilityLabel={label} value={granted} onValueChange={() => toggle(id)} disabled={disabled} />
+              <Switch accessibilityLabel={t(label)} value={granted} onValueChange={() => toggle(id)} disabled={disabled} />
             }
           />
         );

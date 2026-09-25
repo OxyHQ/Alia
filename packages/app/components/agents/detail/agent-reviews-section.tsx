@@ -69,7 +69,7 @@ export function AgentReviewsSection({
       draft.reset();
       toast.success(t('agents.reviewDeleted'));
     } catch {
-      toast.error('Failed to delete review');
+      toast.error(t('agents.reviewDeleteFailed'));
     }
   };
 

@@ -350,13 +350,81 @@ export function buildSteps(
 }
 
 /**
+ * Text an audit row shows, before it is translated.
+ *
+ * The timeline is built outside React, with no translator, and it used to
+ * build its rows' words in English right here ("Plan approved", "3 steps",
+ * "Research: synthesizing") — so the Activity tab was English in every
+ * locale. It now says WHAT to show and the panel says it:
+ *
+ *  - `key`: an i18n key and its params.
+ *  - `tool`: a tool's own label, by tool name — see `toolLabel`.
+ *  - `text`: words that are the conversation's own (a query, a file name, a
+ *    server's progress message), shown as they are.
+ */
+export type AuditText =
+  | { key: string; params?: Record<string, string | number> }
+  | { tool: string }
+  | { text: string };
+
+/**
+ * The tools this app has its own words for, in every locale.
+ *
+ * A set rather than a lookup into the catalog: `toolName` is an open string
+ * off the wire, and `thought.tool.constructor` would resolve to
+ * `Object.prototype.constructor` inside i18n-js. Anything else falls back to
+ * the SDK registry's English label, then to the raw name.
+ */
+const TRANSLATED_TOOLS: ReadonlySet<string> = new Set([
+  'webSearch',
+  'scrapeURL',
+  'getTimeline',
+  'searchKnowledgeBase',
+  'webScraper',
+  'browse',
+  'sendWhatsAppMessage',
+  'getWhatsAppChats',
+  'getWhatsAppMessages',
+  'sendTelegramMessage',
+  'getCurrentDate',
+  'generateFile',
+  'saveUserMemory',
+  'updateUserPreferences',
+  'updateUserContext',
+]);
+
+type Translate = (key: string, params?: Record<string, unknown>) => string;
+
+/** A tool's label in the reader's language, where the app has one. */
+export function toolLabel(toolName: string, t: Translate): string {
+  return TRANSLATED_TOOLS.has(toolName) ? t(`thought.tool.${toolName}`) : getToolLabel(toolName);
+}
+
+/** An `AuditText`, as the words a row shows. */
+export function auditText(text: AuditText, t: Translate): string {
+  if ('key' in text) return t(text.key, text.params);
+  if ('tool' in text) return toolLabel(text.tool, t);
+  return text.text;
+}
+
+/** Research phases the Activity tab names; any other reads as "Researching". */
+const RESEARCH_PHASES: ReadonlySet<string> = new Set([
+  'decomposing',
+  'searching',
+  'reading',
+  'synthesizing',
+  'follow_up',
+  'finalizing',
+]);
+
+/**
  * Entry in the action audit timeline.
  */
 export interface AuditEntry {
   id: string;
   type: 'tool_call' | 'research_phase' | 'agent_delegation' | 'plan_approved' | 'artifact_generated';
-  label: string;
-  description: string;
+  label: AuditText;
+  description: AuditText;
   /** `interrupted` is a tool call that never returned in a turn that is over. */
   status: 'in_progress' | 'complete' | 'interrupted';
   toolName?: string;
@@ -387,8 +455,8 @@ export function buildAuditTimeline(
       entries.push({
         id: `agent-${msg.id}`,
         type: 'agent_delegation',
-        label: `Agent: ${msg.agentInfo.name}`,
-        description: typeof msg.content === 'string' ? msg.content.slice(0, 80) : '',
+        label: { key: 'thought.audit.agent', params: { name: msg.agentInfo.name } },
+        description: { text: typeof msg.content === 'string' ? msg.content.slice(0, 80) : '' },
         status: 'complete',
         messageId: msg.id,
       });
@@ -399,8 +467,8 @@ export function buildAuditTimeline(
       entries.push({
         id: `plan-${msg.id}`,
         type: 'plan_approved',
-        label: 'Plan approved',
-        description: `${msg.pendingPlan.steps?.length || 0} steps`,
+        label: { key: 'thought.audit.planApproved' },
+        description: { key: 'thought.audit.planSteps', params: { count: msg.pendingPlan.steps?.length || 0 } },
         status: 'complete',
         messageId: msg.id,
       });
@@ -410,8 +478,6 @@ export function buildAuditTimeline(
     if (msg.toolInvocations) {
       for (const inv of msg.toolInvocations) {
         const isDone = inv.state === 'result';
-        const toolLabel = getToolLabel(inv.toolName);
-
         let description = '';
         if (inv.args?.query) {
           const q = String(inv.args.query);
@@ -424,8 +490,8 @@ export function buildAuditTimeline(
         entries.push({
           id: inv.toolCallId || `tool-${msg.id}-${inv.toolName}`,
           type: 'tool_call',
-          label: toolLabel,
-          description,
+          label: { tool: inv.toolName },
+          description: { text: description },
           status: isDone ? 'complete' : live ? 'in_progress' : 'interrupted',
           toolName: inv.toolName,
           messageId: msg.id,
@@ -436,8 +502,8 @@ export function buildAuditTimeline(
           entries.push({
             id: `artifact-${inv.toolCallId}`,
             type: 'artifact_generated',
-            label: 'File generated',
-            description: inv.result.filename || inv.result.title || '',
+            label: { key: 'thought.audit.fileGenerated' },
+            description: { text: inv.result.filename || inv.result.title || '' },
             status: 'complete',
             messageId: msg.id,
           });
@@ -454,11 +520,13 @@ export function buildAuditTimeline(
         id: `research-${msg.id}`,
         type: 'research_phase',
         label: failed
-          ? 'Research incomplete'
+          ? { key: 'thought.audit.researchIncomplete' }
           : rp.isComplete
-            ? 'Research complete'
-            : `Research: ${rp.phase || 'in progress'}`,
-        description: rp.message || '',
+            ? { key: 'thought.audit.researchComplete' }
+            : rp.phase !== undefined && RESEARCH_PHASES.has(rp.phase)
+              ? { key: `thought.audit.researchPhase.${rp.phase}` }
+              : { key: 'thought.audit.researching' },
+        description: { text: rp.message || '' },
         status: rp.isComplete || failed ? 'complete' : 'in_progress',
         messageId: msg.id,
       });

@@ -6,6 +6,7 @@ import { API_ROUTES } from '@/lib/api/routes';
 import { DEFAULT_MODEL_ID } from '@/lib/config';
 import { PERSONALITY_STYLE_MAP, type PersonalityStyleId } from '@/lib/personality-styles';
 import { errorName } from '../errors/error-utils';
+import { useTranslation } from './use-translation';
 
 function pickRandom<T>(arr: T[], count: number): T[] {
   const copy = [...arr];
@@ -19,6 +20,7 @@ function pickRandom<T>(arr: T[], count: number): T[] {
 
 export function usePersonalitySamplePhrase() {
   const { oxyServices } = useOxy();
+  const { t } = useTranslation();
   const [phrase, setPhrase] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -46,7 +48,7 @@ export function usePersonalitySamplePhrase() {
       }
 
       // Show static greeting immediately as placeholder
-      setPhrase(style.sampleGreeting);
+      setPhrase(t(`settings.personalityStyle.styles.${style.id}.greeting`));
 
       // Cancel any in-flight stream
       if (abortRef.current) abortRef.current.abort();
@@ -105,7 +107,7 @@ export function usePersonalitySamplePhrase() {
           });
 
           if (!res.ok || !res.body) {
-            if (!controller.signal.aborted) setPhrase(style.sampleGreeting);
+            if (!controller.signal.aborted) setPhrase(t(`settings.personalityStyle.styles.${style.id}.greeting`));
             return;
           }
 
@@ -142,13 +144,13 @@ export function usePersonalitySamplePhrase() {
           }
 
           if (!accumulated && !controller.signal.aborted) {
-            setPhrase(style.sampleGreeting);
+            setPhrase(t(`settings.personalityStyle.styles.${style.id}.greeting`));
           } else if (accumulated && !controller.signal.aborted) {
             cacheRef.current.set(styleId, accumulated);
           }
         } catch (err: unknown) {
           if (errorName(err) === 'AbortError') return;
-          setPhrase(style.sampleGreeting);
+          setPhrase(t(`settings.personalityStyle.styles.${style.id}.greeting`));
         } finally {
           if (!controller.signal.aborted) {
             setIsStreaming(false);
@@ -156,7 +158,7 @@ export function usePersonalitySamplePhrase() {
         }
       }, 300);
     },
-    [oxyServices],
+    [oxyServices, t],
   );
 
   return { phrase, isStreaming, fetchPhrase };

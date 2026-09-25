@@ -23,9 +23,13 @@ export interface AutomationEditDraft {
   enabled: boolean;
 }
 
+/**
+ * `error` is an i18n key (with `params` for the ones that name a limit), so
+ * the editor's toast is in the reader's language; it was English text.
+ */
 export type AutomationEditResult =
   | { ok: true; value: AutomationUpdateInput }
-  | { ok: false; error: string };
+  | { ok: false; error: string; params?: Record<string, string> };
 
 function copyResource(resource: AutomationResource): AutomationResource {
   return { ...resource };
@@ -125,26 +129,26 @@ function parseLimitValue(value: string): AutomationUpdateInput['limits'][number]
 
 export function buildAutomationUpdate(draft: AutomationEditDraft): AutomationEditResult {
   const objective = draft.objective.trim();
-  if (!objective) return { ok: false, error: 'Objective is required' };
-  if (!draft.instructions.trim()) return { ok: false, error: 'Instructions are required' };
+  if (!objective) return { ok: false, error: 'automations.edit.objectiveRequired' };
+  if (!draft.instructions.trim()) return { ok: false, error: 'automations.edit.instructionsRequired' };
   if (draft.trigger.type === 'schedule'
     && (!draft.trigger.cron.trim() || !draft.trigger.timezone.trim())) {
-    return { ok: false, error: 'Schedule and timezone are required' };
+    return { ok: false, error: 'automations.edit.scheduleRequired' };
   }
   if (draft.trigger.type === 'event'
     && (!draft.trigger.appId.trim() || !draft.trigger.eventType.trim())) {
-    return { ok: false, error: 'Event app and type are required' };
+    return { ok: false, error: 'automations.edit.eventRequired' };
   }
   if (draft.trigger.type === 'event' && draft.trigger.resource
     && !validResource(draft.trigger.resource)) {
-    return { ok: false, error: 'The event resource is incomplete' };
+    return { ok: false, error: 'automations.edit.eventResourceIncomplete' };
   }
   if (draft.actorSelection.mode === 'fixed' && !draft.actorSelection.agentId.trim()) {
-    return { ok: false, error: 'Choose an agent' };
+    return { ok: false, error: 'automations.edit.chooseAgent' };
   }
   if (draft.actorSelection.mode === 'automatic'
     && draft.actorSelection.eligibleAgentIds.length === 0) {
-    return { ok: false, error: 'Choose at least one eligible agent' };
+    return { ok: false, error: 'automations.edit.chooseEligibleAgent' };
   }
   const resources = [
     ...draft.resources,
@@ -152,19 +156,19 @@ export function buildAutomationUpdate(draft: AutomationEditDraft): AutomationEdi
     ...draft.dataFlow.destinations,
   ];
   if (!resources.every(validResource)) {
-    return { ok: false, error: 'Every resource field is required' };
+    return { ok: false, error: 'automations.edit.resourceIncomplete' };
   }
 
   const limits: AutomationUpdateInput['limits'] = [];
   const limitKeys = new Set<string>();
   for (const limit of draft.limits) {
     const key = limit.key.trim();
-    if (!key) return { ok: false, error: 'Every limit needs a key' };
-    if (limitKeys.has(key)) return { ok: false, error: `Limit ${key} is duplicated` };
+    if (!key) return { ok: false, error: 'automations.edit.limitKeyRequired' };
+    if (limitKeys.has(key)) return { ok: false, error: 'automations.edit.limitDuplicated', params: { key } };
     limitKeys.add(key);
     const value = parseLimitValue(limit.value);
     if (value === null) {
-      return { ok: false, error: `Limit ${key} must be text, a number, a boolean, or a text list` };
+      return { ok: false, error: 'automations.edit.limitInvalid', params: { key } };
     }
     limits.push({ key, value });
   }

@@ -41,7 +41,7 @@ export function SkillPickerDialog({
     >
       <View className="px-4 pb-2">
         <Search
-          label="Search skills..."
+          label={t('agents.searchSkills')}
           value={search}
           onChangeText={setSearch}
           onClearText={() => setSearch('')}

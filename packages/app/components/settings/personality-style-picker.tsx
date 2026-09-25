@@ -47,7 +47,7 @@ export function usePersonalityStyleRow({
         onChange={onSelectStyle}
         items={PERSONALITY_STYLES.map((style) => ({
           value: style.id,
-          label: style.name,
+          label: t(`settings.personalityStyle.styles.${style.id}.name`),
         }))}
       />
     ),

@@ -1,3 +1,4 @@
+import { useTranslation } from '@/lib/hooks/use-translation';
 import {
   useEpisodeAudio,
   type EpisodeAudioProblem,
@@ -69,24 +70,25 @@ import { View } from 'react-native';
  * the cause. They live here, beside the line that renders them, because they are
  * the row's words; the hook owns only WHICH refusal happened. `Record` over the
  * union is what makes a sixth refusal impossible to add without words for it.
+ * The values are i18n keys; the words are in the locale catalogs.
  */
 export const EPISODE_AUDIO_PROBLEM_LABEL: Record<EpisodeAudioProblem, string> = {
-  'signed-out': 'Sign in to play this',
-  forbidden: 'Sign in again to play this',
-  missing: 'Syra has no recording for this',
-  unavailable: "This one wouldn't play",
-  unreachable: "Couldn't reach Syra",
+  'signed-out': 'shows.audioProblem.signedOut',
+  forbidden: 'shows.audioProblem.forbidden',
+  missing: 'shows.audioProblem.missing',
+  unavailable: 'shows.audioProblem.unavailable',
+  unreachable: 'shows.audioProblem.unreachable',
 };
 
-/** What each production step is called while it is happening. */
+/** What each production step is called while it is happening (i18n keys). */
 const STEP_LABEL: Record<ShowEpisodeStatus, string> = {
-  queued: 'Queued',
-  generating_script: 'Writing the script',
-  generating_audio: 'Recording',
-  concatenating: 'Assembling',
-  publishing: 'Publishing to Syra',
-  completed: 'Ready',
-  failed: 'Failed',
+  queued: 'shows.step.queued',
+  generating_script: 'shows.step.generating_script',
+  generating_audio: 'shows.step.generating_audio',
+  concatenating: 'shows.step.concatenating',
+  publishing: 'shows.step.publishing',
+  completed: 'shows.step.completed',
+  failed: 'shows.step.failed',
 };
 
 interface EpisodeRowProps {
@@ -96,6 +98,7 @@ interface EpisodeRowProps {
 
 export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const { state, problem, toggle } = useEpisodeAudio(episode.syraEpisodeId);
   /**
    * The step text and the segment counter exist only on the live event. The
@@ -119,7 +122,7 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
    * stands in until then. It is the number Syra's own draft is reserved under,
    * which is why the two never look like different episodes.
    */
-  const name = episodeDisplayTitle(episode);
+  const name = episodeDisplayTitle(episode, t);
 
   /**
    * What the episode asked for and did not get.
@@ -145,9 +148,7 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
   const missingLinesLabel =
     isGenerating || missingLines === 0
       ? ''
-      : missingLines === 1
-        ? '1 line missing'
-        : `${missingLines} lines missing`;
+      : t('shows.linesMissing', { count: missingLines });
 
   /**
    * `date · duration`, the way Syra states it, behind the episode number — which
@@ -164,12 +165,14 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
    * an alarm about it.
    */
   const meta = joinEpisodeMeta([
-    `Episode ${episode.episodeNumber}`,
-    formatEpisodeDate(episode.createdAt),
+    t('shows.episodeNumber', { number: episode.episodeNumber }),
+    formatEpisodeDate(episode.createdAt, t),
     problem === null
-      ? formatEpisodeDuration(episode.durationMs)
-      : EPISODE_AUDIO_PROBLEM_LABEL[problem],
-    episode.creditsCharged ? `${episode.creditsCharged} credits` : '',
+      ? formatEpisodeDuration(episode.durationMs, t)
+      : t(EPISODE_AUDIO_PROBLEM_LABEL[problem]),
+    episode.creditsCharged
+      ? t('shows.credits', { count: episode.creditsCharged })
+      : '',
     missingLinesLabel,
   ]);
 
@@ -193,7 +196,7 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
       disabled={state === 'loading'}
       onPress={toggle}
       accessibilityRole="button"
-      accessibilityLabel={isPlaying ? `Pause ${name}` : `Play ${name}`}
+      accessibilityLabel={t(isPlaying ? 'shows.pause' : 'shows.play', { name })}
     />
   ) : isGenerating ? (
     <Loading variant="spinner" size="sm" />
@@ -222,7 +225,7 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
             icon={RiDeleteBinLine}
             onPress={handleDelete}
             accessibilityRole="button"
-            accessibilityLabel={`Delete ${name} everywhere`}
+            accessibilityLabel={t('shows.deleteEpisode.label', { name })}
           />
           {readiness}
         </View>
@@ -248,7 +251,7 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
               value={progress}
               max={100}
               height={3}
-              accessibilityLabel={`${name} progress`}
+              accessibilityLabel={t('shows.progress', { name })}
               valueText={`${progress}%`}
             />
             <View className="flex-row justify-between gap-2">
@@ -256,11 +259,14 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
                 numberOfLines={1}
                 className="text-[11px] leading-[15px] text-muted-foreground"
               >
-                {live?.currentStep || STEP_LABEL[episode.status]}
+                {live?.currentStep || t(STEP_LABEL[episode.status])}
               </Text>
               {live?.segmentIndex !== undefined && live.totalSegments !== undefined ? (
                 <Text className="text-[11px] leading-[15px] text-muted-foreground">
-                  Segment {live.segmentIndex}/{live.totalSegments}
+                  {t('shows.segment', {
+                    index: live.segmentIndex,
+                    total: live.totalSegments,
+                  })}
                 </Text>
               ) : null}
             </View>

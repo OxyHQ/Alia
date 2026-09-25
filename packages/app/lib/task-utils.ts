@@ -26,8 +26,17 @@ const TOOL_PILL_LABELS: Record<string, string> = {
   codeInterpreter: 'Running code',
 };
 
-export function getToolPillLabel(toolName: string): string {
-  if (TOOL_PILL_LABELS[toolName]) return TOOL_PILL_LABELS[toolName];
+type Translate = (key: string, params?: Record<string, unknown>) => string;
+
+/**
+ * A tool's short label. With `t`, a tool this file names reads in the
+ * reader's language (`tasks.tool.pill.*`); the English table stays as the
+ * words for a caller that has no translator yet.
+ */
+export function getToolPillLabel(toolName: string, t?: Translate): string {
+  if (Object.hasOwn(TOOL_PILL_LABELS, toolName)) {
+    return t ? t(`tasks.tool.pill.${toolName}`) : TOOL_PILL_LABELS[toolName];
+  }
 
   // Oxy service tools: oxy_serviceName__toolName → "ServiceName"
   if (toolName.startsWith('oxy_')) {
@@ -58,6 +67,7 @@ const TOOL_DONE_LABELS: Record<string, string> = {
   codeInterpreter: 'Ran code',
 };
 
-export function getToolDoneLabel(toolName: string): string {
-  return Object.hasOwn(TOOL_DONE_LABELS, toolName) ? TOOL_DONE_LABELS[toolName] : getToolPillLabel(toolName);
+export function getToolDoneLabel(toolName: string, t?: Translate): string {
+  if (!Object.hasOwn(TOOL_DONE_LABELS, toolName)) return getToolPillLabel(toolName, t);
+  return t ? t(`tasks.tool.done.${toolName}`) : TOOL_DONE_LABELS[toolName];
 }

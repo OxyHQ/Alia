@@ -5,6 +5,7 @@ import {
   useSetAutomationEnabled,
   useStopAutomation,
 } from '@/lib/hooks/use-automations';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { toast } from '@oxy.so/bloom/toast';
 import { useCallback, useState } from 'react';
 
@@ -16,6 +17,7 @@ import { useCallback, useState } from 'react';
  * it busy.
  */
 export function useAutomationControls() {
+  const { t } = useTranslation();
   const setEnabled = useSetAutomationEnabled();
   const stopAutomation = useStopAutomation();
   const runAutomation = useRunAutomation();
@@ -28,16 +30,18 @@ export function useAutomationControls() {
         const result = await setEnabled.mutateAsync({ automation, enabled });
         if (result.revocation?.failed) {
           toast.error(
-            `Automation stopped, but ${result.revocation.failed} authorization revocation failed`,
+            t('automations.controls.revocationFailed', {
+              count: result.revocation.failed,
+            }),
           );
         }
       } catch (error: unknown) {
-        toast.error(getErrorMessage(error, 'Failed to update automation'));
+        toast.error(getErrorMessage(error, t('automations.controls.updateFailed')));
       } finally {
         setBusyId(null);
       }
     },
-    [setEnabled],
+    [setEnabled, t],
   );
 
   const stop = useCallback(
@@ -47,18 +51,20 @@ export function useAutomationControls() {
         const result = await stopAutomation.mutateAsync(automation);
         if (result.revocation?.failed) {
           toast.error(
-            `Automation stopped, but ${result.revocation.failed} authorization revocation failed`,
+            t('automations.controls.revocationFailed', {
+              count: result.revocation.failed,
+            }),
           );
         } else {
-          toast.success('Automation stopped and access revoked');
+          toast.success(t('automations.controls.stopped'));
         }
       } catch (error: unknown) {
-        toast.error(getErrorMessage(error, 'Failed to stop automation'));
+        toast.error(getErrorMessage(error, t('automations.controls.stopFailed')));
       } finally {
         setBusyId(null);
       }
     },
-    [stopAutomation],
+    [stopAutomation, t],
   );
 
   const runNow = useCallback(
@@ -66,14 +72,14 @@ export function useAutomationControls() {
       setBusyId(automation.id);
       try {
         await runAutomation.mutateAsync(automation);
-        toast.success('Automation queued');
+        toast.success(t('automations.controls.queued'));
       } catch (error: unknown) {
-        toast.error(getErrorMessage(error, 'Automation run failed'));
+        toast.error(getErrorMessage(error, t('automations.controls.runFailed')));
       } finally {
         setBusyId(null);
       }
     },
-    [runAutomation],
+    [runAutomation, t],
   );
 
   return { busyId, toggleEnabled, stop, runNow };

@@ -174,13 +174,13 @@ const ChatPage = () => {
           <title>Alia \ Oxy</title>
           <meta
             name="description"
-            content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly."
+            content={t('landing.metaDescription')}
           />
           <link rel="canonical" href="https://alia.onl/" />
           <meta property="og:title" content="Alia \ Oxy" />
           <meta
             property="og:description"
-            content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly."
+            content={t('landing.metaDescription')}
           />
           <meta
             property="og:image"

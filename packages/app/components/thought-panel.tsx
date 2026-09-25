@@ -5,6 +5,7 @@ import type { Message } from '@/lib/hooks/use-conversations';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useUIStore, type ThoughtTab } from '@/lib/stores/ui-store';
 import {
+  auditText,
   buildAuditTimeline,
   buildSteps,
   extractOutputs,
@@ -14,6 +15,7 @@ import {
   researchSourcesToSources,
   toolCallStatus,
   toolCallText,
+  toolLabel,
   turnLifecycle,
   type AuditEntry,
   type OutputFile,
@@ -172,7 +174,7 @@ function StepsTab({
           return (
             <AgentLogRow key={key} first={first} last={isLastRow} reduce={reduce}>
               <ToolStep
-                title={step.label}
+                title={step.toolName === undefined ? step.label : toolLabel(step.toolName, t)}
                 status={status}
                 icon={
                   <ToolIcon width={14} height={14} fill={status === 'error' ? colors.error : colors.text} />
@@ -211,10 +213,16 @@ function ActivityTab({ entries }: { entries: AuditEntry[] }) {
             <View className="flex-row items-center gap-1.5">
               {entry.status === 'interrupted' ? <RiForbidLine size="xs" fill={colors.textSecondary} /> : null}
               <Text variant="body-regular" numberOfLines={1}>
-                {entry.status === 'in_progress' ? <AgentLogShimmerText>{entry.label}</AgentLogShimmerText> : entry.label}
+                {entry.status === 'in_progress' ? (
+                  <AgentLogShimmerText>{auditText(entry.label, t)}</AgentLogShimmerText>
+                ) : (
+                  auditText(entry.label, t)
+                )}
               </Text>
             </View>
-            {entry.description ? <Muted numberOfLines={1}>{entry.description}</Muted> : null}
+            {auditText(entry.description, t) ? (
+              <Muted numberOfLines={1}>{auditText(entry.description, t)}</Muted>
+            ) : null}
           </View>
         </AgentLogRow>
       ))}

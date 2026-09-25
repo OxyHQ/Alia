@@ -95,12 +95,12 @@ export const AgentTaskCard = React.memo(function AgentTaskCard({ activity }: Age
               variant="wave"
               label={
                 currentAction.content
-                  ? `${getToolPillLabel(currentAction.toolName)} · ${
+                  ? `${getToolPillLabel(currentAction.toolName, t)} · ${
                       currentAction.content.length > 80
                         ? `${currentAction.content.slice(0, 80)}…`
                         : currentAction.content
                     }`
-                  : getToolPillLabel(currentAction.toolName)
+                  : getToolPillLabel(currentAction.toolName, t)
               }
             />
           ) : null}

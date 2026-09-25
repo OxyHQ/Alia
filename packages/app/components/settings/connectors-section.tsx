@@ -5,6 +5,7 @@ import {
   type McpRegistryEntry,
 } from '@/lib/hooks/use-mcp-servers';
 import { useTranslation } from '@/lib/hooks/use-translation';
+import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
@@ -134,16 +135,17 @@ function ConnectorRow({
         >
           {t('settings.connections.viewDetails')}
         </Button>
+        {/* Connected is a STATE, so it is a badge — it was a button that was
+            always disabled, a control that could never be pressed (#608,
+            rule 6). Managing the connection is "View details". */}
         {connected ? (
-          <Button
-            size="sm"
-            appearance="outline"
-            tone="neutral"
-            leadingIcon={RiCheckLine}
-            disabled
-          >
-            {t('connectors.connected')}
-          </Button>
+          <Badge
+            size="label-small"
+            variant="subtle"
+            color="success"
+            icon={RiCheckLine}
+            content={t('connectors.connected')}
+          />
         ) : (
           <Button
             size="sm"

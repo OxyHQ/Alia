@@ -1,10 +1,11 @@
 import {
   actorLabel,
   canRunNow,
-  humanizeIdentifier,
   policyReason,
+  runStatusLabel,
   triggerLabel,
 } from '@/lib/automations/format';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import type {
   AutomationDefinition,
   AutomationRun,
@@ -94,19 +95,23 @@ export function AutomationCard({
   variant?: 'full' | 'compact';
 }) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const compact = variant === 'compact';
   const title = automation.objective;
-  const lifecycle = lifecycleLabel(automationLifecycle(automation, latestRun));
+  const lifecycle = lifecycleLabel(automationLifecycle(automation, latestRun), t);
   const lastReason = policyReason(latestRun);
   const iconProps = { width: 16, height: 16, fill: colors.textSecondary };
 
   return (
-    <Card appearance="outline" accessibilityLabel={`Automation ${title}`}>
+    <Card appearance="outline" accessibilityLabel={t('automations.card.label', { title })}>
       <Item
         title={<CardTitle>{title}</CardTitle>}
         trailing={
           <Switch
-            accessibilityLabel={`${automation.enabled ? 'Pause' : 'Resume'} ${title}`}
+            accessibilityLabel={t(
+              automation.enabled ? 'automations.card.pause' : 'automations.card.resume',
+              { title },
+            )}
             value={automation.enabled}
             disabled={controlsDisabled}
             onValueChange={(enabled) => onToggle(automation, enabled)}
@@ -117,13 +122,13 @@ export function AutomationCard({
         {/* Stacking only: the badges wrap in a row. */}
         <View className="flex-row flex-wrap gap-2">
           <StatusBadge label={lifecycle.label} tone={lifecycle.tone} />
-          {compact ? <StatusBadge label="Automation" /> : null}
+          {compact ? <StatusBadge label={t('automations.card.kind')} /> : null}
         </View>
       </Item>
       <Item
         density="compact"
         leading={<RiTimeLine {...iconProps} />}
-        title={<Muted>{triggerLabel(automation.trigger)}</Muted>}
+        title={<Muted>{triggerLabel(automation.trigger, t)}</Muted>}
       />
       {compact ? null : (
         <Item
@@ -131,7 +136,7 @@ export function AutomationCard({
           leading={<RiUserLine {...iconProps} />}
           title={
             <Muted>
-              {actorLabel(automation.actorSelection, agentName)}
+              {actorLabel(automation.actorSelection, agentName, t)}
             </Muted>
           }
         />
@@ -139,11 +144,17 @@ export function AutomationCard({
       {latestRun ? (
         <Item
           density="compact"
-          title={<Muted>{compact ? 'Latest run' : 'Latest decision'}</Muted>}
+          title={
+            <Muted>
+              {compact
+                ? t('automations.card.latestRun')
+                : t('automations.card.latestDecision')}
+            </Muted>
+          }
           subtitle={lastReason ? <Muted>{lastReason}</Muted> : undefined}
           trailing={
             <StatusBadge
-              label={humanizeIdentifier(latestRun.status)}
+              label={runStatusLabel(latestRun.status, t)}
               tone={automationStatusTone(latestRun.status)}
             />
           }
@@ -161,11 +172,11 @@ export function AutomationCard({
               leadingIcon={RiPlayLine}
               loading={busy}
               accessibilityRole="button"
-              accessibilityLabel={`Run ${title}`}
+              accessibilityLabel={t('automations.card.runLabel', { title })}
               disabled={controlsDisabled || !automation.enabled}
               onPress={() => onRun(automation)}
             >
-              Run now
+              {t('automations.card.runNow')}
             </Button>
           ) : null}
           {automation.enabled ? (
@@ -175,14 +186,14 @@ export function AutomationCard({
               size="sm"
               leadingIcon={RiStopFill}
               accessibilityRole="button"
-              accessibilityLabel={`Stop ${title}`}
+              accessibilityLabel={t('automations.card.stopLabel', { title })}
               disabled={controlsDisabled}
               onPress={() => onStop(automation)}
             >
-              Stop and revoke
+              {t('automations.card.stop')}
             </Button>
           ) : compact ? null : (
-            <StatusBadge label="Stopped" />
+            <StatusBadge label={t('automations.card.stopped')} />
           )}
           <Button
             tone="neutral"
@@ -190,11 +201,13 @@ export function AutomationCard({
             size="sm"
             className="ml-auto"
             accessibilityRole="button"
-            accessibilityLabel={`View history for ${title}`}
+            accessibilityLabel={t('automations.card.historyLabel', { title })}
             disabled={controlsDisabled}
             onPress={() => onViewHistory(automation)}
           >
-            {compact ? 'History' : 'View history'}
+            {compact
+              ? t('automations.card.history')
+              : t('automations.card.viewHistory')}
           </Button>
         </View>
       </CardFooter>

@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { TaskSession } from '../../hooks/use-tasks';
 import type { AutomationDefinition, AutomationRun } from '../types';
 import { automationLifecycle, lifecycleLabel, unifiedWorkItems } from '../work-items';
+import { translator } from '@/test/translate';
+
+const t = translator('en');
 
 /**
  * The unified Tasks list (#537): sessions and automations in ONE ordered list,
@@ -149,9 +152,9 @@ describe('automationLifecycle', () => {
   });
 
   it('labels every lifecycle', () => {
-    expect(lifecycleLabel('running')).toEqual({ label: 'Running', tone: 'warning' });
-    expect(lifecycleLabel('paused')).toEqual({ label: 'Paused', tone: 'neutral' });
-    expect(lifecycleLabel('failed')).toEqual({ label: 'Failed', tone: 'danger' });
-    expect(lifecycleLabel('scheduled').label).toBe('Scheduled');
+    expect(lifecycleLabel('running', t)).toEqual({ label: 'Running', tone: 'warning' });
+    expect(lifecycleLabel('paused', t)).toEqual({ label: 'Paused', tone: 'neutral' });
+    expect(lifecycleLabel('failed', t)).toEqual({ label: 'Failed', tone: 'danger' });
+    expect(lifecycleLabel('scheduled', t).label).toBe('Scheduled');
   });
 });

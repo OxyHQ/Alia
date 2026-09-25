@@ -123,7 +123,7 @@ export const AgentCard = React.memo(function AgentCard({
               onPress={() => onHire?.(agent._id)}
             >
               {agent.price != null
-                ? `${t('agents.startTask')} · ${agent.price} credits`
+                ? t('agents.startTaskPriced', { count: agent.price })
                 : t('agents.startTask')}
             </Button>
           )}

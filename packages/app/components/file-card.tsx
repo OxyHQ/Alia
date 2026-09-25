@@ -1,3 +1,4 @@
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { LibraryFile } from '@/lib/stores/library-store';
 import { formatFileSize } from '@/lib/utils/format-file-size';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -28,24 +29,28 @@ function categoryIcon(category: LibraryFile['category']) {
   return <RiFilePaper2Line size="sm" />;
 }
 
-function formatDate(date: Date): string {
+function formatDate(
+  date: Date,
+  t: (key: string, params?: Record<string, unknown>) => string,
+): string {
   const now = new Date();
   const diff = now.getTime() - date.getTime();
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days}d ago`;
+  if (days === 0) return t('library.today');
+  if (days === 1) return t('library.yesterday');
+  if (days < 7) return t('library.daysAgo', { count: days });
 
   return date.toLocaleDateString();
 }
 
 /** One Library file: a Bloom `Item` row with its thumbnail and its menu. */
 export function FileCard({ file, onPress, onDelete }: FileCardProps) {
+  const { t } = useTranslation();
   const subtitle = [
     file.type.split('/').pop()?.toUpperCase(),
     file.size > 0 ? formatFileSize(file.size) : null,
-    formatDate(file.createdAt),
+    formatDate(file.createdAt, t),
   ]
     .filter(Boolean)
     .join(' · ');
@@ -53,14 +58,15 @@ export function FileCard({ file, onPress, onDelete }: FileCardProps) {
   return (
     <Item
       role="listitem"
-      onPress={() => onPress?.(file)}
+      // A row is pressable only when a press does something. The Library
+      // passes no `onPress`, and the row used to be a button anyway — one
+      // that highlighted and did nothing (#608, rule 6).
+      onPress={onPress === undefined ? undefined : () => onPress(file)}
       leading={
         <Avatar
           size={36}
           source={
-            file.category === 'images' && file.thumbnail
-              ? file.thumbnail
-              : null
+            file.category === 'images' && file.thumbnail ? file.thumbnail : null
           }
           color="neutral"
           placeholderIcon={categoryIcon(file.category)}
@@ -69,28 +75,36 @@ export function FileCard({ file, onPress, onDelete }: FileCardProps) {
       }
       title={file.name}
       subtitle={subtitle}
+      // The menu holds Delete and nothing else, so no `onDelete`, no menu.
       trailing={
-        <DropdownMenu>
-          <DropdownMenuTrigger label="Actions" asChild>
-            <Button
-              icon={RiMoreFill}
-              size="sm"
-              tone="neutral"
-              appearance="plain"
-              accessibilityLabel={`Actions for ${file.name}`}
-            />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem
-              key="delete"
-              tone="danger"
-              onPress={() => onDelete?.(file)}
-              leading={<RiDeleteBinLine size="sm" />}
+        onDelete === undefined ? undefined : (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              label={t('library.fileActions', { name: file.name })}
+              asChild
             >
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <Button
+                icon={RiMoreFill}
+                size="sm"
+                tone="neutral"
+                appearance="plain"
+                accessibilityLabel={t('library.fileActions', {
+                  name: file.name,
+                })}
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem
+                key="delete"
+                tone="danger"
+                onPress={() => onDelete(file)}
+                leading={<RiDeleteBinLine size="sm" />}
+              >
+                {t('common.delete')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )
       }
     />
   );

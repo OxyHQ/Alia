@@ -6,6 +6,9 @@ import type {
   AutomationTrigger,
 } from './types';
 
+/** The app's translator, as a parameter: these run outside React. */
+export type Translate = (key: string, params?: Record<string, unknown>) => string;
+
 export function to24Hour(time12: string): string | null {
   const time24 = time12.match(/^(\d{1,2}):(\d{2})$/);
   if (time24) {
@@ -34,7 +37,6 @@ export function humanizeIdentifier(value: string): string {
     .join(' ');
 }
 
-const CRON_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 function cronDayList(field: string): number[] | null {
   const days: number[] = [];
@@ -61,7 +63,7 @@ function cronDayList(field: string): number[] | null {
  * Anything else (a hand-written structured schedule) is returned verbatim
  * rather than guessed at: a wrong sentence is worse than a cron string.
  */
-export function cronLabel(cron: string): string {
+export function cronLabel(cron: string, t: Translate): string {
   const fields = cron.trim().split(/\s+/);
   if (fields.length !== 5) return cron;
   const [minute, hour, dayOfMonth, month, dayOfWeek] = fields as [string, string, string, string, string];
@@ -70,43 +72,44 @@ export function cronLabel(cron: string): string {
   const interval = minute.match(/^\*\/(\d+)$/);
   if (interval && hour === '*' && dayOfWeek === '*') {
     const minutes = Number(interval[1]);
-    if (minutes === 60) return 'Every hour';
-    if (minutes > 60 && minutes % 60 === 0) return `Every ${minutes / 60} hours`;
-    return minutes === 1 ? 'Every minute' : `Every ${minutes} minutes`;
+    if (minutes === 60) return t('automations.cron.everyHour');
+    if (minutes > 60 && minutes % 60 === 0) return t('automations.cron.everyHours', { count: minutes / 60 });
+    return t('automations.cron.everyMinutes', { count: minutes });
   }
 
   if (!/^\d{1,2}$/.test(minute) || !/^\d{1,2}$/.test(hour)) return cron;
   if (Number(minute) > 59 || Number(hour) > 23) return cron;
   const time = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
-  if (dayOfWeek === '*') return `Daily at ${time}`;
+  if (dayOfWeek === '*') return t('automations.cron.dailyAt', { time });
   const days = cronDayList(dayOfWeek);
   if (!days) return cron;
-  if (days.length === 7) return `Daily at ${time}`;
+  if (days.length === 7) return t('automations.cron.dailyAt', { time });
   if (days.length === 5 && days.every((day, index) => day === index + 1)) {
-    return `Weekdays at ${time}`;
+    return t('automations.cron.weekdaysAt', { time });
   }
-  if (days.length === 2 && days[0] === 0 && days[1] === 6) return `Weekends at ${time}`;
-  const names = days.map((day) => `${CRON_DAY_NAMES[day]}s`);
-  return `${names.join(', ')} at ${time}`;
+  if (days.length === 2 && days[0] === 0 && days[1] === 6) return t('automations.cron.weekendsAt', { time });
+  const names = days.map((day) => t(`automations.cron.dayPlural.${day}`));
+  return t('automations.cron.daysAt', { days: names.join(', '), time });
 }
 
-export function triggerLabel(trigger: AutomationTrigger): string {
-  if (trigger.type === 'manual') return 'Manual request';
+export function triggerLabel(trigger: AutomationTrigger, t: Translate): string {
+  if (trigger.type === 'manual') return t('automations.trigger.manual');
   if (trigger.type === 'event') {
-    return `${trigger.appId ?? 'Any app'} · ${trigger.eventType ?? 'Any event'}`;
+    return `${trigger.appId ?? t('automations.trigger.anyApp')} · ${trigger.eventType ?? t('automations.trigger.anyEvent')}`;
   }
-  return `${trigger.cron ? cronLabel(trigger.cron) : 'Unscheduled'} · ${trigger.timezone ?? 'UTC'}`;
+  return `${trigger.cron ? cronLabel(trigger.cron, t) : t('automations.trigger.unscheduled')} · ${trigger.timezone ?? 'UTC'}`;
 }
 
 export function actorLabel(
   selection: AutomationActorSelection,
   agentName: (agentId: string) => string,
+  t: Translate,
 ): string {
   if (selection.mode === 'fixed') {
-    return selection.agentId ? agentName(selection.agentId) : 'No agent assigned';
+    return selection.agentId ? agentName(selection.agentId) : t('automations.actor.none');
   }
   if (selection.eligibleAgentIds.length === 0) {
-    return 'No eligible agents';
+    return t('automations.actor.noEligible');
   }
   return selection.eligibleAgentIds.map(agentName).join(', ');
 }
@@ -128,6 +131,24 @@ export function latestRunsByAutomation(runs: readonly AutomationRun[]): Map<stri
     }
   }
   return latest;
+}
+
+/**
+ * A run's status in words. The union is the API's; a status it adds later
+ * reads as its humanized identifier until it has words of its own here.
+ */
+const RUN_STATUSES: ReadonlySet<string> = new Set([
+  'planned',
+  'running',
+  'observed',
+  'succeeded',
+  'failed',
+  'cancelled',
+  'denied',
+]);
+
+export function runStatusLabel(status: string, t: Translate): string {
+  return RUN_STATUSES.has(status) ? t(`automations.runStatus.${status}`) : humanizeIdentifier(status);
 }
 
 export function policyReason(run: AutomationRun | undefined): string | null {

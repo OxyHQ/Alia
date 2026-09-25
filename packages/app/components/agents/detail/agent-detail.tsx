@@ -15,9 +15,7 @@ import { useAgentDetailActions } from '@/lib/hooks/agents/use-agent-detail-actio
 import { useAgentThreads } from '@/lib/hooks/use-agent-threads';
 import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
 import { useTranslation } from '@/lib/hooks/use-translation';
-import { useAgentFavoritesStore } from '@/lib/stores/agent-favorites-store';
 import type { Agent } from '@/lib/types/agents';
-import { Badge } from '@oxy.so/bloom/badge';
 import { Divider } from '@oxy.so/bloom/divider';
 import {
   SettingsListGroup,
@@ -27,11 +25,10 @@ import { Switch } from '@oxy.so/bloom/switch';
 import { Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '@oxy.so/services';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect } from 'react';
 import { ScrollView, View } from 'react-native';
 
 /**
- * The granted families, by label, for the listing.
+ * The granted families, by their label KEYS, for the listing.
  *
  * Derived rather than stored: the row carries grant STRINGS, and a family the
  * app does not know about is skipped rather than rendered raw.
@@ -52,16 +49,11 @@ export function AgentDetail({ agent }: { agent: Agent }) {
   const { data: agentThreads = [] } = useAgentThreads(agent._id);
   const actions = useAgentDetailActions(agent);
 
-  const toggleFavorite = useAgentFavoritesStore((s) => s.toggleFavorite);
-  const isFavorite = useAgentFavoritesStore((s) => s.isFavorite);
-  const loadFavorites = useAgentFavoritesStore((s) => s.loadFavorites);
-  useEffect(() => {
-    loadFavorites();
-  }, [loadFavorites]);
-
   const isOwner = !!(user && user.id === agent.author);
   const handle = agentHandle(agent);
-  const capabilityLabels = grantedFamilyLabels(agent.capabilityGrants ?? []);
+  const capabilityLabels = grantedFamilyLabels(agent.capabilityGrants ?? []).map(
+    (key) => t(key),
+  );
 
   return (
     <View className={isLargeScreen ? 'flex-1 flex-row' : 'flex-1 flex-col'}>
@@ -73,7 +65,6 @@ export function AgentDetail({ agent }: { agent: Agent }) {
             <AgentHeaderActions
               isOwner={isOwner}
               price={agent.price}
-              bookmarked={isFavorite(agent._id)}
               onEdit={() =>
                 router.push({
                   pathname: '/(app)/agents/edit/[id]',
@@ -83,7 +74,6 @@ export function AgentDetail({ agent }: { agent: Agent }) {
               onChat={actions.handleChat}
               onStartTask={actions.handleHirePress}
               onShare={actions.handleShare}
-              onToggleBookmark={() => toggleFavorite(agent._id)}
             />
           ),
         }}
@@ -103,15 +93,19 @@ export function AgentDetail({ agent }: { agent: Agent }) {
           {isOwner && (
             <SettingsListGroup>
               <SettingsListItem
-                title={agent.status === 'active' ? 'Active' : 'Paused'}
+                title={
+                  agent.status === 'active'
+                    ? t('agents.statusActive')
+                    : t('agents.statusPaused')
+                }
                 description={
                   agent.status === 'active'
-                    ? 'Accepting hires'
-                    : 'Not accepting hires'
+                    ? t('agents.acceptingHires')
+                    : t('agents.notAcceptingHires')
                 }
                 rightElement={
                   <Switch
-                    accessibilityLabel="Accepting hires"
+                    accessibilityLabel={t('agents.acceptingHires')}
                     value={agent.status === 'active'}
                     onValueChange={(on) =>
                       actions.handleStatusToggle(on ? 'active' : 'idle')
@@ -198,10 +192,10 @@ export function AgentDetail({ agent }: { agent: Agent }) {
       {/* Activity terminal beside the details — desktop only */}
       {isLargeScreen && (
         <View className="flex-1 gap-2 p-4">
-          <View className="flex-row items-center gap-2">
-            <Badge dot color="success" />
-            <Text variant="headline-semibold">{t('agents.activity')}</Text>
-          </View>
+          {/* No status dot beside the title: it was a green dot drawn
+              unconditionally, a "live" signal that knew nothing about the
+              terminal's connection (#608, rule 6). */}
+          <Text variant="headline-semibold">{t('agents.activity')}</Text>
           <View className="flex-1">
             <AgentTerminal agentId={agent._id} />
           </View>
