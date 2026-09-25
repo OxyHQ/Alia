@@ -34,7 +34,7 @@ import type { Message } from '@/types/chat';
 import { Button } from '@oxy.so/bloom/button';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
@@ -116,6 +116,7 @@ export const ConversationScreen = ({
     error,
     sendMessage,
     stopGeneration,
+    clearConversation,
     clearError,
     approvePlan,
     rejectPlan,
@@ -277,14 +278,6 @@ export const ConversationScreen = ({
     }
   }, [t, deleteConversation, conversationId, router]);
 
-  const headerActions = (
-    <ChatHeaderActions
-      onSearch={threadHandle === undefined ? undefined : handleSearchOpen}
-      onExport={handleExport}
-      onDelete={threadHandle === undefined ? handleDelete : undefined}
-    />
-  );
-
   /**
    * The agent run this conversation started, if it started one: the session
    * the `alia.agent_turn` frame opened, only while that frame came from THIS
@@ -296,6 +289,28 @@ export const ConversationScreen = ({
   );
   const activeAgentId = useUIStore((s) => s.activeAgentId);
   const agentActivity = useAgentActivity(activeAgentSessionId, activeAgentId);
+
+  /**
+   * The agent whose terminal this chat can show: the thread's own agent, or
+   * the one a turn of THIS conversation put to work. The panel keeps it for
+   * the route it was opened on, so another chat never shows it.
+   */
+  const agentTurnHere = useUIStore((s) => s.activeAgentConversationId === conversationId);
+  const terminalAgentId = agentId ?? (agentTurnHere && activeAgentId ? activeAgentId : undefined);
+  const pathname = usePathname();
+  const handleOpenTerminal = useCallback(() => {
+    if (terminalAgentId !== undefined) useUIStore.getState().openAgentTerminal(terminalAgentId, pathname);
+  }, [terminalAgentId, pathname]);
+
+  const headerActions = (
+    <ChatHeaderActions
+      onSearch={threadHandle === undefined ? undefined : handleSearchOpen}
+      onExport={handleExport}
+      onClear={clearConversation}
+      onOpenTerminal={terminalAgentId === undefined ? undefined : handleOpenTerminal}
+      onDelete={threadHandle === undefined ? handleDelete : undefined}
+    />
+  );
 
   /**
    * Writing is done in the present, so it ends a jump.

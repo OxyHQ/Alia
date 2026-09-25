@@ -15,7 +15,10 @@ import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { RiSideBarLine } from '@oxy.so/bloom/icons/RiSideBarLine';
 import { RiDashboardLine } from '@oxy.so/bloom/icons/RiDashboardLine';
-import React from 'react';
+import { RiDeleteBin6Line } from '@oxy.so/bloom/icons/RiDeleteBin6Line';
+import { RiTerminalBoxLine } from '@oxy.so/bloom/icons/RiTerminalBoxLine';
+import { confirm } from '@oxy.so/bloom/surfaces';
+import React, { useRef } from 'react';
 
 export interface ChatHeaderActionsProps {
   /** Search what was said in this thread. Absent where there is no thread. */
@@ -24,6 +27,14 @@ export interface ChatHeaderActionsProps {
   onExport: () => void;
   /** Delete the conversation (the caller confirms). Absent where it cannot be. */
   onDelete?: () => void;
+  /**
+   * Empty the thread, on the server and on screen. Confirmed HERE, because
+   * the dialog's promise ("cannot be undone") is this menu's; awaited, so a
+   * second press while the first clear is in flight sends nothing.
+   */
+  onClear?: () => Promise<unknown>;
+  /** Show the agent's terminal in the panel. Absent where no agent works in this chat. */
+  onOpenTerminal?: () => void;
 }
 
 /**
@@ -46,8 +57,30 @@ export const ChatHeaderActions = React.memo(function ChatHeaderActions({
   onSearch,
   onExport,
   onDelete,
+  onClear,
+  onOpenTerminal,
 }: ChatHeaderActionsProps) {
   const { t } = useTranslation();
+  /** Held while a clear is in flight, so the item cannot start a second one. */
+  const clearing = useRef(false);
+  const handleClear = async () => {
+    if (onClear === undefined || clearing.current) return;
+    clearing.current = true;
+    try {
+      const ok = await confirm({
+        title: t('chatHeader.clearConfirmTitle'),
+        description: t('chatHeader.clearConfirmDescription'),
+        confirmLabel: t('chatHeader.clear'),
+        cancelLabel: t('common.cancel'),
+        destructive: true,
+      });
+      // Cancelling changes nothing: no request, no local reset. A refusal is
+      // reported by the owner of the thread.
+      if (ok) await onClear();
+    } finally {
+      clearing.current = false;
+    }
+  };
   const panelOpen = useUIStore((s) => s.rightPanel !== null);
   const togglePanel = () => {
     const { setRightPanel, canvasArtifacts } = useUIStore.getState();
@@ -75,6 +108,11 @@ export const ChatHeaderActions = React.memo(function ChatHeaderActions({
         <DropdownMenuItem onPress={togglePanel} leading={<RiSideBarLine size="sm" />}>
           {panelOpen ? t('chatHeader.hidePanel') : t('chatHeader.showPanel')}
         </DropdownMenuItem>
+        {onOpenTerminal === undefined ? null : (
+          <DropdownMenuItem onPress={onOpenTerminal} leading={<RiTerminalBoxLine size="sm" />}>
+            {t('chatHeader.agentTerminal')}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onPress={() => useUIStore.getState().setRightPanel('credits')}
           leading={<RiDashboardLine size="sm" />}
@@ -84,9 +122,18 @@ export const ChatHeaderActions = React.memo(function ChatHeaderActions({
         <DropdownMenuItem onPress={onExport} leading={<RiDownloadLine size="sm" />}>
           {t('chat.exportMarkdown')}
         </DropdownMenuItem>
+        {onClear === undefined && onDelete === undefined ? null : <DropdownMenuSeparator />}
+        {onClear === undefined ? null : (
+          <DropdownMenuItem
+            tone="danger"
+            onPress={() => void handleClear()}
+            leading={<RiDeleteBin6Line size="sm" />}
+          >
+            {t('chatHeader.clearConversation')}
+          </DropdownMenuItem>
+        )}
         {onDelete === undefined ? null : (
           <>
-            <DropdownMenuSeparator />
             <DropdownMenuItem
               tone="danger"
               onPress={onDelete}

@@ -59,7 +59,17 @@ vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
   };
 });
 vi.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
-for (const icon of ['RiDeleteBinLine', 'RiDownloadLine', 'RiMoreFill', 'RiSearchLine', 'RiMenuLine']) {
+const surfaces = vi.hoisted(() => ({ confirm: vi.fn(async (_options: Record<string, unknown>) => true) }));
+vi.mock('@oxy.so/bloom/surfaces', () => surfaces);
+for (const icon of [
+  'RiDeleteBinLine',
+  'RiDeleteBin6Line',
+  'RiTerminalBoxLine',
+  'RiDownloadLine',
+  'RiMoreFill',
+  'RiSearchLine',
+  'RiMenuLine',
+]) {
   vi.doMock(`@oxy.so/bloom/icons/${icon}`, () => ({ [icon]: () => null }));
 }
 
@@ -155,6 +165,58 @@ describe('ChatHeaderActions', () => {
     const r = render(<ChatHeaderActions onExport={vi.fn()} onDelete={onDelete} />);
     act(() => all(r, 'MenuItem')[3].props.onPress());
     expect(onDelete).toHaveBeenCalledOnce();
+  });
+});
+
+describe('ChatHeaderActions — clear and terminal', () => {
+  const item = (r: ReactTestRenderer, label: string) =>
+    all(r, 'MenuItem').find((node) => node.props.children === label);
+
+  it('offers "Clear conversation" and the agent terminal only when the screen can do them', () => {
+    let r = render(<ChatHeaderActions onExport={vi.fn()} />);
+    expect(item(r, 'chatHeader.clearConversation')).toBeUndefined();
+    expect(item(r, 'chatHeader.agentTerminal')).toBeUndefined();
+    act(() => renderer?.unmount());
+
+    r = render(<ChatHeaderActions onExport={vi.fn()} onClear={vi.fn(async () => true)} onOpenTerminal={vi.fn()} />);
+    expect(item(r, 'chatHeader.clearConversation')?.props.tone).toBe('danger');
+    expect(item(r, 'chatHeader.agentTerminal')).toBeDefined();
+  });
+
+  it('asks before clearing, and clears only on a yes', async () => {
+    const onClear = vi.fn(async () => true);
+    const r = render(<ChatHeaderActions onExport={vi.fn()} onClear={onClear} />);
+
+    surfaces.confirm.mockResolvedValueOnce(false);
+    await act(async () => item(r, 'chatHeader.clearConversation')?.props.onPress());
+    expect(surfaces.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'chatHeader.clearConfirmTitle', destructive: true }),
+    );
+    expect(onClear).not.toHaveBeenCalled();
+
+    surfaces.confirm.mockResolvedValueOnce(true);
+    await act(async () => item(r, 'chatHeader.clearConversation')?.props.onPress());
+    expect(onClear).toHaveBeenCalledOnce();
+  });
+
+  it('starts one clear at a time', async () => {
+    let finish: (value: boolean) => void = () => {};
+    const onClear = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; }));
+    surfaces.confirm.mockResolvedValue(true);
+    const r = render(<ChatHeaderActions onExport={vi.fn()} onClear={onClear} />);
+    await act(async () => {
+      item(r, 'chatHeader.clearConversation')?.props.onPress();
+      item(r, 'chatHeader.clearConversation')?.props.onPress();
+    });
+    expect(onClear).toHaveBeenCalledOnce();
+    await act(async () => finish(true));
+  });
+
+  it('opens the terminal through the screen', () => {
+    const onOpenTerminal = vi.fn();
+    const r = render(<ChatHeaderActions onExport={vi.fn()} onOpenTerminal={onOpenTerminal} />);
+    act(() => item(r, 'chatHeader.agentTerminal')?.props.onPress());
+    expect(onOpenTerminal).toHaveBeenCalledOnce();
   });
 });
 
