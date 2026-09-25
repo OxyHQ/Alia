@@ -3,7 +3,10 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * A call and dictation never listen at the same time.
+ * What the conversation screen stands on and speaks through: the ambient field
+ * behind it, and the composer or the call bar in front.
+ *
+ * ## A call and dictation never listen at the same time
  *
  * Both recognize speech on the device, and there is one microphone and — on
  * iOS and Android — one recognizer module for the whole process. So the rule is
@@ -54,13 +57,25 @@ vi.mock('@alia.onl/sdk/voice', async () => {
 vi.mock('@/components/chat/chat-workspace', async () => {
   const ReactModule = await import('react');
   return {
-    ChatWorkspace: ({ composer, children }: { composer: React.ReactNode; children: React.ReactNode }) =>
-      ReactModule.createElement('ChatWorkspace', null, composer, children),
+    ChatWorkspace: ({
+      background,
+      composer,
+      children,
+    }: {
+      background: React.ReactNode;
+      composer: React.ReactNode;
+      children: React.ReactNode;
+    }) => ReactModule.createElement('ChatWorkspace', null, background, composer, children),
   };
 });
 
 vi.mock('@/components/chat-interface', () => ({ ChatInterface: () => null }));
-vi.mock('@/components/ambient-field', () => ({ AmbientField: () => null }));
+vi.mock('@/components/ambient-field', async () => {
+  const ReactModule = await import('react');
+  return {
+    AmbientField: (props: Record<string, unknown>) => ReactModule.createElement('AmbientField', props),
+  };
+});
 vi.mock('@/components/icons/voice-mode-icon', () => ({ VoiceModeIcon: () => null }));
 vi.mock('@/components/chat/composer/use-alia-composer', () => ({
   useAliaComposer: () => ({
@@ -101,7 +116,9 @@ vi.mock('@oxy.so/bloom/ai-chat', () => ({ AiChatMobileHeader: () => null }));
 vi.mock('@oxy.so/bloom/composer-panel', () => ({ ComposerPanelStatusTab: () => null }));
 vi.mock('@oxy.so/bloom/chat-screen', () => ({ ScrollToBottomButton: () => null }));
 vi.mock('@oxy.so/services', () => ({ useAuth: () => ({ isAuthenticated: true, signIn: vi.fn() }) }));
+const focus = vi.hoisted(() => ({ isFocused: true }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
+vi.mock('@/lib/hooks/use-screen-on-show', () => ({ useScreenOnShow: () => focus.isFocused }));
 vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) }));
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
@@ -129,8 +146,9 @@ function voice(isVoiceActive: boolean) {
   } as const;
 }
 
-function screen(isVoiceActive: boolean) {
+function screen(isVoiceActive: boolean, extra: Record<string, unknown> = {}) {
   return React.createElement(ChatPageContent, {
+    ...extra,
     messages: [],
     isLoading: false,
     onSubmit: vi.fn(),
@@ -145,6 +163,7 @@ beforeEach(() => {
   mounts.composerUnmounts = 0;
   mounts.lastValue = '';
   bar.labels = null;
+  focus.isFocused = true;
 });
 
 describe('a call replaces dictation', () => {
@@ -199,5 +218,46 @@ describe('a call replaces dictation', () => {
       mute: 't:voice.controls.mute',
       end: 't:voice.controls.end',
     });
+  });
+});
+
+/**
+ * One ambient layer per visible surface (#608 §3.1).
+ *
+ * The welcome intro and the chat share this screen's background slot: while
+ * the intro shows, ITS field is the background and the chat draws none of its
+ * own, so the intro's exit (the field sinking as the chat rises) is the only
+ * moment the handoff needs, and there is never a second field under the first.
+ * A screen covered by another route stays mounted on the native stack, so its
+ * field is paused rather than left looping behind it.
+ */
+describe('the ambient field behind the chat', () => {
+  it('is exactly one layer, and it runs while the screen is on show', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(screen(false));
+    });
+    const fields = renderer.root.findAllByType('AmbientField' as never);
+    expect(fields).toHaveLength(1);
+    expect((fields[0]!.props as { paused: boolean }).paused).toBe(false);
+  });
+
+  it('pauses while another route covers the screen', () => {
+    focus.isFocused = false;
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(screen(false));
+    });
+    expect((renderer.root.findByType('AmbientField' as never).props as { paused: boolean }).paused).toBe(true);
+  });
+
+  it('gives way to the intro\'s own field while the intro shows — never both', () => {
+    const introField = React.createElement('IntroField');
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(screen(false, { intro: { background: introField, content: null } }));
+    });
+    expect(renderer.root.findAllByType('AmbientField' as never)).toHaveLength(0);
+    expect(renderer.root.findAllByType('IntroField' as never)).toHaveLength(1);
   });
 });
