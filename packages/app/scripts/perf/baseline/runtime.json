@@ -826,5 +826,1024 @@
         }
       }
     ]
+  },
+  "workspace": {
+    "pinned": {
+      "export": "packages/app/dist-fixtures, EXPO_PUBLIC_ALIA_FIXTURES=1",
+      "route": "/__fixtures/a-1000 (ChatPageContent under the real (app) layout)",
+      "messages": 1000,
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "cpuThrottlingRate": 1,
+      "stream": {
+        "chunks": 60,
+        "intervalMs": 50
+      },
+      "scrollStepPx": 200,
+      "typed": "one key every 60ms"
+    },
+    "bundleCheck": {
+      "markers": [
+        "__aliaFixture",
+        "__fixtures/[id]",
+        "How do I paginate a Postgres table without OFFSET?"
+      ],
+      "clean": true
+    },
+    "summary": {
+      "openMs": {
+        "n": 3,
+        "median": 4909.100000000559,
+        "min": 3742,
+        "max": 5251.300000000745,
+        "p25": 4325.550000000279,
+        "p75": 5080.200000000652,
+        "iqr": 754.6500000003725,
+        "spreadPct": 15.372471532465964,
+        "values": [
+          4909.1,
+          5251.3,
+          3742
+        ]
+      },
+      "openTaskMs": {
+        "n": 3,
+        "median": 6240.967000000001,
+        "min": 5131.836,
+        "max": 6819.386,
+        "p25": 5686.4015,
+        "p75": 6530.1765000000005,
+        "iqr": 843.7750000000005,
+        "spreadPct": 13.519940099026329,
+        "values": [
+          6240.97,
+          6819.39,
+          5131.84
+        ]
+      },
+      "openScriptMs": {
+        "n": 3,
+        "median": 5117.475,
+        "min": 4190.618,
+        "max": 5592.085,
+        "p25": 4654.0465,
+        "p75": 5354.780000000001,
+        "iqr": 700.7335000000003,
+        "spreadPct": 13.692954044719324,
+        "values": [
+          5117.48,
+          5592.09,
+          4190.62
+        ]
+      },
+      "openLayoutMs": {
+        "n": 3,
+        "median": 562.63,
+        "min": 445.87699999999995,
+        "max": 564.824,
+        "p25": 504.2535,
+        "p75": 563.727,
+        "iqr": 59.4735,
+        "spreadPct": 10.570623678083289,
+        "values": [
+          564.82,
+          562.63,
+          445.88
+        ]
+      },
+      "openStyleMs": {
+        "n": 3,
+        "median": 222.05399999999997,
+        "min": 176.929,
+        "max": 239.92599999999996,
+        "p25": 199.49149999999997,
+        "p75": 230.98999999999995,
+        "iqr": 31.49849999999998,
+        "spreadPct": 14.185063092761213,
+        "values": [
+          222.05,
+          239.93,
+          176.93
+        ]
+      },
+      "openLongTaskMax": {
+        "n": 3,
+        "median": 4283,
+        "min": 3166,
+        "max": 4654,
+        "p25": 3724.5,
+        "p75": 4468.5,
+        "iqr": 744,
+        "spreadPct": 17.371001634368433,
+        "values": [
+          4283,
+          4654,
+          3166
+        ]
+      },
+      "openNodes": {
+        "n": 3,
+        "median": 59715,
+        "min": 59715,
+        "max": 59715,
+        "p25": 59715,
+        "p75": 59715,
+        "iqr": 0,
+        "spreadPct": 0,
+        "values": [
+          59715,
+          59715,
+          59715
+        ]
+      },
+      "heapAfterOpen": {
+        "n": 3,
+        "median": 379323216,
+        "min": 379237312,
+        "max": 379338332,
+        "p25": 379280264,
+        "p75": 379330774,
+        "iqr": 50510,
+        "spreadPct": 0.013315820880312267,
+        "values": [
+          379323216,
+          379237312,
+          379338332
+        ]
+      },
+      "keyToFrameMedian": {
+        "n": 3,
+        "median": 235.09999999962747,
+        "min": 234.70000000018626,
+        "max": 239.1000000005588,
+        "p25": 234.89999999990687,
+        "p75": 237.10000000009313,
+        "iqr": 2.2000000001862645,
+        "spreadPct": 0.9357720119905362,
+        "values": [
+          234.7,
+          235.1,
+          239.1
+        ]
+      },
+      "keyToFrameP95": {
+        "n": 3,
+        "median": 255.76000000033525,
+        "min": 249.47999999988824,
+        "max": 266.07999999970195,
+        "p25": 252.62000000011176,
+        "p75": 260.9200000000186,
+        "iqr": 8.299999999906845,
+        "spreadPct": 3.2452299029934175,
+        "values": [
+          249.48,
+          255.76,
+          266.08
+        ]
+      },
+      "keyToFrameMax": {
+        "n": 3,
+        "median": 293.09999999962747,
+        "min": 279,
+        "max": 356.3999999994412,
+        "p25": 286.04999999981374,
+        "p75": 324.74999999953434,
+        "iqr": 38.6999999997206,
+        "spreadPct": 13.203684749153801,
+        "values": [
+          279,
+          293.1,
+          356.4
+        ]
+      },
+      "keystrokes": {
+        "n": 3,
+        "median": 53,
+        "min": 53,
+        "max": 53,
+        "p25": 53,
+        "p75": 53,
+        "iqr": 0,
+        "spreadPct": 0,
+        "values": [
+          53,
+          53,
+          53
+        ]
+      },
+      "keyEventsOver16": {
+        "n": 3,
+        "median": 158,
+        "min": 155,
+        "max": 158,
+        "p25": 156.5,
+        "p75": 158,
+        "iqr": 1.5,
+        "spreadPct": 0.949367088607595,
+        "values": [
+          158,
+          155,
+          158
+        ]
+      },
+      "keyEventMax": {
+        "n": 3,
+        "median": 408,
+        "min": 400,
+        "max": 448,
+        "p25": 404,
+        "p75": 428,
+        "iqr": 24,
+        "spreadPct": 5.88235294117647,
+        "values": [
+          400,
+          408,
+          448
+        ]
+      },
+      "typingTaskMsPerKey": {
+        "n": 3,
+        "median": 348.8881698113208,
+        "min": 343.2301320754717,
+        "max": 363.9558867924528,
+        "p25": 346.0591509433963,
+        "p75": 356.4220283018868,
+        "iqr": 10.36287735849055,
+        "spreadPct": 2.970257594029287,
+        "values": [
+          343.23,
+          348.89,
+          363.96
+        ]
+      },
+      "typingScriptMsPerKey": {
+        "n": 3,
+        "median": 9.986113207547161,
+        "min": 9.793490566037732,
+        "max": 11.525811320754716,
+        "p25": 9.889801886792448,
+        "p75": 10.755962264150938,
+        "iqr": 0.86616037735849,
+        "spreadPct": 8.673648689500894,
+        "values": [
+          9.79,
+          9.99,
+          11.53
+        ]
+      },
+      "typingLayoutMsPerKey": {
+        "n": 3,
+        "median": 207.73760377358488,
+        "min": 200.35601886792455,
+        "max": 211.50343396226413,
+        "p25": 204.04681132075473,
+        "p75": 209.6205188679245,
+        "iqr": 5.573707547169761,
+        "spreadPct": 2.68305181436703,
+        "values": [
+          207.74,
+          200.36,
+          211.5
+        ]
+      },
+      "typingStyleMsPerKey": {
+        "n": 3,
+        "median": 1.2322075471698113,
+        "min": 1.1280188679245289,
+        "max": 1.2701698113207545,
+        "p25": 1.18011320754717,
+        "p75": 1.2511886792452829,
+        "iqr": 0.07107547169811279,
+        "spreadPct": 5.768141240602046,
+        "values": [
+          1.13,
+          1.23,
+          1.27
+        ]
+      },
+      "typingLongTasks": {
+        "n": 3,
+        "median": 92,
+        "min": 84,
+        "max": 96,
+        "p25": 88,
+        "p75": 94,
+        "iqr": 6,
+        "spreadPct": 6.521739130434782,
+        "values": [
+          84,
+          96,
+          92
+        ]
+      },
+      "streamUpdates": {
+        "n": 3,
+        "median": 60,
+        "min": 60,
+        "max": 60,
+        "p25": 60,
+        "p75": 60,
+        "iqr": 0,
+        "spreadPct": 0,
+        "values": [
+          60,
+          60,
+          60
+        ]
+      },
+      "streamElapsedMs": {
+        "n": 3,
+        "median": 13398.099999999627,
+        "min": 12691.700000000186,
+        "max": 14623.599999999627,
+        "p25": 13044.899999999907,
+        "p75": 14010.849999999627,
+        "iqr": 965.9499999997206,
+        "spreadPct": 7.209604346883121,
+        "values": [
+          14623.6,
+          12691.7,
+          13398.1
+        ]
+      },
+      "streamOverrunMs": {
+        "n": 3,
+        "median": 10398.099999999627,
+        "min": 9691.700000000186,
+        "max": 11623.599999999627,
+        "p25": 10044.899999999907,
+        "p75": 11010.849999999627,
+        "iqr": 965.9499999997206,
+        "spreadPct": 9.28967792192569,
+        "values": [
+          11623.6,
+          9691.7,
+          10398.1
+        ]
+      },
+      "streamTaskMsPerUpdate": {
+        "n": 3,
+        "median": 223.21208333333337,
+        "min": 211.90915,
+        "max": 244.25499999999997,
+        "p25": 217.5606166666667,
+        "p75": 233.73354166666667,
+        "iqr": 16.172924999999964,
+        "spreadPct": 7.245541889346624,
+        "values": [
+          244.25,
+          211.91,
+          223.21
+        ]
+      },
+      "streamScriptMsPerUpdate": {
+        "n": 3,
+        "median": 89.70859999999999,
+        "min": 79.26081666666668,
+        "max": 93.67906666666667,
+        "p25": 84.48470833333334,
+        "p75": 91.69383333333333,
+        "iqr": 7.209124999999986,
+        "spreadPct": 8.036158183273384,
+        "values": [
+          93.68,
+          79.26,
+          89.71
+        ]
+      },
+      "streamLayoutMsPerUpdate": {
+        "n": 3,
+        "median": 72.68786666666666,
+        "min": 72.48568333333336,
+        "max": 82.19006666666664,
+        "p25": 72.58677500000002,
+        "p75": 77.43896666666666,
+        "iqr": 4.852191666666641,
+        "spreadPct": 6.675380485326264,
+        "values": [
+          82.19,
+          72.49,
+          72.69
+        ]
+      },
+      "streamStyleMsPerUpdate": {
+        "n": 3,
+        "median": 0.8590833333333335,
+        "min": 0.8180333333333336,
+        "max": 0.929983333333333,
+        "p25": 0.8385583333333335,
+        "p75": 0.8945333333333333,
+        "iqr": 0.055974999999999775,
+        "spreadPct": 6.515665922979892,
+        "values": [
+          0.93,
+          0.82,
+          0.86
+        ]
+      },
+      "streamLongTasks": {
+        "n": 3,
+        "median": 64,
+        "min": 64,
+        "max": 71,
+        "p25": 64,
+        "p75": 67.5,
+        "iqr": 3.5,
+        "spreadPct": 5.46875,
+        "values": [
+          71,
+          64,
+          64
+        ]
+      },
+      "streamBlockingMs": {
+        "n": 3,
+        "median": 7374,
+        "min": 6930,
+        "max": 8320,
+        "p25": 7152,
+        "p75": 7847,
+        "iqr": 695,
+        "spreadPct": 9.425006780580418,
+        "values": [
+          8320,
+          6930,
+          7374
+        ]
+      },
+      "streamFps": {
+        "n": 3,
+        "median": 8.826256258112368,
+        "min": 7.933655652220684,
+        "max": 9.127433006982097,
+        "p25": 8.379955955166526,
+        "p75": 8.976844632547232,
+        "iqr": 0.5968886773807061,
+        "spreadPct": 6.76264839729863,
+        "values": [
+          7.93,
+          9.13,
+          8.83
+        ]
+      },
+      "scrollDocument": true,
+      "scrollHeightPx": {
+        "n": 3,
+        "median": 232561,
+        "min": 232561,
+        "max": 232561,
+        "p25": 232561,
+        "p75": 232561,
+        "iqr": 0,
+        "spreadPct": 0,
+        "values": [
+          232561,
+          232561,
+          232561
+        ]
+      },
+      "scrollFrames": {
+        "n": 3,
+        "median": 1159,
+        "min": 1159,
+        "max": 1159,
+        "p25": 1159,
+        "p75": 1159,
+        "iqr": 0,
+        "spreadPct": 0,
+        "values": [
+          1159,
+          1159,
+          1159
+        ]
+      },
+      "scrollWallMs": {
+        "n": 3,
+        "median": 217000.7999999998,
+        "min": 204163.7999999998,
+        "max": 220403.7000000002,
+        "p25": 210582.2999999998,
+        "p75": 218702.25,
+        "iqr": 8119.950000000186,
+        "spreadPct": 3.7418986473783478,
+        "values": [
+          204163.8,
+          217000.8,
+          220403.7
+        ]
+      },
+      "scrollFrameMean": {
+        "n": 3,
+        "median": 186.6591416309013,
+        "min": 175.83129836629405,
+        "max": 189.83198624247638,
+        "p25": 181.2452199985977,
+        "p75": 188.24556393668882,
+        "iqr": 7.0003439380911345,
+        "spreadPct": 3.7503354386647585,
+        "values": [
+          175.83,
+          186.66,
+          189.83
+        ]
+      },
+      "scrollFrameP95": {
+        "n": 3,
+        "median": 366.70000000001164,
+        "min": 350,
+        "max": 366.79000000001685,
+        "p25": 358.3500000000058,
+        "p75": 366.7450000000142,
+        "iqr": 8.395000000008395,
+        "spreadPct": 2.2893373329719466,
+        "values": [
+          366.79,
+          366.7,
+          350
+        ]
+      },
+      "scrollFrameMax": {
+        "n": 3,
+        "median": 699.8999999999942,
+        "min": 616.6000000000058,
+        "max": 699.8999999999942,
+        "p25": 658.25,
+        "p75": 699.8999999999942,
+        "iqr": 41.64999999999418,
+        "spreadPct": 5.950850121445138,
+        "values": [
+          616.6,
+          699.9,
+          699.9
+        ]
+      },
+      "scrollFramesOver33": {
+        "n": 3,
+        "median": 1108,
+        "min": 1091,
+        "max": 1122,
+        "p25": 1099.5,
+        "p75": 1115,
+        "iqr": 15.5,
+        "spreadPct": 1.3989169675090252,
+        "values": [
+          1108,
+          1122,
+          1091
+        ]
+      },
+      "scrollTaskMs": {
+        "n": 3,
+        "median": 215841.59,
+        "min": 203204.685,
+        "max": 219432.85499999998,
+        "p25": 209523.1375,
+        "p75": 217637.22249999997,
+        "iqr": 8114.084999999963,
+        "spreadPct": 3.759277811102097,
+        "values": [
+          203204.69,
+          215841.59,
+          219432.86
+        ]
+      },
+      "scrollScriptMs": {
+        "n": 3,
+        "median": 5786.844000000002,
+        "min": 5164.282999999999,
+        "max": 7943.92,
+        "p25": 5475.5635,
+        "p75": 6865.382000000001,
+        "iqr": 1389.8185000000012,
+        "spreadPct": 24.016864805755965,
+        "values": [
+          5786.84,
+          7943.92,
+          5164.28
+        ]
+      },
+      "scrollLayoutMs": {
+        "n": 3,
+        "median": 305.8840000000025,
+        "min": 301.3870000000019,
+        "max": 358.83299999999883,
+        "p25": 303.6355000000022,
+        "p75": 332.3585000000007,
+        "iqr": 28.72299999999848,
+        "spreadPct": 9.390160976055709,
+        "values": [
+          301.39,
+          358.83,
+          305.88
+        ]
+      },
+      "scrollStyleMs": {
+        "n": 3,
+        "median": 264.99899999999997,
+        "min": 262.161,
+        "max": 296.00499999999994,
+        "p25": 263.58,
+        "p75": 280.50199999999995,
+        "iqr": 16.92199999999997,
+        "spreadPct": 6.385684474281024,
+        "values": [
+          262.16,
+          296,
+          265
+        ]
+      },
+      "scrollLongTasks": {
+        "n": 3,
+        "median": 1062,
+        "min": 1006,
+        "max": 1079,
+        "p25": 1034,
+        "p75": 1070.5,
+        "iqr": 36.5,
+        "spreadPct": 3.436911487758945,
+        "values": [
+          1062,
+          1079,
+          1006
+        ]
+      },
+      "longTaskCountTotal": {
+        "n": 3,
+        "median": 1249,
+        "min": 1186,
+        "max": 1275,
+        "p25": 1217.5,
+        "p75": 1262,
+        "iqr": 44.5,
+        "spreadPct": 3.5628502802241795,
+        "values": [
+          1249,
+          1275,
+          1186
+        ]
+      },
+      "longTaskMsTotal": {
+        "n": 3,
+        "median": 244619,
+        "min": 232898,
+        "max": 245155,
+        "p25": 238758.5,
+        "p75": 244887,
+        "iqr": 6128.5,
+        "spreadPct": 2.505324606837572,
+        "values": [
+          232898,
+          245155,
+          244619
+        ]
+      },
+      "blockingMsTotal": {
+        "n": 3,
+        "median": 181405,
+        "min": 170448,
+        "max": 185319,
+        "p25": 175926.5,
+        "p75": 183362,
+        "iqr": 7435.5,
+        "spreadPct": 4.098839613020589,
+        "values": [
+          170448,
+          181405,
+          185319
+        ]
+      },
+      "heapAtEnd": {
+        "n": 3,
+        "median": 447502472,
+        "min": 447443088,
+        "max": 447548000,
+        "p25": 447472780,
+        "p75": 447525236,
+        "iqr": 52456,
+        "spreadPct": 0.011721946420890385,
+        "values": [
+          447548000,
+          447443088,
+          447502472
+        ]
+      }
+    },
+    "switching": {
+      "cycles": 8,
+      "switchMs": {
+        "n": 16,
+        "median": 5506.749999999534,
+        "min": 2890.800000000745,
+        "max": 11094.200000000186,
+        "p25": 3320.3499999996275,
+        "p75": 6016.25,
+        "iqr": 2695.9000000003725,
+        "spreadPct": 48.956280927962965,
+        "values": [
+          5581.3,
+          5208,
+          8407,
+          11094.2,
+          6068.6,
+          5785.6,
+          5533.3,
+          5480.2,
+          5998.8,
+          3766.2,
+          3373.1,
+          3140.5,
+          3162.1,
+          2890.8,
+          3148.8,
+          7706.6
+        ]
+      },
+      "samples": [
+        {
+          "label": "start",
+          "heapAfterGc": 376757664,
+          "nodes": 55996,
+          "jsEventListeners": 6723,
+          "documents": 3,
+          "timeouts": 2,
+          "intervals": 0,
+          "observers": 2
+        },
+        {
+          "label": "cycle 1",
+          "heapAfterGc": 383854012,
+          "nodes": 55996,
+          "jsEventListeners": 6731,
+          "documents": 3,
+          "timeouts": 24,
+          "intervals": 0,
+          "observers": 2
+        },
+        {
+          "label": "cycle 2",
+          "heapAfterGc": 384805248,
+          "nodes": 55996,
+          "jsEventListeners": 6747,
+          "documents": 3,
+          "timeouts": 46,
+          "intervals": 0,
+          "observers": 2
+        },
+        {
+          "label": "cycle 3",
+          "heapAfterGc": 384772548,
+          "nodes": 55996,
+          "jsEventListeners": 6763,
+          "documents": 3,
+          "timeouts": 68,
+          "intervals": 0,
+          "observers": 2
+        },
+        {
+          "label": "cycle 4",
+          "heapAfterGc": 385553840,
+          "nodes": 55996,
+          "jsEventListeners": 6779,
+          "documents": 3,
+          "timeouts": 90,
+          "intervals": 0,
+          "observers": 2
+        },
+        {
+          "label": "cycle 5",
+          "heapAfterGc": 385984320,
+          "nodes": 55996,
+          "jsEventListeners": 6803,
+          "documents": 3,
+          "timeouts": 112,
+          "intervals": 0,
+          "observers": 2
+        },
+        {
+          "label": "cycle 6",
+          "heapAfterGc": 386102192,
+          "nodes": 55996,
+          "jsEventListeners": 6819,
+          "documents": 3,
+          "timeouts": 134,
+          "intervals": 0,
+          "observers": 2
+        },
+        {
+          "label": "cycle 7",
+          "heapAfterGc": 386236780,
+          "nodes": 55996,
+          "jsEventListeners": 6835,
+          "documents": 3,
+          "timeouts": 157,
+          "intervals": 0,
+          "observers": 2
+        },
+        {
+          "label": "cycle 8",
+          "heapAfterGc": 386158244,
+          "nodes": 55996,
+          "jsEventListeners": 6843,
+          "documents": 3,
+          "timeouts": 176,
+          "intervals": 0,
+          "observers": 2
+        },
+        {
+          "label": "settled",
+          "heapAfterGc": 386154528,
+          "nodes": 55996,
+          "jsEventListeners": 6843,
+          "documents": 3,
+          "timeouts": 178,
+          "intervals": 0,
+          "observers": 2
+        }
+      ],
+      "verdict": {
+        "cyclesConsidered": 6,
+        "counters": {
+          "heapAfterGc": {
+            "first": 384772548,
+            "last": 386158244,
+            "slopePerCycle": 259862.06
+          },
+          "nodes": {
+            "first": 55996,
+            "last": 55996,
+            "slopePerCycle": 0
+          },
+          "jsEventListeners": {
+            "first": 6763,
+            "last": 6843,
+            "slopePerCycle": 16.69
+          },
+          "timeouts": {
+            "first": 68,
+            "last": 176,
+            "slopePerCycle": 21.8
+          },
+          "observers": {
+            "first": 2,
+            "last": 2,
+            "slopePerCycle": 0
+          }
+        }
+      }
+    },
+    "measuredAt": "2026-09-25T10:58:07.530Z",
+    "loadAverage": [
+      27.39,
+      24.6,
+      22.47
+    ],
+    "rawRuns": [
+      {
+        "openMs": 4909.100000000559,
+        "openTaskMs": 6240.967000000001,
+        "openScriptMs": 5117.475,
+        "openLayoutMs": 564.824,
+        "openStyleMs": 222.05399999999997,
+        "openLongTaskMax": 4283,
+        "openNodes": 59715,
+        "heapAfterOpen": 379323216,
+        "keyToFrameMedian": 234.70000000018626,
+        "keyToFrameP95": 249.47999999988824,
+        "keyToFrameMax": 279,
+        "keystrokes": 53,
+        "keyEventsOver16": 158,
+        "keyEventMax": 400,
+        "typingTaskMsPerKey": 343.2301320754717,
+        "typingScriptMsPerKey": 9.793490566037732,
+        "typingLayoutMsPerKey": 207.73760377358488,
+        "typingStyleMsPerKey": 1.1280188679245289,
+        "typingLongTasks": 84,
+        "streamUpdates": 60,
+        "streamElapsedMs": 14623.599999999627,
+        "streamOverrunMs": 11623.599999999627,
+        "streamTaskMsPerUpdate": 244.25499999999997,
+        "streamScriptMsPerUpdate": 93.67906666666667,
+        "streamLayoutMsPerUpdate": 82.19006666666664,
+        "streamStyleMsPerUpdate": 0.929983333333333,
+        "streamLongTasks": 71,
+        "streamBlockingMs": 8320,
+        "streamFps": 7.933655652220684,
+        "scrollDocument": true,
+        "scrollHeightPx": 232561,
+        "scrollFrames": 1159,
+        "scrollWallMs": 204163.7999999998,
+        "scrollFrameMean": 175.83129836629405,
+        "scrollFrameP95": 366.79000000001685,
+        "scrollFrameMax": 616.6000000000058,
+        "scrollFramesOver33": 1108,
+        "scrollTaskMs": 203204.685,
+        "scrollScriptMs": 5786.844000000002,
+        "scrollLayoutMs": 301.3870000000019,
+        "scrollStyleMs": 262.161,
+        "scrollLongTasks": 1062,
+        "longTaskCountTotal": 1249,
+        "longTaskMsTotal": 232898,
+        "blockingMsTotal": 170448,
+        "heapAtEnd": 447548000
+      },
+      {
+        "openMs": 5251.300000000745,
+        "openTaskMs": 6819.386,
+        "openScriptMs": 5592.085,
+        "openLayoutMs": 562.63,
+        "openStyleMs": 239.92599999999996,
+        "openLongTaskMax": 4654,
+        "openNodes": 59715,
+        "heapAfterOpen": 379237312,
+        "keyToFrameMedian": 235.09999999962747,
+        "keyToFrameP95": 255.76000000033525,
+        "keyToFrameMax": 293.09999999962747,
+        "keystrokes": 53,
+        "keyEventsOver16": 155,
+        "keyEventMax": 408,
+        "typingTaskMsPerKey": 348.8881698113208,
+        "typingScriptMsPerKey": 9.986113207547161,
+        "typingLayoutMsPerKey": 200.35601886792455,
+        "typingStyleMsPerKey": 1.2322075471698113,
+        "typingLongTasks": 96,
+        "streamUpdates": 60,
+        "streamElapsedMs": 12691.700000000186,
+        "streamOverrunMs": 9691.700000000186,
+        "streamTaskMsPerUpdate": 211.90915,
+        "streamScriptMsPerUpdate": 79.26081666666668,
+        "streamLayoutMsPerUpdate": 72.48568333333336,
+        "streamStyleMsPerUpdate": 0.8180333333333336,
+        "streamLongTasks": 64,
+        "streamBlockingMs": 6930,
+        "streamFps": 9.127433006982097,
+        "scrollDocument": true,
+        "scrollHeightPx": 232561,
+        "scrollFrames": 1159,
+        "scrollWallMs": 217000.7999999998,
+        "scrollFrameMean": 186.6591416309013,
+        "scrollFrameP95": 366.70000000001164,
+        "scrollFrameMax": 699.8999999999942,
+        "scrollFramesOver33": 1122,
+        "scrollTaskMs": 215841.59,
+        "scrollScriptMs": 7943.92,
+        "scrollLayoutMs": 358.83299999999883,
+        "scrollStyleMs": 296.00499999999994,
+        "scrollLongTasks": 1079,
+        "longTaskCountTotal": 1275,
+        "longTaskMsTotal": 245155,
+        "blockingMsTotal": 181405,
+        "heapAtEnd": 447443088
+      },
+      {
+        "openMs": 3742,
+        "openTaskMs": 5131.836,
+        "openScriptMs": 4190.618,
+        "openLayoutMs": 445.87699999999995,
+        "openStyleMs": 176.929,
+        "openLongTaskMax": 3166,
+        "openNodes": 59715,
+        "heapAfterOpen": 379338332,
+        "keyToFrameMedian": 239.1000000005588,
+        "keyToFrameP95": 266.07999999970195,
+        "keyToFrameMax": 356.3999999994412,
+        "keystrokes": 53,
+        "keyEventsOver16": 158,
+        "keyEventMax": 448,
+        "typingTaskMsPerKey": 363.9558867924528,
+        "typingScriptMsPerKey": 11.525811320754716,
+        "typingLayoutMsPerKey": 211.50343396226413,
+        "typingStyleMsPerKey": 1.2701698113207545,
+        "typingLongTasks": 92,
+        "streamUpdates": 60,
+        "streamElapsedMs": 13398.099999999627,
+        "streamOverrunMs": 10398.099999999627,
+        "streamTaskMsPerUpdate": 223.21208333333337,
+        "streamScriptMsPerUpdate": 89.70859999999999,
+        "streamLayoutMsPerUpdate": 72.68786666666666,
+        "streamStyleMsPerUpdate": 0.8590833333333335,
+        "streamLongTasks": 64,
+        "streamBlockingMs": 7374,
+        "streamFps": 8.826256258112368,
+        "scrollDocument": true,
+        "scrollHeightPx": 232561,
+        "scrollFrames": 1159,
+        "scrollWallMs": 220403.7000000002,
+        "scrollFrameMean": 189.83198624247638,
+        "scrollFrameP95": 350,
+        "scrollFrameMax": 699.8999999999942,
+        "scrollFramesOver33": 1091,
+        "scrollTaskMs": 219432.85499999998,
+        "scrollScriptMs": 5164.282999999999,
+        "scrollLayoutMs": 305.8840000000025,
+        "scrollStyleMs": 264.99899999999997,
+        "scrollLongTasks": 1006,
+        "longTaskCountTotal": 1186,
+        "longTaskMsTotal": 244619,
+        "blockingMsTotal": 185319,
+        "heapAtEnd": 447502472
+      }
+    ]
   }
 }
