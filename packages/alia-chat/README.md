@@ -67,6 +67,12 @@ export function Assistant() {
 }
 ```
 
+`AliaChatScreen` is a full-screen route: it pads itself by the top and bottom
+safe-area insets, so render it where no tab bar or other bottom chrome is drawn.
+On iOS and Android its composer rises with the keyboard through
+`react-native-keyboard-controller`, which needs the app wrapped in its
+`KeyboardProvider` (re-exported here).
+
 Or the hook on its own, with your own UI:
 
 ```tsx

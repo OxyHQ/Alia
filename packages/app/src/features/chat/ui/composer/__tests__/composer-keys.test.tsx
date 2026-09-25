@@ -187,6 +187,13 @@ vi.mock('react-native-svg', async () => {
   };
 });
 
+/*
+ * The popover keeps its menus clear of the notch and the home indicator
+ * (Bloom 4.25), so the panel now imports the insets hook — and the real
+ * package reaches into `react-native` itself, which node cannot parse.
+ */
+vi.mock('react-native-safe-area-context', async () => (await import('@/shared/testing/native-module-stubs')).safeAreaModule());
+
 import { ComposerPanel } from '@oxy.so/bloom/composer-panel';
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
