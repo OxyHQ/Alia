@@ -17,6 +17,7 @@ An ADR records a decision that is **in force now**, the context that forced it, 
 | [0009](./0009-agent-threads-are-durable-execution-units.md) | Agent threads are durable execution units | Accepted | 2026-09-10 |
 | [0010](./0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md) | Alia keeps a product API; credentials come from Oxy Console | Accepted | 2026-09-10 |
 | [0011](./0011-autonomous-agents-run-durably-and-speak-first.md) | Autonomous agents run durably and may speak first | Proposed | 2026-09-24 |
+| [0012](./0012-voice-runs-on-the-device-livekit-and-cohost-are-retired.md) | Voice runs on the device; LiveKit, cohost and voice minutes are retired | Accepted | 2026-09-24 |
 
 Companion document: [the compatibility window and sunset criteria](../migration/compatibility-window.md), which binds ADR 0002, ADR 0003 and ADR 0004 to measurable removal gates — for paths (a) and (c); path (b) left the window under ADR 0010.
 
