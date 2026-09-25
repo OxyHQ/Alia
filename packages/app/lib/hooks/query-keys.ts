@@ -15,6 +15,8 @@ export const queryKeys = {
     catalogue: (filters?: Record<string, string | undefined>) => ['skills', 'catalogue', filters ?? {}] as const,
     installed: ['skills', 'installed'] as const,
     mine: ['skills', 'mine'] as const,
+    /** The catalogue and the caller's own, merged: what an agent may be given. */
+    attachable: ['skills', 'attachable'] as const,
     detail: (idOrName: string) => ['skills', 'detail', idOrName] as const,
   },
   agents: {
@@ -29,6 +31,10 @@ export const queryKeys = {
     catalogue: (params?: object) => ['agents', 'catalogue', params ?? {}] as const,
     /** One agent, whole, as the detail and edit screens read it. */
     detail: (id: string) => ['agents', 'detail', id] as const,
+    /** One agent's reviews, and the caller's own among them. */
+    reviews: (id: string) => ['agents', 'reviews', id] as const,
+    /** What the owner could grant the agent being edited, which is left out. */
+    capabilityConnectors: (id: string) => ['agents', 'capability-connectors', id] as const,
     /**
      * Keyed by the USERNAME the URL carries, not by the agent id, because the
      * id is part of what the query answers — `/a/pepe` is resolvable before

@@ -14,7 +14,7 @@ import {
   useAutomationRuns,
   useUpdateAutomation,
 } from '@/lib/hooks/use-automations';
-import { useMyAgents } from '@/lib/hooks/use-my-agents';
+import { agentLabel, useAgentNames } from '@/lib/hooks/agents/use-agent-names';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
@@ -29,7 +29,7 @@ import {
 import { toast } from '@oxy.so/bloom/toast';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 const RUN_PAGE_SIZE = 20;
@@ -51,35 +51,17 @@ export default function AutomationHistoryScreen() {
   const { t } = useTranslation();
   const overview = useAutomationOverview();
   const runs = useAutomationRuns(id);
-  const agents = useMyAgents();
+  const { agents, agentName } = useAgentNames();
   const updateAutomation = useUpdateAutomation();
   const [editorOpen, setEditorOpen] = useState(false);
   const [visibleRuns, setVisibleRuns] = useState(RUN_PAGE_SIZE);
   const automation = overview.data?.automations.find(
     (candidate) => candidate.id === id,
   );
-  const agentNames = useMemo(
-    () =>
-      new Map(
-        (agents.data ?? []).map((agent) => [
-          agent._id,
-          agent.name ?? agent.handle ?? `Agent ${agent._id.slice(0, 8)}`,
-        ]),
-      ),
-    [agents.data],
-  );
-  const agentName = useCallback(
-    (agentId: string) =>
-      agentNames.get(agentId) ?? `Agent ${agentId.slice(0, 8)}`,
-    [agentNames],
-  );
   const agentOptions = useMemo(
     () =>
-      (agents.data ?? []).map((agent) => ({
-        id: agent._id,
-        label: agent.name ?? agent.handle ?? `Agent ${agent._id.slice(0, 8)}`,
-      })),
-    [agents.data],
+      (agents ?? []).map((agent) => ({ id: agent._id, label: agentLabel(agent) })),
+    [agents],
   );
 
   const timestampLabel = (timestamp: string | null): string => {
