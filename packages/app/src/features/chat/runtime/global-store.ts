@@ -1,14 +1,5 @@
 import { create } from "zustand";
-
-export interface Attachment {
-  id: string;
-  uri: string;
-  type: 'image' | 'document';
-  name: string;
-  size: number;
-  mimeType: string;
-  isLoading?: boolean;
-}
+import type { Attachment } from "@/shared/contracts/chat-turn";
 
 export type ChatIdState = {
   id: string;

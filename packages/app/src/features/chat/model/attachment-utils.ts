@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
-import type { Attachment } from '@/features/chat/runtime/global-store';
+import type { Attachment } from '@/shared/contracts/chat-turn';
 
 export type MessageContentPart =
   | { type: 'text'; text: string }

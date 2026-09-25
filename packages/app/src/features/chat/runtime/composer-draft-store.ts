@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { create } from "zustand";
-import type { Attachment } from "./global-store";
+import type { Attachment } from "@/shared/contracts/chat-turn";
 
 /**
  * What a composer is holding before it is sent: the text, the attachments and

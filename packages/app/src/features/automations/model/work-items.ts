@@ -1,6 +1,6 @@
 import type { TaskSession } from '@/features/automations/runtime/use-tasks';
-import { latestRunsByAutomation, type Translate } from './format';
-import type { AutomationDefinition, AutomationRun } from '@/shared/contracts/automations';
+import { latestRunsByAutomation } from './format';
+import type { AutomationDefinition, AutomationRun, Translate } from '@/shared/contracts/automations';
 
 /**
  * The ONE list the Tasks page shows: agent sessions and automations together.

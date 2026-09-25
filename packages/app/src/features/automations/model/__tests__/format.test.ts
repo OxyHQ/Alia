@@ -2,14 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   actorLabel,
   canRunNow,
-  cronLabel,
   latestRunsByAutomation,
   policyReason,
   resourceLabel,
   to24Hour,
-  triggerLabel,
 } from '../format';
-import type { AutomationDefinition, AutomationRun } from '@/shared/contracts/automations';
+import {
+  cronLabel,
+  triggerLabel,
+  type AutomationDefinition,
+  type AutomationRun,
+} from '@/shared/contracts/automations';
 import { translator } from '@/shared/testing/translate';
 
 /** The shipped English catalog, so these assertions read what a person reads. */

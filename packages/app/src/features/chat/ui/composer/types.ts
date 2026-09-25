@@ -18,4 +18,4 @@
  */
 
 /** One definition, beside the other state the app keeps outside components. */
-export type { Attachment } from "@/features/chat/runtime/global-store";
+export type { Attachment } from "@/shared/contracts/chat-turn";

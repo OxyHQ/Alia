@@ -8,7 +8,7 @@ import {
   type ComposerDraft,
   type DraftTarget,
 } from '../composer-draft-store';
-import type { Attachment } from '../global-store';
+import type { Attachment } from '@/shared/contracts/chat-turn';
 
 /**
  * A draft belongs to one account and one composer (#608 §4).

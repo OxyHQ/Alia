@@ -10,7 +10,7 @@ import {
 import { useCapabilityModes } from '@/features/chat/runtime/use-capability-modes';
 import { useMcpServers } from '@/features/connections/runtime/use-mcp-servers';
 import { useInstalledSkills } from '@/features/skills/runtime/use-skills';
-import type { SendOptions } from '@/features/chat/runtime/use-streaming-chat';
+import type { SendOptions } from '@/shared/contracts/chat-turn';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import {
   useComposerDraft,

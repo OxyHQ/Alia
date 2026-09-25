@@ -6,9 +6,8 @@ import {
 import {
   actorLabel,
   runStatusLabel,
-  triggerLabel,
 } from '@/features/automations/model/format';
-import type { AutomationUpdateInput } from '@/shared/contracts/automations';
+import { triggerLabel, type AutomationUpdateInput } from '@/shared/contracts/automations';
 import { errorMessage } from '@/shared/api/error-utils';
 import {
   useAutomationOverview,
