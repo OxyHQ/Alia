@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -358,7 +361,23 @@ describe('the sidebar tree', () => {
     const props = state.sidebarProps as Record<string, any>;
     expect(props.secondaryItems.map((item: { key: string }) => item.key)).toEqual(['settings']);
     const footer = props.footer({ collapsed: false });
-    const keys = footer.props.menuItems.map((item: { key: string }) => item.key);
-    expect(keys).toEqual(expect.arrayContaining(['upgrade', 'invite', 'support', 'privacy', 'terms']));
+    const items = footer.props.menuItems as { key: string; icon?: string }[];
+    const keys = items.map((item) => item.key);
+    expect(keys).toEqual(expect.arrayContaining(['upgrade', 'invite', 'support']));
+    // The account menu's own footer links Oxy's Privacy Policy and Terms of
+    // Service; rows for them as well listed each document twice.
+    expect(keys).not.toContain('privacy');
+    expect(keys).not.toContain('terms');
+    // A row without a glyph name draws "…" in the account menu, and a name the
+    // menu's subset icon font does not carry draws "?".
+    const services = dirname(createRequire(import.meta.url).resolve('@oxy.so/services/package.json'));
+    const glyphs = readFileSync(join(services, 'src/ui/icons/subsetGlyphMaps.ts'), 'utf8');
+    const shipped = new Set(
+      [...glyphs.slice(glyphs.indexOf('materialCommunityIconsGlyphMap')).matchAll(/"([a-z0-9-]+)":/g)].map(
+        (match) => match[1],
+      ),
+    );
+    expect(shipped.size).toBeGreaterThan(50);
+    for (const item of items) expect(shipped.has(item.icon ?? '')).toBe(true);
   });
 });

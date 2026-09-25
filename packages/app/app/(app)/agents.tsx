@@ -299,13 +299,17 @@ export default function AgentsScreen() {
                   {t('pages.agents.teams')}
                 </ButtonGroupItem>
               </ButtonGroup>
+              {/* "Create", as on Skills: with Teams beside it, "Create Agent"
+                  left the page's own title at "Ag…" on a phone. The page says
+                  what is created; the label for a screen reader still does. */}
               <Button
                 size="md"
                 tone="action"
                 leadingIcon={RiAddLine}
                 onPress={handleCreateAgent}
+                accessibilityLabel={t('agents.createAgent')}
               >
-                {t('agents.createAgent')}
+                {t('common.create')}
               </Button>
             </>
           ),

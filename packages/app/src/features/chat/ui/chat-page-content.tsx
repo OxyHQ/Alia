@@ -50,6 +50,7 @@ import { ScrollToBottomButton } from '@oxy.so/bloom/chat-screen';
 import { useAtBottom } from '@/features/chat/runtime/use-at-bottom';
 import { View, type NativeSyntheticEvent, type TextInput, type TextInputKeyPressEventData } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardSafeAreaFloor } from '@/shared/platform/keyboard';
 
 /**
  * Where the composer's capabilities live now.
@@ -571,7 +572,7 @@ export const ChatPageContent = ({
                 ) : undefined
               }
             />
-            {insets.bottom > 0 ? <View style={{ height: insets.bottom }} /> : null}
+            {insets.bottom > 0 ? <KeyboardSafeAreaFloor inset={insets.bottom} /> : null}
           </>
         )
       }
@@ -610,3 +611,4 @@ export const ChatPageContent = ({
     </ChatWorkspace>
   );
 };
+

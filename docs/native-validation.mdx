@@ -1,6 +1,6 @@
 ---
 title: "Native validation (Android)"
-description: "Alia's Expo app built locally as a release APK and driven on an Android 16 emulator and then a Pixel 8a for #608: what was run, what each screen showed, the defects the devices found and how they were fixed (one in Bloom), and what has not been validated."
+description: "Alia's Expo app built locally as a release APK and driven on an Android 16 emulator and then a Pixel 8a for #608: what was run, what each screen showed, the defects the devices found and how they were fixed (some in Bloom, some still open there), and what has not been validated."
 order: 10
 ---
 
@@ -17,7 +17,11 @@ fixes below (branch `chore/608-android`).
 **Read [§6](#6-what-this-does-not-cover) before quoting it as coverage.** The
 first pass (§1–§5) is one emulator, signed out. A second pass on a physical
 Pixel 8a ([§7](#7-second-pass-pixel-8a)) fixed and checked the keyboard defect
-from §4.4, signed in. There is no iOS here at all.
+from §4.4, signed in. A third, visual pass on the same Pixel 8a
+([§8](#8-third-pass-visual-qa-on-the-pixel-8a)) went through insets, the
+keyboard, menus and sheets in both themes and at the largest font; **its first
+finding is a crash at launch in Bloom that is not fixed yet (§8.2)**. There is
+no iOS here at all.
 
 ## 1. Device and build
 
@@ -278,3 +282,123 @@ and Alia's gate checks the installed package.
 Library sends no `GET /library`; "Add files" opens sign-in; the sign-in sheet's
 "Having trouble?" is whole and clear of the gesture bar; the composer rises
 after the sign-in sheet closes. Each is covered by the unit gates named above.
+
+## 8. Third pass: visual QA on the Pixel 8a
+
+The final visual pass of #608 on the device (the web had its own), later the
+same day, on the same Pixel 8a (Android 16, 1080×2400, 420 dpi, gesture
+navigation, a 63 px navigation bar). Branch `fix/608-device-qa`, cut from
+`feat/608-integration` and merged forward to `b666ccd4` during the pass.
+Release APKs, `arm64-v8a`, built on this machine with the commands in §2
+(`CI=1 bunx expo prebuild -p android --clean`, then `./gradlew assembleRelease
+-PreactNativeArchitectures=arm64-v8a`, about 2 min 50 s clean and 1–1.5 min
+after), installed with `adb install -r` over the existing debug-keystore
+install. Bloom 4.23.0, `@oxy.so/services` 4.x. Signed in as the QA account;
+dark and light (the app's own setting and the OS's), and once at the largest
+font (`font_scale` 2.0).
+
+`uiautomator dump` still cannot be used (the ambient field keeps the UI from
+going idle), so everything below is screenshots read by eye, full resolution
+where a pixel mattered.
+
+### 8.1 Checklist
+
+| Area | Result |
+| --- | --- |
+| Status bar icons | Dark on light, light on dark, in every screen. Over a sheet's dark scrim they stay dark and are hard to read (minor). |
+| Nothing under the status bar, cutout or gesture bar | Chat, pages, drawer, panel and sheets clear both bars. The subscribe page's header sat a status bar too low — **fixed** (§8.3). |
+| Bottom sheets and dialogs | Every sheet seen (turn menu, chat menu, row menu, rename, new project, confirm, account, appearance) clears the gesture bar. With the keyboard up a bottom dialog keeps its gesture-bar spacer too, so its buttons float above the keyboard (Bloom, §8.2). |
+| Composer and the keyboard | Rises in a new chat, in an existing conversation and after every sheet and popover tried (model picker, effort, add menu, chat menu, rename, new project, account). It floated a gesture bar's height above the keyboard — **fixed** (§8.3). |
+| Dialogs with inputs | Rename and New project rise above the keyboard. Rename focuses and selects its field without opening the keyboard (New project does). A field low in a Settings page stays behind the keyboard (Bloom, §8.2). |
+| Model picker | Rail with the publisher logos, search, effort popover. A long model name pushes the composer's + and voice buttons out of the card, and the effort popover lies under the gesture bar (Bloom, §8.2). |
+| Add menu, chat ⋯ menu, drawer, row ⋯ menu, project/folder menus, turn long-press menu, confirm dialogs | All open, read and close. **Back with the drawer open closes the app** (Bloom, §8.2). |
+| Account menu (the links moved there in `b666ccd4`) | All rows reachable, clear of the gesture bar. Alia's rows had no glyph and Privacy/Terms were listed twice — **fixed** (§8.3). |
+| Toasts | Bottom, above the gesture bar, over the composer while they last; never under the status bar or the keyboard. |
+| Right panel on a phone | Canvas and Usage open as a right drawer below the status bar and close. |
+| Settings | **Did not open at all** — **fixed** (§8.3). General, Appearance, Personalization checked after the fix. |
+| Library, Agents, Tasks, Automations, Skills, Shows, Notifications | Headers, empty states and lists fit. The Agents title was cut to "Ag…" by its two buttons — **fixed** (§8.3). |
+| Chat content | Long answer, table, code block, turn actions, the streaming line: all render. A code block's long line **cannot be scrolled sideways**, and the thread stopped following one streamed answer, leaving no jump button until a manual scroll (both Bloom, §8.2). The transcript is readable through the breadcrumb row it scrolls under. |
+| Edit message strip | Own background, Cancel works. The field shows only the last line of the loaded question until focused, and keeps four lines' height after Cancel (Bloom, §8.2). |
+| Voice | Microphone permission prompt appears. After "Only this time" the recognizer starts (green microphone chip) and fails at once: "Speech recognition does not support this language" (§8.4). The call bar needs a paid plan; the button leads to the plans page. |
+| Signed out | Welcome correct in both themes. The device's Oxy session signs Alia back in within seconds of Sign out, so nothing further signed out could be held. |
+| Largest font | Welcome and transcript reflow. Sidebar rows and the composer's model chip clip their text vertically (Bloom, §8.2). |
+
+### 8.2 Open in Bloom (reported, not patched here)
+
+Each one was seen on the device and traced to the named file of the installed
+`@oxy.so/bloom` 4.23.0; none is worked around in Alia.
+
+1. **Crash at launch for any account with a chat (P0).** `sidebar/Sidebar.tsx`
+   (`contentMorph`, lines 257–261) reads `tree` inside a `useAnimatedStyle`
+   worklet, so Reanimated serializes the whole tree to the UI thread — rows,
+   their React elements and the conversations in their props — and dies on the
+   first `Date`: `FATAL EXCEPTION … [Worklets] Cannot copy value of type Date`,
+   about three seconds after `Running "main"`, on every launch. The serialized
+   path (closure → tree → folders[] → items[] → `actions` element → props →
+   conversation → `createdAt`) was read off the symbolicated stack. Capturing
+   `const treeShown = Boolean(tree)` outside the worklet ends it: the rest of
+   this pass ran on a build that swapped in that one-line change through a
+   local Metro redirect, which is **not committed**. Until Bloom ships it, a
+   release built from this branch crashes for every signed-in user with history.
+2. **Back with the navigation drawer open exits the app.** `AiChatShell`
+   registers a hardware-back handler for the panel only
+   (`ai-chat/use-panel-interaction.ts`), not for the drawer.
+3. **Code blocks inside a turn do not scroll sideways.** The turn's long-press
+   menu wraps it in `ContextMenuTrigger`, whose `TriggerSlot` is a `Pressable`;
+   on Android it keeps the horizontal pan from `CodeLines`' `ScrollView`. A
+   build without the wrapper scrolled the same block.
+4. **Composer toolbar overflow.** `composer-panel/ComposerPanelBase.tsx` gives
+   the right group `flexShrink: 0` and `ModelPickerBase`'s trigger `flexShrink:
+   0` with no `minWidth: 0`, so a long model name ("DeepSeek: DeepSeek V4 Pro
+   0813") covers the + button and pushes voice off the card; at font 2.0 the
+   32 px trigger also clips its text.
+5. **The effort popover is drawn under the gesture bar** (not clamped to the
+   bottom safe area).
+6. **The thread can stop following a streamed answer.** `ScrollThread` measures
+   "near the bottom" with `offset.current`, which only a scroll event updates;
+   two size changes before the event that follows a non-animated `scrollToEnd`
+   read a stale offset and turn the follow off for good. Alia's jump button is
+   driven by the same scroll events, so it stays hidden too.
+7. **The prompt does not resize for a value set from outside** (loading a
+   question to edit, cancelling the edit) until it is focused:
+   `ComposerPanelBase` sizes it from `onContentSizeChange` only.
+8. **A bottom `Dialog` keeps its gesture-bar spacer with the keyboard up.**
+9. **Settings pages are not keyboard-aware**: a field near the bottom of
+   Personalization stays behind the keyboard.
+10. **Sidebar rows clip their labels at the largest font.**
+11. The floating chrome's scrim leaves the transcript legible behind the
+    breadcrumb row (a design question more than a defect).
+
+### 8.3 Fixed in Alia
+
+| Defect | Cause | Fix | Gate |
+| --- | --- | --- | --- |
+| Settings did not open on Android | Bloom's native `SettingsModal` (and tooltip, media gallery) draws through `@oxy.so/bloom/portal`, and Alia mounted no `PortalProvider`/`PortalOutlet`: the portal dropped the modal silently | `app/(app)/_layout.tsx` mounts the provider around `AliaSettingsProvider` and the outlet inside it (the settings pages read that context), with `OverlayInertBoundary` around the shell | `__tests__/native-portal-host.test.ts` |
+| Composer a gesture bar above the keyboard, the transcript showing through the gap | The spacer under the composer kept `insets.bottom` while the keyboard, which covers the gesture bar, was up | `KeyboardSafeAreaFloor` (`src/shared/platform/keyboard.native.tsx`) follows the keyboard's progress; gap measured at 82 px before, 20 px after | `src/shared/platform/__tests__/keyboard-safe-area-floor.test.tsx` |
+| Plans and download pages a status bar too low | `(biglayout)/_layout.tsx` padded by `insets.top` and Bloom's `PageHeader` pads itself as well | The layout no longer pads | `__tests__/native-system-bars.test.ts` |
+| Account menu: "…" beside Alia's rows, Privacy and Terms twice | The rows passed no glyph, and the menu's own footer already links both documents | Glyphs from the subset the menu's icon font ships (a name outside it draws "?"); Privacy and Terms stay rows only signed out | `src/shell/__tests__/sidebar-tree.test.tsx` |
+| Agents title cut to "Ag…" | "Create Agent" beside Teams | "Create", as on Skills; the accessible label keeps "Create Agent" | — |
+
+Each fix was rebuilt, installed and looked at again on the phone.
+
+### 8.4 Also seen, not fixed here
+
+- **Dictation fails on this phone**: Google's recognizer answers
+  `LANGUAGE_PACK_ERROR` (code 12) for the app's `en-US` with the SDK's options
+  (`continuous: true`, `packages/alia-chat/src/lib/speech-recognition.native.ts`);
+  the emulator's recognizer accepted the same request. Not investigated further.
+- **The agent page's Chat button did nothing** on three presses (no navigation,
+  no toast); Start task on the same header works. Not root-caused; if the
+  thread was created and only the navigation failed, the QA account holds up to
+  three empty threads with Lumen.
+- The model names carry their publisher twice ("DeepSeek: DeepSeek V4 Pro
+  0813") and some publishers are raw ids ("qwen", "mistralai") — catalogue data,
+  the same on the web.
+- After picking Light and then System in one session, the app did not follow
+  the OS's theme until restarted; started in System, it follows live.
+
+### 8.5 Not covered
+
+iOS; the voice call bar (needs a paid plan); read aloud's audio; push; signed
+out beyond the welcome (§8.1); tablets and three-button navigation.
+
