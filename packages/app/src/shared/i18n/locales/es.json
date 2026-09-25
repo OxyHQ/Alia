@@ -2045,7 +2045,18 @@
     "files": {
       "one": "1 archivo",
       "other": "{{count}} archivos"
-    }
+    },
+    "changes": "Cambios",
+    "preview": "Vista previa",
+    "views": "Vistas del panel",
+    "enlarge": "Ampliar {{name}}",
+    "minimize": "Reducir {{name}}",
+    "download": "Descargar {{name}}",
+    "more": "Más acciones para {{name}}",
+    "open": "Abrir",
+    "downloadFailed": "No se pudo descargar la imagen",
+    "deleteImage": "¿Eliminar «{{name}}»?",
+    "deleteImageDescription": "Se eliminará de tu Biblioteca."
   },
   "pages": {
     "automations": {

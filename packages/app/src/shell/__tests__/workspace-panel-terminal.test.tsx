@@ -42,6 +42,14 @@ vi.mock('@oxy.so/bloom/ai-chat', async () => {
     AiChatGalleryPanel: host('GalleryPanel'),
   };
 });
+vi.mock('@/features/chat/runtime/save-image', () => ({
+  canSaveImage: () => false,
+  imageFilename: (name: string) => name,
+  saveImage: async () => {},
+}));
+vi.mock('@oxy.so/bloom/surfaces', () => ({ alert: () => {}, confirm: async () => false }));
+vi.mock('@oxy.so/bloom/toast', () => ({ toast: { success: () => {}, error: () => {} } }));
+vi.mock('expo-web-browser', () => ({ openBrowserAsync: async () => ({}) }));
 vi.mock('@oxy.so/bloom/loading', async () => {
   const { host } = await import('@/shared/testing/panel-bloom-stubs');
   return { Loading: host('Loading') };
@@ -132,7 +140,7 @@ describe('the agent terminal in the code panel', () => {
     env.pathname = '/c/two';
     const r = await render();
     expect(actionKeys(r)).toEqual(['toggle']);
-    expect(panel(r).props.labels.browser).toBeUndefined();
+    expect(panel(r).props.labels.browser).toBe('panel.preview');
     expect(r.root.findAll(is('AgentTerminal'))).toHaveLength(0);
 
     env.pathname = '/c/one';
@@ -146,7 +154,7 @@ describe('the agent terminal in the code panel', () => {
     const terminalAction = () => (panel(r).props.actions as { key: string; onPress: () => void }[])[0];
     await act(async () => terminalAction().onPress());
     expect(useUIStore.getState().codePanelView).toBe('preview');
-    expect(panel(r).props.labels.browser).toBeUndefined();
+    expect(panel(r).props.labels.browser).toBe('panel.preview');
 
     await act(async () => panel(r).props.onTabChange('changes'));
     expect(panel(r).props.tab).toBe('changes');
