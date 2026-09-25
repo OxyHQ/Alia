@@ -4,13 +4,15 @@ import { CreditsLimits } from '@/components/credits-limits';
 import { ThoughtPanel } from '@/components/thought-panel';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useLibraryStore } from '@/lib/stores/library-store';
-import { useUIStore, type CanvasArtifact } from '@/lib/stores/ui-store';
+import { useUIStore, type CanvasArtifact, type CodePanelView } from '@/lib/stores/ui-store';
 import { workspacePanelKind, type WorkspacePanelKind } from '@/lib/workspace-panel-kind';
 import {
   AiChatCodePanel,
   AiChatGalleryPanel,
   type AiChatChangedFile,
+  type AiChatCodePanelLabels,
   type AiChatGeneration,
+  type AiChatPanelAction,
 } from '@oxy.so/bloom/ai-chat';
 import type { BloomIconComponent } from '@oxy.so/bloom/icons';
 import { RiCodeSLine } from '@oxy.so/bloom/icons/RiCodeSLine';
@@ -18,9 +20,22 @@ import { RiGalleryLine } from '@oxy.so/bloom/icons/RiGalleryLine';
 import { RiLightbulbLine } from '@oxy.so/bloom/icons/RiLightbulbLine';
 import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
 import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
+import { RiSideBarLine } from '@oxy.so/bloom/icons/RiSideBarLine';
+import { RiTerminalBoxLine } from '@oxy.so/bloom/icons/RiTerminalBoxLine';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useOxy } from '@oxy.so/services';
-import { useEffect, useMemo } from 'react';
+import { usePathname } from 'expo-router';
+import { lazy, Suspense, useEffect, useMemo } from 'react';
 import { View } from 'react-native';
+
+/**
+ * The agent's terminal, loaded when it is first shown: it brings xterm (web)
+ * or a WebView (native) with it, which a chat that never opens it should not
+ * pay for.
+ */
+const AgentTerminal = lazy(() =>
+  import('@/components/agent-terminal').then((m) => ({ default: m.AgentTerminal })),
+);
 
 /**
  * The right panel: in flow from `xl`, a drawer below it — and only while
@@ -30,7 +45,8 @@ import { View } from 'react-native';
  * What opens it: the agent at work (its first tool of a turn opens the thought
  * panel, a file it writes the canvas, a run the agent panel), the chat menu's
  * "Show panel" (the code panel over the files Alia wrote in this chat, or the
- * gallery over images), and the credits page.
+ * gallery over images) and "Agent terminal" (the code panel's second tab), and
+ * the credits page.
  */
 const PANEL_ICON: Record<WorkspacePanelKind, BloomIconComponent> = {
   code: RiCodeSLine,
@@ -92,6 +108,11 @@ function artifactText(artifact: CanvasArtifact): string {
   return '';
 }
 
+/** The code panel's Bloom tab for each of its views: the terminal rides in the second one. */
+function tabOf(view: CodePanelView): 'changes' | 'browser' {
+  return view === 'changes' ? 'changes' : 'browser';
+}
+
 function CodePanel({
   width,
   style,
@@ -115,6 +136,53 @@ function CodePanel({
   );
   const additions = changedFiles.reduce((sum, f) => sum + (f.additions ?? 0), 0);
 
+  /**
+   * The agent terminal, as the second tab of this panel — only on the route it
+   * was opened from (see `AgentTerminalSelection`).
+   */
+  const pathname = usePathname();
+  const terminal = useUIStore((s) => s.agentTerminal);
+  const terminalAgentId = terminal !== null && terminal.route === pathname ? terminal.agentId : null;
+  const storedView = useUIStore((s) => s.codePanelView);
+  const setView = useUIStore((s) => s.setCodePanelView);
+  const view: CodePanelView = storedView === 'terminal' && terminalAgentId === null ? 'preview' : storedView;
+  const showTerminal = view === 'terminal' && terminalAgentId !== null;
+
+  /**
+   * The header's glyphs, each with something behind it. Bloom's defaults are a
+   * terminal, an expand and a toggle with no handlers; the terminal is offered
+   * only where there is an agent to show, and expand has nothing to do here.
+   */
+  const actions = useMemo<AiChatPanelAction[]>(
+    () => [
+      ...(terminalAgentId === null
+        ? []
+        : [
+            {
+              key: 'terminal',
+              label: t('panel.terminal'),
+              icon: RiTerminalBoxLine,
+              onPress: () => setView(view === 'terminal' ? 'preview' : 'terminal'),
+            },
+          ]),
+      {
+        key: 'toggle',
+        label: t('chatHeader.hidePanel'),
+        icon: RiSideBarLine,
+        onPress: () => useUIStore.getState().setRightPanel(null),
+      },
+    ],
+    [terminalAgentId, view, setView, t],
+  );
+
+  const labels = useMemo<AiChatCodePanelLabels>(
+    () => ({
+      uncommitted: (count) => t('panel.files', { count }),
+      ...(showTerminal ? { browser: t('panel.terminal') } : {}),
+    }),
+    [showTerminal, t],
+  );
+
   return (
     <AiChatCodePanel
       width={width}
@@ -124,14 +192,25 @@ function CodePanel({
       changeCount={changedFiles.length}
       additions={additions}
       deletions={0}
+      tab={tabOf(view)}
+      onTabChange={(tab) =>
+        setView(tab === 'changes' ? 'changes' : view === 'terminal' ? 'terminal' : 'preview')
+      }
+      actions={actions}
       browser={
-        current && current.type !== 'code' ? (
+        showTerminal ? (
+          <View className="min-h-0 flex-1" testID="agent-terminal-slot">
+            <Suspense fallback={<Loading />}>
+              <AgentTerminal agentId={terminalAgentId} />
+            </Suspense>
+          </View>
+        ) : current && current.type !== 'code' ? (
           <CanvasComponent
             component={{ id: current.id, type: current.type, title: current.title || current.type, data: current.content }}
           />
         ) : undefined
       }
-      labels={{ uncommitted: (count) => t('panel.files', { count }) }}
+      labels={labels}
       style={style}
     />
   );
