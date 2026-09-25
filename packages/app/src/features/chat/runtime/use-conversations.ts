@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery, type QueryClient } from '@tanstack/react-query';
 import i18n from '@/shared/i18n';
 import { useOxy } from '@oxy.so/services';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AccountScopedKey } from '@/shared/state/account-scope';
 import { toast } from '@oxy.so/bloom/toast';
 import apiClient from '@/shared/api/client';
 import { API_ROUTES } from '@/shared/api/routes';
@@ -137,7 +137,16 @@ interface ConversationsInfiniteData {
   pageParams: unknown[];
 }
 
-const CONVERSATIONS_STORAGE_KEY = "alia-conversations";
+/**
+ * The offline copy of the conversations, per account.
+ *
+ * It was one device-wide key, so a copy written while A's session was failing
+ * (a 401 on save) was what B's sidebar fell back to on B's next 401 — A's
+ * titles and messages under B's name (#608 §4). It is bound with the other
+ * account-scoped stores in `app/(app)/_layout.tsx`; signed out it reads
+ * nothing and writes nothing.
+ */
+export const offlineConversations = new AccountScopedKey("alia-conversations");
 
 /** A stable signal for a URL whose server-side conversation no longer exists. */
 export class ConversationNotFoundError extends Error {
@@ -148,14 +157,14 @@ export class ConversationNotFoundError extends Error {
 }
 
 async function removeStoredConversation(id: string): Promise<void> {
-  const stored = await AsyncStorage.getItem(CONVERSATIONS_STORAGE_KEY);
+  const stored = await offlineConversations.getItem();
   if (!stored) return;
 
   try {
     const conversations: Conversation[] = JSON.parse(stored);
     const remaining = conversations.filter((conversation) => conversation.id !== id);
     if (remaining.length !== conversations.length) {
-      await AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(remaining));
+      await offlineConversations.setItem(JSON.stringify(remaining));
     }
   } catch {
     // A malformed offline cache cannot make a valid server response invalid.
@@ -176,7 +185,7 @@ function messageText(message: Message | undefined): string {
 
 // Fetch all conversations from local storage (offline fallback)
 async function fetchConversations(): Promise<Conversation[]> {
-  const stored = await AsyncStorage.getItem(CONVERSATIONS_STORAGE_KEY);
+  const stored = await offlineConversations.getItem();
   if (stored) {
     return JSON.parse(stored).map((conv: Conversation) => ({
       ...conv,
@@ -270,7 +279,7 @@ async function fetchConversation(id: string): Promise<Conversation> {
 
     // An unavailable authenticated session can still read its offline copy.
     if (status === 401) {
-      const stored = await AsyncStorage.getItem(CONVERSATIONS_STORAGE_KEY);
+      const stored = await offlineConversations.getItem();
       if (stored) {
         const parsed: Conversation[] = JSON.parse(stored);
         const conversation = parsed.find((c) => c.id === id);
@@ -369,7 +378,7 @@ export function useSaveConversation() {
             newConversations.unshift(conversation);
           }
 
-          await AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
+          await offlineConversations.setItem(JSON.stringify(newConversations));
           return conversation;
         }
         throw error;
@@ -468,7 +477,7 @@ export function useDeleteConversation() {
         if (errorStatus(error) === 401) {
           const conversations = await fetchConversations();
           const newConversations = conversations.filter((c) => c.id !== id);
-          await AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
+          await offlineConversations.setItem(JSON.stringify(newConversations));
         } else {
           throw error;
         }
@@ -532,7 +541,7 @@ export function useClearConversation() {
           const cleared = conversations.map((c) =>
             c.id === id ? { ...c, messages: [], lastMessage: undefined, updatedAt: new Date() } : c,
           );
-          await AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(cleared));
+          await offlineConversations.setItem(JSON.stringify(cleared));
         } else {
           throw error;
         }
@@ -596,7 +605,7 @@ export function useCreateConversation() {
 
           const conversations = await fetchConversations();
           const newConversations = [conversation, ...conversations];
-          await AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
+          await offlineConversations.setItem(JSON.stringify(newConversations));
 
           return conversation;
         }

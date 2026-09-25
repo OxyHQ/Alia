@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { Platform } from "react-native";
 import apiClient from "@/shared/api/client";
 import { API_ROUTES } from "@/shared/api/routes";
+import { currentAccountEpoch, isCurrentAccountEpoch } from "@/shared/state/account-epoch";
 
 export type FileCategory = "documents" | "images" | "other";
 
@@ -32,12 +33,15 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
   loading: false,
 
   loadFiles: async (category?: FileCategory) => {
+    const epoch = currentAccountEpoch();
     try {
       set({ loading: true });
       const params: any = {};
       if (category) params.category = category;
 
       const res = await apiClient.get(API_ROUTES.library.list, { params });
+      // The account changed while this was in flight: the files are not its.
+      if (!isCurrentAccountEpoch(epoch)) return;
       const files = res.data.files.map((f: any) => ({
         ...f,
         createdAt: new Date(f.createdAt),

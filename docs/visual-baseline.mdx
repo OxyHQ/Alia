@@ -384,3 +384,29 @@ Also outstanding:
   list and the Bloom migration tracked in [Bloom adoption](./bloom-adoption.mdx)
   have no visual reference at all. That is the gap #608 §13 most wants closed,
   and this page does not close it.
+
+## 10. The QA sweep (looked at, not gated)
+
+`packages/app/scripts/visual/qa-sweep.mjs` is the re-runnable half of a visual
+QA pass: every screen, menu and panel reachable without an account, at the six
+§12 widths plus a short phone (390×640), light and dark.
+
+```bash
+node packages/app/scripts/visual/qa-sweep.mjs --out /tmp/alia-qa [--only thread] [--widths 390,1280] [--theme dark]
+```
+
+It drives the production export signed out (welcome, "Continue without an
+account", the empty chat, the drawer, the composer's add and mode menus, a long
+draft, a phone with its keyboard up as `interactive-widget=resizes-content`
+would lay it out, the command palette, the shortcuts dialog, settings, a Tab
+walk) and the fixtures export (the thread top to bottom, turn actions and their
+toast, the edit strip and Escape out of it, the chat's menu, the workspace,
+usage and thought panels, the clear confirmation, a refused attachment, a
+streamed reply). Screenshots go to `--out`, never into the repo, with a
+`report.json` that flags sideways scroll, controls past the viewport's edge,
+text under the composer at rest, a composer outside the visual viewport and,
+for the Tab walk, which stops draw no focus ring.
+
+It is not a gate: it runs on a real clock with the network open, so its pixels
+are not reproducible. What it finds is fixed and then checked here with
+`--check`.
