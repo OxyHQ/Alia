@@ -1,6 +1,6 @@
 ---
 title: "Runtime baseline"
-description: "What booting Alia's web surface costs on the real clock: time to a hittable button, script and main-thread cost, settled memory, the cost of a screen that never stops animating, and what twelve route changes do to listeners, timers and the heap. With the run count, the spread, and the threshold below which a later difference is noise."
+description: "What booting Alia's web surface costs on the real clock: time to a hittable button, script and main-thread cost, settled memory, the cost of a screen that never stops animating, and what twelve route changes do to listeners, timers and the heap — plus the chat workspace on a 1,000-message fixture: opening it, typing, streaming, scrolling and switching. With the run count, the spread, and the threshold below which a later difference is noise."
 order: 9
 ---
 
@@ -20,8 +20,10 @@ timing in it meaningless. This page is the other harness. It is
 `baseline/runtime.json`, and it installs no clock at all.
 
 **Read [§8](#8-what-this-still-does-not-measure) before quoting this as
-coverage.** One signed-out surface is measured. Six of the seven flows §12 names
-are not, and cannot be without a session and a live API.
+coverage.** The signed-out boot is measured on the production export; the chat
+workspace — opening a conversation, typing, streaming, scrolling, switching — is
+measured on a fixtures export fed a generated conversation ([§9](#9-the-chat-workspace-on-fixtures)).
+Panels and the call are not measured.
 
 ## 1. Running it
 
@@ -41,11 +43,16 @@ drives Chromium through `playwright-core`; and overwrites
 | `--warmup <n>` | Discarded boots before them (default 1). |
 | `--cycles <n>` | Mount/unmount cycles in the leak loop (default 12). |
 | `--rates <list>` | CPU throttling rates (default `1,4`). |
-| `--rebuild` | Re-export even if `dist/` exists. |
+| `--rebuild` | Re-export even if `dist/` exists (and `dist-fixtures/`). |
+| `--workspace-runs <n>` | Passes of the chat-workspace scenario (default 3). See [§9](#9-the-chat-workspace-on-fixtures). |
+| `--switch-cycles <n>` | Conversation switches in its memory loop (default 8). |
+| `--no-workspace` | Skip the chat workspace. |
+| `--workspace-only` | Only the chat workspace; without `--check` it is merged into the committed `runtime.json`, leaving the boot figures as they were. |
 
 A full run is about nine minutes: 2 × (1 + 7) boots, each of which loads a
 10 MB bundle and then watches an idle screen for two seconds, plus twelve route
-changes.
+changes — and, since the chat workspace joined it, about fifteen more for §9
+plus its export.
 
 ### No new dependencies
 
@@ -334,24 +341,22 @@ in the wrong place.
 
 ## 8. What this still does not measure
 
-§12 lists seven flows. **One is measured.**
+§12 lists seven flows. **Five are measured.**
 
 | §12 flow | Status |
 | --- | --- |
-| Inicio (start) | ✅ measured, signed out |
-| Apertura de conversación | ❌ needs a session and a conversation |
-| Escritura | ❌ needs a signed-in composer |
-| Streaming | ❌ needs `POST /alia/chat` answering |
-| Scroll | ⚠️ the timeline component only, below the browser — [§9](#9-the-timeline-at-1000-and-5000-messages) |
-| Paneles | ❌ needs the signed-in layout |
+| Inicio (start) | ✅ measured, signed out, production export |
+| Apertura de conversación | ✅ [§9](#9-the-chat-workspace-on-fixtures), fixtures export, 1,000 messages |
+| Escritura | ✅ §9, keydown to next frame in the real composer |
+| Streaming | ✅ §9, a simulated stream with the real hook's update |
+| Scroll | ✅ §9, top to bottom of 1,000 messages; the thread component alone in [§10](#10-the-timeline-at-1000-and-5000-messages) |
+| Paneles | ❌ needs the signed-in layout and a panel's data |
 | Llamada | ❌ needs a session, a conversation and a microphone |
 
-None of the six is reachable by trying harder with this harness. Each needs an
-Oxy session and a live Alia API; the harness blocks all non-local network by
-design, and inventing a conversation would produce a measurement of the
-harness rather than of Alia. Reaching them needs a seeded account, an API
-fixture or a recorded transport, and that is a separate piece of work — the same
-conclusion the visual baseline reached about its four missing references.
+The four in §9 are the real component tree over generated data, not the real
+data path: no request, no SSE parsing, no query cache. What they measure is the
+cost of drawing and updating the chat — which is what the thread refactor
+changes — and not the network or the server.
 
 §12 also names five quantities to record for each of those flows. On the one
 flow that is reachable, they stand like this:
@@ -380,7 +385,134 @@ Also outstanding:
 - **Bundle size**, which is not repeated here: it is measured by the visual
   harness and recorded in the [visual baseline](./visual-baseline.mdx#6-bundle-baseline-12).
 
-## 9. The timeline at 1,000 and 5,000 messages
+## 9. The chat workspace, on fixtures
+
+The four flows §8 used to list as unreachable are measured on a second export
+of the same app, built with `EXPO_PUBLIC_ALIA_FIXTURES=1` into
+`packages/app/dist-fixtures/` (gitignored).
+
+### What the fixture is
+
+- `index.web.tsx` mounts `fixtures/entry.tsx` instead of the router's own entry
+  **only** when that variable is `"1"`. It is inlined at build time, so every
+  other build folds the condition away and never bundles `fixtures/`.
+- `fixtures/entry.tsx` is expo-router's own route context over `app/` with
+  `fixtures/routes/` merged in. So `/__fixtures/:id` sits under the real `(app)`
+  layout — shell, sidebar, providers, stores — and only its page is fixture
+  code. `(app)/_layout.tsx` already treats a `__*` route as a chat route.
+- The page renders `ChatPageContent`, the entry point `/c/:id` renders through
+  `ConversationScreen`, with `fixtures/conversation.ts` in place of the API:
+  `a-1000` is 1,000 messages, user and assistant in turn over several days —
+  Markdown with TypeScript, SQL and Python blocks, tables, lists, a user image
+  every fifth turn (inline SVG), web searches with four sources and a page
+  visit, deep research with five citations, and weather and market cards.
+  Deterministic: the same id is the same thread byte for byte.
+- `window.__aliaFixture.threads[id].stream()` appends a turn and streams a
+  reply into it with the update `use-streaming-chat.ts` makes — the last
+  message replaced every 50ms.
+- `metro.config.js` gives a fixtures build its own cache version, so its
+  transforms (which inline a different value) are never served to an ordinary
+  build or the reverse.
+
+The harness reaches the page only through public seams: the URL, the composer's
+`<textarea>`, the document's scroll and `window.__aliaFixture`. It reads nothing
+inside the thread, so the same command measures the thread before and after it
+is windowed.
+
+**It never ships.** Every run greps the production export in `dist/` for three
+strings that only fixture code contains and survive minification
+(`__aliaFixture`, `__fixtures/[id]`, a sentence of the generated thread), after
+checking the fixtures export does contain all three — otherwise the grep would
+prove nothing — and stops if any is found. `bun run --filter @alia/app
+build:production` on this branch: 99 chunks, `check-web-bundle` clean, and none
+of `__aliaFixture`, `__fixtures/[id]`, the generated text, `Tell me more.` or
+`fixtureConversation` anywhere in `dist/`; the fixtures export has 100 chunks,
+the extra one the fixture page. `fixtures/__tests__/conversation.test.ts` pins
+the build-time gate and that no module under `app/`, `components/` or `lib/`
+imports `fixtures/`.
+
+### The scenario
+
+One pass, in a fresh context, at 1280×800 and CPU rate 1×: boot on `warm-2` (a
+two-message thread); route to `a-1000` (open); click the composer and type a
+53-character sentence, one key every 60ms (typing); stream a 60-update reply at
+50ms (streaming); jump to the top and scroll to the bottom 200px per frame
+(scroll). Three passes, medians. Then one page alternates `a-1000` and `b-1000`
+eight times, forcing a collection after each round trip (switching).
+
+### The numbers
+
+Measured 2026-09-25 on 32 cores with the load average at **22–27** — other
+sessions were compiling and running emulators. §4 showed load inflates timings
+by up to 75%, so treat these as an upper bound; the counts (nodes, heap,
+listeners, updates) do not depend on load. Committed as the `workspace` section
+of `baseline/runtime.json`.
+
+| | Median (n=3) | Spread |
+| --- | --- | --- |
+| **Open** — route change to the first frame after the thread committed | **4909ms** | IQR 15% · 3742–5251 |
+| …main-thread task time / of which script / layout / style | 6241 / 5117 / 563 / 222ms | |
+| …longest task | 4283ms | |
+| DOM nodes with the thread open | **59,715** | identical every pass |
+| Heap after a forced collection, thread open | **361.8 MiB** | 0.0% |
+| **Typing** — keydown to the next frame | **235ms** median, 256ms p95 | IQR 0.9% |
+| …key events the Event Timing API reports at ≥16ms | 158 — every keydown, keypress and keyup but one | |
+| …per key: script / layout / style | 10 / **208** / 1.2ms | |
+| **Streaming** — main-thread time per update | **223ms** | IQR 7.2% |
+| …per update: script / layout / style | 90 / 73 / 0.9ms | |
+| …60 updates due in 3.0s took | 13.4s (10.4s late) | |
+| …frames per second while streaming | 8.8 | |
+| **Scroll** — 232,561px top to bottom, 1,159 frames | 217s | IQR 3.7% |
+| …frame p95 / mean / max | 367 / 187 / 700ms | |
+| …frames longer than two vsyncs | 1,108 of 1,159 | |
+| …script / layout / style over the whole scroll | 5.8s / 0.3s / 0.3s | |
+| **Long tasks**, whole pass | 1,249, totalling 245s; 181s of it blocking | |
+
+**Conversation switches**, `a-1000` ↔ `b-1000`, cycles 3–8:
+
+| Counter | Cycle 3 | Cycle 8 | Slope per cycle | After 5 idle seconds |
+| --- | --- | --- | --- | --- |
+| Heap after GC | 366.9 MiB | 368.3 MiB | **+254 KiB** | 368.3 MiB |
+| Live listeners (engine) | 6,763 | 6,843 | **+16.7** | 6,843 |
+| Pending timeouts | 68 | 176 | **+21.8** | 178 |
+| DOM nodes | 55,996 | 55,996 | 0 | — |
+| Observers | 2 | 2 | 0 | — |
+
+A switch takes 5.5s (median of 16, IQR 49% — the least stable figure here).
+
+### What the numbers say
+
+- **Everything is drawn.** 59,715 nodes and 362 MiB for 1,000 messages is the
+  thread rendering every row; opening it is one 3–5s task.
+- **Typing pays for the thread.** 208ms of the ~235ms per key is layout: each
+  keystroke relays out the whole document, and a 60k-node document is what
+  makes that cost 200ms. Script per key is only 10ms, so the composer's own
+  React work is not the problem; the size of what shares its layout is.
+- **A streamed update costs 223ms**, 90ms of it script — the thread
+  re-rendering — so a 50ms cadence cannot be kept: the reply lands 10s late at
+  under 9fps.
+- **Scrolling is not script-bound.** 5.8s of script, layout and style over a
+  217s scroll; the rest of each ~190ms frame is paint and rasterisation of a
+  232,000px page in headless Chromium's software rasteriser (the same caveat as
+  §6: this number compares runs of this harness, it does not transfer to a
+  GPU).
+- **Switching leaks in the same shape as §7**: listeners and pending timeouts
+  climb every cycle and do not come back after five idle seconds; nodes are
+  flat, so it is not whole trees being kept.
+
+These are the before numbers for the windowed timeline being built in
+`components/chat-interface.tsx`; the same command measures the after.
+
+### Noise and gate
+
+`--check` compares five workspace medians — `openMs`, `keyToFrameP95`,
+`streamTaskMsPerUpdate`, `scrollFrameP95`, `longTaskMsTotal` — at the default
+±20%. The spreads above are inside it except the open (IQR 15%), and they were
+measured under heavy load; the gate has not been recalibrated on a quiet
+machine the way §4's was. A full workspace run takes about 15 minutes, nearly
+all of it the scroll at this thread's current frame rate.
+
+## 10. The timeline at 1,000 and 5,000 messages
 
 §7 of #608 asks for windowing on long histories and §12 for a measurement at
 "una fixture de al menos 1.000 mensajes". The browser harness above cannot open

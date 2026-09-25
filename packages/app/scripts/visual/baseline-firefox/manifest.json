@@ -1,0 +1,215 @@
+{
+  "note": "Written by packages/app/scripts/visual/capture.mjs. Regenerate with `bun run --filter @alia/app visual:baseline`; verify with the same command plus --check.",
+  "capturedAt": "2026-09-25T10:18:44.932Z",
+  "engine": "firefox",
+  "version": "151.0",
+  "pinned": {
+    "deviceScaleFactor": 1,
+    "locale": "en-US",
+    "timezoneId": "UTC",
+    "epoch": "2026-01-01T12:00:00.000Z",
+    "virtualFrameMs": 16.666666666666668,
+    "virtualClockRestMs": 6000,
+    "motionFrameMs": [
+      1200,
+      2400,
+      3590,
+      9000
+    ],
+    "network": "everything but the local static server is aborted",
+    "screenshot": {
+      "animations": "disabled",
+      "caret": "hide",
+      "scale": "css"
+    }
+  },
+  "tolerance": 6,
+  "viewports": [
+    {
+      "width": 320,
+      "height": 568
+    },
+    {
+      "width": 390,
+      "height": 844
+    },
+    {
+      "width": 768,
+      "height": 1024
+    },
+    {
+      "width": 1024,
+      "height": 768
+    },
+    {
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "width": 1440,
+      "height": 900
+    }
+  ],
+  "bundle": {
+    "jsChunks": 99,
+    "jsTotalBytes": 9041713,
+    "largestJsChunks": [
+      {
+        "name": "__common-9b3104c283e7d3d9e013c990906c5e2a.js",
+        "bytes": 6567789
+      },
+      {
+        "name": "index-0f04a5fa9e9b74417e1a8bac1c347441.js",
+        "bytes": 1114892
+      },
+      {
+        "name": "_layout-173bd9acea34e5528ee34778a9dfe4ec.js",
+        "bytes": 416184
+      },
+      {
+        "name": "xterm-2c00899525bd7ebf32da7595d487cf45.js",
+        "bytes": 339317
+      },
+      {
+        "name": "FileManagementScreen-0292016d39209e51785630480a2dab0a.js",
+        "bytes": 63738
+      },
+      {
+        "name": "index-66ee09afe1ca776f59eec2fefc6dbefc.js",
+        "bytes": 35844
+      },
+      {
+        "name": "PaymentGatewayScreen-6af627789eccfe9d47e7e12ac004e6e3.js",
+        "bytes": 29264
+      },
+      {
+        "name": "[id]-29ddd9c66846d808fbe5655f4fed4b6e.js",
+        "bytes": 25612
+      },
+      {
+        "name": "[id]-b75a48f4140e1efa9475749e1e857da3.js",
+        "bytes": 25573
+      },
+      {
+        "name": "PremiumSubscriptionScreen-2f968991d7e3dc46bfae854f511b376a.js",
+        "bytes": 24030
+      }
+    ],
+    "cssFiles": 1,
+    "cssTotalBytes": 66628
+  },
+  "files": [
+    {
+      "name": "welcome_320x568_light_motion.png",
+      "bytes": 72941
+    },
+    {
+      "name": "welcome_320x568_light_reduced.png",
+      "bytes": 72757
+    },
+    {
+      "name": "welcome_320x568_dark_motion.png",
+      "bytes": 63946
+    },
+    {
+      "name": "welcome_320x568_dark_reduced.png",
+      "bytes": 63796
+    },
+    {
+      "name": "welcome_390x844_light_motion.png",
+      "bytes": 100095
+    },
+    {
+      "name": "welcome_390x844_light_reduced.png",
+      "bytes": 100857
+    },
+    {
+      "name": "welcome_390x844_dark_motion.png",
+      "bytes": 86822
+    },
+    {
+      "name": "welcome_390x844_dark_reduced.png",
+      "bytes": 87396
+    },
+    {
+      "name": "welcome_768x1024_light_motion.png",
+      "bytes": 178887
+    },
+    {
+      "name": "welcome_768x1024_light_reduced.png",
+      "bytes": 178660
+    },
+    {
+      "name": "welcome_768x1024_dark_motion.png",
+      "bytes": 148088
+    },
+    {
+      "name": "welcome_768x1024_dark_reduced.png",
+      "bytes": 148781
+    },
+    {
+      "name": "welcome_1024x768_light_motion.png",
+      "bytes": 178499
+    },
+    {
+      "name": "welcome_1024x768_light_reduced.png",
+      "bytes": 177286
+    },
+    {
+      "name": "welcome_1024x768_dark_motion.png",
+      "bytes": 152437
+    },
+    {
+      "name": "welcome_1024x768_dark_reduced.png",
+      "bytes": 151387
+    },
+    {
+      "name": "welcome_1280x800_light_motion.png",
+      "bytes": 234733
+    },
+    {
+      "name": "welcome_1280x800_light_reduced.png",
+      "bytes": 237416
+    },
+    {
+      "name": "welcome_1280x800_dark_motion.png",
+      "bytes": 196127
+    },
+    {
+      "name": "welcome_1280x800_dark_reduced.png",
+      "bytes": 195299
+    },
+    {
+      "name": "welcome_1440x900_light_motion.png",
+      "bytes": 278336
+    },
+    {
+      "name": "welcome_1440x900_light_reduced.png",
+      "bytes": 284344
+    },
+    {
+      "name": "welcome_1440x900_dark_motion.png",
+      "bytes": 228746
+    },
+    {
+      "name": "welcome_1440x900_dark_reduced.png",
+      "bytes": 233276
+    },
+    {
+      "name": "ambient_1280x800_light_motion_t01200.png",
+      "bytes": 118420
+    },
+    {
+      "name": "ambient_1280x800_light_motion_t02400.png",
+      "bytes": 230599
+    },
+    {
+      "name": "ambient_1280x800_light_motion_t03590.png",
+      "bytes": 237809
+    },
+    {
+      "name": "ambient_1280x800_light_motion_t09000.png",
+      "bytes": 240747
+    }
+  ]
+}
