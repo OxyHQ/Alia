@@ -16,6 +16,7 @@ import {
   InputGroupTextarea,
 } from "@/components/ui/input-group"
 import { cn } from "@/lib/utils"
+import { defaultLabel, formatContextWindow, groupModels, type ModelCatalogue } from "@/lib/models"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowUp02Icon,
@@ -137,22 +138,14 @@ export function Chat() {
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [currentMode, setCurrentMode] = React.useState("ask")
   /**
-   * The model this window sends with, or `undefined` for "let the main process
-   * choose".
-   *
-   * It was `useState("route:cowork")` beside a `models` list seeded from a
-   * hardcoded fallback — and neither `models` nor `setCurrentModel` was ever
-   * read, which TypeScript reported as TS6133 on this file before this change.
-   * There is no model picker in this UI; the state was vestigial and the
-   * identifier in it was a second copy of a default the main process already
-   * owns.
-   *
-   * Sending `undefined` makes that explicit: `ChatProvider.handleMessage` falls
-   * back to the stored preference and resolves it against the catalogue, so the
-   * decision lives in exactly one place instead of being duplicated into a
-   * renderer that cannot act on it.
+   * The model picker: real models from `GET /catalogue` (via the main process),
+   * and the person's pick, `null` meaning "Default" — `model` is then omitted
+   * and the server answers with its own default. The pick is persisted by the
+   * main process, which also re-checks it against the catalogue on every send.
    */
-  const currentModel = undefined
+  const [catalogue, setCatalogue] = React.useState<ModelCatalogue | null>(null)
+  const [selectedModel, setSelectedModel] = React.useState<string | null>(null)
+  const currentModel = selectedModel ?? undefined
   const [streamingContent, setStreamingContent] = React.useState("")
   const [userName, setUserName] = React.useState<string | null>(null)
   const [toolExecutions, setToolExecutions] = React.useState<ToolExecution[]>([])
@@ -169,6 +162,9 @@ export function Chat() {
 
   // Initialize and set up listeners
   React.useEffect(() => {
+    window.api.listModels().then(setCatalogue).catch(() => setCatalogue(null))
+    window.api.getSelectedModel().then(setSelectedModel).catch(() => setSelectedModel(null))
+
     // Get user info
     window.api.getUserInfo().then((user) => {
       if (user) {
@@ -287,6 +283,12 @@ export function Chat() {
     window.api.sendMessage(input.trim(), currentMode, currentModel, context)
     setInput("")
     setAttachedFiles([]) // Clear attachments after sending
+  }
+
+  const handleModelChange = (value: string) => {
+    const next = value === "" ? null : value
+    setSelectedModel(next)
+    void window.api.selectModel(next)
   }
 
   const handleAttachFile = async () => {
@@ -415,6 +417,12 @@ export function Chat() {
             autoFocus
           />
           <InputGroupAddon align="block-end" className="mr-1 mb-1 flex gap-1">
+            <ModelPicker
+              catalogue={catalogue}
+              selected={selectedModel}
+              disabled={isGenerating}
+              onChange={handleModelChange}
+            />
             {!isGenerating && (
               <>
                 <Tooltip>
@@ -451,6 +459,52 @@ export function Chat() {
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * A native select: featured models first, then one group per publisher
+ * (alphabetical), with "Default (<name>)" standing for no choice. A stored pick
+ * the catalogue no longer lists stays visible as its id; the main process omits
+ * it on send, so the server default answers.
+ */
+function ModelPicker({
+  catalogue,
+  selected,
+  disabled,
+  onChange,
+}: {
+  catalogue: ModelCatalogue | null
+  selected: string | null
+  disabled: boolean
+  onChange: (value: string) => void
+}) {
+  const groups = catalogue === null ? [] : groupModels(catalogue)
+  const unlisted = selected !== null && !(catalogue?.models.some((model) => model.id === selected) ?? false)
+  const optionLabel = (model: ModelCatalogue["models"][number]) => {
+    const context = formatContextWindow(model.contextWindow)
+    return context === null ? model.name : `${model.name} · ${context}`
+  }
+  return (
+    <select
+      aria-label="Model"
+      value={selected ?? ""}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+      className="mr-auto h-7 max-w-[220px] truncate rounded-full border bg-transparent px-2 text-xs text-muted-foreground hover:text-foreground focus:outline-none disabled:opacity-50"
+    >
+      <option value="">{defaultLabel(catalogue)}</option>
+      {unlisted && <option value={selected}>{selected}</option>}
+      {groups.map((group) => (
+        <optgroup key={group.key} label={group.label ?? "Featured"}>
+          {group.models.map((model) => (
+            <option key={`${group.key}:${model.id}`} value={model.id}>
+              {optionLabel(model)}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
   )
 }
 

@@ -24,10 +24,32 @@ const BODY_TEXT = { fontSize: 16, lineHeight: 28 } as const;
 const HEADING_TEXT = { fontSize: 16, lineHeight: 22 } as const;
 const MONO_FONT = Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' })!;
 
-function createRules(colors: AliaColors) {
+function createRules(colors: AliaColors, renderCodeBlock?: RenderCodeBlock) {
   const { text: textColor, muted, border, primary, mutedForeground } = colors;
 
+  /**
+   * Fenced and indented code, drawn by the host when it brings a code card of
+   * its own (the app passes Bloom's `CodeBlock`). This package has no Bloom
+   * dependency, so it cannot name one itself; without the prop the library's
+   * default `fence` / `code_block` rendering, styled below, stays.
+   */
+  const codeRules = renderCodeBlock === undefined
+    ? {}
+    : {
+        fence: (node: ASTNode) => (
+          <View key={node.key} style={{ marginVertical: 8 }}>
+            {renderCodeBlock(node.content.replace(/\n$/, ''), codeLanguage(node))}
+          </View>
+        ),
+        code_block: (node: ASTNode) => (
+          <View key={node.key} style={{ marginVertical: 8 }}>
+            {renderCodeBlock(node.content.replace(/\n$/, ''), undefined)}
+          </View>
+        ),
+      };
+
   return {
+    ...codeRules,
     heading1: (node: ASTNode, children: ReactNode[]) => (
       <Text
         key={node.key}
@@ -249,6 +271,16 @@ function createStyles(colors: AliaColors, fontFamily: string | undefined) {
   };
 }
 
+/** Draws one block of code: its source, and the fence's language when it named one. */
+export type RenderCodeBlock = (code: string, language: string | undefined) => ReactNode;
+
+/** The fence's info string up to the first space (```ts title=x → `ts`). */
+function codeLanguage(node: ASTNode): string | undefined {
+  const info = (node as ASTNode & { sourceInfo?: string }).sourceInfo?.trim() ?? '';
+  const language = info.split(/\s+/)[0];
+  return language === '' ? undefined : language;
+}
+
 export interface AliaMarkdownProps {
   /**
    * The sans family for body text, as a SINGLE family name — RN's `fontFamily`
@@ -263,6 +295,12 @@ export interface AliaMarkdownProps {
   fontFamily?: string;
   content: string;
   colors?: Partial<AliaColors>;
+  /**
+   * Draw fenced code with the host's own code card. Keep the function's
+   * identity stable (a module-level function or a `useCallback`): it is part of
+   * the rules' memo, and a new one per render re-parses every block.
+   */
+  renderCodeBlock?: RenderCodeBlock;
 }
 
 const FENCE_RE = /^\s*(?:```|~~~)/;
@@ -331,12 +369,12 @@ const MarkdownBlock = React.memo(function MarkdownBlock({ content, rules, styles
   return <Markdown rules={rules} style={styles}>{content}</Markdown>;
 });
 
-export function AliaMarkdown({ content, colors: colorOverrides, fontFamily }: AliaMarkdownProps) {
+export function AliaMarkdown({ content, colors: colorOverrides, fontFamily, renderCodeBlock }: AliaMarkdownProps) {
   const scheme = useColorScheme();
   const fallback = scheme === 'dark' ? FALLBACK_DARK : FALLBACK_LIGHT;
   const colors = { ...fallback, ...colorOverrides } as AliaColors;
 
-  const customRules = useMemo(() => createRules(colors), [colors.text, colors.muted, colors.border, colors.primary, colors.mutedForeground]);
+  const customRules = useMemo(() => createRules(colors, renderCodeBlock), [colors.text, colors.muted, colors.border, colors.primary, colors.mutedForeground, renderCodeBlock]);
   const markdownStyles = useMemo(() => createStyles(colors, fontFamily), [colors.text, colors.muted, colors.border, colors.primary, colors.mutedForeground, fontFamily]);
   const blocks = useMemo(() => splitMarkdownBlocks(content), [content]);
 

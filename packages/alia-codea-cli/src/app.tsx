@@ -8,9 +8,10 @@ import { processConversation, Message, ToolExecution } from './utils/conversatio
 import { buildSystemMessage, getCodebaseContext, loadProjectInstructions } from './utils/context.js';
 import { createSession, saveSession } from './utils/config.js';
 import { ApprovalMode, parseApprovalMode } from './utils/approval.js';
-import { fetchCatalogue, fetchModes, labelFor, matchShorthand, presentation } from './utils/catalogue.js';
+import { formatModelList, labelFor, labelForChoice, searchModels, tryCatalogue } from './utils/catalogue.js';
 
 export interface AppOptions {
+  /** A `publisher/model` id or search text; `''` for the server's default model. */
   model: string;
   approvalMode: ApprovalMode;
   context: boolean;
@@ -26,15 +27,16 @@ export function App({ options }: { options: AppOptions }) {
   /**
    * The chosen model and how to show it, in ONE piece of state.
    *
-   * They were two, and the display was derived by stripping an `route:auto-`
-   * prefix off the identifier — which rendered `route:instant` as `route:instant` and
-   * only ever shortened one family. The catalogue supplies the real name, and
-   * that arrives asynchronously, so keeping the pair together is what stops the
-   * label describing a model the request no longer carries. Until the catalogue
-   * has been consulted the identifier IS the label, which is honest rather than
-   * pretty.
+   * `id` is empty for the server's default model (the request then omits
+   * `model`). The catalogue supplies the real name asynchronously, so keeping
+   * the pair together is what stops the label describing a model the request
+   * no longer carries. Until the catalogue has been consulted the identifier IS
+   * the label.
    */
-  const [selection, setSelection] = useState({ id: options.model, label: options.model });
+  const [selection, setSelection] = useState({
+    id: options.model,
+    label: options.model === '' ? 'Default model' : options.model,
+  });
   const model = selection.id;
   const [approvalMode, setApprovalMode] = useState<ApprovalMode>(options.approvalMode);
   const [contextPercent, setContextPercent] = useState(100);
@@ -82,13 +84,9 @@ export function App({ options }: { options: AppOptions }) {
         setInstructions(instr);
       }
       /**
-       * Resolve the header's label once the catalogue can be asked.
-       *
-       * `selection` starts with the identifier in both halves — honest, because
-       * nothing has been consulted yet — and this is the consultation. It never
+       * Resolve the header's label once the catalogue can be asked. It never
        * throws and never blocks readiness: `labelFor` returns the identifier
-       * unchanged when the catalogue cannot be read, so the header degrades to
-       * exactly what it showed before.
+       * unchanged when the catalogue cannot be read.
        */
       const label = await labelFor(options.model);
       if (!cancelled) setSelection((current) => (current.id === options.model ? { ...current, label } : current));
@@ -159,10 +157,9 @@ export function App({ options }: { options: AppOptions }) {
           addMessage({
             id: nextId(),
             type: 'info',
-            content: 'Commands: /help, /clear, /mode <suggest|auto-edit|full-auto>, /model <name>, /exit',
-            // `/model` keeps its address: `/mode` is already taken, two lines
-            // to the left, by the approval mode. What it CHANGES is described
-            // in the product's own words everywhere the command answers.
+            content:
+              'Commands: /help, /clear, /mode <suggest|auto-edit|full-auto>, ' +
+              '/model [id or name | default], /exit',
           });
           return;
         case 'clear':
@@ -180,53 +177,65 @@ export function App({ options }: { options: AppOptions }) {
           }
           return;
         }
-        case 'model':
-          if (args[0]) {
-            /**
-             * The shorthand is matched against the CATALOGUE rather than
-             * expanded with a naming scheme. `route:auto-${arg}` produced
-             * identifiers that had never existed and sent them anyway; an
-             * unknown shorthand now says so instead of guessing.
-             */
-            const shorthand = args[0];
-            void (async () => {
-              const [entries, modes] = await Promise.all([
-                fetchCatalogue().catch(() => null),
-                fetchModes().catch(() => []),
-              ]);
-              const matched = entries === null ? null : matchShorthand(shorthand, entries);
-              if (matched === null) {
-                addMessage({
-                  id: nextId(),
-                  type: 'info',
-                  content: entries === null
-                    ? `Could not read the catalogue; unchanged (${selection.label}).`
-                    : `Nothing matches "${shorthand}". Available: ${entries
-                        .filter((e) => e.chatVisible)
-                        .map((e) => presentation(e, modes).label)
-                        .join(', ')}`,
-                });
-                return;
-              }
-              /**
-               * The product's word for the profile, never the alias display
-               * name it came from.
-               *
-               * This printed `Model: Instant` — an alias name under the word
-               * "model", which is #139's non-negotiable invariant broken in
-               * both of the ways it names at once.
-               */
-              const label = presentation(matched, modes).label;
-              setSelection({ id: matched.id, label });
-              addMessage({ id: nextId(), type: 'info', content: `Answering in ${label} mode.` });
-            })();
-          } else {
-            void (async () => {
-              const label = await labelFor(model);
-              addMessage({ id: nextId(), type: 'info', content: `Answering in ${label} mode.` });
-            })();
-          }
+        case 'model': {
+          /**
+           * `/model` lists the real models; `/model <text>` searches id, name
+           * and publisher and switches only on a single match; `/model default`
+           * clears the choice so the server's default model answers.
+           */
+          const query = args.join(' ').trim();
+          void (async () => {
+            const catalogue = await tryCatalogue();
+            if (query === '') {
+              addMessage({
+                id: nextId(),
+                type: 'info',
+                content: catalogue === undefined
+                  ? `Could not read the model catalogue. Current: ${selection.label}.`
+                  : `Current: ${selection.label}\n\n${formatModelList(catalogue, model)}`,
+              });
+              return;
+            }
+            if (['default', 'reset', 'clear'].includes(query.toLowerCase())) {
+              const label = labelForChoice('', catalogue);
+              setSelection({ id: '', label });
+              addMessage({ id: nextId(), type: 'info', content: `Using the server's default model: ${label}.` });
+              return;
+            }
+            if (catalogue === undefined) {
+              addMessage({
+                id: nextId(),
+                type: 'info',
+                content: `Could not read the model catalogue; unchanged (${selection.label}).`,
+              });
+              return;
+            }
+            const matches = searchModels(query, catalogue);
+            const only = matches.length === 1 ? matches[0] : undefined;
+            if (only !== undefined) {
+              setSelection({ id: only.id, label: only.name });
+              addMessage({
+                id: nextId(),
+                type: 'info',
+                content: `Model: ${only.name} — ${only.publisher.name} (${only.id})`,
+              });
+              return;
+            }
+            addMessage({
+              id: nextId(),
+              type: 'info',
+              content: matches.length === 0
+                ? `No model matches "${query}". Type /model to list them.`
+                : `"${query}" matches ${matches.length} models; be more specific:\n` +
+                  matches
+                    .slice(0, 15)
+                    .map((m) => `  ${m.name} — ${m.publisher.name}  ${m.id}`)
+                    .join('\n') +
+                  (matches.length > 15 ? `\n  … and ${matches.length - 15} more` : ''),
+            });
+          })();
           return;
+        }
         case 'exit':
         case 'quit':
           exit();

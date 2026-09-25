@@ -13,7 +13,7 @@ export { IdentityMark } from './components/IdentityMark';
 export type { IdentityMarkProps, IdentityMarkState } from './components/IdentityMark';
 export { ThinkingIndicator } from './components/ThinkingIndicator';
 export { AliaMarkdown } from './components/Markdown';
-export type { AliaMarkdownProps } from './components/Markdown';
+export type { AliaMarkdownProps, RenderCodeBlock } from './components/Markdown';
 export { Reasoning, ReasoningTrigger, ReasoningContent } from './components/Reasoning';
 export { AliaWelcomeMessage } from './components/AliaWelcomeMessage';
 export { ResearchProgressCard } from './components/ResearchProgressCard';
@@ -30,8 +30,8 @@ export { useSpeechToText, useSTTStore } from './hooks/useSpeechToText';
 export type { UseSTTOptions } from './hooks/useSpeechToText';
 
 // ── Model catalogue (GET /catalogue) ──
-// Exported so a consumer building its own picker reads the surface the SDK
-// reads, rather than hardcoding an identifier the way this package used to.
+// Exported so a consumer building its own picker reads the real models the
+// server offers; the SDK itself ships no model identifier.
 export {
   fetchCatalogue,
   parseCatalogue,
@@ -39,8 +39,7 @@ export {
   resolveModelId,
   clearCatalogueCache,
 } from './lib/catalogue';
-export type { CatalogueEntry, CatalogueEntryKind, ModelSelection } from './lib/catalogue';
-export { PREFERRED_CHAT_MODEL_ID, PREFERRED_VOICE_MODEL_ID } from './lib/config';
+export type { Catalogue, CatalogueEntry, ModelSelection, ReasoningEffort } from './lib/catalogue';
 
 // ── Types ──
 export type {

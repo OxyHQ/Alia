@@ -9,7 +9,7 @@ import {
 } from '@/lib/conversation-export';
 import { UsageLimitError } from '@/lib/errors/usage-limit-error';
 import { queryKeys } from '@/lib/hooks/query-keys';
-import { resolveSelection, useCatalogue } from '@/lib/hooks/use-catalogue';
+import { useModelSelection } from '@/lib/hooks/use-model-selection';
 import { useChatConversation } from '@/lib/hooks/use-chat-conversation';
 import { useAgentActivity } from '@/lib/hooks/use-agent-activity';
 import {
@@ -17,7 +17,6 @@ import {
   useCreateConversation,
   useDeleteConversation,
 } from '@/lib/hooks/use-conversations';
-import { useProductModes } from '@/lib/hooks/use-product-modes';
 import { useVoiceSoundEffects } from '@/lib/hooks/use-sound-effects';
 import type { SendOptions } from '@/lib/hooks/use-streaming-chat';
 import { useThreadHistory } from '@/lib/hooks/use-thread-history';
@@ -28,7 +27,7 @@ import {
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useVoiceMode } from '@/lib/hooks/use-voice-mode';
 import { type Attachment } from '@/lib/stores/global-store';
-import { useModelStore } from '@/lib/stores/model-store';
+import { effortFor, useModelStore } from '@/lib/stores/model-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import type { Message } from '@/types/chat';
 import { Button } from '@oxy.so/bloom/button';
@@ -90,23 +89,8 @@ export const ConversationScreen = ({
     null,
   );
   const selectedModel = conversationModel ?? globalModel;
-  const { data: catalogue } = useCatalogue();
-  const { data: modes } = useProductModes();
-  const selection = resolveSelection(
-    selectedModel,
-    catalogue,
-    undefined,
-    modes,
-  );
-  /**
-   * A request flag, read from the store rather than inferred from the model.
-   *
-   * It used to be `selection.effectiveId === THINKING_MODEL_ID`, which made
-   * extended reasoning a property of WHICH model was chosen. The routing table
-   * shows that was never true: `route:thinking` and `route:pro` are two
-   * aliases of one profile, so the "thinking model" and the "maximum quality
-   * model" routed identically and differed only by the prompt this flag selects.
-   */
+  const selection = useModelSelection(selectedModel);
+  /** How hard to think: a request flag, sent only when the model accepts it. */
   const reasoningEffort = useModelStore((s) => s.reasoningEffort);
 
   const {
@@ -125,7 +109,8 @@ export const ConversationScreen = ({
     retryFailedTurn,
   } = useChatConversation({
     conversationId,
-    reasoningEffort,
+    // Only a level the chosen model lists is sent; anything else is its own default.
+    reasoningEffort: effortFor(reasoningEffort, selection.entry?.reasoningEfforts ?? []),
     selectedModel: selection.effectiveId ?? undefined,
     agentId,
   });

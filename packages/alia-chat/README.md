@@ -88,8 +88,10 @@ purpose: it is a **product** client.
 
 The hook sends its turns to `POST {apiUrl}/v1/chat/completions`, with `apiUrl`
 defaulting to `EXPO_PUBLIC_ALIA_API_URL` or `https://api.alia.onl`. It also
-reads `GET {apiUrl}/catalogue` once per base URL, to check the requested model
-identifier against what the server offers.
+reads `GET {apiUrl}/catalogue` once per base URL when a `model` is passed, to
+check that `publisher/model` against the real models the server offers. With no
+`model`, the request carries none and the server's default model answers — the
+SDK ships no model identifier of its own.
 
 That is the compatibility surface, not the product route. `POST /alia/chat` is
 the same handler with the same authentication, and it is where Alia's own
@@ -207,7 +209,7 @@ app.get('/catalogue', (req, res) => relay(req, res, 'GET', '/catalogue'));
 app.listen(3000);
 ```
 
-The request body the SDK sends is `{ model, messages, stream: true }` and the
+The request body the SDK sends is `{ model?, messages, stream: true }` and the
 response Alia writes is `text/event-stream`; the relay forwards both without
 reading them. CORS between your web app and your backend is yours to configure,
 as it would be for any of your own routes.

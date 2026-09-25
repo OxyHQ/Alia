@@ -1,39 +1,19 @@
 #!/usr/bin/env node
 /**
- * No client package hardcodes a routing identifier outside its audited
- * preference module.
+ * No client names a model: not a real one, not a retired routing identifier.
  *
- * Epic #139 workstream 5, `Update Codea, Cowork, CLI and SDK pickers
- * consistently.` The clients used to bake an alias into the shipped artefact —
- * `route:code` in the VS Code extension and the CLI, `route:cowork` in the
- * Electron main process, `route:auto` and `route:voice` in the published SDK — so
- * a retired identifier became a 400 inside somebody else's installed build, with
- * nothing they could do about it. Every one of those now asks
- * `GET /catalogue` and resolves through the same fallback
- * `packages/app/lib/hooks/use-catalogue.ts` uses.
+ * Alia has no models of its own. `GET /catalogue` lists the real models Oxy
+ * serves and says which one answers a request that names none
+ * (`defaultModelId`) — so a client with nothing chosen sends no `model` at all,
+ * and there is no build-time default anywhere to go stale inside an installed
+ * SDK, extension or CLI. That is the whole policy, and this census holds every
+ * client tree to it: a routing identifier (`mode:*`, `route:*`, `profile:*`)
+ * in a client's source is a default somebody baked in.
  *
  * ## Why a script rather than a test
  *
- * The property spans six source trees in five packages, four of which have no
- * test runner at all — `packages/app`, `packages/alia-cowork` and
- * `packages/alia-codea-cli` have no `test` script, and `@alia.onl/sdk` has only
- * `typecheck` and `check:entries`. Putting the census in any one package's suite
- * would make it a property of that package. It follows the pattern
- * `packages/alia-chat/scripts/check-entry-isolation.mjs` already establishes,
- * and CI runs it directly.
- *
- * ## What "a default" means here, and why an allow-list exists
- *
- * The catalogue carries no default of its own — it orders entries by price and
- * says explicitly that position is not a recommendation — so every client needs
- * ONE build-time preference to ask for first. `packages/app/lib/config.ts`
- * established the pattern and the rule that comes with it: the value is never
- * trusted, and `resolveSelection` checks it against what the server offers.
- *
- * So the allow-list below is not an escape hatch, it is the pattern. It is
- * asserted by EXACT COUNT, because a list of exemptions that can grow silently
- * is a census that ends at `>= 0`: adding a package here has to be a visible
- * edit to this file.
+ * The property spans every client source tree in the repo, and putting it in
+ * one package's suite would make it a property of that package.
  */
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -63,14 +43,6 @@ const ROOT = resolve(import.meta.dirname, '..');
  * with "say which" instead of with noise, and a census that fires on the wrong
  * thing gets deleted by the next person who reads it.
  *
- * `packages/app` is deliberately ABSENT from this list, and not because it is
- * exempt. Its picker already reads the catalogue (#156), and the `alia-*`
- * literals it still carries are POLICY TABLES rather than defaults — the
- * downgrade map in `components/credit-warning-banner.tsx:24`, the free-tier
- * allow-list in `lib/hooks/use-billing.ts:327`, a sample phrase in
- * `lib/hooks/use-personality-sample-phrase.ts:72`. Those are product
- * configuration that must be reconciled with the catalogue under its own box.
- *
  * The three trees added by #244 — canvas, the Codea webview and integrations —
  * were each a live defect rather than a latent one, because `GET /v1/models`
  * has served an empty list since #178: canvas rendered a hardcoded
@@ -80,6 +52,9 @@ const ROOT = resolve(import.meta.dirname, '..');
  * this list.
  */
 export const TREES = [
+  'packages/app/app',
+  'packages/app/components',
+  'packages/app/lib',
   'packages/alia-canvas/src',
   'packages/alia-chat/src',
   'packages/alia-codea/src',
@@ -102,44 +77,14 @@ export const TREES = [
 export const NOT_A_CLIENT = {
   'packages/api':
     'the server. Its `alia-*` literals ARE the routing table — `internal/providers/lib/routing-profile-catalogue.ts` is the frozen set every other package resolves against.',
-  'packages/app':
-    'its picker reads the catalogue (#156); the literals it keeps are policy tables, reconciled under their own box. See the note on TREES.',
   'packages/alia-server':
     'a transport. It streams whatever turn a backend hands it and never chooses, defaults or names a routing profile — `model` is an optional pass-through field on its request type.',
 };
 
 /**
- * The ONE module per package allowed to name an identifier, and how many it may
- * name. Anything else is a hardcoded default.
- *
- * Two of them carry two, and for the same reason in both cases: one identifier
- * is a CHAT preference the catalogue can resolve, the other names a CAPABILITY
- * the chat catalogue does not describe — speech synthesis for the SDK, browser
- * automation for Cowork. Resolving those through a picker's catalogue would
- * substitute a model that cannot do the job, which fails far from its cause.
- * Both modules state the reasoning at length.
- */
-const PREFERENCE_MODULES = new Map([
-  ['packages/alia-chat/src/lib/config.ts', 2],
-  ['packages/alia-codea-cli/src/utils/config.ts', 1],
-  ['packages/alia-codea/src/config.ts', 1],
-  ['packages/alia-cowork/src/main/config.ts', 2],
-]);
-
-/**
- * A routing identifier a client could hardcode, in any supported or retired
- * vocabulary.
- *
- * `profile:*` is what `GET /catalogue` publishes and what a client should send
- * (`lib/chat/request-context.ts` accepts it, or a legacy `alia-*`, and refuses
- * anything else). `alia-*` is the frozen legacy set, advertised by nothing since
- * #178 but still resolving — installed `@alia.onl/sdk` and `@alia-codea/cli`
- * copies still send them, so it stays a shape this census must recognise.
- *
- * Canonical `kaana-*` IDs are included too: the identifier is legitimate, but
- * baking it into an unaudited module still makes a future catalogue change
- * unable to reach an installed client. Anchored, so `alia-codea-cli` (a package
- * name) is not mistaken for one.
+ * A retired routing identifier: the product modes (`mode:*`) and routing
+ * profiles (`route:*`, `profile:*`) Alia invented before it served real models.
+ * Anchored, so a package name such as `alia-codea-cli` is not mistaken for one.
  */
 const IDENTIFIER = /^(?:(?:mode|profile|route):[a-z0-9][a-z0-9-]*)$/;
 
@@ -253,8 +198,8 @@ function main() {
   // number beside it, which is the review this gate exists to force.
   const counts = [
     ['workspaces', workspaces.length, 10],
-    ['TREES', TREES.length, 8],
-    ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 3],
+    ['TREES', TREES.length, 11],
+    ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 2],
   ];
   const partition = [
     ...counts
@@ -308,30 +253,10 @@ function main() {
   }
 
   const offences = [];
-  const preferenceCounts = new Map();
-
   for (const file of files) {
     const rel = relative(ROOT, file);
-    const found = identifiersIn(file, readFileSync(file, 'utf8'));
-    if (found.length === 0) continue;
-    if (PREFERENCE_MODULES.has(rel)) {
-      preferenceCounts.set(rel, found.length);
-      continue;
-    }
-    for (const { text, line } of found) {
-      if (!text.startsWith('mode:')) offences.push(`${rel}:${line} hardcodes ${text}`);
-    }
-  }
-
-  // The exemptions, by EXACT count. A preference module that quietly grows a
-  // second identifier is a hardcoded default wearing the allow-list's name.
-  for (const [rel, expected] of PREFERENCE_MODULES) {
-    const actual = preferenceCounts.get(rel) ?? 0;
-    if (actual !== expected) {
-      offences.push(
-        `${rel} names ${actual} identifiers, expected exactly ${expected} — ` +
-          'update this script deliberately if the product policy changed.',
-      );
+    for (const { text, line } of identifiersIn(file, readFileSync(file, 'utf8'))) {
+      offences.push(`${rel}:${line} hardcodes ${text}`);
     }
   }
 
@@ -339,8 +264,8 @@ function main() {
     console.error('check-model-defaults: a client hardcodes a model identifier.\n');
     for (const offence of offences) console.error(`  ${offence}`);
     console.error(
-      '\nClients read GET /catalogue and resolve through resolveSelection. The one build-time\n' +
-        'preference per package lives in that package\'s config module, and is never trusted.',
+      '\nClients read GET /catalogue. With nothing chosen a request carries no `model` and the\n' +
+        'server\'s default answers, so no client names one.',
     );
     process.exit(1);
   }
@@ -348,19 +273,11 @@ function main() {
   console.log(
     `check-model-defaults: OK — ${files.length} files walked across ${TREES.length} trees, ` +
       `${workspaces.length} workspaces classified (${Object.keys(NOT_A_CLIENT).length} not clients), ` +
-      `${PREFERENCE_MODULES.size} preference modules, no hardcoded defaults.`,
+      'no hardcoded model.',
   );
 }
 
-/**
- * Run only as an entrypoint.
- *
- * `scripts/check-user-visible-model-wording.mjs` imports {@link TREES},
- * {@link NOT_A_CLIENT} and {@link sourceFiles} from here so the two censuses
- * cover the same trees by construction rather than by two lists agreeing. A
- * bare `main()` would run this whole census — and print a pass — every time it
- * did.
- */
+/** Run only as an entrypoint, so the exports can be imported without a census. */
 const invokedAs =
   process.argv[1] === undefined ? null : pathToFileURL(resolve(process.argv[1])).href;
 if (invokedAs === import.meta.url) main();

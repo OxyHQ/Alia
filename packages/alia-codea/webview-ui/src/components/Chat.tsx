@@ -7,6 +7,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -184,20 +186,22 @@ function ThinkingIndicator({ isWorking = false }: { isWorking?: boolean }) {
 }
 
 /**
- * One row of the picker: the identifier a request travels in, and the product's
- * own words for it.
+ * One row of the model picker: a real `publisher/model` id and its words
+ * ("Name — Publisher").
  *
- * Posted by the extension host, which reads `GET /catalogue` and
- * `GET /catalogue/modes` and resolves the words through `presentation`
- * (`../../../src/catalogue.ts`). There is deliberately no built-in list: this
- * file used to carry one, and because `GET /v1/models` has been permanently
- * empty since #178 that built-in entry was what every user actually saw — a
- * routing profile wearing a model's name, which is the habit ADR 0003 ends.
+ * Posted by the extension host, which reads `GET /catalogue` and groups the
+ * models through `pickerCatalogue` (`../../../src/catalogue.ts`): featured
+ * first, then by publisher. There is deliberately no built-in list.
  */
-interface Mode {
+interface PickerModel {
   id: string
   label: string
   description: string
+}
+
+interface PickerGroup {
+  title: string
+  models: PickerModel[]
 }
 
 // Context item interface
@@ -213,25 +217,18 @@ export function Chat() {
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [currentMode, setCurrentMode] = React.useState("ask")
   /**
-   * The routing profile the picker has selected, empty for "no explicit choice".
-   *
-   * NOT called `currentModel`, and not called a mode either: a `route:*`
-   * identifier (what `GET /catalogue` publishes and what the picker rows carry)
-   * is a routing policy, which #139's non-negotiable invariant says is never
-   * presented as an Alia-owned model — and `currentMode` directly above already
-   * means the ask/agent mode, so `mode` is taken in this file.
+   * The model the picker has selected, empty for "no explicit choice".
    *
    * Empty leaves the extension host in charge: it falls back to the
-   * `codea.model` setting and finally to its own `PREFERRED_MODEL_ID`
-   * (`chatProvider.ts`), the ONE build-time preference the extension is allowed
-   * to name. A default chosen here would be a second one, in a shipped artefact
-   * no catalogue change can reach.
+   * `codea.model` setting and, when that is empty too, omits `model` so the
+   * server uses its default (`chatProvider.ts`). No default is chosen here.
    */
-  const [currentProfileId, setCurrentProfileId] = React.useState("")
+  const [currentModelId, setCurrentModelId] = React.useState("")
   const [streamingContent, setStreamingContent] = React.useState("")
   const [userName, setUserName] = React.useState<string | null>(null)
   const [toolExecutions, setToolExecutions] = React.useState<ToolExecution[]>([])
-  const [modes, setModes] = React.useState<Mode[]>([])
+  const [modelGroups, setModelGroups] = React.useState<PickerGroup[]>([])
+  const [defaultModelLabel, setDefaultModelLabel] = React.useState("Default")
   const [contextItems, setContextItems] = React.useState<ContextItem[]>([])
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const bottomRef = React.useRef<HTMLDivElement>(null)
@@ -339,9 +336,12 @@ export function Chat() {
             )
           )
           break
-        case "modes":
-          if (data.modes && data.modes.length > 0) {
-            setModes(data.modes)
+        case "models":
+          if (Array.isArray(data.groups)) {
+            setModelGroups(data.groups)
+          }
+          if (typeof data.defaultLabel === "string") {
+            setDefaultModelLabel(data.defaultLabel)
           }
           break
         case "contextAdded":
@@ -372,13 +372,11 @@ export function Chat() {
     vscode?.postMessage({
       type: "sendMessage",
       message: input.trim(),
-      // Two different things, and the names are load-bearing: `mode` is
-      // ask/agent, `model` is the request field the API itself reads
-      // (`body.model` in `lib/chat/request-context.ts`), carrying a `route:*`
-      // identifier from the picker, or empty. Spelling the wire field anything
-      // else here would hide which contract it belongs to.
+      // Two different things: `mode` is ask/agent, `model` is the request
+      // field the API reads — a `publisher/model` id from the picker, or empty
+      // for the server default.
       mode: currentMode,
-      model: currentProfileId,
+      model: currentModelId,
       context: messageContext
     })
     // Add message with context to local state for display
@@ -438,21 +436,38 @@ export function Chat() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 px-2 h-7">
               <img src={LOGO_URI} alt="Codea" className="size-5 rounded-full" />
-              <span className="text-sm font-medium">{modes.find(m => m.id === currentProfileId)?.label || "Codea"}</span>
+              <span className="text-sm font-medium truncate max-w-40">
+                {modelGroups.flatMap(g => g.models).find(m => m.id === currentModelId)?.label || defaultModelLabel}
+              </span>
               <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} className="size-3 opacity-50" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuRadioGroup value={currentProfileId} onValueChange={setCurrentProfileId}>
-              {modes.map((mode) => (
-                <DropdownMenuRadioItem key={mode.id} value={mode.id}>
-                  <Item size="xs" className="p-0">
-                    <ItemContent>
-                      <ItemTitle>{mode.label}</ItemTitle>
-                      <ItemDescription className="text-xs">{mode.description}</ItemDescription>
-                    </ItemContent>
-                  </Item>
-                </DropdownMenuRadioItem>
+          <DropdownMenuContent align="start" className="w-72 max-h-96 overflow-y-auto">
+            <DropdownMenuRadioGroup value={currentModelId} onValueChange={setCurrentModelId}>
+              <DropdownMenuRadioItem value="">
+                <Item size="xs" className="p-0">
+                  <ItemContent>
+                    <ItemTitle>{defaultModelLabel}</ItemTitle>
+                    <ItemDescription className="text-xs">The model Alia uses when you don't pick one</ItemDescription>
+                  </ItemContent>
+                </Item>
+              </DropdownMenuRadioItem>
+              {modelGroups.map((group) => (
+                <DropdownMenuGroup key={group.title}>
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">{group.title}</DropdownMenuLabel>
+                  {group.models.map((model) => (
+                    <DropdownMenuRadioItem key={`${group.title}:${model.id}`} value={model.id}>
+                      <Item size="xs" className="p-0">
+                        <ItemContent>
+                          <ItemTitle>{model.label}</ItemTitle>
+                          {model.description && (
+                            <ItemDescription className="text-xs">{model.description}</ItemDescription>
+                          )}
+                        </ItemContent>
+                      </Item>
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuGroup>
               ))}
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>

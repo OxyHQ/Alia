@@ -343,6 +343,13 @@ vi.mock('@/components/agent-capability-toggles', async () => {
       ReactModule.createElement('AgentCapabilityToggles', props),
   };
 });
+vi.mock('@/components/agent-model-field', async () => {
+  const ReactModule = await import('react');
+  return {
+    AgentModelField: (props: Record<string, unknown>) =>
+      ReactModule.createElement('AgentModelField', props),
+  };
+});
 vi.mock('@/components/agent-connector-grants', async () => {
   const ReactModule = await import('react');
   return {

@@ -1,6 +1,16 @@
 import { Message, Client, REST, Routes, SlashCommandBuilder } from 'discord.js';
 import { APIClient } from '../../shared/api-client';
-import { labelForPreference } from '../../shared/catalogue';
+import {
+  currentModelLabel,
+  defaultLabel,
+  fitLines,
+  isFeatured,
+  modelsForListing,
+  resolveModelCommand,
+  resolveRequestModel,
+  type Catalogue,
+  type CatalogueModel,
+} from '../../shared/catalogue';
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '../../shared/logger';
 
@@ -12,56 +22,120 @@ export function initCommands(client: APIClient) {
   apiClient = client;
 }
 
-/**
- * The modes on offer, written out for a person.
- *
- * Labels only, never identifiers: `profile:instant` is the vocabulary the request
- * travels in, not a thing to put in front of somebody. {@link resolveModeChoice}
- * is what turns what they type back into one.
- */
-export async function describeModes(preferredModel: string | undefined): Promise<string> {
-  const offeredModes = await apiClient.fetchOfferedModes();
-  if (offeredModes === null) return 'Unable to load the available modes. Please try again later.';
+/** Discord's message content limit. */
+const DISCORD_MAX_CHARS = 2000;
+/** At most this many models in one listing, however short their names. */
+const MAX_LISTED = 25;
 
-  const list = offeredModes.offered
-    .map((mode) => `**${mode.label}** — ${mode.description}`)
-    .join('\n');
-  const current = labelForPreference(
-    preferredModel,
-    offeredModes.entries,
-    offeredModes.modes,
-  );
-  const heading = list === '' ? 'No modes are on offer right now.' : `**How Alia can answer:**\n${list}`;
-  return current === null ? heading : `${heading}\n\nCurrent: ${current}`;
+const SEARCH_HINT =
+  '`/model <text>` searches by name, publisher or id; `/model default` goes back to the default.';
+/** What a person typed, shortened to sit in a heading. */
+function quoted(text: string): string {
+  return `“${text.length > 80 ? `${text.slice(0, 79)}…` : text}”`;
 }
 
-/** What a person typed, resolved to the identifier a request travels in. */
-export type ModeChoice =
-  | { readonly ok: true; readonly id: string; readonly label: string }
-  | { readonly ok: false; readonly message: string };
+const CATALOGUE_UNAVAILABLE = 'Unable to load the available models. Please try again later.';
+
+function modelLine(model: CatalogueModel, chosenId: string | undefined): string {
+  const current = model.id === chosenId ? ' ✓' : '';
+  return `• **${model.name}** — ${model.publisher.name} \`${model.id}\`${current}`;
+}
 
 /**
- * Match what somebody typed against the offered modes, by LABEL.
- *
- * A person types "Fast", not `profile:instant`, and matching on the label is what
- * makes the product's own words the interface. An unmatched value is refused
- * with the list rather than saved: the previous behaviour stored the raw string
- * unchecked, so a typo became a preference that every later request carried.
+ * A heading, a list of models and a footer, within Discord's 2000 characters:
+ * as many models as fit (at most {@link MAX_LISTED}), then "…and N more".
  */
-export async function resolveModeChoice(
-  typed: string,
+function renderModelList(
+  heading: string,
+  models: readonly CatalogueModel[],
+  chosenId: string | undefined,
+  footer: string,
+): string {
+  const lines = models.map((model) => modelLine(model, chosenId));
+  const shown = lines.slice(0, MAX_LISTED);
+  const beyond = lines.length - shown.length;
+  const more = (omitted: number) => `…and ${omitted + beyond} more.`;
+  const budget = DISCORD_MAX_CHARS - heading.length - footer.length - 4;
+  const body = beyond > 0
+    ? fitLines([...shown, more(0)], budget, (omitted) => more(omitted - 1))
+    : fitLines(shown, budget, more);
+  return `${heading}\n${body}\n\n${footer}`;
+}
+
+/** What `/model` with no argument prints: the current model and the models, featured first. */
+export function describeModels(catalogue: Catalogue, preferredModel: string | undefined): string {
+  const chosenId = resolveRequestModel(preferredModel, catalogue);
+  const current = `**Current model:** ${currentModelLabel(preferredModel, catalogue)}`;
+  const models = modelsForListing(catalogue);
+  if (models.length === 0) return `${current}\n\nNo models are available right now.`;
+  const featured = models.some((model) => isFeatured(catalogue, model));
+  return renderModelList(
+    `${current}\n\n**${featured ? 'Featured models' : 'Models'}:**`,
+    models,
+    chosenId,
+    SEARCH_HINT,
+  );
+}
+
+/** The outcome of a `/model <text>` command: what to store (if anything) and what to say. */
+export type ModelCommandReply =
+  | { readonly kind: 'reply'; readonly message: string }
+  | { readonly kind: 'store'; readonly model: string | null; readonly message: string };
+
+/**
+ * Decide what a `/model` command does, without doing it. `null` catalogue means
+ * it could not be read, and nothing is stored: a model is only ever chosen from
+ * what the catalogue lists.
+ */
+export function planModelCommand(
+  catalogue: Catalogue | null,
   preferredModel: string | undefined,
-): Promise<ModeChoice> {
-  const offeredModes = await apiClient.fetchOfferedModes();
-  if (offeredModes === null) {
-    return { ok: false, message: 'Unable to load the available modes. Please try again later.' };
+  argument: string | null | undefined,
+): ModelCommandReply {
+  if (catalogue === null) return { kind: 'reply', message: CATALOGUE_UNAVAILABLE };
+  const command = resolveModelCommand(argument, catalogue);
+  switch (command.kind) {
+    case 'list':
+      return { kind: 'reply', message: describeModels(catalogue, preferredModel) };
+    case 'reset':
+      return {
+        kind: 'store',
+        model: null,
+        message: `Alia will now use the **${defaultLabel(catalogue)}** model.`,
+      };
+    case 'select':
+      return {
+        kind: 'store',
+        model: command.model.id,
+        message: `Alia will now answer with **${command.model.name}** (\`${command.model.id}\`).`,
+      };
+    case 'matches':
+      return {
+        kind: 'reply',
+        message: renderModelList(
+          `**${command.models.length} models match ${quoted(command.query)}:**`,
+          command.models,
+          resolveRequestModel(preferredModel, catalogue),
+          'Send `/model <id>` to pick one.',
+        ),
+      };
+    case 'none':
+      return {
+        kind: 'reply',
+        message: `No model matches ${quoted(command.query)}. ${SEARCH_HINT}`,
+      };
   }
-  const wanted = typed.trim().toLowerCase();
-  const match = offeredModes.offered.find((mode) => mode.label.toLowerCase() === wanted);
-  if (match === undefined) {
-    return { ok: false, message: await describeModes(preferredModel) };
-  }
-  return { ok: true, id: match.id, label: match.label };
+}
+
+/** Run a `/model` command for a person: store the choice when there is one, and return the reply. */
+export async function runModelCommand(
+  platformUserId: string,
+  preferredModel: string | undefined,
+  argument: string | null | undefined,
+): Promise<string> {
+  const plan = planModelCommand(await apiClient.fetchCatalogue(), preferredModel, argument);
+  if (plan.kind === 'store') await apiClient.updateModel(platformUserId, plan.model);
+  return plan.message;
 }
 
 export async function registerSlashCommands(client: Client): Promise<void> {
@@ -71,9 +145,12 @@ export async function registerSlashCommands(client: Client): Promise<void> {
     new SlashCommandBuilder().setName('new').setDescription('Start a new conversation'),
     new SlashCommandBuilder()
       .setName('model')
-      .setDescription('Choose how Alia answers')
+      .setDescription('Choose the model Alia answers with')
       .addStringOption((opt) =>
-        opt.setName('mode').setDescription('Mode name, e.g. Fast').setRequired(false),
+        opt
+          .setName('model')
+          .setDescription('Model id, or text to search by name or publisher; "default" to reset')
+          .setRequired(false),
       ),
     new SlashCommandBuilder().setName('help').setDescription('Show help'),
     new SlashCommandBuilder().setName('logout').setDescription('Disconnect your Alia account'),
@@ -165,15 +242,9 @@ async function handleStatus(message: Message): Promise<void> {
       await sendAuthRequest(message);
       return;
     }
-    /**
-     * Absent when the stored preference is a legacy identifier the catalogue
-     * does not describe — the product has no word for it, and printing the
-     * identifier is the defect this replaces. See `shared/catalogue.ts`.
-     */
-    const offeredModes = await apiClient.fetchOfferedModes();
-    const modeLabel = offeredModes === null
-      ? null
-      : labelForPreference(botUser.preferredModel, offeredModes.entries, offeredModes.modes);
+    // Omitted only when the catalogue could not be read.
+    const catalogue = await apiClient.fetchCatalogue();
+    const modelLabel = catalogue === null ? null : currentModelLabel(botUser.preferredModel, catalogue);
     await message.reply({
       embeds: [
         {
@@ -181,7 +252,7 @@ async function handleStatus(message: Message): Promise<void> {
           color: 0x00ff00,
           fields: [
             { name: 'Status', value: 'Connected', inline: true },
-            ...(modeLabel === null ? [] : [{ name: 'Mode', value: modeLabel, inline: true }]),
+            ...(modelLabel === null ? [] : [{ name: 'Model', value: modelLabel, inline: true }]),
           ],
         },
       ],
@@ -212,19 +283,9 @@ async function handleModelChange(message: Message, typed: string): Promise<void>
       await sendAuthRequest(message);
       return;
     }
-    if (!typed) {
-      await message.reply(await describeModes(botUser.preferredModel));
-      return;
-    }
-    const choice = await resolveModeChoice(typed, botUser.preferredModel);
-    if (!choice.ok) {
-      await message.reply(choice.message);
-      return;
-    }
-    await apiClient.updateModel(message.author.id, choice.id);
-    await message.reply(`Alia will now answer in **${choice.label}** mode.`);
+    await message.reply(await runModelCommand(message.author.id, botUser.preferredModel, typed));
   } catch {
-    await message.reply('Error changing mode.');
+    await message.reply('Error changing model.');
   }
 }
 
@@ -239,7 +300,7 @@ async function handleHelp(message: Message): Promise<void> {
           { name: '/start', value: 'Link your Alia account', inline: true },
           { name: '/status', value: 'Check status', inline: true },
           { name: '/new', value: 'Start new conversation', inline: true },
-          { name: '/model', value: 'Choose how Alia answers', inline: true },
+          { name: '/model [text]', value: 'Choose the model Alia answers with', inline: true },
           { name: '/help', value: 'Show help', inline: true },
           { name: '/logout', value: 'Disconnect', inline: true },
         ],

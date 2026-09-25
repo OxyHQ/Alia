@@ -1,6 +1,6 @@
 {
   "name": "@alia.onl/sdk",
-  "version": "8.0.0",
+  "version": "9.0.0",
   "description": "Alia AI chat SDK \u2014 reusable chat UI, voice, and streaming components for Oxy apps",
   "main": "src/index.ts",
   "react-native": "src/index.ts",

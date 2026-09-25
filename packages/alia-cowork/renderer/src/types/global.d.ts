@@ -1,3 +1,5 @@
+import type { ModelCatalogue } from '../lib/models'
+
 // Global type declarations for the renderer process
 
 /** A file/folder context item attached to a chat message. */
@@ -63,9 +65,15 @@ declare global {
       getAuthState: () => Promise<{
         isAuthenticated: boolean
         username?: string
-        preferredModel: string
       }>
       getUserInfo: () => Promise<UserProfile | null>
+
+      // Models
+      /** `null` when the catalogue could not be read. */
+      listModels: () => Promise<ModelCatalogue | null>
+      /** The stored pick, or `null` for the server default. */
+      getSelectedModel: () => Promise<string | null>
+      selectModel: (modelId: string | null) => Promise<void>
       onAuthCode: (
         callback: (data: { code: string; url: string; expiresAt: number }) => void
       ) => () => void

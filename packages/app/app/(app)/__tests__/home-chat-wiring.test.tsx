@@ -144,14 +144,20 @@ vi.mock('@/lib/stores/model-store', () => {
     setSelectedModel,
     reasoningEffort: 'medium',
   };
-  return { useModelStore: (selector: (s: typeof state) => unknown) => selector(state) };
+  return {
+    useModelStore: (selector: (s: typeof state) => unknown) => selector(state),
+    effortFor: (stored: string | null, offered: readonly string[]) => (stored !== null && offered.includes(stored) ? stored : null),
+  };
 });
 
-vi.mock('@/lib/hooks/use-catalogue', () => ({
-  useCatalogue: () => ({ data: undefined }),
-  resolveSelection: () => ({ effectiveId: 'model-of-record' }),
+vi.mock('@/lib/hooks/use-model-selection', () => ({
+  useModelSelection: () => ({
+    shownId: 'model-of-record',
+    effectiveId: 'model-of-record',
+    entry: { reasoningEfforts: ['low', 'medium', 'high'] },
+    source: 'requested',
+  }),
 }));
-vi.mock('@/lib/hooks/use-product-modes', () => ({ useProductModes: () => ({ data: undefined }) }));
 vi.mock('@/lib/hooks/use-conversations', () => ({
   useCreateConversation: () => ({ mutateAsync: vi.fn(async () => ({ id: 'c1' })) }),
 }));

@@ -2,7 +2,7 @@
 
 import { createRequire } from 'module';
 import { Command } from 'commander';
-import { config } from './utils/config.js';
+import { configuredModel } from './utils/config.js';
 import { startRepl } from './commands/repl.js';
 import { runPrompt } from './commands/run.js';
 import { login, logout } from './commands/auth.js';
@@ -54,7 +54,7 @@ program
 program
   .command('chat', { isDefault: true })
   .description('Start an interactive chat session')
-  .option('-m, --model <model>', 'Model to use — a catalogue id or a shorthand', config.get('defaultModel'))
+  .option('-m, --model <model>', 'Model to use — a catalogue id (publisher/model) or text to search for; omit for the server default', configuredModel())
   .option('-a, --approval-mode <mode>', 'Approval mode: suggest, auto-edit, full-auto', 'suggest')
   .option('--no-context', 'Disable automatic codebase context')
   .option('--no-instructions', 'Disable CODEA.md project instructions')
@@ -67,7 +67,7 @@ program
   .command('run <prompt>')
   .alias('r')
   .description('Run a single prompt and exit')
-  .option('-m, --model <model>', 'Model to use — a catalogue id or a shorthand', config.get('defaultModel'))
+  .option('-m, --model <model>', 'Model to use — a catalogue id (publisher/model) or text to search for; omit for the server default', configuredModel())
   .option('-y, --yes', 'Auto-approve all actions (full-auto mode)')
   .option('-a, --approval-mode <mode>', 'Approval mode: suggest, auto-edit, full-auto', 'suggest')
   .option('-q, --quiet', 'Suppress UI, output only response text')
@@ -82,7 +82,7 @@ program
   .command('exec <prompt>')
   .alias('x')
   .description('Execute a prompt in full-auto mode with JSON output')
-  .option('-m, --model <model>', 'Model to use — a catalogue id or a shorthand', config.get('defaultModel'))
+  .option('-m, --model <model>', 'Model to use — a catalogue id (publisher/model) or text to search for; omit for the server default', configuredModel())
   .option('--no-context', 'Disable automatic codebase context')
   .action(async (prompt, options) => {
     await runPrompt(prompt, { ...options, yes: true, quiet: false, json: true });

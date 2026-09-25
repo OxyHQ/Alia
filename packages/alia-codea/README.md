@@ -11,10 +11,9 @@ AI coding assistant for Visual Studio Code, powered by [Alia](https://alia.onl).
 
 Codea uses the same unified chat runtime as app and Cowork:
 
-- Endpoint: `POST /v1/chat/completions`
-- Model IDs: a catalogue id or a product mode (`profile:code`, `profile:pro-standard`).
-  The `alia-*` identifiers this extension has always sent still resolve, but they are
-  routing profiles rather than models Alia owns, and `GET /v1/models` no longer lists them
+- Endpoint: `POST /alia/chat` (one handler with `POST /v1/chat/completions`)
+- Model IDs: real `publisher/model` ids listed by `GET /catalogue`. With no model
+  chosen, the request omits `model` and Alia uses its default model
 - Streaming events: standardized named events with `eventVersion: 1`
 - The `/codea` API router is gone; the extension signs in with Oxy and uses the unified runtime above
 
@@ -27,11 +26,8 @@ Codea uses the same unified chat runtime as app and Cowork:
 - Streaming responses for immediate feedback
 
 🚀 **Multiple AI Models**
-- **Instant** - Fast responses for quick questions (0.5x credits)
-- **Auto** - Balanced performance for everyday coding (1x credits)
-- **Code** - Optimized specifically for code tasks (1.5x credits)
-- **Pro Standard** - High-quality responses for complex problems (3x credits)
-- **Pro** - Best available model for critical tasks (5x credits)
+- Pick any model from the live Alia catalogue, grouped by publisher
+- Leave it on **Default** and Alia uses its own default model
 
 🎯 **Seamless Integration**
 - Works directly in VS Code sidebar
@@ -59,7 +55,7 @@ Press `Ctrl+Shift+A` (or `Cmd+Shift+A` on Mac) to open Codea Chat and start codi
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `codea.apiBaseUrl` | API base URL | `https://api.alia.onl` |
-| `codea.model` | Product mode for completions | `mode:code` |
+| `codea.model` | Model id (`publisher/model`) from the Alia catalogue; empty uses the server's default model | `""` (server default) |
 | `codea.maxTokens` | Maximum tokens in response | `4096` |
 | `codea.temperature` | Temperature for response generation (0-2) | `0.7` |
 | `codea.enableInlineCompletions` | Enable inline code completions | `true` |

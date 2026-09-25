@@ -32,7 +32,7 @@ describe('read-aloud request and playback lifecycle', () => {
     await flushPlayback();
     const [url, init] = mocks.fetch.mock.calls[0];
     expect(url).toBe('https://alia.test/v1/audio/speech');
-    expect(JSON.parse(String(init?.body))).toEqual({ model: 'route:voice', input: 'Hola', voice: 'female', speed: 1, conversationId: 'c1', messageId: 'm1' });
+    expect(JSON.parse(String(init?.body))).toEqual({ input: 'Hola', voice: 'female', speed: 1, conversationId: 'c1', messageId: 'm1' });
     expect(init?.signal).toBeInstanceOf(AbortSignal);
     expect(mocks.create).toHaveBeenCalledWith({ uri: 'https://alia.test/media/one' }, { crossOrigin: 'anonymous' });
     expect(mocks.create.mock.results[0].value.play).toHaveBeenCalledTimes(1);

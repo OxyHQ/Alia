@@ -16,7 +16,6 @@ import { useModelStore } from '@/lib/stores/model-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
 import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
-import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { toast } from '@oxy.so/bloom/toast';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -39,8 +38,8 @@ export interface AliaComposerOptions {
    * The model this composer sends with, when the screen keeps its own (a
    * conversation remembers its model). Defaults to the app's selection.
    */
-  selectedModel?: string;
-  onModelChange?: (model: string) => void;
+  selectedModel?: string | null;
+  onModelChange?: (model: string | null) => void;
 }
 
 export type AliaComposerProps = Pick<
@@ -105,6 +104,14 @@ export function useAliaComposer({
     toast.info(next ? t('modes.searchOn') : t('modes.searchOff'));
   }, [webSearch, setWebSearch, t]);
 
+  // The real models, grouped by publisher, as Bloom's model picker takes them
+  // (`model-lineup.ts`). A screen that keeps its own model passes it; `null`
+  // there, as in the store, is the server's default.
+  const lineup = useComposerLineup(
+    modelOverride !== undefined ? modelOverride : selectedModel,
+    onModelOverride ?? setSelectedModel,
+  );
+
   const addMenu = useComposerAddMenu({
     addAttachment,
     canAttach: !locked,
@@ -114,41 +121,33 @@ export function useAliaComposer({
     onToggleWebSearch: toggleWebSearch,
     onOpenCanvas: () => useUIStore.getState().setRightPanel('canvas'),
     offerGhost,
+    pinModel: lineup.current === null
+      ? null
+      : { name: lineup.current.name, pinned: lineup.current.pinned, onToggle: lineup.togglePinned },
     turnSelection,
     onToggleSkill: (name: string) => setSkillNames((current) => toggleSkillName(current, name)),
     onToggleConnector: (id: string) => setConnectorId((current) => toggleConnectorId(current, id)),
   });
 
-  // The catalogue as Bloom's model picker takes it, with the plan gate kept
-  // as an intercepted change (`model-lineup.ts`).
-  const lineup = useComposerLineup(
-    modelOverride ?? selectedModel,
-    onModelOverride ?? setSelectedModel,
-  );
-
   /**
-   * The mode selector: how Alia works on this turn. The capability flags that
-   * already existed (agent, deep research), exclusive here because a turn is
-   * one or the other; the plan gate and the toasts stay in `toggleMode`.
+   * The mode selector: how Alia works on this turn — answering, or working
+   * through a longer task as an agent. Deep research is not a mode: it is a
+   * tool the turn may use, switched on in the add menu, and it runs on the
+   * model the picker shows. The plan gate and the toasts stay in `toggleMode`.
    */
   const modes = useMemo(
     () => [
       { id: 'chat', label: t('composer.modeChat'), description: t('composer.modeChatDescription'), icon: RiChat3Line },
       { id: 'agent', label: t('modes.agentLabel'), description: t('composer.agentDescription'), icon: RiRobot2Line },
-      { id: 'research', label: t('modes.deepResearchLabel'), description: t('composer.deepResearchDescription'), icon: RiSearchLine },
     ],
     [t],
   );
-  const mode = modeActive.agent ? 'agent' : modeActive.deepResearch ? 'research' : 'chat';
+  const mode = modeActive.agent ? 'agent' : 'chat';
   const onModeChange = useCallback(
     (next: string) => {
-      if (next === mode) return;
-      if (modeActive.agent) toggleMode('agent');
-      if (modeActive.deepResearch) toggleMode('deepResearch');
-      if (next === 'agent') toggleMode('agent');
-      if (next === 'research') toggleMode('deepResearch');
+      if ((next === 'agent') !== modeActive.agent) toggleMode('agent');
     },
-    [mode, modeActive, toggleMode],
+    [modeActive.agent, toggleMode],
   );
 
   const props: AliaComposerProps = {
