@@ -19,17 +19,33 @@ as a component of Alia's placed around the template.
 
 ## Sidebar
 
-| Removed | Comes back through |
+Restored through the slots below (`components/sidebar.tsx`,
+`components/sidebar-menus.tsx`, placement rules in `sidebarSections` of
+`lib/sidebar-history.ts`):
+
+| Restored | Through |
 | --- | --- |
-| Per-chat menu: rename, pin, favorite, move to project/folder, delete | `SidebarTreeItem.actions` / `onLongPress` |
-| Project menu: edit, delete; "New project" / "New folder" | `SidebarTreeFolder.actions`, `SidebarTree.actions` |
-| Folders, pinned and favorites as their own groups | more `tree.folders` |
-| Agents section (one row per agent) | a `tree` folder, or `items` |
-| History grouped Today / Yesterday / 7 days / Earlier | more `tree.folders` (today everything is under "Recent") |
+| Per-chat menu: rename, pin, favorite, move to project, move to folder, delete | `SidebarTreeItem.actions` |
+| Project menu: edit, delete; folder menu: rename, delete; "New project" / "New folder" | `SidebarTreeFolder.actions`, `SidebarTree.actions` |
+| Pinned, Favorites, projects and folders as their own groups | `tree.folders` |
+| Agents section (one row per agent, opening its `/@handle` thread) | a `tree` folder |
+| History grouped Today / Yesterday / Previous 7 days / Earlier | `tree.folders` |
 | Loading skeleton, "Loading conversations…" | `content` |
 | Streaming spinner on the chat being answered | `SidebarTreeItem.actions` |
 | Unread notifications badge | `SidebarNavItem.badge` |
-| Invite a friend, app download, keyboard shortcuts, privacy, terms | `secondaryItems` or the account menu |
+| Invite a friend, app download (web), privacy, terms | `secondaryItems` |
+| Conversation search (it pages in older history while a query is typed) | the Sidebar's own quick search, controlled |
+
+A chat is filed in one place at most (its project, else its folder, else
+History); Pinned and Favorites are shortcuts that take it out of History but
+not out of its project or folder.
+
+Still to come back:
+
+| Removed | Comes back through |
+| --- | --- |
+| Keyboard shortcuts row (the dialog is still ⌘/ and in the command palette) | `secondaryItems`, once Bloom has a keyboard glyph |
+| Favourite a folder (sorted first) | `SidebarTreeFolder.actions` |
 
 Kept, invisible: cursor pagination (`onScroll`) and prefetch on hover (`onPrefetch`).
 
