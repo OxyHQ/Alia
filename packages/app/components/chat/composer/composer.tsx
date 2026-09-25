@@ -3,6 +3,7 @@ import { View, type NativeSyntheticEvent, type TextInputKeyPressEventData } from
 import {
   ComposerPanel,
   type ComposerPanelAddMenuGroup,
+  type ComposerPanelAttachment,
   type ComposerPanelPermissionOption,
   type ModelPickerProvider,
 } from "@oxy.so/bloom/composer-panel";
@@ -129,22 +130,32 @@ export function Composer({
     onFiles: intake.accept,
   });
 
-  // The intake keeps a failed read with its error and its file, for a retry
-  // (`intake.retry`), and `composerTiles` gives it an error tile. Bloom's
-  // tiles cannot draw an error yet, so until they can it is said once, in a
-  // toast, and leaves the queue.
+  /**
+   * A refused file — too large, or empty — is said once, in a toast, and
+   * leaves the queue.
+   *
+   * It is not a tile because Bloom's retry is the PANEL's: with
+   * `onAttachmentRetry` set, every error tile draws a retry button, and a
+   * refusal has nothing to retry — the same file reaches the same verdict.
+   * A tile whose button does nothing is worse than a sentence (#608 rule 6).
+   * A failed READ stays, as an error tile whose retry re-reads its file.
+   */
   useEffect(() => {
     for (const item of intake.items) {
+      if (item.status !== "refused") continue;
       const error = intakeError(item, t);
-      if (error === undefined) continue;
-      toast.error(error);
+      if (error !== undefined) toast.error(error);
       intake.dismiss(item.id);
     }
   }, [intake, t]);
 
-  // Landed files, then the ones still being read with their real progress.
-  const tiles = useMemo(
-    () => composerTiles(attachments, intake.items, t).filter((tile) => tile.error === undefined),
+  // Landed files, then the ones being read with their real progress, then the
+  // ones whose read failed, with why.
+  const tiles = useMemo<ComposerPanelAttachment[]>(
+    () =>
+      composerTiles(attachments, intake.items, t)
+        .filter((tile) => tile.error === undefined || tile.retryable === true)
+        .map(({ retryable: _retryable, ...tile }) => tile),
     [attachments, intake.items, t],
   );
   const removeTile = useCallback(
@@ -184,6 +195,8 @@ export function Composer({
       send: t("composer.send"),
       stop: t("composer.stop"),
       remove: t("composer.removeShort"),
+      // Bloom names the button "<retry> <file name>".
+      retry: t("composer.retryShort"),
     }),
     [t],
   );
@@ -230,6 +243,9 @@ export function Composer({
         onListeningChange={(next) => void handleListeningChange(next)}
         attachments={tiles}
         onRemoveAttachment={removeTile}
+        // Clears the tile's error and starts its progress again: `intake.retry`
+        // puts the item back to `reading` over the same `File`.
+        onAttachmentRetry={intake.retry}
         status={status}
         emptyAction={emptyAction}
         onKeyPress={onKeyPress}
