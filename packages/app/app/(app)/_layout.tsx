@@ -22,6 +22,7 @@ import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
 import { useProjectsStore } from '@/features/projects/runtime/projects-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { AiChatContainer, AiChatShell } from '@oxy.so/bloom/ai-chat';
+import { OverlayInertBoundary, PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
 import { useOxy } from '@oxy.so/services';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { Navigator, Stack, usePathname, useRouter, type Href } from 'expo-router';
@@ -204,22 +205,36 @@ export default function AppLayout() {
 
   return (
     <AppErrorBoundary>
-      <AliaSettingsProvider>
-        {Platform.OS === 'web' ? (
-          shell
-        ) : (
-          // Android draws the app edge to edge and Bloom's shell takes no
-          // safe area: without this its frame, the chat header's menu button
-          // and the drawer all start under the status bar, where the system
-          // takes the touch (the button did nothing to a tap on its top two
-          // thirds). The strip above shows the root's background, which is
-          // the shell's own surface colour. The composer keeps the bottom
-          // inset itself (`chat-page-content.tsx`).
-          <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
-        )}
-        <CommandPalette />
-        <KeyboardShortcutsDialog />
-      </AliaSettingsProvider>
+      {/* Bloom's native portal: the settings modal, a tooltip and the media
+          gallery draw themselves through it, and without a provider and an
+          outlet they draw nothing at all — Settings did not open on Android
+          (docs/native-validation.mdx). The outlet sits INSIDE the settings
+          provider, because what it renders reads its context from there: the
+          settings pages call `useAliaSettings()`. On web both are no-ops and
+          the portal goes to the document. Gate: native-portal-host.test.ts */}
+      <PortalProvider>
+        <AliaSettingsProvider>
+          {/* Hides the app from a screen reader while a portaled modal is up
+              (TalkBack otherwise walks the chat behind Settings). */}
+          <OverlayInertBoundary>
+            {Platform.OS === 'web' ? (
+              shell
+            ) : (
+              // Android draws the app edge to edge and Bloom's shell takes no
+              // safe area: without this its frame, the chat header's menu button
+              // and the drawer all start under the status bar, where the system
+              // takes the touch (the button did nothing to a tap on its top two
+              // thirds). The strip above shows the root's background, which is
+              // the shell's own surface colour. The composer keeps the bottom
+              // inset itself (`chat-page-content.tsx`).
+              <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
+            )}
+          </OverlayInertBoundary>
+          <CommandPalette />
+          <KeyboardShortcutsDialog />
+          <PortalOutlet />
+        </AliaSettingsProvider>
+      </PortalProvider>
     </AppErrorBoundary>
   );
 }
