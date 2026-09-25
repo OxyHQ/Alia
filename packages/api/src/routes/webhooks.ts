@@ -463,10 +463,7 @@ export async function processAgentBotMessage(
      * nothing about Claudio. The remit is what the guard's remit rule points
      * at, so the two have to be the same thing on every surface.
      */
-    const composed = agent ? agentRemitPrompt(agent) : await getChannelSystemPrompt(channelType);
-    const systemPrompt = `${buildIdentityGuard(
-      agent ? { agentName: agentPromptName(agent) } : {},
-    )}\n\n---\n\n${composed}`;
+    const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${agentRemitPrompt(agent)}`;
 
     /**
      * The bot owner's REAL tool set, through the ONE assembler.

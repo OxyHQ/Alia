@@ -50,14 +50,10 @@ const ANSWER = {
 };
 
 async function run(toolName: string, output: unknown) {
-  const agentMessages: Parameters<typeof runChunks>[1] = [];
-  const { written } = await runChunks(
-    [
-      { type: 'tool-call', toolCallId: 'call-1', toolName, input: {} },
-      { type: 'tool-result', toolCallId: 'call-1', toolName, input: {}, output },
-    ],
-    agentMessages,
-  );
+  const { written, agentMessages } = await runChunks([
+    { type: 'tool-call', toolCallId: 'call-1', toolName, input: {} },
+    { type: 'tool-result', toolCallId: 'call-1', toolName, input: {}, output },
+  ]);
   return { frames: agentFrames(written), agentMessages };
 }
 

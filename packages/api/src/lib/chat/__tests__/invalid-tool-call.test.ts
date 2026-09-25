@@ -12,8 +12,7 @@
  * and a tool that really failed still tells the person, in its own words.
  */
 
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { FIXED_FAMILY_TOOLS } from '../../../domain/capability-grants.js';
 
@@ -50,14 +49,20 @@ describe('a tool error reaches the person only when a tool actually failed', () 
   });
 });
 
-describe('the base prompt offers no tool that a grant decides', () => {
+describe('no prompt file offers a tool that a grant decides', () => {
   it('names none of the grant-gated tools', () => {
-    // `base.md` is loaded on every turn, agent or not; a gated tool it names is
-    // one an ungranted agent believes it has, offers, and then cannot call.
-    // Guidance for such a tool belongs in its description, which reaches the
-    // model only when the tool does.
-    const base = readFileSync(fileURLToPath(new URL('../../../../prompts/base.md', import.meta.url)), 'utf8');
-    const named = Object.values(FIXED_FAMILY_TOOLS).flat().filter((tool) => base.includes(`\`${tool}\``));
+    // A prompt file is loaded whatever tools the turn was given; a gated tool
+    // it names is one an ungranted agent believes it has, offers, and then
+    // cannot call. Guidance for such a tool belongs in its description, which
+    // reaches the model only when the tool does.
+    const dir = new URL('../../../../prompts/', import.meta.url);
+    const gated = Object.values(FIXED_FAMILY_TOOLS).flat();
+    const named = readdirSync(dir)
+      .filter((file) => file.endsWith('.md'))
+      .flatMap((file) => {
+        const text = readFileSync(new URL(file, dir), 'utf8');
+        return gated.filter((tool) => text.includes(`\`${tool}\``)).map((tool) => `${file}: ${tool}`);
+      });
 
     expect(named).toEqual([]);
   });
