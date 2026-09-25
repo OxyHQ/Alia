@@ -26,6 +26,7 @@
  *     screen, the root layout and `OxyProvider` included, remounts — a
  *     browser back/forward onto a foreign entry, not a chat switch.
  */
+import { ChatHeaderActions } from '@/features/chat/ui/chat-header-actions';
 import { ChatPageContent } from '@/features/chat/ui/chat-page-content';
 import { fixtureConversation, fixtureReply } from '../../../conversation';
 import type { Message } from '@/features/chat/model/chat';
@@ -144,6 +145,21 @@ export default function FixtureChatPage() {
 
   const onSubmit = useCallback(async () => false, []);
   const onStop = useCallback(() => {}, []);
+  /**
+   * The chat's own menu and a turn's edit, acting on the fixture's thread, so
+   * the visual QA sweep (`scripts/visual/qa-sweep.mjs`) can open the header
+   * menu, its confirm dialog, the panel it shows and the edit strip.
+   */
+  const onClear = useCallback(async () => setMessages([]), []);
+  const onExport = useCallback(() => {}, []);
+  const onEditMessage = useCallback(async (messageId: string, text: string) => {
+    setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, content: text } : m)));
+    return true;
+  }, []);
+  const headerActions = useMemo(
+    () => <ChatHeaderActions onExport={onExport} onClear={onClear} />,
+    [onExport, onClear],
+  );
 
   return (
     <ChatPageContent
@@ -154,6 +170,8 @@ export default function FixtureChatPage() {
       conversationLoading={false}
       conversationId={id}
       conversationTitle={conversation.title}
+      headerActions={headerActions}
+      onEditMessage={onEditMessage}
     />
   );
 }
