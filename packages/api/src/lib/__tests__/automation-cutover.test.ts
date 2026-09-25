@@ -34,7 +34,7 @@ describe('structured automation cutover', () => {
     }).map((file) => path.relative(REPOSITORY_ROOT, file));
     expect(offenders).toEqual([]);
     // The app edits, runs and stops automations; the chat's tool creates them.
-    expect(read('packages/app/lib/hooks/use-automations.ts')).toContain('API_ROUTES.automations.update');
+    expect(read('packages/app/src/features/automations/runtime/use-automations.ts')).toContain('API_ROUTES.automations.update');
   });
 
   it('keeps scheduler, dispatcher and agent updates off the legacy runtime', () => {

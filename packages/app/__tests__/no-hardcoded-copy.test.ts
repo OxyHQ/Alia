@@ -30,7 +30,7 @@ import { describe, expect, it } from 'vitest';
  */
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const DIRS = ['app', 'components'];
+const DIRS = ['app', 'src'];
 
 /** Files that are not rendered by React Native at all. */
 const SKIPPED_FILES = new Set([

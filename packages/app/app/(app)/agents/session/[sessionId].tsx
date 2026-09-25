@@ -1,7 +1,7 @@
-import { SessionEventCard } from '@/components/agents/session/session-event-card';
-import { SessionSummary } from '@/components/agents/session/session-summary';
-import { useSessionActivity } from '@/lib/hooks/agents/use-session-activity';
-import { useTranslation } from '@/lib/hooks/use-translation';
+import { SessionEventCard } from '@/features/agents/ui/session/session-event-card';
+import { SessionSummary } from '@/features/agents/ui/session/session-summary';
+import { useSessionActivity } from '@/features/agents/runtime/use-session-activity';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import { Divider } from '@oxy.so/bloom/divider';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiHistoryLine } from '@oxy.so/bloom/icons/RiHistoryLine';

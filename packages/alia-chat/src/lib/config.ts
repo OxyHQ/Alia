@@ -1,7 +1,7 @@
 /**
  * Build-time preferences for the SDK.
  *
- * These mirror `packages/app/lib/config.ts`, and carry the same warning it does:
+ * These mirror `packages/app/src/shared/platform/config.ts`, and carry the same warning it does:
  * **a value here is never trusted.** The catalogue carries no default of its own
  * — it orders entries by price and says explicitly that position is not a
  * recommendation — so a build-time value is the only mechanism available for

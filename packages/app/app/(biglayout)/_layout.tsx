@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { useColorScheme } from '@/lib/useColorScheme';
+import { useColorScheme } from '@/shared/platform/useColorScheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function BigLayout() {

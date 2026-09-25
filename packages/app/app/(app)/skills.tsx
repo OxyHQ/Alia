@@ -1,12 +1,12 @@
-import { SkillCover } from '@/components/ui/skill-cover';
+import { SkillCover } from '@/features/skills/ui/skill-cover';
 import {
   useInstallSkill,
   useInstalledSkills,
   useSkillCataloguePages,
   type InstalledSkill,
   type Skill,
-} from '@/lib/hooks/use-skills';
-import { useTranslation } from '@/lib/hooks/use-translation';
+} from '@/features/skills/runtime/use-skills';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { EmptyState } from '@oxy.so/bloom/empty-state';

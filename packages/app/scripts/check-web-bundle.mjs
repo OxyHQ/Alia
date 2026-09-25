@@ -11,8 +11,8 @@
  * ## Skia
  *
  * `@shopify/react-native-skia` contributes zero bytes to the web export:
- * `components/ui/skill-cover-canvas.web.tsx` deliberately draws without it, and
- * `components/__tests__/skill-cover-static.test.tsx` holds that line. So
+ * `src/features/skills/ui/skill-cover-canvas.web.tsx` deliberately draws without it, and
+ * `src/features/skills/ui/__tests__/skill-cover-static.test.tsx` holds that line. So
  * `canvaskit.wasm` — 8,076,553 B, which `bun run setup-skia-web` copies into
  * `public/` — was being deployed and never fetched, and the web build scripts
  * no longer copy it.
@@ -54,7 +54,7 @@ if (offenders.length > 0) {
       'fetched it. If this import is deliberate, put `bun x setup-skia-web public`',
       'back in the `build` and `build:production` scripts in package.json — without',
       'it the runtime will 404 on /canvaskit.wasm. If it is not deliberate, keep the',
-      'web path off Skia: see components/ui/skill-cover-canvas.web.tsx.',
+      'web path off Skia: see src/features/skills/ui/skill-cover-canvas.web.tsx.',
     ].join('\n'),
   );
   process.exit(1);

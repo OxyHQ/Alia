@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from "expo-router";
-import { ConversationScreen } from "@/components/conversation-screen";
+import { ConversationScreen } from "@/features/chat/ui/conversation-screen";
 
 const ChatConversationPage = () => {
   const { id, agentId, startVoice } = useLocalSearchParams<{ id: string; agentId?: string; startVoice?: string }>();

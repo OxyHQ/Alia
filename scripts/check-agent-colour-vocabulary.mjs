@@ -16,7 +16,7 @@
  *
  *   - `packages/api/src/domain/agent-color.ts` — what `POST /agents/generate`
  *     may PROPOSE.
- *   - `packages/app/lib/constants/agent-colors.ts` — what the editor OFFERS.
+ *   - `packages/app/src/shared/domain/agent-colors.ts` — what the editor OFFERS.
  *
  * They cannot be one constant. The API must not depend on `@oxy.so/bloom`, which
  * is a React Native package, and the app has no dependency on the API. So the
@@ -59,7 +59,7 @@ const require = createRequire(import.meta.url);
 /** Where the two halves of the vocabulary are declared. */
 const DECLARATIONS = [
   { file: 'packages/api/src/domain/agent-color.ts', binding: 'AGENT_COLORS' },
-  { file: 'packages/app/lib/constants/agent-colors.ts', binding: 'AGENT_SWATCHES' },
+  { file: 'packages/app/src/shared/domain/agent-colors.ts', binding: 'AGENT_SWATCHES' },
 ];
 
 /**
@@ -71,7 +71,7 @@ const DECLARATIONS = [
  * the checked constant, not some other list a person would see instead.
  */
 const PICKER_SITE = {
-  file: 'packages/app/app/(app)/agents/edit/[id].tsx',
+  file: 'packages/app/src/features/agents/ui/edit/agent-identity-fields.tsx',
   component: 'ChipRow',
   labelKey: 'agents.colorLabel',
   expected: 'AGENT_SWATCHES',

@@ -1,5 +1,5 @@
-import { useAgentTeams } from '@/lib/hooks/use-agent-teams';
-import { useTranslation } from '@/lib/hooks/use-translation';
+import { useAgentTeams } from '@/features/agents/runtime/use-agent-teams';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import { Loading } from '@oxy.so/bloom/loading';

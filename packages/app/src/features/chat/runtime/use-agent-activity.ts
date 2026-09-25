@@ -1,0 +1,397 @@
+/**
+ * useAgentActivity — Real-time agent activity subscription via Socket.IO.
+ *
+ * Subscribes to an agent's activity events and accumulates them into
+ * structured state for rendering in AgentTaskCard.
+ */
+
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { io as socketIO, type Socket } from 'socket.io-client';
+import config from '@/shared/platform/config';
+import { getSocketToken } from '@/shared/api/client';
+import apiClient from '@/shared/api/client';
+
+export interface PlanItem {
+  id: number;
+  text: string;
+  status: string;
+}
+
+export interface PlanProgress {
+  items: PlanItem[];
+  completed: number;
+  total: number;
+}
+
+export interface AgentActivityEvent {
+  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete' | 'screenshot' | 'plan_progress' | 'file_change' | 'source_found' | 'threat' | 'approval_request' | 'approval_result';
+  content: string;
+  timestamp: number;
+  sessionId: string;
+  agentId?: string;
+  metadata?: {
+    toolName?: string;
+    args?: any;
+    duration?: number;
+    url?: string;
+    title?: string;
+    domain?: string;
+    requestId?: string;
+    decision?: 'approved' | 'denied' | 'timeout';
+  };
+  data?: {
+    url?: string;
+    plan?: PlanProgress;
+    currentStep?: number;
+    maxSteps?: number;
+    approval?: {
+      requestId: string;
+      toolName: string;
+      args: Record<string, unknown>;
+      description: string;
+      severity: string;
+      timeout: number;
+    };
+  };
+}
+
+export interface AgentSource {
+  url: string;
+  title: string;
+  domain: string;
+  snippet: string;
+  timestamp: number;
+}
+
+export interface AgentActivityState {
+  /** Current plan with checklist items */
+  plan: PlanProgress | null;
+  /** Current action being executed */
+  currentAction: { toolName: string; content: string } | null;
+  /** Whether the agent has completed */
+  isComplete: boolean;
+  /** Whether there's an error */
+  hasError: boolean;
+  /** Last error message */
+  lastError: string | null;
+  /** Total events received */
+  eventCount: number;
+  /** All activity events (last 50) */
+  events: AgentActivityEvent[];
+  /** Start time of first event */
+  startedAt: number | null;
+  /** Sources found during browsing */
+  sources: AgentSource[];
+  /** Latest text response from agent */
+  latestResponse: string | null;
+  /** Pending approval request for this session */
+  approvalRequest: {
+    requestId: string;
+    toolName: string;
+    description: string;
+    severity: string;
+    timeout: number;
+    args?: Record<string, unknown>;
+  } | null;
+  /** Last approval decision */
+  approvalResult: {
+    requestId: string;
+    decision: 'approved' | 'denied' | 'timeout';
+  } | null;
+  /** Total credits charged for this session (present once the run settles) */
+  creditsCharged?: number;
+}
+
+export interface UseAgentActivityResult extends AgentActivityState {
+  respondApproval: (requestId: string, approved: boolean, alwaysAllow?: boolean) => void;
+}
+
+const INITIAL_STATE: AgentActivityState = {
+  plan: null,
+  currentAction: null,
+  isComplete: false,
+  hasError: false,
+  lastError: null,
+  eventCount: 0,
+  events: [],
+  startedAt: null,
+  sources: [],
+  latestResponse: null,
+  approvalRequest: null,
+  approvalResult: null,
+};
+
+const MAX_EVENTS = 50;
+
+type PersistedAgentEvent = {
+  type: string;
+  content: string;
+  timestamp: number;
+  metadata?: AgentActivityEvent['metadata'];
+};
+
+function mapPersistedEventType(type: string): AgentActivityEvent['type'] {
+  switch (type) {
+    case 'action': return 'tool_call';
+    case 'observation': return 'tool_result';
+    case 'threat_detected': return 'threat';
+    case 'user_message':
+    case 'system_message':
+    case 'plan_update':
+      return 'system';
+    case 'thinking':
+    case 'response':
+    case 'error':
+    case 'complete':
+    case 'screenshot':
+    case 'plan_progress':
+    case 'file_change':
+    case 'source_found':
+      return type;
+    default:
+      return 'system';
+  }
+}
+
+function eventFromPersisted(entry: PersistedAgentEvent, sessionId: string): AgentActivityEvent {
+  return {
+    type: mapPersistedEventType(entry.type),
+    content: entry.content,
+    timestamp: entry.timestamp,
+    sessionId,
+    metadata: entry.metadata,
+  };
+}
+
+/**
+ * Hook to subscribe to real-time agent activity via Socket.IO.
+ *
+ * @param sessionId - The agent session ID to subscribe to (null to disable)
+ * @param agentId - Optional agent ID for backward-compat subscription
+ */
+export function useAgentActivity(sessionId: string | null, agentId?: string | null): UseAgentActivityResult {
+  const [state, setState] = useState<AgentActivityState>(INITIAL_STATE);
+  const socketRef = useRef<Socket | null>(null);
+
+  const handleEvent = useCallback((event: AgentActivityEvent) => {
+    setState(prev => {
+      const updated = { ...prev };
+      updated.eventCount = prev.eventCount + 1;
+      updated.events = [...prev.events.slice(-(MAX_EVENTS - 1)), event];
+
+      if (!prev.startedAt) {
+        updated.startedAt = event.timestamp;
+      }
+
+      switch (event.type) {
+        case 'plan_progress':
+          if (event.data?.plan) {
+            updated.plan = event.data.plan;
+          }
+          break;
+
+        case 'tool_call':
+          updated.currentAction = {
+            toolName: event.metadata?.toolName || 'action',
+            content: event.content,
+          };
+          break;
+
+        case 'tool_result':
+          updated.currentAction = null;
+          break;
+
+        case 'error':
+          updated.hasError = true;
+          updated.lastError = event.content;
+          updated.currentAction = null;
+          break;
+
+        case 'complete':
+          updated.isComplete = true;
+          updated.currentAction = null;
+          updated.latestResponse = null;
+          break;
+
+        case 'source_found':
+          if (event.metadata?.url) {
+            const newSource: AgentSource = {
+              url: event.metadata.url,
+              title: event.metadata.title || '',
+              domain: event.metadata.domain || new URL(event.metadata.url).hostname,
+              snippet: event.content?.slice(0, 200) || '',
+              timestamp: event.timestamp,
+            };
+            // Deduplicate by URL
+            if (!prev.sources.some(s => s.url === newSource.url)) {
+              updated.sources = [...prev.sources, newSource];
+            }
+          }
+          break;
+
+        case 'response':
+          updated.latestResponse = event.content;
+          break;
+
+        case 'approval_request':
+          if (event.data?.approval) {
+            updated.approvalRequest = {
+              requestId: event.data.approval.requestId,
+              toolName: event.data.approval.toolName,
+              description: event.data.approval.description,
+              severity: event.data.approval.severity,
+              timeout: event.data.approval.timeout,
+              args: event.data.approval.args,
+            };
+          }
+          break;
+
+        case 'approval_result':
+          if (event.metadata?.requestId && event.metadata?.decision) {
+            updated.approvalResult = {
+              requestId: event.metadata.requestId as string,
+              decision: event.metadata.decision as 'approved' | 'denied' | 'timeout',
+            };
+          }
+          updated.approvalRequest = null;
+          break;
+      }
+
+      return updated;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!sessionId) return;
+
+    // Reset state for new session
+    setState(INITIAL_STATE);
+    let cancelled = false;
+
+    apiClient.get(`/agents/sessions/${sessionId}/status`)
+      .then((res) => {
+        if (cancelled) return;
+
+        const recentEvents = Array.isArray(res.data?.recentEvents)
+          ? res.data.recentEvents as PersistedAgentEvent[]
+          : [];
+        const sessionPlan = res.data?.session?.plan;
+        const sessionStatus = res.data?.session?.status;
+        const creditsCharged = res.data?.session?.stats?.creditsCharged;
+
+        setState(prev => {
+          const hydratedEvents = recentEvents
+            .map((entry) => eventFromPersisted(entry, sessionId))
+            .slice(-MAX_EVENTS);
+          const planItems = Array.isArray(sessionPlan?.items) ? sessionPlan.items : [];
+          const completed = planItems.filter((item: PlanItem) => item.status === 'completed').length;
+
+          return {
+            ...prev,
+            events: hydratedEvents,
+            eventCount: hydratedEvents.length,
+            startedAt: hydratedEvents[0]?.timestamp || prev.startedAt,
+            plan: planItems.length > 0
+              ? { items: planItems, completed, total: planItems.length }
+              : prev.plan,
+            isComplete: sessionStatus === 'completed' || sessionStatus === 'cancelled',
+            hasError: sessionStatus === 'failed',
+            lastError: sessionStatus === 'failed' ? res.data?.session?.result || prev.lastError : prev.lastError,
+            latestResponse: res.data?.session?.result || prev.latestResponse,
+            creditsCharged: typeof creditsCharged === 'number' ? creditsCharged : prev.creditsCharged,
+          };
+        });
+      })
+      .catch(() => {
+        // Socket updates still provide live progress; hydration is best-effort.
+      });
+
+    const socket = socketIO(config.apiUrl, {
+      transports: ['websocket'],
+      // Function form so a fresh token is read on every (re)connect — survives
+      // access-token rotation across reconnections.
+      auth: (cb) => cb({ token: getSocketToken() }),
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      // Subscribe to session-specific room
+      socket.emit('subscribe-agent-session', sessionId);
+      // Also subscribe to agent room for backward compat
+      if (agentId) {
+        socket.emit('subscribe-agent', agentId);
+      }
+    });
+
+    socket.on('agent-activity', (data: AgentActivityEvent & { agentId?: string }) => {
+      // Only process events for our session
+      if (data.sessionId === sessionId) {
+        handleEvent(data);
+      }
+    });
+
+    socket.on('alia.approval_request', (payload: any) => {
+      handleEvent({
+        type: 'approval_request',
+        content: payload.description || 'Approval required',
+        timestamp: Date.now(),
+        sessionId,
+        data: {
+          approval: {
+            requestId: payload.requestId,
+            toolName: payload.toolName,
+            args: payload.args,
+            description: payload.description,
+            severity: payload.severity,
+            timeout: payload.timeout,
+          },
+        },
+      } as AgentActivityEvent);
+    });
+
+    socket.on('alia.approval_result', (payload: any) => {
+      handleEvent({
+        type: 'approval_result',
+        content: payload.decision || 'unknown',
+        timestamp: Date.now(),
+        sessionId,
+        metadata: {
+          requestId: payload.requestId,
+          decision: payload.decision,
+        },
+      } as AgentActivityEvent);
+    });
+
+    return () => {
+      cancelled = true;
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [sessionId, agentId, handleEvent]);
+
+  const respondApproval = useCallback((requestId: string, approved: boolean, alwaysAllow = false) => {
+    if (!sessionId || !socketRef.current) return;
+    socketRef.current.emit('agent-approval-response', {
+      requestId,
+      sessionId,
+      approved,
+      alwaysAllow,
+    });
+
+    // Optimistic local update while server confirms.
+    setState(prev => ({
+      ...prev,
+      approvalRequest: null,
+      approvalResult: { requestId, decision: approved ? 'approved' : 'denied' },
+    }));
+  }, [sessionId]);
+
+  return {
+    ...state,
+    respondApproval,
+  };
+}

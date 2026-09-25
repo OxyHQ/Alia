@@ -10,9 +10,9 @@ import { describe, expect, it } from 'vitest';
  */
 const SOURCE = [
   '../app/(app)/agents/[id].tsx',
-  '../components/agents/detail/agent-detail.tsx',
-  '../lib/hooks/agents/use-agent-detail-actions.ts',
-  '../lib/hooks/agents/use-agent-thread-actions.ts',
+  '../src/features/agents/ui/detail/agent-detail.tsx',
+  '../src/features/agents/runtime/use-agent-detail-actions.ts',
+  '../src/features/agents/runtime/use-agent-thread-actions.ts',
 ]
   .map((path) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8'))
   .join('\n');

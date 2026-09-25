@@ -96,7 +96,7 @@ export interface SaveConversationParams {
  * Derived rather than sent: `alia.agent` carries no id, and cannot grow one —
  * `@alia.onl/sdk`'s stream parser refuses a key it does not know, for the whole
  * stream. The app draws the n-th `alia.agent` of a turn under this same name
- * (`packages/app/lib/chat-message-history.ts` `agentMessageId`), so the two
+ * (`packages/app/src/features/chat/model/chat-message-history.ts` `agentMessageId`), so the two
  * agree without a wire change.
  */
 export function agentMessageId(assistantMessageId: string, index: number): string {

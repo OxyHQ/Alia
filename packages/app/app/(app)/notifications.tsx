@@ -3,8 +3,8 @@ import {
   useMarkAllAsRead,
   useMarkAsRead,
   useNotifications,
-} from '@/lib/hooks/use-notifications';
-import { useTranslation } from '@/lib/hooks/use-translation';
+} from '@/features/notifications/runtime/use-notifications';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';

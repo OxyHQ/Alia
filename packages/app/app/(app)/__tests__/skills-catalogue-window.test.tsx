@@ -53,7 +53,7 @@ const hooks = vi.hoisted(() => ({
   installed: vi.fn(),
   install: { mutate: vi.fn(), isPending: false },
 }));
-vi.mock('@/lib/hooks/use-skills', () => ({
+vi.mock('@/features/skills/runtime/use-skills', () => ({
   useSkillCataloguePages: hooks.catalogue,
   useInstalledSkills: hooks.installed,
   useInstallSkill: () => hooks.install,
@@ -229,10 +229,10 @@ vi.mock('@oxy.so/bloom/icons/RiCheckLine', () => ({ RiCheckLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiDownloadLine', () => ({
   RiDownloadLine: () => null,
 }));
-vi.mock('@/lib/useColorScheme', () => ({
+vi.mock('@/shared/platform/useColorScheme', () => ({
   useColorScheme: () => ({ isDarkColorScheme: false, colors: {} }),
 }));
-vi.mock('@/lib/hooks/use-translation', () => {
+vi.mock('@/shared/i18n/use-translation', () => {
   const t = (key: string) => key;
   return {
     useTranslation: () => ({ t, locale: 'en', changeLocale: () => undefined }),

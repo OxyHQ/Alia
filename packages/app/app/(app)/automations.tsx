@@ -1,10 +1,10 @@
-import { Composer } from '@/components/chat/composer/composer';
-import { useAliaComposer } from '@/components/chat/composer/use-alia-composer';
-import { buildMessageContent } from '@/lib/attachment-utils';
-import { reportDroppedAttachments } from '@/lib/hooks/use-chat-conversation';
-import { useCreateConversation } from '@/lib/hooks/use-conversations';
-import { useTranslation } from '@/lib/hooks/use-translation';
-import { useStore } from '@/lib/stores/global-store';
+import { Composer } from '@/features/chat/ui/composer/composer';
+import { useAliaComposer } from '@/features/chat/ui/composer/use-alia-composer';
+import { buildMessageContent } from '@/features/chat/model/attachment-utils';
+import { reportDroppedAttachments } from '@/features/chat/runtime/use-chat-conversation';
+import { useCreateConversation } from '@/features/chat/runtime/use-conversations';
+import { useTranslation } from '@/shared/i18n/use-translation';
+import { useStore } from '@/features/chat/runtime/global-store';
 import {
   SettingsListGroup,
   SettingsListItem,

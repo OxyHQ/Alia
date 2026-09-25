@@ -143,7 +143,7 @@ describe('sanitizeMessage leaves what the product must still be able to say', ()
     // Sourced from the shipped locale file rather than invented, so the gate
     // tracks what users actually see.
     const raw: unknown = JSON.parse(
-      readFileSync(path.join(REPO_ROOT, 'packages/app/lib/i18n/locales/es.json'), 'utf8'),
+      readFileSync(path.join(REPO_ROOT, 'packages/app/src/shared/i18n/locales/es.json'), 'utf8'),
     );
     const strings: string[] = [];
     const walk = (node: unknown): void => {

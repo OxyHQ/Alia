@@ -16,11 +16,11 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('.', import.meta.url)),
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
       // Its native module does not exist under vitest; see the stub.
-      'expo-crypto': fileURLToPath(new URL('./test/expo-crypto.ts', import.meta.url)),
+      'expo-crypto': fileURLToPath(new URL('./src/shared/testing/expo-crypto.ts', import.meta.url)),
       // Same, for the device locale the real `useTranslation` reads.
-      'expo-localization': fileURLToPath(new URL('./test/expo-localization.ts', import.meta.url)),
+      'expo-localization': fileURLToPath(new URL('./src/shared/testing/expo-localization.ts', import.meta.url)),
     },
   },
   /**
@@ -41,7 +41,7 @@ export default defineConfig({
    *
    * Inlining is what makes #608 testable rather than assertable: an adoption
    * can now be proven by mounting the real Bloom component, as the suites
-   * under `components/__tests__` do.
+   * under the features' `ui/__tests__` do.
    */
   test: {
     server: {
@@ -52,7 +52,7 @@ export default defineConfig({
   },
   /**
    * `__DEV__` is injected by Metro, not by the bundler vitest runs, and
-   * `lib/config.ts` reads it at MODULE LOAD — so importing it from a test threw
+   * `src/shared/platform/config.ts` reads it at MODULE LOAD — so importing it from a test threw
    * a `ReferenceError` before the test body ever ran. `false` is what a
    * production bundle substitutes, which is the environment a test asserting
    * real URLs wants.

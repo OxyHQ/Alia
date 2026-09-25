@@ -54,7 +54,7 @@ describe('the OAuth tokens never reach a response, which is a CHANGE', () => {
      *
      * The safe projection has no token field, so the leak closes by
      * construction rather than by remembering a `.select()`. Nothing read what
-     * it drops — `packages/app/lib/hooks/use-connected-accounts.ts:6` declares
+     * it drops — `packages/app/src/features/connections/runtime/use-connected-accounts.ts:6` declares
      * the DTO and `oauthTokens` is not in it.
      */
     const account = await pending('cau-gmail', 'gmail');

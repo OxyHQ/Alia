@@ -1,8 +1,8 @@
-import { Composer } from '@/components/chat/composer/composer';
-import { useAliaComposer } from '@/components/chat/composer/use-alia-composer';
-import { useCreateSkill, useGenerateSkillDraft } from '@/lib/hooks/use-skills';
-import { useTranslation } from '@/lib/hooks/use-translation';
-import { useI18nStore } from '@/lib/stores/i18n-store';
+import { Composer } from '@/features/chat/ui/composer/composer';
+import { useAliaComposer } from '@/features/chat/ui/composer/use-alia-composer';
+import { useCreateSkill, useGenerateSkillDraft } from '@/features/skills/runtime/use-skills';
+import { useTranslation } from '@/shared/i18n/use-translation';
+import { useI18nStore } from '@/shared/i18n/i18n-store';
 import { toast } from '@oxy.so/bloom/toast';
 import { Muted } from '@oxy.so/bloom/typography';
 import { Stack, useRouter } from 'expo-router';

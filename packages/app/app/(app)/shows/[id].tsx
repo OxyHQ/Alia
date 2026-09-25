@@ -19,18 +19,18 @@
  * for: another episode.
  */
 
-import { EpisodeCreateDialog } from '@/components/show/episode-create-dialog';
-import { EpisodeRow } from '@/components/show/episode-row';
-import { ShowArtwork } from '@/components/show/show-artwork';
-import { useShowProgress } from '@/lib/hooks/use-show-progress';
-import { useTranslation } from '@/lib/hooks/use-translation';
+import { EpisodeCreateDialog } from '@/features/shows/ui/episode-create-dialog';
+import { EpisodeRow } from '@/features/shows/ui/episode-row';
+import { ShowArtwork } from '@/features/shows/ui/show-artwork';
+import { useShowProgress } from '@/features/shows/runtime/use-show-progress';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import {
   useSeriesEpisodes,
   useShowStore,
   type ShowEpisode,
   type ShowVisibility,
-} from '@/lib/stores/show-store';
-import { formatEpisodeCount } from '@/lib/utils/show-format';
+} from '@/features/shows/runtime/show-store';
+import { formatEpisodeCount } from '@/features/shows/model/show-format';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Badge, type BadgeIcon } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';

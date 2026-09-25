@@ -335,7 +335,7 @@ describe('every site that restates a Kaana routing-profile default is accounted 
 /**
  * The chat app ships its own default, and it is not this one.
  *
- * `packages/app/lib/config.ts` `DEFAULT_MODEL_ID` is what the picker stores for
+ * `packages/app/src/shared/platform/config.ts` `DEFAULT_MODEL_ID` is what the picker stores for
  * a device that has never chosen, and `getDefaultRoutingProfile()` is what a request
  * carrying no `model` at all resolves to. Both answer "what runs when the user
  * expressed no preference", from opposite ends, and **they name different
@@ -358,7 +358,7 @@ describe('every site that restates a Kaana routing-profile default is accounted 
  * `toBe(appDefault)` today would be a red suite describing a decision nobody
  * has taken.
  */
-const APP_CONFIG = 'packages/app/lib/config.ts';
+const APP_CONFIG = 'packages/app/src/shared/platform/config.ts';
 
 /** The literal fallback, not the env override: `?? 'profile:auto'`. */
 const APP_DEFAULT = /DEFAULT_MODEL_ID\s*=\s*'([^']+)'/;

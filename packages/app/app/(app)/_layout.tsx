@@ -1,24 +1,24 @@
 import {
   ShellPageHeader,
   type PageHeaderOptions,
-} from '@/components/app-shell/page-chrome';
-import { CommandPalette } from '@/components/command-palette';
-import { AppErrorBoundary } from '@/components/error-boundary';
-import { restoreOpenerFocus } from '@/components/execution/focus-return';
-import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
-import { useWorkspacePanelChrome, WorkspacePanel } from '@/components/workspace-panel';
-import { AliaSettingsProvider } from '@/components/settings/alia-settings';
-import { Sidebar } from '@/components/sidebar';
-import { useLocalRuntime } from '@/lib/hooks/use-local-runtime';
-import { useNotificationSetup } from '@/lib/hooks/use-notification-setup';
-import { useWelcomeSuggestions } from '@/lib/hooks/use-suggestions';
-import i18n from '@/lib/i18n';
-import { useComposerDraftStore } from '@/lib/stores/composer-draft-store';
-import { useFavoritesStore } from '@/lib/stores/favorites-store';
-import { useFoldersStore } from '@/lib/stores/folders-store';
-import { usePinnedStore } from '@/lib/stores/pinned-store';
-import { useProjectsStore } from '@/lib/stores/projects-store';
-import { useUIStore } from '@/lib/stores/ui-store';
+} from '@/shell/page-chrome';
+import { CommandPalette } from '@/shell/command-palette';
+import { AppErrorBoundary } from '@/shell/error-boundary';
+import { restoreOpenerFocus } from '@/features/chat/ui/execution/focus-return';
+import { KeyboardShortcutsDialog } from '@/shell/keyboard-shortcuts-dialog';
+import { useWorkspacePanelChrome, WorkspacePanel } from '@/shell/workspace-panel';
+import { AliaSettingsProvider } from '@/features/settings/ui/alia-settings';
+import { Sidebar } from '@/shell/sidebar';
+import { useLocalRuntime } from '@/features/local-models/runtime/use-local-runtime';
+import { useNotificationSetup } from '@/features/notifications/runtime/use-notification-setup';
+import { useWelcomeSuggestions } from '@/features/chat/runtime/use-suggestions';
+import i18n from '@/shared/i18n';
+import { useComposerDraftStore } from '@/features/chat/runtime/composer-draft-store';
+import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
+import { useFoldersStore } from '@/features/projects/runtime/folders-store';
+import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
+import { useProjectsStore } from '@/features/projects/runtime/projects-store';
+import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { AiChatContainer, AiChatShell } from '@oxy.so/bloom/ai-chat';
 import { useOxy } from '@oxy.so/services';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
@@ -86,7 +86,7 @@ export default function AppLayout() {
     loadFavorites(userId);
     loadPinned(userId);
     // Composer drafts too: another account's half-written message and files
-    // are not this one's (`lib/stores/composer-draft-store.ts`).
+    // are not this one's (`src/features/chat/runtime/composer-draft-store.ts`).
     useComposerDraftStore.getState().bindAccount(userId);
   }, [userId, loadProjects, loadFolders, loadFavorites, loadPinned]);
 
@@ -121,7 +121,7 @@ export default function AppLayout() {
    * container themselves, because theirs carries the composer.
    *
    * The header is the PAGE's: it declares its title, its back and its actions
-   * with `<Stack.Screen options={…} />` (see `components/app-shell/page-chrome.tsx`),
+   * with `<Stack.Screen options={…} />` (see `src/shell/page-chrome.tsx`),
    * and this reads them back. A page that declares nothing gets its section's
    * name.
    */

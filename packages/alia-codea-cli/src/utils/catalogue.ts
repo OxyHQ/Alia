@@ -10,7 +10,7 @@
  *
  * ## A third implementation of one contract, and why it is not shared
  *
- * `packages/app/lib/hooks/use-catalogue.ts` and
+ * `packages/app/src/features/chat/runtime/use-catalogue.ts` and
  * `packages/alia-chat/src/lib/catalogue.ts` parse the same surface. Sharing one
  * module across all of them was measured and rejected: `@alia.onl/sdk` ships as
  * RAW SOURCE and `@alia-codea/cli` is a published package (`version` 2.0.2, no
@@ -84,7 +84,7 @@ export type ProductModeRouting =
  *
  * A mode LABELS a profile; it is never a selectable identifier, because nothing
  * in the request path consumes a `mode:*` id. The rule is stated once, at
- * length, in `packages/app/lib/hooks/use-product-modes.ts`.
+ * length, in `packages/app/src/features/chat/runtime/use-product-modes.ts`.
  */
 export interface ProductMode {
   readonly id: string;

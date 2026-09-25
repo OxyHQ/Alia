@@ -1,0 +1,46 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import apiClient from '@/shared/api/client';
+import { queryKeys } from '@/shared/api/query-keys';
+import { useAuthQuery } from '@/shared/api/create-query';
+
+export interface ReferralInfo {
+  inviteCode: string;
+  inviteUrl: string;
+  totalCreditsEarned: number;
+  totalReferrals: number;
+}
+
+export interface ReferredUser {
+  userId: string;
+  email?: string;
+  creditedAt: string;
+  creditsAwarded: number;
+}
+
+export interface ReferralHistory {
+  referrals: ReferredUser[];
+  total: number;
+}
+
+export function useReferralInfo() {
+  return useAuthQuery<ReferralInfo>(queryKeys.referrals.info, '/referrals');
+}
+
+export function useReferralHistory() {
+  return useAuthQuery<ReferralHistory>(queryKeys.referrals.history, '/referrals/history', undefined, { staleTime: 60_000 });
+}
+
+export function useRedeemInviteCode() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (inviteCode: string) => {
+      const response = await apiClient.post('/referrals/redeem', { inviteCode });
+      return response.data as { success: boolean; creditsAwarded: number };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.referrals.info });
+      queryClient.invalidateQueries({ queryKey: queryKeys.credits.info });
+    },
+  });
+}

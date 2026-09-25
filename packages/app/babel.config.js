@@ -12,7 +12,7 @@ module.exports = function (api) {
     plugins: [
       ['module-resolver', {
         root: ['./'],
-        alias: { '@': './' },
+        alias: { '@': './src' },
         extensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.svg'],
       }],
       '@babel/plugin-syntax-dynamic-import',

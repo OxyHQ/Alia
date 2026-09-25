@@ -58,7 +58,7 @@ export const PRODUCTION_ORIGINS: readonly string[] = [
  * React Native's networking layer sends no `Origin` header at all (nothing
  * under `react-native/Libraries/Network/` sets one), and `exp://localhost:8150`
  * is the Expo Go DEEP LINK for the Metro server, not an HTTP origin —
- * `packages/app/lib/generate-api-url.ts` rewrites its `exp://` prefix to
+ * `packages/app/src/shared/api/generate-api-url.ts` rewrites its `exp://` prefix to
  * `http://` before using it as a base URL. On web, `expo start --web` serves
  * from `http://localhost:8150`, which is its own entry below.
  *

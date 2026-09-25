@@ -1,5 +1,5 @@
-import { useImportSkill } from '@/lib/hooks/use-skills';
-import { useTranslation } from '@/lib/hooks/use-translation';
+import { useImportSkill } from '@/features/skills/runtime/use-skills';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { RiDownloadLine } from '@oxy.so/bloom/icons/RiDownloadLine';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';

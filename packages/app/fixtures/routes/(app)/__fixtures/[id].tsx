@@ -20,9 +20,9 @@
  *     update the real stream makes (`use-streaming-chat.ts` flushes every 50ms
  *     by replacing the last message), resolving when it has finished.
  */
-import { ChatPageContent } from '@/components/chat-page-content';
-import { fixtureConversation, fixtureReply } from '@/fixtures/conversation';
-import type { Message } from '@/types/chat';
+import { ChatPageContent } from '@/features/chat/ui/chat-page-content';
+import { fixtureConversation, fixtureReply } from '../../../conversation';
+import type { Message } from '@/features/chat/model/chat';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 

@@ -1,9 +1,9 @@
-import { AgentCard } from '@/components/agent-card';
-import { agentCategoryLabel } from '@/lib/agents/category';
-import { agentChatRoute, agentIdentityMatches } from '@/lib/agents/identity';
-import { useAgentCatalogue } from '@/lib/hooks/use-agents';
-import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
-import { useTranslation } from '@/lib/hooks/use-translation';
+import { AgentCard } from '@/features/agents/ui/agent-card';
+import { agentCategoryLabel } from '@/features/agents/model/category';
+import { agentChatRoute, agentIdentityMatches } from '@/features/agents/model/identity';
+import { useAgentCatalogue } from '@/features/agents/runtime/use-agents';
+import { useIsLargeScreen } from '@/shared/platform/use-is-large-screen';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { Card, CardBody } from '@oxy.so/bloom/card';

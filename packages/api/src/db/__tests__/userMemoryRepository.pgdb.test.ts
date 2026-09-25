@@ -479,7 +479,7 @@ describe('the shape the API serves', () => {
 
     /**
      * `PUT`/`DELETE /api/memory/:memoryId` address an entry by this id, and
-     * `packages/app/lib/stores/user-data-store.ts:4` declares `_id: string` on
+     * `packages/app/src/features/memory/runtime/user-data-store.ts:4` declares `_id: string` on
      * each memory. Serving `id` instead would leave a shipped mobile build
      * unable to edit or delete anything, with no error anywhere.
      */

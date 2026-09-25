@@ -1,7 +1,7 @@
-import { AuthContainer } from '@/components/auth/auth-container';
-import { AuthLogo } from '@/components/auth/auth-logo';
-import { useChannelLink } from '@/lib/hooks/auth/use-channel-link';
-import { useTranslation } from '@/lib/hooks/use-translation';
+import { AuthContainer } from '@/features/onboarding/ui/auth-container';
+import { AuthLogo } from '@/features/onboarding/ui/auth-logo';
+import { useChannelLink } from '@/features/onboarding/runtime/use-channel-link';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';

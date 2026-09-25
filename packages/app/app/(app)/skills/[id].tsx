@@ -1,5 +1,5 @@
-import { CustomMarkdown } from '@/components/ui/markdown';
-import { SkillCover } from '@/components/ui/skill-cover';
+import { CustomMarkdown } from '@/features/chat/ui/markdown';
+import { SkillCover } from '@/features/skills/ui/skill-cover';
 import {
   useInstallSkill,
   useInstalledSkills,
@@ -7,8 +7,8 @@ import {
   useUninstallSkill,
   useUpdateInstall,
   type InstalledSkill,
-} from '@/lib/hooks/use-skills';
-import { useTranslation } from '@/lib/hooks/use-translation';
+} from '@/features/skills/runtime/use-skills';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';

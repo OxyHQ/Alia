@@ -10,7 +10,7 @@
  * a retired identifier became a 400 inside somebody else's installed build, with
  * nothing they could do about it. Every one of those now asks
  * `GET /catalogue` and resolves through the same fallback
- * `packages/app/lib/hooks/use-catalogue.ts` uses.
+ * `packages/app/src/features/chat/runtime/use-catalogue.ts` uses.
  *
  * ## Why a script rather than a test
  *
@@ -26,7 +26,7 @@
  *
  * The catalogue carries no default of its own — it orders entries by price and
  * says explicitly that position is not a recommendation — so every client needs
- * ONE build-time preference to ask for first. `packages/app/lib/config.ts`
+ * ONE build-time preference to ask for first. `packages/app/src/shared/platform/config.ts`
  * established the pattern and the rule that comes with it: the value is never
  * trusted, and `resolveSelection` checks it against what the server offers.
  *

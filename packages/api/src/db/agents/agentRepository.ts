@@ -305,7 +305,7 @@ export async function findAgentsByIds(db: Executor, ids: string[]): Promise<Agen
  *
  * Those rows read as a list of chats, so the agent you were just talking to
  * belongs at the top. The rule, stated once here and reproduced optimistically
- * by `packages/app/lib/hooks/use-agent-row-preview.ts` while a turn is still in
+ * by `packages/app/src/features/chat/runtime/use-agent-row-preview.ts` while a turn is still in
  * flight:
  *
  *   the newest thing said in YOUR thread with the agent, newest first;

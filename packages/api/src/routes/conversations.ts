@@ -162,7 +162,7 @@ function agentInfoFromBody(value: unknown): { agentInfo: AgentInfo } | null {
  * whole save with a 500. Falling back to the column default instead is the one
  * deliberate softening in this route: a client sending a malformed timestamp
  * would otherwise lose the conversation it was trying to save, and no shipped
- * client sends the field at all — `packages/app/lib/hooks/use-conversations.ts`
+ * client sends the field at all — `packages/app/src/features/chat/runtime/use-conversations.ts`
  * declares no `createdAt` on `Message`.
  */
 function createdAtFromBody(value: unknown): { createdAt: Date } | null {

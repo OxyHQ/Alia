@@ -1,22 +1,22 @@
-import { AutomationEditor } from '@/components/automations/automation-editor';
+import { AutomationEditor } from '@/features/automations/ui/automation-editor';
 import {
   automationStatusTone,
   type AutomationPillTone,
-} from '@/components/automations/automation-pill';
+} from '@/features/automations/ui/automation-pill';
 import {
   actorLabel,
   runStatusLabel,
   triggerLabel,
-} from '@/lib/automations/format';
-import type { AutomationUpdateInput } from '@/lib/automations/types';
-import { errorMessage } from '@/lib/errors/error-utils';
+} from '@/features/automations/model/format';
+import type { AutomationUpdateInput } from '@/shared/contracts/automations';
+import { errorMessage } from '@/shared/api/error-utils';
 import {
   useAutomationOverview,
   useAutomationRuns,
   useUpdateAutomation,
-} from '@/lib/hooks/use-automations';
-import { agentLabel, useAgentNames } from '@/lib/hooks/agents/use-agent-names';
-import { useTranslation } from '@/lib/hooks/use-translation';
+} from '@/features/automations/runtime/use-automations';
+import { agentLabel, useAgentNames } from '@/features/agents/runtime/use-agent-names';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';

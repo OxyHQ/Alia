@@ -7,11 +7,11 @@
  *
  * ## Why generated, and not hand-transcribed
  *
- * The icon components already in `components/ui` were each pasted by hand,
+ * The icon components already in `src/shared/ui` were each pasted by hand,
  * which is fine for one glyph and not for a set: a path is a kilobyte of
  * coordinates nobody can proofread, so a transcription slip is invisible until
  * it draws wrong. Generating them makes the committed art the source art by
- * construction, and `components/__tests__/generated-icons.test.ts` re-runs this
+ * construction, and `src/shared/ui/__tests__/generated-icons.test.ts` re-runs this
  * and diffs — so a hand-edit to the output, or a stale run, goes red.
  *
  * ## What it refuses to do
@@ -40,7 +40,7 @@ import { ICONS, type IconEntry } from './manifest';
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 
 export const SHEET = join(HERE, 'shell-sprites.svg');
-export const OUT_DIR = join(HERE, '..', '..', 'components', 'ui', 'icons');
+export const OUT_DIR = join(HERE, '..', '..', 'src', 'shared', 'ui', 'icons');
 
 /** The sheet's whole vocabulary. Anything outside it means the input changed shape. */
 const KNOWN_TAGS = new Set(['svg', 'symbol', 'g', 'path', 'circle']);
@@ -187,7 +187,7 @@ function render(entry: IconEntry, symbol: Element): string {
 
   return `import type { BloomIconComponent } from "@oxy.so/bloom/icons";
 import Svg, { ${imports.join(', ')} } from "react-native-svg";
-import { useColorScheme } from "@/lib/useColorScheme";
+import { useColorScheme } from "@/shared/platform/useColorScheme";
 
 /**
  * \`${entry.id}\` — ${entry.purpose}.
@@ -197,7 +197,7 @@ import { useColorScheme } from "@/lib/useColorScheme";
  *
  * Generated from \`scripts/icons/shell-sprites.svg\`. Change \`scripts/icons/manifest.ts\`
  * and re-run \`bun run generate:icons\`; editing this file is reverted by the next run
- * and caught by \`components/__tests__/generated-icons.test.ts\`.
+ * and caught by \`src/shared/ui/__tests__/generated-icons.test.ts\`.
  */
 export const ${component}: BloomIconComponent = ({ width = 18, height = width, fill }) => {
   const { colors } = useColorScheme();

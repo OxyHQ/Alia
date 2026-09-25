@@ -12,16 +12,16 @@
  * systems.
  */
 
-import { SeriesCreateDialog } from '@/components/show/series-create-dialog';
-import { ShowArtwork } from '@/components/show/show-artwork';
-import { useShowProgress } from '@/lib/hooks/use-show-progress';
-import { useTranslation } from '@/lib/hooks/use-translation';
+import { SeriesCreateDialog } from '@/features/shows/ui/series-create-dialog';
+import { ShowArtwork } from '@/features/shows/ui/show-artwork';
+import { useShowProgress } from '@/features/shows/runtime/use-show-progress';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import {
   useShowStore,
   type ShowSeries,
   type ShowVisibility,
-} from '@/lib/stores/show-store';
-import { formatEpisodeCount } from '@/lib/utils/show-format';
+} from '@/features/shows/runtime/show-store';
+import { formatEpisodeCount } from '@/features/shows/model/show-format';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { Badge, type BadgeIcon } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';

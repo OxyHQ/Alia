@@ -1,8 +1,8 @@
-import { AgentDetail } from '@/components/agents/detail/agent-detail';
-import { useAgentReviews } from '@/lib/hooks/agents/use-agent-reviews';
-import { useAgentThreads } from '@/lib/hooks/use-agent-threads';
-import { useAgent } from '@/lib/hooks/use-agents';
-import { useTranslation } from '@/lib/hooks/use-translation';
+import { AgentDetail } from '@/features/agents/ui/detail/agent-detail';
+import { useAgentReviews } from '@/features/agents/runtime/use-agent-reviews';
+import { useAgentThreads } from '@/features/agents/runtime/use-agent-threads';
+import { useAgent } from '@/features/agents/runtime/use-agents';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
 import { Loading } from '@oxy.so/bloom/loading';
@@ -11,8 +11,8 @@ import { View } from 'react-native';
 
 /**
  * An agent's page. The route reads the id and loads the agent; the page itself
- * is `components/agents/detail/agent-detail.tsx`, and what its buttons do is
- * `lib/hooks/agents/use-agent-detail-actions.ts` — which opens and starts work
+ * is `src/features/agents/ui/detail/agent-detail.tsx`, and what its buttons do is
+ * `src/features/agents/runtime/use-agent-detail-actions.ts` — which opens and starts work
  * in agent THREADS, never bare conversations.
  */
 export default function AgentDetailScreen() {

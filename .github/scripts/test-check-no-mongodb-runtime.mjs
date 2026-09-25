@@ -178,8 +178,8 @@ check('the case the old pattern missed: source outside a src/ directory', {
   root: tree('no-src-dir', {
     ...CLEAN_LOCK,
     'packages/api/package.json': '{}',
-    // `packages/app` keeps its code in `app/`, `lib/` and `components/`; it has
-    // no `src/` at all, so `^packages/[^/]+/src/…` saw none of it.
+    // `packages/app` kept its code in `app/`, `lib/` and `components/` (its
+    // routes are still in `app/`), so `^packages/[^/]+/src/…` saw none of it.
     'packages/app/lib/store.ts': "import mongoose from 'mongoose';\n",
   }),
   status: 1,

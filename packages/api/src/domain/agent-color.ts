@@ -54,7 +54,7 @@
  *
  * ## The picker declares the same nine, and a gate holds them together
  *
- * `packages/app/lib/constants/agent-colors.ts` is the other half — what the
+ * `packages/app/src/shared/domain/agent-colors.ts` is the other half — what the
  * agent editor OFFERS. It has to be a separate declaration, because this
  * service must not depend on `@oxy.so/bloom` and the app cannot import this
  * service; and two declarations of one vocabulary is precisely how the picker

@@ -17,14 +17,14 @@
  * ## `stats.*` and `config.*` are rebuilt on the way OUT, not stored grouped
  *
  * The wire shape is `{stats: {totalSteps, …}, config: {maxSteps, …}}` and the
- * app reads `task.stats.totalTokens` (`packages/app/lib/hooks/use-tasks.ts:25`),
+ * app reads `task.stats.totalTokens` (`packages/app/src/features/automations/runtime/use-tasks.ts:25`),
  * so {@link toAgentSessionRecord} regroups the flattened columns. The columns
  * stay flat because that is what a `WHERE stats_completed_at IS NULL` can index.
  *
  * ## `agentId` is an OBJECT in the two listings, and that is a response contract
  *
  * `populate('agentId', 'name handle avatar')` REPLACED the id with a document,
- * and `packages/app/components/tasks/task-card.tsx:66` reads
+ * and `packages/app/src/features/automations/ui/task-card.tsx:66` reads
  * `task.agentId._id`, `.name` and `.avatar`. A listing that handed back a bare
  * string would type-check on both sides and render an empty card. Hence
  * {@link AgentSessionListing}, which is deliberately a different type from
@@ -462,7 +462,7 @@ export interface AgentSessionChild {
  *
  * ## The ORDER BY is not decoration — the caller renders this array
  *
- * `packages/app/components/tasks/task-card.tsx:69` iterates `task.childAgents`
+ * `packages/app/src/features/automations/ui/task-card.tsx:69` iterates `task.childAgents`
  * to draw a row of avatars, so the order is on screen. An `inArray` with no
  * `ORDER BY` lets Postgres return rows however the plan happens to produce
  * them, and the tasks list polls every ten seconds — the visible symptom is
