@@ -20,6 +20,10 @@ vi.mock("react-native", async () => {
   };
 });
 
+vi.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 48, bottom: 0, left: 0, right: 0 }),
+}));
+
 vi.mock("@/lib/keyboard", async () => {
   const ReactModule = await import("react");
   return {
@@ -108,5 +112,14 @@ describe("the template chat workspace", () => {
     // against 3.3.0 — so the host composes it back. Without this the thread
     // scrolls under the keyboard and the composer sits behind it on native.
     expect(render().root.findAllByType("KeyboardAvoidingView")).toHaveLength(1);
+  });
+
+  it("lifts the composer by the status bar the shell sits below", () => {
+    // It measures itself against its parent, as if it began at the top of the
+    // screen; the shell starts a status bar lower. Without the offset the
+    // composer stopped that far behind the keyboard on the Android emulator
+    // (docs/native-validation.mdx).
+    const avoider = render().root.findByType("KeyboardAvoidingView");
+    expect(avoider.props.keyboardVerticalOffset).toBe(48);
   });
 });
