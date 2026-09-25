@@ -3,6 +3,13 @@ import type { ToolInvocation } from '@/lib/types/messages';
 
 /** Message shape accepted by the chat-completions endpoint. */
 export interface OutboundMessage {
+  /**
+   * The id this screen draws the message under. The server stores the turn
+   * with the ids it was sent (`packages/api/src/lib/conversation-saver.ts`), so
+   * a vote or a read-aloud addressed by `Message.id` finds the row without a
+   * reload in between.
+   */
+  id: string;
   role: string;
   content: Message['content'];
   toolInvocations?: Array<{
@@ -16,6 +23,7 @@ export interface OutboundMessage {
 
 function formatOutboundMessage(message: Message): OutboundMessage {
   const outbound: OutboundMessage = {
+    id: message.id,
     role: message.role,
     content: message.content,
   };
@@ -31,6 +39,27 @@ function formatOutboundMessage(message: Message): OutboundMessage {
   }
 
   return outbound;
+}
+
+/**
+ * The id of the `index`-th delegated agent's answer (`alia.agent`) in the turn
+ * whose reply is `assistantMessageId`.
+ *
+ * Derived, not received: the event carries no id and cannot grow one, since
+ * `@alia.onl/sdk` refuses a key it does not know. The server stores the same
+ * answer under the same derivation (`conversation-saver.ts` `agentMessageId`).
+ */
+export function agentMessageId(assistantMessageId: string, index: number): string {
+  return `${agentMessagePrefix(assistantMessageId)}${index}`;
+}
+
+/** Whether `id` is one of the agent answers {@link agentMessageId} names for this reply. */
+export function isAgentMessageOf(id: string, assistantMessageId: string): boolean {
+  return id.startsWith(agentMessagePrefix(assistantMessageId));
+}
+
+function agentMessagePrefix(assistantMessageId: string): string {
+  return `${assistantMessageId}-agent-`;
 }
 
 /** Build a turn from the history captured before optimistic UI updates. */

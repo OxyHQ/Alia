@@ -18,7 +18,8 @@ import type { EffortLevel } from '@/lib/hooks/use-catalogue';
 import { useUIStore } from '@/lib/stores/ui-store';
 import i18n from '@/lib/i18n';
 import type { Conversation } from '@/lib/hooks/use-conversations';
-import { buildOutboundMessages } from '@/lib/chat-message-history';
+import { agentMessageId, buildOutboundMessages, isAgentMessageOf } from '@/lib/chat-message-history';
+import { createRandomUuid } from '@/lib/utils/random-uuid';
 import { hasUsableStreamOutput, type StreamOutputEvidence } from '@/lib/chat/stream-outcome';
 import { createSseFrameReader } from '@/lib/chat/sse-frame-reader';
 
@@ -339,7 +340,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
      * arrives with the next full load. `POST /conversations` already accepts a
      * client `createdAt`, so this is the value that persists too.
      */
-    const userMessage: Message = { ...message, id: Date.now().toString(), createdAt: new Date().toISOString() };
+    const userMessage: Message = { ...message, id: createRandomUuid(), createdAt: new Date().toISOString(), unsaved: true };
     if (options !== undefined) {
       turnOptionsRef.current.set(userMessage.id, {
         mcpServerId: options.mcpServerId,
@@ -361,14 +362,21 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
     // than from whether the message has text yet, and `settleAssistant` below
     // clears it however the stream ends.
     const assistantMessage: Message = {
-      id: (Date.now() + 1).toString(),
+      id: createRandomUuid(),
       role: 'assistant',
       content: '',
       toolInvocations: [],
       createdAt: new Date().toISOString(),
       isStreaming: true,
+      unsaved: true,
     };
     setMessages((prev) => [...prev, assistantMessage]);
+    /** How many delegated agents have answered in this turn: the next one's `agentMessageId` index. */
+    let agentAnswers = 0;
+    const nextAgentMessageId = (): string => agentMessageId(assistantMessage.id, agentAnswers++);
+    /** Whether `id` names a message this turn wrote: the question, the reply, an agent's answer. */
+    const isThisTurn = (id: string): boolean =>
+      id === userMessage.id || id === assistantMessage.id || isAgentMessageOf(id, assistantMessage.id);
 
     /**
      * End the assistant message's turn, once.
@@ -379,11 +387,19 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
      * so it lands after every batched content flush queued before it.
      */
     const settleAssistant = (outcome: NonNullable<Message['turnOutcome']>): void => {
-      setMessages((prev) => prev.map((m) =>
-        m.id === assistantMessage.id && m.isStreaming === true
-          ? { ...m, isStreaming: false, turnOutcome: outcome }
-          : m,
-      ));
+      setMessages((prev) => {
+        if (prev.find((m) => m.id === assistantMessage.id)?.isStreaming !== true) return prev;
+        // A turn that completed is one the server has stored, under these ids.
+        const stored = outcome === 'completed';
+        return prev.map((m) => {
+          let next = m.id === assistantMessage.id ? { ...m, isStreaming: false, turnOutcome: outcome } : m;
+          if (stored && next.unsaved === true && isThisTurn(next.id)) {
+            const { unsaved: _unsaved, ...rest } = next;
+            next = rest;
+          }
+          return next;
+        });
+      });
     };
 
     /** The request's own controller: `finally` asks it whether the person stopped the turn. */
@@ -423,6 +439,9 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
         headers,
         body: JSON.stringify({
           messages: messagesToSend,
+          // The reply is stored under the id it is drawn under here, so a vote
+          // or a read-aloud on it needs no reload to find it.
+          assistantMessageId: assistantMessage.id,
           stream: true,
           ...(conversationId && { conversationId }),
           // Omitted entirely when nothing was chosen, so the request means "the
@@ -640,10 +659,13 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                   if (typeof am.content === 'string') {
                     outputEvidence.agentOutputChars += am.content.length;
                   }
+                  // Named outside the updater, which React may run twice.
+                  const agentMessageIdForTurn = nextAgentMessageId();
                   setMessages((prev) => {
                     const updated = [...prev];
                     const agentMsg: Message = {
-                      id: `agent-${Date.now()}-${am.agentId}`,
+                      id: agentMessageIdForTurn,
+                      unsaved: true,
                       role: 'assistant',
                       content: am.content,
                       agentInfo: {
@@ -1025,10 +1047,12 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
               if (typeof am.content === 'string') {
                 outputEvidence.agentOutputChars += am.content.length;
               }
+              const agentMessageIdForTurn = nextAgentMessageId();
               setMessages((prev) => {
                 const updated = [...prev];
                 const agentMsg: Message = {
-                  id: `agent-${Date.now()}-${am.agentId}`,
+                  id: agentMessageIdForTurn,
+                  unsaved: true,
                   role: 'assistant',
                   content: am.content,
                   agentInfo: {
