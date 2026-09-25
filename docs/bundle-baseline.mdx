@@ -291,12 +291,10 @@ If a web path ever reaches Skia it names the chunk and tells you to put
 
 One caveat for local checkouts: `public/canvaskit.wasm` is gitignored, so a
 deploy from a clean tree never has it — but a machine that ran
-`setup-skia-web` before (including via `visual:baseline --rebuild`) keeps the
-file, and `expo export` copies whatever is in `public/`. Delete it to see the
-real deployed size.
-
-`scripts/visual/capture.mjs` still copies the wasm for its own export; that
-harness belongs to another change and was not touched.
+`setup-skia-web` before (including via `visual:baseline --rebuild` before
+2026-09-25, when the visual and perf harnesses still ran it) keeps the file,
+and `expo export` copies whatever is in `public/`. Delete it to see the real
+deployed size. Neither harness runs `setup-skia-web` any more.
 
 ## 6. What is still eager, and why it could not be cut
 

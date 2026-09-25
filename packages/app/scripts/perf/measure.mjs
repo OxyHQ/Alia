@@ -152,7 +152,8 @@ async function ensureExport({ rebuild }) {
     return;
   }
   console.log('· exporting the web bundle — a few minutes');
-  await run('bun', ['x', 'setup-skia-web', 'public'], APP_ROOT);
+  // No `setup-skia-web`: nothing on web fetches canvaskit.wasm, and a copy in
+  // `public/` fails `check:web-bundle` on the next production build.
   await run('bun', ['x', 'expo', 'export', '--platform', 'web'], APP_ROOT);
 }
 

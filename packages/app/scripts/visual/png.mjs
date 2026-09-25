@@ -13,7 +13,7 @@
  * Chromium's screenshot encoder emits; anything else throws rather than being
  * silently mis-read.
  */
-import { inflateSync } from 'node:zlib';
+import { crc32, deflateSync, inflateSync } from 'node:zlib';
 
 const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -187,4 +187,84 @@ export function compareRasters(a, b, tolerance) {
  */
 export function comparePngs(a, b, tolerance) {
   return compareRasters(decodePng(a), decodePng(b), tolerance);
+}
+
+function chunk(type, body) {
+  const out = Buffer.alloc(12 + body.length);
+  out.writeUInt32BE(body.length, 0);
+  out.write(type, 4, 'ascii');
+  body.copy(out, 8);
+  out.writeUInt32BE(crc32(out.subarray(4, 8 + body.length)), 8 + body.length);
+  return out;
+}
+
+/**
+ * Encodes an 8-bit RGBA raster, unfiltered. Only the diff images use it, so it
+ * trades file size for having nothing to get wrong.
+ *
+ * @param {{ width: number, height: number, data: Buffer }} raster RGBA, 4 channels
+ * @returns {Buffer}
+ */
+export function encodePng({ width, height, data }) {
+  const stride = width * 4;
+  const raw = Buffer.alloc((stride + 1) * height);
+  for (let y = 0; y < height; y += 1) {
+    data.copy(raw, y * (stride + 1) + 1, y * stride, y * stride + stride);
+  }
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8; // bit depth
+  header[9] = 6; // RGBA
+  return Buffer.concat([
+    SIGNATURE,
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+/**
+ * A picture of where two captures disagree: the reference dimmed to a grey
+ * ghost, every pixel over `tolerance` painted red (brighter the larger the
+ * delta), every pixel that moved within tolerance painted faint blue. Returns
+ * `null` when the two cannot be overlaid at all.
+ *
+ * @param {Buffer} reference
+ * @param {Buffer} candidate
+ * @param {number} tolerance
+ * @returns {Buffer | null}
+ */
+export function diffPng(reference, candidate, tolerance) {
+  const a = decodePng(reference);
+  const b = decodePng(candidate);
+  if (a.width !== b.width || a.height !== b.height) return null;
+  const { width, height } = a;
+  const out = Buffer.alloc(width * height * 4);
+  for (let i = 0; i < width * height; i += 1) {
+    const pa = i * a.channels;
+    const pb = i * b.channels;
+    let delta = 0;
+    for (let c = 0; c < 3; c += 1) {
+      delta = Math.max(delta, Math.abs(a.data[pa + c] - b.data[pb + c]));
+    }
+    const grey = Math.round((a.data[pa] + a.data[pa + 1] + a.data[pa + 2]) / 3);
+    const ghost = 160 + Math.round(grey / 4);
+    const o = i * 4;
+    if (delta > tolerance) {
+      out[o] = 128 + Math.round((delta / 255) * 127);
+      out[o + 1] = 0;
+      out[o + 2] = 0;
+    } else if (delta > 0) {
+      out[o] = ghost - 40;
+      out[o + 1] = ghost - 40;
+      out[o + 2] = 255;
+    } else {
+      out[o] = ghost;
+      out[o + 1] = ghost;
+      out[o + 2] = ghost;
+    }
+    out[o + 3] = 255;
+  }
+  return encodePng({ width, height, data: out });
 }
