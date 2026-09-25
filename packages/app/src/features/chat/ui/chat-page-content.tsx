@@ -16,6 +16,7 @@ import {
   type Suggestion,
 } from '@/features/chat/runtime/use-suggestions';
 import { Button } from '@oxy.so/bloom/button';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { VoiceModeIcon } from '@/features/voice/ui/voice-mode-icon';
 import { toast } from '@oxy.so/bloom/toast';
 import { useRouter } from 'expo-router';
@@ -47,7 +48,7 @@ import { useAuth } from '@oxy.so/services';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { ScrollToBottomButton } from '@oxy.so/bloom/chat-screen';
 import { useAtBottom } from '@/features/chat/runtime/use-at-bottom';
-import { View } from 'react-native';
+import { View, type NativeSyntheticEvent, type TextInput, type TextInputKeyPressEventData } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
@@ -231,6 +232,16 @@ export const ChatPageContent = ({
     onEditMessage,
   });
   const { editing } = edit;
+  /**
+   * Starting an edit puts the caret in the composer that now holds the
+   * question: the Edit press left focus on the row's button, so typing went
+   * nowhere and Escape could not reach the edit it should cancel.
+   */
+  const composerInputRef = useRef<TextInput | null>(null);
+  const editingId = editing?.messageId;
+  useEffect(() => {
+    if (editingId !== undefined) composerInputRef.current?.focus();
+  }, [editingId]);
 
   // Toasts that belong to the chat, never to "Meet Alia" in front of it.
   useLocalModelsInvite(intro === undefined);
@@ -243,6 +254,7 @@ export const ChatPageContent = ({
   const setInputValue = composer.setText;
 
   const { colors, isDarkColorScheme } = useColorScheme();
+  const theme = useTheme();
   const { ttsWaveAmplitude, playbackState: ttsPlaybackState } = useTTS();
   // The ambient field behind the conversation, the welcome's own: one wave
   // across idle, voice, read-aloud and dictation (STT is read inside
@@ -440,6 +452,21 @@ export const ChatPageContent = ({
     enabled: isMainScreen && !disabled,
     onPick: handlePickSuggestion,
   });
+  const { onKeyPress: onSuggestionKeyPress } = suggestions;
+  const cancelEdit = edit.cancel;
+  const handleComposerKeyPress = useCallback(
+    (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+      // Escape leaves an edit, as its Cancel does: it is the top-most thing
+      // open while the question is being rewritten.
+      if (editing !== undefined && event.nativeEvent.key === 'Escape') {
+        event.preventDefault();
+        cancelEdit();
+        return;
+      }
+      onSuggestionKeyPress(event);
+    },
+    [editing, cancelEdit, onSuggestionKeyPress],
+  );
 
   if (intro) {
     return (
@@ -495,7 +522,8 @@ export const ChatPageContent = ({
               // A different account is a different composer: reads in flight
               // for the last one are aborted rather than landing here.
               key={composer.address.account ?? ''}
-              onKeyPress={suggestions.onKeyPress}
+              onKeyPress={handleComposerKeyPress}
+              inputRef={composerInputRef}
               value={inputValue}
               onValueChange={setInputValue}
               onSubmit={handleSubmit}
@@ -523,9 +551,15 @@ export const ChatPageContent = ({
                 editing !== undefined ? (
                   // Where the chat's folder sits, while a question is being
                   // rewritten: what is happening, and the way out of it.
-                  <View className="flex-row items-center gap-2 px-3 py-1">
+                  // Drawn as the status tab it replaces: the thread scrolls
+                  // behind the composer, and a strip without the tab's surface
+                  // printed its words over the transcript's.
+                  <View
+                    className="mx-7 h-[34px] flex-row items-center gap-2 rounded-t-2xl px-2 py-1"
+                    style={{ backgroundColor: theme.colors.backgroundTertiary }}
+                  >
                     <RiEditLine size="sm" />
-                    <Text className="flex-1 text-xs text-muted-foreground">
+                    <Text className="flex-1 text-xs text-muted-foreground" numberOfLines={1}>
                       {t('composer.editingMessage')}
                     </Text>
                     <Button variant="ghost" size="xs" onPress={edit.cancel}>
