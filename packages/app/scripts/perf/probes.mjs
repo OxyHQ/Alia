@@ -42,13 +42,29 @@
  * Runs inside the page before anything else. Must be self-contained —
  * Playwright serialises it to source.
  *
- * @param {{ ctaText: string }} options
+ * @param {{ ctaText: string | null }} options `null` on a screen with no call
+ *   to action (the workspace fixtures): the per-frame search for it is then
+ *   never started, because on a thread of 1,000 messages that search is itself
+ *   a measurable cost.
  */
 export function installProbes({ ctaText }) {
   const state = {
     ctaText,
     /** @type {{ start: number, duration: number }[]} */
     longTasks: [],
+    /**
+     * Event Timing entries for key and pointer input, 16ms and over (the API's
+     * floor): from the event to the next paint, the browser's own number.
+     * @type {{ name: string, start: number, duration: number, processing: number }[]}
+     */
+    inputEvents: [],
+    /**
+     * Every keydown, to the first animation frame after it, in ms. The Event
+     * Timing API cannot report under 16ms, so this is the whole distribution
+     * and those entries are the cross-check on the tail.
+     * @type {number[]}
+     */
+    keyToFrame: [],
     /** @type {Record<string, number>} */
     paint: {},
     /** @type {Record<string, number|null>} */
@@ -78,11 +94,12 @@ export function installProbes({ ctaText }) {
 
   // ---------------------------------------------------------------- observers
 
-  const observe = (type, handler) => {
+  const observe = (type, handler, extra = {}) => {
     try {
       new PerformanceObserver((list) => list.getEntries().forEach(handler)).observe({
         type,
         buffered: true,
+        ...extra,
       });
     } catch {
       // `longtask` is not implemented everywhere; a missing entry type must not
@@ -99,6 +116,19 @@ export function installProbes({ ctaText }) {
   observe('largest-contentful-paint', (entry) => {
     state.paint['largest-contentful-paint'] = entry.startTime;
   });
+  observe(
+    'event',
+    (entry) => {
+      if (!/^(key|pointer|click|input|beforeinput)/.test(entry.name)) return;
+      state.inputEvents.push({
+        name: entry.name,
+        start: entry.startTime,
+        duration: entry.duration,
+        processing: entry.processingEnd - entry.processingStart,
+      });
+    },
+    { durationThreshold: 16 },
+  );
 
   // ------------------------------------------------------------------ wrappers
 
@@ -256,6 +286,20 @@ export function installProbes({ ctaText }) {
     return realRaf(callback);
   };
 
+  // Keydown to the next frame. Captured on the window before anything in the
+  // app sees the event; the frame callback runs once the handlers — and the
+  // synchronous render a discrete event triggers — have finished. Attached
+  // with the unwrapped `addEventListener`, so it is not in the leak counters.
+  addListener.call(
+    window,
+    'keydown',
+    () => {
+      const at = performance.now();
+      realRaf(() => state.keyToFrame.push(performance.now() - at));
+    },
+    { capture: true },
+  );
+
   // --------------------------------------------------------------- the moments
 
   /** Opacity of `el` including every ancestor's, and 0 if anything hides it. */
@@ -296,10 +340,13 @@ export function installProbes({ ctaText }) {
       const root = document.getElementById('root');
       if (root && root.childElementCount > 0) state.marks.appFirstRender = performance.now();
     }
-    if (state.marks.ctaInteractive === null && findInteractiveCta()) {
+    if (state.ctaText !== null && state.marks.ctaInteractive === null && findInteractiveCta()) {
       state.marks.ctaInteractive = performance.now();
     }
-    if (state.marks.ctaInteractive === null) realRaf(poll);
+    const waiting =
+      state.marks.appFirstRender === null ||
+      (state.ctaText !== null && state.marks.ctaInteractive === null);
+    if (waiting) realRaf(poll);
   };
   realRaf(poll);
 
