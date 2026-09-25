@@ -9,9 +9,8 @@ import { log } from './logger.js';
  *
  * Alia fetches URLs it did not choose. `webScraper` and `browser` take whatever
  * the model produces — which is shaped by search results and by what the person
- * typed — and the favicon route takes a domain out of a message. Every one of
- * those requests leaves from inside the VPC, where `169.254.169.254` and every
- * private range answer.
+ * typed. Every one of those requests leaves from inside the VPC, where
+ * `169.254.169.254` and every private range answer.
  *
  * The guard this replaced in `tools/sandbox.ts` was entirely syntactic: a list
  * of internal hostnames, plus private addresses written literally into the URL.
