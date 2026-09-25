@@ -105,6 +105,11 @@ vi.mock('@/lib/chat/use-local-models-invite', () => ({ useLocalModelsInvite: () 
 vi.mock('@/lib/stores/folders-store', () => ({
   useFoldersStore: (select: (state: { folders: never[] }) => unknown) => select({ folders: [] }),
 }));
+vi.mock('@/lib/chat/use-turn-edit', () => ({
+  useTurnEdit: () => ({ editing: undefined, start: undefined, cancel: vi.fn(), submit: vi.fn() }),
+}));
+vi.mock('@oxy.so/bloom/typography', () => ({ Text: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiEditLine', () => ({ RiEditLine: () => null }));
 vi.mock('@/lib/hooks/use-suggestions', () => ({ useRecordSuggestionUsage: () => ({ mutate: vi.fn() }) }));
 vi.mock('@/lib/hooks/use-tts', () => ({ useTTS: () => ({ ttsWaveAmplitude: 0, playbackState: 'idle' }) }));
 vi.mock('@/lib/hooks/use-at-bottom', () => ({ useAtBottom: () => ({ isAtBottom: true, onScroll: vi.fn() }) }));
