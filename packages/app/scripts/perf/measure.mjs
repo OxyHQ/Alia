@@ -19,6 +19,10 @@
  *     --cycles <n>     Mount/unmount cycles in the leak loop (default 12).
  *     --rates <list>   CPU throttling rates, comma separated (default "1,4").
  *     --rebuild        Re-run `expo export` even if `dist/` already exists.
+ *     --workspace-runs <n>  Passes of the chat-workspace scenario (default 3).
+ *     --switch-cycles <n>   Conversation switches in its memory loop (default 8).
+ *     --no-workspace   Skip the chat-workspace scenario.
+ *     --workspace-only Skip the signed-out boot and leak loop.
  *
  * ## Why this is a second harness and not a flag on the first
  *
@@ -32,13 +36,14 @@
  *
  * ## What it can honestly reach
  *
- * There is no authentication and no live API here, so this measures the
- * signed-out surface: the boot of the web bundle, the welcome intro over the
- * app chrome, and route changes between two screens that render signed out.
- * Conversation, typing, streaming, scroll, panels and the call — the rest of
- * §12 — are not measured and are not measurable without a session. The doc
- * (`docs/runtime-baseline.mdx`) lists them explicitly rather than quietly
- * leaving them out.
+ * There is no authentication and no live API here. The signed-out surface is
+ * measured on the ordinary export: the boot of the web bundle, the welcome
+ * intro over the app chrome, and route changes between two screens that render
+ * signed out. The chat workspace — opening a conversation, typing, streaming,
+ * scrolling, switching — is measured on a separate fixtures export
+ * (`workspace.mjs`), where the real chat page is fed a generated 1,000-message
+ * conversation instead of the API. Panels and the call are still not measured.
+ * The doc (`docs/runtime-baseline.mdx`) says which is which.
  */
 import { spawn } from 'node:child_process';
 import { cpus, loadavg } from 'node:os';
@@ -51,6 +56,7 @@ import { chromium } from 'playwright-core';
 // imported, never modified.
 import { serveExport } from '../visual/server.mjs';
 import { installProbes } from './probes.mjs';
+import { assertFixturesStayOut, ensureFixturesExport, measureWorkspace } from './workspace.mjs';
 import { describe, formatStat, round, slopePerStep, table } from './stats.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -123,6 +129,10 @@ function parseArgs(argv) {
     warmup: 1,
     cycles: 12,
     rates: [1, 4],
+    workspace: true,
+    workspaceOnly: false,
+    workspaceRuns: 3,
+    switchCycles: 8,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -132,6 +142,10 @@ function parseArgs(argv) {
     else if (arg === '--warmup') args.warmup = Number(argv[(i += 1)]);
     else if (arg === '--cycles') args.cycles = Number(argv[(i += 1)]);
     else if (arg === '--rates') args.rates = argv[(i += 1)].split(',').map(Number);
+    else if (arg === '--no-workspace') args.workspace = false;
+    else if (arg === '--workspace-only') args.workspaceOnly = true;
+    else if (arg === '--workspace-runs') args.workspaceRuns = Number(argv[(i += 1)]);
+    else if (arg === '--switch-cycles') args.switchCycles = Number(argv[(i += 1)]);
   }
   return args;
 }
@@ -462,8 +476,173 @@ function inMebibytes(stat) {
   };
 }
 
+/**
+ * The workspace metrics `--check` gates, all at the default timing threshold:
+ * one per flow, the number that moves when that flow gets cheaper or dearer.
+ */
+const CHECKED_WORKSPACE = [
+  'openMs',
+  'keyToFrameP95',
+  'streamTaskMsPerUpdate',
+  'scrollFrameP95',
+  'longTaskMsTotal',
+];
+
+/**
+ * The chat workspace on the fixtures export, after proving the ordinary
+ * export carries none of it. Its own server: the two exports are different
+ * bundles and must never be served from one origin.
+ */
+async function runWorkspace(args, browser) {
+  const fixturesDir = await ensureFixturesExport(APP_ROOT, args);
+  const bundleCheck = await assertFixturesStayOut(DIST, fixturesDir);
+  console.log(`· no fixture code in packages/app/dist (${bundleCheck.markers.length} markers checked)`);
+  const server = await serveExport(fixturesDir);
+  try {
+    console.log(
+      `· chat workspace: ${args.workspaceRuns} passes, then ${args.switchCycles} conversation switches`,
+    );
+    const measured = await measureWorkspace(browser, server.origin, {
+      runs: args.workspaceRuns,
+      switchCycles: args.switchCycles,
+      streamChunks: 60,
+      streamIntervalMs: 50,
+      scrollStep: 200,
+    });
+    return {
+      pinned: {
+        export: 'packages/app/dist-fixtures, EXPO_PUBLIC_ALIA_FIXTURES=1',
+        route: '/__fixtures/a-1000 (ChatPageContent under the real (app) layout)',
+        messages: 1000,
+        viewport: VIEWPORT,
+        cpuThrottlingRate: 1,
+        stream: { chunks: 60, intervalMs: 50 },
+        scrollStepPx: 200,
+        typed: 'one key every 60ms',
+      },
+      bundleCheck,
+      ...measured,
+    };
+  } finally {
+    await server.close();
+  }
+}
+
+function printWorkspace(workspace) {
+  const s = workspace.summary;
+  const mib = (stat) =>
+    stat ? { ...stat, median: stat.median / 1024 / 1024, min: stat.min / 1024 / 1024, max: stat.max / 1024 / 1024, iqr: stat.iqr / 1024 / 1024 } : null;
+  console.log('\nchat workspace, 1,000 messages (fixtures export, 1x)');
+  console.log(
+    table([
+      ['open (route change → first frame)', formatStat(s.openMs)],
+      ['open: main-thread task time', formatStat(s.openTaskMs)],
+      ['open: longest task', formatStat(s.openLongTaskMax)],
+      ['DOM nodes, opened', formatStat(s.openNodes, '')],
+      ['heap after GC, opened', formatStat(mib(s.heapAfterOpen), ' MiB')],
+      ['keydown → next frame, median', formatStat(s.keyToFrameMedian)],
+      ['keydown → next frame, p95', formatStat(s.keyToFrameP95)],
+      ['key events ≥16ms (Event Timing)', formatStat(s.keyEventsOver16, '')],
+      ['typing: script / layout / style per key', `${round(s.typingScriptMsPerKey?.median, 1)} / ${round(s.typingLayoutMsPerKey?.median, 1)} / ${round(s.typingStyleMsPerKey?.median, 1)}ms`],
+      ['stream: task time per update', formatStat(s.streamTaskMsPerUpdate)],
+      ['stream: script / layout / style per update', `${round(s.streamScriptMsPerUpdate?.median, 1)} / ${round(s.streamLayoutMsPerUpdate?.median, 1)} / ${round(s.streamStyleMsPerUpdate?.median, 1)}ms`],
+      ['stream: overrun past 60×50ms', formatStat(s.streamOverrunMs)],
+      ['stream: frames per second', formatStat(s.streamFps, 'fps')],
+      ['scroll: frame p95', formatStat(s.scrollFrameP95)],
+      ['scroll: frames over 33ms', formatStat(s.scrollFramesOver33, '')],
+      ['scroll: wall time, top to bottom', formatStat(s.scrollWallMs)],
+      ['scroll: script / layout / style', `${round(s.scrollScriptMs?.median, 0)} / ${round(s.scrollLayoutMs?.median, 0)} / ${round(s.scrollStyleMs?.median, 0)}ms`],
+      ['long tasks, whole pass', formatStat(s.longTaskCountTotal, '')],
+      ['long-task time, whole pass', formatStat(s.longTaskMsTotal)],
+      ['blocking time, whole pass', formatStat(s.blockingMsTotal)],
+    ]),
+  );
+  const v = workspace.switching.verdict;
+  console.log(`\nconversation switches, steady state over ${v.cyclesConsidered} cycles`);
+  console.log(`switch time ${formatStat(workspace.switching.switchMs)}`);
+  console.log(
+    table([
+      ['counter', 'first', 'last', 'slope/cycle'],
+      ...Object.entries(v.counters).map(([key, c]) => [key, c.first, c.last, c.slopePerCycle]),
+    ]),
+  );
+}
+
+function compareWorkspace(previous, current, rows) {
+  let failures = 0;
+  for (const metric of CHECKED_WORKSPACE) {
+    const was = previous?.summary?.[metric]?.median;
+    const now = current.summary[metric]?.median;
+    if (typeof was !== 'number' || typeof now !== 'number') continue;
+    const delta = was === 0 ? 0 : ((now - was) / was) * 100;
+    const gate = NOISE_THRESHOLDS.default;
+    const ok = Math.abs(delta) <= gate;
+    if (!ok) failures += 1;
+    rows.push([
+      `workspace ${metric}`,
+      round(was, 1),
+      round(now, 1),
+      `${delta > 0 ? '+' : ''}${round(delta, 1)}%`,
+      `±${gate}%`,
+      ok ? 'ok' : 'OUTSIDE',
+    ]);
+  }
+  return failures;
+}
+
+/** `--workspace-only`: the workspace alone, merged into the committed baseline. */
+async function workspaceMain(args) {
+  await ensureExport(args);
+  const browser = await chromium.launch({ headless: true });
+  let workspace;
+  try {
+    console.log(`· chromium ${browser.version()}`);
+    workspace = await runWorkspace(args, browser);
+  } finally {
+    await browser.close();
+  }
+  printWorkspace(workspace);
+  const previous = existsSync(BASELINE_FILE)
+    ? JSON.parse(await readFile(BASELINE_FILE, 'utf8'))
+    : {};
+  if (args.check) {
+    const rows = [['metric', 'baseline', 'now', 'Δ%', 'gate', '']];
+    const failures = compareWorkspace(previous.workspace, workspace, rows);
+    console.log('\nagainst the committed baseline');
+    console.log(table(rows));
+    if (failures > 0) {
+      console.error(`\n${failures} metric(s) outside the noise threshold`);
+      process.exitCode = 1;
+    }
+    return;
+  }
+  const { rawRuns: workspaceRuns, ...section } = workspace;
+  await mkdir(BASELINE, { recursive: true });
+  await writeFile(
+    BASELINE_FILE,
+    `${JSON.stringify(
+      {
+        ...previous,
+        workspace: {
+          ...section,
+          measuredAt: new Date().toISOString(),
+          loadAverage: loadavg().map((v) => round(v, 2)),
+          rawRuns: workspaceRuns,
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  console.log(`\n· merged the workspace section into ${BASELINE_FILE}`);
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.workspaceOnly) {
+    await workspaceMain(args);
+    return;
+  }
   await ensureExport(args);
 
   const text = await copy();
@@ -504,6 +683,7 @@ async function main() {
   /** @type {Record<string, object[]>} */
   const rawRuns = {};
   let leak;
+  let workspace;
 
   try {
     for (const rate of args.rates) {
@@ -560,6 +740,7 @@ async function main() {
     }
 
     leak = await leakLoop(browser, server.origin, text, args.cycles);
+    if (args.workspace) workspace = await runWorkspace(args, browser);
   } finally {
     await browser.close();
     await server.close();
@@ -610,6 +791,8 @@ async function main() {
       verdict: leakVerdict(leak.samples),
     },
   };
+  const { rawRuns: workspaceRuns, ...workspaceSection } = workspace ?? {};
+  if (workspace) report.workspace = workspaceSection;
   const summary = [];
   for (const [rate, stats] of Object.entries(boot)) {
     summary.push('', `CPU rate ${rate}`);
@@ -655,6 +838,7 @@ async function main() {
       ]),
     ]),
   );
+  if (workspace) printWorkspace(workspace);
 
   if (args.check) {
     if (!existsSync(BASELINE_FILE)) {
@@ -663,7 +847,9 @@ async function main() {
       return;
     }
     const previous = JSON.parse(await readFile(BASELINE_FILE, 'utf8'));
-    const { rows, failures } = compare(previous, report);
+    const { rows, failures: bootFailures } = compare(previous, report);
+    const failures =
+      bootFailures + (workspace ? compareWorkspace(previous.workspace, workspace, rows) : 0);
     console.log('\nagainst the committed baseline');
     console.log(table(rows));
     if (failures > 0) {
@@ -674,6 +860,7 @@ async function main() {
   }
 
   await mkdir(BASELINE, { recursive: true });
+  if (workspace) report.workspace.rawRuns = workspaceRuns;
   await writeFile(BASELINE_FILE, `${JSON.stringify({ ...report, rawRuns }, null, 2)}\n`);
   console.log(`\n· wrote ${BASELINE_FILE}`);
 }

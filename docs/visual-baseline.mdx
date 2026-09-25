@@ -359,8 +359,10 @@ harder with this harness. Each needs a signed-in Oxy session **and** a live Alia
 API: a conversation needs `useChatConversation` to have messages, which means
 `POST /alia/chat` streaming back; dictation and playback need microphone and
 speech; the call UI needs a LiveKit room. The harness blocks all non-local
-network by design. Reaching them needs a seeded account, an API fixture or a
-recorded transport, and that is a separate piece of work.
+network by design. The conversation is now reachable in a fixtures build —
+`/__fixtures/:id` renders the real chat page over a generated thread (see the
+[runtime baseline](./runtime-baseline.mdx#9-the-chat-workspace-on-fixtures)) —
+but only the runtime harness drives it so far; it has no pixel baseline here.
 
 No screen was faked to fill a row in that table. An invented conversation would
 be a picture of the harness, not of Alia.
