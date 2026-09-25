@@ -179,6 +179,22 @@ export function isChatUsable(model: CatalogueModel): boolean {
     && model.tools;
 }
 
+const PRE_RELEASE = /(?:^|[^a-z])(?:preview|exp|experimental|beta|alpha)(?:[^a-z]|$)/i;
+
+/**
+ * Whether a model is a settled release worth leading with: priced above zero
+ * (a provider's free tier is rate-limited and withdrawn without notice) and no
+ * pre-release marker in the provider's own id or name. The catalogue carries
+ * no lifecycle field, so these are the signals it does carry. Such a model
+ * stays selectable; it is only never the one Alia chooses for somebody.
+ */
+export function isStableRelease(model: CatalogueModel): boolean {
+  if (model.pricing === null) return false;
+  const price = Number(model.pricing.inputPerMTok) + Number(model.pricing.outputPerMTok);
+  if (!(Number.isFinite(price) && price > 0)) return false;
+  return !PRE_RELEASE.test(model.id) && !PRE_RELEASE.test(model.name);
+}
+
 /** A model that can speak: audio out. */
 export function isSpeechCapable(model: CatalogueModel): boolean {
   return model.outputModalities.includes('audio');
