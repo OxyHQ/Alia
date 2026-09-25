@@ -18,6 +18,7 @@
  */
 
 import { create } from 'zustand';
+import { currentAccountEpoch, isCurrentAccountEpoch } from '@/shared/state/account-epoch';
 import apiClient from '@/shared/api/client';
 import { API_ROUTES } from '@/shared/api/routes';
 import { errorMessage as getErrorMessage } from '@/shared/api/error-utils';
@@ -222,18 +223,24 @@ export const useShowStore = create<ShowStore>((set, get) => ({
   activeGenerations: new Map(),
 
   fetchSeries: async () => {
+    const epoch = currentAccountEpoch();
     set({ loading: true, error: null });
     try {
       const res = await apiClient.get(API_ROUTES.shows.series.list);
+      // Asked for the account before a switch or a sign-out: not this one's.
+      if (!isCurrentAccountEpoch(epoch)) return;
       set({ series: res.data.series, loading: false });
     } catch (err: unknown) {
+      if (!isCurrentAccountEpoch(epoch)) return;
       set({ error: getErrorMessage(err, i18n.t('shows.errors.loadList')), loading: false });
     }
   },
 
   fetchOneSeries: async (id) => {
+    const epoch = currentAccountEpoch();
     try {
       const res = await apiClient.get(API_ROUTES.shows.series.get(id));
+      if (!isCurrentAccountEpoch(epoch)) return null;
       const { series, episodes } = res.data as { series: ShowSeries; episodes: ShowEpisode[] };
 
       set((state) => ({
@@ -245,6 +252,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
 
       return series;
     } catch (err: unknown) {
+      if (!isCurrentAccountEpoch(epoch)) return null;
       set({ error: getErrorMessage(err, i18n.t('shows.errors.loadOne')) });
       return null;
     }
@@ -370,10 +378,13 @@ export const useShowStore = create<ShowStore>((set, get) => ({
   },
 
   fetchPreferences: async () => {
+    const epoch = currentAccountEpoch();
     try {
       const res = await apiClient.get(API_ROUTES.shows.preferences);
+      if (!isCurrentAccountEpoch(epoch)) return;
       set({ preferences: res.data as ShowPreferences });
     } catch {
+      if (!isCurrentAccountEpoch(epoch)) return;
       // The server's own defaults apply when this fails, and the create screen
       // states them; a failure here is not worth an error banner.
       set({ preferences: { defaultVisibility: 'private', defaultFormat: 'podcast' } });

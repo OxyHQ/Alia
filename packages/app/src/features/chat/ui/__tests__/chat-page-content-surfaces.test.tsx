@@ -129,6 +129,7 @@ vi.mock('@/shared/platform/useColorScheme', () => ({
   useColorScheme: () => ({ colors: { primary: '#000' }, isDarkColorScheme: false }),
 }));
 vi.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
+vi.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { backgroundTertiary: '#eee' } }) }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), info: vi.fn() } }));
 vi.mock('@oxy.so/bloom/ai-chat', () => ({ AiChatMobileHeader: () => null }));
 vi.mock('@oxy.so/bloom/composer-panel', () => ({ ComposerPanelStatusTab: () => null }));

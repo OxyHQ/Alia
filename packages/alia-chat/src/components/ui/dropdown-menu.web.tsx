@@ -11,7 +11,8 @@ import type { LucideIcon } from "lucide-react-native";
 // bundle.
 import Star from "lucide-react-native/icons/star";
 import Pencil from "lucide-react-native/icons/pencil";
-import Trash2 from "lucide-react-native/icons/trash-2";
+// `trash-2` merged into `trash` in lucide 1.4x; Trash2 is an alias of it.
+import Trash2 from "lucide-react-native/icons/trash";
 import Share2 from "lucide-react-native/icons/share-2";
 import Download from "lucide-react-native/icons/download";
 import Settings from "lucide-react-native/icons/settings";

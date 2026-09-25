@@ -203,6 +203,9 @@ export function IdentityMark({
       // button would promise an action it does not have.
       accessibilityRole={onPress === undefined ? 'image' : 'button'}
       accessibilityLabel={accessibilityLabel}
+      // Nor a Tab stop: on web a Pressable is focusable by default, so the
+      // flourish was an unlabelled stop in the keyboard order that did nothing.
+      focusable={onPress !== undefined}
       className={className}
       style={box}
     >

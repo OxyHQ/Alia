@@ -167,4 +167,13 @@ describe('a mark that asked for nothing', () => {
 
     expect(mocks.impactAsync).toHaveBeenCalledOnce();
   });
+
+  /** The flourish is for the pointer: a keyboard stop for it would do nothing. */
+  it('is not a keyboard stop for a flourish alone', () => {
+    const spin = render(<IdentityMark size={28} spinOnPress />);
+    expect(pressables(spin)[0]?.props.focusable).toBe(false);
+    act(() => renderer?.unmount());
+    const action = render(<IdentityMark size={28} onPress={() => {}} />);
+    expect(pressables(action)[0]?.props.focusable).toBe(true);
+  });
 });
