@@ -24,7 +24,7 @@
  * route used inline so the timeout suite's module mocks keep intercepting them.
  */
 import type { Response } from 'express';
-import { streamText, type TextStreamPart, type ToolSet } from 'ai';
+import { streamText, type TextStreamPart, type ModelMessage, type ToolSet } from 'ai';
 import type { ResolvedModel } from '../chat-core.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
@@ -116,7 +116,7 @@ export interface RunStreamParams<TOOLS extends ToolSet> {
   resolved: ResolvedModel;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK config is dynamically extended; strict SDK param types don't support this pattern
   baseConfig: any;
-  convertedMessages: unknown[];
+  convertedMessages: ModelMessage[];
   toolNameMapping: Map<string, string>;
   /** Accumulator for delegate-to-agent replies; mutated in place. */
   agentMessages: AgentMessage[];
@@ -173,7 +173,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
     const completed = toolInvocations.filter(t => t.state === 'result');
     if (completed.length === 0 || res.writableEnded) return false;
 
-    const followUpMessages = [...convertedMessages, ...completed.flatMap(toolRoundTrip)];
+    const followUpMessages: ModelMessage[] = [...convertedMessages, ...completed.flatMap(toolRoundTrip)];
 
     const retryAbort = new AbortController();
     const retryTimer = setTimeout(() => retryAbort.abort(), 30_000);

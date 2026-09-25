@@ -17,7 +17,7 @@
  * the route used inline so the timeout suite's module mocks keep intercepting them.
  */
 import type { Response } from 'express';
-import { streamText, type ToolSet } from 'ai';
+import { streamText, type ModelMessage, type ToolSet } from 'ai';
 import { log } from '../logger.js';
 import { writeTextChunk, makeChunk } from '../streaming-helpers.js';
 import type { ResolvedModel } from '../chat-core.js';
@@ -30,7 +30,7 @@ export interface TextToolFallbackParams {
   toolInvocations: ToolInvocation[];
   /** The truncated tool set the model had access to. */
   tools: ToolSet;
-  convertedMessages: unknown[];
+  convertedMessages: ModelMessage[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK config is dynamically extended; strict SDK param types don't support this pattern
   baseConfig: any;
   res: Response;
@@ -72,14 +72,12 @@ export async function runTextToolFallback(params: TextToolFallbackParams): Promi
         output: toolOutput,
       })}\n\n`);
 
-      toolInvocations.push({ toolCallId, toolName, state: 'result', args, result: toolOutput });
+      const invocation = { toolCallId, toolName, state: 'result' as const, args, result: toolOutput };
+      toolInvocations.push(invocation);
 
       // Follow-up LLM call so the model generates a natural response
       try {
-        const followUpMessages = [
-          ...convertedMessages,
-          ...toolRoundTrip({ toolCallId, toolName, args, result: toolOutput }),
-        ];
+        const followUpMessages: ModelMessage[] = [...convertedMessages, ...toolRoundTrip(invocation)];
         const followUpResult = streamText({ ...baseConfig, messages: followUpMessages, tools: undefined, stopWhen: undefined, onFinish: undefined });
 
         for await (const followUpChunk of followUpResult.fullStream) {
