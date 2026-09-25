@@ -128,7 +128,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
    * known for turns sent while this screen was open.
    */
   const turnOptionsRef = useRef(new Map<string, Pick<SendOptions, 'mcpServerId' | 'skillNames'>>());
-  const { oxyServices } = useOxy();
+  const { oxyServices, user } = useOxy();
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -207,6 +207,36 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
     retryRef.current = null;
     turnOptionsRef.current.clear();
   }, [conversationId]);
+
+  /**
+   * A different account is a different person: the thread on screen is not
+   * theirs.
+   *
+   * The new-chat screen stays mounted across a sign-out or a switch, and in
+   * ghost mode its thread exists nowhere but here — so without this the next
+   * person to sit down saw the previous one's conversation, and a reply still
+   * streaming kept writing into it. The stream is cut and the thread emptied.
+   * Signing IN from signed-out keeps what is there: nobody else owned it.
+   */
+  const accountId = user?.id ?? null;
+  const accountRef = useRef(accountId);
+  useEffect(() => {
+    const was = accountRef.current;
+    accountRef.current = accountId;
+    if (was === null || was === accountId) return;
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    pendingContentRef.current = '';
+    pendingReasoningRef.current = '';
+    setMessagesAndRef([]);
+    setIsLoading(false);
+    setError(null);
+    setConversationTitle(null);
+    setSuggestedNewConversation(null);
+    setFailedTurn(null);
+    retryRef.current = null;
+    turnOptionsRef.current.clear();
+  }, [accountId, setMessagesAndRef]);
 
   const append = useCallback(async (
     message: Omit<Message, 'id'>,
