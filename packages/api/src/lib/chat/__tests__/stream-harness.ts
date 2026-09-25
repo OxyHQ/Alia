@@ -14,7 +14,7 @@ import { SSEWriter } from '../sse-writer.js';
 type RunStreamParams = Parameters<typeof runStream>[0];
 
 /** Everything written to the wire, so a frame can be found by name. */
-export function responseDouble(): { res: Response; written: string[] } {
+function responseDouble(): { res: Response; written: string[] } {
   const written: string[] = [];
   const res = {
     write: (chunk: string) => {
@@ -31,7 +31,7 @@ export function responseDouble(): { res: Response; written: string[] } {
 }
 
 /** The given chunks, as the SDK's `fullStream`. */
-export function streamOf(chunks: readonly object[]): AsyncIterable<TextStreamPart<ToolSet>> {
+function streamOf(chunks: readonly object[]): AsyncIterable<TextStreamPart<ToolSet>> {
   return {
     async *[Symbol.asyncIterator]() {
       for (const chunk of chunks) yield chunk as unknown as TextStreamPart<ToolSet>;
@@ -40,11 +40,9 @@ export function streamOf(chunks: readonly object[]): AsyncIterable<TextStreamPar
 }
 
 /** Run one stream through `runStream` with inert defaults. */
-export async function runChunks(
-  chunks: readonly object[],
-  agentMessages: RunStreamParams['agentMessages'] = [],
-) {
+export async function runChunks(chunks: readonly object[]) {
   const { res, written } = responseDouble();
+  const agentMessages: RunStreamParams['agentMessages'] = [];
   const outcome = await runStream({
     result: { fullStream: streamOf(chunks) },
     res,
@@ -60,5 +58,5 @@ export async function runChunks(
     state: { hasStreamedContent: false },
     onFirstChunk: () => undefined,
   });
-  return { ...outcome, written };
+  return { ...outcome, written, agentMessages };
 }
