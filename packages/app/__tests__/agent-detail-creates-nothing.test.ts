@@ -4,10 +4,18 @@ import { describe, expect, it } from 'vitest';
 
 /** The profile creates durable agent threads, never bare conversation rows. */
 
-const SOURCE = readFileSync(
-  fileURLToPath(new URL('../app/(app)/agents/[id].tsx', import.meta.url)),
-  'utf8',
-);
+/**
+ * The screen as a whole: the route, the page it renders and the hooks its
+ * buttons call, which is where the requests live since the route was thinned.
+ */
+const SOURCE = [
+  '../app/(app)/agents/[id].tsx',
+  '../components/agents/detail/agent-detail.tsx',
+  '../lib/hooks/agents/use-agent-detail-actions.ts',
+  '../lib/hooks/agents/use-agent-thread-actions.ts',
+]
+  .map((path) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8'))
+  .join('\n');
 
 describe('the agent detail screen', () => {
   it('is read at all', () => {
