@@ -238,7 +238,10 @@ export async function listCatalogueModels(now: number = Date.now()): Promise<Cat
   if (cached !== null && now - cached.fetchedAt < CATALOGUE_TTL_MS) return cached.models;
   inflight ??= fetchCatalogue()
     .then((models) => {
-      cached = { models, fetchedAt: Date.now() };
+      // The same clock the freshness check reads (`now`), not a second
+      // `Date.now()` after the fetch: mixing them made the TTL drift by the
+      // fetch's duration.
+      cached = { models, fetchedAt: now };
       return models;
     })
     .finally(() => {
