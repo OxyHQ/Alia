@@ -20,6 +20,7 @@ vi.mock('@oxy.so/core', () => {
   const passThroughMiddleware = (_req: Request, _res: Response, next: NextFunction) => next();
 
   class MockOxyServices {
+      middleware = { service: (...args: any[]) => (this as any).serviceAuth(...args) };
     auth() { return vi.fn(passThroughMiddleware); }
     serviceAuth() { return vi.fn(passThroughMiddleware); }
   }

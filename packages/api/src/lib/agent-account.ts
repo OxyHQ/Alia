@@ -47,7 +47,7 @@
  * direction it is paid: writes are few and never in a loop, while the reads
  * that keep the cache are the ones that arrive in pages.
  *
- * The precedent this was first modelled on, the SDK's `verifyServiceActingAs`,
+ * The precedent this was first modelled on, the SDK's `verifyActingAs`,
  * is an ATTRIBUTION lookup rather than a write gate. Same shape, different
  * blast radius.
  *
@@ -61,7 +61,8 @@
  * its own client. One is built per cache MISS, not per request.
  */
 
-import { OxyServices, resolveAccountDelegationAccess } from '@oxy.so/core';
+import { OxyServices } from '@oxy.so/core';
+import { resolveAccountDelegationAccess } from '@oxy.so/core/session';
 import type { AccountCategoryId } from '@oxy.so/contracts';
 import type { Executor } from '../db/index.js';
 import { findAgentById, type AgentRecord } from '../db/agents/agentRepository.js';
@@ -98,7 +99,7 @@ export type AgentAccountVerdict =
 /**
  * How long a verdict may be reused.
  *
- * The same 5 minutes / 60 seconds the SDK's `verifyServiceActingAs` uses, and
+ * The same 5 minutes / 60 seconds the SDK's `verifyActingAs` uses, and
  * for the same trade: a GRANT is stable (the normal case is somebody acting as
  * the bot account they themselves created, which does not change), while a
  * REFUSAL is usually transient — the account was created a moment ago, or the
@@ -183,11 +184,11 @@ export async function verifyAgentAccount(params: {
   }
 
   const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
-  oxy.setTokens(params.accessToken);
+  oxy.session.setAccessToken(params.accessToken);
 
-  let node: Awaited<ReturnType<typeof oxy.getAccount>>;
+  let node: Awaited<ReturnType<typeof oxy.accounts.get>>;
   try {
-    node = await oxy.getAccount(params.oxyAccountId);
+    node = await oxy.accounts.get(params.oxyAccountId);
   } catch (error: unknown) {
     // Oxy answers 404 for an account the caller cannot see, which is the same
     // response as one that does not exist — and both are cacheable refusals.
@@ -354,7 +355,7 @@ export async function createAgentBotAccount(params: {
   accountCategories?: AccountCategoryId[];
 }): Promise<{ oxyAccountId: string; username: string }> {
   const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
-  oxy.setTokens(params.accessToken);
+  oxy.session.setAccessToken(params.accessToken);
 
   let username = params.username;
   for (let attempt = 0; attempt < USERNAME_ATTEMPTS; attempt++) {
@@ -372,7 +373,7 @@ export async function createAgentBotAccount(params: {
      */
     const candidate = applyBotUsernameSuffix(username);
     try {
-      const node = await oxy.createAccount({
+      const node = await oxy.accounts.create({
         kind: 'bot',
         username: candidate,
         name: { displayName: params.displayName },

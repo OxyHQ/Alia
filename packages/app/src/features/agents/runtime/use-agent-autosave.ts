@@ -245,7 +245,7 @@ export function useAgentIdentityAutosave(agent: Agent) {
          */
         let free = true;
         try {
-          free = (await oxyServices.checkUsernameAvailability(trimmed))
+          free = (await oxyServices.auth.checkUsername(trimmed))
             .available;
         } catch {
           free = true;
@@ -263,7 +263,7 @@ export function useAgentIdentityAutosave(agent: Agent) {
       }
 
       try {
-        await oxyServices.updateAccount(agent.oxyAccountId, {
+        await oxyServices.accounts.update(agent.oxyAccountId, {
           name: { displayName: next.name },
           // Only when it actually changed: `username` is globally unique, and
           // re-sending the current one on every keystroke of the NAME field

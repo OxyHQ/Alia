@@ -17,20 +17,20 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
  * null. Measured against `https://api.oxy.so` on 2026-08-25, through the real
  * SDK rather than through curl:
  *
- *   new OxyServices({ baseURL }).getUsersByIds([id])            -> []
+ *   new OxyServer({ baseURL }).users.getMany([id])              -> []
  *     (SDK log: mode 'user', status 403, 'CSRF token missing')
- *   ...same client after configureServiceAuth(key, secret)      -> [the user]
+ *   ...same client built with serviceAuth: { apiKey, apiSecret } -> [the user]
  *   GET /users/:id, no auth                                     -> 200
  *
  * ## Why the edge below is a socket and not a mock
  *
  * The subject is which BEARER leaves this process and whether Oxy accepts it,
  * so the thing that must be real is `@oxy.so/core`: the service-mode branch in
- * `getUsersByIds`, the `/auth/service-token` exchange, the per-credential token
+ * `users.getMany`, the `/auth/service-token` exchange, the per-credential token
  * cache, and the `GET /csrf-token` preflight it makes for a bearer-less POST. A
  * fake SDK would assert that the fake behaves as its author remembers the SDK
  * behaving, and would stay green through the exact bug this file exists for —
- * the other suites at this seam all stub `oxyClient.getUsersByIds` directly,
+ * the other suites at this seam all stub `oxyClient.users.getMany` directly,
  * which is why none of them saw a 403 that has been live in production.
  *
  * So the only fixture is the far end, and it implements the two behaviours
@@ -42,7 +42,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
  * ## What IS replaced, and what anchors it
  *
  * Two modules, neither of them the subject. `middleware/auth.ts` stands in as
- * the one line of itself this file depends on — `new OxyServices({ baseURL })`,
+ * the one line of itself this file depends on — `new OxyServer({ baseURL })`,
  * no credential — which the last case here reads out of its source, so the
  * stand-in cannot quietly stop resembling it. `lib/logger.ts` stands in so the
  * two warnings are readable as values.
@@ -82,8 +82,8 @@ const shared = vi.hoisted(() => ({ baseURL: '' }));
  * by the last case in this file.
  */
 vi.mock('../../middleware/auth.js', async () => {
-  const { OxyServices } = await import('@oxy.so/core');
-  return { oxyClient: new OxyServices({ baseURL: shared.baseURL }) };
+  const { OxyServer } = await import('@oxy.so/core/server');
+  return { oxyClient: new OxyServer({ baseURL: shared.baseURL }) };
 });
 
 const logged = vi.hoisted(() => ({ warn: vi.fn() }));
@@ -267,7 +267,7 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
    * The attested exchange is two round trips to `169.254.170.2`, the container
    * credentials endpoint, which exists on a Fargate task and nowhere else. The
    * fake edge in this file cannot stand in for it, and a mock of
-   * `getServiceToken` would be asserting the mock. What belongs to Alia is the
+   * `serviceToken` would be asserting the mock. What belongs to Alia is the
    * decision — build the client, do not warn — and that is what is asserted
    * here; minting from the attestation is `@oxy.so/core`'s and is tested there.
    */
@@ -312,7 +312,7 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
 
     await hydrate([ADA.id]);
 
-    // `configureServiceAuth` is what turns the SDK's user-bearer path into the
+    // `serviceAuth` is what turns the SDK's user-bearer path into the
     // service one; without the exchange there is no bearer to carry, and without
     // THESE values the exchange is somebody else's.
     expect(edge.exchanges).toHaveLength(1);
@@ -354,7 +354,7 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
     /**
      * The anchor for the mock at the top of this file.
      *
-     * The stand-in is `new OxyServices({ baseURL })` and nothing else, which is
+     * The stand-in is `new OxyServer({ baseURL })` and nothing else, which is
      * a fair stand-in only while the real one is the same. It is also the
      * invariant `oxy-user-hydration.ts` and `agent-account.ts` both argue for in
      * prose and nothing enforced: the process's shared client verifies inbound
@@ -367,9 +367,9 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
     // `not.toMatch`es below pass while measuring nothing.
     expect(source.length).toBeGreaterThan(1_000);
     expect(source).toContain('export const oxyClient');
-    expect(source).toMatch(/new OxyServices\(\{\s*baseURL/);
+    expect(source).toMatch(/new OxyServer\(\{\s*baseURL/);
 
-    expect(source).not.toMatch(/configureServiceAuth/);
+    expect(source).not.toMatch(/serviceAuth\s*:/);
     expect(source).not.toMatch(/oxyClient\.setTokens/);
   });
 });

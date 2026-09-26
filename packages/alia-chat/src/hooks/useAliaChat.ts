@@ -235,7 +235,7 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
       const trimmed = text.trim();
       if (!trimmed) return;
 
-      const activeToken = oxyServices.getAccessToken();
+      const activeToken = oxyServices.session.accessToken;
       if (accessTokenProp !== undefined && accessTokenProp !== activeToken) {
         setError('The supplied token is not the active Oxy session.');
         return;

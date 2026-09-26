@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { zodSchema } from 'ai';
-import { OxyInferenceError } from '@oxy.so/core';
+import { OxyInferenceError } from '@oxy.so/core/inference';
 import { z } from 'zod';
 import { getDb } from '../db/index.js';
 import { findUserMemory } from '../db/memory/userMemoryRepository.js';

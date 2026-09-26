@@ -13,7 +13,7 @@
  *
  * Both blocks tested a re-implementation, and a test that re-implements the
  * code under test measures the re-implementation. `HttpService` already owns
- * single-flight dedup plus a cooldown, and `exchangeOAuthCode` already owns the
+ * single-flight dedup plus a cooldown, and `auth.oauth.exchangeCode` already owns the
  * RFC 6749 exchange — and `refreshWithToken`, which those five tests mocked,
  * **does not exist in `@oxy.so/core@19`**. The suite passed because the mock
  * supplied it. That is the sharpest possible illustration of the hazard: a
@@ -45,24 +45,30 @@ const { refreshAccessTokenMock, installHandlerMock, schedulerMock } = vi.hoisted
 vi.mock('@oxy.so/core', () => {
   class OxyServices {
     private access: string | null = null;
-    readonly httpService = { refreshAccessToken: refreshAccessTokenMock };
-    setTokens(access: string): void {
-      this.access = access;
-    }
-    clearTokens(): void {
-      this.access = null;
-    }
-    getAccessToken(): string | null {
-      return this.access;
-    }
-    getAccessTokenExpiry(): number | null {
-      return null;
-    }
-    async getCurrentUser(): Promise<never> {
-      throw new Error('network disabled in tests');
+    readonly http = { refreshAccessToken: refreshAccessTokenMock };
+    readonly session = {
+      setAccessToken: (access: string): void => {
+        this.access = access;
+      },
+      clear: (): void => {
+        this.access = null;
+      },
+      accessTokenExpiry: null as number | null,
+    };
+    readonly users = {
+      me: async (): Promise<never> => {
+        throw new Error('network disabled in tests');
+      },
+    };
+    constructor() {
+      const owner = this;
+      Object.defineProperty(this.session, 'accessToken', { get: () => owner.access });
     }
   }
+  return { OxyServices };
+});
 
+vi.mock('@oxy.so/core/session', () => {
   /**
    * The real factory over an injected key/value store. Reimplemented here only
    * as far as `load`/`save`/`clear`, because the point of these tests is the
@@ -88,7 +94,6 @@ vi.mock('@oxy.so/core', () => {
   });
 
   return {
-    OxyServices,
     createNativeAuthStateStore,
     installAuthRefreshHandler: installHandlerMock.mockReturnValue(() => undefined),
     startTokenRefreshScheduler: schedulerMock.mockReturnValue({ dispose: () => undefined }),
@@ -273,11 +278,11 @@ describe('the duplication does not come back', () => {
   });
 
   it('does not hand-roll the token exchange', () => {
-    // `exchangeOAuthCode` owns this. A returning raw form POST would name the
+    // `auth.oauth.exchangeCode` owns this. A returning raw form POST would name the
     // grant type and the endpoint, as the deleted one did.
     expect(stated.has('grant_type')).toBe(false);
     expect(stated.has('authorization_code')).toBe(false);
-    expect(stated.has('exchangeOAuthCode')).toBe(true);
+    expect(stated.has('exchangeCode')).toBe(true);
   });
 
   it('does not hand-roll a single-flight refresh guard', () => {

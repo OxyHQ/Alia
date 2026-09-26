@@ -34,6 +34,8 @@ const oxy = vi.hoisted(() => ({
 vi.mock('@oxy.so/core', () => ({
   canSwitchIntoAccount: () => true,
   OxyServices: class {
+    session = { setAccessToken: (...args: any[]) => (this as any).setTokens(...args) };
+    accounts = { create: (...args: any[]) => (this as any).createAccount(...args) };
     setTokens() {}
     /**
      * `middleware/auth.ts` builds its own client at module load and calls this

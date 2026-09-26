@@ -18,7 +18,7 @@ import {
   type UserRuntimePresence,
 } from './lib/inference/user-runtime-bridge.js';
 
-/** Read the authenticated user id planted on the socket by `oxy.authSocket()`. */
+/** Read the authenticated user id planted on the socket by `oxy.middleware.socket()`. */
 function socketUserId(socket: Socket): string | null {
   const fromData = socket.data?.userId;
   if (typeof fromData === 'string' && fromData.length > 0) return fromData;
@@ -26,7 +26,7 @@ function socketUserId(socket: Socket): string | null {
 }
 
 /**
- * The bearer `oxy.authSocket()` verified, kept for the ONE gate that needs it.
+ * The bearer `oxy.middleware.socket()` verified, kept for the ONE gate that needs it.
  *
  * `socket.data.token` is the handshake token the middleware already validated,
  * so this reads a verified value rather than trusting the client — and it is
@@ -131,10 +131,10 @@ export function initSocket(server: http.Server) {
     // it means rooms do not cross tasks, which is worth saying out loud.
     log.general.warn('Socket.IO has no Redis adapter — rooms are per-task');
   }
-  // Authenticate every connection. `oxy.authSocket()` validates the handshake
+  // Authenticate every connection. `oxy.middleware.socket()` validates the handshake
   // bearer token, plants `socket.data.userId`, and rejects unauthenticated /
   // invalid / expired tokens before any `connection` handler runs.
-  io.use(oxyClient.authSocket({ debug: process.env.NODE_ENV !== 'production' }));
+  io.use(oxyClient.middleware.socket({ debug: process.env.NODE_ENV !== 'production' }));
 
   io.on('connection', (socket) => {
     const userId = socketUserId(socket);

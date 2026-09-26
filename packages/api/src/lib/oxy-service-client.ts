@@ -22,7 +22,7 @@
  *
  * ## Why this is not `middleware/auth.ts`'s client with credentials added
  *
- * `configureServiceAuth` is instance state, and every method that has a
+ * The service credential is instance state, and every method that has a
  * service-mode branch reads it. Arming it on the client that verifies inbound
  * user tokens would change what a dozen unrelated call sites send, as a side
  * effect of fixing identity hydration. The inference credential factory keeps
@@ -41,7 +41,7 @@
  * Under oxy ADR 0026 a first-party service proves what it IS — a signed
  * `GetCallerIdentity` for its ECS task role, which Oxy replays to AWS — and gets
  * back the same short-lived service token the pair used to buy. `@oxy.so/core`
- * >= 1.6.1 takes that path inside `getServiceToken()` whenever no pair was
+ * >= 1.6.1 takes that path inside `serviceToken()` whenever no pair was
  * configured, so the pair became a LOCAL convenience: a checkout can attest
  * nothing, and this is how it borrows Alia's identity.
  *
@@ -56,8 +56,7 @@
  * than turn every non-inference development task into a crash.
  */
 
-import { OxyServices } from '@oxy.so/core';
-import { canAttestWorkloadIdentity } from '@oxy.so/core/server';
+import { OxyServer, canAttestWorkloadIdentity } from '@oxy.so/core/server';
 
 import { log } from './logger.js';
 
@@ -76,7 +75,7 @@ import { log } from './logger.js';
  * in-flight exchange — all of which a fresh client per call would discard,
  * turning every identity read into two round trips.
  */
-let client: OxyServices | null | undefined;
+let client: OxyServer | null | undefined;
 
 /**
  * Alia's own Oxy client, or `null` when this process has no Oxy identity at all.
@@ -86,7 +85,7 @@ let client: OxyServices | null | undefined;
  * is decoration on somebody else's row (`oxy-user-hydration.ts` says what that
  * costs and why it is the right trade).
  */
-export function oxyServiceClient(): OxyServices | null {
+export function oxyServiceClient(): OxyServer | null {
   if (client === undefined) client = build();
   return client;
 }
@@ -116,10 +115,10 @@ export function canAuthenticateAsOxyService(env: NodeJS.ProcessEnv = process.env
 export async function oxyServiceToken(): Promise<string> {
   const oxy = oxyServiceClient();
   if (!oxy) throw new Error('Alia has no Oxy service identity: no credential pair and nothing to attest');
-  return oxy.getServiceToken();
+  return oxy.serviceToken();
 }
 
-function build(): OxyServices | null {
+function build(): OxyServer | null {
   // Trimmed, and the presence check reads the trimmed value: a secret that
   // reached the environment from a file carries the file's trailing newline, and
   // a credential that differs by one invisible character fails with a 401 that
@@ -145,8 +144,8 @@ function build(): OxyServices | null {
      * the same thing.
      *
      * On the infrastructure the SDK attests the task role inside
-     * `getServiceToken()` and every call that wanted a service token still gets
-     * one — so the client is BUILT, deliberately without `configureServiceAuth`.
+     * `serviceToken()` and every call that wanted a service token still gets
+     * one — so the client is BUILT, deliberately without `serviceAuth`.
      * Handing it half a pair instead would replace a working attestation with a
      * credential that cannot mint, which is why both-or-neither is the rule and
      * one alone counts as neither.
@@ -158,7 +157,7 @@ function build(): OxyServices | null {
       log.general.info(
         'no Oxy service key pair; the SDK attests this task role instead (oxy ADR 0026)',
       );
-      return new OxyServices({ baseURL });
+      return new OxyServer({ baseURL });
     }
     // Once per process, and it names the variables: the symptom at the other end
     // is every name and handle rendering blank, which says nothing about why.
@@ -170,7 +169,5 @@ function build(): OxyServices | null {
     return null;
   }
 
-  const oxy = new OxyServices({ baseURL });
-  oxy.configureServiceAuth(apiKey, apiSecret);
-  return oxy;
+  return new OxyServer({ baseURL, serviceAuth: { apiKey, apiSecret } });
 }

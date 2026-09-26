@@ -53,7 +53,7 @@ function createSession(implementation: RequestFunction): MockSession {
     return { client: { requestAuthenticatedResponse: request }, dispose };
   });
   mocks.oxyServices = {
-    getAccessToken: () => 'active-token',
+    session: { accessToken: 'active-token' },
     createLinkedClient,
   };
   return { request, createLinkedClient, disposals };

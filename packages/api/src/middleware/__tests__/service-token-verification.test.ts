@@ -380,7 +380,7 @@ describe('inbound verification is @oxy.so/core, not a local implementation (#139
     // with. Named, so replacing one with a local function fails here.
     expect(auth).toContain('createOxyAuthMiddleware(oxyClient');
     expect(auth).toContain('createOptionalOxyAuth(oxyClient');
-    expect(auth).toContain('oxyClient.serviceAuth(');
+    expect(auth).toContain('oxyClient.middleware.service(');
     // And a DELEGATED request is verified by a client that can prove who Alia
     // is. `oxyClient` holds no credential, so the SDK's acting-as check could
     // never reach Oxy from it and refused every delegated user; the lane split
@@ -438,7 +438,7 @@ describe('inbound verification is @oxy.so/core, not a local implementation (#139
       path.join(kaanaDir, 'oxy-inference-credential.ts'),
       'utf8',
     );
-    expect(credential).toContain('return () => oxy.getServiceToken()');
+    expect(credential).toContain('return () => oxy.serviceToken()');
     expect(credential).not.toMatch(/jwt\.verify|verifyToken|jwtVerify/);
   });
 });

@@ -225,7 +225,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
   const getToken = useCallback((): string | null => {
     const { accessToken } = configRef.current;
     if (accessToken) return accessToken;
-    return oxyServices.httpService.getAccessToken();
+    return oxyServices.session.accessToken;
   }, [oxyServices]);
 
   const clearTimers = (): void => {

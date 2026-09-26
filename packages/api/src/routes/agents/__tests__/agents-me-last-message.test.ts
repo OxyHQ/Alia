@@ -34,10 +34,7 @@ vi.mock('../../../middleware/auth.js', () => ({
   authenticateToken: signIn,
   optionalAuth: signIn,
   authenticateTokenOrApiKey: signIn,
-  oxyClient: {
-    getUsersByIds: async () => [],
-    getProfileByUsername: async () => ({ id: 'acct-bot' }),
-  },
+  oxyClient: { users: { getMany: async () => [], byUsername: async () => ({ id: 'acct-bot' }) } },
 }));
 
 vi.mock('../../../db/agents/agentRepository.js', () => ({

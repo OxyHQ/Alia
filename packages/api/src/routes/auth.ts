@@ -33,7 +33,7 @@ router.get('/me', authenticateToken, async (req, res) => {
     }
 
     // Get full user data from Oxy
-    const user = await oxyClient.getUserById(req.user.id);
+    const user = await oxyClient.users.get(req.user.id);
 
     res.json({
       user: {

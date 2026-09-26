@@ -62,3 +62,11 @@ export type OxyRequesterContext = import('@oxy.so/core/server').OxyRequesterCont
  */
 export const canAttestWorkloadIdentity: OxyCoreServer['canAttestWorkloadIdentity'] =
   real.canAttestWorkloadIdentity;
+
+/**
+ * REAL: `OxyServer` is the API's Oxy client itself (`middleware/auth.ts`,
+ * `lib/oxy-service-client.ts`), constructed at import. Constructing it reaches
+ * no network; only its calls do, and those are what tests stub.
+ */
+export const OxyServer: OxyCoreServer['OxyServer'] = real.OxyServer;
+export type OxyServer = InstanceType<OxyCoreServer['OxyServer']>;

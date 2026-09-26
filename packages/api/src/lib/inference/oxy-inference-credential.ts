@@ -32,18 +32,18 @@
  * against a fake: "the token is short-lived" is a property of what this hands
  * back, not of any line in this file.
  *
- * ## Why a dedicated `OxyServices` instance
+ * ## Why a dedicated `OxyServer` instance
  *
- * `middleware/auth.ts` constructs the API's own `OxyServices` for VERIFYING
- * inbound user tokens, and it never configures service credentials. Calling
- * `configureServiceAuth` on that instance would arm `makeServiceRequest`
+ * `middleware/auth.ts` constructs the API's own `OxyServer` for VERIFYING
+ * inbound user tokens, and it never configures service credentials. Arming a
+ * service credential on that instance would arm `serviceRequest`
  * everywhere else in the process as a side effect of wiring Kaana, and would
  * make the inference layer import the Express middleware graph. One instance per
  * purpose is also what the SDK's per-credential cache is designed for.
  */
 
-import { OxyServices, type OxyInferenceCredential } from '@oxy.so/core';
-import { canAttestWorkloadIdentity } from '@oxy.so/core/server';
+import { type OxyInferenceCredential } from '@oxy.so/core/inference';
+import { OxyServer, canAttestWorkloadIdentity } from '@oxy.so/core/server';
 
 /**
  * The ApplicationCredential this deployment presents to mint service tokens.
@@ -190,12 +190,11 @@ export function createOxyInferenceCredential(
   // character fails with a 401 that names nothing.
   const read = (variable: string): string => (env[variable] ?? '').trim();
 
-  const oxy = new OxyServices({ baseURL: read(OXY_API_URL_ENV) });
 
   /**
    * Armed only with a COMPLETE pair, and left unconfigured otherwise on purpose.
    *
-   * `getServiceToken()` falls back to attesting this task role when nothing was
+   * `serviceToken()` falls back to attesting this task role when nothing was
    * configured, so not calling this is what takes the ADR 0026 path. Calling it
    * with half a pair would replace that path with a credential that cannot mint
    * and turn a working deployment into one `authentication_failed` per request —
@@ -203,7 +202,10 @@ export function createOxyInferenceCredential(
    */
   const apiKey = read(OXY_INFERENCE_CREDENTIAL_ENV.apiKey);
   const apiSecret = read(OXY_INFERENCE_CREDENTIAL_ENV.apiSecret);
-  if (apiKey !== '' && apiSecret !== '') oxy.configureServiceAuth(apiKey, apiSecret);
+  const oxy = new OxyServer({
+    baseURL: read(OXY_API_URL_ENV),
+    ...(apiKey !== '' && apiSecret !== '' ? { serviceAuth: { apiKey, apiSecret } } : {}),
+  });
 
-  return () => oxy.getServiceToken();
+  return () => oxy.serviceToken();
 }
