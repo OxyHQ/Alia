@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Peers: `@oxy.so/services` `^6.0.0`, `@oxy.so/core` `^1.16.0`
+
+**Breaking for a host still on services 3 or 4.** The package only calls
+`useOxy()`, whose shape is unchanged, but one app holds one Oxy SDK: services
+6 is the release the ecosystem runs (one sign-in screen, `react-native-css` a
+required peer), and it requires core `^1.16.0`.
+
 ### `AliaMarkdown` builds its parser once
 
 `react-native-markdown-display` evaluates its `markdownit`,
