@@ -46,6 +46,8 @@ vi.mock('@oxy.so/core', async () => {
   return {
     ...actual,
     OxyServices: class {
+      session = { setAccessToken: (...args: any[]) => (this as any).setTokens(...args) };
+      accounts = { get: (...args: any[]) => (this as any).getAccount(...args) };
       setTokens(): void {}
       async getAccount(accountId: string): Promise<unknown> {
         state.accountLookups.push(accountId);
@@ -75,12 +77,9 @@ vi.mock('../../../middleware/auth.js', () => ({
   authenticateToken: maybeSignIn,
   optionalAuth: maybeSignIn,
   authenticateTokenOrApiKey: maybeSignIn,
-  oxyClient: {
-    getUsersByIds: async () => [
+  oxyClient: { users: { getMany: async () => [
       { id: 'acct-bot', username: 'pepe', name: { displayName: 'Pepe' }, color: 'mint' },
-    ],
-    getProfileByUsername: async () => ({ id: 'acct-bot' }),
-  },
+    ], byUsername: async () => ({ id: 'acct-bot' }) } },
 }));
 
 const repository = vi.hoisted(() => ({

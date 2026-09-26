@@ -40,8 +40,8 @@ import type {
   ToolChoice,
   ToolDefinition,
 } from '@oxy.so/contracts';
-import type { OxyInferenceResponse, OxyResponsesRequest } from '@oxy.so/core';
-import { OxyInferenceError } from '@oxy.so/core';
+import type { OxyInferenceResponse, OxyResponsesRequest } from '@oxy.so/core/inference';
+import { OxyInferenceError } from '@oxy.so/core/inference';
 import type {
   LanguageModelV3,
   LanguageModelV3CallOptions,

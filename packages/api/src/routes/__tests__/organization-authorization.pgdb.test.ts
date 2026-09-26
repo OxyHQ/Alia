@@ -57,13 +57,15 @@ vi.mock('../../middleware/auth.js', () => ({
      * widening this to all ids changes the member response shape and takes
      * seven unrelated cases with it.
      */
-    getUsersByIds: (ids: string[]) =>
-      Promise.resolve(
-        ids
-          .filter((id) => id.startsWith('oxy-bot-'))
-          .map((id) => ({ id, username: id, name: { displayName: `name:${id}` } })),
-      ),
-    getFileDownloadUrl: (id: string) => `https://cloud.oxy.so/${id}`,
+    users: {
+      getMany: (ids: string[]) =>
+        Promise.resolve(
+          ids
+            .filter((id) => id.startsWith('oxy-bot-'))
+            .map((id) => ({ id, username: id, name: { displayName: `name:${id}` } })),
+        ),
+    },
+    assets: { publicUrl: (id: string) => `https://cloud.oxy.so/${id}` },
   },
 }));
 

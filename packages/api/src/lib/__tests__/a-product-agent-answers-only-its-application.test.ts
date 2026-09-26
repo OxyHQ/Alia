@@ -37,6 +37,8 @@ vi.mock('@oxy.so/core', async () => {
   return {
     ...actual,
     OxyServices: class {
+      session = { setAccessToken: (...args: any[]) => (this as any).setTokens(...args) };
+      accounts = { get: (...args: any[]) => (this as any).getAccount(...args) };
       setTokens(): void {}
       async getAccount(accountId: string): Promise<unknown> {
         oxy.calls++;
@@ -99,7 +101,7 @@ vi.mock('../logger.js', () => {
   };
 });
 vi.mock('../../middleware/auth.js', () => ({
-  oxyClient: { getProfileByUsername: async () => ({ id: '01a0646a-078f-7974-9645-a5e8be237f47' }) },
+  oxyClient: { users: { byUsername: async () => ({ id: '01a0646a-078f-7974-9645-a5e8be237f47' }) } },
 }));
 
 const { canReachAgent, loadTurnAgent, clearAgentAccountVerdicts } = await import(

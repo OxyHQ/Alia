@@ -33,7 +33,7 @@ vi.mock('expo/fetch', () => ({
 }));
 
 vi.mock('@oxy.so/services', () => ({
-  useOxy: () => ({ oxyServices: { getAccessToken: () => 'test-token' } }),
+  useOxy: () => ({ oxyServices: { session: { accessToken: 'test-token' } } }),
 }));
 
 import { usePersonalitySamplePhrase } from '../use-personality-sample-phrase';

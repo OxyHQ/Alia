@@ -4,7 +4,7 @@
  * Allows internal Oxy ecosystem services (Inbox, Calendar, etc.) to trigger
  * autonomous Alia AI processing on behalf of users using service tokens.
  *
- * Auth: Service tokens only (via oxyClient.serviceAuth())
+ * Auth: Service tokens only (via oxyClient.middleware.service())
  * No credits charged (platform cost)
  */
 
@@ -109,7 +109,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     // Load Oxy user profile for personalization
     let oxyUser: OxyUser | null = null;
     try {
-      oxyUser = await oxyClient.getUserById(userId) as OxyUser;
+      oxyUser = await oxyClient.users.get(userId) as OxyUser;
     } catch (error: unknown) {
       log.general.info({ err: error }, 'Could not fetch Oxy user profile');
     }

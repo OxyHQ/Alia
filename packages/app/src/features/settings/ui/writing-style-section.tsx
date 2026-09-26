@@ -100,7 +100,7 @@ export function WritingStyleSection() {
   const [saving, setSaving] = useState(false);
 
   const getHeaders = useCallback(() => {
-    const token = oxyServices.getAccessToken();
+    const token = oxyServices.session.accessToken;
     return {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,

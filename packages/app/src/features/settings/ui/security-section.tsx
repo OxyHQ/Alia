@@ -111,7 +111,7 @@ export function SecuritySection() {
     if (!isAuthenticated) return;
     setSaving(true);
     try {
-      const token = oxyServices.getAccessToken();
+      const token = oxyServices.session.accessToken;
       const authHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
       };

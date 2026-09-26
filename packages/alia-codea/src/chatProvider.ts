@@ -118,7 +118,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
     try {
       const oxyServices = this._authProvider.getOxyServices();
-      const userInfo = await oxyServices.getCurrentUser();
+      const userInfo = await oxyServices.users.me();
       // Prefer the canonical API-composed display name on `name.displayName`;
       // do not recompute from first/last.
       const displayName = (userInfo.name as { displayName?: string } | undefined)?.displayName;

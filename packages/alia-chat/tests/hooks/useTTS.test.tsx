@@ -3,7 +3,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn<typeof fetch>(), create: vi.fn() }));
-vi.mock('@oxy.so/services', () => ({ useOxy: () => ({ oxyServices: { httpService: { getAccessToken: () => 'test-session' } } }) }));
+vi.mock('@oxy.so/services', () => ({ useOxy: () => ({ oxyServices: { session: { accessToken: 'test-session' } } }) }));
 vi.mock('react-native-reanimated', () => ({ makeMutable: (value: number) => ({ value }), withTiming: (value: number) => value }));
 vi.mock('expo-audio', () => ({ createAudioPlayer: mocks.create }));
 import { useTTS } from '../../src/hooks/useTTS';

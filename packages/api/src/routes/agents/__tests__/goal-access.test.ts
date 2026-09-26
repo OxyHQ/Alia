@@ -44,6 +44,8 @@ vi.mock('@oxy.so/core', async () => {
   return {
     ...actual,
     OxyServices: class {
+      session = { setAccessToken: (...args: any[]) => (this as any).setTokens(...args) };
+      accounts = { get: (...args: any[]) => (this as any).getAccount(...args) };
       setTokens(): void {}
       async getAccount(accountId: string): Promise<unknown> {
         if (state.account === null) throw new NotFound('no such account');
@@ -70,10 +72,7 @@ vi.mock('../../../middleware/auth.js', () => ({
   authenticateToken: signIn,
   optionalAuth: signIn,
   authenticateTokenOrApiKey: signIn,
-  oxyClient: {
-    getUsersByIds: async () => [],
-    getProfileByUsername: async () => ({ id: 'acct-bot' }),
-  },
+  oxyClient: { users: { getMany: async () => [], byUsername: async () => ({ id: 'acct-bot' }) } },
 }));
 
 const session = vi.hoisted(() => ({

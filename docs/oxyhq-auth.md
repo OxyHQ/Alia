@@ -10,7 +10,7 @@
 | **Frontend — native** (Expo/RN) | `@oxy.so/services` | Same `OxyProvider` + `useAuth()`/`useOxy()`. |
 | **Backend** (Node/Express) | `@oxy.so/core/server` | `createOxyAuthMiddleware`, `createOptionalOxyAuth`, `requireOxyAuth`, `getRequiredOxyUserId`, `authSocket`. Never mount a frontend provider on the server. |
 
-`@oxy.so/core` provides the platform-agnostic client (`OxyServices`, `createLinkedClient`) and is a dependency of `@oxy.so/services`; import core types directly from `@oxy.so/core` and API contracts from `@oxy.so/contracts`.
+`@oxy.so/core` provides the platform-agnostic client (`OxyServices`, namespaced as `oxy.users`, `oxy.session`, …, and `createLinkedClient`; backends use `OxyServer` from `@oxy.so/core/server`) and is a dependency of `@oxy.so/services`; import core types directly from `@oxy.so/core` and API contracts from `@oxy.so/contracts`.
 
 ## Session model (device-first, zero-cookie)
 
@@ -40,10 +40,9 @@ Vite config: use `rolldown-vite` + `vite-plugin-react-native-web` (+ the `react-
 ## Backend setup (Express)
 
 ```typescript
-import { OxyServices } from '@oxy.so/core';
-import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxy.so/core/server';
+import { OxyServer, createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxy.so/core/server';
 
-const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
+const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
 app.use('/api/protected', createOxyAuthMiddleware(oxy));
 // inside a handler: const userId = getRequiredOxyUserId(req);
 ```

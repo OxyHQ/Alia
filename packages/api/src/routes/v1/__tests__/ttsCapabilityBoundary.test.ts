@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { OxyInferenceError } from '@oxy.so/core';
+import { OxyInferenceError } from '@oxy.so/core/inference';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const H = vi.hoisted(() => ({ synthesizeSpeech: vi.fn(), upload: vi.fn(), remove: vi.fn(), find: vi.fn(), save: vi.fn(), link: vi.fn() }));

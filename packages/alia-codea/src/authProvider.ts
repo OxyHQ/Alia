@@ -1,12 +1,7 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
-import {
-  OxyServices,
-  createNativeAuthStateStore,
-  installAuthRefreshHandler,
-  startTokenRefreshScheduler,
-  type AuthStateStore,
-} from '@oxy.so/core';
+import { OxyServices } from '@oxy.so/core';
+import { createNativeAuthStateStore, installAuthRefreshHandler, startTokenRefreshScheduler, type AuthStateStore } from '@oxy.so/core/session';
 import { jwtDecode } from 'jwt-decode';
 import { errorMessage } from './errors';
 
@@ -159,7 +154,7 @@ export class AliaAuthenticationProvider
        * cold start after it had nothing to re-mint from and fell back to
        * rotating a refresh token that the endpoint does not issue.
        */
-      const result = await this._oxyServices.exchangeOAuthCode({
+      const result = await this._oxyServices.auth.oauth.exchangeCode({
         code,
         clientId: OXY_CLIENT_ID,
         redirectUri: this._pendingRedirectUri,
@@ -170,7 +165,7 @@ export class AliaAuthenticationProvider
         this.rejectPending('Oxy returned no access token for this sign-in.');
         return;
       }
-      this._oxyServices.setTokens(token);
+      this._oxyServices.session.setAccessToken(token);
 
       let userId = '';
       let username = '';
@@ -296,7 +291,7 @@ export class AliaAuthenticationProvider
     const persisted = await this.readPersistedSession();
     if (!persisted) { return; }
 
-    this._oxyServices.setTokens(persisted.accessToken);
+    this._oxyServices.session.setAccessToken(persisted.accessToken);
 
     if (!this.isPlantedTokenFresh(persisted.expiresAt)) {
       // Expired on cold start — re-mint from the device secret before surfacing
@@ -352,10 +347,10 @@ export class AliaAuthenticationProvider
     const persisted = await this.readPersistedSession();
     if (persisted) {
       if (this.isPlantedTokenFresh(persisted.expiresAt)) {
-        return this._oxyServices.getAccessToken();
+        return this._oxyServices.session.accessToken;
       }
       if (await this.refreshToken()) {
-        return this._oxyServices.getAccessToken();
+        return this._oxyServices.session.accessToken;
       }
     }
 
@@ -378,7 +373,7 @@ export class AliaAuthenticationProvider
    * {@link installRefresh}, which is core's device-secret mint lane.
    */
   public async refreshToken(): Promise<boolean> {
-    const token = await this._oxyServices.httpService.refreshAccessToken('preflight');
+    const token = await this._oxyServices.http.refreshAccessToken('preflight');
     return token !== null;
   }
 
@@ -399,7 +394,7 @@ export class AliaAuthenticationProvider
 
   async removeSession(sessionId: string): Promise<void> {
     await this.clearPersistedSession();
-    this._oxyServices.clearTokens();
+    this._oxyServices.session.clear();
 
     const removed = this._sessions.filter(s => s.id === sessionId);
     this._sessions = this._sessions.filter(s => s.id !== sessionId);
@@ -424,11 +419,11 @@ export class AliaAuthenticationProvider
   }
 
   private isPlantedTokenFresh(fallbackExpiresAt: string): boolean {
-    if (!this._oxyServices.getAccessToken()) { return false; }
+    if (!this._oxyServices.session.accessToken) { return false; }
 
     // Prefer the JWT `exp` claim; fall back to the persisted ISO expiry for
     // opaque tokens that carry no decodable expiry.
-    const expSeconds = this._oxyServices.getAccessTokenExpiry();
+    const expSeconds = this._oxyServices.session.accessTokenExpiry;
     const expiresAtMs = expSeconds != null
       ? expSeconds * 1000
       : Date.parse(fallbackExpiresAt);
@@ -464,7 +459,7 @@ export class AliaAuthenticationProvider
 
   private async resolveDisplayName(): Promise<string | null> {
     try {
-      const user = await this._oxyServices.getCurrentUser();
+      const user = await this._oxyServices.users.me();
       // Prefer the canonical API-composed display name; the SDK returns it on
       // `name.displayName`. Read it without recomputing from first/last.
       const displayName = (user.name as { displayName?: string } | undefined)?.displayName;

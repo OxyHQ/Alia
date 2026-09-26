@@ -37,7 +37,7 @@ vi.mock('../lib/logger.js', () => {
   return { log: { general: child, v1: child, chat: child } };
 });
 vi.mock('../middleware/auth.js', () => ({
-  oxyClient: { authSocket: () => vi.fn() },
+  oxyClient: { middleware: { socket: () => vi.fn() } },
 }));
 vi.mock('../db/index.js', () => ({ getDb: () => ({}) }));
 // `socket.ts` reads the agent's BOT ACCOUNT and asks Oxy whether the socket's

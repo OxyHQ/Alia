@@ -107,7 +107,7 @@ export function useTTS(options: UseTTSOptions = {}) {
 
   const getToken = useCallback((): string | null => {
     if (options.accessToken) return options.accessToken;
-    return oxyServices.httpService.getAccessToken();
+    return oxyServices.session.accessToken;
   }, [options.accessToken, oxyServices]);
 
   const getTTSVoice = useCallback(() => {

@@ -206,7 +206,7 @@ export function useEpisodeAudio(syraEpisodeId: string | null | undefined): Episo
 
     // Read at play time, not at render: an access token is short-lived, and a
     // token captured when the screen mounted may have been refreshed since.
-    const token = oxyServices.getAccessToken();
+    const token = oxyServices.session.accessToken;
     if (!token) {
       setStatus({ state: 'unplayable', problem: 'signed-out' });
       return;

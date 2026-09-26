@@ -35,7 +35,7 @@ vi.mock('expo/fetch', () => ({
 }));
 
 vi.mock('expo-haptics', () => ({ impactAsync: async () => {}, ImpactFeedbackStyle: { Light: 'light' } }));
-vi.mock('@oxy.so/services', () => ({ useOxy: () => ({ oxyServices: { getAccessToken: () => 'token' } }) }));
+vi.mock('@oxy.so/services', () => ({ useOxy: () => ({ oxyServices: { session: { accessToken: 'token' } } }) }));
 vi.mock('@/shared/platform/device-info', () => ({ collectDeviceInfo: async () => ({}) }));
 vi.mock('@/features/chat/runtime/use-agent-row-preview', () => ({ useAgentRowPreview: () => () => {} }));
 vi.mock('@/features/memory/runtime/use-user-data', () => ({ USER_MEMORY_QUERY_KEY: ['memory'] }));

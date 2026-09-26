@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { OxyInferenceError } from '@oxy.so/core';
+import { OxyInferenceError } from '@oxy.so/core/inference';
 
 /**
  * `POST /suggestions/generate`, and the failure it was answering 500 with.

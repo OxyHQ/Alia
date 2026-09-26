@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { OxyInferenceError } from '@oxy.so/core';
+import { OxyInferenceError } from '@oxy.so/core/inference';
 
 /**
  * Regression fixtures for the four product flows that reach POST
@@ -138,6 +138,8 @@ vi.mock('@oxy.so/core', async () => {
   return {
     ...actual,
     OxyServices: class {
+      session = { setAccessToken: (...args: any[]) => (this as any).setTokens(...args) };
+      accounts = { get: (...args: any[]) => (this as any).getAccount(...args) };
       setTokens(token: string): void {
         H.state.oxyToken = token;
       }
@@ -310,7 +312,7 @@ vi.mock('../../../middleware/api-key-rate-limit.js', () => ({
 }));
 
 vi.mock('../../../middleware/auth.js', () => ({
-  oxyClient: { getUserById: vi.fn(async () => null) },
+  oxyClient: { users: { get: vi.fn(async () => null) } },
   optionalAuth: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
   authenticateToken: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
   authenticateTokenOrApiKey: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),

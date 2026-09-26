@@ -171,7 +171,7 @@ export function MemorySection() {
 
   const getAuthHeaders = (contentType?: boolean): Record<string, string> => {
     const headers: Record<string, string> = {};
-    const token = oxyServices.getAccessToken();
+    const token = oxyServices.session.accessToken;
     if (token) headers['Authorization'] = `Bearer ${token}`;
     if (contentType) headers['Content-Type'] = 'application/json';
     return headers;

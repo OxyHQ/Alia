@@ -417,7 +417,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
         'X-Device-Info': JSON.stringify(deviceInfo),
       };
 
-      const token = oxyServices.getAccessToken();
+      const token = oxyServices.session.accessToken;
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }

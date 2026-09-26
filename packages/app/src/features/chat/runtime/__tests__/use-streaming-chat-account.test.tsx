@@ -28,7 +28,7 @@ vi.mock('expo/fetch', () => ({
 }));
 vi.mock('expo-haptics', () => ({ impactAsync: async () => {}, ImpactFeedbackStyle: { Light: 'light' } }));
 vi.mock('@oxy.so/services', () => ({
-  useOxy: () => ({ oxyServices: { getAccessToken: () => 'token' }, user: harness.user }),
+  useOxy: () => ({ oxyServices: { session: { accessToken: 'token' } }, user: harness.user }),
 }));
 vi.mock('@/shared/platform/device-info', () => ({ collectDeviceInfo: async () => ({}) }));
 vi.mock('@/features/chat/runtime/use-agent-row-preview', () => ({ useAgentRowPreview: () => () => {} }));

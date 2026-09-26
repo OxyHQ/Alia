@@ -99,7 +99,7 @@ export interface CreateBotAccountInput {
    */
   username: string;
   /**
-   * `oxyServices.checkUsernameAvailability`, asked BEFORE minting so a taken
+   * `oxyServices.auth.checkUsername`, asked BEFORE minting so a taken
    * suggestion becomes a free one the person is told about, rather than a
    * silent rename they find later.
    *

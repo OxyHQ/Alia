@@ -197,7 +197,7 @@ export async function findAgentByOxyHandle(
 
   let accountId: string;
   try {
-    const profile = await oxyClient.getProfileByUsername(username);
+    const profile = await oxyClient.users.byUsername(username);
     if (typeof profile.id !== 'string' || profile.id === '') return null;
     accountId = profile.id;
   } catch (error: unknown) {

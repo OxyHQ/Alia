@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { OxyServices } from '@oxy.so/core';
 import {
+  OxyServer,
   createOptionalOxyAuth,
   createOxyAuthMiddleware,
   createOxyRequesterAssertionAuth,
@@ -17,7 +17,7 @@ import { oxyServiceClient } from '../lib/oxy-service-client.js';
 
 // Initialize Oxy client
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
-export const oxyClient = new OxyServices({
+export const oxyClient = new OxyServer({
   baseURL: OXY_API_URL,
 });
 
@@ -115,11 +115,11 @@ type AuthLane = (req: Request, res: Response, next: NextFunction) => unknown;
  */
 function delegationAware<Lane extends AuthLane>(
   plain: Lane,
-  build: (verifier: OxyServices) => Lane,
+  build: (verifier: OxyServer) => Lane,
   whenUnverifiable: 'refuse' | 'continue',
 ): Lane {
   let delegated: Lane | undefined;
-  let builtFrom: OxyServices | undefined;
+  let builtFrom: OxyServer | undefined;
 
   const dispatch: AuthLane = (req, res, next) => {
     if (req.headers[OXY_DELEGATED_USER_HEADER] === undefined) {
@@ -185,7 +185,15 @@ const oxyOptionalAuth = delegationAware(
   'continue',
 );
 
-const serviceOnlyAuth = oxyClient.serviceAuth(oxyServiceAuthOptions);
+/**
+ * `@oxy.so/core` 3 types this middleware's `req.user` as its own `User`, while
+ * this app's Express augmentation (above) says `OxyRequestUser`; both describe
+ * the same object the middleware sets. Viewed as an `AuthLane` so the lanes
+ * below compose; the runtime function is the SDK's, untouched.
+ */
+const asAuthLane = (lane: unknown): AuthLane => lane as AuthLane;
+
+const serviceOnlyAuth = asAuthLane(oxyClient.middleware.service(oxyServiceAuthOptions));
 
 /**
  * Service-only auth — rejects anything that isn't a service token.
@@ -204,7 +212,7 @@ const serviceOnlyAuth = oxyClient.serviceAuth(oxyServiceAuthOptions);
  */
 export const oxyServiceAuth = delegationAware(
   serviceOnlyAuth,
-  (verifier) => verifier.serviceAuth(oxyServiceAuthOptions),
+  (verifier) => asAuthLane(verifier.middleware.service(oxyServiceAuthOptions)),
   'refuse',
 );
 

@@ -22,7 +22,7 @@ import { describe, expect, it } from 'vitest';
  *
  * ## What was found when this file was written, at `a1b74a6b`
  *
- * `middleware/auth.ts` constructs `oxyClient.serviceAuth({ debug: true })` with
+ * `middleware/auth.ts` constructs `oxyClient.middleware.service({ debug: true })` with
  * no `jwtSecret`, and no code path or workflow names an Oxy access-token secret
  * or service-token private key. The compatible `@oxy.so/core` release verifies
  * Ed25519 service tokens from Oxy's public JWKS and fails closed if the endpoint
@@ -142,7 +142,7 @@ describe('no privilege comes from an unverified token (#139 ws15)', () => {
     // compatible core release. Passing `jwtSecret` here would distribute Oxy's
     // access-token signing capability into Alia and is therefore forbidden.
     const auth = code('middleware/auth.ts');
-    expect(auth).toContain('oxyClient.serviceAuth(');
+    expect(auth).toContain('oxyClient.middleware.service(');
     expect(auth).not.toContain('jwtSecret');
 
     /**

@@ -252,7 +252,7 @@ export async function seedCompedAccounts(): Promise<{
   for (const username of COMPED_USERNAMES) {
     // The account id is the only thing a request ever carries, and it is not on
     // the token — see the file comment. Resolved once per release, here.
-    const { id: oxyUserId } = await oxy.getProfileByUsername(username);
+    const { id: oxyUserId } = await oxy.users.byUsername(username);
     if (!oxyUserId) throw new Error(`refusing to comp an account: ${username} resolved to no id`);
 
     for (const plan of plans.values()) {

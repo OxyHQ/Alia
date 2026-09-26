@@ -274,7 +274,7 @@ async function validateToken(token: string | undefined): Promise<string | null> 
   } = { handshake: { auth: { token } } };
 
   let authError: Error | undefined;
-  const authenticate = oxyClient.authSocket({ debug: process.env.NODE_ENV !== 'production' });
+  const authenticate = oxyClient.middleware.socket({ debug: process.env.NODE_ENV !== 'production' });
   await authenticate(handshake, (err) => {
     authError = err;
   });

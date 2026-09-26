@@ -60,7 +60,7 @@ export function usePersonalitySamplePhrase() {
         setPhrase('');
 
         try {
-          const token = oxyServices.getAccessToken();
+          const token = oxyServices.session.accessToken;
           const headers: Record<string, string> = {
             'Content-Type': 'application/json',
           };

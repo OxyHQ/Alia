@@ -139,35 +139,6 @@ vi.mock('../../lib/logger.js', () => ({
   log: { auth: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
 }));
 vi.mock('../../lib/channels/registry.js', () => ({ getConfiguredChannels: vi.fn(() => []) }));
-vi.mock('@oxy.so/core', () => {
-  const passThrough = (_req: Request, _res: Response, next: NextFunction) => {
-    next();
-  };
-  class MockOxyServices {
-    auth() {
-      return vi.fn((req: Request, _res: Response, next: NextFunction) => {
-        if (req.headers.authorization === 'Bearer verified-service-token') {
-          req.userId = 'delegated-user';
-          req.user = { id: 'delegated-user' };
-          req.serviceApp = {
-            appId: 'alia-caller',
-            appName: 'Alia caller',
-            credentialId: 'credential-1',
-            ownerAccountId: 'account-1',
-            scopes: ['alia:invoke'],
-            environment: 'production',
-            tier: 'internal',
-          };
-        }
-        next();
-      });
-    }
-    serviceAuth() {
-      return vi.fn(passThrough);
-    }
-  }
-  return { OxyServices: MockOxyServices };
-});
 vi.mock('@oxy.so/core/server', () => ({
   createOptionalOxyAuth: vi.fn(() => vi.fn((_req: Request, _res: Response, next: NextFunction) => next())),
   createOxyAuthMiddleware: vi.fn(() => vi.fn((req: Request, _res: Response, next: NextFunction) => {
@@ -186,6 +157,14 @@ vi.mock('@oxy.so/core/server', () => ({
     }
     next();
   })),
+  // `middleware/auth.ts` builds its `OxyServer` at import; the service lane is
+  // a pass-through here because the verified principal comes from the mocked
+  // `createOxyAuthMiddleware` above.
+  OxyServer: class {
+    middleware = {
+      service: vi.fn(() => vi.fn((_req: Request, _res: Response, next: NextFunction) => next())),
+    };
+  },
   // The entry middleware reads this header name to route a present-requester
   // request (ADR 0025) past the user requirement; this suite's subject is the
   // service principal, so the real constant is enough.

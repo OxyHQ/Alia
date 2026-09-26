@@ -29,7 +29,7 @@ import {
  */
 const getUsersByIds = vi.fn();
 vi.mock('../../middleware/auth.js', () => ({
-  oxyClient: { getUsersByIds: (ids: string[]) => getUsersByIds(ids) },
+  oxyClient: { users: { getMany: (ids: string[]) => getUsersByIds(ids) } },
 }));
 
 const { hydrateOxyUsers } = await import('../../lib/oxy-user-hydration.js');

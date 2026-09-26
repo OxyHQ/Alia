@@ -42,9 +42,9 @@ describe('streamAliaChat authentication boundary', () => {
     const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
     const expired = createJwt(Math.floor(Date.now() / 1000) - 30);
     const refreshed = createJwt(Math.floor(Date.now() / 1000) + 3600);
-    oxy.setTokens(expired);
+    oxy.session.setAccessToken(expired);
     const refresh = vi.fn(async () => refreshed);
-    oxy.getClient().setAuthRefreshHandler(refresh);
+    oxy.http.setAuthRefreshHandler(refresh);
     const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
 
     await streamAliaChat(
@@ -70,9 +70,9 @@ describe('streamAliaChat authentication boundary', () => {
     const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
     const oldToken = createJwt(Math.floor(Date.now() / 1000) + 3600);
     const refreshed = createJwt(Math.floor(Date.now() / 1000) + 7200);
-    oxy.setTokens(oldToken);
+    oxy.session.setAccessToken(oldToken);
     const refresh = vi.fn(async () => refreshed);
-    oxy.getClient().setAuthRefreshHandler(refresh);
+    oxy.http.setAuthRefreshHandler(refresh);
     const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
     const controller = new AbortController();
 
@@ -102,9 +102,9 @@ describe('streamAliaChat authentication boundary', () => {
       return new Response('unauthorized', { status: 401 });
     });
     const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
-    oxy.setTokens(createJwt(Math.floor(Date.now() / 1000) + 3600));
+    oxy.session.setAccessToken(createJwt(Math.floor(Date.now() / 1000) + 3600));
     const refresh = vi.fn(async () => createJwt(Math.floor(Date.now() / 1000) + 7200));
-    oxy.getClient().setAuthRefreshHandler(refresh);
+    oxy.http.setAuthRefreshHandler(refresh);
     const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
 
     await expect(

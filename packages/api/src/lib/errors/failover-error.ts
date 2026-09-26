@@ -19,7 +19,7 @@ import {
   type FailoverReason,
 } from './error-codes';
 import { BILLING_RE, AUTH_RE } from '../constants.js';
-import { OxyInferenceError } from '@oxy.so/core';
+import { OxyInferenceError } from '@oxy.so/core/inference';
 import type { InferenceErrorCode } from '@oxy.so/contracts';
 
 // The hosted contract is authoritative. Provider messages and HTTP status can

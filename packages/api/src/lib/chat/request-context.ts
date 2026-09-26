@@ -748,7 +748,7 @@ export async function buildChatRequestContext(
     // User profile from Oxy (HTTP call - add 5s timeout to prevent hanging)
     isDirectUserSession
       ? Promise.race<OxyUserProfile | null>([
-          oxyClient.getUserById(req.user!.id),
+          oxyClient.users.get(req.user!.id),
           new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
         ]).catch(() => null)
       : Promise.resolve<OxyUserProfile | null>(null),

@@ -551,7 +551,8 @@ function useSidebarProps() {
       key: "support",
       label: t("sidebar.support"),
       icon: RiCustomerServiceLine,
-      accountIcon: "headset",
+      // `headset` left the account menu's icon subset with @oxy.so/services 8.
+      accountIcon: "help-circle-outline",
       onPress: () => {
         void Linking.openURL(SUPPORT_URL);
       },

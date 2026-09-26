@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from 'express';
-import { OxyInferenceError } from '@oxy.so/core';
+import { OxyInferenceError } from '@oxy.so/core/inference';
 import { z } from 'zod';
 import { findMessageAudioUrl, setMessageAudioUrl } from '../../db/chat/messageRepository.js';
 import { synthesizeSpeech } from '../../lib/synthesize-speech.js';

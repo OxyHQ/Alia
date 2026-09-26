@@ -38,6 +38,9 @@ vi.mock('@oxy.so/core', async (importOriginal) => {
   return {
     ...actual,
     OxyServices: class {
+      session = { setAccessToken: (...args: any[]) => (this as any).setTokens(...args) };
+      accounts = { get: (...args: any[]) => (this as any).getAccount(...args) };
+      middleware = { service: (...args: any[]) => (this as any).serviceAuth(...args) };
       setTokens(): void {
         /* the stub authenticates nothing */
       }

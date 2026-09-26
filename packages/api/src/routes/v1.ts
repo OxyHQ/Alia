@@ -90,7 +90,7 @@ router.get('/me', async (req: Request, res: Response) => {
     // a profile-fetch failure must not block the credits payload.
     let oxyUser: User | null = null;
     try {
-      oxyUser = await oxyClient.getUserById(userId);
+      oxyUser = await oxyClient.users.get(userId);
     } catch (err) {
       log.general.warn({ err, userId }, 'Failed to load Oxy user for /v1/me');
     }

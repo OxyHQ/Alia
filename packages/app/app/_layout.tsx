@@ -49,7 +49,7 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
   const registeredServicesRef = useRef<typeof oxyServices | null>(null);
   if (registeredServicesRef.current !== oxyServices) {
     registeredServicesRef.current = oxyServices;
-    setTokenGetter(() => oxyServices.getAccessToken() || null);
+    setTokenGetter(() => oxyServices.session.accessToken || null);
   }
 
   // Resolve bare Oxy file IDs to loadable URLs for Bloom components (avatars in
@@ -58,7 +58,7 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
   // omits the variant so list/sidebar avatars stay light.
   const resolveImageSource = useMemo(
     () => (id: string, variant?: string) =>
-      oxyServices.getFileDownloadUrl(id, variant ?? 'thumb'),
+      oxyServices.assets.publicUrl(id, variant ?? 'thumb'),
     [oxyServices],
   );
 

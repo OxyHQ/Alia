@@ -31,7 +31,7 @@ vi.mock('../oxy-inference.js', () => ({
 }));
 
 import { kaanaLanguageModel } from '../kaana-language-model.js';
-import { OxyInferenceError } from '@oxy.so/core';
+import { OxyInferenceError } from '@oxy.so/core/inference';
 import { toAliaError } from '../../errors/failover-error.js';
 
 const prompt = [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'hola' }] }];

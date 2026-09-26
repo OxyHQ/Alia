@@ -32,6 +32,8 @@ vi.mock('@oxy.so/core', async () => {
   return {
     ...actual,
     OxyServices: class {
+      session = { setAccessToken: (...args: any[]) => (this as any).setTokens(...args) };
+      accounts = { get: (...args: any[]) => (this as any).getAccount(...args) };
       setTokens(): void {}
       async getAccount(accountId: string): Promise<unknown> {
         if (oxy.mode === 'unreachable') throw new Error('ECONNREFUSED api.oxy.so');
@@ -85,7 +87,7 @@ vi.mock('../../credits-manager.js', () => ({
   safeRefund: async () => undefined,
 }));
 vi.mock('../../plan-access.js', () => ({ getUserEntitlements: async () => null }));
-vi.mock('../../../middleware/auth.js', () => ({ oxyClient: { getUserById: async () => null } }));
+vi.mock('../../../middleware/auth.js', () => ({ oxyClient: { users: { get: async () => null } } }));
 vi.mock('../../hooks/index.js', () => ({ runBeforeChatHooks: async () => null }));
 vi.mock('../../autonomy/runtime.js', () => ({ runAutonomyBeforeChat: async () => null }));
 vi.mock('../../logger.js', () => {
