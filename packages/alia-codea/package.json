@@ -243,7 +243,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@oxy.so/core": "^1.16.0",
+    "@oxy.so/core": "^1.18.0",
     "jwt-decode": "^4.0.0",
     "openai": "^6.46.0"
   },
