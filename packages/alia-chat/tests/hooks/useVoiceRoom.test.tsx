@@ -74,6 +74,15 @@ vi.mock('../../src/lib/speech-synthesis', () => ({
 
 import { useVoiceRoom } from '../../src/hooks/useVoiceRoom';
 
+/**
+ * Real timers. At 5ms the end of utterance elapsed between two `act` calls on a
+ * busy runner (a mute landed after the turn was sent, a partial transcript was
+ * already final), so the suite failed about one run in five. 100ms keeps every
+ * step the test takes inside one utterance.
+ */
+const END_OF_UTTERANCE_MS = 100;
+const PAST_END_OF_UTTERANCE_MS = END_OF_UTTERANCE_MS + 50;
+
 let latest: ReturnType<typeof useVoiceRoom>;
 let renderer: TestRenderer.ReactTestRenderer | undefined;
 
@@ -134,7 +143,7 @@ describe('the on-device voice loop', () => {
 
   it('listens, sends the utterance through the chat sender, and speaks the answer sentence by sentence in the product voice', async () => {
     const sender = controllableSender();
-    await mount({ sendTurn: sender.send, endOfUtteranceMs: 5, voicePreference: 'male', lang: 'es-ES' });
+    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS, voicePreference: 'male', lang: 'es-ES' });
 
     await act(async () => latest.connect());
     expect(latest.roomState).toBe('connected');
@@ -145,7 +154,7 @@ describe('the on-device voice loop', () => {
     await say('¿Qué tiempo hace en Madrid?');
     expect(latest.messages).toMatchObject([{ role: 'user', content: '¿Qué tiempo hace en Madrid?', isStreaming: true }]);
 
-    await settle(20); // silence → end of utterance → stop → final
+    await settle(PAST_END_OF_UTTERANCE_MS); // silence → end of utterance → stop → final
     expect(fx.sessions[0]?.stop).toHaveBeenCalledTimes(1);
     expect(sender.turns).toHaveLength(1);
     expect(sender.turns[0]?.text).toBe('¿Qué tiempo hace en Madrid?');
@@ -177,7 +186,7 @@ describe('the on-device voice loop', () => {
 
     // The next turn carries this one as history.
     await say('Gracias');
-    await settle(20);
+    await settle(PAST_END_OF_UTTERANCE_MS);
     expect(sender.turns[1]?.history).toEqual([
       { role: 'user', content: '¿Qué tiempo hace en Madrid?' },
       { role: 'assistant', content: 'Hace sol. Mañana lloverá.' },
@@ -186,10 +195,10 @@ describe('the on-device voice loop', () => {
 
   it('lets the person talk over the answer: playback and the chat request stop, and their words become the next turn', async () => {
     const sender = controllableSender();
-    await mount({ sendTurn: sender.send, endOfUtteranceMs: 5 });
+    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS });
     await act(async () => latest.connect());
     await say('Cuéntame un cuento');
-    await settle(20);
+    await settle(PAST_END_OF_UTTERANCE_MS);
     await act(async () => sender.turns[0]!.onText('Había una vez un dragón muy grande. '));
     await settle();
     expect(latest.agentState).toBe('speaking');
@@ -207,27 +216,27 @@ describe('the on-device voice loop', () => {
     expect(latest.messages.at(-1)).toMatchObject({ role: 'user', content: 'espera para', isStreaming: true });
     expect(latest.messages.at(-2)).toMatchObject({ role: 'assistant', isStreaming: false });
 
-    await settle(20);
+    await settle(PAST_END_OF_UTTERANCE_MS);
     expect(sender.turns[1]?.text).toBe('espera para');
   });
 
   it('does not cut the answer off when barge-in is disabled', async () => {
     const sender = controllableSender();
-    await mount({ sendTurn: sender.send, endOfUtteranceMs: 5, bargeIn: false });
+    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS, bargeIn: false });
     await act(async () => latest.connect());
     await say('Hola');
-    await settle(20);
+    await settle(PAST_END_OF_UTTERANCE_MS);
     await say('espera espera para');
     expect(sender.turns[0]!.signal.aborted).toBe(false);
   });
 
   it('mute drops the half-said utterance and stops listening until unmuted', async () => {
     const sender = controllableSender();
-    await mount({ sendTurn: sender.send, endOfUtteranceMs: 5 });
+    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS });
     await act(async () => latest.connect());
     await say('esto no');
     await act(async () => latest.toggleMute());
-    await settle(20);
+    await settle(PAST_END_OF_UTTERANCE_MS);
     expect(latest.isMuted).toBe(true);
     expect(latest.messages).toEqual([]);
     expect(sender.turns).toHaveLength(0);
@@ -239,10 +248,10 @@ describe('the on-device voice loop', () => {
 
   it('reports a turn with no answer without ending the call', async () => {
     const sender = controllableSender();
-    await mount({ sendTurn: sender.send, endOfUtteranceMs: 5 });
+    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS });
     await act(async () => latest.connect());
     await say('Hola');
-    await settle(20);
+    await settle(PAST_END_OF_UTTERANCE_MS);
     await act(async () => sender.turns[0]!.resolve());
     await settle();
     expect(latest.turnError).toBe('No answer came back — try saying it again');
@@ -254,10 +263,10 @@ describe('the on-device voice loop', () => {
 
   it('ends the call with the reason when a turn cannot be sent', async () => {
     const sender = controllableSender();
-    await mount({ sendTurn: sender.send, endOfUtteranceMs: 5 });
+    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS });
     await act(async () => latest.connect());
     await say('Hola');
-    await settle(20);
+    await settle(PAST_END_OF_UTTERANCE_MS);
     await act(async () => sender.turns[0]!.reject(new Error("You've run out of credits.")));
     await settle();
     expect(latest.error).toBe("You've run out of credits.");
@@ -297,10 +306,10 @@ describe('the on-device voice loop', () => {
 
   it('disconnect stops everything and clears the transcript', async () => {
     const sender = controllableSender();
-    await mount({ sendTurn: sender.send, endOfUtteranceMs: 5 });
+    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS });
     await act(async () => latest.connect());
     await say('Hola');
-    await settle(20);
+    await settle(PAST_END_OF_UTTERANCE_MS);
     await act(async () => latest.disconnect());
     expect(sender.turns[0]!.signal.aborted).toBe(true);
     expect(latest.roomState).toBe('disconnected');
