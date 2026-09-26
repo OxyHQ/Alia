@@ -1,13 +1,14 @@
 # @alia.onl/sdk
 
-## Unreleased
+## 10.0.0
 
-### Peers: `@oxy.so/services` `^6.0.0`, `@oxy.so/core` `^1.16.0`
+### Peers: `@oxy.so/core` `^3.0.0`, `@oxy.so/services` `^8.0.0`
 
-**Breaking for a host still on services 3 or 4.** The package only calls
-`useOxy()`, whose shape is unchanged, but one app holds one Oxy SDK: services
-6 is the release the ecosystem runs (one sign-in screen, `react-native-css` a
-required peer), and it requires core `^1.16.0`.
+**Breaking.** Core 3 is the namespaced Oxy client (`oxyServices.session`,
+`oxyServices.users`, …): the SDK now reads the session token as
+`oxyServices.session.accessToken` instead of `getAccessToken()` /
+`httpService`, so it runs only on a host with core 3 and services 8 — one app
+holds one Oxy SDK. Nothing in the SDK's own API changes.
 
 ### `AliaMarkdown` builds its parser once
 

@@ -34,14 +34,8 @@
 import { app, safeStorage, type BrowserWindow } from 'electron'
 import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import {
-  OxyServices,
-  createNativeAuthStateStore,
-  installAuthRefreshHandler,
-  runSessionColdBoot,
-  startTokenRefreshScheduler,
-  type AuthStateStore
-} from '@oxy.so/core'
+import { OxyServices } from '@oxy.so/core';
+import { createNativeAuthStateStore, installAuthRefreshHandler, runSessionColdBoot, startTokenRefreshScheduler, type AuthStateStore } from '@oxy.so/core/session';
 
 import { createLogger } from './logger'
 
@@ -132,7 +126,7 @@ const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL ?? 'https://api.o
  * developer key never expired and so never exposed the bug.
  */
 export function currentAccessToken(): string | null {
-  return oxy.getAccessToken()
+  return oxy.session.accessToken
 }
 
 /**
@@ -145,7 +139,7 @@ export function currentAccessToken(): string | null {
  * say so rather than retry.
  */
 export async function refreshAccessToken(): Promise<string | null> {
-  return oxy.httpService.refreshAccessToken('preflight')
+  return oxy.http.refreshAccessToken('preflight')
 }
 
 export interface AuthState {
@@ -218,7 +212,7 @@ export class AuthProvider {
     this.polling = true
 
     try {
-      const handle = await oxy.startCommonsSignIn({ clientId: OXY_CLIENT_ID })
+      const handle = await oxy.auth.commons.start({ clientId: OXY_CLIENT_ID })
       this.mainWindow.webContents.send('auth:code', {
         code: handle.authorizeCode,
         url: handle.qrPayload,
@@ -233,7 +227,7 @@ export class AuthProvider {
           return
         }
 
-        const status = await oxy.pollCommonsSignIn(handle.sessionToken)
+        const status = await oxy.auth.commons.poll(handle.sessionToken)
         if (status.status === 'cancelled') {
           this.mainWindow.webContents.send('auth:error', { message: 'The sign-in was declined.' })
           return
@@ -246,7 +240,7 @@ export class AuthProvider {
         }
 
         if (status.authorized) {
-          const claimed = await oxy.claimSessionByToken(handle.sessionToken)
+          const claimed = await oxy.auth.claimSession(handle.sessionToken)
           // Persist BEFORE planting the token: advertising a session built on a
           // secret that did not land is what signs people out on restart.
           const durable = await store.save({
@@ -263,7 +257,7 @@ export class AuthProvider {
             })
             return
           }
-          oxy.setTokens(claimed.accessToken)
+          oxy.session.setAccessToken(claimed.accessToken)
           this.username = claimed.user.username
           this.installRefresh()
           this.mainWindow.webContents.send('auth:success', {
@@ -295,12 +289,12 @@ export class AuthProvider {
     this.dispose()
     const persisted = await store.load()
     try {
-      if (persisted?.sessionId !== undefined) await oxy.logoutSession(persisted.sessionId)
+      if (persisted?.sessionId !== undefined) await oxy.session.logout(persisted.sessionId)
     } catch (error: unknown) {
       logger.debug('server-side sign-out failed; clearing locally anyway', error)
     }
     await store.clear()
-    oxy.clearTokens()
+    oxy.session.clear()
     this.username = null
     this.mainWindow.webContents.send('auth:signedOut')
   }
@@ -315,13 +309,13 @@ export class AuthProvider {
    */
   getAuthState(): AuthState {
     return {
-      isAuthenticated: oxy.getAccessToken() !== null,
+      isAuthenticated: oxy.session.accessToken !== null,
       ...(this.username === null ? {} : { username: this.username })
     }
   }
 
   /** The bearer for a request to Alia's API, or `null` when signed out. */
   accessToken(): string | null {
-    return oxy.getAccessToken()
+    return oxy.session.accessToken
   }
 }

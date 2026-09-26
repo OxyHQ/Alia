@@ -21,7 +21,7 @@ export function setTokenGetter(getter: () => string | null) {
  * Returns the current Oxy access token for Socket.IO handshakes.
  * Socket connections must authenticate via the auth-function form
  * `auth: (cb) => cb({ token: getSocketToken() })` so a fresh token is read on
- * every (re)connect and the server's `oxy.authSocket()` middleware accepts it.
+ * every (re)connect and the server's `oxy.middleware.socket()` middleware accepts it.
  */
 export function getSocketToken(): string | null {
   return getAccessToken ? getAccessToken() : null;

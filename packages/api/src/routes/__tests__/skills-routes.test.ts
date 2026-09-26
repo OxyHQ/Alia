@@ -45,7 +45,7 @@ vi.mock('../../lib/skills/github.js', () => ({
 vi.mock('../../middleware/auth.js', () => ({
   authenticateToken: vi.fn((_req: unknown, _res: unknown, next: () => void) => next()),
   optionalAuth: vi.fn((_req: unknown, _res: unknown, next: () => void) => next()),
-  oxyClient: { getUserById: vi.fn() },
+  oxyClient: { users: { get: vi.fn() } },
 }));
 
 vi.mock('../../lib/chat-core.js', () => ({

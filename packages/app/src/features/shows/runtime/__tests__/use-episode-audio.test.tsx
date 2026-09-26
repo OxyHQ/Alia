@@ -46,7 +46,7 @@ vi.mock('react-native', () => ({
 }));
 
 vi.mock('@oxy.so/services', () => ({
-  useOxy: () => ({ oxyServices: { getAccessToken: () => env.token } }),
+  useOxy: () => ({ oxyServices: { session: { get accessToken() { return env.token; } } } }),
 }));
 
 vi.mock('expo-audio', () => ({

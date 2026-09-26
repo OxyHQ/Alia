@@ -189,7 +189,7 @@ vi.mock('../../../middleware/api-key-rate-limit.js', () => ({
   apiKeyRateLimit: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
 }));
 vi.mock('../../../middleware/auth.js', () => ({
-  oxyClient: { getUserById: vi.fn(async () => null) },
+  oxyClient: { users: { get: vi.fn(async () => null) } },
   optionalAuth: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
   authenticateToken: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
   authenticateTokenOrApiKey: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),

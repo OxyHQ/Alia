@@ -43,6 +43,8 @@ vi.mock('@oxy.so/core', async () => {
   return {
     ...actual,
     OxyServices: class {
+      session = { setAccessToken: (...args: any[]) => (this as any).setTokens(...args) };
+      accounts = { get: (...args: any[]) => (this as any).getAccount(...args) };
       setTokens(): void {}
       async getAccount(accountId: string): Promise<unknown> {
         oxy.calls++;
@@ -90,7 +92,7 @@ vi.mock('../logger.js', () => {
   return { log: { general: c, agents: c, chat: c, v1: c, providers: c } };
 });
 vi.mock('../../middleware/auth.js', () => ({
-  oxyClient: { getProfileByUsername: async () => ({ id: 'oxy-bot-1' }) },
+  oxyClient: { users: { byUsername: async () => ({ id: 'oxy-bot-1' }) } },
 }));
 
 const { loadTurnAgent, canReachAgent, verifyAgentAccount, clearAgentAccountVerdicts } =

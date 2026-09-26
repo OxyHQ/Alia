@@ -26,7 +26,7 @@ import { describe, expect, it, vi } from 'vitest';
  */
 
 vi.mock('../../middleware/auth.js', () => ({
-  oxyClient: { getUserById: vi.fn(async () => null), authSocket: vi.fn() },
+  oxyClient: { users: { get: vi.fn(async () => null) }, middleware: { socket: vi.fn() } },
   optionalAuth: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
   authenticateToken: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
   authenticateTokenOrApiKey: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),

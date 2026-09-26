@@ -22,7 +22,7 @@ const serviceClient = vi.hoisted(() => ({ configured: true }));
 
 vi.mock('../../lib/oxy-service-client.js', () => ({
   oxyServiceClient: () => serviceClient.configured
-    ? { introspectRequesterAssertion: introspect, getBaseURL: () => 'https://api.oxy.so' }
+    ? { agency: { introspectRequesterAssertion: introspect }, baseURL: 'https://api.oxy.so' }
     : null,
 }));
 vi.mock('../../lib/logger.js', () => {

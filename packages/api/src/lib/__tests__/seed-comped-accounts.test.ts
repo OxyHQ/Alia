@@ -96,6 +96,7 @@ vi.mock('../logger.js', () => ({
 
 vi.mock('@oxy.so/core', () => ({
   OxyServices: class {
+      users = { byUsername: (...args: any[]) => (this as any).getProfileByUsername(...args) };
     async getProfileByUsername(username: string) {
       H.lookups.push(username);
       return H.profile(username);

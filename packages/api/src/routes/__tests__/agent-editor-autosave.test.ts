@@ -64,7 +64,7 @@ vi.mock('../../middleware/auth.js', () => ({
     next();
   },
   optionalAuth: (req: Request, _res: Response, next: NextFunction) => next(),
-  oxyClient: { getUsersByIds: async () => [], getFileDownloadUrl: (id: string) => id },
+  oxyClient: { users: { getMany: async () => [] }, assets: { publicUrl: (id: string) => id } },
 }));
 
 /**

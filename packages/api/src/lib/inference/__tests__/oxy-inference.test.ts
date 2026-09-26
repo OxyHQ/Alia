@@ -6,22 +6,23 @@ const mocks = vi.hoisted(() => ({
   configuredCredentials: [] as Array<readonly [string, string]>,
 }));
 
-vi.mock('@oxy.so/core', () => ({
+vi.mock('@oxy.so/core/inference', () => ({
   OxyInferenceClient: class {
     constructor(options: unknown) {
       mocks.clientOptions.push(options);
     }
   },
-  OxyServices: class {
-    constructor(options: unknown) {
+}));
+
+vi.mock('@oxy.so/core/server', async (importActual) => ({
+  ...(await importActual<Record<string, unknown>>()),
+  OxyServer: class {
+    constructor(options: { serviceAuth?: { apiKey: string; apiSecret: string } }) {
       mocks.serviceOptions.push(options);
+      if (options.serviceAuth) mocks.configuredCredentials.push([options.serviceAuth.apiKey, options.serviceAuth.apiSecret]);
     }
 
-    configureServiceAuth(key: string, secret: string): void {
-      mocks.configuredCredentials.push([key, secret]);
-    }
-
-    async getServiceToken(): Promise<string> {
+    async serviceToken(): Promise<string> {
       return 'short-lived-oxy-service-token';
     }
   },
@@ -59,7 +60,7 @@ describe('Oxy inference client', () => {
    * the assertion that says the SDK is left to attest rather than handed a
    * credential it cannot use.
    *
-   * `configureServiceAuth` being UNCALLED is the whole property: `getServiceToken()`
+   * `serviceAuth` being ABSENT is the whole property: `serviceToken()`
    * falls back to the task role only when nothing was configured, so calling it
    * with a blank or half credential would replace a working attestation with one
    * that cannot mint — and the failure would arrive as one `authentication_failed`
@@ -84,7 +85,7 @@ describe('Oxy inference client', () => {
    * Half a pair on a task that can attest is IGNORED, not armed.
    *
    * Left in the environment by a half-finished rollout, an api key with no
-   * secret would otherwise reach `configureServiceAuth` and take the deployment
+   * secret would otherwise reach `serviceAuth` and take the deployment
    * off the path that works.
    */
   it('ignores half a credential rather than arming it', () => {
@@ -109,7 +110,9 @@ describe('Oxy inference client', () => {
 
   it('hands the published SDK an Oxy service-token credential', async () => {
     expect(buildOxyInferenceClient(configured)).not.toBeNull();
-    expect(mocks.serviceOptions).toEqual([{ baseURL: 'https://api.oxy.so' }]);
+    expect(mocks.serviceOptions).toEqual([
+      { baseURL: 'https://api.oxy.so', serviceAuth: { apiKey: 'credential-key', apiSecret: 'credential-secret' } },
+    ]);
     expect(mocks.configuredCredentials).toEqual([['credential-key', 'credential-secret']]);
     expect(mocks.clientOptions).toHaveLength(1);
 

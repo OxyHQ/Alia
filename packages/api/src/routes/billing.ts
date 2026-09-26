@@ -68,7 +68,7 @@ async function getOrCreateStripeCustomer(userId: string, userCredits: UserCredit
   // Fetch email from Oxy
   let email: string | undefined;
   try {
-    const oxyUser = await oxyClient.getUserById(userId);
+    const oxyUser = await oxyClient.users.get(userId);
     email = oxyUser?.email;
   } catch (e: unknown) {
     log.credits.error({ err: e }, 'Failed to fetch user from Oxy');

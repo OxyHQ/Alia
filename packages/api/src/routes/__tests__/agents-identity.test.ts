@@ -56,6 +56,8 @@ vi.mock('@oxy.so/core', async () => {
   return {
     ...actual,
     OxyServices: class {
+      session = { setAccessToken: (...args: any[]) => (this as any).setTokens(...args) };
+      accounts = { get: (...args: any[]) => (this as any).getAccount(...args) };
       setTokens(): void {}
       async getAccount(accountId: string): Promise<unknown> {
         state.accountLookups.push(accountId);
@@ -91,9 +93,8 @@ vi.mock('../../middleware/auth.js', () => ({
     next();
   },
   oxyClient: {
-    getUsersByIds: async () => state.users,
-    getFileDownloadUrl: (id: string, variant?: string) =>
-      `https://cloud.oxy.so/${id}?variant=${variant ?? ''}`,
+    users: { getMany: async () => state.users },
+    assets: { publicUrl: (id: string, variant?: string) => `https://cloud.oxy.so/${id}?variant=${variant ?? ''}` },
   },
 }));
 

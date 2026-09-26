@@ -74,7 +74,7 @@ export function useGenerateAgent() {
        * `community-maestro1`.
        */
       checkAvailability: async (candidate) =>
-        (await oxyServices.checkUsernameAvailability(candidate)).available,
+        (await oxyServices.auth.checkUsername(candidate)).available,
       displayName: config.name,
       bio: config.tagline,
       /**

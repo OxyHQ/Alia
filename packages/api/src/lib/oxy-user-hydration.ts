@@ -13,7 +13,7 @@
  * survived — a fresh organization and an unreviewed agent both work, and the
  * endpoint starts failing the moment the feature is used.
  *
- * This module is the replacement. It reads through `getUsersByIds`, the batch
+ * This module is the replacement. It reads through `users.getMany`, the batch
  * endpoint built for exactly this fan-out, so a page of twenty reviews costs one
  * round trip rather than twenty.
  */
@@ -119,7 +119,7 @@ export async function hydrateOxyUsers(
 
   try {
     // The SDK deduplicates and chunks; passing the whole list is intended use.
-    const users = await (oxyServiceClient() ?? oxyClient).getUsersByIds(wanted);
+    const users = await (oxyServiceClient() ?? oxyClient).users.getMany(wanted);
     for (const user of users) {
       const hydrated = toHydrated(user);
       if (hydrated) resolved.set(hydrated._id, hydrated);

@@ -52,7 +52,7 @@ vi.mock('../lib/redis.js', () => ({
   getRedisSubClient: vi.fn(() => null),
 }));
 vi.mock('../middleware/auth.js', () => ({
-  oxyClient: { authSocket: vi.fn(() => (_socket: unknown, next: () => void) => next()) },
+  oxyClient: { middleware: { socket: vi.fn(() => (_socket: unknown, next: () => void) => next()) } },
 }));
 
 // Stores only. `notification-service.ts` itself, and its channel resolution, run.

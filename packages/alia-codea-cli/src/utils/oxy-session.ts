@@ -41,14 +41,8 @@
 import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import {
-  OxyServices,
-  createNativeAuthStateStore,
-  installAuthRefreshHandler,
-  runSessionColdBoot,
-  startTokenRefreshScheduler,
-  type AuthStateStore,
-} from '@oxy.so/core';
+import { OxyServices } from '@oxy.so/core';
+import { createNativeAuthStateStore, installAuthRefreshHandler, runSessionColdBoot, startTokenRefreshScheduler, type AuthStateStore } from '@oxy.so/core/session';
 
 import { toEpochMs } from './approval-surface.js';
 import { config } from './config.js';
@@ -144,7 +138,7 @@ export interface SignInHandle {
  * That is the whole reason this replaces 200 lines rather than porting them.
  */
 export async function startSignIn(): Promise<SignInHandle> {
-  const handle = await oxy().startCommonsSignIn({ clientId: OXY_CLIENT_ID });
+  const handle = await oxy().auth.commons.start({ clientId: OXY_CLIENT_ID });
   return {
     authorizeCode: handle.authorizeCode,
     qrPayload: handle.qrPayload,
@@ -186,12 +180,12 @@ export async function waitForApproval(
   for (;;) {
     if (Date.now() >= handle.expiresAt) return { kind: 'expired' };
 
-    const status = await oxy().pollCommonsSignIn(handle.sessionToken);
+    const status = await oxy().auth.commons.poll(handle.sessionToken);
     if (status.status === 'cancelled') return { kind: 'cancelled' };
     if (status.status === 'expired') return { kind: 'expired' };
 
     if (status.authorized) {
-      const claimed = await oxy().claimSessionByToken(handle.sessionToken);
+      const claimed = await oxy().auth.claimSession(handle.sessionToken);
       // Persist BEFORE planting the token: a session advertised on a credential
       // that did not land is the divergence that signs people out on restart.
       const durable = await store.save({
@@ -209,7 +203,7 @@ export async function waitForApproval(
           `Could not save the session to ${TOKEN_DIR}. Check that the directory is writable.`,
         );
       }
-      oxy().setTokens(claimed.accessToken);
+      oxy().session.setAccessToken(claimed.accessToken);
       installRefresh();
       return { kind: 'signed-in', username: claimed.user.username };
     }
@@ -270,7 +264,7 @@ export async function restoreSession(): Promise<boolean> {
  * background, so a value cached at start-up is a value that expires mid-session.
  */
 export function accessToken(): string | null {
-  return oxy().getAccessToken();
+  return oxy().session.accessToken;
 }
 
 /**
@@ -287,13 +281,13 @@ export async function signOut(): Promise<void> {
   // cleared simply skips the server call.
   const persisted = await store.load();
   try {
-    if (persisted?.sessionId !== undefined) await oxy().logoutSession(persisted.sessionId);
+    if (persisted?.sessionId !== undefined) await oxy().session.logout(persisted.sessionId);
   } catch {
     // Offline, or the session was already revoked server-side. The local clear
     // below is what makes this command mean something either way.
   }
   await store.clear();
-  oxy().clearTokens();
+  oxy().session.clear();
   // Erase the credential older versions stored in the world-readable config
   // file. Nothing reads it; leaving it behind after an explicit sign-out is the
   // part that would matter.

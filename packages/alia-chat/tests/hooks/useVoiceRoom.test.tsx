@@ -33,7 +33,7 @@ const fx = vi.hoisted(() => ({
 }));
 
 vi.mock('@oxy.so/services', () => ({
-  useOxy: () => ({ oxyServices: { httpService: { getAccessToken: () => 'session-token' }, createLinkedClient: vi.fn() } }),
+  useOxy: () => ({ oxyServices: { session: { accessToken: 'session-token' }, createLinkedClient: vi.fn() } }),
 }));
 
 vi.mock('../../src/lib/speech-recognition', () => ({

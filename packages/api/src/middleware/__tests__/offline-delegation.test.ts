@@ -15,7 +15,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * delegation. `@oxy.so/core` answers `X-Oxy-User-Id` by asking Oxy whether an
  * explicit `acting-as:offline` grant exists, and that endpoint is
  * service-to-service: the SDK must present the VERIFIER's own service token to
- * reach it. With no credential, `getServiceToken()` threw, the SDK logged
+ * reach it. With no credential, `serviceToken()` threw, the SDK logged
  * `Service credentials not provided`, cached a negative result for 60 seconds
  * and answered `403 SERVICE_ACTING_AS_UNAUTHORIZED` — to a caller holding a
  * perfectly valid grant. Alia could never accept an offline delegation, and the
@@ -71,7 +71,7 @@ vi.mock('../../db/telemetry/apiKeyUsageRepository.js', () => ({ recordApiKeyUsag
 const OXY_BASE_URL = 'https://api.oxy.test';
 process.env.OXY_API_URL = OXY_BASE_URL;
 
-const { OxyServices } = await import('@oxy.so/core');
+const { OxyServer } = await import('@oxy.so/core/server');
 const { authenticateToken, oxyServiceAuth, oxyClient } = await import('../auth.js');
 
 const KEY = generateKeyPairSync('ed25519');
@@ -106,21 +106,20 @@ function serviceToken(claims: Record<string, unknown> = {}, privateKey: KeyObjec
 /**
  * Alia's own credentialed Oxy client, as `lib/oxy-service-client.ts` builds it.
  *
- * A REAL `OxyServices` with real credentials configured: only the two network
+ * A REAL `OxyServer` with real credentials configured: only the two network
  * calls are stubbed, so the delegation check under test is core's own, not a
  * double of it.
  */
 function credentialedVerifier(grant: { authorized: boolean; scopes?: string[] } | 'unreachable') {
-  const oxy = new OxyServices({ baseURL: OXY_BASE_URL });
-  oxy.configureServiceAuth('oxy_dk_alia_test', 'alia-secret');
+  const oxy = new OxyServer({ baseURL: OXY_BASE_URL, serviceAuth: { apiKey: 'oxy_dk_alia_test', apiSecret: 'alia-secret' } });
   const getServiceToken = vi.fn().mockResolvedValue('alia-own-service-token');
   const makeRequest = vi.fn(async (_method: string, path: string) => {
     if (path !== '/internal/service-acting-as/verify') throw new Error(`unexpected request: ${path}`);
     if (grant === 'unreachable') throw new Error('verify endpoint unreachable');
     return grant;
   });
-  vi.spyOn(oxy, 'getServiceToken').mockImplementation(getServiceToken as never);
-  vi.spyOn(oxy, 'makeRequest').mockImplementation(makeRequest as never);
+  vi.spyOn(oxy, 'serviceToken').mockImplementation(getServiceToken as never);
+  vi.spyOn(oxy, 'request').mockImplementation(makeRequest as never);
   return { oxy, getServiceToken, makeRequest };
 }
 
@@ -231,7 +230,7 @@ describe('a delegated service request is verified by a credentialed client', () 
   it('never routes a delegated request through the credential-free verifier', async () => {
     const verifier = credentialedVerifier({ authorized: true, scopes: [] });
     serviceClient.current = verifier.oxy;
-    const blindGrantCheck = vi.spyOn(oxyClient, 'verifyServiceActingAs');
+    const blindGrantCheck = vi.spyOn(oxyClient, 'verifyActingAs');
 
     expect((await send('/delegated', {
       authorization: `Bearer ${serviceToken()}`,
