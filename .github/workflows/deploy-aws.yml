@@ -94,18 +94,15 @@ jobs:
       #
       # LIVEKIT_API_KEY and LIVEKIT_API_SECRET are deliberately absent. Alia
       # read them only for the LiveKit voice room, and voice runs on the device
-      # since SDK 8.0.0 (docs/voice.mdx), so no Alia code reads them. The
-      # /oxy/_shared/ parameters belong to OxyHQServices, which writes them for
-      # the services that still use LiveKit; this workflow must not overwrite
-      # them.
+      # since SDK 8.0.0 (docs/voice.mdx), so no Alia code reads them. Like
+      # every /oxy/_shared/ parameter they belong to oxy-infra; this workflow
+      # must not overwrite them.
       - name: Sync GitHub secrets -> SSM (GitHub is the source of truth)
         env:
           APP_DATABASE_URL: ${{ secrets.DATABASE_URL }}
           APP_TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
           APP_VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
           APP_VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
-          SHARED_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          SHARED_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           sync_secret() {
             name="$1"; value="$2"; path="$3"
@@ -121,15 +118,15 @@ jobs:
           sync_secret TOKEN_ENCRYPTION_KEY "$APP_TOKEN_ENCRYPTION_KEY" "/oxy/$APP/TOKEN_ENCRYPTION_KEY"
           sync_secret VAPID_PUBLIC_KEY "$APP_VAPID_PUBLIC_KEY" "/oxy/$APP/VAPID_PUBLIC_KEY"
           sync_secret VAPID_PRIVATE_KEY "$APP_VAPID_PRIVATE_KEY" "/oxy/$APP/VAPID_PRIVATE_KEY"
-          sync_secret AWS_ACCESS_KEY_ID "$SHARED_AWS_ACCESS_KEY_ID" "/oxy/_shared/AWS_ACCESS_KEY_ID"
-          sync_secret AWS_SECRET_ACCESS_KEY "$SHARED_AWS_SECRET_ACCESS_KEY" "/oxy/_shared/AWS_SECRET_ACCESS_KEY"
 
-          # No REDIS_URL. `/oxy/_shared/REDIS_URL` is owned by oxy-infra Terraform
-          # (terraform-uswest2/redis.tf), and an app deploy must never write a
-          # shared parameter: six repos each copied their own secrets.REDIS_URL
-          # into it, two held different values, and every deploy flipped it
-          # between Redis clusters (incident 2026-09-27). The alia task definition
-          # still READS it; only the write is gone.
+          # Nothing here writes /oxy/_shared/*. Shared parameters are owned by
+          # oxy-infra, not by any app, and are rotated once, centrally (oxy-infra
+          # docs/runbooks/45-shared-ssm-parameters.md). When several app deploys
+          # each copied their own GitHub secret into /oxy/_shared/REDIS_URL, two
+          # held different values and every deploy flipped it between Redis
+          # clusters (incident 2026-09-27); the AWS keys had the same shape.
+          # Task definitions that read the shared parameters still do; only the
+          # write is gone.
 
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
