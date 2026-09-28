@@ -1,5 +1,14 @@
 # @alia.onl/sdk
 
+## 10.0.1
+
+### `@oxy.so/services` 9 is admitted
+
+The `@oxy.so/services` peer is now `^8.0.0 || ^9.0.0`. Services 9.0.0 changes
+only its Bloom peer (to Bloom 5); the one thing this package takes from it,
+`useOxy`, is the same in both, so an app can move to Bloom 5 without this
+package refusing the services it needs. No code changed.
+
 ## 10.0.0
 
 ### Peers: `@oxy.so/core` `^3.0.0`, `@oxy.so/services` `^8.0.0`
