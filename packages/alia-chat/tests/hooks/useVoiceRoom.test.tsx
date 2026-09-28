@@ -32,7 +32,7 @@ const fx = vi.hoisted(() => ({
   playbacks: [] as Playback[],
 }));
 
-vi.mock('@oxy.so/services', () => ({
+vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({ oxyServices: { session: { accessToken: 'session-token' }, createLinkedClient: vi.fn() } }),
 }));
 

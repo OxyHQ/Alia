@@ -19,6 +19,11 @@
  *   - `src/voice.ts` still can (otherwise the voice surface has been gutted and
  *     the previous assertion would pass for the wrong reason)
  *
+ * It also holds that neither entry imports the `@oxy.so/services` ROOT barrel:
+ * that barrel re-exports every sign-in panel and the Commons QR encoder, and
+ * Metro does not tree-shake, so one `useOxy` from it ships them all to every
+ * consumer. `@oxy.so/services/ui/client` exports the same hooks without them.
+ *
  * Type-only imports are ignored — they are erased before the bundler sees them.
  */
 
@@ -28,6 +33,7 @@ import { fileURLToPath } from 'node:url';
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src');
 const RETIRED_MODULE = 'livekit-client';
+const SERVICES_ROOT = '@oxy.so/services';
 const VOICE_LOOP = path.join(SRC, 'hooks', 'useVoiceRoom.ts');
 /** Below this, the walker itself is broken and a "pass" would be meaningless. */
 const MIN_MODULES_FROM_ROOT = 20;
@@ -54,8 +60,12 @@ function resolveRelative(fromFile, specifier) {
   return resolved;
 }
 
-/** Breadth-first walk of runtime imports; returns the graph and any paths to `target`. */
-function walk(entry, target) {
+/**
+ * Breadth-first walk of runtime imports; returns the graph and any paths to
+ * `target` (the package or any of its subpaths, or with `exact`, only the bare
+ * specifier itself).
+ */
+function walk(entry, target, { exact = false } = {}) {
   const start = path.join(SRC, entry);
   const visited = new Set([start]);
   const importedBy = new Map();
@@ -71,7 +81,7 @@ function walk(entry, target) {
       if (!specifier) continue;
       if (/^\s*(?:import|export)\s+type\s/.test(match[0])) continue;
 
-      if (specifier === target || specifier.startsWith(`${target}/`)) {
+      if (specifier === target || (!exact && specifier.startsWith(`${target}/`))) {
         hits.push(file);
         continue;
       }
@@ -114,6 +124,17 @@ for (const [entry, result] of [['src/index.ts', root], ['src/voice.ts', voice]])
       `${entry} reaches ${RETIRED_MODULE}, which the SDK no longer depends on. ` +
         `Voice runs on the device (lib/speech-recognition*, hooks/useVoiceRoom.ts).\n` +
         result.hits.map((file) => `    ${chainTo(file, result.importedBy)}`).join('\n'),
+    );
+  }
+}
+
+for (const entry of ['index.ts', 'voice.ts']) {
+  const { hits, importedBy } = walk(entry, SERVICES_ROOT, { exact: true });
+  if (hits.length > 0) {
+    failures.push(
+      `src/${entry} imports the ${SERVICES_ROOT} root barrel, which ships every sign-in ` +
+        `panel to the consumer. Import from ${SERVICES_ROOT}/ui/client instead.\n` +
+        hits.map((file) => `    ${chainTo(file, importedBy)}`).join('\n'),
     );
   }
 }

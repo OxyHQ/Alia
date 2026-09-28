@@ -28,7 +28,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { errorMessage } from '../lib/utils';
 import type { RoomState, AgentState, VoiceMessage } from '../types';
 import {
