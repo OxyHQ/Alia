@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import type { ChatMessage, ToolInvocation } from '../types';
 import { getTextFromContent } from '../lib/content-utils';
 import { resolveModelId } from '../lib/catalogue';
