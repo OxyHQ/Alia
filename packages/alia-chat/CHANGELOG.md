@@ -1,5 +1,17 @@
 # @alia.onl/sdk
 
+## 10.0.2
+
+### Oxy through `@oxy.so/services/ui/client`
+
+`useAliaChat`, `useTTS` and `useVoiceRoom` import `useOxy` from
+`@oxy.so/services/ui/client` instead of the root barrel. The root re-exports
+every sign-in panel and the Commons QR encoder, and Metro does not tree-shake,
+so a consumer of either entry shipped all of them; in Mention they reached the
+initial web bundle. `ui/client` exports the same `useOxy` in services 8 and 9,
+so the peer range is unchanged. `check:entries` now fails if either entry
+imports the root again.
+
 ## 10.0.1
 
 ### `@oxy.so/services` 9 is admitted
