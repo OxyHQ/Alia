@@ -1,5 +1,10 @@
 # @alia.onl/sdk
 
+## 10.0.3
+
+Admit `@oxy.so/services` 10 alongside 8 and 9. The SDK uses the unchanged
+`useOxy` client API; this peer-only patch supports apps upgrading to Bloom 6.
+
 ## 10.0.2
 
 ### Oxy through `@oxy.so/services/ui/client`
