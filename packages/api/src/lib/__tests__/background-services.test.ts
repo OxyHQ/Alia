@@ -33,12 +33,14 @@ const STOPPER_FOR: Readonly<Record<string, string>> = {
   startTriggerEngine: 'stopTriggerEngine',
   'dispatcher.start': 'dispatcher.stop',
   initTaskQueue: 'shutdownTaskQueue',
+  initAliaTaskQueue: 'shutdownAliaTaskQueue',
   initShowQueue: 'shutdownShowQueue',
   // Fire-and-forget work with no running resource behind it. Each of these
   // is one call that settles; there is nothing left to stop.
   failOrphanedAudioJobs: '',
   startAgentRunReaper: 'stopAgentRunReaper',
   startWorker: 'shutdownTaskQueue',
+  startAliaTaskWorker: 'shutdownAliaTaskQueue',
   startShowWorker: 'shutdownShowQueue',
   startSkillRegistrySync: 'stopSkillRegistrySync',
 };
@@ -57,6 +59,9 @@ const dispatcherStop = traced('dispatcher.stop');
 const initTaskQueue = traced('initTaskQueue');
 const startWorker = traced('startWorker');
 const shutdownTaskQueue = traced('shutdownTaskQueue');
+const initAliaTaskQueue = traced('initAliaTaskQueue');
+const startAliaTaskWorker = traced('startAliaTaskWorker');
+const shutdownAliaTaskQueue = traced('shutdownAliaTaskQueue');
 const initShowQueue = traced('initShowQueue');
 const startShowWorker = traced('startShowWorker');
 const shutdownShowQueue = traced('shutdownShowQueue');
@@ -75,6 +80,7 @@ vi.mock('../crowdsource/dispatcher.js', () => ({
   moderationOutboxDispatcher: { start: dispatcherStart, stop: dispatcherStop },
 }));
 vi.mock('../task-queue.js', () => ({ initTaskQueue, startWorker, shutdownTaskQueue }));
+vi.mock('../alia-task-queue.js', () => ({ initAliaTaskQueue, startAliaTaskWorker, shutdownAliaTaskQueue }));
 vi.mock('../show/show-queue.js', () => ({ initShowQueue, startShowWorker, shutdownShowQueue }));
 vi.mock('../skills/scheduler.js', () => ({ startSkillRegistrySync, stopSkillRegistrySync }));
 vi.mock('../../db/notifications/audioJobRepository.js', () => ({ failOrphanedAudioJobs }));
@@ -111,6 +117,8 @@ describe('startBackgroundServices', () => {
     expect(dispatcherStart).toHaveBeenCalledTimes(1);
     expect(initTaskQueue).toHaveBeenCalledTimes(1);
     expect(startWorker).toHaveBeenCalledTimes(1);
+    expect(initAliaTaskQueue).toHaveBeenCalledTimes(1);
+    expect(startAliaTaskWorker).toHaveBeenCalledTimes(1);
     expect(failOrphanedAudioJobs).toHaveBeenCalledTimes(1);
     expect(startAgentRunReaper).toHaveBeenCalledTimes(1);
     expect(initShowQueue).toHaveBeenCalledTimes(1);
@@ -153,11 +161,13 @@ describe('startBackgroundServices', () => {
       'startTriggerEngine',
       'dispatcher.start',
       'initTaskQueue',
+      'initAliaTaskQueue',
       'failOrphanedAudioJobs',
       'startAgentRunReaper',
       'initShowQueue',
       'startSkillRegistrySync',
       'startWorker',
+      'startAliaTaskWorker',
       'startShowWorker',
     ]);
   });
@@ -201,6 +211,7 @@ describe('stopBackgroundServices', () => {
     expect(stopTriggerEngine).toHaveBeenCalledTimes(1);
     expect(dispatcherStop).toHaveBeenCalledTimes(1);
     expect(shutdownTaskQueue).toHaveBeenCalledTimes(1);
+    expect(shutdownAliaTaskQueue).toHaveBeenCalledTimes(1);
     expect(shutdownShowQueue).toHaveBeenCalledTimes(1);
     expect(stopSkillRegistrySync).toHaveBeenCalledTimes(1);
   });
@@ -225,7 +236,7 @@ describe('stopBackgroundServices', () => {
     await settle();
     const started = [...order];
     // Vacuity floor: an empty `started` would make the loop below assert nothing.
-    expect(started.length).toBe(9);
+    expect(started.length).toBe(11);
 
     order.length = 0;
     await stopBackgroundServices();
@@ -300,6 +311,7 @@ describe('stopBackgroundServices', () => {
       // Stop re-enqueueing lapsed runs before the queue it enqueues into closes.
       'stopAgentRunReaper',
       'shutdownTaskQueue',
+      'shutdownAliaTaskQueue',
       'shutdownShowQueue',
     ]);
   });

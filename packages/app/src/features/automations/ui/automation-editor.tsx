@@ -98,11 +98,12 @@ export function AutomationEditor({
       ? (automation.trigger.timezone ?? 'UTC')
       : 'UTC',
   );
-  const [agentId, setAgentId] = useState(
+  // '' is Alia, the default actor; an id is one of the person's agents.
+  const initialAgentId =
     automation.actorSelection.mode === 'fixed'
       ? (automation.actorSelection.agentId ?? '')
-      : '',
-  );
+      : '';
+  const [agentId, setAgentId] = useState(initialAgentId);
   const [enabled, setEnabled] = useState(automation.enabled);
   const [confirmClose, setConfirmClose] = useState(false);
 
@@ -116,10 +117,7 @@ export function AutomationEditor({
         : 'UTC') ||
     days.join(',') !== initialSchedule.days.join(',') ||
     enabled !== automation.enabled ||
-    agentId !==
-      (automation.actorSelection.mode === 'fixed'
-        ? (automation.actorSelection.agentId ?? '')
-        : '');
+    agentId !== initialAgentId;
 
   const close = () => {
     if (changed) {
@@ -140,7 +138,13 @@ export function AutomationEditor({
       objective: title,
       instructions,
       trigger: { type: 'schedule', cron, timezone },
-      actorSelection: { mode: 'fixed', agentId },
+      // Untouched, the actor is sent as it was (an agent pool stays a pool).
+      actorSelection:
+        agentId === initialAgentId
+          ? initial.actorSelection
+          : agentId
+            ? { mode: 'fixed', agentId }
+            : { mode: 'alia' },
       enabled,
     });
     if (!result.ok) {
@@ -274,8 +278,19 @@ export function AutomationEditor({
             </View>
           </View>
 
-          <Field label={t('automations.editor.agent')} multiple>
+          <Field
+            label={t('automations.editor.agent')}
+            description={t('automations.editor.agentDescription')}
+            multiple
+          >
             <ChipRow>
+              <Chip
+                role="radio"
+                selected={agentId === ''}
+                onPress={() => setAgentId('')}
+              >
+                {t('automations.actor.alia')}
+              </Chip>
               {agents.map((agent) => (
                 <Chip
                   key={agent.id}

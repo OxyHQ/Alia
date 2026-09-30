@@ -99,6 +99,17 @@ describe('automation receipt editor', () => {
     });
   });
 
+  it('keeps Alia as the responsible actor, with no agent to choose', () => {
+    const draft = createAutomationEditDraft({ ...automation, actorSelection: { mode: 'alia' } });
+    expect(draft.actorSelection).toEqual({ mode: 'alia' });
+
+    const result = buildAutomationUpdate(draft);
+    expect(result).toEqual(expect.objectContaining({
+      ok: true,
+      value: expect.objectContaining({ actorSelection: { mode: 'alia' } }),
+    }));
+  });
+
   it('rejects incomplete actor, trigger, resource, and limit inputs before PATCH', () => {
     const noActor = createAutomationEditDraft(automation);
     noActor.actorSelection = { mode: 'automatic', eligibleAgentIds: [] };

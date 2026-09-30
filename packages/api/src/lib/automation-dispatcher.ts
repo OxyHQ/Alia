@@ -6,6 +6,7 @@ import {
   claimAutomationRunPlan,
   createObservedAutomationRun,
   listActiveAutomationAuthorizations,
+  markAliaAutomationRun,
   markAutomationRunForSession,
   setAutomationEnabled,
 } from '../db/automation/automationDefinitionRepository.js';
@@ -23,6 +24,7 @@ import { sendNotification } from './notification-service.js';
 import { automationStageTaskInputs, renderAutomationStageTask } from './automation-stage-task.js';
 import { automationExecutionPolicyError } from './automation-execution-policy.js';
 import { enqueueAgentSession } from './task-queue.js';
+import { enqueueAliaTask } from './alia-task-queue.js';
 import { mayRunForAutomationOwner } from './automation-actors.js';
 import { reserveCredits, safeRefund, type CreditReservation } from './credits-manager.js';
 import { getOrCreateUserCredits } from './user-credits-helpers.js';
@@ -50,16 +52,18 @@ export type AutomationDispatchTrigger =
     };
 
 export type AutomationDispatchResult =
-  | { status: 'queued'; sessionId: string }
+  /** `sessionId` is the first stage's agent session; an Alia run has none. */
+  | { status: 'queued'; runId: string; sessionId?: string }
   | { status: 'observed' }
   | { status: 'duplicate' }
   | { status: 'denied'; reason: string };
 
 /** The agents this automation may run — see {@link mayRunForAutomationOwner}. */
 async function eligibleAgents(automation: AutomationDefinitionRecord) {
-  const candidateIds = automation.actorSelection.mode === 'fixed'
-    ? [automation.actorSelection.agentId].filter((id): id is string => Boolean(id))
-    : automation.actorSelection.eligibleAgentIds;
+  const selection = automation.actorSelection;
+  const candidateIds = selection.mode === 'fixed'
+    ? [selection.agentId].filter((id): id is string => Boolean(id))
+    : selection.mode === 'automatic' ? selection.eligibleAgentIds : [];
   const agents = await Promise.all(candidateIds.map((agentId) => findAgentById(getDb(), agentId)));
   return agents.filter((agent): agent is NonNullable<typeof agent> => (
     agent !== null && mayRunForAutomationOwner(agent, automation.ownerAccountId)
@@ -151,6 +155,9 @@ export async function dispatchStructuredAutomation(
     ...(trigger.kind === 'event' ? [trigger.resource] : []),
     ...automation.dataFlow.sources,
   ]);
+  if (automation.actorSelection.mode === 'alia') {
+    return dispatchAliaTask(automation, trigger, sourceResources);
+  }
   const agents = await eligibleAgents(automation);
   if (automation.actions.length === 0) {
     const agent = agents[0];
@@ -241,7 +248,7 @@ export async function dispatchStructuredAutomation(
       ]);
       throw error;
     }
-    return { status: 'queued', sessionId: session.id };
+    return { status: 'queued', runId, sessionId: session.id };
   }
   const candidates = await loadAutomationActorCandidates(
     automation.ownerAccountId,
@@ -335,5 +342,92 @@ export async function dispatchStructuredAutomation(
     ]);
     throw error;
   }
-  return { status: 'queued', sessionId: session.id };
+  return { status: 'queued', runId, sessionId: session.id };
+}
+
+/**
+ * A task Alia is responsible for: no agent, no session. The run is claimed with
+ * Alia as its actor and handed to the `alia-tasks` queue, whose job runs one
+ * Alia turn for the owner and posts the answer into the task's conversation.
+ *
+ * Connected actions need Oxy authority for an Alia actor, which does not exist
+ * yet, so such a definition is refused at creation and again here.
+ */
+async function dispatchAliaTask(
+  automation: AutomationDefinitionRecord,
+  trigger: AutomationDispatchTrigger,
+  sourceResources: readonly AutomationResourceRef[],
+): Promise<AutomationDispatchResult> {
+  if (automation.actions.length > 0) {
+    await notifyNoExecution(automation, trigger, 'Alia cannot run connected-app actions yet; assign one of your agents.');
+    return { status: 'denied', reason: 'alia_connected_actions_not_yet_supported' };
+  }
+  const requesterAccountId = trigger.kind === 'manual'
+    ? trigger.requesterAccountId
+    : automation.ownerAccountId;
+  const [taskInput = {}] = automationStageTaskInputs(automation, trigger, [{ actions: [] }]);
+  const runStages = [{
+    stage: 0,
+    selectedAgentId: null,
+    selectedActorAccountId: automation.ownerAccountId,
+    resource: primaryResource(automation, trigger, sourceResources),
+    taskInput,
+    actions: [],
+  }];
+  if (automation.executionMode === 'observe') {
+    const created = await createObservedAutomationRun({
+      db: getDb(),
+      automationId: automation.id,
+      requesterAccountId,
+      triggerEventId: trigger.id,
+      stages: runStages,
+      actorType: 'alia',
+    });
+    return { status: created ? 'observed' : 'duplicate' };
+  }
+
+  const reservation = await reserveAutomationRun(automation, trigger);
+  if (!reservation) return { status: 'denied', reason: 'insufficient_credits' };
+  const runId = uuidv7();
+  const claimed = await getDb().transaction(async (transaction) => {
+    const inserted = await claimAutomationRunPlan({
+      db: transaction,
+      runId,
+      automationId: automation.id,
+      requesterAccountId,
+      triggerEventId: trigger.id,
+      stages: runStages,
+      actorType: 'alia',
+    });
+    if (!inserted) return false;
+    if (automation.inputs.runOnce === true) {
+      const disabled = await setAutomationEnabled(
+        transaction,
+        automation.id,
+        automation.ownerAccountId,
+        false,
+      );
+      if (!disabled) throw new Error('Claimed one-off task could not be disabled');
+    }
+    return true;
+  });
+  if (!claimed) {
+    await safeRefund(reservation, 'duplicate automation run');
+    return { status: 'duplicate' };
+  }
+  try {
+    await enqueueAliaTask({
+      runId,
+      automationId: automation.id,
+      userId: automation.ownerAccountId,
+      creditReservation: reservation,
+    });
+  } catch (error: unknown) {
+    await Promise.all([
+      markAliaAutomationRun(getDb(), runId, 'failed'),
+      safeRefund(reservation, 'automation run could not be queued'),
+    ]);
+    throw error;
+  }
+  return { status: 'queued', runId };
 }

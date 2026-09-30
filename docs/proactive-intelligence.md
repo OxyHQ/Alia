@@ -1,18 +1,30 @@
 # Proactive Intelligence
 
-Last updated: 2026-09-02
+Last updated: 2026-09-30
 
 Alia proactive intelligence has one normalized control plane (`/automations`) and
 one elected scheduler (`trigger-engine.ts`). A task always owns its human objective,
-schedule and responsible agent. Connected work additionally owns exact Oxy actions,
-data flow and limits; reminders, research and assistant responses deliberately carry
-no fabricated app resource or tool.
+schedule and a responsible actor: Alia by default (`actorSelection: { mode: 'alia' }`,
+what an omitted `actorSelection` means), or one of the person's agents. Nobody has
+to pick an agent; agents are optional. Connected work additionally owns exact Oxy
+actions, data flow and limits; reminders, research and assistant responses
+deliberately carry no fabricated app resource or tool. Connected actions still need
+an agent as the actor: Oxy authority for an Alia actor is not built yet, so Alia
+with actions is refused as `alia_connected_actions_not_yet_supported`.
 
 ## Architecture
 
 1. User message (or external event) arrives.
 2. Runtime classifies intent and recalls context graph.
-3. For assistant-only work, the chosen owned agent receives the prompt directly.
+3. For assistant-only work Alia is responsible for, the run is claimed with
+   `selected_actor_type = 'alia'` and queued on `alia-tasks` (`lib/alia-task-queue.ts`).
+   `lib/alia-task-run.ts` takes one unattended Alia turn for the owner (default
+   model, no agent, web search on), settles the credit hold against the tokens
+   spent and posts the answer into the task's own Alia conversation
+   (`automation_definitions.conversation_id`, claimed on first delivery) with a
+   notification that opens it. A failed last attempt refunds and says so there.
+   For assistant-only work an agent is responsible for, that owned agent receives
+   the prompt directly.
    For connected work, the coordinator assigns each ordered action to the first eligible agent
    whose live capability map covers it. The first stage must also cover every
    declared source resource.

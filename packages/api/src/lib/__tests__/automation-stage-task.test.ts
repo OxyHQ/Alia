@@ -32,6 +32,7 @@ function automation(destinations = [destination]): AutomationDefinitionRecord {
     maximumAutonomy: 'autonomous',
     limits: [],
     enabled: true,
+    conversationId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
