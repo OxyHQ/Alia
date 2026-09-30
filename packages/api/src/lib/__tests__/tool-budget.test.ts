@@ -35,6 +35,8 @@ const sources = vi.hoisted(() => ({
 
 vi.mock('../tools/oxy-services.js', () => ({
   buildOxyServiceTools: vi.fn(async () => sources.oxy),
+  getOxyServicePromptFragment: vi.fn(() => '\n\n## Connected Oxy Services\n- **Inbox**: oxy_inbox__searchEmails.'),
+  getOxyServiceContext: vi.fn(async () => ''),
 }));
 vi.mock('../tools/mcp.js', () => ({
   buildMcpTools: vi.fn(async (_userId: string, ids?: readonly string[]) => {
@@ -46,7 +48,7 @@ vi.mock('../tools/mcp.js', () => ({
 vi.mock('../tools/integrations.js', () => ({ buildIntegrationTools: vi.fn(async () => ({})) }));
 vi.mock('../tools/ask-agent.js', () => ({ buildAskAgentTool: vi.fn(async () => ({})) }));
 
-const { budgetTools, stickyAppsFrom, appsOf, USE_APPS_TOOL } = await import('../tool-budget.js');
+const { budgetTools, stickyAppsFrom, appsOf, coversOf, USE_APPS_TOOL } = await import('../tool-budget.js');
 const { ToolPipeline } = await import('../tool-pipeline.js');
 const { ToolLimitExceededError, MAX_TOOLS_PER_INFERENCE_REQUEST } = await import('../inference/tool-limit.js');
 const { SystemPromptBuilder } = await import('../system-prompt-builder.js');
@@ -71,6 +73,16 @@ function family(prefix: string, label: string, count: number): ToolSet {
   return tools;
 }
 
+/** Inbox's real catalog tool names (OxyHQServices `inbox.catalog.ts`): 11. */
+const INBOX_TOOLS = [
+  'searchEmails', 'getUnreadEmails', 'readEmail', 'getEmailThread', 'sendEmail', 'listMailboxes',
+  'listLabels', 'moveEmail', 'updateEmailFlags', 'getEmailQuota', 'getEmailContext',
+] as const;
+
+function inbox(): ToolSet {
+  return Object.fromEntries(INBOX_TOOLS.map((name) => [`oxy_inbox__${name}`, appTool('Inbox', name)]));
+}
+
 /** The production mix's Oxy services: 93 + 12 + 11 + 3 = 119. */
 function productionOxyServices(): ToolSet {
   const mention = family('oxy_mention', 'Mention', 93);
@@ -80,7 +92,7 @@ function productionOxyServices(): ToolSet {
   return {
     ...mention,
     ...family('oxy_noted', 'Noted', 12),
-    ...family('oxy_inbox', 'Inbox', 11),
+    ...inbox(),
     ...family('oxy_mercaria', 'Mercaria', 3),
   };
 }
@@ -143,11 +155,11 @@ describe('the production mix fits the budget without losing a tool', () => {
   it('lists every app in the catalog with its tool count', () => {
     const budgeted = budgetTools(productionTurn());
     expect(budgeted.appCatalogPrompt).toContain('## Apps');
-    expect(budgeted.appCatalogPrompt).toContain('- mention — Mention, 93 tools');
-    expect(budgeted.appCatalogPrompt).toContain('- noted — Noted, 12 tools');
-    expect(budgeted.appCatalogPrompt).toContain('- inbox — Inbox, 11 tools');
-    expect(budgeted.appCatalogPrompt).toContain('- mercaria — Mercaria, 3 tools');
-    expect(budgeted.tools[USE_APPS_TOOL].description).toContain('mention (Mention, 93)');
+    expect(budgeted.appCatalogPrompt).toContain('- mention — Mention (93 tools)');
+    expect(budgeted.appCatalogPrompt).toContain('- noted — Noted (12 tools)');
+    expect(budgeted.appCatalogPrompt).toContain('- inbox — Inbox (11 tools): email, ');
+    expect(budgeted.appCatalogPrompt).toContain('- mercaria — Mercaria (3 tools)');
+    expect(budgeted.tools[USE_APPS_TOOL].description).toContain('mention (Mention');
   });
 });
 
@@ -269,14 +281,14 @@ describe('apps opened earlier in the conversation stay open', () => {
       ...productionTurn(),
       priorToolCalls: [
         { toolName: USE_APPS_TOOL, args: { apps: ['noted'] }, result: { opened: ['noted'], alreadyOpen: [] } },
-        { toolName: 'oxy_inbox__action03', args: { text: 'x' } },
+        { toolName: 'oxy_inbox__readEmail', args: { text: 'x' } },
       ],
     });
     const first = budgeted.routing.activeTools ?? [];
     expect(first.filter((name) => name.startsWith('oxy_noted__'))).toHaveLength(12);
     expect(first.filter((name) => name.startsWith('oxy_inbox__'))).toHaveLength(11);
     expect(mentionNames(first)).toEqual([]);
-    expect(budgeted.appCatalogPrompt).toContain('- noted — Noted, 12 tools (open)');
+    expect(budgeted.appCatalogPrompt).toMatch(/^- noted — Noted \(12 tools\).*\[open\]$/m);
   });
 
   it('an app closed later in the conversation stays closed', () => {
@@ -303,13 +315,13 @@ describe('apps opened earlier in the conversation stay open', () => {
       },
       {
         role: 'assistant',
-        tool_calls: [{ id: 'b', type: 'function', function: { name: 'oxy_inbox__action01', arguments: '{"text":"x"}' } }],
+        tool_calls: [{ id: 'b', type: 'function', function: { name: 'oxy_inbox__searchEmails', arguments: '{"text":"x"}' } }],
       },
       { role: 'tool', tool_call_id: 'b', content: '{"ok":true}' },
     ]);
     expect(calls).toEqual([
       { toolName: USE_APPS_TOOL, args: { apps: ['noted'] }, result: { opened: ['noted'] } },
-      { toolName: 'oxy_inbox__action01', args: { text: 'x' }, result: { ok: true } },
+      { toolName: 'oxy_inbox__searchEmails', args: { text: 'x' }, result: { ok: true } },
     ]);
   });
 });
@@ -373,7 +385,7 @@ describe('ToolPipeline.forUser applies the budget on every path it serves', () =
     expect(first).toContain(USE_APPS_TOOL);
     expect(first.filter((name) => name.startsWith('oxy_'))).toEqual([]);
     for (const name of Object.keys(productionOxyServices())) expect(result.tools[name]).toBeDefined();
-    expect(result.appCatalogPrompt).toContain('- mention — Mention, 93 tools');
+    expect(result.appCatalogPrompt).toContain('- mention — Mention (93 tools)');
   });
 
   it('a small account keeps today\'s set exactly — no router, no routing', async () => {
@@ -399,7 +411,7 @@ describe('ToolPipeline.forUser applies the budget on every path it serves', () =
     sources.mcp = family('mcp_github', 'GitHub', 20);
     const result = await forUser();
     expect(result.activeToolNames().filter((name) => name.startsWith('mcp_github__'))).toEqual([]);
-    expect(result.appCatalogPrompt).toContain('- mcp_github — GitHub, 20 tools');
+    expect(result.appCatalogPrompt).toContain('- mcp_github — GitHub (20 tools)');
   });
 
   it('pre-activates a single picked tool, and only that tool', async () => {
@@ -436,11 +448,84 @@ describe('the system prompt carries the app catalog', () => {
     const prompt = await SystemPromptBuilder.build({ isDirectUserSession: false, appCatalog: appCatalogPrompt });
     expect(prompt).toContain('## Apps');
     expect(prompt).toContain('useApps');
-    expect(prompt).toContain('- mention — Mention, 93 tools');
+    expect(prompt).toContain('- mention — Mention (93 tools)');
+  });
+
+  it('does not list Oxy tool names as present when the turn is routed', async () => {
+    // Those names are not in the tool list until the app is opened; a weak model
+    // reading them there concludes they do not exist, and refuses.
+    const { appCatalogPrompt } = budgetTools(productionTurn());
+    const direct = { isDirectUserSession: true, userId: 'u1', accessToken: 'tok' } as const;
+    const routed = await SystemPromptBuilder.build({ ...direct, appCatalog: appCatalogPrompt });
+    expect(routed).toContain('## Apps');
+    expect(routed).not.toContain('## Connected Oxy Services');
+
+    // The control: a turn that fits keeps the fragment.
+    const unrouted = await SystemPromptBuilder.build({ ...direct, appCatalog: '' });
+    expect(unrouted).toContain('## Connected Oxy Services');
   });
 
   it('says nothing about apps when nothing is routed — the control', async () => {
     const prompt = await SystemPromptBuilder.build({ isDirectUserSession: false, appCatalog: '' });
     expect(prompt).not.toContain('## Apps');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  The catalog says what each app covers                                     */
+/* -------------------------------------------------------------------------- */
+
+describe('the catalog says what each app covers', () => {
+  it('derives an app\'s subjects from its own tool names, verbs dropped', () => {
+    const covers = coversOf(INBOX_TOOLS.map((name) => `oxy_inbox__${name}`), ['inbox', 'Inbox']);
+    // "email" names 8 of Inbox's 11 tools, so it leads.
+    expect(covers[0]).toBe('email');
+    expect(covers).toEqual(expect.arrayContaining(['mailbox', 'thread', 'label', 'unread']));
+    for (const verb of ['search', 'get', 'read', 'send', 'list', 'move', 'update']) expect(covers).not.toContain(verb);
+    // The app's own name adds nothing to its entry.
+    expect(covers).not.toContain('inbox');
+  });
+
+  it('reads snake_case MCP tools, a resource suffix, and plain integration names alike', () => {
+    expect(coversOf(['mcp_github__create_issue', 'mcp_github__list_pull_requests', 'mcp_github__get_issue'])).toEqual([
+      'issue', 'pull', 'request',
+    ]);
+    expect(coversOf(['oxy_noted__createNote__res1', 'oxy_noted__searchNotes'])).toEqual(['note']);
+    expect(coversOf(['listCalendarEvents', 'createCalendarEvent'])).toEqual(['calendar', 'event']);
+    expect(coversOf(['searchDriveFiles', 'getDriveFileContent'])).toEqual(['drive', 'file', 'content']);
+  });
+
+  it('bounds what one app says, however many tools it has', () => {
+    const many = Array.from({ length: 40 }, (_, n) => `oxy_big__get${String.fromCharCode(65 + (n % 26))}thing${n}`);
+    expect(coversOf(many).length).toBeLessThanOrEqual(8);
+  });
+
+  it('lists what Inbox covers in the catalog and in the useApps description', () => {
+    const budgeted = budgetTools(productionTurn());
+    const line = budgeted.appCatalogPrompt.split('\n').find((row) => row.startsWith('- inbox'));
+    expect(line).toMatch(/^- inbox — Inbox \(11 tools\): email, .*mailbox/);
+    expect(budgeted.tools[USE_APPS_TOOL].description).toMatch(/inbox \(Inbox: email, [^)]*\)/);
+    const turn = productionTurn();
+    expect(appsOf(turn.tools, turn.sources).find((app) => app.id === 'inbox')?.covers[0]).toBe('email');
+  });
+
+  it('tells the model its access is real and that useApps comes before any refusal', () => {
+    const { appCatalogPrompt } = budgetTools(productionTurn());
+    expect(appCatalogPrompt).toContain('you DO have access');
+    expect(appCatalogPrompt).toMatch(/in any language, by any name, synonym or brand/);
+    expect(appCatalogPrompt).toMatch(/Never say you cannot access[^\n]*until you have opened that app/);
+    expect(budgetTools(productionTurn()).tools[USE_APPS_TOOL].description).toMatch(/BEFORE saying you cannot access/);
+  });
+
+  it('holds no app knowledge of its own: an unknown app is described by its tools', () => {
+    const weather: ToolSet = {
+      oxy_skyline__getForecast: appTool('Skyline', 'forecast'),
+      oxy_skyline__listWeatherAlerts: appTool('Skyline', 'alerts'),
+      oxy_skyline__getWeatherRadar: appTool('Skyline', 'radar'),
+    };
+    const oxy = { ...family('oxy_mention', 'Mention', 93), ...weather };
+    // 40 + 96 = 136: routed.
+    const budgeted = budgetTools({ tools: { ...core(40), ...oxy }, sources: { oxy_service: oxy, mcp: {}, integration: {} } });
+    expect(budgeted.appCatalogPrompt).toMatch(/^- skyline — Skyline \(3 tools\): weather, forecast, radar, alert$/m);
   });
 });

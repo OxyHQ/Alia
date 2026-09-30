@@ -80,6 +80,13 @@ export interface ToolApp {
   readonly label: string;
   readonly source: AppToolSource;
   readonly names: readonly string[];
+  /**
+   * What the app covers, as the words its own tools are named with — `email`,
+   * `mailbox`, `thread` for Inbox; `calendar`, `event` for Google Calendar.
+   * Derived from the tool names the app registered, never from a list kept
+   * here, so a new app describes itself the moment it has tools.
+   */
+  readonly covers: readonly string[];
 }
 
 /** A tool call already in the conversation, as the client replayed it. */
@@ -126,6 +133,64 @@ function slug(text: string): string {
 }
 
 /**
+ * Words a tool name uses to say what it DOES rather than what it is about.
+ *
+ * Grammar, not app knowledge: `searchEmails` and `list_issues` are about emails
+ * and issues. What is left once these are gone is what the app covers.
+ */
+const ACTION_WORDS = new Set([
+  'get', 'list', 'search', 'find', 'query', 'read', 'fetch', 'load', 'view', 'show', 'lookup', 'look',
+  'create', 'add', 'new', 'insert', 'make', 'build', 'generate', 'upload', 'import', 'export', 'download',
+  'update', 'edit', 'modify', 'patch', 'set', 'put', 'upsert', 'change', 'rename', 'replace', 'toggle',
+  'delete', 'remove', 'clear', 'reset', 'close', 'open', 'archive', 'unarchive', 'restore',
+  'send', 'move', 'copy', 'mark', 'check', 'use', 'run', 'call', 'execute', 'do', 'start', 'stop', 'cancel',
+  'is', 'has', 'can', 'by', 'for', 'from', 'to', 'of', 'in', 'on', 'at', 'with', 'and', 'or', 'the', 'a', 'an',
+  'my', 'me', 'all', 'one', 'many', 'id', 'ids', 'info', 'details', 'detail', 'data', 'item', 'items',
+]);
+
+/** The most a catalog line says about one app. */
+const MAX_COVERS = 8;
+
+function singular(word: string): string {
+  if (word.length > 4 && word.endsWith('ies')) return `${word.slice(0, -3)}y`;
+  if (word.length > 4 && /(?:x|ch|sh|ss)es$/.test(word)) return word.slice(0, -2);
+  if (word.length > 3 && word.endsWith('s') && !/(?:ss|us|is)$/.test(word)) return word.slice(0, -1);
+  return word;
+}
+
+/** The action part of a tool name: `oxy_inbox__searchEmails` → `searchEmails`. */
+function actionOf(name: string): string {
+  const at = name.indexOf('__');
+  if (at < 0) return name;
+  const rest = name.slice(at + 2);
+  // An Oxy tool bound to one resource carries a third `__<suffix>` segment.
+  const end = rest.indexOf('__');
+  return end < 0 ? rest : rest.slice(0, end);
+}
+
+/**
+ * What an app covers, from its tools' names: their subject words, most used
+ * first. `searchEmails`, `readEmail`, `listMailboxes`, `getEmailThread` →
+ * `email, mailbox, thread`.
+ */
+export function coversOf(names: readonly string[], exclude: readonly string[] = []): string[] {
+  const skip = new Set(exclude.flatMap((text) => text.toLowerCase().split(/[^a-z0-9]+/)));
+  const counts = new Map<string, number>();
+  for (const name of names) {
+    const words = actionOf(name)
+      .split(/(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])|[^A-Za-z0-9]+/)
+      .map((word) => singular(word.toLowerCase()))
+      .filter((word) => word.length > 2 && !/^\d+$/.test(word) && !ACTION_WORDS.has(word) && !skip.has(word));
+    for (const word of new Set(words)) counts.set(word, (counts.get(word) ?? 0) + 1);
+  }
+  // Map order is first appearance, and the sort is stable: ties keep it.
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_COVERS)
+    .map(([word]) => word);
+}
+
+/**
  * The apps in an assembled set, from the sources that built them.
  *
  * A name counts only when the assembled set still holds THAT source's tool under
@@ -164,7 +229,8 @@ export function appsOf(
     if (taken.has(id)) id = `${entry.source}_${id}`;
     for (let n = 2; taken.has(id); n += 1) id = `${entry.source}_${entry.id}_${n}`;
     taken.add(id);
-    apps.push({ id, label: entry.label, source: entry.source, names: entry.names.sort() });
+    const names = entry.names.sort();
+    apps.push({ id, label: entry.label, source: entry.source, names, covers: coversOf(names, [id, entry.label]) });
   }
   return apps;
 }
@@ -361,7 +427,8 @@ export function budgetTools(input: BudgetToolsInput): BudgetedToolSet {
 /* -------------------------------------------------------------------------- */
 
 function catalogLine(app: ToolApp, open: readonly string[]): string {
-  return `- ${app.id} — ${app.label}, ${app.names.length} tools${open.includes(app.id) ? ' (open)' : ''}`;
+  const covers = app.covers.length ? `: ${app.covers.join(', ')}` : '';
+  return `- ${app.id} — ${app.label} (${app.names.length} tools)${covers}${open.includes(app.id) ? ' [open]' : ''}`;
 }
 
 function createUseAppsTool(state: {
@@ -376,8 +443,10 @@ function createUseAppsTool(state: {
   return declareReadOnly(
     tool({
       description:
-        'Open connected apps so their tools are available from your next step (and close ones you no longer need). ' +
-        `Apps: ${apps.map((app) => `${app.id} (${app.label}, ${app.names.length})`).join(', ')}.`,
+        'Open the person\'s connected apps to reach their data and act in them — whatever each app covers. ' +
+        'An app\'s tools are available from your next step. Call this BEFORE saying you ' +
+        'cannot access something an app covers. Close apps you no longer need to make room. ' +
+        `Apps: ${apps.map((app) => `${app.id} (${app.label}${app.covers.length ? `: ${app.covers.join(', ')}` : ''})`).join('; ')}.`,
       inputSchema: z.object({
         apps: z.array(z.string()).describe('App ids to open, most important first.'),
         close: z.array(z.string()).optional().describe('App ids to close first, to make room.'),
@@ -434,13 +503,31 @@ function createUseAppsTool(state: {
   );
 }
 
-/** The Apps section of the system prompt. */
+/**
+ * The Apps section of the system prompt.
+ *
+ * Written for the weakest model that may read it. A model shown only its tool
+ * list concludes that what is not in it does not exist, and answers "I don't
+ * have access to your email" while the person's mailbox is one `useApps` call
+ * away. So the section says, before anything else, that the access is REAL,
+ * what each app covers, and that opening the app comes before any refusal.
+ * The person may ask in any language and by any name — the model matches by
+ * meaning, which is why the catalog carries subjects rather than keywords.
+ */
 function appCatalogPrompt(apps: readonly ToolApp[], open: readonly string[], budget: number): string {
   return (
     '\n\n## Apps\n' +
-    'Your tool list holds your own tools and the apps that are open. These connected apps are available ' +
-    `this turn; open one with \`${USE_APPS_TOOL}\` before using it — its tools arrive on your next step, and ` +
-    `you then call them directly. Open only what the request needs: at most ${budget} tools can be active at once.\n` +
+    'The person has connected the apps below, and through them you DO have access to their data and can act for ' +
+    'them in everything each app covers. Only a few apps are open ' +
+    `at a time, so an app's tools may not be in your tool list yet: open it with \`${USE_APPS_TOOL}\` and, from your ` +
+    'next step, call its tools directly.\n' +
+    '- When a request touches anything an app covers — in any language, by any name, synonym or brand ' +
+    '(e.g. "mail", "correo", "courriel" and a mail brand all mean email) — call ' +
+    `\`${USE_APPS_TOOL}\` with that app first, then answer from what its tools return.\n` +
+    '- Never say you cannot access, see or do something an app below covers until you have opened that app and ' +
+    'its tools failed. Do not ask the person for permission to open an app; they connected it to be used.\n' +
+    `- Open only what the request needs: at most ${budget} tools can be active at once.\n` +
+    'Apps (id — name (tools): what it covers):\n' +
     apps.map((app) => catalogLine(app, open)).join('\n')
   );
 }

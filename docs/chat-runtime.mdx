@@ -157,7 +157,14 @@ OAuth integration — are **opened on demand by the model**:
 1. The first step sends the core tools (clock, built-ins and artifacts, memory
    and messaging, runtime primitives, skills, agent tools, and every tool the
    client sent) plus one tool, `useApps({ apps, close? })`. The system prompt's
-   **Apps** section lists every app the turn could open, with its tool count.
+   **Apps** section lists every app the turn could open, with its tool count
+   and what it covers — the subject words of its own tool names (`inbox —
+   Inbox (11 tools): email, mailbox, thread…`), derived, never a list kept in
+   Alia. The section tells the model its access is real, that a request in
+   any language or by any synonym maps to an app by meaning, and that it must
+   open the app before saying it cannot reach something the app covers. A
+   routed turn omits the "Connected Oxy Services" tool-name list, which named
+   tools that were not yet in the request.
 2. `useApps` marks apps open; from the next step their real tools are in the
    request (AI SDK `prepareStep` → `activeTools`). The model then calls them
    directly. The full tool set stays registered, so execution, authorization,
