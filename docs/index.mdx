@@ -29,8 +29,10 @@ For raw model access use Kaana through Oxy (`api.oxy.so/v1`); for the assistant 
 Alia's API. Either way the key is issued in Oxy Console — Alia issues none.
 
 Hosted inference follows `Alia -> Oxy -> Kaana`. Alia has no models of its own:
-a person picks a real `<publisher>/<model>` from Oxy's catalogue, and Alia computes
-its defaults ([ADR 0012](./adr/0012-alia-uses-real-models.md)). Oxy authenticates the caller
+a person picks a power level (`auto` … `ultra`) and Oxy picks the model of that
+level ([ADR 0014](./adr/0014-people-choose-power-levels-not-models.md)); API
+callers may still name a real `<publisher>/<model>` from Oxy's catalogue
+([ADR 0012](./adr/0012-alia-uses-real-models.md)). Oxy authenticates the caller
 and signs the exact ordered deployments; Kaana owns provider credentials,
 deployment execution, health and failover within that order. [Model
 abstraction](./model-abstraction.mdx) describes the boundary, and [ADR

@@ -13,10 +13,11 @@ is delegated to Kaana.
 
 ## Identity
 
-The request `model` field is a real `<publisher>/<model>` from Oxy's catalogue
-(`GET /catalogue`), or absent for the person's default model
-([ADR 0012](./adr/0012-alia-uses-real-models.md)). Alia checks it against the
-cached catalogue and sends it to Oxy unchanged as `model`. An id the catalogue
+The request `model` field is a power level (`auto` … `ultra`, sent to Oxy as
+`routingProfile`; [ADR 0014](./adr/0014-people-choose-power-levels-not-models.md)),
+a real `<publisher>/<model>` from Oxy's catalogue (`GET /catalogue`), or absent
+for `auto` ([ADR 0012](./adr/0012-alia-uses-real-models.md)). Alia checks a model
+against the cached catalogue and sends it to Oxy unchanged as `model`. An id the catalogue
 does not carry — including the retired `mode:*` and `route:*` spellings — is
 refused `400 model_not_found` with `param: "model"` before credits are reserved.
 Alia has no models, modes or routing profiles of its own, and never substitutes
@@ -28,7 +29,7 @@ credential never join Kaana's hosted credential pool.
 ## Hosted request path
 
 1. Auth resolves the Oxy user or application credential.
-2. `buildChatRequestContext` resolves the model (or the person's default),
+2. `buildChatRequestContext` resolves the level or model (absent is `auto`),
    validates `reasoningEffort` against it, then reserves product credits.
 3. Alia assembles conversation context, memory, agent instructions and tools.
 4. The inference seam calls `@oxy.so/core`'s `OxyInferenceClient` with the

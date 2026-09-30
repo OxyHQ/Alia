@@ -60,6 +60,7 @@ import {
 } from './oxy-inference.js';
 import type { AliaInferenceSurface } from './product-seam.js';
 import { assertToolCountWithinLimit } from './tool-limit.js';
+import type { OxyInferenceTarget } from '../models/power-levels.js';
 
 /** One text block per response, because the contract streams one channel of it. */
 const TEXT_BLOCK_ID = 'kaana-text';
@@ -87,8 +88,11 @@ function resolvedModelMetadata(reference: string | null): { kaana: { resolvedMod
 }
 
 export interface KaanaModelOptions {
-  /** The exact `publisher/model` from Oxy's catalogue (ADR 0012). */
-  readonly target: { readonly kind: 'model'; readonly model: string };
+  /**
+   * An exact `publisher/model` from Oxy's catalogue (ADR 0012), or a power
+   * level sent as `routingProfile` (ADR 0014).
+   */
+  readonly target: OxyInferenceTarget;
   /** Alia's product-facing request identity. */
   readonly modelId: string;
   /**
@@ -408,7 +412,7 @@ function translateWithinLimit(options: KaanaModelOptions, call: LanguageModelV3C
   const translation = translate(call);
   assertToolCountWithinLimit(
     translation.tools.map((tool) => tool.name),
-    { surface: options.surface, model: options.target.model },
+    { surface: options.surface, model: targetLabel(options.target) },
   );
   return translation;
 }
@@ -477,14 +481,20 @@ function toUsage(units: readonly { unit: string; quantity: number }[] | undefine
   };
 }
 
+/** The target as one string, for logs: the model id or the level's slug. */
+function targetLabel(target: OxyInferenceTarget): string {
+  return target.kind === 'model' ? target.model : target.routingProfile;
+}
+
 export function requestFor(
   modelOptions: KaanaModelOptions,
   options: LanguageModelV3CallOptions,
   translation: Translation,
 ): OxyResponsesRequest {
   const responseFormat = toResponseFormat(options.responseFormat);
+  const target = modelOptions.target;
   return {
-    model: modelOptions.target.model,
+    ...(target.kind === 'model' ? { model: target.model } : { routingProfile: target.routingProfile }),
     ...(modelOptions.reasoningEffort === undefined
       ? {}
       : { reasoning: { effort: modelOptions.reasoningEffort } }),

@@ -10,7 +10,7 @@ import { RiEyeOffLine } from "@oxy.so/bloom/icons/RiEyeOffLine";
 import { RiPencilLine } from "@oxy.so/bloom/icons/RiPencilLine";
 import { RiBookOpenLine } from "@oxy.so/bloom/icons/RiBookOpenLine";
 import { RiPlugLine } from "@oxy.so/bloom/icons/RiPlugLine";
-import { RiPushpinLine } from "@oxy.so/bloom/icons/RiPushpinLine";
+import { RiRobot2Line } from "@oxy.so/bloom/icons/RiRobot2Line";
 import { RiSearchLine } from "@oxy.so/bloom/icons/RiSearchLine";
 import type { ComposerPanelAddMenuGroup } from "@oxy.so/bloom/composer-panel";
 import { ActionKeyIcon } from "@/shared/ui/action-key-icon";
@@ -67,7 +67,7 @@ const ROW = {
   files: "add:files",
   webSearch: "cap:web-search",
   deepResearch: "cap:deep-research",
-  pinModel: "cap:pin-model",
+  agent: "cap:agent",
   ghost: "cap:ghost",
   canvas: "cap:canvas",
 } as const;
@@ -122,11 +122,6 @@ export interface ComposerAddMenuOptions {
    * has been saved.
    */
   offerGhost: boolean;
-  /**
-   * The chosen model, for the row that pins it to the top of the picker —
-   * Bloom's picker has no per-row action of its own. `null` hides the row.
-   */
-  pinModel?: { name: string; pinned: boolean; onToggle: () => void } | null;
   /** Skills and apps for THIS turn, already resolved into two lists. */
   turnSelection: TurnSelectionOptions;
   onToggleSkill: (name: string) => void;
@@ -152,7 +147,6 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
     onToggleWebSearch,
     onOpenCanvas,
     offerGhost,
-    pinModel = null,
     turnSelection,
     onToggleSkill,
     onToggleConnector,
@@ -180,8 +174,8 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
             icon: RiEarthLine,
             checked: webSearch,
           },
-          // A tool the turn may use, on the model the picker shows — not a
-          // model and not a mode.
+          // A tool the turn may use, at the level the mode pill shows — not a
+          // level and not a mode.
           {
             id: ROW.deepResearch,
             label: t("modes.deepResearchLabel"),
@@ -194,6 +188,17 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
       {
         label: t("composer.capabilitiesGroup"),
         rows: [
+          // Working through a longer task as an agent: a switch for the next
+          // turns, at the level the mode pill shows. The plan gate and the
+          // toasts stay in `toggleMode`.
+          {
+            id: ROW.agent,
+            label: t("modes.agentLabel"),
+            description: t("composer.agentDescription"),
+            icon: RiRobot2Line,
+            iconSize: 24 as const,
+            checked: modes.agent,
+          },
           ...(offerGhost
             ? [
                 {
@@ -215,18 +220,6 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
             icon: RiPencilLine,
             iconSize: 24 as const,
           },
-          ...(pinModel !== null
-            ? [
-                {
-                  id: ROW.pinModel,
-                  label: t("composer.pinModel"),
-                  description: pinModel.name,
-                  icon: RiPushpinLine,
-                  iconSize: 24 as const,
-                  checked: pinModel.pinned,
-                },
-              ]
-            : []),
         ],
       },
     );
@@ -263,7 +256,7 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
     }
 
     return built;
-  }, [t, canAttach, webSearch, modes, offerGhost, pinModel, turnSelection]);
+  }, [t, canAttach, webSearch, modes, offerGhost, turnSelection]);
 
   const addImages = useCallback(
     (assets: ImagePickerAsset[] | undefined) => {
@@ -341,8 +334,8 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
         case ROW.deepResearch:
           toggleMode("deepResearch");
           return;
-        case ROW.pinModel:
-          pinModel?.onToggle();
+        case ROW.agent:
+          toggleMode("agent");
           return;
         case ROW.ghost:
           toggleMode("ghost");
@@ -368,7 +361,6 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
       onToggleSkill,
       onToggleWebSearch,
       pickDocument,
-      pinModel,
       pickImage,
       takePhoto,
       toggleMode,

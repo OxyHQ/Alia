@@ -33,10 +33,14 @@ commit que el `package.json` que lo cambia.
   lo rechaza (`credential_retired`) y sus tablas no existen. La clave de Oxy
   Console para la API de Alia aún no se valida aquí — no lo documentes como si
   existiera — `docs/developers-portal.md`.
-- **Modelos reales, nada hardcodeado (ADR 0012):** Alia no tiene modelos propios.
-  `model` es `publisher/model` del catálogo de Oxy (o `local/...`); sin modos,
-  perfiles `route:*` ni alias. Cero ids de modelo en código o env y cero listas
-  curadas: destacados, por defecto, utilitario y voz se calculan —
+- **La gente elige modos, no modelos (ADR 0014; ADR 0012):** Alia no tiene
+  modelos propios. En la UI el usuario elige un nivel de potencia de Oxy —
+  `auto` (por defecto), `instant`, `medium`, `high`, `xhigh`, `pro`, `ultra` —
+  y Oxy escoge el modelo disponible; nunca una lista de modelos por nombre.
+  Por API, un `model` exacto `publisher/model` del catálogo de Oxy (o
+  `local/...`) sigue valiendo para agentes fijados y llamadas de fondo. Sin
+  perfiles `route:*` ni alias propios. Cero ids de modelo en código o env y
+  cero listas curadas: destacados, por defecto, utilitario y voz se calculan —
   `docs/model-abstraction.mdx`.
 - **Nombres de modelo y publisher sí se muestran.** El operador que lo sirve
   (Groq, Cerebras, OpenRouter…) y los ids de deployment siguen ocultos en la

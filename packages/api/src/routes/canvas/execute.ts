@@ -237,7 +237,7 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
        * A node stores a `publisher/model` from `GET /catalogue`, or nothing.
        * Unset, or no longer offered, runs the person's default (ADR 0012).
        */
-      const resolved = await resolveStoredModel(node.data.model || null, userId);
+      const resolved = await resolveStoredModel(node.data.model || null);
       const model = getAIModel(resolved, 'authoring');
       const builtPrompt = node.data.prompt
         ? node.data.prompt.replace(/\{\{input\}\}/g, input)

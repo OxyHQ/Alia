@@ -8,6 +8,9 @@
  * (`lib/models/selection.ts`), never curated. The serving operator and
  * deployment ids are never part of the answer.
  *
+ * It also lists the power levels (ADR 0014) a request may name instead of a
+ * model; a request that names nothing runs on `auto`.
+ *
  * `GET /v1/models` serves the same list in OpenAI's shape.
  */
 

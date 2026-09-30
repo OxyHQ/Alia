@@ -100,7 +100,8 @@ const { ModelNotFoundError } = await import('../../models/errors.js');
 
 /** The one model the fake catalogue offers, and the person's default. */
 const KNOWN = 'acme/chat-1';
-const DEFAULT = 'acme/default-1';
+/** What a request that names nothing runs on (ADR 0014). */
+const DEFAULT = 'auto';
 function hosted(id: string) {
   return {
     provider: 'kaana',
@@ -110,6 +111,20 @@ function hosted(id: string) {
     keyConfig: { provider: 'kaana', modelId: id },
     oxyInferenceTarget: { kind: 'model', model: id },
     catalogue: { id, name: id, publisher: { id: 'acme', name: 'Acme' }, reasoningEfforts: ['low', 'high'] },
+    powerLevel: null,
+  };
+}
+/** A power level, as `chat-core.ts` resolves one (ADR 0014). */
+function level(slug: string) {
+  return {
+    provider: 'kaana',
+    publisher: 'oxy',
+    model: slug,
+    modelId: slug,
+    keyConfig: { provider: 'kaana', modelId: slug },
+    oxyInferenceTarget: { kind: 'routingProfile', routingProfile: slug },
+    catalogue: null,
+    powerLevel: slug,
   };
 }
 const { clearAgentAccountVerdicts } = await import('../../agent-account.js');
@@ -201,7 +216,7 @@ beforeEach(() => {
     if (id !== KNOWN) throw new ModelNotFoundError(id);
     return hosted(id);
   });
-  resolveDefaultModel.mockResolvedValue(hosted(DEFAULT));
+  resolveDefaultModel.mockReturnValue(level(DEFAULT));
   findMcpServerForUser.mockResolvedValue(null);
   reserveCredits.mockResolvedValue({ reservationId: 'reservation-1' });
   findAgentById.mockResolvedValue(null);
@@ -683,9 +698,9 @@ describe('a hosted turn runs on a real catalogue model', () => {
     expect(ctx?.surface).toBe('chat');
   });
 
-  it('runs the person\'s default when the request names no model', async () => {
+  it('runs the auto power level when the request names no model', async () => {
     const { ctx } = await run(undefined, { directUserId: 'user-1' });
-    expect(resolveDefaultModel).toHaveBeenCalledWith('user-1');
+    expect(resolveDefaultModel).toHaveBeenCalledWith();
     expect(resolveModel).not.toHaveBeenCalled();
     expect(ctx?.modelId).toBe(DEFAULT);
     // What the caller asked for is recorded as the default it resolved to.
@@ -735,6 +750,20 @@ describe('reasoningEffort is validated against the model', () => {
     expect(ctx).toBeNull();
     expect(captured.status).toBe(400);
     expect(captured.body?.error).toMatchObject({ code: 'invalid_reasoning_effort', param: 'reasoningEffort' });
+  });
+
+  it('accepts any effort on a power level: the level has no catalogue entry, Oxy filters its models', async () => {
+    resolveModel.mockResolvedValueOnce(level('high'));
+    const { ctx } = await run('high', { body: { reasoningEffort: 'medium' } });
+    expect(ctx?.modelId).toBe('high');
+    expect(ctx?.reasoningEffort).toBe('medium');
+  });
+
+  it('still refuses an effort outside the vocabulary on a power level', async () => {
+    resolveModel.mockResolvedValueOnce(level('high'));
+    const { ctx, captured } = await run('high', { body: { reasoningEffort: 'max' } });
+    expect(ctx).toBeNull();
+    expect(captured.body?.error).toMatchObject({ code: 'invalid_reasoning_effort' });
   });
 
   it('ignores the retired thinkingMode flag', async () => {

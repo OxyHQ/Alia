@@ -17,7 +17,7 @@ export class ModelNotFoundError extends AliaError {
       code: AliaErrorCode.INVALID_REQUEST,
       message: `Model not in the catalogue: ${requested}`,
       userMessage: redactUnsafeDetail(
-        `"${requested}" is not an available model. List the models you can use at GET /catalogue.`,
+        `"${requested}" is not an available model or power level. Name a power level (auto, instant, medium, high, xhigh, pro, ultra) or a model listed at GET /catalogue.`,
       ),
       retryable: false,
       reason: 'model_not_found',

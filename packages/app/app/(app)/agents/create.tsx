@@ -61,17 +61,17 @@ export default function CreateAgentScreen() {
   const [inputValue, setInputValue] = useState("");
   const [generating, setGenerating] = useState(false);
   /**
-   * The model the new agent answers with, kept for this screen rather than the
-   * app's chat choice. `null` is the server's default, which is what the agent
-   * gets unless someone picks one here.
+   * The power level the new agent answers at, kept for this screen rather than
+   * the app's chat choice. `null` is `auto`, which is what the agent gets
+   * unless someone picks a level here.
    */
   const [modelId, setModelId] = useState<string | null>(null);
   const composer = useAliaComposer({
     draft: 'surface:agent-create',
     locked: generating,
-    // `/agents/generate` reads the prompt and nothing else — no effort, mode,
-    // file, skill or connector — so the composer offers none of them. The
-    // model picker stays: the agent is created with the model picked here.
+    // `/agents/generate` reads the prompt and nothing else — no file, skill
+    // or connector — so the composer offers none of them. The power-level
+    // selector stays: the agent is created at the level picked here.
     promptOnly: true,
     selectedModel: modelId,
     onModelChange: setModelId,

@@ -384,7 +384,7 @@ const capabilityGrantsSchema = z
  * `z.ZodError` branch in the catch that turns anything the schema does not name
  * into a 400 with the field errors attached.
  */
-/** A 400 body when `modelId` names no catalogue model, else null (ADR 0012). */
+/** A 400 body when `modelId` names neither a power level nor a catalogue model, else null. */
 async function refuseUnknownModel(modelId: string | null | undefined): Promise<Record<string, unknown> | null> {
   if (typeof modelId !== 'string') return null;
   try {
@@ -412,7 +412,7 @@ const createAgentSchema = z
     isPublished: z.boolean().optional(),
     access: accessSchema.optional(),
     systemPrompt: z.string().optional(),
-    /** A `publisher/model` from `GET /catalogue`, or null for the default model. */
+    /** A power level, a `publisher/model` from `GET /catalogue`, or null for `auto`. */
     modelId: z.string().min(1).max(200).nullable().optional(),
     archetype: archetypeSchema.optional(),
     archetypeConfig: z.unknown().optional(),
@@ -505,7 +505,7 @@ const updateAgentSchema = z
     status: statusSchema.optional(),
     access: accessSchema.optional(),
     systemPrompt: z.string().optional(),
-    /** A `publisher/model` from `GET /catalogue`, or null for the default model. */
+    /** A power level, a `publisher/model` from `GET /catalogue`, or null for `auto`. */
     modelId: z.string().min(1).max(200).nullable().optional(),
     scheduleInterval: z.number().int().min(5).max(1440).optional(),
     archetype: archetypeSchema.optional(),

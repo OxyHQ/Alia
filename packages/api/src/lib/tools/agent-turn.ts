@@ -67,6 +67,7 @@ import {
 } from '../credits-manager.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
+import { servedModelId, servedReferenceOf } from '../models/power-levels.js';
 
 export const AGENT_TIMEOUT_MS = 45_000;
 export const AGENT_MAX_STEPS = 5;
@@ -134,7 +135,7 @@ export async function runAgentTurn(input: {
     agentName: agentPromptName(agent),
   })}\n\n---\n\n${agentRemitPrompt(agent)}`;
 
-  const resolved = await resolveStoredModel(agent.modelId, payerOxyUserId).catch(() => null);
+  const resolved = await resolveStoredModel(agent.modelId).catch(() => null);
   if (resolved === null) return failed('No model is available for that agent right now');
   const modelId = resolved.modelId;
 
@@ -199,7 +200,7 @@ export async function runAgentTurn(input: {
         completionTokens: result.usage?.outputTokens || 0,
         totalTokens: tokensUsed,
       },
-      modelId,
+      servedModelId(modelId, servedReferenceOf(result)),
     );
     // Only once the charge returned. A finalize that threw leaves the
     // reservation unsettled, and therefore refunded rather than kept.

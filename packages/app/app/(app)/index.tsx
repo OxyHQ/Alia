@@ -1,9 +1,9 @@
 import { ChatPageContent } from '@/features/chat/ui/chat-page-content';
 import { WelcomeIntro, type WelcomeIntroSlots } from '@/features/chat/ui/welcome-intro';
-import { useModelSelection } from '@/features/chat/runtime/use-model-selection';
+import { useModeSelection } from '@/features/chat/ui/composer/power-level-options';
 import { useChatConversation } from '@/features/chat/runtime/use-chat-conversation';
 import { useStore } from '@/features/chat/runtime/global-store';
-import { effortFor, useModelStore } from '@/features/chat/runtime/model-store';
+import { useModelStore } from '@/features/chat/runtime/model-store';
 import { useAuth } from '@oxy.so/services';
 import { useCreateConversation } from '@/features/chat/runtime/use-conversations';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -13,22 +13,12 @@ import Head from 'expo-router/head';
 import { useCallback, useState } from 'react';
 
 const ChatPage = () => {
-  // The store holds what the user chose; the catalogue decides what a request
-  // may carry. They differ only when the chosen identifier is no longer one the
-  // product offers, and sending that identifier would be a 400.
-  const selectedModel = useModelStore((s) => s.selectedModel);
-  /**
-   * The effort level, on the FIRST turn too.
-   *
-   * This screen passed no reasoning setting at all — not the level, and not the
-   * `thinkingMode` boolean before it — so a person who chose an effort and then
-   * typed their first message got a turn that carried none of it, and only the
-   * second message onwards honoured the choice. The conversation screen
-   * (`c/[id]/index.tsx`) always passed it, which is why the gap read as
-   * "sometimes it works".
-   */
-  const reasoningEffort = useModelStore((s) => s.reasoningEffort);
-  const selection = useModelSelection(selectedModel);
+  // The store holds the power level the user chose; `useModeSelection` decides
+  // what a request may carry. They differ only when the choice is a device that
+  // is not connected, and sending it would be a 400. On the FIRST turn too: the
+  // level is part of every request this screen sends.
+  const selectedLevel = useModelStore((s) => s.selectedLevel);
+  const selection = useModeSelection(selectedLevel);
 
   const ghostMode = useStore((state) => state.ghostMode);
 
@@ -88,9 +78,7 @@ const ChatPage = () => {
     regenerateMessage,
     turnOptionsOf,
   } = useChatConversation({
-    // Only a level the chosen model lists is sent; anything else is its own default.
-    reasoningEffort: effortFor(reasoningEffort, selection.entry?.reasoningEfforts ?? []),
-    selectedModel: selection.effectiveId ?? undefined,
+    selectedModel: selection.send,
   });
 
   const handleSubmit = ghostMode ? sendMessage : createNewConversation;

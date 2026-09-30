@@ -1327,10 +1327,7 @@
     },
     "namePlaceholder": "Nombre del agente",
     "colorLabel": "Color",
-    "modelLabel": "Modelo",
-    "modelDefaultGroup": "Predeterminado",
-    "modelDefault": "Modelo predeterminado",
-    "modelDefaultNamed": "Predeterminado (%{model})",
+    "modelLabel": "Nivel de potencia",
     "handlePlaceholder": "identificador",
     "handleAdjusted": "Ese handle estaba cogido — tu agente es @%{handle}",
     "handleTaken": "Ese identificador ya está en uso. Prueba con otro.",
@@ -1478,7 +1475,9 @@
     "reviewPlaceholder": "Cuenta tu experiencia con este agente…",
     "reviewSubmitted": "Reseña enviada",
     "reviews": "Reseñas",
-    "writeReview": "Escribir una reseña"
+    "writeReview": "Escribir una reseña",
+    "modelPinned": "Modelo fijado (%{model})",
+    "modelPinnedDescription": "Usa exactamente este modelo. Elige un nivel para que Alia elija."
   },
   "authorize": {
     "linkingAccount": "Vinculando cuenta...",
@@ -1882,14 +1881,6 @@
     },
     "personalEmpty": "Aún no tienes conectores personales. Añade uno con +"
   },
-  "effort": {
-    "levels": {
-      "default": "Predeterminado",
-      "low": "Bajo",
-      "medium": "Medio",
-      "high": "Alto"
-    }
-  },
   "weather": {
     "toggleUnit": "Cambiar unidad de temperatura",
     "condition": {
@@ -2015,25 +2006,12 @@
     "ghostDescription": "No guardar este chat",
     "agentDescription": "Trabajar en tareas largas",
     "canvasDescription": "Escribir y editar archivos",
-    "pinModel": "Fijar modelo arriba",
-    "modes": "Modo",
     "removeShort": "Quitar",
-    "models": "Modelos",
-    "quickSearch": "Búsqueda rápida",
-    "searchModels": "Buscar modelos",
-    "noModels": "Ningún modelo coincide",
-    "providers": "Proveedores",
-    "effort": "Esfuerzo",
-    "faster": "Más rápido",
-    "smarter": "Más listo",
-    "featuredGroup": "Destacados",
-    "deviceGroup": "Este dispositivo",
-    "modeChat": "Chat",
-    "modeChatDescription": "Responde y usa herramientas cuando ayuda",
     "placeholder": "Pregúntale lo que quieras a Alia",
     "editPlaceholder": "Edita tu mensaje",
     "editingMessage": "Editando mensaje",
-    "cancelEdit": "Cancelar"
+    "cancelEdit": "Cancelar",
+    "powerLevel": "Potencia"
   },
   "panel": {
     "terminal": "Terminal",
@@ -2487,5 +2465,36 @@
       "voices": "No se ha podido cargar la lista de voces",
       "preferences": "No se han podido guardar tus preferencias"
     }
+  },
+  "powerLevels": {
+    "auto": {
+      "label": "Auto",
+      "description": "Elige el nivel adecuado para cada mensaje"
+    },
+    "instant": {
+      "label": "Instantáneo",
+      "description": "Lo más rápido y barato, para respuestas rápidas"
+    },
+    "medium": {
+      "label": "Medio",
+      "description": "Rápido y capaz, para el día a día"
+    },
+    "high": {
+      "label": "Alto",
+      "description": "Piensa más en las preguntas difíciles"
+    },
+    "xhigh": {
+      "label": "Muy alto",
+      "description": "Piensa aún más; algo más lento"
+    },
+    "pro": {
+      "label": "Pro",
+      "description": "Modelos punteros; más lento y más caro"
+    },
+    "ultra": {
+      "label": "Ultra",
+      "description": "El más capaz; el más lento y el más caro"
+    },
+    "onDevice": "En %{device}"
   }
 }

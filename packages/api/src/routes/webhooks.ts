@@ -29,6 +29,7 @@ import { reserveCredits, finalizeCredits, safeRefund, type CreditReservation, ty
 import { reserveAgentTurn } from '../lib/agent/turn-funding.js';
 import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js';
 import { log } from '../lib/logger.js';
+import { servedModelId, servedReferenceOf } from '../lib/models/power-levels.js';
 
 /**
  * How to answer on a channel with no prompt file of its own. It names nobody:
@@ -188,7 +189,7 @@ export async function processChannelMessage(
      */
     let resolved: ResolvedModel;
     try {
-      resolved = await resolveStoredModel(botUser.preferredModel, userId);
+      resolved = await resolveStoredModel(botUser.preferredModel);
     } catch (error: unknown) {
       log.channels.warn({ err: error }, 'No model available for a bot message');
       await sendChannelMessage(channelType, message.chatId, 'Sorry, no AI models are available right now.', {
@@ -278,7 +279,7 @@ export async function processChannelMessage(
     };
 
     try {
-      await finalizeCredits(creditReservation, tokenUsage, modelId);
+      await finalizeCredits(creditReservation, tokenUsage, servedModelId(modelId, servedReferenceOf(result)));
       // Only once the charge returned. A finalize that threw leaves the
       // reservation unsettled, and therefore refunded by the `finally`.
       creditsSettled = true;
@@ -386,7 +387,7 @@ export async function processAgentBotMessage(
 
     const resolved = agent === null
       ? null
-      : await resolveStoredModel(agent.modelId, ownerUserId).catch(() => null);
+      : await resolveStoredModel(agent.modelId).catch(() => null);
     if (agent === null || resolved === null) {
       await sendChannelMessage(channelType, message.chatId, 'Sorry, no AI models are available right now.', outboundOpts);
       return;
@@ -514,7 +515,7 @@ export async function processAgentBotMessage(
       totalTokens: (result.usage?.inputTokens || 0) + (result.usage?.outputTokens || 0),
     };
     try {
-      await finalizeCredits(creditReservation, tokenUsage, modelId);
+      await finalizeCredits(creditReservation, tokenUsage, servedModelId(modelId, servedReferenceOf(result)));
       creditsSettled = true;
     } catch (error: unknown) {
       log.webhook.error({ err: error, channelType }, 'Error finalizing agent-bot credits');

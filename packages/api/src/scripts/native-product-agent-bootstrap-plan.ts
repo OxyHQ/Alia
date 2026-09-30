@@ -48,8 +48,8 @@
  * it, and a bootstrap that reverts product copy on every run is a bootstrap
  * nobody dares to run.
  *
- * The agent's model is left null: it runs on its owner's default model, chosen
- * from the catalogue (ADR 0012).
+ * The agent's model is left null: it runs on the `auto` power level, Oxy
+ * choosing the model per request (ADR 0014).
  *
  * ## `capability_grants` is the other way round, and deliberately so
  *
