@@ -1,5 +1,12 @@
 # @alia.onl/sdk
 
+## 10.0.4
+
+Admit `@oxy.so/services` 11 and `@oxy.so/core` 4 alongside the earlier majors.
+Services 11 / core 4 move Android identity to Commons over signature-protected
+IPC (OxyHQ/oxy#1388); the SDK imports only `useOxy` from
+`@oxy.so/services/ui/client`, unchanged, and nothing from core. No code changed.
+
 ## 10.0.3
 
 Admit `@oxy.so/services` 10 alongside 8 and 9. The SDK uses the unchanged
