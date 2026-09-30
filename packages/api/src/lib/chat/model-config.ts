@@ -84,7 +84,11 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
   const baseConfig: any = {
     model,
     messages: convertedMessages,
-    temperature: body.temperature ?? 0.7,
+    // Only a temperature the caller asked for. An invented default is a
+    // parameter the model never requested, and the reasoning models (GPT-5.6,
+    // GPT-6, Gemini 3.7) take none: with Kaana's `require_parameters` routing,
+    // sending one leaves OpenRouter no endpoint and the turn fails.
+    ...(body.temperature === undefined ? {} : { temperature: body.temperature }),
     tools: truncatedTools,
     ...toolRouting,
     maxRetries: 0, // Fail fast to application-level provider fallback
