@@ -201,8 +201,8 @@ describe('packages/integrations/Dockerfile', () => {
    * step whose entire job is to run before the rollout that needs it.
    */
   it('ships the migrations directory next to the compiled migrator', () => {
-    expect(dockerfile).toContain(
-      'COPY --from=builder /build/packages/integrations/drizzle ./packages/integrations/drizzle',
+    expect(dockerfile).toMatch(
+      /^COPY --from=builder (?:--chown=\S+ )?\/build\/packages\/integrations\/drizzle \.\/packages\/integrations\/drizzle$/m,
     );
   });
 

@@ -52,7 +52,7 @@ const dockerfile = readFileSync(`${packageRoot}Dockerfile`, 'utf8');
  * match on a line that has moved.
  */
 const copiedIntoPackage = [
-  ...dockerfile.matchAll(/^COPY --from=builder \S+ \.\/packages\/api\/(\S+)$/gm),
+  ...dockerfile.matchAll(/^COPY --from=builder (?:--chown=\S+ )?\S+ \.\/packages\/api\/(\S+)$/gm),
 ].map((m) => m[1].replace(/\/$/, ''));
 
 describe('the runtime image ships what the code reads by path', () => {
