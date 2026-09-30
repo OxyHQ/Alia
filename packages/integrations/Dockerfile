@@ -4,8 +4,8 @@
 # Unified service: messaging gateways + bots + browser + terminal
 # Includes: Node.js, Chromium (Playwright), JRE, signal-cli
 
-# --- Stage 1: Builder ---
-FROM node:22-bookworm-slim AS builder
+# --- Toolchain: bun + the compilers native modules (node-pty) build with ---
+FROM node:22-bookworm-slim AS toolchain
 
 # Install build tools for native modules (node-pty requires python3 + make + g++) and Bun
 RUN apt-get update && \
@@ -15,6 +15,13 @@ RUN apt-get update && \
     ln -s /root/.bun/bin/bun /usr/local/bin/bun && \
     rm /tmp/install-bun.sh && \
     rm -rf /var/lib/apt/lists/*
+
+# Rewrite git+ssh:// to git+https:// so cloning works without SSH keys
+RUN git config --global url."https://github.com/".insteadOf "git@github.com:" && \
+    git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+
+# --- Stage 1: Builder ---
+FROM toolchain AS builder
 
 WORKDIR /build
 
@@ -31,10 +38,6 @@ COPY packages/alia-codea/webview-ui/package.json ./packages/alia-codea/webview-u
 COPY packages/alia-cowork/package.json ./packages/alia-cowork/
 COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
 
-# Rewrite git+ssh:// to git+https:// so cloning works without SSH keys
-RUN git config --global url."https://github.com/".insteadOf "git@github.com:" && \
-    git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
-
 # Install all dependencies (including devDependencies for build).
 # --frozen-lockfile is intentionally omitted: bun's frozen check reports false
 # drift for this monorepo (re-resolves ^/~ transitive ranges against the live
@@ -47,6 +50,32 @@ COPY packages/integrations/ ./packages/integrations/
 
 # Build TypeScript
 RUN bun run --filter @alia/integrations build
+
+# --- Production dependencies only ---
+FROM toolchain AS production-deps
+
+# Same install environment the runtime stage used to give this install.
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
+WORKDIR /app
+
+# Copy root workspace files
+COPY package.json bun.lock ./
+COPY packages/api/package.json ./packages/api/
+COPY packages/app/package.json ./packages/app/
+COPY packages/alia-chat/package.json ./packages/alia-chat/
+COPY packages/alia-server/package.json ./packages/alia-server/
+COPY packages/alia-canvas/package.json ./packages/alia-canvas/
+COPY packages/integrations/package.json ./packages/integrations/
+COPY packages/alia-codea/package.json ./packages/alia-codea/
+COPY packages/alia-codea/webview-ui/package.json ./packages/alia-codea/webview-ui/
+COPY packages/alia-cowork/package.json ./packages/alia-cowork/
+COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
+
+# Install production dependencies only.
+# See builder stage: --frozen-lockfile omitted due to bun's false-drift check.
+RUN bun install --production --filter @alia/integrations
 
 # --- Stage 2: Production Runtime ---
 FROM node:22-bookworm-slim AS runtime
@@ -89,29 +118,18 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 WORKDIR /app
 
-# Copy root workspace files
-COPY package.json bun.lock ./
-COPY packages/api/package.json ./packages/api/
-COPY packages/app/package.json ./packages/app/
-COPY packages/alia-chat/package.json ./packages/alia-chat/
-COPY packages/alia-server/package.json ./packages/alia-server/
-COPY packages/alia-canvas/package.json ./packages/alia-canvas/
-COPY packages/integrations/package.json ./packages/integrations/
-COPY packages/alia-codea/package.json ./packages/alia-codea/
-COPY packages/alia-codea/webview-ui/package.json ./packages/alia-codea/webview-ui/
-COPY packages/alia-cowork/package.json ./packages/alia-cowork/
-COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
+# The unprivileged "node" user owns /app and everything copied into it. Each
+# COPY below sets the owner itself: a trailing `chown -R` over the installed
+# tree rewrote every file into a second layer and shipped node_modules twice,
+# which every Fargate task pulled on every rollout.
+RUN chown node:node /app
 
-# Rewrite git+ssh:// to git+https:// so cloning works without SSH keys
-RUN git config --global url."https://github.com/".insteadOf "git@github.com:" && \
-    git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
-
-# Install production dependencies only.
-# See builder stage: --frozen-lockfile omitted due to bun's false-drift check.
-RUN bun install --production --filter @alia/integrations
+# Production dependencies and the workspace manifests, built in `production-deps`
+# on this same Debian/glibc base so native modules match.
+COPY --from=production-deps --chown=node:node /app/ ./
 
 # Copy built output from builder
-COPY --from=builder /build/packages/integrations/dist ./packages/integrations/dist
+COPY --from=builder --chown=node:node /build/packages/integrations/dist ./packages/integrations/dist
 
 # The migrations, which are DATA and are therefore not in `dist`.
 #
@@ -128,10 +146,10 @@ COPY --from=builder /build/packages/integrations/dist ./packages/integrations/di
 #
 # `packages/api/Dockerfile:116` is the control: it has always copied its own
 # `drizzle` directory, for exactly this reason.
-COPY --from=builder /build/packages/integrations/drizzle ./packages/integrations/drizzle
+COPY --from=builder --chown=node:node /build/packages/integrations/drizzle ./packages/integrations/drizzle
 
 # Create signal-cli data directory
-RUN mkdir -p /app/signal-data && chown -R node:node /app
+RUN mkdir -p /app/signal-data && chown node:node /app/signal-data
 
 # Security: run as non-root
 USER node

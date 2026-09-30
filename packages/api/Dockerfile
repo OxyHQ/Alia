@@ -92,14 +92,20 @@ RUN apt-get update && \
 
 WORKDIR /app
 
+# The unprivileged "node" user owns /app and everything copied into it. Each
+# COPY below sets the owner itself: a trailing `chown -R` rewrote every file
+# into a second layer and shipped the ~300 MB node_modules twice, which every
+# Fargate task pulled on every rollout.
+RUN chown node:node /app
+
 # Dependencies (installed for the target architecture, hoisted to the root
 # node_modules — this is what the externalized bundle resolves against).
-COPY --from=builder /build/node_modules ./node_modules
-COPY --from=builder /build/package.json /build/bun.lock ./
-COPY --from=builder /build/packages/api/package.json ./packages/api/package.json
+COPY --from=builder --chown=node:node /build/node_modules ./node_modules
+COPY --from=builder --chown=node:node /build/package.json /build/bun.lock ./
+COPY --from=builder --chown=node:node /build/packages/api/package.json ./packages/api/package.json
 
 # Built application bundle.
-COPY --from=builder /build/packages/api/dist ./packages/api/dist
+COPY --from=builder --chown=node:node /build/packages/api/dist ./packages/api/dist
 
 # The migration SQL and its journal.
 #
@@ -116,7 +122,7 @@ COPY --from=builder /build/packages/api/dist ./packages/api/dist
 # imports, so `build.ts` will never pull them in however the entrypoint changes.
 #
 # `dockerfileShipsRuntimeData.test.ts` is the gate.
-COPY --from=builder /build/packages/api/drizzle ./packages/api/drizzle
+COPY --from=builder --chown=node:node /build/packages/api/drizzle ./packages/api/drizzle
 
 # The system prompts.
 #
@@ -133,17 +139,16 @@ COPY --from=builder /build/packages/api/drizzle ./packages/api/drizzle
 # PROMPT AT ALL — degraded, never broken, and therefore invisible in every
 # check that asks whether a request succeeded. Found in CloudWatch while
 # tracing an unrelated failure, not by anything that was watching for it.
-COPY --from=builder /build/packages/api/prompts ./packages/api/prompts
+COPY --from=builder --chown=node:node /build/packages/api/prompts ./packages/api/prompts
 
 # The same fact once more, for the skills Alia ships. `lib/skills/seed.ts`
 # resolves `<package>/skills/<name>/SKILL.md` at runtime and the seed THROWS
 # when the directory is absent — deliberately, because the alternative symptom
 # is an empty Skills catalogue that reads as a product decision rather than as a
 # missing COPY.
-COPY --from=builder /build/packages/api/skills ./packages/api/skills
+COPY --from=builder --chown=node:node /build/packages/api/skills ./packages/api/skills
 
 # Security hardening: run as the unprivileged "node" user shipped in the image.
-RUN chown -R node:node /app
 USER node
 
 ENV NODE_ENV=production
