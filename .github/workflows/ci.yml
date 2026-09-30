@@ -119,7 +119,7 @@ permissions:
 #     naming codeload rather than a git error.
 #
 # So the request cannot be made to survive rate limiting. It can only be made
-# not to happen — which is what the cache below does. With `bun.lock` present
+# not to happen — which is what the git-dependency cache below does. With `bun.lock` present
 # the git ref is already pinned, so a warm cache satisfies the dependency with
 # ZERO GitHub requests.
 #
@@ -127,8 +127,62 @@ permissions:
 # unauthenticated, and can still be rate-limited. The first run after any
 # `bun.lock` change is a miss. Eliminating the fetch entirely means vendoring
 # the dependency or hosting our own tarball, which is a lockfile change.
+#
+# ONLY the git dependency is cached (`~/.bun/install/cache/@GH@*`, ~350 KB),
+# not the whole install cache. The whole cache was ~1.4 GB and cost more than
+# it saved: restore 38-61s + a save of 26-31s per job on a lockfile change,
+# with the install still taking 14-17s afterwards (runs 36489130108,
+# 36467705787, 36277127283), against a plain `bun install` from the npm
+# registry of ~10-11s measured locally from an empty cache. Measured
+# 2026-09-30 with `bun install --verbose`: an install cache holding only
+# `@GH@WhiskeySockets-libsignal-node-bcea72d@@@1` made ZERO requests to
+# api.github.com/codeload; an empty one (the control) made 5. So this entry
+# keeps the property above and drops the cost.
 
 jobs:
+  # Which second-wave jobs a PULL REQUEST needs. Push to main (and any other
+  # event) always runs everything: the conditions below only ever skip on
+  # `pull_request`.
+  #
+  # Deliberately narrow. `Lint & Test` and `Frontend Typecheck` are NOT
+  # filtered: the API's unit suite scans the whole tree (credential scan over
+  # git history, documentation samples, the ownership matrix, deploy workflow
+  # assertions) and `Frontend Typecheck` carries repo-wide checks (every
+  # workspace's typecheck, model defaults across every client, the colour
+  # vocabulary that crosses the API and the app). Only the three jobs whose
+  # inputs are one package are filtered: `Build API` and `API (Postgres)` read
+  # `packages/api` alone (no workspace dependency, no test reaching outside it)
+  # and `Integrations (Postgres)` reads `packages/integrations` alone. Shared
+  # inputs — the lockfile, the root manifest, bunfig and this workflow — mark
+  # both affected.
+  changes:
+    name: Changes
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      integrations: ${{ steps.filter.outputs.integrations }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            shared: &shared
+              - 'bun.lock'
+              - 'package.json'
+              - 'bunfig.toml'
+              - '.github/workflows/ci.yml'
+            api:
+              - *shared
+              - 'packages/api/**'
+            integrations:
+              - *shared
+              - 'packages/integrations/**'
+
   # Gates the rollout logic deploy-aws.yml runs against production. The script
   # and this harness are byte-identical copies of Mention's, so they share its
   # test rather than growing a second, drifting one.
@@ -223,13 +277,14 @@ jobs:
         with:
           node-version: 22
 
-      - name: Cache bun install cache
-        uses: actions/cache@v4
+      - name: Restore bun git-dependency cache
+        id: bun-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.bun/install/cache
-          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          path: ~/.bun/install/cache/@GH@*
+          key: bun-git-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
           restore-keys: |
-            bun-cache-${{ runner.os }}-
+            bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
 
       # bun 1.3.14's --frozen-lockfile falsely reports drift for this monorepo,
       # so we assert lockfile stability via `git diff --exit-code bun.lock` instead.
@@ -237,6 +292,17 @@ jobs:
         run: |
           bun install
           git diff --exit-code bun.lock
+
+      # The ONE writer of the git-dependency cache every job restores: a push
+      # to main, on an exact-key miss (a `bun.lock` change). A pull request's
+      # save would be scoped to its own ref, readable by nothing else, and two
+      # jobs saving the same key race for the reserve.
+      - name: Save bun git-dependency cache
+        if: github.event_name == 'push' && steps.bun-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache/@GH@*
+          key: ${{ steps.bun-cache.outputs.cache-primary-key }}
 
       - name: Verify Oxy dependency health
         run: bun run doctor:oxy
@@ -308,13 +374,14 @@ jobs:
         with:
           node-version: 22
 
-      - name: Cache bun install cache
-        uses: actions/cache@v4
+      - name: Restore bun git-dependency cache
+        id: bun-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.bun/install/cache
-          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          path: ~/.bun/install/cache/@GH@*
+          key: bun-git-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
           restore-keys: |
-            bun-cache-${{ runner.os }}-
+            bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
 
       # bun 1.3.14's --frozen-lockfile falsely reports drift for this monorepo,
       # so we assert lockfile stability via `git diff --exit-code bun.lock` instead.
@@ -480,7 +547,12 @@ jobs:
     name: Build API
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: lint-and-test
+    needs: [lint-and-test, changes]
+    # `changes` is skipped outside pull requests, so `!cancelled()` plus an
+    # explicit success check on `lint-and-test` replaces the implicit success().
+    if: >-
+      !cancelled() && needs.lint-and-test.result == 'success' &&
+      (github.event_name != 'pull_request' || needs.changes.outputs.api == 'true')
 
     steps:
       - uses: actions/checkout@v7
@@ -493,13 +565,14 @@ jobs:
         with:
           node-version: 22
 
-      - name: Cache bun install cache
-        uses: actions/cache@v4
+      - name: Restore bun git-dependency cache
+        id: bun-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.bun/install/cache
-          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          path: ~/.bun/install/cache/@GH@*
+          key: bun-git-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
           restore-keys: |
-            bun-cache-${{ runner.os }}-
+            bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
 
       # bun 1.3.14's --frozen-lockfile falsely reports drift for this monorepo,
       # so we assert lockfile stability via `git diff --exit-code bun.lock` instead.
@@ -515,7 +588,12 @@ jobs:
     name: Integrations (Postgres)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: lint-and-test
+    needs: [lint-and-test, changes]
+    # `changes` is skipped outside pull requests, so `!cancelled()` plus an
+    # explicit success check on `lint-and-test` replaces the implicit success().
+    if: >-
+      !cancelled() && needs.lint-and-test.result == 'success' &&
+      (github.event_name != 'pull_request' || needs.changes.outputs.integrations == 'true')
 
     # A REAL Postgres, because the properties this suite asserts — CHECK
     # constraints, unique indexes, ON DELETE CASCADE, ON CONFLICT — are enforced
@@ -548,13 +626,14 @@ jobs:
         with:
           node-version: 22
 
-      - name: Cache bun install cache
-        uses: actions/cache@v4
+      - name: Restore bun git-dependency cache
+        id: bun-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.bun/install/cache
-          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          path: ~/.bun/install/cache/@GH@*
+          key: bun-git-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
           restore-keys: |
-            bun-cache-${{ runner.os }}-
+            bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install dependencies
         run: |
@@ -576,7 +655,12 @@ jobs:
     name: API (Postgres)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: lint-and-test
+    needs: [lint-and-test, changes]
+    # `changes` is skipped outside pull requests, so `!cancelled()` plus an
+    # explicit success check on `lint-and-test` replaces the implicit success().
+    if: >-
+      !cancelled() && needs.lint-and-test.result == 'success' &&
+      (github.event_name != 'pull_request' || needs.changes.outputs.api == 'true')
 
     # A REAL Postgres, for the same reason the integrations job uses one: CHECK
     # constraints, unique indexes and ON CONFLICT are enforced by the server and
@@ -612,13 +696,14 @@ jobs:
         with:
           node-version: 22
 
-      - name: Cache bun install cache
-        uses: actions/cache@v4
+      - name: Restore bun git-dependency cache
+        id: bun-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.bun/install/cache
-          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          path: ~/.bun/install/cache/@GH@*
+          key: bun-git-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
           restore-keys: |
-            bun-cache-${{ runner.os }}-
+            bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install dependencies
         run: |
