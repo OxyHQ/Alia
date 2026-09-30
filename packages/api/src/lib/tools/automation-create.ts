@@ -12,7 +12,9 @@ export function createAutomationTool(userId: string, accessToken: string | undef
   return tool({
     description: [
       'Create an editable scheduled task only after the user clearly supplies what to do and when to do it.',
-      'For reminders, research, or an assistant response, use actions/resources/data-flow as empty arrays and select the responsible owned agent; do not fabricate an app or tool.',
+      'Alia is the responsible actor by default: omit actorSelection and Alia runs the task and posts each result into a conversation of its own for the user. Set actorSelection to one of their agents only when the user explicitly asks for that agent; never ask them to pick one.',
+      'For reminders, research, monitoring, or an assistant response, use actions/resources/data-flow as empty arrays; do not fabricate an app or tool.',
+      'Connected-app actions still need one of the user\'s agents as the actor.',
       'For a one-off task, encode its exact local date in the cron day/month fields and set inputs.runOnce to true; it is disabled atomically when that occurrence is claimed.',
       'For connected work, select only human-requested resources and exact app catalogue tools exposed by the current capability map.',
       'Use executionMode execute and maximumAutonomy autonomous for scheduled work. Creation schedules future work; it never runs the task immediately.',

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@oxy.so/db';
 import type { ApiDatabase, Executor } from '../index';
 import {
@@ -10,6 +10,7 @@ import {
   automationRuns,
   automationSteps,
   type AutomationActionLimit,
+  type AutomationActorMode,
   type AutomationDataFlow,
   type AutomationLimit,
   type AutomationResourceRef,
@@ -36,7 +37,7 @@ export interface AutomationDefinitionInput {
   eventResource?: AutomationResourceRef;
   scheduleCron?: string;
   scheduleTimezone?: string;
-  actorMode: 'fixed' | 'automatic';
+  actorMode: AutomationActorMode;
   fixedAgentId?: string;
   eligibleAgentIds: string[];
   id?: string;
@@ -61,7 +62,7 @@ export interface AutomationDefinitionUpdateInput {
   eventResource?: AutomationResourceRef;
   scheduleCron?: string;
   scheduleTimezone?: string;
-  actorMode: 'fixed' | 'automatic';
+  actorMode: AutomationActorMode;
   fixedAgentId?: string;
   eligibleAgentIds: string[];
   inputs: Record<string, unknown>;
@@ -119,6 +120,17 @@ async function assignmentsFor(executor: Executor, automationIds: string[]) {
   return byAutomation;
 }
 
+export type AutomationActorSelection =
+  | { mode: 'alia' }
+  | { mode: 'fixed'; agentId: string | null }
+  | { mode: 'automatic'; eligibleAgentIds: string[] };
+
+function actorSelectionOf(row: DefinitionRow, eligibleAgentIds: string[]): AutomationActorSelection {
+  if (row.actorMode === 'alia') return { mode: 'alia' };
+  if (row.actorMode === 'fixed') return { mode: 'fixed', agentId: row.fixedAgentId };
+  return { mode: 'automatic', eligibleAgentIds };
+}
+
 function toDefinition(
   row: DefinitionRow,
   eligibleAgentIds: string[],
@@ -133,9 +145,7 @@ function toDefinition(
       : row.triggerKind === 'event'
         ? { type: 'event' as const, appId: row.eventAppId, eventType: row.eventType, resource: row.eventResource }
         : { type: 'manual' as const },
-    actorSelection: row.actorMode === 'fixed'
-      ? { mode: 'fixed' as const, agentId: row.fixedAgentId }
-      : { mode: 'automatic' as const, eligibleAgentIds },
+    actorSelection: actorSelectionOf(row, eligibleAgentIds),
     executionMode: row.executionMode,
     actions,
     inputs: row.inputs,
@@ -144,6 +154,7 @@ function toDefinition(
     maximumAutonomy: row.maximumAutonomy,
     limits: row.limits,
     enabled: row.enabled,
+    conversationId: row.conversationId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -426,9 +437,13 @@ export async function matchingEventAutomations(
   ));
 }
 
+/** Who runs a run's stages: Alia itself, or the agents each stage names. */
+export type AutomationRunActorType = 'alia' | 'agent';
+
 export interface AutomationRunStageInput {
   stage: number;
-  selectedAgentId: string;
+  /** `null` exactly when Alia, not an agent, runs the stage. */
+  selectedAgentId: string | null;
   selectedActorAccountId: string;
   resource: AutomationResourceRef;
   taskInput: Record<string, unknown>;
@@ -445,19 +460,21 @@ function runStepRows(
   runId: string,
   stages: readonly AutomationRunStageInput[],
   status: 'planned' | 'observed',
+  actorType: AutomationRunActorType,
 ) {
   let position = 0;
   return stages.flatMap((stage) => {
     const startedAt = status === 'observed' ? new Date() : undefined;
+    const controlTool = `${actorType}.${status === 'observed' ? 'select' : 'run'}`;
     const control = {
       runId,
       position: position++,
       stage: stage.stage,
-      actorType: 'agent' as const,
+      actorType,
       agentId: stage.selectedAgentId,
       actorAccountId: stage.selectedActorAccountId,
       resource: stage.resource,
-      tool: status === 'observed' ? 'agent.select' : 'agent.run',
+      tool: controlTool,
       input: stage.taskInput,
       status,
       policyDecision: {
@@ -466,7 +483,7 @@ function runStepRows(
           ? 'observation_mode_no_execution'
           : 'actor_selected_deterministically',
       },
-      idempotencyKey: `${runId}:stage:${stage.stage}:${status === 'observed' ? 'agent.select' : 'agent.run'}`,
+      idempotencyKey: `${runId}:stage:${stage.stage}:${controlTool}`,
       ...(startedAt ? { startedAt, completedAt: startedAt } : {}),
     };
     return [
@@ -476,7 +493,7 @@ function runStepRows(
         automationActionId: action.id,
         position: position++,
         stage: stage.stage,
-        actorType: 'agent' as const,
+        actorType,
         agentId: stage.selectedAgentId,
         actorAccountId: stage.selectedActorAccountId,
         resource: action.resource,
@@ -496,6 +513,10 @@ function runStepRows(
   });
 }
 
+function selectedAgentIdsOf(stages: readonly AutomationRunStageInput[]): string[] {
+  return [...new Set(stages.flatMap((stage) => stage.selectedAgentId === null ? [] : [stage.selectedAgentId]))];
+}
+
 /** Insert one run plan. Callers use a transaction when session creation follows. */
 export async function claimAutomationRunPlan(input: {
   db: Executor;
@@ -504,13 +525,16 @@ export async function claimAutomationRunPlan(input: {
   requesterAccountId: string;
   triggerEventId: string;
   stages: readonly AutomationRunStageInput[];
+  /** Defaults to `agent`, the only actor before Alia could own a task. */
+  actorType?: AutomationRunActorType;
 }): Promise<boolean> {
-  const selectedAgentIds = [...new Set(input.stages.map((stage) => stage.selectedAgentId))];
+  const actorType = input.actorType ?? 'agent';
+  const selectedAgentIds = selectedAgentIdsOf(input.stages);
   const inserted = await input.db.insert(automationRuns).values({
     id: input.runId,
     automationId: input.automationId,
     requesterAccountId: input.requesterAccountId,
-    selectedActorType: 'agent',
+    selectedActorType: actorType,
     selectedAgentId: selectedAgentIds.length === 1 ? selectedAgentIds[0] : null,
     triggerEventId: input.triggerEventId,
     idempotencyKey: `${input.automationId}:${input.triggerEventId}`,
@@ -523,7 +547,7 @@ export async function claimAutomationRunPlan(input: {
     startedAt: new Date(),
   }).onConflictDoNothing({ target: automationRuns.idempotencyKey }).returning({ id: automationRuns.id });
   if (inserted.length === 0) return false;
-  await input.db.insert(automationSteps).values(runStepRows(input.runId, input.stages, 'planned'));
+  await input.db.insert(automationSteps).values(runStepRows(input.runId, input.stages, 'planned', actorType));
   return true;
 }
 
@@ -534,16 +558,18 @@ export async function createObservedAutomationRun(input: {
   requesterAccountId: string;
   triggerEventId: string;
   stages: readonly AutomationRunStageInput[];
+  actorType?: AutomationRunActorType;
 }): Promise<boolean> {
   const runId = uuidv7();
+  const actorType = input.actorType ?? 'agent';
   return input.db.transaction(async (transaction) => {
     const now = new Date();
-    const selectedAgentIds = [...new Set(input.stages.map((stage) => stage.selectedAgentId))];
+    const selectedAgentIds = selectedAgentIdsOf(input.stages);
     const inserted = await transaction.insert(automationRuns).values({
       id: runId,
       automationId: input.automationId,
       requesterAccountId: input.requesterAccountId,
-      selectedActorType: 'agent',
+      selectedActorType: actorType,
       selectedAgentId: selectedAgentIds.length === 1 ? selectedAgentIds[0] : null,
       triggerEventId: input.triggerEventId,
       idempotencyKey: `${input.automationId}:${input.triggerEventId}`,
@@ -553,7 +579,7 @@ export async function createObservedAutomationRun(input: {
       completedAt: now,
     }).onConflictDoNothing({ target: automationRuns.idempotencyKey }).returning({ id: automationRuns.id });
     if (inserted.length === 0) return false;
-    await transaction.insert(automationSteps).values(runStepRows(runId, input.stages, 'observed'));
+    await transaction.insert(automationSteps).values(runStepRows(runId, input.stages, 'observed', actorType));
     return true;
   });
 }
@@ -879,4 +905,72 @@ export async function automationRunExists(db: Executor, automationId: string, tr
     .where(eq(automationRuns.idempotencyKey, `${automationId}:${triggerEventId}`))
     .limit(1);
   return row !== undefined;
+}
+
+/** One run, for a worker that holds only its id. */
+export async function findAutomationRunById(db: Executor, runId: string) {
+  const [row] = await db.select().from(automationRuns)
+    .where(eq(automationRuns.id, runId))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Move a run Alia runs itself, and its control step, to `status`.
+ *
+ * The agent path goes through {@link markAutomationRunForSession}, which finds
+ * the run through its session and walks stages; an Alia run has neither — one
+ * stage, no session — so it is addressed by its own id. A terminal run is left
+ * as it is: a retried job must not reopen a run that already settled.
+ */
+export async function markAliaAutomationRun(
+  db: ApiDatabase,
+  runId: string,
+  status: 'running' | 'succeeded' | 'failed',
+): Promise<void> {
+  const open = ['planned', 'running'];
+  await db.transaction(async (transaction) => {
+    const now = new Date();
+    const [run] = await transaction.update(automationRuns)
+      .set(status === 'running' ? { status } : { status, completedAt: now })
+      .where(and(
+        eq(automationRuns.id, runId),
+        eq(automationRuns.selectedActorType, 'alia'),
+        inArray(automationRuns.status, open),
+      ))
+      .returning({ id: automationRuns.id });
+    if (!run) return;
+    await transaction.update(automationSteps)
+      .set(status === 'running' ? { status, startedAt: now } : { status, completedAt: now })
+      .where(and(
+        eq(automationSteps.runId, runId),
+        eq(automationSteps.tool, 'alia.run'),
+        inArray(automationSteps.status, open),
+      ));
+  });
+}
+
+/**
+ * The conversation an Alia task delivers into, claimed once.
+ *
+ * Only a NULL is written, so two runs racing to deliver the first result agree
+ * on whichever id landed first. `updatedAt` is written back unchanged: it is
+ * the editor's optimistic-concurrency token and the scheduler's change marker,
+ * and choosing where results go is neither an edit nor a schedule change.
+ */
+export async function claimAutomationConversation(
+  db: Executor,
+  automationId: string,
+  conversationId: string,
+): Promise<string | null> {
+  const [claimed] = await db.update(automationDefinitions)
+    .set({ conversationId, updatedAt: sql`${automationDefinitions.updatedAt}` })
+    .where(and(eq(automationDefinitions.id, automationId), isNull(automationDefinitions.conversationId)))
+    .returning({ conversationId: automationDefinitions.conversationId });
+  if (claimed) return claimed.conversationId;
+  const [row] = await db.select({ conversationId: automationDefinitions.conversationId })
+    .from(automationDefinitions)
+    .where(eq(automationDefinitions.id, automationId))
+    .limit(1);
+  return row?.conversationId ?? null;
 }

@@ -438,8 +438,11 @@ The legacy trigger model is gone: the `/triggers` routes, the `triggers` and
 migrations 0069 and 0070. Active work is created and edited only through
 `/automations`.
 
-Who an automation may run is one rule, shared by creation and dispatch
-(`lib/automation-actors.ts`): the owner's own agent (`owner_oxy_account_id`), or
+Every task has a responsible actor. Alia is the default (`actor_mode = 'alia'`):
+she runs it herself with no agent and posts results into a conversation of the
+task's own — see `docs/proactive-intelligence.md`. When a person names one of
+their agents instead, which agent may run it is one rule, shared by creation and
+dispatch (`lib/automation-actors.ts`): the owner's own agent (`owner_oxy_account_id`), or
 a public, active marketplace agent — never by `author`, and never a
 product-bound one. Every stage holds credits like a goal does.
 

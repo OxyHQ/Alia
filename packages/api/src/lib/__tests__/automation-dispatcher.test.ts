@@ -6,6 +6,8 @@ const state = vi.hoisted(() => ({
   createSession: vi.fn(),
   disable: vi.fn(),
   enqueue: vi.fn(),
+  enqueueAlia: vi.fn(),
+  markAliaRun: vi.fn(),
   findAgent: vi.fn(),
   markRun: vi.fn(),
   notify: vi.fn(),
@@ -26,6 +28,7 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
   claimAutomationRunPlan: state.createRun,
   createObservedAutomationRun: state.observe,
   listActiveAutomationAuthorizations: state.activeAuthorizations,
+  markAliaAutomationRun: state.markAliaRun,
   markAutomationRunForSession: state.markRun,
   setAutomationEnabled: state.disable,
 }));
@@ -36,6 +39,7 @@ vi.mock('../../db/agents/agentSessionRepository.js', () => ({
 }));
 vi.mock('../tools/oxy-services.js', () => ({ getOxyAgentCapabilityMap: state.oxyMap }));
 vi.mock('../task-queue.js', () => ({ enqueueAgentSession: state.enqueue }));
+vi.mock('../alia-task-queue.js', () => ({ enqueueAliaTask: state.enqueueAlia }));
 vi.mock('../notification-service.js', () => ({ sendNotification: state.notify }));
 vi.mock('../credits-manager.js', () => ({ reserveCredits: state.reserve, safeRefund: state.refund }));
 vi.mock('../user-credits-helpers.js', () => ({ getOrCreateUserCredits: vi.fn(async () => undefined) }));
@@ -133,6 +137,8 @@ beforeEach(() => {
   state.createRun.mockResolvedValue(true);
   state.disable.mockResolvedValue({ id: 'automation-1', enabled: false });
   state.enqueue.mockResolvedValue(undefined);
+  state.enqueueAlia.mockResolvedValue({ queued: true });
+  state.markAliaRun.mockResolvedValue(undefined);
   state.updateSession.mockResolvedValue(undefined);
   state.markRun.mockResolvedValue(undefined);
   state.notify.mockResolvedValue(undefined);
@@ -239,7 +245,7 @@ describe('normalized automation dispatch', () => {
     await expect(dispatchStructuredAutomation(
       automation({ executionMode: 'execute' }),
       scheduleTrigger,
-    )).resolves.toEqual({ status: 'queued', sessionId: 'session-1' });
+    )).resolves.toEqual({ status: 'queued', runId: expect.any(String), sessionId: 'session-1' });
 
     expect(state.createRun).toHaveBeenCalledWith(expect.objectContaining({
       db: database,
@@ -266,7 +272,7 @@ describe('normalized automation dispatch', () => {
         inputs: { instructions: 'Remind me to call Alex' },
       }),
       scheduleTrigger,
-    )).resolves.toEqual({ status: 'queued', sessionId: 'session-1' });
+    )).resolves.toEqual({ status: 'queued', runId: expect.any(String), sessionId: 'session-1' });
 
     expect(state.oxyMap).not.toHaveBeenCalled();
     expect(state.activeAuthorizations).not.toHaveBeenCalled();
@@ -308,7 +314,7 @@ describe('normalized automation dispatch', () => {
         trigger: { type: 'manual' },
       }),
       manualTrigger,
-    )).resolves.toEqual({ status: 'queued', sessionId: 'session-1' });
+    )).resolves.toEqual({ status: 'queued', runId: expect.any(String), sessionId: 'session-1' });
 
     expect(state.oxyMap).toHaveBeenCalledWith(expect.objectContaining({
       ownerAccountId: 'owner-1',
@@ -424,6 +430,94 @@ describe('normalized automation dispatch', () => {
       .resolves.toEqual({ status: 'denied', reason: 'insufficient_credits' });
     expect(state.createRun).not.toHaveBeenCalled();
     expect(state.createSession).not.toHaveBeenCalled();
+    expect(state.notify).toHaveBeenCalled();
+  });
+});
+
+describe('a task Alia is responsible for', () => {
+  const aliaTask = (overrides: Record<string, unknown> = {}) => automation({
+    objective: 'Track the latest releases from Meta',
+    actorSelection: { mode: 'alia' },
+    executionMode: 'execute',
+    actions: [],
+    resources: [],
+    dataFlow: { sources: [], destinations: [] },
+    inputs: { instructions: 'Tell me when Meta announces something new' },
+    ...overrides,
+  });
+
+  it('claims the run with Alia as its actor and queues an Alia job, not an agent session', async () => {
+    const result = await dispatchStructuredAutomation(aliaTask(), scheduleTrigger);
+
+    expect(result).toEqual({ status: 'queued', runId: expect.any(String) });
+    const runId = (result as { runId: string }).runId;
+    expect(state.findAgent).not.toHaveBeenCalled();
+    expect(state.createRun).toHaveBeenCalledWith(expect.objectContaining({
+      db: database,
+      runId,
+      automationId: 'automation-1',
+      requesterAccountId: 'owner-1',
+      triggerEventId: scheduleTrigger.id,
+      actorType: 'alia',
+      stages: [expect.objectContaining({
+        selectedAgentId: null,
+        selectedActorAccountId: 'owner-1',
+        actions: [],
+        taskInput: expect.objectContaining({ objective: 'Track the latest releases from Meta' }),
+      })],
+    }));
+    expect(state.enqueueAlia).toHaveBeenCalledWith({
+      runId,
+      automationId: 'automation-1',
+      userId: 'owner-1',
+      creditReservation: RESERVATION,
+    });
+    expect(state.createSession).not.toHaveBeenCalled();
+    expect(state.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('records an observed run under Alia without holding credits', async () => {
+    await expect(dispatchStructuredAutomation(aliaTask({ executionMode: 'observe' }), scheduleTrigger))
+      .resolves.toEqual({ status: 'observed' });
+
+    expect(state.observe).toHaveBeenCalledWith(expect.objectContaining({
+      actorType: 'alia',
+      stages: [expect.objectContaining({ selectedAgentId: null })],
+    }));
+    expect(state.reserve).not.toHaveBeenCalled();
+    expect(state.enqueueAlia).not.toHaveBeenCalled();
+  });
+
+  it('disables a one-off Alia task in the transaction that claims its run', async () => {
+    await dispatchStructuredAutomation(aliaTask({ inputs: { instructions: 'Remind me', runOnce: true } }), scheduleTrigger);
+
+    expect(state.disable).toHaveBeenCalledWith(database, 'automation-1', 'owner-1', false);
+    expect(state.enqueueAlia).toHaveBeenCalled();
+  });
+
+  it('gives the hold back and queues nothing for a duplicate occurrence', async () => {
+    state.createRun.mockResolvedValueOnce(false);
+
+    await expect(dispatchStructuredAutomation(aliaTask(), scheduleTrigger)).resolves.toEqual({ status: 'duplicate' });
+    expect(state.refund).toHaveBeenCalledWith(RESERVATION, 'duplicate automation run');
+    expect(state.enqueueAlia).not.toHaveBeenCalled();
+  });
+
+  it('fails the run and refunds when the job cannot be queued', async () => {
+    state.enqueueAlia.mockRejectedValueOnce(new Error('redis down'));
+
+    await expect(dispatchStructuredAutomation(aliaTask(), scheduleTrigger)).rejects.toThrow('redis down');
+    expect(state.markAliaRun).toHaveBeenCalledWith(database, expect.any(String), 'failed');
+    expect(state.refund).toHaveBeenCalledWith(RESERVATION, 'automation run could not be queued');
+  });
+
+  it('refuses connected actions for Alia with a typed reason', async () => {
+    await expect(dispatchStructuredAutomation(aliaTask({ actions }), scheduleTrigger)).resolves.toEqual({
+      status: 'denied',
+      reason: 'alia_connected_actions_not_yet_supported',
+    });
+    expect(state.createRun).not.toHaveBeenCalled();
+    expect(state.reserve).not.toHaveBeenCalled();
     expect(state.notify).toHaveBeenCalled();
   });
 });

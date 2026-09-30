@@ -45,6 +45,7 @@ import { log } from './logger.js';
 import { startAgentRunReaper, stopAgentRunReaper } from './agent/run-reaper.js';
 import { initShowQueue, shutdownShowQueue, startShowWorker } from './show/show-queue.js';
 import { initTaskQueue, shutdownTaskQueue, startWorker } from './task-queue.js';
+import { initAliaTaskQueue, shutdownAliaTaskQueue, startAliaTaskWorker } from './alia-task-queue.js';
 import { startSkillRegistrySync, stopSkillRegistrySync } from './skills/scheduler.js';
 import { startTriggerEngine, stopTriggerEngine } from './trigger-engine.js';
 
@@ -69,6 +70,10 @@ export function startBackgroundServices(): void {
   initTaskQueue()
     .then(() => startWorker())
     .catch((err) => log.general.error({ err }, '[TaskQueue] Startup error'));
+  // Scheduled tasks Alia herself is responsible for (non-blocking)
+  initAliaTaskQueue()
+    .then(() => startAliaTaskWorker())
+    .catch((err) => log.general.error({ err }, '[AliaTaskQueue] Startup error'));
   // Clean up orphaned audio jobs from previous process crashes (non-blocking).
   failOrphanedAudioJobs(getDb())
     .then((count) => {
@@ -122,6 +127,7 @@ export async function stopBackgroundServices(): Promise<void> {
 
   // Close task queue (drains in-flight jobs)
   await shutdownTaskQueue();
+  await shutdownAliaTaskQueue();
   await shutdownShowQueue();
   log.general.info('Task queues shut down');
 }

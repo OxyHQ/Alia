@@ -6,7 +6,13 @@ import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
 
 export const AUTOMATION_TRIGGER_KINDS = ['manual', 'event', 'schedule'] as const;
-export const AUTOMATION_ACTOR_MODES = ['fixed', 'automatic'] as const;
+/**
+ * Who is responsible for a task. `alia` is the default and needs no agent:
+ * Alia runs it for its owner and answers in a conversation of its own
+ * (`conversationId`). `fixed`/`automatic` name one or more of the person's agents.
+ */
+export const AUTOMATION_ACTOR_MODES = ['alia', 'fixed', 'automatic'] as const;
+export type AutomationActorMode = (typeof AUTOMATION_ACTOR_MODES)[number];
 export const AUTOMATION_EXECUTION_MODES = ['observe', 'execute'] as const;
 export const AUTOMATION_AUTONOMY_LEVELS = ['read_only', 'draft', 'execute_on_request', 'autonomous'] as const;
 export const AUTOMATION_RUN_STATUSES = ['planned', 'running', 'observed', 'succeeded', 'failed', 'cancelled'] as const;
@@ -48,8 +54,12 @@ export const automationDefinitions = pgTable(
     eventResource: jsonb().$type<AutomationResourceRef>(),
     scheduleCron: text(),
     scheduleTimezone: text(),
-    actorMode: text({ enum: AUTOMATION_ACTOR_MODES as unknown as [string, ...string[]] }).notNull(),
+    actorMode: text({ enum: AUTOMATION_ACTOR_MODES as unknown as [string, ...string[]] })
+      .$type<AutomationActorMode>()
+      .notNull(),
     fixedAgentId: text(),
+    /** The Alia conversation an `alia` task's results land in; set by its first run. */
+    conversationId: text(),
     executionMode: text({ enum: AUTOMATION_EXECUTION_MODES as unknown as [string, ...string[]] })
       .$type<(typeof AUTOMATION_EXECUTION_MODES)[number]>()
       .notNull()

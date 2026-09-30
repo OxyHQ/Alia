@@ -39,6 +39,7 @@ export function actorLabel(
   agentName: (agentId: string) => string,
   t: Translate,
 ): string {
+  if (selection.mode === 'alia') return t('automations.actor.alia');
   if (selection.mode === 'fixed') {
     return selection.agentId ? agentName(selection.agentId) : t('automations.actor.none');
   }
