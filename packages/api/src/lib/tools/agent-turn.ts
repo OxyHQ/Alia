@@ -154,6 +154,8 @@ export async function runAgentTurn(input: {
     userId: agent.oxyAccountId,
     isDirectSession: false,
     actsForPerson: false,
+    // Whoever asked: the agent's Oxy tools reach its owner's apps only for them.
+    requesterAccountId: payerOxyUserId,
     agentMode: false,
     toolsEnabled: true,
     webSearch: true,
