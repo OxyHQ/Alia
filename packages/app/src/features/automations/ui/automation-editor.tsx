@@ -186,8 +186,8 @@ export function AutomationEditor({
               }
               rightElement={
                 <Switch
-                  value={enabled}
-                  onValueChange={setEnabled}
+                  checked={enabled}
+                  onCheckedChange={setEnabled}
                   accessibilityLabel={t('automations.editor.active')}
                 />
               }

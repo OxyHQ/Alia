@@ -275,6 +275,7 @@ function TierSummary({ tier, props }: { tier: PricingTier; props: PlanGridProps 
     billingPeriod,
     props.tiers,
   );
+  const emphasised = tier.isFeatured && !button.label.includes('downgrade');
   return (
     <View className="w-full gap-3">
       {tier.monthlyPrice === 0 ? (
@@ -295,7 +296,8 @@ function TierSummary({ tier, props }: { tier: PricingTier; props: PlanGridProps 
       )}
       <Muted>{tier.creditsLabel}</Muted>
       <Button
-        variant={tier.isFeatured && !button.label.includes('downgrade') ? 'primary' : 'secondary'}
+        appearance={emphasised ? 'solid' : 'outline'}
+        tone={emphasised ? 'accent' : 'neutral'}
         size="sm"
         className="w-full"
         onPress={() => onSubscribe(tier.id)}

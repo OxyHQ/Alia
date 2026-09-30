@@ -405,7 +405,8 @@ export const ConversationScreen = ({
             pointerEvents="box-none"
           >
             <Button
-              variant="secondary"
+              appearance="outline"
+              tone="neutral"
               size="sm"
               onPress={handleBackToLatest}
             >

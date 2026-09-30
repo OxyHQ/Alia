@@ -112,9 +112,9 @@ export function AutomationCard({
               automation.enabled ? 'automations.card.pause' : 'automations.card.resume',
               { title },
             )}
-            value={automation.enabled}
+            checked={automation.enabled}
             disabled={controlsDisabled}
-            onValueChange={(enabled) => onToggle(automation, enabled)}
+            onCheckedChange={(enabled) => onToggle(automation, enabled)}
           />
         }
       />

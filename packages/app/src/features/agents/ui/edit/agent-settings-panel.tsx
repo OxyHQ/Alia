@@ -97,8 +97,8 @@ export function AgentSettingsPanel({
           rightElement={
             <Switch
               accessibilityLabel={t('agents.accessPublic')}
-              value={access === 'public'}
-              onValueChange={(next) =>
+              checked={access === 'public'}
+              onCheckedChange={(next) =>
                 onEdit({ access: next ? 'public' : 'private' })
               }
             />

@@ -269,8 +269,8 @@ export default function EditSkillScreen() {
             rightElement={
               <Switch
                 accessibilityLabel={t('skills.publish')}
-                value={isPublic}
-                onValueChange={setIsPublic}
+                checked={isPublic}
+                onCheckedChange={setIsPublic}
               />
             }
           />

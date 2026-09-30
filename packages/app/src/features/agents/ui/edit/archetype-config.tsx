@@ -89,8 +89,8 @@ function StatusUpdateConfig({ config, onChange }: ConfigProps) {
           rightElement={
             <Switch
               accessibilityLabel={t('agents.archetype.compareWithPrevious')}
-              value={config.compareWithPrevious || false}
-              onValueChange={(val) =>
+              checked={config.compareWithPrevious || false}
+              onCheckedChange={(val) =>
                 onChange({ ...config, compareWithPrevious: val })
               }
             />
@@ -120,8 +120,8 @@ function QaConfig({ config, onChange }: ConfigProps) {
           rightElement={
             <Switch
               accessibilityLabel={t('agents.archetype.citeSources')}
-              value={config.citeSources !== false}
-              onValueChange={(val) => onChange({ ...config, citeSources: val })}
+              checked={config.citeSources !== false}
+              onCheckedChange={(val) => onChange({ ...config, citeSources: val })}
             />
           }
         />

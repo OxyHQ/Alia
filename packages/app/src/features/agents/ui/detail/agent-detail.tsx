@@ -107,8 +107,8 @@ export function AgentDetail({ agent }: { agent: Agent }) {
                 rightElement={
                   <Switch
                     accessibilityLabel={t('agents.acceptingHires')}
-                    value={agent.status === 'active'}
-                    onValueChange={(on) =>
+                    checked={agent.status === 'active'}
+                    onCheckedChange={(on) =>
                       actions.handleStatusToggle(on ? 'active' : 'idle')
                     }
                   />
