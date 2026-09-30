@@ -272,6 +272,31 @@ describe('an agent reaches exactly what it was granted', () => {
     expect(asked.oxy_context).toEqual([]);
   });
 
+  it('reaches its owner\'s Oxy apps only when the owner is the one present', async () => {
+    // A public agent answering somebody else: the turn is the stranger's.
+    await namesFor([...EVERY_GRANT], { userId: 'stranger', agent: agentWith([...EVERY_GRANT], 'owner-1') });
+    // A stranger on the agent's bot, where the turn runs as the owner.
+    await namesFor([...EVERY_GRANT], {
+      userId: 'owner-1',
+      requesterAccountId: 'stranger',
+      agent: agentWith([...EVERY_GRANT], 'owner-1'),
+    });
+    await namesFor([...EVERY_GRANT], {
+      userId: 'owner-1',
+      requesterAccountId: null,
+      agent: agentWith([...EVERY_GRANT], 'owner-1'),
+    });
+    expect(asked.oxy_context).toEqual([]);
+
+    // The control: the owner on the same bot.
+    await namesFor([...EVERY_GRANT], {
+      userId: 'owner-1',
+      requesterAccountId: 'owner-1',
+      agent: agentWith([...EVERY_GRANT], 'owner-1'),
+    });
+    expect(asked.oxy_context).toEqual([expect.objectContaining({ requesterAccountId: 'owner-1' })]);
+  });
+
   it('gets ONLY the ungranted tools when its grant list is empty', async () => {
     const names = await namesFor([]);
 

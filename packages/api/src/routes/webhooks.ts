@@ -473,13 +473,20 @@ export async function processAgentBotMessage(
      * answering here could not reach a single first-party Oxy service. It can
      * now, on the same assembly every other surface uses.
      */
+    /**
+     * Anyone can write to an agent's bot. Only its owner, recognised by a
+     * linked Oxy account, gets the owner's personal tools (memory, triggers,
+     * connectors, Oxy apps); a stranger talks to the agent itself.
+     */
+    const speakerAccountId = botUser.isLinked ? botUser.oxyUserId ?? null : null;
+    const speakerIsOwner = speakerAccountId === ownerUserId;
     const { tools, routing: toolRouting, appCatalogPrompt } = await ToolPipeline.forUser({
       userId: ownerUserId,
-      // A bot turn has no browser session and no bearer of its own: it acts for
-      // the OWNER, on their credits, through the token-less server paths.
+      // A bot turn has no browser session and no bearer of its own: it runs on
+      // the OWNER's credits, through the token-less server paths.
       isDirectSession: false,
-      // No bearer, but it answers FOR the bot owner and on their credits.
-      actsForPerson: true,
+      actsForPerson: speakerIsOwner,
+      requesterAccountId: speakerAccountId,
       agentMode: false,
       toolsEnabled: true,
       webSearch: true,

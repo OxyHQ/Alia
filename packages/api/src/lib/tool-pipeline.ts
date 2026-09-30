@@ -137,6 +137,17 @@ export interface ForUserOptions {
    * `isDirectSession` was standing in for here, and it is now said directly.
    */
   actsForPerson: boolean;
+  /**
+   * The authenticated person present in this turn, when it is not `userId`.
+   *
+   * An agent's Oxy tools reach its OWNER's apps (the requester Oxy is told is
+   * `agent.ownerOxyAccountId`), so they may only be built when the person the
+   * agent is answering IS that owner. A stranger on an agent's Telegram bot, or
+   * someone delegating to a public agent, is not — and must never be handed the
+   * owner's inbox. `null` means nobody identifiable is present. Defaults to
+   * `userId`.
+   */
+  requesterAccountId?: string | null;
   agentMode: boolean;
   requestId?: string;
   /** Correlation id shared by every Oxy subaction in this run. */
@@ -321,6 +332,7 @@ export class ToolPipeline {
       accessToken,
       isDirectSession,
       actsForPerson,
+      requesterAccountId = opts.userId,
       agentMode,
       toolsEnabled,
       agent,
@@ -574,6 +586,8 @@ export class ToolPipeline {
       instancedSources === undefined || instancedSources.includes(family);
 
     const oxyOwnerAccountId = agent ? agent.ownerOxyAccountId : userId;
+    // Owner data only for the owner: see `ForUserOptions.requesterAccountId`.
+    const ownerIsPresent = oxyOwnerAccountId != null && requesterAccountId === oxyOwnerAccountId;
     const [mcpTools, integrationTools, oxyServiceTools, ownAgentTools] = await Promise.all([
           actsForPerson && wants('mcp')
             ? buildMcpTools(userId, mcpSelection(mcpServerId, grants)).catch(bulkFailure('mcp'))
@@ -582,7 +596,7 @@ export class ToolPipeline {
             ? buildIntegrationTools(userId, grants.instances('integration') ?? undefined)
                 .catch(bulkFailure('integration'))
             : {},
-          !wants('oxy_service') || (!actsForPerson && !agent) || oxyOwnerAccountId == null
+          !wants('oxy_service') || (!actsForPerson && !agent) || !ownerIsPresent
             ? {}
             : buildOxyServiceTools(userId, {
                 requesterAccountId: oxyOwnerAccountId,

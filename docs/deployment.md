@@ -204,12 +204,13 @@ list is enumerated one secret at a time on purpose: a workflow that walks the wh
 human approval. **Adding a new secret means adding it to that list, or it never reaches
 SSM.**
 
-`/oxy/alia/INTEGRATIONS_SECRET`,
-`/oxy/alia-integrations/DATABASE_URL` and the Oxy-provisioned
-`/oxy/alia/OXY_SERVICE_API_*` pair are SSM-owned exceptions. Deploys verify only
-their name and type, never retrieve, decrypt, log or overwrite their value. The
-Oxy pair comes from the ApplicationCredential record and its provisioning
-workflow, never from an Alia GitHub secret.
+`/oxy/alia/INTEGRATIONS_SECRET` and `/oxy/alia-integrations/DATABASE_URL` are
+SSM-owned exceptions. Deploys verify only their name and type, never retrieve,
+decrypt, log or overwrite their value. The old `/oxy/alia/OXY_SERVICE_API_*`
+pair is no longer injected (`TASK_SECRET_REMOVALS_JSON` in `deploy-aws.yml`):
+production Alia is an attested workload, so what it may do on Oxy is the
+`oxy-alia-task` binding's scopes — `capability-tickets:issue` included, or no
+Oxy app tool can run.
 
 Never set a repository secret to a placeholder. The sync job overwrites the real value.
 

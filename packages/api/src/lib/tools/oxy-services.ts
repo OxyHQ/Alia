@@ -95,12 +95,38 @@ const defsCache = new TTLCache<CatalogDef[]>({ ttlMs: 60_000, maxSize: 1 });
 const contextCache = new TTLCache<string>({ ttlMs: 60_000, maxSize: 2_000 });
 const DEFS_KEY = 'catalogs';
 
+/**
+ * Oxy refused the AUTHORITY for a call — the execution authorization, the
+ * ticket, or the app's check of that ticket — as opposed to the app answering
+ * the request itself (a missing message, a bad argument).
+ *
+ * The distinction is what the model is told. Oxy apps are first-party: the
+ * person is signed in to Oxy and Alia reaches their apps with no connect step,
+ * so an authority refusal is always Alia's or Oxy's problem and never
+ * something the person can fix. Handing the model the raw reason
+ * (`coordinator_not_active_or_authorized`, "No direct or automation authority
+ * exists…") made it tell people to "connect or authorize your inbox". The
+ * real reason goes to the log; the model gets `oxy_app_unavailable`.
+ */
+export class OxyAuthorityUnavailableError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'OxyAuthorityUnavailableError';
+  }
+}
+
 async function safeExecute(service: string, operation: () => Promise<unknown>): Promise<unknown> {
   try {
     return await operation();
   } catch (error: unknown) {
     log.general.warn({ err: error, service }, 'Oxy capability tool error');
-    return { error: `Could not access ${service}: ${getErrorMessage(error).slice(0, 180)}` };
+    if (error instanceof OxyAuthorityUnavailableError) {
+      return {
+        error: 'oxy_app_unavailable',
+        message: `${appDisplayName(service)} is temporarily unavailable. This is a temporary problem on Oxy's side: the person's Oxy apps need no connection or authorization, so never ask them to connect, sign in to or authorize anything. Say it is unavailable right now and suggest trying again shortly.`,
+      };
+    }
+    return { error: `${appDisplayName(service)} could not complete the request: ${getErrorMessage(error).slice(0, 180)}` };
   }
 }
 
@@ -345,12 +371,17 @@ async function issueTicket(
   const preauthorized = context.executionAuthorizations?.[
     oxyExecutionAuthorizationKey(resource, definition.name)
   ];
-  const executionAuthorizationId = preauthorized?.id ?? await createDirectExecutionAuthorization(
-    context,
-    resource,
-    definition,
-    runId,
-  );
+  let executionAuthorizationId: string;
+  try {
+    executionAuthorizationId = preauthorized?.id ?? await createDirectExecutionAuthorization(
+      context,
+      resource,
+      definition,
+      runId,
+    );
+  } catch (error: unknown) {
+    throw new OxyAuthorityUnavailableError(getErrorMessage(error), { cause: error });
+  }
   try {
     const parsed = ticketResponseSchema.parse(await oxyAuthorityFetch('/capabilities/tickets', {
       method: 'POST',
@@ -370,7 +401,7 @@ async function issueTicket(
     if (!preauthorized) {
       await revokeTransientAuthorization(context, executionAuthorizationId, runId, definition.name);
     }
-    throw error;
+    throw new OxyAuthorityUnavailableError(getErrorMessage(error), { cause: error });
   }
 }
 
@@ -406,7 +437,13 @@ async function callBoundTool(
       ...(body ? { body: JSON.stringify(body) } : {}),
       signal: AbortSignal.timeout(TOOL_TIMEOUT_MS),
     });
-    if (!response.ok) throw new Error(`Oxy app error (${response.status}): ${(await response.text()).slice(0, 240)}`);
+    if (!response.ok) {
+      const message = `Oxy app error (${response.status}): ${(await response.text()).slice(0, 240)}`;
+      // 401/403 is the app refusing the ticket, not the request.
+      throw response.status === 401 || response.status === 403
+        ? new OxyAuthorityUnavailableError(message)
+        : new Error(message);
+    }
     const result = await (response.headers.get('content-type')?.includes('application/json')
       ? response.json()
       : response.text());
@@ -511,7 +548,7 @@ export async function getOxyServiceContext(userId: string, accessToken: string):
       resource: { appId: 'inbox', effectiveAccountId: userId, resourceType: 'email_account', resourceId: userId },
       suffix: null,
     }, {}, context);
-    const rendered = `\n\n## Connected Services Context\n- **Inbox**: ${JSON.stringify(result)}`;
+    const rendered = `\n\n## The person's Oxy apps\n- **Inbox** (their own Oxy mailbox, already available to you): ${JSON.stringify(result)}`;
     contextCache.set(userId, rendered);
     return rendered;
   } catch (error: unknown) {
@@ -525,7 +562,7 @@ export function getOxyServicePromptFragment(_oxyUserId: string): string {
   if (!defs?.length) return '';
   const lines = defs.map((service) => {
     const names = service.compiledTools.map((entry) => `oxy_${sanitizeName(service.catalog.appId)}__${sanitizeName(entry.definition.name)}`);
-    return `- **${service.displayName}**: ${names.join(', ')}. Access and autonomy are checked for every call.`;
+    return `- **${service.displayName}**: ${names.join(', ')}.`;
   });
-  return '\n\n## Connected Oxy Services\nUse the user or agent\'s delegated Oxy app capabilities through these tools.\n' + lines.join('\n');
+  return '\n\n## Oxy apps\nOxy apps are first-party: the person\'s Oxy account already reaches them, with nothing to connect or authorize. Use these tools directly.\n' + lines.join('\n');
 }
