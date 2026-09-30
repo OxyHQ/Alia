@@ -46,10 +46,14 @@ function resolved(): ResolvedModel {
   };
 }
 
-async function requestFor(reasoningEffort: ReasoningEffort | null, serviceToken?: string): Promise<Record<string, unknown>> {
+async function requestFor(
+  reasoningEffort: ReasoningEffort | null,
+  serviceToken?: string,
+  body: Record<string, unknown> = {},
+): Promise<Record<string, unknown>> {
   const { config, clearFirstByteTimer } = buildBaseConfig({
     resolved: resolved(),
-    body: {},
+    body,
     convertedMessages: [{ role: 'user', content: 'hello' }],
     truncatedTools: {},
     reasoningEffort,
@@ -102,6 +106,18 @@ describe('reasoning crosses the Oxy inference boundary', () => {
     await requestFor(null, 'verified-product-service-token');
     expect(mocks.serviceTokens).toEqual(['verified-product-service-token']);
     expect(mocks.options[0]).toMatchObject({ delegatedUserId: 'oxy-user-id' });
+  });
+});
+
+describe('sampling crosses the boundary only when the caller asked for it', () => {
+  it('sends no temperature when the request named none', async () => {
+    // A reasoning model takes no temperature; an invented default left
+    // OpenRouter no endpoint under require_parameters and the turn failed.
+    expect(await requestFor(null)).not.toHaveProperty('temperature');
+  });
+
+  it('sends the temperature the caller chose', async () => {
+    expect(await requestFor(null, undefined, { temperature: 0.2 })).toMatchObject({ temperature: 0.2 });
   });
 });
 

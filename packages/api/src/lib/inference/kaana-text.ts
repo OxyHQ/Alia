@@ -85,7 +85,7 @@ export async function generateTextViaKaana(request: KaanaTextRequest): Promise<s
     model: request.model ?? (await getUtilityModelId()),
     input: [{ role: 'user', content: [{ type: 'text', text: request.prompt }] }],
     maxOutputTokens: request.maxOutputTokens,
-    temperature: request.temperature ?? 0.7,
+    ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
     tools: [],
     ...(request.responseFormat === undefined ? {} : { responseFormat: request.responseFormat }),
     labels: { 'alia.surface': request.surface, 'alia.visibility': 'derived' },
