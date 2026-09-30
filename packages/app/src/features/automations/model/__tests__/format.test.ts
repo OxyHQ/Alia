@@ -52,6 +52,7 @@ describe('automation formatting', () => {
       .toBe('Mondays at 09:00 · Europe/Bucharest');
     expect(triggerLabel({ type: 'schedule', cron: null, timezone: null }, t))
       .toBe('Unscheduled · UTC');
+    expect(actorLabel({ mode: 'alia' }, () => 'unused', t)).toBe('Alia');
     expect(actorLabel({ mode: 'fixed', agentId: 'agent-1' }, () => 'Writer', t))
       .toBe('Writer');
     expect(actorLabel({ mode: 'automatic', eligibleAgentIds: [] }, () => 'unused', t))

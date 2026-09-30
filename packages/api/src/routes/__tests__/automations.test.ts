@@ -545,3 +545,95 @@ describe('structured automation control plane', () => {
     expect(state.dispatch).not.toHaveBeenCalled();
   });
 });
+
+describe('Alia as the default responsible actor', () => {
+  const assistantTask = {
+    objective: 'Track the latest releases from Meta',
+    trigger: { type: 'schedule', cron: '0 9 * * *', timezone: 'Europe/Madrid' },
+    executionMode: 'execute',
+    actions: [],
+    inputs: { instructions: 'Tell me when Meta announces something new' },
+    resources: [],
+    dataFlow: { sources: [], destinations: [] },
+    maximumAutonomy: 'autonomous',
+  };
+
+  it('makes Alia responsible when no actor is named, with no agent to own', async () => {
+    const response = await send('POST', '/automations', assistantTask);
+
+    expect(response.status).toBe(201);
+    expect(state.create).toHaveBeenCalledWith(database, expect.objectContaining({
+      actorMode: 'alia',
+      fixedAgentId: undefined,
+      eligibleAgentIds: [],
+      actions: [],
+    }));
+    expect(state.oxyMap).not.toHaveBeenCalled();
+    expect(state.provision).not.toHaveBeenCalled();
+  });
+
+  it('accepts Alia named explicitly', async () => {
+    const response = await send('POST', '/automations', { ...assistantTask, actorSelection: { mode: 'alia' } });
+
+    expect(response.status).toBe(201);
+    expect(state.create).toHaveBeenCalledWith(database, expect.objectContaining({ actorMode: 'alia' }));
+  });
+
+  it('refuses connected actions for Alia until Oxy can authorize her, with a typed reason', async () => {
+    const { actorSelection: _agent, ...connected } = payload;
+    const response = await send('POST', '/automations', connected);
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('alia_connected_actions_not_yet_supported');
+    expect(state.create).not.toHaveBeenCalled();
+  });
+
+  it('keeps an agent task as it was: a named owned agent still runs it', async () => {
+    const response = await send('POST', '/automations', {
+      ...assistantTask,
+      actorSelection: { mode: 'fixed', agentId: 'agent-1' },
+    });
+
+    expect(response.status).toBe(201);
+    expect(state.create).toHaveBeenCalledWith(database, expect.objectContaining({
+      actorMode: 'fixed',
+      fixedAgentId: 'agent-1',
+    }));
+  });
+
+  it('still refuses an automatic agent pool for an assistant task', async () => {
+    const response = await send('POST', '/automations', {
+      ...assistantTask,
+      actorSelection: { mode: 'automatic', eligibleAgentIds: ['agent-1'] },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('assistant_task_requires_responsible_agent');
+  });
+
+  it('moves an existing agent task to Alia on update', async () => {
+    const existing = storedAutomation({
+      actorSelection: { mode: 'fixed', agentId: 'agent-1' },
+      trigger: assistantTask.trigger,
+      actions: [],
+      resources: [],
+      dataFlow: { sources: [], destinations: [] },
+      executionMode: 'execute',
+    });
+    state.find.mockResolvedValueOnce(existing);
+    state.setEnabled.mockImplementationOnce(async () => existing);
+    state.update.mockImplementationOnce(async (_db, input) => storedAutomation({
+      ...existing,
+      actorSelection: { mode: input.actorMode },
+    }));
+
+    const response = await send('PATCH', '/automations/automation-1', { actorSelection: { mode: 'alia' } });
+
+    expect(response.status).toBe(200);
+    expect(state.update).toHaveBeenCalledWith(database, expect.objectContaining({
+      actorMode: 'alia',
+      fixedAgentId: undefined,
+      eligibleAgentIds: [],
+    }));
+  });
+});

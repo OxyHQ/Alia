@@ -57,9 +57,21 @@ function editableTrigger(trigger: AutomationDefinition['trigger']): AutomationUp
 function editableActor(
   actorSelection: AutomationDefinition['actorSelection'],
 ): AutomationUpdateActorSelection {
+  if (actorSelection.mode === 'alia') return { mode: 'alia' };
   return actorSelection.mode === 'fixed'
     ? { mode: 'fixed', agentId: actorSelection.agentId ?? '' }
     : { mode: 'automatic', eligibleAgentIds: [...actorSelection.eligibleAgentIds] };
+}
+
+/** The actor to send: Alia needs nothing, an agent selection is trimmed. */
+function cleanActor(actorSelection: AutomationUpdateActorSelection): AutomationUpdateActorSelection {
+  if (actorSelection.mode === 'alia') return { mode: 'alia' };
+  return actorSelection.mode === 'fixed'
+    ? { mode: 'fixed', agentId: actorSelection.agentId.trim() }
+    : {
+        mode: 'automatic',
+        eligibleAgentIds: actorSelection.eligibleAgentIds.map((agentId) => agentId.trim()),
+      };
 }
 
 function formatAutomationLimitValue(
@@ -192,12 +204,7 @@ export function buildAutomationUpdate(draft: AutomationEditDraft): AutomationEdi
               ...(draft.trigger.resource ? { resource: cleanResource(draft.trigger.resource) } : {}),
             }
           : { type: 'manual' },
-      actorSelection: draft.actorSelection.mode === 'fixed'
-        ? { mode: 'fixed', agentId: draft.actorSelection.agentId.trim() }
-        : {
-            mode: 'automatic',
-            eligibleAgentIds: draft.actorSelection.eligibleAgentIds.map((agentId) => agentId.trim()),
-          },
+      actorSelection: cleanActor(draft.actorSelection),
       resources: draft.resources.map(cleanResource),
       dataFlow: {
         sources: draft.dataFlow.sources.map(cleanResource),

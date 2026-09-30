@@ -22,7 +22,9 @@ export type AutomationTrigger =
   | { type: 'event'; appId: string | null; eventType: string | null; resource?: AutomationResource | null }
   | { type: 'schedule'; cron: string | null; timezone: string | null };
 
+/** Who is responsible for a task: Alia by default, or one or more of the person's agents. */
 export type AutomationActorSelection =
+  | { mode: 'alia' }
   | { mode: 'fixed'; agentId: string | null }
   | { mode: 'automatic'; eligibleAgentIds: string[] };
 
@@ -39,6 +41,8 @@ export interface AutomationDefinition {
   maximumAutonomy: AutomationAutonomy;
   limits: Array<{ key: string; value: string | number | boolean | string[] }>;
   enabled: boolean;
+  /** The Alia conversation an Alia task's results land in, once one has. */
+  conversationId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,6 +53,7 @@ export type AutomationUpdateTrigger =
   | { type: 'schedule'; cron: string; timezone: string };
 
 export type AutomationUpdateActorSelection =
+  | { mode: 'alia' }
   | { mode: 'fixed'; agentId: string }
   | { mode: 'automatic'; eligibleAgentIds: string[] };
 

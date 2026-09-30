@@ -849,6 +849,7 @@
       "unscheduled": "Unscheduled"
     },
     "actor": {
+      "alia": "Alia",
       "none": "No agent assigned",
       "noEligible": "No eligible agents"
     },
@@ -947,7 +948,8 @@
       "taskTime": "Task time",
       "timezone": "Timezone",
       "taskTimezone": "Task timezone",
-      "agent": "Responsible agent",
+      "agent": "Responsible",
+      "agentDescription": "Alia runs this task unless you choose one of your agents.",
       "connectedWork": "Connected work: this task can use the connections you approved. Exact identifiers and authority remain protected by Oxy and are not editable here.",
       "discardTitle": "Discard changes?",
       "discardDescription": "Your unsaved task changes will be lost.",

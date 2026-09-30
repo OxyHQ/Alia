@@ -849,6 +849,7 @@
       "unscheduled": "Sin programar"
     },
     "actor": {
+      "alia": "Alia",
       "none": "Ningún agente asignado",
       "noEligible": "Ningún agente disponible"
     },
@@ -947,7 +948,8 @@
       "taskTime": "Hora de la tarea",
       "timezone": "Zona horaria",
       "taskTimezone": "Zona horaria de la tarea",
-      "agent": "Agente responsable",
+      "agent": "Responsable",
+      "agentDescription": "Alia se encarga de esta tarea salvo que elijas uno de tus agentes.",
       "connectedWork": "Trabajo conectado: esta tarea puede usar las conexiones que aprobaste. Los identificadores exactos y los permisos siguen protegidos por Oxy y no se pueden editar aquí.",
       "discardTitle": "¿Descartar los cambios?",
       "discardDescription": "Se perderán los cambios de la tarea que no hayas guardado.",

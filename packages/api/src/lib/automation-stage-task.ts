@@ -52,10 +52,13 @@ function triggerContext(trigger: AutomationDispatchTrigger): Record<string, unkn
   };
 }
 
+/** What a stage's task is built from: its actions, whoever runs them (an agent or Alia). */
+type StageActions = Pick<AutomationStagePlan, 'actions'>;
+
 function receivesPreviousResult(
   automation: AutomationDefinitionRecord,
-  previous: AutomationStagePlan | undefined,
-  current: AutomationStagePlan,
+  previous: StageActions | undefined,
+  current: StageActions,
 ): boolean {
   if (!previous) return false;
   const previousReadsDeclaredSource = previous.actions.some((action) => (
@@ -72,7 +75,7 @@ function receivesPreviousResult(
 export function automationStageTaskInputs(
   automation: AutomationDefinitionRecord,
   trigger: AutomationDispatchTrigger,
-  stages: readonly AutomationStagePlan[],
+  stages: readonly StageActions[],
 ): AutomationStageTaskInput[] {
   return stages.map((stage, index) => ({
     objective: automation.objective,

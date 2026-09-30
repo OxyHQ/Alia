@@ -3,16 +3,19 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   automationHasActiveAuthorizationCoverage,
   automationRunProgressForSession,
+  claimAutomationConversation,
   claimAutomationRunPlan,
   createAutomationDefinition,
   createObservedAutomationRun,
   findAutomationDefinition,
   findAutomationDefinitionById,
+  findAutomationRunById,
   listAutomationDefinitions,
   listAutomationExecutionAuthorizationsForRun,
   listAutomationRuns,
   listAutomationRunSteps,
   listSchedulableAutomationDefinitions,
+  markAliaAutomationRun,
   markAutomationActionStep,
   markAutomationRunForSession,
   updateAutomationDefinition,
@@ -441,5 +444,116 @@ describe('normalized automation definitions', () => {
       }));
     expect(await listAutomationDefinitions(db, 'aut-owner-schedule'))
       .toContainEqual(expect.objectContaining({ id: automationId }));
+  });
+});
+
+describe('tasks Alia is responsible for', () => {
+  async function createAliaTask(owner: string) {
+    return createAutomationDefinition(db, {
+      id: uuidv7(),
+      ownerAccountId: owner,
+      objective: 'Track the latest releases from Meta',
+      triggerKind: 'schedule',
+      scheduleCron: '0 9 * * *',
+      scheduleTimezone: 'Europe/Madrid',
+      actorMode: 'alia',
+      eligibleAgentIds: [],
+      executionMode: 'execute',
+      actions: [],
+      inputs: { instructions: 'Tell me when Meta announces something new' },
+      resources: [],
+      dataFlow: { sources: [], destinations: [] },
+      maximumAutonomy: 'autonomous',
+      limits: [],
+      enabled: true,
+    });
+  }
+
+  const aliaStage = (owner: string, automationId: string) => ({
+    stage: 0,
+    selectedAgentId: null,
+    selectedActorAccountId: owner,
+    resource: { appId: 'alia', effectiveAccountId: owner, resourceType: 'automation', resourceId: automationId },
+    taskInput: { objective: 'Track the latest releases from Meta' },
+    actions: [],
+  });
+
+  it('stores Alia as the actor, with no agent and no conversation yet', async () => {
+    const automation = await createAliaTask('aut-owner-alia');
+
+    expect(automation.actorSelection).toEqual({ mode: 'alia' });
+    expect(automation.conversationId).toBeNull();
+    expect(await findAutomationDefinitionById(db, automation.id))
+      .toEqual(expect.objectContaining({ actorSelection: { mode: 'alia' }, conversationId: null }));
+  });
+
+  it('claims a run under Alia and moves it to a terminal state exactly once', async () => {
+    const owner = 'aut-owner-alia-run';
+    const automation = await createAliaTask(owner);
+    const runId = uuidv7();
+
+    await expect(claimAutomationRunPlan({
+      db,
+      runId,
+      automationId: automation.id,
+      requesterAccountId: owner,
+      triggerEventId: `schedule:${automation.id}:1`,
+      stages: [aliaStage(owner, automation.id)],
+      actorType: 'alia',
+    })).resolves.toBe(true);
+
+    const run = await findAutomationRunById(db, runId);
+    expect(run).toEqual(expect.objectContaining({ selectedActorType: 'alia', selectedAgentId: null, status: 'planned' }));
+    expect(await listAutomationRunSteps(db, runId)).toEqual([expect.objectContaining({
+      actorType: 'alia',
+      agentId: null,
+      actorAccountId: owner,
+      tool: 'alia.run',
+      status: 'planned',
+    })]);
+
+    await markAliaAutomationRun(db, runId, 'running');
+    expect((await findAutomationRunById(db, runId))?.status).toBe('running');
+    await markAliaAutomationRun(db, runId, 'succeeded');
+    const finished = await findAutomationRunById(db, runId);
+    expect(finished?.status).toBe('succeeded');
+    expect(finished?.completedAt).toBeInstanceOf(Date);
+    expect((await listAutomationRunSteps(db, runId))[0]?.status).toBe('succeeded');
+
+    // A late failure from a retried job does not reopen a settled run.
+    await markAliaAutomationRun(db, runId, 'failed');
+    expect((await findAutomationRunById(db, runId))?.status).toBe('succeeded');
+  });
+
+  it('records an observed run under Alia', async () => {
+    const owner = 'aut-owner-alia-observe';
+    const automation = await createAliaTask(owner);
+
+    await expect(createObservedAutomationRun({
+      db,
+      automationId: automation.id,
+      requesterAccountId: owner,
+      triggerEventId: `schedule:${automation.id}:observe`,
+      stages: [aliaStage(owner, automation.id)],
+      actorType: 'alia',
+    })).resolves.toBe(true);
+    const [run] = await listAutomationRuns(db, owner, automation.id);
+    if (!run) throw new Error('Expected one observed run');
+    expect(run).toEqual(expect.objectContaining({ selectedActorType: 'alia', status: 'observed' }));
+    expect((await listAutomationRunSteps(db, run.id))[0]).toEqual(expect.objectContaining({
+      actorType: 'alia',
+      tool: 'alia.select',
+      status: 'observed',
+    }));
+  });
+
+  it('claims the task conversation once, without touching the edit token', async () => {
+    const automation = await createAliaTask('aut-owner-alia-conversation');
+
+    await expect(claimAutomationConversation(db, automation.id, 'conversation-first')).resolves.toBe('conversation-first');
+    await expect(claimAutomationConversation(db, automation.id, 'conversation-second')).resolves.toBe('conversation-first');
+    const stored = await findAutomationDefinitionById(db, automation.id);
+    expect(stored?.conversationId).toBe('conversation-first');
+    expect(stored?.updatedAt.getTime()).toBe(automation.updatedAt.getTime());
   });
 });

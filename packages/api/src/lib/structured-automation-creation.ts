@@ -83,6 +83,7 @@ export const automationTriggerSchema = z.discriminatedUnion('type', [
 ]);
 
 export const automationActorSelectionSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('alia') }).strict(),
   z.object({ mode: z.literal('fixed'), agentId: z.string().min(1) }).strict(),
   z.object({
     mode: z.literal('automatic'),
@@ -93,7 +94,8 @@ export const automationActorSelectionSchema = z.discriminatedUnion('mode', [
 export const createAutomationSchema = z.object({
   objective: z.string().trim().min(1).describe('What the automation must accomplish'),
   trigger: automationTriggerSchema,
-  actorSelection: automationActorSelectionSchema,
+  actorSelection: automationActorSelectionSchema.default({ mode: 'alia' })
+    .describe('Who is responsible. Omit for Alia, the default; name an agent only when the user asked for one of their agents'),
   executionMode: z.enum(['observe', 'execute']).default('observe')
     .describe('Use execute only when the user explicitly asked for real actions'),
   actions: z.array(automationActionSchema).default([])
@@ -238,6 +240,12 @@ function actionKey(action: CreateAutomationInput['actions'][number]): string {
   ]);
 }
 
+/** The agents a selection names; none for Alia, who needs no ownership check. */
+function selectedAgentIds(selection: CreateAutomationInput['actorSelection']): string[] {
+  if (selection.mode === 'alia') return [];
+  return selection.mode === 'fixed' ? [selection.agentId] : selection.eligibleAgentIds;
+}
+
 function validateDefinition(definition: CreateAutomationInput): void {
   const executionPolicyError = automationExecutionPolicyError({
     enabled: definition.enabled,
@@ -246,6 +254,11 @@ function validateDefinition(definition: CreateAutomationInput): void {
     triggerType: definition.trigger.type,
   });
   if (executionPolicyError) throw new AutomationCreationError(executionPolicyError, 400);
+  // Oxy authority for an Alia actor on connected apps is not built yet; an
+  // agent is still what runs connected work.
+  if (definition.actorSelection.mode === 'alia' && definition.actions.length > 0) {
+    throw new AutomationCreationError('alia_connected_actions_not_yet_supported', 400);
+  }
   if (definition.trigger.type === 'event' && definition.dataFlow.sources.length === 0) {
     throw new AutomationCreationError('event_automation_requires_explicit_data_source', 400);
   }
@@ -253,7 +266,7 @@ function validateDefinition(definition: CreateAutomationInput): void {
     if (definition.trigger.type === 'event') {
       throw new AutomationCreationError('event_automation_requires_connected_action', 400);
     }
-    if (definition.actorSelection.mode !== 'fixed') {
+    if (definition.actorSelection.mode === 'automatic') {
       throw new AutomationCreationError('assistant_task_requires_responsible_agent', 400);
     }
     if (definition.resources.length > 0
@@ -376,7 +389,7 @@ export async function updateStructuredAutomation(input: {
   if (executionPolicyError) throw new AutomationCreationError(executionPolicyError, 409);
   validateDefinition(definition);
   const selection = definition.actorSelection;
-  const agentIds = selection.mode === 'fixed' ? [selection.agentId] : selection.eligibleAgentIds;
+  const agentIds = selectedAgentIds(selection);
   if (new Set(agentIds).size !== agentIds.length) {
     throw new AutomationCreationError('duplicate_automation_agent', 400);
   }
@@ -512,7 +525,7 @@ export async function createStructuredAutomation(input: {
 }) {
   validateDefinition(input.definition);
   const selection = input.definition.actorSelection;
-  const agentIds = selection.mode === 'fixed' ? [selection.agentId] : selection.eligibleAgentIds;
+  const agentIds = selectedAgentIds(selection);
   if (new Set(agentIds).size !== agentIds.length) {
     throw new AutomationCreationError('duplicate_automation_agent', 400);
   }
