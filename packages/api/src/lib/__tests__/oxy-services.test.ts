@@ -17,6 +17,7 @@ vi.mock('../logger.js', () => {
 import {
   buildOxyServiceTools,
   getOxyServicePromptFragment,
+  idempotencyKey,
   oxyExecutionAuthorizationKey,
   type OxyToolExecutionContext,
 } from '../tools/oxy-services.js';
@@ -258,5 +259,24 @@ describe('Oxy capability tools', () => {
       executionAuthorizations: {},
     });
     expect(tools).toEqual({});
+  });
+
+  describe('the idempotency key of an effect', () => {
+    const args = { emailId: 'email-1', starred: true };
+
+    it('is one per tool call, so a deliberate identical repeat is not a duplicate', () => {
+      expect(idempotencyKey('run-1', 'updateEmailFlags', args, 'call-a'))
+        .not.toBe(idempotencyKey('run-1', 'updateEmailFlags', args, 'call-b'));
+    });
+
+    it('is stable for a retry of the same call', () => {
+      expect(idempotencyKey('run-1', 'updateEmailFlags', args, 'call-a'))
+        .toBe(idempotencyKey('run-1', 'updateEmailFlags', { starred: true, emailId: 'email-1' }, 'call-a'));
+    });
+
+    it('falls back to the arguments when there is no call id', () => {
+      expect(idempotencyKey('run-1', 'updateEmailFlags', args, undefined))
+        .toBe(idempotencyKey('run-1', 'updateEmailFlags', { ...args }, undefined));
+    });
   });
 });

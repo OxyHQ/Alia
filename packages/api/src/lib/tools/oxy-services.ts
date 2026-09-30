@@ -290,9 +290,25 @@ function sortJson(value: unknown): unknown {
   );
 }
 
-function idempotencyKey(runId: string, toolName: string, args: Record<string, unknown>): string {
+/**
+ * One key per tool CALL, not per argument set.
+ *
+ * The model no longer invents an `idempotencyKey` argument (Inbox catalog 2.0.0
+ * takes it only from this header), so hashing the arguments would give two
+ * deliberate identical calls in one run — star a message, unstar it, star it
+ * again — the same key, and Oxy would refuse the repeat as a duplicate. The
+ * SDK's `toolCallId` names exactly one call and survives a retry of that call,
+ * which is the duplicate this key exists to stop. Without one (a direct
+ * caller), the arguments are the best available identity.
+ */
+export function idempotencyKey(
+  runId: string,
+  toolName: string,
+  args: Record<string, unknown>,
+  toolCallId: string | undefined,
+): string {
   return createHash('sha256')
-    .update(JSON.stringify(sortJson([runId, toolName, args])))
+    .update(JSON.stringify(sortJson([runId, toolName, toolCallId ?? args])))
     .digest('hex');
 }
 
@@ -409,6 +425,7 @@ async function callBoundTool(
   binding: BoundTool,
   args: Record<string, unknown>,
   context: OxyToolExecutionContext,
+  toolCallId?: string,
 ): Promise<unknown> {
   const runId = context.runId ?? randomUUID();
   const stepId = context.executionAuthorizations?.[
@@ -429,6 +446,7 @@ async function callBoundTool(
         runId,
         binding.compiled.definition.name,
         args,
+        toolCallId,
       );
     }
     const response = await fetch(url, {
@@ -504,7 +522,7 @@ export async function buildOxyServiceTools(
       const built = tool({
         description: `[${appDisplayName(binding.compiled.catalog.appId)}] ${binding.compiled.definition.description} Resource: ${binding.resource.resourceType}/${binding.resource.resourceId}.`,
         inputSchema: binding.compiled.inputSchema,
-        execute: async (args: Record<string, unknown>) => {
+        execute: async (args: Record<string, unknown>, { toolCallId }: { toolCallId?: string } = {}) => {
           if (context.executionAuthorizations !== undefined) {
             if (preauthorizedInvocationStarted) {
               return { error: `${binding.compiled.definition.name} is authorized once for this automation stage` };
@@ -513,7 +531,7 @@ export async function buildOxyServiceTools(
           }
           return safeExecute(
             binding.compiled.catalog.appId,
-            () => callBoundTool(binding, args, context),
+            () => callBoundTool(binding, args, context, toolCallId),
           );
         },
       });
