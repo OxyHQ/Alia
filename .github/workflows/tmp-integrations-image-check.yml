@@ -1,0 +1,78 @@
+# TEMPORARY — validates the integrations image on native arm64; removed before merge.
+name: TEMP integrations image check
+
+on:
+  pull_request:
+    paths:
+      - 'packages/integrations/Dockerfile'
+      - 'packages/integrations/docker/**'
+      - '.github/workflows/tmp-integrations-image-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build image (linux/arm64)
+        run: docker build -f packages/integrations/Dockerfile -t integrations:pr .
+
+      - name: Image size
+        run: |
+          docker image inspect integrations:pr --format 'uncompressed bytes: {{.Size}}'
+          docker save integrations:pr | gzip -1 | wc -c | awk '{print "gzip -1 bytes:", $1}'
+          docker history --no-trunc --format '{{.Size}}\t{{.CreatedBy}}' integrations:pr | cut -c1-160
+
+      - name: node-pty loads and spawns a shell (as node)
+        run: |
+          docker run --rm -w /app/packages/integrations integrations:pr node -e "
+            const pty = require('node-pty');
+            let out = '';
+            const t = pty.spawn('/bin/sh', ['-c', 'echo ok'], { name: 'xterm-256color', cols: 80, rows: 24, cwd: '/tmp', env: { PATH: '/usr/local/bin:/usr/bin:/bin' } });
+            t.onData((d) => { out += d; });
+            t.onExit(({ exitCode }) => {
+              console.log('pty output:', JSON.stringify(out), 'exit:', exitCode);
+              process.exit(exitCode === 0 && out.includes('ok') ? 0 : 1);
+            });
+            setTimeout(() => { console.error('timeout'); process.exit(1); }, 10000);
+          "
+          docker run --rm integrations:pr id
+
+      - name: Java 21 and signal-cli
+        run: |
+          docker run --rm integrations:pr java -version 2>&1 | tee java.txt
+          grep -E 'version "21\.' java.txt
+          docker run --rm integrations:pr signal-cli --version
+
+      - name: signal-cli loads libsignal (link reaches QR generation)
+        run: |
+          set +e
+          docker run --rm integrations:pr sh -c 'timeout 45 signal-cli --config /tmp/sc link -n ci-check' > link.txt 2>&1
+          echo "exit=$?"
+          set -e
+          cat link.txt
+          if grep -qiE 'UnsatisfiedLinkError|libsignal_jni' link.txt; then echo '::error::libsignal native library failed to load'; exit 1; fi
+          grep -q 'sgnl://linkdevice' link.txt
+
+      - name: Nothing under /app is owned by anyone but node
+        run: |
+          docker run --rm --user root integrations:pr sh -c 'find /app \( ! -user node -o ! -group node \) | head -20' > notnode.txt
+          cat notnode.txt
+          test ! -s notnode.txt
+
+      - name: /health responds
+        run: |
+          docker run -d --name integ -p 3005:3005 \
+            -e DATABASE_URL=postgres://ci:ci@127.0.0.1:1/ci -e INTEGRATIONS_SECRET=ci-secret \
+            integrations:pr
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3005/health; then echo; ok=1; break; fi
+            sleep 2
+          done
+          docker logs integ 2>&1 | tail -40
+          docker inspect integ --format '{{.State.Status}}'
+          test "${ok:-0}" = 1
