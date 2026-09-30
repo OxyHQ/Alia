@@ -1337,10 +1337,7 @@
     },
     "namePlaceholder": "Agent name",
     "colorLabel": "Colour",
-    "modelLabel": "Model",
-    "modelDefaultGroup": "Default",
-    "modelDefault": "Default model",
-    "modelDefaultNamed": "Default (%{model})",
+    "modelLabel": "Power level",
     "handlePlaceholder": "handle",
     "handleAdjusted": "That handle was taken — your agent is @%{handle}",
     "handleTaken": "That handle is taken. Try another.",
@@ -1478,7 +1475,9 @@
       "connectionError": "Connection error — retrying…",
       "unavailable": "The terminal is not available on this device.",
       "loading": "Loading terminal…"
-    }
+    },
+    "modelPinned": "Pinned model (%{model})",
+    "modelPinnedDescription": "Runs on this exact model. Pick a level to let Alia choose."
   },
   "authorize": {
     "linkingAccount": "Linking account...",
@@ -1882,14 +1881,6 @@
     },
     "personalEmpty": "No personal connectors yet. Add one with +"
   },
-  "effort": {
-    "levels": {
-      "default": "Default",
-      "low": "Low",
-      "medium": "Medium",
-      "high": "High"
-    }
-  },
   "weather": {
     "toggleUnit": "Switch temperature unit",
     "condition": {
@@ -2015,25 +2006,12 @@
     "ghostDescription": "Don't save this chat",
     "agentDescription": "Work through longer tasks",
     "canvasDescription": "Write and edit files",
-    "pinModel": "Pin model to the top",
-    "modes": "Mode",
     "removeShort": "Remove",
-    "models": "Models",
-    "quickSearch": "Quick Search",
-    "searchModels": "Search models",
-    "noModels": "No models match",
-    "providers": "Providers",
-    "effort": "Effort",
-    "faster": "Faster",
-    "smarter": "Smarter",
-    "featuredGroup": "Featured",
-    "deviceGroup": "This device",
-    "modeChat": "Chat",
-    "modeChatDescription": "Answers, and uses tools when it helps",
     "placeholder": "Ask Alia anything",
     "editPlaceholder": "Edit your message",
     "editingMessage": "Editing message",
-    "cancelEdit": "Cancel"
+    "cancelEdit": "Cancel",
+    "powerLevel": "Power"
   },
   "panel": {
     "terminal": "Terminal",
@@ -2487,5 +2465,36 @@
       "voices": "Could not load the voice list",
       "preferences": "Failed to save your preferences"
     }
+  },
+  "powerLevels": {
+    "auto": {
+      "label": "Auto",
+      "description": "Picks the right level for each message"
+    },
+    "instant": {
+      "label": "Instant",
+      "description": "Fastest and cheapest, for quick answers"
+    },
+    "medium": {
+      "label": "Medium",
+      "description": "Quick and capable, for everyday tasks"
+    },
+    "high": {
+      "label": "High",
+      "description": "Thinks harder on tougher questions"
+    },
+    "xhigh": {
+      "label": "XHigh",
+      "description": "Thinks even harder; a little slower"
+    },
+    "pro": {
+      "label": "Pro",
+      "description": "Frontier models; slower and costs more"
+    },
+    "ultra": {
+      "label": "Ultra",
+      "description": "Most capable; slowest and costs the most"
+    },
+    "onDevice": "On %{device}"
   }
 }

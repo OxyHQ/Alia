@@ -1,56 +1,60 @@
-import type { EffortLevel } from '@/features/chat/runtime/use-catalogue';
+import {
+  DEFAULT_POWER_LEVEL,
+  isDeviceModelId,
+  isPowerLevel,
+  type PowerLevel,
+} from '@/features/chat/model/power-levels';
 
 /** What `migrateModelState` returns; the store's persisted half. */
 export interface PersistedModelState {
-  selectedModel: string | null;
-  reasoningEffort: EffortLevel | null;
+  /** A power level, or a model on one of the person's own devices (`local/…`). */
+  selectedLevel: PowerLevel | string;
   webSearch: boolean;
-  pinnedModels: string[];
 }
 
 /**
- * Alia's own invented choices — product modes (`mode:*`), routing profiles
- * (`route:*`, `profile:*`) and the retired `alia-*` aliases. None is a model.
+ * The level an older store's effort choice stood for, when it stood for one.
+ *
+ * Before v3 the effort scale was `instant | medium | high | max`, and v3
+ * collapsed `instant` into "the model's own default" and `max` into `high`.
+ * Those two ends are exactly what the levels now name: `instant` is the
+ * fastest, cheapest level and `max` the most capable one, `ultra`. Everything
+ * in between was a knob on a model the person no longer picks, so it carries
+ * no level of its own.
  */
-function isRetiredChoice(id: string): boolean {
-  return id.startsWith('mode:') || id.startsWith('route:') || id.startsWith('profile:') || id.startsWith('alia-');
-}
-
-/**
- * v2 → v3: the efforts were `instant | medium | high | max` and are now the
- * provider scale `low | medium | high`. `instant` meant "don't think", which the
- * new scale has no word for, so it becomes the model's own default; `max` is
- * the top of the scale.
- */
-function migrateEffort(stored: unknown): EffortLevel | null {
-  if (stored === 'low' || stored === 'medium') return stored;
-  if (stored === 'high' || stored === 'max') return 'high';
+function levelOfRetiredEffort(stored: unknown): PowerLevel | null {
+  if (stored === 'instant') return 'instant';
+  if (stored === 'max') return 'ultra';
   return null;
 }
 
 /**
- * Any persisted state before v3, as v3.
+ * Any persisted state before v4, as v4.
  *
- * Every stored state before v3 names one of Alia's invented modes or routing
- * profiles (`mode:*`, `route:*`) or a retired alias. None is a model
- * any more, so each becomes `null` — the server's default — rather than a guess
- * at which real model it "meant". A real model or a device model survives.
+ * v4 replaced the model picker with power levels: the person chooses how much
+ * power a turn gets, and Oxy chooses the model. So:
+ *
+ *  - **Any stored model** — a real `publisher/model` (v3), one of Alia's old
+ *    invented modes or routing profiles (`mode:*`, `route:*`, `profile:*`), a
+ *    retired `alia-*` alias, or nothing — becomes `auto`. None is guessed into
+ *    a level: a model's name says nothing reliable about its power.
+ *  - **The old `instant` / `max` efforts** (stores before v3) become `instant`
+ *    and `ultra`, the two ends they named.
+ *  - **A model on the person's own device** (`local/…`) survives: it is their
+ *    machine, not a model Alia offers.
+ *  - A v4 level survives as itself. The effort and the pinned models are
+ *    dropped: a level carries its own effort, and there are no models to pin.
  */
 export function migrateModelState(persisted: unknown, version: number): PersistedModelState {
   const state = (typeof persisted === 'object' && persisted !== null ? persisted : {}) as Record<string, unknown>;
-  const stored = state.selectedModel;
-  const selectedModel = typeof stored === 'string' && stored !== '' && !isRetiredChoice(stored) ? stored : null;
-  // v0/v1 kept a boolean; v1 → v2 made it `medium`, the smallest budget, and
-  // it still is.
-  const reasoningEffort =
-    version < 2 ? (state.thinkingMode === true ? 'medium' : null) : migrateEffort(state.reasoningEffort);
+  const webSearch = typeof state.webSearch === 'boolean' ? state.webSearch : true;
 
-  return {
-    selectedModel,
-    reasoningEffort,
-    webSearch: typeof state.webSearch === 'boolean' ? state.webSearch : true,
-    pinnedModels: Array.isArray(state.pinnedModels)
-      ? state.pinnedModels.filter((id): id is string => typeof id === 'string' && !isRetiredChoice(id))
-      : [],
-  };
+  if (version >= 4 && (isPowerLevel(state.selectedLevel) || isDeviceModelId(state.selectedLevel))) {
+    return { selectedLevel: state.selectedLevel, webSearch };
+  }
+  if (isDeviceModelId(state.selectedModel)) {
+    return { selectedLevel: state.selectedModel, webSearch };
+  }
+  const fromEffort = version < 3 ? levelOfRetiredEffort(state.reasoningEffort) : null;
+  return { selectedLevel: fromEffort ?? DEFAULT_POWER_LEVEL, webSearch };
 }
