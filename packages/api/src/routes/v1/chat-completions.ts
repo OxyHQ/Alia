@@ -5,7 +5,8 @@ import { handleDeepResearch } from '../../lib/chat-modes/deep-research-handler.j
 import { ToolPipeline } from '../../lib/tool-pipeline.js';
 import { createResponseSSEEmitter } from '../../lib/sse-emitter.js';
 import { SystemPromptBuilder } from '../../lib/system-prompt-builder.js';
-import { convertToAISDKMessages, type ChatMessage } from '../../lib/message-converter.js';
+import { convertToAISDKMessages, priorToolCallsOf, type ChatMessage } from '../../lib/message-converter.js';
+import { ToolLimitExceededError } from '../../lib/inference/tool-limit.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
 import { measureContext } from '../../lib/chat/context-breakdown.js';
 import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/result-truncation.js';
@@ -165,24 +166,53 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     // Assemble all tools via the unified pipeline
     const sseEmitter = createResponseSSEEmitter(res, sse.ensureHeaders);
-    const { tools: allTools, toolNameMapping } = await ToolPipeline.forUser({
-      userId: req.user?.id || '',
-      accessToken: req.accessToken,
-      isDirectSession: isDirectUserSession,
-      // A session acts for the person holding it; an API key does not.
-      actsForPerson: isDirectUserSession,
-      agentMode: agentRuntimeEnabled,
-      requestId,
-      editorToolDefinitions: body.tools,
-      sseEmitter,
-      webSearch,
-      mcpServerId,
-      isLocalRuntime,
-      toolsEnabled: true,
-      agent: linkedAgent,
-      skills,
-      runtime: coordinatedTurn?.runtime,
-    });
+    let assembled: Awaited<ReturnType<typeof ToolPipeline.forUser>>;
+    try {
+      assembled = await ToolPipeline.forUser({
+        userId: req.user?.id || '',
+        accessToken: req.accessToken,
+        isDirectSession: isDirectUserSession,
+        // A session acts for the person holding it; an API key does not.
+        actsForPerson: isDirectUserSession,
+        agentMode: agentRuntimeEnabled,
+        requestId,
+        // The apps this conversation already opened stay open (`lib/tool-budget.ts`).
+        priorToolCalls: priorToolCallsOf(messages),
+        editorToolDefinitions: body.tools,
+        sseEmitter,
+        webSearch,
+        mcpServerId,
+        isLocalRuntime,
+        toolsEnabled: true,
+        agent: linkedAgent,
+        skills,
+        runtime: coordinatedTurn?.runtime,
+      });
+    } catch (error: unknown) {
+      /**
+       * The turn cannot be served without dropping tools somebody explicitly
+       * asked for — the client's own, or the apps the person picked — beyond
+       * what one request can carry. That is the caller's request to change, so
+       * it is a typed 400 naming what did not fit, not a provider failure.
+       */
+      if (!(error instanceof ToolLimitExceededError)) throw error;
+      clearTimeout(globalTimer);
+      const refusal = {
+        message: error.message,
+        type: 'invalid_request_error',
+        param: 'tools',
+        code: 'invalid_request',
+      };
+      if (sse.sent) {
+        sse.writeError(refusal);
+      } else {
+        res.status(400).json({ error: refusal });
+      }
+      await coordinatedTurn?.fail(error);
+      coordinatedTurn = null;
+      return;
+    }
+    const { tools: allTools, toolNameMapping, routing: toolRouting, appCatalogPrompt, activeToolNames } = assembled;
 
     const agentMessages: AgentMessage[] = [];
 
@@ -208,6 +238,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       agentMode: agentRuntimeEnabled,
       autonomyRuntime,
       responseMode,
+      appCatalog: appCatalogPrompt,
     });
     const systemMessage = systemPrompt.text;
 
@@ -229,7 +260,15 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     // Wrap tools with truncation to cap large results (saves tokens)
     const truncatedTools = wrapToolsWithTruncation(allTools, getToolResultBudget(128_000));
-    log.v1.info({ toolNames: Object.keys(truncatedTools), toolCount: Object.keys(truncatedTools).length }, 'Tools passed to model');
+    const initialActiveTools = activeToolNames();
+    log.v1.info(
+      {
+        toolNames: initialActiveTools,
+        toolCount: initialActiveTools.length,
+        registeredToolCount: Object.keys(truncatedTools).length,
+      },
+      'Tools passed to model',
+    );
 
     /**
      * What this turn puts in the context window, by category, for the app's
@@ -241,7 +280,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       try {
         const breakdown = measureContext({
           systemPrompt,
-          tools: allTools,
+          // What the first step SENDS, which is what occupies the window.
+          tools: Object.fromEntries(initialActiveTools.map((name) => [name, allTools[name]])),
           messages,
           maxContextTokens: state.resolved.catalogue?.contextWindow ?? null,
         });
@@ -287,6 +327,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       reasoningEffort,
       convertedMessages,
       truncatedTools,
+      toolRouting,
       toolNameMapping,
       agentMessages,
       systemPromptTokens,

@@ -26,6 +26,7 @@ import { log } from '../logger.js';
 import type { CreditUsage } from '../credits-manager.js';
 import type { StreamRunnerState } from './stream-runner.js';
 import type { ReasoningEffort } from '../models/catalogue.js';
+import type { ToolRouting } from '../tool-budget.js';
 
 export interface BuildBaseConfigParams {
   /** The resolved provider/model for this attempt. */
@@ -34,6 +35,12 @@ export interface BuildBaseConfigParams {
   body: Record<string, unknown> & { stream?: boolean };
   convertedMessages: ModelMessage[];
   truncatedTools: ToolSet;
+  /**
+   * `activeTools` and `prepareStep` from `ToolPipeline.forUser`, spread beside
+   * `tools` so a set larger than one request carries is opened app by app
+   * (`lib/tool-budget.ts`). Absent or empty: every tool, every step.
+   */
+  toolRouting?: ToolRouting;
   /**
    * How hard the caller asked this request to think, or `null` for the model's
    * own default. Validated against the model's catalogue entry upstream.
@@ -68,7 +75,7 @@ export interface BaseConfigResult {
 
 /** Assemble the shared AI SDK config for one provider attempt + its first-byte abort. */
 export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult {
-  const { resolved, body, convertedMessages, truncatedTools, reasoningEffort, systemPromptTokens, streamState, oxyUserId, serviceToken, onUsage, onResolvedModel } = params;
+  const { resolved, body, convertedMessages, truncatedTools, toolRouting, reasoningEffort, systemPromptTokens, streamState, oxyUserId, serviceToken, onUsage, onResolvedModel } = params;
 
   const model = getAIModel(resolved, 'chat', oxyUserId, serviceToken, { reasoningEffort });
 
@@ -79,6 +86,7 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
     messages: convertedMessages,
     temperature: body.temperature ?? 0.7,
     tools: truncatedTools,
+    ...toolRouting,
     maxRetries: 0, // Fail fast to application-level provider fallback
     // AI SDK v6: stopWhen replaces maxSteps. Without this, the SDK defaults to
     // stepCountIs(1) which stops after tool calls without generating a text response.

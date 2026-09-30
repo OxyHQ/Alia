@@ -133,7 +133,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
      * that had names. It is also why `__tests__/one-assembler.test.ts` counts
      * inline literals and not just exports.
      */
-    const { tools } = await ToolPipeline.forUser({
+    const { tools, routing: toolRouting, appCatalogPrompt } = await ToolPipeline.forUser({
       userId,
       isDirectSession: false,
       // A service token delegates a named end user, and acts for them.
@@ -161,10 +161,12 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     const result = await generateText({
       model,
       messages: [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: systemPrompt + appCatalogPrompt },
         { role: 'user', content: eventDescription },
       ],
       tools,
+      // Bounds each request to the per-request tool budget (`lib/tool-budget.ts`).
+      ...toolRouting,
       temperature: 0.3,
       maxRetries: 0,
       stopWhen: stepCountIs(5),

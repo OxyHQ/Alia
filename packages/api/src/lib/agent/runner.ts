@@ -448,7 +448,7 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
    * memory, triggers, MCP, integrations, and the Oxy services this path could
    * never see before — comes from the same place every other surface gets it.
    */
-  const { tools: allActions } = await ToolPipeline.forUser({
+  const { tools: allActions, routing: toolRouting, appCatalogPrompt } = await ToolPipeline.forUser({
     userId: session.oxyUserId,
     isDirectSession: false,
     // The run belongs to the account that started the session.
@@ -497,7 +497,7 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
   // The agent's OWN name. It used to be told it was Alia, above its own prompt.
   const grantsMemory = readCapabilityGrants(agent.capabilityGrants).allows('memory');
   const memorySection = grantsMemory ? await agentMemoryPromptSection(session.oxyUserId, agent._id) : '';
-  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, { automation: Boolean(session.automationRunId), outreach: !session.parentSessionId })}${memorySection}`;
+  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, { automation: Boolean(session.automationRunId), outreach: !session.parentSessionId })}${memorySection}${appCatalogPrompt}`;
 
   // Persisted every step, so a resumed run keeps counting against the SAME
   // budget instead of starting a fresh one.
@@ -637,7 +637,11 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
         const result = await generateText({
           model,
           messages,
-          tools: allActions,  // ALL actions always present (KV-cache stability)
+          tools: allActions,  // ALL actions always registered (KV-cache stability)
+          // What each request SENDS is bounded by the per-request tool budget:
+          // an app `useApps` opened in an earlier iteration stays open, because
+          // the routing state lives for the whole run (`lib/tool-budget.ts`).
+          ...toolRouting,
           temperature: 0.3,
           maxRetries: 0,
           stopWhen: stepCountIs(1),  // One action per iteration (Manus principle)

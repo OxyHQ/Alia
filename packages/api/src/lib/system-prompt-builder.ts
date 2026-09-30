@@ -120,6 +120,12 @@ export interface SystemPromptOptions {
   responseMode?: 'voice' | null;
   /** Autonomy runtime context */
   autonomyRuntime?: AutonomyRuntimeContext | null;
+  /**
+   * The Apps section from `ToolPipeline.forUser` (`appCatalogPrompt`): the
+   * connected apps this turn may open with `useApps` when its tools do not all
+   * fit in one request. Empty when they do.
+   */
+  appCatalog?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -175,6 +181,7 @@ export class SystemPromptBuilder {
       agentMode,
       autonomyRuntime,
       responseMode,
+      appCatalog,
     } = opts;
 
     /**
@@ -327,6 +334,15 @@ export class SystemPromptBuilder {
       const style = formatStyleForPrompt(userMemory.writingStyle ?? null);
       if (style !== '') systemMessage += `\n\n${style}`;
     }
+
+    /**
+     * 7c. The connected apps this turn can open (`lib/tool-budget.ts`).
+     *
+     * Ungated by session kind: it describes tools the assembler already
+     * authorized for THIS turn, so whoever the turn is for may know they exist —
+     * and without it an app that is not open yet is invisible to the model.
+     */
+    if (appCatalog) systemMessage += appCatalog;
 
     // 8. Skills.
     //
