@@ -41,6 +41,12 @@ commit que el `package.json` que lo cambia.
 - **Nombres de modelo y publisher sí se muestran.** El operador que lo sirve
   (Groq, Cerebras, OpenRouter…) y los ids de deployment siguen ocultos en la
   superficie de producto (respuestas, errores, UI, analítica).
+- **Apps de Oxy = primera parte.** Alia llega a las apps del usuario (Inbox…)
+  sin paso de «conectar/autorizar». Un fallo de autoridad llega al modelo como
+  `oxy_app_unavailable`, jamás como el motivo crudo de Oxy — `lib/tools/oxy-services.ts`.
+- **Los datos del dueño, solo con el dueño presente.** Las apps de Oxy de un
+  agente son las de su dueño; `requesterAccountId` del pipeline decide y un
+  extraño (bot del agente, agente público) nunca las recibe.
 - `Relay` es un nombre retirado; el único origen de Kaana es `https://kaana.ai`.
   `lib/mcp-relay.ts` es el transporte WebSocket de MCP y no se renombra.
 - **Shows** (podcasts en Syra): la ruta acuña un ticket de ingesta de un solo

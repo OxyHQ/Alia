@@ -35,7 +35,7 @@ const sources = vi.hoisted(() => ({
 
 vi.mock('../tools/oxy-services.js', () => ({
   buildOxyServiceTools: vi.fn(async () => sources.oxy),
-  getOxyServicePromptFragment: vi.fn(() => '\n\n## Connected Oxy Services\n- **Inbox**: oxy_inbox__searchEmails.'),
+  getOxyServicePromptFragment: vi.fn(() => '\n\n## Oxy apps\n- **Inbox**: oxy_inbox__searchEmails.'),
   getOxyServiceContext: vi.fn(async () => ''),
 }));
 vi.mock('../tools/mcp.js', () => ({
@@ -458,11 +458,11 @@ describe('the system prompt carries the app catalog', () => {
     const direct = { isDirectUserSession: true, userId: 'u1', accessToken: 'tok' } as const;
     const routed = await SystemPromptBuilder.build({ ...direct, appCatalog: appCatalogPrompt });
     expect(routed).toContain('## Apps');
-    expect(routed).not.toContain('## Connected Oxy Services');
+    expect(routed).not.toContain('## Oxy apps');
 
     // The control: a turn that fits keeps the fragment.
     const unrouted = await SystemPromptBuilder.build({ ...direct, appCatalog: '' });
-    expect(unrouted).toContain('## Connected Oxy Services');
+    expect(unrouted).toContain('## Oxy apps');
   });
 
   it('says nothing about apps when nothing is routed — the control', async () => {

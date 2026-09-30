@@ -203,6 +203,51 @@ describe('Oxy capability tools', () => {
     ))).toHaveLength(1);
   });
 
+  describe('what the model is told when a call fails', () => {
+    function refuse(match: (url: string, init?: RequestInit) => boolean, response: () => Response): void {
+      const original = fetchMock.getMockImplementation() as
+        | ((input: string | URL, init?: RequestInit) => Promise<Response>)
+        | undefined;
+      fetchMock.mockImplementation(async (input: string | URL, init?: RequestInit) => (
+        match(String(input), init) ? response() : original?.(input, init)
+      ));
+    }
+
+    it('never passes an authority refusal through as something the person must authorize', async () => {
+      refuse(
+        (url, init) => url.endsWith('/capabilities/execution-authorizations') && init?.method === 'POST',
+        () => new Response(JSON.stringify({ error: 'coordinator_not_active_or_authorized' }), { status: 400 }),
+      );
+      const tools = await buildOxyServiceTools('user-1', context('user-1'));
+      const result = await (tools.oxy_inbox__searchEmails as unknown as ExecutableTool).execute({ q: 'hello' });
+      expect(result).toMatchObject({ error: 'oxy_app_unavailable' });
+      const text = JSON.stringify(result);
+      expect(text).not.toContain('coordinator_not_active_or_authorized');
+      expect(text).toContain('never ask them to connect');
+    });
+
+    it('treats a missing user authority the same way', async () => {
+      const tools = await buildOxyServiceTools('user-1', { ...context('user-1'), userAccessToken: undefined });
+      const result = await (tools.oxy_inbox__searchEmails as unknown as ExecutableTool).execute({ q: 'hello' });
+      expect(result).toMatchObject({ error: 'oxy_app_unavailable' });
+      expect(JSON.stringify(result)).not.toContain('No direct or automation authority');
+    });
+
+    it('treats the app refusing its ticket as an authority failure', async () => {
+      refuse((url) => url.includes('/email/search'), () => new Response('ticket rejected', { status: 403 }));
+      const tools = await buildOxyServiceTools('user-1', context('user-1'));
+      const result = await (tools.oxy_inbox__searchEmails as unknown as ExecutableTool).execute({ q: 'hello' });
+      expect(result).toMatchObject({ error: 'oxy_app_unavailable' });
+    });
+
+    it('keeps the app\'s own answer to the request, which the model can act on', async () => {
+      refuse((url) => url.includes('/email/search'), () => new Response('query too long', { status: 422 }));
+      const tools = await buildOxyServiceTools('user-1', context('user-1'));
+      const result = await (tools.oxy_inbox__searchEmails as unknown as ExecutableTool).execute({ q: 'hello' });
+      expect(result).toEqual({ error: expect.stringContaining('query too long') });
+    });
+  });
+
   it('does not expose undeclared Oxy tools to a pre-authorized background stage', async () => {
     const tools = await buildOxyServiceTools('user-4', {
       requesterAccountId: 'user-4',
