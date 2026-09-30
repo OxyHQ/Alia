@@ -256,7 +256,11 @@ export class SystemPromptBuilder {
             getOxyServicePromptFragment(userId),
             getOxyServiceContext(userId, accessToken),
           ] as const);
-          if (oxyServicePrompt) systemMessage += oxyServicePrompt;
+          // A routed turn lists every Oxy app in its Apps section (7c) with how
+          // to open it. The fragment names their tools as if they were already
+          // in the tool list, which, while they are not, reads to a weak model
+          // as "those tools do not exist" — and it refuses.
+          if (oxyServicePrompt && !appCatalog) systemMessage += oxyServicePrompt;
           if (oxyServiceCtx) systemMessage += oxyServiceCtx;
         } catch {
           // Non-critical — don't block chat
