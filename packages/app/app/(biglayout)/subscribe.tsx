@@ -189,7 +189,7 @@ export default function SubscribeScreen() {
 
           {plansLoading && tiers.length === 0 ? (
             <View className="py-16">
-              <Loading size="large" />
+              <Loading size="lg" />
             </View>
           ) : plansError ? (
             <EmptyState variant="compact" icon={RiErrorWarningLine} title={t('subscribe.loadError')} />

@@ -67,8 +67,8 @@ export function TelegramBotsSection({
             rightElement={
               <Switch
                 accessibilityLabel={t('agents.telegramBot.ownerPaysLabel')}
-                value={bot.ownerPaysAgentTurns === true}
-                onValueChange={(next) => telegram.setOwnerPays(bot, next)}
+                checked={bot.ownerPaysAgentTurns === true}
+                onCheckedChange={(next) => telegram.setOwnerPays(bot, next)}
               />
             }
           />

@@ -155,9 +155,9 @@ function rows(root: ReactTestRenderer['root']) {
   return hosts(root, 'Item').map((node) => ({
     title: String(node.props.title),
     disabled: node.props.disabled === true,
-    value: hosts(node, 'Switch')[0]?.props.value === true,
+    value: hosts(node, 'Switch')[0]?.props.checked === true,
     toggle: () => {
-      const change = hosts(node, 'Switch')[0]?.props.onValueChange;
+      const change = hosts(node, 'Switch')[0]?.props.onCheckedChange;
       if (typeof change !== 'function') throw new Error(`no switch on ${String(node.props.title)}`);
       act(() => {
         change();
