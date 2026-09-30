@@ -77,13 +77,14 @@ Minimal request:
 }
 ```
 
-`model` is a `<publisher>/<model>` from [`GET /catalogue`](#get-catalogue), a
-`local/<runtime>/<model>` served by the caller's own device, or absent for the person's
-default model. Any other value — including the retired `mode:*` and `route:*`
+`model` is a power level (`auto`, `instant`, `medium`, `high`, `xhigh`, `pro`, `ultra`
+— Oxy picks the model of that level), a `<publisher>/<model>` from
+[`GET /catalogue`](#get-catalogue), a `local/<runtime>/<model>` served by the caller's
+own device, or absent for `auto`. Any other value — including the retired `mode:*` and `route:*`
 spellings — is refused `400` with `code: "model_not_found"` and `param: "model"`.
 
 Product extras: `conversationId`, `reasoningEffort` (`low` | `medium` | `high`, accepted
-only when the model lists that level in `reasoningEfforts`, else `400`
+with any power level, and with a model only when the model lists that level in `reasoningEfforts`, else `400`
 `invalid_reasoning_effort`; forwarded to Oxy as `reasoning: { effort }`), `surface`
 (`chat` | `codea` | `cowork`, default `chat` — selects the system prompt, never the
 model), `responseMode: "voice"`, `agentMode`, `deepResearch`, `tools`,
