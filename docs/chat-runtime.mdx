@@ -129,6 +129,60 @@ per-application list replaces the `/v1` wildcard on both mounts — by changing
 the pinned test on purpose, not by widening `lib/cors-origins.ts`. Issue #244
 closed on that decision.
 
+## Tool budget and the app router
+
+One inference request carries at most **128 tools**: the Oxy edge's `tools`
+maximum (`OxyHQServices packages/api/src/schemas/inferenceEdge.schemas.ts`),
+which mirrors OpenAI's own per-request maximum. Alia names it once,
+`MAX_TOOLS_PER_INFERENCE_REQUEST` in `lib/inference/tool-limit.ts`, and fits
+inside it; the limit does not grow.
+
+It is enforced twice:
+
+- **`ToolPipeline.forUser`** (`lib/tool-budget.ts`) never lets a request carry
+  more. Every path that runs a model with tools — chat streaming and
+  non-streaming, the autonomous runner, `askAgent`/delegation turns, Telegram
+  bot turns (`routes/webhooks.ts`) and service-token triggers
+  (`routes/internal.ts`) — assembles through it and spreads its `routing`
+  beside `tools`.
+- **The Kaana adapter** (`kaana-language-model.ts`) refuses a request with more
+  than 128 tools before sending, with a typed `ToolLimitExceededError`
+  (`invalid_request`, `param: "tools"`, not retryable) and a log naming the
+  tool families. The edge's 400 is unreachable from Alia.
+
+When a turn's tools fit, nothing changes. When they do not, connected apps —
+each Oxy service (`oxy_<app>__*`), each MCP server (`mcp_<server>__*`) and each
+OAuth integration — are **opened on demand by the model**:
+
+1. The first step sends the core tools (clock, built-ins and artifacts, memory
+   and messaging, runtime primitives, skills, agent tools, and every tool the
+   client sent) plus one tool, `useApps({ apps, close? })`. The system prompt's
+   **Apps** section lists every app the turn could open, with its tool count.
+2. `useApps` marks apps open; from the next step their real tools are in the
+   request (AI SDK `prepareStep` → `activeTools`). The model then calls them
+   directly. The full tool set stays registered, so execution, authorization,
+   approvals, the runtime policy, result truncation and tool-name mapping are
+   exactly those of a direct call — there is no proxy tool.
+3. An app that would push the request past 128 is not opened; the result names
+   it and the model can `close` another and ask again.
+
+Open before the model asks, in this order and counted first:
+
+- **Explicit picks** — the composer's connector pick (`mcpServerId`), a whole
+  MCP server. A pick may also be one exact tool name (`pickedApps`); that tool
+  alone is activated. No surface sends a single-tool pick today. Picks are
+  never dropped: if they do not fit, the turn is refused `400 invalid_request`,
+  `param: "tools"`, naming them.
+- **Sticky apps** — apps opened or used earlier in the conversation, read from
+  the history the client replays (`toolInvocations` / `tool_calls`), most
+  recent first, while they fit. No column stores them: the replayed history is
+  already the conversation's record of which tools the model has used.
+
+A client's own tools are never deferred. More than 128 of them is refused
+before credits are reserved (`lib/chat/request-context.ts`), and a set whose
+always-sent tools leave no room for the router is refused by the assembler with
+the same typed error.
+
 ## Persistence and failure
 
 Conversations and messages are stored through the Postgres repositories.

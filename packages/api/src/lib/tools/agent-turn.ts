@@ -149,7 +149,7 @@ export async function runAgentTurn(input: {
    * this call, which runs long after both modules are loaded.
    */
   const { ToolPipeline } = await import('../tool-pipeline.js');
-  const { tools: agentTools } = await ToolPipeline.forUser({
+  const { tools: agentTools, routing: toolRouting, appCatalogPrompt } = await ToolPipeline.forUser({
     // The agent's OWN account: this turn is the agent's, not a person's.
     userId: agent.oxyAccountId,
     isDirectSession: false,
@@ -178,9 +178,11 @@ export async function runAgentTurn(input: {
   try {
     const result = await generateText({
       model,
-      system: systemPrompt,
+      system: systemPrompt + appCatalogPrompt,
       prompt: task,
       tools: agentTools,
+      // Bounds each request to the per-request tool budget (`lib/tool-budget.ts`).
+      ...toolRouting,
       stopWhen: stepCountIs(AGENT_MAX_STEPS),
       maxOutputTokens: AGENT_MAX_OUTPUT_TOKENS,
       temperature: 0.4,

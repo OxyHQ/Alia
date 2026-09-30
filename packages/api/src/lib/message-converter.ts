@@ -171,3 +171,47 @@ export function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping:
 
   return result;
 }
+
+/**
+ * Every tool call already in a conversation's history, oldest first, in both
+ * shapes a client replays: Alia's `toolInvocations` (with their results) and
+ * OpenAI `tool_calls` (whose results arrive as `role: "tool"` messages).
+ *
+ * What `ToolPipeline.forUser` reads to keep the apps a conversation opened
+ * open on its next turn (`lib/tool-budget.ts`).
+ */
+export function priorToolCallsOf(
+  messages: readonly ChatMessage[],
+): Array<{ toolName: string; args?: unknown; result?: unknown }> {
+  const calls: Array<{ toolName: string; args?: unknown; result?: unknown }> = [];
+  const byId = new Map<string, { toolName: string; args?: unknown; result?: unknown }>();
+  const parse = (text: unknown): unknown => {
+    if (typeof text !== 'string') return text;
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  };
+  for (const message of messages) {
+    if (message.role === 'assistant') {
+      if (Array.isArray(message.toolInvocations)) {
+        for (const invocation of message.toolInvocations) {
+          if (typeof invocation?.toolName !== 'string') continue;
+          calls.push({ toolName: invocation.toolName, args: invocation.args, result: invocation.result });
+        }
+      } else if (Array.isArray(message.tool_calls)) {
+        for (const call of message.tool_calls) {
+          if (typeof call?.function?.name !== 'string') continue;
+          const entry = { toolName: call.function.name, args: parse(call.function.arguments) };
+          calls.push(entry);
+          if (typeof call.id === 'string') byId.set(call.id, entry);
+        }
+      }
+    } else if (message.role === 'tool' && typeof message.tool_call_id === 'string') {
+      const entry = byId.get(message.tool_call_id);
+      if (entry) entry.result = parse(message.content);
+    }
+  }
+  return calls;
+}

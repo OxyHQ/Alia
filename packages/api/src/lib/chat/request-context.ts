@@ -9,6 +9,7 @@
  * Import paths deliberately match the ones the route used inline so the
  * timeout suite's module mocks keep intercepting the same seams.
  */
+import { MAX_TOOLS_PER_INFERENCE_REQUEST } from '../inference/tool-limit.js';
 import type { Request, Response } from 'express';
 import {
   resolveModel,
@@ -260,6 +261,32 @@ export async function buildChatRequestContext(
       message: '"assistantMessageId" must be a non-empty string of at most 128 characters.',
       type: 'invalid_request_error',
       param: 'assistantMessageId',
+      code: 'invalid_request',
+    };
+    if (sse.sent) {
+      sse.writeError(refusal);
+    } else {
+      res.status(400).json({ error: refusal });
+    }
+    return null;
+  }
+
+  /**
+   * More client tools than one inference request can carry at all.
+   *
+   * A client's own tools are always sent — it executes them itself, so none can
+   * be deferred — and the Oxy edge refuses a request with more than
+   * {@link MAX_TOOLS_PER_INFERENCE_REQUEST}. Refused here, before credits are
+   * reserved; `ToolPipeline.forUser` makes the exact check once Alia's own
+   * tools are counted beside them.
+   */
+  if (Array.isArray(body.tools) && body.tools.length > MAX_TOOLS_PER_INFERENCE_REQUEST) {
+    const refusal = {
+      message:
+        `"tools" has ${body.tools.length} entries; one request may carry at most ` +
+        `${MAX_TOOLS_PER_INFERENCE_REQUEST} tools, Alia's own included.`,
+      type: 'invalid_request_error',
+      param: 'tools',
       code: 'invalid_request',
     };
     if (sse.sent) {
