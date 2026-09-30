@@ -19,6 +19,9 @@ const TOOL_PILL_LABELS: Record<string, string> = {
   sendEmail: 'Email',
   delegateToAgent: 'Delegating',
   askAgent: 'Asking an agent',
+  // The API's app router (`packages/api/src/lib/tool-budget.ts`): the model
+  // opening a connected app whose tools did not all fit in one request.
+  useApps: 'Opening apps',
   agentSearch: 'Searching agents',
   userMemory: 'Remembering',
   shellExec: 'Running command',
@@ -60,6 +63,7 @@ const TOOL_DONE_LABELS: Record<string, string> = {
   generateFile: 'Generated file',
   delegateToAgent: 'Delegated',
   askAgent: 'Asked an agent',
+  useApps: 'Opened apps',
   agentSearch: 'Searched agents',
   userMemory: 'Remembered',
   shellExec: 'Ran command',

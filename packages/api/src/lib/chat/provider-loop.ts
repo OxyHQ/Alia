@@ -49,6 +49,7 @@ import { buildBaseConfig } from './model-config.js';
 import { runNonStreaming } from './non-streaming.js';
 import { runStream, type AgentMessage, type StreamRunnerState } from './stream-runner.js';
 import { runTextToolFallback } from './text-tool-fallback.js';
+import type { ToolRouting } from '../tool-budget.js';
 
 /** Terminal model-response errors that need no route-level substitution. */
 const TERMINAL_STREAM_ERRORS: Set<FailoverReason> = new Set(['format', 'content_filter']);
@@ -93,6 +94,11 @@ export interface ProviderLoopParams {
   reasoningEffort: ReasoningEffort | null;
   convertedMessages: ModelMessage[];
   truncatedTools: ToolSet;
+  /**
+   * What bounds each request when `truncatedTools` is larger than one request
+   * may carry (`lib/tool-budget.ts`). Empty when everything fits.
+   */
+  toolRouting?: ToolRouting;
   toolNameMapping: Map<string, string>;
   /** Accumulator for delegate-to-agent replies; mutated in place by the stream runner. */
   agentMessages: AgentMessage[];
@@ -123,7 +129,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
   const {
     req, res, sse, requestId, requestStartTime, globalTimer, globalTimeoutMs, state,
     body, messages, conversationId, assistantMessageId, reasoningEffort, convertedMessages, truncatedTools,
-    toolNameMapping, agentMessages, systemPromptTokens, requestedModel,
+    toolRouting, toolNameMapping, agentMessages, systemPromptTokens, requestedModel,
     autonomyRuntime, includeUsage, skills, inferenceServiceToken, beforeStreamClose,
   } = params;
 
@@ -225,6 +231,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       body,
       convertedMessages,
       truncatedTools,
+      toolRouting,
       reasoningEffort,
       systemPromptTokens,
       streamState,

@@ -107,6 +107,7 @@ import type { SkillRuntime } from './skills/runtime.js';
 import { canvasTool } from './tools/canvas.js';
 import { createGetDeviceInfoTool } from './tools/device-info.js';
 import { createAutomationTool } from './tools/automation-create.js';
+import { budgetTools, type BudgetedToolSet, type PriorToolCall, type ToolRouting } from './tool-budget.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -257,12 +258,52 @@ export interface ForUserOptions {
    * it twice would mean authorizing twice, and the two could disagree.
    */
   skills?: SkillRuntime | null;
+  /**
+   * Apps or exact tool names the PERSON picked for this turn, beyond
+   * `mcpServerId` (which is always treated as a pick). Always active from the
+   * first step, and never dropped — see `lib/tool-budget.ts`.
+   */
+  pickedApps?: readonly string[];
+  /**
+   * The tool calls already in this conversation, oldest first, so an app the
+   * conversation opened stays open (`lib/tool-budget.ts`, "sticky apps").
+   */
+  priorToolCalls?: readonly PriorToolCall[];
 }
 
 export interface ForUserResult {
+  /**
+   * Every tool the turn may CALL. May hold more than one request can carry;
+   * {@link ForUserResult.routing} is what bounds the request, so the two are
+   * always passed together.
+   */
   tools: ToolSet;
   /** Maps sanitized tool names back to original names (for Google Gemini compat) */
   toolNameMapping: Map<string, string>;
+  /**
+   * `activeTools` and `prepareStep` for `streamText`/`generateText`: spread it
+   * beside `tools`. Empty when the whole set fits in one request.
+   */
+  routing: ToolRouting;
+  /** The system prompt's Apps section — append it. Empty when nothing is routed. */
+  appCatalogPrompt: string;
+  /** The tools the next step will send, for logs and the context breakdown. */
+  activeToolNames: () => string[];
+}
+
+/** The result for a set small enough that nothing is routed. */
+function unrouted(tools: ToolSet, toolNameMapping: Map<string, string>): ForUserResult {
+  return { tools, toolNameMapping, routing: {}, appCatalogPrompt: '', activeToolNames: () => Object.keys(tools) };
+}
+
+function withBudget(budgeted: BudgetedToolSet, toolNameMapping: Map<string, string>): ForUserResult {
+  return {
+    tools: budgeted.tools,
+    toolNameMapping,
+    routing: budgeted.routing,
+    appCatalogPrompt: budgeted.appCatalogPrompt,
+    activeToolNames: budgeted.activeToolNames,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -298,6 +339,8 @@ export class ToolPipeline {
       instancedSources,
       skills,
       toolScope = 'standard',
+      pickedApps = [],
+      priorToolCalls = [],
     } = opts;
 
     const toolNameMapping = new Map<string, string>();
@@ -322,7 +365,7 @@ export class ToolPipeline {
      * reaching its own fetch, and is preserved here rather than reasoned away.
      */
     if (!toolsEnabled) {
-      return { tools: { getCurrentDate: getCurrentDateTool }, toolNameMapping };
+      return unrouted({ getCurrentDate: getCurrentDateTool }, toolNameMapping);
     }
 
     if (toolScope === 'preauthorized_oxy_automation') {
@@ -348,7 +391,12 @@ export class ToolPipeline {
         ...oxyServiceTools,
       };
       await applyRuntimePolicy(tools, runtime, new Set());
-      return { tools, toolNameMapping };
+      // Exactly authorized steps are few, but the budget is not a matter of
+      // expectation: this set goes through the same router as every other.
+      return withBudget(
+        budgetTools({ tools, sources: { oxy_service: oxyServiceTools, mcp: {}, integration: {} } }),
+        toolNameMapping,
+      );
     }
 
     // 1. Convert editor tools from OpenAI format and build name mapping
@@ -586,7 +634,29 @@ export class ToolPipeline {
      */
     if (runtime) await applyRuntimePolicy(tools, runtime, new Set(Object.keys(mcpTools)));
 
-    return { tools, toolNameMapping };
+    /**
+     * 8. The budget, after the policy so every tool it can activate is already
+     * the wrapped one.
+     *
+     * One request carries at most 128 tools (`inference/tool-limit.ts`). When
+     * this set is larger, connected apps are opened on demand — `useApps`, then
+     * `prepareStep` → `activeTools` — instead of being sent all at once or
+     * dropped. The composer's connector pick is the person's explicit choice
+     * and is active from the first step.
+     */
+    const pins = [
+      ...(typeof mcpServerId === 'string' ? Object.keys(mcpTools).map((name) => name.slice(0, name.indexOf('__'))) : []),
+      ...pickedApps,
+    ];
+    return withBudget(
+      budgetTools({
+        tools,
+        sources: { oxy_service: oxyServiceTools, mcp: mcpTools, integration: integrationTools },
+        pins: [...new Set(pins)],
+        priorToolCalls,
+      }),
+      toolNameMapping,
+    );
   }
 }
 

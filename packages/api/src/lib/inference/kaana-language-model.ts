@@ -59,6 +59,7 @@ import {
   getOxyInferenceClient,
 } from './oxy-inference.js';
 import type { AliaInferenceSurface } from './product-seam.js';
+import { assertToolCountWithinLimit } from './tool-limit.js';
 
 /** One text block per response, because the contract streams one channel of it. */
 const TEXT_BLOCK_ID = 'kaana-text';
@@ -395,6 +396,24 @@ function translate(call: LanguageModelV3CallOptions): Translation {
 }
 
 /**
+ * The translation, refused before sending when it carries more tools than one
+ * request may (`tool-limit.ts`).
+ *
+ * The assembler already budgets every turn it builds; this is the seam's own
+ * check, so a path that did not go through it fails here with a typed
+ * `invalid_request` and a log naming the families, instead of at the edge with
+ * a 400 the person reads as "Alia couldn't answer".
+ */
+function translateWithinLimit(options: KaanaModelOptions, call: LanguageModelV3CallOptions): Translation {
+  const translation = translate(call);
+  assertToolCountWithinLimit(
+    translation.tools.map((tool) => tool.name),
+    { surface: options.surface, model: options.target.model },
+  );
+  return translation;
+}
+
+/**
  * The contract's finish reason, in the AI SDK's vocabulary.
  *
  * `raw` carries the contract's own word through unchanged. The unified value is
@@ -529,7 +548,7 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
       const client = inferenceClient(options);
       if (client === null) throw new Error('Oxy inference is not configured for this deployment');
 
-      const translation = translate(call);
+      const translation = translateWithinLimit(options, call);
       const completion = await client.respond(
         requestFor(options, call, translation),
         requestOptions(options, call.abortSignal ?? AbortSignal.timeout(120_000)),
@@ -554,7 +573,7 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
       const client = inferenceClient(options);
       if (client === null) throw new Error('Oxy inference is not configured for this deployment');
 
-      const translation = translate(call);
+      const translation = translateWithinLimit(options, call);
       const signal = call.abortSignal ?? AbortSignal.timeout(120_000);
       const events = client.stream(
         requestFor(options, call, translation),

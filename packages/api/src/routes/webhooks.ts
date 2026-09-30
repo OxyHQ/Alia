@@ -473,7 +473,7 @@ export async function processAgentBotMessage(
      * answering here could not reach a single first-party Oxy service. It can
      * now, on the same assembly every other surface uses.
      */
-    const { tools } = await ToolPipeline.forUser({
+    const { tools, routing: toolRouting, appCatalogPrompt } = await ToolPipeline.forUser({
       userId: ownerUserId,
       // A bot turn has no browser session and no bearer of its own: it acts for
       // the OWNER, on their credits, through the token-less server paths.
@@ -489,9 +489,11 @@ export async function processAgentBotMessage(
 
     const result = await generateText({
       model,
-      system: systemPrompt,
+      system: systemPrompt + appCatalogPrompt,
       messages: messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
       tools,
+      // Bounds each request to the per-request tool budget (`lib/tool-budget.ts`).
+      ...toolRouting,
       temperature: 0.7,
       maxOutputTokens: 2048,
       stopWhen: stepCountIs(5),
