@@ -287,7 +287,17 @@ export function classifyError(err: unknown): FailoverReason {
   if (err instanceof AliaError) {
     return err.reason;
   }
-  if (err instanceof OxyInferenceError) return OXY_ERROR_REASONS[err.code];
+  if (err instanceof OxyInferenceError) {
+    // A permission refusal the EDGE returns (401/403) is about the caller. The
+    // same code arriving inside the stream (the edge's 502) is the upstream
+    // refusing THIS MODEL for the platform's account — e.g. OpenRouter's
+    // "requires 18+ age verification" on meta/muse-spark-1.3. That is not the
+    // user's authentication, and "try a different model" is what they can do.
+    if ((err.code === 'permission_denied' || err.code === 'commercial_permission_denied') && err.status >= 500) {
+      return 'model_not_found';
+    }
+    return OXY_ERROR_REASONS[err.code];
+  }
 
   /**
    * The one reason that cannot be derived from a response, because there was

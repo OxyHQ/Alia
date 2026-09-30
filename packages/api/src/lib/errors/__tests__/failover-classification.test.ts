@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { classifyError } from '../failover-error.js';
+import { OxyInferenceError } from '@oxy.so/core/inference';
+
+import { AliaErrorCode } from '../error-codes.js';
+import { classifyError, toAliaError } from '../failover-error.js';
 
 /**
  * A dead MODEL must not retire a KEY.
@@ -88,5 +91,23 @@ describe('classifyError: a dead model is not a dead key', () => {
     expect(classifyError(groqError({ error: { message: 'something went sideways' } }, 418))).toBe(
       'unknown',
     );
+  });
+});
+
+describe('a permission refusal is placed where it came from', () => {
+  const refusal = (status: number) => new OxyInferenceError({
+    code: 'permission_denied', message: 'openrouter does not permit this request on this model',
+    retryable: false, requestId: 'req-perm', status,
+  });
+
+  it('an upstream refusal of this model, inside the stream, is the model being unavailable', () => {
+    // Production 2026-09-30: meta/muse-spark-1.3 needs 18+ verification on
+    // the platform's OpenRouter account; it was shown as AUTH_FAILED.
+    expect(classifyError(refusal(502))).toBe('model_not_found');
+    expect(toAliaError(refusal(502), { provider: 'kaana', model: 'meta/muse-spark-1.3' }).code).toBe(AliaErrorCode.MODEL_UNAVAILABLE);
+  });
+
+  it('the edge refusing the caller is still an authorization failure', () => {
+    expect(classifyError(refusal(403))).toBe('auth');
   });
 });
