@@ -201,8 +201,8 @@ export default function NotificationsScreen() {
             rightElement={
               <Switch
                 accessibilityLabel={t('notifications.pushNotifications')}
-                value={pushEnabled}
-                onValueChange={handleTogglePush}
+                checked={pushEnabled}
+                onCheckedChange={handleTogglePush}
                 disabled={pushLoading}
               />
             }

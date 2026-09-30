@@ -91,8 +91,8 @@ export function AgentConnectorGrants({
                   rightElement={
                     <Switch
                       accessibilityLabel={connector.label}
-                      value={granted}
-                      onValueChange={() =>
+                      checked={granted}
+                      onCheckedChange={() =>
                         onChange(
                           granted
                             ? grants.filter((grant) => grant !== connector.grant)

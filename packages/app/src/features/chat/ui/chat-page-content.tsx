@@ -563,7 +563,7 @@ export const ChatPageContent = ({
                     <Text className="flex-1 text-xs text-muted-foreground" numberOfLines={1}>
                       {t('composer.editingMessage')}
                     </Text>
-                    <Button variant="ghost" size="xs" onPress={edit.cancel}>
+                    <Button appearance="subtle" tone="accent" size="xs" onPress={edit.cancel}>
                       {t('composer.cancelEdit')}
                     </Button>
                   </View>

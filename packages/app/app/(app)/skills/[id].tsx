@@ -185,8 +185,8 @@ export default function SkillDetailScreen() {
               rightElement={
                 <Switch
                   accessibilityLabel={t('skills.enabled')}
-                  value={shelf.enabled}
-                  onValueChange={(enabled: boolean) =>
+                  checked={shelf.enabled}
+                  onCheckedChange={(enabled: boolean) =>
                     updateInstall.mutate({ id: skill._id, patch: { enabled } })
                   }
                 />
@@ -198,8 +198,8 @@ export default function SkillDetailScreen() {
               rightElement={
                 <Switch
                   accessibilityLabel={t('skills.autoInvoke')}
-                  value={shelf.autoInvoke}
-                  onValueChange={(autoInvoke: boolean) =>
+                  checked={shelf.autoInvoke}
+                  onCheckedChange={(autoInvoke: boolean) =>
                     updateInstall.mutate({
                       id: skill._id,
                       patch: { autoInvoke },
