@@ -810,7 +810,7 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     expect(mockReserveCredits).not.toHaveBeenCalled();
   });
 
-  it('resolves the named model exactly, and the default when none is named', async () => {
+  it('resolves the named model exactly, and the auto level when none is named', async () => {
     mockResolveModel.mockResolvedValue(VALID_RESOLVED_MODEL);
     await handler(createMockReq({
       body: { messages: [{ role: 'user', content: 'Hello' }], model: 'acme/chat-1', stream: false },
@@ -821,8 +821,9 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     await handler(createMockReq({
       body: { messages: [{ role: 'user', content: 'Hello' }], stream: false },
     }), createMockRes(), vi.fn());
-    // `resolveDefaultModel` shares the spy here; it is asked with the person.
-    expect(mockResolveModel).toHaveBeenCalledWith('user-123');
+    // `resolveDefaultModel` shares the spy here; it takes nothing — the
+    // default is the `auto` power level for everyone (ADR 0014).
+    expect(mockResolveModel).toHaveBeenCalledWith();
   });
 
   it('resolves Kaana once and never retries in Alia', async () => {

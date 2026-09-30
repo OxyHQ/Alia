@@ -2,7 +2,12 @@
 
 *Alia elige modelos reales del catálogo de Oxy.*
 
-**Status:** Accepted
+**Status:** Accepted; superseded in part by [ADR 0014](./0014-people-choose-power-levels-not-models.md)
+
+> **Note (2026-10-01):** people now choose a power level (`auto`, `instant`, `medium`,
+> `high`, `xhigh`, `pro`, `ultra` — Oxy's routing profiles), not a model. A request that
+> names nothing runs `auto`, and the app renders no model picker. See ADR 0014; the
+> rest of this record stands.
 
 **Date:** 2026-09-25
 

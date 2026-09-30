@@ -137,26 +137,19 @@ vi.mock('@/features/chat/runtime/global-store', () => {
   return { useStore };
 });
 
-const setSelectedModel = vi.hoisted(() => vi.fn());
+const setSelectedLevel = vi.hoisted(() => vi.fn());
 vi.mock('@/features/chat/runtime/model-store', () => {
   const state = {
-    selectedModel: 'model-of-record',
-    setSelectedModel,
-    reasoningEffort: 'medium',
+    selectedLevel: 'high',
+    setSelectedLevel,
   };
   return {
     useModelStore: (selector: (s: typeof state) => unknown) => selector(state),
-    effortFor: (stored: string | null, offered: readonly string[]) => (stored !== null && offered.includes(stored) ? stored : null),
   };
 });
 
-vi.mock('@/features/chat/runtime/use-model-selection', () => ({
-  useModelSelection: () => ({
-    shownId: 'model-of-record',
-    effectiveId: 'model-of-record',
-    entry: { reasoningEfforts: ['low', 'medium', 'high'] },
-    source: 'requested',
-  }),
+vi.mock('@/features/chat/ui/composer/power-level-options', () => ({
+  useModeSelection: (stored: string) => ({ shown: stored, send: stored, source: 'requested' }),
 }));
 vi.mock('@/features/chat/runtime/use-conversations', () => ({
   useCreateConversation: () => ({ mutateAsync: vi.fn(async () => ({ id: 'c1' })) }),
@@ -274,8 +267,8 @@ describe('the new-chat screen wires the whole conversation', () => {
 
     expect(props.messages).toBe(chat.messages);
     expect(props.isLoading).toBe(chat.isLoading);
-    // The model is the app's selection, which the shared composer reads
-    // itself; the new-chat screen has no model of its own to hand down.
+    // The power level is the app's selection, which the shared composer reads
+    // itself; the new-chat screen has no level of its own to hand down.
     expect('selectedModel' in props).toBe(false);
     // Voice from the new-chat screen opens a conversation in voice mode.
     expect(typeof props.onVoiceStart).toBe('function');

@@ -61,13 +61,12 @@ Paths are under `packages/app/`.
 | Settings | `src/features/settings/ui/` | `settings-modal`, `settings-list`, `field`, `switch`, `select` | direct reuse |
 | Agent activity | `src/features/agents/ui/detail/activity-grid.tsx` | `activity-heatmap` | direct reuse |
 
-**The model picker** is `ComposerPanel`'s `ModelPicker`, fed by
-`model-lineup.ts`. On `main` since `21ce2b76` it lists the real models of the
-catalogue by publisher — the server's featured models and the person's pins
-first, one provider per publisher, then this account's devices — and the
-effort axis is the chosen model's own reasoning efforts: none, and
-`effortLevels={[]}` drops the axis. The mode pill is Chat / Agent (the
-panel's `permissions`); deep research is a checked row in the add menu.
+**The power-level selector** is `ComposerPanel`'s mode pill (its
+`permissions`: a label, a short description and an icon per row), fed by
+`power-level-options.ts`. It lists Oxy's seven power levels, Auto first, then
+this account's device models (ADR 0014). There is no `ModelPicker`: Alia's
+users choose power, not models. Agent and deep research are checked rows in the
+add menu.
 
 ## 2. The AI families, evaluated
 
@@ -76,7 +75,7 @@ Every family #608 §2 names, against 4.20.0.
 | Family | Used | Decision | Why |
 | --- | --- | --- | --- |
 | `ai-chat` | shell, container, thread, turns, feedback row, code and gallery panels, mobile header | composition | The base of the workspace. `AiChatImageGeneration` is not used: a generated image reaches Alia as a finished canvas artifact, and the component's `ready` has no in-flight event to follow. |
-| `composer-panel` | `ComposerPanel`, `ComposerPanelStatusTab` | composition | The panel, not the template's pill: it has the provider-rail picker, the mode pill and the attachment tiles Alia needs. `ComposerStatusBar` is not used (no branch, folders or context meter describe an Alia chat); `ComposerAttachments` is not used (its upload is simulated, `use-attachment-queue.ts`). |
+| `composer-panel` | `ComposerPanel`, `ComposerPanelStatusTab` | composition | The panel, not the template's pill: it has the mode pill (Alia's power levels) and the attachment tiles Alia needs; its model picker is not used. `ComposerStatusBar` is not used (no branch, folders or context meter describe an Alia chat); `ComposerAttachments` is not used (its upload is simulated, `use-attachment-queue.ts`). |
 | `composer-loader` | no | not applicable | Removed with the old composer (`7e877b8a`): it traces the pill and would light the status tab. A turn in flight shows as `AiChatContainer.working` and the send slot's stop. |
 | `agent-thinking` | yes | direct reuse | The thread's is the translated "Thinking" with the mount timer off, since it would stand in for a duration the turn records; the agent panel's names the agent's current step. |
 | `agent-log` | yes | composition | The rows under the thought and agent panels, fed by the turn's tool events. |
@@ -151,7 +150,7 @@ mounts the real panels and fails on any control without a handler.
 | Failed turn, new-conversation offer | `src/features/chat/ui/failed-turn-card.tsx`, `new-conversation-offer.tsx` | Alia's actions (retry; start a new chat) on Bloom's `Notification`. |
 | Plan preview, agent task and result cards | `PlanPreviewCard` from `@alia.onl/sdk`; `src/features/chat/ui/cards/` | Approve or reject a plan; an agent run's state and result, on `AgentProgress`, `AgentThinking`, `Card`, `Accordion`. |
 | Thread search | `src/features/chat/ui/thread-search.tsx` | Searches the server's history of the thread and jumps by cursor; built on `search`, `card`, `item`. |
-| Composer additions | `composer-suggestions.tsx`, `drop-zone.tsx`, `use-attachment-intake.ts`, `add-menu.tsx`, `model-lineup.ts`, `provider-marks.tsx` in `src/features/chat/ui/composer/` | Suggestions driven through `onKeyPress`; web drag-and-drop (react-native-web forwards no drag events); the reads behind the tiles; the add menu's rows and the picker's providers. |
+| Composer additions | `composer-suggestions.tsx`, `drop-zone.tsx`, `use-attachment-intake.ts`, `add-menu.tsx`, `power-level-options.ts` in `src/features/chat/ui/composer/` | Suggestions driven through `onKeyPress`; web drag-and-drop (react-native-web forwards no drag events); the reads behind the tiles; the add menu's rows and the power levels. |
 | Canvas renderers | `src/features/chat/ui/canvas/` | Chart, table, code, form and Markdown artifacts, each drawn with the Bloom family that fits. |
 | Agent terminal | `src/features/chat/ui/workspace/agent-terminal.tsx` | xterm.js (a WebView on native), in the code panel's second tab; loaded only when shown. |
 | Call controls | `VoiceControls` from `@alia.onl/sdk`; `src/features/voice/ui/voice-mode-icon.tsx` | See `call-ui` in §2. The call runs on the device ([Voice](./voice.mdx)). |

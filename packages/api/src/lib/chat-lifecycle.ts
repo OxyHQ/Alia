@@ -1,6 +1,7 @@
 import type { Request } from 'express';
 import { saveConversation, generateConversationTitle, generateTitle } from './conversation-saver.js';
 import { finalizeCredits, type CreditReservation, type CreditUsage } from './credits-manager.js';
+import { servedModelId } from './models/power-levels.js';
 import { detectCreditAnomaly, type CreditWarning } from './credit-anomaly.js';
 import { recordUsage } from '../middleware/api-key-rate-limit.js';
 import { runAfterChatHooks } from './hooks/index.js';
@@ -177,8 +178,14 @@ export async function finalizeChatCredits(
    * remembered.
    */
   settlement: { creditsSettled: boolean },
+  /**
+   * The `<publisher>/<model>@<revision>` Oxy said ran, when it said one. A
+   * power-level turn is priced by it — the level itself has no price.
+   */
+  servedReference: string | null = null,
 ): Promise<{ creditsCharged: number; creditsRemaining: number; creditWarning: CreditWarning | null }> {
-  const { creditReservation, tokenUsage, modelId, userId } = ctx;
+  const { creditReservation, tokenUsage, userId } = ctx;
+  const modelId = servedModelId(ctx.modelId, servedReference);
   let creditsCharged = 0;
   let creditsRemaining = 0;
   let creditWarning: CreditWarning | null = null;
@@ -245,7 +252,8 @@ export function runPostChatHooks(
     metadata: { model: modelId },
     response: assistantResponse,
     tokenUsage,
-    modelUsed: modelId,
+    // What ran, not only what was asked for: a power level names no model.
+    modelUsed: servedModelId(modelId, observation.resolvedModelReference),
     requestedModel,
     reasoningEffort,
     latencyMs: Date.now() - requestStartTime,

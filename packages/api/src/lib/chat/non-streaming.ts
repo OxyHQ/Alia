@@ -32,6 +32,7 @@ import type { ChatMessage } from '../message-converter.js';
 import type { AutonomyRuntimeContext } from '../autonomy/runtime.js';
 import type { SkillRuntime } from '../skills/runtime.js';
 import { isInvalidToolCall } from './tool-calls.js';
+import { servedModelId } from '../models/power-levels.js';
 
 export interface NonStreamingParams {
   req: Request;
@@ -133,7 +134,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
   }
 
   // Finalize credits + detect anomalies
-  const { creditsCharged, creditsRemaining, creditWarning } = await finalizeChatCredits(lifecycleCtx, req, settlement);
+  const { creditsCharged, creditsRemaining, creditWarning } = await finalizeChatCredits(lifecycleCtx, req, settlement, observation.resolvedModelReference);
 
   // Fire afterChat hooks (non-blocking)
   runPostChatHooks(lifecycleCtx, assistantResponse, observation, null);
@@ -148,7 +149,9 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
   // Return OpenAI-compatible non-streaming response
   res.json(buildCompletionResponse({
     requestId,
-    model: modelId,
+    // The model that ran, as OpenAI's shape means it: for a power level, the
+    // one Oxy chose (ADR 0014); the request's own id when none was reported.
+    model: servedModelId(modelId, observation.resolvedModelReference),
     content: assistantResponse,
     finishReason: result.finishReason || 'stop',
     toolCalls,

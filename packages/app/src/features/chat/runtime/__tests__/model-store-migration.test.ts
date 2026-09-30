@@ -9,45 +9,63 @@ import { migrateModelState } from '../model-store-migration';
 const legacy = (prefix: string, name: string) => `${prefix}:${name}`;
 const AUTO = legacy('mode', 'auto');
 
-describe('model store persisted-state migration (v3)', () => {
-  it.each([AUTO, legacy('mode', 'thinking'), legacy('route', 'instant'), legacy('route', 'cowork'), legacy('profile', 'auto'), 'alia-pro'])(
-    'turns the invented choice %s into the server default',
-    (selectedModel) => {
-      expect(migrateModelState({ selectedModel, reasoningEffort: null, webSearch: true }, 2).selectedModel).toBeNull();
-    },
-  );
+describe('model store persisted-state migration (v4: power levels)', () => {
+  it.each([
+    // v3: a real model the person picked by name.
+    ['acme/model', 3],
+    ['openai/gpt-5.5', 3],
+    // v0–v2: Alia's invented modes, routing profiles and aliases.
+    [AUTO, 2],
+    [legacy('mode', 'thinking'), 2],
+    [legacy('route', 'instant'), 2],
+    [legacy('route', 'cowork'), 1],
+    [legacy('profile', 'auto'), 2],
+    ['alia-pro', 0],
+    // Nothing chosen at all.
+    [null, 3],
+    [undefined, 2],
+  ])('turns the stored model %s (v%s) into auto', (selectedModel, version) => {
+    expect(migrateModelState({ selectedModel, reasoningEffort: null, webSearch: true }, version).selectedLevel).toBe('auto');
+  });
 
-  it('keeps a real model and a device model', () => {
-    expect(migrateModelState({ selectedModel: 'acme/model' }, 2).selectedModel).toBe('acme/model');
-    expect(migrateModelState({ selectedModel: 'local/ollama/llama' }, 2).selectedModel).toBe('local/ollama/llama');
+  it('keeps a model running on the person\'s own device', () => {
+    expect(migrateModelState({ selectedModel: 'local/ollama/llama' }, 3).selectedLevel).toBe('local/ollama/llama');
+    expect(migrateModelState({ selectedModel: 'local/ollama/llama' }, 2).selectedLevel).toBe('local/ollama/llama');
   });
 
   it.each([
-    ['instant', null],
-    ['medium', 'medium'],
-    ['high', 'high'],
-    ['max', 'high'],
-    [null, null],
-  ])('maps the old effort %s to %s', (reasoningEffort, expected) => {
-    expect(migrateModelState({ selectedModel: AUTO, reasoningEffort }, 2).reasoningEffort).toBe(expected);
+    // The old instant / max collapse: the two ends of the scale are now levels.
+    ['instant', 'instant'],
+    ['max', 'ultra'],
+    // The middle of the old scale was a knob on a model; it carries no level.
+    ['medium', 'auto'],
+    ['high', 'auto'],
+    [null, 'auto'],
+  ])('maps the pre-v3 effort %s to the level %s', (reasoningEffort, expected) => {
+    expect(migrateModelState({ selectedModel: AUTO, reasoningEffort }, 2).selectedLevel).toBe(expected);
   });
 
-  it('carries the v1 thinking toggle as the smallest budget', () => {
-    expect(migrateModelState({ selectedModel: 'x/y', thinkingMode: true }, 1).reasoningEffort).toBe('medium');
+  it('does not read v3 efforts as levels: v3 had already collapsed max into high', () => {
+    expect(migrateModelState({ selectedModel: 'acme/model', reasoningEffort: 'high' }, 3).selectedLevel).toBe('auto');
   });
 
-  it('keeps web search and pins, and survives a malformed state', () => {
-    expect(migrateModelState({ webSearch: false, pinnedModels: ['a/b', legacy('route', 'pro'), 3] }, 2)).toEqual({
-      selectedModel: null,
-      reasoningEffort: null,
+  it('keeps a v4 level and a v4 device model, and repairs an unknown one', () => {
+    expect(migrateModelState({ selectedLevel: 'xhigh', webSearch: false }, 4)).toEqual({
+      selectedLevel: 'xhigh',
       webSearch: false,
-      pinnedModels: ['a/b'],
     });
-    expect(migrateModelState(null, 2)).toEqual({
-      selectedModel: null,
-      reasoningEffort: null,
-      webSearch: true,
-      pinnedModels: [],
-    });
+    expect(migrateModelState({ selectedLevel: 'local/lm/qwen' }, 4).selectedLevel).toBe('local/lm/qwen');
+    expect(migrateModelState({ selectedLevel: 'acme/model' }, 4).selectedLevel).toBe('auto');
+  });
+
+  it('keeps web search, drops effort and pins, and survives a malformed state', () => {
+    expect(
+      migrateModelState(
+        { selectedModel: 'a/b', reasoningEffort: 'low', webSearch: false, pinnedModels: ['a/b', legacy('route', 'pro'), 3] },
+        3,
+      ),
+    ).toEqual({ selectedLevel: 'auto', webSearch: false });
+    expect(migrateModelState(null, 2)).toEqual({ selectedLevel: 'auto', webSearch: true });
+    expect(migrateModelState('garbage', 0)).toEqual({ selectedLevel: 'auto', webSearch: true });
   });
 });

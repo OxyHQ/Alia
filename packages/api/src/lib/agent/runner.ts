@@ -605,7 +605,7 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
 
       // The agent's own `publisher/model`, or the owner's default when it has
       // none or the catalogue no longer offers it (ADR 0012).
-      const activeResolved = await resolveStoredModel(agent.modelId, session.oxyUserId).catch(() => null);
+      const activeResolved = await resolveStoredModel(agent.modelId).catch(() => null);
       if (!activeResolved) {
         eventStream.append('error', 'No model is available for this agent');
         stateMachine.transition('error');

@@ -378,7 +378,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
        */
       const producedOutput = turnProducedOutput(assistantResponse, toolInvocations);
       const { creditsCharged, creditsRemaining, creditWarning } = producedOutput
-        ? await finalizeChatCredits(lifecycleCtx, req, state)
+        ? await finalizeChatCredits(lifecycleCtx, req, state, observation.resolvedModelReference)
         : { creditsCharged: 0, creditsRemaining: 0, creditWarning: null };
       if (includeUsage && state.creditReservation && req.user) {
         const usageChunk = {

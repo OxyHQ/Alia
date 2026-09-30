@@ -161,9 +161,9 @@ interface ChatPageContentProps {
   onRetryTurn?: () => void;
   /** Start voice mode where this screen has no voice session of its own (the new-chat screen). */
   onVoiceStart?: () => void;
-  /** The model this chat sends with (a conversation remembers its own). */
+  /** The power level this chat sends with (a conversation remembers its own). */
   selectedModel?: string | null;
-  onModelChange?: (model: string | null) => void;
+  onModelChange?: (level: string) => void;
   /**
    * The signed-out welcome, in place of the conversation: its field in the
    * container's background slot and its words in the content area, with no

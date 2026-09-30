@@ -9,7 +9,7 @@ import {
 } from '@/features/chat/model/conversation-export';
 import { UsageLimitError } from '@/features/billing/model/usage-limit-error';
 import { queryKeys } from '@/shared/api/query-keys';
-import { useModelSelection } from '@/features/chat/runtime/use-model-selection';
+import { useModeSelection } from '@/features/chat/ui/composer/power-level-options';
 import { useChatConversation } from '@/features/chat/runtime/use-chat-conversation';
 import { useAgentActivity } from '@/features/chat/runtime/use-agent-activity';
 import {
@@ -26,7 +26,7 @@ import {
 } from '@/features/chat/runtime/use-thread-search';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useVoiceMode } from '@/features/voice/runtime/use-voice-mode';
-import { effortFor, useModelStore } from '@/features/chat/runtime/model-store';
+import { useModelStore } from '@/features/chat/runtime/model-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import type { Message } from '@/features/chat/model/chat';
 import { Button } from '@oxy.so/bloom/button';
@@ -80,19 +80,17 @@ export const ConversationScreen = ({
   threadHandle,
   startVoice = false,
 }: ConversationScreenProps) => {
-  // A conversation keeps its own choice once one is made here, and follows the
-  // user's standing choice until then. It used to open on a hard-coded
-  // identifier instead, which silently discarded the model the user had picked
-  // on the screen that started the conversation.
+  // A conversation keeps its own power level once one is chosen here, and
+  // follows the user's standing choice until then. It used to open on a
+  // hard-coded identifier instead, which silently discarded the choice made on
+  // the screen that started the conversation.
   const { data: conversationDetails } = useConversation(conversationId);
-  const globalModel = useModelStore((s) => s.selectedModel);
-  const [conversationModel, setConversationModel] = useState<string | null>(
+  const globalLevel = useModelStore((s) => s.selectedLevel);
+  const [conversationLevel, setConversationLevel] = useState<string | null>(
     null,
   );
-  const selectedModel = conversationModel ?? globalModel;
-  const selection = useModelSelection(selectedModel);
-  /** How hard to think: a request flag, sent only when the model accepts it. */
-  const reasoningEffort = useModelStore((s) => s.reasoningEffort);
+  const selectedModel = conversationLevel ?? globalLevel;
+  const selection = useModeSelection(selectedModel);
 
   const {
     messages,
@@ -114,9 +112,7 @@ export const ConversationScreen = ({
     turnOptionsOf,
   } = useChatConversation({
     conversationId,
-    // Only a level the chosen model lists is sent; anything else is its own default.
-    reasoningEffort: effortFor(reasoningEffort, selection.entry?.reasoningEfforts ?? []),
-    selectedModel: selection.effectiveId ?? undefined,
+    selectedModel: selection.send,
     agentId,
   });
 
@@ -363,7 +359,7 @@ export const ConversationScreen = ({
     <>
         <ChatPageContent
           selectedModel={selectedModel}
-          onModelChange={setConversationModel}
+          onModelChange={setConversationLevel}
           conversationTitle={conversationDetails?.title}
           // Nothing live under a window: it is a view of the past, and the
           // conversation being streamed into is not below it in the thread.

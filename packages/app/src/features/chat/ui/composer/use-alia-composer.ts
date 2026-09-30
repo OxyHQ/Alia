@@ -1,7 +1,7 @@
 import { useComposerAddMenu } from '@/features/chat/ui/composer/add-menu';
 import type { Attachment } from '@/features/chat/ui/composer/types';
 import type { ComposerProps } from '@/features/chat/ui/composer/composer';
-import { useComposerLineup } from '@/features/chat/ui/composer/model-lineup';
+import { usePowerLevelSelector } from '@/features/chat/ui/composer/power-level-options';
 import {
   buildTurnSelection,
   toggleConnectorId,
@@ -20,8 +20,6 @@ import {
 } from '@/features/chat/runtime/composer-draft-store';
 import { useModelStore } from '@/features/chat/runtime/model-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
-import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
-import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
 import { toast } from '@oxy.so/bloom/toast';
 import { useCallback, useMemo } from 'react';
 
@@ -30,8 +28,8 @@ import { useCallback, useMemo } from 'react';
  * the chat, Automations, and the screens that create an agent or a skill.
  *
  * It returns the props the shared `Composer` (Bloom's `ComposerPanel`) takes
- * beyond the draft itself — the model picker and its effort, the mode
- * selector, the add menu, the attachments — plus the per-turn choices a send
+ * beyond the draft itself — the power-level selector (the panel's mode pill),
+ * the add menu, the attachments — plus the per-turn choices a send
  * carries (connector and skills), so every screen offers the same controls
  * and they mean the same thing.
  *
@@ -50,23 +48,23 @@ export interface AliaComposerOptions {
   /**
    * The surface sends a prompt string and nothing else (creating an agent or
    * a skill: both generate endpoints read the prompt and nothing more). Every
-   * control whose value such a send would ignore goes — effort, the mode
-   * selector, the add menu with its files, search, skills and connectors — and
-   * with no attachment props the composer takes no paste or drop either.
+   * control whose value such a send would ignore goes — the add menu with its
+   * files, search, skills and connectors — and with no attachment props the
+   * composer takes no paste or drop either.
    *
-   * The model picker stays only when the screen keeps its own model
+   * The power-level selector stays only when the screen keeps its own level
    * (`onModelChange`): creating an agent stores the one picked as the new
-   * agent's model, so there the choice is carried. Without it, it goes too.
+   * agent's level, so there the choice is carried. Without it, it goes too.
    */
   promptOnly?: boolean;
   /** Offer ghost mode: only before anything in the conversation is saved. */
   offerGhost?: boolean;
   /**
-   * The model this composer sends with, when the screen keeps its own (a
-   * conversation remembers its model). Defaults to the app's selection.
+   * The power level this composer sends with, when the screen keeps its own
+   * (a conversation remembers its level). Defaults to the app's selection.
    */
   selectedModel?: string | null;
-  onModelChange?: (model: string | null) => void;
+  onModelChange?: (level: string) => void;
 }
 
 export type AliaComposerProps = Pick<
@@ -74,12 +72,6 @@ export type AliaComposerProps = Pick<
   | 'attachments'
   | 'onAddAttachment'
   | 'onRemoveAttachment'
-  | 'providers'
-  | 'model'
-  | 'onModelChange'
-  | 'effortLevels'
-  | 'effort'
-  | 'onEffortChange'
   | 'modes'
   | 'mode'
   | 'onModeChange'
@@ -111,8 +103,8 @@ export function useAliaComposer({
     (text: string) => useComposerDraftStore.getState().setText(address, text),
     [address],
   );
-  const selectedModel = useModelStore((s) => s.selectedModel);
-  const setSelectedModel = useModelStore((s) => s.setSelectedModel);
+  const selectedLevel = useModelStore((s) => s.selectedLevel);
+  const setSelectedLevel = useModelStore((s) => s.setSelectedLevel);
   const webSearch = useModelStore((s) => s.webSearch);
   const setWebSearch = useModelStore((s) => s.setWebSearch);
   const { active: modeActive, toggle: toggleMode } = useCapabilityModes();
@@ -145,12 +137,15 @@ export function useAliaComposer({
     toast.info(next ? t('modes.searchOn') : t('modes.searchOff'));
   }, [webSearch, setWebSearch, t]);
 
-  // The real models, grouped by publisher, as Bloom's model picker takes them
-  // (`model-lineup.ts`). A screen that keeps its own model passes it; `null`
-  // there, as in the store, is the server's default.
-  const lineup = useComposerLineup(
-    modelOverride !== undefined ? modelOverride : selectedModel,
-    onModelOverride ?? setSelectedModel,
+  // The power levels (and the person's own device models), as Bloom's mode
+  // pill takes them (`power-level-options.ts`). A screen that keeps its own
+  // level passes it; `null` there is `auto`.
+  const levels = usePowerLevelSelector(
+    modelOverride !== undefined ? modelOverride : selectedLevel,
+    onModelOverride ?? setSelectedLevel,
+    // A prompt-only surface stores the level on something Alia runs (a new
+    // agent), which no device of this person's can serve.
+    { devices: !promptOnly },
   );
 
   const addMenu = useComposerAddMenu({
@@ -162,9 +157,6 @@ export function useAliaComposer({
     onToggleWebSearch: toggleWebSearch,
     onOpenCanvas: () => useUIStore.getState().setRightPanel('canvas'),
     offerGhost,
-    pinModel: lineup.current === null
-      ? null
-      : { name: lineup.current.name, pinned: lineup.current.pinned, onToggle: lineup.togglePinned },
     turnSelection,
     onToggleSkill: (name: string) =>
       updateTurn(address, (turn) => ({ ...turn, skillNames: toggleSkillName(turn.skillNames, name) })),
@@ -173,43 +165,21 @@ export function useAliaComposer({
   });
 
   /**
-   * The mode selector: how Alia works on this turn — answering, or working
-   * through a longer task as an agent. Deep research is not a mode: it is a
-   * tool the turn may use, switched on in the add menu, and it runs on the
-   * model the picker shows. The plan gate and the toasts stay in `toggleMode`.
+   * The mode selector is the power level: how much power this turn gets.
+   * Working as an agent and deep research are capabilities the turn may use,
+   * switched on in the add menu; they run at the level the pill shows.
    */
-  const modes = useMemo(
-    () => [
-      { id: 'chat', label: t('composer.modeChat'), description: t('composer.modeChatDescription'), icon: RiChat3Line },
-      { id: 'agent', label: t('modes.agentLabel'), description: t('composer.agentDescription'), icon: RiRobot2Line },
-    ],
-    [t],
-  );
-  const mode = modeActive.agent ? 'agent' : 'chat';
-  const onModeChange = useCallback(
-    (next: string) => {
-      if ((next === 'agent') !== modeActive.agent) toggleMode('agent');
-    },
-    [modeActive.agent, toggleMode],
-  );
-
   const props: AliaComposerProps = promptOnly
     ? onModelOverride
-      ? { providers: lineup.providers, model: lineup.model, onModelChange: lineup.onModelChange }
+      ? { modes: levels.modes, mode: levels.mode, onModeChange: levels.onModeChange }
       : {}
     : {
         attachments,
         onAddAttachment: addAttachment,
         onRemoveAttachment: removeAttachment,
-        providers: lineup.providers,
-        model: lineup.model,
-        onModelChange: lineup.onModelChange,
-        effortLevels: lineup.effortLevels,
-        effort: lineup.effort,
-        onEffortChange: lineup.onEffortChange,
-        modes,
-        mode,
-        onModeChange,
+        modes: levels.modes,
+        mode: levels.mode,
+        onModeChange: levels.onModeChange,
         addMenu: addMenu.groups,
         onAddMenuSelect: addMenu.onSelect,
       };

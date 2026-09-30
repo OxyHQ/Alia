@@ -15,7 +15,6 @@ import { queryKeys } from '@/shared/api/query-keys';
 import { USER_MEMORY_QUERY_KEY } from '@/features/memory/runtime/use-user-data';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { useModelStore } from '@/features/chat/runtime/model-store';
-import type { EffortLevel } from '@/features/chat/runtime/use-catalogue';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import i18n from '@/shared/i18n';
 import type { Conversation } from '@/features/chat/runtime/use-conversations';
@@ -91,7 +90,7 @@ interface ConversationsInfinite {
   pageParams: unknown[];
 }
 
-export function useStreamingChat(apiUrl: string, conversationId?: string, reasoningEffort?: EffortLevel | null, selectedModel?: string, agentId?: string | null) {
+export function useStreamingChat(apiUrl: string, conversationId?: string, selectedModel?: string, agentId?: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const previewAgentRow = useAgentRowPreview();
@@ -446,12 +445,11 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
           assistantMessageId: assistantMessage.id,
           stream: true,
           ...(conversationId && { conversationId }),
-          // Omitted entirely when nothing was chosen, so the request means "the
-          // model's own default" rather than "the cheapest level".
-          ...(reasoningEffort && { reasoningEffort }),
           // Only sent when OFF. `true` is the server's default and every
           // request has behaved that way, so sending it would be noise.
           ...(webSearch === false && { webSearch: false }),
+          // The power level (or a device model). Oxy picks the model of that
+          // level; the app never names a hosted model.
           ...(selectedModel && { model: selectedModel }),
           ...(options?.skillNames?.length ? { skillIds: options.skillNames } : {}),
           ...(agentId && { agentId }),
@@ -1178,7 +1176,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
         previewAgentRow(agentId, reply.content);
       }
     }
-  }, [apiUrl, oxyServices, queryClient, conversationId, reasoningEffort, selectedModel, agentId, scheduleFlush, flushPendingUpdates, setMessagesAndRef, previewAgentRow]);
+  }, [apiUrl, oxyServices, queryClient, conversationId, selectedModel, agentId, scheduleFlush, flushPendingUpdates, setMessagesAndRef, previewAgentRow]);
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {

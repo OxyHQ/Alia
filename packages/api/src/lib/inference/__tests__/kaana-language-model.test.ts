@@ -105,6 +105,24 @@ describe('Kaana AI SDK adapter through Oxy', () => {
     expect(result.content).toEqual([{ type: 'text', text: 'hola' }]);
   });
 
+  it('sends a power level as routingProfile, never as a model, and reports the model Oxy chose', async () => {
+    const model = kaanaLanguageModel({
+      target: { kind: 'routingProfile', routingProfile: 'high' },
+      modelId: 'high',
+      surface: 'chat',
+    });
+    const result = await model.doGenerate({ prompt } as never);
+
+    expect(mocks.requests[0]).toMatchObject({ routingProfile: 'high' });
+    expect(mocks.requests[0]).not.toHaveProperty('model');
+    expect(mocks.requests[0]).not.toHaveProperty('routingProfileId');
+    // The level sets its own effort at Oxy; Alia adds none.
+    expect(mocks.requests[0]).not.toHaveProperty('reasoning');
+    expect(result.providerMetadata).toEqual({
+      kaana: { resolvedModelReference: 'openai/gpt-5-mini@2026-08-18' },
+    });
+  });
+
   it('forwards a reasoning effort as reasoning.effort on both methods', async () => {
     const model = kaanaLanguageModel({
       target: { kind: 'model', model: 'acme/thinker-1' },

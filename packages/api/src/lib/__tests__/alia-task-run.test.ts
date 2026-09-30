@@ -71,12 +71,14 @@ beforeEach(() => {
   state.memory.mockResolvedValue(null);
   state.oxyUser.mockResolvedValue({ id: 'owner-1', username: 'nate' });
   state.post.mockResolvedValue({ posted: true, conversationId: 'conversation-1', messageId: 'agent-push-1' });
-  state.resolveModel.mockResolvedValue({ modelId: 'publisher/default-model' });
+  state.resolveModel.mockReturnValue({ modelId: 'auto' });
   state.getModel.mockReturnValue({ model: 'handle' });
   state.forUser.mockResolvedValue({ tools: { webSearch: {} }, routing: {}, appCatalogPrompt: '' });
   state.generate.mockResolvedValue({
     text: 'Meta announced Llama 5 today.',
     totalUsage: { inputTokens: 1200, outputTokens: 300 },
+    // The model Oxy chose for the `auto` level, as the adapter reports it.
+    providerMetadata: { kaana: { resolvedModelReference: 'publisher/default-model@2026-09-01' } },
   });
   state.finalize.mockResolvedValue({ creditsCharged: 3, creditsRemaining: 97 });
   state.refund.mockResolvedValue(undefined);
@@ -87,7 +89,7 @@ describe('an Alia task run', () => {
   it('runs one Alia turn for the owner and posts the answer into the task conversation', async () => {
     await expect(runAliaTask(job, { finalAttempt: true })).resolves.toBe('completed');
 
-    expect(state.resolveModel).toHaveBeenCalledWith('owner-1');
+    expect(state.resolveModel).toHaveBeenCalledWith();
     expect(state.forUser).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'owner-1',
       actsForPerson: true,

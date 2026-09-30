@@ -1,22 +1,26 @@
 ---
 title: "Models in Alia"
-description: "Alia has no models of its own: it offers real models from Oxy's catalogue and chooses the rest automatically."
+description: "Alia has no models of its own: people choose a power level, Oxy picks the model; API callers may name a real model from Oxy's catalogue."
 order: 2
 ---
 
 # Models in Alia
 
-Alia has no models of its own. It is a multi-provider assistant: a person picks a
-real model — `<publisher>/<model>` — and Alia answers with it through Kaana via
-Oxy. Oxy authenticates, authorizes and resolves the deployment; Kaana owns
-provider credentials, deployment execution, health and failover. The decision is
+Alia has no models of its own. A person chooses a **power level** — Auto (the
+default), Instant, Medium, High, XHigh, Pro, Ultra — and Oxy picks an available
+model of that level for each request, through Kaana. Oxy authenticates,
+authorizes, chooses the model and resolves the deployment; Kaana owns provider
+credentials, deployment execution, health and failover. API callers may still
+name a real `<publisher>/<model>`. The decisions are
+[ADR 0014](./adr/0014-people-choose-power-levels-not-models.md) and
 [ADR 0012](./adr/0012-alia-uses-real-models.md).
 
 **Nothing about models is hardcoded.** There are no model ids in code or in
-environment variables, and no curated lists. The catalogue comes from Oxy, and
-every choice Alia makes on a person's behalf — featured models, the default
-model, the utility model, the speech model — is computed from that catalogue and
-from Alia's own usage.
+environment variables, and no curated lists. The seven power levels are Oxy's
+fixed routing-profile vocabulary, not models; which models belong to each is
+reviewed data in Oxy. The catalogue comes from Oxy, and every model Alia chooses
+itself — featured models, the utility model, the speech model — is computed from
+that catalogue and from Alia's own usage.
 
 There is no hosted direct-provider mode in Alia. Provider environment keys and
 `GATEWAY_API_URL` are refused at boot rather than treated as alternate
@@ -26,12 +30,15 @@ configuration.
 
 A request's `model` is one of:
 
+- **a power level** — `auto`, `instant`, `medium`, `high`, `xhigh`, `pro`,
+  `ultra`. It is sent to Oxy as `routingProfile`; the response names the model
+  that ran. This is what Alia's app sends.
 - **`<publisher>/<model>`** — a model from the catalogue, e.g. the id a picker
   entry carries. It is sent to Oxy as `model` unchanged.
 - **`local/<runtime>/<model>`** — a model served by the person's own device
   ([ADR 0007](./adr/0007-a-users-own-machine-as-an-inference-runtime.md)). It
   never reaches Oxy and reserves no credits.
-- **absent** — the person's default model (below).
+- **absent** — `auto`.
 
 Anything else, including the retired `mode:*` and `route:*` spellings and any id
 the catalogue does not carry, is refused before credits are reserved:
@@ -39,7 +46,7 @@ the catalogue does not carry, is refused before credits are reserved:
 ```json
 {
   "error": {
-    "message": "\"acme/unknown\" is not an available model. List them at GET /catalogue.",
+    "message": "\"acme/unknown\" is not an available model or power level. Name a power level (auto, instant, medium, high, xhigh, pro, ultra) or a model listed at GET /catalogue.",
     "type": "invalid_request_error",
     "param": "model",
     "code": "model_not_found"
@@ -47,9 +54,26 @@ the catalogue does not carry, is refused before credits are reserved:
 }
 ```
 
-There are no product modes, routing profiles, aliases or an "Auto" that is not a
-model. Deep research is a request flag (`deepResearch: true`) and runs with the
-chosen model.
+There are no Alia-owned product modes or aliases. Deep research and agent mode
+are request flags and run at the chosen level.
+
+## Power levels
+
+| Level | What Oxy picks | Effort | In the app |
+| --- | --- | --- | --- |
+| `auto` | the cheapest level that suffices, per request (never `pro`/`ultra`) | the level's | Picks the right level for each message |
+| `instant` | very cheap, fast small models | none | Fastest and cheapest |
+| `medium` | mid-size models | `low` | Everyday tasks |
+| `high` | strong models | `medium` | Tougher questions |
+| `xhigh` | the `high` models | `high` | Thinks even harder |
+| `pro` | frontier models | `high` | Slower, costs more |
+| `ultra` | the heaviest frontier models | `high` | Most capable, slowest |
+
+Membership, ordering and failover inside a level are Oxy's
+(`oxy/docs/inference/power-levels.md`). Alia never retries or swaps a model
+itself. It reads the model that ran from the response
+(`providerMetadata.kaana.resolvedModelReference`), prices the turn by it, and
+records it as `chat_analytics.model` with the level as the requested model.
 
 ## The catalogue
 
@@ -97,7 +121,11 @@ next refresh without a deploy.
 | `releasedAt` | Release date from the catalogue, or `null`. |
 | `featured` | Whether the model is in `featuredIds`. |
 
-`defaultModelId` is the requesting person's default; `featuredIds` is ordered.
+`featuredIds` is ordered. `defaultModelId` is the model a client that still
+renders a model picker should preselect for this person (the one they last
+used, else a computed one); a request that names nothing does not run on it.
+The response also carries `powerLevels` (the seven slugs) and
+`defaultPowerLevel` (`auto`).
 
 `GET /v1/models` returns the same list in the OpenAI shape
 (`{ "object": "list", "data": [{ "id", "object": "model", "created", "owned_by" }] }`,
@@ -116,24 +144,27 @@ The selection rules are pure functions over the catalogue and usage data
   `releasedAt`), publishers ranked by Alia's real usage over the last 30 days
   (`chat_analytics`), then by how many chat models they have in the catalogue;
   top dozen. Recomputed daily.
-- **Default model for a person** — the model they last used; otherwise the
-  most-used featured model in Alia; on a cold start, the median-priced featured
-  model.
+- **Preselected model for a person** (`defaultModelId`, for model-picker
+  clients) — the model they last used; otherwise the most-used featured model in
+  Alia; on a cold start, the median-priced featured model. A request that names
+  nothing runs `auto`, not this model.
 - **Utility model** — titles, summaries, compaction, suggestions, soul, style
   refinement, planner, verifier and other internal calls use the cheapest
   stable chat-usable model with a context window of at least 32k tokens.
 - **Speech model** — the cheapest catalogue model with audio output.
 
-Stored choices hold a real model id or `NULL`: `agents.model_id`,
-`agent_threads.model_id`, a bot's default/preferred model and a canvas node's
-model. `NULL` means "use the default", and a stored id the catalogue no longer
-carries falls back the same way.
+Stored choices hold a power level, a real model id or `NULL`:
+`agents.model_id`, `agent_threads.model_id`, a bot's default/preferred model and
+a canvas node's model. `NULL` means `auto`, and a stored id the catalogue no
+longer carries falls back the same way.
 
 ## Reasoning effort
 
-`reasoningEffort` is `low`, `medium` or `high`. It is accepted only when the
-chosen model lists that level in `reasoningEfforts`; otherwise the request is
-refused with `param: "reasoningEffort"`. It is forwarded to Oxy as
+`reasoningEffort` is `low`, `medium` or `high`. With a power level it is
+optional (the level sets its own) and any of the three is accepted: Oxy keeps
+only the level's models that take it. With a model it is accepted only when the
+model lists that level in `reasoningEfforts`; otherwise the request is refused
+with `param: "reasoningEffort"`. It is forwarded to Oxy as
 `reasoning: { effort }`, and Oxy and Kaana translate it for each provider. Alia
 keeps no per-provider reasoning table, and no model name encodes a reasoning
 level.
@@ -142,10 +173,11 @@ level.
 
 For hosted text inference:
 
-1. The request boundary resolves `model` against the catalogue (or the person's
-   default) and validates `reasoningEffort`.
+1. The request boundary resolves `model` — a power level, or a model against
+   the catalogue; absent is `auto` — and validates `reasoningEffort`.
 2. `packages/api/src/lib/chat-core.ts` produces a credential-free resolution
-   whose Oxy target is `{ kind: 'model', model: '<publisher>/<model>' }`.
+   whose Oxy target is `{ kind: 'routingProfile', routingProfile: '<level>' }`
+   or `{ kind: 'model', model: '<publisher>/<model>' }`.
 3. `getAIModel()` returns the Kaana AI SDK adapter.
 4. `@oxy.so/core`'s `OxyInferenceClient` authenticates to Oxy with Alia's
    short-lived service credential.
@@ -167,8 +199,9 @@ prompt layer; effort is a model parameter.
 
 ## Credits and plans
 
-A turn is charged by its real cost: the model's unit prices as published by
-Oxy, applied to the units metered for that turn, converted at one fixed rate
+A turn is charged by its real cost: the unit prices of the model that ran (for
+a power level, the one Oxy names on the response) as published by Oxy, applied
+to the units metered for that turn, converted at one fixed rate
 (`USD_PER_CREDIT` in `packages/api/src/lib/credits-manager.ts`). A model without
 published prices is charged at the base token rate and logged. There are no
 per-model multipliers.
@@ -191,8 +224,8 @@ yet have a Kaana capability seam. Those routes fail closed with HTTP 503 and
 
 ## Names on the product surface
 
-Model and publisher names **are** shown: in the picker, in responses and in
-analytics. The **operator serving a deployment** (Groq, Cerebras, OpenRouter and
+The app shows power levels, never hosted model names. Model and publisher
+names may appear in API responses and analytics. The **operator serving a deployment** (Groq, Cerebras, OpenRouter and
 the like) and **deployment identifiers** stay off the product surface — product
 API responses, errors, the UI and customer-facing analytics. `sanitizeMessage()`
 remains the product-surface guard; logs, audit and licence attribution may carry
@@ -214,4 +247,5 @@ See also:
 - [ADR 0001: Alia, Oxy and Kaana responsibility boundary](./adr/0001-alia-oxy-kaana-responsibility-boundary.md)
 - [ADR 0003: model, revision, deployment, provider and routing profile](./adr/0003-model-revision-deployment-provider-routing-profile.md)
 - [ADR 0012: Alia uses real models from Oxy's catalogue](./adr/0012-alia-uses-real-models.md)
+- [ADR 0014: People choose power levels, not models](./adr/0014-people-choose-power-levels-not-models.md)
 - [Kaana cutover runbook](./runbooks/kaana-cutover.md)

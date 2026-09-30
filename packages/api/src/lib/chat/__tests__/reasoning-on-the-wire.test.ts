@@ -43,6 +43,7 @@ function resolved(): ResolvedModel {
     keyConfig: { provider: 'kaana', modelId: 'acme/thinker-1' },
     oxyInferenceTarget: { kind: 'model', model: 'acme/thinker-1' },
     catalogue: null,
+    powerLevel: null,
   };
 }
 

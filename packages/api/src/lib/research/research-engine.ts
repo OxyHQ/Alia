@@ -460,7 +460,7 @@ async function synthesize(
   modelId?: string,
 ): Promise<string | null> {
   try {
-    const resolved = await resolveStoredModel(modelId, userId);
+    const resolved = await resolveStoredModel(modelId);
     const model = getAIModel(resolved, 'deep_research');
 
     const findingsText = findings

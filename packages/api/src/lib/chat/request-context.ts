@@ -16,7 +16,7 @@ import {
   resolveDefaultModel,
   type ResolvedModel,
 } from '../chat-core.js';
-import { isReasoningEffort, type ReasoningEffort } from '../models/catalogue.js';
+import { isReasoningEffort, REASONING_EFFORTS, type ReasoningEffort } from '../models/catalogue.js';
 import { ModelNotFoundError } from '../models/errors.js';
 import {
   USER_RUNTIME_PROVIDER,
@@ -494,17 +494,20 @@ export async function buildChatRequestContext(
   /**
    * What this request runs on, resolved at the boundary and once (ADR 0012):
    *
+   *  - **a power level** — `auto`, `instant`, `medium`, `high`, `xhigh`, `pro`
+   *    or `ultra` (ADR 0014): Oxy picks the model of that level per request.
+   *    What Alia's own app sends.
    *  - **`publisher/model`** — a model from Oxy's catalogue, as `GET /catalogue`
    *    lists it. Anything the catalogue does not offer for chat is a 400
    *    `model_not_found`.
-   *  - **absent** — the person's default (`lib/models/selection.ts`).
+   *  - **absent** — the `auto` power level.
    *  - **`local/<runtime>/<model>`** — the caller's own machine, below.
    */
   if (body.model !== undefined && body.model !== null && (typeof body.model !== 'string' || body.model.trim() === '')) {
     clearTimeout(globalTimer);
     res.status(400).json({
       error: {
-        message: 'model must be a model id from GET /catalogue, or omitted for your default.',
+        message: 'model must be a power level (auto, instant, medium, high, xhigh, pro, ultra), a model id from GET /catalogue, or omitted for auto.',
         type: 'invalid_request_error',
         param: 'model',
         code: 'invalid_model',
@@ -601,6 +604,7 @@ export async function buildChatRequestContext(
         userRuntime: { userId: owner, runtimeId: localRuntime.runtimeId },
       },
       catalogue: null,
+      powerLevel: null,
     };
   }
 
@@ -656,7 +660,7 @@ export async function buildChatRequestContext(
     try {
       resolved = typeof body.model === 'string'
         ? await resolveModel(body.model)
-        : await resolveDefaultModel(req.user?.id);
+        : resolveDefaultModel();
     } catch (err: unknown) {
       clearTimeout(globalTimer);
       const refusal = err instanceof ModelNotFoundError
@@ -689,10 +693,14 @@ export async function buildChatRequestContext(
   /**
    * The effort level: `low` | `medium` | `high`, and only one the model
    * declares in its catalogue `reasoningEfforts`. A local model takes none.
+   * A power level sets its own effort; a caller's explicit one wins and Oxy
+   * keeps only the level's models that accept it.
    */
   let reasoningEffort: ReasoningEffort | null = null;
   if (body.reasoningEffort !== undefined && body.reasoningEffort !== null) {
-    const offered = resolved.catalogue?.reasoningEfforts ?? [];
+    const offered: readonly ReasoningEffort[] = resolved.powerLevel !== null
+      ? REASONING_EFFORTS
+      : resolved.catalogue?.reasoningEfforts ?? [];
     if (!isReasoningEffort(body.reasoningEffort) || !offered.includes(body.reasoningEffort)) {
       clearTimeout(globalTimer);
       const refusal = {

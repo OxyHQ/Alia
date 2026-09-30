@@ -4,6 +4,7 @@
  */
 
 import type { CatalogueModel, ReasoningEffort } from './catalogue.js';
+import { DEFAULT_POWER_LEVEL, POWER_LEVELS, type PowerLevel } from './power-levels.js';
 
 export interface CatalogueEntryWire {
   readonly id: string;
@@ -26,7 +27,18 @@ export interface CatalogueEntryWire {
 export interface CatalogueResponseWire {
   readonly object: 'list';
   readonly data: readonly CatalogueEntryWire[];
-  /** The model a request that names none runs on, for this caller. */
+  /**
+   * The power levels a request may name as `model` (ADR 0014) — what Alia's
+   * own app offers instead of the models below.
+   */
+  readonly powerLevels: readonly PowerLevel[];
+  /** What a request that names nothing runs on: always `auto`. */
+  readonly defaultPowerLevel: PowerLevel;
+  /**
+   * The model a model picker preselects for this caller (the one they last
+   * used, else a computed one). A request that names nothing does NOT run on
+   * it: it runs on {@link defaultPowerLevel}.
+   */
   readonly defaultModelId: string | null;
   /** Featured model ids, in picker order. */
   readonly featuredIds: readonly string[];
@@ -73,6 +85,8 @@ export function toCatalogueResponse(
   return {
     object: 'list',
     data: sorted.map((model) => toCatalogueEntry(model, featured)),
+    powerLevels: POWER_LEVELS,
+    defaultPowerLevel: DEFAULT_POWER_LEVEL,
     defaultModelId: defaultModelId !== null && present.has(defaultModelId) ? defaultModelId : null,
     featuredIds: featuredOrder,
   };

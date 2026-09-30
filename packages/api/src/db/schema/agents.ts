@@ -177,7 +177,7 @@ export const agents = pgTable(
       .notNull()
       .default('private'),
     systemPrompt: text(),
-    /** The agent's `publisher/model`; null runs the default model (ADR 0012). */
+    /** The agent's power level (ADR 0014) or `publisher/model`; null runs `auto`. */
     modelId: text(),
     scheduleInterval: integer(),
 

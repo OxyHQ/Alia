@@ -11,7 +11,6 @@ import { generateAPIUrl } from "@/shared/api/generate-api-url";
 import { API_ROUTES } from "@/shared/api/routes";
 import { buildMessageContent, type DroppedAttachment } from "@/features/chat/model/attachment-utils";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
-import type { EffortLevel } from '@/features/chat/runtime/use-catalogue';
 import { toast } from "@oxy.so/bloom/toast";
 import i18n from "@/shared/i18n";
 import { getTextFromContent } from "@alia.onl/sdk/content";
@@ -19,7 +18,7 @@ import { acquireNotificationsSocket } from "@/features/notifications/runtime/not
 
 interface UseChatConversationOptions {
   conversationId?: string;
-  reasoningEffort?: EffortLevel | null;
+  /** The power level (or device model) every turn is sent with. */
   selectedModel?: string;
   agentId?: string;
 }
@@ -96,7 +95,7 @@ export function reportDroppedAttachments(dropped: DroppedAttachment[] | undefine
   }
 }
 
-export function useChatConversation({ conversationId, reasoningEffort, selectedModel, agentId }: UseChatConversationOptions = {}) {
+export function useChatConversation({ conversationId, selectedModel, agentId }: UseChatConversationOptions = {}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const scrollViewRef = useRef<GHScrollView>(null);
@@ -173,7 +172,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     retryFailedTurn: retry,
     clearFailedTurn,
     turnOptionsOf,
-  } = useStreamingChat(generateAPIUrl(API_ROUTES.chat.alia), conversationId, reasoningEffort, selectedModel, agentId);
+  } = useStreamingChat(generateAPIUrl(API_ROUTES.chat.alia), conversationId, selectedModel, agentId);
 
   // Expose streaming state globally so sidebar can show a spinner
   const setStreamingChatId = useStore((s) => s.setStreamingChatId);

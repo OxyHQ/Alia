@@ -5,7 +5,6 @@ import {
   type ComposerPanelAddMenuGroup,
   type ComposerPanelAttachment,
   type ComposerPanelPermissionOption,
-  type ModelPickerProvider,
 } from "@oxy.so/bloom/composer-panel";
 import { toast } from "@oxy.so/bloom/toast";
 import { KeyboardAvoidingView } from "@/shared/platform/keyboard";
@@ -23,9 +22,10 @@ import type { Attachment } from "./types";
  * (Bloom's loader traces the pill, and would light the status tab too).
  *
  * Everything the panel draws is Bloom's: the prompt, the add menu, the mode
- * selector (the panel's permission pill), the model picker with its provider
- * rail and effort chip, the mic, send / stop, the attachment tiles and the
- * status tab. Alia supplies the data and the handlers.
+ * selector (the panel's permission pill, which is Alia's power-level
+ * selector), the mic, send / stop, the attachment tiles and the status tab.
+ * Alia supplies the data and the handlers. There is no model picker: Alia's
+ * users choose a power level, and Oxy chooses the model.
  */
 const EMPTY_ADD_MENU: readonly ComposerPanelAddMenuGroup[] = [];
 /** `[]` hides the selector; Bloom's own four modes are not Alia's. */
@@ -43,14 +43,7 @@ export interface ComposerProps {
   disabled?: boolean;
   onStop?: () => void;
   placeholder?: string;
-  /** The model picker's rail. Omit to hide the picker. */
-  providers?: readonly ModelPickerProvider[];
-  model?: string;
-  onModelChange?: (modelId: string) => void;
-  effortLevels?: readonly string[];
-  effort?: number | null;
-  onEffortChange?: (effort: number) => void;
-  /** The mode selector. Omit to hide it. */
+  /** The mode selector (the power levels). Omit to hide it. */
   modes?: readonly ComposerPanelPermissionOption[];
   mode?: string;
   onModeChange?: (mode: string) => void;
@@ -89,12 +82,6 @@ export function Composer({
   disabled = false,
   onStop,
   placeholder,
-  providers,
-  model,
-  onModelChange,
-  effortLevels,
-  effort,
-  onEffortChange,
   modes,
   mode,
   onModeChange,
@@ -192,28 +179,14 @@ export function Composer({
     () => ({
       message: t("composer.message"),
       addMenu: t("composer.addMenu"),
-      permissions: t("composer.modes"),
-      permissionMode: t("composer.modes"),
+      permissions: t("composer.powerLevel"),
+      permissionMode: t("composer.powerLevel"),
       voice: t("composer.voice"),
       send: t("composer.send"),
       stop: t("composer.stop"),
       remove: t("composer.removeShort"),
       // Bloom names the button "<retry> <file name>".
       retry: t("composer.retryShort"),
-    }),
-    [t],
-  );
-  const modelPickerLabels = useMemo(
-    () => ({
-      models: t("composer.models"),
-      quickSearch: t("composer.quickSearch"),
-      searchPlaceholder: t("composer.searchModels"),
-      noMatches: t("composer.noModels"),
-      providers: t("composer.providers"),
-      effort: t("composer.effort"),
-      effortAuto: t("effort.levels.default"),
-      faster: t("composer.faster"),
-      smarter: t("composer.smarter"),
     }),
     [t],
   );
@@ -236,13 +209,6 @@ export function Composer({
         permissions={modes ?? NO_MODES}
         permission={mode}
         onPermissionChange={onModeChange}
-        providers={providers}
-        model={model}
-        onModelChange={onModelChange}
-        effortLevels={effortLevels}
-        effort={effort}
-        onEffortChange={onEffortChange}
-        modelPickerLabels={modelPickerLabels}
         listening={stt.isRecording}
         onListeningChange={(next) => void handleListeningChange(next)}
         attachments={tiles}

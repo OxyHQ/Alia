@@ -157,7 +157,7 @@ export function AgentEditor({ agent }: { agent: Agent }) {
 
           <AgentIdentityFields identity={identity} onEdit={editIdentity} />
 
-          {/* The model the agent answers with; the server's default until one is picked. */}
+          {/* The power level the agent answers at; `auto` until one is picked. */}
           <AgentModelField value={draft.modelId} onChange={(next) => editDraft({ modelId: next })} />
 
           {/* System prompt / instructions: the page-sized writing surface. */}

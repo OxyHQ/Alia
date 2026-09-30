@@ -5,11 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * `promptOnly` — the surfaces whose endpoint reads a prompt string and nothing
  * else (`/agents/generate`, `/skills/generate`) — offers no control whose value
- * that send would ignore: no effort, no mode selector, no add menu (files,
- * search, skills, connectors), and no attachment props, which is what tells the
- * composer to take no paste or drop and draw no tile. The model picker stays
- * only where the screen keeps its own model: creating an agent stores the one
- * picked as the new agent's model.
+ * that send would ignore: no add menu (files, search, skills, connectors), and
+ * no attachment props, which is what tells the composer to take no paste or
+ * drop and draw no tile. The power-level selector stays only where the screen
+ * keeps its own level: creating an agent stores the one picked as the new
+ * agent's level.
  */
 
 const addMenu = vi.hoisted(() => ({ options: [] as Array<{ canAttach: boolean }> }));
@@ -20,17 +20,16 @@ vi.mock('@/features/chat/ui/composer/add-menu', () => ({
     return { groups: [], onSelect: () => {} };
   },
 }));
-vi.mock('@/features/chat/ui/composer/model-lineup', () => ({
-  useComposerLineup: () => ({
-    providers: [],
-    model: 'm',
-    onModelChange: () => {},
-    current: null,
-    togglePinned: () => {},
-    effortLevels: [],
-    effort: null,
-    onEffortChange: () => {},
-  }),
+const levels = vi.hoisted(() => ({ calls: [] as Array<{ devices?: boolean }> }));
+vi.mock('@/features/chat/ui/composer/power-level-options', () => ({
+  usePowerLevelSelector: (_stored: unknown, _onChange: unknown, options: { devices?: boolean } = {}) => {
+    levels.calls.push(options);
+    return {
+      modes: ['auto', 'instant', 'medium', 'high', 'xhigh', 'pro', 'ultra'].map((id) => ({ id, label: id, description: id, icon: () => null })),
+      mode: 'auto',
+      onModeChange: () => {},
+    };
+  },
 }));
 vi.mock('@/features/chat/runtime/use-capability-modes', () => ({
   useCapabilityModes: () => ({ active: { ghost: false, agent: false, deepResearch: false }, toggle: () => {} }),
@@ -66,6 +65,7 @@ function render(options: AliaComposerOptions) {
 
 beforeEach(() => {
   addMenu.options = [];
+  levels.calls = [];
 });
 
 describe('a surface that sends a whole turn', () => {
@@ -75,9 +75,12 @@ describe('a surface that sends a whole turn', () => {
     expect(addMenu.options[0]?.canAttach).toBe(true);
     expect(props.onAddAttachment).toBeTypeOf('function');
     expect(props.attachments).toEqual([]);
-    expect(props.providers).toBeDefined();
-    // Answer or agent; deep research is a tool in the add menu, not a mode.
-    expect(props.modes).toHaveLength(2);
+    // The mode pill is the power level: the seven levels, and no model picker.
+    expect(props.modes?.map((mode) => mode.id)).toEqual(['auto', 'instant', 'medium', 'high', 'xhigh', 'pro', 'ultra']);
+    expect(props.mode).toBe('auto');
+    expect(props).not.toHaveProperty('providers');
+    // The person's own device models are offered where a turn can run on them.
+    expect(levels.calls[0]).toEqual({ devices: true });
     expect(props.addMenu).toBeDefined();
   });
 });
@@ -86,12 +89,12 @@ describe('a surface that sends only a prompt', () => {
   it('offers no control the prompt would not carry', () => {
     const { props } = render({ draft: 'surface:skill-create', promptOnly: true });
 
-    // Nothing at all: Bloom's panel hides the picker without `providers`, and
-    // the composer defaults the add menu and the modes to `[]`, which hide them.
+    // Nothing at all: the composer defaults the add menu and the modes to `[]`,
+    // which hide them.
     expect(props).toEqual({});
   });
 
-  it('keeps the model picker, and only it, where the screen keeps its own model', () => {
+  it('keeps the power-level selector, and only it, where the screen keeps its own level', () => {
     const onModelChange = vi.fn();
     const { props } = render({
       draft: 'surface:agent-create',
@@ -100,6 +103,8 @@ describe('a surface that sends only a prompt', () => {
       onModelChange,
     });
 
-    expect(Object.keys(props).sort()).toEqual(['model', 'onModelChange', 'providers']);
+    expect(Object.keys(props).sort()).toEqual(['mode', 'modes', 'onModeChange']);
+    // A new agent runs in Alia, never on this person's device.
+    expect(levels.calls[0]).toEqual({ devices: false });
   });
 });

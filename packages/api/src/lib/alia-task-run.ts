@@ -5,7 +5,7 @@
  * no agent session: the dispatcher claims the run with Alia as its actor, holds
  * the owner's credits and queues this job (`alia-task-queue.ts`). Here Alia
  * takes one unattended turn for the owner — the same composition as the
- * service-trigger path in `routes/internal.ts`: the person's default model, the
+ * service-trigger path in `routes/internal.ts`: the `auto` power level, the
  * one tool assembler with no agent — then settles the hold against the tokens
  * spent, closes the run and posts the answer into the task's own conversation
  * (`postAliaMessage`).
@@ -32,6 +32,7 @@ import type { AliaTaskJobData } from './alia-task-queue.js';
 import { renderAutomationStageTask } from './automation-stage-task.js';
 import { getAIModel, resolveDefaultModel } from './chat-core.js';
 import { finalizeCredits, safeRefund, type CreditUsage } from './credits-manager.js';
+import { servedModelId, servedReferenceOf } from './models/power-levels.js';
 import { buildIdentityGuard } from './identity-guard.js';
 import { log } from './logger.js';
 import { sendNotification } from './notification-service.js';
@@ -105,7 +106,7 @@ export async function runAliaTask(
 
     const [{ oxyUser, memory }, resolved] = await Promise.all([
       loadPersonContext(data.userId),
-      resolveDefaultModel(data.userId),
+      resolveDefaultModel(),
     ]);
     const { tools, routing, appCatalogPrompt } = await ToolPipeline.forUser({
       userId: data.userId,
@@ -143,7 +144,7 @@ export async function runAliaTask(
       totalTokens: (result.totalUsage.inputTokens ?? 0) + (result.totalUsage.outputTokens ?? 0),
     };
     try {
-      await finalizeCredits(data.creditReservation, usage, resolved.modelId);
+      await finalizeCredits(data.creditReservation, usage, servedModelId(resolved.modelId, servedReferenceOf(result)));
       settled = true;
     } catch (err: unknown) {
       log.agents.error({ err, runId: data.runId }, 'Could not settle an Alia task run');

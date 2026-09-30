@@ -115,7 +115,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     }
 
     // Resolve AI model
-    const resolved = await resolveDefaultModel(userId);
+    const resolved = resolveDefaultModel();
     if (!resolved) {
       res.status(503).json({
         error: 'No AI models available',

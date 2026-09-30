@@ -1,16 +1,4 @@
 export const queryKeys = {
-  catalogue: {
-    // Keyed by caller: the entitlement annotations describe whoever asked, so a
-    // signed-out catalogue must not survive a sign-in.
-    list: (userId: string | null) => ['catalogue', userId] as const,
-    /**
-     * Not keyed by user, unlike `list`. A product mode is the same for
-     * everybody — what a caller may USE is entitlement, annotated on the
-     * catalogue entries a mode routes through rather than on the mode — so
-     * keying this by user would refetch six unchanging rows on every sign-in.
-     */
-    modes: () => ['catalogue', 'modes'] as const,
-  },
   skills: {
     catalogue: (filters?: Record<string, string | undefined>) => ['skills', 'catalogue', filters ?? {}] as const,
     installed: ['skills', 'installed'] as const,
