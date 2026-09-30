@@ -260,11 +260,13 @@ were built on this machine with `-PreactNativeArchitectures=arm64-v8a` (about
 `exec-out screencap -p`.
 
 The phone carries Oxy Commons and Mention, and the Oxy identity is the device's.
-**Never `pm clear` (or clear storage of) Alia on a device that has another Oxy
-app:** Alia, Mention and Commons share `sharedUserId so.oxy.shared`, and clearing
-any one of them wipes the Android Keystore for the whole UID — the Oxy identity
-keys and every app's sign-in. It does not even sign Alia out. After "Sign out" in
-Alia a cold start signs it straight back in through that shared session. So
+At the time of this pass Alia, Mention and Commons shared the Android UID
+`so.oxy.shared`, so clearing any one of them wiped the Android Keystore of all of
+them, the Oxy identity included, and "Sign out" in Alia did not stick: a cold
+start signed it straight back in through that shared session. Since OxyHQ/oxy#1388
+every Oxy app runs under its own UID and asks Commons for a signed identity proof
+over signature-protected IPC, so clearing Alia no longer touches Commons (a device
+with the old build installs the new one only after an uninstall). So
 this pass is **signed in** (a QA account). Signed-out screens only last until
 the app restarts, and the phone was shared with another QA session, so the
 signed-out checks below are pending.

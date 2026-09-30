@@ -63,8 +63,7 @@
       "expo-asset",
       "expo-notifications",
       "expo-status-bar",
-      "./plugins/withSharedUserId",
-      "@oxy.so/services/plugins/withSharedIdentityReader"
+      "@oxy.so/services/plugins/withOxySharedPermissions"
     ],
     "experiments": {
       "typedRoutes": true
