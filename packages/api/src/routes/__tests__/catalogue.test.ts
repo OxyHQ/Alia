@@ -123,11 +123,23 @@ beforeEach(() => {
 });
 
 describe('GET /catalogue', () => {
-  it('answers the list envelope with default and featured ids', async () => {
+  it('answers the list envelope with default and featured ids, and the power levels', async () => {
     const res = await fetch(`${base}/catalogue`);
     expect(res.status).toBe(200);
     const body = await read(res);
-    expect(Object.keys(body).sort()).toEqual(['data', 'defaultModelId', 'featuredIds', 'object']);
+    expect(Object.keys(body).sort()).toEqual([
+      'data',
+      'defaultModelId',
+      'defaultPowerLevel',
+      'featuredIds',
+      'object',
+      'powerLevels',
+    ]);
+    // A request that names nothing runs on auto (ADR 0014).
+    expect((body as unknown as { defaultPowerLevel: string }).defaultPowerLevel).toBe('auto');
+    expect((body as unknown as { powerLevels: string[] }).powerLevels).toEqual([
+      'auto', 'instant', 'medium', 'high', 'xhigh', 'pro', 'ultra',
+    ]);
     expect(body.object).toBe('list');
     expect(body.defaultModelId).toBe('acme/alpha');
     expect(body.featuredIds).toEqual(['beta/bravo', 'acme/alpha']);

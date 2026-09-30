@@ -87,6 +87,7 @@ describe.skipIf(!MODEL)('a real local model answering through the bridge', () =>
           userRuntime: { userId: OWNER, runtimeId: RUNTIME_ID },
         },
         catalogue: null,
+        powerLevel: null,
       },
       'chat',
     );

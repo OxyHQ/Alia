@@ -144,7 +144,7 @@ export interface AgentRecord {
   status: AgentStatus;
   access: AgentAccess;
   systemPrompt: string | null;
-  /** The agent's `publisher/model`; null runs the default model. */
+  /** The agent's power level or `publisher/model`; null runs `auto`. */
   modelId: string | null;
   scheduleInterval: number | null;
   /** ABSENT on an agent that has never evolved. */
@@ -815,7 +815,7 @@ export interface CreateAgentInput {
   isPublished?: boolean;
   access?: AgentAccess;
   systemPrompt?: string;
-  /** The agent's `publisher/model`; null or absent runs the default model. */
+  /** The agent's power level or `publisher/model`; null or absent runs `auto`. */
   modelId?: string | null;
   archetype?: AgentArchetype;
   archetypeConfig?: unknown;
@@ -885,7 +885,7 @@ export interface UpdateAgentInput {
   status?: AgentStatus;
   access?: AgentAccess;
   systemPrompt?: string;
-  /** The agent's `publisher/model`; null goes back to the default model. */
+  /** The agent's power level or `publisher/model`; null goes back to `auto`. */
   modelId?: string | null;
   scheduleInterval?: number;
   archetype?: AgentArchetype;

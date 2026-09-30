@@ -83,8 +83,9 @@ async function lastUsedModelOf(oxyUserId: string): Promise<string | null> {
 }
 
 /**
- * The model a request that names none runs on, for this person (or for an
- * anonymous caller when `oxyUserId` is null).
+ * The model a model picker (Codea, Cowork, the SDK) preselects for this person,
+ * or for an anonymous caller when `oxyUserId` is null. A request that names
+ * nothing does not run on it: it runs on the `auto` power level (ADR 0014).
  */
 export async function getDefaultModelId(oxyUserId: string | null | undefined): Promise<string> {
   const [models, { usage, featured }, lastUsed] = await Promise.all([
