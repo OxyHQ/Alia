@@ -425,6 +425,15 @@ jobs:
       - name: Test Codea CLI
         run: bun run --filter @alia-codea/cli test
 
+      # The agents' computer host runs model-authored commands. Its isolation
+      # check, path gates (TypeScript and files.py), receipts and leases have a
+      # suite; Docker is faked, files.py runs under the runner's python3. The
+      # typecheck is picked up by `typecheck-workspaces.ts`.
+      - name: Test computer host
+        run: |
+          bun run --filter @alia/computer-host lint
+          bun run --filter @alia/computer-host test
+
       # `alia-canvas` had a `tsc -b` and a wrangler dry-run between them and
       # nothing else. Its first subject is `lib/product-modes.ts`, which decides
       # what a person is offered and what identifier a node stores — the file

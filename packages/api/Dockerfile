@@ -47,6 +47,7 @@ COPY packages/alia-codea/package.json ./packages/alia-codea/
 COPY packages/alia-codea/webview-ui/package.json ./packages/alia-codea/webview-ui/
 COPY packages/alia-cowork/package.json ./packages/alia-cowork/
 COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
+COPY packages/alia-computer-host/package.json ./packages/alia-computer-host/
 
 # Skip heavy browser/desktop binaries pulled by unrelated workspaces.
 # The API itself ships no browser and depends on neither Playwright nor
