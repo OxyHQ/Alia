@@ -4,6 +4,7 @@ import { sql } from 'drizzle-orm';
 import { boolean, check, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
+import type { CreditFundingSource } from '../../domain/credit-funding.js';
 
 export const AUTOMATION_TRIGGER_KINDS = ['manual', 'event', 'schedule'] as const;
 /**
@@ -170,6 +171,87 @@ export const automationActionAuthorizations = pgTable(
   ],
 );
 
+/** Same shape as `CreditReservation` (`lib/credits-manager.ts`). */
+export interface AutomationRunCreditHold {
+  userId: string;
+  creditsReserved: number;
+  initialFreeCredits: number;
+  initialPaidCredits: number;
+  grantKind: CreditFundingSource;
+}
+
+/**
+ * Alia's standing Oxy authority for one task she is responsible for.
+ *
+ * Provisioned while the owner's bearer is present (task creation or edit):
+ * every read tool of the owner's Oxy apps at their account root, plus each
+ * connected action the task declares (`automationActionId`). Only the opaque
+ * Oxy id is kept; Oxy re-evaluates live authority at every ticket. Revoked
+ * with the agent path's authorizations when the task is stopped or edited.
+ */
+export const aliaTaskAuthorizations = pgTable(
+  'alia_task_authorizations',
+  {
+    id: generatedId(),
+    automationId: text().notNull().references(() => automationDefinitions.id, { onDelete: 'cascade' }),
+    /** Set for a declared connected action; NULL for a standing read. */
+    automationActionId: text().references(() => automationActions.id, { onDelete: 'cascade' }),
+    resourceAppId: text().notNull(),
+    effectiveAccountId: text().notNull(),
+    resourceType: text().notNull(),
+    resourceId: text().notNull(),
+    tool: text().notNull(),
+    oxyAuthorizationId: text().notNull(),
+    expiresAt: timestamptz().notNull(),
+    revokedAt: timestamptz(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('alia_task_authorizations_exact_tool_key').on(
+      table.automationId,
+      table.resourceAppId,
+      table.effectiveAccountId,
+      table.resourceType,
+      table.resourceId,
+      table.tool,
+    ),
+    uniqueIndex('alia_task_authorizations_oxy_key').on(table.oxyAuthorizationId),
+    index('alia_task_authorizations_live_idx').on(table.automationId, table.expiresAt, table.revokedAt),
+  ],
+);
+
+/**
+ * The durable state of a watch task (`inputs.watch`): what the cheap tick saw
+ * last, and its failure streak. The configuration stays in `inputs`; this is
+ * only what the scheduler learns between ticks.
+ */
+export const automationWatchStates = pgTable(
+  'automation_watch_states',
+  {
+    automationId: text().primaryKey().references(() => automationDefinitions.id, { onDelete: 'cascade' }),
+    /** sha256 of the normalised observation; NULL before the first good tick. */
+    lastHash: text(),
+    /** Query watches: the result URLs last seen, to tell a new item from a reshuffle. */
+    lastItems: jsonb().$type<string[]>().notNull().default([]),
+    /** `contains` watches: whether the value was present at the last good tick. */
+    matched: boolean().notNull().default(false),
+    consecutiveFailures: integer().notNull().default(0),
+    /** Backoff after a failed tick; ticks before it are skipped. */
+    nextCheckAt: timestamptz(),
+    lastCheckedAt: timestamptz(),
+    lastChangedAt: timestamptz(),
+    /** Set when five failures in a row paused the task (it is also disabled). */
+    pausedAt: timestamptz(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    check('automation_watch_states_failures_check', sql`${table.consecutiveFailures} >= 0`),
+    check('automation_watch_states_items_check', sql`jsonb_typeof(${table.lastItems}) = 'array'`),
+  ],
+);
+
 export const automationRuns = pgTable(
   'automation_runs',
   {
@@ -184,11 +266,22 @@ export const automationRuns = pgTable(
     policyDecision: jsonb().$type<Record<string, unknown>>(),
     startedAt: timestamptz().notNull(),
     completedAt: timestamptz(),
+    /**
+     * The credit hold of a run Alia drives herself, taken at dispatch. Durable
+     * so that a run whose worker vanished can still be refunded by the reaper
+     * (`lib/alia-task-reaper.ts`); agent runs keep theirs on the session.
+     */
+    creditReservation: jsonb().$type<AutomationRunCreditHold>(),
+    /** Until when the worker that started an Alia run is presumed alive. */
+    leaseExpiresAt: timestamptz(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (table) => [
     uniqueIndex('automation_runs_idempotency_key').on(table.idempotencyKey),
+    index('automation_runs_alia_open_idx')
+      .on(table.status, table.leaseExpiresAt, table.startedAt)
+      .where(sql`${table.selectedActorType} = 'alia' and ${table.status} in ('planned', 'running')`),
     index('automation_runs_automation_started_idx').on(table.automationId, table.startedAt.desc()),
     index('automation_runs_requester_idx').on(table.requesterAccountId, table.startedAt.desc()),
     checkOneOf('automation_runs_status_check', table.status, AUTOMATION_RUN_STATUSES),

@@ -27,6 +27,24 @@ import { enqueueAgentSession } from './task-queue.js';
 import { enqueueAliaTask } from './alia-task-queue.js';
 import { mayRunForAutomationOwner } from './automation-actors.js';
 import { reserveCredits, safeRefund, type CreditReservation } from './credits-manager.js';
+import { listActiveAliaTaskAuthorizations } from '../db/automation/aliaTaskAuthorityRepository.js';
+import {
+  findAutomationWatchState,
+  pauseFailingAutomationWatch,
+  recordAutomationWatchFailure,
+  recordAutomationWatchObservation,
+} from '../db/automation/automationWatchRepository.js';
+import {
+  decideWatch,
+  observeWatchSource,
+  watchConfigOf,
+  watchTriggerContext,
+  watchTriggerId,
+  WATCH_PAUSE_AFTER_FAILURES,
+  type WatchConfig,
+  type WatchObservation,
+} from './alia-watch.js';
+import { log } from './logger.js';
 import { getOrCreateUserCredits } from './user-credits-helpers.js';
 
 export type AutomationDispatchTrigger =
@@ -49,12 +67,19 @@ export type AutomationDispatchTrigger =
       kind: 'schedule';
       id: string;
       occurredAt: Date;
+      /**
+       * Set when a watch's cheap tick saw its condition met: what changed,
+       * for the model run it starts (`lib/alia-watch.ts`).
+       */
+      watch?: Record<string, unknown>;
     };
 
 export type AutomationDispatchResult =
   /** `sessionId` is the first stage's agent session; an Alia run has none. */
   | { status: 'queued'; runId: string; sessionId?: string }
   | { status: 'observed' }
+  /** A watch's cheap tick saw nothing that crosses its condition. */
+  | { status: 'unchanged' }
   | { status: 'duplicate' }
   | { status: 'denied'; reason: string };
 
@@ -156,6 +181,10 @@ export async function dispatchStructuredAutomation(
     ...automation.dataFlow.sources,
   ]);
   if (automation.actorSelection.mode === 'alia') {
+    const watch = watchConfigOf(automation.inputs);
+    if (watch && automation.executionMode === 'execute' && trigger.kind === 'schedule' && !trigger.watch) {
+      return tickAliaWatch(automation, trigger, watch, sourceResources);
+    }
     return dispatchAliaTask(automation, trigger, sourceResources);
   }
   const agents = await eligibleAgents(automation);
@@ -346,33 +375,101 @@ export async function dispatchStructuredAutomation(
 }
 
 /**
+ * One cheap tick of a watch task: observe the source with no model, and only
+ * when the condition is crossed hand a run to {@link dispatchAliaTask} with
+ * the change attached. See `lib/alia-watch.ts`.
+ */
+async function tickAliaWatch(
+  automation: AutomationDefinitionRecord,
+  trigger: Extract<AutomationDispatchTrigger, { kind: 'schedule' }>,
+  watch: WatchConfig,
+  sourceResources: readonly AutomationResourceRef[],
+): Promise<AutomationDispatchResult> {
+  const now = new Date();
+  const state = await findAutomationWatchState(getDb(), automation.id);
+  if (state?.nextCheckAt && state.nextCheckAt > now) {
+    return { status: 'denied', reason: 'watch_backing_off' };
+  }
+  let observation: WatchObservation;
+  try {
+    observation = await observeWatchSource(watch);
+  } catch (error: unknown) {
+    const failures = await recordAutomationWatchFailure(getDb(), automation.id, now);
+    log.triggers.warn({ err: error, automationId: automation.id, failures }, 'Watch tick failed');
+    if (failures >= WATCH_PAUSE_AFTER_FAILURES
+      && await pauseFailingAutomationWatch(getDb(), automation.id, WATCH_PAUSE_AFTER_FAILURES, now)) {
+      // One notification per failure streak: only the caller that paused it.
+      await notifyNoExecution(
+        automation,
+        trigger,
+        `I paused “${automation.objective}”: I could not check its source ${WATCH_PAUSE_AFTER_FAILURES} times in a row. Turn it back on to resume.`,
+      );
+      return { status: 'denied', reason: 'watch_paused' };
+    }
+    return { status: 'denied', reason: 'watch_source_failed' };
+  }
+  const decision = decideWatch(watch, state, observation);
+  const record = () => recordAutomationWatchObservation(getDb(), {
+    automationId: automation.id,
+    hash: observation.hash,
+    items: observation.items,
+    matched: decision.matched,
+    changed: decision.changed,
+    now,
+  });
+  if (!decision.fire) {
+    await record();
+    return { status: 'unchanged' };
+  }
+  const result = await dispatchAliaTask(automation, {
+    kind: 'schedule',
+    id: watchTriggerId(automation.id, observation.hash),
+    occurredAt: now,
+    watch: watchTriggerContext(watch, observation, decision),
+  }, sourceResources);
+  // A run that could not be claimed (no credits) leaves the state alone, so
+  // the next tick sees the same change and tries again.
+  if (result.status === 'queued' || result.status === 'duplicate') await record();
+  return result;
+}
+
+/**
  * A task Alia is responsible for: no agent, no session. The run is claimed with
  * Alia as its actor and handed to the `alia-tasks` queue, whose job runs one
  * Alia turn for the owner and posts the answer into the task's conversation.
  *
- * Connected actions need Oxy authority for an Alia actor, which does not exist
- * yet, so such a definition is refused at creation and again here.
+ * Declared connected actions run under Alia's own standing Oxy authority
+ * (`alia_task_authorizations`, provisioned while the owner was present). In
+ * execute mode every declared action must still be covered, or nothing runs.
  */
 async function dispatchAliaTask(
   automation: AutomationDefinitionRecord,
   trigger: AutomationDispatchTrigger,
   sourceResources: readonly AutomationResourceRef[],
 ): Promise<AutomationDispatchResult> {
-  if (automation.actions.length > 0) {
-    await notifyNoExecution(automation, trigger, 'Alia cannot run connected-app actions yet; assign one of your agents.');
-    return { status: 'denied', reason: 'alia_connected_actions_not_yet_supported' };
+  if (automation.actions.length > 0 && automation.executionMode === 'execute') {
+    const covered = new Set((await listActiveAliaTaskAuthorizations(getDb(), automation.id))
+      .flatMap((authorization) => authorization.automationActionId ? [authorization.automationActionId] : []));
+    if (!automation.actions.every((action) => covered.has(action.id))) {
+      await notifyNoExecution(
+        automation,
+        trigger,
+        `“${automation.objective}” no longer has access to the apps it acts in. Open the task and save it again to renew it.`,
+      );
+      return { status: 'denied', reason: 'alia_action_authority_missing' };
+    }
   }
   const requesterAccountId = trigger.kind === 'manual'
     ? trigger.requesterAccountId
     : automation.ownerAccountId;
-  const [taskInput = {}] = automationStageTaskInputs(automation, trigger, [{ actions: [] }]);
+  const [taskInput = {}] = automationStageTaskInputs(automation, trigger, [{ actions: automation.actions }]);
   const runStages = [{
     stage: 0,
     selectedAgentId: null,
     selectedActorAccountId: automation.ownerAccountId,
     resource: primaryResource(automation, trigger, sourceResources),
     taskInput,
-    actions: [],
+    actions: automation.actions,
   }];
   if (automation.executionMode === 'observe') {
     const created = await createObservedAutomationRun({
@@ -398,6 +495,7 @@ async function dispatchAliaTask(
       triggerEventId: trigger.id,
       stages: runStages,
       actorType: 'alia',
+      creditReservation: reservation,
     });
     if (!inserted) return false;
     if (automation.inputs.runOnce === true) {

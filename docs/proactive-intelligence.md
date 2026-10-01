@@ -1,6 +1,6 @@
 # Proactive Intelligence
 
-Last updated: 2026-09-30
+Last updated: 2026-10-01
 
 Alia proactive intelligence has one normalized control plane (`/automations`) and
 one elected scheduler (`trigger-engine.ts`). A task always owns its human objective,
@@ -8,9 +8,53 @@ schedule and a responsible actor: Alia by default (`actorSelection: { mode: 'ali
 what an omitted `actorSelection` means), or one of the person's agents. Nobody has
 to pick an agent; agents are optional. Connected work additionally owns exact Oxy
 actions, data flow and limits; reminders, research and assistant responses
-deliberately carry no fabricated app resource or tool. Connected actions still need
-an agent as the actor: Oxy authority for an Alia actor is not built yet, so Alia
-with actions is refused as `alia_connected_actions_not_yet_supported`.
+deliberately carry no fabricated app resource or tool.
+
+## Alia's standing authority
+
+Alia acts for the owner in their Oxy apps the way an assistant reads its owner's
+mail: no permission prompt per run. When an Alia task is created or edited in
+execute mode while the owner's bearer is present, Alia asks Oxy for `automation`
+execution authorizations with actor `{ type: 'alia', ownerAccountId }`
+(`provisionAliaTaskAuthorizations`, `lib/automation-authority.ts`):
+
+- every READ tool of every Oxy app at the owner's account root, `read_only`,
+  best effort (a refused read only leaves that tool out) — so "summarise my
+  email every morning" works unattended;
+- each declared connected action exactly, at the task's autonomy,
+  all-or-nothing (one refusal revokes the rest and the task stays inert).
+
+Only opaque Oxy ids are stored, in `alia_task_authorizations`; Oxy re-checks
+live authority, account policy and catalog on every ticket, and issues it for
+the run (`runId`, plus the action's `stepId`). The runner passes them to
+`ToolPipeline` as `oxyExecutionAuthorizations`: reads are `repeatable`, a
+declared action runs once per run. A task with none (older tasks, API-key
+callers) gets no Oxy app tools. Stopping or editing a task revokes them with
+the agent path's authorizations (`listActiveTaskAuthorityIds`). A watch gets no
+app reads. New apps registered after the task was saved are covered at its
+next edit; authorizations expire after a year like the agent path's.
+
+## Watches
+
+`inputs.watch = { url | query, condition: 'change' | 'contains', value? }` on
+an Alia schedule task makes each tick cheap (`lib/alia-watch.ts`): a Clarity
+page read or search, normalised and hashed, compared with
+`automation_watch_states`. Only when the condition is crossed (a new result
+URL, a changed page hash, or `value` newly present) is an Alia run queued, with
+the change in `trigger.watch`; it decides whether to tell the person and
+replies `NOTHING_TO_REPORT` otherwise. Ticks are free; only the run holds and
+spends credits. The run's trigger id `watch:<id>:<hash>` makes it and its
+message idempotent. A failing source backs off `min(60, 2^n)` minutes and after
+5 failures in a row the task is disabled with one notification.
+
+## Abandoned Alia runs
+
+An Alia run stores its credit hold on `automation_runs.credit_reservation` and
+takes a 15-minute lease when its worker starts (the turn itself aborts at 10).
+`lib/alia-task-reaper.ts`, in the agent run reaper's minute sweep, fails a run
+whose lease lapsed or that stayed `planned` for 30 minutes, refunds it and tells
+the person. Every settlement is a conditional transition of an open run, so the
+reaper and a slow worker never both refund or charge.
 
 ## Architecture
 

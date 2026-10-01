@@ -18,6 +18,7 @@ import {
   buildOxyServiceTools,
   getOxyServicePromptFragment,
   idempotencyKey,
+  listOxyAccountReadTools,
   oxyExecutionAuthorizationKey,
   type OxyToolExecutionContext,
 } from '../tools/oxy-services.js';
@@ -102,7 +103,11 @@ describe('Oxy capability tools', () => {
       if (url.endsWith('/capabilities/tickets')) {
         expect((init?.headers as Record<string, string>).authorization).toBe('Bearer ALIA-SERVICE-TOKEN');
         const request = JSON.parse(String(init?.body)) as Record<string, unknown>;
-        expect(['AUTHORIZATION-1', 'PREAUTHORIZED-1']).toContain(request.executionAuthorizationId);
+        expect(['AUTHORIZATION-1', 'PREAUTHORIZED-1', 'STANDING-1', 'STANDING-2']).toContain(request.executionAuthorizationId);
+        if (String(request.executionAuthorizationId).startsWith('STANDING-')) {
+          // Automation kind: Oxy requires the run, and a standing read has no step.
+          expect(request).toEqual({ executionAuthorizationId: request.executionAuthorizationId, runId: 'run-user-5' });
+        }
         if (request.executionAuthorizationId === 'PREAUTHORIZED-1') {
           expect(request).toEqual({
             executionAuthorizationId: 'PREAUTHORIZED-1',
@@ -247,6 +252,52 @@ describe('Oxy capability tools', () => {
       const result = await (tools.oxy_inbox__searchEmails as unknown as ExecutableTool).execute({ q: 'hello' });
       expect(result).toEqual({ error: expect.stringContaining('query too long') });
     });
+  });
+
+  it('lets Alia read the owner\'s apps any number of times under her standing authority', async () => {
+    const root = { appId: 'inbox', effectiveAccountId: 'user-5', resourceType: 'email_account', resourceId: 'user-5' };
+    const tools = await buildOxyServiceTools('user-5', {
+      requesterAccountId: 'user-5',
+      ownerAccountId: 'user-5',
+      actor: { type: 'alia', ownerAccountId: 'user-5' },
+      runId: 'run-user-5',
+      autonomy: 'autonomous',
+      executionAuthorizations: {
+        [oxyExecutionAuthorizationKey(root, 'searchEmails')]: { id: 'STANDING-1', repeatable: true },
+      },
+    });
+    const search = tools.oxy_inbox__searchEmails as unknown as ExecutableTool;
+    await expect(search.execute({ q: 'hello' })).resolves.toEqual({ data: [] });
+    await expect(search.execute({ q: 'hello' })).resolves.toEqual({ data: [] });
+    expect(fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/capabilities/tickets'))).toHaveLength(2);
+    // No user bearer, so nothing is created or revoked at Oxy during the run.
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/capabilities/execution-authorizations'))).toBe(false);
+  });
+
+  it('binds Alia to exactly the resources her authority names, account root or not', async () => {
+    const root = { appId: 'inbox', effectiveAccountId: 'user-5', resourceType: 'email_account', resourceId: 'user-5' };
+    const other = { ...root, resourceId: 'shared-box' };
+    const tools = await buildOxyServiceTools('user-5', {
+      requesterAccountId: 'user-5',
+      ownerAccountId: 'user-5',
+      actor: { type: 'alia', ownerAccountId: 'user-5' },
+      runId: 'run-user-5',
+      executionAuthorizations: {
+        [oxyExecutionAuthorizationKey(root, 'searchEmails')]: { id: 'STANDING-1', repeatable: true },
+        [oxyExecutionAuthorizationKey(other, 'searchEmails')]: { id: 'STANDING-2', repeatable: true },
+        [oxyExecutionAuthorizationKey(root, 'notInTheCatalog')]: { id: 'STANDING-3', repeatable: true },
+      },
+    });
+    const names = Object.keys(tools).sort();
+    expect(names).toHaveLength(2);
+    expect(names.every((name) => name.startsWith('oxy_inbox__searchEmails__'))).toBe(true);
+  });
+
+  it('lists every read tool at the owner\'s account roots for standing authority', async () => {
+    await expect(listOxyAccountReadTools('user-6')).resolves.toEqual([{
+      resource: { appId: 'inbox', effectiveAccountId: 'user-6', resourceType: 'email_account', resourceId: 'user-6' },
+      tool: 'searchEmails',
+    }]);
   });
 
   it('does not expose undeclared Oxy tools to a pre-authorized background stage', async () => {
