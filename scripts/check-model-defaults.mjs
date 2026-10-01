@@ -78,6 +78,8 @@ export const NOT_A_CLIENT = {
     'the server. Its `alia-*` literals ARE the routing table — `internal/providers/lib/routing-profile-catalogue.ts` is the frozen set every other package resolves against.',
   'packages/alia-server':
     'a transport. It streams whatever turn a backend hands it and never chooses, defaults or names a routing profile — `model` is an optional pass-through field on its request type.',
+  'packages/alia-computer-host':
+    "the agents' sandbox host. It runs containers and files for an actor and never calls inference, so it has no model to choose, default or name.",
 };
 
 /**
@@ -196,9 +198,9 @@ function main() {
   // Exact counts. Each list may only change in a diff that also changes the
   // number beside it, which is the review this gate exists to force.
   const counts = [
-    ['workspaces', workspaces.length, 10],
+    ['workspaces', workspaces.length, 11],
     ['TREES', TREES.length, 10],
-    ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 2],
+    ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 3],
   ];
   const partition = [
     ...counts
