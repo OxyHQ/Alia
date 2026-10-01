@@ -1,6 +1,6 @@
 # @alia.onl/server
 
-## Unreleased
+## 1.1.0
 
 A failed turn is a typed error, before or after output. The `error` event and
 `AliaRequestError` now carry `retryable`, `retryAfter` and `reference` when
