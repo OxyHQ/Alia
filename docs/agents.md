@@ -390,6 +390,14 @@ Their successor, under a new name so no stored grant can turn it on:
   R2; `rm -rf` and the other destructive tokens stay R3.
 - **Output is untrusted.** Every result is fenced with a header telling the
   model it is data, not instructions.
+- **The host sleeps.** It is a Spot instance that stops itself after 30
+  minutes with no computer running and nothing in flight. A call that finds it
+  asleep starts it (`ec2:StartInstances` on that one instance, with
+  `ALIA_COMPUTER_HOST_INSTANCE_ID`) and waits up to 90 s for `/health`; all
+  concurrent callers share one wake (`lib/computer/host-waker.ts`). Past the
+  deadline the tool tells the model "your computer is starting, try again in a
+  minute"; no Spot capacity is its own message. `computer_status` never wakes
+  it and answers `asleep`.
 - **Auth** is the caller's AWS task role (oxy ADR 0026): the client calls
   `requestWorkloadServiceToken` against the host, which replays the signed STS
   `GetCallerIdentity` and allow-lists `oxy-alia-task`. No shared secret.

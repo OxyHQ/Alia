@@ -11,7 +11,7 @@ import { WorkloadAuthority } from './attestation.js';
 import { ComputerService } from './computer-service.js';
 import { loadConfig } from './config.js';
 import { runDocker } from './docker.js';
-import { createApp } from './http.js';
+import { createApp, createOpsApp } from './http.js';
 import { MemoryStore, PostgresStore, type ComputerStore } from './store.js';
 
 const REAP_INTERVAL_MS = 60_000;
@@ -32,6 +32,10 @@ async function main() {
     ready = true;
     log.info({ port: config.port, runtime: config.runtime, maxRunning: config.maxRunning }, 'computer host listening');
   });
+
+  // Bound to every interface INSIDE the container; the systemd unit publishes
+  // it on the instance's 127.0.0.1 only.
+  const ops = createOpsApp({ service, idleStopMs: config.idleStopMs }).listen(config.opsPort);
 
   let reaping = false;
   const reaper = setInterval(() => {
@@ -57,6 +61,7 @@ async function main() {
     const timeout = setTimeout(() => process.exit(1), 10_000);
     timeout.unref();
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => ops.close(() => resolve()));
     await store.close();
     clearTimeout(timeout);
     process.exit(0);

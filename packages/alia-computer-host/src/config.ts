@@ -9,6 +9,14 @@
 
 export interface HostConfig {
   port: number;
+  /**
+   * The operations port: `/idle` and `/idle/drain`, for the instance's own
+   * auto-stop timer. Unauthenticated, so the systemd unit publishes it on
+   * 127.0.0.1 only — never on the private address the control API uses.
+   */
+  opsPort: number;
+  /** How long the host must be idle before it may stop its own instance. */
+  idleStopMs: number;
   /** The workspace image every container must run, by exact reference (a digest in production). */
   image: string;
   /** The OCI runtime containers are created with. `runsc` (gVisor) in production. */
@@ -79,6 +87,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): HostConfig {
 
   return {
     port: positiveInteger('PORT', env.PORT, 8080),
+    opsPort: positiveInteger('OPS_PORT', env.OPS_PORT, 8081),
+    idleStopMs: positiveInteger('ALIA_COMPUTER_HOST_IDLE_STOP_MS', env.ALIA_COMPUTER_HOST_IDLE_STOP_MS, 30 * 60_000),
     image,
     runtime,
     deploymentId,

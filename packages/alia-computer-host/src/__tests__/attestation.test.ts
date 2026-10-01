@@ -51,7 +51,7 @@ describe('the workload exchange, end to end', () => {
       store: new MemoryStore(),
       docker: docker.run,
       config: {
-        port: 0, image: 'img@sha256:abc', runtime: 'runsc', deploymentId: 'test', allowedRoleArns: [ALIA_ROLE],
+        port: 0, opsPort: 0, idleStopMs: 1_800_000, image: 'img@sha256:abc', runtime: 'runsc', deploymentId: 'test', allowedRoleArns: [ALIA_ROLE],
         maxRunning: 2, idleMs: 600_000, workspaceQuotaBytes: 1e9, maxCommandSeconds: 300, production: false,
       },
       log: silent,

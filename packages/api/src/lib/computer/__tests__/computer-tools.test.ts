@@ -120,6 +120,18 @@ describe('the computer tools', () => {
     expect(client.mkdir).toHaveBeenCalledWith(ACTOR, '/workspace/src');
   });
 
+  it('tell the model the computer is starting, rather than failing, while the host wakes', async () => {
+    const client = clientDouble({ run: vi.fn(async () => { throw new ComputerHostError('still starting', 503, 'host_waking'); }) });
+    const tools = buildComputerTools({ client, actorId: ACTOR, scope: 's' });
+    expect(await call(tools, 'run_computer_command', { command: 'ls', operationId: 'a' })).toMatch(/^Your computer is starting/);
+  });
+
+  it('say plainly when no capacity is available to start it', async () => {
+    const client = clientDouble({ read: vi.fn(async () => { throw new ComputerHostError('x', 503, 'host_capacity_unavailable'); }) });
+    const tools = buildComputerTools({ client, actorId: ACTOR, scope: 's' });
+    expect(await call(tools, 'read_computer_file', { path: '/workspace/a' })).toMatch(/no machine capacity/);
+  });
+
   it('answer the model with a readable error instead of throwing', async () => {
     const client = clientDouble({ start: vi.fn(async () => { throw new ComputerHostError('full', 503, 'capacity'); }) });
     const tools = buildComputerTools({ client, actorId: ACTOR, scope: 's' });

@@ -93,6 +93,7 @@ TOKEN_ENCRYPTION_KEY=<32-byte hex>     # see below — NOT optional for shows
 INTEGRATIONS_URL=https://...           # MCP tools and channel proxy
 INTEGRATIONS_SECRET=<32-byte hex>
 ALIA_COMPUTER_HOST_URL=http://computer.alia.internal.oxy.so:8080  # agents' computer (no secret: workload identity)
+ALIA_COMPUTER_HOST_INSTANCE_ID=i-...     # lets the API wake the host when it has stopped itself
 SYRA_API_URL=https://api.syra.fm       # where a show series is published
 ```
 

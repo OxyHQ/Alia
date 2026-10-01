@@ -10,6 +10,8 @@ const ACTOR = 'agent:a1:user:u1';
 
 const config: HostConfig = {
   port: 0,
+  opsPort: 0,
+  idleStopMs: 30 * 60_000,
   image: IMAGE,
   runtime: 'runsc',
   deploymentId: 'test',
@@ -261,5 +263,75 @@ describe('the idle reaper', () => {
     await store.acquireLease(identity.actorHash, 'command', 60 * 60_000);
     expect(await service.reapIdle()).toBe(0);
     expect(docker.containers.has(identity.container)).toBe(true);
+  });
+});
+
+describe('the host\'s own auto-stop', () => {
+  const THIRTY_MINUTES = 30 * 60_000;
+
+  it('is not idle right after boot, and becomes stoppable after thirty idle minutes', async () => {
+    expect(await service.drain(THIRTY_MINUTES)).toMatchObject({ stop: false });
+    clock += THIRTY_MINUTES;
+    const granted = await service.drain(THIRTY_MINUTES);
+    expect(granted).toMatchObject({ stop: true, state: { idle: true, draining: true } });
+  });
+
+  it('never stops while an actor computer is running', async () => {
+    await service.start(ACTOR);
+    clock += 2 * THIRTY_MINUTES;
+    expect(await service.drain(THIRTY_MINUTES)).toMatchObject({ stop: false, state: { idle: false, runningComputers: 1 } });
+  });
+
+  it('never stops while an operation is in flight, however long it has run', async () => {
+    await service.start(ACTOR);
+    let release!: () => void;
+    docker.exec = () => new Promise((resolve) => { release = () => resolve(ok('done')); });
+    const running = service.command(ACTOR, { operationId: 'op-long', command: 'make' });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    // Even with the container gone from the listing, the command is in flight.
+    docker.containers.get(identity.container)!.running = false;
+    clock += 2 * THIRTY_MINUTES;
+    expect(await service.drain(THIRTY_MINUTES)).toMatchObject({ stop: false, state: { inFlight: 1 } });
+    release();
+    await running;
+  });
+
+  it('refuses a drain when work began while the listing was awaited', async () => {
+    clock += THIRTY_MINUTES;
+    const slowList = docker.run;
+    let startedDuring: Promise<unknown> | null = null;
+    const racing = new ComputerService({
+      store,
+      config,
+      log: silent,
+      now: () => clock,
+      docker: async (args, options) => {
+        if (args[1] === 'ls' && args.includes('status=running') && !startedDuring) {
+          startedDuring = racing.start('actor-racer').catch(() => undefined);
+        }
+        return slowList(args, options);
+      },
+    });
+    clock += THIRTY_MINUTES;
+    expect((await racing.drain(THIRTY_MINUTES)).stop).toBe(false);
+    await startedDuring;
+  });
+
+  it('refuses new work once a drain is granted, until the hold expires', async () => {
+    clock += THIRTY_MINUTES;
+    expect((await service.drain(THIRTY_MINUTES)).stop).toBe(true);
+    await expect(service.start(ACTOR)).rejects.toMatchObject({ status: 503, code: 'host_stopping' });
+    // The instance did not stop after all: five minutes later it takes work again.
+    clock += 6 * 60_000;
+    await expect(service.start(ACTOR)).resolves.toMatchObject({ state: 'running' });
+  });
+
+  it('replaces a computer left stopped by an instance stop instead of reattaching to it', async () => {
+    await service.start(ACTOR);
+    docker.containers.get(identity.container)!.running = false;
+    // Even a stopped container built from an older image is simply replaced.
+    docker.tamper(identity.container, (c) => { c.Config.Image = 'old-image@sha256:000'; });
+    await expect(service.start(ACTOR)).resolves.toMatchObject({ state: 'running' });
+    expect(docker.containers.get(identity.container)?.inspection.Config.Image).toBe(IMAGE);
   });
 });

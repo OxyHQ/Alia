@@ -146,3 +146,29 @@ export function createApp(options: {
 
   return app;
 }
+
+/**
+ * The operations app, on its own port bound to the instance's loopback.
+ *
+ *   GET  /idle         { idle, runningComputers, inFlight, idleForMs, draining }
+ *   POST /idle/drain   { stop: boolean, state } — `stop: true` means the host now
+ *                      refuses new work and the instance may stop itself
+ *
+ * Used by the instance's systemd timer (oxy-infra
+ * `files/alia-computer-host-userdata.sh`), never by the Alia API.
+ */
+export function createOpsApp(options: { service: ComputerService; idleStopMs: number }) {
+  const app = express();
+  app.disable('x-powered-by');
+  app.get('/idle', (_req, res, next) => {
+    options.service.idleState().then((state) => res.json({ data: state }), next);
+  });
+  app.post('/idle/drain', (_req, res, next) => {
+    options.service.drain(options.idleStopMs).then((result) => res.json({ data: result }), next);
+  });
+  app.use((_error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    // When Docker cannot be asked, the answer is "not idle": never stop on doubt.
+    res.status(503).json({ data: { stop: false } });
+  });
+  return app;
+}

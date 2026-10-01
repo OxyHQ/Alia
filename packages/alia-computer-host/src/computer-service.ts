@@ -90,12 +90,95 @@ export interface ServiceOptions {
   now?: () => number;
 }
 
+export interface HostIdleState {
+  idle: boolean;
+  runningComputers: number;
+  inFlight: number;
+  /** How long the host has been continuously idle, 0 when it is not. */
+  idleForMs: number;
+  draining: boolean;
+}
+
+/** How long a granted drain holds before the host takes work again (the stop failed). */
+const DRAIN_HOLD_MS = 5 * 60_000;
+
 export class ComputerService {
   private readonly usage = new Map<string, { bytes: number; at: number }>();
   private readonly now: () => number;
 
+  /**
+   * Host-level activity, for the instance's own auto-stop (oxy-infra
+   * `alia-computer-host.tf`). `inFlight` counts control-API operations that
+   * are running right now; `epoch` changes whenever one begins, so a drain
+   * that awaited Docker can tell whether work slipped in meanwhile;
+   * `lastBusyAt` starts at boot, so a host that was just woken is never
+   * stopped before anyone has had the chance to use it.
+   */
+  private inFlight = 0;
+  private epoch = 0;
+  private lastBusyAt: number;
+  private drainingUntil = 0;
+
   constructor(private readonly options: ServiceOptions) {
     this.now = options.now ?? Date.now;
+    this.lastBusyAt = this.now();
+  }
+
+  /**
+   * Every operation that can change an actor's computer runs inside this.
+   * Once a drain has been granted the host refuses new work with 503
+   * `host_stopping`, which the Alia API treats as "asleep": it waits for the
+   * stop, then starts the instance again.
+   */
+  private async tracked<T>(work: () => Promise<T>): Promise<T> {
+    if (this.drainingUntil > this.now()) {
+      throw new HostError('The computer host is shutting down to save cost; it will start again on the next request', 503, 'host_stopping');
+    }
+    this.inFlight += 1;
+    this.epoch += 1;
+    this.lastBusyAt = this.now();
+    try {
+      return await work();
+    } finally {
+      this.inFlight -= 1;
+      this.lastBusyAt = this.now();
+    }
+  }
+
+  /** Whether the host is idle: no actor container running and no operation in flight. */
+  async idleState(): Promise<HostIdleState> {
+    const running = (await this.runningContainers()).length;
+    const idle = running === 0 && this.inFlight === 0;
+    if (!idle) this.lastBusyAt = this.now();
+    return {
+      idle,
+      runningComputers: running,
+      inFlight: this.inFlight,
+      idleForMs: idle ? this.now() - this.lastBusyAt : 0,
+      draining: this.drainingUntil > this.now(),
+    };
+  }
+
+  /**
+   * Grant the instance permission to stop itself — or refuse.
+   *
+   * Granted only when the host has been idle for `minIdleMs` AND nothing began
+   * while the container listing was awaited (the `epoch` check: JavaScript
+   * runs the comparison and the flag in one synchronous step, so no request
+   * can start between them). From then on new work is refused, so nothing can
+   * start inside a machine that is about to stop. The hold expires on its own:
+   * if the instance is still alive five minutes later, the stop failed and the
+   * host takes work again.
+   */
+  async drain(minIdleMs: number): Promise<{ stop: boolean; state: HostIdleState }> {
+    const before = this.epoch;
+    const state = await this.idleState();
+    if (!state.idle || state.idleForMs < minIdleMs || this.epoch !== before || this.inFlight > 0) {
+      return { stop: false, state };
+    }
+    this.drainingUntil = this.now() + DRAIN_HOLD_MS;
+    this.options.log.info({ idleForMs: state.idleForMs }, 'host idle: granting self-stop');
+    return { stop: true, state: { ...state, draining: true } };
   }
 
   private get config() {
@@ -216,16 +299,20 @@ export class ComputerService {
 
   async start(actorId: string): Promise<ComputerStatus> {
     const identity = this.identity(actorId);
-    await this.exclusive(identity, 'operation', OPERATION_LEASE_MS, async () => {
+    await this.tracked(() => this.exclusive(identity, 'operation', OPERATION_LEASE_MS, async () => {
+      // A container left behind STOPPED — the instance itself was stopped or
+      // interrupted under it — is removed rather than restarted: the next one
+      // is created fresh from today's image on the same volume, which is the
+      // whole ephemeral-container contract.
+      const state = (
+        await this.checked(['container', 'ls', '--all', '--filter', `name=^/${identity.container}$`, '--format', '{{.State}}'])
+      ).trim();
+      if (state && state !== 'running') await this.checked(['container', 'rm', '--force', identity.container]);
       const existing = await this.inspect(identity);
       if (existing?.State.Running) return;
       const running = await this.runningContainers();
       if (running.length >= this.config.maxRunning) {
         throw new HostError('Every computer slot on this host is in use; try again in a few minutes', 503, 'capacity');
-      }
-      if (existing) {
-        await this.checked(['container', 'start', identity.container]);
-        return;
       }
       const volume = (
         await this.checked(['volume', 'ls', '--filter', `name=^${identity.volume}$`, '--format', '{{.Name}}'])
@@ -238,7 +325,7 @@ export class ComputerService {
       await this.inspect(identity);
       await this.checked(['container', 'start', identity.container]);
       this.options.log.info({ actor: identity.actorHash }, 'computer started');
-    });
+    }));
     await this.options.store.touch(identity.actorHash);
     return this.status(actorId);
   }
@@ -251,7 +338,7 @@ export class ComputerService {
    */
   async stop(actorId: string, reason: 'requested' | 'idle' = 'requested'): Promise<ComputerStatus> {
     const identity = this.identity(actorId);
-    await this.stopByHash(identity, reason);
+    await this.tracked(() => this.stopByHash(identity, reason));
     return this.status(actorId);
   }
 
@@ -324,6 +411,10 @@ export class ComputerService {
   // ── Commands ──
 
   async command(actorId: string, request: CommandRequest): Promise<CommandReceipt> {
+    return this.tracked(() => this.runCommand(actorId, request));
+  }
+
+  private async runCommand(actorId: string, request: CommandRequest): Promise<CommandReceipt> {
     const identity = this.identity(actorId);
     const store = this.options.store;
     if (!OPERATION_ID.test(request.operationId)) {
@@ -492,7 +583,11 @@ export class ComputerService {
     }
   }
 
-  private async file<T>(actorId: string, operation: 'list' | 'read' | 'write' | 'mkdir', rawPath: string, text?: string): Promise<T> {
+  private file<T>(actorId: string, operation: 'list' | 'read' | 'write' | 'mkdir', rawPath: string, text?: string): Promise<T> {
+    return this.tracked(() => this.fileOperation<T>(actorId, operation, rawPath, text));
+  }
+
+  private async fileOperation<T>(actorId: string, operation: 'list' | 'read' | 'write' | 'mkdir', rawPath: string, text?: string): Promise<T> {
     const identity = this.identity(actorId);
     const path = workspacePath(rawPath);
     if (text !== undefined && Buffer.byteLength(text) > FILE_TEXT_LIMIT) {

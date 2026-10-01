@@ -98,7 +98,9 @@ export class FakeDocker {
       const nameFilter = args.find((a) => a.startsWith('name=^/'));
       if (nameFilter) {
         const name = nameFilter.slice('name=^/'.length, -1);
-        return ok(this.containers.has(name) ? `id-${name}\n` : '');
+        const container = this.containers.get(name);
+        if (!container) return ok('');
+        return ok(args.includes('{{.State}}') ? `${container.running ? 'running' : 'exited'}\n` : `id-${name}\n`);
       }
       const running = [...this.containers.values()].filter((c) => c.running);
       return ok(running.map((c) => `${(c.inspection.Config.Labels as Record<string, string>)['onl.alia.computer.actor']}\n`).join(''));
@@ -126,7 +128,7 @@ export class FakeDocker {
       return ok();
     }
     if (group === 'container' && verb === 'rm') {
-      this.containers.delete(args[2] as string);
+      this.containers.delete(args[args.length - 1] as string);
       return ok();
     }
     if (group === 'volume' && verb === 'ls') {

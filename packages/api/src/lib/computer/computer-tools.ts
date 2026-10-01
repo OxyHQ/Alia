@@ -59,6 +59,13 @@ function failure(error: unknown): string {
   if (error instanceof ComputerHostError) {
     if (error.code === 'capacity') return 'Error: every computer slot is in use right now. Try again in a few minutes.';
     if (error.code === 'busy') return 'Error: your computer is busy with another operation. Wait for it and try again.';
+    if (error.code === 'host_waking' || error.code === 'host_stopping') {
+      return 'Your computer is starting — it sleeps when nobody uses it, to save cost. Try the same call again in about a minute; nothing was run.';
+    }
+    if (error.code === 'host_capacity_unavailable') {
+      return 'Error: the computer could not start because no machine capacity is available right now. Try again later, and tell the person if it is urgent.';
+    }
+    if (error.code === 'host_unavailable') return 'Error: the computer is unavailable right now.';
     return `Error (${error.code}): ${error.message}`;
   }
   return `Error: the computer could not be reached (${getErrorMessage(error).slice(0, 200)}).`;
@@ -116,7 +123,7 @@ export function buildComputerTools(options: {
   return {
     computer_status: tool({
       description:
-        'Show whether your computer (a private Linux sandbox with node, python3, git and bash, no internet access, and a persistent /workspace) is running, and how much of its workspace quota is used.',
+        'Show whether your computer (a private Linux sandbox with node, python3, git and bash, no internet access, and a persistent /workspace) is running, stopped, or asleep (the whole machine sleeps when unused; any other computer tool wakes it, which takes up to a minute and a half).',
       inputSchema: z.object({}),
       execute: async () => {
         try {
