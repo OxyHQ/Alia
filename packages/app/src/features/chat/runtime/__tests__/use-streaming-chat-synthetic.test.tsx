@@ -191,6 +191,50 @@ describe('a synthetic reply', () => {
     });
   });
 
+  it('keeps output that came before an in-stream error frame, and shows code and reference, not the server prose', async () => {
+    // What the server writes when a step fails after text and a tool call:
+    // the `{"error": …}` frame and [DONE], with no stop chunk.
+    const errorFrame = `data: ${JSON.stringify({ error: {
+      message: 'Service temporarily unavailable. Please try again in a moment.',
+      type: 'server_error',
+      param: null,
+      code: 'PROVIDER_UNAVAILABLE',
+      retryable: true,
+      reference: 'chatcmpl-ref-1',
+    } })}\n\n`;
+    harness.responses.push(
+      [contentFrame('Voy a abrir Mention y mirar las tendencias.'), errorFrame, done],
+      [contentFrame('Estas son las tendencias.'), stopFrame, done],
+    );
+    await mount();
+
+    let outcome: string | undefined;
+    await act(async () => { outcome = await api.append({ role: 'user', content: 'Que tendencias hay en Mention?' }); });
+
+    expect(outcome).toBe('sent');
+    expect(api.messages.map((m) => [m.role, m.content])).toEqual([
+      ['user', 'Que tendencias hay en Mention?'],
+      ['assistant', 'Voy a abrir Mention y mirar las tendencias.'],
+    ]);
+    expect(api.messages[1].turnOutcome).toBe('failed');
+    expect(api.failedTurn).toMatchObject({
+      anchorMessageId: api.messages[1].id,
+      partial: true,
+      retryable: true,
+      detail: 'PROVIDER_UNAVAILABLE · Ref chatcmpl-ref-1',
+    });
+
+    // Retry re-sends the question once, without the half answer.
+    await act(async () => { await api.retryFailedTurn(); });
+    expect(harness.requests[1].messages.filter((m) => m.role === 'user')).toHaveLength(1);
+    expect(harness.requests[1].messages.some((m) => m.role === 'assistant')).toBe(false);
+    expect(api.messages.map((m) => [m.role, m.content])).toEqual([
+      ['user', 'Que tendencias hay en Mention?'],
+      ['assistant', 'Estas son las tendencias.'],
+    ]);
+    expect(api.failedTurn).toBeNull();
+  });
+
   it('takes the failure down the moment a new message is sent', async () => {
     harness.responses.push(synthetic(), [contentFrame('Sure.'), stopFrame, done]);
     await mount();

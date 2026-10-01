@@ -24,7 +24,7 @@ import { hasUsableStreamOutput, type StreamOutputEvidence } from '@/features/cha
 import { createSseFrameReader } from '@/features/chat/runtime/sse-frame-reader';
 
 import type { ToolInvocation } from '@/shared/contracts/messages';
-import { readAliaMeta, type FailedTurn } from '@/features/chat/ui/turn-failure';
+import { failureDetail, readAliaMeta, type FailedTurn } from '@/features/chat/ui/turn-failure';
 import { errorMessage as getErrorMessage, errorStatus, errorCode, errorName } from '@/shared/api/error-utils';
 export type { ToolInvocation };
 export type { FailedTurn };
@@ -59,6 +59,8 @@ interface ThrownErrorBody {
   message?: string;
   retryable?: boolean;
   retryAfter?: number;
+  /** Alia's run id, on a turn that failed after the stream began. */
+  reference?: string;
   suggestedAction?: 'wait' | 'upgrade';
 }
 
@@ -306,11 +308,18 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, select
      */
     const keepFailedTurn = (retryable: boolean, detail?: string): SendOutcome => {
       const partial = hasUsableStreamOutput(outputEvidence);
-      pendingContentRef.current = '';
-      pendingReasoningRef.current = '';
-      if (flushTimerRef.current) {
-        clearTimeout(flushTimerRef.current);
-        flushTimerRef.current = null;
+      if (partial) {
+        // The output is kept, so what is still batched is part of it: an
+        // in-stream error frame can land inside one flush window, and dropping
+        // the buffer drew the "interrupted" card under an empty bubble.
+        flushPendingUpdates();
+      } else {
+        pendingContentRef.current = '';
+        pendingReasoningRef.current = '';
+        if (flushTimerRef.current) {
+          clearTimeout(flushTimerRef.current);
+          flushTimerRef.current = null;
+        }
       }
       if (partial) {
         settleAssistant('failed');
@@ -865,7 +874,17 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, select
                 abortControllerRef.current = null;
               }
               reader.cancel();
-              return keepFailedTurn(err.retryable !== false, getErrorMessage(err) || undefined);
+              // A turn that failed after it started carries a run reference:
+              // its card says code and reference, never the server's English
+              // prose. A refusal without one (a gate, a bad request) keeps its
+              // message, which is the only thing that says what to change.
+              const detail = typeof err.reference === 'string'
+                ? failureDetail({
+                    code: typeof err.code === 'string' ? err.code : undefined,
+                    reference: err.reference,
+                  })
+                : getErrorMessage(err) || undefined;
+              return keepFailedTurn(err.retryable !== false, detail);
             }
 
             // Handle usage/credits info (comes at the end of stream).
@@ -918,12 +937,10 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, select
                 // Remembered, never rendered — see `syntheticTail`. The
                 // server sends a stop chunk and [DONE] right after, and the
                 // `done` branch turns this into the error under the turn.
-                const detail = [meta.code, meta.reference ? `Ref ${meta.reference}` : null]
-                  .filter((value): value is string => value !== null && value !== undefined)
-                  .join(' · ');
+                const detail = failureDetail(meta);
                 syntheticTail = {
                   retryable: meta.retryable,
-                  ...(detail === '' ? {} : { detail }),
+                  ...(detail === undefined ? {} : { detail }),
                 };
               } else {
                 outputEvidence.realOutputChars += delta.content.length;

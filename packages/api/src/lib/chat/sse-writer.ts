@@ -46,7 +46,14 @@ export class SSEWriter {
     }
   };
 
-  /** Send an OpenAI-shaped error over the open SSE stream and end the response. */
+  /**
+   * Send an OpenAI-shaped error over the open SSE stream and end the response.
+   *
+   * `retryable`, `retryAfter` and `reference` are written only when given, so
+   * a refusal that never set them keeps its four-field shape. A turn that
+   * failed after it started sets all of them: whether sending it again is
+   * worth it, when, and the run id support can trace it by.
+   */
   writeError(errorPayload: Record<string, unknown>): void {
     const openAIError = {
       error: {
@@ -54,6 +61,9 @@ export class SSEWriter {
         type: errorPayload.type || 'server_error',
         param: errorPayload.param || null,
         code: errorPayload.code || null,
+        ...(typeof errorPayload.retryable === 'boolean' ? { retryable: errorPayload.retryable } : {}),
+        ...(typeof errorPayload.retryAfter === 'number' ? { retryAfter: errorPayload.retryAfter } : {}),
+        ...(typeof errorPayload.reference === 'string' ? { reference: errorPayload.reference } : {}),
       },
     };
     this.res.write(`data: ${JSON.stringify(openAIError)}\n\n`);
