@@ -16,7 +16,8 @@
     "packages/alia-codea",
     "packages/alia-codea/webview-ui",
     "packages/alia-cowork",
-    "packages/alia-codea-cli"
+    "packages/alia-codea-cli",
+    "packages/alia-computer-host"
   ],
   "packageManager": "bun@1.3.14",
   "scripts": {

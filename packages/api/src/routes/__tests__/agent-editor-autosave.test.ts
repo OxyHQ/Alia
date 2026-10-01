@@ -601,7 +601,17 @@ describe('the app and the API name the same capability families', () => {
     // inherit. Every OTHER primitive must be mapped, or the panel silently
     // falls back to a generic glyph for it.
     const app = appRuntimeToolFamilies();
-    const primitives = ['browser', 'delegate'];
+    const primitives = [
+      'browser',
+      'delegate',
+      'computer_status',
+      'computer_start',
+      'computer_stop',
+      'run_computer_command',
+      'list_computer_files',
+      'read_computer_file',
+      'write_computer_file',
+    ];
     expect(primitives.filter((tool) => app[tool] === undefined)).toEqual([]);
     // And maps nothing that no longer exists: `shell` and `file_edit` left with
     // their families.

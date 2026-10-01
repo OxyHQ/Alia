@@ -200,6 +200,10 @@ function runtimeDouble(): Parameters<typeof ToolPipeline.forUser>[0]['runtime'] 
     onHireAgent: async () => 'done',
     todoManager: { update: () => undefined, toJSON: () => ({ items: [] }), serialize: () => 'plan' },
     browserSession: { execute: async () => '' },
+    // `computer` is structurally conditional on a configured host, exactly as
+    // `delegate` is on `onHireAgent`: without one here the family would build
+    // nothing and its per-family run would report it unwired.
+    computer: {},
   } as unknown as NonNullable<Parameters<typeof ToolPipeline.forUser>[0]['runtime']>;
 }
 
@@ -394,6 +398,15 @@ describe('an agent reaches exactly what it was granted', () => {
     },
   );
 
+  it('builds no computer tool on a deployment without a computer host, granted or not', async () => {
+    // The family is a grant AND a configured host. `null` is "no host", which
+    // is what production has until ALIA_COMPUTER_HOST_URL is set — so turning
+    // the switch on there must add nothing rather than seven failing tools.
+    const base = await namesFor([]);
+    const granted = await namesFor(['computer'], { runtime: { ...runtimeDouble()!, computer: null } });
+    expect(granted).toEqual(base);
+  });
+
   it('grants two rows of one family without granting the family', async () => {
     const base = await namesFor([]);
     const granted = await namesFor(['mcp:row-a', 'mcp:row-b']);
@@ -460,7 +473,7 @@ describe('every tool the assembler can build belongs to exactly one family', () 
     // sets — which is the shape of a passing test that measures nothing.
     const all = await namesFor(EVERY_GRANT);
     expect(all.length).toBeGreaterThanOrEqual(23);
-    expect(CAPABILITY_FAMILIES.length).toBe(10);
+    expect(CAPABILITY_FAMILIES.length).toBe(11);
   });
 });
 

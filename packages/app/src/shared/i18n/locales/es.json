@@ -1449,6 +1449,10 @@
       "delegation": {
         "label": "Otros agentes",
         "description": "Buscar, contratar y crear agentes que trabajen en su nombre"
+      },
+      "computer": {
+        "label": "Su propio ordenador",
+        "description": "Ejecutar comandos y guardar archivos en un entorno Linux privado sin acceso a internet"
       }
     },
     "instancedFamily": {

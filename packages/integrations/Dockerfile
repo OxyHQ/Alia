@@ -37,6 +37,7 @@ COPY packages/alia-codea/package.json ./packages/alia-codea/
 COPY packages/alia-codea/webview-ui/package.json ./packages/alia-codea/webview-ui/
 COPY packages/alia-cowork/package.json ./packages/alia-cowork/
 COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
+COPY packages/alia-computer-host/package.json ./packages/alia-computer-host/
 
 # Install all dependencies (including devDependencies for build).
 # --frozen-lockfile is intentionally omitted: bun's frozen check reports false
@@ -72,6 +73,7 @@ COPY packages/alia-codea/package.json ./packages/alia-codea/
 COPY packages/alia-codea/webview-ui/package.json ./packages/alia-codea/webview-ui/
 COPY packages/alia-cowork/package.json ./packages/alia-cowork/
 COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
+COPY packages/alia-computer-host/package.json ./packages/alia-computer-host/
 
 # Install production dependencies only.
 # See builder stage: --frozen-lockfile omitted due to bun's false-drift check.

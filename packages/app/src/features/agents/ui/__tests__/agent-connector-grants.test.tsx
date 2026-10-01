@@ -27,6 +27,10 @@ vi.mock('react-native', async () => {
 });
 
 /** The Bloom glyphs the family list imports, as named hosts. */
+vi.mock('@oxy.so/bloom/icons/RiComputerLine', async () => {
+  const ReactModule = await import('react');
+  return { RiComputerLine: (props: Record<string, unknown>) => ReactModule.createElement('RiComputerLine', props) };
+});
 vi.mock('@oxy.so/bloom/icons/RiGlobalLine', async () => {
   const ReactModule = await import('react');
   return { RiGlobalLine: (props: Record<string, unknown>) => ReactModule.createElement('RiGlobalLine', props) };

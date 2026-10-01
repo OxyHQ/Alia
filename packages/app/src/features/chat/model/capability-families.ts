@@ -40,6 +40,7 @@
  */
 
 import type { BloomIconComponent } from '@oxy.so/bloom/icons';
+import { RiComputerLine } from '@oxy.so/bloom/icons/RiComputerLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
 import { RiLightbulbFlashLine } from '@oxy.so/bloom/icons/RiLightbulbFlashLine';
 import { RiMessage2Line } from '@oxy.so/bloom/icons/RiMessage2Line';
@@ -60,7 +61,7 @@ export interface CapabilityFamily {
 }
 
 /**
- * The seven families granted whole, in the order they are shown.
+ * The eight families granted whole, in the order they are shown.
  *
  * Ordered by how much of the world the family reaches — reading the web, then
  * reading pages step by step, then what the agent produces, the
@@ -71,6 +72,8 @@ export interface CapabilityFamily {
  * `shell` and `files` are not here and must not come back as switches: they
  * granted a sandbox container production never had, so they could be turned
  * on and never do anything. The API drops them on read and on write.
+ * `computer` is their successor under a new name, and it is last because it
+ * runs code: its tools exist only where a computer host is configured.
  *
  * `mcp` keeps the Material Symbol the two lists this replaces already carried —
  * `ActionKeyIcon`, on the instanced family below.
@@ -124,12 +127,18 @@ export const CAPABILITY_FAMILIES: readonly CapabilityFamily[] = [
     description: 'agents.capabilityFamily.delegation.description',
     icon: AgentRobotIcon,
   },
+  {
+    id: 'computer',
+    label: 'agents.capabilityFamily.computer.label',
+    description: 'agents.capabilityFamily.computer.description',
+    icon: RiComputerLine,
+  },
 ];
 
 /**
  * The autonomous runner's session primitives, by the family that grants each.
  *
- * Two of the three: `plan` is ungranted — it carries the completion signal, so
+ * All but `plan`: it is ungranted — it carries the completion signal, so
  * an agent denied it could never end its own run — and has no family to take an
  * icon from.
  *
@@ -147,6 +156,13 @@ export const CAPABILITY_FAMILIES: readonly CapabilityFamily[] = [
 const RUNTIME_TOOL_FAMILIES: Readonly<Record<string, string>> = {
   browser: 'browser',
   delegate: 'delegation',
+  computer_status: 'computer',
+  computer_start: 'computer',
+  computer_stop: 'computer',
+  run_computer_command: 'computer',
+  list_computer_files: 'computer',
+  read_computer_file: 'computer',
+  write_computer_file: 'computer',
 };
 
 /**

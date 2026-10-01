@@ -102,6 +102,29 @@ function classifyPrimitive(toolName: string, args: Record<string, unknown> = {})
       return R1('Writes into the agent\'s own conversation with the person, under the outreach budget', false);
     case 'scheduleFollowUp':
       return R1('Schedules the agent\'s own one-off follow-up, under the pending limit', false);
+    // The agent's own computer: a gVisor container with no network, so what a
+    // call does stays inside the agent's sandbox. Reading is autonomous; a
+    // change is R1 but offers no rollback (nothing snapshots the old content,
+    // and a record promising an inverse would lie). A BACKGROUND command is R2:
+    // it keeps running after the call returns, where nobody sees what it does.
+    case 'computer_status':
+    case 'list_computer_files':
+    case 'read_computer_file':
+      return R0('Reading the agent\'s own sandboxed computer is autonomous');
+    case 'computer_start':
+    case 'computer_stop':
+      return R1('Starts or stops the agent\'s own sandboxed computer', false);
+    case 'write_computer_file':
+      return R1('Writes a file inside the agent\'s own networkless sandbox', false);
+    case 'run_computer_command':
+      return args.background === true
+        ? {
+            riskLevel: 'R2',
+            reason: 'A background process keeps running in the sandbox after the call, unobserved',
+            reversible: false,
+            externalImpact: false,
+          }
+        : R1('Runs a bounded command inside the agent\'s own networkless sandbox', false);
     default:
       return null;
   }
