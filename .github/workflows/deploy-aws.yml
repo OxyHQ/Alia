@@ -319,10 +319,25 @@ jobs:
           # No SSM parameter is deleted by this change. This is the reference to
           # them going away, which is the half a deploy owns.
 
-          required_env="$(jq -cn '{
+          # The agents' computer (OxyHQ/oxy-infra runbook 47). Its instance is
+          # found by its Role tag, not pinned here: replacing the instance (a
+          # user_data change, the on-demand fallback) changes its id, and a
+          # pinned id would leave Alia waking an instance that no longer exists.
+          computer_instance_id="$(aws ec2 describe-instances \
+            --filters "Name=tag:Role,Values=alia-computer-host" \
+              "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+            --query 'Reservations[].Instances[].InstanceId' --output text)"
+          if [ "$(wc -w <<<"$computer_instance_id")" -ne 1 ]; then
+            echo "::error::expected exactly one alia-computer-host instance, found: '$computer_instance_id'"
+            exit 1
+          fi
+
+          required_env="$(jq -cn --arg computer_instance_id "$computer_instance_id" '{
             API_BASE_URL: "https://api.alia.onl",
             ALIA_API_URL: "https://api.alia.onl",
-            OXY_API_URL: "https://api.oxy.so"
+            OXY_API_URL: "https://api.oxy.so",
+            ALIA_COMPUTER_HOST_URL: "http://computer.alia.internal.oxy.so:8080",
+            ALIA_COMPUTER_HOST_INSTANCE_ID: $computer_instance_id
           }')"
 
           # Nothing is merged in here any more: the Oxy service credential was
