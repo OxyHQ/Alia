@@ -712,10 +712,13 @@ describe('a turn that produced nothing costs nothing - /v1/chat/completions', ()
     );
 
     await vi.advanceTimersByTimeAsync(80_001);
-    // Name the path: the timeout's own stand-in text, not the exhausted-providers
-    // one, which already refunded and would satisfy the assertion below on its own.
+    // Name the path: the timeout's own error frame, not the exhausted-providers
+    // stand-in, which already refunded and would satisfy the assertion below on
+    // its own. The stream was open, so the timeout ends it as a failure.
     const written = res.write.mock.calls.map((c: any[]) => String(c[0])).join('');
-    expect(written).toContain('Please send your message again.');
+    expect(written).toContain('"code":"TIMEOUT"');
+    expect(written).toContain('"retryable":true');
+    expect(written).not.toContain('"finish_reason":"stop"');
 
     release?.();
     await vi.runAllTimersAsync();

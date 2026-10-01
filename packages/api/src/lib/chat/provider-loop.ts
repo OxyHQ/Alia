@@ -13,7 +13,9 @@
  * loop's writes. Returns `completed` when a response was fully sent, or
  * `exhausted` (with the attempt count) so the route emits its synthetic reply.
  * Rethrows an inference error when content already streamed; the route's outer
- * catch handles graceful mid-stream recovery.
+ * catch ends that stream with a typed error frame. Neither the save nor the
+ * credit finalize below runs for it: a turn that failed part-way is not stored
+ * and its reservation is refunded.
  *
  * Behaviour is byte-identical to the inline loop it replaced. Import seams
  * (`ai`, `../chat-core.js`, `../chat-lifecycle.js`, `../logger.js`,

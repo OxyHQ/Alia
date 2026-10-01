@@ -220,6 +220,29 @@ not retry an identical request locally. An Oxy routing refusal is a `503`, an
 empty or invalid upstream result is a `502`, and a safe Oxy request ID is kept
 for correlation without exposing provider or deployment details.
 
+A turn that fails after its stream began — most often an upstream error in a
+later step, after text or a tool call already reached the client — ends as a
+failed turn, not as an answer. `runStream` throws on every `error` part the
+tools-disabled synthesis pass does not recover (that pass runs only when no
+text was streamed and tool results exist), and the route's mid-stream branch
+(`failOpenStream` in `routes/v1/chat-completions.ts`, also used by the 80s
+timeout) writes one OpenAI-shaped frame and `[DONE]`, with no stop chunk:
+
+```json
+{"error":{"message":"Service temporarily unavailable. Please try again in a moment.",
+  "type":"server_error","param":null,"code":"PROVIDER_UNAVAILABLE",
+  "retryable":true,"reference":"chatcmpl-…"}}
+```
+
+`message` is the code's fixed product text, never the upstream's words; `type`
+is always `server_error`, because an upstream rate limit or billing refusal is
+not the caller's limit. Nothing is persisted and the reservation is refunded,
+like every other failed turn. The app keeps the partial output and draws its
+failed-turn card (interrupted, `code · Ref reference`, Retry); `@alia.onl/sdk`,
+`@alia.onl/server`, Codea and Cowork raise the frame as an error. Alia does not
+re-send the failed step itself: Kaana owns retries, and the AI SDK cannot resume
+a multi-step run at the step that failed.
+
 Streaming error events retain Oxy's exact error code, retryability, retry delay
 and request ID through the AI SDK adapter. The product maps the typed code
 before considering free-form messages or HTTP status. In particular, a platform

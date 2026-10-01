@@ -3,14 +3,17 @@
  *
  * ## Why this is a thing at all
  *
- * The server never lets a hosted-inference failure reach the client as a
- * failure. A dead provider, a mid-stream break and the global timeout are all
- * answered with HTTP 200 and an ordinary content delta — "all models are
- * busy, try again in a few seconds" — flagged only by `alia_meta: { synthetic:
- * true, retryable: true }` on the chunk (`packages/api/src/routes/v1/
- * chat-completions.ts`, three places). Rendered as prose it reads as Alia
- * declining; rolled back it vanishes with a toast, and once the toast is gone
- * there is nothing on screen that says what happened or offers to try again.
+ * A hosted-inference failure reaches the client in one of two shapes. One
+ * that happens before any output (a dead provider) is answered with HTTP 200
+ * and an ordinary content delta — "all models are busy, try again in a few
+ * seconds" — flagged only by `alia_meta: { synthetic: true, retryable: true }`
+ * on the chunk. One that happens after the stream began (a step failing after
+ * text or a tool call, the global timeout) ends the stream with an in-stream
+ * `{"error": {code, retryable, reference}}` frame and no stop chunk
+ * (`packages/api/src/routes/v1/chat-completions.ts`, `failOpenStream`).
+ * Rendered as prose the first reads as Alia declining; rolled back either
+ * vanishes with a toast, and once the toast is gone there is nothing on screen
+ * that says what happened or offers to try again.
  *
  * So a failed send keeps the person's turn in the thread and hangs this on it:
  * a persistent error the row is drawn with, and the material a retry needs.
@@ -84,4 +87,18 @@ export function readAliaMeta(chunk: unknown): AliaMeta {
     ...(typeof failure?.reference === 'string' ? { reference: failure.reference } : {}),
     ...(typeof failure?.retryAfter === 'number' ? { retryAfter: failure.retryAfter } : {}),
   };
+}
+
+/**
+ * The line under a failed turn's card: the stable code and the run reference.
+ *
+ * Never the server's prose. The card's own line is the app's, in the reader's
+ * language; this is what support needs, and both halves are language-free.
+ * Empty when the server sent neither.
+ */
+export function failureDetail(failure: { code?: string; reference?: string }): string | undefined {
+  const detail = [failure.code, failure.reference === undefined ? undefined : `Ref ${failure.reference}`]
+    .filter((value): value is string => typeof value === 'string' && value !== '')
+    .join(' · ');
+  return detail === '' ? undefined : detail;
 }

@@ -1049,7 +1049,10 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     expect(H.timeline.filter(entry => entry.startsWith('persist:'))).toEqual([]);
     expect(H.timeline).not.toContain('credits:finalize');
     expect(H.timeline).toContain('credits:refund');
-    expect(res.raw.join('')).toContain('"synthetic":true');
+    // Tool cards already streamed, so the turn ends as a failure in the open
+    // stream: the typed error frame and [DONE], never a stop chunk.
+    expect(H.timeline.some(entry => entry.startsWith('sse:error('))).toBe(true);
+    expect(H.timeline.some(entry => entry.startsWith('sse:chunk:finish'))).toBe(false);
     expect(res.raw.join('')).toContain('"retryable":true');
   });
 });
@@ -1083,6 +1086,86 @@ describe('fixture: what a failure surfaces to the user', () => {
     expect(H.timeline).not.toContain('credits:finalize');
     expect(H.timeline.filter(entry => entry === 'model:doStream')).toHaveLength(1);
     expect(H.timeline.filter(entry => entry.startsWith('persist:'))).toEqual([]);
+  });
+
+  /**
+   * The production incident of 2026-10-01: "Voy a abrir Mention y mirar las
+   * tendencias.", a tool call, then the NEXT step's upstream error. The runner
+   * logged the error and ran on to the adapter's closing `finish`, so the route
+   * wrote a stop chunk, saved the dangling sentence as the answer and charged
+   * for it — and the person saw nothing go wrong.
+   */
+  it('ends a turn that fails after text and a tool call as a FAILED turn', async () => {
+    const SQL_LEAK = 'provider: recording credential attempt: ERROR: provider credential attempt identity conflict (SQLSTATE P0001)';
+    H.state.streamTurns = [
+      [streamStart, ...say('t1', 'Voy a abrir Mention y mirar las tendencias.'), ...callTool('call-1', 'getCurrentDate', '{}'), finish('tool-calls')],
+      [streamStart, { type: 'error', error: new OxyInferenceError({
+        code: 'provider_error', retryable: true, status: 502,
+        message: `${UPSTREAM_PROVIDER} ${SQL_LEAK}`,
+        requestId: 'oxy-private-request',
+      }) }, finish('error')],
+    ];
+    const res = recordingRes();
+    await run(recordingReq({
+      body: { messages: [{ role: 'user', content: 'Que tendencias hay en Mention?' }], model: CHAT_MODEL, stream: true, conversationId: 'conv-midstream' },
+    }), res);
+
+    const bytes = res.raw.join('');
+    // The partial output did reach the client, and the tool really ran.
+    expect(bytes).toContain('Voy a abrir Mention y mirar las tendencias.');
+    expect(H.timeline).toContain('sse:chunk:tool_calls');
+    expect(H.timeline).toContain('sse:event:alia.tool_result');
+    expect(H.timeline.filter(entry => entry === 'model:doStream')).toHaveLength(2);
+
+    // The stream ends with the typed error frame, then [DONE] — no stop chunk.
+    const ending = H.timeline.filter(entry => entry.startsWith('sse:') && !entry.startsWith('sse:comment'));
+    expect(ending.slice(-2)).toEqual(['sse:error(PROVIDER_UNAVAILABLE)', 'sse:[DONE]']);
+    expect(H.timeline[H.timeline.indexOf('sse:[DONE]') + 1]).toBe('http:end');
+    expect(H.timeline.some(entry => entry.startsWith('sse:chunk:finish'))).toBe(false);
+    const errorFrame = res.raw.find(frame => frame.startsWith('data: {"error"'));
+    expect(errorFrame).toBeDefined();
+    expect(JSON.parse(String(errorFrame).slice(6))).toEqual({
+      error: {
+        message: 'Service temporarily unavailable. Please try again in a moment.',
+        type: 'server_error',
+        param: null,
+        code: 'PROVIDER_UNAVAILABLE',
+        retryable: true,
+        reference: expect.stringMatching(/^chatcmpl-[0-9a-f-]{36}$/),
+      },
+    });
+
+    // Nothing from upstream reaches the product surface.
+    expect(bytes).not.toContain(UPSTREAM_PROVIDER);
+    expect(bytes).not.toContain('SQLSTATE');
+    expect(bytes).not.toContain('credential');
+    expect(bytes).not.toContain('oxy-private-request');
+    expect(bytes).not.toContain('"synthetic":true');
+
+    // A failed turn has no row, is not charged, and is recorded as failed.
+    expect(H.timeline.filter(entry => entry.startsWith('persist:conversation'))).toEqual([]);
+    expect(H.timeline).not.toContain('credits:finalize');
+    expect(H.timeline.filter(entry => entry === 'credits:refund')).toHaveLength(1);
+    expect(H.afterChat).toHaveLength(1);
+    expect(H.afterChat[0].errorClass).toBe('PROVIDER_UNAVAILABLE');
+  });
+
+  it('still answers from the tool results when the failed step streamed nothing and no text came before', async () => {
+    // The existing tools-disabled recovery is untouched: a tool, then an error
+    // before any text, is answered by the synthesis pass and completes.
+    H.state.streamTurns = [
+      [streamStart, ...callTool('call-1', 'getCurrentDate', '{}'), finish('tool-calls')],
+      [streamStart, { type: 'error', error: new Error('upstream exploded') }, finish('error')],
+      [streamStart, ...say('t2', 'Hoy es martes.'), finish('stop')],
+    ];
+    const res = recordingRes();
+    await run(recordingReq({
+      body: { messages: [{ role: 'user', content: 'que dia es?' }], model: CHAT_MODEL, stream: true },
+    }), res);
+
+    expect(res.raw.join('')).toContain('Hoy es martes.');
+    expect(H.timeline.some(entry => entry.startsWith('sse:error'))).toBe(false);
+    expect(H.timeline).toContain('credits:finalize');
   });
 
   it('exhausting every provider yields a synthetic answer, never a raw error', async () => {

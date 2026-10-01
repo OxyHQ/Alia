@@ -13,7 +13,8 @@ import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/re
 import { log } from '../../lib/logger.js';
 import { recordEvent } from '../../lib/observability/index.js';
 import { recordInferenceCorrelation } from '../../lib/observability/inference-correlation.js';
-import { writeStopChunk, writeContentChunk, makeChunk } from '../../lib/streaming-helpers.js';
+import { writeStopChunk, makeChunk } from '../../lib/streaming-helpers.js';
+import { AliaError, AliaErrorCode } from '../../lib/errors/error-codes.js';
 import { buildCompletionResponse } from '../../lib/chat/response-shapes.js';
 import { SSEWriter } from '../../lib/chat/sse-writer.js';
 import { buildChatRequestContext } from '../../lib/chat/request-context.js';
@@ -47,6 +48,33 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     globalTimedOut: false,
   };
 
+  /**
+   * End a stream whose turn failed after the response began, as a failure.
+   *
+   * The OpenAI-shaped `{"error": …}` frame then `[DONE]`, with no stop chunk:
+   * every Alia client already ends a turn on that frame (the app keeps the
+   * partial output and draws its failed-turn card with Retry; `@alia.onl/sdk`,
+   * `@alia.onl/server`, Codea and Cowork raise it as an error), and an
+   * OpenAI-compatible reader sees an error rather than `finish_reason: "stop"`
+   * on an answer that stopped mid-sentence.
+   *
+   * The type is `server_error` whatever the cause: an upstream rate limit or
+   * platform billing refusal is not the CALLER'S limit or request, and
+   * `rate_limit_error` is what the app reads as the person's plan limit. The
+   * message is the code's fixed product text — never the upstream's words,
+   * which can name the serving operator or carry its SQL.
+   */
+  const failOpenStream = (failure: AliaError): void => {
+    sse.writeError({
+      message: failure.userMessage,
+      type: 'server_error',
+      code: failure.code,
+      retryable: failure.retryable,
+      ...(failure.retryAfter === undefined ? {} : { retryAfter: failure.retryAfter }),
+      reference: requestId,
+    });
+  };
+
   // Global request timeout guard — send a proper error BEFORE DO's gateway timeout (~120s)
   const GLOBAL_TIMEOUT_MS = 80_000;
   const globalTimer = setTimeout(() => {
@@ -77,11 +105,12 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         aliaMeta: { synthetic: true, retryable: true },
       }));
     } else if (!res.writableEnded) {
-      // Mid-stream timeout: send graceful finish
-      writeContentChunk(res, requestId, state.modelId, '\n\nI encountered a brief interruption. Please send your message again.', { synthetic: true, retryable: true });
-      writeStopChunk(res, requestId, state.modelId);
-      res.write('data: [DONE]\n\n');
-      res.end();
+      failOpenStream(new AliaError({
+        code: AliaErrorCode.TIMEOUT,
+        message: 'Global request timeout after 80s',
+        retryable: true,
+        reason: 'timeout',
+      }));
     }
   }, GLOBAL_TIMEOUT_MS);
 
@@ -433,11 +462,10 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     if (!res.headersSent) {
       res.status(aliaError.retryable ? 503 : 500).json(formatErrorResponse(aliaError));
     } else if (!res.writableEnded) {
-      // Headers already sent (streaming started) — send graceful recovery message
-      writeContentChunk(res, requestId, state.modelId, '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.', { synthetic: true, retryable: true });
-      writeStopChunk(res, requestId, state.modelId);
-      res.write('data: [DONE]\n\n');
-      res.end();
+      // The stream is open and the turn failed in it — most often an upstream
+      // error after text or tools were already streamed. Nothing was saved and
+      // nothing is charged: the release point below refunds the reservation.
+      failOpenStream(aliaError);
     }
   } finally {
     /**
