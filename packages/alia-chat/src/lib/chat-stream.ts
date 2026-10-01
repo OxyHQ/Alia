@@ -38,11 +38,59 @@ export interface AliaChatStreamResult {
   readonly finishReason: string;
 }
 
+/**
+ * What Alia said about a failed turn, when it said anything.
+ *
+ * A turn that fails — before any output or part-way — ends with Alia's
+ * OpenAI-shaped error envelope: an in-stream `{"error": …}` frame, or an HTTP
+ * error status with the same body when nothing was sent yet. `code` is Alia's
+ * stable error code, `retryable` whether sending the same turn again can help,
+ * `retryAfter` the seconds to wait first, and `reference` the run id support
+ * traces it by. None of it names the serving operator.
+ */
+export interface AliaChatFailure {
+  readonly status?: number;
+  readonly code?: string;
+  readonly retryable?: boolean;
+  readonly retryAfter?: number;
+  readonly reference?: string;
+}
+
 export class AliaChatStreamError extends Error {
-  constructor(message: string) {
+  readonly status?: number;
+  readonly code?: string;
+  readonly retryable?: boolean;
+  readonly retryAfter?: number;
+  readonly reference?: string;
+
+  constructor(message: string, failure: AliaChatFailure = {}) {
     super(message);
     this.name = 'AliaChatStreamError';
+    if (failure.status !== undefined) this.status = failure.status;
+    if (failure.code !== undefined) this.code = failure.code;
+    if (failure.retryable !== undefined) this.retryable = failure.retryable;
+    if (failure.retryAfter !== undefined) this.retryAfter = failure.retryAfter;
+    if (failure.reference !== undefined) this.reference = failure.reference;
   }
+}
+
+/**
+ * Read the failure fields off Alia's error envelope, leniently: a field of the
+ * wrong type is left out rather than failing the read of the rest.
+ */
+export function readAliaChatFailure(body: unknown): AliaChatFailure {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return {};
+  const error = (body as JsonObject).error;
+  if (typeof error !== 'object' || error === null || Array.isArray(error)) return {};
+  const detail = error as JsonObject;
+  return {
+    ...(typeof detail.code === 'string' && detail.code !== '' ? { code: detail.code } : {}),
+    ...(typeof detail.retryable === 'boolean' ? { retryable: detail.retryable } : {}),
+    ...(typeof detail.retryAfter === 'number' && Number.isFinite(detail.retryAfter) && detail.retryAfter >= 0
+      ? { retryAfter: detail.retryAfter }
+      : {}),
+    ...(typeof detail.reference === 'string' && detail.reference !== '' ? { reference: detail.reference } : {}),
+  };
 }
 
 function abortError(): Error {
@@ -177,6 +225,16 @@ function validateIgnoredNamedEvent(eventName: string, payload: JsonObject): void
   requireEventVersion(payload, eventName);
 
   switch (eventName) {
+    // Sent on every streaming turn before inference starts (the context-window
+    // breakdown) and on a linked agent's turn. Neither is something this SDK
+    // shows, and an unknown one ended the turn before its answer — or its
+    // error — could be read.
+    case 'alia.context':
+      return;
+    case 'alia.agent_turn':
+      asString(payload.turnId, `${eventName} turnId`);
+      asString(payload.agentId, `${eventName} agentId`);
+      return;
     case 'alia.suggest_new_conversation':
       assertOnlyKeys(payload, ['eventVersion', 'reason'], eventName);
       asString(payload.reason, `${eventName} reason`);
@@ -318,7 +376,9 @@ function parseOpenAIFrame(payload: unknown): ParsedOpenAIFrame {
   if (body.error !== undefined) {
     const error = asObject(body.error, 'OpenAI stream error');
     asString(error.message, 'OpenAI stream error message');
-    fail('Alia ended the stream with an error.');
+    // The server's prose is not carried: the code and retryability are what a
+    // caller acts on, and the caller words it in its own language.
+    throw new AliaChatStreamError('Alia ended the stream with an error.', readAliaChatFailure(body));
   }
   assertOnlyKeys(
     body,

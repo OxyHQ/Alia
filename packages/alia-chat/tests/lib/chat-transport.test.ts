@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OxyServices } from '@oxy.so/core';
 import { streamAliaChat } from '../../src/lib/chat-transport';
+import { AliaChatStreamError } from '../../src/lib/chat-stream';
 
 interface FetchCall {
   readonly url: string;
@@ -24,6 +25,43 @@ function successfulStream(): Response {
 function headersOf(init: RequestInit | undefined): Headers {
   return new Headers(init?.headers);
 }
+
+describe('streamAliaChat failed turns', () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  it('carries the code, retryability and reference of an HTTP failure', async () => {
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        message: 'Service temporarily unavailable. Please try again in a moment.',
+        type: 'server_error',
+        param: null,
+        code: 'PROVIDER_UNAVAILABLE',
+        retryable: true,
+        reference: 'chatcmpl-ref',
+      },
+    }), { status: 503, headers: { 'content-type': 'application/json' } }));
+    const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
+    oxy.session.setAccessToken(createJwt(Math.floor(Date.now() / 1000) + 3600));
+    const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
+
+    const failure = await streamAliaChat(
+      linked.client,
+      { url: '/v1/chat/completions', model: 'example/model', messages: [{ role: 'user', content: 'Hola' }] },
+      new AbortController().signal,
+      () => undefined,
+    ).catch((e: unknown) => e);
+
+    expect(failure).toBeInstanceOf(AliaChatStreamError);
+    expect(failure).toMatchObject({ status: 503, code: 'PROVIDER_UNAVAILABLE', retryable: true, reference: 'chatcmpl-ref' });
+    expect((failure as Error).message).toBe('Alia request failed with status 503.');
+    linked.dispose();
+  });
+});
 
 describe('streamAliaChat authentication boundary', () => {
   const originalFetch = globalThis.fetch;

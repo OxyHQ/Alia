@@ -1,5 +1,15 @@
 # @alia.onl/sdk
 
+## Unreleased
+
+A failed turn is a typed error. Alia now answers an inference failure before any
+output with its error envelope (an in-stream error frame, or an HTTP 503/500)
+instead of an "all models are busy" answer. `AliaChatStreamError` (now exported,
+with `AliaChatFailure`) carries `status`, `code`, `retryable`, `retryAfter` and
+`reference` from either. The stream reader also accepts `alia.context` and
+`alia.agent_turn`, which it used to reject as unknown events, ending a streaming
+turn before its answer or its error could be read.
+
 ## 10.0.4
 
 Admit `@oxy.so/services` 11 and `@oxy.so/core` 4 alongside the earlier majors.

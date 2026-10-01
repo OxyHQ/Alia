@@ -25,6 +25,8 @@ const harness = vi.hoisted(() => ({
   requests: [] as { messages: { role: string; content: unknown }[] }[],
   /** The SSE bodies to answer with, consumed in order. */
   responses: [] as string[][],
+  /** The HTTP status of each response, in order; 200 when none is queued. */
+  statuses: [] as number[],
 }));
 
 vi.mock('expo/fetch', () => ({
@@ -39,7 +41,8 @@ vi.mock('expo/fetch', () => ({
         controller.close();
       },
     });
-    return { ok: true, status: 200, body };
+    const status = harness.statuses.shift() ?? 200;
+    return { ok: status >= 200 && status < 300, status, statusText: '', body };
   },
 }));
 
@@ -98,6 +101,7 @@ const synthetic = (retryable = true) => [contentFrame(BUSY, { synthetic: true, r
 beforeEach(() => {
   harness.requests.length = 0;
   harness.responses.length = 0;
+  harness.statuses.length = 0;
 });
 
 afterEach(async () => {
@@ -233,6 +237,68 @@ describe('a synthetic reply', () => {
       ['assistant', 'Estas son las tendencias.'],
     ]);
     expect(api.failedTurn).toBeNull();
+  });
+
+  /** Alia's envelope for a turn that failed before any output. */
+  const preOutputFailure = (retryable = true) => ({ error: {
+    message: 'Service temporarily unavailable. Please try again in a moment.',
+    type: 'server_error',
+    param: null,
+    code: 'PROVIDER_UNAVAILABLE',
+    retryable,
+    reference: 'chatcmpl-ref-0',
+  } });
+
+  it('draws a failure before any output, sent as an error frame, as a failed turn with Retry', async () => {
+    harness.responses.push(
+      [': keep-alive\n\n', `data: ${JSON.stringify(preOutputFailure())}\n\n`, done],
+      [contentFrame('Hola.'), stopFrame, done],
+    );
+    await mount();
+
+    let outcome: string | undefined;
+    await act(async () => { outcome = await api.append({ role: 'user', content: 'hola' }); });
+
+    expect(outcome).toBe('errored');
+    // No answer row, nothing of the server's prose: the person's turn, with the card.
+    expect(api.messages.map((m) => [m.role, m.content])).toEqual([['user', 'hola']]);
+    expect(api.failedTurn).toMatchObject({
+      anchorMessageId: api.messages[0].id,
+      partial: false,
+      retryable: true,
+      detail: 'PROVIDER_UNAVAILABLE · Ref chatcmpl-ref-0',
+    });
+
+    await act(async () => { await api.retryFailedTurn(); });
+    expect(harness.requests[1].messages.filter((m) => m.role === 'user')).toHaveLength(1);
+    expect(api.messages.map((m) => [m.role, m.content])).toEqual([['user', 'hola'], ['assistant', 'Hola.']]);
+    expect(api.failedTurn).toBeNull();
+  });
+
+  it('draws the same card for a failure answered with an HTTP 503 before the stream opened', async () => {
+    harness.statuses.push(503);
+    harness.responses.push([JSON.stringify(preOutputFailure())]);
+    await mount();
+
+    let outcome: string | undefined;
+    await act(async () => { outcome = await api.append({ role: 'user', content: 'hola' }); });
+
+    expect(outcome).toBe('errored');
+    expect(api.messages.map((m) => m.role)).toEqual(['user']);
+    expect(api.failedTurn).toMatchObject({
+      partial: false,
+      retryable: true,
+      detail: 'PROVIDER_UNAVAILABLE · Ref chatcmpl-ref-0',
+    });
+  });
+
+  it('offers no retry for a failure before output the server says retrying cannot fix', async () => {
+    harness.statuses.push(500);
+    harness.responses.push([JSON.stringify(preOutputFailure(false))]);
+    await mount();
+
+    await act(async () => { await api.append({ role: 'user', content: 'hola' }); });
+    expect(api.failedTurn).toMatchObject({ retryable: false, partial: false });
   });
 
   it('takes the failure down the moment a new message is sent', async () => {

@@ -47,6 +47,34 @@ async function consume(parts: Array<string | Uint8Array>): Promise<AliaChatStrea
 }
 
 describe('consumeAliaChatStream', () => {
+  it('raises a failure before any output as a typed error, past the context event', async () => {
+    const wire = [
+      ': keep-alive\n\n',
+      'event: alia.context\ndata: {"eventVersion":1,"conversationId":null,"categories":[]}\n\n',
+      frames({
+        error: {
+          message: 'Service temporarily unavailable. Please try again in a moment.',
+          type: 'server_error',
+          param: null,
+          code: 'PROVIDER_UNAVAILABLE',
+          retryable: true,
+          retryAfter: 4,
+          reference: 'chatcmpl-ref',
+        },
+      }, '[DONE]'),
+    ];
+    const events: AliaChatStreamEvent[] = [];
+    const failure = await consumeAliaChatStream(responseFrom(wire), (event) => events.push(event)).catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(AliaChatStreamError);
+    expect(failure).toMatchObject({
+      code: 'PROVIDER_UNAVAILABLE',
+      retryable: true,
+      retryAfter: 4,
+      reference: 'chatcmpl-ref',
+    });
+    expect(events).toEqual([]);
+  });
+
   it('parses split UTF-8, named product events, tool events and the terminal contract', async () => {
     const wire = [
       ': keep-alive\n\n',

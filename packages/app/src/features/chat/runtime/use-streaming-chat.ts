@@ -72,6 +72,8 @@ interface StreamErrorObject {
   retryAfter?: number;
   suggestedAction?: 'wait' | 'upgrade';
   type?: string;
+  /** Alia's run id, on a turn that failed (before any output or part-way). */
+  reference?: string;
   details?: {
     limitType?: string;
     current?: number;
@@ -519,6 +521,20 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, select
         // instead of the raw server error string.
         if (response.status === 401) {
           throw new Error(i18n.t('subscribe.signInRequired'));
+        }
+
+        // A turn that failed before any output, answered before the stream
+        // opened (Alia's 503/500 with `code`, `retryable` and `reference`):
+        // the same failed-turn card as the in-stream error frame — the app's
+        // own line, with code and reference — never the server's English.
+        const failed = errorData?.error && typeof errorData.error === 'object' ? errorData.error : null;
+        if (failed && typeof failed.reference === 'string') {
+          setError(new Error(getErrorMessage(failed) || `Server error (${response.status})`));
+          setIsLoading(false);
+          return keepFailedTurn(
+            failed.retryable !== false,
+            failureDetail({ code: typeof failed.code === 'string' ? failed.code : undefined, reference: failed.reference }),
+          );
         }
 
         // Generic error fallback

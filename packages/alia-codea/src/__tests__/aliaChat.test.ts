@@ -271,3 +271,51 @@ describe('isSyntheticCompletion', () => {
     expect(isSyntheticCompletion(null)).toBe(false);
   });
 });
+
+describe('a turn that failed before any output', () => {
+  const failure = (retryable: boolean) => ({
+    error: {
+      message: 'Service temporarily unavailable. Please try again in a moment.',
+      type: 'server_error',
+      param: null,
+      code: 'PROVIDER_UNAVAILABLE',
+      retryable,
+      reference: 'chatcmpl-ref',
+    },
+  });
+
+  it('is raised as a typed, retryable error from the stream, past the context event, with nothing rendered', async () => {
+    const wire = ': keep-alive\n\n' +
+      'event: alia.context\ndata: {"eventVersion":1,"conversationId":null}\n\n' +
+      `data: ${JSON.stringify(failure(true))}\n\ndata: [DONE]\n\n`;
+    const attempt = streamAliaChat({
+      baseUrl: 'u',
+      accessToken: 't',
+      body: { model: 'm', messages: [] },
+      fetch: async () => new Response(wire, { headers: { 'content-type': 'text/event-stream' } }),
+    });
+    const rendered: string[] = [];
+    let thrown: unknown = null;
+    try {
+      for await (const event of attempt) {
+        if (event.type === 'content' || event.type === 'synthetic') rendered.push(event.text);
+      }
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(AliaChatError);
+    expect(thrown).toMatchObject({ code: 'PROVIDER_UNAVAILABLE', retryable: true });
+    expect(rendered).toEqual([]);
+  });
+
+  it('is raised as a typed error from an HTTP 503 or 500 carrying the same envelope', async () => {
+    const run = (status: number, retryable: boolean) => streamAliaChat({
+      baseUrl: 'u',
+      accessToken: 't',
+      body: { model: 'm', messages: [] },
+      fetch: async () => new Response(JSON.stringify(failure(retryable)), { status }),
+    }).next();
+    await expect(run(503, true)).rejects.toMatchObject({ status: 503, code: 'PROVIDER_UNAVAILABLE', retryable: true });
+    await expect(run(500, false)).rejects.toMatchObject({ status: 500, code: 'PROVIDER_UNAVAILABLE', retryable: false });
+  });
+});

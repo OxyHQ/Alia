@@ -1,5 +1,7 @@
 import {
+  AliaChatStreamError,
   consumeAliaChatStream,
+  readAliaChatFailure,
   type AliaChatStreamEvent,
   type AliaChatStreamResult,
 } from './chat-stream';
@@ -59,9 +61,37 @@ export async function streamAliaChat(
   });
 
   if (!response.ok) {
-    await response.body?.cancel().catch(() => undefined);
-    throw new Error(`Alia request failed with status ${response.status}.`);
+    throw new AliaChatStreamError(`Alia request failed with status ${response.status}.`, {
+      ...(await readErrorEnvelope(response)),
+      status: response.status,
+    });
   }
 
   return consumeAliaChatStream(response, onEvent, signal);
+}
+
+/** Bodies larger than this are not an Alia error envelope and are not read. */
+const MAX_ERROR_BODY_BYTES = 16 * 1024;
+
+/**
+ * The code, retryability and reference of an HTTP refusal or failed turn.
+ *
+ * Without them a caller cannot tell "send it again" (a 503 for a turn that
+ * failed before any output) from "this will not work" (a 400), so the status
+ * is not enough. A body that is large, not JSON or not the envelope yields
+ * nothing, and the status alone still reaches the caller.
+ */
+async function readErrorEnvelope(response: Response) {
+  const length = Number(response.headers.get('content-length') ?? '0');
+  if (Number.isFinite(length) && length > MAX_ERROR_BODY_BYTES) {
+    await response.body?.cancel().catch(() => undefined);
+    return {};
+  }
+  try {
+    const text = await response.text();
+    if (text.length > MAX_ERROR_BODY_BYTES) return {};
+    return readAliaChatFailure(JSON.parse(text));
+  } catch {
+    return {};
+  }
 }

@@ -110,6 +110,33 @@ describe('AliaServerClient — the request', () => {
     expect(String((error as Error).message)).not.toContain('private upstream detail');
   });
 
+  it('carries retryability and the run reference of a turn that failed before any output', async () => {
+    const { client } = clientFor(
+      Response.json(
+        {
+          error: {
+            message: 'Service temporarily unavailable. Please try again in a moment.',
+            type: 'server_error',
+            param: null,
+            code: 'PROVIDER_UNAVAILABLE',
+            retryable: true,
+            retryAfter: 4,
+            reference: 'chatcmpl-ref',
+          },
+        },
+        { status: 503 },
+      ),
+    );
+    await expect(client.stream(turn)).rejects.toMatchObject({
+      name: 'AliaRequestError',
+      status: 503,
+      code: 'PROVIDER_UNAVAILABLE',
+      retryable: true,
+      retryAfter: 4,
+      reference: 'chatcmpl-ref',
+    });
+  });
+
   it('reports a non-2xx with an unreadable body as a status and a null code', async () => {
     const { client } = clientFor(new Response('<html>502 Bad Gateway</html>', { status: 502 }));
     await expect(client.stream(turn)).rejects.toMatchObject({
@@ -205,6 +232,32 @@ describe('AliaServerClient — the stream the API actually writes', () => {
         message: 'The agent is unavailable.',
         errorType: 'server_error',
         param: null,
+      },
+      { type: 'done' },
+    ]);
+  });
+
+  it('carries retryability and the reference on the error frame of a failed turn', async () => {
+    const wire = aliaStream();
+    wire.error({
+      message: 'Service temporarily unavailable. Please try again in a moment.',
+      type: 'server_error',
+      param: null,
+      code: 'PROVIDER_UNAVAILABLE',
+      retryable: true,
+      reference: 'chatcmpl-ref',
+    });
+    const { client } = clientFor(sseResponse(wire.wire()));
+
+    expect(await collect(await client.stream(turn))).toEqual([
+      {
+        type: 'error',
+        code: 'PROVIDER_UNAVAILABLE',
+        message: 'Service temporarily unavailable. Please try again in a moment.',
+        errorType: 'server_error',
+        param: null,
+        retryable: true,
+        reference: 'chatcmpl-ref',
       },
       { type: 'done' },
     ]);

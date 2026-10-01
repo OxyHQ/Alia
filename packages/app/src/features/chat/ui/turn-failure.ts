@@ -3,15 +3,15 @@
  *
  * ## Why this is a thing at all
  *
- * A hosted-inference failure reaches the client in one of two shapes. One
- * that happens before any output (a dead provider) is answered with HTTP 200
- * and an ordinary content delta — "all models are busy, try again in a few
+ * A hosted-inference failure reaches the client as a typed error, never as
+ * an answer: on the open stream, an `{"error": {code, retryable, reference}}`
+ * frame and no stop chunk; before the stream opened, an HTTP 503/500 with the
+ * same envelope (`packages/api/src/routes/v1/chat-completions.ts`,
+ * `failTurn`). Older servers answered a failure BEFORE any output with HTTP
+ * 200 and an ordinary content delta — "all models are busy, try again in a few
  * seconds" — flagged only by `alia_meta: { synthetic: true, retryable: true }`
- * on the chunk. One that happens after the stream began (a step failing after
- * text or a tool call, the global timeout) ends the stream with an in-stream
- * `{"error": {code, retryable, reference}}` frame and no stop chunk
- * (`packages/api/src/routes/v1/chat-completions.ts`, `failOpenStream`).
- * Rendered as prose the first reads as Alia declining; rolled back either
+ * on the chunk; that flag is still read, so a stand-in is never rendered.
+ * Rendered as prose a stand-in reads as Alia declining; rolled back either
  * vanishes with a toast, and once the toast is gone there is nothing on screen
  * that says what happened or offers to try again.
  *

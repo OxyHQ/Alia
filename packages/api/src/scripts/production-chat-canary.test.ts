@@ -152,6 +152,20 @@ describe('production chat canary safe projection', () => {
     });
   });
 
+  it('retains a failed turn sent as a typed error frame', () => {
+    const payload = `: keep-alive\n\ndata: {"error":{"message":"Service temporarily unavailable. Please try again in a moment.","type":"server_error","param":null,"code":"PROVIDER_UNAVAILABLE","retryable":true,"reference":"chatcmpl-ref"}}\n\ndata: [DONE]\n\n`;
+    expect(
+      summarize({ label: 'default-1', marker: 'ok' }, 200, payload),
+    ).toMatchObject({
+      reference: 'chatcmpl-ref',
+      code: 'PROVIDER_UNAVAILABLE',
+      retryable: true,
+      synthetic: false,
+      answerPresent: false,
+      done: true,
+    });
+  });
+
   it('drops oversized references and non-allowlisted error codes', () => {
     const payload = JSON.stringify({
       error: {

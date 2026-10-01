@@ -2,6 +2,7 @@ import {
   AliaAbortError,
   AliaStreamError,
   describeChunk,
+  failureDetailOf,
   isRecord,
   type AliaChunkShape,
 } from './errors.js';
@@ -41,6 +42,7 @@ function* eventsFromChunk(value: unknown, shape: () => AliaChunkShape): Generato
       message: typeof error.message === 'string' ? error.message : 'Alia ended the stream with an error.',
       errorType: asStringOrNull(error.type),
       param: asStringOrNull(error.param),
+      ...failureDetailOf(error),
     };
     return;
   }

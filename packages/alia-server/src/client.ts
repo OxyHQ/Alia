@@ -1,4 +1,4 @@
-import { AliaRequestError, AliaStreamError, isRecord } from './errors.js';
+import { AliaRequestError, AliaStreamError, failureDetailOf, isRecord, type AliaFailureDetail } from './errors.js';
 import type { AliaStreamEvent } from './events.js';
 import { readAliaEventStream } from './stream.js';
 
@@ -72,11 +72,14 @@ async function resolve<T>(source: T | (() => T | Promise<T>) | undefined): Promi
   return typeof source === 'function' ? await (source as () => T | Promise<T>)() : source;
 }
 
-/** The machine-readable code from an error body, and nothing else from it. */
-async function codeFromErrorBody(response: Response): Promise<string | null> {
+/** The machine-readable fields of an error body — code, retryability, reference — and no prose. */
+async function failureFromErrorBody(
+  response: Response,
+): Promise<{ code: string | null; detail: AliaFailureDetail }> {
+  const none = { code: null, detail: {} };
   try {
     const reader = response.body?.getReader();
-    if (reader === undefined) return null;
+    if (reader === undefined) return none;
     const decoder = new TextDecoder('utf-8');
     let text = '';
     try {
@@ -89,12 +92,17 @@ async function codeFromErrorBody(response: Response): Promise<string | null> {
       await reader.cancel().catch(() => undefined);
     }
     const value: unknown = JSON.parse(text);
-    if (!isRecord(value)) return null;
-    if (typeof value.code === 'string') return value.code;
-    if (isRecord(value.error) && typeof value.error.code === 'string') return value.error.code;
-    return null;
+    if (!isRecord(value)) return none;
+    if (typeof value.code === 'string') return { code: value.code, detail: {} };
+    if (isRecord(value.error)) {
+      return {
+        code: typeof value.error.code === 'string' ? value.error.code : null,
+        detail: failureDetailOf(value.error),
+      };
+    }
+    return none;
   } catch {
-    return null;
+    return none;
   }
 }
 
@@ -161,7 +169,8 @@ export class AliaServerClient {
     });
 
     if (!response.ok) {
-      throw new AliaRequestError(response.status, await codeFromErrorBody(response));
+      const { code, detail } = await failureFromErrorBody(response);
+      throw new AliaRequestError(response.status, code, detail);
     }
 
     const mime = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();

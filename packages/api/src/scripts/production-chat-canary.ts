@@ -99,6 +99,9 @@ const SAFE_CODES = new Set([
   'REQUEST_REFUSED',
   'RATE_LIMITED',
   'PROVIDER_UNAVAILABLE',
+  'MODEL_UNAVAILABLE',
+  'FALLBACK_EXHAUSTED',
+  'TIMEOUT',
   'ROUTING_UNAVAILABLE',
   'INTERNAL_ERROR',
 ]);
@@ -154,6 +157,10 @@ export function summarize(
       if (typeof safe.code === 'string' && SAFE_CODES.has(safe.code))
         code ??= safe.code;
       else code ??= 'REQUEST_REFUSED';
+      // A failed turn (before or after output) carries these in the envelope.
+      if (typeof safe.retryable === 'boolean') retryable = safe.retryable;
+      if (typeof safe.reference === 'string' && safe.reference.length <= 128)
+        reference ??= safe.reference;
     } else if (typeof error === 'string') code ??= 'REQUEST_REFUSED';
     const choices = record.choices;
     if (Array.isArray(choices)) {

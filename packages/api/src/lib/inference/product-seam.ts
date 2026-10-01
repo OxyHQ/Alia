@@ -192,16 +192,20 @@ export type AliaDisconnectPolicy = 'abort' | 'finish_and_notify';
 /**
  * Alia's product response to a failed call.
  *
- * Three kinds, one per branch the chat route already takes: a real error
- * response, the synthetic "all models are busy" reply that keeps a client from
- * ever seeing a raw failure, and the silent drop every background caller does
- * with a bare `.catch`. Which one a given failure earns is a product decision
- * about the SURFACE, which is why it is on this seam and not in the contract's
- * error shape.
+ * Two kinds, one per branch Alia takes: a typed error response (the chat
+ * route's, before or after output — `failTurn` in
+ * `routes/v1/chat-completions.ts`), and the silent drop every background
+ * caller does with a bare `.catch`. Which one a given failure earns is a
+ * product decision about the SURFACE, which is why it is on this seam and not
+ * in the contract's error shape.
+ *
+ * There is deliberately no "synthetic reply" kind. The chat route used to
+ * answer a failure with an ordinary assistant message — "all models are
+ * busy" — and every client that did not know its flag rendered it as the
+ * model's answer.
  */
 export type AliaDegradation =
   | { readonly kind: 'surface_error'; readonly userMessage: string; readonly httpStatus: number }
-  | { readonly kind: 'synthetic_reply'; readonly userMessage: string }
   | { readonly kind: 'silent' };
 
 /* -------------------------------------------------------------------------- */
@@ -295,7 +299,7 @@ export interface AliaInferencePort<TRequestPayload, TCompletion, TStreamEvent, T
    * Alia's product decision for one failure, given the surface it happened on.
    *
    * Separate from the error itself because the contract's error is a fact and
-   * this is a policy: the same `provider_overloaded` is a synthetic reply on
+   * this is a policy: the same `provider_overloaded` is a typed error on
    * `chat` and a silent drop on `background`.
    */
   degrade(context: AliaInferenceContext, error: TError): AliaDegradation;
