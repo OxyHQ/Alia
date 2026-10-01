@@ -402,7 +402,11 @@ describe('a hosted inference failure is never retried around Kaana', () => {
     expect(H.state.resolveCalls).toBe(1);
     expect(H.state.modelCalls).toBe(1);
     expect(H.state.toolRuns).toBe(0);
-    expect(res.raw.join('')).toContain('all models are currently busy');
+    // The single failed attempt ends the turn as a typed, retryable error.
+    const bytes = res.raw.join('');
+    expect(bytes).toContain('data: {"error":');
+    expect(bytes).toContain('"retryable":true');
+    expect(bytes).not.toContain('all models are currently busy');
     expect(H.state.functionalCompletionMarkers).toBe(0);
   });
 

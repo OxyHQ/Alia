@@ -1,5 +1,12 @@
 # @alia.onl/server
 
+## Unreleased
+
+A failed turn is a typed error, before or after output. The `error` event and
+`AliaRequestError` now carry `retryable`, `retryAfter` and `reference` when
+Alia sends them (`AliaFailureDetail`). A 503 for a turn that failed before any
+output says `retryable: true`; a 500 says it is not worth retrying.
+
 ## 1.0.1
 
 ### A CommonJS consumer can compile against it

@@ -14,6 +14,7 @@ export {
   AliaRequestError,
   AliaStreamError,
   type AliaChunkShape,
+  type AliaFailureDetail,
   type AliaStreamFailure,
 } from './errors.js';
 

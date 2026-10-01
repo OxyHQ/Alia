@@ -9,9 +9,10 @@
  *
  * `resolved`, `modelId`, `creditReservation` and `globalTimedOut` live in
  * `ChatLoopState`, owned by the route so its
- * global-timeout timer, outer catch, and last-resort synthetic observe the
+ * global-timeout timer, outer catch, and failed-turn response observe the
  * loop's writes. Returns `completed` when a response was fully sent, or
- * `exhausted` (with the attempt count) so the route emits its synthetic reply.
+ * `exhausted` (with the attempt count and the typed failure) when nothing was
+ * sent, so the route answers with that failure as an error — never as text.
  * Rethrows an inference error when content already streamed; the route's outer
  * catch ends that stream with a typed error frame. Neither the save nor the
  * credit finalize below runs for it: a turn that failed part-way is not stored
@@ -43,7 +44,7 @@ import { recordEvent } from '../observability/index.js';
 import type { ReasoningEffort } from '../models/catalogue.js';
 import type { SkillRuntime } from '../skills/runtime.js';
 import { classifyError, toAliaError } from '../errors/index.js';
-import { AliaErrorCode, type FailoverReason } from '../errors/error-codes.js';
+import { AliaError, AliaErrorCode, type FailoverReason } from '../errors/error-codes.js';
 import type { ChatMessage } from '../message-converter.js';
 import type { AutonomyRuntimeContext } from '../autonomy/runtime.js';
 import type { SSEWriter } from './sse-writer.js';
@@ -58,8 +59,8 @@ const TERMINAL_STREAM_ERRORS: Set<FailoverReason> = new Set(['format', 'content_
 
 /**
  * Mutable state shared between the route and the hosted attempt. The route's
- * global-timeout timer sets `globalTimedOut`, and the outer catch plus
- * last-resort synthetic reply read the same state.
+ * global-timeout timer sets `globalTimedOut`, and the outer catch plus the
+ * failed-turn response read the same state.
  */
 export interface ChatLoopState {
   resolved: ResolvedModel | null;
@@ -119,11 +120,12 @@ export type ProviderLoopResult =
   | {
       status: 'exhausted';
       attemptedProviders: number;
-      error: {
-        code: AliaErrorCode;
-        retryable: boolean;
-        retryAfter?: number;
-      };
+      /**
+       * Why the turn produced nothing. The route sends it to the caller as a
+       * typed error; its `message` is for operators and never leaves the
+       * process — only `code`, `userMessage`, `retryable` and `retryAfter` do.
+       */
+      error: AliaError;
     };
 
 /** Run one Kaana-hosted attempt and report whether a response was sent. */
@@ -184,11 +186,18 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
    * It starts as the generic hosted-inference exhaustion class and becomes the
    * specific class the Kaana failure classified into.
    */
-  let failureClass: AliaErrorCode = AliaErrorCode.FALLBACK_EXHAUSTED;
-  let failure = {
+  let failure = new AliaError({
     code: AliaErrorCode.FALLBACK_EXHAUSTED,
+    message: 'Kaana inference produced no response',
     retryable: true,
-  } as { code: AliaErrorCode; retryable: boolean; retryAfter?: number };
+    reason: 'unknown',
+  });
+  const timedOut = (): AliaError => new AliaError({
+    code: AliaErrorCode.TIMEOUT,
+    message: 'Time budget exhausted before Kaana inference',
+    retryable: true,
+    reason: 'timeout',
+  });
 
   /**
    * The usage record for a turn that did not complete.
@@ -206,7 +215,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
   hostedAttempt: {
     // Check the global timeout before opening the hosted stream.
     if (state.globalTimedOut) {
-      failureClass = AliaErrorCode.TIMEOUT;
+      failure = timedOut();
       break hostedAttempt;
     }
 
@@ -214,7 +223,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     const elapsedMs = Date.now() - requestStartTime;
     if (elapsedMs > globalTimeoutMs - 10_000) {
       log.v1.warn({ elapsedMs }, 'Time budget nearly exhausted before Kaana inference');
-      failureClass = AliaErrorCode.TIMEOUT;
+      failure = timedOut();
       break hostedAttempt;
     }
 
@@ -456,17 +465,11 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       // succeeds. `toAliaError` owns the reason -> code table, so this is the
       // same classification the client is answered with rather than a second
       // one that can disagree with it.
-      const aliaError = toAliaError(inferenceError);
-      failureClass = aliaError.code;
-      failure = {
-        code: aliaError.code,
-        retryable: aliaError.retryable,
-        ...(aliaError.retryAfter === undefined ? {} : { retryAfter: aliaError.retryAfter }),
-      };
+      failure = toAliaError(inferenceError);
 
       if (TERMINAL_STREAM_ERRORS.has(errorReason)) {
         if (streamState.hasStreamedContent) {
-          recordFailedTurn(failureClass);
+          recordFailedTurn(failure.code);
           throw inferenceError;
         }
         break hostedAttempt;
@@ -474,7 +477,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
 
       // If content already streamed, the outer handler finishes the SSE reply.
       if (streamState.hasStreamedContent) {
-        recordFailedTurn(failureClass);
+        recordFailedTurn(failure.code);
         throw inferenceError;
       }
 
@@ -486,7 +489,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
 
   // Every exit above that is not `completed` is a turn that
   // failed, and this is the only place it gets a usage record.
-  recordFailedTurn(failureClass);
+  recordFailedTurn(failure.code);
   return { status: 'exhausted', attemptedProviders: 1, error: failure };
   } finally {
     res.off('close', onClientClose);

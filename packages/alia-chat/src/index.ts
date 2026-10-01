@@ -22,6 +22,8 @@ export { PlanPreviewCard } from './components/PlanPreviewCard';
 // ── Chat hook ──
 export { useAliaChat } from './hooks/useAliaChat';
 export type { UseAliaChatOptions, UseAliaChatReturn } from './hooks/useAliaChat';
+export { AliaChatStreamError } from './lib/chat-stream';
+export type { AliaChatFailure } from './lib/chat-stream';
 
 // ── Text-to-speech / speech-to-text (no livekit) ──
 export { useTTS } from './hooks/useTTS';

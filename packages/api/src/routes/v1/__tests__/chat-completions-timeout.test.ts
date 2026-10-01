@@ -540,7 +540,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
     expect(mockStreamText).not.toHaveBeenCalled();
   });
 
-  it('sends SSE error chunk when all providers exhausted and headers already sent', async () => {
+  it('ends the open stream with a typed error frame when inference fails before any output', async () => {
     // First resolve → valid model, streamText → throws retryable error
     // Second resolve (retry) → null (no more providers)
     let resolveCallCount = 0;
@@ -569,24 +569,27 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
     // Early SSE keep-alive was sent
     expect(res.write).toHaveBeenCalledWith(': keep-alive\n\n');
 
-    // SSE error chunk was sent (not a JSON 503)
+    // The turn ends with the typed error frame and [DONE] — never a stand-in
+    // answer, never a stop chunk (not a JSON 503 either: the stream is open).
     const allWrites = res.write.mock.calls.map((c: any[]) => c[0]).join('');
-    expect(allWrites).toContain('all models are currently busy');
-    expect(allWrites).toContain('data: [DONE]');
-
-    // The stand-in message must be flagged: the app treats a turn whose only
-    // content is synthetic as a failed send and hands the text back to the composer.
-    const [synthetic] = syntheticChunks(res);
-    expect(synthetic).toBeDefined();
-    expect(synthetic.alia_meta).toEqual({
-      synthetic: true,
-      retryable: true,
+    expect(allWrites).not.toContain('all models are currently busy');
+    expect(allWrites).not.toContain('"finish_reason":"stop"');
+    expect(syntheticChunks(res)).toEqual([]);
+    const frames: string[] = res.write.mock.calls.map((c: unknown[]) => String(c[0]));
+    const errorFrame = frames.find((frame: string) => frame.startsWith('data: {"error"'));
+    expect(errorFrame).toBeDefined();
+    expect(JSON.parse(String(errorFrame).slice(6))).toEqual({
       error: {
+        message: 'Something went wrong',
+        type: 'server_error',
+        param: null,
         code: 'INTERNAL_ERROR',
-        reference: expect.stringMatching(/^chatcmpl-/),
+        retryable: true,
         retryAfter: 10,
+        reference: expect.stringMatching(/^chatcmpl-/),
       },
     });
+    expect(frames.slice(-1)).toEqual(['data: [DONE]\n\n']);
 
     // res.end was called
     expect(res.end).toHaveBeenCalled();
@@ -724,6 +727,43 @@ describe('a turn that produced nothing costs nothing - /v1/chat/completions', ()
     await vi.runAllTimersAsync();
     await pending;
 
+    expect(mockRefundReservation).toHaveBeenCalledWith(VALID_RESERVATION);
+  });
+
+  it('answers a non-streaming request that runs past the global timeout with a typed 503', async () => {
+    // Before any output, so there is no stream to end: the HTTP error envelope,
+    // not a completion whose content is "the request took too long".
+    vi.useFakeTimers();
+    let release: (() => void) | undefined;
+    mockGenerateText.mockImplementationOnce(() => new Promise((_resolve, reject) => {
+      release = () => reject(new Error('aborted after the deadline'));
+    }));
+
+    const res = createMockRes();
+    const pending = handler(
+      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: false } }),
+      res,
+      vi.fn(),
+    );
+
+    await vi.advanceTimersByTimeAsync(80_001);
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledTimes(1);
+    expect(res.json.mock.calls[0][0]).toEqual({
+      error: {
+        message: 'Request timed out. Please try again with a shorter message.',
+        type: 'server_error',
+        param: null,
+        code: 'TIMEOUT',
+        retryable: true,
+        reference: expect.stringMatching(/^chatcmpl-/),
+      },
+    });
+    expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain('choices');
+
+    release?.();
+    await vi.runAllTimersAsync();
+    await pending;
     expect(mockRefundReservation).toHaveBeenCalledWith(VALID_RESERVATION);
   });
 });

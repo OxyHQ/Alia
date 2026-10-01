@@ -90,7 +90,8 @@ itself. It is NOT the SDK: no React, no DOM beyond `fetch` and
 `ReadableStream`, compiled ESM and CommonJS, Node 22+.
 
 It exists because the wire carries five shapes — OpenAI chunks, `alia.*` named
-events, synthetic recovery chunks with `alia_meta`, an in-stream `{"error":…}`
+events, synthetic recovery chunks with `alia_meta` (older servers only; a
+failed turn is now always an error), an in-stream `{"error":…}`
 payload written by `SSEWriter.writeError`, and `data: [DONE]` — and a
 hand-rolled reader typically handles two. The error payload is the one that
 costs: a reader with no branch for it reports an empty answer, and the code the
@@ -220,28 +221,54 @@ not retry an identical request locally. An Oxy routing refusal is a `503`, an
 empty or invalid upstream result is a `502`, and a safe Oxy request ID is kept
 for correlation without exposing provider or deployment details.
 
-A turn that fails after its stream began — most often an upstream error in a
-later step, after text or a tool call already reached the client — ends as a
-failed turn, not as an answer. `runStream` throws on every `error` part the
-tools-disabled synthesis pass does not recover (that pass runs only when no
-text was streamed and tool results exist), and the route's mid-stream branch
-(`failOpenStream` in `routes/v1/chat-completions.ts`, also used by the 80s
-timeout) writes one OpenAI-shaped frame and `[DONE]`, with no stop chunk:
+A turn whose inference fails ends as a failed turn, never as an answer —
+whether it failed before any output (Kaana's routing and retries exhausted, the
+time budget spent, a terminal upstream refusal) or after text or a tool call
+already reached the client. Every such exit goes through one function, `failTurn`
+in `routes/v1/chat-completions.ts`, and carries the same OpenAI-shaped envelope:
 
 ```json
 {"error":{"message":"Service temporarily unavailable. Please try again in a moment.",
   "type":"server_error","param":null,"code":"PROVIDER_UNAVAILABLE",
-  "retryable":true,"reference":"chatcmpl-…"}}
+  "retryable":true,"retryAfter":4,"reference":"chatcmpl-…"}}
 ```
 
-`message` is the code's fixed product text, never the upstream's words; `type`
-is always `server_error`, because an upstream rate limit or billing refusal is
-not the caller's limit. Nothing is persisted and the reservation is refunded,
-like every other failed turn. The app keeps the partial output and draws its
-failed-turn card (interrupted, `code · Ref reference`, Retry); `@alia.onl/sdk`,
-`@alia.onl/server`, Codea and Cowork raise the frame as an error. Alia does not
-re-send the failed step itself: Kaana owns retries, and the AI SDK cannot resume
-a multi-step run at the step that failed.
+- **Stream open** (every `stream: true` request opens it before any work, in
+  `lib/chat/request-context.ts`): the envelope as one `data:` frame, then
+  `[DONE]`, with no content and no stop chunk — the same way a credit or limit
+  refusal is sent on an open stream.
+- **Nothing sent yet** (a non-streaming request): HTTP `503` with the envelope
+  when `retryable` is true, `500` when retrying cannot help, and `Retry-After`
+  when the failure carries a delay — the same envelope a refusal uses.
+
+`message` is the code's fixed product text, never the upstream's words;
+`retryAfter` appears only when there is one; `reference` is the run id. `type`
+is always `server_error`, and the status is never `429`/`402`/`401`, because an
+upstream rate limit, billing refusal or credential failure is not the caller's
+limit, plan or session. Nothing is persisted, no title is written, and the
+reservation is refunded by the handler's single release point.
+
+Before output, the route used to answer with an ordinary assistant message —
+"all models are currently busy" (or Spanish, sniffed from the message) — ending
+in `finish_reason: "stop"`, flagged only by `alia_meta.synthetic`. Every client
+that did not know the flag showed Alia's apology as the model's answer. That
+path is gone; clients still read the flag so an older server cannot slip one in.
+
+`runStream` throws on every `error` part the tools-disabled synthesis pass does
+not recover (that pass runs only when no text was streamed and tool results
+exist). The provider loop returns `exhausted` with the typed `AliaError` when
+nothing was streamed, and rethrows when something was; the 80s global timeout
+uses `failTurn` too.
+
+On the clients: the app draws its failed-turn card — its own i18n line, `code ·
+Ref reference` and Retry — for the frame and for the HTTP envelope alike,
+keeping partial output when there was some. `@alia.onl/sdk` raises an
+`AliaChatStreamError` carrying `status`, `code`, `retryable`, `retryAfter` and
+`reference`; `@alia.onl/server` yields an `error` event (or throws
+`AliaRequestError`) with the same fields; Codea and Cowork raise an
+`AliaChatError` with `code` and `retryable`. Alia does not re-send the failed
+step itself: Kaana owns retries, and the AI SDK cannot resume a multi-step run
+at the step that failed.
 
 Streaming error events retain Oxy's exact error code, retryability, retry delay
 and request ID through the AI SDK adapter. The product maps the typed code

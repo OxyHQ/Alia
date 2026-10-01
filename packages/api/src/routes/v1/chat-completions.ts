@@ -1,11 +1,11 @@
 import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
-import { refundReservation, safeRefund } from '../../lib/credits-manager.js';
+import { safeRefund } from '../../lib/credits-manager.js';
 import { handleDeepResearch } from '../../lib/chat-modes/deep-research-handler.js';
 import { ToolPipeline } from '../../lib/tool-pipeline.js';
 import { createResponseSSEEmitter } from '../../lib/sse-emitter.js';
 import { SystemPromptBuilder } from '../../lib/system-prompt-builder.js';
-import { convertToAISDKMessages, priorToolCallsOf, type ChatMessage } from '../../lib/message-converter.js';
+import { convertToAISDKMessages, priorToolCallsOf } from '../../lib/message-converter.js';
 import { ToolLimitExceededError } from '../../lib/inference/tool-limit.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
 import { measureContext } from '../../lib/chat/context-breakdown.js';
@@ -13,9 +13,7 @@ import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/re
 import { log } from '../../lib/logger.js';
 import { recordEvent } from '../../lib/observability/index.js';
 import { recordInferenceCorrelation } from '../../lib/observability/inference-correlation.js';
-import { writeStopChunk, makeChunk } from '../../lib/streaming-helpers.js';
 import { AliaError, AliaErrorCode } from '../../lib/errors/error-codes.js';
-import { buildCompletionResponse } from '../../lib/chat/response-shapes.js';
 import { SSEWriter } from '../../lib/chat/sse-writer.js';
 import { buildChatRequestContext } from '../../lib/chat/request-context.js';
 import type { AgentMessage } from '../../lib/chat/stream-runner.js';
@@ -35,7 +33,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
   let coordinatedTurn: CoordinatedAgentTurn | null = null;
 
   // Retry-mutable state shared with the provider loop, the global-timeout timer,
-  // the outer catch, and the last-resort synthetic response.
+  // the outer catch, and the failed-turn response.
   //
   // The seed value is READ, not merely overwritten: the global-timeout timer
   // reports `state.modelId` back to the client before `ctx.modelId` lands, so a
@@ -49,30 +47,54 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
   };
 
   /**
-   * End a stream whose turn failed after the response began, as a failure.
+   * End a turn that failed, as a failure — the one exit for every inference
+   * failure, before or after output.
    *
-   * The OpenAI-shaped `{"error": …}` frame then `[DONE]`, with no stop chunk:
-   * every Alia client already ends a turn on that frame (the app keeps the
-   * partial output and draws its failed-turn card with Retry; `@alia.onl/sdk`,
-   * `@alia.onl/server`, Codea and Cowork raise it as an error), and an
-   * OpenAI-compatible reader sees an error rather than `finish_reason: "stop"`
-   * on an answer that stopped mid-sentence.
+   * The body is the OpenAI-shaped `{"error": …}` envelope, plus Alia's
+   * `retryable`, `retryAfter` and the run `reference`:
+   *
+   *  - The response not yet begun (a non-streaming request): that envelope with
+   *    HTTP 503 when retrying can help, 500 when it cannot, and `Retry-After`
+   *    when the failure carries a delay — the same envelope a refusal uses.
+   *  - The SSE stream open (every streaming request opens it before any work,
+   *    `lib/chat/request-context.ts`): the envelope as one frame, then
+   *    `[DONE]`, with no stop chunk — exactly as a credit or limit refusal is
+   *    sent on an open stream.
+   *
+   * Either way every Alia client ends the turn on it (the app draws its
+   * failed-turn card with Retry; `@alia.onl/sdk`, `@alia.onl/server`, Codea and
+   * Cowork raise it as an error), and an OpenAI-compatible reader sees an error
+   * rather than `finish_reason: "stop"` on an answer nobody gave.
+   *
+   * It used to be different before output: the stream (or the JSON body) got an
+   * ordinary assistant message — "all models are currently busy" — ending in
+   * `stop`, flagged only by `alia_meta.synthetic`. Every client that did not
+   * know the flag rendered Alia's apology as the model's answer.
    *
    * The type is `server_error` whatever the cause: an upstream rate limit or
    * platform billing refusal is not the CALLER'S limit or request, and
-   * `rate_limit_error` is what the app reads as the person's plan limit. The
-   * message is the code's fixed product text — never the upstream's words,
-   * which can name the serving operator or carry its SQL.
+   * `rate_limit_error` (or a 429/402) is what the app reads as the person's plan
+   * limit. The message is the code's fixed product text — never the upstream's
+   * words, which can name the serving operator or carry its SQL. Nothing is
+   * persisted and the reservation is refunded by the release point below.
    */
-  const failOpenStream = (failure: AliaError): void => {
-    sse.writeError({
+  const failTurn = (failure: AliaError): void => {
+    if (res.writableEnded) return;
+    const envelope = {
       message: failure.userMessage,
       type: 'server_error',
+      param: null,
       code: failure.code,
       retryable: failure.retryable,
       ...(failure.retryAfter === undefined ? {} : { retryAfter: failure.retryAfter }),
       reference: requestId,
-    });
+    };
+    if (res.headersSent) {
+      sse.writeError(envelope);
+      return;
+    }
+    if (failure.retryAfter !== undefined) res.setHeader('Retry-After', String(failure.retryAfter));
+    res.status(failure.retryable ? 503 : 500).json({ error: envelope });
   };
 
   // Global request timeout guard — send a proper error BEFORE DO's gateway timeout (~120s)
@@ -96,22 +118,12 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         log.v1.warn({ err, turnId: turn.id }, 'Failed to settle a timed-out agent turn');
       });
     }
-    if (!res.headersSent) {
-      // Return synthetic response instead of raw error
-      res.json(buildCompletionResponse({
-        requestId,
-        model: state.modelId,
-        content: "I'm sorry, the request took too long. Please try again.",
-        aliaMeta: { synthetic: true, retryable: true },
-      }));
-    } else if (!res.writableEnded) {
-      failOpenStream(new AliaError({
-        code: AliaErrorCode.TIMEOUT,
-        message: 'Global request timeout after 80s',
-        retryable: true,
-        reason: 'timeout',
-      }));
-    }
+    failTurn(new AliaError({
+      code: AliaErrorCode.TIMEOUT,
+      message: 'Global request timeout after 80s',
+      retryable: true,
+      reason: 'timeout',
+    }));
   }, GLOBAL_TIMEOUT_MS);
 
   try {
@@ -331,11 +343,6 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       provider: state.resolved?.provider,
     });
 
-    // Detect user language for graceful error messages
-    const lastUserMsg = messages.slice().reverse().find((m: ChatMessage) => m.role === 'user');
-    const lastUserText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
-    const isSpanish = /[áéíóúñ¿¡]/.test(lastUserText) || /\b(hola|por favor|gracias|cómo|qué|dime|puedes)\b/i.test(lastUserText);
-
     // Plan previews are now AI-generated via the planPreview tool (not autonomy runtime)
 
     // Provider fallback retry loop — re-resolve, build config, stream/non-stream, classify + retry
@@ -379,20 +386,10 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       return;
     }
 
-    // ── LAST-RESORT SYNTHETIC RESPONSE ──
-    // All providers exhausted or time budget exceeded — respond with a friendly
-    // message instead of an error so the client never sees a raw failure.
-    const failureMeta = {
-      synthetic: true,
-      retryable: loopResult.error.retryable,
-      error: {
-        code: loopResult.error.code,
-        reference: requestId,
-        ...(loopResult.error.retryAfter === undefined
-          ? {}
-          : { retryAfter: loopResult.error.retryAfter }),
-      },
-    };
+    // ── NO RESPONSE: THE TURN FAILED BEFORE ANY OUTPUT ──
+    // Kaana's routing and retries are exhausted, the time budget ran out, or
+    // the failure is terminal. The caller gets the typed failure, never a
+    // stand-in answer; nothing was saved, and the release point refunds.
     log.v1.warn(
       {
         attempts: loopResult.attemptedProviders,
@@ -400,39 +397,10 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         failureCode: loopResult.error.code,
         reference: requestId,
       },
-      'All providers exhausted, sending synthetic response',
+      'Inference failed before any output, answering with a typed error',
     );
-
-    const syntheticMessage = isSpanish
-      ? 'Lo siento, en este momento todos los modelos están ocupados. Por favor, intenta de nuevo en unos segundos.'
-      : "I'm sorry, all models are currently busy. Please try again in a few seconds.";
-
-    // Refund credit reservation for synthetic responses
-    if (state.creditReservation) {
-      refundReservation(state.creditReservation).catch((err: unknown) => log.v1.error({ err, reservationId: state.creditReservation?.userId }, 'refundReservation failed for synthetic response'));
-      state.creditReservation = null;
-      state.creditsSettled = true;
-    }
-
     clearTimeout(globalTimer);
-
-    if (!sse.sent && !res.headersSent) {
-      // Non-streaming: return standard JSON response
-      res.json(buildCompletionResponse({
-        requestId,
-        model: state.modelId,
-        content: syntheticMessage,
-        aliaMeta: failureMeta,
-      }));
-    } else {
-      // Streaming: send synthetic message as normal SSE chunks
-      sse.ensureHeaders();
-      const syntheticChunk = { ...makeChunk(requestId, state.modelId, [{ index: 0, delta: { content: syntheticMessage }, finish_reason: null }]), alia_meta: failureMeta };
-      res.write(`data: ${JSON.stringify(syntheticChunk)}\n\n`);
-      writeStopChunk(res, requestId, state.modelId);
-      res.write('data: [DONE]\n\n');
-      res.end();
-    }
+    failTurn(loopResult.error);
     await coordinatedTurn?.fail(new Error('All inference attempts were exhausted'));
     return; // Handled — do not fall to outer catch
 
@@ -456,17 +424,13 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     });
 
     // CRITICAL: Translate error to remove provider information!
-    const { toAliaError, formatErrorResponse } = await import('../../lib/errors/index.js');
+    const { toAliaError } = await import('../../lib/errors/index.js');
     const aliaError = toAliaError(e, { provider: state.resolved?.provider, model: state.resolved?.modelId });
 
-    if (!res.headersSent) {
-      res.status(aliaError.retryable ? 503 : 500).json(formatErrorResponse(aliaError));
-    } else if (!res.writableEnded) {
-      // The stream is open and the turn failed in it — most often an upstream
-      // error after text or tools were already streamed. Nothing was saved and
-      // nothing is charged: the release point below refunds the reservation.
-      failOpenStream(aliaError);
-    }
+    // Most often an upstream error after text or tools were already streamed.
+    // Nothing was saved and nothing is charged: the release point below
+    // refunds the reservation.
+    failTurn(aliaError);
   } finally {
     /**
      * The one place a reservation is released.
