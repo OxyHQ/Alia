@@ -1,0 +1,121 @@
+# Deploy the agents' computer host: two images, one instance.
+#
+#  - `oxy/alia-computer-host`       the control API (packages/alia-computer-host/Dockerfile)
+#  - `oxy/alia-computer-workspace`  the image every actor's container runs
+#                                   (packages/alia-computer-host/workspace-image/)
+#
+# Not ECS: the host is one EC2 instance (oxy-infra
+# `terraform-uswest2/alia-computer-host.tf`) because Fargate cannot run Docker or
+# gVisor. A release is therefore: push both images, record their linux/arm64
+# DIGESTS in SSM, and ask the instance — by SSM Run Command, no SSH — to restart
+# its systemd unit, whose ExecStartPre pulls exactly those digests. The host
+# refuses to attach to any container whose image is not the configured digest,
+# so a new workspace image reaches each actor at their next start.
+#
+# `workflow_dispatch` only until the instance exists: a push trigger before the
+# terraform apply would turn every merge red on a missing ECR repository. Add
+#
+#   push: { branches: [main], paths: ['packages/alia-computer-host/**', ...] }
+#
+# once the host is serving.
+name: Deploy computer host
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  # Its own group: an instance restart must never interleave with another
+  # (two restarts racing can leave the unit on the OLDER digest pair).
+  group: deploy-alia-computer-host
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  ECR_REGISTRY: 237343248947.dkr.ecr.us-west-2.amazonaws.com
+  HOST_REPOSITORY: oxy/alia-computer-host
+  WORKSPACE_REPOSITORY: oxy/alia-computer-workspace
+  SSM_PREFIX: /oxy/alia-computer-host
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push both images (linux/arm64)
+        id: build
+        env:
+          COMMIT_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          build() {
+            local repository="$1" dockerfile="$2" context="$3" output="$4"
+            local img="$ECR_REGISTRY/$repository"
+            docker buildx build \
+              --platform linux/arm64 \
+              -f "$dockerfile" \
+              -t "$img:$COMMIT_TAG" \
+              --metadata-file "$RUNNER_TEMP/$output.json" \
+              --push \
+              "$context"
+            local index
+            index=$(jq -r '.["containerimage.digest"] // empty' "$RUNNER_TEMP/$output.json")
+            if [[ ! "$index" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "::error::buildx produced no usable image index digest for $repository"
+              exit 1
+            fi
+            local runtime
+            runtime="$(IMAGE_REPOSITORY="$img" INDEX_DIGEST="$index" bash .github/scripts/resolve-ecr-platform-digest.sh)"
+            echo "$output=$img@$runtime" >>"$GITHUB_OUTPUT"
+            echo "Built $repository -> $img@$runtime"
+          }
+          build "$HOST_REPOSITORY" packages/alia-computer-host/Dockerfile . host
+          build "$WORKSPACE_REPOSITORY" packages/alia-computer-host/workspace-image/Dockerfile packages/alia-computer-host/workspace-image workspace
+
+      - name: Record the digests the instance will run
+        env:
+          HOST_IMAGE: ${{ steps.build.outputs.host }}
+          WORKSPACE_IMAGE: ${{ steps.build.outputs.workspace }}
+        run: |
+          set -euo pipefail
+          aws ssm put-parameter --overwrite --type String --name "$SSM_PREFIX/HOST_IMAGE" --value "$HOST_IMAGE"
+          aws ssm put-parameter --overwrite --type String --name "$SSM_PREFIX/WORKSPACE_IMAGE" --value "$WORKSPACE_IMAGE"
+
+      - name: Restart the host on the new digests
+        run: |
+          set -euo pipefail
+          INSTANCE=$(aws ec2 describe-instances \
+            --filters "Name=tag:Role,Values=alia-computer-host" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[].Instances[].InstanceId' --output text)
+          if [ -z "$INSTANCE" ]; then
+            echo "::warning::no running alia-computer-host instance; images are in ECR and SSM, nothing restarted"
+            exit 0
+          fi
+          COMMAND=$(aws ssm send-command \
+            --instance-ids $INSTANCE \
+            --document-name AWS-RunShellScript \
+            --comment "deploy ${GITHUB_SHA::12}" \
+            --parameters 'commands=["systemctl restart alia-computer-host","sleep 5","curl -fsS http://127.0.0.1:8080/health"]' \
+            --query 'Command.CommandId' --output text)
+          # A green job is not a deploy: wait for the unit to come back healthy.
+          for id in $INSTANCE; do
+            aws ssm wait command-executed --command-id "$COMMAND" --instance-id "$id"
+          done
+          echo "Host restarted on the recorded digests."

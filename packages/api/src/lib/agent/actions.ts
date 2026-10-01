@@ -25,10 +25,15 @@
  *   browser   — Web search and page reading, through Clarity         grant: browser
  *   plan      — Task planning + completion signal                  ungranted
  *   delegate  — Hire specialist agents                             grant: delegation
+ *   computer_* / *_computer_* — the agent's own sandboxed machine   grant: computer
  *
  * `shell` and `file_edit` were two more, and are gone with their families.
  * They acted through a sandbox container that production never had, so every
- * call answered "no sandbox" — see `RETIRED_CAPABILITY_FAMILIES`.
+ * call answered "no sandbox" — see `RETIRED_CAPABILITY_FAMILIES`. The
+ * `computer` family is their successor and is not a revival: it is a new
+ * family, built only when a computer host is CONFIGURED
+ * (`lib/computer/computer-client.ts`), so it cannot be a switch that does
+ * nothing.
  *
  * Design principles (from Manus):
  *   - Simple schemas (strict validation, no .passthrough())
@@ -67,6 +72,8 @@ import type { EventStream } from './event-stream.js';
 import type { DeferredApprovals } from './deferred-approvals.js';
 import { buildAgentMemoryTool } from './agent-memory-runtime.js';
 import { RepeatDetector, repeatedToolCallKey } from './repeat-detector.js';
+import { agentActorId, getComputerClient, type ComputerClient } from '../computer/computer-client.js';
+import { buildComputerTools } from '../computer/computer-tools.js';
 
 export interface AgentRuntimeContext {
   session: AgentSessionRecord;
@@ -91,6 +98,12 @@ export interface AgentRuntimeContext {
   todoManager: TodoManager;
   browserSession: BrowserSession;
   eventStream?: EventStream;
+  /**
+   * The computer host client. Omitted in production, where it comes from
+   * `ALIA_COMPUTER_HOST_URL`; `null` says "no host" explicitly. A test hands a
+   * double here.
+   */
+  computer?: ComputerClient | null;
 }
 
 /**
@@ -114,7 +127,14 @@ export function buildRuntimeTools(
    * with no reservation of its own. Reading the web stays, because a scheduled
    * "research X every morning" is the point of an automation.
    */
-  options: { withoutDelegation?: boolean } = {},
+  options: {
+    withoutDelegation?: boolean;
+    /**
+     * A preauthorized automation stage runs on authority granted in advance for
+     * EXACT steps; executing arbitrary code is not one of them.
+     */
+    withoutComputer?: boolean;
+  } = {},
 ): ToolSet {
   const {
     session, onComplete, onHireAgent,
@@ -229,6 +249,20 @@ export function buildRuntimeTools(
         }
       },
     });
+  }
+
+  // ── computer — the agent's own sandboxed machine, per person ──
+  //
+  // A grant AND a configured host: without `ALIA_COMPUTER_HOST_URL` the family
+  // is absent rather than present-and-failing.
+
+  const computer = ctx.computer === undefined ? getComputerClient() : ctx.computer;
+  if (!options.withoutComputer && computer && grants.allows('computer')) {
+    Object.assign(actions, buildComputerTools({
+      client: computer,
+      actorId: agentActorId(session.agentId, session.oxyUserId),
+      scope: session._id,
+    }));
   }
 
   // ── continueInBackground — work longer than a chat turn ──

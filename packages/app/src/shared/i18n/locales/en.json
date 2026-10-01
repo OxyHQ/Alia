@@ -1459,6 +1459,10 @@
       "delegation": {
         "label": "Other agents",
         "description": "Find, hire and create agents to work on its behalf"
+      },
+      "computer": {
+        "label": "Its own computer",
+        "description": "Run commands and keep files on a private Linux sandbox with no internet access"
       }
     },
     "instancedFamily": {

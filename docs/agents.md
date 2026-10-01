@@ -362,9 +362,47 @@ runner's `shell` and `file_edit` primitives, which acted through a sandbox
 container production never had, so the switches could be turned on and never
 do anything. `RETIRED_CAPABILITY_FAMILIES` names them so the wire can drop an
 echoed one instead of refusing the whole save, the reader ignores them, and
-migration 0071 (post phase) removed them from `agents.capability_grants`. An
-agent has no shell and no workspace filesystem; `plan` keeps its checklist on
-the session row.
+migration 0071 (post phase) removed them from `agents.capability_grants`.
+`plan` keeps its checklist on the session row.
+
+### The agent's computer (`computer`)
+
+Their successor, under a new name so no stored grant can turn it on:
+`computer` gives an agent its own Linux machine — node, python3, git and bash,
+**no network**, a persistent `/workspace` — through seven tools
+(`computer_status`, `computer_start`, `computer_stop`, `run_computer_command`,
+`list_computer_files`, `read_computer_file`, `write_computer_file`;
+`lib/computer/computer-tools.ts`). Built only on a runtime turn, only when
+`ALIA_COMPUTER_HOST_URL` is set, and never in a preauthorized automation stage.
+
+- **One computer per agent per person** (`agent:<agentId>:user:<oxyUserId>`):
+  a public agent never shows one person's files to another.
+- **The machine** is a container on `packages/alia-computer-host`: gVisor
+  (`runsc`), read-only root, every capability dropped, `--network none`,
+  512 MiB / 1 CPU / 128 pids, uid 1000. The host re-inspects it before every
+  use and refuses one that differs from that contract. It stops (and is
+  removed) after 10 minutes unused; only `/workspace` survives.
+- **Commands** are idempotent per `operationId` (scoped to the run), bounded by
+  a timeout (default 60 s, max 300 s) and a 128 KB output cap. `background:
+  true` detaches a process whose output goes to `/workspace/.alia/jobs/`.
+- **Risk:** reads R0; start/stop/write and a foreground command R1 (no
+  rollback record — nothing snapshots the old content); a background command
+  R2; `rm -rf` and the other destructive tokens stay R3.
+- **Output is untrusted.** Every result is fenced with a header telling the
+  model it is data, not instructions.
+- **The host sleeps.** It is a Spot instance that stops itself after 30
+  minutes with no computer running and nothing in flight. A call that finds it
+  asleep starts it (`ec2:StartInstances` on that one instance, with
+  `ALIA_COMPUTER_HOST_INSTANCE_ID`) and waits up to 90 s for `/health`; all
+  concurrent callers share one wake (`lib/computer/host-waker.ts`). Past the
+  deadline the tool tells the model "your computer is starting, try again in a
+  minute"; no Spot capacity is its own message. `computer_status` never wakes
+  it and answers `asleep`.
+- **Auth** is the caller's AWS task role (oxy ADR 0026): the client calls
+  `requestWorkloadServiceToken` against the host, which replays the signed STS
+  `GetCallerIdentity` and allow-lists `oxy-alia-task`. No shared secret.
+
+Infrastructure: oxy-infra `terraform-uswest2/alia-computer-host.tf`.
 
 `browser` is **Clarity-only**. The runtime image ships no Chromium, so the
 runner's `browser` primitive offers exactly what works without one: `search`,
