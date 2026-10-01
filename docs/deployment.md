@@ -92,6 +92,7 @@ REDIS_URL=rediss://...                 # BullMQ, rate limiting, Socket.IO adapte
 TOKEN_ENCRYPTION_KEY=<32-byte hex>     # see below — NOT optional for shows
 INTEGRATIONS_URL=https://...           # MCP tools and channel proxy
 INTEGRATIONS_SECRET=<32-byte hex>
+ALIA_COMPUTER_HOST_URL=http://computer.alia.internal.oxy.so:8080  # agents' computer (no secret: workload identity)
 SYRA_API_URL=https://api.syra.fm       # where a show series is published
 ```
 

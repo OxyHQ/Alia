@@ -58,6 +58,7 @@ export const FIXED_CAPABILITY_FAMILIES = [
   'messaging',
   'automation',
   'delegation',
+  'computer',
 ] as const;
 
 /**
@@ -120,6 +121,9 @@ export const EVERY_ROW_FAMILIES = ['agent'] as const;
  * production never configured: every call answered "no sandbox". The host went
  * first; these two went with the clean cut, because a switch an owner can turn
  * on and that can never do anything is a lie told in the editor.
+ *
+ * Their successor is the `computer` family — a NEW name on purpose, so no
+ * grant stored before it existed can turn it on.
  *
  * Migration 0071 removed them from `agents.capability_grants`. They are listed
  * here so the wire can DROP them instead of refusing the whole save — an editor
@@ -198,6 +202,20 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
   ],
   automation: ['createAutomation'],
   delegation: ['createAgent', 'searchAgents', 'delegateToAgent', 'delegate'],
+  /**
+   * The agent's own sandboxed Linux machine (`lib/computer/computer-tools.ts`).
+   * Built only on a runtime turn AND when a computer host is configured, so a
+   * grant on a deployment without one adds nothing — see `actions.ts`.
+   */
+  computer: [
+    'computer_status',
+    'computer_start',
+    'computer_stop',
+    'run_computer_command',
+    'list_computer_files',
+    'read_computer_file',
+    'write_computer_file',
+  ],
 };
 
 /**
