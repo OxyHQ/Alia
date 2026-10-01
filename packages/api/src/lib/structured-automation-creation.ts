@@ -2,9 +2,12 @@ import { uuidv7 } from '@oxy.so/db';
 import { z } from 'zod';
 import { findAgentById } from '../db/agents/agentRepository.js';
 import {
+  listActiveTaskAuthorityIds,
+  markTaskAuthorityRevoked,
+  replaceAliaTaskAuthorizations,
+} from '../db/automation/aliaTaskAuthorityRepository.js';
+import {
   createAutomationDefinition,
-  listActiveAutomationAuthorizations,
-  markAutomationAuthorizationsRevoked,
   setAutomationEnabled,
   updateAutomationDefinition,
   type AutomationDefinitionRecord,
@@ -12,10 +15,14 @@ import {
 } from '../db/automation/automationDefinitionRepository.js';
 import { getDb } from '../db/index.js';
 import {
+  provisionAliaTaskAuthorizations,
   provisionAutomationAuthorizations,
   revokeAutomationAuthorizations,
+  type ProvisionedAliaTaskAuthorization,
   type ProvisionedAutomationAuthorization,
 } from './automation-authority.js';
+import { watchConfigOf, WATCH_INPUT_KEY } from './alia-watch.js';
+import { listOxyAccountReadTools } from './tools/oxy-services.js';
 import {
   loadAutomationActorCandidates,
   planAutomationStages,
@@ -178,7 +185,7 @@ export async function executionAuthorityPairs(input: {
 
 export async function revokeProvisionedAutomationAuthority(
   accessToken: string | undefined,
-  provisioned: readonly ProvisionedAutomationAuthorization[],
+  provisioned: ReadonlyArray<{ oxyAuthorizationId: string }>,
 ): Promise<void> {
   if (!accessToken || provisioned.length === 0) return;
   const result = await revokeAutomationAuthorizations(
@@ -254,10 +261,17 @@ function validateDefinition(definition: CreateAutomationInput): void {
     triggerType: definition.trigger.type,
   });
   if (executionPolicyError) throw new AutomationCreationError(executionPolicyError, 400);
-  // Oxy authority for an Alia actor on connected apps is not built yet; an
-  // agent is still what runs connected work.
-  if (definition.actorSelection.mode === 'alia' && definition.actions.length > 0) {
-    throw new AutomationCreationError('alia_connected_actions_not_yet_supported', 400);
+  if (definition.inputs[WATCH_INPUT_KEY] !== undefined) {
+    if (!watchConfigOf(definition.inputs)) throw new AutomationCreationError('invalid_watch', 400);
+    if (definition.actorSelection.mode !== 'alia') {
+      throw new AutomationCreationError('watch_requires_alia', 400);
+    }
+    if (definition.trigger.type !== 'schedule') {
+      throw new AutomationCreationError('watch_requires_schedule', 400);
+    }
+    if (definition.actions.length > 0) {
+      throw new AutomationCreationError('watch_cannot_declare_connected_actions', 400);
+    }
   }
   if (definition.trigger.type === 'event' && definition.dataFlow.sources.length === 0) {
     throw new AutomationCreationError('event_automation_requires_explicit_data_source', 400);
@@ -330,11 +344,64 @@ function editableDefinition(
   return merged.data;
 }
 
+/**
+ * Alia's standing authority for a task she runs, provisioned while the
+ * owner's bearer is present: the declared connected actions exactly, and every
+ * read tool of the owner's Oxy apps — Alia acts for the person in their own
+ * apps the way an assistant reads its owner's mail. A watch reads only the
+ * open web and gets no app reads (least authority).
+ *
+ * Without a bearer (an API-key caller), a task with no declared actions is
+ * still created; its runs simply have no Oxy app tools.
+ */
+async function provisionAliaAuthority(input: {
+  accessToken: string | undefined;
+  ownerAccountId: string;
+  automationId: string;
+  definition: CreateAutomationInput;
+  actions: ReadonlyArray<{ id: string } & CreateAutomationInput['actions'][number]>;
+}): Promise<ProvisionedAliaTaskAuthorization[]> {
+  if (input.definition.executionMode !== 'execute' || !input.definition.enabled) return [];
+  if (!input.accessToken) return [];
+  const isWatch = input.definition.inputs[WATCH_INPUT_KEY] !== undefined;
+  let reads: Awaited<ReturnType<typeof listOxyAccountReadTools>> = [];
+  if (!isWatch) {
+    try {
+      reads = await listOxyAccountReadTools(input.ownerAccountId);
+    } catch (error: unknown) {
+      log.triggers.warn({ err: error, automationId: input.automationId }, 'Could not list Oxy read tools for an Alia task');
+    }
+  }
+  try {
+    const result = await provisionAliaTaskAuthorizations({
+      accessToken: input.accessToken,
+      ownerAccountId: input.ownerAccountId,
+      automationId: input.automationId,
+      maximumAutonomy: input.definition.maximumAutonomy,
+      actions: input.actions,
+      reads,
+    });
+    if (result.refusedReads > 0) {
+      log.triggers.warn(
+        { automationId: input.automationId, refusedReads: result.refusedReads, granted: result.provisioned.length },
+        'Oxy refused some standing reads for an Alia task',
+      );
+    }
+    return result.provisioned;
+  } catch (error: unknown) {
+    log.triggers.warn(
+      { err: error, automationId: input.automationId },
+      'Oxy refused Alia task execution authority',
+    );
+    throw new AutomationCreationError('automation_execution_authority_refused', 403);
+  }
+}
+
 async function stopAndRevokeCurrentAuthority(input: {
   accessToken?: string;
   automation: AutomationDefinitionRecord;
 }): Promise<{ updatedAt: Date; revoked: number }> {
-  const active = await listActiveAutomationAuthorizations(getDb(), input.automation.id);
+  const active = await listActiveTaskAuthorityIds(getDb(), input.automation.id);
   if (active.length > 0 && !input.accessToken) {
     throw new AutomationCreationError('user_session_required_for_execution_authority', 401);
   }
@@ -352,11 +419,8 @@ async function stopAndRevokeCurrentAuthority(input: {
     return { updatedAt: stopped.updatedAt, revoked: 0 };
   }
 
-  const revoked = await revokeAutomationAuthorizations(
-    input.accessToken,
-    active.map((authorization) => authorization.oxyAuthorizationId),
-  );
-  await markAutomationAuthorizationsRevoked(getDb(), revoked.revoked);
+  const revoked = await revokeAutomationAuthorizations(input.accessToken, active);
+  await markTaskAuthorityRevoked(getDb(), revoked.revoked);
   if (revoked.failed.length > 0) {
     throw new AutomationCreationError(
       'automation_authority_revocation_incomplete',
@@ -408,7 +472,9 @@ export async function updateStructuredAutomation(input: {
       : []),
     ...definition.dataFlow.sources,
   ]);
-  const authorityPairs = definition.executionMode === 'execute'
+  const isAlia = selection.mode === 'alia';
+  const authorityPairs = !isAlia
+    && definition.executionMode === 'execute'
     && definition.enabled
     && definition.actions.length > 0
     ? await executionAuthorityPairs({
@@ -424,7 +490,16 @@ export async function updateStructuredAutomation(input: {
   }
 
   let provisioned: ProvisionedAutomationAuthorization[] = [];
-  if (definition.executionMode === 'execute'
+  let aliaProvisioned: ProvisionedAliaTaskAuthorization[] = [];
+  if (isAlia) {
+    aliaProvisioned = await provisionAliaAuthority({
+      accessToken: input.accessToken,
+      ownerAccountId: input.ownerAccountId,
+      automationId: input.existing.id,
+      definition,
+      actions: input.existing.actions,
+    });
+  } else if (definition.executionMode === 'execute'
     && definition.enabled
     && definition.actions.length > 0
     && input.accessToken) {
@@ -452,7 +527,7 @@ export async function updateStructuredAutomation(input: {
       automation: input.existing,
     });
   } catch (error: unknown) {
-    await revokeProvisionedAutomationAuthority(input.accessToken, provisioned);
+    await revokeProvisionedAutomationAuthority(input.accessToken, [...provisioned, ...aliaProvisioned]);
     throw error;
   }
 
@@ -484,9 +559,10 @@ export async function updateStructuredAutomation(input: {
       limits: definition.limits,
       enabled: definition.enabled,
       authorizations: provisioned,
+      aliaAuthorizations: aliaProvisioned,
     });
   } catch (error: unknown) {
-    await revokeProvisionedAutomationAuthority(input.accessToken, provisioned);
+    await revokeProvisionedAutomationAuthority(input.accessToken, [...provisioned, ...aliaProvisioned]);
     log.triggers.error(
       { err: error, automationId: input.existing.id },
       'Could not persist updated automation',
@@ -498,7 +574,7 @@ export async function updateStructuredAutomation(input: {
     );
   }
   if (!automation) {
-    await revokeProvisionedAutomationAuthority(input.accessToken, provisioned);
+    await revokeProvisionedAutomationAuthority(input.accessToken, [...provisioned, ...aliaProvisioned]);
     throw new AutomationCreationError(
       'automation_concurrent_update',
       409,
@@ -545,7 +621,9 @@ export async function createStructuredAutomation(input: {
     ...(trigger.type === 'event' && trigger.resource ? [trigger.resource] : []),
     ...input.definition.dataFlow.sources,
   ]);
-  const authorityPairs = input.definition.executionMode === 'execute'
+  const isAlia = selection.mode === 'alia';
+  const authorityPairs = !isAlia
+    && input.definition.executionMode === 'execute'
     && input.definition.enabled
     && actions.length > 0
     ? await executionAuthorityPairs({
@@ -594,7 +672,38 @@ export async function createStructuredAutomation(input: {
     throw new AutomationCreationError('automation_store_unavailable', 503);
   }
 
-  if (input.definition.executionMode === 'execute'
+  if (isAlia && input.definition.executionMode === 'execute' && input.definition.enabled) {
+    let provisioned: ProvisionedAliaTaskAuthorization[];
+    try {
+      provisioned = await provisionAliaAuthority({
+        accessToken: input.accessToken,
+        ownerAccountId: input.ownerAccountId,
+        automationId,
+        definition: input.definition,
+        actions,
+      });
+    } catch (error: unknown) {
+      if (error instanceof AutomationCreationError) {
+        throw new AutomationCreationError(error.code, error.status, { automationId, stopped: true });
+      }
+      throw error;
+    }
+    try {
+      automation = await getDb().transaction(async (transaction) => {
+        await replaceAliaTaskAuthorizations(transaction, automationId, provisioned);
+        const activated = await setAutomationEnabled(transaction, automationId, input.ownerAccountId, true);
+        if (!activated) throw new Error('Persisted automation disappeared before activation');
+        return activated;
+      });
+    } catch (error: unknown) {
+      await revokeProvisionedAutomationAuthority(input.accessToken, provisioned);
+      log.triggers.error(
+        { err: error, ownerAccountId: input.ownerAccountId, automationId },
+        'Could not persist Alia task authority',
+      );
+      throw new AutomationCreationError('automation_store_unavailable', 503, { automationId, stopped: true });
+    }
+  } else if (input.definition.executionMode === 'execute'
     && input.definition.enabled
     && actions.length > 0
     && input.accessToken) {

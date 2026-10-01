@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import { uuidv7 } from '@oxy.so/db';
 import type { ApiDatabase, Executor } from '../index';
 import {
@@ -14,7 +14,9 @@ import {
   type AutomationDataFlow,
   type AutomationLimit,
   type AutomationResourceRef,
+  type AutomationRunCreditHold,
 } from '../schema/agency';
+import { replaceAliaTaskAuthorizations, type AliaTaskAuthorizationInput } from './aliaTaskAuthorityRepository';
 import { agentSessions } from '../schema/agent-sessions';
 
 type DefinitionRow = typeof automationDefinitions.$inferSelect;
@@ -72,6 +74,8 @@ export interface AutomationDefinitionUpdateInput {
   limits: AutomationLimit[];
   enabled: boolean;
   authorizations: readonly AutomationAuthorizationInput[];
+  /** Alia's standing authority; replaces the current set (empty retires it). */
+  aliaAuthorizations?: readonly AliaTaskAuthorizationInput[];
 }
 
 function toAction(row: ActionRow) {
@@ -350,6 +354,7 @@ export async function updateAutomationDefinition(
       );
     }
     await replaceAutomationActionAuthorizations(transaction, row.id, input.authorizations);
+    await replaceAliaTaskAuthorizations(transaction, row.id, input.aliaAuthorizations ?? []);
     const actions = await actionsFor(transaction, [row.id]);
     return toDefinition(row, assigned, actions.get(row.id) ?? []);
   });
@@ -527,6 +532,8 @@ export async function claimAutomationRunPlan(input: {
   stages: readonly AutomationRunStageInput[];
   /** Defaults to `agent`, the only actor before Alia could own a task. */
   actorType?: AutomationRunActorType;
+  /** An Alia run's hold, kept so the reaper can refund a run nobody finished. */
+  creditReservation?: AutomationRunCreditHold;
 }): Promise<boolean> {
   const actorType = input.actorType ?? 'agent';
   const selectedAgentIds = selectedAgentIdsOf(input.stages);
@@ -545,6 +552,7 @@ export async function claimAutomationRunPlan(input: {
       selectedAgentIds,
     },
     startedAt: new Date(),
+    ...(input.creditReservation ? { creditReservation: input.creditReservation } : {}),
   }).onConflictDoNothing({ target: automationRuns.idempotencyKey }).returning({ id: automationRuns.id });
   if (inserted.length === 0) return false;
   await input.db.insert(automationSteps).values(runStepRows(input.runId, input.stages, 'planned', actorType));
@@ -927,19 +935,25 @@ export async function markAliaAutomationRun(
   db: ApiDatabase,
   runId: string,
   status: 'running' | 'succeeded' | 'failed',
-): Promise<void> {
+  options: { leaseMs?: number } = {},
+): Promise<boolean> {
   const open = ['planned', 'running'];
-  await db.transaction(async (transaction) => {
+  return db.transaction(async (transaction) => {
     const now = new Date();
     const [run] = await transaction.update(automationRuns)
-      .set(status === 'running' ? { status } : { status, completedAt: now })
+      .set(status === 'running'
+        ? {
+            status,
+            ...(options.leaseMs ? { leaseExpiresAt: new Date(now.getTime() + options.leaseMs) } : {}),
+          }
+        : { status, completedAt: now, leaseExpiresAt: null })
       .where(and(
         eq(automationRuns.id, runId),
         eq(automationRuns.selectedActorType, 'alia'),
         inArray(automationRuns.status, open),
       ))
       .returning({ id: automationRuns.id });
-    if (!run) return;
+    if (!run) return false;
     await transaction.update(automationSteps)
       .set(status === 'running' ? { status, startedAt: now } : { status, completedAt: now })
       .where(and(
@@ -947,6 +961,86 @@ export async function markAliaAutomationRun(
         eq(automationSteps.tool, 'alia.run'),
         inArray(automationSteps.status, open),
       ));
+    if (status !== 'running') {
+      // Declared actions the turn never started are not left open forever.
+      await transaction.update(automationSteps)
+        .set({ status: 'cancelled', completedAt: now })
+        .where(and(
+          eq(automationSteps.runId, runId),
+          eq(automationSteps.status, 'planned'),
+        ));
+    }
+    return true;
+  });
+}
+
+export interface AbandonedAliaRun {
+  id: string;
+  automationId: string;
+  requesterAccountId: string;
+  creditReservation: AutomationRunCreditHold | null;
+}
+
+/**
+ * Alia runs nobody will finish: started by a worker whose lease lapsed, or
+ * still `planned` long after dispatch (the job was lost before any worker
+ * took it).
+ */
+function abandonedAliaRunPredicate(now: Date, plannedBefore: Date) {
+  return and(
+    eq(automationRuns.selectedActorType, 'alia'),
+    or(
+      and(
+        eq(automationRuns.status, 'running'),
+        isNotNull(automationRuns.leaseExpiresAt),
+        lt(automationRuns.leaseExpiresAt, now),
+      ),
+      and(eq(automationRuns.status, 'planned'), lt(automationRuns.startedAt, plannedBefore)),
+    ),
+  );
+}
+
+export async function listAbandonedAliaRuns(
+  db: Executor,
+  now: Date,
+  plannedBefore: Date,
+  limit = 100,
+): Promise<string[]> {
+  const rows = await db.select({ id: automationRuns.id }).from(automationRuns)
+    .where(abandonedAliaRunPredicate(now, plannedBefore))
+    .limit(limit);
+  return rows.map((row) => row.id);
+}
+
+/**
+ * Fail one abandoned Alia run and RETURN its hold. Conditional on it still
+ * being abandoned, so a worker that renewed it keeps it, and the row comes
+ * back to exactly one caller — the one that refunds.
+ */
+export async function failAbandonedAliaRun(
+  db: ApiDatabase,
+  runId: string,
+  now: Date,
+  plannedBefore: Date,
+): Promise<AbandonedAliaRun | null> {
+  return db.transaction(async (transaction) => {
+    const [run] = await transaction.update(automationRuns)
+      .set({ status: 'failed', completedAt: now, leaseExpiresAt: null })
+      .where(and(eq(automationRuns.id, runId), abandonedAliaRunPredicate(now, plannedBefore)))
+      .returning();
+    if (!run) return null;
+    await transaction.update(automationSteps)
+      .set({ status: 'failed', completedAt: now })
+      .where(and(
+        eq(automationSteps.runId, runId),
+        inArray(automationSteps.status, ['planned', 'running']),
+      ));
+    return {
+      id: run.id,
+      automationId: run.automationId,
+      requesterAccountId: run.requesterAccountId,
+      creditReservation: run.creditReservation ?? null,
+    };
   });
 }
 

@@ -1,12 +1,14 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import {
+  listActiveTaskAuthorityIds,
+  markTaskAuthorityRevoked,
+} from '../db/automation/aliaTaskAuthorityRepository.js';
+import {
   findAutomationDefinition,
-  listActiveAutomationAuthorizations,
   listAutomationDefinitions,
   listAutomationRuns,
   listAutomationRunSteps,
-  markAutomationAuthorizationsRevoked,
   setAutomationEnabled,
 } from '../db/automation/automationDefinitionRepository.js';
 import { getDb } from '../db/index.js';
@@ -47,7 +49,8 @@ async function stopAutomation(input: {
 }) {
   const stopped = await setAutomationEnabled(getDb(), input.automation.id, input.ownerAccountId, false);
   await refreshAutomationSchedule(input.automation.id);
-  const active = await listActiveAutomationAuthorizations(getDb(), input.automation.id);
+  // The agent path's authority and Alia's standing authority alike.
+  const active = await listActiveTaskAuthorityIds(getDb(), input.automation.id);
   if (active.length === 0) return { automation: stopped, revoked: 0, failed: 0 };
   if (!input.request.accessToken) {
     log.triggers.error(
@@ -56,11 +59,8 @@ async function stopAutomation(input: {
     );
     return { automation: stopped, revoked: 0, failed: active.length };
   }
-  const result = await revokeAutomationAuthorizations(
-    input.request.accessToken,
-    active.map((authorization) => authorization.oxyAuthorizationId),
-  );
-  await markAutomationAuthorizationsRevoked(getDb(), result.revoked);
+  const result = await revokeAutomationAuthorizations(input.request.accessToken, active);
+  await markTaskAuthorityRevoked(getDb(), result.revoked);
   if (result.failed.length > 0) {
     log.triggers.error(
       { automationId: input.automation.id, failed: result.failed.length },

@@ -19,6 +19,9 @@ const state = vi.hoisted(() => ({
   scheduleError: vi.fn(),
   oxyMap: vi.fn(),
   list: vi.fn(),
+  provisionAlia: vi.fn(),
+  replaceAlia: vi.fn(),
+  readTools: vi.fn(),
 }));
 
 const database = { transaction: vi.fn(async (callback) => callback(database)) };
@@ -54,8 +57,17 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
   updateAutomationDefinition: state.update,
   upsertAutomationActionAuthorizations: state.upsert,
 }));
+vi.mock('../../db/automation/aliaTaskAuthorityRepository.js', () => ({
+  // The agent path's rows and Alia's are listed and retired together.
+  listActiveTaskAuthorityIds: vi.fn(async (db: unknown, automationId: string) => (
+    ((await state.listActive(db, automationId)) ?? []) as Array<{ oxyAuthorizationId: string }>
+  ).map((authorization) => authorization.oxyAuthorizationId)),
+  markTaskAuthorityRevoked: state.markRevoked,
+  replaceAliaTaskAuthorizations: state.replaceAlia,
+}));
 vi.mock('../../lib/automation-authority.js', () => ({
   provisionAutomationAuthorizations: state.provision,
+  provisionAliaTaskAuthorizations: state.provisionAlia,
   revokeAutomationAuthorizations: state.revoke,
 }));
 vi.mock('../../lib/automation-dispatcher.js', () => ({
@@ -63,6 +75,7 @@ vi.mock('../../lib/automation-dispatcher.js', () => ({
 }));
 vi.mock('../../lib/tools/oxy-services.js', () => ({
   getOxyAgentCapabilityMap: state.oxyMap,
+  listOxyAccountReadTools: state.readTools,
 }));
 vi.mock('../../lib/trigger-engine.js', () => ({
   automationScheduleError: state.scheduleError,
@@ -557,8 +570,32 @@ describe('Alia as the default responsible actor', () => {
     dataFlow: { sources: [], destinations: [] },
     maximumAutonomy: 'autonomous',
   };
+  const inboxRoot = { appId: 'inbox', effectiveAccountId: 'owner-1', resourceType: 'email_account', resourceId: 'owner-1' };
+  const reads = [{ resource: inboxRoot, tool: 'listEmails' }, { resource: inboxRoot, tool: 'getEmail' }];
+  const expiresAt = new Date('2027-10-01T00:00:00.000Z');
 
-  it('makes Alia responsible when no actor is named, with no agent to own', async () => {
+  beforeEach(() => {
+    state.readTools.mockResolvedValue(reads);
+    state.replaceAlia.mockResolvedValue(undefined);
+    state.provisionAlia.mockImplementation(async (input: {
+      actions: Array<{ id: string; resource: unknown; tool: string }>;
+      reads: Array<{ resource: unknown; tool: string }>;
+    }) => ({
+      provisioned: [
+        ...input.actions.map((action) => ({
+          automationActionId: action.id, resource: action.resource, tool: action.tool,
+          oxyAuthorizationId: `oxy-${action.tool}`, expiresAt,
+        })),
+        ...input.reads.map((read) => ({
+          automationActionId: null, resource: read.resource, tool: read.tool,
+          oxyAuthorizationId: `oxy-${read.tool}`, expiresAt,
+        })),
+      ],
+      refusedReads: 0,
+    }));
+  });
+
+  it('makes Alia responsible when no actor is named and gives her standing reads of the owner\'s apps', async () => {
     const response = await send('POST', '/automations', assistantTask);
 
     expect(response.status).toBe(201);
@@ -567,9 +604,33 @@ describe('Alia as the default responsible actor', () => {
       fixedAgentId: undefined,
       eligibleAgentIds: [],
       actions: [],
+      // Inert until her authority is durable.
+      enabled: false,
     }));
     expect(state.oxyMap).not.toHaveBeenCalled();
     expect(state.provision).not.toHaveBeenCalled();
+    expect(state.readTools).toHaveBeenCalledWith('owner-1');
+    expect(state.provisionAlia).toHaveBeenCalledWith(expect.objectContaining({
+      accessToken: 'user-token',
+      ownerAccountId: 'owner-1',
+      maximumAutonomy: 'autonomous',
+      actions: [],
+      reads,
+    }));
+    expect(state.replaceAlia).toHaveBeenCalledWith(database, expect.any(String), [
+      expect.objectContaining({ automationActionId: null, tool: 'listEmails', oxyAuthorizationId: 'oxy-listEmails' }),
+      expect.objectContaining({ automationActionId: null, tool: 'getEmail' }),
+    ]);
+    expect(state.setEnabled).toHaveBeenCalledWith(database, expect.any(String), 'owner-1', true);
+  });
+
+  it('creates an Alia task with no app authority when no person is present', async () => {
+    state.token = undefined;
+    const response = await send('POST', '/automations', assistantTask);
+
+    expect(response.status).toBe(201);
+    expect(state.provisionAlia).not.toHaveBeenCalled();
+    expect(state.replaceAlia).toHaveBeenCalledWith(database, expect.any(String), []);
   });
 
   it('accepts Alia named explicitly', async () => {
@@ -579,12 +640,60 @@ describe('Alia as the default responsible actor', () => {
     expect(state.create).toHaveBeenCalledWith(database, expect.objectContaining({ actorMode: 'alia' }));
   });
 
-  it('refuses connected actions for Alia until Oxy can authorize her, with a typed reason', async () => {
+  it('authorizes Alia herself for the exact connected actions a task declares', async () => {
     const { actorSelection: _agent, ...connected } = payload;
-    const response = await send('POST', '/automations', connected);
+    const response = await send('POST', '/automations', { ...connected, executionMode: 'execute' });
+
+    expect(response.status).toBe(201);
+    expect(state.oxyMap).not.toHaveBeenCalled();
+    expect(state.provision).not.toHaveBeenCalled();
+    expect(state.provisionAlia).toHaveBeenCalledWith(expect.objectContaining({
+      actions: [expect.objectContaining({ id: expect.any(String), resource, tool: 'replyToEmail' })],
+    }));
+    expect(state.replaceAlia).toHaveBeenCalledWith(database, expect.any(String), expect.arrayContaining([
+      expect.objectContaining({ tool: 'replyToEmail', automationActionId: expect.any(String) }),
+    ]));
+  });
+
+  it('keeps the task inert when Oxy refuses a declared action', async () => {
+    state.provisionAlia.mockRejectedValueOnce(new Error('Oxy user authority error (400)'));
+    const { actorSelection: _agent, ...connected } = payload;
+    const response = await send('POST', '/automations', { ...connected, executionMode: 'execute' });
+
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual(expect.objectContaining({
+      error: 'automation_execution_authority_refused',
+      stopped: true,
+    }));
+    expect(state.replaceAlia).not.toHaveBeenCalled();
+    expect(state.setEnabled).not.toHaveBeenCalled();
+  });
+
+  it('creates a watch with no app reads: it only looks at the open web', async () => {
+    const response = await send('POST', '/automations', {
+      ...assistantTask,
+      trigger: { type: 'schedule', cron: '0 * * * *', timezone: 'Europe/Madrid' },
+      inputs: { watch: { query: 'Meta announces' } },
+    });
+
+    expect(response.status).toBe(201);
+    expect(state.readTools).not.toHaveBeenCalled();
+    expect(state.provisionAlia).toHaveBeenCalledWith(expect.objectContaining({ reads: [], actions: [] }));
+  });
+
+  it.each([
+    [{ watch: { query: 'x', url: 'https://example.com' } }, undefined, 'invalid_watch'],
+    [{ watch: { url: 'https://example.com', condition: 'contains' } }, undefined, 'invalid_watch'],
+    [{ watch: { query: 'Meta announces' } }, { mode: 'fixed', agentId: 'agent-1' }, 'watch_requires_alia'],
+  ])('refuses a malformed watch %#', async (inputs, actorSelection, error) => {
+    const response = await send('POST', '/automations', {
+      ...assistantTask,
+      inputs,
+      ...(actorSelection ? { actorSelection } : {}),
+    });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe('alia_connected_actions_not_yet_supported');
+    expect(response.body.error).toBe(error);
     expect(state.create).not.toHaveBeenCalled();
   });
 
@@ -630,10 +739,29 @@ describe('Alia as the default responsible actor', () => {
     const response = await send('PATCH', '/automations/automation-1', { actorSelection: { mode: 'alia' } });
 
     expect(response.status).toBe(200);
+    expect(state.provisionAlia).toHaveBeenCalledWith(expect.objectContaining({ automationId: 'automation-1', reads }));
     expect(state.update).toHaveBeenCalledWith(database, expect.objectContaining({
       actorMode: 'alia',
       fixedAgentId: undefined,
       eligibleAgentIds: [],
+      authorizations: [],
+      aliaAuthorizations: [
+        expect.objectContaining({ tool: 'listEmails' }),
+        expect.objectContaining({ tool: 'getEmail' }),
+      ],
     }));
+  });
+
+  it('revokes Alia\'s standing authority with the task when it is stopped', async () => {
+    state.find.mockResolvedValueOnce(storedAutomation({ actorSelection: { mode: 'alia' } }));
+    state.listActive.mockResolvedValueOnce([{ oxyAuthorizationId: 'oxy-listEmails' }, { oxyAuthorizationId: 'oxy-getEmail' }]);
+    state.revoke.mockResolvedValueOnce({ revoked: ['oxy-listEmails', 'oxy-getEmail'], failed: [] });
+
+    const response = await send('DELETE', '/automations/automation-1');
+
+    expect(response.status).toBe(200);
+    expect(state.revoke).toHaveBeenCalledWith('user-token', ['oxy-listEmails', 'oxy-getEmail']);
+    expect(state.markRevoked).toHaveBeenCalledWith(database, ['oxy-listEmails', 'oxy-getEmail']);
+    expect(response.body.revocation).toEqual({ revoked: 2, failed: 0 });
   });
 });

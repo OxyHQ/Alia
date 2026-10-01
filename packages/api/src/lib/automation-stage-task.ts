@@ -44,6 +44,7 @@ function triggerContext(trigger: AutomationDispatchTrigger): Record<string, unkn
       type: 'schedule',
       occurrenceId: trigger.id,
       occurredAt: trigger.occurredAt.toISOString(),
+      ...(trigger.watch ? { watch: trigger.watch } : {}),
     };
   }
   return {

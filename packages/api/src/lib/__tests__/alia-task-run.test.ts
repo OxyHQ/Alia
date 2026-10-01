@@ -15,6 +15,8 @@ const state = vi.hoisted(() => ({
   finalize: vi.fn(),
   refund: vi.fn(),
   notify: vi.fn(),
+  authorizations: vi.fn(),
+  markStep: vi.fn(),
 }));
 
 const database = { kind: 'test-db' };
@@ -25,6 +27,10 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
   findAutomationDefinitionById: state.findDefinition,
   listAutomationRunSteps: state.listSteps,
   markAliaAutomationRun: state.markRun,
+  markAutomationActionStep: state.markStep,
+}));
+vi.mock('../../db/automation/aliaTaskAuthorityRepository.js', () => ({
+  listAliaTaskAuthorizationsForRun: state.authorizations,
 }));
 vi.mock('../../db/memory/userMemoryRepository.js', () => ({ findUserMemory: state.memory }));
 vi.mock('../../middleware/auth.js', () => ({ oxyClient: { users: { get: state.oxyUser } } }));
@@ -39,7 +45,13 @@ vi.mock('../logger.js', () => {
   return { log: { agents: child } };
 });
 
-import { ALIA_TASK_MAX_STEPS, runAliaTask } from '../alia-task-run.js';
+import {
+  ALIA_TASK_LEASE_MS,
+  ALIA_TASK_MAX_STEPS,
+  WATCH_NOTHING_TO_REPORT,
+  runAliaTask,
+} from '../alia-task-run.js';
+import { oxyExecutionAuthorizationKey } from '../tools/oxy-services.js';
 
 const RESERVATION = { userId: 'owner-1', creditsReserved: 10, initialFreeCredits: 100, initialPaidCredits: 0, grantKind: 'free' };
 const job = {
@@ -67,7 +79,9 @@ beforeEach(() => {
     conversationId: 'conversation-1',
   });
   state.listSteps.mockResolvedValue([{ tool: 'alia.run', input: taskInput }]);
-  state.markRun.mockResolvedValue(undefined);
+  state.markRun.mockResolvedValue(true);
+  state.authorizations.mockResolvedValue([]);
+  state.markStep.mockResolvedValue(undefined);
   state.memory.mockResolvedValue(null);
   state.oxyUser.mockResolvedValue({ id: 'owner-1', username: 'nate' });
   state.post.mockResolvedValue({ posted: true, conversationId: 'conversation-1', messageId: 'agent-push-1' });
@@ -98,6 +112,8 @@ describe('an Alia task run', () => {
       toolsEnabled: true,
       webSearch: true,
       runId: 'run-1',
+      // No standing authority: no Oxy app tools, rather than refused ones.
+      oxyExecutionAuthorizations: {},
     }));
     expect(state.generate).toHaveBeenCalledWith(expect.objectContaining({
       model: { model: 'handle' },
@@ -112,7 +128,7 @@ describe('an Alia task run', () => {
       { promptTokens: 1200, completionTokens: 300, totalTokens: 1500 },
       'publisher/default-model',
     );
-    expect(state.markRun).toHaveBeenNthCalledWith(1, database, 'run-1', 'running');
+    expect(state.markRun).toHaveBeenNthCalledWith(1, database, 'run-1', 'running', { leaseMs: ALIA_TASK_LEASE_MS });
     expect(state.markRun).toHaveBeenLastCalledWith(database, 'run-1', 'succeeded');
     expect(state.post).toHaveBeenCalledWith({
       oxyUserId: 'owner-1',
@@ -175,5 +191,78 @@ describe('an Alia task run', () => {
     expect(state.generate).not.toHaveBeenCalled();
     expect(state.markRun).toHaveBeenCalledWith(database, 'run-1', 'failed');
     expect(state.refund).toHaveBeenCalledWith(RESERVATION, 'Alia task definition not found');
+  });
+
+  it('acts in the owner\'s apps with the task\'s standing authority', async () => {
+    const inbox = { appId: 'inbox', effectiveAccountId: 'owner-1', resourceType: 'email_account', resourceId: 'owner-1' };
+    state.findDefinition.mockResolvedValueOnce({
+      id: 'automation-1',
+      ownerAccountId: 'owner-1',
+      objective: 'Summarise my email',
+      conversationId: 'conversation-1',
+      maximumAutonomy: 'autonomous',
+    });
+    state.authorizations.mockResolvedValueOnce([
+      { resource: inbox, tool: 'listEmails', oxyAuthorizationId: 'oxy-read', repeatable: true },
+      { resource: inbox, tool: 'sendEmail', oxyAuthorizationId: 'oxy-send', stepId: 'step-2', repeatable: false },
+    ]);
+
+    await expect(runAliaTask(job, { finalAttempt: true })).resolves.toBe('completed');
+    expect(state.authorizations).toHaveBeenCalledWith(database, 'automation-1', 'run-1');
+    const options = state.forUser.mock.calls[0]?.[0] as {
+      oxyAutonomy: string;
+      oxyExecutionAuthorizations: Record<string, unknown>;
+      onOxyStepStatus: (stepId: string, status: string, audit?: string) => Promise<void>;
+    };
+    expect(options.oxyAutonomy).toBe('autonomous');
+    expect(options.oxyExecutionAuthorizations).toEqual({
+      [oxyExecutionAuthorizationKey(inbox, 'listEmails')]: { id: 'oxy-read', repeatable: true },
+      [oxyExecutionAuthorizationKey(inbox, 'sendEmail')]: { id: 'oxy-send', stepId: 'step-2', repeatable: false },
+    });
+    await options.onOxyStepStatus('step-2', 'succeeded', 'audit-1');
+    expect(state.markStep).toHaveBeenCalledWith(database, 'step-2', 'succeeded', 'audit-1');
+  });
+
+  it('charges a watch run but posts nothing when the change is not worth telling', async () => {
+    state.listSteps.mockResolvedValueOnce([{
+      tool: 'alia.run',
+      input: { ...taskInput, trigger: { ...taskInput.trigger, watch: { source: { query: 'Meta' }, newResults: [] } } },
+    }]);
+    state.generate.mockResolvedValueOnce({
+      text: WATCH_NOTHING_TO_REPORT,
+      totalUsage: { inputTokens: 100, outputTokens: 5 },
+    });
+
+    await expect(runAliaTask(job, { finalAttempt: true })).resolves.toBe('completed');
+    const system = (state.generate.mock.calls[0]?.[0] as { messages: Array<{ content: string }> }).messages[0]?.content;
+    expect(system).toContain(WATCH_NOTHING_TO_REPORT);
+    expect(state.finalize).toHaveBeenCalled();
+    expect(state.post).not.toHaveBeenCalled();
+  });
+
+  it('does not run a run the reaper already closed', async () => {
+    state.markRun.mockResolvedValueOnce(false);
+
+    await expect(runAliaTask(job, { finalAttempt: true })).resolves.toBe('skipped');
+    expect(state.generate).not.toHaveBeenCalled();
+    expect(state.refund).not.toHaveBeenCalled();
+  });
+
+  it('neither charges nor posts when the reaper closed the run while it ran', async () => {
+    state.markRun.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    await expect(runAliaTask(job, { finalAttempt: true })).resolves.toBe('skipped');
+    expect(state.finalize).not.toHaveBeenCalled();
+    expect(state.refund).not.toHaveBeenCalled();
+    expect(state.post).not.toHaveBeenCalled();
+  });
+
+  it('does not refund twice when the reaper failed the run first', async () => {
+    state.generate.mockRejectedValueOnce(new Error('upstream unavailable'));
+    state.markRun.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    await expect(runAliaTask(job, { finalAttempt: true })).rejects.toThrow('upstream unavailable');
+    expect(state.refund).not.toHaveBeenCalled();
+    expect(state.post).not.toHaveBeenCalled();
   });
 });

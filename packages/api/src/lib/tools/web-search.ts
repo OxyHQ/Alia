@@ -58,39 +58,42 @@ function setCache(query: string, result: WebSearchResponse): void {
 
 // ── Tool ──
 
+/** One Clarity web search, cached for ten minutes. Never throws. */
+export async function searchWeb(query: string): Promise<WebSearchResponse> {
+  try {
+    // A search query is model output derived from the user's prompt.
+    log.tools.info({ queryLength: query.length }, 'Web search executing');
+
+    const cached = getCached(query);
+    if (cached) {
+      log.tools.info({ count: cached.count }, 'Web search cache hit');
+      return cached;
+    }
+
+    const searchResponse = await clarityClient().search({ query, mode: 'hybrid', limit: 10 });
+    const results = searchResponse.data.map((result) => ({
+      title: result.title || result.canonicalUrl,
+      url: result.canonicalUrl,
+      snippet: result.snippet || result.description || '',
+      ...(result.faviconUrl ? { faviconUrl: result.faviconUrl } : {}),
+    }));
+
+    log.tools.info({ count: results.length }, 'Web search found results');
+
+    const response: WebSearchResponse = { results, count: results.length };
+    setCache(query, response);
+    return response;
+  } catch (error) {
+    log.tools.error({ err: error }, 'Web search error');
+    const errorMessage = error instanceof Error ? error.message : 'Web search failed';
+    return { error: errorMessage, results: [], count: 0 };
+  }
+}
+
 export const webSearchTool = tool({
   description: 'Search the web for current information, news, and facts. Use this when you need up-to-date information or are uncertain about something — not for common knowledge or well-established facts.',
   inputSchema: z.object({
     query: z.string().describe('The search query'),
   }),
-  execute: async ({ query }: { query: string }): Promise<WebSearchResponse> => {
-    try {
-      // A search query is model output derived from the user's prompt.
-      log.tools.info({ queryLength: query.length }, 'Web search executing');
-
-      const cached = getCached(query);
-      if (cached) {
-        log.tools.info({ count: cached.count }, 'Web search cache hit');
-        return cached;
-      }
-
-      const searchResponse = await clarityClient().search({ query, mode: 'hybrid', limit: 10 });
-      const results = searchResponse.data.map((result) => ({
-        title: result.title || result.canonicalUrl,
-        url: result.canonicalUrl,
-        snippet: result.snippet || result.description || '',
-        ...(result.faviconUrl ? { faviconUrl: result.faviconUrl } : {}),
-      }));
-
-      log.tools.info({ count: results.length }, 'Web search found results');
-
-      const response: WebSearchResponse = { results, count: results.length };
-      setCache(query, response);
-      return response;
-    } catch (error) {
-      log.tools.error({ err: error }, 'Web search error');
-      const errorMessage = error instanceof Error ? error.message : 'Web search failed';
-      return { error: errorMessage, results: [], count: 0 };
-    }
-  },
+  execute: async ({ query }: { query: string }): Promise<WebSearchResponse> => searchWeb(query),
 });

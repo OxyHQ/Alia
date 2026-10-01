@@ -54,8 +54,28 @@ type Assignment = z.infer<typeof assignmentSchema>;
 
 export interface OxyExecutionAuthorizationRef {
   id: string;
-  /** Correlates Oxy's audit with the normalized action step in Alia. */
-  stepId: string;
+  /**
+   * Correlates Oxy's audit with the normalized action step in Alia. Absent for
+   * Alia's standing reads, which belong to the task rather than to one step.
+   */
+  stepId?: string;
+  /**
+   * May be called more than once in the run. True only for a standing READ:
+   * a declared effect stays once per stage.
+   */
+  repeatable?: boolean;
+}
+
+/** The exact resource and tool an authorization key names. */
+function parseExecutionAuthorizationKey(key: string): { resource: ResourceRef; tool: string } | null {
+  try {
+    const parsed: unknown = JSON.parse(key);
+    if (!Array.isArray(parsed) || parsed.length !== 5 || !parsed.every((part) => typeof part === 'string')) return null;
+    const [appId, effectiveAccountId, resourceType, resourceId, tool] = parsed as string[];
+    return { resource: { appId, effectiveAccountId, resourceType, resourceId }, tool };
+  } catch {
+    return null;
+  }
 }
 
 export interface OxyToolExecutionContext {
@@ -210,6 +230,56 @@ function regularAliaBindings(defs: readonly CatalogDef[], context: OxyToolExecut
     }
   }
   return bindings;
+}
+
+/**
+ * Alia acting unattended for a task's owner: exactly the tools her standing
+ * authority names, on exactly the resources it names — the account roots of
+ * the owner's apps for reads, and whatever resource a declared action targets.
+ */
+function authorizedAliaBindings(
+  defs: readonly CatalogDef[],
+  authorizations: Readonly<Record<string, OxyExecutionAuthorizationRef>>,
+): BoundTool[] {
+  const candidates: Array<{ compiled: CompiledTool; resource: ResourceRef }> = [];
+  for (const key of Object.keys(authorizations)) {
+    const parsed = parseExecutionAuthorizationKey(key);
+    if (!parsed) continue;
+    const compiled = defs.find((entry) => entry.catalog.appId === parsed.resource.appId)
+      ?.compiledTools.find((entry) => entry.definition.name === parsed.tool);
+    if (!compiled || !compiled.definition.resourceTypes.includes(parsed.resource.resourceType)) continue;
+    candidates.push({ compiled, resource: parsed.resource });
+  }
+  const counts = new Map<string, number>();
+  for (const { compiled } of candidates) {
+    const name = `${compiled.catalog.appId}:${compiled.definition.name}`;
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  return candidates.map(({ compiled, resource }) => ({
+    compiled,
+    resource,
+    suffix: (counts.get(`${compiled.catalog.appId}:${compiled.definition.name}`) ?? 0) > 1
+      ? createHash('sha256').update([resource.resourceType, resource.resourceId, resource.effectiveAccountId].join(':')).digest('hex').slice(0, 8)
+      : null,
+  }));
+}
+
+/**
+ * Every READ tool of every Oxy app, bound to the account root of `accountId`:
+ * what Alia's standing authority for a task covers at minimum, so "summarise
+ * my email every morning" can read the inbox with nobody present.
+ */
+export async function listOxyAccountReadTools(
+  accountId: string,
+): Promise<Array<{ resource: ResourceRef; tool: string }>> {
+  const defs = await getCatalogDefs();
+  return regularAliaBindings(defs, {
+    requesterAccountId: accountId,
+    ownerAccountId: accountId,
+    actor: { type: 'alia', ownerAccountId: accountId },
+  })
+    .filter((binding) => binding.compiled.definition.effect === 'read')
+    .map((binding) => ({ resource: binding.resource, tool: binding.compiled.definition.name }));
 }
 
 function agentBindings(defs: readonly CatalogDef[], assignments: readonly Assignment[]): BoundTool[] {
@@ -507,7 +577,9 @@ export async function buildOxyServiceTools(
       : allDefs;
     const candidateBindings = context.actor.type === 'agent'
       ? agentBindings(defs, await agentAssignments(context))
-      : regularAliaBindings(defs, context);
+      : context.executionAuthorizations !== undefined
+        ? authorizedAliaBindings(defs, context.executionAuthorizations)
+        : regularAliaBindings(defs, context);
     const bindings = context.executionAuthorizations === undefined
       ? candidateBindings
       : candidateBindings.filter((binding) => Object.hasOwn(
@@ -519,11 +591,14 @@ export async function buildOxyServiceTools(
       const baseName = `oxy_${sanitizeName(binding.compiled.catalog.appId)}__${sanitizeName(binding.compiled.definition.name)}`;
       const toolName = binding.suffix ? `${baseName}__${binding.suffix}` : baseName;
       let preauthorizedInvocationStarted = false;
+      const repeatable = context.executionAuthorizations?.[
+        oxyExecutionAuthorizationKey(binding.resource, binding.compiled.definition.name)
+      ]?.repeatable === true;
       const built = tool({
         description: `[${appDisplayName(binding.compiled.catalog.appId)}] ${binding.compiled.definition.description} Resource: ${binding.resource.resourceType}/${binding.resource.resourceId}.`,
         inputSchema: binding.compiled.inputSchema,
         execute: async (args: Record<string, unknown>, { toolCallId }: { toolCallId?: string } = {}) => {
-          if (context.executionAuthorizations !== undefined) {
+          if (context.executionAuthorizations !== undefined && !repeatable) {
             if (preauthorizedInvocationStarted) {
               return { error: `${binding.compiled.definition.name} is authorized once for this automation stage` };
             }
