@@ -138,8 +138,8 @@ export interface RunStreamResult {
 
 /**
  * Drive one streaming provider attempt to completion. Throws (propagating to
- * the provider-retry catch) exactly where the inline loop threw: on an `error`
- * chunk before any content was streamed.
+ * the provider loop's catch) on every `error` chunk the tool-free synthesis
+ * retry does not recover, whether or not content was already streamed.
  */
 export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<TOOLS>): Promise<RunStreamResult> {
   const {
@@ -385,12 +385,19 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
         }
       }
 
-      // Let the route emit its typed synthetic retryable response. Throwing is
-      // what prevents the provider loop from saving or billing tool progress
-      // as though it were a completed answer.
-      if (!hasStreamedText && !res.writableEnded) {
-        throw chunk.error ?? new Error('Tool result synthesis produced no assistant answer');
-      }
+      /**
+       * Anything else is a turn that FAILED part-way, and it ends as one.
+       *
+       * This used to throw only when no text had been streamed. With text
+       * already out — "Voy a abrir Mention…", a tool call, then the next step's
+       * upstream error — the error was logged and the loop ran on to the
+       * adapter's closing `finish`, so the route wrote a stop chunk, saved the
+       * dangling sentence as the answer and charged for it: a failure that
+       * reached nobody. Throwing hands it to the route's mid-stream branch,
+       * which ends the stream with a typed error frame, persists nothing and
+       * settles no charge (`routes/v1/chat-completions.ts`).
+       */
+      throw chunk.error ?? new Error('The inference stream failed part-way through the turn');
     } else if (chunk.type === 'finish') {
       log.v1.debug('Finish chunk received');
       sse.ensureHeaders();
