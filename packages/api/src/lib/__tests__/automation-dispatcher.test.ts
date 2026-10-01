@@ -16,6 +16,12 @@ const state = vi.hoisted(() => ({
   updateSession: vi.fn(),
   reserve: vi.fn(),
   refund: vi.fn(),
+  aliaAuthorizations: vi.fn(),
+  watchState: vi.fn(),
+  watchObserve: vi.fn(),
+  watchFailure: vi.fn(),
+  watchPause: vi.fn(),
+  watchRecord: vi.fn(),
 }));
 
 const database = {
@@ -31,6 +37,19 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
   markAliaAutomationRun: state.markAliaRun,
   markAutomationRunForSession: state.markRun,
   setAutomationEnabled: state.disable,
+}));
+vi.mock('../../db/automation/aliaTaskAuthorityRepository.js', () => ({
+  listActiveAliaTaskAuthorizations: state.aliaAuthorizations,
+}));
+vi.mock('../../db/automation/automationWatchRepository.js', () => ({
+  findAutomationWatchState: state.watchState,
+  recordAutomationWatchFailure: state.watchFailure,
+  pauseFailingAutomationWatch: state.watchPause,
+  recordAutomationWatchObservation: state.watchRecord,
+}));
+vi.mock('../alia-watch.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../alia-watch.js')>(),
+  observeWatchSource: state.watchObserve,
 }));
 vi.mock('../../db/agents/agentRepository.js', () => ({ findAgentById: state.findAgent }));
 vi.mock('../../db/agents/agentSessionRepository.js', () => ({
@@ -511,13 +530,167 @@ describe('a task Alia is responsible for', () => {
     expect(state.refund).toHaveBeenCalledWith(RESERVATION, 'automation run could not be queued');
   });
 
-  it('refuses connected actions for Alia with a typed reason', async () => {
+  it('runs declared connected actions herself under her standing authority', async () => {
+    state.aliaAuthorizations.mockResolvedValueOnce([
+      { automationActionId: null, oxyAuthorizationId: 'oxy-read' },
+      { automationActionId: 'action-1', oxyAuthorizationId: 'oxy-publish' },
+    ]);
+
+    const result = await dispatchStructuredAutomation(aliaTask({ actions }), scheduleTrigger);
+    expect(result).toEqual({ status: 'queued', runId: expect.any(String) });
+    expect(state.createRun).toHaveBeenCalledWith(expect.objectContaining({
+      actorType: 'alia',
+      creditReservation: RESERVATION,
+      stages: [expect.objectContaining({
+        selectedAgentId: null,
+        actions: [expect.objectContaining({ id: 'action-1', tool: 'publishPost' })],
+      })],
+    }));
+  });
+
+  it('runs nothing when a declared action lost its authority', async () => {
+    state.aliaAuthorizations.mockResolvedValueOnce([{ automationActionId: null, oxyAuthorizationId: 'oxy-read' }]);
+
     await expect(dispatchStructuredAutomation(aliaTask({ actions }), scheduleTrigger)).resolves.toEqual({
       status: 'denied',
-      reason: 'alia_connected_actions_not_yet_supported',
+      reason: 'alia_action_authority_missing',
     });
     expect(state.createRun).not.toHaveBeenCalled();
     expect(state.reserve).not.toHaveBeenCalled();
     expect(state.notify).toHaveBeenCalled();
+  });
+});
+
+describe('a watch task', () => {
+  const watchTask = (watch: Record<string, unknown> = { query: 'Meta announcement' }) => automation({
+    objective: 'Tell me when Meta announces something new',
+    actorSelection: { mode: 'alia' },
+    executionMode: 'execute',
+    actions: [],
+    resources: [],
+    dataFlow: { sources: [], destinations: [] },
+    inputs: { watch },
+  });
+  const observation = (items: string[], text = 'Meta news') => ({
+    hash: `hash-${items.join(',')}`,
+    items,
+    text,
+    results: items.map((url) => ({ title: `Title ${url}`, url, snippet: 'snippet' })),
+  });
+
+  beforeEach(() => {
+    state.watchState.mockResolvedValue({ lastHash: 'hash-a', lastItems: ['a'], matched: false, nextCheckAt: null });
+    state.watchFailure.mockResolvedValue(1);
+    state.watchPause.mockResolvedValue(true);
+    state.watchRecord.mockResolvedValue(undefined);
+  });
+
+  it('a tick that sees nothing new costs nothing and starts no run', async () => {
+    state.watchObserve.mockResolvedValueOnce(observation(['a']));
+
+    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger)).resolves.toEqual({ status: 'unchanged' });
+    expect(state.reserve).not.toHaveBeenCalled();
+    expect(state.createRun).not.toHaveBeenCalled();
+    expect(state.watchRecord).toHaveBeenCalledWith(database, expect.objectContaining({
+      automationId: 'automation-1', hash: 'hash-a', changed: false,
+    }));
+  });
+
+  it('the first good tick is a baseline, not news', async () => {
+    state.watchState.mockResolvedValueOnce(null);
+    state.watchObserve.mockResolvedValueOnce(observation(['a', 'b']));
+
+    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger)).resolves.toEqual({ status: 'unchanged' });
+    expect(state.reserve).not.toHaveBeenCalled();
+  });
+
+  it('a new result starts one Alia run keyed by the observation, with the change attached', async () => {
+    state.watchObserve.mockResolvedValueOnce(observation(['a', 'b']));
+
+    const result = await dispatchStructuredAutomation(watchTask(), scheduleTrigger);
+    expect(result).toEqual({ status: 'queued', runId: expect.any(String) });
+    expect(state.reserve).toHaveBeenCalledTimes(1);
+    expect(state.createRun).toHaveBeenCalledWith(expect.objectContaining({
+      triggerEventId: 'watch:automation-1:hash-a,b',
+      stages: [expect.objectContaining({
+        taskInput: expect.objectContaining({
+          trigger: expect.objectContaining({
+            watch: expect.objectContaining({
+              source: { query: 'Meta announcement' },
+              newResults: [expect.objectContaining({ url: 'b' })],
+            }),
+          }),
+        }),
+      })],
+    }));
+    expect(state.watchRecord).toHaveBeenCalledWith(database, expect.objectContaining({ hash: 'hash-a,b', changed: true }));
+  });
+
+  it('a duplicate observation is recorded but runs nothing twice', async () => {
+    state.watchObserve.mockResolvedValueOnce(observation(['a', 'b']));
+    state.createRun.mockResolvedValueOnce(false);
+
+    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger)).resolves.toEqual({ status: 'duplicate' });
+    expect(state.enqueueAlia).not.toHaveBeenCalled();
+    expect(state.watchRecord).toHaveBeenCalled();
+  });
+
+  it('keeps the change for the next tick when the run cannot be paid for', async () => {
+    state.watchObserve.mockResolvedValueOnce(observation(['a', 'b']));
+    state.reserve.mockResolvedValueOnce(null);
+
+    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger))
+      .resolves.toEqual({ status: 'denied', reason: 'insufficient_credits' });
+    expect(state.watchRecord).not.toHaveBeenCalled();
+  });
+
+  it('fires a contains watch on the rising edge only', async () => {
+    state.watchState.mockResolvedValueOnce(null);
+    state.watchObserve.mockResolvedValueOnce(observation([], 'Now available: Llama 5'));
+    await expect(dispatchStructuredAutomation(
+      watchTask({ url: 'https://example.com/news', condition: 'contains', value: 'llama 5' }),
+      scheduleTrigger,
+    )).resolves.toEqual({ status: 'queued', runId: expect.any(String) });
+
+    state.watchState.mockResolvedValueOnce({ lastHash: 'x', lastItems: [], matched: true, nextCheckAt: null });
+    state.watchObserve.mockResolvedValueOnce(observation([], 'Now available: Llama 5 and more'));
+    await expect(dispatchStructuredAutomation(
+      watchTask({ url: 'https://example.com/news', condition: 'contains', value: 'llama 5' }),
+      scheduleTrigger,
+    )).resolves.toEqual({ status: 'unchanged' });
+  });
+
+  it('skips the tick while backing off after a failure', async () => {
+    state.watchState.mockResolvedValueOnce({
+      lastHash: 'hash-a', lastItems: ['a'], matched: false, nextCheckAt: new Date(Date.now() + 60_000),
+    });
+
+    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger))
+      .resolves.toEqual({ status: 'denied', reason: 'watch_backing_off' });
+    expect(state.watchObserve).not.toHaveBeenCalled();
+  });
+
+  it('records a failed tick without notifying', async () => {
+    state.watchObserve.mockRejectedValueOnce(new Error('clarity down'));
+    state.watchFailure.mockResolvedValueOnce(2);
+
+    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger))
+      .resolves.toEqual({ status: 'denied', reason: 'watch_source_failed' });
+    expect(state.watchPause).not.toHaveBeenCalled();
+    expect(state.notify).not.toHaveBeenCalled();
+  });
+
+  it('pauses after five failures in a row and says so once', async () => {
+    state.watchObserve.mockRejectedValue(new Error('clarity down'));
+    state.watchFailure.mockResolvedValue(5);
+    state.watchPause.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger))
+      .resolves.toEqual({ status: 'denied', reason: 'watch_paused' });
+    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger))
+      .resolves.toEqual({ status: 'denied', reason: 'watch_source_failed' });
+    expect(state.watchPause).toHaveBeenCalledWith(database, 'automation-1', 5, expect.any(Date));
+    expect(state.notify).toHaveBeenCalledTimes(1);
+    state.watchObserve.mockReset();
   });
 });

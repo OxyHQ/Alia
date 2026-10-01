@@ -31,6 +31,7 @@ import { log } from '../logger.js';
 import { sendNotification } from '../notification-service.js';
 import { enqueueAgentSession } from '../task-queue.js';
 import { reclaimOrphanedAgentSessions } from './session-handoff.js';
+import { reapAbandonedAliaRuns } from '../alia-task-reaper.js';
 
 const REAP_EVERY_MS = 60_000;
 
@@ -85,6 +86,10 @@ async function sweep(): Promise<void> {
     .catch((err: unknown) => log.agents.error({ err }, '[AgentSession] Orphan reclaim error'));
   await expireAgentApprovals(getDb())
     .catch((err: unknown) => log.agents.error({ err }, '[AgentApproval] Expiry error'));
+  // Alia's own task runs have no session to resume; one whose worker vanished
+  // is failed and refunded (`alia-task-reaper.ts`).
+  await reapAbandonedAliaRuns()
+    .catch((err: unknown) => log.agents.error({ err }, '[AliaTaskRun] Reap error'));
 }
 
 export function startAgentRunReaper(): void {
