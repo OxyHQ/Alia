@@ -72,6 +72,14 @@ export interface AliaErrorEvent {
   readonly message: string;
   readonly errorType: string | null;
   readonly param: string | null;
+  /**
+   * Present when Alia said, as it does for a turn that failed (before any
+   * output or part-way): whether sending it again can help, how many seconds
+   * to wait first, and the run id support traces it by.
+   */
+  readonly retryable?: boolean;
+  readonly retryAfter?: number;
+  readonly reference?: string;
 }
 
 /** `data: [DONE]`. The stream is complete; nothing follows it. */

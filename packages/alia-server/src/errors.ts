@@ -70,13 +70,46 @@ export class AliaStreamError extends Error {
 export class AliaRequestError extends Error {
   readonly status: number;
   readonly code: string | null;
+  /**
+   * Whether sending the same turn again can help, when Alia said. A turn that
+   * failed before any output is a 503 with `retryable: true`; a refusal of the
+   * request itself is not.
+   */
+  readonly retryable: boolean | null;
+  /** Seconds to wait before retrying, when Alia said. */
+  readonly retryAfter: number | null;
+  /** Alia's run id for a failed turn, for support. */
+  readonly reference: string | null;
 
-  constructor(status: number, code: string | null = null) {
+  constructor(status: number, code: string | null = null, failure: AliaFailureDetail = {}) {
     super(`Alia responded ${status}`);
     this.name = 'AliaRequestError';
     this.status = status;
     this.code = code;
+    this.retryable = failure.retryable ?? null;
+    this.retryAfter = failure.retryAfter ?? null;
+    this.reference = failure.reference ?? null;
   }
+}
+
+/** The non-prose fields of Alia's error envelope beyond its code. */
+export interface AliaFailureDetail {
+  readonly retryable?: boolean;
+  readonly retryAfter?: number;
+  readonly reference?: string;
+}
+
+/** Read {@link AliaFailureDetail} off an error object, dropping mistyped fields. */
+export function failureDetailOf(error: Record<string, unknown>): AliaFailureDetail {
+  return {
+    ...(typeof error.retryable === 'boolean' ? { retryable: error.retryable } : {}),
+    ...(typeof error.retryAfter === 'number' && Number.isFinite(error.retryAfter) && error.retryAfter >= 0
+      ? { retryAfter: error.retryAfter }
+      : {}),
+    ...(typeof error.reference === 'string' && error.reference !== '' && error.reference.length <= 128
+      ? { reference: error.reference }
+      : {}),
+  };
 }
 
 /** The caller's `AbortSignal` fired. `name` is `AbortError`, as fetch's is. */

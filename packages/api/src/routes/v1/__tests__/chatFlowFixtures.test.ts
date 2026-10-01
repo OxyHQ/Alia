@@ -1074,7 +1074,8 @@ describe('fixture: what a failure surfaces to the user', () => {
       body: { messages: [{ role: 'user', content: 'hello' }], model: CHAT_MODEL, stream: true },
     }), res);
     const bytes = res.raw.join('');
-    expect(bytes).toContain('"synthetic":true');
+    expect(bytes).not.toContain('"synthetic":true');
+    expect(H.timeline.filter(entry => /^(sse:(?!comment)|http:)/.test(entry)).slice(-3)).toEqual(['sse:error(PROVIDER_UNAVAILABLE)', 'sse:[DONE]', 'http:end']);
     expect(bytes).toContain('"retryable":false');
     expect(bytes).toContain('"code":"PROVIDER_UNAVAILABLE"');
     expect(bytes).toMatch(/"reference":"chatcmpl-[0-9a-f-]{36}"/);
@@ -1168,36 +1169,63 @@ describe('fixture: what a failure surfaces to the user', () => {
     expect(H.timeline).toContain('credits:finalize');
   });
 
-  it('exhausting every provider yields a synthetic answer, never a raw error', async () => {
-    // Reachable in production: this is the path a tier-wide provider outage
-    // takes. The route's own comment calls it the LAST-RESORT SYNTHETIC RESPONSE
-    // (`routes/v1/chat-completions.ts:270`).
+  /**
+   * The path a tier-wide outage takes: the hosted attempt fails before a single
+   * byte of output. It used to answer with an ordinary assistant message — "all
+   * models are currently busy" — and a stop chunk, flagged only by
+   * `alia_meta.synthetic`; every client that did not know the flag (an OpenAI
+   * SDK, `@alia.onl/sdk`'s text accumulator) showed Alia's apology as the
+   * model's answer. It is a typed, retryable error now, in the same frame a
+   * mid-stream failure ends with.
+   */
+  it('a failure before any output ends the stream with a typed error, never a stand-in answer', async () => {
     H.state.resolveAnswers = [RESOLVED, null];
-    H.state.streamTurns = [[streamStart, { type: 'error', error: new Error('upstream exploded') }]];
+    H.state.streamTurns = [[streamStart, { type: 'error', error: new OxyInferenceError({
+      code: 'provider_overloaded', retryable: true, status: 503, retryAfterMs: 4_000,
+      message: `${UPSTREAM_PROVIDER} ${UPSTREAM_MODEL_ID} is overloaded (SQLSTATE 53300)`,
+      requestId: 'oxy-private-request',
+    }) }]];
 
     const req = recordingReq({
-      body: { messages: [{ role: 'user', content: 'summarise this file' }], model: CHAT_MODEL, stream: true },
+      body: { messages: [{ role: 'user', content: 'summarise this file' }], model: CHAT_MODEL, stream: true, conversationId: 'conv-preoutput' },
     });
     const res = recordingRes();
     await run(req, res);
 
     const bytes = res.raw.join('');
-    // Product-visible: a friendly message, marked synthetic and retryable, then
-    // a normal stop chunk and the terminator. A client that only reads content
-    // sees prose, not a stack trace.
-    expect(bytes).toContain('all models are currently busy');
-    expect(bytes).toContain('"synthetic":true');
-    expect(bytes).toContain('"retryable":true');
-    expect(H.timeline).toContain('credits:refund');
-    expect(H.timeline.at(-1)).toBe('http:end');
-    expect(H.timeline.at(-2)).toBe('sse:[DONE]');
+    // Ends with the error frame, [DONE] and the end of the response: no content
+    // chunk, no stop chunk, no stand-in prose in either language.
+    expect(H.timeline.filter(entry => /^(sse:(?!comment)|http:)/.test(entry)).slice(-3)).toEqual(['sse:error(PROVIDER_UNAVAILABLE)', 'sse:[DONE]', 'http:end']);
+    expect(H.timeline.some(entry => entry.startsWith('sse:chunk'))).toBe(false);
+    expect(bytes).not.toContain('"finish_reason"');
+    expect(bytes).not.toContain('"synthetic"');
+    expect(bytes).not.toContain('all models are currently busy');
+    expect(bytes).not.toContain('ocupados');
+    const errorFrame = res.raw.find(frame => frame.startsWith('data: {"error"'));
+    expect(JSON.parse(String(errorFrame).slice(6))).toEqual({
+      error: {
+        message: 'Service temporarily unavailable. Please try again in a moment.',
+        type: 'server_error',
+        param: null,
+        code: 'PROVIDER_UNAVAILABLE',
+        retryable: true,
+        retryAfter: 4,
+        reference: expect.stringMatching(/^chatcmpl-[0-9a-f-]{36}$/),
+      },
+    });
 
-    // No provider identity anywhere in the bytes. The positive control for this
-    // scan is the line below it: the chosen model IS present, so the scan reads the
-    // stream rather than an empty string.
+    // Nothing is stored and nothing is charged.
+    expect(H.timeline.filter(entry => entry.startsWith('persist:'))).toEqual([]);
+    expect(H.timeline).not.toContain('credits:finalize');
+    expect(H.timeline.filter(entry => entry === 'credits:refund')).toHaveLength(1);
+
+    // No provider identity, upstream words or private ids anywhere in the bytes.
+    // The positive control is the frame parsed above: the scan reads the stream
+    // rather than an empty string.
     expect(bytes).not.toContain(UPSTREAM_PROVIDER);
     expect(bytes).not.toContain(UPSTREAM_MODEL_ID);
-    expect(bytes).toContain(CHAT_MODEL);
+    expect(bytes).not.toContain('SQLSTATE');
+    expect(bytes).not.toContain('oxy-private-request');
   });
 
   /**
@@ -1251,22 +1279,19 @@ describe('fixture: what a failure surfaces to the user', () => {
     expect(recorded.timeToFirstTokenMs as number).toBeGreaterThanOrEqual(0);
   });
 
-  it('answers in the language of the last user message', async () => {
-    // Same path, Spanish input. The branch is in the route
-    // (`routes/v1/chat-completions.ts:238,275`) and it is product-visible.
+  it('sends no server-side prose to translate: the code is the contract, the app words it', async () => {
+    // The stand-in used to be chosen by sniffing the message for Spanish. A
+    // typed failure carries a stable code and the product's fixed message; the
+    // app shows its own line in the reader's language (`turn-failure.ts`).
     H.state.resolveAnswers = [RESOLVED, null];
     H.state.streamTurns = [[streamStart, { type: 'error', error: new Error('upstream exploded') }]];
 
     const spanish = recordingRes();
     await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hola, ¿qué tal?' }], model: CHAT_MODEL, stream: true } }), spanish);
-    expect(spanish.raw.join('')).toContain('todos los modelos están ocupados');
-
-    H.timeline.length = 0;
-    H.state.resolveAnswers = [RESOLVED, null];
-    H.state.streamTurns = [[streamStart, { type: 'error', error: new Error('upstream exploded') }]];
-    const english = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'how are you' }], model: CHAT_MODEL, stream: true } }), english);
-    expect(english.raw.join('')).toContain('all models are currently busy');
+    const bytes = spanish.raw.join('');
+    expect(bytes).not.toContain('todos los modelos están ocupados');
+    expect(bytes).toContain('"code":"PROVIDER_UNAVAILABLE"');
+    expect(bytes).toContain('"retryable":true');
   });
 
   it('refuses before the model call when credits are exhausted', async () => {
@@ -1439,7 +1464,48 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
     });
   });
 
-  it('carries the synthetic marker Codea branches on when every provider fails', async () => {
+  it('sends Retry-After with a retryable failure, and 500 with one retrying cannot fix', async () => {
+    const failWith = async (error: Error): Promise<RecordingRes> => {
+      H.state.resolveAnswers = [RESOLVED, null];
+      H.state.generateContent = [];
+      const { getAIModel } = await import('../../../lib/chat-core.js');
+      vi.mocked(getAIModel).mockReturnValueOnce({
+        specificationVersion: 'v3',
+        provider: UPSTREAM_PROVIDER,
+        modelId: UPSTREAM_MODEL_ID,
+        supportedUrls: {},
+        doGenerate: async () => { throw error; },
+        doStream: async () => { throw error; },
+      } as never);
+      const res = recordingRes();
+      await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: CHAT_MODEL, surface: 'codea', stream: false }), res);
+      return res;
+    };
+
+    const busy = await failWith(new OxyInferenceError({
+      code: 'provider_overloaded', retryable: true, status: 503, retryAfterMs: 4_000,
+      message: `${UPSTREAM_PROVIDER} overloaded`, requestId: 'oxy-private-request',
+    }));
+    expect(H.timeline).toContain('http:status(503)');
+    expect(busy.headers['Retry-After']).toBe('4');
+    expect((busy.jsonBody as { error: Record<string, unknown> }).error).toMatchObject({ retryable: true, retryAfter: 4 });
+
+    H.timeline.length = 0;
+    const refused = await failWith(new OxyInferenceError({
+      code: 'provider_billing_refused', retryable: false, status: 402,
+      message: `The platform's ${UPSTREAM_PROVIDER} account cannot be billed`, requestId: 'oxy-private-request',
+    }));
+    expect(H.timeline).toContain('http:status(500)');
+    expect(refused.headers['Retry-After']).toBeUndefined();
+    expect((refused.jsonBody as { error: Record<string, unknown> }).error).toMatchObject({ type: 'server_error', retryable: false });
+    for (const res of [busy, refused]) {
+      const json = JSON.stringify(res.jsonBody);
+      expect(json).not.toContain(UPSTREAM_PROVIDER);
+      expect(json).not.toContain('oxy-private-request');
+    }
+  });
+
+  it('answers a non-streaming failure before output with an HTTP error, not a completion', async () => {
     H.state.resolveAnswers = [RESOLVED, null];
     const boom = new Error('upstream exploded');
     H.state.generateContent = [];
@@ -1461,16 +1527,27 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
     const res = recordingRes();
     await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: CHAT_MODEL, surface: 'codea', stream: false }), res);
 
-    const body = res.jsonBody as { alia_meta?: Record<string, unknown>; choices?: Array<{ message?: { content?: string } }> };
-    expect(body.alia_meta).toMatchObject({
-      synthetic: true,
-      retryable: true,
+    // OpenAI-compatible: a 503 with the error envelope. A completion whose
+    // `content` was Alia's apology is what an inline-completion client used to
+    // insert into a source file.
+    expect(H.timeline).toContain('http:status(503)');
+    expect(H.timeline).not.toContain('credits:finalize');
+    expect(H.timeline).toContain('credits:refund');
+    expect(H.timeline.filter(entry => entry.startsWith('persist:'))).toEqual([]);
+    const body = res.jsonBody as Record<string, unknown>;
+    expect(body).toEqual({
       error: {
+        message: 'Service temporarily unavailable. Please try again in a moment.',
+        type: 'server_error',
+        param: null,
         code: 'PROVIDER_UNAVAILABLE',
-        reference: expect.stringMatching(/^chatcmpl-/),
+        retryable: true,
+        reference: expect.stringMatching(/^chatcmpl-[0-9a-f-]{36}$/),
       },
     });
-    expect(body.choices?.[0].message?.content).toContain('all models are currently busy');
+    expect(body).not.toHaveProperty('choices');
+    expect(body).not.toHaveProperty('alia_meta');
+    expect(res.raw).toEqual([]);
     expect(JSON.stringify(body)).not.toContain(UPSTREAM_PROVIDER);
   });
 
