@@ -1,6 +1,6 @@
 # @alia.onl/sdk
 
-## Unreleased
+## 10.1.0
 
 A failed turn is a typed error. Alia now answers an inference failure before any
 output with its error envelope (an in-stream error frame, or an HTTP 503/500)
