@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   requests: [] as Array<Record<string, unknown>>,
   options: [] as Array<Record<string, unknown>>,
   events: [] as Array<Record<string, unknown>>,
+  streamFailure: null as Error | null,
 }));
 
 vi.mock('../oxy-inference.js', () => ({
@@ -25,6 +26,7 @@ vi.mock('../oxy-inference.js', () => ({
       mocks.options.push(options);
       return (async function* () {
         for (const event of mocks.events) yield event;
+        if (mocks.streamFailure !== null) throw mocks.streamFailure;
       })();
     },
   }),
@@ -51,6 +53,26 @@ describe('Kaana AI SDK adapter through Oxy', () => {
     mocks.requests.length = 0;
     mocks.options.length = 0;
     mocks.events.length = 0;
+    mocks.streamFailure = null;
+  });
+
+  it('does not accept a request id from an arbitrary thrown object', async () => {
+    const failure = Object.assign(new Error('fixture failure'), {
+      requestId: 'untrusted-id',
+    });
+    mocks.streamFailure = failure;
+    const onInferenceRequest = vi.fn();
+    const model = kaanaLanguageModel({
+      target: { kind: 'routingProfile', routingProfile: 'auto' },
+      modelId: 'auto',
+      surface: 'chat',
+      onInferenceRequest,
+    });
+    const parts = await drain(
+      (await model.doStream({ prompt } as never)).stream,
+    );
+    expect(parts.find((part) => part.type === 'error')?.error).toBe(failure);
+    expect(onInferenceRequest).not.toHaveBeenCalled();
   });
 
   it.each([

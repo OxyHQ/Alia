@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
+import { createServer } from 'node:http';
+import { OxyInferenceClient, OxyInferenceError, OxyInferenceProtocolError } from '@oxy.so/core/inference';
 import { closePostgres, connectPostgres, getDb } from '../../db/index.js';
 import { userCredits } from '../../db/schema/billing.js';
 import {
@@ -25,9 +27,10 @@ const inference = vi.hoisted(() => ({
   events: [] as Record<string, unknown>[],
   calls: 0,
   pauseAfterStart: null as Promise<void> | null,
+  client: null as { stream: OxyInferenceClient['stream']; respond: OxyInferenceClient['respond'] } | null,
 }));
 vi.mock('../inference/oxy-inference.js', () => ({
-  getOxyInferenceClient: () => ({
+  getOxyInferenceClient: () => inference.client ?? ({
     respond: async () => ({
       requestId: `cpb-generated-${++inference.calls}`,
       model: 'acme/m@revision',
@@ -100,6 +103,144 @@ async function remaining(reservation: CreditReservation) {
 }
 
 describe('durable admission pricing and atomic turn settlement', () => {
+  it.each([
+    'http-pre-start',
+    'protocol-pre-start',
+    'protocol-after-start',
+    'no-id',
+  ] as const)(
+    'persists trusted %s transport correlation before exposing failure and refunds exactly once',
+    async (scenario) => {
+      const reservation = await admitted(scenario);
+      const requestId = scenario === 'no-id' ? null : `cpb-${scenario}`;
+      let httpCalls = 0;
+      const server = createServer((request, response) => {
+        httpCalls++;
+        expect(request.url).toBe('/v1/responses');
+        expect(request.method).toBe('POST');
+        if (requestId !== null)
+          response.setHeader('X-Oxy-Request-Id', requestId);
+        if (scenario === 'http-pre-start' || scenario === 'no-id') {
+          response.writeHead(503, { 'Content-Type': 'application/json' });
+          response.end(
+            JSON.stringify({
+              code: 'provider_timeout',
+              message: 'fixture timeout',
+              retryable: true,
+            }),
+          );
+        } else if (scenario === 'protocol-pre-start') {
+          response.writeHead(200, { 'Content-Type': 'application/json' });
+          response.end('{}');
+        } else {
+          response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+          const start = {
+            schemaVersion: 1,
+            type: 'start',
+            requestId,
+            sequence: 0,
+            resolvedModelReference: 'acme/m@revision',
+            servingProvider: 'fixture',
+            startedAt: '2026-10-02T00:00:00.000Z',
+          };
+          response.end(
+            `event: start\ndata: ${JSON.stringify(start)}\n\nevent: delta\ndata: invalid-json\n\n`,
+          );
+        }
+      });
+      await new Promise<void>((resolve) =>
+        server.listen(0, '127.0.0.1', resolve),
+      );
+      const address = server.address();
+      if (address === null || typeof address === 'string')
+        throw new Error('Missing fixture port');
+      inference.client = new OxyInferenceClient({
+        baseURL: `http://127.0.0.1:${address.port}`,
+        credential: 'fixture-only',
+      });
+      const recorded: string[] = [];
+      try {
+        const model = kaanaLanguageModel({
+          target: { kind: 'routingProfile', routingProfile: 'auto' },
+          modelId: 'auto',
+          surface: 'chat',
+          onInferenceRequest: async (request) => {
+            await recordCreditInferenceRequest(reservation, request);
+            recorded.push(request.requestId);
+          },
+        });
+        const reader = (
+          await model.doStream({ prompt: [] } as never)
+        ).stream.getReader();
+        let errors = 0;
+        for (;;) {
+          const part = await reader.read();
+          if (part.done) break;
+          if (part.value.type === 'error') {
+            errors++;
+            expect(part.value.error).toBeInstanceOf(
+              scenario.startsWith('protocol')
+                ? OxyInferenceProtocolError
+                : OxyInferenceError,
+            );
+            // Read the real DB at the instant the failure becomes observable.
+            const links = await getDb()
+              .select()
+              .from(creditOperationRequests)
+              .where(
+                eq(
+                  creditOperationRequests.operationId,
+                  reservation.operationId ?? '',
+                ),
+              );
+            expect(links.map((link) => link.requestId)).toEqual(
+              requestId === null ? [] : [requestId],
+            );
+            if (scenario === 'protocol-after-start')
+              expect(links[0]?.modelReference).toBe('acme/m@revision');
+            else if (requestId !== null)
+              expect(links[0]?.modelReference).toBeNull();
+          }
+        }
+        expect(errors).toBe(1);
+        expect(httpCalls).toBe(1);
+        expect(recorded).toEqual(requestId === null ? [] : [requestId]);
+        await refundReservation(reservation);
+        const restored = await restoreCreditReservation(
+          reservation.userId,
+          reservation.operationId ?? '',
+        );
+        await Promise.all([
+          refundReservation(restored),
+          refundReservation(reservation),
+        ]);
+        expect(await remaining(reservation)).toBe(100);
+        expect((await operation(reservation)).status).toBe('refunded');
+        const links = await getDb()
+          .select()
+          .from(creditOperationRequests)
+          .where(
+            eq(
+              creditOperationRequests.operationId,
+              reservation.operationId ?? '',
+            ),
+          );
+        expect(links.map((link) => link.requestId)).toEqual(
+          requestId === null ? [] : [requestId],
+        );
+        await expect(
+          finalizeCredits(restored, usage, 'acme/m'),
+        ).rejects.toThrow('refunded');
+        expect(await remaining(reservation)).toBe(100);
+      } finally {
+        inference.client = null;
+        server.closeAllConnections();
+        await new Promise<void>((resolve, reject) =>
+          server.close((error) => (error ? reject(error) : resolve())),
+        );
+      }
+    },
+  );
   it('rolls back reservation and snapshot insertion when admission metadata insertion fails', async () => {
     const id = 'cpb-admission-rollback';
     await getOrCreateUserCredits(getDb(), id);
