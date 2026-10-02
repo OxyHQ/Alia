@@ -121,6 +121,7 @@ export async function resolveStoredModel(modelId: string | null | undefined): Pr
 }
 
 export interface AIModelOptions {
+  readonly onInferenceRequest?: import('./inference/kaana-language-model.js').KaanaModelOptions['onInferenceRequest'];
   /** Forwarded to Oxy as `reasoning: { effort }` for a hosted model. */
   readonly reasoningEffort?: ReasoningEffort | null;
 }
@@ -152,6 +153,7 @@ export function getAIModel(
   }
   return kaanaLanguageModel({
     target,
+    ...(options.onInferenceRequest === undefined ? {} : { onInferenceRequest: options.onInferenceRequest }),
     modelId: resolved.modelId,
     surface,
     ...(oxyUserId === undefined ? {} : { oxyUserId }),

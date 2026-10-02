@@ -77,7 +77,7 @@ describe('normalizeCatalogueEntry', () => {
       outputModalities: ['text'],
       tools: true,
       reasoningEfforts: [],
-      pricing: { inputPerMTok: '0.15', outputPerMTok: '0.6' },
+      pricing: { inputPerMTok: '0.15', outputPerMTok: '0.6', priceVersionId: 'pv-1' },
       releasedAt: '2026-01-01',
     });
     expect(JSON.stringify(model)).not.toContain('some-operator');
@@ -132,7 +132,8 @@ describe('scaleToPerMillion', () => {
 
 describe('capability filters', () => {
   it('a chat model takes text in, gives text out and supports tools', () => {
-    const chat = normalizeCatalogueEntry(oxyEntry())!;
+    const chat = normalizeCatalogueEntry(oxyEntry());
+    if (chat === null) throw new Error('Missing normalized catalogue fixture');
     expect(isChatUsable(chat)).toBe(true);
     expect(isChatUsable({ ...chat, tools: false })).toBe(false);
     expect(isChatUsable({ ...chat, outputModalities: ['image'] })).toBe(false);
@@ -140,7 +141,8 @@ describe('capability filters', () => {
   });
 
   it('a speech model gives audio out', () => {
-    const chat = normalizeCatalogueEntry(oxyEntry())!;
+    const chat = normalizeCatalogueEntry(oxyEntry());
+    if (chat === null) throw new Error('Missing normalized catalogue fixture');
     expect(isSpeechCapable(chat)).toBe(false);
     expect(isSpeechCapable({ ...chat, outputModalities: ['audio'] })).toBe(true);
   });

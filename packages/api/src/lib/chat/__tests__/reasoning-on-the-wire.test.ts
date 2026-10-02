@@ -153,3 +153,18 @@ describe('the served revision comes back off the wire', () => {
     expect(seen[0]).not.toBe('acme/thinker-1');
   });
 });
+
+
+it('awaits Oxy correlation through the shared non-streaming model config before completion returns', async () => {
+  const seen: { requestId: string; modelReference: string | null }[] = [];
+  const { config, clearFirstByteTimer } = buildBaseConfig({
+    resolved: resolved(), body: {}, convertedMessages: [{ role: 'user', content: 'hello' }],
+    truncatedTools: {}, reasoningEffort: null, systemPromptTokens: 0,
+    streamState: { hasStreamedContent: false } as never, onUsage: () => undefined,
+    onInferenceRequest: async request => { await Promise.resolve(); seen.push(request); },
+  });
+  clearFirstByteTimer();
+  const { tools: _tools, ...call } = config as Record<string, unknown>;
+  await generateText(call as Parameters<typeof generateText>[0]);
+  expect(seen).toEqual([{ requestId: 'req-wire', modelReference: 'openai/gpt-5-mini@2026-08-18' }]);
+});

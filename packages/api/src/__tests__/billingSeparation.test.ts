@@ -688,23 +688,38 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
  *
  * The one settlement that did write a cost record was the voice session, into
  * `voice_call_usage.grant_kind`. Its writer left with the LiveKit route in
- * #477 and 0072 dropped the table, so today the funding source is decided on
- * every reservation and persisted nowhere — the first assertion below pins
- * that, so whoever builds the ledger starts from the decision, not from a
- * column that no longer exists.
+ * #477 and 0072 dropped the table. I10 now persists that same legacy decision
+ * on credit_operations for reservation recovery/refund and technical correlation.
+ * This is Alia product-credit state, not an upstream ledger or a financial
+ * authority replacing Oxy. The exact schema census and shared tuple/CHECK below
+ * prevent an unrelated funding ledger from appearing silently.
  */
 describe('a cost record says which balance funded it (#139 ws12)', () => {
-  it('the funding source is a closed set, and no table persists it since voice_call_usage went', () => {
+  it('the funding source is closed and only the admitted Alia credit operation persists it', () => {
     expect([...CREDIT_FUNDING_SOURCES]).toEqual(['free_allowance', 'paid_balance']);
 
-    // A census, not an aspiration: no schema module renders a column from the
-    // tuple. A cost record that comes back must render its CHECK from it — and
-    // turns this red, which is the moment to restate the gate.
+    // I10 restates the historical zero-table gate for the one durable
+    // product-credit operation, with its CHECK rendered from the same tuple.
     const persisting = trackedSources(`${API_SRC}/db/schema`)
       .filter((f) => !isTestFile(f))
       .filter((f) => symbols(parse(f)).has('CREDIT_FUNDING_SOURCES'))
       .sort();
-    expect(persisting, 'a table persists the funding source again — restate this gate').toEqual([]);
+    expect(persisting, 'funding persistence must remain limited to the admitted Alia operation').toEqual([
+      `${API_SRC}/db/schema/credit-operations.ts`,
+    ]);
+    const schema = parse(`${API_SRC}/db/schema/credit-operations.ts`);
+    let checked = false;
+    const visit = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'checkOneOf') {
+        const [name, column, vocabulary] = node.arguments;
+        if (name && ts.isStringLiteral(name) && name.text === 'credit_operations_grant_kind_check'
+          && column && ts.isPropertyAccessExpression(column) && column.name.text === 'grantKind'
+          && vocabulary && ts.isIdentifier(vocabulary) && vocabulary.text === 'CREDIT_FUNDING_SOURCES') checked = true;
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(schema);
+    expect(checked, 'the operation must constrain funding using the existing shared vocabulary').toBe(true);
     // The positive control: the same scan finds the tuple where it IS declared.
     expect(symbols(parse(`${API_SRC}/domain/credit-funding.ts`))).toContain('CREDIT_FUNDING_SOURCES');
   });
