@@ -1,4 +1,13 @@
-import { getDb } from '../db/index.js';
+import { and, eq } from 'drizzle-orm';
+import {
+  creditOperations,
+  creditOperationRequests,
+  creditPriceBooks,
+  creditPriceBookModels,
+} from '../db/schema/credit-operations.js';
+import { CREDITS_CONFIG, CREDIT_FORMULA_VERSION, type CreditPriceBook } from './credit-price-snapshot.js';
+export { CREDITS_CONFIG } from './credit-price-snapshot.js';
+import { getDb, type Executor } from '../db/index.js';
 import {
   addCredits as addCreditsToBalance,
   findUserCredits,
@@ -50,41 +59,25 @@ export interface CreditReservation {
    * two things it deliberately does not.
    */
   grantKind: CreditFundingSource;
+  /** Server-created admission identity and immutable pricing, absent for legacy callers. */
+  operationId?: string;
+  priceBook?: CreditPriceBook;
 }
 
-/**
- * Configuration for credit calculations
- */
-export const CREDITS_CONFIG = {
-  /** What one credit is worth, in USD of inference cost. 1000 credits = $1. */
-  USD_PER_CREDIT: 0.001,
-
-  /**
-   * Tokens per credit, for a charge with no model to price it: a caller that
-   * prices its own work (images, audio, deep research, agent runs) and settles
-   * at this base rate deliberately, and a model whose catalogue entry carries
-   * no token prices.
-   */
-  TOKENS_PER_CREDIT: 1000,
-
-  // Minimum credits to charge per request
-  MIN_CREDITS_PER_REQUEST: 1,
-
-  // Initial credits to reserve (will be adjusted based on actual usage)
-  INITIAL_RESERVATION: 1,
-};
-
 /** Credits for a USD cost, rounded up and floored at the per-request minimum. */
-export function creditsForCost(usd: number): number {
-  if (!Number.isFinite(usd) || usd <= 0) return CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST;
+export function creditsForCost(usd: number, book?: CreditPriceBook): number {
+  const config = book?.config ?? CREDITS_CONFIG;
+  if (!Number.isFinite(usd) || usd <= 0) return config.MIN_CREDITS_PER_REQUEST;
   // Rounded to 1e-9 first so float noise (0.1 + 0.2) never adds a credit.
-  const exact = Math.round((usd / CREDITS_CONFIG.USD_PER_CREDIT) * 1e9) / 1e9;
-  return Math.max(Math.ceil(exact), CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
+  const exact =
+    Math.round((usd / config.USD_PER_CREDIT) * (book?.roundingScale ?? 1e9)) / (book?.roundingScale ?? 1e9);
+  return Math.max(Math.ceil(exact), config.MIN_CREDITS_PER_REQUEST);
 }
 
 /** The base-rate charge for a token count nothing prices. */
-function baseRateCredits(tokens: number): number {
-  return Math.max(Math.ceil(tokens / CREDITS_CONFIG.TOKENS_PER_CREDIT), CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
+function baseRateCredits(tokens: number, book?: CreditPriceBook): number {
+  const config = book?.config ?? CREDITS_CONFIG;
+  return Math.max(Math.ceil(tokens / config.TOKENS_PER_CREDIT), config.MIN_CREDITS_PER_REQUEST);
 }
 
 /**
@@ -99,20 +92,30 @@ function baseRateCredits(tokens: number): number {
  *   validated when the turn started; a price that vanished mid-turn is not a
  *   reason to leave the turn unbilled or to refuse it after the fact.
  */
-export async function calculateCredits(usage: CreditUsage, modelId?: string): Promise<number> {
+export async function calculateCredits(
+  usage: CreditUsage,
+  modelId?: string,
+  book?: CreditPriceBook,
+): Promise<number> {
   const systemTokens = Math.max(0, usage.systemPromptTokens || 0);
   const totalTokens = Math.max(0, usage.totalTokens || usage.promptTokens + usage.completionTokens);
-  if (totalTokens === 0) return CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST;
+  if (totalTokens === 0) return (book?.config ?? CREDITS_CONFIG).MIN_CREDITS_PER_REQUEST;
 
-  if (modelId === undefined) return baseRateCredits(Math.max(0, totalTokens - systemTokens));
+  if (modelId === undefined) return baseRateCredits(Math.max(0, totalTokens - systemTokens), book);
 
-  const model = await findCatalogueModel(modelId).catch((err: unknown) => {
-    log.credits.warn({ err, modelId }, 'Catalogue unavailable while pricing a turn; charging the base rate');
-    return null;
-  });
+  const model =
+    book === undefined
+      ? await findCatalogueModel(modelId).catch((err: unknown) => {
+          log.credits.warn(
+            { err, modelId },
+            'Catalogue unavailable while pricing a turn; charging the base rate',
+          );
+          return null;
+        })
+      : { pricing: book.models[modelId] ?? null };
   if (model?.pricing == null) {
     log.credits.warn({ modelId }, 'No catalogue price for this model; charging the base rate');
-    return baseRateCredits(Math.max(0, totalTokens - systemTokens));
+    return baseRateCredits(Math.max(0, totalTokens - systemTokens), book);
   }
 
   const inputTokens = Math.max(0, (usage.promptTokens || 0) - systemTokens);
@@ -120,7 +123,7 @@ export async function calculateCredits(usage: CreditUsage, modelId?: string): Pr
   const usd =
     (inputTokens * Number(model.pricing.inputPerMTok)) / 1_000_000 +
     (outputTokens * Number(model.pricing.outputPerMTok)) / 1_000_000;
-  const credits = creditsForCost(usd);
+  const credits = creditsForCost(usd, book);
   log.credits.info({ modelId, inputTokens, outputTokens, systemTokens, usd, credits }, 'Priced turn');
   return credits;
 }
@@ -131,7 +134,8 @@ export async function calculateCredits(usage: CreditUsage, modelId?: string): Pr
  */
 export async function reserveCredits(
   userId: string,
-  amount: number = CREDITS_CONFIG.INITIAL_RESERVATION
+  amount: number = CREDITS_CONFIG.INITIAL_RESERVATION,
+  admission?: { priceBook: CreditPriceBook; requestedModel: string; aliaRequestId?: string },
 ): Promise<CreditReservation | null> {
   try {
     /**
@@ -143,7 +147,60 @@ export async function reserveCredits(
      * Mongoose schema, so `strict` dropped it on every write and it has never
      * been stored; there is no column for it and none is added.
      */
-    const reserveResult = await spendCreditsFreeFirst(getDb(), userId, amount);
+    let operationId: string | undefined;
+    const reserveResult =
+      admission === undefined
+        ? await spendCreditsFreeFirst(getDb(), userId, amount)
+        : await getDb().transaction(async (tx) => {
+            const balance = await spendCreditsFreeFirst(tx, userId, amount);
+            if (balance === null) return null;
+            const book = admission.priceBook;
+            const insertedBook = await tx
+              .insert(creditPriceBooks)
+              .values({
+                id: book.id,
+                source: book.source,
+                formulaVersion: book.formulaVersion,
+                fallbackRule: book.fallbackRule,
+                roundingScale: book.roundingScale,
+                usdPerCredit: String(book.config.USD_PER_CREDIT),
+                tokensPerCredit: book.config.TOKENS_PER_CREDIT,
+                minimumCredits: book.config.MIN_CREDITS_PER_REQUEST,
+                initialReservation: book.config.INITIAL_RESERVATION,
+                capturedAt: new Date(book.capturedAt),
+              })
+              .onConflictDoNothing()
+              .returning({ id: creditPriceBooks.id });
+            const entries = Object.entries(book.models).map(([modelId, pricing]) => ({
+              bookId: book.id,
+              modelId,
+              inputPerMTok: pricing?.inputPerMTok ?? null,
+              outputPerMTok: pricing?.outputPerMTok ?? null,
+              priceVersionId: pricing?.priceVersionId ?? null,
+            }));
+            if (insertedBook.length && entries.length)
+              await tx.insert(creditPriceBookModels).values(entries).onConflictDoNothing();
+            if (balance !== null) {
+              const [operation] = await tx
+                .insert(creditOperations)
+                .values({
+                  userId,
+                  bookId: book.id,
+                  aliaRequestId: admission.aliaRequestId ?? null,
+                  requestedModel: admission.requestedModel,
+                  capturedAt: new Date(book.capturedAt),
+                  status: 'admitted',
+                  creditsReserved: amount,
+                  grantKind: fundingSourceOf(balance.creditsFree),
+                  initialFreeCredits: balance.creditsFree,
+                  initialPaidCredits: balance.creditsPaid,
+                })
+                .returning({ id: creditOperations.id });
+              if (operation === undefined) throw new Error('Missing server admission identity');
+              operationId = operation.id;
+            }
+            return balance;
+          });
 
     if (!reserveResult) {
       log.credits.info({ userId }, 'Insufficient credits for user');
@@ -167,7 +224,10 @@ export async function reserveCredits(
     const grantKind: CreditFundingSource = fundingSourceOf(reserveResult.creditsFree);
 
     log.credits.info({ amount, userId, grantKind }, 'Reserved credits for user');
-    log.credits.info({ free: reserveResult.creditsFree, paid: reserveResult.creditsPaid }, 'Remaining credits');
+    log.credits.info(
+      { free: reserveResult.creditsFree, paid: reserveResult.creditsPaid },
+      'Remaining credits',
+    );
 
     return {
       userId,
@@ -175,6 +235,7 @@ export async function reserveCredits(
       initialFreeCredits: reserveResult.creditsFree,
       initialPaidCredits: reserveResult.creditsPaid,
       grantKind,
+      ...(admission === undefined ? {} : { operationId, priceBook: admission.priceBook }),
     };
   } catch (error) {
     log.credits.error({ err: error }, 'Error reserving credits');
@@ -190,9 +251,18 @@ async function _adjustReservation(
   reservation: CreditReservation,
   actualCreditsNeeded: number,
   label: string,
+  executor: Executor = getDb(),
 ): Promise<{ creditsCharged: number; creditsRemaining: number }> {
   const creditAdjustment = reservation.creditsReserved - actualCreditsNeeded;
-  log.credits.info({ userId: reservation.userId, reserved: reservation.creditsReserved, actualNeeded: actualCreditsNeeded, creditAdjustment }, `Finalizing ${label}`);
+  log.credits.info(
+    {
+      userId: reservation.userId,
+      reserved: reservation.creditsReserved,
+      actualNeeded: actualCreditsNeeded,
+      creditAdjustment,
+    },
+    `Finalizing ${label}`,
+  );
 
   // Each branch resolves the up-to-date doc in a single round trip; a null result
   // is the not-found signal (no separate existence read needed).
@@ -201,19 +271,19 @@ async function _adjustReservation(
   if (creditAdjustment > 0) {
     // To the bucket that funded the reservation — see `refundBucket`.
     const bucket = refundBucket(reservation);
-    updatedCredits = await addCreditsToBalance(getDb(), reservation.userId, creditAdjustment, bucket);
+    updatedCredits = await addCreditsToBalance(executor, reservation.userId, creditAdjustment, bucket);
     if (updatedCredits) {
       log.credits.info({ refunded: creditAdjustment, bucket }, `Refunded ${label} credits`);
     }
   } else if (creditAdjustment < 0) {
     const additionalCredits = Math.abs(creditAdjustment);
 
-    updatedCredits = await spendCreditsFreeFirst(getDb(), reservation.userId, additionalCredits);
+    updatedCredits = await spendCreditsFreeFirst(executor, reservation.userId, additionalCredits);
 
     if (!updatedCredits) {
       // Guard matched nothing: either insufficient balance (user exists) or the
       // user is gone. Zero-out succeeds for the former, returns null for the latter.
-      updatedCredits = await zeroCredits(getDb(), reservation.userId);
+      updatedCredits = await zeroCredits(executor, reservation.userId);
       if (updatedCredits) {
         log.credits.warn(`Insufficient credits for additional ${label} charge, set to 0`);
       }
@@ -222,7 +292,7 @@ async function _adjustReservation(
     }
   } else {
     // No adjustment needed: read current balance to report remaining credits.
-    updatedCredits = await findUserCredits(getDb(), reservation.userId);
+    updatedCredits = await findUserCredits(executor, reservation.userId);
   }
 
   if (!updatedCredits) {
@@ -230,7 +300,10 @@ async function _adjustReservation(
   }
 
   const totalRemaining = updatedCredits.creditsFree + updatedCredits.creditsPaid;
-  log.credits.info({ free: updatedCredits.creditsFree, paid: updatedCredits.creditsPaid, total: totalRemaining }, `Final ${label} credits`);
+  log.credits.info(
+    { free: updatedCredits.creditsFree, paid: updatedCredits.creditsPaid, total: totalRemaining },
+    `Final ${label} credits`,
+  );
 
   return {
     creditsCharged: actualCreditsNeeded,
@@ -249,11 +322,22 @@ async function _adjustReservation(
 export async function finalizeCredits(
   reservation: CreditReservation,
   usage: CreditUsage,
-  modelId?: string
+  modelId?: string,
 ): Promise<{ creditsCharged: number; creditsRemaining: number }> {
   try {
+    if (reservation.operationId !== undefined)
+      return await settleTrackedReservation(reservation, usage, modelId);
     const actualCreditsNeeded = await calculateCredits(usage, modelId);
-    log.credits.info({ totalTokens: usage.totalTokens, promptTokens: usage.promptTokens, completionTokens: usage.completionTokens, systemTokens: usage.systemPromptTokens || 0, reasoningTokens: usage.reasoningTokens || 0 }, 'Token usage');
+    log.credits.info(
+      {
+        totalTokens: usage.totalTokens,
+        promptTokens: usage.promptTokens,
+        completionTokens: usage.completionTokens,
+        systemTokens: usage.systemPromptTokens || 0,
+        reasoningTokens: usage.reasoningTokens || 0,
+      },
+      'Token usage',
+    );
     return await _adjustReservation(reservation, actualCreditsNeeded, 'chat');
   } catch (error) {
     log.credits.error({ err: error }, 'Error finalizing credits');
@@ -305,7 +389,7 @@ export async function finalizeCredits(
 export async function finalizeFixedCredits(
   reservation: CreditReservation,
   credits: number,
-  label: string
+  label: string,
 ): Promise<{ creditsCharged: number; creditsRemaining: number }> {
   /**
    * Floored at the minimum and rounded UP, here rather than in the caller.
@@ -324,10 +408,7 @@ export async function finalizeFixedCredits(
  * Safely refund a credit reservation, swallowing errors.
  * Use this in error-handling paths where you must not throw.
  */
-export async function safeRefund(
-  reservation: CreditReservation | null,
-  reason?: string
-): Promise<void> {
+export async function safeRefund(reservation: CreditReservation | null, reason?: string): Promise<void> {
   if (!reservation) return;
   await refundReservation(reservation);
   if (reason) {
@@ -378,9 +459,16 @@ function refundBucket(reservation: CreditReservation): 'free' | 'paid' {
  */
 export async function refundReservation(reservation: CreditReservation): Promise<void> {
   try {
+    if (reservation.operationId !== undefined) {
+      await refundTrackedReservation(reservation);
+      return;
+    }
     const bucket = refundBucket(reservation);
     await addCreditsToBalance(getDb(), reservation.userId, reservation.creditsReserved, bucket);
-    log.credits.info({ refunded: reservation.creditsReserved, userId: reservation.userId, bucket }, 'Refunded credits to user');
+    log.credits.info(
+      { refunded: reservation.creditsReserved, userId: reservation.userId, bucket },
+      'Refunded credits to user',
+    );
   } catch (error) {
     log.credits.error({ err: error }, 'Error refunding credits');
   }
@@ -389,7 +477,9 @@ export async function refundReservation(reservation: CreditReservation): Promise
 /**
  * Get current credits for a user
  */
-export async function getUserCredits(userId: string): Promise<{ free: number; paid: number; total: number } | null> {
+export async function getUserCredits(
+  userId: string,
+): Promise<{ free: number; paid: number; total: number } | null> {
   try {
     const userCredits = await findUserCredits(getDb(), userId);
     if (!userCredits) {
@@ -405,4 +495,209 @@ export async function getUserCredits(userId: string): Promise<{ free: number; pa
     log.credits.error({ err: error }, 'Error getting user credits');
     return null;
   }
+}
+
+async function lockCreditOperation(tx: Executor, reservation: CreditReservation) {
+  const [operation] = await tx
+    .select()
+    .from(creditOperations)
+    .where(
+      and(
+        eq(creditOperations.id, reservation.operationId ?? ''),
+        eq(creditOperations.userId, reservation.userId),
+      ),
+    )
+    .for('update');
+  if (
+    operation === undefined ||
+    operation.bookId !== reservation.priceBook?.id ||
+    operation.creditsReserved !== reservation.creditsReserved ||
+    operation.grantKind !== reservation.grantKind
+  )
+    throw new Error('Credit admission does not match its persisted operation');
+  return operation;
+}
+
+/** Called only with an id reported by Oxy's authenticated SDK response/start. */
+export async function recordCreditInferenceRequest(
+  reservation: CreditReservation | null,
+  request: { requestId: string; modelReference: string | null },
+): Promise<void> {
+  if (reservation?.operationId === undefined) return;
+  await getDb().transaction(async (tx) => {
+    const operation = await lockCreditOperation(tx, reservation);
+    if (operation.status !== 'admitted') {
+      const [existing] = await tx
+        .select()
+        .from(creditOperationRequests)
+        .where(eq(creditOperationRequests.requestId, request.requestId));
+      if (existing?.operationId !== operation.id || existing.modelReference !== request.modelReference)
+        throw new Error('Terminal operation cannot accept new Oxy requests');
+      return;
+    }
+    await tx
+      .insert(creditOperationRequests)
+      .values({ operationId: reservation.operationId ?? '', ...request })
+      .onConflictDoNothing();
+    const [linked] = await tx
+      .select()
+      .from(creditOperationRequests)
+      .where(eq(creditOperationRequests.requestId, request.requestId));
+    if (linked?.operationId !== reservation.operationId || linked.modelReference !== request.modelReference)
+      throw new Error('Oxy request does not match its credit operation');
+  });
+}
+
+async function settleTrackedReservation(
+  reservation: CreditReservation,
+  usage: CreditUsage,
+  modelId?: string,
+) {
+  return getDb().transaction(async (tx) => {
+    const operation = await lockCreditOperation(tx, reservation);
+    if (operation.status === 'refunded') throw new Error('A refunded operation cannot be settled');
+    if (operation.status === 'settled') {
+      if (
+        operation.servedModelId !== (modelId ?? null) ||
+        operation.promptTokens !== usage.promptTokens ||
+        operation.completionTokens !== usage.completionTokens ||
+        operation.totalTokens !== usage.totalTokens ||
+        operation.systemPromptTokens !== (usage.systemPromptTokens ?? 0) ||
+        operation.reasoningTokens !== (usage.reasoningTokens ?? 0)
+      )
+        throw new Error('Conflicting credit settlement replay');
+      const balance = await findUserCredits(tx, reservation.userId);
+      if (balance === null || operation.creditsRequested === null)
+        throw new Error('Settled credit operation is incomplete');
+      return {
+        creditsCharged: operation.creditsRequested,
+        creditsRemaining: balance.creditsFree + balance.creditsPaid,
+      };
+    }
+    const book = await loadCreditPriceBook(tx, operation.bookId);
+    const needed = await calculateCredits(usage, modelId, book);
+    const { userCredits } = await import('../db/schema/billing.js');
+    const [before] = await tx
+      .select()
+      .from(userCredits)
+      .where(eq(userCredits.id, reservation.userId))
+      .for('update');
+    if (before === undefined) throw new Error('User credits not found');
+    const result = await _adjustReservation(reservation, needed, 'chat', tx);
+    const rule =
+      (usage.totalTokens || usage.promptTokens + usage.completionTokens) === 0
+        ? 'minimum'
+        : modelId !== undefined && book.models[modelId] != null
+          ? 'catalogue_price'
+          : 'base_rate';
+    await tx
+      .update(creditOperations)
+      .set({
+        status: 'settled',
+        creditsRequested: needed,
+        creditsCharged:
+          reservation.creditsReserved + before.creditsFree + before.creditsPaid - result.creditsRemaining,
+        servedModelId: modelId ?? null,
+        pricingRule: rule,
+        promptTokens: usage.promptTokens,
+        completionTokens: usage.completionTokens,
+        totalTokens: usage.totalTokens,
+        systemPromptTokens: usage.systemPromptTokens ?? 0,
+        reasoningTokens: usage.reasoningTokens ?? 0,
+        settledAt: new Date(),
+      })
+      .where(eq(creditOperations.id, operation.id));
+    return result;
+  });
+}
+
+async function refundTrackedReservation(reservation: CreditReservation): Promise<void> {
+  await getDb().transaction(async (tx) => {
+    const operation = await lockCreditOperation(tx, reservation);
+    if (operation.status !== 'admitted') return;
+    const balance = await addCreditsToBalance(
+      tx,
+      reservation.userId,
+      reservation.creditsReserved,
+      refundBucket(reservation),
+    );
+    if (balance === null) throw new Error('User credits not found');
+    await tx
+      .update(creditOperations)
+      .set({ status: 'refunded', creditsRequested: 0, creditsCharged: 0, settledAt: new Date() })
+      .where(eq(creditOperations.id, operation.id));
+  });
+}
+
+async function loadCreditPriceBook(tx: Executor, id: string): Promise<CreditPriceBook> {
+  const [book] = await tx.select().from(creditPriceBooks).where(eq(creditPriceBooks.id, id));
+  if (
+    book === undefined ||
+    book.formulaVersion !== CREDIT_FORMULA_VERSION ||
+    book.fallbackRule !== 'unpriced-or-unknown-model-base-rate' ||
+    (book.source !== 'oxy_catalogue_cache' && book.source !== 'catalogue_unavailable_base_rate')
+  )
+    throw new Error('Unsupported persisted credit price terms');
+  const entries = await tx.select().from(creditPriceBookModels).where(eq(creditPriceBookModels.bookId, id));
+  const models: Record<string, import('./models/catalogue.js').ModelPricing | null> = Object.create(null);
+  for (const entry of entries)
+    models[entry.modelId] =
+      entry.inputPerMTok === null || entry.outputPerMTok === null
+        ? null
+        : Object.freeze({
+            inputPerMTok: entry.inputPerMTok,
+            outputPerMTok: entry.outputPerMTok,
+            ...(entry.priceVersionId === null ? {} : { priceVersionId: entry.priceVersionId }),
+          });
+  return Object.freeze({
+    id,
+    capturedAt: book.capturedAt.toISOString(),
+    source: book.source,
+    formulaVersion: CREDIT_FORMULA_VERSION,
+    fallbackRule: book.fallbackRule,
+    roundingScale: book.roundingScale,
+    config: Object.freeze({
+      USD_PER_CREDIT: Number(book.usdPerCredit),
+      TOKENS_PER_CREDIT: book.tokensPerCredit,
+      MIN_CREDITS_PER_REQUEST: book.minimumCredits,
+      INITIAL_RESERVATION: book.initialReservation,
+    }),
+    models: Object.freeze(models),
+  });
+}
+
+/** Recovery of a server-created operation, scoped to the authenticated account. */
+export async function restoreCreditReservation(
+  userId: string,
+  operationId: string,
+): Promise<CreditReservation> {
+  return getDb().transaction(async (tx) => {
+    const [operation] = await tx
+      .select()
+      .from(creditOperations)
+      .where(and(eq(creditOperations.id, operationId), eq(creditOperations.userId, userId)));
+    if (operation === undefined) throw new Error('Credit operation not found');
+    return {
+      operationId,
+      userId,
+      creditsReserved: operation.creditsReserved,
+      initialFreeCredits: operation.initialFreeCredits,
+      initialPaidCredits: operation.initialPaidCredits,
+      grantKind: operation.grantKind,
+      priceBook: await loadCreditPriceBook(tx, operation.bookId),
+    };
+  });
+}
+
+/** Locate recovery by the Alia response id minted by the server, never a client replay key. */
+export async function restoreCreditReservationForRequest(
+  userId: string,
+  aliaRequestId: string,
+): Promise<CreditReservation> {
+  const [operation] = await getDb()
+    .select({ id: creditOperations.id })
+    .from(creditOperations)
+    .where(and(eq(creditOperations.userId, userId), eq(creditOperations.aliaRequestId, aliaRequestId)));
+  if (operation === undefined) throw new Error('Credit operation not found');
+  return restoreCreditReservation(userId, operation.id);
 }

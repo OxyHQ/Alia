@@ -9,6 +9,7 @@
  * Import paths deliberately match the ones the route used inline so the
  * timeout suite's module mocks keep intercepting the same seams.
  */
+import { captureCreditPriceBook } from '../credit-price-snapshot.js';
 import { MAX_TOOLS_PER_INFERENCE_REQUEST } from '../inference/tool-limit.js';
 import type { Request, Response } from 'express';
 import {
@@ -178,6 +179,7 @@ export async function buildChatRequestContext(
   res: Response,
   sse: SSEWriter,
   globalTimer: NodeJS.Timeout,
+  aliaRequestId?: string,
 ): Promise<ChatRequestContext | null> {
   const body = req.body;
 
@@ -740,6 +742,7 @@ export async function buildChatRequestContext(
   // Run independent operations concurrently to reduce time-to-first-token
   const preStreamStart = Date.now();
 
+  const creditAccountId = req.user?.id;
   const [
     creditResult,
     userMemory,
@@ -755,17 +758,18 @@ export async function buildChatRequestContext(
      * any exit that neither charges nor refunds silently costs the person the
      * reserved credit.
      */
-    (req.user && !req.serviceApp && localRuntime === null) ? (async () => {
-          await getOrCreateUserCredits(req.user!.id);
+    (creditAccountId !== undefined && !req.serviceApp && localRuntime === null) ? (async () => {
+          await getOrCreateUserCredits(creditAccountId);
           // The rolling window first (`lib/usage-window.ts`): a turn that
           // would start with it spent reserves nothing and is refused below.
           // It fails OPEN — a window that cannot be read never stops a turn;
           // the balance still bounds it.
-          const window = await usageWindowFor(req.user!.id);
+          const window = await usageWindowFor(creditAccountId);
           if (window?.exhausted) {
             return { reservation: null, error: false as const, window };
           }
-          const reservation = await reserveCredits(req.user!.id);
+          const priceBook = await captureCreditPriceBook();
+          const reservation = await reserveCredits(creditAccountId, undefined, { priceBook, requestedModel, aliaRequestId });
           return { reservation, error: false as const, window: null };
         })().catch((error) => {
           log.v1.error({ err: error }, 'Error reserving credits');
@@ -781,9 +785,9 @@ export async function buildChatRequestContext(
       : Promise.resolve(null),
 
     // User profile from Oxy (HTTP call - add 5s timeout to prevent hanging)
-    isDirectUserSession
+    isDirectUserSession && creditAccountId !== undefined
       ? Promise.race<OxyUserProfile | null>([
-          oxyClient.users.get(req.user!.id),
+          oxyClient.users.get(creditAccountId),
           new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
         ]).catch(() => null)
       : Promise.resolve<OxyUserProfile | null>(null),

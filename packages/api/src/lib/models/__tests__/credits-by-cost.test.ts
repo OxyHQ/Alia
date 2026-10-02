@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { createCreditPriceBook } from '../../credit-price-snapshot.js';
 import type { CatalogueModel } from '../catalogue.js';
 
 const findCatalogueModel = vi.fn<(id: string) => Promise<CatalogueModel | null>>();
@@ -56,5 +57,30 @@ describe('credits are charged by real cost', () => {
     await expect(calculateCredits({ promptTokens: 1500, completionTokens: 500, totalTokens: 2000 }, 'gone/model')).resolves.toBe(2);
     await expect(calculateCredits({ promptTokens: 1500, completionTokens: 500, totalTokens: 2000 })).resolves.toBe(2);
     await expect(calculateCredits({ promptTokens: 0, completionTokens: 0, totalTokens: 0 }, 'acme/m')).resolves.toBe(1);
+  });
+});
+
+
+describe('admission price snapshots', () => {
+  it('freezes all prices and arithmetic before Auto resolves; settlement makes no live catalogue read', async () => {
+    const model = priced('3', '15');
+    const book = createCreditPriceBook([model]);
+    findCatalogueModel.mockResolvedValue(priced('300', '1500'));
+    findCatalogueModel.mockClear();
+    const usage = { promptTokens: 11000, completionTokens: 1000, totalTokens: 12000, systemPromptTokens: 1000, reasoningTokens: 200 };
+    expect(await calculateCredits(usage, 'acme/m', book)).toBe(45);
+    expect(await calculateCredits(usage, 'unknown/model', book)).toBe(11);
+    expect(findCatalogueModel).not.toHaveBeenCalled();
+    expect(Object.isFrozen(book)).toBe(true);
+    expect(Object.isFrozen(book.models['acme/m'])).toBe(true);
+    expect(Object.isFrozen(book.config)).toBe(true);
+    expect(book).toMatchObject({ formulaVersion: 'catalogue-usd-ceil-1e9-system-input-excluded-v1', roundingScale: 1e9, fallbackRule: 'unpriced-or-unknown-model-base-rate' });
+  });
+  it('hashes terms including upstream versions, with capture time outside the version identity', () => {
+    const first = createCreditPriceBook([priced('3', '15')]);
+    const second = createCreditPriceBook([priced('3', '15')]);
+    const changed = createCreditPriceBook([priced('30', '15')]);
+    expect(first.id).toBe(second.id);
+    expect(first.id).not.toBe(changed.id);
   });
 });

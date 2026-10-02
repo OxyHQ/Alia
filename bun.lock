@@ -329,7 +329,7 @@
         "socket.io": "^4.8.3",
         "stripe": "^22.6.2",
         "tar": "^7.5.22",
-        "undici": "7.27.2",
+        "undici": "7.29.1",
         "web-push": "^3.6.7",
         "ws": "^8.21.0",
         "yaml": "^2.9.0",
@@ -4337,7 +4337,7 @@
 
     "undertaker-registry": ["undertaker-registry@2.0.0", "", {}, "sha512-+hhVICbnp+rlzZMgxXenpvTxpuvA67Bfgtt+O9WOE5jo7w/dyiF1VmoZVIHvP2EkUjsyKyTwYKlLhA+j47m1Ew=="],
 
-    "undici": ["undici@7.27.2", "", {}, "sha512-uZsKNuzQxDMUY6M3pIMvy5tvlGmtq8XJ2oLAkfRKGNu+1VQAIvLy2xIVG5ATZl5wDXl/tddByAWCizRbOme+TA=="],
+    "undici": ["undici@7.29.1", "", {}, "sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q=="],
 
     "undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
 

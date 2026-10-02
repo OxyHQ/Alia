@@ -129,7 +129,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
   try {
     log.v1.info('Request received');
 
-    const ctx = await buildChatRequestContext(req, res, sse, globalTimer);
+    const ctx = await buildChatRequestContext(req, res, sse, globalTimer, requestId);
     if (!ctx) return; // response already written (validation error or gate rejection)
 
     const {

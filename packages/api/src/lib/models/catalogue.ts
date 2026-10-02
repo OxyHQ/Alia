@@ -27,6 +27,7 @@ export function isReasoningEffort(value: unknown): value is ReasoningEffort {
 
 /** USD per million tokens, as exact decimal strings. */
 export interface ModelPricing {
+  readonly priceVersionId?: string;
   readonly inputPerMTok: string;
   readonly outputPerMTok: string;
 }
@@ -115,7 +116,8 @@ function pricingOf(raw: unknown): ModelPricing | null {
   };
   const inputPerMTok = perMillion('input_tokens');
   const outputPerMTok = perMillion('output_tokens');
-  return inputPerMTok === null || outputPerMTok === null ? null : { inputPerMTok, outputPerMTok };
+  const priceVersionId = text(pricing.priceVersionId);
+  return inputPerMTok === null || outputPerMTok === null ? null : { inputPerMTok, outputPerMTok, ...(priceVersionId === null ? {} : { priceVersionId }) };
 }
 
 /**
