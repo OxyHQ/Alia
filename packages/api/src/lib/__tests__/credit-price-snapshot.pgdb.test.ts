@@ -406,3 +406,11 @@ describe('durable admission pricing and atomic turn settlement', () => {
     ).rejects.toMatchObject({ cause: { message: expect.stringContaining('terminal') } });
   });
 });
+
+
+it('rejects an unknown persisted funding source instead of inventing refund authority', async () => {
+  const reservation = await admitted('unknown-funding');
+  await expect(getDb().execute(sql`INSERT INTO credit_operations
+    (id, user_id, book_id, requested_model, captured_at, status, grant_kind, initial_free_credits, initial_paid_credits, credits_reserved)
+    VALUES ('cpb-illegal-funding', ${reservation.userId}, ${reservation.priceBook?.id ?? ''}, 'auto', now(), 'admitted', 'invented_funding', 0, 0, 1)`)).rejects.toMatchObject({ cause: { code: '23514' } });
+});
