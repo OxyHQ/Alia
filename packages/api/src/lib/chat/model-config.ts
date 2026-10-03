@@ -63,6 +63,7 @@ export interface BuildBaseConfigParams {
    * null rather than echoing the requested id. Optional because the wire
    * tests build a config with no observation to write into.
    */
+  onInferenceRequest?: import('../inference/kaana-language-model.js').KaanaModelOptions['onInferenceRequest'];
   onResolvedModel?: (reference: string) => void;
 }
 
@@ -75,9 +76,9 @@ export interface BaseConfigResult {
 
 /** Assemble the shared AI SDK config for one provider attempt + its first-byte abort. */
 export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult {
-  const { resolved, body, convertedMessages, truncatedTools, toolRouting, reasoningEffort, systemPromptTokens, streamState, oxyUserId, serviceToken, onUsage, onResolvedModel } = params;
+  const { resolved, body, convertedMessages, truncatedTools, toolRouting, reasoningEffort, systemPromptTokens, streamState, oxyUserId, serviceToken, onUsage, onResolvedModel, onInferenceRequest } = params;
 
-  const model = getAIModel(resolved, 'chat', oxyUserId, serviceToken, { reasoningEffort });
+  const model = getAIModel(resolved, 'chat', oxyUserId, serviceToken, { reasoningEffort, onInferenceRequest });
 
   // Build common config for both streaming and non-streaming
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK config is dynamically extended; strict SDK param types don't support this pattern

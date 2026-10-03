@@ -1,0 +1,732 @@
+@alia/api test: 
+@alia/api test:  RUN  v4.1.10 /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api
+@alia/api test: 
+@alia/api test: [18:37:55] [33mWARN[39m: [36mCould not measure show audio duration[39m
+@alia/api test:     err: {
+@alia/api test:       "type": "Error",
+@alia/api test:       "message": "Command failed: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg -i /tmp/show-duration-dsQ76f/audio.mp3 -f null -\nffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers\n  built with gcc 8 (Debian 8.3.0-6)\n  configuration: --enable-gpl --enable-version3 --enable-static --disable-debug --disable-ffplay --disable-indev=sndio --disable-outdev=sndio --cc=gcc --enable-fontconfig --enable-frei0r --enable-gnutls --enable-gmp --enable-libgme --enable-gray --enable-libaom --enable-libfribidi --enable-libass --enable-libvmaf --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenjpeg --enable-librubberband --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libvorbis --enable-libopus --enable-libtheora --enable-libvidstab --enable-libvo-amrwbenc --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxml2 --enable-libdav1d --enable-libxvid --enable-libzvbi --enable-libzimg\n  libavutil      59.  8.100 / 59.  8.100\n  libavcodec     61.  3.100 / 61.  3.100\n  libavformat    61.  1.100 / 61.  1.100\n  libavdevice    61.  1.100 / 61.  1.100\n  libavfilter    10.  1.100 / 10.  1.100\n  libswscale      8.  1.100 /  8.  1.100\n  libswresample   5.  1.100 /  5.  1.100\n  libpostproc    58.  1.100 / 58.  1.100\n[mp3 @ 0x1111bc00] Format mp3 detected only with low score of 1, misdetection possible!\n[mp3 @ 0x1111bc00] Failed to find two consecutive MPEG audio frames.\n[in#0 @ 0x1111b880] Error opening input: Invalid data found when processing input\nError opening input file /tmp/show-duration-dsQ76f/audio.mp3.\nError opening input files: Invalid data found when processing input\n",
+@alia/api test:       "stack":
+@alia/api test:           Error: Command failed: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg -i /tmp/show-duration-dsQ76f/audio.mp3 -f null -
+@alia/api test:           ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers
+@alia/api test:             built with gcc 8 (Debian 8.3.0-6)
+@alia/api test:             configuration: --enable-gpl --enable-version3 --enable-static --disable-debug --disable-ffplay --disable-indev=sndio --disable-outdev=sndio --cc=gcc --enable-fontconfig --enable-frei0r --enable-gnutls --enable-gmp --enable-libgme --enable-gray --enable-libaom --enable-libfribidi --enable-libass --enable-libvmaf --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenjpeg --enable-librubberband --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libvorbis --enable-libopus --enable-libtheora --enable-libvidstab --enable-libvo-amrwbenc --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxml2 --enable-libdav1d --enable-libxvid --enable-libzvbi --enable-libzimg
+@alia/api test:             libavutil      59.  8.100 / 59.  8.100
+@alia/api test:             libavcodec     61.  3.100 / 61.  3.100
+@alia/api test:             libavformat    61.  1.100 / 61.  1.100
+@alia/api test:             libavdevice    61.  1.100 / 61.  1.100
+@alia/api test:             libavfilter    10.  1.100 / 10.  1.100
+@alia/api test:             libswscale      8.  1.100 /  8.  1.100
+@alia/api test:             libswresample   5.  1.100 /  5.  1.100
+@alia/api test:             libpostproc    58.  1.100 / 58.  1.100
+@alia/api test:           [mp3 @ 0x1111bc00] Format mp3 detected only with low score of 1, misdetection possible!
+@alia/api test:           [mp3 @ 0x1111bc00] Failed to find two consecutive MPEG audio frames.
+@alia/api test:           [in#0 @ 0x1111b880] Error opening input: Invalid data found when processing input
+@alia/api test:           Error opening input file /tmp/show-duration-dsQ76f/audio.mp3.
+@alia/api test:           Error opening input files: Invalid data found when processing input
+@alia/api test:           
+@alia/api test:               at genericNodeError (node:internal/errors:986:15)
+@alia/api test:               at wrappedFn (node:internal/errors:540:14)
+@alia/api test:               at ChildProcess.exithandler (node:child_process:417:12)
+@alia/api test:               at ChildProcess.emit (node:events:514:28)
+@alia/api test:               at maybeClose (node:internal/child_process:1141:16)
+@alia/api test:               at Socket.<anonymous> (node:internal/child_process:498:11)
+@alia/api test:               at Socket.emit (node:events:514:28)
+@alia/api test:               at Pipe.<anonymous> (node:net:362:12)
+@alia/api test:       "code": 183,
+@alia/api test:       "killed": false,
+@alia/api test:       "signal": null,
+@alia/api test:       "cmd": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg -i /tmp/show-duration-dsQ76f/audio.mp3 -f null -",
+@alia/api test:       "stdout": "",
+@alia/api test:       "stderr": "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers\n  built with gcc 8 (Debian 8.3.0-6)\n  configuration: --enable-gpl --enable-version3 --enable-static --disable-debug --disable-ffplay --disable-indev=sndio --disable-outdev=sndio --cc=gcc --enable-fontconfig --enable-frei0r --enable-gnutls --enable-gmp --enable-libgme --enable-gray --enable-libaom --enable-libfribidi --enable-libass --enable-libvmaf --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenjpeg --enable-librubberband --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libvorbis --enable-libopus --enable-libtheora --enable-libvidstab --enable-libvo-amrwbenc --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxml2 --enable-libdav1d --enable-libxvid --enable-libzvbi --enable-libzimg\n  libavutil      59.  8.100 / 59.  8.100\n  libavcodec     61.  3.100 / 61.  3.100\n  libavformat    61.  1.100 / 61.  1.100\n  libavdevice    61.  1.100 / 61.  1.100\n  libavfilter    10.  1.100 / 10.  1.100\n  libswscale      8.  1.100 /  8.  1.100\n  libswresample   5.  1.100 /  5.  1.100\n  libpostproc    58.  1.100 / 58.  1.100\n[mp3 @ 0x1111bc00] Format mp3 detected only with low score of 1, misdetection possible!\n[mp3 @ 0x1111bc00] Failed to find two consecutive MPEG audio frames.\n[in#0 @ 0x1111b880] Error opening input: Invalid data found when processing input\nError opening input file /tmp/show-duration-dsQ76f/audio.mp3.\nError opening input files: Invalid data found when processing input\n"
+@alia/api test:     }
+@alia/api test: [18:37:56] [31mERROR[39m: [36mError building the catalogue[39m
+@alia/api test:     [35msubsystem[39m: "models"
+@alia/api test:     err: {
+@alia/api test:       "type": "Error",
+@alia/api test:       "message": "oxy down",
+@alia/api test:       "stack":
+@alia/api test:           Error: oxy down
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/catalogue.test.ts:42:37
+@alia/api test:               at Mock (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/spy/dist/index.js:332:34)
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/catalogue.ts:28:54
+@alia/api test:               at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+@alia/api test:               at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/route.js:149:13)
+@alia/api test:               at optionalAuth (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/catalogue.test.ts:63:5)
+@alia/api test:               at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+@alia/api test:               at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/route.js:149:13)
+@alia/api test:               at Route.dispatch (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/route.js:119:3)
+@alia/api test:               at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+@alia/api test:     }
+@alia/api test: [18:37:56] [31mERROR[39m: [36mModel list unavailable[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     err: {
+@alia/api test:       "type": "Error",
+@alia/api test:       "message": "oxy down",
+@alia/api test:       "stack":
+@alia/api test:           Error: oxy down
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/catalogue.test.ts:42:37
+@alia/api test:               at Mock (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/spy/dist/index.js:332:34)
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/v1/models.ts:33:45
+@alia/api test:               at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+@alia/api test:               at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/route.js:149:13)
+@alia/api test:               at Route.dispatch (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/route.js:119:3)
+@alia/api test:               at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:284:15
+@alia/api test:               at router.process_params (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:346:12)
+@alia/api test:               at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:280:10)
+@alia/api test:     }
+@alia/api test: [18:37:56] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+@alia/api test: [18:37:56] [32mINFO[39m: [36mMCP relay client connected[39m
+@alia/api test:     [35muserId[39m: "user-from-session"
+@alia/api test: [18:37:56] [32mINFO[39m: [36mLocal MCP tools registered[39m
+@alia/api test:     [35muserId[39m: "user-from-session"
+@alia/api test:     [35mserverId[39m: "srv-1"
+@alia/api test:     [35mtoolCount[39m: 1
+@alia/api test: [18:37:56] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+@alia/api test: [18:37:56] [32mINFO[39m: [36mMCP relay client disconnected[39m
+@alia/api test:     [35muserId[39m: "user-from-session"
+@alia/api test: [18:37:56] [32mINFO[39m: [36mMCP relay client connected[39m
+@alia/api test:     [35muserId[39m: "user-from-session"
+@alia/api test: [18:37:56] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+@alia/api test: [18:37:56] [32mINFO[39m: [36mMCP relay client disconnected[39m
+@alia/api test:     [35muserId[39m: "user-from-session"
+@alia/api test: [18:37:56] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+@alia/api test: [18:37:56] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+@alia/api test: [18:37:56] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+@alia/api test: [18:37:56] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+@alia/api test: [18:37:56] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+@alia/api test: [18:37:56] [31mERROR[39m: [36mCORS origin ignored: it has no origin to match against[39m
+@alia/api test:     [35morigin[39m: "exp://localhost:8150"
+@alia/api test: [18:37:58] [31mERROR[39m: [36mInference request refused before sending: too many tools[39m
+@alia/api test:     [35msubsystem[39m: "providers"
+@alia/api test:     [35mtoolCount[39m: 129
+@alia/api test:     [35mlimit[39m: 128
+@alia/api test:     [35mfamilies[39m: {
+@alia/api test:       "oxy_mention": 129
+@alia/api test:     }
+@alia/api test:     [35msurface[39m: "chat"
+@alia/api test:     [35mmodel[39m: "openai/gpt-6-luna"
+@alia/api test: [18:37:58] [31mERROR[39m: [36mInference request refused before sending: too many tools[39m
+@alia/api test:     [35msubsystem[39m: "providers"
+@alia/api test:     [35mtoolCount[39m: 143
+@alia/api test:     [35mlimit[39m: 128
+@alia/api test:     [35mfamilies[39m: {
+@alia/api test:       "oxy_mention": 143
+@alia/api test:     }
+@alia/api test:     [35msurface[39m: "chat"
+@alia/api test:     [35mmodel[39m: "openai/gpt-6-luna"
+@alia/api test: [18:37:58] [32mINFO[39m: [36mTool budget applied: connected apps are opened on demand with useApps[39m
+@alia/api test:     [35msubsystem[39m: "tools"
+@alia/api test:     [35massembled[39m: 143
+@alia/api test:     [35mcore[39m: 24
+@alia/api test:     [35mapps[39m: [
+@alia/api test:       "inbox:11",
+@alia/api test:       "mention:93",
+@alia/api test:       "mercaria:3",
+@alia/api test:       "noted:12"
+@alia/api test:     ]
+@alia/api test:     [35mopen[39m: []
+@alia/api test:     [35mpinnedTools[39m: []
+@alia/api test:     [35mactive[39m: 25
+@alia/api test:     [35mbudget[39m: 128
+@alia/api test: [18:37:58] [31mERROR[39m: [36mInference request refused before sending: too many tools[39m
+@alia/api test:     [35msubsystem[39m: "providers"
+@alia/api test:     [35mtoolCount[39m: 143
+@alia/api test:     [35mlimit[39m: 128
+@alia/api test:     [35mfamilies[39m: {
+@alia/api test:       "oxy_mention": 93,
+@alia/api test:       "other": 24,
+@alia/api test:       "oxy_noted": 12,
+@alia/api test:       "oxy_inbox": 11,
+@alia/api test:       "oxy_mercaria": 3
+@alia/api test:     }
+@alia/api test:     [35msurface[39m: "chat"
+@alia/api test:     [35mmodel[39m: "openai/gpt-6-luna"
+@alia/api test: [18:37:59] [31mERROR[39m: [36mSyra did not delete, so Alia kept its record[39m
+@alia/api test:     [35mkind[39m: "series"
+@alia/api test:     [35maliaId[39m: "series-under-test"
+@alia/api test:     [35msyraId[39m: "syra-podcast-1"
+@alia/api test:     [35mwhy[39m: "exists_and_refused"
+@alia/api test:     err: {
+@alia/api test:       "type": "SyraApiError",
+@alia/api test:       "message": "Syra API request failed: 403 Forbidden",
+@alia/api test:       "stack":
+@alia/api test:           SyraApiError: Syra API request failed: 403 Forbidden
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/show-delete.test.ts:173:19
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+@alia/api test:               at new Promise (<anonymous>)
+@alia/api test:               at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+@alia/api test:               at new Promise (<anonymous>)
+@alia/api test:               at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+@alia/api test:       "name": "SyraApiError",
+@alia/api test:       "status": 403
+@alia/api test:     }
+@alia/api test: [18:37:59] [31mERROR[39m: [36mSyra did not delete, so Alia kept its record[39m
+@alia/api test:     [35mkind[39m: "series"
+@alia/api test:     [35maliaId[39m: "series-under-test"
+@alia/api test:     [35msyraId[39m: "syra-podcast-1"
+@alia/api test:     [35mwhy[39m: "status_401"
+@alia/api test:     err: {
+@alia/api test:       "type": "SyraApiError",
+@alia/api test:       "message": "Syra API request failed: 401 Unauthorized",
+@alia/api test:       "stack":
+@alia/api test:           SyraApiError: Syra API request failed: 401 Unauthorized
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/show-delete.test.ts:206:19
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+@alia/api test:               at new Promise (<anonymous>)
+@alia/api test:               at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+@alia/api test:               at new Promise (<anonymous>)
+@alia/api test:               at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+@alia/api test:       "name": "SyraApiError",
+@alia/api test:       "status": 401
+@alia/api test:     }
+@alia/api test: [18:37:59] [31mERROR[39m: [36mSyra did not delete, so Alia kept its record[39m
+@alia/api test:     [35mkind[39m: "series"
+@alia/api test:     [35maliaId[39m: "series-under-test"
+@alia/api test:     [35msyraId[39m: "syra-podcast-1"
+@alia/api test:     [35mwhy[39m: "status_409"
+@alia/api test:     err: {
+@alia/api test:       "type": "SyraApiError",
+@alia/api test:       "message": "Syra API request failed: 409 Conflict",
+@alia/api test:       "stack":
+@alia/api test:           SyraApiError: Syra API request failed: 409 Conflict
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/show-delete.test.ts:215:19
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+@alia/api test:               at new Promise (<anonymous>)
+@alia/api test:               at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+@alia/api test:               at new Promise (<anonymous>)
+@alia/api test:               at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+@alia/api test:       "name": "SyraApiError",
+@alia/api test:       "status": 409
+@alia/api test:     }
+@alia/api test: [18:37:59] [31mERROR[39m: [36mSyra did not delete, so Alia kept its record[39m
+@alia/api test:     [35mkind[39m: "episode"
+@alia/api test:     [35maliaId[39m: "episode-under-test"
+@alia/api test:     [35msyraId[39m: "syra-episode-1"
+@alia/api test:     [35mwhy[39m: "exists_and_refused"
+@alia/api test:     err: {
+@alia/api test:       "type": "SyraApiError",
+@alia/api test:       "message": "Syra API request failed: 403 Forbidden",
+@alia/api test:       "stack":
+@alia/api test:           SyraApiError: Syra API request failed: 403 Forbidden
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/show-delete.test.ts:255:19
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+@alia/api test:               at new Promise (<anonymous>)
+@alia/api test:               at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+@alia/api test:               at new Promise (<anonymous>)
+@alia/api test:               at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+@alia/api test:       "name": "SyraApiError",
+@alia/api test:       "status": 403
+@alia/api test:     }
+@alia/api test: [18:37:59] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.openai.com"
+@alia/api test: [18:37:59] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.openai.com"
+@alia/api test: [18:37:59] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.openai.com"
+@alia/api test: [18:37:59] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.elevenlabs.io[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.elevenlabs.io"
+@alia/api test: [18:37:59] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.openai.com"
+@alia/api test: [18:37:59] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.openai.com"
+@alia/api test: [18:37:59] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.openai.com"
+@alia/api test: [18:37:59] [33mWARN[39m: [36mCould not measure show audio duration[39m
+@alia/api test:     err: {
+@alia/api test:       "type": "Error",
+@alia/api test:       "message": "Command failed: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg -i /tmp/show-duration-kSOuQK/audio.mp3 -f null -\nffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers\n  built with gcc 8 (Debian 8.3.0-6)\n  configuration: --enable-gpl --enable-version3 --enable-static --disable-debug --disable-ffplay --disable-indev=sndio --disable-outdev=sndio --cc=gcc --enable-fontconfig --enable-frei0r --enable-gnutls --enable-gmp --enable-libgme --enable-gray --enable-libaom --enable-libfribidi --enable-libass --enable-libvmaf --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenjpeg --enable-librubberband --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libvorbis --enable-libopus --enable-libtheora --enable-libvidstab --enable-libvo-amrwbenc --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxml2 --enable-libdav1d --enable-libxvid --enable-libzvbi --enable-libzimg\n  libavutil      59.  8.100 / 59.  8.100\n  libavcodec     61.  3.100 / 61.  3.100\n  libavformat    61.  1.100 / 61.  1.100\n  libavdevice    61.  1.100 / 61.  1.100\n  libavfilter    10.  1.100 / 10.  1.100\n  libswscale      8.  1.100 /  8.  1.100\n  libswresample   5.  1.100 /  5.  1.100\n  libpostproc    58.  1.100 / 58.  1.100\n[mp3 @ 0x401a2c00] Format mp3 detected only with low score of 1, misdetection possible!\n[mp3 @ 0x401a2c00] Failed to find two consecutive MPEG audio frames.\n[in#0 @ 0x401a2880] Error opening input: Invalid data found when processing input\nError opening input file /tmp/show-duration-kSOuQK/audio.mp3.\nError opening input files: Invalid data found when processing input\n",
+@alia/api test:       "stack":
+@alia/api test:           Error: Command failed: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg -i /tmp/show-duration-kSOuQK/audio.mp3 -f null -
+@alia/api test:           ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers
+@alia/api test:             built with gcc 8 (Debian 8.3.0-6)
+@alia/api test:             configuration: --enable-gpl --enable-version3 --enable-static --disable-debug --disable-ffplay --disable-indev=sndio --disable-outdev=sndio --cc=gcc --enable-fontconfig --enable-frei0r --enable-gnutls --enable-gmp --enable-libgme --enable-gray --enable-libaom --enable-libfribidi --enable-libass --enable-libvmaf --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenjpeg --enable-librubberband --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libvorbis --enable-libopus --enable-libtheora --enable-libvidstab --enable-libvo-amrwbenc --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxml2 --enable-libdav1d --enable-libxvid --enable-libzvbi --enable-libzimg
+@alia/api test:             libavutil      59.  8.100 / 59.  8.100
+@alia/api test:             libavcodec     61.  3.100 / 61.  3.100
+@alia/api test:             libavformat    61.  1.100 / 61.  1.100
+@alia/api test:             libavdevice    61.  1.100 / 61.  1.100
+@alia/api test:             libavfilter    10.  1.100 / 10.  1.100
+@alia/api test:             libswscale      8.  1.100 /  8.  1.100
+@alia/api test:             libswresample   5.  1.100 /  5.  1.100
+@alia/api test:             libpostproc    58.  1.100 / 58.  1.100
+@alia/api test:           [mp3 @ 0x401a2c00] Format mp3 detected only with low score of 1, misdetection possible!
+@alia/api test:           [mp3 @ 0x401a2c00] Failed to find two consecutive MPEG audio frames.
+@alia/api test:           [in#0 @ 0x401a2880] Error opening input: Invalid data found when processing input
+@alia/api test:           Error opening input file /tmp/show-duration-kSOuQK/audio.mp3.
+@alia/api test:           Error opening input files: Invalid data found when processing input
+@alia/api test:           
+@alia/api test:               at genericNodeError (node:internal/errors:986:15)
+@alia/api test:               at wrappedFn (node:internal/errors:540:14)
+@alia/api test:               at ChildProcess.exithandler (node:child_process:417:12)
+@alia/api test:               at ChildProcess.emit (node:events:514:28)
+@alia/api test:               at maybeClose (node:internal/child_process:1141:16)
+@alia/api test:               at Process.ChildProcess._handle.onexit (node:internal/child_process:306:5)
+@alia/api test:       "code": 183,
+@alia/api test:       "killed": false,
+@alia/api test:       "signal": null,
+@alia/api test:       "cmd": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg -i /tmp/show-duration-kSOuQK/audio.mp3 -f null -",
+@alia/api test:       "stdout": "",
+@alia/api test:       "stderr": "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers\n  built with gcc 8 (Debian 8.3.0-6)\n  configuration: --enable-gpl --enable-version3 --enable-static --disable-debug --disable-ffplay --disable-indev=sndio --disable-outdev=sndio --cc=gcc --enable-fontconfig --enable-frei0r --enable-gnutls --enable-gmp --enable-libgme --enable-gray --enable-libaom --enable-libfribidi --enable-libass --enable-libvmaf --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenjpeg --enable-librubberband --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libvorbis --enable-libopus --enable-libtheora --enable-libvidstab --enable-libvo-amrwbenc --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxml2 --enable-libdav1d --enable-libxvid --enable-libzvbi --enable-libzimg\n  libavutil      59.  8.100 / 59.  8.100\n  libavcodec     61.  3.100 / 61.  3.100\n  libavformat    61.  1.100 / 61.  1.100\n  libavdevice    61.  1.100 / 61.  1.100\n  libavfilter    10.  1.100 / 10.  1.100\n  libswscale      8.  1.100 /  8.  1.100\n  libswresample   5.  1.100 /  5.  1.100\n  libpostproc    58.  1.100 / 58.  1.100\n[mp3 @ 0x401a2c00] Format mp3 detected only with low score of 1, misdetection possible!\n[mp3 @ 0x401a2c00] Failed to find two consecutive MPEG audio frames.\n[in#0 @ 0x401a2880] Error opening input: Invalid data found when processing input\nError opening input file /tmp/show-duration-kSOuQK/audio.mp3.\nError opening input files: Invalid data found when processing input\n"
+@alia/api test:     }
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.openai.com"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.elevenlabs.io[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.elevenlabs.io"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.anthropic.com[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.anthropic.com"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: generativelanguage.googleapis.com[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "generativelanguage.googleapis.com"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.groq.com[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.groq.com"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.mistral.ai[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.mistral.ai"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.deepseek.com[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.deepseek.com"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.together.ai[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.together.ai"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.replicate.com[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.replicate.com"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.cerebras.ai[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.cerebras.ai"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.cloudflare.com[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.cloudflare.com"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: openrouter.ai[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "openrouter.ai"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.cohere.ai[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.cohere.ai"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.fireworks.ai[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.fireworks.ai"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.perplexity.ai[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.perplexity.ai"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.x.ai[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.x.ai"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.sambanova.ai[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.sambanova.ai"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.hyperbolic.xyz[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.hyperbolic.xyz"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.novita.ai[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.novita.ai"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: inference.do-ai.run[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "inference.do-ai.run"
+@alia/api test: [18:38:00] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.cheaperinference.com[39m
+@alia/api test:     [35msubsystem[39m: "agents"
+@alia/api test:     [35malert[39m: "unpermitted_egress"
+@alia/api test:     [35mhost[39m: "api.cheaperinference.com"
+@alia/api test: [18:38:00] [34mDEBUG[39m: [36mAI SDK config[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35mmodelProvider[39m: "kaana"
+@alia/api test:     [35mmodel[39m: "acme/thinker-1"
+@alia/api test:     [35mmessageCount[39m: 1
+@alia/api test:     [35mtoolCount[39m: 0
+@alia/api test: [18:38:00] [32mINFO[39m: [36mToken usage captured[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35musage[39m: {
+@alia/api test:       "promptTokens": 0,
+@alia/api test:       "completionTokens": 0,
+@alia/api test:       "totalTokens": 0,
+@alia/api test:       "systemPromptTokens": 0,
+@alia/api test:       "reasoningTokens": 0
+@alia/api test:     }
+@alia/api test: [18:38:00] [34mDEBUG[39m: [36mAI SDK config[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35mmodelProvider[39m: "kaana"
+@alia/api test:     [35mmodel[39m: "acme/thinker-1"
+@alia/api test:     [35mmessageCount[39m: 1
+@alia/api test:     [35mtoolCount[39m: 0
+@alia/api test: [18:38:00] [32mINFO[39m: [36mToken usage captured[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35musage[39m: {
+@alia/api test:       "promptTokens": 0,
+@alia/api test:       "completionTokens": 0,
+@alia/api test:       "totalTokens": 0,
+@alia/api test:       "systemPromptTokens": 0,
+@alia/api test:       "reasoningTokens": 0
+@alia/api test:     }
+@alia/api test: [18:38:00] [34mDEBUG[39m: [36mAI SDK config[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35mmodelProvider[39m: "kaana"
+@alia/api test:     [35mmodel[39m: "acme/thinker-1"
+@alia/api test:     [35mmessageCount[39m: 1
+@alia/api test:     [35mtoolCount[39m: 0
+@alia/api test: [18:38:00] [32mINFO[39m: [36mToken usage captured[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35musage[39m: {
+@alia/api test:       "promptTokens": 0,
+@alia/api test:       "completionTokens": 0,
+@alia/api test:       "totalTokens": 0,
+@alia/api test:       "systemPromptTokens": 0,
+@alia/api test:       "reasoningTokens": 0
+@alia/api test:     }
+@alia/api test: [18:38:00] [34mDEBUG[39m: [36mAI SDK config[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35mmodelProvider[39m: "kaana"
+@alia/api test:     [35mmodel[39m: "acme/thinker-1"
+@alia/api test:     [35mmessageCount[39m: 1
+@alia/api test:     [35mtoolCount[39m: 0
+@alia/api test: [18:38:00] [32mINFO[39m: [36mToken usage captured[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35musage[39m: {
+@alia/api test:       "promptTokens": 0,
+@alia/api test:       "completionTokens": 0,
+@alia/api test:       "totalTokens": 0,
+@alia/api test:       "systemPromptTokens": 0,
+@alia/api test:       "reasoningTokens": 0
+@alia/api test:     }
+@alia/api test: [18:38:00] [34mDEBUG[39m: [36mAI SDK config[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35mmodelProvider[39m: "kaana"
+@alia/api test:     [35mmodel[39m: "acme/thinker-1"
+@alia/api test:     [35mmessageCount[39m: 1
+@alia/api test:     [35mtoolCount[39m: 0
+@alia/api test: [18:38:00] [32mINFO[39m: [36mToken usage captured[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35musage[39m: {
+@alia/api test:       "promptTokens": 0,
+@alia/api test:       "completionTokens": 0,
+@alia/api test:       "totalTokens": 0,
+@alia/api test:       "systemPromptTokens": 0,
+@alia/api test:       "reasoningTokens": 0
+@alia/api test:     }
+@alia/api test: [18:38:00] [34mDEBUG[39m: [36mAI SDK config[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35mmodelProvider[39m: "kaana"
+@alia/api test:     [35mmodel[39m: "acme/thinker-1"
+@alia/api test:     [35mmessageCount[39m: 1
+@alia/api test:     [35mtoolCount[39m: 0
+@alia/api test: [18:38:00] [32mINFO[39m: [36mToken usage captured[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35musage[39m: {
+@alia/api test:       "promptTokens": 0,
+@alia/api test:       "completionTokens": 0,
+@alia/api test:       "totalTokens": 0,
+@alia/api test:       "systemPromptTokens": 0,
+@alia/api test:       "reasoningTokens": 0
+@alia/api test:     }
+@alia/api test: [18:38:00] [34mDEBUG[39m: [36mAI SDK config[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35mmodelProvider[39m: "kaana"
+@alia/api test:     [35mmodel[39m: "acme/thinker-1"
+@alia/api test:     [35mmessageCount[39m: 1
+@alia/api test:     [35mtoolCount[39m: 0
+@alia/api test: [18:38:00] [32mINFO[39m: [36mToken usage captured[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35musage[39m: {
+@alia/api test:       "promptTokens": 0,
+@alia/api test:       "completionTokens": 0,
+@alia/api test:       "totalTokens": 0,
+@alia/api test:       "systemPromptTokens": 0,
+@alia/api test:       "reasoningTokens": 0
+@alia/api test:     }
+@alia/api test: [18:38:00] [34mDEBUG[39m: [36mAI SDK config[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35mmodelProvider[39m: "kaana"
+@alia/api test:     [35mmodel[39m: "acme/thinker-1"
+@alia/api test:     [35mmessageCount[39m: 1
+@alia/api test:     [35mtoolCount[39m: 0
+@alia/api test: [18:38:00] [32mINFO[39m: [36mToken usage captured[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35musage[39m: {
+@alia/api test:       "promptTokens": 0,
+@alia/api test:       "completionTokens": 0,
+@alia/api test:       "totalTokens": 0,
+@alia/api test:       "systemPromptTokens": 0,
+@alia/api test:       "reasoningTokens": 0
+@alia/api test:     }
+@alia/api test: [18:38:00] [34mDEBUG[39m: [36mAI SDK config[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35mmodelProvider[39m: "kaana"
+@alia/api test:     [35mmodel[39m: "acme/thinker-1"
+@alia/api test:     [35mmessageCount[39m: 1
+@alia/api test:     [35mtoolCount[39m: 0
+@alia/api test: [18:38:00] [32mINFO[39m: [36mToken usage captured[39m
+@alia/api test:     [35msubsystem[39m: "v1"
+@alia/api test:     [35musage[39m: {
+@alia/api test:       "promptTokens": 0,
+@alia/api test:       "completionTokens": 0,
+@alia/api test:       "totalTokens": 0,
+@alia/api test:       "systemPromptTokens": 0,
+@alia/api test:       "reasoningTokens": 0
+@alia/api test:     }
+@alia/api test: [18:38:00] [33mWARN[39m: [36mModel usage unavailable; ranking falls back to a cold start[39m
+@alia/api test:     [35msubsystem[39m: "models"
+@alia/api test:     err: {
+@alia/api test:       "type": "Error",
+@alia/api test:       "message": "db down",
+@alia/api test:       "stack":
+@alia/api test:           Error: db down
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/models/__tests__/selection.test.ts:66:48
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+@alia/api test:               at new Promise (<anonymous>)
+@alia/api test:               at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+@alia/api test:               at new Promise (<anonymous>)
+@alia/api test:               at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+@alia/api test:     }
+@alia/api test: [18:38:00] [33mWARN[39m: [36mLast-used model unavailable[39m
+@alia/api test:     [35msubsystem[39m: "models"
+@alia/api test:     err: {
+@alia/api test:       "type": "Error",
+@alia/api test:       "message": "db down",
+@alia/api test:       "stack":
+@alia/api test:           Error: db down
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/models/__tests__/selection.test.ts:70:41
+@alia/api test:               at processTicksAndRejections (node:internal/process/task_queues:104:5)
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20
+@alia/api test:     }
+@alia/api test: [18:38:00] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+@alia/api test:     [35maddress[39m: "127.0.0.1"
+@alia/api test: [18:38:00] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+@alia/api test:     [35maddress[39m: "::ffff:127.0.0.1"
+@alia/api test: [18:38:00] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+@alia/api test:     [35maddress[39m: "10.0.0.5"
+@alia/api test: [18:38:00] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+@alia/api test:     [35maddress[39m: "172.16.9.9"
+@alia/api test: [18:38:00] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+@alia/api test:     [35maddress[39m: "192.168.1.1"
+@alia/api test: [18:38:00] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+@alia/api test:     [35maddress[39m: "100.64.0.1"
+@alia/api test: [18:38:00] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+@alia/api test:     [35maddress[39m: "169.254.169.254"
+@alia/api test: [18:38:00] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+@alia/api test:     [35maddress[39m: "fd00::1"
+@alia/api test: [18:38:00] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+@alia/api test:     [35maddress[39m: "fe80::1"
+@alia/api test: [18:38:00] [34mDEBUG[39m: [36mHost did not resolve[39m
+@alia/api test:     err: {
+@alia/api test:       "type": "Error",
+@alia/api test:       "message": "ENOTFOUND",
+@alia/api test:       "stack":
+@alia/api test:           Error: ENOTFOUND
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/__tests__/public-host.test.ts:72:37
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+@alia/api test:               at new Promise (<anonymous>)
+@alia/api test:               at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+@alia/api test:               at new Promise (<anonymous>)
+@alia/api test:               at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+@alia/api test:       "code": "ENOTFOUND"
+@alia/api test:     }
+@alia/api test: [18:38:00] [33mWARN[39m: [36mCatalogue refresh failed; serving the last good catalogue[39m
+@alia/api test:     [35msubsystem[39m: "models"
+@alia/api test:     err: {
+@alia/api test:       "type": "Error",
+@alia/api test:       "message": "down",
+@alia/api test:       "stack":
+@alia/api test:           Error: down
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/models/__tests__/catalogue.test.ts:177:38
+@alia/api test:               at processTicksAndRejections (node:internal/process/task_queues:104:5)
+@alia/api test:               at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20
+@alia/api test:     }
+@alia/api test: [18:38:01] [32mINFO[39m: [36mAgent prompt injected[39m
+@alia/api test:     [35magentName[39m: "Claudio"
+@alia/api test:     [35marchetype[39m: "general"
+@alia/api test: [18:38:01] [32mINFO[39m: [36mAgent prompt injected[39m
+@alia/api test:     [35magentName[39m: "Claudio"
+@alia/api test:     [35marchetype[39m: "general"
+@alia/api test: [18:38:01] [32mINFO[39m: [36mAgent prompt injected[39m
+@alia/api test:     [35magentName[39m: "Claudio"
+@alia/api test:     [35marchetype[39m: "general"
+@alia/api test: [18:38:01] [32mINFO[39m: [36mAgent prompt injected[39m
+@alia/api test:     [35magentName[39m: "Claudio"
+@alia/api test:     [35marchetype[39m: "general"
+@alia/api test: [18:38:01] [32mINFO[39m: [36mAgent prompt injected[39m
+@alia/api test:     [35magentName[39m: "Claudio"
+@alia/api test:     [35marchetype[39m: "general"
+@alia/api test: [18:38:01] [32mINFO[39m: [36mAgent prompt injected[39m
+@alia/api test:     [35magentName[39m: "Claudio"
+@alia/api test:     [35marchetype[39m: "general"
+@alia/api test: [18:38:01] [32mINFO[39m: [36mAgent prompt injected[39m
+@alia/api test:     [35magentName[39m: "Claudio"
+@alia/api test:     [35marchetype[39m: "general"
+@alia/api test: [18:38:02] [33mWARN[39m: [36mVAPID keys not set — web push notifications disabled[39m
+@alia/api test: [18:38:02] [32mINFO[39m: [36mRegistered hook[39m
+@alia/api test:     [35msubsystem[39m: "chat"
+@alia/api test:     [35mhookName[39m: "analytics"
+@alia/api test: [18:38:02] [32mINFO[39m: [36mRegistered hook[39m
+@alia/api test:     [35msubsystem[39m: "chat"
+@alia/api test:     [35mhookName[39m: "memory-recall"
+@alia/api test:     [35mpriority[39m: 10
+@alia/api test: [18:38:02] [32mINFO[39m: [36mRegistered hook[39m
+@alia/api test:     [35msubsystem[39m: "chat"
+@alia/api test:     [35mhookName[39m: "style-learning"
+@alia/api test:     [35mpriority[39m: 200
+@alia/api test: [18:38:02] [32mINFO[39m: [36mRegistered hook[39m
+@alia/api test:     [35msubsystem[39m: "chat"
+@alia/api test:     [35mhookName[39m: "proactive-insights"
+@alia/api test:     [35mpriority[39m: 300
+@alia/api test: [18:38:03] [32mINFO[39m: [36mSkills activated[39m
+@alia/api test:     [35mchars[39m: 79
+@alia/api test: [18:38:03] [32mINFO[39m: [36mSkills activated[39m
+@alia/api test:     [35mchars[39m: 79
+@alia/api test: [18:38:03] [32mINFO[39m: [36mSkills activated[39m
+@alia/api test:     [35mchars[39m: 79
+@alia/api test: [18:38:03] [32mINFO[39m: [36mSkills activated[39m
+@alia/api test:     [35mchars[39m: 79
+@alia/api test: [18:38:03] [32mINFO[39m: [36mAgent prompt injected[39m
+@alia/api test:     [35magentName[39m: "Claudio"
+@alia/api test:     [35marchetype[39m: "general"
+@alia/api test: [18:38:03] [32mINFO[39m: [36mAgent prompt injected[39m
+@alia/api test:     [35magentName[39m: "Claudio"
+@alia/api test:     [35marchetype[39m: "general"
+@alia/api test: [18:38:04] [32mINFO[39m: [36mTool result truncated[39m
+@alia/api test:     [35moriginal[39m: 500
+@alia/api test:     [35mtruncated[39m: 40
+@alia/api test:     [35momitted[39m: 460
+@alia/api test: [18:38:04] [32mINFO[39m: [36mTool result truncated[39m
+@alia/api test:     [35moriginal[39m: 500
+@alia/api test:     [35mtruncated[39m: 40
+@alia/api test:     [35momitted[39m: 460
+@alia/api test: [18:38:05] [31mERROR[39m: [36mUser rate limit check error[39m
+@alia/api test:     [35msubsystem[39m: "rate-limit"
+@alia/api test:     err: {
+@alia/api test:       "type": "Error",
+@alia/api test:       "message": "Postgres is not connected — call connectPostgres() during startup",
+@alia/api test:       "stack":
+@alia/api test:           Error: Postgres is not connected — call connectPostgres() during startup
+@alia/api test:               at getDb (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/db/index.ts:78:11)
+@alia/api test:               at getUserTier (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:88:53)
+@alia/api test:               at apiKeyRateLimit (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:125:26)
+@alia/api test:               at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+@alia/api test:               at trim_prefix (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:328:13)
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:286:9
+@alia/api test:               at router.process_params (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:346:12)
+@alia/api test:               at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:280:10)
+@alia/api test:               at authenticateTokenOrApiKey (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/auth.ts:327:12)
+@alia/api test:               at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+@alia/api test:     }
+@alia/api test: [18:38:05] [31mERROR[39m: [36mUser rate limit check error[39m
+@alia/api test:     [35msubsystem[39m: "rate-limit"
+@alia/api test:     err: {
+@alia/api test:       "type": "Error",
+@alia/api test:       "message": "Postgres is not connected — call connectPostgres() during startup",
+@alia/api test:       "stack":
+@alia/api test:           Error: Postgres is not connected — call connectPostgres() during startup
+@alia/api test:               at getDb (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/db/index.ts:78:11)
+@alia/api test:               at getUserTier (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:88:53)
+@alia/api test:               at apiKeyRateLimit (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:125:26)
+@alia/api test:               at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+@alia/api test:               at trim_prefix (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:328:13)
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:286:9
+@alia/api test:               at router.process_params (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:346:12)
+@alia/api test:               at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:280:10)
+@alia/api test:               at authenticateTokenOrApiKey (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/auth.ts:327:12)
+@alia/api test:               at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+@alia/api test:     }
+@alia/api test: [18:38:05] [31mERROR[39m: [36mUser rate limit check error[39m
+@alia/api test:     [35msubsystem[39m: "rate-limit"
+@alia/api test:     err: {
+@alia/api test:       "type": "Error",
+@alia/api test:       "message": "Postgres is not connected — call connectPostgres() during startup",
+@alia/api test:       "stack":
+@alia/api test:           Error: Postgres is not connected — call connectPostgres() during startup
+@alia/api test:               at getDb (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/db/index.ts:78:11)
+@alia/api test:               at getUserTier (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:88:53)
+@alia/api test:               at apiKeyRateLimit (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:125:26)
+@alia/api test:               at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+@alia/api test:               at trim_prefix (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:328:13)
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:286:9
+@alia/api test:               at router.process_params (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:346:12)
+@alia/api test:               at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:280:10)
+@alia/api test:               at authenticateTokenOrApiKey (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/auth.ts:327:12)
+@alia/api test:               at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+@alia/api test:     }
+@alia/api test: fatal: path 'config.json' does not exist in 'HEAD'
+@alia/api test: [18:38:06] [33mWARN[39m: [36mVAPID keys not set — web push notifications disabled[39m
+@alia/api test: [18:38:06] [32mINFO[39m: [36mRegistered hook[39m
+@alia/api test:     [35msubsystem[39m: "chat"
+@alia/api test:     [35mhookName[39m: "analytics"
+@alia/api test: [18:38:06] [32mINFO[39m: [36mRegistered hook[39m
+@alia/api test:     [35msubsystem[39m: "chat"
+@alia/api test:     [35mhookName[39m: "memory-recall"
+@alia/api test:     [35mpriority[39m: 10
+@alia/api test: [18:38:06] [32mINFO[39m: [36mRegistered hook[39m
+@alia/api test:     [35msubsystem[39m: "chat"
+@alia/api test:     [35mhookName[39m: "style-learning"
+@alia/api test:     [35mpriority[39m: 200
+@alia/api test: [18:38:06] [32mINFO[39m: [36mRegistered hook[39m
+@alia/api test:     [35msubsystem[39m: "chat"
+@alia/api test:     [35mhookName[39m: "proactive-insights"
+@alia/api test:     [35mpriority[39m: 300
+@alia/api test: 
+@alia/api test:  Test Files  191 passed | 1 skipped (192)
+@alia/api test:       Tests  2022 passed | 1 skipped (2023)
+@alia/api test:    Start at  21:37:54
+@alia/api test:    Duration  13.26s (transform 68.78s, setup 0ms, import 222.20s, tests 60.20s, environment 24ms)
+@alia/api test: 
+@alia/api test: Exited with code 0

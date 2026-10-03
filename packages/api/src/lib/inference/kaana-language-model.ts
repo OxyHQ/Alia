@@ -41,7 +41,7 @@ import type {
   ToolDefinition,
 } from '@oxy.so/contracts';
 import type { OxyInferenceResponse, OxyResponsesRequest } from '@oxy.so/core/inference';
-import { OxyInferenceError } from '@oxy.so/core/inference';
+import { OxyInferenceError, OxyInferenceProtocolError } from '@oxy.so/core/inference';
 import type {
   LanguageModelV3,
   LanguageModelV3CallOptions,
@@ -87,7 +87,11 @@ function resolvedModelMetadata(reference: string | null): { kaana: { resolvedMod
   return reference === null ? undefined : { [KAANA_PROVIDER_METADATA_KEY]: { resolvedModelReference: reference } };
 }
 
+export interface InferenceRequestCorrelation { readonly requestId: string; readonly modelReference: string | null; }
+
 export interface KaanaModelOptions {
+  /** Only ids returned by Oxy; awaited before releasing response bytes. */
+  readonly onInferenceRequest?: (request: InferenceRequestCorrelation) => void | Promise<void>;
   /**
    * An exact `publisher/model` from Oxy's catalogue (ADR 0012), or a power
    * level sent as `routingProfile` (ADR 0014).
@@ -559,14 +563,21 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
       if (client === null) throw new Error('Oxy inference is not configured for this deployment');
 
       const translation = translateWithinLimit(options, call);
-      const completion = await client.respond(
-        requestFor(options, call, translation),
-        requestOptions(options, call.abortSignal ?? AbortSignal.timeout(120_000)),
-      );
+      let completion: OxyInferenceResponse;
+      try {
+        completion = await client.respond(
+          requestFor(options, call, translation),
+          requestOptions(options, call.abortSignal ?? AbortSignal.timeout(120_000)),
+        );
+      } catch (error) {
+        if (error instanceof OxyInferenceError && typeof error.requestId === 'string' && error.requestId !== '') await options.onInferenceRequest?.({ requestId: error.requestId, modelReference: null });
+        throw error;
+      }
       const generated = contentFrom(completion);
       // Typed as required on the SDK's response, read defensively anyway: a
       // missing reference is recorded as nothing, never as the requested id.
       const resolved = typeof completion.model === 'string' && completion.model !== '' ? completion.model : null;
+      if (typeof completion.requestId === 'string' && completion.requestId !== '') await options.onInferenceRequest?.({ requestId: completion.requestId, modelReference: resolved });
       const providerMetadata = resolvedModelMetadata(resolved);
 
       return {
@@ -605,6 +616,12 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
       let finishReason: LanguageModelV3FinishReason = { unified: 'other', raw: undefined };
       /** What Kaana said it served, from the `start` event; null until it says. */
       let resolvedModelReference: string | null = null;
+      const observedRequestIds = new Set<string>();
+      const recordRequest = async (requestId: string, modelReference: string | null): Promise<void> => {
+        if (observedRequestIds.has(requestId)) return;
+        await options.onInferenceRequest?.({ requestId, modelReference });
+        observedRequestIds.add(requestId);
+      };
 
       /**
        * Tool calls being assembled, keyed the way the contract keys them.
@@ -639,6 +656,9 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
             for await (const event of events) {
               switch (event.type) {
                 case 'start': {
+                  if (typeof event.requestId === 'string' && event.requestId !== '') {
+                    await recordRequest(event.requestId, typeof event.resolvedModelReference === 'string' && event.resolvedModelReference !== '' ? event.resolvedModelReference : null);
+                  }
                   // The one event that names the served revision. `servingProvider`
                   // rides beside it on the wire and is NOT read: an operator name
                   // has no place on the product surface or in its analytics.
@@ -702,6 +722,7 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
                   finishReason = toFinishReason(event.finishReason);
                   break;
                 case 'error':
+                  if (typeof event.requestId === 'string' && event.requestId !== '') await recordRequest(event.requestId, null);
                   controller.enqueue({
                     type: 'error',
                     error: new OxyInferenceError({
@@ -719,6 +740,12 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
               }
             }
           } catch (cause) {
+            // The SDK can refuse HTTP or framing before the first SSE event.
+            // Only its typed errors carry transport-authenticated correlation;
+            // arbitrary thrown objects cannot supply an inference request id.
+            if ((cause instanceof OxyInferenceError || cause instanceof OxyInferenceProtocolError) && typeof cause.requestId === 'string' && cause.requestId !== '') {
+              await recordRequest(cause.requestId, null);
+            }
             controller.enqueue({ type: 'error', error: cause });
             finishReason = { unified: 'error', raw: undefined };
           }
