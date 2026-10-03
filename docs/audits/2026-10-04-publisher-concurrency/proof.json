@@ -1,0 +1,20 @@
+{
+  "sources": [
+    {
+      "path": ".github/scripts/check-workflow-concurrency.mjs",
+      "sha256": "a923d885f9c010f003c7f02400f37c0a580d7f22a2a5c79d5b15bd6b776656c0"
+    },
+    {
+      "path": "docs/audits/2026-10-04-publisher-concurrency/mutation-check.py",
+      "sha256": "ae5b0e75b04ccaef34c05f51c005e26e4fde81451578281bb7467d91a8f1640c"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-publisher-concurrency/green.log",
+      "sha256": "302bf41307364ec34b9ffe12c3db1b2d683a753e5a292e6a20bd5d6012d77bad"
+    }
+  ],
+  "controls": 4,
+  "ciRerunPending": true
+}

@@ -52,6 +52,8 @@ const MAIN_REF = "'refs/heads/main'";
  */
 const EXPECTED = {
   'ci.yml': 'per-commit',
+  // ECR-only publication still serialises immutable tag claims and never cancels.
+  'publish-reviewed-images.yml': 'serialised',
   'deploy-aws.yml': 'serialised',
   // Its own group, not the API's: the two deploy different services and migrate
   // different databases, so sharing one would make each block the other for no
