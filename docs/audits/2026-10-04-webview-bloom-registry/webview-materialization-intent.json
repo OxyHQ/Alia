@@ -1,0 +1,5 @@
+{
+  "moved": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/alia-codea/webview-ui/node_modules/@oxy.so/bloom",
+  "retained": "stale-webview-bloom630",
+  "cause": "frozen lock correctly621 but unused nested630 directory still shadowed it; previous webview build was630, not621"
+}

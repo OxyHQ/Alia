@@ -1,0 +1,26 @@
+[
+  {
+    "name": "webview-build",
+    "cwd": "packages/alia-codea/webview-ui",
+    "argv": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "build"
+    ],
+    "exitCode": 0,
+    "seconds": 2.925
+  },
+  {
+    "name": "doctor-final",
+    "cwd": ".",
+    "argv": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "doctor:oxy"
+    ],
+    "exitCode": 0,
+    "seconds": 1.266
+  }
+]
