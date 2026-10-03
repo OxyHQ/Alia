@@ -1,0 +1,2626 @@
+{
+  "bloom": "6.2.1",
+  "installedRoot": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/node_modules/@oxy.so/bloom",
+  "packageSha256": "de7928d116bee53aae6d6e1b79d71c3ce2527e9173efe2f895be1e410d4f81b1",
+  "kind": "read-only source import/export-subpath census; not symbol/prop/runtime compatibility proof",
+  "rows": [
+    {
+      "specifier": "@oxy.so/bloom/accordion",
+      "files": [
+        "packages/app/src/features/chat/ui/cards/agent-result-card.tsx",
+        "packages/app/src/features/chat/ui/execution/files-and-sources.tsx",
+        "packages/app/src/features/settings/ui/connectors-section.tsx"
+      ],
+      "exportKey": "./accordion",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/activity-heatmap",
+      "files": [
+        "packages/app/src/features/agents/ui/detail/activity-grid.tsx"
+      ],
+      "exportKey": "./activity-heatmap",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/admonition",
+      "files": [
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/app/(app)/shows.tsx",
+        "packages/app/src/features/automations/ui/automation-editor.tsx",
+        "packages/app/src/features/automations/ui/work-list-header.tsx",
+        "packages/app/src/features/chat/ui/cards/agent-result-card.tsx",
+        "packages/app/src/features/chat/ui/cards/agent-task-card.tsx",
+        "packages/app/src/features/chat/ui/rich-blocks.tsx",
+        "packages/app/src/features/onboarding/ui/auth-error.tsx",
+        "packages/app/src/features/shows/ui/episode-row.tsx"
+      ],
+      "exportKey": "./admonition",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/agent-limits-card",
+      "files": [
+        "packages/app/src/features/billing/model/credits-limits.ts",
+        "packages/app/src/features/chat/model/context-usage.ts",
+        "packages/app/src/features/chat/ui/workspace/credits-limits.tsx",
+        "packages/app/src/features/settings/ui/usage-section.tsx"
+      ],
+      "exportKey": "./agent-limits-card",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/agent-log",
+      "files": [
+        "packages/app/src/features/chat/ui/thought-panel.tsx",
+        "packages/app/src/features/chat/ui/workspace/agent-panel.tsx"
+      ],
+      "exportKey": "./agent-log",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/agent-progress",
+      "files": [
+        "packages/app/src/features/chat/ui/cards/agent-task-card.tsx",
+        "packages/app/src/features/chat/ui/chat-interface.tsx",
+        "packages/app/src/features/chat/ui/workspace/agent-panel.tsx"
+      ],
+      "exportKey": "./agent-progress",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/agent-thinking",
+      "files": [
+        "packages/app/src/features/chat/ui/cards/agent-task-card.tsx",
+        "packages/app/src/features/chat/ui/chat-interface.tsx",
+        "packages/app/src/features/chat/ui/workspace/agent-panel.tsx"
+      ],
+      "exportKey": "./agent-thinking",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/ai-chat",
+      "files": [
+        "packages/app/app/(app)/[username].tsx",
+        "packages/app/app/(app)/_layout.tsx",
+        "packages/app/src/features/chat/runtime/use-timeline-window.ts",
+        "packages/app/src/features/chat/ui/chat-interface.tsx",
+        "packages/app/src/features/chat/ui/chat-page-content.tsx",
+        "packages/app/src/features/chat/ui/chat-workspace.tsx",
+        "packages/app/src/features/chat/ui/thought-panel.tsx",
+        "packages/app/src/features/chat/ui/tool-result-card.tsx",
+        "packages/app/src/features/chat/ui/turn-actions.tsx",
+        "packages/app/src/features/chat/ui/turn-status-line.tsx",
+        "packages/app/src/features/chat/ui/workspace/agent-panel.tsx",
+        "packages/app/src/features/chat/ui/workspace/credits-limits.tsx",
+        "packages/app/src/shell/page-chrome.tsx",
+        "packages/app/src/shell/sidebar.tsx",
+        "packages/app/src/shell/workspace-panel.tsx"
+      ],
+      "exportKey": "./ai-chat",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/announcement",
+      "files": [
+        "packages/app/src/features/billing/ui/subscribe-shared.tsx"
+      ],
+      "exportKey": "./announcement",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/avatar",
+      "files": [
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/src/features/chat/ui/file-card.tsx"
+      ],
+      "exportKey": "./avatar",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/badge",
+      "files": [
+        "packages/app/app/(app)/automations/[id].tsx",
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/app/(app)/shows.tsx",
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/app/(app)/skills/[id].tsx",
+        "packages/app/src/features/agents/ui/agent-card.tsx",
+        "packages/app/src/features/agents/ui/detail/agent-identity-summary.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-editor.tsx",
+        "packages/app/src/features/agents/ui/edit/telegram-bots-section.tsx",
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/agents/ui/session/session-summary.tsx",
+        "packages/app/src/features/automations/ui/agent-mark-row.tsx",
+        "packages/app/src/features/automations/ui/automation-card.tsx",
+        "packages/app/src/features/automations/ui/task-card.tsx",
+        "packages/app/src/features/automations/ui/task-timeline-step.tsx",
+        "packages/app/src/features/automations/ui/work-list-header.tsx",
+        "packages/app/src/features/chat/ui/cards/agent-result-card.tsx",
+        "packages/app/src/features/chat/ui/cards/agent-task-card.tsx",
+        "packages/app/src/features/chat/ui/tool-result-card.tsx",
+        "packages/app/src/features/settings/ui/connectors-section.tsx"
+      ],
+      "exportKey": "./badge",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/button",
+      "files": [
+        "packages/app/app/(app)/agents.tsx",
+        "packages/app/app/(app)/automations/[id].tsx",
+        "packages/app/app/(app)/forgot-password.tsx",
+        "packages/app/app/(app)/library.tsx",
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/app/(app)/reset-password.tsx",
+        "packages/app/app/(app)/shows.tsx",
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/app/(app)/skills.tsx",
+        "packages/app/app/(app)/skills/[id].tsx",
+        "packages/app/app/(app)/skills/edit/[id].tsx",
+        "packages/app/app/(app)/skills/import.tsx",
+        "packages/app/app/(app)/tasks.tsx",
+        "packages/app/src/features/agents/ui/agent-card.tsx",
+        "packages/app/src/features/agents/ui/detail/agent-reviews-section.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-editor-load-states.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-editor.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-resources-panel.tsx",
+        "packages/app/src/features/agents/ui/edit/archetype-config.tsx",
+        "packages/app/src/features/agents/ui/edit/telegram-bots-section.tsx",
+        "packages/app/src/features/automations/ui/automation-card.tsx",
+        "packages/app/src/features/automations/ui/task-card.tsx",
+        "packages/app/src/features/billing/ui/subscribe-shared.tsx",
+        "packages/app/src/features/chat/ui/canvas/form-renderer.tsx",
+        "packages/app/src/features/chat/ui/chat-header-actions.tsx",
+        "packages/app/src/features/chat/ui/chat-page-content.tsx",
+        "packages/app/src/features/chat/ui/conversation-screen.tsx",
+        "packages/app/src/features/chat/ui/file-card.tsx",
+        "packages/app/src/features/chat/ui/thought-panel.tsx",
+        "packages/app/src/features/chat/ui/thread-search.tsx",
+        "packages/app/src/features/chat/ui/welcome-intro.tsx",
+        "packages/app/src/features/chat/ui/workspace/agent-panel.tsx",
+        "packages/app/src/features/chat/ui/workspace/credits-limits.tsx",
+        "packages/app/src/features/onboarding/ui/invite-dialog.tsx",
+        "packages/app/src/features/settings/ui/accounts-section.tsx",
+        "packages/app/src/features/settings/ui/billing-section.tsx",
+        "packages/app/src/features/settings/ui/bots-section.tsx",
+        "packages/app/src/features/settings/ui/connector-detail-section.tsx",
+        "packages/app/src/features/settings/ui/connectors-section.tsx",
+        "packages/app/src/features/settings/ui/general-section.tsx",
+        "packages/app/src/features/settings/ui/integrations-section.tsx",
+        "packages/app/src/features/settings/ui/local-models-section.tsx",
+        "packages/app/src/features/settings/ui/memory-section.tsx",
+        "packages/app/src/features/settings/ui/profile-section.tsx",
+        "packages/app/src/features/settings/ui/security-section.tsx",
+        "packages/app/src/features/settings/ui/writing-style-section.tsx",
+        "packages/app/src/features/shows/ui/episode-row.tsx",
+        "packages/app/src/shell/sidebar-menus.tsx"
+      ],
+      "exportKey": "./button",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/button-group",
+      "files": [
+        "packages/app/app/(app)/agents.tsx",
+        "packages/app/app/(app)/automations/[id].tsx",
+        "packages/app/app/(app)/skills.tsx",
+        "packages/app/app/(app)/skills/[id].tsx",
+        "packages/app/app/(app)/skills/edit/[id].tsx",
+        "packages/app/src/features/agents/ui/detail/agent-header-actions.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-editor.tsx",
+        "packages/app/src/features/settings/ui/memory-section.tsx",
+        "packages/app/src/features/settings/ui/personalization-section.tsx",
+        "packages/app/src/shell/page-chrome.tsx"
+      ],
+      "exportKey": "./button-group",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/card",
+      "files": [
+        "packages/app/app/(app)/agents.tsx",
+        "packages/app/app/(app)/shows.tsx",
+        "packages/app/src/features/agents/ui/agent-card.tsx",
+        "packages/app/src/features/agents/ui/detail/agent-reviews-section.tsx",
+        "packages/app/src/features/agents/ui/edit/archetype-config.tsx",
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/automations/ui/automation-card.tsx",
+        "packages/app/src/features/automations/ui/task-card.tsx",
+        "packages/app/src/features/billing/ui/subscribe-shared.tsx",
+        "packages/app/src/features/chat/ui/cards/agent-result-card.tsx",
+        "packages/app/src/features/chat/ui/cards/agent-task-card.tsx",
+        "packages/app/src/features/chat/ui/rich-blocks.tsx",
+        "packages/app/src/features/chat/ui/thread-search.tsx",
+        "packages/app/src/features/chat/ui/tool-result-card.tsx",
+        "packages/app/src/features/shows/ui/show-artwork.tsx"
+      ],
+      "exportKey": "./card",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/chart-cards",
+      "files": [
+        "packages/app/src/features/chat/ui/canvas/chart-renderer.tsx",
+        "packages/app/src/features/chat/ui/tool-result-card.tsx"
+      ],
+      "exportKey": "./chart-cards",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/chat-screen",
+      "files": [
+        "packages/app/src/features/chat/ui/chat-interface.tsx",
+        "packages/app/src/features/chat/ui/chat-page-content.tsx"
+      ],
+      "exportKey": "./chat-screen",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/checkbox",
+      "files": [
+        "packages/app/src/features/chat/ui/canvas/form-renderer.tsx"
+      ],
+      "exportKey": "./checkbox",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/chip",
+      "files": [
+        "packages/app/app/(app)/agents.tsx",
+        "packages/app/app/(app)/library.tsx",
+        "packages/app/src/features/agents/ui/detail/agent-detail-section.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-identity-fields.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-settings-panel.tsx",
+        "packages/app/src/features/agents/ui/edit/archetype-config.tsx",
+        "packages/app/src/features/automations/ui/automation-editor.tsx",
+        "packages/app/src/features/automations/ui/work-list-header.tsx",
+        "packages/app/src/features/billing/ui/subscribe-shared.tsx",
+        "packages/app/src/features/chat/ui/execution/tool-step.tsx",
+        "packages/app/src/features/onboarding/ui/invite-dialog.tsx",
+        "packages/app/src/features/projects/ui/project-edit-dialog.tsx",
+        "packages/app/src/features/shows/ui/series-create-dialog.tsx"
+      ],
+      "exportKey": "./chip",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/code",
+      "files": [
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/chat/ui/canvas/code-renderer.tsx",
+        "packages/app/src/features/chat/ui/execution/tool-step.tsx",
+        "packages/app/src/features/chat/ui/markdown.tsx"
+      ],
+      "exportKey": "./code",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/command",
+      "files": [
+        "packages/app/src/shell/command-palette.tsx"
+      ],
+      "exportKey": "./command",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/composer-panel",
+      "files": [
+        "packages/app/src/features/chat/ui/chat-page-content.tsx",
+        "packages/app/src/features/chat/ui/composer/__tests__/add-menu.test.tsx",
+        "packages/app/src/features/chat/ui/composer/__tests__/composer-keys.test.tsx",
+        "packages/app/src/features/chat/ui/composer/add-menu.tsx",
+        "packages/app/src/features/chat/ui/composer/attachment-tiles.ts",
+        "packages/app/src/features/chat/ui/composer/composer.tsx",
+        "packages/app/src/features/chat/ui/composer/power-level-options.ts"
+      ],
+      "exportKey": "./composer-panel",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/connection-status",
+      "files": [
+        "packages/alia-canvas/src/App.tsx",
+        "packages/app/app/_layout.tsx"
+      ],
+      "exportKey": "./connection-status",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/context-menu",
+      "files": [
+        "packages/app/src/features/chat/ui/turn-actions.tsx"
+      ],
+      "exportKey": "./context-menu",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/dialog",
+      "files": [
+        "packages/app/src/features/agents/ui/edit/agent-editor.tsx",
+        "packages/app/src/features/agents/ui/edit/knowledge-picker-dialog.tsx",
+        "packages/app/src/features/agents/ui/edit/skill-picker-dialog.tsx",
+        "packages/app/src/features/agents/ui/edit/telegram-bots-section.tsx",
+        "packages/app/src/features/automations/ui/automation-editor.tsx",
+        "packages/app/src/features/billing/ui/usage-limit-dialog.tsx",
+        "packages/app/src/features/onboarding/ui/invite-dialog.tsx",
+        "packages/app/src/features/projects/ui/project-edit-dialog.tsx",
+        "packages/app/src/features/settings/ui/alia-settings.tsx",
+        "packages/app/src/features/settings/ui/connector-detail-section.tsx",
+        "packages/app/src/features/settings/ui/connectors-section.tsx",
+        "packages/app/src/features/settings/ui/memory-section.tsx",
+        "packages/app/src/features/settings/ui/writing-style-section.tsx",
+        "packages/app/src/features/shows/ui/episode-create-dialog.tsx",
+        "packages/app/src/features/shows/ui/series-create-dialog.tsx",
+        "packages/app/src/shell/keyboard-shortcuts-dialog.tsx",
+        "packages/app/src/shell/sidebar-menus.tsx"
+      ],
+      "exportKey": "./dialog",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/divider",
+      "files": [
+        "packages/app/app/(app)/agents/session/[sessionId].tsx",
+        "packages/app/app/(app)/tasks.tsx",
+        "packages/app/src/features/agents/ui/detail/agent-detail.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-editor.tsx",
+        "packages/app/src/features/chat/ui/chat-interface.tsx"
+      ],
+      "exportKey": "./divider",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/dropdown-menu",
+      "files": [
+        "packages/app/app/(app)/library.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-editor.tsx",
+        "packages/app/src/features/chat/ui/chat-header-actions.tsx",
+        "packages/app/src/features/chat/ui/file-card.tsx",
+        "packages/app/src/shell/sidebar-menus.tsx"
+      ],
+      "exportKey": "./dropdown-menu",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/empty-state",
+      "files": [
+        "packages/app/app/(app)/[username].tsx",
+        "packages/app/app/(app)/agents.tsx",
+        "packages/app/app/(app)/agents/[id].tsx",
+        "packages/app/app/(app)/agents/session/[sessionId].tsx",
+        "packages/app/app/(app)/agents/teams.tsx",
+        "packages/app/app/(app)/authorize/index.tsx",
+        "packages/app/app/(app)/automations/[id].tsx",
+        "packages/app/app/(app)/forgot-password.tsx",
+        "packages/app/app/(app)/invite/[code].tsx",
+        "packages/app/app/(app)/library.tsx",
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/app/(app)/org-invite/[token].tsx",
+        "packages/app/app/(app)/shows.tsx",
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/app/(app)/skills.tsx",
+        "packages/app/app/(app)/skills/[id].tsx",
+        "packages/app/app/(app)/skills/edit/[id].tsx",
+        "packages/app/app/(app)/tasks.tsx",
+        "packages/app/app/(biglayout)/download.tsx",
+        "packages/app/app/(biglayout)/subscribe.tsx",
+        "packages/app/app/+not-found.tsx",
+        "packages/app/src/features/chat/ui/execution/files-and-sources.tsx",
+        "packages/app/src/features/chat/ui/message-block-boundary.tsx",
+        "packages/app/src/features/chat/ui/thought-panel.tsx",
+        "packages/app/src/features/chat/ui/workspace/agent-panel.tsx",
+        "packages/app/src/features/onboarding/ui/invite-dialog.tsx",
+        "packages/app/src/shell/error-boundary.tsx"
+      ],
+      "exportKey": "./empty-state",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/error-boundary",
+      "files": [
+        "packages/app/src/features/chat/ui/message-block-boundary.tsx",
+        "packages/app/src/shell/error-boundary.tsx"
+      ],
+      "exportKey": "./error-boundary",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/field",
+      "files": [
+        "packages/app/app/(app)/skills/edit/[id].tsx",
+        "packages/app/src/features/automations/ui/automation-editor.tsx",
+        "packages/app/src/features/chat/ui/canvas/form-renderer.tsx",
+        "packages/app/src/features/projects/ui/project-edit-dialog.tsx"
+      ],
+      "exportKey": "./field",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/fonts",
+      "files": [
+        "packages/alia-cowork/renderer/src/main.tsx",
+        "packages/app/src/features/chat/ui/markdown.tsx"
+      ],
+      "exportKey": "./fonts",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icon-circle",
+      "files": [
+        "packages/app/src/features/billing/ui/usage-limit-dialog.tsx",
+        "packages/app/src/features/chat/ui/tool-result-card.tsx",
+        "packages/app/src/features/onboarding/ui/invite-dialog.tsx"
+      ],
+      "exportKey": "./icon-circle",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons",
+      "files": [
+        "packages/app/app/(app)/agents/create.tsx",
+        "packages/app/scripts/icons/generate.ts",
+        "packages/app/src/features/agents/ui/edit/agent-editor.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-identity-fields.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-resources-panel.tsx",
+        "packages/app/src/features/agents/ui/edit/archetype-config.tsx",
+        "packages/app/src/features/agents/ui/edit/knowledge-picker-dialog.tsx",
+        "packages/app/src/features/agents/ui/edit/telegram-bots-section.tsx",
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/chat/model/capability-families.ts",
+        "packages/app/src/features/chat/model/tool-registry.ts",
+        "packages/app/src/features/shows/ui/series-create-dialog.tsx",
+        "packages/app/src/features/voice/ui/voice-mode-icon.tsx",
+        "packages/app/src/shared/ui/action-key-icon.tsx",
+        "packages/app/src/shared/ui/icons/agent-robot-icon.tsx",
+        "packages/app/src/shared/ui/icons/clock-icon.tsx",
+        "packages/app/src/shell/workspace-panel.tsx"
+      ],
+      "exportKey": "./icons",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiAddFill",
+      "files": [
+        "packages/app/src/shell/sidebar.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiAddLine",
+      "files": [
+        "packages/app/app/(app)/agents.tsx",
+        "packages/app/app/(app)/library.tsx",
+        "packages/app/app/(app)/shows.tsx",
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/app/(app)/skills.tsx",
+        "packages/app/src/features/settings/ui/memory-section.tsx",
+        "packages/app/src/shell/sidebar-menus.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiAlarmWarningLine",
+      "files": [
+        "packages/app/app/(app)/notifications.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiAlertLine",
+      "files": [
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/chat/ui/cards/agent-result-card.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiAndroidFill",
+      "files": [
+        "packages/app/app/(biglayout)/download.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiAppleFill",
+      "files": [
+        "packages/app/app/(biglayout)/download.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiArrowDownSLine",
+      "files": [
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/automations/ui/task-card.tsx",
+        "packages/app/src/features/chat/ui/execution/tool-step.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiArrowLeftLine",
+      "files": [
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/src/features/settings/ui/connector-detail-section.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiArrowRightLine",
+      "files": [
+        "packages/app/app/(app)/invite/[code].tsx",
+        "packages/app/app/(app)/org-invite/[token].tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiArrowRightSLine",
+      "files": [
+        "packages/app/app/(app)/shows.tsx",
+        "packages/app/src/features/chat/ui/execution/tool-step.tsx",
+        "packages/app/src/features/chat/ui/tool-result-card.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiArrowUpSLine",
+      "files": [
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/automations/ui/task-card.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiAttachment2",
+      "files": [
+        "packages/app/src/features/chat/ui/composer/add-menu.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiBankCardLine",
+      "files": [
+        "packages/app/src/features/billing/ui/usage-limit-dialog.tsx",
+        "packages/app/src/features/settings/ui/sections.ts",
+        "packages/app/src/shell/command-palette.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiBarChartHorizontalLine",
+      "files": [
+        "packages/app/app/(app)/agents/create.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiBookOpenLine",
+      "files": [
+        "packages/app/src/features/chat/model/work-log.ts",
+        "packages/app/src/features/chat/ui/composer/add-menu.tsx",
+        "packages/app/src/features/shows/ui/series-create-dialog.tsx",
+        "packages/app/src/shell/command-palette.tsx",
+        "packages/app/src/shell/sidebar.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiBookShelfLine",
+      "files": [
+        "packages/app/src/shell/command-palette.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiBuilding2Line",
+      "files": [
+        "packages/app/src/features/billing/ui/subscribe-shared.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCalendarLine",
+      "files": [
+        "packages/app/src/features/chat/model/tool-registry.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCalendarScheduleLine",
+      "files": [
+        "packages/app/src/features/chat/ui/tool-result-card.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCameraLine",
+      "files": [
+        "packages/app/src/features/chat/ui/composer/add-menu.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiChat3Line",
+      "files": [
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/chat/model/tool-registry.ts",
+        "packages/app/src/features/shows/ui/series-create-dialog.tsx",
+        "packages/app/src/shell/command-palette.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiChatNewLine",
+      "files": [
+        "packages/app/src/shell/command-palette.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCheckDoubleLine",
+      "files": [
+        "packages/app/app/(app)/notifications.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCheckLine",
+      "files": [
+        "packages/app/app/(app)/agents/create.tsx",
+        "packages/app/app/(app)/skills.tsx",
+        "packages/app/app/(app)/skills/[id].tsx",
+        "packages/app/src/features/billing/ui/subscribe-shared.tsx",
+        "packages/app/src/features/projects/ui/project-edit-dialog.tsx",
+        "packages/app/src/features/settings/ui/connectors-section.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCheckboxBlankCircleLine",
+      "files": [
+        "packages/app/src/features/automations/ui/task-timeline-step.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCheckboxCircleFill",
+      "files": [
+        "packages/app/src/features/automations/ui/task-timeline-step.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCheckboxCircleLine",
+      "files": [
+        "packages/app/app/(app)/authorize/index.tsx",
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/automations/ui/task-card.tsx",
+        "packages/app/src/features/chat/ui/cards/agent-result-card.tsx",
+        "packages/app/src/features/chat/ui/thought-panel.tsx",
+        "packages/app/src/features/chat/ui/workspace/agent-panel.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCloseCircleLine",
+      "files": [
+        "packages/app/app/(app)/authorize/index.tsx",
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/agents/ui/session/session-summary.tsx",
+        "packages/app/src/features/automations/ui/task-card.tsx",
+        "packages/app/src/features/chat/ui/cards/agent-result-card.tsx",
+        "packages/app/src/features/chat/ui/thought-panel.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCloseLine",
+      "files": [
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/src/features/chat/ui/thought-panel.tsx",
+        "packages/app/src/features/chat/ui/thread-search.tsx",
+        "packages/app/src/features/chat/ui/workspace/agent-panel.tsx",
+        "packages/app/src/features/chat/ui/workspace/credits-limits.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCloudLine",
+      "files": [
+        "packages/app/src/features/chat/ui/tool-result-card.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCodeSLine",
+      "files": [
+        "packages/app/src/shell/workspace-panel.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCompass3Line",
+      "files": [
+        "packages/app/app/+not-found.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiComputerLine",
+      "files": [
+        "packages/app/src/features/chat/model/capability-families.ts",
+        "packages/app/src/features/chat/ui/composer/power-level-options.ts",
+        "packages/app/src/features/settings/ui/sections.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCustomerServiceLine",
+      "files": [
+        "packages/app/src/shell/sidebar.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiDashboardLine",
+      "files": [
+        "packages/app/src/features/chat/ui/chat-header-actions.tsx",
+        "packages/app/src/features/settings/ui/sections.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiDatabase2Line",
+      "files": [
+        "packages/app/src/features/chat/model/tool-registry.ts",
+        "packages/app/src/features/settings/ui/sections.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiDeleteBin6Line",
+      "files": [
+        "packages/app/src/features/chat/ui/chat-header-actions.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiDeleteBinLine",
+      "files": [
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/app/(app)/skills/edit/[id].tsx",
+        "packages/app/src/features/agents/ui/detail/agent-reviews-section.tsx",
+        "packages/app/src/features/chat/ui/chat-header-actions.tsx",
+        "packages/app/src/features/chat/ui/file-card.tsx",
+        "packages/app/src/features/settings/ui/connector-detail-section.tsx",
+        "packages/app/src/features/settings/ui/memory-section.tsx",
+        "packages/app/src/features/settings/ui/writing-style-section.tsx",
+        "packages/app/src/features/shows/ui/episode-row.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiDownload2Line",
+      "files": [
+        "packages/app/src/features/settings/ui/memory-section.tsx",
+        "packages/app/src/features/settings/ui/security-section.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiDownloadLine",
+      "files": [
+        "packages/app/app/(app)/skills.tsx",
+        "packages/app/app/(app)/skills/[id].tsx",
+        "packages/app/app/(app)/skills/import.tsx",
+        "packages/app/src/features/chat/ui/chat-header-actions.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiDropLine",
+      "files": [
+        "packages/app/src/features/chat/ui/tool-result-card.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiEarthLine",
+      "files": [
+        "packages/app/src/features/chat/ui/composer/add-menu.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiEditLine",
+      "files": [
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/chat/ui/chat-interface.tsx",
+        "packages/app/src/features/chat/ui/chat-page-content.tsx",
+        "packages/app/src/features/settings/ui/writing-style-section.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiErrorWarningFill",
+      "files": [
+        "packages/app/src/features/automations/ui/task-timeline-step.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiErrorWarningLine",
+      "files": [
+        "packages/app/app/(app)/org-invite/[token].tsx",
+        "packages/app/app/(biglayout)/subscribe.tsx",
+        "packages/app/src/features/chat/ui/message-block-boundary.tsx",
+        "packages/app/src/features/chat/ui/workspace/agent-panel.tsx",
+        "packages/app/src/features/shows/ui/episode-row.tsx",
+        "packages/app/src/shell/error-boundary.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiExternalLinkLine",
+      "files": [
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/app/(app)/skills/[id].tsx",
+        "packages/app/src/features/chat/ui/rich-blocks.tsx",
+        "packages/app/src/features/settings/ui/billing-section.tsx",
+        "packages/app/src/features/settings/ui/bots-section.tsx",
+        "packages/app/src/features/settings/ui/connector-detail-section.tsx",
+        "packages/app/src/features/settings/ui/integrations-section.tsx",
+        "packages/app/src/features/settings/ui/profile-section.tsx",
+        "packages/app/src/features/settings/ui/storage-section.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiEyeLine",
+      "files": [
+        "packages/app/app/(app)/notifications.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiEyeOffLine",
+      "files": [
+        "packages/app/src/features/chat/ui/composer/add-menu.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiFileCopyLine",
+      "files": [
+        "packages/app/src/features/chat/ui/chat-interface.tsx",
+        "packages/app/src/features/onboarding/ui/invite-dialog.tsx",
+        "packages/app/src/features/settings/ui/memory-section.tsx",
+        "packages/app/src/features/settings/ui/storage-section.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiFileExcel2Line",
+      "files": [
+        "packages/app/src/features/settings/ui/storage-section.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiFilePaper2Line",
+      "files": [
+        "packages/app/src/features/chat/ui/file-card.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiFileTextLine",
+      "files": [
+        "packages/app/app/(app)/library.tsx",
+        "packages/app/app/(app)/skills/[id].tsx",
+        "packages/app/src/features/chat/model/tool-registry.ts",
+        "packages/app/src/features/chat/model/work-log.ts",
+        "packages/app/src/features/chat/ui/execution/files-and-sources.tsx",
+        "packages/app/src/features/chat/ui/file-card.tsx",
+        "packages/app/src/features/settings/ui/storage-section.tsx",
+        "packages/app/src/shell/sidebar.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiFireLine",
+      "files": [
+        "packages/app/src/features/chat/ui/composer/power-level-options.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiFlashlightLine",
+      "files": [
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/src/features/agents/ui/agent-card.tsx",
+        "packages/app/src/features/billing/ui/usage-limit-dialog.tsx",
+        "packages/app/src/features/chat/ui/composer/power-level-options.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiFolderLine",
+      "files": [
+        "packages/app/app/(app)/library.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiForbidLine",
+      "files": [
+        "packages/app/src/features/automations/ui/task-card.tsx",
+        "packages/app/src/features/chat/ui/thought-panel.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiGalleryLine",
+      "files": [
+        "packages/app/src/shell/workspace-panel.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiGiftLine",
+      "files": [
+        "packages/app/app/(app)/invite/[code].tsx",
+        "packages/app/src/shell/sidebar.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiGlobalLine",
+      "files": [
+        "packages/app/app/(app)/shows.tsx",
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/chat/model/capability-families.ts",
+        "packages/app/src/features/chat/model/tool-registry.ts",
+        "packages/app/src/features/chat/model/work-log.ts",
+        "packages/app/src/features/chat/ui/execution/files-and-sources.tsx",
+        "packages/app/src/features/chat/ui/execution/tool-step.tsx",
+        "packages/app/src/features/shows/ui/series-create-dialog.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiHandHeartLine",
+      "files": [
+        "packages/app/src/features/onboarding/ui/invite-dialog.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiHistoryLine",
+      "files": [
+        "packages/app/app/(app)/agents/session/[sessionId].tsx",
+        "packages/app/src/features/agents/ui/session/session-summary.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiImageLine",
+      "files": [
+        "packages/app/app/(app)/library.tsx",
+        "packages/app/src/features/chat/ui/composer/add-menu.tsx",
+        "packages/app/src/features/chat/ui/file-card.tsx",
+        "packages/app/src/features/settings/ui/storage-section.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiInbox2Line",
+      "files": [
+        "packages/app/app/(app)/tasks.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiLightbulbFlashLine",
+      "files": [
+        "packages/app/src/features/chat/model/capability-families.ts",
+        "packages/app/src/features/chat/model/tool-registry.ts",
+        "packages/app/src/features/settings/ui/sections.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiLightbulbLine",
+      "files": [
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/chat/ui/composer/power-level-options.ts",
+        "packages/app/src/shell/workspace-panel.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiLink",
+      "files": [
+        "packages/app/app/(app)/shows.tsx",
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/src/features/chat/model/tool-registry.ts",
+        "packages/app/src/features/shows/ui/series-create-dialog.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiListCheck3",
+      "files": [
+        "packages/app/src/shell/sidebar.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiLoader4Line",
+      "files": [
+        "packages/app/src/features/automations/ui/task-card.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiLockLine",
+      "files": [
+        "packages/app/app/(app)/authorize/index.tsx",
+        "packages/app/app/(app)/shows.tsx",
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/src/features/billing/ui/usage-limit-dialog.tsx",
+        "packages/app/src/features/shows/ui/series-create-dialog.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiLoginBoxLine",
+      "files": [
+        "packages/app/app/(app)/invite/[code].tsx",
+        "packages/app/app/(app)/org-invite/[token].tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiLogoutCircleLine",
+      "files": [
+        "packages/app/src/features/settings/ui/profile-section.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiMailCheckLine",
+      "files": [
+        "packages/app/app/(app)/forgot-password.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiMenuLine",
+      "files": [
+        "packages/app/src/shell/page-chrome.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiMessage2Line",
+      "files": [
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/src/features/chat/model/capability-families.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiMic2Line",
+      "files": [
+        "packages/app/app/(app)/shows.tsx",
+        "packages/app/src/features/shows/ui/series-create-dialog.tsx",
+        "packages/app/src/features/shows/ui/show-artwork.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiMicLine",
+      "files": [
+        "packages/app/src/shell/sidebar.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiMoreFill",
+      "files": [
+        "packages/app/src/features/chat/ui/chat-header-actions.tsx",
+        "packages/app/src/features/chat/ui/file-card.tsx",
+        "packages/app/src/shell/sidebar-menus.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiNewspaperLine",
+      "files": [
+        "packages/app/src/features/shows/ui/series-create-dialog.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiNotification3Line",
+      "files": [
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/src/shell/command-palette.tsx",
+        "packages/app/src/shell/sidebar.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiNotificationOffLine",
+      "files": [
+        "packages/app/app/(app)/notifications.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiPaletteLine",
+      "files": [
+        "packages/app/src/features/settings/ui/sections.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiPauseFill",
+      "files": [
+        "packages/app/src/features/shows/ui/episode-row.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiPencilLine",
+      "files": [
+        "packages/app/app/(app)/automations/[id].tsx",
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/app/(app)/skills/[id].tsx",
+        "packages/app/src/features/chat/ui/composer/add-menu.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiPlayFill",
+      "files": [
+        "packages/app/src/features/shows/ui/episode-row.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiPlayLine",
+      "files": [
+        "packages/app/app/(app)/skills/[id].tsx",
+        "packages/app/src/features/automations/ui/automation-card.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiPlugLine",
+      "files": [
+        "packages/app/src/features/chat/ui/composer/add-menu.tsx",
+        "packages/app/src/features/settings/ui/sections.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiQuestionLine",
+      "files": [
+        "packages/app/app/(app)/agents/create.tsx",
+        "packages/app/src/features/shows/ui/series-create-dialog.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiQuillPenLine",
+      "files": [
+        "packages/app/src/features/settings/ui/sections.ts",
+        "packages/app/src/shell/workspace-panel.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiRefreshLine",
+      "files": [
+        "packages/app/src/features/chat/ui/chat-interface.tsx",
+        "packages/app/src/features/settings/ui/writing-style-section.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiRobot2Line",
+      "files": [
+        "packages/app/app/(app)/[username].tsx",
+        "packages/app/app/(app)/agents.tsx",
+        "packages/app/app/(app)/agents/[id].tsx",
+        "packages/app/src/features/chat/ui/composer/add-menu.tsx",
+        "packages/app/src/features/settings/ui/sections.ts",
+        "packages/app/src/shell/sidebar.tsx",
+        "packages/app/src/shell/workspace-panel.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiRocket2Line",
+      "files": [
+        "packages/app/src/features/chat/ui/composer/power-level-options.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiRouteLine",
+      "files": [
+        "packages/app/app/(app)/agents/create.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSchoolLine",
+      "files": [
+        "packages/app/src/features/settings/ui/sections.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSearchLine",
+      "files": [
+        "packages/app/src/features/chat/model/tool-registry.ts",
+        "packages/app/src/features/chat/model/work-log.ts",
+        "packages/app/src/features/chat/ui/chat-header-actions.tsx",
+        "packages/app/src/features/chat/ui/composer/add-menu.tsx",
+        "packages/app/src/features/chat/ui/workspace/agent-panel.tsx",
+        "packages/app/src/shell/command-palette.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSendPlaneLine",
+      "files": [
+        "packages/app/src/features/chat/model/tool-registry.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSettings3Line",
+      "files": [
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/src/features/chat/model/tool-registry.ts",
+        "packages/app/src/shell/command-palette.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSettings4Line",
+      "files": [
+        "packages/app/src/shell/sidebar.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSettings6Line",
+      "files": [
+        "packages/app/src/features/settings/ui/sections.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiShapesLine",
+      "files": [
+        "packages/app/src/features/chat/model/capability-families.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiShare2Line",
+      "files": [
+        "packages/app/src/features/agents/ui/detail/agent-header-actions.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiShareLine",
+      "files": [
+        "packages/app/src/features/onboarding/ui/invite-dialog.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiShieldLine",
+      "files": [
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/agents/ui/session/session-summary.tsx",
+        "packages/app/src/features/billing/ui/subscribe-shared.tsx",
+        "packages/app/src/features/settings/ui/sections.ts",
+        "packages/app/src/shell/sidebar.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSideBarLine",
+      "files": [
+        "packages/app/src/features/chat/ui/chat-header-actions.tsx",
+        "packages/app/src/shell/workspace-panel.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSmartphoneLine",
+      "files": [
+        "packages/app/src/features/settings/ui/sections.ts",
+        "packages/app/src/shell/sidebar.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSnowflakeLine",
+      "files": [
+        "packages/app/src/features/chat/ui/tool-result-card.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSparkling2Line",
+      "files": [
+        "packages/app/src/features/chat/ui/composer/power-level-options.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSparklingLine",
+      "files": [
+        "packages/app/app/(app)/agents/create.tsx",
+        "packages/app/src/shell/command-palette.tsx",
+        "packages/app/src/shell/sidebar.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSpeedUpLine",
+      "files": [
+        "packages/app/src/features/chat/ui/composer/power-level-options.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiStarFill",
+      "files": [
+        "packages/app/src/shell/command-palette.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiStopFill",
+      "files": [
+        "packages/app/src/features/automations/ui/automation-card.tsx",
+        "packages/app/src/features/chat/ui/chat-interface.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSunFoggyLine",
+      "files": [
+        "packages/app/src/features/chat/ui/tool-result-card.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSunLine",
+      "files": [
+        "packages/app/src/features/chat/ui/tool-result-card.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiTeamLine",
+      "files": [
+        "packages/app/app/(app)/agents.tsx",
+        "packages/app/app/(app)/agents/teams.tsx",
+        "packages/app/app/(app)/org-invite/[token].tsx",
+        "packages/app/src/features/chat/model/capability-families.ts",
+        "packages/app/src/shell/command-palette.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiTerminalBoxLine",
+      "files": [
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/chat/model/work-log.ts",
+        "packages/app/src/features/chat/ui/chat-header-actions.tsx",
+        "packages/app/src/shell/workspace-panel.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiThumbDownLine",
+      "files": [
+        "packages/app/src/features/chat/ui/chat-interface.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiThumbUpLine",
+      "files": [
+        "packages/app/src/features/chat/ui/chat-interface.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiTimeLine",
+      "files": [
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/src/features/agents/ui/session/session-summary.tsx",
+        "packages/app/src/features/automations/ui/automation-card.tsx",
+        "packages/app/src/features/automations/ui/task-card.tsx",
+        "packages/app/src/features/billing/ui/usage-limit-dialog.tsx",
+        "packages/app/src/features/chat/ui/thought-panel.tsx",
+        "packages/app/src/shell/sidebar.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiTimerLine",
+      "files": [
+        "packages/app/src/shell/command-palette.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiToolsFill",
+      "files": [
+        "packages/app/src/features/settings/ui/sections.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiToolsLine",
+      "files": [
+        "packages/app/src/features/chat/model/work-log.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiUpload2Line",
+      "files": [
+        "packages/app/src/features/settings/ui/memory-section.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiUserHeartLine",
+      "files": [
+        "packages/app/app/(app)/invite/[code].tsx",
+        "packages/app/src/features/onboarding/ui/invite-dialog.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiUserLine",
+      "files": [
+        "packages/app/src/features/automations/ui/automation-card.tsx",
+        "packages/app/src/features/chat/model/tool-registry.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiVideoLine",
+      "files": [
+        "packages/app/src/features/settings/ui/storage-section.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiVipCrownLine",
+      "files": [
+        "packages/app/src/features/chat/ui/composer/power-level-options.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiVolumeUpLine",
+      "files": [
+        "packages/app/src/features/chat/ui/chat-interface.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiWindowLine",
+      "files": [
+        "packages/app/src/features/chat/model/capability-families.ts"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/image-resolver",
+      "files": [
+        "packages/app/app/_layout.tsx"
+      ],
+      "exportKey": "./image-resolver",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/input-group",
+      "files": [
+        "packages/app/src/features/onboarding/ui/invite-dialog.tsx"
+      ],
+      "exportKey": "./input-group",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/item",
+      "files": [
+        "packages/app/app/(app)/agents/create.tsx",
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/app/(app)/shows.tsx",
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/src/features/agents/ui/edit/knowledge-picker-dialog.tsx",
+        "packages/app/src/features/agents/ui/edit/skill-picker-dialog.tsx",
+        "packages/app/src/features/automations/ui/automation-card.tsx",
+        "packages/app/src/features/automations/ui/task-card.tsx",
+        "packages/app/src/features/automations/ui/task-timeline-step.tsx",
+        "packages/app/src/features/chat/ui/cards/agent-result-card.tsx",
+        "packages/app/src/features/chat/ui/composer/composer-suggestions.tsx",
+        "packages/app/src/features/chat/ui/execution/files-and-sources.tsx",
+        "packages/app/src/features/chat/ui/execution/tool-step.tsx",
+        "packages/app/src/features/chat/ui/file-card.tsx",
+        "packages/app/src/features/chat/ui/rich-blocks.tsx",
+        "packages/app/src/features/chat/ui/thread-search.tsx",
+        "packages/app/src/features/chat/ui/tool-result-card.tsx",
+        "packages/app/src/features/shows/ui/episode-row.tsx"
+      ],
+      "exportKey": "./item",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/kbd",
+      "files": [
+        "packages/app/src/shell/keyboard-shortcuts-dialog.tsx"
+      ],
+      "exportKey": "./kbd",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/label",
+      "files": [
+        "packages/app/src/features/agents/ui/agent-model-field.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-identity-fields.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-settings-panel.tsx",
+        "packages/app/src/features/agents/ui/edit/archetype-config.tsx",
+        "packages/app/src/features/agents/ui/edit/telegram-bots-section.tsx"
+      ],
+      "exportKey": "./label",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/link-preview",
+      "files": [
+        "packages/app/src/features/chat/ui/workspace/agent-panel.tsx"
+      ],
+      "exportKey": "./link-preview",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/loading",
+      "files": [
+        "packages/app/app/(app)/[username].tsx",
+        "packages/app/app/(app)/agents/[id].tsx",
+        "packages/app/app/(app)/agents/create.tsx",
+        "packages/app/app/(app)/agents/session/[sessionId].tsx",
+        "packages/app/app/(app)/agents/teams.tsx",
+        "packages/app/app/(app)/authorize/index.tsx",
+        "packages/app/app/(app)/automations/[id].tsx",
+        "packages/app/app/(app)/invite/[code].tsx",
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/app/(app)/org-invite/[token].tsx",
+        "packages/app/app/(app)/skills/[id].tsx",
+        "packages/app/app/(app)/skills/edit/[id].tsx",
+        "packages/app/app/(app)/tasks.tsx",
+        "packages/app/app/(biglayout)/subscribe.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-editor-load-states.tsx",
+        "packages/app/src/features/automations/ui/task-timeline-step.tsx",
+        "packages/app/src/features/chat/ui/chat-interface.tsx",
+        "packages/app/src/features/chat/ui/execution/tool-step.tsx",
+        "packages/app/src/features/chat/ui/thought-panel.tsx",
+        "packages/app/src/features/onboarding/ui/invite-dialog.tsx",
+        "packages/app/src/features/shows/ui/episode-row.tsx",
+        "packages/app/src/shell/sidebar-menus.tsx",
+        "packages/app/src/shell/workspace-panel.tsx"
+      ],
+      "exportKey": "./loading",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/notification",
+      "files": [
+        "packages/app/src/features/agents/ui/agent-approvals-banner.tsx",
+        "packages/app/src/features/chat/ui/failed-turn-card.tsx",
+        "packages/app/src/features/chat/ui/new-conversation-offer.tsx",
+        "packages/app/src/features/chat/ui/workspace/agent-panel.tsx"
+      ],
+      "exportKey": "./notification",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/page-header",
+      "files": [
+        "packages/app/app/(biglayout)/download.tsx",
+        "packages/app/src/features/billing/ui/subscribe-shared.tsx",
+        "packages/app/src/features/chat/ui/workspace/credits-limits.tsx",
+        "packages/app/src/shell/page-chrome.tsx"
+      ],
+      "exportKey": "./page-header",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/portal",
+      "files": [
+        "packages/app/app/(app)/_layout.tsx"
+      ],
+      "exportKey": "./portal",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/provider",
+      "files": [
+        "packages/app/app/_layout.tsx"
+      ],
+      "exportKey": "./provider",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/rating",
+      "files": [
+        "packages/app/src/features/agents/ui/detail/agent-identity-summary.tsx",
+        "packages/app/src/features/agents/ui/detail/agent-reviews-section.tsx",
+        "packages/app/src/features/chat/ui/rich-blocks.tsx"
+      ],
+      "exportKey": "./rating",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/screen",
+      "files": [
+        "packages/app/app/(biglayout)/download.tsx",
+        "packages/app/app/(biglayout)/subscribe.tsx",
+        "packages/app/app/+not-found.tsx",
+        "packages/app/src/shell/error-boundary.tsx"
+      ],
+      "exportKey": "./screen",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/scroll",
+      "files": [
+        "packages/app/app/(app)/_layout.tsx"
+      ],
+      "exportKey": "./scroll",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/search",
+      "files": [
+        "packages/app/app/(app)/agents.tsx",
+        "packages/app/app/(app)/library.tsx",
+        "packages/app/app/(app)/skills.tsx",
+        "packages/app/src/features/agents/ui/edit/knowledge-picker-dialog.tsx",
+        "packages/app/src/features/agents/ui/edit/skill-picker-dialog.tsx",
+        "packages/app/src/features/chat/ui/thread-search.tsx",
+        "packages/app/src/features/settings/ui/connectors-section.tsx",
+        "packages/app/src/features/settings/ui/memory-section.tsx"
+      ],
+      "exportKey": "./search",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/segmented-control",
+      "files": [
+        "packages/app/app/(biglayout)/download.tsx",
+        "packages/app/src/features/agents/ui/edit/archetype-config.tsx",
+        "packages/app/src/features/automations/ui/work-list-header.tsx",
+        "packages/app/src/features/billing/ui/subscribe-shared.tsx",
+        "packages/app/src/features/chat/ui/tool-result-card.tsx",
+        "packages/app/src/features/onboarding/ui/invite-dialog.tsx",
+        "packages/app/src/features/shows/ui/series-create-dialog.tsx"
+      ],
+      "exportKey": "./segmented-control",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/select",
+      "files": [
+        "packages/app/src/features/agents/ui/agent-model-field.tsx",
+        "packages/app/src/features/chat/ui/canvas/form-renderer.tsx",
+        "packages/app/src/features/settings/ui/preference-select.tsx"
+      ],
+      "exportKey": "./select",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/settings-list",
+      "files": [
+        "packages/app/app/(app)/agents/teams.tsx",
+        "packages/app/app/(app)/automations.tsx",
+        "packages/app/app/(app)/automations/[id].tsx",
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/app/(app)/skills/[id].tsx",
+        "packages/app/app/(app)/skills/edit/[id].tsx",
+        "packages/app/src/features/agents/ui/agent-capability-toggles.tsx",
+        "packages/app/src/features/agents/ui/agent-connector-grants.tsx",
+        "packages/app/src/features/agents/ui/detail/agent-detail.tsx",
+        "packages/app/src/features/agents/ui/detail/agent-threads-list.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-resources-panel.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-settings-panel.tsx",
+        "packages/app/src/features/agents/ui/edit/archetype-config.tsx",
+        "packages/app/src/features/agents/ui/edit/telegram-bots-section.tsx",
+        "packages/app/src/features/automations/ui/automation-editor.tsx",
+        "packages/app/src/features/onboarding/ui/invite-dialog.tsx",
+        "packages/app/src/shell/keyboard-shortcuts-dialog.tsx"
+      ],
+      "exportKey": "./settings-list",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/settings-modal",
+      "files": [
+        "packages/app/src/features/settings/ui/accounts-section.tsx",
+        "packages/app/src/features/settings/ui/alia-settings.tsx",
+        "packages/app/src/features/settings/ui/billing-section.tsx",
+        "packages/app/src/features/settings/ui/bots-section.tsx",
+        "packages/app/src/features/settings/ui/connector-detail-section.tsx",
+        "packages/app/src/features/settings/ui/connectors-section.tsx",
+        "packages/app/src/features/settings/ui/general-section.tsx",
+        "packages/app/src/features/settings/ui/integrations-section.tsx",
+        "packages/app/src/features/settings/ui/local-models-section.tsx",
+        "packages/app/src/features/settings/ui/memory-section.tsx",
+        "packages/app/src/features/settings/ui/personality-style-picker.tsx",
+        "packages/app/src/features/settings/ui/personalization-section.tsx",
+        "packages/app/src/features/settings/ui/profile-section.tsx",
+        "packages/app/src/features/settings/ui/sections.ts",
+        "packages/app/src/features/settings/ui/security-section.tsx",
+        "packages/app/src/features/settings/ui/storage-section.tsx",
+        "packages/app/src/features/settings/ui/writing-style-section.tsx"
+      ],
+      "exportKey": "./settings-modal",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/sidebar",
+      "files": [
+        "packages/app/src/shell/sidebar.tsx"
+      ],
+      "exportKey": "./sidebar",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/skeleton",
+      "files": [
+        "packages/app/app/(app)/agents.tsx",
+        "packages/app/app/(app)/library.tsx",
+        "packages/app/app/(app)/shows.tsx",
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/app/(app)/skills.tsx",
+        "packages/app/src/features/agents/ui/detail/activity-grid.tsx",
+        "packages/app/src/features/chat/ui/chat-interface.tsx",
+        "packages/app/src/features/chat/ui/workspace/credits-limits.tsx",
+        "packages/app/src/features/settings/ui/accounts-section.tsx",
+        "packages/app/src/features/settings/ui/billing-section.tsx",
+        "packages/app/src/features/settings/ui/bots-section.tsx",
+        "packages/app/src/features/settings/ui/connector-detail-section.tsx",
+        "packages/app/src/features/settings/ui/connectors-section.tsx",
+        "packages/app/src/features/settings/ui/integrations-section.tsx",
+        "packages/app/src/features/settings/ui/memory-section.tsx",
+        "packages/app/src/features/settings/ui/security-section.tsx",
+        "packages/app/src/features/settings/ui/storage-section.tsx",
+        "packages/app/src/features/settings/ui/usage-section.tsx",
+        "packages/app/src/features/settings/ui/writing-style-section.tsx",
+        "packages/app/src/shell/sidebar.tsx"
+      ],
+      "exportKey": "./skeleton",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/stat-bar",
+      "files": [
+        "packages/app/src/features/chat/ui/workspace/agent-panel.tsx",
+        "packages/app/src/features/shows/ui/episode-row.tsx"
+      ],
+      "exportKey": "./stat-bar",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/surfaces",
+      "files": [
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/app/(biglayout)/subscribe.tsx",
+        "packages/app/src/features/agents/runtime/use-agent-editor-actions.ts",
+        "packages/app/src/features/agents/runtime/use-agent-telegram-bots.ts",
+        "packages/app/src/features/agents/ui/detail/agent-reviews-section.tsx",
+        "packages/app/src/features/chat/ui/chat-header-actions.tsx",
+        "packages/app/src/features/chat/ui/conversation-screen.tsx",
+        "packages/app/src/features/settings/ui/accounts-section.tsx",
+        "packages/app/src/features/settings/ui/connector-detail-section.tsx",
+        "packages/app/src/features/settings/ui/connectors-section.tsx",
+        "packages/app/src/features/settings/ui/integrations-section.tsx",
+        "packages/app/src/features/settings/ui/memory-section.tsx",
+        "packages/app/src/features/settings/ui/profile-section.tsx",
+        "packages/app/src/features/settings/ui/writing-style-section.tsx",
+        "packages/app/src/shell/sidebar.tsx",
+        "packages/app/src/shell/workspace-panel.tsx"
+      ],
+      "exportKey": "./surfaces",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/switch",
+      "files": [
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/app/(app)/skills/[id].tsx",
+        "packages/app/app/(app)/skills/edit/[id].tsx",
+        "packages/app/src/features/agents/ui/agent-capability-toggles.tsx",
+        "packages/app/src/features/agents/ui/agent-connector-grants.tsx",
+        "packages/app/src/features/agents/ui/detail/agent-detail.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-settings-panel.tsx",
+        "packages/app/src/features/agents/ui/edit/archetype-config.tsx",
+        "packages/app/src/features/agents/ui/edit/telegram-bots-section.tsx",
+        "packages/app/src/features/automations/ui/automation-card.tsx",
+        "packages/app/src/features/automations/ui/automation-editor.tsx",
+        "packages/app/src/features/settings/ui/local-models-section.tsx",
+        "packages/app/src/features/settings/ui/memory-section.tsx",
+        "packages/app/src/features/settings/ui/security-section.tsx"
+      ],
+      "exportKey": "./switch",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/table",
+      "files": [
+        "packages/app/src/features/billing/ui/subscribe-shared.tsx",
+        "packages/app/src/features/chat/ui/canvas/table-renderer.tsx"
+      ],
+      "exportKey": "./table",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/tabs",
+      "files": [
+        "packages/app/src/features/agents/ui/edit/agent-editor-sidebar.tsx",
+        "packages/app/src/features/chat/ui/thought-panel.tsx",
+        "packages/app/src/features/chat/ui/workspace/agent-panel.tsx"
+      ],
+      "exportKey": "./tabs",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/task-list",
+      "files": [
+        "packages/app/src/features/chat/model/work-log.ts",
+        "packages/app/src/features/chat/ui/chat-interface.tsx"
+      ],
+      "exportKey": "./task-list",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/text-field",
+      "files": [
+        "packages/app/app/(app)/forgot-password.tsx",
+        "packages/app/app/(app)/reset-password.tsx",
+        "packages/app/app/(app)/skills/edit/[id].tsx",
+        "packages/app/app/(app)/skills/import.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-identity-fields.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-settings-panel.tsx",
+        "packages/app/src/features/agents/ui/edit/archetype-config.tsx",
+        "packages/app/src/features/agents/ui/edit/telegram-bots-section.tsx",
+        "packages/app/src/features/automations/ui/automation-editor.tsx",
+        "packages/app/src/features/chat/ui/canvas/form-renderer.tsx",
+        "packages/app/src/features/onboarding/ui/invite-dialog.tsx",
+        "packages/app/src/features/projects/ui/project-edit-dialog.tsx",
+        "packages/app/src/features/settings/ui/connector-detail-section.tsx",
+        "packages/app/src/features/settings/ui/connectors-section.tsx",
+        "packages/app/src/features/settings/ui/writing-style-section.tsx",
+        "packages/app/src/features/shows/ui/episode-create-dialog.tsx",
+        "packages/app/src/features/shows/ui/series-create-dialog.tsx",
+        "packages/app/src/shell/sidebar-menus.tsx"
+      ],
+      "exportKey": "./text-field",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/textarea",
+      "files": [
+        "packages/app/app/(app)/skills/edit/[id].tsx",
+        "packages/app/src/features/agents/ui/detail/agent-reviews-section.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-editor.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-settings-panel.tsx",
+        "packages/app/src/features/agents/ui/edit/archetype-config.tsx",
+        "packages/app/src/features/automations/ui/automation-editor.tsx",
+        "packages/app/src/features/settings/ui/memory-section.tsx",
+        "packages/app/src/features/settings/ui/personalization-section.tsx",
+        "packages/app/src/features/shows/ui/episode-create-dialog.tsx",
+        "packages/app/src/features/shows/ui/series-create-dialog.tsx"
+      ],
+      "exportKey": "./textarea",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/theme",
+      "files": [
+        "packages/alia-canvas/src/App.tsx",
+        "packages/alia-codea/webview-ui/src/App.tsx",
+        "packages/app/app/(app)/[username].tsx",
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/app/(app)/shows.tsx",
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/app/(app)/skills/[id].tsx",
+        "packages/app/app/(app)/skills/edit/[id].tsx",
+        "packages/app/app/_layout.tsx",
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/agents/ui/session/session-summary.tsx",
+        "packages/app/src/features/automations/ui/automation-card.tsx",
+        "packages/app/src/features/automations/ui/task-card.tsx",
+        "packages/app/src/features/automations/ui/task-timeline-step.tsx",
+        "packages/app/src/features/billing/ui/subscribe-shared.tsx",
+        "packages/app/src/features/chat/ui/chat-page-content.tsx",
+        "packages/app/src/features/chat/ui/composer/__tests__/composer-keys.test.tsx",
+        "packages/app/src/features/chat/ui/execution/files-and-sources.tsx",
+        "packages/app/src/features/chat/ui/execution/tool-step.tsx",
+        "packages/app/src/features/chat/ui/thought-panel.tsx",
+        "packages/app/src/features/chat/ui/workspace/agent-panel.tsx",
+        "packages/app/src/features/settings/ui/general-section.tsx",
+        "packages/app/src/features/settings/ui/storage-section.tsx",
+        "packages/app/src/features/shows/ui/episode-row.tsx",
+        "packages/app/src/features/shows/ui/series-create-dialog.tsx",
+        "packages/app/src/features/shows/ui/show-artwork.tsx",
+        "packages/app/src/shared/domain/__tests__/agent-color.test.ts",
+        "packages/app/src/shared/domain/agent-color.ts",
+        "packages/app/src/shared/platform/themePersistence.ts",
+        "packages/app/src/shared/platform/useColorScheme.tsx"
+      ],
+      "exportKey": "./theme",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/toast",
+      "files": [
+        "packages/app/app/(app)/agents/create.tsx",
+        "packages/app/app/(app)/automations.tsx",
+        "packages/app/app/(app)/automations/[id].tsx",
+        "packages/app/app/(app)/forgot-password.tsx",
+        "packages/app/app/(app)/index.tsx",
+        "packages/app/app/(app)/library.tsx",
+        "packages/app/app/(app)/reset-password.tsx",
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/app/(app)/skills/create.tsx",
+        "packages/app/app/(app)/skills/edit/[id].tsx",
+        "packages/app/app/(app)/skills/import.tsx",
+        "packages/app/app/(biglayout)/subscribe.tsx",
+        "packages/app/src/features/agents/runtime/use-agent-autosave.ts",
+        "packages/app/src/features/agents/runtime/use-agent-detail-actions.ts",
+        "packages/app/src/features/agents/runtime/use-agent-editor-actions.ts",
+        "packages/app/src/features/agents/runtime/use-agent-telegram-bots.ts",
+        "packages/app/src/features/agents/ui/detail/activity-grid.tsx",
+        "packages/app/src/features/agents/ui/detail/agent-reviews-section.tsx",
+        "packages/app/src/features/automations/runtime/use-automation-controls.ts",
+        "packages/app/src/features/automations/ui/automation-editor.tsx",
+        "packages/app/src/features/chat/runtime/use-capability-modes.ts",
+        "packages/app/src/features/chat/runtime/use-chat-conversation.ts",
+        "packages/app/src/features/chat/runtime/use-conversations.ts",
+        "packages/app/src/features/chat/runtime/use-credit-warnings.ts",
+        "packages/app/src/features/chat/runtime/use-local-models-invite.ts",
+        "packages/app/src/features/chat/ui/chat-interface.tsx",
+        "packages/app/src/features/chat/ui/chat-page-content.tsx",
+        "packages/app/src/features/chat/ui/composer/add-menu.tsx",
+        "packages/app/src/features/chat/ui/composer/composer.tsx",
+        "packages/app/src/features/chat/ui/composer/use-alia-composer.ts",
+        "packages/app/src/features/chat/ui/conversation-screen.tsx",
+        "packages/app/src/features/chat/ui/turn-actions.tsx",
+        "packages/app/src/features/onboarding/ui/invite-dialog.tsx",
+        "packages/app/src/features/settings/ui/accounts-section.tsx",
+        "packages/app/src/features/settings/ui/billing-section.tsx",
+        "packages/app/src/features/settings/ui/bots-section.tsx",
+        "packages/app/src/features/settings/ui/connector-detail-section.tsx",
+        "packages/app/src/features/settings/ui/connectors-section.tsx",
+        "packages/app/src/features/settings/ui/integrations-section.tsx",
+        "packages/app/src/features/settings/ui/memory-section.tsx",
+        "packages/app/src/features/settings/ui/personalization-section.tsx",
+        "packages/app/src/features/settings/ui/security-section.tsx",
+        "packages/app/src/features/settings/ui/storage-section.tsx",
+        "packages/app/src/features/settings/ui/writing-style-section.tsx",
+        "packages/app/src/features/shows/ui/episode-create-dialog.tsx",
+        "packages/app/src/features/shows/ui/series-create-dialog.tsx",
+        "packages/app/src/features/voice/runtime/use-voice-mode.ts",
+        "packages/app/src/shared/platform/use-document-picker.ts",
+        "packages/app/src/shared/platform/use-image-picker.ts",
+        "packages/app/src/shell/workspace-panel.tsx"
+      ],
+      "exportKey": "./toast",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/typography",
+      "files": [
+        "packages/app/app/(app)/agents.tsx",
+        "packages/app/app/(app)/agents/create.tsx",
+        "packages/app/app/(app)/agents/teams.tsx",
+        "packages/app/app/(app)/authorize/index.tsx",
+        "packages/app/app/(app)/automations.tsx",
+        "packages/app/app/(app)/automations/[id].tsx",
+        "packages/app/app/(app)/forgot-password.tsx",
+        "packages/app/app/(app)/library.tsx",
+        "packages/app/app/(app)/notifications.tsx",
+        "packages/app/app/(app)/reset-password.tsx",
+        "packages/app/app/(app)/shows.tsx",
+        "packages/app/app/(app)/shows/[id].tsx",
+        "packages/app/app/(app)/skills.tsx",
+        "packages/app/app/(app)/skills/[id].tsx",
+        "packages/app/app/(app)/skills/create.tsx",
+        "packages/app/app/(app)/skills/edit/[id].tsx",
+        "packages/app/app/(app)/skills/import.tsx",
+        "packages/app/src/features/agents/ui/agent-card.tsx",
+        "packages/app/src/features/agents/ui/agent-model-field.tsx",
+        "packages/app/src/features/agents/ui/detail/activity-grid.tsx",
+        "packages/app/src/features/agents/ui/detail/agent-detail-section.tsx",
+        "packages/app/src/features/agents/ui/detail/agent-detail.tsx",
+        "packages/app/src/features/agents/ui/detail/agent-identity-summary.tsx",
+        "packages/app/src/features/agents/ui/detail/agent-reviews-section.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-editor-load-states.tsx",
+        "packages/app/src/features/agents/ui/edit/agent-resources-panel.tsx",
+        "packages/app/src/features/agents/ui/edit/archetype-config.tsx",
+        "packages/app/src/features/agents/ui/edit/knowledge-picker-dialog.tsx",
+        "packages/app/src/features/agents/ui/edit/skill-picker-dialog.tsx",
+        "packages/app/src/features/agents/ui/session/session-event-card.tsx",
+        "packages/app/src/features/agents/ui/session/session-summary.tsx",
+        "packages/app/src/features/automations/ui/agent-mark-row.tsx",
+        "packages/app/src/features/automations/ui/automation-card.tsx",
+        "packages/app/src/features/automations/ui/automation-pill.tsx",
+        "packages/app/src/features/automations/ui/task-card.tsx",
+        "packages/app/src/features/automations/ui/task-timeline-step.tsx",
+        "packages/app/src/features/billing/ui/subscribe-shared.tsx",
+        "packages/app/src/features/chat/ui/canvas/canvas-component.tsx",
+        "packages/app/src/features/chat/ui/cards/agent-result-card.tsx",
+        "packages/app/src/features/chat/ui/cards/agent-task-card.tsx",
+        "packages/app/src/features/chat/ui/chat-interface.tsx",
+        "packages/app/src/features/chat/ui/chat-page-content.tsx",
+        "packages/app/src/features/chat/ui/composer/composer-suggestions.tsx",
+        "packages/app/src/features/chat/ui/composer/drop-zone.tsx",
+        "packages/app/src/features/chat/ui/execution/tool-step.tsx",
+        "packages/app/src/features/chat/ui/markdown.tsx",
+        "packages/app/src/features/chat/ui/rich-blocks.tsx",
+        "packages/app/src/features/chat/ui/thought-panel.tsx",
+        "packages/app/src/features/chat/ui/thread-search.tsx",
+        "packages/app/src/features/chat/ui/tool-result-card.tsx",
+        "packages/app/src/features/chat/ui/welcome-intro.tsx",
+        "packages/app/src/features/chat/ui/welcome-message.tsx",
+        "packages/app/src/features/chat/ui/workspace/agent-panel.tsx",
+        "packages/app/src/features/chat/ui/workspace/agent-terminal.tsx",
+        "packages/app/src/features/shows/ui/episode-create-dialog.tsx",
+        "packages/app/src/features/shows/ui/episode-row.tsx",
+        "packages/app/src/shell/sidebar.tsx"
+      ],
+      "exportKey": "./typography",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/web-search",
+      "files": [
+        "packages/app/src/features/chat/model/work-log.ts",
+        "packages/app/src/features/chat/ui/chat-interface.tsx"
+      ],
+      "exportKey": "./web-search",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    }
+  ]
+}
