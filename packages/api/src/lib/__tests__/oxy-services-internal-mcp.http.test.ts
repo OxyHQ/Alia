@@ -7,7 +7,7 @@ import type { AddressInfo } from 'node:net';
 import { inspect } from 'node:util';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
-import type { AppCapabilityCatalog, CapabilityCatalogBinding, CapabilityTicketClaims } from '@oxy.so/contracts';
+import type { AppCapabilityCatalog, CapabilityCatalogBinding } from '@oxy.so/contracts';
 import { canonicalCapabilityJson } from '@oxy.so/contracts';
 import type { OxyToolExecutionContext } from '../tools/oxy-services.js';
 import { createInternalCatalogMcpHttpService } from '@oxy.so/mcp';
@@ -32,6 +32,8 @@ let binding: CapabilityCatalogBinding;
 let denyTickets = false;
 let denyReceiver = false;
 let denyCleanup = false;
+let loseResponseAfterEffect = false;
+let destroyReceiverResponse: () => void;
 let registryFailure: 'digest' | 'missing-id' | 'version' | undefined;
 let wrongResource = false;
 let alive = true;
@@ -74,7 +76,7 @@ function ticket(input: Record<string, unknown>) {
 
 beforeEach(async () => {
   vi.resetModules();vi.clearAllMocks();
-  denyTickets = denyReceiver = denyCleanup = wrongResource = false;registryFailure = undefined;alive = true;
+  denyTickets = denyReceiver = denyCleanup = wrongResource = loseResponseAfterEffect = false;registryFailure = undefined;alive = true;
   approvals = retirements = effects = legacyCalls = 0;
   authorityBodies = [];ticketBodies = [];seenKeys = [];fingerprints = new Map();faults = [];
   const authority = express();
@@ -114,6 +116,7 @@ beforeEach(async () => {
   app.all('/_oxy/mcp', (req, res) => {
     if (!req.header('authorization')?.startsWith('Capability ') || req.header('x-oxy-user-id')) faults.push('receiver authority');
     if (denyReceiver) { res.status(403).json({ message: requester });return; }
+    destroyReceiverResponse = () => res.destroy();
     void receiver.handleMcp(req, res);
   });
   app.post('/posts/save', (_req, res) => { legacyCalls += 1;res.status(500).end(); });
@@ -143,6 +146,7 @@ beforeEach(async () => {
       const previous = fingerprints.get(key);
       if (previous && previous !== digest) throw new Error('synthetic operation conflict');
       if (!previous) { fingerprints.set(key, digest);effects += 1; }
+      if (loseResponseAfterEffect) destroyReceiverResponse();
       return { content: [{ type: 'text', text: JSON.stringify({ saved: input.postId, auditEventId: 'fixture-audit' }) }] };
     } },
   });
@@ -166,6 +170,40 @@ describe('Alia installed common agency and internal MCP pilot', () => {
     expect(authorityBodies[0]).toMatchObject({ runId: 'fixture-run', actor: context().actor, ownerAccountId: account });
     expect(ticketBodies[0]).toMatchObject({ expectedCatalog: binding, executionAuthorizationId: 'fixture-approval-1' });
     expect(retirements).toBe(1);expect(effects).toBe(1);expect(legacyCalls).toBe(0);
+  });
+  it('preserves acknowledged success across repeated retirement failures and retries only retirement', async () => {
+    denyCleanup = true;
+    const built = await toolsModule.buildOxyServiceTools(account, context());
+    const save = built.oxy_mention__savePost as unknown as Executable;
+    const outcome = await save.execute({ postId: 'post-1' }, { toolCallId: 'cleanup-call' }) as {
+      operation: { id: string }; result: unknown;
+    };
+    expect(outcome).toMatchObject({ status: 'succeeded', result: { saved: 'post-1', auditEventId: 'fixture-audit' }, retirement: { status: 'pending' } });
+    expect(outcome.operation.id).toBe(seenKeys[0]);
+    expect(await save.execute({ postId: 'post-1' }, { toolCallId: 'cleanup-call' })).toEqual(outcome);
+    expect(await save.execute({ postId: 'changed' }, { toolCallId: 'cleanup-call' })).toHaveProperty('error', 'oxy_operation_conflict');
+    const otherRun = await toolsModule.buildOxyServiceTools(account, { ...context(), runId: 'other-run' });
+    const foreignRetire = otherRun.oxy_mention__retireApproval as unknown as Executable;
+    expect(await foreignRetire.execute({ operationId: outcome.operation.id })).toHaveProperty('error');
+    const retire = built.oxy_mention__retireApproval as unknown as Executable;
+    expect(await retire.execute({ operationId: outcome.operation.id })).toMatchObject({ status: 'succeeded', result: outcome.result, retirement: { status: 'pending' } });
+    denyCleanup = false;
+    expect(await retire.execute({ operationId: outcome.operation.id })).toMatchObject({ status: 'succeeded', result: outcome.result, retirement: { status: 'retired' } });
+    expect(await retire.execute({ operationId: 'not-from-this-run' })).toHaveProperty('error');
+    expect(approvals).toBe(1); expect(ticketBodies).toHaveLength(1);
+    expect(retirements).toBe(3); expect(effects).toBe(1); expect(legacyCalls).toBe(0);
+  });
+  it('keeps transport-after-effect unknown distinct from acknowledged success when retirement fails', async () => {
+    loseResponseAfterEffect = true; denyCleanup = true;
+    const built = await toolsModule.buildOxyServiceTools(account, context());
+    const save = built.oxy_mention__savePost as unknown as Executable;
+    const outcome = await save.execute({ postId: 'post-1' }, { toolCallId: 'unknown-call' }) as { operation: { id: string } };
+    expect(outcome).toMatchObject({ error: 'oxy_app_result_unknown', status: 'unknown', retirement: { status: 'pending' } });
+    denyCleanup = false;
+    const retire = built.oxy_mention__retireApproval as unknown as Executable;
+    expect(await retire.execute({ operationId: outcome.operation.id })).toMatchObject({ status: 'unknown', retirement: { status: 'retired' } });
+    expect(approvals).toBe(1); expect(ticketBodies).toHaveLength(1);
+    expect(effects).toBe(1); expect(retirements).toBe(2); expect(legacyCalls).toBe(0);
   });
   it('keeps a stable operation key across replay and rejects changed payload without a second effect', async () => {
     const save = await tool();
@@ -204,9 +242,20 @@ describe('Alia installed common agency and internal MCP pilot', () => {
     }
     expect(approvals).toBe(0);expect(effects).toBe(0);
   });
-  it.each(['ticket','receiver','cleanup'])('fails closed on %s failure without legacy fallback or leaking bearers', async phase => {
-    denyTickets=phase==='ticket';denyReceiver=phase==='receiver';denyCleanup=phase==='cleanup';
-    const save=await tool();expect(await save.execute({postId:'post-1'},{toolCallId:'call-failure'})).toHaveProperty('error','oxy_app_unavailable');
-    expect(retirements).toBe(1);expect(legacyCalls).toBe(0);expect(effects).toBe(phase==='cleanup'?1:0);
+  it('rejects ticket issuance before execution even when retirement also fails', async () => {
+    denyTickets = true; denyCleanup = true;
+    const built = await toolsModule.buildOxyServiceTools(account, context());
+    const save = built.oxy_mention__savePost as unknown as Executable;
+    const outcome = await save.execute({ postId: 'post-1' }, { toolCallId: 'ticket-denied' }) as { operation: { id: string } };
+    expect(outcome).toMatchObject({ error: 'oxy_app_unavailable', status: 'not_executed', retirement: { status: 'pending' } });
+    denyCleanup = false;
+    const retire = built.oxy_mention__retireApproval as unknown as Executable;
+    expect(await retire.execute({ operationId: outcome.operation.id })).toMatchObject({ status: 'not_executed', retirement: { status: 'retired' } });
+    expect(effects).toBe(0); expect(retirements).toBe(2); expect(approvals).toBe(1); expect(legacyCalls).toBe(0);
+  });
+  it.each(['ticket','receiver'])('fails closed on %s failure without legacy fallback or leaking bearers', async phase => {
+    denyTickets=phase==='ticket';denyReceiver=phase==='receiver';
+    const save=await tool();expect(await save.execute({postId:'post-1'},{toolCallId:'call-failure'})).toHaveProperty('error',phase==='ticket'?'oxy_app_unavailable':'oxy_app_result_unknown');
+    expect(retirements).toBe(1);expect(legacyCalls).toBe(0);expect(effects).toBe(0);
   });
 });
