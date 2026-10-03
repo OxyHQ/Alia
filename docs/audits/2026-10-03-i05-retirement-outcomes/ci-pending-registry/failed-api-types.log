@@ -1,0 +1,21 @@
+Lint & Test	Typecheck API	﻿2026-10-03T18:49:53.2705899Z ##[group]Run bun run --filter @alia/api typecheck
+Lint & Test	Typecheck API	2026-10-03T18:49:53.2706134Z [36;1mbun run --filter @alia/api typecheck[0m
+Lint & Test	Typecheck API	2026-10-03T18:49:53.2757283Z shell: /usr/bin/bash -e {0}
+Lint & Test	Typecheck API	2026-10-03T18:49:53.2757430Z ##[endgroup]
+Lint & Test	Typecheck API	2026-10-03T18:50:04.7482505Z ##[error]@alia/api typecheck: src/lib/__tests__/oxy-services-internal-mcp.http.test.ts(11,10): error TS2305: Module '"@oxy.so/contracts"' has no exported member 'canonicalCapabilityJson'.
+Lint & Test	Typecheck API	2026-10-03T18:50:04.7489415Z ##[error]@alia/api typecheck: src/lib/__tests__/oxy-services-internal-mcp.http.test.ts(13,53): error TS2307: Cannot find module '@oxy.so/mcp' or its corresponding type declarations.
+Lint & Test	Typecheck API	2026-10-03T18:50:04.7490979Z ##[error]@alia/api typecheck: src/lib/__tests__/oxy-services-internal-mcp.http.test.ts(73,97): error TS2353: Object literal may only specify known properties, and 'catalog' does not exist in type 'UnsignedCapabilityTicketClaims'.
+Lint & Test	Typecheck API	2026-10-03T18:50:04.7492048Z ##[error]@alia/api typecheck: src/lib/__tests__/oxy-services-internal-mcp.http.test.ts(135,25): error TS7006: Parameter 'value' implicitly has an 'any' type.
+Lint & Test	Typecheck API	2026-10-03T18:50:04.7492992Z ##[error]@alia/api typecheck: src/lib/__tests__/oxy-services-internal-mcp.http.test.ts(139,23): error TS7006: Parameter '_input' implicitly has an 'any' type.
+Lint & Test	Typecheck API	2026-10-03T18:50:04.7493881Z ##[error]@alia/api typecheck: src/lib/__tests__/oxy-services-internal-mcp.http.test.ts(139,31): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+Lint & Test	Typecheck API	2026-10-03T18:50:04.7494773Z ##[error]@alia/api typecheck: src/lib/__tests__/oxy-services-internal-mcp.http.test.ts(142,34): error TS7006: Parameter 'input' implicitly has an 'any' type.
+Lint & Test	Typecheck API	2026-10-03T18:50:04.7495669Z ##[error]@alia/api typecheck: src/lib/__tests__/oxy-services-internal-mcp.http.test.ts(142,41): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+Lint & Test	Typecheck API	2026-10-03T18:50:04.7496671Z ##[error]@alia/api typecheck: src/lib/oxy-capability-authority.ts(91,47): error TS2339: Property 'createExecutionAuthorization' does not exist on type 'ServerAgencyApi'.
+Lint & Test	Typecheck API	2026-10-03T18:50:04.7497734Z ##[error]@alia/api typecheck: src/lib/oxy-capability-authority.ts(139,25): error TS2339: Property 'revokeExecutionAuthorization' does not exist on type 'ServerAgencyApi'.
+Lint & Test	Typecheck API	2026-10-03T18:50:04.7498833Z ##[error]@alia/api typecheck: src/lib/tools/oxy-services.ts(13,3): error TS2305: Module '"@oxy.so/contracts"' has no exported member 'canonicalCapabilityJson'.
+Lint & Test	Typecheck API	2026-10-03T18:50:04.7499962Z ##[error]@alia/api typecheck: src/lib/tools/oxy-services.ts(24,48): error TS2307: Cannot find module '@oxy.so/mcp' or its corresponding type declarations.
+Lint & Test	Typecheck API	2026-10-03T18:50:04.7500899Z ##[error]@alia/api typecheck: src/lib/tools/oxy-services.ts(190,22): error TS2339: Property 'serviceCatalogs' does not exist on type 'ServerAgencyApi'.
+Lint & Test	Typecheck API	2026-10-03T18:50:04.7501755Z ##[error]@alia/api typecheck: src/lib/tools/oxy-services.ts(192,29): error TS7006: Parameter 'registration' implicitly has an 'any' type.
+Lint & Test	Typecheck API	2026-10-03T18:50:04.7502682Z ##[error]@alia/api typecheck: src/lib/tools/oxy-services.ts(517,24): error TS2339: Property 'issueCapabilityTicket' does not exist on type 'ServerAgencyApi'.
+Lint & Test	Typecheck API	2026-10-03T18:50:04.8509496Z @alia/api typecheck: Exited with code 2
+Lint & Test	Typecheck API	2026-10-03T18:50:04.8522793Z ##[error]Process completed with exit code 2.
