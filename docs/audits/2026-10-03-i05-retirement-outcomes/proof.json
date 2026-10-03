@@ -1,0 +1,90 @@
+{
+  "sourceCommit": "5d7f6ccfeb6308fd232003edba93c2e70eb168e0",
+  "sources": [
+    {
+      "path": "docs/audits/2026-10-03-i05-retirement-outcomes/README.md",
+      "sha256": "64b0905d454d6a6d6ae060f04b975d94c70d986bd94f288d38510cbe76854d8e"
+    },
+    {
+      "path": "packages/api/src/lib/__tests__/oxy-services-internal-mcp.http.test.ts",
+      "sha256": "6d385dfa281bb7eed7d68dcf7f5ad07cdd13168dc70d45d7acaad87c15399107"
+    },
+    {
+      "path": "packages/api/src/lib/tools/oxy-services.ts",
+      "sha256": "8f4c23d39513eccedbc7341fad9c8b5649fe7239655f828fa22f7247ffed4274"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-i05-retirement-outcomes/logs/i04-alia-retirement-red.log",
+      "sha256": "49c33ee71dbd2a6eb2181cf6e43a65e352cb054b8090e87140ceaa9abc2569ae"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-retirement-outcomes/logs/i04-alia-retirement-green-initial.log",
+      "sha256": "3d32b27263fdc36f841f984efc6204be4cc6e08031e1e74ac73b22129878914d"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-retirement-outcomes/logs/i04-alia-retirement-green.log",
+      "sha256": "dccacdb396bc65a33f480b0e516360226efac4cb8712b1df09e60bf9f32c9c77"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-retirement-outcomes/logs/i04-alia-retirement-final-focals.log",
+      "sha256": "6b7a428eea1f256bd8c49aad509211d5e51476de4b34f2d4a6f6a8b7494c69b5"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-retirement-outcomes/logs/i04-alia-retirement-full.log",
+      "sha256": "4280a4db70df6131bc364efbe4425a1d4a711134fe90b10dcaf2a5064af0711f"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-retirement-outcomes/logs/i04-alia-retirement-lint.log",
+      "sha256": "51a1da94c530caa003880f9c74399a8865120f5a0f7d2ad2b3e8e977bdb4d318"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-retirement-outcomes/logs/i04-alia-retirement-final-types.log",
+      "sha256": "a3baa270ed303b8d397a6edceae60a5fd920f32dd7eec56392416c12944b2ee2"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-retirement-outcomes/logs/i04-alia-retirement-final-build.log",
+      "sha256": "70bd365aca3ceb2c30e6bf85a1e64b288d414ec76b63f1b45649c5d05550c613"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-retirement-outcomes/logs/i04-alia-retirement-final-scoped-lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "preservedCandidateInstallation": {
+    "path": "docs/audits/2026-10-03-final-sdk-preflight/composed-i05/proof.json",
+    "sha256": "938ad818aeaa13f3d3f872bc6ba3a235334dac2c23d77e4d376afb623d17c32c"
+  },
+  "results": {
+    "red": {
+      "pass": 12,
+      "fail": 2
+    },
+    "finalFocals": {
+      "pass": 28,
+      "fail": 0
+    },
+    "fullApi": {
+      "pass": 2022,
+      "fail": 0,
+      "skipped": 1,
+      "filesPassed": 191,
+      "filesSkipped": 1
+    },
+    "types": 0,
+    "build": 0,
+    "scopedLint": 0,
+    "wholePackageLint": {
+      "errors": 0,
+      "warnings": 413
+    }
+  },
+  "limits": [
+    "Synthetic authority and effect storage, real installed SDK/MCP over loopback HTTP",
+    "No final registry adoption or production effects",
+    "Full suite preceded only final not_required label; final focals/types/build/lint use final source",
+    "Initial GREEN attempt exposed unsafe fixture-message logging in cleanup; final source logs only fixed classification for internal cleanup",
+    "No Oxy SDK/API source change; no new standing grants or retry of domain effect"
+  ]
+}

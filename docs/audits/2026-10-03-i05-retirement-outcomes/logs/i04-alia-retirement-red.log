@@ -1,0 +1,72 @@
+@alia/api test: 
+@alia/api test:  RUN  v4.1.10 /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api
+@alia/api test: 
+@alia/api test:  ❯ src/lib/__tests__/oxy-services-internal-mcp.http.test.ts (14 tests | 2 failed) 1192ms
+@alia/api test:      × preserves acknowledged success across repeated retirement failures and retries only retirement 87ms
+@alia/api test:      × keeps transport-after-effect unknown distinct from acknowledged success when retirement fails 119ms
+@alia/api test: 
+@alia/api test: ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+@alia/api test: 
+@alia/api test:  FAIL  src/lib/__tests__/oxy-services-internal-mcp.http.test.ts > Alia installed common agency and internal MCP pilot > preserves acknowledged success across repeated retirement failures and retries only retirement
+@alia/api test: AssertionError: expected { error: 'oxy_app_unavailable', …(1) } to match object { status: 'succeeded', …(2) }
+@alia/api test: (2 matching properties omitted from actual)
+@alia/api test: 
+@alia/api test: - Expected
+@alia/api test: + Received
+@alia/api test: 
+@alia/api test:   {
+@alia/api test: -   "result": {
+@alia/api test: -     "auditEventId": "fixture-audit",
+@alia/api test: -     "saved": "post-1",
+@alia/api test: -   },
+@alia/api test: -   "retirement": {
+@alia/api test: -     "status": "pending",
+@alia/api test: -   },
+@alia/api test: -   "status": "succeeded",
+@alia/api test: +   "error": "oxy_app_unavailable",
+@alia/api test: +   "message": "Mention is temporarily unavailable. Oxy could not confirm authority for this action. Do not claim it succeeded or use another route to bypass the check. Request any required consent through the supported account flow, or try again when authority is available.",
+@alia/api test:   }
+@alia/api test: 
+@alia/api test:  ❯ src/lib/__tests__/oxy-services-internal-mcp.http.test.ts:181:21
+@alia/api test:     179|       operation: { id: string }; result: unknown;
+@alia/api test:     180|     };
+@alia/api test:     181|     expect(outcome).toMatchObject({ status: 'succeeded', result: { sav…
+@alia/api test:        |                     ^
+@alia/api test:     182|     expect(outcome.operation.id).toBe(seenKeys[0]);
+@alia/api test:     183|     const retire = built.oxy_mention__retireApproval as unknown as Exe…
+@alia/api test: 
+@alia/api test: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+@alia/api test: 
+@alia/api test:  FAIL  src/lib/__tests__/oxy-services-internal-mcp.http.test.ts > Alia installed common agency and internal MCP pilot > keeps transport-after-effect unknown distinct from acknowledged success when retirement fails
+@alia/api test: AssertionError: expected { error: 'oxy_app_unavailable', …(1) } to match object { …(3) }
+@alia/api test: (1 matching property omitted from actual)
+@alia/api test: 
+@alia/api test: - Expected
+@alia/api test: + Received
+@alia/api test: 
+@alia/api test:   {
+@alia/api test: -   "error": "oxy_app_result_unknown",
+@alia/api test: -   "retirement": {
+@alia/api test: -     "status": "pending",
+@alia/api test: -   },
+@alia/api test: -   "status": "unknown",
+@alia/api test: +   "error": "oxy_app_unavailable",
+@alia/api test:   }
+@alia/api test: 
+@alia/api test:  ❯ src/lib/__tests__/oxy-services-internal-mcp.http.test.ts:196:21
+@alia/api test:     194|     const save = built.oxy_mention__savePost as unknown as Executable;
+@alia/api test:     195|     const outcome = await save.execute({ postId: 'post-1' }, { toolCal…
+@alia/api test:     196|     expect(outcome).toMatchObject({ error: 'oxy_app_result_unknown', s…
+@alia/api test:        |                     ^
+@alia/api test:     197|     denyCleanup = false;
+@alia/api test:     198|     const retire = built.oxy_mention__retireApproval as unknown as Exe…
+@alia/api test: 
+@alia/api test: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+@alia/api test: 
+@alia/api test: 
+@alia/api test:  Test Files  1 failed (1)
+@alia/api test:       Tests  2 failed | 12 passed (14)
+@alia/api test:    Start at  21:33:11
+@alia/api test:    Duration  1.85s (transform 288ms, setup 0ms, import 568ms, tests 1.19s, environment 0ms)
+@alia/api test: 
+@alia/api test: Exited with code 1
