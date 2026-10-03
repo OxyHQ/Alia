@@ -1,0 +1,24 @@
+$ bun build.ts
+
+  dist/index.js  1.7mb ⚠️
+
+⚡ Done in 51ms
+
+  dist/db/migrate.js  12.6kb
+
+⚡ Done in 3ms
+
+  dist/scripts/seed.js  254.9kb
+
+⚡ Done in 6ms
+
+  dist/scripts/bootstrap-native-product-agents.js  171.2kb
+
+⚡ Done in 6ms
+
+  dist/scripts/production-chat-canary.js  21.3kb
+
+⚡ Done in 3ms
+✅ Copied prompts to dist/
+✅ Copied skills to dist/
+✅ Build complete

@@ -1,0 +1,141 @@
+{
+  "sourceHead": "8392204dc48ef8fd2750c223d09f13939c952f08",
+  "baseHead": "d9847676849a74b1956934f2033f2421caf0b62b",
+  "sourceSha256": {
+    "packages/api/src/lib/__tests__/oxy-service-identity.test.ts": "f56e645b8efd7d83234b428f580e30430f81e40517f8241d10981e89d9833f52",
+    "packages/api/src/lib/__tests__/oxy-services-internal-mcp.http.test.ts": "6e94117e20f2d6ceeab87f6ff95a65c0005c974c8f529a7bd81e5cb151dc0e1b",
+    "packages/api/src/lib/__tests__/oxy-services.test.ts": "5bd17f6dd581f056e893e87bebb92b861a092fafbfd2be0ff57d17977b18f33c",
+    "packages/api/src/lib/oxy-capability-authority.ts": "45045b990dd02fba608d0ea252406b6c4334a91481d7964cd0859ab27902d577",
+    "packages/api/src/lib/tools/oxy-services.ts": "878154774403682189ad094b15da7909c4c2b92de7898fa29a4465d538669939",
+    "packages/api/src/middleware/__tests__/offline-delegation.test.ts": "e28a44637a195e30bdd18c0c46bd218cc300578ac32a588928197fa6110bbf43"
+  },
+  "records": {
+    "alia-mcp-full-api.log": {
+      "bytes": 62679,
+      "sha256": "fc0776ed054a59bcd7a4dc42f0dfe35b1d2940243d559b448a697004cf28f6e5"
+    },
+    "alia-sdk300-fixtures.log": {
+      "bytes": 5533,
+      "sha256": "c93ddc0fab74548949007abdd6cfc4e2af9eca3dc13793d4cc40635660cb21dd"
+    },
+    "alia-mcp-final-compat.log": {
+      "bytes": 480,
+      "sha256": "7cc5f48d778891b36261281af77c5ec1369c794407e68fe0e82e593320baae4c"
+    },
+    "alia-mcp-final-47.log": {
+      "bytes": 1807,
+      "sha256": "4afbbf96374bc28c39a1f6858ec49d266d9351e6ab1914114408313c0f2998e2"
+    },
+    "alia-mcp-full-api-frozen.log": {
+      "bytes": 49578,
+      "sha256": "d7d41fb649f804daec81bb356ebc9318143069202596b23f77412091861b4711"
+    },
+    "alia-mcp-frozen-typecheck.log": {
+      "bytes": 15,
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    "alia-mcp-frozen-build.log": {
+      "bytes": 379,
+      "sha256": "98ed15f31db562555c2afc883a2f22297a89ead2457d49c78cfa34ae8cbcb035"
+    },
+    "alia-mcp-scoped-biome.log": {
+      "bytes": 43,
+      "sha256": "9c07e7f04008d3e79e9c865fc63bf5c75d2589c12d6a36028413dd9ae64e67c8"
+    },
+    "alia-mcp-frozen-biome.log": {
+      "bytes": 6699,
+      "sha256": "35dc73b035f0e7dc4261cfaed411a539eff9364762a05f05acf551b7151a932a"
+    },
+    "alia-identity-biome-baseline.log": {
+      "bytes": 16385,
+      "sha256": "cdcd6fa723eb0ba2220cf27888dec02be4f21475e19516808308107361cc08f1"
+    },
+    "alia-offline-biome-baseline.log": {
+      "bytes": 14555,
+      "sha256": "fb680360938c0dbbe47c12518c943cc30ea48ecd3d4aee7f16171110fab3b87f"
+    },
+    "installed-inputs.json": {
+      "bytes": 185754,
+      "sha256": "338aa1aa6e6553722a69085f5288f1c58a3dbe2fe512ec85441109ced1961e41"
+    },
+    "install.log": {
+      "bytes": 259,
+      "sha256": "50d58ac0f9da686388008446573b2c95df843f0cd825c84818e577300198b4be"
+    },
+    "inputs.json": {
+      "bytes": 988,
+      "sha256": "b28a4a4ead9b52721ca143c50e90b2bd269fdb1e2a9ad0a5e7958c5caa5e6d54"
+    },
+    "candidate-package.json": {
+      "bytes": 3747,
+      "sha256": "d9a557c7dcc9eb33680662b981b280cc13c5d600a6109ba82b6d1d6974d45f40"
+    },
+    "candidate-api-package.json": {
+      "bytes": 2502,
+      "sha256": "bce6c8015dea47310fc0dbe501034bd461e00a66b6dd21f43bfd997e443f8a1d"
+    },
+    "candidate-bun.lock": {
+      "bytes": 879638,
+      "sha256": "a29a7693a00b4477c34fe1e8b57952d305262f1f675124e747fc16cdfa61e02f"
+    }
+  },
+  "archives": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/packs/oxy.so-contracts-4.9.0.tgz",
+      "sha256": "6b1e6a8da92341871d2832834ad063df1a1e84a46dc367786599fdd26be6e635",
+      "package": "@oxy.so/contracts",
+      "version": "4.9.0",
+      "installedFiles": 198
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/packs-revoke/oxy.so-core-4.2.0.tgz",
+      "sha256": "4b509872e9ad82c5f7035ee5880fc81b15ed2ebff2f9d29e1ab0a0c435d2b61f",
+      "package": "@oxy.so/core",
+      "version": "4.2.0",
+      "installedFiles": 581
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-1519-20261003/release-final/tarballs/oxy.so-mcp-1.1.0.tgz",
+      "sha256": "6a8ee2d79fdcfdc3ac14a909a9b1e7d65794a068c9da1bc91e38e50f19a6d661",
+      "package": "@oxy.so/mcp",
+      "version": "1.1.0",
+      "installedFiles": 41
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-1519-20261003/release-final/tarballs/oxy.so-protocol-1.2.2.tgz",
+      "sha256": "f1b847a0da0c86b3880fbca1b9fabfdd9d2d3622fa3dbb970653f105630cc81c",
+      "package": "@oxy.so/protocol",
+      "version": "1.2.2",
+      "installedFiles": 145
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-1519-20261003/release-final/tarballs/oxy.so-telemetry-1.2.0.tgz",
+      "sha256": "c9d84dd2979e3dbca9178264971bbe3a4b231f0a0a043aa5d5d32760806dbb12",
+      "package": "@oxy.so/telemetry",
+      "version": "1.2.0",
+      "installedFiles": 33
+    }
+  ],
+  "installedFiles": 998,
+  "candidateOnly": true,
+  "publishedAcceptance": false,
+  "checks": {
+    "fullApi": {
+      "suitesPassed": 191,
+      "testsPassed": 2020,
+      "skippedSuites": 1,
+      "skippedTests": 1
+    },
+    "typecheck": 0,
+    "build": 0,
+    "biomeFourFiles": 0,
+    "historicalFixtureBiomeErrors": 6
+  },
+  "limits": [
+    "Authority HTTP endpoints and domain effect Map in the new MCP fixture are synthetic; no live configuration, provider writes or SQL durability claim.",
+    "Actual installed candidate MCP client/server and core signature verification are used. Mention SQL receiver evidence is separate.",
+    "Initial full run seven failures were old 3600-second/opaque token and missing-epoch fixtures. An intermediate prompt test expected the now-removed no-consent instruction; the final full run preserves required consent and forbids bypass.",
+    "Six existing diagnostics in the two historical identity fixtures match baseline; scoped four-file Biome passes.",
+    "Manifests and lock remain the original I10 baseline. Consumer preparation must add MCP 1.1 dependency and the approved coordinated SDK versions; no registry publication is claimed."
+  ]
+}

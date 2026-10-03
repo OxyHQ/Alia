@@ -1,0 +1,129 @@
+$ vitest run src/lib/__tests__/oxy-service-identity.test.ts src/middleware/__tests__/offline-delegation.test.ts
+
+ RUN  v4.1.10 /home/nate/Oxy/Alia/.worktrees/1519-i05-internal-mcp-20261003/packages/api
+
+stderr | src/middleware/__tests__/offline-delegation.test.ts > a delegated service request is verified by a credentialed client > accepts a valid acting-as grant, and presents ALIA's own token to check it
+2026-10-03T17:15:10.575Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: 'auth',
+  method: 'auth.serviceToken',
+  appId: 'homiio-application-id',
+  attemptedUserId: '6981c9178fcdefaf81988ffb'
+}
+2026-10-03T17:15:10.576Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app homiio-application-id acting as 6981c9178fcdefaf81988ffb (or this verifier could not reach the grant check) {
+  component: 'auth',
+  method: 'auth',
+  code: 'SERVICE_ACTING_AS_UNAUTHORIZED',
+  stage: 'service-token',
+  reason: 'No delegation grant for app homiio-application-id acting as 6981c9178fcdefaf81988ffb (or this verifier could not reach the grant check)',
+  status: 403,
+  optional: true,
+  path: '/delegated'
+}
+
+stderr | src/middleware/__tests__/offline-delegation.test.ts > a delegated service request is verified by a credentialed client > never routes a delegated request through the credential-free verifier
+2026-10-03T17:15:10.596Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: 'auth',
+  method: 'auth.serviceToken',
+  appId: 'homiio-application-id',
+  attemptedUserId: '6981c9178fcdefaf81988ffb'
+}
+2026-10-03T17:15:10.596Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app homiio-application-id acting as 6981c9178fcdefaf81988ffb (or this verifier could not reach the grant check) {
+  component: 'auth',
+  method: 'auth',
+  code: 'SERVICE_ACTING_AS_UNAUTHORIZED',
+  stage: 'service-token',
+  reason: 'No delegation grant for app homiio-application-id acting as 6981c9178fcdefaf81988ffb (or this verifier could not reach the grant check)',
+  status: 403,
+  optional: true,
+  path: '/delegated'
+}
+
+stderr | src/middleware/__tests__/offline-delegation.test.ts > /internal, which documents the same delegation header > admits a granted delegated trigger
+2026-10-03T17:15:10.612Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: 'auth',
+  method: 'auth.serviceToken',
+  appId: 'homiio-application-id',
+  attemptedUserId: '6981c9178fcdefaf81988ffb'
+}
+2026-10-03T17:15:10.612Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app homiio-application-id acting as 6981c9178fcdefaf81988ffb (or this verifier could not reach the grant check) {
+  component: 'auth',
+  method: 'auth',
+  code: 'SERVICE_ACTING_AS_UNAUTHORIZED',
+  stage: 'service-token',
+  reason: 'No delegation grant for app homiio-application-id acting as 6981c9178fcdefaf81988ffb (or this verifier could not reach the grant check)',
+  status: 403,
+  optional: false,
+  path: '/internal/trigger'
+}
+
+ ❯ src/middleware/__tests__/offline-delegation.test.ts (13 tests | 3 failed) 72ms
+     × accepts a valid acting-as grant, and presents ALIA's own token to check it 34ms
+     × never routes a delegated request through the credential-free verifier 4ms
+     × admits a granted delegated trigger 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/middleware/__tests__/offline-delegation.test.ts > a delegated service request is verified by a credentialed client > accepts a valid acting-as grant, and presents ALIA's own token to check it
+AssertionError: expected 403 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 403
+
+ ❯ src/middleware/__tests__/offline-delegation.test.ts:186:27
+    184|     });
+    185|
+    186|     expect(result.status).toBe(200);
+       |                           ^
+    187|     expect(result.body).toEqual({
+    188|       userId: USER,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/middleware/__tests__/offline-delegation.test.ts > a delegated service request is verified by a credentialed client > never routes a delegated request through the credential-free verifier
+AssertionError: expected 403 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 403
+
+ ❯ src/middleware/__tests__/offline-delegation.test.ts:238:17
+    236|       authorization: `Bearer ${serviceToken()}`,
+    237|       'x-oxy-user-id': USER,
+    238|     })).status).toBe(200);
+       |                 ^
+    239|
+    240|     // The exact defect: `oxyClient` cannot ask, so anything it is ask…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/middleware/__tests__/offline-delegation.test.ts > /internal, which documents the same delegation header > admits a granted delegated trigger
+AssertionError: expected 403 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 403
+
+ ❯ src/middleware/__tests__/offline-delegation.test.ts:329:27
+    327|     });
+    328|
+    329|     expect(result.status).toBe(200);
+       |                           ^
+    330|     expect(result.body).toEqual({
+    331|       userId: USER,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  3 failed | 18 passed (21)
+   Start at  20:15:10
+   Duration  335ms (transform 102ms, setup 0ms, import 234ms, tests 270ms, environment 0ms)
+
+error: script "test" exited with code 1
