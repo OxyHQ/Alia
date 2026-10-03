@@ -9,6 +9,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
   appCapabilityCatalogSchema,
+  capabilityCatalogBindingSchema,
+  canonicalCapabilityJson,
+  type CapabilityCatalogBinding,
   autonomyLevelSchema,
   resourceRefSchema,
   type ActorRef,
@@ -18,6 +21,7 @@ import {
   type ResourceRef,
 } from '@oxy.so/contracts';
 import { tool, type ToolSet } from 'ai';
+import { createInternalCatalogMcpClient } from '@oxy.so/mcp';
 import { z, type ZodTypeAny } from 'zod';
 import { jsonSchemaToZod } from './mcp-schema.js';
 import { getErrorMessage } from '../errors/index.js';
@@ -27,10 +31,19 @@ import {
   createOxyExecutionAuthorization,
   revokeOxyExecutionAuthorization,
 } from '../oxy-capability-authority.js';
-import { oxyServiceToken } from '../oxy-service-client.js';
+import { oxyServiceClient, oxyServiceToken } from '../oxy-service-client.js';
 import { TTLCache } from '../ttl-cache.js';
 
 const TOOL_TIMEOUT_MS = 15_000;
+const INTERNAL_MCP_PILOT = process.env.ALIA_INTERNAL_MCP_PILOT;
+if (INTERNAL_MCP_PILOT !== undefined && INTERNAL_MCP_PILOT !== 'mention') {
+  throw new Error('ALIA_INTERNAL_MCP_PILOT must name the explicit Mention pilot');
+}
+function agency() {
+  const client = oxyServiceClient();
+  if (!client) throw new OxyAuthorityUnavailableError('Alia service identity is unavailable');
+  return client.agency;
+}
 const OXY_API_URL = (process.env.OXY_API_URL || 'https://api.oxy.so').replace(/\/$/, '');
 
 export type OxyToolAutonomy = AutonomyLevel;
@@ -99,6 +112,7 @@ interface CompiledTool {
   catalog: AppCapabilityCatalog;
   definition: CatalogTool;
   inputSchema: ZodTypeAny;
+  internalCatalogBinding?: CapabilityCatalogBinding;
 }
 interface CatalogDef {
   catalog: AppCapabilityCatalog;
@@ -120,13 +134,10 @@ const DEFS_KEY = 'catalogs';
  * ticket, or the app's check of that ticket — as opposed to the app answering
  * the request itself (a missing message, a bad argument).
  *
- * The distinction is what the model is told. Oxy apps are first-party: the
- * person is signed in to Oxy and Alia reaches their apps with no connect step,
- * so an authority refusal is always Alia's or Oxy's problem and never
- * something the person can fix. Handing the model the raw reason
- * (`coordinator_not_active_or_authorized`, "No direct or automation authority
- * exists…") made it tell people to "connect or authorize your inbox". The
- * real reason goes to the log; the model gets `oxy_app_unavailable`.
+ * Keep raw authorization diagnostics out of the model response. Oxy checks
+ * the person's account, resource and requested action; being an Oxy app does
+ * not bypass that authority. The response names the unavailable app without
+ * exposing bearer credentials or internal authorization details.
  */
 export class OxyAuthorityUnavailableError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
@@ -143,7 +154,7 @@ async function safeExecute(service: string, operation: () => Promise<unknown>): 
     if (error instanceof OxyAuthorityUnavailableError) {
       return {
         error: 'oxy_app_unavailable',
-        message: `${appDisplayName(service)} is temporarily unavailable. This is a temporary problem on Oxy's side: the person's Oxy apps need no connection or authorization, so never ask them to connect, sign in to or authorize anything. Say it is unavailable right now and suggest trying again shortly.`,
+        message: `${appDisplayName(service)} is temporarily unavailable. Oxy could not confirm authority for this action. Do not claim it succeeded or use another route to bypass the check. Request any required consent through the supported account flow, or try again when authority is available.`,
       };
     }
     return { error: `${appDisplayName(service)} could not complete the request: ${getErrorMessage(error).slice(0, 180)}` };
@@ -173,14 +184,34 @@ function appDisplayName(appId: string): string {
 }
 
 async function loadCatalogDefs(): Promise<CatalogDef[]> {
-  const parsed = catalogsResponseSchema.parse(await oxyAuthorityFetch('/capabilities/catalogs'));
-  return parsed.registrations.map(({ catalog }) => ({
-    catalog,
-    displayName: appDisplayName(catalog.appId),
-    compiledTools: catalog.tools
-      .filter((definition) => definition.exposure.includes('internal'))
-      .map((definition) => ({ catalog, definition, inputSchema: jsonSchemaToZod(definition.inputSchema) })),
-  }));
+  // A configured internal pilot discovers complete registry provenance through
+  // the shared service lane. The other apps keep their existing HTTP transport.
+  const registrations = INTERNAL_MCP_PILOT
+    ? await agency().serviceCatalogs().catch(() => { throw new OxyAuthorityUnavailableError('Internal MCP catalogue authority unavailable'); })
+    : catalogsResponseSchema.parse(await oxyAuthorityFetch('/capabilities/catalogs')).registrations;
+  return registrations.map((registration) => {
+    const catalog = appCapabilityCatalogSchema.parse(registration.catalog);
+    let internalCatalogBinding: CapabilityCatalogBinding | undefined;
+    if (catalog.appId === INTERNAL_MCP_PILOT) {
+      if (!('id' in registration) || !('version' in registration) || !('digest' in registration)) {
+        throw new Error('Internal MCP requires complete registry provenance');
+      }
+      internalCatalogBinding = capabilityCatalogBindingSchema.parse({
+        registrationId: registration.id, version: registration.version, digest: registration.digest,
+      });
+      if (internalCatalogBinding.version !== catalog.version
+        || internalCatalogBinding.digest !== createHash('sha256').update(canonicalCapabilityJson(catalog)).digest('hex')) {
+        throw new Error('Registry catalogue content mismatch');
+      }
+    }
+    return {
+      catalog,
+      displayName: appDisplayName(catalog.appId),
+      compiledTools: catalog.tools.filter(definition => definition.exposure.includes('internal'))
+        .map(definition => ({ catalog, definition, inputSchema: jsonSchemaToZod(definition.inputSchema),
+          ...(internalCatalogBinding ? { internalCatalogBinding } : {}) })),
+    };
+  });
 }
 
 function getCatalogDefs(): Promise<CatalogDef[]> {
@@ -397,6 +428,7 @@ async function createDirectExecutionAuthorization(
   resource: ResourceRef,
   definition: CatalogTool,
   runId: string,
+  sharedAgency = false,
 ): Promise<string> {
   if (!context.userAccessToken) {
     throw new Error(`No direct or automation authority exists for ${definition.name}`);
@@ -412,7 +444,7 @@ async function createDirectExecutionAuthorization(
     maximumAutonomy: directMaximumAutonomy(context, definition),
     limits: [],
     expiresAt: new Date(Date.now() + 2 * 60_000),
-  });
+  }, { sharedAgency });
 }
 
 interface IssuedTicket {
@@ -436,11 +468,13 @@ async function revokeTransientAuthorization(
   authorizationId: string,
   runId: string,
   toolName: string,
+  sharedAgency = false,
 ): Promise<void> {
   if (!context.userAccessToken) return;
   try {
-    await revokeOxyExecutionAuthorization(context.userAccessToken, authorizationId);
+    await revokeOxyExecutionAuthorization(context.userAccessToken, authorizationId, { sharedAgency });
   } catch (error: unknown) {
+    if (sharedAgency) throw new OxyAuthorityUnavailableError('Internal MCP requester approval could not be retired');
     log.general.warn(
       { err: error, runId, tool: toolName },
       'Could not revoke transient Oxy execution authorization; expiry remains active',
@@ -453,29 +487,34 @@ async function issueTicket(
   resource: ResourceRef,
   definition: CatalogTool,
   runId: string,
+  expectedCatalog?: CapabilityCatalogBinding,
 ): Promise<IssuedTicket> {
   const preauthorized = context.executionAuthorizations?.[
     oxyExecutionAuthorizationKey(resource, definition.name)
   ];
   let executionAuthorizationId: string;
+  if (expectedCatalog && !context.runId) throw new OxyAuthorityUnavailableError('Internal MCP requires a named run');
   try {
     executionAuthorizationId = preauthorized?.id ?? await createDirectExecutionAuthorization(
       context,
       resource,
       definition,
       runId,
+      expectedCatalog !== undefined,
     );
   } catch (error: unknown) {
+    if (expectedCatalog) throw new OxyAuthorityUnavailableError('Internal MCP requester approval unavailable');
     throw new OxyAuthorityUnavailableError(getErrorMessage(error), { cause: error });
   }
   try {
-    const parsed = ticketResponseSchema.parse(await oxyAuthorityFetch('/capabilities/tickets', {
-      method: 'POST',
-      body: JSON.stringify({
-        executionAuthorizationId,
-        ...(preauthorized ? { runId, stepId: preauthorized.stepId } : {}),
-      }),
-    }));
+    const request = { executionAuthorizationId,
+      ...(preauthorized ? { runId, stepId: preauthorized.stepId } : {}),
+      ...(expectedCatalog ? { expectedCatalog } : {}) };
+    const parsed = expectedCatalog
+      ? await agency().issueCapabilityTicket(request)
+      : ticketResponseSchema.parse(await oxyAuthorityFetch('/capabilities/tickets', {
+        method: 'POST', body: JSON.stringify(request),
+      }));
     if (!parsed.decision.allowed || !parsed.ticket) {
       throw new Error(`Oxy policy denied ${definition.name}: ${parsed.decision.reason}`);
     }
@@ -485,8 +524,9 @@ async function issueTicket(
     };
   } catch (error: unknown) {
     if (!preauthorized) {
-      await revokeTransientAuthorization(context, executionAuthorizationId, runId, definition.name);
+      await revokeTransientAuthorization(context, executionAuthorizationId, runId, definition.name, expectedCatalog !== undefined);
     }
+    if (expectedCatalog) throw new OxyAuthorityUnavailableError('Internal MCP ticket authority unavailable');
     throw new OxyAuthorityUnavailableError(getErrorMessage(error), { cause: error });
   }
 }
@@ -504,7 +544,22 @@ async function callBoundTool(
   if (stepId) await context.onStepStatus?.(stepId, 'running');
   let issued: IssuedTicket | undefined;
   try {
-    issued = await issueTicket(context, binding.resource, binding.compiled.definition, runId);
+    issued = await issueTicket(context, binding.resource, binding.compiled.definition, runId, binding.compiled.internalCatalogBinding);
+    if (binding.compiled.internalCatalogBinding) {
+      const endpoint = new URL('/_oxy/mcp', binding.compiled.catalog.internalBaseUrl);
+      const client = createInternalCatalogMcpClient({ endpoint: endpoint.href, timeoutMs: TOOL_TIMEOUT_MS });
+      const result = await client.callTool(issued.ticket, binding.compiled.definition.name, args, {
+        ...(binding.compiled.definition.idempotency === 'required'
+          ? { idempotencyKey: idempotencyKey(runId, binding.compiled.definition.name, args, toolCallId) } : {}),
+      }).catch(() => { throw new OxyAuthorityUnavailableError('Internal MCP authority or transport unavailable'); });
+      if ('isError' in result && result.isError === true) throw new Error('Oxy app could not complete the internal MCP request');
+      // Preserve the canonical domain result across HTTP and MCP envelopes.
+      const textResult = singleMcpTextResultSchema.safeParse(result);
+      const body = result.structuredContent ?? (textResult.success
+        ? parseMcpTextResult(textResult.data.content[0].text) : result);
+      if (stepId) await context.onStepStatus?.(stepId, 'succeeded', auditedResultSchema.safeParse(body).success ? auditedResultSchema.parse(body).auditEventId : undefined);
+      return body;
+    }
     const { url, body } = resolveInvocation(binding.compiled.catalog, binding.compiled.definition, args);
     const headers: Record<string, string> = {
       authorization: `Capability ${issued.ticket}`,
@@ -553,9 +608,18 @@ async function callBoundTool(
         issued.transientAuthorizationId,
         runId,
         binding.compiled.definition.name,
+        binding.compiled.internalCatalogBinding !== undefined,
       );
     }
   }
+}
+
+const singleMcpTextResultSchema = z.object({
+  content: z.tuple([z.object({ type: z.literal('text'), text: z.string() }).passthrough()]),
+}).passthrough();
+
+function parseMcpTextResult(text: string): unknown {
+  try { return JSON.parse(text); } catch { return text; }
 }
 
 function sanitizeName(name: string): string {
@@ -657,5 +721,5 @@ export function getOxyServicePromptFragment(_oxyUserId: string): string {
     const names = service.compiledTools.map((entry) => `oxy_${sanitizeName(service.catalog.appId)}__${sanitizeName(entry.definition.name)}`);
     return `- **${service.displayName}**: ${names.join(', ')}.`;
   });
-  return '\n\n## Oxy apps\nOxy apps are first-party: the person\'s Oxy account already reaches them, with nothing to connect or authorize. Use these tools directly.\n' + lines.join('\n');
+  return `\n\n## Oxy apps\nUse the available Oxy app tools for the person's requested actions. Oxy checks account, resource and action authority. If an action is denied, request any required consent through the supported account flow.\n${lines.join('\n')}`;
 }

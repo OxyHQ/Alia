@@ -34,7 +34,7 @@
  */
 
 import { eq, sql } from 'drizzle-orm';
-import type { ApiDatabase } from '../index';
+import type { Executor } from '../index';
 import { userCredits } from '../schema/billing';
 
 export type UserCreditsRow = typeof userCredits.$inferSelect;
@@ -52,7 +52,7 @@ const DEFAULT_FREE_CREDITS = 300;
  * returnDocument: 'after' })`.
  */
 export async function getOrCreateUserCredits(
-  db: ApiDatabase,
+  db: Executor,
   oxyUserId: string,
 ): Promise<UserCreditsRow> {
   const [row] = await db
@@ -72,7 +72,7 @@ export async function getOrCreateUserCredits(
 }
 
 export async function findUserCredits(
-  db: ApiDatabase,
+  db: Executor,
   oxyUserId: string,
 ): Promise<UserCreditsRow | null> {
   const [row] = await db.select().from(userCredits).where(eq(userCredits.id, oxyUserId));
@@ -81,7 +81,7 @@ export async function findUserCredits(
 
 /** Spend `amount`, taking it from the FREE balance first. `null` if it will not cover. */
 export async function spendCreditsFreeFirst(
-  db: ApiDatabase,
+  db: Executor,
   oxyUserId: string,
   amount: number,
 ): Promise<UserCreditsRow | null> {
@@ -109,7 +109,7 @@ export async function spendCreditsFreeFirst(
  * statement removes the window; the arithmetic is the same.
  */
 export async function spendCreditsPaidFirst(
-  db: ApiDatabase,
+  db: Executor,
   oxyUserId: string,
   amount: number,
 ): Promise<UserCreditsRow | null> {
@@ -133,7 +133,7 @@ export async function spendCreditsPaidFirst(
  * be a lost update under two concurrent grants.
  */
 export async function addCredits(
-  db: ApiDatabase,
+  db: Executor,
   oxyUserId: string,
   amount: number,
   type: 'free' | 'paid' = 'paid',
@@ -152,7 +152,7 @@ export async function addCredits(
 
 /** Set both balances to zero. `null` if there is no such account. */
 export async function zeroCredits(
-  db: ApiDatabase,
+  db: Executor,
   oxyUserId: string,
 ): Promise<UserCreditsRow | null> {
   const [row] = await db
@@ -176,7 +176,7 @@ export async function zeroCredits(
  * either way, and `null` means the account does not exist.
  */
 export async function refreshFreeCreditsIfDue(
-  db: ApiDatabase,
+  db: Executor,
   oxyUserId: string,
 ): Promise<UserCreditsRow | null> {
   const [refreshed] = await db
@@ -197,7 +197,7 @@ export async function refreshFreeCreditsIfDue(
 
 /** Attach a Stripe customer id to a balance row. */
 export async function setStripeCustomerId(
-  db: ApiDatabase,
+  db: Executor,
   oxyUserId: string,
   stripeCustomerId: string,
 ): Promise<UserCreditsRow | null> {
@@ -211,7 +211,7 @@ export async function setStripeCustomerId(
 
 /** The balance row for a Stripe customer, if one is linked. */
 export async function findUserCreditsByStripeCustomerId(
-  db: ApiDatabase,
+  db: Executor,
   stripeCustomerId: string,
 ): Promise<UserCreditsRow | null> {
   const [row] = await db
