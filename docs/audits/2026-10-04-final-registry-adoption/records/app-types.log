@@ -1,0 +1,2 @@
+$ expo customize tsconfig.json && tsc --noEmit
+Generating: tsconfig.json

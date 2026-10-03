@@ -1,0 +1,654 @@
+$ vitest run
+
+ RUN  v4.1.10 /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api
+
+[23:19:32] [33mWARN[39m: [36mCould not measure show audio duration[39m
+    err: {
+      "type": "Error",
+      "message": "Command failed: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg -i /tmp/show-duration-weBxG1/audio.mp3 -f null -\nffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers\n  built with gcc 8 (Debian 8.3.0-6)\n  configuration: --enable-gpl --enable-version3 --enable-static --disable-debug --disable-ffplay --disable-indev=sndio --disable-outdev=sndio --cc=gcc --enable-fontconfig --enable-frei0r --enable-gnutls --enable-gmp --enable-libgme --enable-gray --enable-libaom --enable-libfribidi --enable-libass --enable-libvmaf --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenjpeg --enable-librubberband --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libvorbis --enable-libopus --enable-libtheora --enable-libvidstab --enable-libvo-amrwbenc --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxml2 --enable-libdav1d --enable-libxvid --enable-libzvbi --enable-libzimg\n  libavutil      59.  8.100 / 59.  8.100\n  libavcodec     61.  3.100 / 61.  3.100\n  libavformat    61.  1.100 / 61.  1.100\n  libavdevice    61.  1.100 / 61.  1.100\n  libavfilter    10.  1.100 / 10.  1.100\n  libswscale      8.  1.100 /  8.  1.100\n  libswresample   5.  1.100 /  5.  1.100\n  libpostproc    58.  1.100 / 58.  1.100\n[mp3 @ 0x422a2c00] Format mp3 detected only with low score of 1, misdetection possible!\n[mp3 @ 0x422a2c00] Failed to find two consecutive MPEG audio frames.\n[in#0 @ 0x422a2880] Error opening input: Invalid data found when processing input\nError opening input file /tmp/show-duration-weBxG1/audio.mp3.\nError opening input files: Invalid data found when processing input\n",
+      "stack":
+          Error: Command failed: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg -i /tmp/show-duration-weBxG1/audio.mp3 -f null -
+          ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers
+            built with gcc 8 (Debian 8.3.0-6)
+            configuration: --enable-gpl --enable-version3 --enable-static --disable-debug --disable-ffplay --disable-indev=sndio --disable-outdev=sndio --cc=gcc --enable-fontconfig --enable-frei0r --enable-gnutls --enable-gmp --enable-libgme --enable-gray --enable-libaom --enable-libfribidi --enable-libass --enable-libvmaf --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenjpeg --enable-librubberband --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libvorbis --enable-libopus --enable-libtheora --enable-libvidstab --enable-libvo-amrwbenc --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxml2 --enable-libdav1d --enable-libxvid --enable-libzvbi --enable-libzimg
+            libavutil      59.  8.100 / 59.  8.100
+            libavcodec     61.  3.100 / 61.  3.100
+            libavformat    61.  1.100 / 61.  1.100
+            libavdevice    61.  1.100 / 61.  1.100
+            libavfilter    10.  1.100 / 10.  1.100
+            libswscale      8.  1.100 /  8.  1.100
+            libswresample   5.  1.100 /  5.  1.100
+            libpostproc    58.  1.100 / 58.  1.100
+          [mp3 @ 0x422a2c00] Format mp3 detected only with low score of 1, misdetection possible!
+          [mp3 @ 0x422a2c00] Failed to find two consecutive MPEG audio frames.
+          [in#0 @ 0x422a2880] Error opening input: Invalid data found when processing input
+          Error opening input file /tmp/show-duration-weBxG1/audio.mp3.
+          Error opening input files: Invalid data found when processing input
+          
+              at genericNodeError (node:internal/errors:986:15)
+              at wrappedFn (node:internal/errors:540:14)
+              at ChildProcess.exithandler (node:child_process:417:12)
+              at ChildProcess.emit (node:events:514:28)
+              at maybeClose (node:internal/child_process:1141:16)
+              at Process.ChildProcess._handle.onexit (node:internal/child_process:306:5)
+      "code": 183,
+      "killed": false,
+      "signal": null,
+      "cmd": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg -i /tmp/show-duration-weBxG1/audio.mp3 -f null -",
+      "stdout": "",
+      "stderr": "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers\n  built with gcc 8 (Debian 8.3.0-6)\n  configuration: --enable-gpl --enable-version3 --enable-static --disable-debug --disable-ffplay --disable-indev=sndio --disable-outdev=sndio --cc=gcc --enable-fontconfig --enable-frei0r --enable-gnutls --enable-gmp --enable-libgme --enable-gray --enable-libaom --enable-libfribidi --enable-libass --enable-libvmaf --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenjpeg --enable-librubberband --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libvorbis --enable-libopus --enable-libtheora --enable-libvidstab --enable-libvo-amrwbenc --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxml2 --enable-libdav1d --enable-libxvid --enable-libzvbi --enable-libzimg\n  libavutil      59.  8.100 / 59.  8.100\n  libavcodec     61.  3.100 / 61.  3.100\n  libavformat    61.  1.100 / 61.  1.100\n  libavdevice    61.  1.100 / 61.  1.100\n  libavfilter    10.  1.100 / 10.  1.100\n  libswscale      8.  1.100 /  8.  1.100\n  libswresample   5.  1.100 /  5.  1.100\n  libpostproc    58.  1.100 / 58.  1.100\n[mp3 @ 0x422a2c00] Format mp3 detected only with low score of 1, misdetection possible!\n[mp3 @ 0x422a2c00] Failed to find two consecutive MPEG audio frames.\n[in#0 @ 0x422a2880] Error opening input: Invalid data found when processing input\nError opening input file /tmp/show-duration-weBxG1/audio.mp3.\nError opening input files: Invalid data found when processing input\n"
+    }
+[23:19:32] [31mERROR[39m: [36mError building the catalogue[39m
+    [35msubsystem[39m: "models"
+    err: {
+      "type": "Error",
+      "message": "oxy down",
+      "stack":
+          Error: oxy down
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/catalogue.test.ts:42:37
+              at Mock (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/spy/dist/index.js:332:34)
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/catalogue.ts:28:54
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+              at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/route.js:149:13)
+              at optionalAuth (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/catalogue.test.ts:63:5)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+              at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/route.js:149:13)
+              at Route.dispatch (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/route.js:119:3)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+    }
+[23:19:32] [31mERROR[39m: [36mModel list unavailable[39m
+    [35msubsystem[39m: "v1"
+    err: {
+      "type": "Error",
+      "message": "oxy down",
+      "stack":
+          Error: oxy down
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/catalogue.test.ts:42:37
+              at Mock (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/spy/dist/index.js:332:34)
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/v1/models.ts:33:45
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+              at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/route.js:149:13)
+              at Route.dispatch (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/route.js:119:3)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:284:15
+              at router.process_params (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:346:12)
+              at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:280:10)
+    }
+[23:19:32] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+[23:19:32] [32mINFO[39m: [36mMCP relay client connected[39m
+    [35muserId[39m: "user-from-session"
+[23:19:32] [32mINFO[39m: [36mLocal MCP tools registered[39m
+    [35muserId[39m: "user-from-session"
+    [35mserverId[39m: "srv-1"
+    [35mtoolCount[39m: 1
+[23:19:32] [33mWARN[39m: [36mHealth: Postgres probe failed[39m
+    err: {
+      "type": "Error",
+      "message": "pool exhausted",
+      "stack":
+          Error: pool exhausted
+              at Object.execute (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/health-route.test.ts:18:62)
+              at isPostgresReady (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/health.ts:35:19)
+              at Layer.handle (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/health.ts:115:15)
+              at probe (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/health-route.test.ts:43:30)
+              at processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/health-route.test.ts:81:25
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20
+    }
+[23:19:32] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+[23:19:32] [32mINFO[39m: [36mMCP relay client disconnected[39m
+    [35muserId[39m: "user-from-session"
+[23:19:32] [32mINFO[39m: [36mMCP relay client connected[39m
+    [35muserId[39m: "user-from-session"
+[23:19:32] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+[23:19:32] [32mINFO[39m: [36mMCP relay client disconnected[39m
+    [35muserId[39m: "user-from-session"
+[23:19:32] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+[23:19:32] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+[23:19:32] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+[23:19:32] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+[23:19:32] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+[23:19:32] [31mERROR[39m: [36mCORS origin ignored: it has no origin to match against[39m
+    [35morigin[39m: "exp://localhost:8150"
+[23:19:37] [33mWARN[39m: [36mCould not measure show audio duration[39m
+    err: {
+      "type": "Error",
+      "message": "Command failed: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg -i /tmp/show-duration-zVBTjd/audio.mp3 -f null -\nffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers\n  built with gcc 8 (Debian 8.3.0-6)\n  configuration: --enable-gpl --enable-version3 --enable-static --disable-debug --disable-ffplay --disable-indev=sndio --disable-outdev=sndio --cc=gcc --enable-fontconfig --enable-frei0r --enable-gnutls --enable-gmp --enable-libgme --enable-gray --enable-libaom --enable-libfribidi --enable-libass --enable-libvmaf --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenjpeg --enable-librubberband --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libvorbis --enable-libopus --enable-libtheora --enable-libvidstab --enable-libvo-amrwbenc --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxml2 --enable-libdav1d --enable-libxvid --enable-libzvbi --enable-libzimg\n  libavutil      59.  8.100 / 59.  8.100\n  libavcodec     61.  3.100 / 61.  3.100\n  libavformat    61.  1.100 / 61.  1.100\n  libavdevice    61.  1.100 / 61.  1.100\n  libavfilter    10.  1.100 / 10.  1.100\n  libswscale      8.  1.100 /  8.  1.100\n  libswresample   5.  1.100 /  5.  1.100\n  libpostproc    58.  1.100 / 58.  1.100\n[mp3 @ 0x230bfc00] Format mp3 detected only with low score of 1, misdetection possible!\n[mp3 @ 0x230bfc00] Failed to find two consecutive MPEG audio frames.\n[in#0 @ 0x230bf880] Error opening input: Invalid data found when processing input\nError opening input file /tmp/show-duration-zVBTjd/audio.mp3.\nError opening input files: Invalid data found when processing input\n",
+      "stack":
+          Error: Command failed: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg -i /tmp/show-duration-zVBTjd/audio.mp3 -f null -
+          ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers
+            built with gcc 8 (Debian 8.3.0-6)
+            configuration: --enable-gpl --enable-version3 --enable-static --disable-debug --disable-ffplay --disable-indev=sndio --disable-outdev=sndio --cc=gcc --enable-fontconfig --enable-frei0r --enable-gnutls --enable-gmp --enable-libgme --enable-gray --enable-libaom --enable-libfribidi --enable-libass --enable-libvmaf --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenjpeg --enable-librubberband --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libvorbis --enable-libopus --enable-libtheora --enable-libvidstab --enable-libvo-amrwbenc --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxml2 --enable-libdav1d --enable-libxvid --enable-libzvbi --enable-libzimg
+            libavutil      59.  8.100 / 59.  8.100
+            libavcodec     61.  3.100 / 61.  3.100
+            libavformat    61.  1.100 / 61.  1.100
+            libavdevice    61.  1.100 / 61.  1.100
+            libavfilter    10.  1.100 / 10.  1.100
+            libswscale      8.  1.100 /  8.  1.100
+            libswresample   5.  1.100 /  5.  1.100
+            libpostproc    58.  1.100 / 58.  1.100
+          [mp3 @ 0x230bfc00] Format mp3 detected only with low score of 1, misdetection possible!
+          [mp3 @ 0x230bfc00] Failed to find two consecutive MPEG audio frames.
+          [in#0 @ 0x230bf880] Error opening input: Invalid data found when processing input
+          Error opening input file /tmp/show-duration-zVBTjd/audio.mp3.
+          Error opening input files: Invalid data found when processing input
+          
+              at genericNodeError (node:internal/errors:986:15)
+              at wrappedFn (node:internal/errors:540:14)
+              at ChildProcess.exithandler (node:child_process:417:12)
+              at ChildProcess.emit (node:events:514:28)
+              at maybeClose (node:internal/child_process:1141:16)
+              at Socket.<anonymous> (node:internal/child_process:498:11)
+              at Socket.emit (node:events:514:28)
+              at Pipe.<anonymous> (node:net:362:12)
+      "code": 183,
+      "killed": false,
+      "signal": null,
+      "cmd": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg -i /tmp/show-duration-zVBTjd/audio.mp3 -f null -",
+      "stdout": "",
+      "stderr": "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers\n  built with gcc 8 (Debian 8.3.0-6)\n  configuration: --enable-gpl --enable-version3 --enable-static --disable-debug --disable-ffplay --disable-indev=sndio --disable-outdev=sndio --cc=gcc --enable-fontconfig --enable-frei0r --enable-gnutls --enable-gmp --enable-libgme --enable-gray --enable-libaom --enable-libfribidi --enable-libass --enable-libvmaf --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenjpeg --enable-librubberband --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libvorbis --enable-libopus --enable-libtheora --enable-libvidstab --enable-libvo-amrwbenc --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxml2 --enable-libdav1d --enable-libxvid --enable-libzvbi --enable-libzimg\n  libavutil      59.  8.100 / 59.  8.100\n  libavcodec     61.  3.100 / 61.  3.100\n  libavformat    61.  1.100 / 61.  1.100\n  libavdevice    61.  1.100 / 61.  1.100\n  libavfilter    10.  1.100 / 10.  1.100\n  libswscale      8.  1.100 /  8.  1.100\n  libswresample   5.  1.100 /  5.  1.100\n  libpostproc    58.  1.100 / 58.  1.100\n[mp3 @ 0x230bfc00] Format mp3 detected only with low score of 1, misdetection possible!\n[mp3 @ 0x230bfc00] Failed to find two consecutive MPEG audio frames.\n[in#0 @ 0x230bf880] Error opening input: Invalid data found when processing input\nError opening input file /tmp/show-duration-zVBTjd/audio.mp3.\nError opening input files: Invalid data found when processing input\n"
+    }
+[23:19:38] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.openai.com"
+[23:19:38] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.openai.com"
+[23:19:38] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.openai.com"
+[23:19:38] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.elevenlabs.io[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.elevenlabs.io"
+[23:19:38] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.openai.com"
+[23:19:38] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.openai.com"
+[23:19:38] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.openai.com"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.openai.com"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.elevenlabs.io[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.elevenlabs.io"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.anthropic.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.anthropic.com"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: generativelanguage.googleapis.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "generativelanguage.googleapis.com"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.groq.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.groq.com"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.mistral.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.mistral.ai"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.deepseek.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.deepseek.com"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.together.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.together.ai"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.replicate.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.replicate.com"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.cerebras.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.cerebras.ai"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.cloudflare.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.cloudflare.com"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: openrouter.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "openrouter.ai"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.cohere.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.cohere.ai"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.fireworks.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.fireworks.ai"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.perplexity.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.perplexity.ai"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.x.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.x.ai"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.sambanova.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.sambanova.ai"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.hyperbolic.xyz[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.hyperbolic.xyz"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.novita.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.novita.ai"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: inference.do-ai.run[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "inference.do-ai.run"
+[23:19:39] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.cheaperinference.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.cheaperinference.com"
+[23:19:40] [31mERROR[39m: [36mSyra did not delete, so Alia kept its record[39m
+    [35mkind[39m: "series"
+    [35maliaId[39m: "series-under-test"
+    [35msyraId[39m: "syra-podcast-1"
+    [35mwhy[39m: "exists_and_refused"
+    err: {
+      "type": "SyraApiError",
+      "message": "Syra API request failed: 403 Forbidden",
+      "stack":
+          SyraApiError: Syra API request failed: 403 Forbidden
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/show-delete.test.ts:173:19
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+              at new Promise (<anonymous>)
+              at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+              at new Promise (<anonymous>)
+              at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+      "name": "SyraApiError",
+      "status": 403
+    }
+[23:19:40] [31mERROR[39m: [36mSyra did not delete, so Alia kept its record[39m
+    [35mkind[39m: "series"
+    [35maliaId[39m: "series-under-test"
+    [35msyraId[39m: "syra-podcast-1"
+    [35mwhy[39m: "status_401"
+    err: {
+      "type": "SyraApiError",
+      "message": "Syra API request failed: 401 Unauthorized",
+      "stack":
+          SyraApiError: Syra API request failed: 401 Unauthorized
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/show-delete.test.ts:206:19
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+              at new Promise (<anonymous>)
+              at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+              at new Promise (<anonymous>)
+              at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+      "name": "SyraApiError",
+      "status": 401
+    }
+[23:19:40] [31mERROR[39m: [36mSyra did not delete, so Alia kept its record[39m
+    [35mkind[39m: "series"
+    [35maliaId[39m: "series-under-test"
+    [35msyraId[39m: "syra-podcast-1"
+    [35mwhy[39m: "status_409"
+    err: {
+      "type": "SyraApiError",
+      "message": "Syra API request failed: 409 Conflict",
+      "stack":
+          SyraApiError: Syra API request failed: 409 Conflict
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/show-delete.test.ts:215:19
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+              at new Promise (<anonymous>)
+              at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+              at new Promise (<anonymous>)
+              at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+      "name": "SyraApiError",
+      "status": 409
+    }
+[23:19:40] [31mERROR[39m: [36mSyra did not delete, so Alia kept its record[39m
+    [35mkind[39m: "episode"
+    [35maliaId[39m: "episode-under-test"
+    [35msyraId[39m: "syra-episode-1"
+    [35mwhy[39m: "exists_and_refused"
+    err: {
+      "type": "SyraApiError",
+      "message": "Syra API request failed: 403 Forbidden",
+      "stack":
+          SyraApiError: Syra API request failed: 403 Forbidden
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/show-delete.test.ts:255:19
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+              at new Promise (<anonymous>)
+              at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+              at new Promise (<anonymous>)
+              at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+      "name": "SyraApiError",
+      "status": 403
+    }
+[23:19:41] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[23:19:41] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[23:19:41] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[23:19:41] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[23:19:41] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[23:19:41] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[23:19:41] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[23:19:41] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[23:19:41] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[23:19:41] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[23:19:41] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[23:19:41] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[23:19:41] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[23:19:41] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[23:19:41] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[23:19:41] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[23:19:41] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[23:19:41] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[23:19:42] [32mINFO[39m: [36mAgent prompt injected[39m
+    [35magentName[39m: "Claudio"
+    [35marchetype[39m: "general"
+[23:19:42] [32mINFO[39m: [36mAgent prompt injected[39m
+    [35magentName[39m: "Claudio"
+    [35marchetype[39m: "general"
+[23:19:42] [32mINFO[39m: [36mAgent prompt injected[39m
+    [35magentName[39m: "Claudio"
+    [35marchetype[39m: "general"
+[23:19:42] [32mINFO[39m: [36mAgent prompt injected[39m
+    [35magentName[39m: "Claudio"
+    [35marchetype[39m: "general"
+[23:19:42] [32mINFO[39m: [36mAgent prompt injected[39m
+    [35magentName[39m: "Claudio"
+    [35marchetype[39m: "general"
+[23:19:42] [32mINFO[39m: [36mAgent prompt injected[39m
+    [35magentName[39m: "Claudio"
+    [35marchetype[39m: "general"
+[23:19:42] [32mINFO[39m: [36mAgent prompt injected[39m
+    [35magentName[39m: "Claudio"
+    [35marchetype[39m: "general"
+[23:19:42] [33mWARN[39m: [36mVAPID keys not set — web push notifications disabled[39m
+[23:19:42] [33mWARN[39m: [36mModel usage unavailable; ranking falls back to a cold start[39m
+    [35msubsystem[39m: "models"
+    err: {
+      "type": "Error",
+      "message": "db down",
+      "stack":
+          Error: db down
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/models/__tests__/selection.test.ts:66:48
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+              at new Promise (<anonymous>)
+              at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+              at new Promise (<anonymous>)
+              at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+    }
+[23:19:42] [33mWARN[39m: [36mLast-used model unavailable[39m
+    [35msubsystem[39m: "models"
+    err: {
+      "type": "Error",
+      "message": "db down",
+      "stack":
+          Error: db down
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/models/__tests__/selection.test.ts:70:41
+              at processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20
+    }
+[23:19:43] [32mINFO[39m: [36mRegistered hook[39m
+    [35msubsystem[39m: "chat"
+    [35mhookName[39m: "analytics"
+[23:19:43] [32mINFO[39m: [36mRegistered hook[39m
+    [35msubsystem[39m: "chat"
+    [35mhookName[39m: "memory-recall"
+    [35mpriority[39m: 10
+[23:19:43] [32mINFO[39m: [36mRegistered hook[39m
+    [35msubsystem[39m: "chat"
+    [35mhookName[39m: "style-learning"
+    [35mpriority[39m: 200
+[23:19:43] [32mINFO[39m: [36mRegistered hook[39m
+    [35msubsystem[39m: "chat"
+    [35mhookName[39m: "proactive-insights"
+    [35mpriority[39m: 300
+[23:19:44] [32mINFO[39m: [36mAgent prompt injected[39m
+    [35magentName[39m: "Claudio"
+    [35marchetype[39m: "general"
+[23:19:44] [32mINFO[39m: [36mAgent prompt injected[39m
+    [35magentName[39m: "Claudio"
+    [35marchetype[39m: "general"
+[23:19:44] [32mINFO[39m: [36mTool result truncated[39m
+    [35moriginal[39m: 500
+    [35mtruncated[39m: 40
+    [35momitted[39m: 460
+[23:19:44] [32mINFO[39m: [36mTool result truncated[39m
+    [35moriginal[39m: 500
+    [35mtruncated[39m: 40
+    [35momitted[39m: 460
+[23:19:44] [32mINFO[39m: [36mSkills activated[39m
+    [35mchars[39m: 79
+[23:19:44] [32mINFO[39m: [36mSkills activated[39m
+    [35mchars[39m: 79
+[23:19:44] [32mINFO[39m: [36mSkills activated[39m
+    [35mchars[39m: 79
+[23:19:44] [32mINFO[39m: [36mSkills activated[39m
+    [35mchars[39m: 79
+[23:19:46] [31mERROR[39m: [36mUser rate limit check error[39m
+    [35msubsystem[39m: "rate-limit"
+    err: {
+      "type": "Error",
+      "message": "Postgres is not connected — call connectPostgres() during startup",
+      "stack":
+          Error: Postgres is not connected — call connectPostgres() during startup
+              at getDb (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/db/index.ts:78:11)
+              at getUserTier (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:88:53)
+              at apiKeyRateLimit (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:125:26)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+              at trim_prefix (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:328:13)
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:286:9
+              at router.process_params (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:346:12)
+              at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:280:10)
+              at authenticateTokenOrApiKey (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/auth.ts:327:12)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+    }
+[23:19:46] [31mERROR[39m: [36mUser rate limit check error[39m
+    [35msubsystem[39m: "rate-limit"
+    err: {
+      "type": "Error",
+      "message": "Postgres is not connected — call connectPostgres() during startup",
+      "stack":
+          Error: Postgres is not connected — call connectPostgres() during startup
+              at getDb (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/db/index.ts:78:11)
+              at getUserTier (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:88:53)
+              at apiKeyRateLimit (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:125:26)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+              at trim_prefix (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:328:13)
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:286:9
+              at router.process_params (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:346:12)
+              at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:280:10)
+              at authenticateTokenOrApiKey (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/auth.ts:327:12)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+    }
+[23:19:46] [31mERROR[39m: [36mUser rate limit check error[39m
+    [35msubsystem[39m: "rate-limit"
+    err: {
+      "type": "Error",
+      "message": "Postgres is not connected — call connectPostgres() during startup",
+      "stack":
+          Error: Postgres is not connected — call connectPostgres() during startup
+              at getDb (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/db/index.ts:78:11)
+              at getUserTier (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:88:53)
+              at apiKeyRateLimit (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:125:26)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+              at trim_prefix (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:328:13)
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:286:9
+              at router.process_params (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:346:12)
+              at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:280:10)
+              at authenticateTokenOrApiKey (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/auth.ts:327:12)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+    }
+[23:19:46] [33mWARN[39m: [36mVAPID keys not set — web push notifications disabled[39m
+[23:19:46] [32mINFO[39m: [36mRegistered hook[39m
+    [35msubsystem[39m: "chat"
+    [35mhookName[39m: "analytics"
+[23:19:46] [32mINFO[39m: [36mRegistered hook[39m
+    [35msubsystem[39m: "chat"
+    [35mhookName[39m: "memory-recall"
+    [35mpriority[39m: 10
+[23:19:46] [32mINFO[39m: [36mRegistered hook[39m
+    [35msubsystem[39m: "chat"
+    [35mhookName[39m: "style-learning"
+    [35mpriority[39m: 200
+[23:19:46] [32mINFO[39m: [36mRegistered hook[39m
+    [35msubsystem[39m: "chat"
+    [35mhookName[39m: "proactive-insights"
+    [35mpriority[39m: 300
+fatal: path 'config.json' does not exist in 'HEAD'
+
+ Test Files  191 passed | 1 skipped (192)
+      Tests  2022 passed | 1 skipped (2023)
+   Start at  02:19:30
+   Duration  17.88s (transform 69.29s, setup 0ms, import 318.76s, tests 79.25s, environment 24ms)
+
