@@ -92,11 +92,11 @@ function serviceToken(claims: Record<string, unknown> = {}, privateKey: KeyObjec
     credentialId: 'homiio-credential-id',
     ownerAccountId: 'homiio-owner-account',
     environment: 'production',
-    scopes: ['inference:invoke'],
+    scopes: ['acting-as:offline', 'inference:invoke'],
     iss: 'oxy-auth',
     aud: 'oxy-api',
     iat: now,
-    exp: now + 3_600,
+    exp: now + 300,
     ...claims,
   };
   const signingInput = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}`;
@@ -116,7 +116,7 @@ function credentialedVerifier(grant: { authorized: boolean; scopes?: string[] } 
   const makeRequest = vi.fn(async (_method: string, path: string) => {
     if (path !== '/internal/service-acting-as/verify') throw new Error(`unexpected request: ${path}`);
     if (grant === 'unreachable') throw new Error('verify endpoint unreachable');
-    return grant;
+    return { ...grant, scopes: grant.scopes ?? [], epoch: '1' };
   });
   vi.spyOn(oxy, 'serviceToken').mockImplementation(getServiceToken as never);
   vi.spyOn(oxy, 'request').mockImplementation(makeRequest as never);
@@ -194,9 +194,10 @@ describe('a delegated service request is verified by a credentialed client', () 
     expect(verifier.makeRequest).toHaveBeenCalledWith(
       'GET',
       '/internal/service-acting-as/verify',
-      { appId: APP, userId: USER },
+      { appId: APP, userId: USER, credentialId: 'homiio-credential-id', ownerAccountId: 'homiio-owner-account', environment: 'production' },
       expect.objectContaining({
         headers: { Authorization: 'Bearer alia-own-service-token' },
+        cache: false, retry: false, timeout: 5000,
       }),
     );
   });
