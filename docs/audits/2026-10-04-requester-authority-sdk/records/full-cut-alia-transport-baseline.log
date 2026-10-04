@@ -1,0 +1,45 @@
+$ vitest run src/lib/__tests__/oxy-execution-authority.http.test.ts
+
+ RUN  v4.1.10 /home/nate/Oxy/Alia/.worktrees/full-cut-capability-20261004/packages/api
+
+ ❯ src/lib/__tests__/oxy-execution-authority.http.test.ts (8 tests | 2 failed) 196ms
+     × refuses mixed direct/automation terms before creating authority 25ms
+     × calls installed SDK create/retire rather than app-local writes 19ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/oxy-execution-authority.http.test.ts > one canonical requester authority transport > refuses mixed direct/automation terms before creating authority
+AssertionError: promise resolved "'fixture-approval'" instead of rejecting
+
+- Expected:
+Error {
+  "message": "rejected promise",
+}
+
++ Received:
+"fixture-approval"
+
+ ❯ src/lib/__tests__/oxy-execution-authority.http.test.ts:55:244
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/lib/__tests__/oxy-execution-authority.http.test.ts > one canonical requester authority transport > calls installed SDK create/retire rather than app-local writes
+AssertionError: expected "createExecutionAuthorization" to be called once, but got 0 times
+ ❯ src/lib/__tests__/oxy-execution-authority.http.test.ts:63:20
+     61|     await authority.createOxyExecutionAuthorization({ ...input(), kind…
+     62|     await authority.revokeOxyExecutionAuthorization('fixture-requester…
+     63|     expect(create).toHaveBeenCalledOnce();expect(revoke).toHaveBeenCal…
+       |                    ^
+     64|   });
+     65| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 6 passed (8)
+   Start at  16:00:51
+   Duration  410ms (transform 35ms, setup 0ms, import 123ms, tests 196ms, environment 0ms)
+
+error: script "test" exited with code 1

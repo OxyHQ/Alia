@@ -1,0 +1,99 @@
+{
+  "sourceCommit": "0dcbade0ee0bfb75e486775bfb5017decbd77d5c",
+  "base": "3904331b4",
+  "sources": [
+    {
+      "path": "packages/api/src/lib/__tests__/oxy-execution-authority.http.test.ts",
+      "sha256": "b84fca22977ee27ff0075f5144aa51cc0e93de12a4f55ef5aafe7f21d5f438f3"
+    },
+    {
+      "path": "packages/api/src/lib/__tests__/oxy-services.test.ts",
+      "sha256": "cb1fbfc770415a7bdc2e853c0e2b9b1cbdbf4d91ed807355816ff8640c8477bd"
+    },
+    {
+      "path": "packages/api/src/lib/oxy-capability-authority.ts",
+      "sha256": "38d522ec969f7dc70f136e41b5a73e01f101b0f7cfa68ac8dcdfcc8bbde3d524"
+    },
+    {
+      "path": "packages/api/src/lib/tools/oxy-services.ts",
+      "sha256": "293b07a1c300584ce789dc8e9be6a6014aee7ada65c069b625a3bc9e5f518ada"
+    },
+    {
+      "path": "package.json",
+      "sha256": "011be0c23e8eaea15b384a78e629bed11aeb5bed8df8a17dbd27f1c99641bfb0"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "348799a2503bb752f097e86ce383d2cf99d38eb5a6caaa40929880c44fa4faef"
+    },
+    {
+      "path": "packages/api/package.json",
+      "sha256": "770b0ffbc49699d0ac4939d9af6c30ed32a980fad8e194976c3935d37e1b3ef4"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-requester-authority-sdk/records/full-cut-alia-all-focal.log",
+      "sha256": "87cd2f6a94df9f6ad407920e9d5dfe71f1b21cee41e1a95c366db8bbfebdbce8"
+    },
+    {
+      "path": "docs/audits/2026-10-04-requester-authority-sdk/records/full-cut-alia-api-full-final.log",
+      "sha256": "e9ec7f09f06685ac49792fd4ae350a6cfae35cac6f4443b2e3f50950859c78ae"
+    },
+    {
+      "path": "docs/audits/2026-10-04-requester-authority-sdk/records/full-cut-alia-api-full.log",
+      "sha256": "ada09f4a2571a679240520513d23ad190b156a0a9bf54c4a4ad24df653025b5a"
+    },
+    {
+      "path": "docs/audits/2026-10-04-requester-authority-sdk/records/full-cut-alia-build.log",
+      "sha256": "dc4423286743ecc1e0359d330ba5f4a26a8d79a23bd3b8fdaa1f4893efd28412"
+    },
+    {
+      "path": "docs/audits/2026-10-04-requester-authority-sdk/records/full-cut-alia-ffmpeg-install.log",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-requester-authority-sdk/records/full-cut-alia-first-tests.log",
+      "sha256": "714c80cd790e0583665c9504fc5753f978c21d15ac9ce0bbd34897d221236020"
+    },
+    {
+      "path": "docs/audits/2026-10-04-requester-authority-sdk/records/full-cut-alia-install-scripts.log",
+      "sha256": "bea5424ed2b67986c691ab58b51891cf5373c5b34efb9ba09e87ec6d999a7aff"
+    },
+    {
+      "path": "docs/audits/2026-10-04-requester-authority-sdk/records/full-cut-alia-legacy-tests.log",
+      "sha256": "cbd645b3913563a35ceb846b8cc76f2ea0a5a28b295d8709663e8de4f7db99ab"
+    },
+    {
+      "path": "docs/audits/2026-10-04-requester-authority-sdk/records/full-cut-alia-lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-requester-authority-sdk/records/full-cut-alia-transport-baseline.log",
+      "sha256": "c77c59a5535fc61565e94168e2f8cb309c5ea71a083ed210ec00510da58d9af2"
+    },
+    {
+      "path": "docs/audits/2026-10-04-requester-authority-sdk/records/full-cut-alia-transport-tests.log",
+      "sha256": "e6c9b7d89930ef30af544c8015a1e9da76fb56776b63bf76fb3fca5a01e25269"
+    },
+    {
+      "path": "docs/audits/2026-10-04-requester-authority-sdk/records/full-cut-alia-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    }
+  ],
+  "result": {
+    "focalSuites": 4,
+    "focalPassed": 42,
+    "fullSuitesPassed": 192,
+    "fullTestsPassed": 2030,
+    "fullTestsSkipped": 1,
+    "types": 0,
+    "focusedLint": 0,
+    "apiBuild": 0
+  },
+  "limits": [
+    "Synthetic authority over owned loopback with real installed SDK. No production authority, grants, runtime changes or deployment.",
+    "Baseline focal observed 2 failed/6 passed; setup-only failures preserved separately. First full run: eight missing-ffmpeg failures; canonical dependency install script then full run green.",
+    "Shared MCP catalog migration and other app HTTP capability invocations remain separate, active boundaries."
+  ]
+}

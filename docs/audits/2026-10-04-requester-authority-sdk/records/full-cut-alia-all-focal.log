@@ -1,0 +1,10 @@
+@alia/api test: 
+@alia/api test:  RUN  v4.1.10 /home/nate/Oxy/Alia/.worktrees/full-cut-capability-20261004/packages/api
+@alia/api test: 
+@alia/api test: 
+@alia/api test:  Test Files  4 passed (4)
+@alia/api test:       Tests  42 passed (42)
+@alia/api test:    Start at  16:01:26
+@alia/api test:    Duration  2.09s (transform 845ms, setup 0ms, import 1.79s, tests 1.60s, environment 0ms)
+@alia/api test: 
+@alia/api test: Exited with code 0
