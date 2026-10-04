@@ -492,7 +492,7 @@ function prefixesScreened(source: ts.SourceFile): string[] {
   return [...found].sort();
 }
 
-describe('the compatibility surface accepts no new credential (#139 ws6, ADR 0004)', () => {
+describe('the compatibility surface keeps Oxy authority and refuses retired Alia keys (#139 ws6, ADR 0004)', () => {
   /**
    * The census is over the AST, so a comment cannot satisfy it and a commented
    * out branch cannot hide from it — comments are trivia and never appear as
@@ -529,7 +529,7 @@ describe('the compatibility surface accepts no new credential (#139 ws6, ADR 000
     /**
      * Five mechanisms reach `/v1`, and each one is a header this file reads:
      *
-     *  - `authorization` — an Oxy JWT/service token (an `alia_sk_*` key is
+     *  - `authorization` — an Oxy JWT/service token or scoped Console key (`alia_sk_*` is
      *    refused by name);
      *  - `x-telegram-bot-secret` with `x-oxy-user-id` and `x-telegram-id`;
      *  - `x-channel-bot-secret` with `x-oxy-user-id`.
@@ -550,8 +550,10 @@ describe('the compatibility surface accepts no new credential (#139 ws6, ADR 000
     // `alia_sk_` is the retired Alia-owned key scheme, and `Bearer ` is the
     // HTTP scheme it arrived under. The prefix is screened only so the refusal
     // can name it. A second Alia-owned prefix here IS the reintroduction ADR
-    // 0004 condition 2 forbids — a new key type that authenticates against `/v1`.
-    expect(prefixesScreened(auth)).toEqual(['Bearer ', 'alia_sk_']);
+    // 0004 condition 2 forbids — a new Alia-owned key type. The Oxy Console
+    // prefix belongs to canonical SDK verification under ADR 0010/Oxy ADR 0035;
+    // console-machine-key-entry.test.ts exercises its route and permission boundary.
+    expect(prefixesScreened(auth)).toEqual(['Bearer ', 'Bearer oxy_sk_', 'alia_sk_']);
     const branch = read('middleware/auth.ts').match(
       /if \(token\.startsWith\('alia_sk_'\)\) \{\s*([\s\S]*?)\n {2}\}/,
     );
