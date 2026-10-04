@@ -1,0 +1,91 @@
+{
+  "sourceHead": "3c87281299e39b1dc9fba26dd97830da6f2d3a76",
+  "base": "7adb4856cf469a691d7cc19fe9e153b0f378ce1c",
+  "sources": [
+    {
+      "path": "docs/oxy-capability-boundaries.md",
+      "sha256": "3441bcc2fc844237a31dd4dfe62b976396a4d99d6c2c4bafc1e33dc972da0737"
+    },
+    {
+      "path": "packages/api/src/lib/__tests__/oxy-catalog-ticket.http.test.ts",
+      "sha256": "0bc073fe6e6c5c21041f23c03f4417e86b735b6f586877f6570e0b76d3636e79"
+    },
+    {
+      "path": "packages/api/src/lib/__tests__/oxy-services.test.ts",
+      "sha256": "56f7f1a32ae68563f44df14ee0dfeb12321fabc6aa57681c167eaaa911996ea5"
+    },
+    {
+      "path": "packages/api/src/lib/tools/oxy-services.ts",
+      "sha256": "e5299816d4855da605783c599b680bdb08e6d59576f8a82c9695be422e2142db"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-canonical-catalog-ticket/records/installed-core.json",
+      "sha256": "258052e8b174e15dbfb4d7959b7fad62bc66f120edac8c9ef6b414d3951a3a3c"
+    },
+    {
+      "path": "docs/audits/2026-10-04-canonical-catalog-ticket/records/install.log",
+      "sha256": "5b4ed65cbbf338a7b33ca21213721a47d34b74b06926b1d63fc51781ae3bd313"
+    },
+    {
+      "path": "docs/audits/2026-10-04-canonical-catalog-ticket/records/focal1.log",
+      "sha256": "bbe865965d0744462d89a10f8ecc7da98cfa3bffa25575cea200d92cd4f0f573"
+    },
+    {
+      "path": "docs/audits/2026-10-04-canonical-catalog-ticket/records/http1.log",
+      "sha256": "509131ffaecf756534231b0e8717b5272008d06958201cce3aa72f47be2cc193"
+    },
+    {
+      "path": "docs/audits/2026-10-04-canonical-catalog-ticket/records/http-baseline.log",
+      "sha256": "df1dc53a83beb022e8f9145cbf3d7f686eca700698858953ab92caac40c06d4c"
+    },
+    {
+      "path": "docs/audits/2026-10-04-canonical-catalog-ticket/records/types.log",
+      "sha256": "a3baa270ed303b8d397a6edceae60a5fd920f32dd7eec56392416c12944b2ee2"
+    },
+    {
+      "path": "docs/audits/2026-10-04-canonical-catalog-ticket/records/full.log",
+      "sha256": "a0b073b3409db3dec201c5d8a5ce5a55c2109f9c444b1a2716cce5a97d17459d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-canonical-catalog-ticket/records/build.log",
+      "sha256": "78a6f002beb8ffbdcaf3b06dc29b0616c4329596505b2e7dbc4afa8039fe3539"
+    },
+    {
+      "path": "docs/audits/2026-10-04-canonical-catalog-ticket/records/lint.log",
+      "sha256": "2f07899b569ad247b7a742c26f9943ee78d143f73dd2bdd469bea5325338af5a"
+    },
+    {
+      "path": "docs/audits/2026-10-04-canonical-catalog-ticket/records/final-focal.log",
+      "sha256": "f183186ea20eff586e08014c1c9eef6e631372cfdaf28ef8d1ec3afc44804414"
+    },
+    {
+      "path": "docs/audits/2026-10-04-canonical-catalog-ticket/records/lint-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-canonical-catalog-ticket/records/types-final.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    }
+  ],
+  "results": {
+    "focalTests": 43,
+    "focalSuites": 4,
+    "fullApiPass": 2037,
+    "fullApiSuites": 193,
+    "fullApiSkippedTests": 1,
+    "fullApiSkippedSuites": 1,
+    "typecheck": 0,
+    "lintZeroWarnings": 0,
+    "build": 0,
+    "registryCoreMembers": 581
+  },
+  "limits": [
+    "Loopback synthetic authority and app, actual installed published SDK, non-loopback requests refused.",
+    "Baseline characterization fails only the explicit canonical-agency-call assertion; this is a migration boundary, not a security bypass claim.",
+    "Initial focused lint found three non-null assertion warnings; final fixture removes them and lint max-warnings0 passes. Full suite predates those non-semantic fixture changes; final43 rerun is current.",
+    "No changes to grants, user consent, product routes, package manifests, lockfiles or production runtime.",
+    "Capability-map transport and non-Mention product HTTP invocation remain active and non-equivalent to internal MCP."
+  ]
+}

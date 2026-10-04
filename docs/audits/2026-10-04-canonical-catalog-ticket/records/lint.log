@@ -1,0 +1,8 @@
+
+/home/nate/Oxy/Alia/.worktrees/full-cut-control-plane-20261004/packages/api/src/lib/__tests__/oxy-catalog-ticket.http.test.ts
+  33:32  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  87:41  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  93:41  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+✖ 3 problems (0 errors, 3 warnings)
+
