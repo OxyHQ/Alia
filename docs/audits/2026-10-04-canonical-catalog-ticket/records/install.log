@@ -1,0 +1,15 @@
+bun install v1.4.2 (744846f84)
+Resolving dependencies
+Resolved, downloaded and extracted [45]
+
++ @oxy.so/doctor@1.1.0
++ typescript@5.9.3 (v7.0.2 available)
++ @oxy.so/bloom@6.2.1
++ @oxy.so/core@4.2.0
++ @oxy.so/services@11.1.0
++ @tanstack/query-sync-storage-persister@5.102.8
++ @tanstack/react-query@5.102.8
++ @tanstack/react-query-persist-client@5.102.8
++ zustand@5.0.15
+
+2311 packages installed [7.00s]

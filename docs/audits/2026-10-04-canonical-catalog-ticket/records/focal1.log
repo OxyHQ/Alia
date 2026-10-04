@@ -1,0 +1,10 @@
+@alia/api test: 
+@alia/api test:  RUN  v4.1.10 /home/nate/Oxy/Alia/.worktrees/full-cut-control-plane-20261004/packages/api
+@alia/api test: 
+@alia/api test: 
+@alia/api test:  Test Files  3 passed (3)
+@alia/api test:       Tests  36 passed (36)
+@alia/api test:    Start at  18:41:32
+@alia/api test:    Duration  1.90s (transform 759ms, setup 0ms, import 1.74s, tests 1.38s, environment 0ms)
+@alia/api test: 
+@alia/api test: Exited with code 0

@@ -7,7 +7,7 @@ const { getServiceToken } = vi.hoisted(() => ({
 
 vi.mock('../oxy-service-client.js', () => {
   const { OxyServer }: typeof import('@oxy.so/core/server') = createRequire(import.meta.url)('@oxy.so/core/server');
-  const client = new OxyServer({ baseURL: 'https://api.oxy.so' });
+  const client = new OxyServer({ baseURL: 'https://api.oxy.so', serviceAuth: { apiKey: 'synthetic-app', apiSecret: 'synthetic-secret' } });
   return { oxyServiceClient: () => client, oxyServiceToken: getServiceToken };
 });
 
@@ -72,6 +72,7 @@ describe('Oxy capability tools', () => {
   beforeEach(() => {
     fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
       const url = String(input);
+      if (url.endsWith('/auth/service-token')) return Response.json({ token: 'ALIA-SERVICE-TOKEN', expiresIn: 300 });
       if (url.endsWith('/capabilities/catalogs')) {
         return new Response(JSON.stringify({ registrations: [{ catalog: CATALOG }] }), {
           status: 200,
@@ -79,7 +80,7 @@ describe('Oxy capability tools', () => {
         });
       }
       if (url.endsWith('/capabilities/service-identity')) {
-        expect((init?.headers as Record<string, string>).authorization).toBe('Bearer ALIA-SERVICE-TOKEN');
+        expect(new Headers(init?.headers).get('authorization')).toBe('Bearer ALIA-SERVICE-TOKEN');
         return new Response(JSON.stringify({
           service: { applicationId: 'alia-app', credentialId: 'alia-credential' },
         }), {
@@ -103,7 +104,7 @@ describe('Oxy capability tools', () => {
         });
       }
       if (url.endsWith('/capabilities/tickets')) {
-        expect((init?.headers as Record<string, string>).authorization).toBe('Bearer ALIA-SERVICE-TOKEN');
+        expect(new Headers(init?.headers).get('authorization')).toBe('Bearer ALIA-SERVICE-TOKEN');
         const request = JSON.parse(String(init?.body)) as Record<string, unknown>;
         expect(['AUTHORIZATION-1', 'PREAUTHORIZED-1', 'STANDING-1', 'STANDING-2']).toContain(request.executionAuthorizationId);
         if (String(request.executionAuthorizationId).startsWith('STANDING-')) {

@@ -1,0 +1,27 @@
+@alia/api test: 
+@alia/api test:  RUN  v4.1.10 /home/nate/Oxy/Alia/.worktrees/full-cut-control-plane-20261004/packages/api
+@alia/api test: 
+@alia/api test:  ❯ src/lib/__tests__/oxy-catalog-ticket.http.test.ts (7 tests | 1 failed) 1075ms
+@alia/api test:      × uses canonical agency methods and keeps requester/service/product authority distinct 815ms
+@alia/api test: 
+@alia/api test: ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+@alia/api test: 
+@alia/api test:  FAIL  src/lib/__tests__/oxy-catalog-ticket.http.test.ts > non-pilot catalog and ticket authority through installed SDK > uses canonical agency methods and keeps requester/service/product authority distinct
+@alia/api test: AssertionError: expected "serviceCatalogs" to be called 1 times, but got 0 times
+@alia/api test:  ❯ src/lib/__tests__/oxy-catalog-ticket.http.test.ts:76:22
+@alia/api test:      74|     const tickets = vi.spyOn(client.agency, 'issueCapabilityTicket');
+@alia/api test:      75|     expect(await invoke()).toEqual({ data: ['owned-result'] });
+@alia/api test:      76|     expect(catalogs).toHaveBeenCalledTimes(1); expect(tickets).toHaveB…
+@alia/api test:        |                      ^
+@alia/api test:      77|     expect(calls.filter(c => c.path === '/capabilities/catalogs' || c.…
+@alia/api test:      78|       .toEqual([expect.objectContaining({ path: '/capabilities/catalog…
+@alia/api test: 
+@alia/api test: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+@alia/api test: 
+@alia/api test: 
+@alia/api test:  Test Files  1 failed (1)
+@alia/api test:       Tests  1 failed | 6 passed (7)
+@alia/api test:    Start at  18:43:08
+@alia/api test:    Duration  1.32s (transform 402ms, setup 0ms, import 151ms, tests 1.08s, environment 0ms)
+@alia/api test: 
+@alia/api test: Exited with code 1
