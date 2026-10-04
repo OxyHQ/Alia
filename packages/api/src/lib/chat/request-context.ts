@@ -10,6 +10,7 @@
  * timeout suite's module mocks keep intercepting the same seams.
  */
 import { captureCreditPriceBook } from '../credit-price-snapshot.js';
+import { admitMachineTurn } from './machine-turn.js';
 import { MAX_TOOLS_PER_INFERENCE_REQUEST } from '../inference/tool-limit.js';
 import type { Request, Response } from 'express';
 import {
@@ -159,8 +160,9 @@ export interface ChatRequestContext {
   entitlements: Entitlements | null;
   linkedAgent: HydratedAgent | null;
   /**
-   * The verified inbound product service token for an application-bound agent.
-   * Undefined means the ordinary Alia credential lane. This is selected only
+   * The verified inbound caller bearer: an application-bound agent service
+   * token or an app-only machine credential. Undefined means the ordinary
+   * Alia credential lane. This is selected only
    * after exact application and delegation checks, so `agentId` never chooses
    * the billing principal.
    */
@@ -182,6 +184,11 @@ export async function buildChatRequestContext(
   aliaRequestId?: string,
 ): Promise<ChatRequestContext | null> {
   const body = req.body;
+  const machineTurn = admitMachineTurn(req);
+  if (machineTurn && 'error' in machineTurn) {
+    res.status(403).json({ error: { code: machineTurn.error, message: 'This machine credential authorizes an app-only chat turn.' } });
+    return null;
+  }
 
   // Validate request body
   if (!body || typeof body !== 'object') {
@@ -305,7 +312,7 @@ export async function buildChatRequestContext(
   // Deep research is a request flag, never implied by the model (ADR 0012).
   const deepResearch = body.deepResearch as boolean | undefined;
   // Absent means ON, which is what every request did before the switch existed.
-  const webSearch = body.webSearch !== false;
+  const webSearch = machineTurn === null && body.webSearch !== false;
   const streamOptions = body.stream_options as
     { include_usage?: boolean } | undefined;
   const includeUsage = streamOptions?.include_usage === true;
@@ -980,7 +987,10 @@ export async function buildChatRequestContext(
    * The delegated user remains attribution only. No request body field and no
    * agent row can choose the payer.
    */
-  let inferenceServiceToken: string | undefined;
+  // The caller's already verified machine bearer reaches only Oxy inference,
+  // which revalidates it and derives the application's payer. Never fall back
+  // to Alia's process credential for this lane.
+  let inferenceServiceToken: string | undefined = machineTurn?.bearer;
   if (linkedAgent?.applicationId != null) {
     const exactApplication =
       req.serviceApp?.appId === linkedAgent.applicationId;

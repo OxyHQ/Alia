@@ -266,3 +266,7 @@ pointer, not a rewrite.
   this ADR, not ADR 0004; a change that mints, rotates or accepts a new Alia-issued
   credential is rejected on sight; a change that widens `lib/cors-origins.ts` to admit a
   third-party origin is rejected in favour of the Oxy Console registry.
+
+## Proposed app-only Console lane (2026-10-04)
+
+The [machine chat contract](../machine-chat-contract.md) implements a narrow first lane for this decision: explicit `alia:chat` plus `inference:invoke`, Alia recipient, separate machine principal and caller application payer. It supplies no personal tools or owner session. The implementation census above remains historical; coordinated Oxy API/core release and Alia registry adoption are still required before deployment.

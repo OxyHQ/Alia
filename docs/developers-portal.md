@@ -19,17 +19,11 @@ completion with no conversation, memory, agents or tools around it — use Kaana
 Oxy: `api.oxy.so/v1`, the Oxy catalogue for models. For the assistant, use Alia's API.
 Neither is a substitute for the other, and Alia issues no keys for either.
 
-**What Alia's API accepts today, precisely** (`packages/api/src/middleware/auth.ts`,
-`authenticateTokenOrApiKey`): an Oxy **user session token** and an Oxy **service token**
-(through `@oxy.so/core`'s `oxy.auth()`, which validates the session against Oxy and
-verifies a service token against Oxy's JWKS). An **`alia_sk_*`** key is **refused**,
-`401 credential_retired` — see below. An **Oxy Console application key (`oxy_sk_*`) is
-not accepted yet**: it is not a JWT, `oxy.auth()` refuses it `401 INVALID_TOKEN_FORMAT`,
-and `@oxy.so/core` 1.0.1 has no lane for it (its own `server/auth.js` says the lane lives
-in the Oxy API until *"the machine principal's shape"* moves into the package). That path
-is built in Oxy first (`OxyHQ/oxy#972`), then in `@oxy.so/core/server`, then adopted here.
-Until then a third-party application calls Alia's API with the signed-in user's Oxy
-session — which is what `@alia.onl/sdk` already attaches.
+**Authentication contract:** signed-in users and existing delegated service callers continue through the canonical Oxy SDK. `alia_sk_*` remains retired. The proposed Console machine lane below requires the coordinated Oxy API and core server release; the existing registry package alone does not provide it.
+
+A Console `oxy_sk_*` may enter only POST `/alia/chat` or `/v1/chat/completions` when **both the application and its machine credential explicitly carry `alia:chat` and `inference:invoke`** in the current environment. The recipient is Alia's registered resource identity, checked by Oxy. It is an app-only turn: messages and generation options, no user's agents, conversation, memory, local runtime, tools or delegated user headers. The key does not become its owner's user session or an internal service. Oxy inference revalidates the same caller credential and charges the calling application, never Alia's default payer. Existing keys without the two scopes are denied; no default grants are introduced.
+
+Before this candidate, the actual HTTP entry returned `401 Unauthorized` for a raw Console key, with canonical observer `INVALID_TOKEN_FORMAT`; that observer was not the public HTTP error body. The fix reuses `OxyServer.apps.introspectAliaMachineCredential` and its server middleware, not a product-local credential resolver. See the [machine chat contract](./machine-chat-contract.md) for release order and limits.
 
 ## Alia-issued keys (`alia_sk_*`) are retired
 

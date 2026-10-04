@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import {
   OxyServer,
+  createOxyAliaMachineCredentialAuth,
+  type OxyAliaMachinePrincipal,
   createOptionalOxyAuth,
   createOxyAuthMiddleware,
   createOxyRequesterAssertionAuth,
@@ -14,6 +16,7 @@ import {
 import { log } from '../lib/logger.js';
 import { getConfiguredChannels } from '../lib/channels/registry.js';
 import { oxyServiceClient } from '../lib/oxy-service-client.js';
+import { oxyInferenceEndpointRefusal, resolveOxyDeploymentEnvironment } from '../lib/inference/oxy-inference.js';
 
 // Initialize Oxy client
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
@@ -31,6 +34,8 @@ declare global {
       serviceApp?: OxyServiceAppContext;
       /** Present only after Oxy verified the app's delegation grant for X-Oxy-User-Id. */
       serviceActingAs?: OxyServiceActingAsContext;
+      /** Oxy-verified app-only principal, never an owner mapped onto req.user. */
+      machineCredential?: OxyAliaMachinePrincipal;
       /**
        * Present only after a product's requester assertion was verified against
        * Oxy's JWKS, bound to the verified service token and consumed through
@@ -314,14 +319,33 @@ export function refuseRetiredAliaKey(res: Response): void {
 /**
  * Accepts an Oxy user or service token, plus the Telegram and channel bot
  * secrets. The name keeps "API key" because this is where the Oxy Console
- * application-key lane lands once Oxy and `@oxy.so/core/server` provide it
- * (ADR 0010 §2); today no API key of any kind is accepted.
+ * application-key lane lives (ADR 0010 §2). Only an explicitly scoped
+ * machine principal can enter the two app-only chat routes; it is never a user.
  */
 export function authenticateTokenOrApiKey(
   req: Request,
   res: Response,
   next: NextFunction
 ): void {
+  const presented = req.headers.authorization;
+  const rawMachine = presented?.startsWith('Bearer oxy_sk_') === true;
+  if (rawMachine) {
+    const path = req.originalUrl.split('?')[0];
+    if (req.method !== 'POST' || !['/alia/chat', '/v1/chat/completions'].includes(path)) {
+      res.status(403).json({ error: 'MACHINE_PRODUCT_ROUTE_UNSUPPORTED' });
+      return;
+    }
+    const environment = resolveOxyDeploymentEnvironment();
+    const verifier = oxyServiceClient();
+    if (!verifier || oxyInferenceEndpointRefusal(OXY_API_URL, environment) !== null) {
+      res.status(503).json({ error: 'MACHINE_CREDENTIAL_VERIFIER_UNAVAILABLE' });
+      return;
+    }
+    // Canonical SDK verification uses Alia's own resource identity. No local
+    // lookup, JWT decoding, credential persistence or owner-to-user conversion.
+    void createOxyAliaMachineCredentialAuth(verifier, { environment })(req, res, next);
+    return;
+  }
   // Already authenticated (e.g., by channel bot pre-middleware)
   if (req.user) {
     return next();
@@ -369,7 +393,7 @@ export function authenticateTokenOrApiKey(
     return;
   }
 
-  // Oxy JWT auth
+  // Existing Oxy user/service JWT paths remain separate from the app-only lane.
   authenticateToken(req, res, next);
 }
 

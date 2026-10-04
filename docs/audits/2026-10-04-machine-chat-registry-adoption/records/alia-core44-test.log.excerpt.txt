@@ -1,0 +1,40 @@
+Full evidence SHA256 36a66c677ea37e0e8d265d1575291cdcc2f04e0d6756985d402cbae4a4acbc87
+/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/alia-machine-review/alia-core44-test.log
+@alia/api test: [19:59:37] [32mINFO[39m: [36mRegistered hook[39m
+@alia/api test:     [35msubsystem[39m: "chat"
+@alia/api test:     [35mhookName[39m: "proactive-insights"
+@alia/api test:     [35mpriority[39m: 300
+@alia/api test: fatal: path 'config.json' does not exist in 'HEAD'
+@alia/api test: [19:59:37] [33mWARN[39m: [36mVAPID keys not set — web push notifications disabled[39m
+@alia/api test: 
+@alia/api test: ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+@alia/api test: 
+@alia/api test:  FAIL  src/routes/__tests__/v1-compatibility-surface.test.ts > the compatibility surface accepts no new credential (#139 ws6, ADR 0004) > screens exactly one Alia-owned credential prefix, and only to refuse it
+@alia/api test: AssertionError: expected [ 'Bearer ', 'Bearer oxy_sk_', …(1) ] to deeply equal [ 'Bearer ', 'alia_sk_' ]
+@alia/api test: 
+@alia/api test: - Expected
+@alia/api test: + Received
+@alia/api test: 
+@alia/api test:   [
+@alia/api test:     "Bearer ",
+@alia/api test: +   "Bearer oxy_sk_",
+@alia/api test:     "alia_sk_",
+@alia/api test:   ]
+@alia/api test: 
+@alia/api test:  ❯ src/routes/__tests__/v1-compatibility-surface.test.ts:554:36
+@alia/api test:     552|     // can name it. A second Alia-owned prefix here IS the reintroduct…
+@alia/api test:     553|     // 0004 condition 2 forbids — a new key type that authenticates ag…
+@alia/api test:     554|     expect(prefixesScreened(auth)).toEqual(['Bearer ', 'alia_sk_']);
+@alia/api test:        |                                    ^
+@alia/api test:     555|     const branch = read('middleware/auth.ts').match(
+@alia/api test:     556|       /if \(token\.startsWith\('alia_sk_'\)\) \{\s*([\s\S]*?)\n {2}\}/,
+@alia/api test: 
+@alia/api test: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+@alia/api test: 
+@alia/api test: 
+@alia/api test:  Test Files  1 failed | 194 passed | 1 skipped (196)
+@alia/api test:       Tests  1 failed | 2057 passed | 1 skipped (2059)
+@alia/api test:    Start at  22:59:26
+@alia/api test:    Duration  11.73s (transform 67.23s, setup 0ms, import 226.67s, tests 56.95s, environment 25ms)
+@alia/api test: 
+@alia/api test: Exited with code 1

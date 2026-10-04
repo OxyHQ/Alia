@@ -121,6 +121,14 @@ describe('Oxy inference client', () => {
     await expect(options.credential()).resolves.toBe('short-lived-oxy-service-token');
   });
 
+  it('uses the verified machine bearer as payer authority without minting Alia identity', () => {
+    const token = 'oxy_sk_synthetic_caller';
+    expect(buildOxyInferenceClientForServiceToken(token, configured)).not.toBeNull();
+    expect(mocks.serviceOptions).toEqual([]);
+    expect(mocks.configuredCredentials).toEqual([]);
+    expect(mocks.clientOptions).toEqual([{ baseURL: 'https://api.oxy.so', credential: token }]);
+  });
+
   it('builds a request-scoped client from the verified product token without Alia credentials', () => {
     expect(buildOxyInferenceClientForServiceToken(' product-service-token ', {
       NODE_ENV: 'production',
