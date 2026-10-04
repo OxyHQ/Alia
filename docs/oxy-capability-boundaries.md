@@ -15,7 +15,7 @@ These remaining callers are active contracts, not unreachable compatibility code
 | Generic app HTTP invocation | `tool-pipeline.ts` builds tools from registered catalogs; non-Mention apps still use each catalog's advertised HTTP invocation. No replacement handler/catalog binding has been demonstrated for those apps. |
 | Mention internal MCP | Only the explicit Mention pilot uses shared MCP, exact catalog provenance and independent requester/ticket authority. Failure never falls back to generic HTTP. |
 | Automation coordination | `structured-automation-creation.ts`, `automation-coordination.ts` and `automation-authority.ts` create and use standing authority for background tasks. This is not interchangeable with a direct chat request. |
-| Alia product API | `/alia/chat` and `/v1/*` are permanent assistant APIs. Console-issued machine-key admission is a separate implementation owned by the follow-up; this transport cleanup does not claim it. |
+| Alia product API | `/alia/chat` and `/v1/*` are permanent assistant APIs. Console-issued app-only machine-key admission is implemented with published core4.4.0 and adopted by Alia#666. The positive Console issuance/chat/revocation journey remains pending; see [machine chat contract](./machine-chat-contract.md). |
 
 Mention's current catalog still advertises `/_oxy/capabilities/:tool`, alongside
 the configured internal MCP route. Removing that receiver requires a coordinated
@@ -24,5 +24,7 @@ legacy SSE transports, persisted feed conversions and device cleanup guards
 have independent client/data retirement conditions; no such evidence is created
 by this change.
 
-Source census: Alia main `7adb4856c` and Mention main `58801dd91`. These are source
+Original source census: Alia main `7adb4856c` and Mention main `58801dd91`.
+The retained boundaries were rechecked at Alia `425adadb` and Mention `fbc6663a`
+for [Oxy#1571](https://github.com/OxyHQ/oxy/issues/1571). These are source
 reachability findings, not assertions about all production traffic or a new grant.
