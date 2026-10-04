@@ -8,6 +8,7 @@
 
 import type { ActorRef, AutonomyLevel, ResourceRef } from '@oxy.so/contracts';
 import { z } from 'zod';
+import { getErrorStatus } from '@oxy.so/core';
 import { oxyServiceClient, oxyServiceToken } from './oxy-service-client.js';
 import { TTLCache } from './ttl-cache.js';
 
@@ -21,10 +22,6 @@ const serviceIdentityResponseSchema = z.object({
     credentialId: z.string().min(1),
   }).passthrough(),
 }).passthrough();
-
-const executionAuthorizationResponseSchema = z.object({
-  authorization: z.object({ id: z.string().min(1) }).passthrough(),
-});
 
 const serviceIdentityCache = new TTLCache<{ applicationId: string; credentialId: string }>({
   ttlMs: 60_000,
@@ -80,73 +77,47 @@ async function coordinatorIdentity(): Promise<{ applicationId: string; credentia
 
 export async function createOxyExecutionAuthorization(
   input: CreateOxyExecutionAuthorizationInput,
-  options: { sharedAgency?: boolean } = {},
 ): Promise<string> {
+  const client = oxyServiceClient();
+  if (!client) throw new Error('Requester authority is unavailable');
   const coordinator = await coordinatorIdentity();
-  if (options.sharedAgency) {
-    const client = oxyServiceClient();
-    if (!client || input.kind !== 'direct_request' || !input.runId || input.maximumAutonomy === 'autonomous') {
-      throw new Error('Shared direct authority requires a live requester and named run');
+  const terms = {
+    ownerAccountId: input.ownerAccountId,
+    coordinatorApplicationId: coordinator.applicationId,
+    coordinatorCredentialId: coordinator.credentialId,
+    actor: input.actor, resource: input.resource, tool: input.tool,
+    limits: input.limits, expiresAt: input.expiresAt.toISOString(),
+  };
+  if (input.kind === 'automation') {
+    if (!input.automationId || input.runId !== undefined || input.stepId !== undefined) {
+      throw new Error('Automation authority requires an automation identity, not a run');
     }
-    const authorization = await client.agency.createExecutionAuthorization({
-      kind: 'direct_request', ownerAccountId: input.ownerAccountId,
-      coordinatorApplicationId: coordinator.applicationId, coordinatorCredentialId: coordinator.credentialId,
-      actor: input.actor, resource: input.resource, tool: input.tool, runId: input.runId,
-      ...(input.stepId ? { stepId: input.stepId } : {}), maximumAutonomy: input.maximumAutonomy,
-      limits: input.limits, expiresAt: input.expiresAt.toISOString(),
-    }, { requesterToken: input.accessToken });
-    return authorization.id;
-  }
-  const response = await fetch(`${OXY_API_URL}/capabilities/execution-authorizations`, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${input.accessToken}`,
-      accept: 'application/json',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      kind: input.kind,
-      ownerAccountId: input.ownerAccountId,
-      coordinatorApplicationId: coordinator.applicationId,
-      coordinatorCredentialId: coordinator.credentialId,
-      actor: input.actor,
-      resource: input.resource,
-      tool: input.tool,
-      ...(input.runId ? { runId: input.runId } : {}),
-      ...(input.stepId ? { stepId: input.stepId } : {}),
-      ...(input.automationId ? { automationId: input.automationId } : {}),
+    return (await client.agency.createExecutionAuthorization({
+      ...terms, kind: 'automation', automationId: input.automationId,
       maximumAutonomy: input.maximumAutonomy,
-      limits: input.limits,
-      expiresAt: input.expiresAt.toISOString(),
-    }),
-    signal: AbortSignal.timeout(AUTHORITY_TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    throw new Error(`Oxy user authority error (${response.status}): ${(await response.text()).slice(0, 240)}`);
+    }, { requesterToken: input.accessToken })).id;
   }
-  return executionAuthorizationResponseSchema.parse(await response.json()).authorization.id;
+  if (!input.runId || input.automationId !== undefined || input.maximumAutonomy === 'autonomous') {
+    throw new Error('Direct authority requires a live requester and named run');
+  }
+  return (await client.agency.createExecutionAuthorization({
+    ...terms, kind: 'direct_request', runId: input.runId,
+    ...(input.stepId ? { stepId: input.stepId } : {}),
+    maximumAutonomy: input.maximumAutonomy,
+  }, { requesterToken: input.accessToken })).id;
 }
 
-/** A missing authorization is already revoked from Alia's point of view. */
+/** Canonical requester-authenticated retirement; no local HTTP fallback. */
 export async function revokeOxyExecutionAuthorization(
   accessToken: string,
   authorizationId: string,
-  options: { sharedAgency?: boolean } = {},
 ): Promise<void> {
-  if (options.sharedAgency) {
-    const client = oxyServiceClient();
-    if (!client) throw new Error('Shared requester authority is unavailable');
+  const client = oxyServiceClient();
+  if (!client) throw new Error('Requester authority is unavailable');
+  try {
     await client.agency.revokeExecutionAuthorization(authorizationId, { requesterToken: accessToken });
-    return;
+  } catch (error) {
+    // Preserve the domain's idempotent absent-row retirement contract.
+    if (getErrorStatus(error) !== 404) throw error;
   }
-  const response = await fetch(
-    `${OXY_API_URL}/capabilities/execution-authorizations/${encodeURIComponent(authorizationId)}`,
-    {
-      method: 'DELETE',
-      headers: { authorization: `Bearer ${accessToken}`, accept: 'application/json' },
-      signal: AbortSignal.timeout(AUTHORITY_TIMEOUT_MS),
-    },
-  );
-  if (response.ok || response.status === 404) return;
-  throw new Error(`Oxy authorization revocation error (${response.status}): ${(await response.text()).slice(0, 240)}`);
 }

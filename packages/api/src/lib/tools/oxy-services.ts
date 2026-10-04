@@ -428,7 +428,6 @@ async function createDirectExecutionAuthorization(
   resource: ResourceRef,
   definition: CatalogTool,
   runId: string,
-  sharedAgency = false,
 ): Promise<string> {
   if (!context.userAccessToken) {
     throw new Error(`No direct or automation authority exists for ${definition.name}`);
@@ -444,7 +443,7 @@ async function createDirectExecutionAuthorization(
     maximumAutonomy: directMaximumAutonomy(context, definition),
     limits: [],
     expiresAt: new Date(Date.now() + 2 * 60_000),
-  }, { sharedAgency });
+  });
 }
 
 interface IssuedTicket {
@@ -472,7 +471,7 @@ async function revokeTransientAuthorization(
 ): Promise<boolean> {
   if (!context.userAccessToken) return false;
   try {
-    await revokeOxyExecutionAuthorization(context.userAccessToken, authorizationId, { sharedAgency });
+    await revokeOxyExecutionAuthorization(context.userAccessToken, authorizationId);
     return true;
   } catch (error: unknown) {
     log.general.warn(
@@ -503,7 +502,6 @@ async function issueTicket(
       resource,
       definition,
       runId,
-      expectedCatalog !== undefined,
     );
   } catch (error: unknown) {
     if (expectedCatalog) throw new OxyAuthorityUnavailableError('Internal MCP requester approval unavailable');
