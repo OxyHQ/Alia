@@ -1,6 +1,6 @@
 # Console machine chat contract
 
-Uses published core4.4.0, with its coordinated Oxy backend deployed before adoption. Deployment and full Console key-lifecycle acceptance are tracked separately in Oxy#1571. Implements ADR 0010's Console-issued product-key direction with a limited app-only chat surface. Oxy's ADR 0035 owns the shared receiver and scope contract. The dated implementation census in ADR 0010 describes the earlier unsupported raw-key lane.
+Uses published core4.4.0, with its coordinated Oxy backend deployed before adoption. Alia#666 adopted it in main425adadb and production TD453; the positive Console issuance/chat/revocation journey remains pending in [Oxy#1571](https://github.com/OxyHQ/oxy/issues/1571). Implements ADR 0010's Console-issued product-key direction with a limited app-only chat surface. Oxy's ADR 0035 owns the shared receiver and scope contract. The dated implementation census in ADR 0010 describes the earlier unsupported raw-key lane.
 
 Only POST `/alia/chat` and `/v1/chat/completions` opt in. Both reuse the existing shared handler. Oxy validates the machine key through the Alia resource's service-authenticated introspection endpoint; both credential and app must explicitly grant `alia:chat` and `inference:invoke`. The SDK returns separate `machineCredential` metadata, never `req.user`, service tier or grants. `X-Oxy-User-Id` and requester assertions are refused for this lane. All other product routes stay closed to raw machine keys.
 

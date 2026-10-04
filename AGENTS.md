@@ -31,8 +31,8 @@ commit que el `package.json` que lo cambia.
   transporte alternativo — `docs/adr/0001-*.md`.
 - **Alia no emite ni acepta claves propias.** `alia_sk_*` está retirado: la API
   lo rechaza (`credential_retired`) y sus tablas no existen. La clave de Oxy
-  Console tiene un candidato app-only con scopes explícitos; requiere release
-  coordinada de Oxy/core y adopción registry — `docs/machine-chat-contract.md`.
+  Console usa el contrato app-only de core4.4 publicado/adoptado con scopes
+  explícitos; aceptación positiva Console pendiente — `docs/machine-chat-contract.md`.
 - **La gente elige modos, no modelos (ADR 0014; ADR 0012):** Alia no tiene
   modelos propios. En la UI el usuario elige un nivel de potencia de Oxy —
   `auto` (por defecto), `instant`, `medium`, `high`, `xhigh`, `pro`, `ultra` —
