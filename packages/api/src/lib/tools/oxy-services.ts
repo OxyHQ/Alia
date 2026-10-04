@@ -48,9 +48,6 @@ const OXY_API_URL = (process.env.OXY_API_URL || 'https://api.oxy.so').replace(/\
 
 export type OxyToolAutonomy = AutonomyLevel;
 
-const catalogsResponseSchema = z.object({
-  registrations: z.array(z.object({ catalog: appCapabilityCatalogSchema })),
-});
 const assignmentSchema = z.object({
   grantId: z.string().min(1),
   resource: resourceRefSchema,
@@ -184,11 +181,11 @@ function appDisplayName(appId: string): string {
 }
 
 async function loadCatalogDefs(): Promise<CatalogDef[]> {
-  // A configured internal pilot discovers complete registry provenance through
-  // the shared service lane. The other apps keep their existing HTTP transport.
-  const registrations = INTERNAL_MCP_PILOT
-    ? await agency().serviceCatalogs().catch(() => { throw new OxyAuthorityUnavailableError('Internal MCP catalogue authority unavailable'); })
-    : catalogsResponseSchema.parse(await oxyAuthorityFetch('/capabilities/catalogs')).registrations;
+  // Every app uses canonical authority discovery; only the reviewed Mention
+  // binding selects MCP for the subsequent product invocation.
+  const registrations = await agency().serviceCatalogs().catch(() => {
+    throw new OxyAuthorityUnavailableError('Oxy catalogue authority unavailable');
+  });
   return registrations.map((registration) => {
     const catalog = appCapabilityCatalogSchema.parse(registration.catalog);
     let internalCatalogBinding: CapabilityCatalogBinding | undefined;
@@ -511,11 +508,7 @@ async function issueTicket(
     const request = { executionAuthorizationId,
       ...(preauthorized ? { runId, stepId: preauthorized.stepId } : {}),
       ...(expectedCatalog ? { expectedCatalog } : {}) };
-    const parsed = expectedCatalog
-      ? await agency().issueCapabilityTicket(request)
-      : ticketResponseSchema.parse(await oxyAuthorityFetch('/capabilities/tickets', {
-        method: 'POST', body: JSON.stringify(request),
-      }));
+    const parsed = ticketResponseSchema.parse(await agency().issueCapabilityTicket(request));
     if (!parsed.decision.allowed || !parsed.ticket) {
       throw new Error(`Oxy policy denied ${definition.name}: ${parsed.decision.reason}`);
     }
