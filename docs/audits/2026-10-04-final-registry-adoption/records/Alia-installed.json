@@ -1,0 +1,130 @@
+{
+  "repository": "OxyHQ/Alia",
+  "installed": true,
+  "installedMembers": [
+    {
+      "importer": "package.json",
+      "name": "@oxy.so/core",
+      "version": "4.2.0",
+      "root": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core",
+      "files": 581,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "package.json",
+      "name": "@oxy.so/services",
+      "version": "11.1.0",
+      "root": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services",
+      "files": 2418,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/alia-canvas/package.json",
+      "name": "@oxy.so/core",
+      "version": "4.2.0",
+      "root": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core",
+      "files": 581,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/alia-canvas/package.json",
+      "name": "@oxy.so/services",
+      "version": "11.1.0",
+      "root": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services",
+      "files": 2418,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/alia-codea/package.json",
+      "name": "@oxy.so/core",
+      "version": "4.2.0",
+      "root": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core",
+      "files": 581,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/alia-codea-cli/package.json",
+      "name": "@oxy.so/core",
+      "version": "4.2.0",
+      "root": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core",
+      "files": 581,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/alia-computer-host/package.json",
+      "name": "@oxy.so/core",
+      "version": "4.2.0",
+      "root": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core",
+      "files": 581,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/alia-cowork/package.json",
+      "name": "@oxy.so/core",
+      "version": "4.2.0",
+      "root": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core",
+      "files": 581,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/api/package.json",
+      "name": "@oxy.so/contracts",
+      "version": "4.9.0",
+      "root": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/contracts",
+      "files": 198,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/api/package.json",
+      "name": "@oxy.so/core",
+      "version": "4.2.0",
+      "root": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core",
+      "files": 581,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/api/package.json",
+      "name": "@oxy.so/mcp",
+      "version": "1.1.0",
+      "root": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/mcp",
+      "files": 41,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/app/package.json",
+      "name": "@oxy.so/contracts",
+      "version": "4.9.0",
+      "root": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/contracts",
+      "files": 198,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/app/package.json",
+      "name": "@oxy.so/core",
+      "version": "4.2.0",
+      "root": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core",
+      "files": 581,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/app/package.json",
+      "name": "@oxy.so/services",
+      "version": "11.1.0",
+      "root": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services",
+      "files": 2418,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/integrations/package.json",
+      "name": "@oxy.so/core",
+      "version": "4.2.0",
+      "root": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core",
+      "files": 581,
+      "allFilesEqual": true
+    }
+  ],
+  "lockSha256": "5299fe9700edbefb96b794660d7dd173077ae029024b960af0754c5bca7089c8",
+  "repair": "explicit missing-directory reinstall from frozen registry lock; previous rejected attempt retained",
+  "merged": false,
+  "deployed": false
+}

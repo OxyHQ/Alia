@@ -1,0 +1,26 @@
+[
+  {
+    "name": "app-build",
+    "cwd": ".",
+    "argv": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "build:app"
+    ],
+    "exitCode": 0,
+    "seconds": 16.614
+  },
+  {
+    "name": "canvas-build",
+    "cwd": ".",
+    "argv": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "build:canvas"
+    ],
+    "exitCode": 0,
+    "seconds": 3.324
+  }
+]

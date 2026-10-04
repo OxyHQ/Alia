@@ -1,0 +1,13 @@
+# Mention pilot through the common internal MCP transport
+
+Source `8392204dc48ef8fd2750c223d09f13939c952f08` builds on Alia I10 `d9847676849a74b1956934f2033f2421caf0b62b`. This handoff does not replace I10 or publish SDK packages.
+
+`ALIA_INTERNAL_MCP_PILOT=mention` enables only the named Mention adapter. It pins registration ID, version and canonical catalog digest; sends a signed capability ticket through the installed common MCP client; preserves the existing run/tool/call idempotency key and domain response; and retires direct authority in `finally`. Background execution keeps its existing explicit authorization and run/step correlation. Other apps retain their current HTTP adapter. Ticket, receiver and cleanup failures never fall back to HTTP. The prompt preserves consent and does not imply first-party authority bypass.
+
+The final package-own command `bun --no-env-file run test` passed 191 API suites and 2020 tests, with the existing one skipped suite/test. Strict TypeScript, build and scoped Biome on the four pilot/prompt files passed. The two historical identity fixture files retain six baseline Biome diagnostics. Their test inputs now carry a real signed 300-second service JWT, an explicit epoch, and exact caller credential/owner/environment. Existing grant denials, credentialed verification and one-mint caching assertions remain.
+
+The new 12-case HTTP fixture uses actual candidate core signature verification and common MCP client/server. Remote Oxy authority and its domain effect Map are synthetic fixtures: this proves transport, binding, idempotency plumbing and failure behavior, not live consent/configuration or Postgres durability. Mention has separate SQL receiver evidence. The historical 14 tool cases and 21 identity/delegation cases also run in the final complete suite.
+
+`proof.json` binds six source files, 17 records, five archives and all 998 installed package files byte for byte. These are explicit candidate archives, not published-version acceptance. The initial full run and intermediate failures are retained: old fixtures used 3600-second/opaque tokens and missing epochs; the old prompt test asserted that consent could never be needed. The final full log is `alia-mcp-full-api-frozen.log`.
+
+The consumer release preparation must add `@oxy.so/mcp` at the coordinated 1.1 version alongside the approved contracts/core/protocol versions. Source manifests and the baseline lock are unchanged here; the candidate install records show the transient local pack substitutions. Production configuration, published package acceptance and mounted live adoption remain separate rollout work.

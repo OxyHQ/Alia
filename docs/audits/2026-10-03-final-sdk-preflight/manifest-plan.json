@@ -1,0 +1,221 @@
+{
+  "repository": "Alia",
+  "base": "d9847676849a74b1956934f2033f2421caf0b62b",
+  "worktree": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003",
+  "status": "planned patch; manifests and lock unchanged; no final registry installation",
+  "targets": {
+    "@oxy.so/contracts": "4.9.0",
+    "@oxy.so/core": "4.2.0",
+    "@oxy.so/services": "11.1.0",
+    "@oxy.so/mcp": "1.1.0",
+    "@oxy.so/protocol": "1.2.2",
+    "@oxy.so/bloom": "6.2.1"
+  },
+  "changes": [
+    {
+      "path": "package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/bloom",
+      "before": "^6.3.0",
+      "after": "6.2.1"
+    },
+    {
+      "path": "package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/core",
+      "before": "^4.0.0",
+      "after": "4.2.0"
+    },
+    {
+      "path": "package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/services",
+      "before": "^11.0.0",
+      "after": "11.1.0"
+    },
+    {
+      "path": "package.json",
+      "section": "overrides",
+      "name": "@oxy.so/core",
+      "before": "^4.0.0",
+      "after": "4.2.0"
+    },
+    {
+      "path": "package.json",
+      "section": "overrides",
+      "name": "@oxy.so/contracts",
+      "before": "^4.4.0",
+      "after": "4.9.0"
+    },
+    {
+      "path": "packages/alia-canvas/package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/bloom",
+      "before": "^6.3.0",
+      "after": "6.2.1"
+    },
+    {
+      "path": "packages/alia-canvas/package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/core",
+      "before": "^4.0.0",
+      "after": "4.2.0"
+    },
+    {
+      "path": "packages/alia-canvas/package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/services",
+      "before": "^11.0.0",
+      "after": "11.1.0"
+    },
+    {
+      "path": "packages/alia-codea-cli/package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/core",
+      "before": "^4.0.0",
+      "after": "4.2.0"
+    },
+    {
+      "path": "packages/alia-codea/package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/core",
+      "before": "^4.0.0",
+      "after": "4.2.0"
+    },
+    {
+      "path": "packages/alia-codea/webview-ui/package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/bloom",
+      "before": "^6.3.0",
+      "after": "6.2.1"
+    },
+    {
+      "path": "packages/alia-computer-host/package.json",
+      "section": "devDependencies",
+      "name": "@oxy.so/core",
+      "before": "^4.0.0",
+      "after": "4.2.0"
+    },
+    {
+      "path": "packages/alia-cowork/package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/bloom",
+      "before": "^6.3.0",
+      "after": "6.2.1"
+    },
+    {
+      "path": "packages/alia-cowork/package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/core",
+      "before": "^4.0.0",
+      "after": "4.2.0"
+    },
+    {
+      "path": "packages/api/package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/contracts",
+      "before": "^4.4.0",
+      "after": "4.9.0"
+    },
+    {
+      "path": "packages/api/package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/core",
+      "before": "^4.0.0",
+      "after": "4.2.0"
+    },
+    {
+      "path": "packages/app/package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/bloom",
+      "before": "^6.3.0",
+      "after": "6.2.1"
+    },
+    {
+      "path": "packages/app/package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/contracts",
+      "before": "^4.4.0",
+      "after": "4.9.0"
+    },
+    {
+      "path": "packages/app/package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/core",
+      "before": "^4.0.0",
+      "after": "4.2.0"
+    },
+    {
+      "path": "packages/app/package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/services",
+      "before": "^11.0.0",
+      "after": "11.1.0"
+    },
+    {
+      "path": "packages/integrations/package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/core",
+      "before": "^4.0.0",
+      "after": "4.2.0"
+    }
+  ],
+  "inputs": [
+    {
+      "path": "bun.lock",
+      "sha256": "ee074cf3965f38d8026c7a989bea9efb53a87bf0b990968f6072ba09b330809b"
+    },
+    {
+      "path": "package.json",
+      "sha256": "1834b5250f35ccb1b43de162eb3d496eae3fda485c23f10735230019bc73cb8b"
+    },
+    {
+      "path": "packages/alia-canvas/package.json",
+      "sha256": "b27e80722b874028a3e8d07fe3dff5941aee4d579bb61ae300168e6008d59dea"
+    },
+    {
+      "path": "packages/alia-codea-cli/package.json",
+      "sha256": "c14eda165ae110355af8daeb66bf46b120ce5772e2a69fdc855e37e24b8f7ed6"
+    },
+    {
+      "path": "packages/alia-codea/package.json",
+      "sha256": "c658d135d3571e3b6724435d8d147ff5d65ebee4d6c046197ee82ba1e8502110"
+    },
+    {
+      "path": "packages/alia-codea/webview-ui/package.json",
+      "sha256": "ad0587394d49fa2308ea29f098c3de8519a429caff40aa85d410ba747e9a924c"
+    },
+    {
+      "path": "packages/alia-computer-host/package.json",
+      "sha256": "8357033f155845a784ab633db4e0a7ef17cd4bf143019db22c201cb6ff2956d3"
+    },
+    {
+      "path": "packages/alia-cowork/package.json",
+      "sha256": "451c8c397a415980929be559f638880721618e004575eb4b40265bcdd036c18c"
+    },
+    {
+      "path": "packages/api/package.json",
+      "sha256": "88c64743d4223485e8626171f6e5f2a454c699a94f2e5e26c25f4715c52dfc3f"
+    },
+    {
+      "path": "packages/app/package.json",
+      "sha256": "e668f74f2f9b0bdc5f4eae23d3c24bfc3a5a6ba9481f332f406c664f78ec2d4f"
+    },
+    {
+      "path": "packages/integrations/package.json",
+      "sha256": "5f67c516ed128c83b1afa87c263e3fcc776f19aaff45fd149fec794b2e2ae37d"
+    }
+  ],
+  "patchSha256": "f576885085e56f1aaae8638a693e74495bbcdf983cda75a2bbb7231f126d93b5",
+  "checks": [
+    "git apply --check passed",
+    "target JSON compared to structured desired result"
+  ],
+  "pending": [
+    "Final package registry availability and integrity",
+    "Apply patch and regenerate Bun lock with --minimum-release-age=0 in same source change",
+    "Check Bloom 6.2.1 API compatibility and actual peer resolution",
+    "Package typechecks, tests and builds",
+    "Root review and coordinated rollout"
+  ]
+}

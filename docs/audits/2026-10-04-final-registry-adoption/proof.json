@@ -1,0 +1,197 @@
+{
+  "source": "90230629d1ea7b573d9841e62f711cb2652edd94",
+  "sources": [
+    {
+      "path": "bun.lock",
+      "sha256": "5299fe9700edbefb96b794660d7dd173077ae029024b960af0754c5bca7089c8"
+    },
+    {
+      "path": "package.json",
+      "sha256": "011be0c23e8eaea15b384a78e629bed11aeb5bed8df8a17dbd27f1c99641bfb0"
+    },
+    {
+      "path": "packages/alia-canvas/package.json",
+      "sha256": "8d701385a1d719a09a5613363cbea317a5c220533b25c043d90c66cae1fc9dbc"
+    },
+    {
+      "path": "packages/alia-codea-cli/package.json",
+      "sha256": "485216ce6333ae4fbea98e149e843d33f5c50742f7ceb1f20dded961b315d166"
+    },
+    {
+      "path": "packages/alia-codea/package.json",
+      "sha256": "a2b44edd18415132ac44a17c96bcba0785762b218bb13327fb0cc3346d70c2bb"
+    },
+    {
+      "path": "packages/alia-computer-host/package.json",
+      "sha256": "f76f6c3dff0f274cc594975a8dc1360aed307951ffe05f829ef3dfcb931b6c27"
+    },
+    {
+      "path": "packages/alia-cowork/package.json",
+      "sha256": "19ac58f6ed8426694dba64d59b371ad29eab37d22bcae1a6b07a3cfecdf6693d"
+    },
+    {
+      "path": "packages/api/package.json",
+      "sha256": "770b0ffbc49699d0ac4939d9af6c30ed32a980fad8e194976c3935d37e1b3ef4"
+    },
+    {
+      "path": "packages/app/package.json",
+      "sha256": "c79d52a1f3350c8bef35e9c9248bd44b73a6d4331e7757ee6a1086fc5afa26df"
+    },
+    {
+      "path": "packages/integrations/package.json",
+      "sha256": "a1a2e34b1384ab7ea8f0985e32d90dbdd598b3ac8b27797cf374e0792607c804"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/Alia-frozen.log",
+      "sha256": "d3a6420c3b474e9519f415338a2762b643462c1bc18c0f095f7ad6d4c99a3d26",
+      "bytes": 98
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/Alia-installed.json",
+      "sha256": "b91ee35462a0d74f19ea060bc4db014d851e425f61c657e6eb0b8f21b55fc729",
+      "bytes": 4412
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/Alia-resolve.log",
+      "sha256": "a4b2b49b9b42cb825980392cf1fd664ef2ff09a46d5108a7bb3f0fdc6cf73ace",
+      "bytes": 175
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/alia-chat-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/alia-codea-cli-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/alia-codea-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/alia-computer-host-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/alia-cowork-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/api-build.log",
+      "sha256": "3abd613cce5f98276f5ff18fe47cf7897d36b2d6c5694ef804e2abe4c0e6870f",
+      "bytes": 826
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/api-full.log",
+      "sha256": "5e2b49a547fcbcd1fc1c38d11d4fc5e6f1a15757be0759c17a0a95ccc9e1f2d3",
+      "bytes": 46705
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/api-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/app-build.log",
+      "sha256": "56779559665e8220b1dec7af8995fba5f9455bfa38717f3f09a27b26d944b24a",
+      "bytes": 16422
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/app-types.log",
+      "sha256": "96d542c0cb8f6274a10d96fbd948cb023a16bb616a258ed4f419b79f1d1ac07d",
+      "bytes": 73
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/canvas-build.log",
+      "sha256": "6feb4a8c3ef039bae3e6134e142039c9ff3cc0a74df949830af0be2055ddb0dc",
+      "bytes": 16495
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/contracts-registry.json",
+      "sha256": "fb1ded2797bdbd0ca31460f3cba087f078a86dc201365c923da9fcc23b07ed7b",
+      "bytes": 380
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/core-registry.json",
+      "sha256": "99b7f8a1cc87cf46ff54b3113a1911a938f39b4f086537e0a4138ee38dd035b7",
+      "bytes": 375
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/failed.json",
+      "sha256": "e45a08861b705a4bd04a1ac5bec7dfdc902621991070d99debf9062f9e6cfe3d",
+      "bytes": 89
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/first-checks.json",
+      "sha256": "00c79bed55c2d5b7a7310a20b65e14ffd4d55c32e3202bc756fd4b2218ff38a6",
+      "bytes": 1219
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/frontend-build-checks.json",
+      "sha256": "59cda8a5a2eca6bed916a4568946c791c2ce7115d7c7f7cd99a5b97af592494a",
+      "bytes": 366
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/intent.json",
+      "sha256": "1ed1b542ef5c06117e3839464345b60327f580733c91f06fab33fb92266de08d",
+      "bytes": 148
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/materialization-frozen.log",
+      "sha256": "8d3afdaea542a1a3410a827157bd872bb3b0e372bec1247cca5d0a7c96079d9c",
+      "bytes": 84
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/materialization-repair-intent.json",
+      "sha256": "16fae468c482ea43a18a0ca9d885687ecef36db7ecb0e09ea6966fe0e3374efd",
+      "bytes": 378
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/mcp-registry.json",
+      "sha256": "cc279f4f5b1ca68041f6f0d3583e4d9dc218bd7c0b77846207aa3b981086d7ac",
+      "bytes": 373
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/preflight.json",
+      "sha256": "80efa6127e781d36272b0891e5fac4664ce332a6c47b16f24c98e41c4a95824c",
+      "bytes": 249
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/protocol-registry.json",
+      "sha256": "cc0b427dca92d55ea5e1debe7e76580618a26f997b2c888b8484537b64b70bbd",
+      "bytes": 379
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/registry.json",
+      "sha256": "a39da224fafeec388f0ac27e08ea13cf666427a0177b67f7b077c65cadb59df0",
+      "bytes": 415373
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/services-registry.json",
+      "sha256": "444599f0eb56d104d64c288ed3a6544163e54430c0f275c2feec219d5f624611",
+      "bytes": 381
+    }
+  ],
+  "validation": {
+    "apiSuitesPassed": 191,
+    "apiTestsPassed": 2022,
+    "apiTestsSkipped": 1,
+    "apiTypesBuild": "PASS",
+    "allConsumerTypes": "PASS",
+    "appAndCanvasBuilds": "PASS",
+    "registryInstalledMemberChecks": 12920
+  },
+  "limits": [
+    "Canonical API suite excludes .pgdb tests; no full real-PG claim. I05 HTTP/legacy tests are included in the canonical suite.",
+    "Initial Bun installation retained three same-version candidate core files. They were preserved outside node_modules; a canonical frozen reinstall materialized registry files. Full importer bytechecks then passed. No archive files were copied manually.",
+    "Build-generated sitemap timestamp was restored; application source remained accepted composition.",
+    "No deployment, native runtime or authority/grant mutation. Required CI remains separate."
+  ]
+}

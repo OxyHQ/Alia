@@ -8,7 +8,7 @@
 
 import type { ActorRef, AutonomyLevel, ResourceRef } from '@oxy.so/contracts';
 import { z } from 'zod';
-import { oxyServiceToken } from './oxy-service-client.js';
+import { oxyServiceClient, oxyServiceToken } from './oxy-service-client.js';
 import { TTLCache } from './ttl-cache.js';
 
 const OXY_API_URL = (process.env.OXY_API_URL || 'https://api.oxy.so').replace(/\/$/, '');
@@ -80,8 +80,23 @@ async function coordinatorIdentity(): Promise<{ applicationId: string; credentia
 
 export async function createOxyExecutionAuthorization(
   input: CreateOxyExecutionAuthorizationInput,
+  options: { sharedAgency?: boolean } = {},
 ): Promise<string> {
   const coordinator = await coordinatorIdentity();
+  if (options.sharedAgency) {
+    const client = oxyServiceClient();
+    if (!client || input.kind !== 'direct_request' || !input.runId || input.maximumAutonomy === 'autonomous') {
+      throw new Error('Shared direct authority requires a live requester and named run');
+    }
+    const authorization = await client.agency.createExecutionAuthorization({
+      kind: 'direct_request', ownerAccountId: input.ownerAccountId,
+      coordinatorApplicationId: coordinator.applicationId, coordinatorCredentialId: coordinator.credentialId,
+      actor: input.actor, resource: input.resource, tool: input.tool, runId: input.runId,
+      ...(input.stepId ? { stepId: input.stepId } : {}), maximumAutonomy: input.maximumAutonomy,
+      limits: input.limits, expiresAt: input.expiresAt.toISOString(),
+    }, { requesterToken: input.accessToken });
+    return authorization.id;
+  }
   const response = await fetch(`${OXY_API_URL}/capabilities/execution-authorizations`, {
     method: 'POST',
     headers: {
@@ -116,7 +131,14 @@ export async function createOxyExecutionAuthorization(
 export async function revokeOxyExecutionAuthorization(
   accessToken: string,
   authorizationId: string,
+  options: { sharedAgency?: boolean } = {},
 ): Promise<void> {
+  if (options.sharedAgency) {
+    const client = oxyServiceClient();
+    if (!client) throw new Error('Shared requester authority is unavailable');
+    await client.agency.revokeExecutionAuthorization(authorizationId, { requesterToken: accessToken });
+    return;
+  }
   const response = await fetch(
     `${OXY_API_URL}/capabilities/execution-authorizations/${encodeURIComponent(authorizationId)}`,
     {

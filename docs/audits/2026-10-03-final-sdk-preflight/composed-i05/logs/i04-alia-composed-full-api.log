@@ -1,0 +1,702 @@
+$ vitest run
+
+ RUN  v4.1.10 /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api
+
+[17:34:01] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.openai.com"
+[17:34:01] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.openai.com"
+[17:34:01] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.openai.com"
+[17:34:01] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.elevenlabs.io[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.elevenlabs.io"
+[17:34:01] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.openai.com"
+[17:34:01] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.openai.com"
+[17:34:01] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.openai.com"
+[17:34:03] [33mWARN[39m: [36mCould not measure show audio duration[39m
+    err: {
+      "type": "Error",
+      "message": "spawn /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg ENOENT",
+      "stack":
+          Error: spawn /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg ENOENT
+              at Process.ChildProcess._handle.onexit (node:internal/child_process:287:19)
+              at onErrorNT (node:internal/child_process:525:16)
+              at processTicksAndRejections (node:internal/process/task_queues:90:21)
+      "errno": -2,
+      "code": "ENOENT",
+      "syscall": "spawn /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg",
+      "path": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg",
+      "spawnargs": [
+        "-i",
+        "/tmp/show-duration-Gaxwx7/audio.mp3",
+        "-f",
+        "null",
+        "-"
+      ],
+      "cmd": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg -i /tmp/show-duration-Gaxwx7/audio.mp3 -f null -",
+      "stdout": "",
+      "stderr": ""
+    }
+ ❯ src/lib/show/__tests__/show-audio.test.ts (12 tests | 8 failed) 128ms
+     × reads the real length of a file the byte estimate gets badly wrong 11ms
+     × and of one it gets right, so the fixture above is not the only shape that works 4ms
+     × scales with the input, so it is not returning a constant 7ms
+     × takes the last of many timestamps, not the first 5ms
+     × produces one file as long as its parts together 6ms
+     × hands a single segment straight back 10ms
+     × joins segments of DIFFERENT bitrates into one consistent file 13ms
+     × leaves no temporary directory behind, on success or on failure 17ms
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.openai.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.openai.com"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.elevenlabs.io[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.elevenlabs.io"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.anthropic.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.anthropic.com"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: generativelanguage.googleapis.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "generativelanguage.googleapis.com"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.groq.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.groq.com"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.mistral.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.mistral.ai"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.deepseek.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.deepseek.com"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.together.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.together.ai"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.replicate.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.replicate.com"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.cerebras.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.cerebras.ai"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.cloudflare.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.cloudflare.com"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: openrouter.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "openrouter.ai"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.cohere.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.cohere.ai"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.fireworks.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.fireworks.ai"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.perplexity.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.perplexity.ai"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.x.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.x.ai"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.sambanova.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.sambanova.ai"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.hyperbolic.xyz[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.hyperbolic.xyz"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.novita.ai[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.novita.ai"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: inference.do-ai.run[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "inference.do-ai.run"
+[17:34:03] [31mERROR[39m: [36mALERT: Outbound connection to a host the egress policy does not permit: api.cheaperinference.com[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "unpermitted_egress"
+    [35mhost[39m: "api.cheaperinference.com"
+[17:34:04] [32mINFO[39m: [36mAgent prompt injected[39m
+    [35magentName[39m: "Claudio"
+    [35marchetype[39m: "general"
+[17:34:04] [32mINFO[39m: [36mAgent prompt injected[39m
+    [35magentName[39m: "Claudio"
+    [35marchetype[39m: "general"
+[17:34:04] [32mINFO[39m: [36mAgent prompt injected[39m
+    [35magentName[39m: "Claudio"
+    [35marchetype[39m: "general"
+[17:34:04] [32mINFO[39m: [36mAgent prompt injected[39m
+    [35magentName[39m: "Claudio"
+    [35marchetype[39m: "general"
+[17:34:04] [32mINFO[39m: [36mAgent prompt injected[39m
+    [35magentName[39m: "Claudio"
+    [35marchetype[39m: "general"
+[17:34:04] [32mINFO[39m: [36mAgent prompt injected[39m
+    [35magentName[39m: "Claudio"
+    [35marchetype[39m: "general"
+[17:34:04] [32mINFO[39m: [36mAgent prompt injected[39m
+    [35magentName[39m: "Claudio"
+    [35marchetype[39m: "general"
+[17:34:04] [31mERROR[39m: [36mError building the catalogue[39m
+    [35msubsystem[39m: "models"
+    err: {
+      "type": "Error",
+      "message": "oxy down",
+      "stack":
+          Error: oxy down
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/catalogue.test.ts:42:37
+              at Mock (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/spy/dist/index.js:332:34)
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/catalogue.ts:28:54
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+              at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/route.js:149:13)
+              at optionalAuth (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/catalogue.test.ts:63:5)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+              at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/route.js:149:13)
+              at Route.dispatch (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/route.js:119:3)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+    }
+[17:34:04] [31mERROR[39m: [36mModel list unavailable[39m
+    [35msubsystem[39m: "v1"
+    err: {
+      "type": "Error",
+      "message": "oxy down",
+      "stack":
+          Error: oxy down
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/catalogue.test.ts:42:37
+              at Mock (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/spy/dist/index.js:332:34)
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/v1/models.ts:33:45
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+              at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/route.js:149:13)
+              at Route.dispatch (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/route.js:119:3)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:284:15
+              at router.process_params (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:346:12)
+              at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:280:10)
+    }
+[17:34:04] [31mERROR[39m: [36mSyra did not delete, so Alia kept its record[39m
+    [35mkind[39m: "series"
+    [35maliaId[39m: "series-under-test"
+    [35msyraId[39m: "syra-podcast-1"
+    [35mwhy[39m: "exists_and_refused"
+    err: {
+      "type": "SyraApiError",
+      "message": "Syra API request failed: 403 Forbidden",
+      "stack":
+          SyraApiError: Syra API request failed: 403 Forbidden
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/show-delete.test.ts:173:19
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+              at new Promise (<anonymous>)
+              at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+              at new Promise (<anonymous>)
+              at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+      "name": "SyraApiError",
+      "status": 403
+    }
+[17:34:04] [31mERROR[39m: [36mSyra did not delete, so Alia kept its record[39m
+    [35mkind[39m: "series"
+    [35maliaId[39m: "series-under-test"
+    [35msyraId[39m: "syra-podcast-1"
+    [35mwhy[39m: "status_401"
+    err: {
+      "type": "SyraApiError",
+      "message": "Syra API request failed: 401 Unauthorized",
+      "stack":
+          SyraApiError: Syra API request failed: 401 Unauthorized
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/show-delete.test.ts:206:19
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+              at new Promise (<anonymous>)
+              at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+              at new Promise (<anonymous>)
+              at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+      "name": "SyraApiError",
+      "status": 401
+    }
+[17:34:04] [31mERROR[39m: [36mSyra did not delete, so Alia kept its record[39m
+    [35mkind[39m: "series"
+    [35maliaId[39m: "series-under-test"
+    [35msyraId[39m: "syra-podcast-1"
+    [35mwhy[39m: "status_409"
+    err: {
+      "type": "SyraApiError",
+      "message": "Syra API request failed: 409 Conflict",
+      "stack":
+          SyraApiError: Syra API request failed: 409 Conflict
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/show-delete.test.ts:215:19
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+              at new Promise (<anonymous>)
+              at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+              at new Promise (<anonymous>)
+              at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+      "name": "SyraApiError",
+      "status": 409
+    }
+[17:34:04] [31mERROR[39m: [36mSyra did not delete, so Alia kept its record[39m
+    [35mkind[39m: "episode"
+    [35maliaId[39m: "episode-under-test"
+    [35msyraId[39m: "syra-episode-1"
+    [35mwhy[39m: "exists_and_refused"
+    err: {
+      "type": "SyraApiError",
+      "message": "Syra API request failed: 403 Forbidden",
+      "stack":
+          SyraApiError: Syra API request failed: 403 Forbidden
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/show-delete.test.ts:255:19
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+              at new Promise (<anonymous>)
+              at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+              at new Promise (<anonymous>)
+              at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+      "name": "SyraApiError",
+      "status": 403
+    }
+[17:34:04] [33mWARN[39m: [36mVAPID keys not set — web push notifications disabled[39m
+[17:34:04] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+[17:34:04] [32mINFO[39m: [36mMCP relay client connected[39m
+    [35muserId[39m: "user-from-session"
+[17:34:04] [32mINFO[39m: [36mLocal MCP tools registered[39m
+    [35muserId[39m: "user-from-session"
+    [35mserverId[39m: "srv-1"
+    [35mtoolCount[39m: 1
+[17:34:04] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+[17:34:04] [32mINFO[39m: [36mMCP relay client disconnected[39m
+    [35muserId[39m: "user-from-session"
+[17:34:04] [32mINFO[39m: [36mMCP relay client connected[39m
+    [35muserId[39m: "user-from-session"
+[17:34:04] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+[17:34:04] [32mINFO[39m: [36mMCP relay client disconnected[39m
+    [35muserId[39m: "user-from-session"
+[17:34:05] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+[17:34:05] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+[17:34:05] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+[17:34:05] [32mINFO[39m: [36mRegistered hook[39m
+    [35msubsystem[39m: "chat"
+    [35mhookName[39m: "analytics"
+[17:34:05] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+[17:34:05] [32mINFO[39m: [36mRegistered hook[39m
+    [35msubsystem[39m: "chat"
+    [35mhookName[39m: "memory-recall"
+    [35mpriority[39m: 10
+[17:34:05] [32mINFO[39m: [36mRegistered hook[39m
+    [35msubsystem[39m: "chat"
+    [35mhookName[39m: "style-learning"
+    [35mpriority[39m: 200
+[17:34:05] [32mINFO[39m: [36mMCP relay initialized at /ws/mcp[39m
+[17:34:05] [32mINFO[39m: [36mRegistered hook[39m
+    [35msubsystem[39m: "chat"
+    [35mhookName[39m: "proactive-insights"
+    [35mpriority[39m: 300
+[17:34:05] [31mERROR[39m: [36mInference request refused before sending: too many tools[39m
+    [35msubsystem[39m: "providers"
+    [35mtoolCount[39m: 129
+    [35mlimit[39m: 128
+    [35mfamilies[39m: {
+      "oxy_mention": 129
+    }
+    [35msurface[39m: "chat"
+    [35mmodel[39m: "openai/gpt-6-luna"
+[17:34:05] [31mERROR[39m: [36mInference request refused before sending: too many tools[39m
+    [35msubsystem[39m: "providers"
+    [35mtoolCount[39m: 143
+    [35mlimit[39m: 128
+    [35mfamilies[39m: {
+      "oxy_mention": 143
+    }
+    [35msurface[39m: "chat"
+    [35mmodel[39m: "openai/gpt-6-luna"
+[17:34:05] [32mINFO[39m: [36mTool budget applied: connected apps are opened on demand with useApps[39m
+    [35msubsystem[39m: "tools"
+    [35massembled[39m: 143
+    [35mcore[39m: 24
+    [35mapps[39m: [
+      "inbox:11",
+      "mention:93",
+      "mercaria:3",
+      "noted:12"
+    ]
+    [35mopen[39m: []
+    [35mpinnedTools[39m: []
+    [35mactive[39m: 25
+    [35mbudget[39m: 128
+[17:34:05] [31mERROR[39m: [36mInference request refused before sending: too many tools[39m
+    [35msubsystem[39m: "providers"
+    [35mtoolCount[39m: 143
+    [35mlimit[39m: 128
+    [35mfamilies[39m: {
+      "oxy_mention": 93,
+      "other": 24,
+      "oxy_noted": 12,
+      "oxy_inbox": 11,
+      "oxy_mercaria": 3
+    }
+    [35msurface[39m: "chat"
+    [35mmodel[39m: "openai/gpt-6-luna"
+[17:34:05] [31mERROR[39m: [36mCORS origin ignored: it has no origin to match against[39m
+    [35morigin[39m: "exp://localhost:8150"
+[17:34:07] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[17:34:07] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[17:34:07] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[17:34:07] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[17:34:07] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[17:34:07] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[17:34:07] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[17:34:07] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[17:34:07] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[17:34:07] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[17:34:07] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[17:34:07] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[17:34:07] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[17:34:07] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[17:34:07] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[17:34:07] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[17:34:07] [34mDEBUG[39m: [36mAI SDK config[39m
+    [35msubsystem[39m: "v1"
+    [35mmodelProvider[39m: "kaana"
+    [35mmodel[39m: "acme/thinker-1"
+    [35mmessageCount[39m: 1
+    [35mtoolCount[39m: 0
+[17:34:07] [32mINFO[39m: [36mToken usage captured[39m
+    [35msubsystem[39m: "v1"
+    [35musage[39m: {
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "systemPromptTokens": 0,
+      "reasoningTokens": 0
+    }
+[17:34:07] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+    [35maddress[39m: "127.0.0.1"
+[17:34:07] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+    [35maddress[39m: "::ffff:127.0.0.1"
+[17:34:07] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+    [35maddress[39m: "10.0.0.5"
+[17:34:07] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+    [35maddress[39m: "172.16.9.9"
+[17:34:07] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+    [35maddress[39m: "192.168.1.1"
+[17:34:07] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+    [35maddress[39m: "100.64.0.1"
+[17:34:07] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+    [35maddress[39m: "169.254.169.254"
+[17:34:07] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+    [35maddress[39m: "fd00::1"
+[17:34:07] [33mWARN[39m: [36mRefused a host resolving to a non-public address[39m
+    [35maddress[39m: "fe80::1"
+[17:34:07] [34mDEBUG[39m: [36mHost did not resolve[39m
+    err: {
+      "type": "Error",
+      "message": "ENOTFOUND",
+      "stack":
+          Error: ENOTFOUND
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/__tests__/public-host.test.ts:72:37
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+              at new Promise (<anonymous>)
+              at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+              at new Promise (<anonymous>)
+              at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+      "code": "ENOTFOUND"
+    }
+[17:34:07] [33mWARN[39m: [36mALERT: Session running for 15min (expected max 10min)[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "session_runaway"
+    [35msessionId[39m: "alerts-session-1"
+    [35mdurationMs[39m: 900000
+[17:34:07] [33mWARN[39m: [36mALERT: Agent repeating same action: readFile[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "infinite_loop"
+    [35msessionId[39m: "alerts-session-2"
+    [35mtoolName[39m: "readFile"
+[17:34:07] [33mWARN[39m: [36mALERT: Session running for 15min (expected max 10min)[39m
+    [35msubsystem[39m: "agents"
+    [35malert[39m: "session_runaway"
+    [35msessionId[39m: "alerts-session-5"
+    [35mdurationMs[39m: 900000
+[17:34:07] [33mWARN[39m: [36mModel usage unavailable; ranking falls back to a cold start[39m
+    [35msubsystem[39m: "models"
+    err: {
+      "type": "Error",
+      "message": "db down",
+      "stack":
+          Error: db down
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/models/__tests__/selection.test.ts:66:48
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+              at new Promise (<anonymous>)
+              at runWithCancel (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+              at new Promise (<anonymous>)
+              at runWithTimeout (file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+    }
+[17:34:07] [33mWARN[39m: [36mLast-used model unavailable[39m
+    [35msubsystem[39m: "models"
+    err: {
+      "type": "Error",
+      "message": "db down",
+      "stack":
+          Error: db down
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/models/__tests__/selection.test.ts:70:41
+              at processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20
+    }
+[17:34:08] [33mWARN[39m: [36mHealth: Postgres probe failed[39m
+    err: {
+      "type": "Error",
+      "message": "pool exhausted",
+      "stack":
+          Error: pool exhausted
+              at Object.execute (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/health-route.test.ts:18:62)
+              at isPostgresReady (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/health.ts:35:19)
+              at Layer.handle (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/health.ts:115:15)
+              at probe (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/health-route.test.ts:43:30)
+              at processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/health-route.test.ts:81:25
+              at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20
+    }
+[17:34:08] [31mERROR[39m: [36mUser rate limit check error[39m
+    [35msubsystem[39m: "rate-limit"
+    err: {
+      "type": "Error",
+      "message": "Postgres is not connected — call connectPostgres() during startup",
+      "stack":
+          Error: Postgres is not connected — call connectPostgres() during startup
+              at getDb (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/db/index.ts:78:11)
+              at getUserTier (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:88:53)
+              at apiKeyRateLimit (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:125:26)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+              at trim_prefix (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:328:13)
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:286:9
+              at router.process_params (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:346:12)
+              at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:280:10)
+              at authenticateTokenOrApiKey (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/auth.ts:327:12)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+    }
+[17:34:08] [31mERROR[39m: [36mUser rate limit check error[39m
+    [35msubsystem[39m: "rate-limit"
+    err: {
+      "type": "Error",
+      "message": "Postgres is not connected — call connectPostgres() during startup",
+      "stack":
+          Error: Postgres is not connected — call connectPostgres() during startup
+              at getDb (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/db/index.ts:78:11)
+              at getUserTier (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:88:53)
+              at apiKeyRateLimit (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:125:26)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+              at trim_prefix (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:328:13)
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:286:9
+              at router.process_params (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:346:12)
+              at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:280:10)
+              at authenticateTokenOrApiKey (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/auth.ts:327:12)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+    }
+[17:34:08] [31mERROR[39m: [36mUser rate limit check error[39m
+    [35msubsystem[39m: "rate-limit"
+    err: {
+      "type": "Error",
+      "message": "Postgres is not connected — call connectPostgres() during startup",
+      "stack":
+          Error: Postgres is not connected — call connectPostgres() during startup
+              at getDb (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/db/index.ts:78:11)
+              at getUserTier (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:88:53)
+              at apiKeyRateLimit (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/api-key-rate-limit.ts:125:26)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+              at trim_prefix (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:328:13)
+              at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:286:9
+              at router.process_params (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:346:12)
+              at next (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/index.js:280:10)
+              at authenticateTokenOrApiKey (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/auth.ts:327:12)
+              at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/express/lib/router/layer.js:95:5)
+    }
+[17:34:09] [33mWARN[39m: [36mVAPID keys not set — web push notifications disabled[39m
+[17:34:09] [32mINFO[39m: [36mRegistered hook[39m
+    [35msubsystem[39m: "chat"
+    [35mhookName[39m: "analytics"
+[17:34:09] [32mINFO[39m: [36mRegistered hook[39m
+    [35msubsystem[39m: "chat"
+    [35mhookName[39m: "memory-recall"
+    [35mpriority[39m: 10
+[17:34:09] [32mINFO[39m: [36mRegistered hook[39m
+    [35msubsystem[39m: "chat"
+    [35mhookName[39m: "style-learning"
+    [35mpriority[39m: 200
+[17:34:09] [32mINFO[39m: [36mRegistered hook[39m
+    [35msubsystem[39m: "chat"
+    [35mhookName[39m: "proactive-insights"
+    [35mpriority[39m: 300
+fatal: path 'config.json' does not exist in 'HEAD'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/show/__tests__/show-audio.test.ts > measuring a show's duration > reads the real length of a file the byte estimate gets badly wrong
+ FAIL  src/lib/show/__tests__/show-audio.test.ts > measuring a show's duration > and of one it gets right, so the fixture above is not the only shape that works
+ FAIL  src/lib/show/__tests__/show-audio.test.ts > measuring a show's duration > scales with the input, so it is not returning a constant
+ FAIL  src/lib/show/__tests__/show-audio.test.ts > reading ffmpeg's timestamps > takes the last of many timestamps, not the first
+ FAIL  src/lib/show/__tests__/show-audio.test.ts > joining segments > produces one file as long as its parts together
+ FAIL  src/lib/show/__tests__/show-audio.test.ts > joining segments > hands a single segment straight back
+ FAIL  src/lib/show/__tests__/show-audio.test.ts > joining segments > joins segments of DIFFERENT bitrates into one consistent file
+ FAIL  src/lib/show/__tests__/show-audio.test.ts > cleaning up after itself > leaves no temporary directory behind, on success or on failure
+Error: spawn /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/ffmpeg-static/ffmpeg ENOENT
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+
+ Test Files  1 failed | 190 passed | 1 skipped (192)
+      Tests  8 failed | 2012 passed | 1 skipped (2021)
+   Start at  20:33:58
+   Duration  11.03s (transform 66.20s, setup 0ms, import 226.13s, tests 50.93s, environment 23ms)
+
+error: script "test" exited with code 1

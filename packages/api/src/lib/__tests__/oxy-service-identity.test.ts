@@ -1,3 +1,4 @@
+import { generateKeyPairSync, sign } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -59,6 +60,16 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
  * rather than any one module in it.
  */
 
+const TOKEN_KEY = generateKeyPairSync('ed25519');
+
+function serviceIdentityToken(): string {
+  const now = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(JSON.stringify({ alg: 'EdDSA', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ type: 'service', iat: now, exp: now + 300 })).toString('base64url');
+  const input = `${header}.${payload}`;
+  return `${input}.${sign(null, Buffer.from(input), TOKEN_KEY.privateKey).toString('base64url')}`;
+}
+
 const API_KEY = 'oxy_dk_identity_test';
 const API_SECRET = 'identity-test-secret';
 
@@ -103,6 +114,7 @@ class OxyEdge {
   readonly exchanges: string[] = [];
   private readonly server: Server;
   private minted = 0;
+  mintedToken = '';
 
   constructor() {
     this.server = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -125,7 +137,8 @@ class OxyEdge {
       this.exchanges.push(body);
       this.minted += 1;
       // The envelope production answers with, `data` and all.
-      return json(200, { data: { token: `oxy-service-token-${this.minted}`, expiresIn: 3600 } });
+      this.mintedToken = serviceIdentityToken();
+      return json(200, { data: { token: this.mintedToken, expiresIn: 300 } });
     }
 
     if (url.startsWith('/users/by-ids')) {
@@ -304,7 +317,7 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
     // The same request the first case made, now carrying a bearer the edge
     // minted for this credential.
     expect(edge.byIds).toHaveLength(1);
-    expect(edge.byIds[0].authorization).toBe(`Bearer oxy-service-token-${edge.mints}`);
+    expect(edge.byIds[0].authorization).toBe(`Bearer ${edge.mintedToken}`);
   });
 
   it('presents the credential the environment configured, not some other', async () => {

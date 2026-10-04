@@ -1,0 +1,132 @@
+{
+  "sourceCommit": "3f5f00b9c",
+  "composedOver": "d5d02f274",
+  "sources": [
+    {
+      "path": "packages/api/src/lib/__tests__/oxy-service-identity.test.ts",
+      "bytes": 16614,
+      "sha256": "f56e645b8efd7d83234b428f580e30430f81e40517f8241d10981e89d9833f52"
+    },
+    {
+      "path": "packages/api/src/lib/__tests__/oxy-services-internal-mcp.http.test.ts",
+      "bytes": 14059,
+      "sha256": "6e94117e20f2d6ceeab87f6ff95a65c0005c974c8f529a7bd81e5cb151dc0e1b"
+    },
+    {
+      "path": "packages/api/src/lib/__tests__/oxy-services.test.ts",
+      "bytes": 14920,
+      "sha256": "5bd17f6dd581f056e893e87bebb92b861a092fafbfd2be0ff57d17977b18f33c"
+    },
+    {
+      "path": "packages/api/src/lib/oxy-capability-authority.ts",
+      "bytes": 5741,
+      "sha256": "45045b990dd02fba608d0ea252406b6c4334a91481d7964cd0859ab27902d577"
+    },
+    {
+      "path": "packages/api/src/lib/tools/oxy-services.ts",
+      "bytes": 29575,
+      "sha256": "878154774403682189ad094b15da7909c4c2b92de7898fa29a4465d538669939"
+    },
+    {
+      "path": "packages/api/src/middleware/__tests__/offline-delegation.test.ts",
+      "bytes": 14417,
+      "sha256": "e28a44637a195e30bdd18c0c46bd218cc300578ac32a588928197fa6110bbf43"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/composed-i05/logs/i04-alia-composed-types.log",
+      "bytes": 15,
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/composed-i05/logs/i04-alia-composed-build.log",
+      "bytes": 379,
+      "sha256": "21a104ca0d9be662152bef6b59fb3c6f239f9e75c7a7029d9167efcc5882c817"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/composed-i05/logs/i04-alia-composed-full-api.log",
+      "bytes": 41415,
+      "sha256": "2f19b7bb29ea2f15e77d1cc27db099100db91190326be0b9dd65752d30970baf"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/composed-i05/logs/i04-alia-composed-candidate-install.log",
+      "bytes": 636,
+      "sha256": "ea084020ad0a0c3d105a35473a0b30e2cafdb3ef8629c13ef5eda1941cd40b71"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/composed-i05/logs/i04-alia-composed-full-api-final.log",
+      "bytes": 50948,
+      "sha256": "15d9251a76a127327f60f73bb918784d4644632371c172a69404aa7a6be89dfd"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/composed-i05/logs/i04-alia-ffmpeg-prerequisite.log",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    }
+  ],
+  "inputs": [
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/composed-i05/inputs/package.json",
+      "bytes": 3816,
+      "sha256": "51e9451f597032d95e7c06390e2e7cbc7c998a34410cc787c77d841d4bc706ff"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/composed-i05/inputs/bun.lock",
+      "bytes": 881988,
+      "sha256": "59d45683967cae5393f9d36c1f79e0cd203a708987454274076806ff165d15d5"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/composed-i05/inputs/packages/api/package.json",
+      "bytes": 2647,
+      "sha256": "ab9d56c8c9e52655e8371432147fa38a8a58458ce9b05d3b0a0ea219ceb31a8a"
+    }
+  ],
+  "installed": [
+    {
+      "name": "@oxy.so/contracts",
+      "version": "4.9.0",
+      "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
+      "source": "1b50557ccfe28b382f5b219405a616b332036d42",
+      "sourceTree": "6ff8352ea7920065590dceda3fff3ca420b94b69",
+      "sha256": "6b1e6a8da92341871d2832834ad063df1a1e84a46dc367786599fdd26be6e635",
+      "published": false,
+      "resolved": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/contracts",
+      "filesByteEqual": 198
+    },
+    {
+      "name": "@oxy.so/protocol",
+      "version": "1.2.2",
+      "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-protocol-1.2.2.tgz",
+      "source": "1b50557ccfe28b382f5b219405a616b332036d42",
+      "sourceTree": "77ed4e428f59cff076fd44daf42e18a1b39f7fdb",
+      "sha256": "325b20125f1cf5159c36ca7a75f32c83a4560cf41c55526828b1718595acc843",
+      "published": false,
+      "resolved": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/protocol",
+      "filesByteEqual": 145
+    },
+    {
+      "name": "@oxy.so/core",
+      "version": "4.2.0",
+      "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "source": "1b50557ccfe28b382f5b219405a616b332036d42",
+      "sourceTree": "3937031b8c95a6b8feff65720905de1ad651689d",
+      "sha256": "83059583068cf96d8dc7e4335fe226126cb795f7c6cfba469f8cec4ef9c6a385",
+      "published": false,
+      "resolved": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core",
+      "filesByteEqual": 581
+    },
+    {
+      "name": "@oxy.so/mcp",
+      "version": "1.1.0",
+      "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-mcp-1.1.0.tgz",
+      "source": "1b50557ccfe28b382f5b219405a616b332036d42",
+      "sourceTree": "828269746b7b3ce63a80d6df0881fa4f8e2c7520",
+      "sha256": "2d60996b3b5b441c5f9b81d98102d0a5929ac44a7c9ab7904d25072b8a626e08",
+      "published": false,
+      "resolved": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/mcp",
+      "filesByteEqual": 41
+    }
+  ],
+  "published": false
+}

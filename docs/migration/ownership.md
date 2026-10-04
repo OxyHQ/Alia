@@ -678,3 +678,62 @@ Six grouped items were SPLIT so that every row names one path: the 15 thin adapt
 inventory carried: the 11 dead admin route files, `broadcast-helpers.ts`, the three
 billing seeds, `packages/api/src/internal/README.md`, `AGENTS.md`, the committed Cowork
 bundle, and this gate.
+
+
+## I10 candidate: admission pricing and technical correlation
+
+The Alia chat credit offer remains Alia's existing catalogue-price formula (ADR 0012).
+Before a hosted, credit-funded turn forwards, `chat/request-context.ts` captures the
+existing normalized Oxy catalogue cache as an immutable pricebook and reserves credits
+with a server-created operation in one PostgreSQL transaction. Auto still chooses no
+model in Alia: Oxy reports the served model later. Local and internal service turns
+retain their existing reservation-free behavior.
+
+`credit_price_books` pins source, a SHA-256 identity of the pricing terms, USD per
+credit, token fallback, minimum, initial reservation, rounding scale and formula
+version. `credit_price_book_models` retains the catalogue's existing decimal prices
+and upstream `priceVersionId` when supplied. The local hash identifies this admission
+snapshot; it does not claim to be a signed historical version supplied by Oxy. Missing
+catalogue access is explicitly captured as the existing base-rate fallback. A later
+unknown or unpriced served model uses that pinned fallback, never today's catalogue.
+
+`credit_operations` records the server-generated Alia `chatcmpl` reference, requested mode, served model, precise usage used to
+calculate credits, reservation, requested credit amount, actual balance debit and
+terminal outcome. System input exclusion, reasoning within output, the minimum and
+1e-9 rounding are retained. The legacy response `creditsCharged` remains the requested
+amount for compatibility when an insufficient balance is zeroed; the persisted
+`creditsCharged` is the actual debit and `creditsRequested` names the requested amount.
+No new tariff, financial grant, Oxy permission or identity authority is introduced.
+
+`credit_operation_requests` correlates every Oxy server response/start request id to
+the admitted operation, with the reported model reference. The callback is shared by
+streaming and non-streaming `baseConfig`, awaited before releasing response bytes,
+and accepts no client-supplied correlation id. The settled usage/model are exactly
+the existing chat lifecycle inputs (`result.usage`, final-step usage in both paths); this change does not expand billing to previously
+unbilled tool steps. Operator reconciliation joins these Oxy parent ids to Oxy's
+`parentRequestId` child records; Alia does not invent classifier ids or acquire new
+usage-read scopes. Failure/cancellation retains received ids even if the existing
+lifecycle refunds the credit reservation.
+
+Settlement/refund lock the operation and update balance plus terminal metadata in
+one transaction. Identical retries are idempotent; conflicting settlement input is
+refused. Recovery reloads the pricebook and reservation from PostgreSQL, using the operation id
+or the unique server Alia response id and the matching account. This is an explicit
+backend recovery helper, not an automatic crash worker or a new client replay contract.
+A caller must supply verified original settlement usage/model; restoring the reservation
+does not reconstruct output or usage lost before terminal metadata was committed. Migration
+0082 generates the typed tables/checks; its explicit PostgreSQL triggers cover
+immutability and terminal transitions that drizzle-kit does not represent. Books,
+model prices, admission terms, terminal rows and correlation links cannot be rewritten;
+admitted operations cannot be deleted while retaining an unexplained debit. Account
+ids retain the existing externally owned Oxy identity semantics without a shadow-user FK.
+
+I10 technical acceptance covers immutable admitted pricing, product/technical
+correlation, compatible readbacks and Auto/scoped tests with independent gates still
+closed. Alia compiles here against published `@oxy.so/core` 4.0.0 and contracts 4.4.0;
+this pricing change introduces no dependency on a new SDK release. Oxy's new generation
+readback method is a separate SDK candidate for consumers that use that surface.
+This candidate has not been deployed. Live Kaana feed reconciliation belongs to I09;
+consumer rollout/release evidence belongs to I11. Production identity canaries,
+capacity approval and provider eligibility are operational gates, not an assertion
+that writing these I10 changes activated a provider.

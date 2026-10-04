@@ -1,0 +1,25 @@
+{
+  "head": "364975eea8b4c6790e2c6ccaad3aa2635d8c60be",
+  "pull": "https://github.com/OxyHQ/Alia/pull/663",
+  "run": 37145610710,
+  "conclusion": "failure",
+  "cause": "Committed old published dependencies lack final MCP/agency exports; final registry adoption pending. No CI bypass.",
+  "log": {
+    "path": "docs/audits/2026-10-03-i05-retirement-outcomes/ci-pending-registry/failed-api-types.log",
+    "sha256": "2e3c59a1ef2462b075ca5022becb5f8d2c042cbcbe8096fdb4ed705fb0383133"
+  },
+  "inputs": [
+    {
+      "path": "docs/audits/2026-10-03-i05-retirement-outcomes/ci-pending-registry/committed-inputs/package.json",
+      "sha256": "1834b5250f35ccb1b43de162eb3d496eae3fda485c23f10735230019bc73cb8b"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-retirement-outcomes/ci-pending-registry/committed-inputs/packages/api/package.json",
+      "sha256": "88c64743d4223485e8626171f6e5f2a454c699a94f2e5e26c25f4715c52dfc3f"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-retirement-outcomes/ci-pending-registry/committed-inputs/bun.lock",
+      "sha256": "ee074cf3965f38d8026c7a989bea9efb53a87bf0b990968f6072ba09b330809b"
+    }
+  ]
+}

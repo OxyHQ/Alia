@@ -1,0 +1,5 @@
+check-workflow-concurrency: OK — 7 workflows with a concurrency block; main runs to completion in ci.yml, deploys still serialise in deploy-aws.yml.
+cancellation mutation denied
+per-SHA group mutation denied
+unreviewed workflow mutation denied
+4 controls PASS; temporary copies cleaned

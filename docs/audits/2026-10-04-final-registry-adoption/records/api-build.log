@@ -1,0 +1,25 @@
+$ bun run --filter @alia/api build
+@alia/api build: 
+@alia/api build:   dist/index.js  1.7mb ⚠️
+@alia/api build: 
+@alia/api build: ⚡ Done in 57ms
+@alia/api build: 
+@alia/api build:   dist/db/migrate.js  12.6kb
+@alia/api build: 
+@alia/api build: ⚡ Done in 2ms
+@alia/api build: 
+@alia/api build:   dist/scripts/seed.js  254.9kb
+@alia/api build: 
+@alia/api build: ⚡ Done in 8ms
+@alia/api build: 
+@alia/api build:   dist/scripts/bootstrap-native-product-agents.js  171.2kb
+@alia/api build: 
+@alia/api build: ⚡ Done in 7ms
+@alia/api build: 
+@alia/api build:   dist/scripts/production-chat-canary.js  21.3kb
+@alia/api build: 
+@alia/api build: ⚡ Done in 3ms
+@alia/api build: ✅ Copied prompts to dist/
+@alia/api build: ✅ Copied skills to dist/
+@alia/api build: ✅ Build complete
+@alia/api build: Exited with code 0

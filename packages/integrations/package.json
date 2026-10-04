@@ -2,7 +2,7 @@
   "name": "@alia/integrations",
   "version": "1.0.0",
   "private": true,
-  "description": "Unified integrations service \u2014 messaging gateways, bots, browser, terminal",
+  "description": "Unified integrations service — messaging gateways, bots, browser, terminal",
   "main": "dist/index.js",
   "scripts": {
     "dev": "bun --watch src/index.ts",
@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@oxy.so/core": "^4.0.0",
+    "@oxy.so/core": "4.2.0",
     "@oxy.so/db": "^1.0.0",
     "@whiskeysockets/baileys": "~6.7.23",
     "axios": "^1.18.1",

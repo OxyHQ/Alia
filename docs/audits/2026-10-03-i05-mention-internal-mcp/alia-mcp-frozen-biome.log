@@ -1,0 +1,164 @@
+src/middleware/__tests__/offline-delegation.test.ts:2:8 lint/style/useImportType  FIXABLE  ━━━━━━━━━━
+
+  × All these imports are only used as types.
+  
+    1 │ import { generateKeyPairSync, sign as signBytes, type KeyObject } from 'node:crypto';
+  > 2 │ import http from 'node:http';
+      │        ^^^^^^^^^^^^^^^^^^^^^
+    3 │ import type { AddressInfo } from 'node:net';
+    4 │ import express from 'express';
+  
+  i Importing the types with import type ensures that they are removed by the compilers and avoids loading unnecessary modules.
+  
+  i Safe fix: Use import type.
+  
+    2 │ import·type·http·from·'node:http';
+      │        +++++                      
+
+src/lib/__tests__/oxy-service-identity.test.ts:141:7 lint/correctness/noVoidTypeReturn ━━━━━━━━━━━━━
+
+  × The function should not return a value because its return type is void.
+  
+    139 │       // The envelope production answers with, `data` and all.
+    140 │       this.mintedToken = serviceIdentityToken();
+  > 141 │       return json(200, { data: { token: this.mintedToken, expiresIn: 300 } });
+        │       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    142 │     }
+    143 │ 
+  
+  i The function is here:
+  
+    127 │   }
+    128 │ 
+  > 129 │   private route(req: IncomingMessage, res: ServerResponse, body: string): void {
+        │   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 130 │     const url = req.url ?? '';
+         ...
+  > 166 │     return json(404, { message: 'not found' });
+  > 167 │   }
+        │   ^
+    168 │ 
+    169 │   async listen(): Promise<void> {
+  
+  i 'void' signals the absence of value. The returned value is likely to be ignored by the caller.
+  
+
+src/lib/__tests__/oxy-service-identity.test.ts:156:9 lint/correctness/noVoidTypeReturn ━━━━━━━━━━━━━
+
+  × The function should not return a value because its return type is void.
+  
+    154 │         // Exactly what production answered. The CSRF token the SDK fetched is
+    155 │         // present in the headers and does not help: the cookie half is missing.
+  > 156 │         return json(403, { message: 'CSRF token missing', code: 'CSRF_TOKEN_MISSING' });
+        │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    157 │       }
+    158 │       // An id the edge does not know is simply ABSENT from the array, which is
+  
+  i The function is here:
+  
+    127 │   }
+    128 │ 
+  > 129 │   private route(req: IncomingMessage, res: ServerResponse, body: string): void {
+        │   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 130 │     const url = req.url ?? '';
+         ...
+  > 166 │     return json(404, { message: 'not found' });
+  > 167 │   }
+        │   ^
+    168 │ 
+    169 │   async listen(): Promise<void> {
+  
+  i 'void' signals the absence of value. The returned value is likely to be ignored by the caller.
+  
+
+src/lib/__tests__/oxy-service-identity.test.ts:161:7 lint/correctness/noVoidTypeReturn ━━━━━━━━━━━━━
+
+  × The function should not return a value because its return type is void.
+  
+    159 │       // how the real endpoint answers and what makes `UNKNOWN` a control rather
+    160 │       // than an error case.
+  > 161 │       return json(200, { data: ids.includes(ADA.id) ? [ADA] : [] });
+        │       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    162 │     }
+    163 │ 
+  
+  i The function is here:
+  
+    127 │   }
+    128 │ 
+  > 129 │   private route(req: IncomingMessage, res: ServerResponse, body: string): void {
+        │   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 130 │     const url = req.url ?? '';
+         ...
+  > 166 │     return json(404, { message: 'not found' });
+  > 167 │   }
+        │   ^
+    168 │ 
+    169 │   async listen(): Promise<void> {
+  
+  i 'void' signals the absence of value. The returned value is likely to be ignored by the caller.
+  
+
+src/lib/__tests__/oxy-service-identity.test.ts:164:40 lint/correctness/noVoidTypeReturn ━━━━━━━━━━━━
+
+  × The function should not return a value because its return type is void.
+  
+    162 │     }
+    163 │ 
+  > 164 │     if (url.startsWith('/csrf-token')) return json(200, { csrfToken: 'edge-csrf-token' });
+        │                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    165 │ 
+    166 │     return json(404, { message: 'not found' });
+  
+  i The function is here:
+  
+    127 │   }
+    128 │ 
+  > 129 │   private route(req: IncomingMessage, res: ServerResponse, body: string): void {
+        │   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 130 │     const url = req.url ?? '';
+         ...
+  > 166 │     return json(404, { message: 'not found' });
+  > 167 │   }
+        │   ^
+    168 │ 
+    169 │   async listen(): Promise<void> {
+  
+  i 'void' signals the absence of value. The returned value is likely to be ignored by the caller.
+  
+
+src/lib/__tests__/oxy-service-identity.test.ts:166:5 lint/correctness/noVoidTypeReturn ━━━━━━━━━━━━━
+
+  × The function should not return a value because its return type is void.
+  
+    164 │     if (url.startsWith('/csrf-token')) return json(200, { csrfToken: 'edge-csrf-token' });
+    165 │ 
+  > 166 │     return json(404, { message: 'not found' });
+        │     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    167 │   }
+    168 │ 
+  
+  i The function is here:
+  
+    127 │   }
+    128 │ 
+  > 129 │   private route(req: IncomingMessage, res: ServerResponse, body: string): void {
+        │   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 130 │     const url = req.url ?? '';
+         ...
+  > 166 │     return json(404, { message: 'not found' });
+  > 167 │   }
+        │   ^
+    168 │ 
+    169 │   async listen(): Promise<void> {
+  
+  i 'void' signals the absence of value. The returned value is likely to be ignored by the caller.
+  
+
+Checked 5 files in 22ms. No fixes applied.
+Found 6 errors.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+

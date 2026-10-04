@@ -1,0 +1,7 @@
+$ oxy-doctor --ci
+Oxy Doctor: 11 first-party packages across 12 manifests
+! @oxy.so/bloom 6.2.1 does not include 7.1.2 in package.json (upgrade by 2026-10-17)
+! @oxy.so/bloom 6.2.1 does not include 7.1.2 in packages/alia-canvas/package.json (upgrade by 2026-10-17)
+! @oxy.so/bloom 6.2.1 does not include 7.1.2 in packages/alia-codea/webview-ui/package.json (upgrade by 2026-10-17)
+! @oxy.so/bloom 6.2.1 does not include 7.1.2 in packages/alia-cowork/package.json (upgrade by 2026-10-17)
+! @oxy.so/bloom 6.2.1 does not include 7.1.2 in packages/app/package.json (upgrade by 2026-10-17)

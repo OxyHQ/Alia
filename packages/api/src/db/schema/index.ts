@@ -26,3 +26,5 @@ export * from './shows';
 export * from './skills';
 export * from './telemetry';
 export * from './usage';
+
+export * from './credit-operations';

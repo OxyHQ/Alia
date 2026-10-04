@@ -1,0 +1,236 @@
+@alia/api test: 
+@alia/api test:  RUN  v4.1.10 /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api
+@alia/api test: 
+@alia/api test:  ❯ src/lib/__tests__/oxy-services-internal-mcp.http.test.ts (14 tests | 4 failed) 1127ms
+@alia/api test:      × preserves acknowledged success across repeated retirement failures and retries only retirement 90ms
+@alia/api test:      × keeps transport-after-effect unknown distinct from acknowledged success when retirement fails 112ms
+@alia/api test:      × fails closed on receiver failure without legacy fallback or leaking bearers 64ms
+@alia/api test:      × fails closed on cleanup failure without legacy fallback or leaking bearers 60ms
+@alia/api test: 
+@alia/api test: ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+@alia/api test: 
+@alia/api test:  FAIL  src/lib/__tests__/oxy-services-internal-mcp.http.test.ts > Alia installed common agency and internal MCP pilot > preserves acknowledged success across repeated retirement failures and retries only retirement
+@alia/api test: AssertionError: expected '[\n  [\n    {\n      err: OxyApiError…' not to contain 'fixture-present-requester'
+@alia/api test: 
+@alia/api test: - Expected
+@alia/api test: + Received
+@alia/api test: 
+@alia/api test: - fixture-present-requester
+@alia/api test: + [
+@alia/api test: +   [
+@alia/api test: +     {
+@alia/api test: +       err: OxyApiError: fixture-present-requester
+@alia/api test: +           at toOxyApiError (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core/dist/cjs/OxyServices.errors.js:160:12)
+@alia/api test: +           at OxyServer.request (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core/dist/cjs/OxyServices.js:98:58)
+@alia/api test: +           at processTicksAndRejections (node:internal/process/task_queues:104:5)
+@alia/api test: +           at ServerAgencyApi.revokeExecutionAuthorization (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core/dist/cjs/server/namespaces.js:237:9)
+@alia/api test: +           at revokeOxyExecutionAuthorization (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/oxy-capability-authority.ts:139:5)
+@alia/api test: +           at revokeTransientAuthorization (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/oxy-services.ts:475:5)
+@alia/api test: +           at callInternalBoundTool (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/oxy-services.ts:618:23)
+@alia/api test: +           at safeExecute (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/oxy-services.ts:151:12)
+@alia/api test: +           at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/__tests__/oxy-services-internal-mcp.http.test.ts:178:21
+@alia/api test: +           at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 {
+@alia/api test: +         status: 503,
+@alia/api test: +         code: 'SERVICE_UNAVAILABLE',
+@alia/api test: +         details: undefined,
+@alia/api test: +         response: undefined,
+@alia/api test: +         cancelled: false,
+@alia/api test: +         timeout: false,
+@alia/api test: +         cause: {
+@alia/api test: +           message: 'fixture-present-requester',
+@alia/api test: +           code: 'SERVICE_UNAVAILABLE',
+@alia/api test: +           status: 503,
+@alia/api test: +           details: undefined
+@alia/api test: +         }
+@alia/api test: +       },
+@alia/api test: +       runId: 'fixture-run',
+@alia/api test: +       tool: 'savePost'
+@alia/api test: +     },
+@alia/api test: +     'Could not revoke transient Oxy execution authorization; expiry remains active'
+@alia/api test: +   ],
+@alia/api test: +   [
+@alia/api test: +     {
+@alia/api test: +       err: OxyApiError: fixture-present-requester
+@alia/api test: +           at toOxyApiError (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core/dist/cjs/OxyServices.errors.js:160:12)
+@alia/api test: +           at OxyServer.request (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core/dist/cjs/OxyServices.js:98:58)
+@alia/api test: +           at processTicksAndRejections (node:internal/process/task_queues:104:5)
+@alia/api test: +           at ServerAgencyApi.revokeExecutionAuthorization (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core/dist/cjs/server/namespaces.js:237:9)
+@alia/api test: +           at revokeOxyExecutionAuthorization (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/oxy-capability-authority.ts:139:5)
+@alia/api test: +           at revokeTransientAuthorization (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/oxy-services.ts:475:5)
+@alia/api test: +           at Object.execute (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/oxy-services.ts:774:51)
+@alia/api test: +           at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/__tests__/oxy-services-internal-mcp.http.test.ts:184:12
+@alia/api test: +           at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 {
+@alia/api test: +         status: 503,
+@alia/api test: +         code: 'SERVICE_UNAVAILABLE',
+@alia/api test: +         details: undefined,
+@alia/api test: +         response: undefined,
+@alia/api test: +         cancelled: false,
+@alia/api test: +         timeout: false,
+@alia/api test: +         cause: {
+@alia/api test: +           message: 'fixture-present-requester',
+@alia/api test: +           code: 'SERVICE_UNAVAILABLE',
+@alia/api test: +           status: 503,
+@alia/api test: +           details: undefined
+@alia/api test: +         }
+@alia/api test: +       },
+@alia/api test: +       runId: 'fixture-run',
+@alia/api test: +       tool: 'savePost'
+@alia/api test: +     },
+@alia/api test: +     'Could not revoke transient Oxy execution authorization; expiry remains active'
+@alia/api test: +   ]
+@alia/api test: + ]
+@alia/api test: 
+@alia/api test:  ❯ src/lib/__tests__/oxy-services-internal-mcp.http.test.ts:163:22
+@alia/api test:     161|   expect(faults).toEqual([]);
+@alia/api test:     162|   const logged = inspect([...state.warn.mock.calls,...state.error.mock…
+@alia/api test:     163|   expect(logged).not.toContain(requester);expect(logged).not.toContain…
+@alia/api test:        |                      ^
+@alia/api test:     164| });
+@alia/api test:     165|
+@alia/api test: 
+@alia/api test: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+@alia/api test: 
+@alia/api test:  FAIL  src/lib/__tests__/oxy-services-internal-mcp.http.test.ts > Alia installed common agency and internal MCP pilot > keeps transport-after-effect unknown distinct from acknowledged success when retirement fails
+@alia/api test: AssertionError: expected '[\n  [\n    {\n      err: OxyApiError…' not to contain 'fixture-present-requester'
+@alia/api test: 
+@alia/api test: - Expected
+@alia/api test: + Received
+@alia/api test: 
+@alia/api test: - fixture-present-requester
+@alia/api test: + [
+@alia/api test: +   [
+@alia/api test: +     {
+@alia/api test: +       err: OxyApiError: fixture-present-requester
+@alia/api test: +           at toOxyApiError (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core/dist/cjs/OxyServices.errors.js:160:12)
+@alia/api test: +           at OxyServer.request (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core/dist/cjs/OxyServices.js:98:58)
+@alia/api test: +           at processTicksAndRejections (node:internal/process/task_queues:104:5)
+@alia/api test: +           at ServerAgencyApi.revokeExecutionAuthorization (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core/dist/cjs/server/namespaces.js:237:9)
+@alia/api test: +           at revokeOxyExecutionAuthorization (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/oxy-capability-authority.ts:139:5)
+@alia/api test: +           at revokeTransientAuthorization (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/oxy-services.ts:475:5)
+@alia/api test: +           at callInternalBoundTool (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/oxy-services.ts:618:23)
+@alia/api test: +           at safeExecute (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/oxy-services.ts:151:12)
+@alia/api test: +           at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/__tests__/oxy-services-internal-mcp.http.test.ts:195:21
+@alia/api test: +           at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 {
+@alia/api test: +         status: 503,
+@alia/api test: +         code: 'SERVICE_UNAVAILABLE',
+@alia/api test: +         details: undefined,
+@alia/api test: +         response: undefined,
+@alia/api test: +         cancelled: false,
+@alia/api test: +         timeout: false,
+@alia/api test: +         cause: {
+@alia/api test: +           message: 'fixture-present-requester',
+@alia/api test: +           code: 'SERVICE_UNAVAILABLE',
+@alia/api test: +           status: 503,
+@alia/api test: +           details: undefined
+@alia/api test: +         }
+@alia/api test: +       },
+@alia/api test: +       runId: 'fixture-run',
+@alia/api test: +       tool: 'savePost'
+@alia/api test: +     },
+@alia/api test: +     'Could not revoke transient Oxy execution authorization; expiry remains active'
+@alia/api test: +   ]
+@alia/api test: + ]
+@alia/api test: 
+@alia/api test:  ❯ src/lib/__tests__/oxy-services-internal-mcp.http.test.ts:163:22
+@alia/api test:     161|   expect(faults).toEqual([]);
+@alia/api test:     162|   const logged = inspect([...state.warn.mock.calls,...state.error.mock…
+@alia/api test:     163|   expect(logged).not.toContain(requester);expect(logged).not.toContain…
+@alia/api test:        |                      ^
+@alia/api test:     164| });
+@alia/api test:     165|
+@alia/api test: 
+@alia/api test: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+@alia/api test: 
+@alia/api test:  FAIL  src/lib/__tests__/oxy-services-internal-mcp.http.test.ts > Alia installed common agency and internal MCP pilot > fails closed on receiver failure without legacy fallback or leaking bearers
+@alia/api test: AssertionError: expected { status: 'unknown', …(4) } to have property "error" with value 'oxy_app_unavailable'
+@alia/api test: 
+@alia/api test: Expected: "oxy_app_unavailable"
+@alia/api test: Received: "oxy_app_result_unknown"
+@alia/api test: 
+@alia/api test:  ❯ src/lib/__tests__/oxy-services-internal-mcp.http.test.ts:242:103
+@alia/api test:     240|   it.each(['ticket','receiver','cleanup'])('fails closed on %s failure…
+@alia/api test:     241|     denyTickets=phase==='ticket';denyReceiver=phase==='receiver';denyC…
+@alia/api test:     242|     const save=await tool();expect(await save.execute({postId:'post-1'…
+@alia/api test:        |                                                                                                       ^
+@alia/api test:     243|     expect(retirements).toBe(1);expect(legacyCalls).toBe(0);expect(eff…
+@alia/api test:     244|   });
+@alia/api test: 
+@alia/api test: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+@alia/api test: 
+@alia/api test:  FAIL  src/lib/__tests__/oxy-services-internal-mcp.http.test.ts > Alia installed common agency and internal MCP pilot > fails closed on cleanup failure without legacy fallback or leaking bearers
+@alia/api test: AssertionError: expected { status: 'succeeded', …(4) } to have property "error" with value 'oxy_app_unavailable'
+@alia/api test: 
+@alia/api test: - Expected:
+@alia/api test: "oxy_app_unavailable"
+@alia/api test: 
+@alia/api test: + Received:
+@alia/api test: undefined
+@alia/api test: 
+@alia/api test:  ❯ src/lib/__tests__/oxy-services-internal-mcp.http.test.ts:242:103
+@alia/api test:     240|   it.each(['ticket','receiver','cleanup'])('fails closed on %s failure…
+@alia/api test:     241|     denyTickets=phase==='ticket';denyReceiver=phase==='receiver';denyC…
+@alia/api test:     242|     const save=await tool();expect(await save.execute({postId:'post-1'…
+@alia/api test:        |                                                                                                       ^
+@alia/api test:     243|     expect(retirements).toBe(1);expect(legacyCalls).toBe(0);expect(eff…
+@alia/api test:     244|   });
+@alia/api test: 
+@alia/api test: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+@alia/api test: 
+@alia/api test:  FAIL  src/lib/__tests__/oxy-services-internal-mcp.http.test.ts > Alia installed common agency and internal MCP pilot > fails closed on cleanup failure without legacy fallback or leaking bearers
+@alia/api test: AssertionError: expected '[\n  [\n    {\n      err: OxyApiError…' not to contain 'fixture-present-requester'
+@alia/api test: 
+@alia/api test: - Expected
+@alia/api test: + Received
+@alia/api test: 
+@alia/api test: - fixture-present-requester
+@alia/api test: + [
+@alia/api test: +   [
+@alia/api test: +     {
+@alia/api test: +       err: OxyApiError: fixture-present-requester
+@alia/api test: +           at toOxyApiError (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core/dist/cjs/OxyServices.errors.js:160:12)
+@alia/api test: +           at OxyServer.request (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core/dist/cjs/OxyServices.js:98:58)
+@alia/api test: +           at processTicksAndRejections (node:internal/process/task_queues:104:5)
+@alia/api test: +           at ServerAgencyApi.revokeExecutionAuthorization (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core/dist/cjs/server/namespaces.js:237:9)
+@alia/api test: +           at revokeOxyExecutionAuthorization (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/oxy-capability-authority.ts:139:5)
+@alia/api test: +           at revokeTransientAuthorization (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/oxy-services.ts:475:5)
+@alia/api test: +           at callInternalBoundTool (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/oxy-services.ts:618:23)
+@alia/api test: +           at safeExecute (/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/oxy-services.ts:151:12)
+@alia/api test: +           at /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/__tests__/oxy-services-internal-mcp.http.test.ts:242:36
+@alia/api test: +           at file:///home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 {
+@alia/api test: +         status: 503,
+@alia/api test: +         code: 'SERVICE_UNAVAILABLE',
+@alia/api test: +         details: undefined,
+@alia/api test: +         response: undefined,
+@alia/api test: +         cancelled: false,
+@alia/api test: +         timeout: false,
+@alia/api test: +         cause: {
+@alia/api test: +           message: 'fixture-present-requester',
+@alia/api test: +           code: 'SERVICE_UNAVAILABLE',
+@alia/api test: +           status: 503,
+@alia/api test: +           details: undefined
+@alia/api test: +         }
+@alia/api test: +       },
+@alia/api test: +       runId: 'fixture-run',
+@alia/api test: +       tool: 'savePost'
+@alia/api test: +     },
+@alia/api test: +     'Could not revoke transient Oxy execution authorization; expiry remains active'
+@alia/api test: +   ]
+@alia/api test: + ]
+@alia/api test: 
+@alia/api test:  ❯ src/lib/__tests__/oxy-services-internal-mcp.http.test.ts:163:22
+@alia/api test:     161|   expect(faults).toEqual([]);
+@alia/api test:     162|   const logged = inspect([...state.warn.mock.calls,...state.error.mock…
+@alia/api test:     163|   expect(logged).not.toContain(requester);expect(logged).not.toContain…
+@alia/api test:        |                      ^
+@alia/api test:     164| });
+@alia/api test:     165|
+@alia/api test: 
+@alia/api test: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+@alia/api test: 
+@alia/api test: 
+@alia/api test:  Test Files  1 failed | 1 passed (2)
+@alia/api test:       Tests  4 failed | 24 passed (28)
+@alia/api test:    Start at  21:35:03
+@alia/api test:    Duration  1.79s (transform 552ms, setup 0ms, import 1.19s, tests 1.15s, environment 0ms)
+@alia/api test: 
+@alia/api test: Exited with code 1

@@ -219,7 +219,7 @@ describe('Oxy capability tools', () => {
       ));
     }
 
-    it('never passes an authority refusal through as something the person must authorize', async () => {
+    it('hides raw authority errors while preserving consent and refusing bypass', async () => {
       refuse(
         (url, init) => url.endsWith('/capabilities/execution-authorizations') && init?.method === 'POST',
         () => new Response(JSON.stringify({ error: 'coordinator_not_active_or_authorized' }), { status: 400 }),
@@ -229,7 +229,8 @@ describe('Oxy capability tools', () => {
       expect(result).toMatchObject({ error: 'oxy_app_unavailable' });
       const text = JSON.stringify(result);
       expect(text).not.toContain('coordinator_not_active_or_authorized');
-      expect(text).toContain('never ask them to connect');
+      expect(text).toContain('Request any required consent through the supported account flow');
+      expect(text).toContain('Do not claim it succeeded or use another route to bypass the check');
     });
 
     it('treats a missing user authority the same way', async () => {

@@ -1,0 +1,68 @@
+{
+  "inputs": [
+    {
+      "path": "bun.lock",
+      "sha256": "ee074cf3965f38d8026c7a989bea9efb53a87bf0b990968f6072ba09b330809b"
+    },
+    {
+      "path": "package.json",
+      "sha256": "1834b5250f35ccb1b43de162eb3d496eae3fda485c23f10735230019bc73cb8b"
+    },
+    {
+      "path": "packages/alia-canvas/package.json",
+      "sha256": "b27e80722b874028a3e8d07fe3dff5941aee4d579bb61ae300168e6008d59dea"
+    },
+    {
+      "path": "packages/alia-codea-cli/package.json",
+      "sha256": "c14eda165ae110355af8daeb66bf46b120ce5772e2a69fdc855e37e24b8f7ed6"
+    },
+    {
+      "path": "packages/alia-codea/package.json",
+      "sha256": "c658d135d3571e3b6724435d8d147ff5d65ebee4d6c046197ee82ba1e8502110"
+    },
+    {
+      "path": "packages/alia-codea/webview-ui/package.json",
+      "sha256": "ad0587394d49fa2308ea29f098c3de8519a429caff40aa85d410ba747e9a924c"
+    },
+    {
+      "path": "packages/alia-computer-host/package.json",
+      "sha256": "8357033f155845a784ab633db4e0a7ef17cd4bf143019db22c201cb6ff2956d3"
+    },
+    {
+      "path": "packages/alia-cowork/package.json",
+      "sha256": "451c8c397a415980929be559f638880721618e004575eb4b40265bcdd036c18c"
+    },
+    {
+      "path": "packages/api/package.json",
+      "sha256": "88c64743d4223485e8626171f6e5f2a454c699a94f2e5e26c25f4715c52dfc3f"
+    },
+    {
+      "path": "packages/app/package.json",
+      "sha256": "e668f74f2f9b0bdc5f4eae23d3c24bfc3a5a6ba9481f332f406c664f78ec2d4f"
+    },
+    {
+      "path": "packages/integrations/package.json",
+      "sha256": "5f67c516ed128c83b1afa87c263e3fcc776f19aaff45fd149fec794b2e2ae37d"
+    }
+  ],
+  "base": "d9847676849a74b1956934f2033f2421caf0b62b",
+  "status": "planned patch; manifests and lock unchanged; no final registry installation",
+  "artifacts": [
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/README.md",
+      "sha256": "dcfa5383f83689c55ebce7e3687435ff6da0927398366d0b4eff7ad8324361d5"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/manifest-plan.json",
+      "sha256": "48e42c52a4b27c319c3f19a0a11bee12cce94fb5b218698d5e34d6e87b727ab9"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/manifest-update.patch",
+      "sha256": "f576885085e56f1aaae8638a693e74495bbcdf983cda75a2bbb7231f126d93b5"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/bloom-subpaths.json",
+      "sha256": "86c1b34d7af6003e90776d532c802e2ba201add8cc6a18a77b41eaa7031a719a"
+    }
+  ]
+}

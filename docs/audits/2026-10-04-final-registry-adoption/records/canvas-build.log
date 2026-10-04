@@ -1,0 +1,142 @@
+$ bun run --filter alia-canvas build
+alia-canvas build: rolldown-vite v7.3.1 building client environment for production...
+alia-canvas build: [2Ktransforming...[plugin rolldown:vite-resolve] Module "node:crypto" has been externalized for browser compatibility, imported by "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/protocol/dist/esm/platform/crypto.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+alia-canvas build: [plugin rolldown:vite-resolve] Module "node:async_hooks" has been externalized for browser compatibility, imported by "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/expo-font/build/serverContext.web.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+alia-canvas build: ✓ 9943 modules transformed.
+alia-canvas build: rendering chunks...
+alia-canvas build: computing gzip size...
+alia-canvas build: dist/index.html                                                 0.60 kB │ gzip:     0.37 kB
+alia-canvas build: dist/assets/unmatched-C2XkAHgU.png                              4.75 kB
+alia-canvas build: dist/assets/arrow_down-NdGCEnxo.png                             9.45 kB
+alia-canvas build: dist/assets/OxyServicesMaterialCommunityIcons-DVHLYwp4.ttf     28.85 kB
+alia-canvas build: dist/assets/JetBrainsMono-Variable-B9CIFXIH.woff2              40.40 kB
+alia-canvas build: dist/assets/OxyServicesIonicons-B1hZ8Dc8.ttf                   43.00 kB
+alia-canvas build: dist/assets/slide-4-DSNFt0xP.jpg                               46.63 kB
+alia-canvas build: dist/assets/InterVariable-Dx4kXJAl.woff2                       48.25 kB
+alia-canvas build: dist/assets/slide-3-Bp5gr1Be.jpg                               59.18 kB
+alia-canvas build: dist/assets/BlomusModernus-Bold-0E_Y-ihB.woff2                 77.61 kB
+alia-canvas build: dist/assets/BlomusModernus-Regular-kZR3rHS0.woff2              77.64 kB
+alia-canvas build: dist/assets/slide-2-BAN8I4Iy.jpg                               87.90 kB
+alia-canvas build: dist/assets/slide-1-CPYeLD4l.jpg                              102.17 kB
+alia-canvas build: dist/assets/index-DK-29rKm.css                                109.17 kB │ gzip:    19.38 kB
+alia-canvas build: dist/assets/__vite-browser-external-BzME-o87.js                 0.05 kB │ gzip:     0.07 kB
+alia-canvas build: dist/assets/trustTierLabels-QX5r0LLi.js                         0.12 kB │ gzip:     0.12 kB
+alia-canvas build: dist/assets/Ionicons-BE3Tlc9C.js                                0.15 kB │ gzip:     0.14 kB
+alia-canvas build: dist/assets/LinkCommonsScreen-CotXJfGM.js                       0.19 kB │ gzip:     0.17 kB
+alia-canvas build: dist/assets/SignInAuthenticatorScreen-CqE2qamk.js               0.19 kB │ gzip:     0.17 kB
+alia-canvas build: dist/assets/FollowersListScreen-CTwIT4SD.js                     0.20 kB │ gzip:     0.18 kB
+alia-canvas build: dist/assets/FollowingListScreen-DXdzHd42.js                     0.20 kB │ gzip:     0.18 kB
+alia-canvas build: dist/assets/DeleteAccountScreen-CSxmXOBx.js                     0.23 kB │ gzip:     0.19 kB
+alia-canvas build: dist/assets/SignInPasswordScreen-V9Na4Yur.js                    0.24 kB │ gzip:     0.20 kB
+alia-canvas build: dist/assets/AccountSecurityPanelScreen-DwgXYPMo.js              0.26 kB │ gzip:     0.21 kB
+alia-canvas build: dist/assets/version-CWdfnVuE.js                                 0.33 kB │ gzip:     0.23 kB
+alia-canvas build: dist/assets/useReduceMotion-Dpi97KpV.js                         0.40 kB │ gzip:     0.30 kB
+alia-canvas build: dist/assets/SettingsIcon-DEZfb15v.js                            0.48 kB │ gzip:     0.34 kB
+alia-canvas build: dist/assets/useSettingToggle-BDtf3Mgi.js                        0.67 kB │ gzip:     0.44 kB
+alia-canvas build: dist/assets/colorUtils-BHi3f_Nr.js                              0.77 kB │ gzip:     0.24 kB
+alia-canvas build: dist/assets/UserLinksScreen-Ca_3r_dI.js                         0.82 kB │ gzip:     0.48 kB
+alia-canvas build: dist/assets/plural-CkjYiIXR.js                                  0.86 kB │ gzip:     0.51 kB
+alia-canvas build: dist/assets/ProfileSummaryCard-CAR0tQE1.js                      1.01 kB │ gzip:     0.57 kB
+alia-canvas build: dist/assets/message-helpers-D1vdy17y.js                         1.15 kB │ gzip:     0.58 kB
+alia-canvas build: dist/assets/AvatarCameraBadge-DHbuhKsj.js                       1.15 kB │ gzip:     0.70 kB
+alia-canvas build: dist/assets/RiSparklingLine-DVn0cyy8.js                         1.20 kB │ gzip:     0.64 kB
+alia-canvas build: dist/assets/TrustFAQScreen-BlByXdOF.js                          1.49 kB │ gzip:     0.77 kB
+alia-canvas build: dist/assets/build-B8UdeK_R.js                                   1.51 kB │ gzip:     0.77 kB
+alia-canvas build: dist/assets/RiShieldCheckLine-Cn-11Jsl.js                       1.62 kB │ gzip:     0.89 kB
+alia-canvas build: dist/assets/TrustRulesScreen-DqseCBnu.js                        1.92 kB │ gzip:     0.98 kB
+alia-canvas build: dist/assets/SearchSettingsScreen-CizNIcaX.js                    2.10 kB │ gzip:     0.92 kB
+alia-canvas build: dist/assets/Haptics-BbRE82nj.js                                 2.35 kB │ gzip:     1.05 kB
+alia-canvas build: dist/assets/HelpSupportScreen-Ba8PSR8Y.js                       2.40 kB │ gzip:     0.86 kB
+alia-canvas build: dist/assets/ConnectedAppsScreen-g9SoDdZZ.js                     2.59 kB │ gzip:     1.29 kB
+alia-canvas build: dist/assets/NotificationsScreen-Da3F8Tc6.js                     2.85 kB │ gzip:     1.05 kB
+alia-canvas build: dist/assets/module-bN25ml2H.js                                  2.90 kB │ gzip:     1.22 kB
+alia-canvas build: dist/assets/LanguageSelectorScreen-CJzJR0fN.js                  3.05 kB │ gzip:     1.41 kB
+alia-canvas build: dist/assets/EditProfileScreen-zMoVbXYQ.js                       3.06 kB │ gzip:     1.13 kB
+alia-canvas build: dist/assets/PreferencesScreen-CzWdC1wq.js                       3.14 kB │ gzip:     1.30 kB
+alia-canvas build: dist/assets/SettingsList-DTmkML81.js                            3.14 kB │ gzip:     1.36 kB
+alia-canvas build: dist/assets/HistoryViewScreen-Cd9dasG_.js                       3.38 kB │ gzip:     1.31 kB
+alia-canvas build: dist/assets/LearnMoreUsernamesScreen-BVlnqz7D.js                3.63 kB │ gzip:     1.57 kB
+alia-canvas build: dist/assets/TrustAboutScreen-D7e1daMO.js                        3.65 kB │ gzip:     1.56 kB
+alia-canvas build: dist/assets/Card-CYzjzcWt.js                                    3.80 kB │ gzip:     1.64 kB
+alia-canvas build: dist/assets/DomainsScreen-DYrRiJlJ.js                           3.81 kB │ gzip:     1.43 kB
+alia-canvas build: dist/assets/TrustCenterScreen-BEp0MvZY.js                       3.88 kB │ gzip:     1.57 kB
+alia-canvas build: dist/assets/LegalDocumentsScreen-Cp0VIMvq.js                    3.90 kB │ gzip:     1.29 kB
+alia-canvas build: dist/assets/TrustLeaderboardScreen-Yg1ZK71c.js                  3.90 kB │ gzip:     1.66 kB
+alia-canvas build: dist/assets/ChangeAvatarScreen-BbUtUQlE.js                      4.22 kB │ gzip:     1.75 kB
+alia-canvas build: dist/assets/AccountSettingsScreen-BySbc8SF.js                   5.37 kB │ gzip:     2.17 kB
+alia-canvas build: dist/assets/AccountVerificationScreen-Ctzl2HhQ.js               6.51 kB │ gzip:     2.68 kB
+alia-canvas build: dist/assets/ImagePicker-B8ZBA2S-.js                             6.81 kB │ gzip:     2.60 kB
+alia-canvas build: dist/assets/CreateAccountScreen-CQmpWj8G.js                     6.90 kB │ gzip:     2.61 kB
+alia-canvas build: dist/assets/WelcomeNewUserScreen-B--JYwc8.js                    7.95 kB │ gzip:     2.83 kB
+alia-canvas build: dist/assets/Chip-DwMV57Mg.js                                    8.00 kB │ gzip:     3.42 kB
+alia-canvas build: dist/assets/ProfileScreen-QIToZZw5.js                           8.09 kB │ gzip:     2.85 kB
+alia-canvas build: dist/assets/WebBrowser-CEbvw0Pf.js                              8.11 kB │ gzip:     3.18 kB
+alia-canvas build: dist/assets/src-B_C976cT.js                                     8.15 kB │ gzip:     3.04 kB
+alia-canvas build: dist/assets/TrustRewardsScreen-CeGUGpjD.js                      8.98 kB │ gzip:     2.77 kB
+alia-canvas build: dist/assets/module-B7a65Vaa.js                                  9.05 kB │ gzip:     2.74 kB
+alia-canvas build: dist/assets/AccountMembersScreen-BwE9Ak84.js                    9.34 kB │ gzip:     2.84 kB
+alia-canvas build: dist/assets/AppInfoScreen-B_C4qpUx.js                           9.82 kB │ gzip:     3.47 kB
+alia-canvas build: dist/assets/PrivacySettingsScreen-DJGdO07p.js                  10.51 kB │ gzip:     2.70 kB
+alia-canvas build: dist/assets/UserListScreen-Boq5ie5O.js                         11.49 kB │ gzip:     4.52 kB
+alia-canvas build: dist/assets/zh-CN-CmvcPk91.js                                  11.86 kB │ gzip:     4.99 kB
+alia-canvas build: dist/assets/it-IT-BiKXw4n8.js                                  12.61 kB │ gzip:     4.63 kB
+alia-canvas build: dist/assets/AvatarCropScreen-BcPu6_ga.js                       12.87 kB │ gzip:     4.92 kB
+alia-canvas build: dist/assets/ca-ES-CT0CQYcX.js                                  12.92 kB │ gzip:     4.70 kB
+alia-canvas build: dist/assets/pt-PT-BUVkBNzQ.js                                  13.03 kB │ gzip:     4.67 kB
+alia-canvas build: dist/assets/de-DE-DqT4ffjt.js                                  13.39 kB │ gzip:     4.89 kB
+alia-canvas build: dist/assets/fr-FR-_dMC5E6I.js                                  13.72 kB │ gzip:     4.88 kB
+alia-canvas build: dist/assets/ko-KR-D1t9eBEH.js                                  13.83 kB │ gzip:     4.92 kB
+alia-canvas build: dist/assets/ja-JP-CgsByJHL.js                                  15.92 kB │ gzip:     5.11 kB
+alia-canvas build: dist/assets/ar-SA-C7DCe3nu.js                                  16.09 kB │ gzip:     5.17 kB
+alia-canvas build: dist/assets/ManageAccountScreen-EuwLJQ7z.js                    18.51 kB │ gzip:     5.43 kB
+alia-canvas build: dist/assets/validationUtils-B-jsh-eg.js                        21.14 kB │ gzip:     6.14 kB
+alia-canvas build: dist/assets/PaymentGatewayScreen-HIu0QDn5.js                   23.96 kB │ gzip:     5.84 kB
+alia-canvas build: dist/assets/recoveryPhrase-nWC2N4RR.js                         24.57 kB │ gzip:    11.19 kB
+alia-canvas build: dist/assets/EditProfileFieldScreen-Dy0w2o2u.js                 25.39 kB │ gzip:     8.45 kB
+alia-canvas build: dist/assets/OxyAccountDialogScreen-DtW6FhFy.js                 34.02 kB │ gzip:    11.35 kB
+alia-canvas build: dist/assets/internal-CnYtoSlc.js                               39.76 kB │ gzip:    13.47 kB
+alia-canvas build: dist/assets/esm-BRDb0wHW.js                                    42.14 kB │ gzip:    13.12 kB
+alia-canvas build: dist/assets/zh-DTERtHPH.js                                     56.74 kB │ gzip:    23.94 kB
+alia-canvas build: dist/assets/id-DY7lLr6g.js                                     59.79 kB │ gzip:    22.12 kB
+alia-canvas build: dist/assets/tr-Cejkgxsf.js                                     61.71 kB │ gzip:    23.47 kB
+alia-canvas build: dist/assets/it-BBIMy3fm.js                                     63.86 kB │ gzip:    23.35 kB
+alia-canvas build: dist/assets/pt-Cmt6SOhH.js                                     64.00 kB │ gzip:    23.55 kB
+alia-canvas build: dist/assets/de-DnB0efza.js                                     64.13 kB │ gzip:    23.77 kB
+alia-canvas build: dist/assets/ca-B5fA9zBx.js                                     64.25 kB │ gzip:    23.77 kB
+alia-canvas build: dist/assets/es-CxMFQyoe.js                                     64.45 kB │ gzip:    23.73 kB
+alia-canvas build: dist/assets/es-ES-C8tQDYX1.js                                  65.38 kB │ gzip:    20.74 kB
+alia-canvas build: dist/assets/fr-BoYu2Z5R.js                                     66.34 kB │ gzip:    24.28 kB
+alia-canvas build: dist/assets/ja-CzCxutjJ.js                                     68.06 kB │ gzip:    25.31 kB
+alia-canvas build: dist/assets/FileManagementScreen-BOSL1--6.js                   82.69 kB │ gzip:    25.18 kB
+alia-canvas build: dist/assets/ar-vBcw8bWu.js                                     84.90 kB │ gzip:    26.93 kB
+alia-canvas build: dist/assets/ru-YKy--Ebj.js                                     91.51 kB │ gzip:    28.57 kB
+alia-canvas build: dist/assets/hi-Do-_joW7.js                                    102.10 kB │ gzip:    27.03 kB
+alia-canvas build: dist/assets/bn-n6siZUNj.js                                    104.25 kB │ gzip:    26.64 kB
+alia-canvas build: dist/assets/index-BYrYFoJp.js                               4,483.23 kB │ gzip: 1,049.42 kB
+alia-canvas build: [33m[EVAL] Warning:[0m Use of direct `eval` function is strongly discouraged as it poses security risks and may cause issues with minification.
+alia-canvas build:    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m ../../node_modules/expo-modules-core/src/uuid/index.web.ts:6:10 [38;5;246m][0m
+alia-canvas build:    [38;5;246m│[0m
+alia-canvas build:  [38;5;246m6 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249mn[0m[38;5;249m [0meval[38;5;249m([0m[38;5;249m"[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mq[0m[38;5;249mu[0m[38;5;249mi[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m"[0m[38;5;249m)[0m[38;5;249m([0m[38;5;249m"[0m[38;5;249mn[0m[38;5;249mo[0m[38;5;249md[0m[38;5;249me[0m[38;5;249m:[0m[38;5;249mc[0m[38;5;249mr[0m[38;5;249my[0m[38;5;249mp[0m[38;5;249mt[0m[38;5;249mo[0m[38;5;249m"[0m[38;5;249m)[0m[38;5;249m.[0m[38;5;249mr[0m[38;5;249ma[0m[38;5;249mn[0m[38;5;249md[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249mU[0m[38;5;249mU[0m[38;5;249mI[0m[38;5;249mD[0m[38;5;249m([0m[38;5;249m)[0m[38;5;249m;[0m
+alia-canvas build:  [38;5;240m  │[0m               ──┬─  
+alia-canvas build:  [38;5;240m  │[0m                 ╰─── Use of direct `eval` here.
+alia-canvas build:  [38;5;240m  │[0m 
+alia-canvas build:  [38;5;240m  │[0m [38;5;115mHelp[0m: Consider using indirect eval. For more information, check the documentation: https://rolldown.rs/guide/troubleshooting#avoiding-direct-eval
+alia-canvas build: [38;5;246m───╯[0m
+alia-canvas build: 
+alia-canvas build: [plugin builtin:vite-reporter] 
+alia-canvas build: (!) Some chunks are larger than 500 kB after minification. Consider:
+alia-canvas build: - Using dynamic import() to code-split the application
+alia-canvas build: - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+alia-canvas build: - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+alia-canvas build: [33m[EVAL] Warning:[0m Use of direct `eval` function is strongly discouraged as it poses security risks and may cause issues with minification.
+alia-canvas build:     [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m ../../node_modules/expo/src/async-require/fetchThenEvalJs.ts:20:11 [38;5;246m][0m
+alia-canvas build:     [38;5;246m│[0m
+alia-canvas build:  [38;5;246m20 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249mn[0m[38;5;249m [0meval[38;5;249m([0m[38;5;249mb[0m[38;5;249mo[0m[38;5;249md[0m[38;5;249my[0m[38;5;249m)[0m[38;5;249m;[0m
+alia-canvas build:  [38;5;240m   │[0m                 ──┬─  
+alia-canvas build:  [38;5;240m   │[0m                   ╰─── Use of direct `eval` here.
+alia-canvas build:  [38;5;240m   │[0m 
+alia-canvas build:  [38;5;240m   │[0m [38;5;115mHelp[0m: Consider using indirect eval. For more information, check the documentation: https://rolldown.rs/guide/troubleshooting#avoiding-direct-eval
+alia-canvas build: [38;5;246m────╯[0m
+alia-canvas build: 
+alia-canvas build: ✓ built in 1.17s
+alia-canvas build: Exited with code 0

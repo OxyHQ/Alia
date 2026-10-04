@@ -28,7 +28,7 @@ import { streamText, type ModelMessage, type ToolSet } from 'ai';
 import type { ResolvedModel } from '../chat-core.js';
 import { getDb } from '../../db/index.js';
 import { updateConversationTitle } from '../../db/chat/conversationRepository.js';
-import type { CreditReservation, CreditUsage } from '../credits-manager.js';
+import { recordCreditInferenceRequest, type CreditReservation, type CreditUsage } from '../credits-manager.js';
 import {
   saveConversationResult,
   turnProducedOutput,
@@ -248,6 +248,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       streamState,
       oxyUserId: req.user?.id,
       serviceToken: inferenceServiceToken,
+      onInferenceRequest: request => recordCreditInferenceRequest(state.creditReservation, request),
       onUsage: (usage) => { tokenUsage = usage; },
       onResolvedModel: (reference) => { observation.resolvedModelReference = reference; },
     });

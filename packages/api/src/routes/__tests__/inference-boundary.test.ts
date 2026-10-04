@@ -355,7 +355,8 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
     // that produces each. The limiter's last keyed branch is the signed-in user;
     // below it the function falls through to a bare `next()`.
     const context = code('lib/chat/request-context.ts');
-    expect(context).toContain('(req.user && !req.serviceApp && localRuntime === null) ?');
+    expect(context).toContain('const creditAccountId = req.user?.id;');
+    expect(context).toContain('(creditAccountId !== undefined && !req.serviceApp && localRuntime === null) ?');
 
     /**
      * The third conjunct is the one addition that could reopen the hole, so it

@@ -1,0 +1,60 @@
+{
+  "source": "9ec6d3a09e11df7c79e8244fa5ccb07bdf3d29e4",
+  "sources": [
+    {
+      "path": "bun.lock",
+      "sha256": "348799a2503bb752f097e86ce383d2cf99d38eb5a6caaa40929880c44fa4faef"
+    },
+    {
+      "path": "packages/alia-codea/webview-ui/package.json",
+      "sha256": "78bd50e0886d10700b64331ba0c7be51528492e8da4a237fa987411c64ad9627"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-webview-bloom-registry/webview-resolve.log",
+      "sha256": "1fc67808aeb842e8bbaa87bbd380e3baf48347e8ebbd43a30fc590b86b35c5ac"
+    },
+    {
+      "path": "docs/audits/2026-10-04-webview-bloom-registry/webview-frozen.log",
+      "sha256": "e180920a075ec4063727e7eb7e1b5051b4163c0f9b47d8330a0365dae296af65"
+    },
+    {
+      "path": "docs/audits/2026-10-04-webview-bloom-registry/webview-build.log",
+      "sha256": "73c53b8d7e173deb3f7ac6de7a90c8294b73c3e98573c05a1c34093d4f165b7b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-webview-bloom-registry/doctor-final.log",
+      "sha256": "e16a33ada614c4621982d0d4efa710c3edd0e80842c35d693b19c6e6e06ec360"
+    },
+    {
+      "path": "docs/audits/2026-10-04-webview-bloom-registry/webview-checks.json",
+      "sha256": "a904777d5e45a0453bec69072ff8ddc8fa09f02d2880a0abce08e2a62a73b497"
+    },
+    {
+      "path": "docs/audits/2026-10-04-webview-bloom-registry/bloom-final-importers.json",
+      "sha256": "f8666bec3a353c3036f79e0d7ac94ea0cb7932d5e2e310c2e17893cb589a9f26"
+    },
+    {
+      "path": "docs/audits/2026-10-04-webview-bloom-registry/bloom-materialization-mismatch.json",
+      "sha256": "07fcb1c4265b306c51874a2b0bb2012ef6085eb74a68aaac3dde6585ee00a0a0"
+    },
+    {
+      "path": "docs/audits/2026-10-04-webview-bloom-registry/webview-materialization-intent.json",
+      "sha256": "6126e7a5316f8f60cc5085dbd42b3946daf97b58f9658777c2f4b9c319c71916"
+    },
+    {
+      "path": "docs/audits/2026-10-04-webview-bloom-registry/webview-materialized-frozen.log",
+      "sha256": "fb24c12da1c5b6981bf829e16ff706f946fd54e2eba67296d882a514d23132b2"
+    },
+    {
+      "path": "docs/audits/2026-10-04-webview-bloom-registry/webview-real621-build.log",
+      "sha256": "a3bee64f24e5cb786c4a0b79b6cd0a4fa1c778e776314330adecb0b56ce2e2c1"
+    }
+  ],
+  "validation": "Final real621 TypeScript+Vite build exit0. doctor --ci passes; all5importers match20,940Bloomfiles each.",
+  "limitations": [
+    "Initial webview-build.log still resolved unused nested630 directory despite updated lock and doctorPASS. Bytecheck caught this; the directory is preserved and frozen reinstall re-materialized registry621 before webview-real621-build.log.",
+    "Theme-only webview runtime source unchanged. Prior full API2022PASS and all other consumer checks retained. No CI or deployment success claimed yet."
+  ]
+}
