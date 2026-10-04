@@ -1,13 +1,15 @@
+import { createRequire } from 'node:module';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getServiceToken } = vi.hoisted(() => ({
   getServiceToken: vi.fn(async () => 'ALIA-SERVICE-TOKEN'),
 }));
 
-vi.mock('../oxy-service-client.js', () => ({
-  oxyServiceClient: () => ({ getServiceToken }),
-  oxyServiceToken: getServiceToken,
-}));
+vi.mock('../oxy-service-client.js', () => {
+  const { OxyServer }: typeof import('@oxy.so/core/server') = createRequire(import.meta.url)('@oxy.so/core/server');
+  const client = new OxyServer({ baseURL: 'https://api.oxy.so' });
+  return { oxyServiceClient: () => client, oxyServiceToken: getServiceToken };
+});
 
 vi.mock('../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
@@ -86,7 +88,7 @@ describe('Oxy capability tools', () => {
         });
       }
       if (url.endsWith('/capabilities/execution-authorizations') && init?.method === 'POST') {
-        expect((init.headers as Record<string, string>).authorization).toBe('Bearer USER-TOKEN');
+        expect(new Headers(init.headers).get('authorization')).toBe('Bearer USER-TOKEN');
         expect(JSON.parse(String(init.body))).toMatchObject({
           kind: 'direct_request',
           coordinatorApplicationId: 'alia-app',
@@ -132,7 +134,7 @@ describe('Oxy capability tools', () => {
         });
       }
       if (url.endsWith('/capabilities/execution-authorizations/AUTHORIZATION-1') && init?.method === 'DELETE') {
-        expect((init.headers as Record<string, string>).authorization).toBe('Bearer USER-TOKEN');
+        expect(new Headers(init.headers).get('authorization')).toBe('Bearer USER-TOKEN');
         return new Response(null, { status: 204 });
       }
       return new Response('not found', { status: 404 });

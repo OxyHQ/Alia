@@ -1,0 +1,51 @@
+$ vitest run src/lib/__tests__/oxy-services.test.ts
+
+ RUN  v4.1.10 /home/nate/Oxy/Alia/.worktrees/full-cut-capability-20261004/packages/api
+
+ ❯ src/lib/__tests__/oxy-services.test.ts (14 tests | 2 failed) 32ms
+     × uses user authority only on Oxy control-plane calls and sends only a ticket to the app 10ms
+       × keeps the app's own answer to the request, which the model can act on 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/oxy-services.test.ts > Oxy capability tools > uses user authority only on Oxy control-plane calls and sends only a ticket to the app
+AssertionError: expected undefined to be defined
+ ❯ src/lib/__tests__/oxy-services.test.ts:152:21
+    150|
+    151|     const appCall = fetchMock.mock.calls.find(([input]) => String(inpu…
+    152|     expect(appCall).toBeDefined();
+       |                     ^
+    153|     expect(((appCall?.[1] as RequestInit).headers as Record<string, st…
+    154|       .toBe('Capability SHORT-TICKET');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/lib/__tests__/oxy-services.test.ts > Oxy capability tools > what the model is told when a call fails > keeps the app's own answer to the request, which the model can act on
+AssertionError: expected { error: 'oxy_app_unavailable', …(1) } to deeply equal { error: StringContaining{…} }
+
+- Expected
++ Received
+
+  {
+-   "error": StringContaining "query too long",
++   "error": "oxy_app_unavailable",
++   "message": "Inbox is temporarily unavailable. Oxy could not confirm authority for this action. Do not claim it succeeded or use another route to bypass the check. Request any required consent through the supported account flow, or try again when authority is available.",
+  }
+
+ ❯ src/lib/__tests__/oxy-services.test.ts:254:22
+    252|       const tools = await buildOxyServiceTools('user-1', context('user…
+    253|       const result = await (tools.oxy_inbox__searchEmails as unknown a…
+    254|       expect(result).toEqual({ error: expect.stringContaining('query t…
+       |                      ^
+    255|     });
+    256|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 12 passed (14)
+   Start at  16:00:49
+   Duration  831ms (transform 346ms, setup 0ms, import 712ms, tests 32ms, environment 0ms)
+
+error: script "test" exited with code 1

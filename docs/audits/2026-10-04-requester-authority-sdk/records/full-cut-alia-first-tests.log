@@ -1,0 +1,10 @@
+$ vitest run src/lib/__tests__/oxy-execution-authority.http.test.ts src/lib/__tests__/oxy-services-internal-mcp.http.test.ts src/lib/__tests__/automation-authority.test.ts
+
+ RUN  v4.1.10 /home/nate/Oxy/Alia/.worktrees/full-cut-capability-20261004/packages/api
+
+
+ Test Files  2 passed (2)
+      Tests  20 passed (20)
+   Start at  15:58:55
+   Duration  12.74s (transform 2.51s, setup 0ms, import 5.77s, tests 6.82s, environment 0ms)
+
