@@ -160,8 +160,9 @@ export interface ChatRequestContext {
   entitlements: Entitlements | null;
   linkedAgent: HydratedAgent | null;
   /**
-   * The verified inbound product service token for an application-bound agent.
-   * Undefined means the ordinary Alia credential lane. This is selected only
+   * The verified inbound caller bearer: an application-bound agent service
+   * token or an app-only machine credential. Undefined means the ordinary
+   * Alia credential lane. This is selected only
    * after exact application and delegation checks, so `agentId` never chooses
    * the billing principal.
    */

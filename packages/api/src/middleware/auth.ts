@@ -319,8 +319,8 @@ export function refuseRetiredAliaKey(res: Response): void {
 /**
  * Accepts an Oxy user or service token, plus the Telegram and channel bot
  * secrets. The name keeps "API key" because this is where the Oxy Console
- * application-key lane lands once Oxy and `@oxy.so/core/server` provide it
- * (ADR 0010 §2); today no API key of any kind is accepted.
+ * application-key lane lives (ADR 0010 §2). Only an explicitly scoped
+ * machine principal can enter the two app-only chat routes; it is never a user.
  */
 export function authenticateTokenOrApiKey(
   req: Request,

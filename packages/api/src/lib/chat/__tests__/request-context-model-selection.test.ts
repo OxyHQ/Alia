@@ -37,9 +37,9 @@ vi.mock('@oxy.so/core', async () => {
   return {
     ...actual,
     OxyServices: class {
-      session = { setAccessToken: (...args: any[]) => (this as any).setTokens(...args) };
-      accounts = { get: (...args: any[]) => (this as any).getAccount(...args) };
-      setTokens(): void {}
+      session = { setAccessToken: (token: string | null) => this.setTokens(token) };
+      accounts = { get: (accountId: string) => this.getAccount(accountId) };
+      setTokens(_token?: string | null): void {}
       async getAccount(accountId: string): Promise<unknown> {
         if (oxy.mode === 'unreachable') throw new Error('ECONNREFUSED api.oxy.so');
         return {
