@@ -1,0 +1,87 @@
+{
+  "kind": "alia-machine-chat-adoption-local-v1",
+  "source": {
+    "sourceHead": "69e0d85a865f7aaf035a3b71b382a3e7007f99f8",
+    "baseMain": "b2bc57f45d83acb53cb4d2d36a68dca9426a2788",
+    "records": [
+      {
+        "path": "AGENTS.md",
+        "sha256": "d636830433af4d81f6ae62ffde79432c59d31265e83add3a2b57f32f479fe277"
+      },
+      {
+        "path": "docs/adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md",
+        "sha256": "98e1a482660af23267bcbd28ca9bc0ef37f68d9d32d05a120408d597e1c656ee"
+      },
+      {
+        "path": "docs/developers-portal.md",
+        "sha256": "4728496f813d4bf58992189069cf280cb5dc83cf40d78dbf0ee080b098758660"
+      },
+      {
+        "path": "docs/machine-chat-contract.md",
+        "sha256": "d0137d01426780ed727802859baade728229c23784520d91e6e46baa7ab2aa18"
+      },
+      {
+        "path": "packages/api/src/__tests__/mocks/oxy-core-server.ts",
+        "sha256": "2a4df99f79f10bf4038a5537f3e493d093647120829042d63fb0efd516d1e4b8"
+      },
+      {
+        "path": "packages/api/src/lib/__tests__/machine-tool-pipeline.test.ts",
+        "sha256": "8cf1366a4a9af69d4daa356d4af4b863307f3ba2a5f91648dd46dfea92411c9f"
+      },
+      {
+        "path": "packages/api/src/lib/chat/__tests__/request-context-model-selection.test.ts",
+        "sha256": "aa5e30a72642ea24dd9405f15bc9bea63cf3e12c11a86d82d9c1b2b02d0345f8"
+      },
+      {
+        "path": "packages/api/src/lib/chat/machine-turn.ts",
+        "sha256": "b295ba8795ddd74aef83385740ee5ef07003e04660ba3446dba986374d7d1fe0"
+      },
+      {
+        "path": "packages/api/src/lib/chat/request-context.ts",
+        "sha256": "34df40a9e67f16bf17ebc86dc3682063528f6e78718448681db97bf0a1534cae"
+      },
+      {
+        "path": "packages/api/src/lib/inference/__tests__/oxy-inference.test.ts",
+        "sha256": "a4f20af6458d9e5e4424ecebc18ee6d503309e9ee569bf30e56ecb34ff8621d9"
+      },
+      {
+        "path": "packages/api/src/lib/tool-pipeline.ts",
+        "sha256": "aea34cd1237ff9d6396e7c5cfe0088c3d95e7ce7ddb50473055156e379859b96"
+      },
+      {
+        "path": "packages/api/src/middleware/__tests__/console-machine-key-entry.test.ts",
+        "sha256": "401399d541b5e30853e780b0778c90a120dbcf710c9af8c84f4f881f85806f0c"
+      },
+      {
+        "path": "packages/api/src/middleware/auth.ts",
+        "sha256": "4922e7c3c4da1e832a08dc45a342ef9ff8aaaee85b48d9936c40e94b60676e4f"
+      },
+      {
+        "path": "packages/api/src/routes/v1/chat-completions.ts",
+        "sha256": "7358ab9c2b025af230fd087c42034884e03c595e2999df9ba7094e6348746da8"
+      }
+    ]
+  },
+  "oxySource": "c8f60f2aa7e96f354b159fb2e99b1f3dd72d600b",
+  "centralProofSha256": "97344b4b67c01c6f55fcea1e9deb2c55d761fe1898ba8a8781d443ce064493f2",
+  "centralProofPath": "docs/audits/2026-10-04-alia-machine-principal/proof.json",
+  "checks": {
+    "suites": 8,
+    "tests": 112,
+    "passed": true
+  },
+  "candidateCore": {
+    "memberCount": 585,
+    "archiveSha256": "992a337a4a1deb6f1436093e63b1f6885c5557f06cf3ca74ae73ed7cd96bbbe6",
+    "nominalVersion": "4.3.0",
+    "registryReleaseClaim": false,
+    "allInstalledMembersEqual": true
+  },
+  "limits": [
+    "Local owned loopback HTTP and SQL only; no production, provider or live inference calls.",
+    "Receiver service-token exchange is stubbed, but receiver EdDSA authentication, JWT verifier, trusted-app gate, canonical machine resolver and SQL are real in Oxy route tests.",
+    "Alia tests install an unpublished source-built core fixture; current published core does not expose the new API. Coordinated root-owned release and registry adoption remain required.",
+    "No default grants, credentials, user attribution, versions, manifest/lock dependency references or production mutations.",
+    "This recipient-specific chat contract does not close generic service-access issues #873/#874."
+  ]
+}
