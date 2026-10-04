@@ -1,0 +1,108 @@
+{
+  "kind": "independent-alia-machine-source-registry-review-v1",
+  "observedAt": "2026-10-04T20:08:40.290037+00:00",
+  "worktree": "/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004",
+  "gitHeadAtReview": "fd431ffc8",
+  "runtimeOriginalSource": "69e0d85a8",
+  "mode": "read-only review; no suites repeated; no repository edits or production actions",
+  "verdict": "accepted source/auth/SDK byte adoption; final lock reconciliation and root tests remain separate",
+  "scope": {
+    "installedCoreContractsEdges": 17,
+    "directAndTransitiveContexts": "all root/package importers plus installed core/services/MCP/protocol; same physical core/contracts roots",
+    "core": {
+      "version": "4.4.0",
+      "members": 585,
+      "allMemberBytesEqual": true,
+      "additionalMemberFiles": [],
+      "archiveSha256": "49d95b3d5009981ce518f1fd0ae34b62da905d91edad12df7607d10b6b36aa4b",
+      "memberRowsSha256": "da814701e708259b4bcecc4149bbd43e2430dceb807fc531ee310148e8839115"
+    },
+    "contracts": {
+      "version": "4.9.1",
+      "members": 198,
+      "allMemberBytesEqual": true,
+      "additionalMemberFiles": [],
+      "archiveSha256": "03aa57e531542289bcd993109493419a9d9b3d4cf8cc70e5e6ae085a57680d1d",
+      "memberRowsSha256": "b7a3d5a006fddb7b4d0154446200a6dcaa84e3213c9b40937b26486b9bd6be69"
+    }
+  },
+  "findings": {
+    "machinePrincipalSeparate": true,
+    "exactAudienceEnvironmentScopes": true,
+    "ephemeralWeakMapBearer": true,
+    "noOwnerToUser": true,
+    "noAliaPayerFallback": true,
+    "machineToolsEmptyNoClockOrDb": true,
+    "rawMachineRestrictedToTwoPostChatRoutes": true,
+    "retiredAliaKeyRejected": true,
+    "guardPrefixSet": [
+      "Bearer ",
+      "Bearer oxy_sk_",
+      "alia_sk_"
+    ],
+    "originalRuntimeAndBoundaryTestsEightLeavesByteEqual69e0": true
+  },
+  "limitations": [
+    "Root final lock can still change; lock digest 780c6ccb was transient WIP and is not accepted as final",
+    "No live valid machine key/lifecycle/funding/inference acceptance claimed",
+    "Tool-only doctor package.json export was not traversed; all 17 observed core/contracts edges were resolved and byte checked"
+  ],
+  "references": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/core.tgz",
+      "sha256": "49d95b3d5009981ce518f1fd0ae34b62da905d91edad12df7607d10b6b36aa4b"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/accepted-release.json",
+      "sha256": "bd28d8e69b48ca5650a1365cc01c4fa0fb20b92d500e58a09300b012379d21c2"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/receipt-sdk-release/published-f75-complete-graph/contracts.tgz",
+      "sha256": "03aa57e531542289bcd993109493419a9d9b3d4cf8cc70e5e6ae085a57680d1d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/receipt-sdk-release/accepted-release.json",
+      "sha256": "f99bb864e69088fb03dd97d526e3ebbb4f9c26b1c255c8156e50c7f32c3285ba"
+    },
+    {
+      "path": "/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/packages/api/src/middleware/auth.ts",
+      "sha256": "4922e7c3c4da1e832a08dc45a342ef9ff8aaaee85b48d9936c40e94b60676e4f"
+    },
+    {
+      "path": "/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/packages/api/src/lib/chat/machine-turn.ts",
+      "sha256": "b295ba8795ddd74aef83385740ee5ef07003e04660ba3446dba986374d7d1fe0"
+    },
+    {
+      "path": "/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/packages/api/src/lib/chat/request-context.ts",
+      "sha256": "34df40a9e67f16bf17ebc86dc3682063528f6e78718448681db97bf0a1534cae"
+    },
+    {
+      "path": "/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/packages/api/src/lib/tool-pipeline.ts",
+      "sha256": "aea34cd1237ff9d6396e7c5cfe0088c3d95e7ce7ddb50473055156e379859b96"
+    },
+    {
+      "path": "/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/packages/api/src/routes/v1/chat-completions.ts",
+      "sha256": "7358ab9c2b025af230fd087c42034884e03c595e2999df9ba7094e6348746da8"
+    },
+    {
+      "path": "/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/packages/api/src/middleware/__tests__/console-machine-key-entry.test.ts",
+      "sha256": "401399d541b5e30853e780b0778c90a120dbcf710c9af8c84f4f881f85806f0c"
+    },
+    {
+      "path": "/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/packages/api/src/lib/__tests__/machine-tool-pipeline.test.ts",
+      "sha256": "8cf1366a4a9af69d4daa356d4af4b863307f3ba2a5f91648dd46dfea92411c9f"
+    },
+    {
+      "path": "/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/packages/api/src/lib/chat/__tests__/request-context-model-selection.test.ts",
+      "sha256": "aa5e30a72642ea24dd9405f15bc9bea63cf3e12c11a86d82d9c1b2b02d0345f8"
+    },
+    {
+      "path": "/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/packages/api/src/routes/__tests__/v1-compatibility-surface.test.ts",
+      "sha256": "c15a4f3534152a6aa86691a77fadde23daafc6ac80d7e5ac28e3ce18a3805de9"
+    },
+    {
+      "path": "/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/docs/machine-chat-contract.md",
+      "sha256": "5d10a17328b09ad32746a368bb095fcc66dadd32f8eb6fb493b4e19ba1c5d907"
+    }
+  ]
+}

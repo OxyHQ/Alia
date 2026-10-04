@@ -1,0 +1,40 @@
+Full evidence SHA256 e82d25e890aadbdbb97de11cbc7a88a8d46b572c6c71c071bebf3782a02ef444
+/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/alia-machine-review/alia-core44-final-test.log
+@alia/api test:       "message": "Postgres is not connected — call connectPostgres() during startup",
+@alia/api test:       "stack":
+@alia/api test:           Error: Postgres is not connected — call connectPostgres() during startup
+@alia/api test:               at getDb (/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/packages/api/src/db/index.ts:78:11)
+@alia/api test:               at getUserTier (/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/packages/api/src/middleware/api-key-rate-limit.ts:88:53)
+@alia/api test:               at apiKeyRateLimit (/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/packages/api/src/middleware/api-key-rate-limit.ts:125:26)
+@alia/api test:               at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/node_modules/express/lib/router/layer.js:95:5)
+@alia/api test:               at trim_prefix (/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/node_modules/express/lib/router/index.js:328:13)
+@alia/api test:               at /home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/node_modules/express/lib/router/index.js:286:9
+@alia/api test:               at router.process_params (/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/node_modules/express/lib/router/index.js:346:12)
+@alia/api test:               at next (/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/node_modules/express/lib/router/index.js:280:10)
+@alia/api test:               at authenticateTokenOrApiKey (/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/packages/api/src/middleware/auth.ts:351:12)
+@alia/api test:               at Layer.handle [as handle_request] (/home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/node_modules/express/lib/router/layer.js:95:5)
+@alia/api test:     }
+@alia/api test: [20:02:11] [33mWARN[39m: [36mVAPID keys not set — web push notifications disabled[39m
+@alia/api test: [20:02:11] [33mWARN[39m: [36mVAPID keys not set — web push notifications disabled[39m
+@alia/api test: [20:02:11] [32mINFO[39m: [36mRegistered hook[39m
+@alia/api test:     [35msubsystem[39m: "chat"
+@alia/api test:     [35mhookName[39m: "analytics"
+@alia/api test: [20:02:11] [32mINFO[39m: [36mRegistered hook[39m
+@alia/api test:     [35msubsystem[39m: "chat"
+@alia/api test:     [35mhookName[39m: "memory-recall"
+@alia/api test:     [35mpriority[39m: 10
+@alia/api test: [20:02:11] [32mINFO[39m: [36mRegistered hook[39m
+@alia/api test:     [35msubsystem[39m: "chat"
+@alia/api test:     [35mhookName[39m: "style-learning"
+@alia/api test:     [35mpriority[39m: 200
+@alia/api test: [20:02:11] [32mINFO[39m: [36mRegistered hook[39m
+@alia/api test:     [35msubsystem[39m: "chat"
+@alia/api test:     [35mhookName[39m: "proactive-insights"
+@alia/api test:     [35mpriority[39m: 300
+@alia/api test: 
+@alia/api test:  Test Files  195 passed | 1 skipped (196)
+@alia/api test:       Tests  2058 passed | 1 skipped (2059)
+@alia/api test:    Start at  23:02:00
+@alia/api test:    Duration  12.13s (transform 65.40s, setup 0ms, import 212.54s, tests 58.15s, environment 23ms)
+@alia/api test: 
+@alia/api test: Exited with code 0
