@@ -1,0 +1,7 @@
+{
+  "reason": "three stale refresh members retained despite registry/frozen install success",
+  "ownedDirectory": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core",
+  "preservedAt": "/home/nate/Oxy/.agent-evidence/i04-consumer-final-prs/registry-Alia-20261004/stale-installed-core",
+  "manifestUnchanged": true,
+  "automaticRetry": false
+}

@@ -463,7 +463,7 @@ describe('the product runtime still runs the check (#139 ws6)', () => {
     // `/alia/chat` (`routes/__tests__/unified-product-runtime.test.ts`).
     const route = code('routes/v1/chat-completions.ts');
     expect(route).toContain('export const handleChatCompletions');
-    expect(route).toMatch(/const ctx = await buildChatRequestContext\(req, res, sse, globalTimer\);/);
+    expect(route).toMatch(/const ctx = await buildChatRequestContext\(req, res, sse, globalTimer, requestId\);/);
     expect(route).toMatch(/if \(!ctx\) return;/);
   });
 });

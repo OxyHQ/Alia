@@ -1,0 +1,609 @@
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/db/__tests__/agentThread.pgdb.test.ts
+@alia/api lint:   272:11  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/db/__tests__/deployWorkflow.test.ts
+@alia/api lint:   193:23  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   194:23  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/db/__tests__/skillRepository.pgdb.test.ts
+@alia/api lint:   345:24  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/db/agents/agentRuntimeRepository.ts
+@alia/api lint:   238:93  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/db/agents/skillRepository.ts
+@alia/api lint:   250:7   warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   292:7   warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   717:57  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/index.ts
+@alia/api lint:   294:15  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/__tests__/a-product-agent-answers-only-its-application.test.ts
+@alia/api lint:   40:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   40:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   41:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   41:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/__tests__/an-identity-failure-is-not-a-refusal.test.ts
+@alia/api lint:   46:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   46:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   47:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   47:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/__tests__/capability-grants.test.ts
+@alia/api lint:   406:66  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/__tests__/seed-comped-accounts.test.ts
+@alia/api lint:   99:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   99:58  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/__tests__/title-generation.test.ts
+@alia/api lint:   247:26  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/__tests__/usage-window.test.ts
+@alia/api lint:   30:18  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   32:18  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   37:18  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   41:30  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   47:30  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/agent/__tests__/agent-memory-runtime.pgdb.test.ts
+@alia/api lint:   28:52  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/agent/__tests__/agent-turn-coordinator-settlement.test.ts
+@alia/api lint:   74:24  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   92:18  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/agent/__tests__/team-package.test.ts
+@alia/api lint:   19:32  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/agent/action-approval.ts
+@alia/api lint:   167:5  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/agent/executor-pool.ts
+@alia/api lint:    92:25  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   116:28  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   131:34  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   131:51  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   192:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/agent/memory-contract.ts
+@alia/api lint:   19:69  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   20:26  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   22:91  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   23:26  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/agent/orchestrator.ts
+@alia/api lint:   29:10  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   30:13  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   31:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/agent/repeat-detector.ts
+@alia/api lint:   51:66  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/agent/team-package.ts
+@alia/api lint:   70:53  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   70:76  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/channels/plugins/discord.ts
+@alia/api lint:   106:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   124:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/channels/plugins/signal.ts
+@alia/api lint:    42:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   104:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   118:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/channels/plugins/slack.ts
+@alia/api lint:    43:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   122:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/channels/plugins/telegram.ts
+@alia/api lint:   132:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/channels/plugins/whatsapp.ts
+@alia/api lint:   121:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/channels/types.ts
+@alia/api lint:   51:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   77:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/chat/__tests__/request-context-model-selection.test.ts
+@alia/api lint:   35:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   35:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   36:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   36:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/conversation-saver.ts
+@alia/api lint:   276:24  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   279:35  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/hooks/built-in/memory-recall-hook.ts
+@alia/api lint:   19:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/hooks/built-in/proactive-hook.ts
+@alia/api lint:   83:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   84:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/hooks/built-in/style-learning-hook.ts
+@alia/api lint:   26:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   27:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/hooks/types.ts
+@alia/api lint:    4:13  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    9:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   13:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   14:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/inference/__tests__/hosted-provider-retirement.test.ts
+@alia/api lint:   168:23  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   169:23  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/integration-registry.ts
+@alia/api lint:   11:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   49:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   71:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/mcp-relay.ts
+@alia/api lint:    17:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   215:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/memory/recall.ts
+@alia/api lint:   76:19  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/message-converter.ts
+@alia/api lint:    68:21  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   146:34  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/notification-service.ts
+@alia/api lint:   57:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/observability/alerts.ts
+@alia/api lint:   89:19  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/observability/metrics.ts
+@alia/api lint:   115:7  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/prompt-loader.ts
+@alia/api lint:   24:12  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/skills/__tests__/archive.test.ts
+@alia/api lint:   38:12  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   87:13  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   87:13  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/skills/__tests__/bundle.test.ts
+@alia/api lint:   165:12  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   178:12  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   179:12  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   185:12  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/skills/__tests__/github.test.ts
+@alia/api lint:   98:17  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/skills/__tests__/store.pgdb.test.ts
+@alia/api lint:   60:46  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/skills/bundle.ts
+@alia/api lint:   149:5  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/skills/redistribution.ts
+@alia/api lint:   70:65  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/skills/store.ts
+@alia/api lint:   178:35  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/system-prompt-builder.ts
+@alia/api lint:   54:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   55:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tool-converter.ts
+@alia/api lint:   19:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   56:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   57:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/__tests__/agent-create.test.ts
+@alia/api lint:   37:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   37:62  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   38:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   38:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/__tests__/agent-delegate.pgdb.test.ts
+@alia/api lint:   41:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   41:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   42:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   42:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   43:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   43:60  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/__tests__/faircoin.test.ts
+@alia/api lint:   42:83  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/__tests__/market.test.ts
+@alia/api lint:   39:97  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/__tests__/result-truncation.test.ts
+@alia/api lint:   31:72  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/__tests__/weather.test.ts
+@alia/api lint:   52:79  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/device-info.ts
+@alia/api lint:   49:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/integrations/google-calendar.ts
+@alia/api lint:   29:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   36:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   52:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/integrations/google-drive.ts
+@alia/api lint:   25:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/integrations/shared.ts
+@alia/api lint:    88:70  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    88:85  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   106:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/mcp-schema.ts
+@alia/api lint:   16:56  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   28:66  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/mcp.ts
+@alia/api lint:   145:73  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   154:76  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   161:77  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   167:73  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   176:83  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   184:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   192:29  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/lib/tools/result-truncation.ts
+@alia/api lint:   51:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   51:61  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   55:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   85:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/middleware/__tests__/auth-middleware.test.ts
+@alia/api lint:   23:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   23:60  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/agents-identity.test.ts
+@alia/api lint:   59:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   59:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   60:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   60:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/integrations-oauth-csrf.test.ts
+@alia/api lint:    40:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    40:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    40:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    70:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    71:9   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    75:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    75:60  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    79:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   105:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   156:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   192:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   224:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/mcp-oauth.test.ts
+@alia/api lint:    46:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    46:58  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    46:69  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    47:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    47:56  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    47:67  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    51:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    51:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    51:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   140:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   141:9   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   147:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   147:60  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   151:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   179:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   209:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   248:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   275:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   296:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   317:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   328:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   347:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   378:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   392:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   422:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/__tests__/memory.test.ts
+@alia/api lint:    41:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    41:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    41:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   107:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   108:9   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   111:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   111:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   115:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   155:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   176:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   216:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   230:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   247:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   273:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/accounts.ts
+@alia/api lint:    59:40  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:    63:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   136:66  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   148:66  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   169:18  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   181:13  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   331:18  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   340:29  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   382:74  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   396:46  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   442:79  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   469:74  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   482:44  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   503:79  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   529:79  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   556:79  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   599:82  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   622:81  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   635:44  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/agents/__tests__/agent-prompt-visibility.test.ts
+@alia/api lint:   49:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   49:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   50:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   50:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/agents/__tests__/agent-thread.test.ts
+@alia/api lint:   60:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   60:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   61:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   61:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/agents/__tests__/goal-access.test.ts
+@alia/api lint:   47:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   47:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   48:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   48:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/agents/generate.ts
+@alia/api lint:   84:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/agents/teams.ts
+@alia/api lint:   18:18  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/agents/threads.ts
+@alia/api lint:    79:70  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   124:70  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   192:15  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/analytics.ts
+@alia/api lint:   43:54  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   56:54  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   82:58  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/billing.ts
+@alia/api lint:   115:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   172:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   267:9   warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   318:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   434:64  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   477:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   594:62  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   598:54  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   609:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   629:52  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/bots.ts
+@alia/api lint:    85:49  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   324:57  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   366:18  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   386:57  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   423:18  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/canvas/execute.ts
+@alia/api lint:    37:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   121:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   122:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   123:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   149:20  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   169:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   230:88  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/credits.ts
+@alia/api lint:   16:31  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   17:27  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   22:31  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   80:51  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/integrations-oauth.ts
+@alia/api lint:    67:65  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:    92:13  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   269:18  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   294:76  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   310:78  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/internal.ts
+@alia/api lint:   80:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/library.ts
+@alia/api lint:    56:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:    83:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   101:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   161:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/mcp.ts
+@alia/api lint:    78:66  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:    99:18  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   205:70  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   232:47  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   241:63  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   264:58  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   322:18  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   342:56  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   360:73  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   390:66  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   411:66  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   442:49  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   447:49  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   467:66  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   489:61  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   504:71  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   520:71  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/memory.ts
+@alia/api lint:    46:50  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:    82:48  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   104:20  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   123:20  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   155:20  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   190:20  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   207:66  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   246:50  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   259:44  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   320:20  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   351:20  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   384:50  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   438:50  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   444:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   474:50  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   530:50  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   581:50  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   636:50  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   639:64  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   744:48  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   747:64  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   849:20  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   875:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   876:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/organization.ts
+@alia/api lint:   156:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   195:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   223:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   243:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   289:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   330:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   360:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   404:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   431:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   458:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   517:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   538:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   569:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   629:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   668:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   702:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   747:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/referrals.ts
+@alia/api lint:    23:57  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:    54:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:    73:14  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   110:57  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   138:57  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/skills.ts
+@alia/api lint:   298:13  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   299:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   471:37  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/suggestions.ts
+@alia/api lint:    93:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   132:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   142:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   224:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   224:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   225:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/tools-proxy.ts
+@alia/api lint:   58:31  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   65:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/v1/__tests__/chat-completions-timeout.test.ts
+@alia/api lint:    34:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    35:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    37:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    41:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    43:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    44:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    48:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    49:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    50:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    53:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    57:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    61:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    62:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    62:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    62:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    63:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    63:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    63:58  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    64:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    64:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    64:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:    97:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   144:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   154:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   189:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   255:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   255:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   255:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   260:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   267:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   298:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   312:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   316:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   339:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   339:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   341:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   350:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   353:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   366:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   366:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   366:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   434:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   574:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   609:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   615:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   636:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   636:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   636:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   721:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   772:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   772:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   772:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/v1/__tests__/chatFlowFixtures.test.ts
+@alia/api lint:   141:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   141:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   142:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   142:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/v1/responses.ts
+@alia/api lint:   20:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   29:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/routes/writing-style.ts
+@alia/api lint:    20:48  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:    43:48  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:    80:48  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:    96:48  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint:   112:49  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+@alia/api lint: 
+@alia/api lint: /home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api/src/socket.ts
+@alia/api lint:   315:7   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+@alia/api lint:   329:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   335:65  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   346:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   354:61  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint:   373:9   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@alia/api lint: 
+@alia/api lint: ✖ 413 problems (0 errors, 413 warnings)
+@alia/api lint: 
+@alia/api lint: Exited with code 0

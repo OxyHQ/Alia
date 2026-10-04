@@ -1,0 +1,74 @@
+[
+  {
+    "name": "api-build",
+    "cwd": ".",
+    "argv": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "build:api"
+    ],
+    "exitCode": 0,
+    "seconds": 0.164
+  },
+  {
+    "name": "alia-chat-types",
+    "cwd": "packages/alia-chat",
+    "argv": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "typecheck"
+    ],
+    "exitCode": 0,
+    "seconds": 2.62
+  },
+  {
+    "name": "alia-codea-types",
+    "cwd": "packages/alia-codea",
+    "argv": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "typecheck"
+    ],
+    "exitCode": 0,
+    "seconds": 1.367
+  },
+  {
+    "name": "alia-codea-cli-types",
+    "cwd": "packages/alia-codea-cli",
+    "argv": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "typecheck"
+    ],
+    "exitCode": 0,
+    "seconds": 1.517
+  },
+  {
+    "name": "alia-computer-host-types",
+    "cwd": "packages/alia-computer-host",
+    "argv": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "typecheck"
+    ],
+    "exitCode": 0,
+    "seconds": 1.016
+  },
+  {
+    "name": "alia-cowork-types",
+    "cwd": "packages/alia-cowork",
+    "argv": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "typecheck"
+    ],
+    "exitCode": 0,
+    "seconds": 1.768
+  }
+]

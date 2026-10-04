@@ -1,0 +1,10 @@
+$ vitest run src/lib/__tests__/oxy-service-identity.test.ts src/middleware/__tests__/offline-delegation.test.ts src/lib/__tests__/oxy-services-internal-mcp.http.test.ts src/lib/__tests__/oxy-services-capability.test.ts
+
+ RUN  v4.1.10 /home/nate/Oxy/Alia/.worktrees/1519-i05-internal-mcp-20261003/packages/api
+
+
+ Test Files  3 passed (3)
+      Tests  33 passed (33)
+   Start at  20:16:01
+   Duration  1.61s (transform 424ms, setup 0ms, import 794ms, tests 1.25s, environment 0ms)
+
