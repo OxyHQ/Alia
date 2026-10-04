@@ -191,7 +191,7 @@ const oxyOptionalAuth = delegationAware(
 );
 
 /**
- * `@oxy.so/core` 3 types this middleware's `req.user` as its own `User`, while
+ * `@oxy.so/core` 4.4 types this middleware's `req.user` as its own `User`, while
  * this app's Express augmentation (above) says `OxyRequestUser`; both describe
  * the same object the middleware sets. Viewed as an `AuthLane` so the lanes
  * below compose; the runtime function is the SDK's, untouched.
