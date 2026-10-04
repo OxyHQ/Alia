@@ -209,7 +209,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     const sseEmitter = createResponseSSEEmitter(res, sse.ensureHeaders);
     let assembled: Awaited<ReturnType<typeof ToolPipeline.forUser>>;
     try {
-      assembled = await ToolPipeline.forUser({
+      assembled = req.machineCredential ? ToolPipeline.forMachineTurn() : await ToolPipeline.forUser({
         userId: req.user?.id || '',
         accessToken: req.accessToken,
         isDirectSession: isDirectUserSession,
