@@ -1,0 +1,109 @@
+{
+  "base": "fd431ffc8f063b97675004995d6fa85afbf6d00c",
+  "bunVersion": "1.3.14",
+  "bunPath": "/home/nate/.cache/bun-1.3.14/bin/bun",
+  "copiedManifests": 9,
+  "freshInstallExit": 0,
+  "frozenVerificationExit": 0,
+  "lifecycleScripts": "disabled for graph-only audit",
+  "rootFreshLockByteEqual": true,
+  "lockSha256": "780c6ccb0e30ca2862d7fffcd0a9bb2d180a6f5a71183c3c6f4aad92742a09d5",
+  "lockRecords": 3417,
+  "introducedIdentities": [
+    "@oxy.so/contracts@4.9.1",
+    "@oxy.so/core@4.4.0"
+  ],
+  "removedIdentities": [
+    "@oxy.so/contracts@4.9.0",
+    "@oxy.so/core@4.2.0"
+  ],
+  "unrelatedNewVersions": [],
+  "unrelatedEffectiveEdgeChanges": [
+    {
+      "importer": "@google/genai@1.52.0",
+      "kind": "optional peer",
+      "dependency": "@modelcontextprotocol/sdk",
+      "range": "^1.25.2",
+      "before": "1.29.0",
+      "after": "1.32.0",
+      "verifiedViaActualNodeResolution": true,
+      "bothVersionsAlreadyPresentInBaseline": true
+    }
+  ],
+  "alternatives": {
+    "targetedUpdate": "Not better: adds direct root contracts dependency and re-resolves broad graph; retained then restored exact reviewed manifests/fresh lock.",
+    "baselineFrozen": "Existing fd431 baseline itself rejects frozen install on fresh Bun1.3.14; normalizing it succeeds and preserves Google peer1.29.0. Not evidence that every relocation is mandatory.",
+    "recommendation": "Use reproducible fresh root-identical lock with explicit optional-peer change and functional checks; no demonstrated routine exact-SDK-only resolver result. Do not hand edit lock or add broad override."
+  },
+  "limits": [
+    "No root worktree writes, runtime source change, AWS, push or package publish",
+    "Graph comparison uses lock ancestor resolution; actual affected Google peer additionally verified in two fresh installs",
+    "Does not independently test Google MCP behavior; root full functional suite is separate evidence"
+  ],
+  "refs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-alia-lock-audit-20261004/manifest-inputs.json",
+      "sha256": "da9dd372d43fba12183e24e63ac3cbe0fdb5fbee288c99084eab3a0368dc9589"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-alia-lock-audit-20261004/baseline.lock",
+      "sha256": "348799a2503bb752f097e86ce383d2cf99d38eb5a6caaa40929880c44fa4faef"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-alia-lock-audit-20261004/root-observed.lock",
+      "sha256": "780c6ccb0e30ca2862d7fffcd0a9bb2d180a6f5a71183c3c6f4aad92742a09d5"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-alia-lock-audit-20261004/fresh.lock",
+      "sha256": "780c6ccb0e30ca2862d7fffcd0a9bb2d180a6f5a71183c3c6f4aad92742a09d5"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-alia-lock-audit-20261004/fresh-install.log",
+      "sha256": "dbf3ef0582cd6a182c1b0cf409c5151db03f595be4fefd456d44c516fb00c306"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-alia-lock-audit-20261004/final-frozen-install.log",
+      "sha256": "5d1703fd90e605d9a8b44a7d10ba99f398dd7a16247f987ab7bc29f2f8310b16"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-alia-lock-audit-20261004/root-semantic-delta.json",
+      "sha256": "389228fe79f356436daa97611ec5582d94803014c745c623c9b53282072c0a2e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-alia-lock-audit-20261004/fresh-semantic-delta.json",
+      "sha256": "389228fe79f356436daa97611ec5582d94803014c745c623c9b53282072c0a2e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-alia-lock-audit-20261004/edge-delta.json",
+      "sha256": "86195ae5fc0dcad79e42c62e3177c11e2b0d08268cc32ffdc29b78fd408fbdcc"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-alia-lock-audit-20261004/actual-peer-resolution.json",
+      "sha256": "8f820ffcc46077d137b7d5249799e8c937b6ba0bbbad3c9595f0733382ed4d00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-alia-lock-audit-20261004/baseline-frozen-install.log",
+      "sha256": "136699a16b1ea235191faffb832648dda09ca151503c52fb7a798d1b243174a9"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-alia-lock-audit-20261004/baseline-normalize.log",
+      "sha256": "652d89143f05885306c30f03dc54eabc4bb7d6dda51df703a81d8c626770afbf"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-alia-lock-audit-20261004/targeted-update.log",
+      "sha256": "a7220dd5a2d817c3a03855e77fe28f5034657e7b405bfcd193d4fae67c9f1a29"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-alia-lock-audit-20261004/targeted-manifest-diff.patch",
+      "sha256": "5f3617309ffa5064d056fff5f3a8b088ce0ab90fa0fe4243ae92757afa17f9bc"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-alia-lock-audit-20261004/targeted-update.lock",
+      "sha256": "f9faa253a8e355e04f7085c772f4dd79e8e264c355c269e1aee7a59f4e307e02"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-alia-lock-audit-20261004/inspect.cjs",
+      "sha256": "685cdff20005ead1f51bcd48f3ae52acc4f59a3bb9b85ae3ea97113d42cf0c96"
+    }
+  ]
+}

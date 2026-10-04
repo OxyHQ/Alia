@@ -1,4 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@oxy.so/core/server', async () => {
+  const { createRequire } = await import('node:module');
+  return createRequire(import.meta.url)('@oxy.so/core/server') as Record<string, unknown>;
+});
+const { createOxyAliaMachineCredentialAuth, OXY_ALIA_RESOURCE_APPLICATION_ID } = await import('@oxy.so/core/server');
 
 /**
  * What a request's `model` becomes, measured on the REAL boundary (ADR 0012).
@@ -32,9 +37,9 @@ vi.mock('@oxy.so/core', async () => {
   return {
     ...actual,
     OxyServices: class {
-      session = { setAccessToken: (...args: any[]) => (this as any).setTokens(...args) };
-      accounts = { get: (...args: any[]) => (this as any).getAccount(...args) };
-      setTokens(): void {}
+      session = { setAccessToken: (token: string | null) => this.setTokens(token) };
+      accounts = { get: (accountId: string) => this.getAccount(accountId) };
+      setTokens(_token?: string | null): void {}
       async getAccount(accountId: string): Promise<unknown> {
         if (oxy.mode === 'unreachable') throw new Error('ECONNREFUSED api.oxy.so');
         return {
@@ -154,6 +159,7 @@ async function run(
     assistantMessageId?: unknown;
     /** Any other body fields. */
     body?: Record<string, unknown>;
+    machine?: boolean;
   } = {},
 ) {
   const captured: Captured = { status: null, body: null };
@@ -200,6 +206,17 @@ async function run(
   if (options.agentId !== undefined) {
     (req.body as Record<string, unknown>).agentId = options.agentId;
   }
+  if (options.machine) {
+    Reflect.deleteProperty(req, 'accessToken');
+    Reflect.set(req, 'headers', { authorization: 'Bearer oxy_sk_machine_payer_fixture' });
+    await createOxyAliaMachineCredentialAuth({ apps: { introspectAliaMachineCredential: async () => ({
+      active: true, principal: {
+        kind: 'machine', audience: OXY_ALIA_RESOURCE_APPLICATION_ID, applicationId: 'machine-app',
+        credentialId: 'machine-credential', ownerAccountId: 'machine-payer', environment: 'production',
+        scopes: ['alia:chat', 'inference:invoke'],
+      },
+    }) } }, { environment: 'production' })(req as never, res as never, () => undefined);
+  }
   const ctx = await buildChatRequestContext(
     req as never,
     res as never,
@@ -222,6 +239,34 @@ beforeEach(() => {
   findAgentById.mockResolvedValue(null);
   oxy.mode = 'denies';
   clearAgentAccountVerdicts();
+});
+
+describe('app-only machine turn boundary and payer', () => {
+  it('forwards the canonical caller bearer and never reserves a user credit or chooses Alia as payer', async () => {
+    const { ctx, captured } = await run(KNOWN, { machine: true });
+    expect(captured.status).toBeNull();
+    expect(ctx?.inferenceServiceToken).toBe('oxy_sk_machine_payer_fixture');
+    expect(ctx?.isDirectUserSession).toBe(false);
+    expect(ctx?.creditReservation).toBeNull();
+    expect(ctx?.webSearch).toBe(false);
+    expect(ctx?.linkedAgent).toBeNull();
+    expect(reserveCredits).not.toHaveBeenCalled();
+    expect(findAgentById).not.toHaveBeenCalled();
+    expect(findMcpServerForUser).not.toHaveBeenCalled();
+  });
+  it.each(['agentId', 'conversationId', 'mcpServerId', 'skillIds', 'tools', 'deepResearch', 'userId'])('refuses personal/tool authority field %s before resolution', async key => {
+    const { ctx, captured } = await run(KNOWN, { machine: true, body: { [key]: 'claimed-authority' } });
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(403);
+    expect(resolveModel).not.toHaveBeenCalled();
+    expect(reserveCredits).not.toHaveBeenCalled();
+  });
+  it('does not grant the financial owner a local runtime', async () => {
+    const { ctx, captured } = await run('local/owner/model', { machine: true });
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(403);
+    expect(resolveModel).not.toHaveBeenCalled();
+  });
 });
 
 /**

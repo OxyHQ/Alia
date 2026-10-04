@@ -1,0 +1,97 @@
+{
+  "source": "0c6dec1331e9ea237b73c02e8e4c679a338d70bb",
+  "package": "@oxy.so/core",
+  "version": "4.4.0",
+  "downloadByteEqual": true,
+  "archiveSha256": "49d95b3d5009981ce518f1fd0ae34b62da905d91edad12df7607d10b6b36aa4b",
+  "members": 585,
+  "coreTests": 2249,
+  "coreSuites": 185,
+  "registry": {
+    "version": "4.4.0",
+    "dist": {
+      "shasum": "9da5fd3d9b09635b4c618e165c9c1bde3c77fce9",
+      "tarball": "https://registry.npmjs.org/@oxy.so/core/-/core-4.4.0.tgz",
+      "fileCount": 585,
+      "integrity": "sha512-NHGhTb+lPy6/unHJIiisjSLsBgqe9Vb5teS5o3RxWbqA1qcKRgWrZddcuoBezSD8RxcEIijevTtObXKRZaPgNw==",
+      "signatures": [
+        {
+          "sig": "MEQCIEri9ReEuRZHE8Wy6A6KYhCSCI8lpTgPQVQjaYaW+gtTAiAf+R11AbipvmANsKAiyI4naDPBLp3bMfOv038kg4LLGw==",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        },
+        {
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+          "sig": "MEYCIQDRyJeRMFrTYSiIvMYBDxYnz/ekVrjhB+EjBrAi8hT5aAIhAINqhQCtvbmX+46LyhkKtseOAmQvK+iuYJM66ZOE1HGD"
+        }
+      ],
+      "unpackedSize": 6084511
+    },
+    "metadataReadAttempts": 20,
+    "distTags": {
+      "latest": "4.4.0"
+    },
+    "downloadByteEqual": true
+  },
+  "validationRecords": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/contracts-build.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/contracts-test.log",
+      "sha256": "c276e967a9c0786ae2d43dd49a457efbd33e8d1e88784e2b78730b16c378b15d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/contracts-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/core-build.log",
+      "sha256": "3140bf4725be8f3f7253967aeffe0f163dc2e339aebb38e8a99ef745cf0768fc"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/core-pack.log",
+      "sha256": "392d7b46ee04dd1072e0de840406794a1683a3427384327037384ca0bfb79def"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/core-package-formats.log",
+      "sha256": "1ab7bba19bad782b161aeaa36d3b0d2c63735cf844e92731dcb85eb4d583a894"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/core-publish.log",
+      "sha256": "dad01f1eaad50662b799a46a5ebb1513650d85e1290a2eac080b71f99f0f317f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/core-test.log",
+      "sha256": "47f949f201baae4905fa5f81ed587b1f95385d3204537e4d5e8bfeb7ef7d3dd8"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/core-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/protocol-build.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/protocol-test.log",
+      "sha256": "def64aefa1b200c40f0baf349ef96af80970e4ab5de2520c0e546d9fc988758a"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/protocol-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/telemetry-build.log",
+      "sha256": "8b1c202d8ea3ba292dc25e574ca8e66891fbccb2a320c55c6e8b0bd24f94794a"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/telemetry-test.log",
+      "sha256": "24611add34aa5c03f2e1dbe1464ca5e8b19251c8d4fe1bb3d706e96395d76daa"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/telemetry-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    }
+  ]
+}

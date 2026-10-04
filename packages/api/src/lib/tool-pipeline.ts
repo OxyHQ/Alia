@@ -322,6 +322,10 @@ function withBudget(budgeted: BudgetedToolSet, toolNameMapping: Map<string, stri
 // ---------------------------------------------------------------------------
 
 export class ToolPipeline {
+  /** App-only chat carries no human/tool authority and fetches no tool sources. */
+  static forMachineTurn(): ForUserResult {
+    return unrouted({}, new Map<string, string>());
+  }
   /**
    * Assemble the complete tool set for a turn — chat, Telegram, trigger or
    * autonomous run.

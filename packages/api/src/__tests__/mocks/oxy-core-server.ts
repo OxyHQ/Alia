@@ -70,3 +70,8 @@ export const canAttestWorkloadIdentity: OxyCoreServer['canAttestWorkloadIdentity
  */
 export const OxyServer: OxyCoreServer['OxyServer'] = real.OxyServer;
 export type OxyServer = InstanceType<OxyCoreServer['OxyServer']>;
+
+/** Machine credential tests use the real resource boundary, never an auth stub. */
+export const createOxyAliaMachineCredentialAuth = real.createOxyAliaMachineCredentialAuth;
+export const getOxyAliaMachineCredentialBearer = real.getOxyAliaMachineCredentialBearer;
+export type OxyAliaMachinePrincipal = import('@oxy.so/core/server').OxyAliaMachinePrincipal;
