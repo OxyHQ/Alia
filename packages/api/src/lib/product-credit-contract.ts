@@ -18,6 +18,7 @@ export function productCreditPlanId(input: ProductCreditSnapshot | undefined, us
     || access.conflicts.some(value=>value.key===adapter.quotaKey)) return null;
   const quota=access.quotas.find(value=>value.key===adapter.quotaKey);
   if(!quota || quota.unit!==adapter.unit || quota.combination!==adapter.combination) return null;
-  return snapshot.grants.some(g=>g.origin==='bundle' && g.benefit.kind==='quota' && g.benefit.key===adapter.quotaKey
-    && g.benefit.unit===adapter.unit && g.benefit.included>0 && Date.parse(g.period.start)<=+now && Date.parse(g.period.end)>+now) ? adapter.planId : null;
+  const grants = snapshot.grants.filter(g=>g.origin==='bundle' && g.benefit.kind==='quota' && g.benefit.key===adapter.quotaKey
+    && g.benefit.unit===adapter.unit && g.benefit.included>0 && Date.parse(g.period.start)<=+now && Date.parse(g.period.end)>+now);
+  return grants.length === 1 ? adapter.planId : null;
 }
