@@ -111,3 +111,21 @@ it('does not admit a reservation queued across its grant expiry',async()=>{
  const [allocation]=await getDb().select().from(productCreditAllocations).where(eq(productCreditAllocations.id,f.id));
  expect(allocation.reserved).toBe(0);
 });
+
+it('does not fund extra consumption when settlement waits across expiry',async()=>{
+ const f=await fixture(10000);const expires=Date.now()+350;
+ f.snapshot.snapshot.grants[0].period.end=new Date(expires).toISOString();
+ const held=await reserveCredits(f.userId,1,f.admission);if(!held)throw new Error('Expected');
+ held.refreshProductCreditSnapshot=async()=>f.snapshot;
+ let release!:()=>void;let locked!:()=>void;
+ const barrier=new Promise<void>(resolve=>{release=resolve});const acquired=new Promise<void>(resolve=>{locked=resolve});
+ const lock=getDb().transaction(async tx=>{
+  await tx.select().from(productCreditAllocations).where(eq(productCreditAllocations.id,f.id)).for('update');
+  locked();await barrier;
+ });
+ await acquired;
+ const queued=finalizeCredits(held,{promptTokens:2000,completionTokens:1000,totalTokens:3000});
+ await new Promise(resolve=>setTimeout(resolve,Math.max(0,expires-Date.now()+50)));
+ release();await lock;
+ expect(await queued).toEqual({creditsCharged:1,creditsRemaining:0});
+});
