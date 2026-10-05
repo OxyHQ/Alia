@@ -47,6 +47,10 @@ export async function reserveProductCreditAllocation(tx: Executor, userId: strin
     - (a.benefit.kind === 'quota' ? a.benefit.included : 0) || a.id.localeCompare(b.id));
   const selected = ordered[0];
   if(!selected) return null;
+  // All selected allocation row locks are now held; earlier updates may have waited.
+  now = new Date(Math.max(+now, Date.now()));
+  if (+now - Date.parse(access.evaluatedAt) > 10000 || Date.parse(access.evaluatedAt) > +now + 1000)
+    throw new Error('Product credit authority unavailable');
   const [allocation] = await tx.update(productCreditAllocations).set({reserved:sql`${productCreditAllocations.reserved}+${amount}`})
     .where(and(eq(productCreditAllocations.id,selected.id),eq(productCreditAllocations.userId,userId),
       sql`${productCreditAllocations.active} AND ${productCreditAllocations.periodStart} <= ${now.toISOString()} AND ${productCreditAllocations.periodEnd} > ${now.toISOString()}
