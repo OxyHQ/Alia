@@ -6,7 +6,7 @@ import {connectPostgres,closePostgres,getDb} from '../../db/index';
 import {productCreditAllocations} from '../../db/schema/product-credit-allocations';
 import {userCredits} from '../../db/schema/billing';
 import {getOrCreateUserCredits} from '../../db/billing/userCreditsRepository';
-import {reserveCredits,finalizeCredits,refundReservation,restoreCreditReservation} from '../credits-manager';
+import {reserveCredits,finalizeCredits,finalizeFixedCredits,refundReservation,restoreCreditReservation} from '../credits-manager';
 import {createCreditPriceBook} from '../credit-price-snapshot';
 import {reserveProductCreditAllocation, type ProductCreditSnapshot} from '../product-credit-allocations';
 vi.mock('../models/catalogue',()=>({findCatalogueModel:async()=>null,listCatalogueModels:async()=>[]}));
@@ -128,4 +128,52 @@ it('does not fund extra consumption when settlement waits across expiry',async()
  await new Promise(resolve=>setTimeout(resolve,Math.max(0,expires-Date.now()+50)));
  release();await lock;
  expect(await queued).toEqual({creditsCharged:1,creditsRemaining:0});
+});
+
+it('settles fixed show/voice work from its immutable period, supports replay and blocks metered replay',async()=>{
+ const f=await fixture(20);const held=await reserveCredits(f.userId,5,f.admission);if(!held)throw new Error('Expected');
+ held.refreshProductCreditSnapshot=async()=>f.snapshot;
+ expect(await finalizeFixedCredits(held,8,'show-voice')).toEqual({creditsCharged:8,creditsRemaining:12});
+ expect(await finalizeFixedCredits(held,8,'show-voice')).toEqual({creditsCharged:8,creditsRemaining:12});
+ await expect(finalizeFixedCredits(held,9,'show-voice')).rejects.toThrow('replay');
+ await expect(finalizeCredits(held,{promptTokens:0,completionTokens:0,totalTokens:0})).rejects.toThrow('replay');
+ const canceled=structuredClone(f.snapshot);canceled.snapshot.grants=[];canceled.snapshot.access.quotas=[];
+ held.refreshProductCreditSnapshot=async()=>canceled;
+ expect(await finalizeFixedCredits(held,8,'show-voice')).toEqual({creditsCharged:8,creditsRemaining:0});
+});
+it('fixed queued settlement without a fresh session never spends beyond its admitted amount',async()=>{
+ const f=await fixture(20);const held=await reserveCredits(f.userId,5,f.admission);if(!held?.operationId)throw new Error('Expected');
+ const restored=await restoreCreditReservation(f.userId,held.operationId);
+ expect(await finalizeFixedCredits(restored,8,'background')).toEqual({creditsCharged:5,creditsRemaining:0});
+ await expect(finalizeFixedCredits(restored,Number.NaN,'background')).rejects.toThrow('Invalid');
+});
+
+it('rechecks reservation expiry after waiting on a settlement allocation row lock',async()=>{
+ const f=await fixture();const expires=Date.now()+350;
+ f.snapshot.snapshot.grants[0].period.end=new Date(expires).toISOString();
+ const held=await reserveCredits(f.userId,1,f.admission);if(!held)throw new Error('Expected');
+ let release!:()=>void;let locked!:()=>void;
+ const barrier=new Promise<void>(resolve=>{release=resolve});const acquired=new Promise<void>(resolve=>{locked=resolve});
+ const lock=getDb().transaction(async tx=>{
+  await tx.select().from(productCreditAllocations).where(eq(productCreditAllocations.id,f.id)).for('update');locked();await barrier;
+ });
+ await acquired;
+ const queued=getDb().transaction(tx=>reserveProductCreditAllocation(tx,f.userId,f.snapshot,1));
+ await new Promise(resolve=>setTimeout(resolve,Math.max(0,expires-Date.now()+50)));
+ release();await lock;
+ expect(await queued).toBeNull();
+ const [allocation]=await getDb().select().from(productCreditAllocations).where(eq(productCreditAllocations.id,f.id));
+ expect(allocation.reserved).toBe(1);
+});
+
+it('persists bundle operation and grant identity through an agent-session queue without a user token',async()=>{
+ const f=await fixture(20);const held=await reserveCredits(f.userId,5,f.admission);if(!held)throw new Error('Expected');
+ const {createAgentSession,findAgentSessionById}=await import('../../db/agents/agentSessionRepository');
+ const session=await createAgentSession(getDb(),{agentId:randomUUID(),oxyUserId:f.userId,task:'synthetic queue',creditReservation:held});
+ const loaded=await findAgentSessionById(getDb(),session.id);expect(loaded?.creditReservation).toMatchObject({
+  operationId:held.operationId,productAllocationId:f.id,grantKind:'product_allowance',userId:f.userId});
+ expect(loaded?.creditReservation).not.toHaveProperty('refreshProductCreditSnapshot');
+ if(!loaded?.creditReservation)throw new Error('Expected');await refundReservation(loaded.creditReservation);
+ const [allocation]=await getDb().select().from(productCreditAllocations).where(eq(productCreditAllocations.id,f.id));
+ expect(allocation).toMatchObject({consumed:0,reserved:0});
 });

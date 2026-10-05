@@ -1,0 +1,5 @@
+-- oxy:deploy-phase=pre
+ALTER TABLE "agent_sessions" ADD COLUMN "credit_reservation_operation_id" text;--> statement-breakpoint
+ALTER TABLE "agent_sessions" ADD COLUMN "credit_reservation_product_allocation_id" text;--> statement-breakpoint
+ALTER TABLE "agent_sessions" ADD CONSTRAINT "agent_sessions_credit_reservation_operation_id_credit_operations_id_fk" FOREIGN KEY ("credit_reservation_operation_id") REFERENCES "public"."credit_operations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "agent_sessions" ADD CONSTRAINT "agent_sessions_credit_reservation_product_allocation_id_product_credit_allocations_id_fk" FOREIGN KEY ("credit_reservation_product_allocation_id") REFERENCES "public"."product_credit_allocations"("id") ON DELETE no action ON UPDATE no action;

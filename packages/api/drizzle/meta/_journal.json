@@ -589,6 +589,13 @@
       "when": 1791186051339,
       "tag": "0083_product_credit_allocations",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1791188983511,
+      "tag": "0084_agent_credit_operation_identity",
+      "breakpoints": true
     }
   ]
 }
