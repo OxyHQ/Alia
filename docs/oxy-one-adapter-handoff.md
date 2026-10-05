@@ -2,7 +2,7 @@
 
 Inspected Alia revision: f3608abb5ac1507b82366f757aa25d095908b5c4.
 This document records a bounded draft integration, not activated Alia access.
-User approved Pro-level 10,000 monthly credits and 100 GB decimal storage. Price, currency, provider, registered product mappings and live activation remain unset.
+User approved Pro-level 10,000 monthly credits, shared 100 GB decimal storage including Noted attachments, Mention mono, and USD 29.99/month with no trial or annual plan. Provider choice, registered product mappings and live activation remain unset. Current funding and display implementation is documented in the companion funding and allowance-display documents; this contract remains the activation handoff.
 
 ## Existing authority and implementation boundaries
 
