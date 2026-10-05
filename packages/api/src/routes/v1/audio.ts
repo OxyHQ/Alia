@@ -1,5 +1,3 @@
-import { readConfiguredProductCreditSnapshot } from '../../lib/product-credit-access.js';
-import { productCreditPlanId } from '../../lib/product-credit-contract.js';
 import { Router, type Request, type Response } from 'express';
 import { OxyInferenceError } from '@oxy.so/core/inference';
 import { z } from 'zod';
@@ -60,17 +58,9 @@ router.post('/speech', async (req: Request, res: Response) => {
       const cached = await findMessageAudioUrl(getDb(), userId, body.conversationId, body.messageId);
       if (cached === undefined) return res.status(404).json({ error: { message: 'Message not found', retryable: false } });
     }
-    // Speech receipts/technical usage do not yet define Alia allowance conversion.
-    // Never let an eligible central bundle run through the legacy unmetered lane.
-    let bundlePlan: string | null;
-    try {
-      bundlePlan = productCreditPlanId(await readConfiguredProductCreditSnapshot(userId, req.accessToken), userId);
-    } catch {
-      return res.status(503).json({ error: { code: 'VOICE_ALLOWANCE_ACCOUNTING_UNAVAILABLE',
-        message: 'Voice allowance accounting is temporarily unavailable.', retryable: false } });
-    }
-    if (bundlePlan) return res.status(503).json({ error: { code: 'VOICE_ALLOWANCE_ACCOUNTING_UNAVAILABLE',
-      message: 'Voice allowance accounting is temporarily unavailable.', retryable: false } });
+    // Standalone speech historically admits every authenticated user without
+    // an Alia credit operation. Bundle presence must not change that policy.
+    // Voice-call chat turns and show episodes retain their own existing metering.
     const speech = await synthesizeSpeech({ input: body.input, voice: body.voice, format: 'mp3', userId,
       ...(body.speed === undefined ? {} : { speed: body.speed }), signal: controller.signal });
     controller.signal.throwIfAborted();

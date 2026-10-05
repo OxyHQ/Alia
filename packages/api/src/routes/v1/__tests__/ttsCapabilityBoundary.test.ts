@@ -2,9 +2,7 @@ import { EventEmitter } from 'node:events';
 import { OxyInferenceError } from '@oxy.so/core/inference';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const H = vi.hoisted(() => ({ snapshot: vi.fn(), plan: vi.fn(), synthesizeSpeech: vi.fn(), upload: vi.fn(), remove: vi.fn(), find: vi.fn(), save: vi.fn(), link: vi.fn() }));
-vi.mock('../../../lib/product-credit-access.js', () => ({ readConfiguredProductCreditSnapshot: H.snapshot }));
-vi.mock('../../../lib/product-credit-contract.js', () => ({ productCreditPlanId: H.plan }));
+const H = vi.hoisted(() => ({ synthesizeSpeech: vi.fn(), upload: vi.fn(), remove: vi.fn(), find: vi.fn(), save: vi.fn(), link: vi.fn() }));
 vi.mock('../../../lib/synthesize-speech.js', () => ({ synthesizeSpeech: H.synthesizeSpeech }));
 vi.mock('../../../lib/s3.js', () => ({ uploadToS3: H.upload, deleteS3Objects: H.remove }));
 vi.mock('../../../lib/stored-media.js', () => ({ storedMediaUrl: H.link }));
@@ -29,7 +27,7 @@ function response() {
 }
 const body = { input: 'Hola', voice: 'female', speed: 1.15, conversationId: 'c1', messageId: 'm1' };
 beforeEach(() => {
-  vi.clearAllMocks(); H.snapshot.mockResolvedValue(undefined); H.plan.mockReturnValue(null); H.find.mockResolvedValue(null); H.save.mockResolvedValue(1);
+  vi.clearAllMocks(); H.find.mockResolvedValue(null); H.save.mockResolvedValue(1);
   H.synthesizeSpeech.mockResolvedValue({ audio: Buffer.from('ID3'), format: 'mp3', requestId: 'req_tts' });
   H.upload.mockResolvedValue('test/audio/u1/speech.mp3'); H.remove.mockResolvedValue(1);
   H.link.mockReturnValue('https://api.alia.test/media?signed');
@@ -79,20 +77,8 @@ describe('speech synthesis boundary', () => {
   });
 });
 
-it('refuses eligible bundle speech before inference/storage until its allowance price contract exists',async()=>{
- H.snapshot.mockResolvedValue({synthetic:true});H.plan.mockReturnValue('pro');
- const res=response();await handler()({user:{id:'u1'},accessToken:'synthetic-session',body},res,undefined);
- expect(H.snapshot).toHaveBeenCalledWith('u1','synthetic-session');expect(H.plan).toHaveBeenCalledWith({synthetic:true},'u1');
- expect(res.statusCode).toBe(503);expect(res.body).toMatchObject({error:{code:'VOICE_ALLOWANCE_ACCOUNTING_UNAVAILABLE'}});
- expect(H.synthesizeSpeech).not.toHaveBeenCalled();expect(H.upload).not.toHaveBeenCalled();
-});
-it('fails before inference when configured central account authority cannot be established',async()=>{
- H.snapshot.mockRejectedValue(new Error('Session unavailable'));const res=response();
- await handler()({user:{id:'u2'},accessToken:'switched-session',body},res,undefined);
- expect(H.snapshot).toHaveBeenCalledWith('u2','switched-session');expect(res.statusCode).toBe(503);expect(H.synthesizeSpeech).not.toHaveBeenCalled();
-});
-it('preserves legacy speech when the current snapshot has no eligible bundle, including cancellation/expiry',async()=>{
- H.snapshot.mockResolvedValue({synthetic:'expired-or-canceled'});H.plan.mockReturnValue(null);
- const res=response();await handler()({user:{id:'u1'},accessToken:'synthetic-session',body},res,undefined);
+it.each(['active-bundle','expired-bundle','canceled-bundle','stale-authority','conflicting-grants','multiple-grants','individual-and-bundle'])
+ ('preserves authenticated standalone speech independent of %s', async (state) => {
+ const res=response();await handler()({user:{id:'u1'},accessToken:'session',productCreditState:state,body},res,undefined);
  expect(res.statusCode).toBe(200);expect(H.synthesizeSpeech).toHaveBeenCalledTimes(1);
-});
+ });

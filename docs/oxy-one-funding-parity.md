@@ -6,9 +6,11 @@ Show cover art uses the current authenticated account session. Existing webhook,
 
 Operation/allocation identity survives agent-session queues through additive migration 0084. Pricing comes from the immutable stored operation. Metered and fixed settlement retain the admitted source/period and need freshly authorized matching grants to consume more than the reserved amount. Cancellation and expiry report no eligible remainder. Tokens and refresh callbacks are never persisted.
 
-## Voice blocker
+## Voice policy preserved
 
-`packages/api/src/routes/v1/audio.ts` invokes speech without an Alia credit operation. `packages/api/src/lib/synthesize-speech.ts` exposes audio, format and request ID only. The SDK can retrieve generation records: internal records explicitly say customerCharge not_charged, while monetary receipts/tariffs describe Oxy settlement. Neither defines conversion of speech characters into Alia product allowance credits. A published Oxy-recorded Alia allowance conversion contract is needed to admit and settle that lane accurately. This draft does not invent a per-character tariff or generic minimum charge, and does not claim voice allowance parity. Authenticated eligible bundle speech now returns VOICE_ALLOWANCE_ACCOUNTING_UNAVAILABLE (503) before inference or storage. Unknown central authority also refuses egress. Unconfigured, canceled, expired and individual-only accounts retain their existing speech behavior. Episode speech remains inside the existing show fixed-cost pipeline.
+Standalone `/v1/audio/speech` historically admits every authenticated user without an Alia credit operation. The bundle-specific 503 was a regression and is removed, including for active, stale or conflicting bundle authority and independently subscribed users. Voice-call chat turns remain credit-metered; device recognition is local; episode speech retains the show fixed-cost pipeline. Standalone speech is not represented as a new monthly-credit benefit.
+
+Existing credit conversion is USD_PER_CREDIT=0.001; the reusable reservation/settlement machinery is not the blocker. The chat price book only captures token rates, while speech needs exact character/request rates and a pinned Oxy quote/record. Any future decision to meter standalone speech must explicitly adopt that pricing basis and preserve immutable operation identity, no-egress-before-reservation, reconciliation and source/expiry rules. No character tariff, minimum or new commercial allowance is invented here. The Oxy repository's `docs/products/oxy-one-launch-readiness.md` records precise evidence and the bounded future design.
 
 ## Adoption and validation
 
