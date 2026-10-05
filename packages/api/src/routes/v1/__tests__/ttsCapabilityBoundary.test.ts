@@ -2,7 +2,8 @@ import { EventEmitter } from 'node:events';
 import { OxyInferenceError } from '@oxy.so/core/inference';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const H = vi.hoisted(() => ({ synthesizeSpeech: vi.fn(), upload: vi.fn(), remove: vi.fn(), find: vi.fn(), save: vi.fn(), link: vi.fn() }));
+const H = vi.hoisted(() => ({ snapshot: vi.fn(), synthesizeSpeech: vi.fn(), upload: vi.fn(), remove: vi.fn(), find: vi.fn(), save: vi.fn(), link: vi.fn() }));
+vi.mock('../../../lib/product-credit-access.js', () => ({ readConfiguredProductCreditSnapshot: H.snapshot }));
 vi.mock('../../../lib/synthesize-speech.js', () => ({ synthesizeSpeech: H.synthesizeSpeech }));
 vi.mock('../../../lib/s3.js', () => ({ uploadToS3: H.upload, deleteS3Objects: H.remove }));
 vi.mock('../../../lib/stored-media.js', () => ({ storedMediaUrl: H.link }));
@@ -79,6 +80,8 @@ describe('speech synthesis boundary', () => {
 
 it.each(['active-bundle','expired-bundle','canceled-bundle','stale-authority','conflicting-grants','multiple-grants','individual-and-bundle'])
  ('preserves authenticated standalone speech independent of %s', async (state) => {
- const res=response();await handler()({user:{id:'u1'},accessToken:'session',productCreditState:state,body},res,undefined);
+ H.snapshot.mockRejectedValue(new Error(`Bundle authority must not be consulted: ${state}`));
+ const res=response();await handler()({user:{id:'u1'},accessToken:'session',body},res,undefined);
+ expect(H.snapshot).not.toHaveBeenCalled();
  expect(res.statusCode).toBe(200);expect(H.synthesizeSpeech).toHaveBeenCalledTimes(1);
  });
