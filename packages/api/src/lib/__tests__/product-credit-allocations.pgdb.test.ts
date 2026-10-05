@@ -1,7 +1,7 @@
 import {oxyAccountIdSchema} from '@oxy.so/contracts';
 import {randomUUID} from 'node:crypto';
 import {afterAll,beforeAll,it,expect,vi} from 'vitest';
-import {eq} from 'drizzle-orm';
+import {eq,sql} from 'drizzle-orm';
 import {connectPostgres,closePostgres,getDb} from '../../db/index';
 import {productCreditAllocations} from '../../db/schema/product-credit-allocations';
 import {userCredits} from '../../db/schema/billing';
@@ -28,7 +28,7 @@ async function fixture(included=5) {
 it('funds actual credit operations once per immutable period and settlement/refund replay conserve quantity',async()=>{
  const f=await fixture();const held=await reserveCredits(f.userId,2,f.admission);expect(held?.grantKind).toBe('product_allowance');
  if(!held?.operationId)throw new Error('Expected admission');
- const restored=await restoreCreditReservation(f.userId,held.operationId);expect(restored.productAllocationId).toBe(f.id);
+ const restored=await restoreCreditReservation(f.userId,held.operationId);restored.refreshProductCreditSnapshot=async()=>f.snapshot;expect(restored.productAllocationId).toBe(f.id);
  const usage={promptTokens:1000,completionTokens:1000,totalTokens:2000};
  expect(await finalizeCredits(restored,usage)).toEqual({creditsCharged:2,creditsRemaining:3});
  expect(await finalizeCredits(restored,usage)).toEqual({creditsCharged:2,creditsRemaining:3});
@@ -71,4 +71,43 @@ it('requires fresh central authority for charges above the admitted amount',asyn
  const next=await reserveCredits(f.userId,1,{...f.admission,aliaRequestId:randomUUID()});if(!next)throw new Error('Expected');
  next.refreshProductCreditSnapshot=async()=>{const fresh=structuredClone(f.snapshot);fresh.snapshot.access.evaluatedAt=new Date().toISOString();return fresh};
  expect((await finalizeCredits(next,usage)).creditsCharged).toBe(3);
+});
+
+for (const change of ['cancellation','overlap','changed terms'] as const) {
+ it(`caps additional settlement and reports no eligible remainder after ${change}, including replay`,async()=>{
+  const f=await fixture(10000);const held=await reserveCredits(f.userId,1,f.admission);if(!held)throw new Error('Expected');
+  const fresh=structuredClone(f.snapshot);
+  if(change==='cancellation'){fresh.snapshot.grants=[];fresh.snapshot.access.quotas=[];}
+  if(change==='overlap'){
+   const additional=structuredClone(fresh.snapshot.grants[0]);additional.id=randomUUID();additional.sourceSegmentId=randomUUID();
+   fresh.snapshot.grants.push(additional);fresh.snapshot.access.quotas[0].grantIds.push(additional.id);
+   await expect(getDb().transaction(tx=>reserveProductCreditAllocation(tx,f.userId,fresh,1))).rejects.toThrow('Overlapping');
+  }
+  if(change==='changed terms'){fresh.snapshot.grants[0].offerVersion=2;}
+  held.refreshProductCreditSnapshot=async()=>fresh;
+  const usage={promptTokens:2000,completionTokens:1000,totalTokens:3000};
+  expect(await finalizeCredits(held,usage)).toEqual({creditsCharged:1,creditsRemaining:0});
+  expect(await finalizeCredits(held,usage)).toEqual({creditsCharged:1,creditsRemaining:0});
+  const [allocation]=await getDb().select().from(productCreditAllocations).where(eq(productCreditAllocations.id,f.id));
+  expect(allocation).toMatchObject({included:10000,consumed:1,reserved:0,offerVersion:1});
+ });
+}
+
+it('does not admit a reservation queued across its grant expiry',async()=>{
+ const f=await fixture();const expiredAt=Date.now()+250;
+ f.snapshot.snapshot.grants[0].period.end=new Date(expiredAt).toISOString();
+ let release!:()=>void;let locked!:()=>void;
+ const barrier=new Promise<void>(resolve=>{release=resolve});
+ const acquired=new Promise<void>(resolve=>{locked=resolve});
+ const lock=getDb().transaction(async tx=>{
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`alia:product-credit:${f.userId}`},0))`);
+  locked();await barrier;
+ });
+ await acquired;
+ const queued=getDb().transaction(tx=>reserveProductCreditAllocation(tx,f.userId,f.snapshot,1));
+ await new Promise(resolve=>setTimeout(resolve,Math.max(0,expiredAt-Date.now()+50)));
+ release();await lock;
+ expect(await queued).toBeNull();
+ const [allocation]=await getDb().select().from(productCreditAllocations).where(eq(productCreditAllocations.id,f.id));
+ expect(allocation.reserved).toBe(0);
 });

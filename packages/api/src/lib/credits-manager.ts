@@ -585,7 +585,7 @@ async function settleTrackedReservation(
         const {productCreditAllocations} = await import('../db/schema/product-credit-allocations');
         const [allocation] = await tx.select().from(productCreditAllocations).where(eq(productCreditAllocations.id,operation.productAllocationId));
         if(!allocation || operation.creditsCharged === null) throw new Error('Settled product operation is incomplete');
-        return {creditsCharged:operation.creditsCharged,creditsRemaining:allocation.active && +allocation.periodEnd>Date.now()
+        return {creditsCharged:operation.creditsCharged,creditsRemaining:allocation.active && (await import('./product-credit-allocations')).isProductAllocationAuthorized(allocation,reservation.userId,refreshedProductSnapshot) && +allocation.periodEnd>Date.now()
           ? allocation.included-allocation.consumed-allocation.reserved : 0};
       }
       const balance = await findUserCredits(tx, reservation.userId);

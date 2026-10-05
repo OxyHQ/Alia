@@ -19,6 +19,10 @@ export async function reserveProductCreditAllocation(tx: Executor, userId: strin
   const quota = access.quotas.find(value => value.key === adapter.quotaKey);
   if (quota && (quota.unit !== adapter.unit || quota.combination !== adapter.combination)) throw new Error('Product credit units differ');
   await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`alia:product-credit:${userId}`},0))`);
+  // Lock contention must not preserve a pre-wait freshness or period decision.
+  now = new Date(Math.max(+now, Date.now()));
+  if (+now - Date.parse(access.evaluatedAt) > 10000 || Date.parse(access.evaluatedAt) > +now + 1000)
+    throw new Error('Product credit authority unavailable');
   const grants = snapshot.grants.filter(g => g.origin === 'bundle' && g.benefit.kind === 'quota'
     && g.benefit.key === adapter.quotaKey && g.benefit.unit === adapter.unit);
   if(grants.length>1) throw new Error('Overlapping product allocation policy is unconfigured');
@@ -49,22 +53,25 @@ export async function reserveProductCreditAllocation(tx: Executor, userId: strin
       AND ${productCreditAllocations.included}-${productCreditAllocations.consumed}-${productCreditAllocations.reserved} >= ${amount}`)).returning();
   return allocation ?? null;
 }
+export function isProductAllocationAuthorized(held: typeof productCreditAllocations.$inferSelect, userId: string, refreshed: ProductCreditSnapshot | undefined, now = new Date()) {
+  const freshGrant = refreshed && productCreditPlanId(refreshed,userId,now) ? refreshed.snapshot.grants.find(g=>g.id===held.id) : undefined;
+  return freshGrant?.benefit.kind==='quota' && freshGrant.benefit.included===held.included
+    && freshGrant.sourceSegmentId===held.segmentId && freshGrant.offerId===held.offerId && freshGrant.offerVersion===held.offerVersion
+    && freshGrant.benefit.key===held.quotaKey && freshGrant.benefit.productId===held.productId && freshGrant.benefit.unit===held.unit
+    && Date.parse(freshGrant.period.start)===+held.periodStart && Date.parse(freshGrant.period.end)===+held.periodEnd;
+}
 export async function settleProductCreditAllocation(tx: Executor, userId: string, allocationId: string, reserved: number,
   requested: number, now = new Date(), refreshed?: ProductCreditSnapshot) {
   count(reserved); count(requested);
   const [held] = await tx.select().from(productCreditAllocations).where(and(eq(productCreditAllocations.id,allocationId),eq(productCreditAllocations.userId,userId))).for('update');
   if(!held || held.reserved < reserved) throw new Error('Product reservation attribution differs');
   // Existing admitted execution can settle after expiry; additional admission cannot.
-  const freshGrant = refreshed && productCreditPlanId(refreshed,userId,now) ? refreshed.snapshot.grants.find(g=>g.id===allocationId) : undefined;
-  const stillAuthorized = freshGrant?.benefit.kind==='quota' && freshGrant.benefit.included===held.included
-    && freshGrant.sourceSegmentId===held.segmentId && freshGrant.benefit.key===held.quotaKey
-    && freshGrant.benefit.productId===held.productId && freshGrant.benefit.unit===held.unit
-    && Date.parse(freshGrant.period.start)===+held.periodStart && Date.parse(freshGrant.period.end)===+held.periodEnd;
+  const stillAuthorized = isProductAllocationAuthorized(held,userId,refreshed,now);
   const available = stillAuthorized && held.active && +held.periodEnd > +now && +held.periodStart <= +now
     ? held.included-held.consumed-held.reserved : 0;
   const charged = Math.min(requested,reserved+available);
   const [updated] = await tx.update(productCreditAllocations).set({reserved:held.reserved-reserved,consumed:held.consumed+charged})
     .where(eq(productCreditAllocations.id,allocationId)).returning();
-  return {creditsCharged:charged, creditsRemaining:updated.active && +updated.periodEnd > +now
+  return {creditsCharged:charged, creditsRemaining:stillAuthorized && updated.active && +updated.periodEnd > +now
     ? updated.included-updated.consumed-updated.reserved : 0};
 }
