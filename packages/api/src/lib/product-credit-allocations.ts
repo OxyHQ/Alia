@@ -65,6 +65,7 @@ export async function settleProductCreditAllocation(tx: Executor, userId: string
   count(reserved); count(requested);
   const [held] = await tx.select().from(productCreditAllocations).where(and(eq(productCreditAllocations.id,allocationId),eq(productCreditAllocations.userId,userId))).for('update');
   if(!held || held.reserved < reserved) throw new Error('Product reservation attribution differs');
+  now = new Date(Math.max(+now, Date.now()));
   // Existing admitted execution can settle after expiry; additional admission cannot.
   const stillAuthorized = isProductAllocationAuthorized(held,userId,refreshed,now);
   const available = stillAuthorized && held.active && +held.periodEnd > +now && +held.periodStart <= +now
