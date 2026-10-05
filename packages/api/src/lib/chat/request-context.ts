@@ -1,3 +1,6 @@
+import {productCreditPlanId} from '../product-credit-contract';
+import {USAGE_WINDOW_CREDITS} from '../usage-window';
+import { readConfiguredProductCreditSnapshot } from '../product-credit-access';
 /**
  * Pre-flight assembly for /v1/chat/completions: body validation, the parallel
  * prefetch (credits, model, memory, profile, entitlements, linked
@@ -771,12 +774,15 @@ export async function buildChatRequestContext(
           // would start with it spent reserves nothing and is refused below.
           // It fails OPEN — a window that cannot be read never stops a turn;
           // the balance still bounds it.
-          const window = await usageWindowFor(creditAccountId);
+          const productCreditSnapshot = req.user?.id === creditAccountId
+            ? await readConfiguredProductCreditSnapshot(creditAccountId,req.accessToken).catch(() => undefined) : undefined;
+          const window = await usageWindowFor(creditAccountId, productCreditPlanId(productCreditSnapshot,creditAccountId));
           if (window?.exhausted) {
             return { reservation: null, error: false as const, window };
           }
           const priceBook = await captureCreditPriceBook();
-          const reservation = await reserveCredits(creditAccountId, undefined, { priceBook, requestedModel, aliaRequestId });
+          const reservation = await reserveCredits(creditAccountId, undefined, { priceBook, requestedModel, aliaRequestId, productCreditSnapshot });
+          if(reservation?.productAllocationId) reservation.refreshProductCreditSnapshot = () => readConfiguredProductCreditSnapshot(creditAccountId,req.accessToken);
           return { reservation, error: false as const, window: null };
         })().catch((error) => {
           log.v1.error({ err: error }, 'Error reserving credits');
@@ -1124,10 +1130,13 @@ export async function buildChatRequestContext(
  * The requester's rolling usage window, or `null` when their plan has none or
  * it cannot be read — the window fails open.
  */
-async function usageWindowFor(oxyUserId: string): Promise<UsageWindow | null> {
+async function usageWindowFor(oxyUserId: string, productPlanId: string | null = null): Promise<UsageWindow | null> {
   try {
     const entitlements = await getUserEntitlements(oxyUserId);
-    return entitlements?.planId ? await readUsageWindow(oxyUserId, entitlements.planId) : null;
+    const legacyPlanId = entitlements?.planId;
+    const selected = productPlanId && (USAGE_WINDOW_CREDITS.get(productPlanId)??0) > (USAGE_WINDOW_CREDITS.get(legacyPlanId??'free')??Infinity)
+      ? productPlanId : legacyPlanId;
+    return selected ? await readUsageWindow(oxyUserId, selected) : null;
   } catch (error) {
     log.v1.warn({ err: error }, 'Usage window unavailable; the turn goes ahead on the balance alone');
     return null;

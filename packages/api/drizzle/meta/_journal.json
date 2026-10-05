@@ -582,6 +582,13 @@
       "when": 1790958304830,
       "tag": "0082_sour_puma",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1791186051339,
+      "tag": "0083_product_credit_allocations",
+      "breakpoints": true
     }
   ]
 }

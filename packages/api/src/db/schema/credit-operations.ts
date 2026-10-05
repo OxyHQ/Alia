@@ -1,4 +1,5 @@
 /** Admission prices and turn charges, separate from Oxy's technical ledger. */
+import { productCreditAllocations } from './product-credit-allocations';
 import { sql } from 'drizzle-orm';
 import { pgTable, text, integer, numeric, primaryKey, check, index } from 'drizzle-orm/pg-core';
 import { timestamptz, generatedId } from '@oxy.so/db';
@@ -56,6 +57,7 @@ export const creditOperations = pgTable(
   {
     id: generatedId(),
     userId: text().notNull(),
+    productAllocationId: text().references(() => productCreditAllocations.id, { onDelete: 'restrict' }),
     bookId: text()
       .notNull()
       .references(() => creditPriceBooks.id, { onDelete: 'restrict' }),
@@ -82,8 +84,9 @@ export const creditOperations = pgTable(
     index('credit_operations_user_idx').on(t.userId, t.capturedAt),
     check(
       'credit_operations_funding_check',
-      sql`${t.grantKind} IN ('free_allowance', 'paid_balance') AND ${t.initialFreeCredits} >= 0 AND ${t.initialPaidCredits} >= 0`,
+      sql`${t.grantKind} IN ('free_allowance', 'paid_balance', 'product_allowance') AND ${t.initialFreeCredits} >= 0 AND ${t.initialPaidCredits} >= 0`,
     ),
+    check('credit_operation_product_source', sql`(${t.grantKind} = 'product_allowance' AND ${t.productAllocationId} IS NOT NULL) OR (${t.grantKind} <> 'product_allowance' AND ${t.productAllocationId} IS NULL)`),
     check(
       'credit_operations_terminal_check',
       sql`(${t.status} = 'admitted' AND ${t.settledAt} IS NULL AND ${t.creditsRequested} IS NULL AND ${t.creditsCharged} IS NULL) OR (${t.status} IN ('settled', 'refunded') AND ${t.settledAt} IS NOT NULL AND ${t.creditsRequested} IS NOT NULL AND ${t.creditsCharged} IS NOT NULL)`,

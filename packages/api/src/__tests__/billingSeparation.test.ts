@@ -696,7 +696,7 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
  */
 describe('a cost record says which balance funded it (#139 ws12)', () => {
   it('the funding source is closed and only the admitted Alia credit operation persists it', () => {
-    expect([...CREDIT_FUNDING_SOURCES]).toEqual(['free_allowance', 'paid_balance']);
+    expect([...CREDIT_FUNDING_SOURCES]).toEqual(['free_allowance', 'paid_balance', 'product_allowance']);
 
     // I10 restates the historical zero-table gate for the one durable
     // product-credit operation, with its CHECK rendered from the same tuple.
@@ -743,7 +743,7 @@ describe('a cost record says which balance funded it (#139 ws12)', () => {
       /return freeCreditsRemaining > 0 \? 'free_allowance' : 'paid_balance';/,
     );
     expect(manager.getFullText()).toContain(
-      'const grantKind: CreditFundingSource = fundingSourceOf(reserveResult.creditsFree);',
+      "const grantKind: CreditFundingSource = productAllocationId ? 'product_allowance' : fundingSourceOf(reserveResult.creditsFree);",
     );
     expect(parse(`${API_SRC}/db/agents/agentSessionRepository.ts`).getFullText()).toContain(
       'grantKind: fundingSourceOf(initialFreeCredits)',

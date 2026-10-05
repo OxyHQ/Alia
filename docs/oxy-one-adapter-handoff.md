@@ -1,8 +1,8 @@
 # Oxy One personal adapter: draft, unconfigured
 
 Inspected Alia revision: f3608abb5ac1507b82366f757aa25d095908b5c4.
-This document is a bounded implementation handoff, not activated Alia access.
-No price, currency, included credit count, provider or product mapping is approved.
+This document records a bounded draft integration, not activated Alia access.
+User approved Pro-level 10,000 monthly credits and 100 GB decimal storage. Price, currency, provider, registered product mappings and live activation remain unset.
 
 ## Existing authority and implementation boundaries
 
@@ -64,5 +64,36 @@ unconfigured access, not a purchasable/usable plan.
 
 A full local install was attempted with a temporary browser cache. It stopped at
 an unauthenticated GitHub tarball dependency returning HTTP 403. No credentials,
-production API calls or payment actions were attempted. No runtime Alia source
-has been changed in this draft.
+production API calls or payment actions were attempted. The runtime changes below remain disabled without explicit adapter configuration.
+
+
+## Implemented locally after the original inspection
+
+A separate `product_credit_allocations` table holds immutable Oxy grant/segment,
+subject, product, quota/unit, period and included quantity, with reserved/consumed
+conservation. Existing credit operations reference that source and retain their
+immutable price books. The metered-chat path reads a current request-scoped SDK
+grant snapshot and uses bundle funding only after legacy free/paid funds cannot
+cover admission. No credits are copied into an unrestricted balance.
+
+Configuration `ALIA_OXY_PRODUCT_CREDIT_ADAPTER` is absent by default. Its explicit
+schema contains productId, quotaKey, unit `alia_credit`, combination and an existing
+Alia planId. The approved draft mapping uses `pro`; no product identity is guessed.
+The mapped rolling window preserves any larger individual window. Daily refill
+logic is unchanged. Authority failure gives no extra bundle rights and preserves
+legacy funding. Overlapping bundle grants need an upgrade allocation policy and
+currently fail closed. Only a single active bundle funding source is supported.
+
+Settlement/refund replay is guarded by the existing operation row. Any additional
+spend above reservation needs a freshly authorized matching grant; recovery after
+loss of the user session cannot spend additional credits. Cancellation and expiry
+stop new admission. Renewal creates a new grant/period allocation. Local tests
+cover these operations, concurrency and account isolation in throwaway PostgreSQL.
+The additive draft migration was run only by the repository test harness.
+
+Still required before activation: publish/adopt the compatible Oxy SDK; complete
+Alia balance/plan UI and subscription read model; audit voice/show/background
+funding and recovery (this draft wires metered chat only); verify full dependency
+install/CI once the documented GitHub denial is resolved; approve commercial
+price/provider and live configuration. No provider calls, live grants, charges,
+production migrations, push or deployment were made.
