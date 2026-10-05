@@ -395,7 +395,8 @@ describe('deploy-aws.yml stall bounds', () => {
     const build = minutesIn(buildStep);
     expect(build).not.toBeNull();
     // 2m44s was the slowest of the 100 successful runs measured over ten days,
-    // and nothing caches between runs, so that sample is already the cold case.
+    // all built without a layer cache, so that sample is already the cold case
+    // a GHA cache miss falls back to.
     expect(build).toBeGreaterThanOrEqual(10);
     // Above ~30 the bound stops being worth having: the shortest of the three
     // observed stalls ran 38 minutes before a human noticed and cancelled it.

@@ -134,6 +134,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # `--cache-from/--cache-to type=gha` below need the Actions runtime token
+      # and cache URL, which GitHub gives to JavaScript actions and NOT to `run:`
+      # steps; without them buildx skips the cache silently. Only this main-only
+      # job writes the `alia` scope; no pull_request workflow does.
+      - name: Expose the Actions cache to buildx
+        uses: crazy-max/ghaction-github-runtime@v4
+
       - name: Build and push (linux/arm64)
         id: build
         # The tight bound, on the step that hangs. Three stalls on 2026-08-19
@@ -146,11 +153,10 @@ jobs:
         # fine and the build hangs rather than running slowly.
         #
         # 15 minutes is 5.5x the slowest of the 100 successful runs between
-        # 2026-08-09 and 2026-08-19 (2m44s; the fastest was 1m49s). There is no
-        # layer cache to miss — no --cache-from/--cache-to here, no cache mount
-        # in packages/api/Dockerfile, and setup-buildx-action creates a fresh
-        # builder per run — so every one of those samples is already a cold
-        # build and there is no slower legitimate mode left to protect.
+        # 2026-08-09 and 2026-08-19 (2m44s; the fastest was 1m49s). Those runs
+        # had no layer cache at all, so every sample is a cold build: the GHA
+        # cache below only makes a build faster, and a cache miss or eviction
+        # falls back to exactly that measured cold case.
         #
         # No retry, deliberately: re-entering the same stall would double the
         # hold on the concurrency group.
@@ -167,6 +173,8 @@ jobs:
           # before anything reaches ECS.
           docker buildx build \
             --platform linux/arm64 \
+            --cache-from type=gha,scope=$APP \
+            --cache-to type=gha,scope=$APP,mode=max,ignore-error=true \
             -f "$DOCKERFILE" \
             -t "$IMG:$COMMIT_TAG" \
             -t "$IMG:latest" \
