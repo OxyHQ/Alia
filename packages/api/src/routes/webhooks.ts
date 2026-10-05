@@ -1,3 +1,4 @@
+import { reserveBackgroundProductCredits } from '../lib/product-credit-access';
 import express from 'express';
 import crypto from 'crypto';
 import { verifySecret } from '@oxy.so/core/server';
@@ -25,7 +26,7 @@ import { findAgentById } from '../db/agents/agentRepository.js';
 import { upsertConversation } from '../db/chat/conversationRepository.js';
 import { insertMessages, listRecentTurns } from '../db/chat/messageRepository.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
-import { reserveCredits, finalizeCredits, safeRefund, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
+import { finalizeCredits, safeRefund, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
 import { reserveAgentTurn } from '../lib/agent/turn-funding.js';
 import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js';
 import { log } from '../lib/logger.js';
@@ -203,7 +204,7 @@ export async function processChannelMessage(
     // Reserve credits before processing
     await getOrCreateUserCredits(userId);
 
-    creditReservation = await reserveCredits(userId);
+    creditReservation = await reserveBackgroundProductCredits(userId);
     if (!creditReservation) {
       const appUrl = process.env.APP_URL || process.env.WEB_URL || 'https://alia.onl';
       await sendChannelMessage(

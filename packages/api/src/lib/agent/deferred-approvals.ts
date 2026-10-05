@@ -1,3 +1,4 @@
+import { reserveBackgroundProductCredits } from '../product-credit-access';
 /**
  * Approvals for a run nobody is watching.
  *
@@ -23,7 +24,7 @@ import {
   markApprovalExecuted,
 } from '../../db/agents/agentRuntimeRepository.js';
 import { createAgentSession, updateAgentSession, type AgentSessionRecord } from '../../db/agents/agentSessionRepository.js';
-import { reserveCredits, safeRefund } from '../credits-manager.js';
+import { safeRefund } from '../credits-manager.js';
 import { log } from '../logger.js';
 import { enqueueAgentSession } from '../task-queue.js';
 import { getOrCreateUserCredits } from '../user-credits-helpers.js';
@@ -114,7 +115,7 @@ export async function runApprovedAction(approvalId: string): Promise<{ started: 
   if (!args) return { started: false };
 
   await getOrCreateUserCredits(approval.oxyUserId);
-  const reservation = await reserveCredits(approval.oxyUserId);
+  const reservation = await reserveBackgroundProductCredits(approval.oxyUserId);
   if (!reservation) return { started: false };
 
   const task = [

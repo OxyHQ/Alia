@@ -74,19 +74,13 @@ export interface AgentSessionPlan {
  * from `domain/`, which is a leaf both layers may read.
  */
 export interface AgentSessionCreditReservation {
+  operationId?: string;
+  productAllocationId?: string;
   userId: string;
   creditsReserved: number;
   initialFreeCredits: number;
   initialPaidCredits: number;
-  /**
-   * DERIVED on the way out, not stored.
-   *
-   * `fundingSourceOf` decides it from the free balance left after the spend,
-   * which is exactly `credit_reservation_initial_free_credits` — so the verdict
-   * is recoverable from the row and no column is added for it. Persisting it
-   * would create a second authority for a value that already has one, free to
-   * disagree with the columns beside it.
-   */
+  /** Legacy balance source is derived; bundle source is recovered from its immutable allocation ID. */
   grantKind: CreditFundingSource;
 }
 
@@ -193,7 +187,9 @@ function toCreditReservation(row: AgentSessionRow): AgentSessionCreditReservatio
     creditsReserved: row.creditReservationCreditsReserved ?? 0,
     initialFreeCredits,
     initialPaidCredits: row.creditReservationInitialPaidCredits ?? 0,
-    grantKind: fundingSourceOf(initialFreeCredits),
+    ...(row.creditReservationOperationId ? { operationId: row.creditReservationOperationId } : {}),
+    ...(row.creditReservationProductAllocationId ? { productAllocationId: row.creditReservationProductAllocationId } : {}),
+    grantKind: row.creditReservationProductAllocationId ? 'product_allowance' : fundingSourceOf(initialFreeCredits),
   };
 }
 
@@ -658,6 +654,8 @@ function agentSessionValues(input: CreateAgentSessionInput): typeof agentSession
     ...(input.depth !== undefined && { depth: input.depth }),
     ...(input.messages !== undefined && { messages: input.messages }),
     ...(input.creditReservation !== undefined && {
+      creditReservationOperationId: input.creditReservation.operationId ?? null,
+      creditReservationProductAllocationId: input.creditReservation.productAllocationId ?? null,
       creditReservationOxyUserId: input.creditReservation.userId,
       creditReservationCreditsReserved: input.creditReservation.creditsReserved,
       creditReservationInitialFreeCredits: input.creditReservation.initialFreeCredits,

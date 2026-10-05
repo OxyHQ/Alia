@@ -1,3 +1,5 @@
+import { creditOperations } from './credit-operations';
+import { productCreditAllocations } from './product-credit-allocations';
 /**
  * Batch 9c — what an agent DID, who reviewed it, and the teams it belongs to.
  * Every table here references `agents` (batch 9b) and `agents` references none
@@ -156,6 +158,8 @@ export const agentSessions = pgTable(
     /** The LEGACY copy of the events, still written on every save. */
     eventStream: jsonb().$type<AgentSessionEventStreamEntry[]>().notNull().default([]),
 
+    creditReservationOperationId: text().references(() => creditOperations.id),
+    creditReservationProductAllocationId: text().references(() => productCreditAllocations.id),
     creditReservationOxyUserId: text(),
     creditReservationCreditsReserved: integer(),
     creditReservationInitialFreeCredits: integer(),
