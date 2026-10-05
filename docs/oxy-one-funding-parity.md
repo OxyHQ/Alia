@@ -8,7 +8,7 @@ Operation/allocation identity survives agent-session queues through additive mig
 
 ## Voice blocker
 
-`packages/api/src/routes/v1/audio.ts` invokes speech without an Alia credit operation. `packages/api/src/lib/synthesize-speech.ts` exposes audio, format and request ID only. A published Oxy-recorded usage/customer-price contract is needed to admit and settle that lane accurately. This draft does not invent a per-character tariff or generic minimum charge, and does not claim voice allowance parity. Episode speech remains inside the existing show fixed-cost pipeline.
+`packages/api/src/routes/v1/audio.ts` invokes speech without an Alia credit operation. `packages/api/src/lib/synthesize-speech.ts` exposes audio, format and request ID only. The SDK can retrieve generation records: internal records explicitly say customerCharge not_charged, while monetary receipts/tariffs describe Oxy settlement. Neither defines conversion of speech characters into Alia product allowance credits. A published Oxy-recorded Alia allowance conversion contract is needed to admit and settle that lane accurately. This draft does not invent a per-character tariff or generic minimum charge, and does not claim voice allowance parity. Authenticated eligible bundle speech now returns VOICE_ALLOWANCE_ACCOUNTING_UNAVAILABLE (503) before inference or storage. Unknown central authority also refuses egress. Unconfigured, canceled, expired and individual-only accounts retain their existing speech behavior. Episode speech remains inside the existing show fixed-cost pipeline.
 
 ## Adoption and validation
 
