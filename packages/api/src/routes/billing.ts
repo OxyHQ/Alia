@@ -1,3 +1,4 @@
+import { effectiveCreditPlan, readCurrentProductAllowance } from '../lib/product-credit-read-model';
 import { Router, Request, Response } from 'express';
 import Stripe from 'stripe';
 import { authenticateToken, optionalAuth, oxyClient } from '../middleware/auth.js';
@@ -627,7 +628,10 @@ router.post('/portal', authenticateToken, async (req: Request, res: Response) =>
 router.get('/entitlements', authenticateToken, async (req: Request, res: Response) => {
   try {
     const entitlements = await getUserEntitlements(req.user!.id);
-    res.json(entitlements);
+    const productAllowance = await readCurrentProductAllowance(req.user!.id, req.accessToken);
+    res.set('Cache-Control', 'no-store');
+    res.json({ ...entitlements, subjectAccountId: req.user!.id, productAllowance,
+      effectivePlanId: effectiveCreditPlan(entitlements.planId, productAllowance?.planId ?? null) });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching entitlements');
     res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch entitlements') });
