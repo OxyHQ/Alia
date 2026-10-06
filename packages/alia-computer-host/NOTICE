@@ -4,7 +4,10 @@ Copyright (c) 2026 Oxy
 Portions of this package are adapted from OpenMuse
 (https://github.com/CopilotKit/openmuse), `apps/server/src/computer.ts` and
 `apps/computer/` — the container hardening flags, the inspect-then-refuse
-attach check, the workspace file helper and the command receipt protocol.
+attach check, the workspace file helper and the command receipt protocol — and
+`apps/worker/` and `apps/server/src/browser-console.ts` — the browser worker,
+the public-destination check, the pinned-address egress proxy, the download
+capture and the screenshot console (the live view in Alia's app).
 Those portions are used under the MIT License:
 
 MIT License

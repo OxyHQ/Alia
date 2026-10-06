@@ -77,6 +77,67 @@ export interface CommandInput {
   background?: boolean;
 }
 
+/** Who is acting in the browser: the agent, or the person it works for. */
+export type BrowserActor = 'agent' | 'owner';
+
+export interface BrowserState {
+  /** `asleep`: the whole host is stopped; nothing is open. */
+  state: 'open' | 'closed' | 'asleep';
+  url: string;
+  title: string;
+  controller: BrowserActor;
+  pendingDownloads: number;
+  lastActiveAt: string | null;
+}
+
+export interface SavedDownload {
+  path: string;
+  bytes: number;
+  mimeType: string;
+}
+
+export interface BrowserResult extends BrowserState {
+  downloads: SavedDownload[];
+  downloadNotes: string[];
+}
+
+export interface PageElement {
+  tag: string;
+  label: string;
+  x: number;
+  y: number;
+  type?: string;
+  role?: string;
+  href?: string;
+  password?: boolean;
+  focused?: boolean;
+}
+
+export interface PageReading {
+  url: string;
+  title: string;
+  text: string;
+  truncated: boolean;
+  elements: PageElement[];
+  downloads: SavedDownload[];
+}
+
+/** The host's input vocabulary (`alia-computer-host/src/browser/input.ts`). */
+export type BrowserInput =
+  | { type: 'click'; x: number; y: number }
+  | { type: 'type'; text: string }
+  | { type: 'key'; key: string }
+  | { type: 'scroll'; deltaY: number; deltaX?: number };
+
+export interface BrowserActionReceipt {
+  action: 'open' | 'navigate' | 'input' | 'control' | 'close' | 'download';
+  by: BrowserActor;
+  origin: string;
+  detail: string;
+  status: 'ok' | 'refused' | 'failed';
+  at: string;
+}
+
 /** What the tools need, so a test can hand them a double instead of a host. */
 export interface ComputerClient {
   status(actorId: string): Promise<ComputerStatus>;
@@ -87,6 +148,21 @@ export interface ComputerClient {
   read(actorId: string, path: string): Promise<{ path: string; text: string }>;
   write(actorId: string, path: string, text: string): Promise<{ path: string; bytes: number }>;
   mkdir(actorId: string, path: string): Promise<{ path: string }>;
+  /** Recent command receipts, newest first. Never wakes the host. */
+  recentCommands(actorId: string, limit: number): Promise<CommandReceipt[]>;
+
+  /** Never wakes the host and never starts the browser. */
+  browserStatus(actorId: string): Promise<BrowserState>;
+  browserOpen(actorId: string, url: string | undefined, by: BrowserActor): Promise<BrowserResult>;
+  browserNavigate(actorId: string, url: string, by: BrowserActor): Promise<BrowserResult>;
+  browserRead(actorId: string): Promise<PageReading>;
+  /** A 1280×800 JPEG. */
+  browserScreenshot(actorId: string): Promise<Buffer>;
+  browserInput(actorId: string, input: BrowserInput, by: BrowserActor): Promise<BrowserResult>;
+  browserControl(actorId: string, controller: BrowserActor): Promise<BrowserResult>;
+  browserClose(actorId: string, by: BrowserActor): Promise<BrowserState>;
+  /** Recent browser receipts, newest first. Never wakes the host. */
+  browserActions(actorId: string, limit: number): Promise<BrowserActionReceipt[]>;
 }
 
 export { ComputerHostError };
@@ -104,6 +180,15 @@ const TOKEN_MARGIN_MS = 60_000;
 /** A host that answered this recently is assumed awake; older than this, probe first. */
 const AWAKE_TRUST_MS = 60_000;
 const PROBE_TIMEOUT_MS = 3_000;
+
+const BROWSER_ASLEEP: BrowserState = {
+  state: 'asleep',
+  url: '',
+  title: '',
+  controller: 'agent',
+  pendingDownloads: 0,
+  lastActiveAt: null,
+};
 
 const ASLEEP: ComputerStatus = {
   state: 'asleep',
@@ -176,20 +261,33 @@ export class HttpComputerClient implements ComputerClient {
    * One control-API call, waking the host first when it may be asleep and once
    * more if it turns out to be (unreachable, or answering `host_stopping`).
    */
-  private async call<T>(method: string, path: string, body?: unknown, timeoutMs = CONTROL_TIMEOUT_MS): Promise<T> {
+  private async call<T>(method: string, path: string, body?: unknown, timeoutMs = CONTROL_TIMEOUT_MS, binary = false): Promise<T> {
     if (this.waker && Date.now() - this.lastContactAt > AWAKE_TRUST_MS && !(await this.healthy())) {
       await this.waker.wake();
     }
     try {
-      return await this.request<T>(method, path, body, timeoutMs);
+      return await this.request<T>(method, path, body, timeoutMs, binary);
     } catch (error) {
       if (!this.waker || !unreachable(error)) throw error;
       await this.waker.wake();
-      return this.request<T>(method, path, body, timeoutMs);
+      return this.request<T>(method, path, body, timeoutMs, binary);
     }
   }
 
-  private async request<T>(method: string, path: string, body: unknown, timeoutMs: number): Promise<T> {
+  /**
+   * A call that must not wake a sleeping host: `fallback` when it is asleep.
+   * The live view polls; polling must never be what keeps the host up.
+   */
+  private async ifAwake<T>(path: string, fallback: T): Promise<T> {
+    if (this.waker && Date.now() - this.lastContactAt > AWAKE_TRUST_MS && !(await this.healthy())) {
+      const state = await this.waker.state();
+      if (state === 'stopped' || state === 'stopping') return fallback;
+      await this.waker.wake();
+    }
+    return this.request<T>('GET', path, undefined, CONTROL_TIMEOUT_MS);
+  }
+
+  private async request<T>(method: string, path: string, body: unknown, timeoutMs: number, binary = false): Promise<T> {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const token = await this.bearer(attempt > 0);
       const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
@@ -204,6 +302,7 @@ export class HttpComputerClient implements ComputerClient {
       // A restarted host forgets every token; attest once more and retry.
       if (response.status === 401 && attempt === 0) continue;
       this.lastContactAt = Date.now();
+      if (binary && response.ok) return Buffer.from(await response.arrayBuffer()) as T;
       const payload = (await response.json().catch(() => null)) as
         | { data?: T; error?: { code?: string; message?: string } }
         | null;
@@ -268,6 +367,47 @@ export class HttpComputerClient implements ComputerClient {
 
   mkdir(actorId: string, path: string) {
     return this.call<{ path: string }>('POST', `${this.actor(actorId)}/files/directories`, { path });
+  }
+
+  recentCommands(actorId: string, limit: number) {
+    return this.ifAwake<CommandReceipt[]>(`${this.actor(actorId)}/commands?limit=${limit}`, []);
+  }
+
+  browserStatus(actorId: string) {
+    return this.ifAwake<BrowserState>(`${this.actor(actorId)}/browser`, BROWSER_ASLEEP);
+  }
+
+  browserOpen(actorId: string, url: string | undefined, by: BrowserActor) {
+    // Starting the browser stack can take a while on a cold host.
+    return this.call<BrowserResult>('POST', `${this.actor(actorId)}/browser/open`, { ...(url ? { url } : {}), by }, 90_000);
+  }
+
+  browserNavigate(actorId: string, url: string, by: BrowserActor) {
+    return this.call<BrowserResult>('POST', `${this.actor(actorId)}/browser/navigate`, { url, by }, 75_000);
+  }
+
+  browserRead(actorId: string) {
+    return this.call<PageReading>('GET', `${this.actor(actorId)}/browser/read`, undefined, 75_000);
+  }
+
+  browserScreenshot(actorId: string) {
+    return this.call<Buffer>('GET', `${this.actor(actorId)}/browser/screenshot`, undefined, 30_000, true);
+  }
+
+  browserInput(actorId: string, input: BrowserInput, by: BrowserActor) {
+    return this.call<BrowserResult>('POST', `${this.actor(actorId)}/browser/input`, { input, by }, 75_000);
+  }
+
+  browserControl(actorId: string, controller: BrowserActor) {
+    return this.call<BrowserResult>('POST', `${this.actor(actorId)}/browser/control`, { controller });
+  }
+
+  browserClose(actorId: string, by: BrowserActor) {
+    return this.call<BrowserState>('POST', `${this.actor(actorId)}/browser/close`, { by });
+  }
+
+  browserActions(actorId: string, limit: number) {
+    return this.ifAwake<BrowserActionReceipt[]>(`${this.actor(actorId)}/browser/actions?limit=${limit}`, []);
   }
 }
 

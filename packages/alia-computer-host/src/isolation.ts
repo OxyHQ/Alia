@@ -31,7 +31,7 @@ export const MEMORY_BYTES = 512 * 1024 * 1024;
 export const NANO_CPUS = 1_000_000_000;
 export const PIDS_LIMIT = 128;
 export const TMPFS_OPTIONS = 'rw,nosuid,nodev,noexec,size=67108864,mode=1777';
-const MANAGED_LABEL = 'onl.alia.computer.managed';
+export const MANAGED_LABEL = 'onl.alia.computer.managed';
 const MANAGED_VALUE = 'computer-v1';
 
 /**
@@ -143,7 +143,7 @@ export function volumeCreateArgs(identity: ComputerIdentity): string[] {
   return ['volume', 'create', ...labels, identity.volume];
 }
 
-const inspectionSchema = z.object({
+export const inspectionSchema = z.object({
   Id: z.string(),
   Name: z.string(),
   Config: z.object({
@@ -195,7 +195,7 @@ export type Inspection = z.infer<typeof inspectionSchema>;
 /** The environment variable NAMES the workspace image may carry; values are not ours to judge. */
 const ALLOWED_ENV = new Set(['PATH', 'HOME', 'LANG', 'NODE_VERSION', 'YARN_VERSION']);
 
-const empty = (list: readonly unknown[] | null | undefined) => !list?.length;
+export const empty = (list: readonly unknown[] | null | undefined) => !list?.length;
 
 /**
  * Every property that must hold, by name, so a refusal can say WHICH one failed

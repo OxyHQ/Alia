@@ -146,6 +146,16 @@ export const API_ROUTES = {
     status: (id: string) => `/agents/${id}/status`,
     cancelSession: (id: string, sid: string) => `/agents/${id}/sessions/${sid}/cancel`,
     reviews: (id: string) => `/agents/${id}/reviews`,
+    /** The agent's computer as the caller sees it — always the caller's own (`routes/agents/computer.ts`). */
+    computer: (id: string) => `/agents/${id}/computer`,
+    computerStart: (id: string) => `/agents/${id}/computer/start`,
+    computerFiles: (id: string, path: string) => `/agents/${id}/computer/files?path=${encodeURIComponent(path)}`,
+    computerReceipts: (id: string) => `/agents/${id}/computer/receipts`,
+    computerScreenshot: (id: string) => `/agents/${id}/computer/browser/screenshot`,
+    computerBrowserOpen: (id: string) => `/agents/${id}/computer/browser/open`,
+    computerBrowserNavigate: (id: string) => `/agents/${id}/computer/browser/navigate`,
+    computerBrowserInput: (id: string) => `/agents/${id}/computer/browser/input`,
+    computerBrowserControl: (id: string) => `/agents/${id}/computer/browser/control`,
     generate: '/agents/generate',
     /**
      * The MCP connectors, Oxy apps, integrations and agents this owner can
