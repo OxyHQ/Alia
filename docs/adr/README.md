@@ -20,6 +20,7 @@ An ADR records a decision that is **in force now**, the context that forced it, 
 | [0012](./0012-alia-uses-real-models.md) | Alia uses real models from Oxy's catalogue | Accepted; superseded in part by 0014 | 2026-09-25 |
 | [0013](./0013-voice-runs-on-the-device-livekit-and-cohost-are-retired.md) | Voice runs on the device; LiveKit, cohost and voice minutes are retired | Accepted | 2026-09-24 |
 | [0014](./0014-people-choose-power-levels-not-models.md) | People choose power levels, not models | Accepted | 2026-10-01 |
+| [0015](./0015-actors-and-identities.md) | Actors and identities: Alia and agents, for the person and as themselves | Accepted | 2026-10-06 |
 
 Companion document: [the compatibility window and sunset criteria](../migration/compatibility-window.md), which binds ADR 0002, ADR 0003 and ADR 0004 to measurable removal gates — for paths (a) and (c); path (b) left the window under ADR 0010.
 
