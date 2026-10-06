@@ -5,6 +5,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // the two pure helpers, so every heavy dependency is stubbed to keep the import
 // side-effect-free (matching the mocking style of the other route tests).
 vi.mock('@oxy.so/core/server', () => ({ verifySecret: vi.fn() }));
+// Background product credits read `oxyClient` only when a product adapter is
+// configured, which this file never does; the real module would construct an
+// OxyServer at import time.
+vi.mock('../../middleware/auth.js', () => ({ oxyClient: {} }));
 vi.mock('ai', () => ({ generateText: vi.fn(), stepCountIs: vi.fn() }));
 vi.mock('../../lib/channels/registry.js', () => ({ getChannel: vi.fn() }));
 // The ONE assembler stands in for what `buildChatTools` used to: this file

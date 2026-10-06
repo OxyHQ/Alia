@@ -78,8 +78,8 @@ describe('speech synthesis boundary', () => {
   });
 });
 
-it.each(['active-bundle','expired-bundle','canceled-bundle','stale-authority','conflicting-grants','multiple-grants','individual-and-bundle'])
- ('preserves authenticated standalone speech independent of %s', async (state) => {
+it.each(['active-bundle','expired-bundle','canceled-bundle','stale-authority','conflicting-grants','multiple-grants','individual-and-bundle'])(
+ 'preserves authenticated standalone speech independent of %s', async (state) => {
  H.snapshot.mockRejectedValue(new Error(`Bundle authority must not be consulted: ${state}`));
  const res=response();await handler()({user:{id:'u1'},accessToken:'session',body},res,undefined);
  expect(H.snapshot).not.toHaveBeenCalled();

@@ -745,8 +745,10 @@ describe('a cost record says which balance funded it (#139 ws12)', () => {
     expect(manager.getFullText()).toContain(
       "const grantKind: CreditFundingSource = productAllocationId ? 'product_allowance' : fundingSourceOf(reserveResult.creditsFree);",
     );
+    // A queued session holding a product allocation rebuilds that source;
+    // otherwise it reaches the same free/paid verdict through the shared owner.
     expect(parse(`${API_SRC}/db/agents/agentSessionRepository.ts`).getFullText()).toContain(
-      'grantKind: fundingSourceOf(initialFreeCredits)',
+      "grantKind: row.creditReservationProductAllocationId ? 'product_allowance' : fundingSourceOf(initialFreeCredits)",
     );
   });
 
