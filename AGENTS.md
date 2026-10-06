@@ -51,6 +51,10 @@ commit que el `package.json` que lo cambia.
 - **Los datos del dueño, solo con el dueño presente.** Las apps de Oxy de un
   agente son las de su dueño; `requesterAccountId` del pipeline decide y un
   extraño (bot del agente, agente público) nunca las recibe.
+- **Agente: dos identidades (ADR 0015).** `self_*` = su propia cuenta bot (sin
+  grant); `oxy_*` = datos del dueño según su nivel por app (Nada · Ver · Ver y
+  actuar), que ES un `DelegationGrant` de Oxy escrito con el bearer del dueño.
+  Nunca guardes esos niveles en `capability_grants`.
 - `Relay` es un nombre retirado; el único origen de Kaana es `https://kaana.ai`.
   `lib/mcp-relay.ts` es el transporte WebSocket de MCP y no se renombra.
 - **Shows** (podcasts en Syra): la ruta acuña un ticket de ingesta de un solo
