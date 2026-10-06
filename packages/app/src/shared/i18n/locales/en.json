@@ -211,7 +211,8 @@
       "writingStyle": "Writing Style",
       "localModels": "Local models",
       "profile": "Profile",
-      "storage": "Storage"
+      "storage": "Storage",
+      "proactive": "Notifications"
     },
     "accentColor": {
       "title": "App Color",
@@ -451,6 +452,43 @@
           "pt": "Portuguese",
           "de": "German"
         }
+      },
+      "agentMemory": {
+        "title": "What an agent remembers",
+        "agentsTitle": "What your agents remember",
+        "agentsEmpty": "No agent remembers anything about you yet",
+        "agentsEmptyDescription": "Each agent keeps its own memory of you, separate from Alia's.",
+        "unnamedAgent": "Agent",
+        "fileCount": {
+          "one": "1 note",
+          "other": "{{count}} notes"
+        },
+        "open": "View",
+        "description": "What {{name}} remembers about you. It is its own memory, not Alia's: edit it or make it forget.",
+        "back": "Memory",
+        "empty": "{{name}} does not remember anything about you.",
+        "forget": "Forget",
+        "forgetAll": "Forget everything",
+        "forgetAllTitle": "Make {{name}} forget everything",
+        "forgetAllDescription": "Deletes every note this agent keeps about you.",
+        "forgetFileTitle": "Forget {{path}}",
+        "forgetDescription": "{{name}} will not remember it any more. This cannot be undone.",
+        "forgotten": "Forgotten",
+        "forgetFailed": "Could not forget it. Try again.",
+        "changedMeanwhile": "The agent changed this note while you were editing. Its latest version is shown."
+      },
+      "proactive": {
+        "emailTitle": "Important emails",
+        "aliaEmailLabel": "Tell me about important emails",
+        "aliaEmailDescription": "Alia writes to you when something that needs you arrives in your Inbox. She only reads the sender, the subject and the first line.",
+        "agentsTitle": "Your agents' own mailboxes",
+        "agentEmailLabel": "Let {{name}} tell me about important emails",
+        "agentEmailDescription": "{{name}} writes to you when its own mailbox gets something you should see, such as a verification or a reply.",
+        "noAgents": "You have no agents yet.",
+        "unnamedAgent": "Agent",
+        "limitsLabel": "They never pester you",
+        "limitsDescription": "At most three messages a day each, and none while their last two are unanswered.",
+        "loadFailed": "Could not load these settings."
       }
     }
   },
@@ -1462,7 +1500,7 @@
       },
       "computer": {
         "label": "Its own computer",
-        "description": "Run commands and keep files on a private Linux sandbox with no internet access"
+        "description": "Run commands and keep files on a private Linux sandbox, and browse the web with its own browser that stays signed in"
       }
     },
     "instancedFamily": {
@@ -1481,25 +1519,114 @@
       "loading": "Loading terminal…"
     },
     "modelPinned": "Pinned model (%{model})",
-    "modelPinnedDescription": "Runs on this exact model. Pick a level to let Alia choose."
+    "modelPinnedDescription": "Runs on this exact model. Pick a level to let Alia choose.",
+    "oxyApps": {
+      "title": "Oxy apps",
+      "footer": "What of YOUR data this agent may use, app by app. None: nothing. View: it can read. View and act: it can read and act for you, without asking. It always has its own account (its own inbox) as well.",
+      "none": "None",
+      "read": "View",
+      "act": "View and act",
+      "levelLabel": "What %{app} access this agent has",
+      "loadFailed": "Couldn't load your Oxy apps. Try again later.",
+      "saveFailed": "Couldn't change %{app}. Nothing was changed."
+    },
+    "computer": {
+      "open": "Computer",
+      "title": "{{name}}'s computer",
+      "subtitle": "Your own computer with this agent: only you can see it.",
+      "unavailable": "Agent computers are not available here.",
+      "loadFailed": "The computer could not be loaded.",
+      "notGranted": "This agent is not allowed to use its computer. You can still look at what it left there.",
+      "state": {
+        "running": "On",
+        "stopped": "Off",
+        "asleep": "Asleep — it wakes on the next use"
+      },
+      "browser": {
+        "title": "Browser",
+        "closed": "The agent's browser is closed.",
+        "closedHint": "It opens when the agent browses, or you can open it to sign in to a site for it.",
+        "openButton": "Open browser",
+        "urlLabel": "Address",
+        "urlPlaceholder": "Page address",
+        "go": "Go",
+        "screenLabel": "The agent's browser. Tap to click.",
+        "loading": "Loading the screen…",
+        "agentInControl": "The agent is in control",
+        "youInControl": "You are in control — the agent waits",
+        "takeControl": "Take control",
+        "handBack": "Hand back to the agent",
+        "takeControlHint": "Take control to sign in or solve a captcha. Your clicks and typing go to the page; nothing you type is stored.",
+        "typeLabel": "Text to type",
+        "typePlaceholder": "Type into the selected field",
+        "send": "Send",
+        "scrollUp": "Scroll up",
+        "scrollDown": "Scroll down",
+        "keys": {
+          "Enter": "Enter",
+          "Tab": "Tab",
+          "Backspace": "Delete",
+          "Escape": "Esc"
+        },
+        "actionFailed": "That did not work: {{reason}}",
+        "disconnected": "The screen is not updating. It will retry."
+      },
+      "files": {
+        "title": "Files",
+        "off": "The computer is off. Turn it on to see its files.",
+        "turnOn": "Turn on",
+        "empty": "This folder is empty.",
+        "up": "Up",
+        "truncated": "Only the first 1000 entries are shown.",
+        "readOnly": "Read-only view of /workspace."
+      },
+      "activity": {
+        "title": "Recent activity",
+        "commands": "Commands",
+        "browser": "Browser",
+        "none": "Nothing yet.",
+        "by": {
+          "agent": "Agent",
+          "owner": "You"
+        },
+        "status": {
+          "running": "Running",
+          "started": "In background",
+          "succeeded": "Done",
+          "failed": "Failed",
+          "timed_out": "Timed out",
+          "interrupted": "Interrupted",
+          "ok": "Done",
+          "refused": "Refused"
+        },
+        "action": {
+          "open": "Opened the browser",
+          "navigate": "Went to a page",
+          "input": "Acted on the page",
+          "control": "Control changed",
+          "close": "Closed the browser",
+          "download": "Downloaded a file"
+        }
+      }
+    }
   },
   "authorize": {
     "linkingAccount": "Linking account...",
     "pleaseWait": "Please wait while we set up your access",
     "authRequired": "Authentication Required",
     "linked": "Linked!",
-    "linkSuccess": "Your {{app}} account has been linked successfully!",
+    "linkSuccess": "Your %{app} account has been linked successfully!",
     "linkFailed": "Link Failed",
     "failedToLink": "Failed to link your account. Please try again.",
-    "returnToApp": "You can now return to {{app}} and start chatting with Alia!",
+    "returnToApp": "You can now return to %{app} and start chatting with Alia!",
     "requestNewLink": "Request New Link",
     "invalidToken": "Invalid authentication token. The link you followed is not valid.",
     "tokenExpired": "This link has expired. Please request a new one.",
     "invalidOrExpiredToken": "Invalid or expired token. Please request a new link.",
-    "needLogin": "You need to log in first to link your {{app}} account.",
+    "needLogin": "You need to log in first to link your %{app} account.",
     "missingToken": "Missing authentication token.",
-    "authorizeApp": "Authorize {{app}}",
-    "appWantsAccess": "{{app}} wants to access your account"
+    "authorizeApp": "Authorize %{app}",
+    "appWantsAccess": "%{app} wants to access your account"
   },
   "memory": {
     "title": "Memory",

@@ -969,9 +969,9 @@
         "v1-chat-completions-post",
         "v1-models-list"
       ],
-      "removalGate": "An OpenAI-SDK client demands strict OpenAI wire conformance - a stray non-JSON SSE frame throws inside the SDK's parser. alia_meta must stay an ADDITIVE field on the chunk.",
+      "removalGate": "None: Alia's own surface on Alia's permanent product API (ADR 0010). The defensive alia_meta.synthetic branch can go once no older server can answer it.",
       "provenance": "inventory-product-api",
-      "evidence": "packages/alia-codea/src/chatProvider.ts:705,144,811-812,968"
+      "evidence": "packages/alia-codea/src/chatProvider.ts:12,757; packages/alia-codea/src/aliaChat.ts:15,33"
     },
     {
       "id": "codea-cli-consumer",
@@ -4500,15 +4500,15 @@
       "domain": "product-api",
       "kind": "behaviour",
       "currentPath": "packages/api/src/lib/chat/response-shapes.ts",
-      "reachable": "live",
+      "reachable": "dead",
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
         "response-ext-alia-usage"
       ],
-      "removalGate": "The Codea extension branches on alia_meta.synthetic at three sites to suppress a bogus answer. Removing it makes Codea present timeout filler as a real model response.",
+      "removalGate": "Server side: none left to remove beyond the unused aliaMeta option. Clients (Codea's aliaChat.ts/chatParticipant.ts/inlineCompletionProvider.ts, Cowork's alia-chat.ts, @alia.onl/server) still read alia_meta.synthetic defensively so an older server cannot slip a stand-in in as an answer; drop those branches once no older server can answer them.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/chat/response-shapes.ts:70; packages/api/src/routes/v1/chat-completions.ts:298; packages/alia-codea/src/chatProvider.ts:812,968"
+      "evidence": "packages/api/src/lib/chat/response-shapes.ts:38,70 (optional, no caller); packages/alia-codea/src/chatParticipant.ts:176-244; packages/alia-codea/src/inlineCompletionProvider.ts:164; packages/alia-cowork/src/main/alia-chat.ts:289"
     },
     {
       "id": "response-ext-alia-usage",

@@ -20,6 +20,7 @@ const config: HostConfig = {
   idleMs: 10 * 60_000,
   workspaceQuotaBytes: 1000,
   maxCommandSeconds: 300,
+  browser: { enabled: true, maxContexts: 3, idleMs: 600_000, selfContainer: 'alia-computer-host', denyCidrs: [] },
   production: false,
 };
 

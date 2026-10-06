@@ -22,6 +22,7 @@ export * from './memory';
 export * from './moderation';
 export * from './notifications';
 export * from './organizations';
+export * from './proactive';
 export * from './shows';
 export * from './skills';
 export * from './telemetry';

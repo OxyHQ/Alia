@@ -28,6 +28,9 @@ const REVERSIBLE_WRITE_TOOLS = new Set([
   'createAutomation',
   'saveUserMemory',
   'updateUserMemory',
+  // Forgetting is the person's own request ("olvida esto"); the same tier as
+  // the edit it is, and as the delete button on the memory screen.
+  'forgetUserMemory',
   'updateUserPreferences',
   'updateUserContext',
 ]);
@@ -82,7 +85,11 @@ const R1 = (reason: string, reversible: boolean): ActionRisk => ({ riskLevel: 'R
  * unknown-tool default: R2, a 60s wait for an approval nobody could give in a
  * background run, then a denial.
  */
-function classifyPrimitive(toolName: string, args: Record<string, unknown> = {}): ActionRisk | null {
+function classifyPrimitive(
+  toolName: string,
+  args: Record<string, unknown> = {},
+  attended = false,
+): ActionRisk | null {
   switch (toolName) {
     case 'plan':
       return R0('Planning is internal to the session');
@@ -92,9 +99,11 @@ function classifyPrimitive(toolName: string, args: Record<string, unknown> = {})
       return R1('Delegation runs another Alia agent under this session budget', false);
     case 'memory': {
       const action = typeof args.action === 'string' ? args.action : '';
-      return action === 'read' || action === 'list'
-        ? R0('Reading the agent\'s own memory is autonomous')
-        : R1('Writing the agent\'s own memory, journaled and reversible', true);
+      if (action === 'read' || action === 'list') return R0('Reading the agent\'s own memory is autonomous');
+      // Forgetting purges the file and its journal on the person's request,
+      // so it is R1 without a rollback: there is deliberately nothing to restore.
+      if (action === 'forget') return R1('Forgetting part of the agent\'s own memory, as the person asked', false);
+      return R1('Writing the agent\'s own memory, journaled and reversible', true);
     }
     case 'continueInBackground':
       return R1('Starts a held, admitted background run of the same agent for this person', false);
@@ -125,6 +134,38 @@ function classifyPrimitive(toolName: string, args: Record<string, unknown> = {})
             externalImpact: false,
           }
         : R1('Runs a bounded command inside the agent\'s own networkless sandbox', false);
+    // The agent's own browser (`lib/computer/browser-tools.ts`). Looking is
+    // autonomous. Opening, clicking, scrolling and closing act on the open web
+    // under the agent's own profile but submit nothing on their own. Typing and
+    // Enter are how a form is filled and SENT: with the person in the chat they
+    // are R1 (they see the turn, and can take the browser over); in a
+    // background run nobody is watching, so they need an approval.
+    case 'browser_read':
+    case 'browser_screenshot':
+    case 'browser_scroll':
+      return R0('Looking at the agent\'s own browser is autonomous');
+    case 'browser_open':
+    case 'browser_click':
+    case 'browser_close':
+      return R1('Navigates the agent\'s own browser; nothing is typed or submitted', false);
+    case 'browser_type':
+      return attended
+        ? R1('Types into a page in the agent\'s own browser while the person is in the conversation', false)
+        : {
+            riskLevel: 'R2',
+            reason: 'Typing into a web form in the background, where nobody sees what is sent',
+            reversible: false,
+            externalImpact: true,
+          };
+    case 'browser_key':
+      return args.key === 'Enter' && !attended
+        ? {
+            riskLevel: 'R2',
+            reason: 'Enter submits a web form in the background, where nobody sees what is sent',
+            reversible: false,
+            externalImpact: true,
+          }
+        : R1('Presses a key in the agent\'s own browser', false);
     default:
       return null;
   }
@@ -133,9 +174,17 @@ function classifyPrimitive(toolName: string, args: Record<string, unknown> = {})
 export function classifyActionRisk(
   toolName: string,
   args: Record<string, unknown>,
-  options: { declaredReadOnly?: boolean } = {},
+  options: {
+    declaredReadOnly?: boolean;
+    /**
+     * A person is in the conversation as this runs (a chat turn), rather than
+     * a background run nobody is watching. Only the browser's typing tools
+     * read it.
+     */
+    attended?: boolean;
+  } = {},
 ): ActionRisk {
-  const primitive = classifyPrimitive(toolName, args);
+  const primitive = classifyPrimitive(toolName, args, options.attended === true);
   // A search or a plan cannot run what its text names: "how to reboot a
   // router" is a query, not a command.
   if (primitive?.riskLevel === 'R0') return primitive;

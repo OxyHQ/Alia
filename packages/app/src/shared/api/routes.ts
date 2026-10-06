@@ -42,7 +42,12 @@ export const API_ROUTES = {
     delete: (id: string) => `/memory/${id}`,
     preferences: '/memory/preferences',
     context: '/memory/context',
+    /** Every agent that remembers something about the caller (memory per actor). */
+    agents: '/memory/agents',
   },
+
+  /** "Avísame de emails importantes", per actor: Alia and each owned agent. */
+  emailAlerts: '/notifications/email-alerts',
 
   // Upload routes
   upload: {
@@ -146,6 +151,16 @@ export const API_ROUTES = {
     status: (id: string) => `/agents/${id}/status`,
     cancelSession: (id: string, sid: string) => `/agents/${id}/sessions/${sid}/cancel`,
     reviews: (id: string) => `/agents/${id}/reviews`,
+    /** The agent's computer as the caller sees it — always the caller's own (`routes/agents/computer.ts`). */
+    computer: (id: string) => `/agents/${id}/computer`,
+    computerStart: (id: string) => `/agents/${id}/computer/start`,
+    computerFiles: (id: string, path: string) => `/agents/${id}/computer/files?path=${encodeURIComponent(path)}`,
+    computerReceipts: (id: string) => `/agents/${id}/computer/receipts`,
+    computerScreenshot: (id: string) => `/agents/${id}/computer/browser/screenshot`,
+    computerBrowserOpen: (id: string) => `/agents/${id}/computer/browser/open`,
+    computerBrowserNavigate: (id: string) => `/agents/${id}/computer/browser/navigate`,
+    computerBrowserInput: (id: string) => `/agents/${id}/computer/browser/input`,
+    computerBrowserControl: (id: string) => `/agents/${id}/computer/browser/control`,
     generate: '/agents/generate',
     /**
      * The MCP connectors, Oxy apps, integrations and agents this owner can
@@ -154,6 +169,10 @@ export const API_ROUTES = {
      */
     capabilityConnectors: (excludeAgentId: string) =>
       `/agents/capability-connectors?agent=${encodeURIComponent(excludeAgentId)}`,
+    /** What of its OWNER's data the agent may use, one level per Oxy app (owner only). */
+    oxyApps: (id: string) => `/agents/${encodeURIComponent(id)}/oxy-apps`,
+    oxyApp: (id: string, appId: string) =>
+      `/agents/${encodeURIComponent(id)}/oxy-apps/${encodeURIComponent(appId)}`,
   },
 
   // Library routes

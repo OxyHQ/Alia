@@ -97,6 +97,15 @@ ALIA_COMPUTER_HOST_INSTANCE_ID=i-...     # lets the API wake the host when it ha
 SYRA_API_URL=https://api.syra.fm       # where a show series is published
 ```
 
+The agents' computer host (`packages/alia-computer-host`) is not part of the API's
+ECS service: it is one EC2 Spot instance (Fargate cannot run Docker or gVisor),
+provisioned by `OxyHQ/oxy-infra` (`terraform-uswest2/alia-computer-host.tf`, runbook
+`docs/runbooks/47-alia-computer-host.md`). Its two images (the control API and the
+workspace/browser image) are released by `.github/workflows/deploy-computer-host.yml`,
+`workflow_dispatch` only: it pushes them, records their digests in SSM and restarts the
+host's unit over SSM Run Command. Without `ALIA_COMPUTER_HOST_URL` the API simply builds
+no `computer` tools ([actors](./actors.mdx#the-agents-computer)).
+
 `SYRA_API_URL` carries no secret and needs none: Syra authenticates the caller's
 own Oxy token for everything a route does, and the background worker redeems a
 single-use ingest ticket that the route minted while that token was live. There

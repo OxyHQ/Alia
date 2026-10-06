@@ -59,7 +59,7 @@ export function toolFamilyOf(name: string): string {
 export function toolFamilyCounts(names: readonly string[]): Record<string, number> {
   const counts = new Map<string, number>();
   for (const name of names) {
-    const family = /^(?:oxy|mcp)_/.test(name) ? toolFamilyOf(name) : 'other';
+    const family = /^(?:oxy|self|mcp)_/.test(name) ? toolFamilyOf(name) : 'other';
     counts.set(family, (counts.get(family) ?? 0) + 1);
   }
   return Object.fromEntries([...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])));

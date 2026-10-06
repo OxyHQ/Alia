@@ -10,10 +10,11 @@
  * Two kinds, because they deserve different limits:
  * - `result` delivers something the person ASKED for (a goal, a scheduled
  *   task). It is never rate-limited: withholding it would lose their work.
- * - `check_in` is the agent's own initiative. It is budgeted per person and
- *   agent ({@link CHECK_IN_DAILY_LIMIT}) and stops when the person has left the
- *   agent's last messages unanswered ({@link UNANSWERED_CHECK_IN_LIMIT}) —
- *   the rule Meta applies to its AI Studio follow-ups, for the same reason.
+ * - `check_in` is the agent's own initiative (`sendMessageToUser`, or an
+ *   important email in its own mailbox). It is budgeted per person and agent
+ *   ({@link CHECK_IN_DAILY_LIMIT}) and stops when the person has left the
+ *   agent's last messages unanswered ({@link UNANSWERED_CHECK_IN_LIMIT}) — the
+ *   one budget in `outreach-budget.ts`, which Alia's initiative spends too.
  *
  * The message is marked with {@link AGENT_OUTREACH_MESSAGE_ID_PREFIX}, which is
  * what keeps a client that had not seen it yet from deleting it with its next
@@ -33,19 +34,15 @@ import {
   countAgentOutreachSince,
   findLastMessage,
   insertMessages,
-  listLatestMessageMarks,
 } from '../../db/chat/messageRepository.js';
-import { AGENT_OUTREACH_MESSAGE_ID_PREFIX, isAgentOutreachMessageId } from '../../domain/conversation.js';
+import { AGENT_OUTREACH_MESSAGE_ID_PREFIX } from '../../domain/conversation.js';
 import { agentPromptName, attachAgentIdentity } from '../agent-identity.js';
 import { log } from '../logger.js';
+import { checkInRefusal, type CheckInRefusal } from './outreach-budget.js';
 import { sendNotification } from '../notification-service.js';
 import { getIO } from '../../socket.js';
 
-/** Check-ins one agent may send one person in a rolling day. */
-export const CHECK_IN_DAILY_LIMIT = 3;
-
-/** Unanswered agent messages after which check-ins stop until the person replies. */
-export const UNANSWERED_CHECK_IN_LIMIT = 2;
+export { CHECK_IN_DAILY_LIMIT, UNANSWERED_CHECK_IN_LIMIT } from './outreach-budget.js';
 
 /** Longest message an agent may post; a result longer than this is cut, not lost — it stays on the run. */
 const MAX_OUTREACH_CHARS = 8_000;
@@ -63,9 +60,24 @@ export interface AgentOutreachInput {
   readonly kind: AgentOutreachKind;
   /** A short notification title; defaults to the agent's name. */
   readonly title?: string;
+  /**
+   * The push/in-app body when it should differ from the message — plain text,
+   * where the message is markdown. Defaults to the start of the message.
+   */
+  readonly notificationBody?: string;
 }
 
 const SEQ_INDEX = 'messages_oxy_user_conversation_seq_key';
+
+/** Whether this agent may check in with this person now — {@link checkInRefusal}, before anything is spent. */
+export async function agentCheckInRefusal(oxyUserId: string, agentId: string): Promise<CheckInRefusal | null> {
+  const conversation = await findActiveThreadConversation(getDb(), oxyUserId, agentId);
+  return checkInRefusal({
+    oxyUserId,
+    conversationId: conversation?.conversationId ?? null,
+    countSince: (since) => countAgentOutreachSince(getDb(), oxyUserId, agentId, since),
+  });
+}
 
 export async function postAgentMessage(input: AgentOutreachInput): Promise<AgentOutreachOutcome> {
   const content = input.content.trim().slice(0, MAX_OUTREACH_CHARS);
@@ -86,14 +98,12 @@ export async function postAgentMessage(input: AgentOutreachInput): Promise<Agent
     });
 
   if (input.kind === 'check_in') {
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    if (await countAgentOutreachSince(getDb(), input.oxyUserId, agent._id, since) >= CHECK_IN_DAILY_LIMIT) {
-      return { posted: false, reason: 'daily_limit' };
-    }
-    const latest = await listLatestMessageMarks(getDb(), input.oxyUserId, conversation.conversationId, UNANSWERED_CHECK_IN_LIMIT);
-    if (latest.length === UNANSWERED_CHECK_IN_LIMIT && latest.every((m) => isAgentOutreachMessageId(m.clientMessageId))) {
-      return { posted: false, reason: 'unanswered' };
-    }
+    const refusal = await checkInRefusal({
+      oxyUserId: input.oxyUserId,
+      conversationId: conversation.conversationId,
+      countSince: (since) => countAgentOutreachSince(getDb(), input.oxyUserId, agent._id, since),
+    });
+    if (refusal) return { posted: false, reason: refusal };
   }
 
   const messageId = `${AGENT_OUTREACH_MESSAGE_ID_PREFIX}${randomUUID()}`;
@@ -140,7 +150,7 @@ export async function postAgentMessage(input: AgentOutreachInput): Promise<Agent
     userId: input.oxyUserId,
     type: input.kind === 'result' ? 'agent_task_complete' : 'proactive_insight',
     title: input.title ?? name,
-    body: content.slice(0, 500),
+    body: (input.notificationBody ?? content).slice(0, 500),
     conversationId: conversation.conversationId,
     data: { agentId: agent._id, ...(agent.handle ? { agentHandle: agent.handle } : {}), messageId },
   }).catch((err: unknown) => log.agents.warn({ err, agentId: agent._id }, 'Could not notify about an agent message'));

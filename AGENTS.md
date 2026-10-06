@@ -3,8 +3,9 @@
 El asistente de Oxy («el ChatGPT de Oxy»). Monorepo de bun workspaces: API
 (`packages/api`, Express + PostgreSQL), app (`packages/app`, Expo), Codea
 (`alia-codea`, `alia-codea-cli`), Cowork (`alia-cowork`), SDK (`alia-chat`).
-Antes de tocar un área lee su doc: `docs/index.mdx` es el índice, `docs/adr/`
-las decisiones vinculantes. Aquí solo van reglas que rompen en silencio.
+Antes de tocar un área lee su doc: `docs/index.mdx` es el índice,
+`docs/actors.mdx` el mapa de quién actúa (Alia y agentes), `docs/adr/` las
+decisiones vinculantes. Aquí solo van reglas que rompen en silencio.
 
 ## Comandos
 
@@ -33,7 +34,7 @@ commit que el `package.json` que lo cambia.
   lo rechaza (`credential_retired`) y sus tablas no existen. La clave de Oxy
   Console usa el contrato app-only de core4.4 publicado/adoptado con scopes
   explícitos; aceptación positiva Console pendiente — `docs/machine-chat-contract.md`.
-- **La gente elige modos, no modelos (ADR 0014; ADR 0012):** Alia no tiene
+- **La gente elige niveles de potencia, no modelos (ADR 0014; ADR 0012):** Alia no tiene
   modelos propios. En la UI el usuario elige un nivel de potencia de Oxy —
   `auto` (por defecto), `instant`, `medium`, `high`, `xhigh`, `pro`, `ultra` —
   y Oxy escoge el modelo disponible; nunca una lista de modelos por nombre.
@@ -51,11 +52,26 @@ commit que el `package.json` que lo cambia.
 - **Los datos del dueño, solo con el dueño presente.** Las apps de Oxy de un
   agente son las de su dueño; `requesterAccountId` del pipeline decide y un
   extraño (bot del agente, agente público) nunca las recibe.
+- **Agente: dos identidades (ADR 0015).** `self_*` = su propia cuenta bot (sin
+  grant); `oxy_*` = datos del dueño según su nivel por app (Nada · Ver · Ver y
+  actuar), que ES un `DelegationGrant` de Oxy escrito con el bearer del dueño.
+  Nunca guardes esos niveles en `capability_grants`.
+- **Toda tarea tiene actor; Alia por defecto.** Sin `actorSelection` es
+  `{ mode: 'alia' }`: nunca exijas un agente para una tarea. Las de Alia usan su
+  autoridad permanente de Oxy y la cola `alia-tasks` —
+  `docs/proactive-intelligence.md`.
+- **Memoria por actor.** Un turno de agente nunca recibe la memoria de Alia ni
+  sus herramientas (`saveUserMemory`…); el agente usa `agent_memory_documents`.
+- **Un fallo de inferencia es un error tipado** (`failTurn`), antes o después de
+  emitir texto; jamás un mensaje de relleno con `finish_reason: "stop"` —
+  `docs/chat-runtime.mdx`.
 - `Relay` es un nombre retirado; el único origen de Kaana es `https://kaana.ai`.
   `lib/mcp-relay.ts` es el transporte WebSocket de MCP y no se renombra.
 - **Shows** (podcasts en Syra): la ruta acuña un ticket de ingesta de un solo
   uso y el worker lo canjea; jamás un token de servicio. `title`/`topic` son
   overrides opcionales y por eso admiten NULL; `topic` se envía entero —
   `docs/shows.mdx`.
-- Agentes, tareas, memoria: `docs/agents.md`. Chat/SSE: `docs/chat-runtime.mdx`.
-  Despliegue: `docs/deployment.md`. Migración: `docs/migration/`.
+- Actores: `docs/actors.mdx`. Agentes y su ordenador: `docs/agents.md`. Tareas y
+  avisos: `docs/proactive-intelligence.md`. Memoria: `docs/memory-system.md`.
+  Chat/SSE: `docs/chat-runtime.mdx`. Despliegue: `docs/deployment.md`.
+  Migración: `docs/migration/`.

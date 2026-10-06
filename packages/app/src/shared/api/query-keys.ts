@@ -1,4 +1,6 @@
 export const queryKeys = {
+  /** "Avísame de emails importantes" for Alia and each owned agent. */
+  emailAlerts: ['email-alerts'] as const,
   skills: {
     catalogue: (filters?: Record<string, string | undefined>) => ['skills', 'catalogue', filters ?? {}] as const,
     installed: ['skills', 'installed'] as const,
@@ -23,6 +25,13 @@ export const queryKeys = {
     reviews: (id: string) => ['agents', 'reviews', id] as const,
     /** What the owner could grant the agent being edited, which is left out. */
     capabilityConnectors: (id: string) => ['agents', 'capability-connectors', id] as const,
+    /** The agent's level per Oxy app, as its owner set them. */
+    oxyApps: (id: string) => ['agents', 'oxy-apps', id] as const,
+    /** What one agent remembers about the caller: its files, and one file's content. */
+    memory: (id: string) => ['agents', 'memory', id] as const,
+    memoryFile: (id: string, path: string) => ['agents', 'memory', id, path] as const,
+    /** The agents that remember something about the caller. */
+    remembering: ['agents', 'remembering'] as const,
     /**
      * Keyed by the USERNAME the URL carries, not by the agent id, because the
      * id is part of what the query answers — `/a/pepe` is resolvable before

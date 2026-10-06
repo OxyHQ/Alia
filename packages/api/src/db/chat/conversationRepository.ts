@@ -149,6 +149,21 @@ export async function findActiveAgentThreadConversation(
 }
 
 
+/**
+ * Whether this person has ever used Alia — any conversation at all.
+ *
+ * The gate before Alia spends anything on somebody's email: every Oxy account
+ * has an Inbox, and most of them have never opened Alia.
+ */
+export async function hasAnyConversation(db: ApiDatabase, oxyUserId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ one: sql<number>`1` })
+    .from(conversations)
+    .where(eq(conversations.oxyUserId, oxyUserId))
+    .limit(1);
+  return row !== undefined;
+}
+
 /** Whether this user holds a thread with this id. */
 export async function conversationExists(
   db: ApiDatabase,

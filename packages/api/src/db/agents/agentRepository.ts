@@ -289,6 +289,22 @@ export async function findAgentOxyAccountId(db: Executor, id: string): Promise<s
   return row?.oxyAccountId ?? null;
 }
 
+/**
+ * The agents whose bot account this person owns (`owner_oxy_account_id`), newest first.
+ *
+ * The OWNER, not the author: the field the proactive email path uses to decide
+ * whom an agent tells (`lib/proactive/email-outreach.ts`), so the switches a
+ * person sees are exactly the agents that would write to them.
+ */
+export async function listAgentsOwnedBy(db: Executor, ownerOxyAccountId: string): Promise<AgentRecord[]> {
+  const rows = await db
+    .select()
+    .from(agents)
+    .where(eq(agents.ownerOxyAccountId, ownerOxyAccountId))
+    .orderBy(desc(agents.createdAt), desc(agents.id));
+  return rows.map(toAgentRecord);
+}
+
 export async function findAgentsByIds(db: Executor, ids: string[]): Promise<AgentRecord[]> {
   // `inArray(col, [])` renders as the literal `false`, so this early return is a
   // saved round trip rather than a guard against a wrong result.

@@ -1,7 +1,7 @@
 {
   "name": "@alia/computer-host",
   "version": "0.1.0",
-  "description": "The agents' computer: one gVisor-sandboxed container per actor, behind a control API only Alia's API can call",
+  "description": "The agents' computer: one gVisor-sandboxed container per actor and a shared, proxied browser, behind a control API only Alia's API can call",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
@@ -16,6 +16,7 @@
   "dependencies": {
     "express": "^4.22.2",
     "pino": "^10.3.1",
+    "playwright-core": "1.61.1",
     "postgres": "3.4.9",
     "zod": "^3.25.76"
   },

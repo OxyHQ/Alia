@@ -14,6 +14,7 @@ import {
   type ReactNode,
 } from 'react';
 import { AccountsSection } from './accounts-section';
+import { AgentMemorySection } from './agent-memory-section';
 import { BillingSection } from './billing-section';
 import { BotsSection } from './bots-section';
 import { ConnectorDetailSection } from './connector-detail-section';
@@ -23,6 +24,7 @@ import { IntegrationsSection } from './integrations-section';
 import { LocalModelsSection } from './local-models-section';
 import { MemorySection } from './memory-section';
 import { PersonalizationSection } from './personalization-section';
+import { ProactiveSection } from './proactive-section';
 import { ProfileSection } from './profile-section';
 import { SETTINGS_GROUPS } from './sections';
 import { SecuritySection } from './security-section';
@@ -45,6 +47,7 @@ const CONTENT: Record<string, ReactNode> = {
   limits: <UsageSection />,
   security: <SecuritySection />,
   memory: <MemorySection />,
+  proactive: <ProactiveSection />,
   'writing-style': <WritingStyleSection />,
 };
 export function AliaSettingsProvider({ children }: { children: ReactNode }) {
@@ -80,6 +83,10 @@ export function AliaSettingsProvider({ children }: { children: ReactNode }) {
             'connector-detail': {
               title: t('connectors.detailTitle'),
               content: <ConnectorDetailSection />,
+            },
+            'agent-memory': {
+              title: t('settings.assistant.agentMemory.title'),
+              content: <AgentMemorySection />,
             },
           }
         : {}),

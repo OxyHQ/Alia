@@ -51,6 +51,7 @@ import {
   listIntegrationsForUser,
   type IntegrationSafeRow,
 } from '../../db/integrations/integrationRepository.js';
+import { revokeAllAgentOxyApps } from '../../lib/agent-oxy-apps.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -610,6 +611,8 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
      * service does not have, and the account may hold posts, a follower graph
      * and a credit balance of its own. The owner archives it from Oxy.
      */
+    // The grants behind its Oxy app levels go with it; the bot account stays.
+    await revokeAllAgentOxyApps(loaded.agent, req.accessToken);
     const deleted = await deleteAgent(getDb(), id);
     if (deleted === 0) {
       return res.status(404).json({ error: 'Agent not found' });

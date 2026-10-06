@@ -19,6 +19,7 @@ import { dispatchStructuredAutomation } from '../lib/automation-dispatcher.js';
 import { getErrorMessage } from '../lib/errors/index.js';
 import { log } from '../lib/logger.js';
 import { sendNotification } from '../lib/notification-service.js';
+import { handleInboxEmailEvent } from '../lib/proactive/email-outreach.js';
 
 const OXY_API_URL = (process.env.OXY_API_URL || 'https://api.oxy.so').replace(/\/$/, '');
 
@@ -89,6 +90,27 @@ async function dispatchEvent(event: NormalizedAutomationEventInput): Promise<voi
   await markAutomationEventStatus(getDb(), event.appId, event.eventId, 'processed');
 }
 
+/**
+ * Fields an event may carry that Alia uses in passing and never stores.
+ *
+ * Inbox's `new_email` carries a one-line `snippet` of the body for the
+ * importance classifier (`lib/proactive/email-outreach.ts`). Sender and subject
+ * were already part of the stored projection; the body, even a line of it, is
+ * not something `automation_events` needs to keep.
+ */
+const TRANSIENT_EVENT_FIELDS = ['snippet'] as const;
+
+function storedEventData(data: Record<string, unknown>): Record<string, unknown> {
+  const stored = { ...data };
+  for (const field of TRANSIENT_EVENT_FIELDS) delete stored[field];
+  return stored;
+}
+
+/** Inbox's "an email arrived" — the one event Alia also reads for her own initiative. */
+function isNewEmail(event: NormalizedAutomationEventInput): boolean {
+  return event.appId === 'inbox' && event.eventType === 'new_email';
+}
+
 const router = Router();
 
 router.post('/', async (request: Request, response: Response) => {
@@ -128,11 +150,18 @@ router.post('/', async (request: Request, response: Response) => {
     resource: parsed.data.resource,
     eventType: parsed.data.type,
     occurredAt: new Date(parsed.data.occurredAt),
-    data: parsed.data.data,
+    data: storedEventData(parsed.data.data),
   };
   try {
     const claimed = await claimAutomationEvent(getDb(), event);
     if (!claimed) return response.status(202).json({ accepted: true, duplicate: true });
+    // Independent of any automation, and of their failure notification: an
+    // important email is told by Alia or by the agent whose mailbox it is.
+    if (isNewEmail(event)) {
+      void handleInboxEmailEvent({ accountId: event.accountId, data: parsed.data.data }).catch((error: unknown) => {
+        log.triggers.warn({ err: error, eventId: event.eventId }, 'Email outreach did not run');
+      });
+    }
     void dispatchEvent(event).catch(async (error: unknown) => {
       log.triggers.error({ err: error, eventId: event.eventId, appId: event.appId }, 'Normalized Oxy event failed');
       await markAutomationEventStatus(getDb(), event.appId, event.eventId, 'failed').catch(() => undefined);

@@ -49,6 +49,7 @@ export type SendOutcome = 'sent' | 'errored' | 'failed' | 'aborted';
 const MEMORY_WRITING_TOOLS = new Set([
   'saveUserMemory',
   'updateUserMemory',
+  'forgetUserMemory',
   'updateUserPreferences',
   'updateUserContext',
 ]);

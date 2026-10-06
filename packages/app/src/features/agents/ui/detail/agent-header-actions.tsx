@@ -4,7 +4,7 @@ import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 
 /**
  * The agent screen's header: edit (owner only), chat (when this person may
- * talk to it), start a task, share.
+ * talk to it), its computer (when it has one), start a task, share.
  *
  * A private agent is in the catalogue for everyone but answers only its own
  * account (`canReachAgent` in the API): for anyone else its thread is "Agent
@@ -22,21 +22,30 @@ import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 export function AgentHeaderActions({
   isOwner,
   canChat,
+  hasComputer = false,
   price,
   onEdit,
   onChat,
   onStartTask,
   onShare,
+  onComputer,
 }: {
   isOwner: boolean;
   /** A public agent, or this person's own. */
   canChat: boolean;
+  /**
+   * The agent holds the `computer` grant and this person may use it: its
+   * computer view is theirs to open (it only ever shows THEIR computer with
+   * the agent).
+   */
+  hasComputer?: boolean;
   /** Credits per use, or null for a free agent. */
   price: number | null;
   onEdit: () => void;
   onChat: () => void;
   onStartTask: () => void;
   onShare: () => void;
+  onComputer?: () => void;
 }) {
   const { t } = useTranslation();
 
@@ -46,6 +55,9 @@ export function AgentHeaderActions({
         <ButtonGroupItem onPress={onEdit}>{t('agents.edit')}</ButtonGroupItem>
       ) : null}
       {canChat ? <ButtonGroupItem onPress={onChat}>{t('agents.chat')}</ButtonGroupItem> : null}
+      {hasComputer && onComputer ? (
+        <ButtonGroupItem onPress={onComputer}>{t('agents.computer.open')}</ButtonGroupItem>
+      ) : null}
       <ButtonGroupItem onPress={onStartTask}>
         {price != null
           ? t('agents.startTaskPriced', { count: price })

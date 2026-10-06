@@ -546,7 +546,7 @@
       "kind": "consumer",
       "name": "Codea VS Code extension - webview chat provider (OpenAI SDK)",
       "currentPath": "packages/alia-codea/src/chatProvider.ts",
-      "summary": "new OpenAI({ baseURL: `${baseUrl}/v1` }) - so it hits /v1/chat/completions WITHOUT the literal path appearing in source. Also GETs /v1/models?category=coding and reads the non-standard alia_meta.synthetic flag off streamed chunks.",
+      "summary": "Streams POST /alia/chat through src/aliaChat.ts (streamAliaChat); the OpenAI SDK client is gone. aliaChat.ts still reads the alia_meta.synthetic flag defensively, although the server no longer emits it.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
@@ -554,8 +554,8 @@
         "v1-models-list",
         "response-ext-alia-meta"
       ],
-      "removalGate": "An OpenAI-SDK client demands strict OpenAI wire conformance - a stray non-JSON SSE frame throws inside the SDK's parser. alia_meta must stay an ADDITIVE field on the chunk.",
-      "evidence": "packages/alia-codea/src/chatProvider.ts:705,144,811-812,968"
+      "removalGate": "None: Alia's own surface on Alia's permanent product API (ADR 0010). The defensive alia_meta.synthetic branch can go once no older server can answer it.",
+      "evidence": "packages/alia-codea/src/chatProvider.ts:12,757; packages/alia-codea/src/aliaChat.ts:15,33"
     },
     {
       "id": "codea-cli-consumer",
@@ -577,7 +577,7 @@
       "kind": "consumer",
       "name": "Cowork Electron - chat.ts (fetch POST /alia/chat)",
       "currentPath": "packages/alia-cowork/src/main/chat.ts",
-      "summary": "fetch `POST ${baseUrl}/alia/chat` through `src/main/alia-chat.ts` (SSE frame reader ported from the app) with model default 'route:cowork'. Reads the named events (`alia.reasoning` -> chat:thinking) and `alia_meta.synthetic` (a busy stand-in is an error, never an answer); 401 re-mints the Oxy device session once. The former non-standard `delta.reasoning` read is gone. Also GETs /v1/me and /v1/models?category=coding and /memory.",
+      "summary": "fetch `POST ${baseUrl}/alia/chat` through `src/main/alia-chat.ts` (SSE frame reader ported from the app) with model default 'route:cowork'. Reads the named events (`alia.reasoning` -> chat:thinking) and, defensively, `alia_meta.synthetic` (a busy stand-in is an error, never an answer; the server no longer emits it); 401 re-mints the Oxy device session once. The former non-standard `delta.reasoning` read is gone. Also GETs /v1/me and /v1/models?category=coding and /memory.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
@@ -1110,14 +1110,14 @@
       "kind": "model-id-usage",
       "name": "Non-standard response field alia_meta {synthetic, retryable}",
       "currentPath": "packages/api/src/lib/chat/response-shapes.ts",
-      "summary": "Flags a synthetic fallback answer (global 80s timeout or last-resort). Attached to the non-streaming envelope and to the synthetic streaming chunk.",
+      "summary": "No longer emitted. It flagged a synthetic fallback answer (global 80s timeout or last-resort); that path is gone and a failed turn is now always a typed error (failTurn in routes/v1/chat-completions.ts; docs/chat-runtime.mdx 'Persistence and failure'). buildChatCompletion still accepts an optional aliaMeta, but no caller passes one.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
         "response-ext-alia-usage"
       ],
-      "removalGate": "The Codea extension branches on alia_meta.synthetic at three sites to suppress a bogus answer. Removing it makes Codea present timeout filler as a real model response.",
-      "evidence": "packages/api/src/lib/chat/response-shapes.ts:70; packages/api/src/routes/v1/chat-completions.ts:298; packages/alia-codea/src/chatProvider.ts:812,968"
+      "removalGate": "Server side: none left to remove beyond the unused aliaMeta option. Clients (Codea's aliaChat.ts/chatParticipant.ts/inlineCompletionProvider.ts, Cowork's alia-chat.ts, @alia.onl/server) still read alia_meta.synthetic defensively so an older server cannot slip a stand-in in as an answer; drop those branches once no older server can answer them.",
+      "evidence": "packages/api/src/lib/chat/response-shapes.ts:38,70 (optional, no caller); packages/alia-codea/src/chatParticipant.ts:176-244; packages/alia-codea/src/inlineCompletionProvider.ts:164; packages/alia-cowork/src/main/alia-chat.ts:289"
     },
     {
       "id": "gateway-client-seam",

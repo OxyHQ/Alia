@@ -14,9 +14,22 @@
  *   GET  /v1/actors/:actor/files/content?path=         read a text file
  *   PUT  /v1/actors/:actor/files/content               { path, text }
  *   POST /v1/actors/:actor/files/directories           { path }
+ *   GET  /v1/actors/:actor/commands?limit=             recent receipts, newest first
  *
- * Extension points for the next steps (browser worker, live view) are new
- * route groups under the same actor and the same token — not a second auth.
+ * The browser (`browser-service.ts`), under the same actor and the same token:
+ *
+ *   GET  /v1/actors/:actor/browser                     status; never starts it
+ *   POST /v1/actors/:actor/browser/open                { url?, by }
+ *   POST /v1/actors/:actor/browser/navigate            { url, by }
+ *   GET  /v1/actors/:actor/browser/read                { url, title, text, truncated, elements, downloads }
+ *   GET  /v1/actors/:actor/browser/screenshot          image/jpeg, 1280×800 (not JSON)
+ *   POST /v1/actors/:actor/browser/input               { input, by }
+ *   POST /v1/actors/:actor/browser/control             { controller }
+ *   POST /v1/actors/:actor/browser/close               { by }
+ *   GET  /v1/actors/:actor/browser/actions?limit=      recent browser receipts
+ *
+ * `by` is `agent` or `owner`: who is acting, as the Alia API (the only caller)
+ * established it. There is no route that runs caller-supplied JavaScript.
  *
  * Responses are `{ data }` or `{ error: { code, message } }`. Nothing a
  * response or a log line carries includes a command's text or a file's
@@ -25,6 +38,8 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { AttestationError, type WorkloadAuthority } from './attestation.js';
+import type { BrowserService } from './browser-service.js';
+import { actorRoleSchema, browserInputSchema } from './browser/input.js';
 import type { ComputerService } from './computer-service.js';
 import { HostError } from './errors.js';
 
@@ -37,6 +52,17 @@ const commandSchema = z.object({
 }).strict();
 const writeSchema = z.object({ path: z.string().min(1).max(2048), text: z.string().max(256 * 1024) }).strict();
 const pathSchema = z.object({ path: z.string().min(1).max(2048) }).strict();
+const browserUrl = z.string().min(1).max(8192);
+const openSchema = z.object({ url: browserUrl.optional(), by: actorRoleSchema }).strict();
+const navigateSchema = z.object({ url: browserUrl, by: actorRoleSchema }).strict();
+const inputSchema = z.object({ input: browserInputSchema, by: actorRoleSchema }).strict();
+const controlSchema = z.object({ controller: actorRoleSchema }).strict();
+const bySchema = z.object({ by: actorRoleSchema }).strict();
+
+function queryLimit(req: Request, fallback: number): number {
+  const value = Number(req.query.limit);
+  return Number.isInteger(value) && value > 0 ? Math.min(value, 50) : fallback;
+}
 
 type Handler = (req: Request, res: Response) => Promise<unknown>;
 
@@ -51,6 +77,8 @@ function queryPath(req: Request): string | undefined {
 
 export function createApp(options: {
   service: ComputerService;
+  /** Absent when the browser is turned off on this host. */
+  browser?: BrowserService | null;
   authority: WorkloadAuthority;
   log: { warn: (obj: object, msg: string) => void; error: (obj: object, msg: string) => void };
   ready: () => boolean;
@@ -100,6 +128,7 @@ export function createApp(options: {
   v1.post('/actors/:actor/computer/start', route((req) => service.start(req.params.actor as string)));
   v1.post('/actors/:actor/computer/stop', route((req) => service.stop(req.params.actor as string)));
   v1.post('/actors/:actor/commands', route((req) => service.command(req.params.actor as string, commandSchema.parse(req.body))));
+  v1.get('/actors/:actor/commands', route((req) => service.recentReceipts(req.params.actor as string, queryLimit(req, 20))));
   v1.get('/actors/:actor/commands/:operationId', route(async (req) => {
     const receipt = await service.receipt(req.params.actor as string, req.params.operationId as string);
     if (!receipt) throw new HostError('No command with that operationId', 404, 'not_found');
@@ -119,6 +148,39 @@ export function createApp(options: {
     const body = pathSchema.parse(req.body);
     return service.mkdir(req.params.actor as string, body.path);
   }));
+
+  const browserRoutes = express.Router({ mergeParams: true });
+  const browser = () => {
+    if (!options.browser) throw new HostError('The browser is turned off on this host', 404, 'browser_disabled');
+    return options.browser;
+  };
+  const actor = (req: Request) => req.params.actor as string;
+  browserRoutes.get('/', route((req) => browser().status(actor(req))));
+  browserRoutes.post('/open', route((req) => {
+    const body = openSchema.parse(req.body ?? {});
+    return browser().open(actor(req), body.url, body.by);
+  }));
+  browserRoutes.post('/navigate', route((req) => {
+    const body = navigateSchema.parse(req.body);
+    return browser().navigate(actor(req), body.url, body.by);
+  }));
+  browserRoutes.get('/read', route((req) => browser().read(actor(req))));
+  browserRoutes.get('/screenshot', (req, res, next) => {
+    browser()
+      .screenshot(actor(req))
+      .then((bytes) => {
+        res.set({ 'content-type': 'image/jpeg', 'cache-control': 'no-store' }).send(bytes);
+      }, next);
+  });
+  browserRoutes.post('/input', route((req) => {
+    const body = inputSchema.parse(req.body);
+    return browser().input(actor(req), body.input, body.by);
+  }));
+  browserRoutes.post('/control', route((req) => browser().control(actor(req), controlSchema.parse(req.body).controller)));
+  browserRoutes.post('/close', route((req) => browser().close(actor(req), bySchema.parse(req.body ?? {}).by)));
+  browserRoutes.get('/actions', route((req) => browser().actions(actor(req), queryLimit(req, 20))));
+  v1.use('/actors/:actor/browser', browserRoutes);
+
   app.use('/v1', v1);
 
   app.use((_req: Request, res: Response) => {

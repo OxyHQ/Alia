@@ -1,3 +1,4 @@
+import { AgentOxyAppsSection } from '@/features/agents/ui/edit/agent-oxy-apps-section';
 import { AgentResourcesPanel } from '@/features/agents/ui/edit/agent-resources-panel';
 import { AgentSettingsPanel } from '@/features/agents/ui/edit/agent-settings-panel';
 import { ConnectTelegramBotDialog } from '@/features/agents/ui/edit/telegram-bots-section';
@@ -6,6 +7,7 @@ import type {
   AgentDraft,
   LinkedSkill,
 } from '@/features/agents/runtime/use-agent-autosave';
+import type { AgentOxyApps } from '@/features/agents/runtime/use-agent-oxy-apps';
 import type { AgentTelegramBots } from '@/features/agents/runtime/use-agent-telegram-bots';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import type { LibraryFile } from '@/features/library/runtime/library-store';
@@ -28,6 +30,7 @@ export function AgentEditorSidebar({
   connectors,
   libraryFiles,
   telegram,
+  oxyApps,
 }: {
   /**
    * Held by the editor rather than here, so the side sheet reopens on the tab
@@ -41,6 +44,8 @@ export function AgentEditorSidebar({
   connectors: GrantableConnector[];
   libraryFiles: readonly LibraryFile[];
   telegram: AgentTelegramBots;
+  /** The owner's per-app levels; asked for when the editor opens, like the rest. */
+  oxyApps: AgentOxyApps;
 }) {
   const { t } = useTranslation();
 
@@ -62,13 +67,16 @@ export function AgentEditorSidebar({
         keyboardShouldPersistTaps="handled"
       >
         {tab === 'resources' ? (
-          <AgentResourcesPanel
-            draft={draft}
-            onEdit={onEdit}
-            attachableSkills={attachableSkills}
-            connectors={connectors}
-            libraryFiles={libraryFiles}
-          />
+          <>
+            <AgentOxyAppsSection oxyApps={oxyApps} />
+            <AgentResourcesPanel
+              draft={draft}
+              onEdit={onEdit}
+              attachableSkills={attachableSkills}
+              connectors={connectors}
+              libraryFiles={libraryFiles}
+            />
+          </>
         ) : (
           <AgentSettingsPanel draft={draft} onEdit={onEdit} telegram={telegram} />
         )}

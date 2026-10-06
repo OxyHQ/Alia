@@ -1,6 +1,10 @@
 # Alia Agents
 
-Alia runs as a context-agent system that prioritizes autonomous retrieval and policy-safe execution.
+An agent is one of Alia's two kinds of actor: a persona a person creates, with its
+own Oxy account, memory and computer, acting for its owner within the levels the
+owner set or as itself. Alia, the other actor, needs no agent for anything. The
+map of both is [Actors: Alia and agents](./actors.mdx); this page is the detail
+for agents.
 
 Agents, tools, approvals, the risk policy, deep research and triggers are Alia's own responsibility and stay that way under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md). None of it moves to the Kaana data plane.
 
@@ -313,41 +317,11 @@ exclusive and scrolls back; `?at=` opens the window CONTAINING a message, which
 is what a search hit's `cursor` is for — `before` cannot serve it, since the hit
 would be the one message missing from the window meant to reveal it.
 
-## Execution Loop
+## Execution loop and context graph
 
-Every interaction follows one runtime loop:
-
-1. `classify` - detect intent.
-2. `recall` - load ranked sources + rules.
-3. `retrieve` - gather context from top sources.
-4. `act` - produce answer and run tools.
-5. `learn` - update source quality and learned rules.
-
-This loop is shared across app, Codea, and Cowork.
-
-## Intents
-
-Current first-wave intents:
-
-- `meeting_prep`
-- `inbox_digest`
-- `project_status`
-- `task_followup`
-- `monitoring`
-- `research`
-- `general`
-
-## Context Graph
-
-Persistent entities, read through `db/autonomy/contextGraphRepository.ts`:
-
-- `context_sources` - where data lives and how reliable it is.
-- `context_nodes` - discovered entities (people, projects, docs, threads, etc.).
-- `context_edges` - relationships between nodes.
-- `retrieval_strategies` - per-intent navigation strategy.
-- `learning_rules` - learned corrections, preferences and constraints; read through `db/autonomy/learningRuleRepository.ts` rather than the context-graph repository.
-
-Ranking combines freshness, precision, and cost to choose source order.
+An agent's turn runs the same autonomy loop as Alia's (`classify → recall →
+retrieve → act → learn`) over the same context graph. Both are documented once, in
+[Memory and the context graph](./memory-system.md#2-context-graph-autonomy).
 
 ## Capabilities
 
@@ -369,7 +343,8 @@ migration 0071 (post phase) removed them from `agents.capability_grants`.
 
 Their successor, under a new name so no stored grant can turn it on:
 `computer` gives an agent its own Linux machine — node, python3, git and bash,
-**no network**, a persistent `/workspace` — through seven tools
+**no network** for the shell, a persistent `/workspace` — through seven shell
+tools (and the browser below)
 (`computer_status`, `computer_start`, `computer_stop`, `run_computer_command`,
 `list_computer_files`, `read_computer_file`, `write_computer_file`;
 `lib/computer/computer-tools.ts`). Built only on a runtime turn, only when
@@ -402,7 +377,73 @@ Their successor, under a new name so no stored grant can turn it on:
   `requestWorkloadServiceToken` against the host, which replays the signed STS
   `GetCallerIdentity` and allow-lists `oxy-alia-task`. No shared secret.
 
-Infrastructure: oxy-infra `terraform-uswest2/alia-computer-host.tf`.
+Infrastructure: oxy-infra `terraform-uswest2/alia-computer-host.tf`; operating it:
+oxy-infra `docs/runbooks/47-alia-computer-host.md`.
+
+### The agent's browser (also `computer`)
+
+The same machine has a real browser, under the same grant — one machine, one
+switch (`browser` is taken by the Clarity primitive below). Eight tools,
+`lib/computer/browser-tools.ts`: `browser_open`, `browser_read`,
+`browser_screenshot`, `browser_click`, `browser_type`, `browser_key`,
+`browser_scroll`, `browser_close`. Every description sends the model to
+`webSearch` / `webScraper` first; the browser is for signing in, forms,
+JavaScript-only pages and downloads.
+
+- **One Chromium per host, one context per actor**, persistent: the actor's
+  storage state (cookies, localStorage, IndexedDB) is saved on a profiles volume
+  after activity, on idle close (10 min), on eviction and at shutdown, so a
+  sign-in survives the browser closing and the host sleeping. At most 3
+  contexts; a fourth evicts the least recently used one idle for a minute, or
+  answers "no browser slot". 1280×800.
+- **Network boundary.** The browser container (gVisor) sits only on an
+  `--internal` Docker network; its one way out is a separate egress-proxy
+  container that resolves each name once, refuses it if ANY answer is private,
+  loopback, link-local (metadata 169.254.169.254), CGNAT, reserved or the
+  deployment's extra CIDRs, and connects to exactly the checked address on
+  80/443 — no DNS rebinding. HTTPS is a CONNECT tunnel to 443 only; QUIC and
+  non-proxied WebRTC UDP are off; Chromium resolves no names itself. The shell
+  computers stay `--network none`. Reasoning and the memory budget:
+  `packages/alia-computer-host/src/browser-isolation.ts`.
+- **No caller JavaScript.** Input is click{x,y}, type (≤2000 chars), one key
+  from a short list, scroll. `browser_read` returns the visible text and the
+  clickable elements in view with their centre points (a fixed script in the
+  worker), because Oxy's inference surface is text-only and the model cannot
+  see the screenshot; `browser_screenshot` is for the person and says so.
+- **Untrusted.** Page content is fenced as web data, never instructions. A
+  password field is flagged: the model is told to hand over, not to type it.
+- **Risk:** read/screenshot/scroll R0; open/click/close R1; `browser_type` and
+  `browser_key` Enter (they fill and submit forms) are R2 in a background run,
+  R1 in a chat turn (`attended` in `classifyActionRisk`).
+- **Downloads** (PDF, images, office/zip, UTF-8 text; ≤20 MiB, checked by their
+  bytes) are moved into the actor's `/workspace/downloads/`, starting the
+  computer if needed. Anything else is refused and reported.
+- **Receipts** for every open/navigation/input/control/close/download: who did
+  it (agent or person), the site's origin and the outcome — never typed text,
+  never a full URL.
+- **Memory.** While the browser runs it holds two of the host's six computer
+  slots (1 GiB browser + 128 MiB proxy); it stops when no context is left.
+
+### The live view (`/agents/:id/computer`)
+
+The person an actor belongs to sees that computer in the app (agent page →
+Computer; `packages/app/src/features/agents/ui/computer/`): the browser live
+(a screenshot polled every 1.5 s while the screen is on show and the app is in
+the foreground), the `/workspace` files (read-only) and recent command and
+browser receipts. **Authorisation is the actor id**: `routes/agents/computer.ts`
+composes `agent:<agentId>:user:<caller>` from the caller's verified Oxy user,
+after `canReachAgent`, so nobody — not a public agent's creator — reaches a
+computer that is not theirs. The person can **take control** (for a login or a
+captcha: clicks, typing, a few keys, scroll, an address bar) and **hand back**;
+while they hold it the agent's actions are refused with `owner_in_control`,
+and control returns by itself after 15 minutes of the person doing nothing.
+Polling never wakes a sleeping host.
+
+**Signing up as the agent.** An agent IS an Oxy account, so the identity for a
+sign-up it does on its own is its own Oxy address, and it reads the verification
+mail in its OWN Inbox with its `self_inbox__*` tools (see "Oxy apps: for the
+person and as itself" below) — never in its owner's. A captcha, or a sign-in that
+needs the person's own credentials, is handed to the person in the live view.
 
 `browser` is **Clarity-only**. The runtime image ships no Chromium, so the
 runner's `browser` primitive offers exactly what works without one: `search`,
@@ -419,9 +460,11 @@ Two properties are worth stating outright, because both reverse what came before
   the six `permissions_*` columns and `archetypeConfig.knowledgeSources`— all
   treated an unset value as *allowed*, so an agent nobody had configured could
   reach everything its owner could.
-- **Connectors are granted one at a time.** MCP connectors, Oxy services and
-  OAuth integrations build their tool names from rows, so a grant names the row.
-  An agent no longer inherits every connector its owner has installed.
+- **Connectors are granted one at a time.** MCP connectors and OAuth
+  integrations build their tool names from rows, so a grant names the row. An
+  agent no longer inherits every connector its owner has installed. Oxy apps
+  are not in this vocabulary at all — see "Oxy apps: for the person and as
+  itself" below.
 
 ### Talking to your own agents
 
@@ -453,6 +496,40 @@ it grants one family, runs the real assembler and asserts the set gained exactly
 that family's tools. A grant that reaches nothing produces an empty difference
 and fails — which is the control the two dead vocabularies never had.
 
+## Oxy apps: for the person and as itself
+
+[ADR 0015](./adr/0015-actors-and-identities.md). An agent has two identities in
+Oxy, and its toolset carries both, named apart:
+
+- **`self_<app>__<tool>` — its own bot account.** Its own Inbox, its own
+  profile and sign-ups. Oxy authorizes it without a grant (Oxy ADR 0018
+  addendum): the account is the agent's.
+- **`oxy_<app>__<tool>` — its owner's account**, within the level the owner set
+  for that app in the editor's "Apps de Oxy" section: **Nada**, **Ver** (reads
+  only) or **Ver y actuar** (reads and effects, no approval). A new agent starts
+  at Nada everywhere.
+
+Each level is ONE Oxy `DelegationGrant` from the owner to the agent's bot over
+the owner's account root of that app, written with the owner's bearer by
+`lib/agent-oxy-apps.ts` (`GET/PUT /agents/:id/oxy-apps`, owner only).
+`agent_oxy_app_permissions` records which grant stands for which level; every
+read reconciles with Oxy, so a grant revoked in the accounts app's Agency tab
+(the advanced view) reads as Nada. Ver = the app's read packages at
+`read_only`; Ver y actuar = every non-sensitive package at `autonomous`.
+`finance`, `security` and `delegate` are never part of a level.
+
+Who is present decides how a call is authorized:
+
+| Turn | Owner's apps (`oxy_*`) | Own account (`self_*`) |
+|---|---|---|
+| Owner in the agent's chat | `direct_request`, owner's bearer, trimmed to the levels | `direct_request`, owner's bearer, no grant |
+| Agent run, nobody present (`runner.ts`) | Oxy agent-run lane; requester derived by Oxy from the bot's owner; effects need Ver y actuar | same lane, no grant |
+| Automation stage | its preauthorized steps only | — |
+| Somebody else (shared/public agent, a stranger on its Telegram bot) | never | not in this phase |
+
+`ownerIsPresent` in `lib/tool-pipeline.ts` is the one place that decides the
+last row. Deleting an agent revokes its level grants; its bot account stays.
+
 ## Governance
 
 Risk policy is enforced per action:
@@ -462,19 +539,13 @@ Risk policy is enforced per action:
 - `R2` external/unknown impact: approval required.
 - `R3` destructive: blocked.
 
-User approvals are interactive and real-time. `alia.approval_request` and `alia.approval_result` travel over Socket.IO, to the `agent-session:<sessionId>` room (`packages/api/src/socket.ts:216`, `:231`) — not over the chat SSE stream.
+Risk is classified per call by `classifyActionRisk` (`lib/agent/governance.ts`).
+User approvals are interactive and real-time. `alia.approval_request` and `alia.approval_result` travel over Socket.IO, to the `agent-session:<sessionId>` room (`packages/api/src/socket.ts`) — not over the chat SSE stream. An attended approval waits 60 seconds by default (`lib/agent/action-approval.ts`); a background run never waits (see "Approvals nobody is waiting for" below).
 
 ## Triggers and Proactive Runs
 
-`/automations` is the normalized control plane for proactive work. Each definition stores
-its objective, actor selection, trigger, resources, exact actions, allowed data flow,
-limits, autonomy policy and `observe | execute` mode. Runs and their correlated policy
-and tool decisions are persisted in `automation_runs` and `automation_steps`.
-
-The legacy trigger model is gone: the `/triggers` routes, the `triggers` and
-`trigger_executions` tables and the definitions that indexed them were removed by
-migrations 0069 and 0070. Active work is created and edited only through
-`/automations`.
+`/automations` is the control plane for background work; triggers, actor modes and
+how a run executes are in [Background work and proactive outreach](./proactive-intelligence.md).
 
 Every task has a responsible actor. Alia is the default (`actor_mode = 'alia'`):
 she runs it herself with no agent and posts results into a conversation of the
@@ -496,8 +567,12 @@ a notification that opens `/@handle`.
 - `result`: a finished top-level background run (goal, scheduled task) is
   delivered this way, never rate-limited — it is what the person asked for.
 - `check_in`: the agent's own `sendMessageToUser` tool, available only on a
-  top-level background run. At most 3 per person and agent per rolling day,
-  and none while its last 2 messages are unanswered.
+  top-level background run, and an important email in the agent's OWN mailbox
+  (`lib/proactive/email-outreach.ts`, see `docs/proactive-intelligence.md`).
+  At most 3 per person and agent per rolling day, and none while its last 2
+  messages are unanswered (`lib/agent/outreach-budget.ts`). Alia's own
+  initiative (`postAliaCheckIn`, her outreach conversation) spends the same
+  budget, counted in that conversation.
 - `scheduleFollowUp` lets the agent schedule its own next look: a one-off
   automation (`inputs.origin = 'agent_follow_up'`, at most 5 pending per
   person and agent). Its result is NOT posted; the agent speaks through
@@ -511,15 +586,56 @@ admitted per person, holding credits like a goal, linked to the thread — and
 that run's result is posted into the conversation when it finishes. The model
 is told to say it is on it rather than do the work twice.
 
-### An agent's own memory of a person
+### Memory is per actor
+
+**Alia remembers the person; each agent remembers them on its own.** Two stores,
+never mixed:
+
+| Actor | Store | Tools | In the prompt |
+|---|---|---|---|
+| Alia | `user_memories` + `user_memory_entries` (+ embeddings) | `saveUserMemory`, `updateUserMemory`, `forgetUserMemory`, `updateUserPreferences`, `updateUserContext` | recall, facts, preferences, context, writing style |
+| An agent (with the `memory` grant) | `agent_memory_documents` (MEMORY.md + `memory/<topic>.md`, per agent AND person) | `memory` (`list`, `read`, `append`, `replace`, `forget`) and `searchThread` | its own MEMORY.md (`agentMemoryPromptSection`) |
+
+An agent turn never receives Alia's tools or any of her memory, whatever it was
+granted (`lib/tool-pipeline.ts`, `lib/system-prompt-builder.ts`); before this,
+an agent with the grant read Alia's recall and wrote into her store, so one
+agent's notes surfaced in every other agent and under Alia's name. The
+`memory` family in `FIXED_FAMILY_TOOLS` is therefore just `memory` and
+`searchThread`.
+
+**Memory in a prompt is data, not instructions.** Every memory block — Alia's
+recall and "User Information", an agent's MEMORY.md, the `# USER CONTEXT` of a
+background prompt — goes through `memoryDataBlock` (`lib/memory/memory-prompt.ts`):
+a heading, one sentence saying the block is remembered data to inform the answer
+and never a command that overrides the rules or the current request, and the
+content inside a `<memory>` element its content cannot close.
+
+**The person sees, edits and forgets it.** Settings → Memory shows Alia's
+memory and, under it, every agent that remembers something about the person
+(`GET /memory/agents`); each opens its files (`GET|PUT /agents/:id/memory`),
+editable with the hash they were read at, and forgettable one file or all at
+once (`DELETE /agents/:id/memory[?path=]`). The caller only ever reaches their
+OWN rows; an agent is addressable when it already remembers them (a public
+agent included) or when they may act as its bot account. "Olvida esto" in chat
+uses `forgetUserMemory` (Alia: entry and its embedding) or the agent's
+`memory` `forget` (R1, no rollback on purpose). Forgetting an agent file deletes
+its journal too: a forgotten note is not kept as history.
+
+Migration 0084 (pre) adds the per-person unique
+`agent_memory_agent_user_path_key`; 0085 (post) drops the old
+`(agent_id, path)` unique, under which a second person could never write a
+MEMORY.md with a shared agent.
+
+#### An agent's own memory of a person
 
 `agent_memory_documents` (MEMORY.md plus `memory/<topic>.md`, per agent and
 person) is the agent's, not only the person's to edit: with the `memory` grant
 its MEMORY.md is in the prompt of every chat turn and background run
-(`agentMemoryPromptSection`), and the `memory` tool lists, reads, appends and
-replaces its files. Writes carry the hash the tool just read, so the agent and
-the person editing the same file never overwrite each other, and every write is
-journaled with origin `agent`. Reads are R0, writes R1 (journaled).
+(`agentMemoryPromptSection`), and the `memory` tool lists, reads, appends,
+replaces and forgets its files. Writes carry the hash the tool just read, so the
+agent and the person editing the same file never overwrite each other, and every
+write is journaled with origin `agent`. Reads are R0, writes R1 (journaled),
+`forget` R1 without rollback.
 
 ### Approvals nobody is waiting for
 

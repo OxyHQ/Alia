@@ -10,14 +10,14 @@ wrote.
 
 ## Why it exists
 
-Alia writes five different things on that stream:
+Alia can write these things on that stream:
 
 | On the wire | What it is |
 | --- | --- |
 | `data: {…choices[0].delta.content}` | an assistant text delta |
 | `data: {…choices[0].delta.reasoning}` | a reasoning delta |
 | `event: alia.tool_result` + `data: {…}` | a named product event |
-| `data: {…, "alia_meta": {"synthetic": true}}` | a stand-in message written after a provider died |
+| `data: {…, "alia_meta": {"synthetic": true}}` | a stand-in message an **older** server wrote after a provider died; current servers end a failed turn with the error payload below |
 | `data: {"error":{"code":"agent_unavailable"}}` | Alia refusing, mid-stream |
 | `data: [DONE]` | the terminator |
 
