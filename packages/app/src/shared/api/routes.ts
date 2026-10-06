@@ -154,6 +154,10 @@ export const API_ROUTES = {
      */
     capabilityConnectors: (excludeAgentId: string) =>
       `/agents/capability-connectors?agent=${encodeURIComponent(excludeAgentId)}`,
+    /** What of its OWNER's data the agent may use, one level per Oxy app (owner only). */
+    oxyApps: (id: string) => `/agents/${encodeURIComponent(id)}/oxy-apps`,
+    oxyApp: (id: string, appId: string) =>
+      `/agents/${encodeURIComponent(id)}/oxy-apps/${encodeURIComponent(appId)}`,
   },
 
   // Library routes

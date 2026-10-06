@@ -1481,25 +1481,35 @@
     "reviews": "Reseñas",
     "writeReview": "Escribir una reseña",
     "modelPinned": "Modelo fijado (%{model})",
-    "modelPinnedDescription": "Usa exactamente este modelo. Elige un nivel para que Alia elija."
+    "modelPinnedDescription": "Usa exactamente este modelo. Elige un nivel para que Alia elija.",
+    "oxyApps": {
+      "title": "Apps de Oxy",
+      "footer": "Qué puede usar este agente de TUS datos, app por app. Nada: nada. Ver: puede leer. Ver y actuar: puede leer y actuar por ti, sin preguntarte. Además siempre tiene su propia cuenta (su propio buzón).",
+      "none": "Nada",
+      "read": "Ver",
+      "act": "Ver y actuar",
+      "levelLabel": "Qué acceso a %{app} tiene este agente",
+      "loadFailed": "No se han podido cargar tus apps de Oxy. Inténtalo más tarde.",
+      "saveFailed": "No se ha podido cambiar %{app}. No ha cambiado nada."
+    }
   },
   "authorize": {
     "linkingAccount": "Vinculando cuenta...",
     "pleaseWait": "Por favor espera mientras configuramos tu acceso",
     "authRequired": "Autenticación requerida",
     "linked": "¡Vinculado!",
-    "linkSuccess": "¡Tu cuenta de {{app}} ha sido vinculada exitosamente!",
+    "linkSuccess": "¡Tu cuenta de %{app} ha sido vinculada exitosamente!",
     "linkFailed": "Error al vincular",
     "failedToLink": "Error al vincular tu cuenta. Por favor intenta de nuevo.",
-    "returnToApp": "¡Ahora puedes volver a {{app}} y empezar a chatear con Alia!",
+    "returnToApp": "¡Ahora puedes volver a %{app} y empezar a chatear con Alia!",
     "requestNewLink": "Solicitar nuevo enlace",
     "invalidToken": "Token de autenticación inválido. El enlace que seguiste no es válido.",
     "tokenExpired": "Este enlace ha expirado. Por favor solicita uno nuevo.",
     "invalidOrExpiredToken": "Token inválido o expirado. Por favor solicita un nuevo enlace.",
-    "needLogin": "Necesitas iniciar sesión primero para vincular tu cuenta de {{app}}.",
+    "needLogin": "Necesitas iniciar sesión primero para vincular tu cuenta de %{app}.",
     "missingToken": "Token de autenticación faltante.",
-    "authorizeApp": "Autorizar {{app}}",
-    "appWantsAccess": "{{app}} quiere acceder a tu cuenta"
+    "authorizeApp": "Autorizar %{app}",
+    "appWantsAccess": "%{app} quiere acceder a tu cuenta"
   },
   "memory": {
     "title": "Memoria",

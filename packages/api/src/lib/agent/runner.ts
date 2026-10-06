@@ -44,7 +44,7 @@ import { AgentStateMachine } from './state-machine.js';
 import { TodoManager } from './todo-manager.js';
 import { BrowserSession } from './browser-session.js';
 import { ToolPipeline } from '../tool-pipeline.js';
-import { oxyExecutionAuthorizationKey } from '../tools/oxy-services.js';
+import { agentIdentityPrompt, oxyExecutionAuthorizationKey } from '../tools/oxy-services.js';
 import { agentRemitPrompt } from './archetype-prompts.js';
 import {
   agentPromptName,
@@ -460,7 +460,12 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
     agent,
     runId: session.automationRunId ?? session.id,
     oxyAutonomy: 'autonomous',
-    oxyExecutionAuthorizations,
+    // An automation stage runs exactly its preauthorized steps. Any other run
+    // is the agent working on its own: its permissions come from Oxy's
+    // agent-run lane, not from an (always empty) step map.
+    ...(session.automationRunId
+      ? { oxyExecutionAuthorizations }
+      : { oxyAgentRunSessionId: session.id }),
     toolScope: session.automationRunId
       ? 'preauthorized_oxy_automation'
       : 'standard',
@@ -497,7 +502,7 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
   // The agent's OWN name. It used to be told it was Alia, above its own prompt.
   const grantsMemory = readCapabilityGrants(agent.capabilityGrants).allows('memory');
   const memorySection = grantsMemory ? await agentMemoryPromptSection(session.oxyUserId, agent._id) : '';
-  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, { automation: Boolean(session.automationRunId), outreach: !session.parentSessionId })}${memorySection}${appCatalogPrompt}`;
+  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, { automation: Boolean(session.automationRunId), outreach: !session.parentSessionId })}${memorySection}${agentIdentityPrompt(Object.keys(allActions))}${appCatalogPrompt}`;
 
   // Persisted every step, so a resumed run keeps counting against the SAME
   // budget instead of starting a fresh one.

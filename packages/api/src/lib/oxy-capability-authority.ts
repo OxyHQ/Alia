@@ -121,3 +121,56 @@ export async function revokeOxyExecutionAuthorization(
     if (getErrorStatus(error) !== 404) throw error;
   }
 }
+
+const agentRunAuthorizationResponseSchema = z.object({
+  authorization: z.object({ id: z.string().min(1) }).passthrough(),
+}).passthrough();
+
+export interface CreateOxyAgentRunAuthorizationInput {
+  /** The agent's bot account: the actor. */
+  actorAccountId: string;
+  /** The owner Alia expects. Oxy reads the bot's live parent and refuses a mismatch. */
+  ownerAccountId: string;
+  /** The agent session this step belongs to; Oxy records `agent-session:<id>`. */
+  sessionId: string;
+  resource: ResourceRef;
+  tool: string;
+  maximumAutonomy: AutonomyLevel;
+  expiresAt: Date;
+}
+
+/**
+ * Authority for one step of an agent's UNATTENDED run (Oxy ADR 0018 addendum).
+ *
+ * Service lane: Alia's own token, no bearer — nobody is present. Oxy derives
+ * the requester from the bot's live parent (never from this request) and
+ * re-evaluates the result on every ticket: the agent's own account needs no
+ * grant, the owner's needs one, and an effect on it needs that grant at
+ * `autonomous`.
+ */
+export async function createOxyAgentRunAuthorization(
+  input: CreateOxyAgentRunAuthorizationInput,
+): Promise<string> {
+  const response = await fetch(`${OXY_API_URL}/capabilities/agent-run-authorizations`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${await oxyServiceToken()}`,
+      accept: 'application/json',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      actorAccountId: input.actorAccountId,
+      ownerAccountId: input.ownerAccountId,
+      sessionId: input.sessionId,
+      resource: input.resource,
+      tool: input.tool,
+      maximumAutonomy: input.maximumAutonomy,
+      expiresAt: input.expiresAt.toISOString(),
+    }),
+    signal: AbortSignal.timeout(AUTHORITY_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`Oxy agent-run authority error (${response.status}): ${(await response.text()).slice(0, 240)}`);
+  }
+  return agentRunAuthorizationResponseSchema.parse(await response.json()).authorization.id;
+}

@@ -419,9 +419,11 @@ Two properties are worth stating outright, because both reverse what came before
   the six `permissions_*` columns and `archetypeConfig.knowledgeSources`— all
   treated an unset value as *allowed*, so an agent nobody had configured could
   reach everything its owner could.
-- **Connectors are granted one at a time.** MCP connectors, Oxy services and
-  OAuth integrations build their tool names from rows, so a grant names the row.
-  An agent no longer inherits every connector its owner has installed.
+- **Connectors are granted one at a time.** MCP connectors and OAuth
+  integrations build their tool names from rows, so a grant names the row. An
+  agent no longer inherits every connector its owner has installed. Oxy apps
+  are not in this vocabulary at all — see "Oxy apps: for the person and as
+  itself" below.
 
 ### Talking to your own agents
 
@@ -452,6 +454,40 @@ account that funds the outer turn. It does not act for a person, so it holds no
 it grants one family, runs the real assembler and asserts the set gained exactly
 that family's tools. A grant that reaches nothing produces an empty difference
 and fails — which is the control the two dead vocabularies never had.
+
+## Oxy apps: for the person and as itself
+
+[ADR 0015](./adr/0015-actors-and-identities.md). An agent has two identities in
+Oxy, and its toolset carries both, named apart:
+
+- **`self_<app>__<tool>` — its own bot account.** Its own Inbox, its own
+  profile and sign-ups. Oxy authorizes it without a grant (Oxy ADR 0018
+  addendum): the account is the agent's.
+- **`oxy_<app>__<tool>` — its owner's account**, within the level the owner set
+  for that app in the editor's "Apps de Oxy" section: **Nada**, **Ver** (reads
+  only) or **Ver y actuar** (reads and effects, no approval). A new agent starts
+  at Nada everywhere.
+
+Each level is ONE Oxy `DelegationGrant` from the owner to the agent's bot over
+the owner's account root of that app, written with the owner's bearer by
+`lib/agent-oxy-apps.ts` (`GET/PUT /agents/:id/oxy-apps`, owner only).
+`agent_oxy_app_permissions` records which grant stands for which level; every
+read reconciles with Oxy, so a grant revoked in the accounts app's Agency tab
+(the advanced view) reads as Nada. Ver = the app's read packages at
+`read_only`; Ver y actuar = every non-sensitive package at `autonomous`.
+`finance`, `security` and `delegate` are never part of a level.
+
+Who is present decides how a call is authorized:
+
+| Turn | Owner's apps (`oxy_*`) | Own account (`self_*`) |
+|---|---|---|
+| Owner in the agent's chat | `direct_request`, owner's bearer, trimmed to the levels | `direct_request`, owner's bearer, no grant |
+| Agent run, nobody present (`runner.ts`) | Oxy agent-run lane; requester derived by Oxy from the bot's owner; effects need Ver y actuar | same lane, no grant |
+| Automation stage | its preauthorized steps only | — |
+| Somebody else (shared/public agent, a stranger on its Telegram bot) | never | not in this phase |
+
+`ownerIsPresent` in `lib/tool-pipeline.ts` is the one place that decides the
+last row. Deleting an agent revokes its level grants; its bot account stays.
 
 ## Governance
 

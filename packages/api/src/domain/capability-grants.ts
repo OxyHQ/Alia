@@ -81,9 +81,16 @@ export const FIXED_CAPABILITY_FAMILIES = [
 export const INSTANCED_CAPABILITY_FAMILIES = ['mcp', 'integration', 'agent'] as const;
 
 /**
- * Oxy apps are fetched like an instanced source, but are no longer granted in
- * this Alia-owned vocabulary. Oxy's normalized DelegationGrant records are the
- * sole authority for them.
+ * Oxy apps are fetched like an instanced source, but are not granted in this
+ * Alia-owned vocabulary — on purpose, and not as an exclusion to undo.
+ *
+ * What an agent may do with its OWNER's apps is one of three levels per app
+ * (*Nada* · *Ver* · *Ver y actuar*, ADR 0015), set in the agent editor's "Apps
+ * de Oxy" section and stored in `agent_oxy_app_permissions`. Each level IS an
+ * Oxy `DelegationGrant` (`lib/agent-oxy-apps.ts`), and Oxy is the sole
+ * authority at call time: a string here would be a second, ungoverned copy of
+ * the same decision. The agent's OWN account (`self_*` tools) needs no grant
+ * at all — it is the agent's.
  */
 export const OXY_SERVICE_TOOL_SOURCE = 'oxy_service' as const;
 
