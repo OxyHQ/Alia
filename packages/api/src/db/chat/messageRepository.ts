@@ -798,6 +798,31 @@ export async function countAgentOutreachSince(
   return row?.count ?? 0;
 }
 
+/**
+ * Outreach messages in ONE conversation since `since`.
+ *
+ * Alia's counterpart of {@link countAgentOutreachSince}: Alia has no agent id
+ * to count by, and her own-initiative messages live in a single conversation
+ * of hers (`lib/agent/alia-outreach.ts`), so that conversation is the scope.
+ */
+export async function countOutreachInConversationSince(
+  db: ApiDatabase,
+  oxyUserId: string,
+  conversationId: string,
+  since: Date,
+): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(messages)
+    .where(and(
+      eq(messages.oxyUserId, oxyUserId),
+      eq(messages.conversationId, conversationId),
+      sql`${messages.clientMessageId} like ${`${AGENT_OUTREACH_MESSAGE_ID_PREFIX}%`}`,
+      sql`${messages.createdAt} >= ${since.toISOString()}::timestamptz`,
+    ));
+  return row?.count ?? 0;
+}
+
 /** The newest `limit` messages of a conversation, newest first, id and role only. */
 export async function listLatestMessageMarks(
   db: ApiDatabase,

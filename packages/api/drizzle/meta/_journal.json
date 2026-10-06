@@ -589,6 +589,20 @@
       "when": 1791249621745,
       "tag": "0083_agent_oxy_app_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1791264659250,
+      "tag": "0084_proactive_email_memory_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1791264666298,
+      "tag": "0085_agent_memory_per_person",
+      "breakpoints": true
     }
   ]
 }

@@ -62,6 +62,7 @@ import {
   generateFileTool,
   saveUserMemoryTool,
   updateUserMemoryTool,
+  forgetUserMemoryTool,
   updateUserPreferencesTool,
   updateUserContextTool,
   createSearchThreadTool,
@@ -105,6 +106,7 @@ import {
 } from './agent/actions.js';
 import type { SkillRuntime } from './skills/runtime.js';
 import { canvasTool } from './tools/canvas.js';
+import { buildAgentMemoryTool } from './agent/agent-memory-runtime.js';
 import { createGetDeviceInfoTool } from './tools/device-info.js';
 import { createAutomationTool } from './tools/automation-create.js';
 import { budgetTools, type BudgetedToolSet, type PriorToolCall, type ToolRouting } from './tool-budget.js';
@@ -484,22 +486,37 @@ export class ToolPipeline {
      */
     if (actsForPerson) {
       if (grants.allows('memory')) {
-        Object.assign(aliaTools, {
-          saveUserMemory: saveUserMemoryTool(userId),
-          updateUserMemory: updateUserMemoryTool(userId),
-          updateUserPreferences: updateUserPreferencesTool(userId),
-          updateUserContext: updateUserContextTool(userId),
-        });
         /**
-         * Only for a turn that HAS an agent, because a thread is a (person,
-         * agent) pair and there is nothing to search without one. Ordinary
-         * Alia has no thread, so it gets no `searchThread` — the structural
-         * precondition, the same shape as `deviceInfo` and `runtime`.
+         * Memory is per ACTOR. Alia remembers the person in her memory
+         * (`user_memories`); each agent remembers them in its own files
+         * (`agent_memory_documents`) and never reads or writes hers. An agent
+         * turn with the grant used to get Alia's four tools too, so whatever
+         * one agent "remembered" landed in the memory every other agent and
+         * Alia read — and the person saw it under Alia.
          *
-         * The agent is closed over, never offered to the model.
+         * An agent's `memory` tool is also built by its runtime
+         * (`buildRuntimeTools`); built here too so a turn without a runtime has
+         * it, and the same tool under the same name either way.
          */
         if (agent !== undefined && agent !== null) {
+          aliaTools.memory = buildAgentMemoryTool({ oxyUserId: userId, agentId: agent._id, actorOxyAccountId: agent._id });
+          /**
+           * Only for a turn that HAS an agent, because a thread is a (person,
+           * agent) pair and there is nothing to search without one. Ordinary
+           * Alia has no thread, so it gets no `searchThread` — the structural
+           * precondition, the same shape as `deviceInfo` and `runtime`.
+           *
+           * The agent is closed over, never offered to the model.
+           */
           aliaTools.searchThread = createSearchThreadTool(userId, agent._id);
+        } else {
+          Object.assign(aliaTools, {
+            saveUserMemory: saveUserMemoryTool(userId),
+            updateUserMemory: updateUserMemoryTool(userId),
+            forgetUserMemory: forgetUserMemoryTool(userId),
+            updateUserPreferences: updateUserPreferencesTool(userId),
+            updateUserContext: updateUserContextTool(userId),
+          });
         }
       }
       if (grants.allows('messaging')) Object.assign(aliaTools, {

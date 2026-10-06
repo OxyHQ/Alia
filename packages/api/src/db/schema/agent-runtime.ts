@@ -136,7 +136,10 @@ export const agentMemoryDocuments = pgTable('agent_memory_documents', {
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (t) => [
-  uniqueIndex('agent_memory_agent_path_key').on(t.agentId, t.path),
+  // A memory is the agent's of ONE person: the same path for two people is two
+  // documents. It replaced `(agent_id, path)` (dropped by 0085), under which a
+  // second person's MEMORY.md with a shared agent could never be written.
+  uniqueIndex('agent_memory_agent_user_path_key').on(t.agentId, t.oxyUserId, t.path),
   index('agent_memory_owner_agent_updated_idx').on(t.oxyUserId, t.agentId, t.updatedAt.desc()),
 ]);
 

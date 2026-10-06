@@ -110,6 +110,7 @@ vi.mock('../../../lib/tools/index.js', () => ({
   webSearchTool: { execute: vi.fn() },
   saveUserMemoryTool: vi.fn(() => ({ execute: vi.fn() })),
   updateUserMemoryTool: vi.fn(() => ({ execute: vi.fn() })),
+  forgetUserMemoryTool: vi.fn(() => ({ execute: vi.fn() })),
   updateUserPreferencesTool: vi.fn(() => ({ execute: vi.fn() })),
   updateUserContextTool: vi.fn(() => ({ execute: vi.fn() })),
   createSendTelegramTool: vi.fn(() => ({ execute: vi.fn() })),

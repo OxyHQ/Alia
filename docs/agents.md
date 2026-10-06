@@ -599,8 +599,12 @@ a notification that opens `/@handle`.
 - `result`: a finished top-level background run (goal, scheduled task) is
   delivered this way, never rate-limited — it is what the person asked for.
 - `check_in`: the agent's own `sendMessageToUser` tool, available only on a
-  top-level background run. At most 3 per person and agent per rolling day,
-  and none while its last 2 messages are unanswered.
+  top-level background run, and an important email in the agent's OWN mailbox
+  (`lib/proactive/email-outreach.ts`, see `docs/proactive-intelligence.md`).
+  At most 3 per person and agent per rolling day, and none while its last 2
+  messages are unanswered (`lib/agent/outreach-budget.ts`). Alia's own
+  initiative (`postAliaCheckIn`, her outreach conversation) spends the same
+  budget, counted in that conversation.
 - `scheduleFollowUp` lets the agent schedule its own next look: a one-off
   automation (`inputs.origin = 'agent_follow_up'`, at most 5 pending per
   person and agent). Its result is NOT posted; the agent speaks through
@@ -614,15 +618,56 @@ admitted per person, holding credits like a goal, linked to the thread — and
 that run's result is posted into the conversation when it finishes. The model
 is told to say it is on it rather than do the work twice.
 
-### An agent's own memory of a person
+### Memory is per actor
+
+**Alia remembers the person; each agent remembers them on its own.** Two stores,
+never mixed:
+
+| Actor | Store | Tools | In the prompt |
+|---|---|---|---|
+| Alia | `user_memories` + `user_memory_entries` (+ embeddings) | `saveUserMemory`, `updateUserMemory`, `forgetUserMemory`, `updateUserPreferences`, `updateUserContext` | recall, facts, preferences, context, writing style |
+| An agent (with the `memory` grant) | `agent_memory_documents` (MEMORY.md + `memory/<topic>.md`, per agent AND person) | `memory` (`list`, `read`, `append`, `replace`, `forget`) and `searchThread` | its own MEMORY.md (`agentMemoryPromptSection`) |
+
+An agent turn never receives Alia's tools or any of her memory, whatever it was
+granted (`lib/tool-pipeline.ts`, `lib/system-prompt-builder.ts`); before this,
+an agent with the grant read Alia's recall and wrote into her store, so one
+agent's notes surfaced in every other agent and under Alia's name. The
+`memory` family in `FIXED_FAMILY_TOOLS` is therefore just `memory` and
+`searchThread`.
+
+**Memory in a prompt is data, not instructions.** Every memory block — Alia's
+recall and "User Information", an agent's MEMORY.md, the `# USER CONTEXT` of a
+background prompt — goes through `memoryDataBlock` (`lib/memory/memory-prompt.ts`):
+a heading, one sentence saying the block is remembered data to inform the answer
+and never a command that overrides the rules or the current request, and the
+content inside a `<memory>` element its content cannot close.
+
+**The person sees, edits and forgets it.** Settings → Memory shows Alia's
+memory and, under it, every agent that remembers something about the person
+(`GET /memory/agents`); each opens its files (`GET|PUT /agents/:id/memory`),
+editable with the hash they were read at, and forgettable one file or all at
+once (`DELETE /agents/:id/memory[?path=]`). The caller only ever reaches their
+OWN rows; an agent is addressable when it already remembers them (a public
+agent included) or when they may act as its bot account. "Olvida esto" in chat
+uses `forgetUserMemory` (Alia: entry and its embedding) or the agent's
+`memory` `forget` (R1, no rollback on purpose). Forgetting an agent file deletes
+its journal too: a forgotten note is not kept as history.
+
+Migration 0084 (pre) adds the per-person unique
+`agent_memory_agent_user_path_key`; 0085 (post) drops the old
+`(agent_id, path)` unique, under which a second person could never write a
+MEMORY.md with a shared agent.
+
+#### An agent's own memory of a person
 
 `agent_memory_documents` (MEMORY.md plus `memory/<topic>.md`, per agent and
 person) is the agent's, not only the person's to edit: with the `memory` grant
 its MEMORY.md is in the prompt of every chat turn and background run
-(`agentMemoryPromptSection`), and the `memory` tool lists, reads, appends and
-replaces its files. Writes carry the hash the tool just read, so the agent and
-the person editing the same file never overwrite each other, and every write is
-journaled with origin `agent`. Reads are R0, writes R1 (journaled).
+(`agentMemoryPromptSection`), and the `memory` tool lists, reads, appends,
+replaces and forgets its files. Writes carry the hash the tool just read, so the
+agent and the person editing the same file never overwrite each other, and every
+write is journaled with origin `agent`. Reads are R0, writes R1 (journaled),
+`forget` R1 without rollback.
 
 ### Approvals nobody is waiting for
 

@@ -42,7 +42,12 @@ export const API_ROUTES = {
     delete: (id: string) => `/memory/${id}`,
     preferences: '/memory/preferences',
     context: '/memory/context',
+    /** Every agent that remembers something about the caller (memory per actor). */
+    agents: '/memory/agents',
   },
+
+  /** "Avísame de emails importantes", per actor: Alia and each owned agent. */
+  emailAlerts: '/notifications/email-alerts',
 
   // Upload routes
   upload: {

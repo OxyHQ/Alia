@@ -186,19 +186,19 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
   artifacts: ['canvas', 'generateFile'],
   /**
    * `searchThread` is here rather than in a family of its own because the
-   * family is "reach what this person has already told you". Three of the four
-   * write that down deliberately; this one reads back what was said in passing.
+   * family is "reach what this person has already told you". `memory` writes
+   * that down deliberately; this one reads back what was said in passing.
    * An owner who denies an agent memory is denying it exactly that, and a
    * separate family would let it recall the whole thread anyway.
    */
   memory: [
-    // The agent's own MEMORY.md and topic files about this person
-    // (`lib/agent/agent-memory-runtime.ts`), beside the person's global memory.
+    // The agent's OWN MEMORY.md and topic files about this person
+    // (`lib/agent/agent-memory-runtime.ts`). Memory is per actor: Alia's
+    // `saveUserMemory` / `updateUserMemory` / `forgetUserMemory` /
+    // `updateUserPreferences` / `updateUserContext` are her memory of the
+    // person and are never built for an agent, whatever it was granted
+    // (`lib/tool-pipeline.ts`), so they are in no agent family.
     'memory',
-    'saveUserMemory',
-    'updateUserMemory',
-    'updateUserPreferences',
-    'updateUserContext',
     'searchThread',
   ],
   messaging: [

@@ -21,7 +21,7 @@
 
 export { getCurrentDateTool } from './date.js';
 export { webSearchTool } from './web-search.js';
-export { saveUserMemoryTool, updateUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from './user-memory.js';
+export { saveUserMemoryTool, updateUserMemoryTool, forgetUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from './user-memory.js';
 export { createSearchThreadTool } from './thread-search.js';
 export { createSuggestNewConversationTool } from './suggest-new-conversation.js';
 export { createSendTelegramTool } from './telegram.js';
