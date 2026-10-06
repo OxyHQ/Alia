@@ -53,6 +53,7 @@ describe('the workload exchange, end to end', () => {
       config: {
         port: 0, opsPort: 0, idleStopMs: 1_800_000, image: 'img@sha256:abc', runtime: 'runsc', deploymentId: 'test', allowedRoleArns: [ALIA_ROLE],
         maxRunning: 2, idleMs: 600_000, workspaceQuotaBytes: 1e9, maxCommandSeconds: 300, production: false,
+        browser: { enabled: false, maxContexts: 3, idleMs: 600_000, selfContainer: 'self', denyCidrs: [] },
       },
       log: silent,
     });

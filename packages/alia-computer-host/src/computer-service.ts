@@ -49,6 +49,7 @@ import {
 const CONTROL_TIMEOUT_MS = 15_000;
 const OPERATION_LEASE_MS = 90_000;
 const FILE_TEXT_LIMIT = 256 * 1024;
+export const DOWNLOAD_BYTES_LIMIT = 20 * 1024 * 1024;
 const USAGE_CACHE_MS = 60_000;
 const RECEIPT_RETENTION_MS = 7 * 24 * 60 * 60_000;
 export const DEFAULT_COMMAND_SECONDS = 60;
@@ -88,6 +89,14 @@ export interface ServiceOptions {
   config: HostConfig;
   log: Pick<Logger, 'info' | 'warn' | 'error'>;
   now?: () => number;
+  /**
+   * Computer slots something else on this host is using right now — the
+   * browser stack takes two (`browser-isolation.ts`). Counted against
+   * `maxRunning` so the host's memory budget holds.
+   */
+  reservedSlots?: () => Promise<number>;
+  /** Activity the container listing cannot see (the browser), for the idle check. */
+  extraActivity?: () => Promise<boolean>;
 }
 
 export interface HostIdleState {
@@ -130,6 +139,11 @@ export class ComputerService {
    * `host_stopping`, which the Alia API treats as "asleep": it waits for the
    * stop, then starts the instance again.
    */
+  /** {@link tracked}, for the browser: its work counts as the host being busy too. */
+  track<T>(work: () => Promise<T>): Promise<T> {
+    return this.tracked(work);
+  }
+
   private async tracked<T>(work: () => Promise<T>): Promise<T> {
     if (this.drainingUntil > this.now()) {
       throw new HostError('The computer host is shutting down to save cost; it will start again on the next request', 503, 'host_stopping');
@@ -148,7 +162,8 @@ export class ComputerService {
   /** Whether the host is idle: no actor container running and no operation in flight. */
   async idleState(): Promise<HostIdleState> {
     const running = (await this.runningContainers()).length;
-    const idle = running === 0 && this.inFlight === 0;
+    const extra = this.options.extraActivity ? await this.options.extraActivity() : false;
+    const idle = running === 0 && this.inFlight === 0 && !extra;
     if (!idle) this.lastBusyAt = this.now();
     return {
       idle,
@@ -246,6 +261,11 @@ export class ComputerService {
     }
   }
 
+  /** How many actor computers are running now. */
+  async runningCount(): Promise<number> {
+    return (await this.runningContainers()).length;
+  }
+
   private async runningContainers(): Promise<string[]> {
     const out = await this.checked([
       'container', 'ls',
@@ -311,7 +331,8 @@ export class ComputerService {
       const existing = await this.inspect(identity);
       if (existing?.State.Running) return;
       const running = await this.runningContainers();
-      if (running.length >= this.config.maxRunning) {
+      const reserved = this.options.reservedSlots ? await this.options.reservedSlots() : 0;
+      if (running.length + reserved >= this.config.maxRunning) {
         throw new HostError('Every computer slot on this host is in use; try again in a few minutes', 503, 'capacity');
       }
       const volume = (
@@ -583,35 +604,41 @@ export class ComputerService {
     }
   }
 
-  private file<T>(actorId: string, operation: 'list' | 'read' | 'write' | 'mkdir', rawPath: string, text?: string): Promise<T> {
-    return this.tracked(() => this.fileOperation<T>(actorId, operation, rawPath, text));
+  private file<T>(actorId: string, operation: FileOperation, rawPath: string, text?: string, bytes?: Buffer): Promise<T> {
+    return this.tracked(() => this.fileOperation<T>(actorId, operation, rawPath, text, bytes));
   }
 
-  private async fileOperation<T>(actorId: string, operation: 'list' | 'read' | 'write' | 'mkdir', rawPath: string, text?: string): Promise<T> {
+  private async fileOperation<T>(actorId: string, operation: FileOperation, rawPath: string, text?: string, bytes?: Buffer): Promise<T> {
     const identity = this.identity(actorId);
     const path = workspacePath(rawPath);
     if (text !== undefined && Buffer.byteLength(text) > FILE_TEXT_LIMIT) {
       throw new HostError('Text files must be 256 KB or smaller', 413, 'file_too_large');
     }
+    if (bytes !== undefined && bytes.length > DOWNLOAD_BYTES_LIMIT) {
+      throw new HostError('Downloads must be 20 MB or smaller', 413, 'file_too_large');
+    }
+    const adding = text !== undefined ? Buffer.byteLength(text) : bytes?.length ?? 0;
     await this.options.store.touch(identity.actorHash);
     return this.exclusive(identity, 'operation', OPERATION_LEASE_MS, async () => {
       const container = await this.running(identity);
-      if (operation === 'write' || operation === 'mkdir') {
-        await this.assertUnderQuota(identity, container, text === undefined ? 0 : Buffer.byteLength(text));
+      if (operation === 'write' || operation === 'mkdir' || operation === 'write_bytes') {
+        await this.assertUnderQuota(identity, container, adding);
       }
+      const seconds = operation === 'write_bytes' ? 30 : 8;
+      const request = bytes === undefined ? { operation, path, text } : { operation, path, data: bytes.toString('base64') };
       const result = await this.options.docker(
         [
           'exec', '-i', '--user', CONTAINER_USER, container,
-          '/usr/bin/timeout', '--kill-after=1s', '8s', '/usr/bin/python3', '-I', '/opt/alia/files.py',
+          '/usr/bin/timeout', '--kill-after=1s', `${seconds}s`, '/usr/bin/python3', '-I', '/opt/alia/files.py',
         ],
-        { timeoutMs: 10_000, input: JSON.stringify({ operation, path, text }), maxOutputBytes: 2 * 1024 * 1024 },
+        { timeoutMs: (seconds + 2) * 1000, input: JSON.stringify(request), maxOutputBytes: 2 * 1024 * 1024 },
       );
       if (result.exitCode !== 0 || result.timedOut || result.interrupted || result.truncated) {
         // files.py's own messages describe the caller's path and nothing else.
         const reason = result.stderr.split('\n').find(Boolean)?.slice(0, 300) ?? 'unknown error';
         throw new HostError(`The file operation failed: ${reason}`, 422, 'file_failed');
       }
-      if (operation === 'write') this.usage.delete(identity.actorHash);
+      if (operation === 'write' || operation === 'write_bytes') this.usage.delete(identity.actorHash);
       try {
         return JSON.parse(result.stdout) as T;
       } catch {
@@ -635,4 +662,17 @@ export class ComputerService {
   mkdir(actorId: string, path: string) {
     return this.file<{ path: string }>(actorId, 'mkdir', path);
   }
+
+  /** A browser download, into the workspace under a name that replaces nothing. */
+  writeDownload(actorId: string, path: string, bytes: Buffer) {
+    return this.file<{ path: string; bytes: number }>(actorId, 'write_bytes', path, undefined, bytes);
+  }
+
+  /** The actor's most recent command receipts, newest first (for its owner's view). */
+  async recentReceipts(actorId: string, limit: number): Promise<CommandReceipt[]> {
+    const identity = this.identity(actorId);
+    return this.options.store.listReceipts(identity.actorHash, Math.min(Math.max(1, limit), 50));
+  }
 }
+
+type FileOperation = 'list' | 'read' | 'write' | 'mkdir' | 'write_bytes';

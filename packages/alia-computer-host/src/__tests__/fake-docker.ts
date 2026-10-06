@@ -33,6 +33,21 @@ function flagValues(args: string[], flag: string): string[] {
   return values;
 }
 
+let addressCounter = 2;
+function nextAddress(): string {
+  addressCounter += 1;
+  return `172.30.0.${addressCounter}`;
+}
+
+function labelFilters(args: string[]): Array<[string, string]> {
+  return flagValues(args, '--filter')
+    .filter((f) => f.startsWith('label='))
+    .map((f) => {
+      const [key, value] = f.slice('label='.length).split('=') as [string, string];
+      return [key, value];
+    });
+}
+
 export function inspectionFromCreate(args: string[]): FakeContainer['inspection'] {
   const name = flagValues(args, '--name')[0] as string;
   const labels = Object.fromEntries(flagValues(args, '--label').map((l) => l.split('=') as [string, string]));
@@ -42,7 +57,8 @@ export function inspectionFromCreate(args: string[]): FakeContainer['inspection'
   const entrypointIndex = args.indexOf('--entrypoint');
   const image = args[entrypointIndex + 2] as string;
   const cmd = args.slice(entrypointIndex + 3);
-  const memory = 512 * 1024 * 1024;
+  const memory = Number.parseInt(flagValues(args, '--memory')[0] ?? '512', 10) * 1024 * 1024;
+  const network = flagValues(args, '--network')[0] ?? 'bridge';
   return {
     Id: `id-${name}`,
     Name: `/${name}`,
@@ -62,7 +78,7 @@ export function inspectionFromCreate(args: string[]): FakeContainer['inspection'
       CapDrop: flagValues(args, '--cap-drop'),
       CapAdd: null,
       SecurityOpt: flagValues(args, '--security-opt'),
-      NetworkMode: flagValues(args, '--network')[0] ?? 'bridge',
+      NetworkMode: network,
       Memory: memory,
       MemorySwap: memory,
       PidsLimit: Number(flagValues(args, '--pids-limit')[0] ?? 0),
@@ -77,8 +93,8 @@ export function inspectionFromCreate(args: string[]): FakeContainer['inspection'
       Tmpfs: tmpfs,
       RestartPolicy: { Name: flagValues(args, '--restart')[0] ?? 'no' },
     },
-    Mounts: [{ Type: mountParts.type, Name: mountParts.source, Destination: mountParts.target, RW: true }],
-    NetworkSettings: { Networks: { none: {} } },
+    Mounts: mount ? [{ Type: mountParts.type, Name: mountParts.source, Destination: mountParts.target, RW: true }] : [],
+    NetworkSettings: { Networks: { [network]: network === 'none' ? {} : { IPAddress: nextAddress() } } },
     State: { Running: false },
   };
 }
@@ -88,6 +104,9 @@ export type ExecHandler = (args: string[], options: DockerOptions) => DockerResu
 export class FakeDocker {
   readonly containers = new Map<string, FakeContainer>();
   readonly volumes = new Map<string, { Labels: Record<string, string>; Driver: string; Options: Record<string, string> | null }>();
+  readonly networks = new Map<string, { Labels: Record<string, string>; Internal: boolean; Options: Record<string, string>; members: Set<string> }>();
+  /** The control API's own container, as `container inspect --format {{.Name}}` names it. */
+  selfName = 'alia-computer-host';
   readonly calls: string[][] = [];
   exec: ExecHandler = () => ok('');
 
@@ -102,8 +121,17 @@ export class FakeDocker {
         if (!container) return ok('');
         return ok(args.includes('{{.State}}') ? `${container.running ? 'running' : 'exited'}\n` : `id-${name}\n`);
       }
-      const running = [...this.containers.values()].filter((c) => c.running);
-      return ok(running.map((c) => `${(c.inspection.Config.Labels as Record<string, string>)['onl.alia.computer.actor']}\n`).join(''));
+      const filters = labelFilters(args);
+      const onlyRunning = args.includes('status=running');
+      const matching = [...this.containers.values()].filter((c) => {
+        const labels = (c.inspection.Config.Labels ?? {}) as Record<string, string>;
+        return (!onlyRunning || c.running) && filters.every(([key, value]) => labels[key] === value);
+      });
+      if (args.includes('{{.Names}}')) return ok(matching.map((c) => `${c.name}\n`).join(''));
+      return ok(matching.map((c) => `${(c.inspection.Config.Labels as Record<string, string>)['onl.alia.computer.actor']}\n`).join(''));
+    }
+    if (group === 'container' && verb === 'inspect' && args[2] === '--format') {
+      return ok(`/${this.selfName}\n`);
     }
     if (group === 'container' && verb === 'inspect') {
       const container = this.containers.get(args[2] as string);
@@ -128,8 +156,52 @@ export class FakeDocker {
       return ok();
     }
     if (group === 'container' && verb === 'rm') {
-      this.containers.delete(args[args.length - 1] as string);
+      const name = args[args.length - 1] as string;
+      this.containers.delete(name);
+      for (const network of this.networks.values()) network.members.delete(name);
       return ok();
+    }
+    if (group === 'network' && verb === 'ls') {
+      const name = (args.find((a) => a.startsWith('name=^')) ?? '').slice('name=^'.length, -1);
+      return ok(this.networks.has(name) ? `${name}\n` : '');
+    }
+    if (group === 'network' && verb === 'create') {
+      const name = args[args.length - 1] as string;
+      const labels = Object.fromEntries(flagValues(args, '--label').map((l) => l.split('=') as [string, string]));
+      this.networks.set(name, { Labels: labels, Internal: args.includes('--internal'), Options: {}, members: new Set() });
+      return ok(name);
+    }
+    if (group === 'network' && verb === 'connect') {
+      const [, , name, container] = args as [string, string, string, string];
+      const network = this.networks.get(name);
+      if (!network) return fail();
+      const target = container === 'self-id' ? this.selfName : container;
+      network.members.add(target);
+      const found = this.containers.get(target);
+      if (found) {
+        const settings = found.inspection.NetworkSettings as { Networks: Record<string, unknown> };
+        settings.Networks[name] = { IPAddress: nextAddress() };
+      }
+      return ok();
+    }
+    if (group === 'network' && verb === 'inspect') {
+      const name = args[2] as string;
+      const network = this.networks.get(name);
+      if (!network) return fail();
+      const members = new Set(network.members);
+      for (const container of this.containers.values()) {
+        const settings = container.inspection.NetworkSettings as { Networks: Record<string, unknown> };
+        if (container.running && settings.Networks[name]) members.add(container.name);
+      }
+      return ok(JSON.stringify([{
+        Name: name,
+        Driver: 'bridge',
+        Internal: network.Internal,
+        EnableIPv6: false,
+        Labels: network.Labels,
+        Options: network.Options,
+        Containers: Object.fromEntries([...members].map((member) => [`id-${member}`, { Name: member }])),
+      }]));
     }
     if (group === 'volume' && verb === 'ls') {
       const name = (args.find((a) => a.startsWith('name=^')) ?? '').slice('name=^'.length, -1);

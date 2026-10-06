@@ -38,6 +38,21 @@ export interface HostConfig {
   workspaceQuotaBytes: number;
   /** Upper bound for a foreground command's own timeout, in seconds. */
   maxCommandSeconds: number;
+  /**
+   * The agents' browser (`browser-stack.ts`). On unless `ALIA_COMPUTER_BROWSER=off`;
+   * it runs the same image as the computers, so there is nothing else to deploy.
+   */
+  browser: {
+    enabled: boolean;
+    /** Contexts open at once — the memory budget in `browser-isolation.ts`. */
+    maxContexts: number;
+    /** A context with no call for this long is saved and closed. */
+    idleMs: number;
+    /** This control API's own container, which joins the browser's network. */
+    selfContainer: string;
+    /** Extra IPv4 CIDRs the egress proxy refuses beyond every private range. */
+    denyCidrs: string[];
+  };
   production: boolean;
 }
 
@@ -51,6 +66,24 @@ function positiveInteger(name: string, raw: string | undefined, fallback: number
   const value = Number(raw);
   if (!Number.isInteger(value) || value <= 0) throw new Error(`${name} must be a positive integer`);
   return value;
+}
+
+/**
+ * Docker sets a container's hostname to its short id, which `docker network
+ * connect` accepts; the systemd unit's container name is the fallback.
+ */
+function selfContainer(env: NodeJS.ProcessEnv): string {
+  const value = env.ALIA_COMPUTER_SELF_CONTAINER || env.HOSTNAME || 'alia-computer-host';
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(value)) throw new Error('ALIA_COMPUTER_SELF_CONTAINER is invalid');
+  return value;
+}
+
+function denyCidrs(raw: string | undefined): string[] {
+  const list = (raw ?? '').split(',').map((value) => value.trim()).filter(Boolean);
+  for (const cidr of list) {
+    if (!/^\d{1,3}(\.\d{1,3}){3}\/\d{1,2}$/.test(cidr)) throw new Error(`ALIA_COMPUTER_BROWSER_DENY_CIDRS: ${cidr} is not an IPv4 CIDR`);
+  }
+  return list;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): HostConfig {
@@ -102,6 +135,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): HostConfig {
       1024 * 1024 * 1024,
     ),
     maxCommandSeconds: positiveInteger('ALIA_COMPUTER_MAX_COMMAND_SECONDS', env.ALIA_COMPUTER_MAX_COMMAND_SECONDS, 300),
+    browser: {
+      enabled: env.ALIA_COMPUTER_BROWSER !== 'off',
+      maxContexts: Math.min(positiveInteger('ALIA_COMPUTER_BROWSER_MAX_CONTEXTS', env.ALIA_COMPUTER_BROWSER_MAX_CONTEXTS, 3), 6),
+      idleMs: positiveInteger('ALIA_COMPUTER_BROWSER_IDLE_MS', env.ALIA_COMPUTER_BROWSER_IDLE_MS, 10 * 60_000),
+      selfContainer: selfContainer(env),
+      denyCidrs: denyCidrs(env.ALIA_COMPUTER_BROWSER_DENY_CIDRS),
+    },
     production,
   };
 }

@@ -47,6 +47,22 @@ describe.skipIf(!python)('files.py', () => {
     expect(readdirSync(join(root, 'src', 'lib'))).toEqual(['a.txt']);
   });
 
+  it('writes a download as bytes, creating its directory and never replacing a file', () => {
+    const data = Buffer.from('%PDF-1.7 fake').toString('base64');
+    expect(run({ operation: 'write_bytes', path: '/workspace/downloads/report.pdf', data }).body)
+      .toEqual({ path: '/workspace/downloads/report.pdf', bytes: 13 });
+    expect(run({ operation: 'write_bytes', path: '/workspace/downloads/report.pdf', data }).body)
+      .toEqual({ path: '/workspace/downloads/report (1).pdf', bytes: 13 });
+    expect(readFileSync(join(root, 'downloads', 'report (1).pdf'), 'utf8')).toBe('%PDF-1.7 fake');
+  });
+
+  it('refuses a download through a planted symlink, and invalid base64', () => {
+    symlinkSync(outside, join(root, 'downloads'));
+    expect(run({ operation: 'write_bytes', path: '/workspace/downloads/x.pdf', data: 'aGk=' }).ok).toBe(false);
+    expect(readdirSync(outside)).toEqual(['secret']);
+    expect(run({ operation: 'write_bytes', path: '/workspace/y.bin', data: '***' }).ok).toBe(false);
+  });
+
   it('refuses to read through a symlinked file or directory', () => {
     symlinkSync(join(outside, 'secret'), join(root, 'link'));
     symlinkSync(outside, join(root, 'dir'));
