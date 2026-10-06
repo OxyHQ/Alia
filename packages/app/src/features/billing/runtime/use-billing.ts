@@ -133,14 +133,14 @@ async function fetchSubscription(product?: 'alia' | 'codea'): Promise<Subscripti
 }
 
 export function useSubscription(product?: 'alia' | 'codea') {
-  const { isAuthenticated } = useOxy();
+  const { isAuthenticated, user, activeSessionId } = useOxy();
 
   return useQuery({
-    queryKey: queryKeys.billing.subscription(product),
+    queryKey: [...queryKeys.billing.subscription(product), user?.id, activeSessionId],
     queryFn: () => fetchSubscription(product),
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    staleTime: 0, gcTime: 0, // 2 minutes
     retry: 2,
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && !!user?.id && !!activeSessionId,
   });
 }
 
@@ -321,6 +321,8 @@ export function useCreatePortalSession() {
 // ======================
 
 export interface Entitlements {
+  subjectAccountId?: string;
+  effectivePlanId?: string | null;
   features: Record<string, boolean | number>;
   planId: string | null;
 }
@@ -331,7 +333,14 @@ const FREE_ENTITLEMENTS: Entitlements = {
 };
 
 export function useEntitlements() {
-  return useAuthQuery<Entitlements>(queryKeys.billing.entitlements, '/billing/entitlements', undefined, {
+  const { user, activeSessionId, isAuthenticated } = useOxy();
+  return useAuthQuery<Entitlements>([...queryKeys.billing.entitlements, user?.id, activeSessionId], '/billing/entitlements', undefined, {
+    enabled: isAuthenticated && !!user?.id && !!activeSessionId, staleTime: 0, gcTime: 0,
     placeholderData: FREE_ENTITLEMENTS,
+    queryFn: async () => {
+      const { data } = await apiClient.get('/billing/entitlements');
+      if (data.subjectAccountId !== user?.id) throw new Error('Entitlement account changed');
+      return data;
+    },
   });
 }

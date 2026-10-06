@@ -1,3 +1,4 @@
+import { reserveBackgroundProductCredits } from '../product-credit-access';
 /**
  * Which account pays for an agent's turn.
  *
@@ -80,7 +81,6 @@
 
 import {
   CREDITS_CONFIG,
-  reserveCredits,
   type CreditReservation,
 } from '../credits-manager.js';
 import { log } from '../logger.js';
@@ -124,7 +124,7 @@ export async function reserveAgentTurn(input: {
   const { agentAccountId, ownerUserId, ownerFallbackAllowed } = input;
   const amount = input.amount ?? CREDITS_CONFIG.INITIAL_RESERVATION;
 
-  const fromAgent = await reserveCredits(agentAccountId, amount);
+  const fromAgent = await reserveBackgroundProductCredits(agentAccountId, amount);
   if (fromAgent) {
     return { ok: true, payer: 'agent', reservation: fromAgent };
   }
@@ -137,7 +137,7 @@ export async function reserveAgentTurn(input: {
     return { ok: false, reason: 'owner_fallback_not_authorised' };
   }
 
-  const fromOwner = await reserveCredits(ownerUserId, amount);
+  const fromOwner = await reserveBackgroundProductCredits(ownerUserId, amount);
   if (fromOwner) {
     log.credits.info({ agentAccountId, ownerUserId, amount }, 'Agent turn billed to the owner');
     return { ok: true, payer: 'owner', reservation: fromOwner };

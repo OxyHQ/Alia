@@ -1,3 +1,4 @@
+import { reserveBackgroundProductCredits } from '../product-credit-access';
 /**
  * Handing an agent session to a worker without losing the caller's credits, and
  * reclaiming the credits of one that was never picked up.
@@ -41,7 +42,7 @@ import {
   createAgentSession,
 } from '../../db/agents/agentSessionRepository.js';
 import { agentPromptName, attachAgentIdentity } from '../agent-identity.js';
-import { reserveCredits, safeRefund } from '../credits-manager.js';
+import { safeRefund } from '../credits-manager.js';
 import { log } from '../logger.js';
 import { getOrCreateUserCredits } from '../user-credits-helpers.js';
 import { enqueueAgentSession } from '../task-queue.js';
@@ -169,7 +170,7 @@ export async function startAgentSession(input: {
    */
   await getOrCreateUserCredits(userId);
 
-  const reservation = await reserveCredits(userId, price);
+  const reservation = await reserveBackgroundProductCredits(userId, price);
   if (!reservation) {
     log.agents.info({ userId, agentId: agent._id, price }, 'Agent hire refused: insufficient credits');
     return { ok: false, reason: 'insufficient_credits', creditsNeeded: price };

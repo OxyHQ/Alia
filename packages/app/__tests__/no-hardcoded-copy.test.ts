@@ -70,6 +70,8 @@ const ALLOWED = new Set([
   'Alia \\ Oxy',
   'Syra',
   'Oxy',
+  // The Oxy personal bundle, a product name in every language.
+  'Oxy One',
   'Cowork',
   'iOS',
   'Android',

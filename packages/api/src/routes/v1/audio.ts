@@ -58,6 +58,9 @@ router.post('/speech', async (req: Request, res: Response) => {
       const cached = await findMessageAudioUrl(getDb(), userId, body.conversationId, body.messageId);
       if (cached === undefined) return res.status(404).json({ error: { message: 'Message not found', retryable: false } });
     }
+    // Standalone speech historically admits every authenticated user without
+    // an Alia credit operation. Bundle presence must not change that policy.
+    // Voice-call chat turns and show episodes retain their own existing metering.
     const speech = await synthesizeSpeech({ input: body.input, voice: body.voice, format: 'mp3', userId,
       ...(body.speed === undefined ? {} : { speed: body.speed }), signal: controller.signal });
     controller.signal.throwIfAborted();

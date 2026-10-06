@@ -1,3 +1,4 @@
+import { reserveUserProductCredits } from '../lib/product-credit-access';
 /**
  * Show series and episodes — the product surface, mounted at `/shows`.
  *
@@ -70,7 +71,6 @@ import { syraForRequest } from '../lib/syra/syra.js';
 import { SyraApiError } from '@syra.fm/sdk';
 import {
   refundReservation,
-  reserveCredits,
   finalizeFixedCredits,
 } from '../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
@@ -252,7 +252,7 @@ async function mintCover(
   };
 
   await getOrCreateUserCredits(userId);
-  const reservation = await reserveCredits(userId, COVER_ART_CREDITS);
+  const reservation = await reserveUserProductCredits(userId, COVER_ART_CREDITS, req.user?.id === userId ? req.accessToken : undefined);
   // Not an error: an account with no credits still gets its series, without art.
   if (!reservation) return noCover('insufficient_credits');
 

@@ -29,3 +29,5 @@ export * from './telemetry';
 export * from './usage';
 
 export * from './credit-operations';
+
+export * from './product-credit-allocations';

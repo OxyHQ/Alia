@@ -8,21 +8,28 @@ import { getSafeErrorMessage } from '../lib/errors/sanitize.js';
 import { getUserEntitlements } from '../lib/plan-access.js';
 import { readUsageWindow } from '../lib/usage-window.js';
 
+import { effectiveCreditPlan, readCurrentProductAllowance } from '../lib/product-credit-read-model';
+
 const router = Router();
 
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const [userCredits, entitlements] = await Promise.all([
+    const [userCredits, entitlements, productAllowance] = await Promise.all([
       getRefreshedUserCredits(req.user!.id),
       getUserEntitlements(req.user!.id).catch(() => null),
+      readCurrentProductAllowance(req.user!.id, req.accessToken),
     ]);
     // The plan's rolling window (`lib/usage-window.ts`), or `null` when the
     // plan has none or it cannot be read: the balance is still worth showing.
-    const window = entitlements?.planId
-      ? await readUsageWindow(req.user!.id, entitlements.planId).catch(() => null)
+    const planId = effectiveCreditPlan(entitlements?.planId, productAllowance?.planId ?? null);
+    const window = planId
+      ? await readUsageWindow(req.user!.id, planId).catch(() => null)
       : null;
 
+    res.set('Cache-Control', 'no-store');
     res.json({
+      subjectAccountId: req.user!.id,
+      productAllowance,
       credits: userCredits.creditsFree + userCredits.creditsPaid,
       freeCredits: userCredits.creditsFree,
       freeLimit: userCredits.creditsFreeLimit,
