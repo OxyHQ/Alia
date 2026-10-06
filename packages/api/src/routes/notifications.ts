@@ -19,6 +19,13 @@ import { authenticateToken } from '../middleware/auth.js';
 import { getUnreadCount, markAsRead, markAllAsRead, dismissNotification } from '../lib/notification-service.js';
 import { VAPID_PUBLIC_KEY } from '../lib/web-push.js';
 import { log } from '../lib/logger.js';
+import {
+  EMAIL_ALERTS_DEFAULT,
+  listEmailAlertPreferences,
+  setEmailAlertPreference,
+} from '../db/proactive/emailOutreachRepository.js';
+import { findAgentById, listAgentsOwnedBy } from '../db/agents/agentRepository.js';
+import { attachAgentIdentities } from '../lib/agent-identity.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -242,6 +249,65 @@ router.delete('/web-push-subscription', async (req: Request, res: Response) => {
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error deactivating web push subscription');
     res.status(500).json({ error: 'Failed to deactivate web push subscription' });
+  }
+});
+
+/**
+ * GET /notifications/email-alerts — "Avísame de emails importantes", per actor.
+ *
+ * `alia` is about the person's own Inbox. `agents` lists every agent whose
+ * bot account the person owns — the ones that would write to them about mail
+ * in their OWN mailbox (`lib/proactive/email-outreach.ts`). Unset is on.
+ */
+router.get('/email-alerts', async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
+    const userId = req.user.id as string;
+    const [preferences, owned] = await Promise.all([
+      listEmailAlertPreferences(getDb(), userId),
+      listAgentsOwnedBy(getDb(), userId),
+    ]);
+    const agents = await attachAgentIdentities(owned);
+    res.json({
+      alia: { enabled: preferences.get(null) ?? EMAIL_ALERTS_DEFAULT },
+      agents: agents.map((agent) => ({
+        agentId: agent._id,
+        name: agent.name,
+        handle: agent.handle,
+        color: agent.color,
+        enabled: preferences.get(agent._id) ?? EMAIL_ALERTS_DEFAULT,
+      })),
+    });
+  } catch (error: unknown) {
+    log.general.error({ err: error }, 'Error reading email alert settings');
+    res.status(500).json({ error: 'Failed to read email alert settings' });
+  }
+});
+
+/**
+ * PUT /notifications/email-alerts `{ agentId: string | null, enabled: boolean }`.
+ *
+ * `agentId` null is Alia. An agent's switch is its owner's alone: the same
+ * `owner_oxy_account_id` that decides whom the agent tells decides who may
+ * silence it, and anybody else gets the 404 an unknown agent does.
+ */
+router.put('/email-alerts', async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
+    const userId = req.user.id as string;
+    const { agentId, enabled } = req.body ?? {};
+    if (typeof enabled !== 'boolean' || (agentId !== null && typeof agentId !== 'string')) {
+      return res.status(400).json({ error: 'agentId (string or null) and enabled (boolean) are required' });
+    }
+    if (agentId !== null) {
+      const agent = await findAgentById(getDb(), agentId);
+      if (!agent || agent.ownerOxyAccountId !== userId) return res.status(404).json({ error: 'Agent not found' });
+    }
+    await setEmailAlertPreference(getDb(), { oxyUserId: userId, agentId, enabled });
+    res.json({ agentId, enabled });
+  } catch (error: unknown) {
+    log.general.error({ err: error }, 'Error saving email alert setting');
+    res.status(500).json({ error: 'Failed to save email alert setting' });
   }
 });
 

@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, max, sql } from 'drizzle-orm';
 import type { ApiDatabase, Executor } from '../index.js';
 import { agentMemoryDocuments, agentMemoryJournal } from '../schema/agent-runtime.js';
 import { hashAgentMemory } from '../../lib/agent/memory-contract.js';
@@ -20,6 +20,49 @@ export async function listAgentMemory(db: ApiDatabase, oxyUserId: string, agentI
     eq(agentMemoryDocuments.oxyUserId, oxyUserId),
     eq(agentMemoryDocuments.agentId, agentId),
   )).orderBy(desc(agentMemoryDocuments.updatedAt));
+}
+
+/** Every agent that remembers something about this person, most recently written first. */
+export async function listAgentsRememberingPerson(db: Executor, oxyUserId: string) {
+  return db.select({
+    agentId: agentMemoryDocuments.agentId,
+    files: sql<number>`count(*)::int`,
+    updatedAt: max(agentMemoryDocuments.updatedAt),
+  }).from(agentMemoryDocuments)
+    .where(eq(agentMemoryDocuments.oxyUserId, oxyUserId))
+    .groupBy(agentMemoryDocuments.agentId)
+    .orderBy(desc(max(agentMemoryDocuments.updatedAt)));
+}
+
+/**
+ * Forget: delete one memory file of this agent about this person, or all of
+ * them when `path` is omitted — and the journal of those files with them.
+ *
+ * The journal keeps every write's before and after content, which is what
+ * makes concurrent edits safe and a bad write reversible. Forgetting that kept
+ * the old text there would be a deletion in the UI and a copy in the database,
+ * so a forgotten file's history goes too. Returns how many files went.
+ */
+export async function deleteAgentMemory(db: ApiDatabase, input: {
+  oxyUserId: string;
+  agentId: string;
+  path?: string;
+}): Promise<number> {
+  return db.transaction(async (tx) => {
+    const removed = await tx.delete(agentMemoryDocuments).where(and(
+      eq(agentMemoryDocuments.oxyUserId, input.oxyUserId),
+      eq(agentMemoryDocuments.agentId, input.agentId),
+      ...(input.path === undefined ? [] : [eq(agentMemoryDocuments.path, input.path)]),
+    )).returning({ id: agentMemoryDocuments.id });
+    if (removed.length > 0) {
+      await tx.delete(agentMemoryJournal).where(and(
+        eq(agentMemoryJournal.oxyUserId, input.oxyUserId),
+        eq(agentMemoryJournal.agentId, input.agentId),
+        inArray(agentMemoryJournal.documentId, removed.map((row) => row.id)),
+      ));
+    }
+    return removed.length;
+  });
 }
 
 export async function readAgentMemory(db: Executor, oxyUserId: string, agentId: string, path: string) {

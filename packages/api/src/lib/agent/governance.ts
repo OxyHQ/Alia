@@ -28,6 +28,9 @@ const REVERSIBLE_WRITE_TOOLS = new Set([
   'createAutomation',
   'saveUserMemory',
   'updateUserMemory',
+  // Forgetting is the person's own request ("olvida esto"); the same tier as
+  // the edit it is, and as the delete button on the memory screen.
+  'forgetUserMemory',
   'updateUserPreferences',
   'updateUserContext',
 ]);
@@ -96,9 +99,11 @@ function classifyPrimitive(
       return R1('Delegation runs another Alia agent under this session budget', false);
     case 'memory': {
       const action = typeof args.action === 'string' ? args.action : '';
-      return action === 'read' || action === 'list'
-        ? R0('Reading the agent\'s own memory is autonomous')
-        : R1('Writing the agent\'s own memory, journaled and reversible', true);
+      if (action === 'read' || action === 'list') return R0('Reading the agent\'s own memory is autonomous');
+      // Forgetting purges the file and its journal on the person's request,
+      // so it is R1 without a rollback: there is deliberately nothing to restore.
+      if (action === 'forget') return R1('Forgetting part of the agent\'s own memory, as the person asked', false);
+      return R1('Writing the agent\'s own memory, journaled and reversible', true);
     }
     case 'continueInBackground':
       return R1('Starts a held, admitted background run of the same agent for this person', false);

@@ -186,7 +186,8 @@
       "localModels": "Modelos locales",
       "profile": "Perfil",
       "storage": "Almacenamiento",
-      "security": "Seguridad"
+      "security": "Seguridad",
+      "proactive": "Avisos"
     },
     "accentColor": {
       "title": "Color de la app",
@@ -426,6 +427,43 @@
           "pt": "Portugués",
           "de": "Alemán"
         }
+      },
+      "agentMemory": {
+        "title": "Lo que recuerda un agente",
+        "agentsTitle": "Lo que recuerdan tus agentes",
+        "agentsEmpty": "Ningún agente recuerda nada de ti todavía",
+        "agentsEmptyDescription": "Cada agente guarda su propia memoria de ti, aparte de la de Alia.",
+        "unnamedAgent": "Agente",
+        "fileCount": {
+          "one": "1 nota",
+          "other": "{{count}} notas"
+        },
+        "open": "Ver",
+        "description": "Lo que {{name}} recuerda de ti. Es su propia memoria, no la de Alia: edítala o haz que la olvide.",
+        "back": "Memoria",
+        "empty": "{{name}} no recuerda nada de ti.",
+        "forget": "Olvidar",
+        "forgetAll": "Olvidarlo todo",
+        "forgetAllTitle": "Que {{name}} lo olvide todo",
+        "forgetAllDescription": "Borra todas las notas que este agente guarda sobre ti.",
+        "forgetFileTitle": "Olvidar {{path}}",
+        "forgetDescription": "{{name}} dejará de recordarlo. No se puede deshacer.",
+        "forgotten": "Olvidado",
+        "forgetFailed": "No se pudo olvidar. Inténtalo de nuevo.",
+        "changedMeanwhile": "El agente cambió esta nota mientras la editabas. Se muestra su última versión."
+      },
+      "proactive": {
+        "emailTitle": "Emails importantes",
+        "aliaEmailLabel": "Avísame de emails importantes",
+        "aliaEmailDescription": "Alia te escribe cuando llega a tu Inbox algo que te necesita. Solo lee el remitente, el asunto y la primera línea.",
+        "agentsTitle": "Los buzones de tus agentes",
+        "agentEmailLabel": "Que {{name}} me avise de emails importantes",
+        "agentEmailDescription": "{{name}} te escribe cuando a su propio buzón llega algo que deberías ver, como una verificación o una respuesta.",
+        "noAgents": "Todavía no tienes agentes.",
+        "unnamedAgent": "Agente",
+        "limitsLabel": "Nunca te agobian",
+        "limitsDescription": "Como mucho tres mensajes al día cada uno, y ninguno mientras sus dos últimos sigan sin respuesta.",
+        "loadFailed": "No se pudieron cargar estos ajustes."
       }
     },
     "security": {

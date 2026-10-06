@@ -5,6 +5,7 @@ import { getDb } from '../../db/index.js';
 import { findActiveSubscription } from '../../db/billing/subscriptionRepository.js';
 import {
   countEntries,
+  deleteEntryById,
   findEntryByTitle,
   mergeContext,
   mergePreferences,
@@ -235,6 +236,41 @@ export const updateUserMemoryTool = (oxyUserId: string) => tool({
         success: false,
         message: `Failed to update memory: ${getErrorMessage(error)}`,
       };
+    }
+  },
+});
+
+/**
+ * "Olvida esto" — the person asking Alia to forget something she remembers.
+ *
+ * Deletes the entry AND its embedding: a forgotten fact must not keep a vector
+ * of itself that recall could match on. Never gated by `autoSaveEnabled`, like
+ * `updateUserMemory`: forgetting is always the person's own request.
+ */
+export const forgetUserMemoryTool = (oxyUserId: string) => tool({
+  description: 'Forget something you remember about the user, when they ask you to forget it, stop remembering it, or say it is no longer true and should go. Pass the exact title of the memory. Confirm to them what you forgot. Never use it on your own initiative.',
+
+  inputSchema: z.object({
+    title: z.string().describe('The title of the memory to forget, exactly as it is stored today'),
+  }),
+
+  execute: async ({ title }) => {
+    try {
+      const memory = await getOrCreateUserMemory(oxyUserId);
+      const db = getDb();
+      const found = await findEntryByTitle(db, memory._id, title);
+      if (!found) {
+        return { success: false, message: `No memory titled "${title}" exists, so there is nothing to forget.`, notFound: true };
+      }
+      await deleteEntryById(db, memory._id, found._id);
+      const { deleteMemoryEmbedding } = await import('../memory/index.js');
+      await deleteMemoryEmbedding(oxyUserId, found.title);
+      const { invalidateUserEmbeddingCache } = await import('../memory/vector-search.js');
+      invalidateUserEmbeddingCache(oxyUserId);
+      return { success: true, message: `Forgot "${found.title}".`, title: found.title };
+    } catch (error: unknown) {
+      log.tools.error({ err: error }, 'Error forgetting memory');
+      return { success: false, message: `Failed to forget the memory: ${getErrorMessage(error)}` };
     }
   },
 });

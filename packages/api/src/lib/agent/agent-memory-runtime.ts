@@ -18,6 +18,7 @@ import { z } from 'zod';
 import { getDb } from '../../db/index.js';
 import {
   AgentMemoryConflictError,
+  deleteAgentMemory,
   listAgentMemory,
   readAgentMemory,
   writeAgentMemory,
@@ -30,8 +31,12 @@ import {
   parseAgentMemoryPath,
 } from './memory-contract.js';
 import { getErrorMessage } from '../errors/index.js';
+import { memoryDataBlock } from '../memory/memory-prompt.js';
 
-/** The prompt section carrying this agent's MEMORY.md for this person, or ''. */
+/** How the agent keeps its memory, and forgets on request. Said once, under the memory block. */
+const MEMORY_UPKEEP = 'Keep it current with the `memory` tool: short, factual lines; topic detail in memory/<topic>.md. When the person asks you to forget something, remove it with the `memory` tool (`forget` for a whole file, `replace` to drop lines) and tell them it is gone.';
+
+/** The prompt section carrying this agent's MEMORY.md for this person, as labelled data. */
 export async function agentMemoryPromptSection(oxyUserId: string, agentId: string): Promise<string> {
   const index = await readAgentMemory(getDb(), oxyUserId, agentId, AGENT_MEMORY_INDEX).catch(() => undefined);
   const content = index?.content.trim();
@@ -39,16 +44,17 @@ export async function agentMemoryPromptSection(oxyUserId: string, agentId: strin
     return '\n\n## Your memory of this person\nYour MEMORY.md for this person is empty. When you learn something worth remembering across conversations (who they are, what they want from you, decisions, preferences), save it with the `memory` tool.';
   }
   const slice = agentMemoryPromptSlice(content);
-  return `\n\n## Your memory of this person (MEMORY.md)\n${slice.content}${slice.truncated ? '\n[…truncated; read the rest with the memory tool]' : ''}\n\nKeep it current with the \`memory\` tool: short, factual lines; topic detail in memory/<topic>.md.`;
+  const body = `${slice.content}${slice.truncated ? '\n[…truncated; read the rest with the memory tool]' : ''}`;
+  return `${memoryDataBlock('Your memory of this person (MEMORY.md)', body)}\n\n${MEMORY_UPKEEP}`;
 }
 
 /** The `memory` tool: read, list and write this agent's files about this person. */
 export function buildAgentMemoryTool(input: { oxyUserId: string; agentId: string; actorOxyAccountId: string }) {
   const { oxyUserId, agentId, actorOxyAccountId } = input;
   return tool({
-    description: 'Your own long-term memory about this person, kept across conversations: MEMORY.md (the index you always see) and memory/<topic>.md files. Actions: list; read a file; append a line; replace a file\'s whole content. Save only what will still matter later.',
+    description: 'Your own long-term memory about this person, kept across conversations: MEMORY.md (the index you always see) and memory/<topic>.md files. Actions: list; read a file; append a line; replace a file\'s whole content; forget (delete) a whole file when the person asks you to forget it. Save only what will still matter later.',
     inputSchema: z.object({
-      action: z.enum(['list', 'read', 'append', 'replace']),
+      action: z.enum(['list', 'read', 'append', 'replace', 'forget']),
       path: z.string().optional().describe('MEMORY.md (default) or memory/<topic>.md'),
       content: z.string().optional().describe('The line to append, or the new whole content for replace'),
     }),
@@ -59,6 +65,10 @@ export function buildAgentMemoryTool(input: { oxyUserId: string; agentId: string
           return files.length === 0 ? 'No memory files yet.' : files.map((f) => `${f.path} (${f.byteLength} bytes)`).join('\n');
         }
         const target = parseAgentMemoryPath(path ?? AGENT_MEMORY_INDEX).path;
+        if (action === 'forget') {
+          const removed = await deleteAgentMemory(getDb(), { oxyUserId, agentId, path: target });
+          return removed === 0 ? `${target} did not exist.` : `Forgot ${target}.`;
+        }
         const current = await readAgentMemory(getDb(), oxyUserId, agentId, target);
         if (action === 'read') return current?.content || `${target} is empty.`;
         if (!content?.trim()) return 'Error: content is required';
