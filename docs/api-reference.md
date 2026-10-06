@@ -14,7 +14,7 @@ Oxy Console. The page is organised by mount, because one handler sits behind two
   Cowork and the CLI call. Alia owns it and keeps owning it. `@alia.onl/sdk` is written
   against it too, but its transport still enters through `/v1/chat/completions`, for the
   CORS reason under [Chat](#chat).
-- **[The `/v1/*` mount](#the-bounded-compatibility-surface-v1)** — `api.alia.onl/v1/*`,
+- **[The `/v1/*` mount](#the-product-api-under-its-openai-compatible-shape-v1)** — `api.alia.onl/v1/*`,
   the OpenAI-shaped entry to the same runtime, with public CORS. The section below still
   carries ADR 0004's window text and is read with ADR 0010's amendment: the routes are
   frozen at their current list, not removed.
@@ -56,7 +56,7 @@ one session model. `GET /alia/chat` is a status banner and stays public.
 ## The Alia product runtime
 
 Alia owns conversations, memory and the context graph, agents, tools and
-tool execution, approvals and the R0–R3 risk policy, deep research, triggers,
+tool execution, approvals and the R0–R3 risk policy, deep research, background tasks,
 notifications, Codea and Cowork behaviour, and product entitlements. None of it moves to
 Kaana.
 
@@ -136,6 +136,15 @@ earlier revisions of this page had both wrong:
 | `/tools` | `routes/tools-proxy.ts`, proxied to the integrations service |
 | `/mcp` | `routes/mcp.ts` |
 
+The actor-model routes under `/agents` ([actors](./actors.mdx)):
+
+| Route | Purpose |
+|---|---|
+| `GET /agents/:id/oxy-apps`, `PUT /agents/:id/oxy-apps/:appId` | An agent's level per Oxy app (Nada · Ver · Ver y actuar); owner only (`routes/agents/oxy-apps.ts`) |
+| `GET\|PUT\|DELETE /agents/:id/memory` | The agent's memory files about the caller (`routes/agents/memory.ts`) |
+| `/agents/:id/computer/*` | The live view of the agent's computer: status, files, receipts, browser screenshot and take-over (`routes/agents/computer.ts`) |
+| `GET /agents/approvals`, `POST /agents/approvals/:approvalId/decision` | Approvals a background run filed (`routes/agents/approvals.ts`) |
+
 ### Structured automations
 
 `/automations` is the only control plane for proactive work. It stores explicit actors,
@@ -182,6 +191,8 @@ routes mounted at `packages/api/src/index.ts:194`.
 | `GET /notifications/vapid-public-key` | VAPID public key. **No auth required** |
 | `POST /notifications/web-push-subscription` | Register a browser subscription. Body `{ endpoint, keys: { p256dh, auth } }` |
 | `DELETE /notifications/web-push-subscription` | Deactivate one. Body `{ endpoint }` |
+| `GET /notifications/email-alerts` | "Avísame de emails importantes", per actor (Alia and each owned agent) |
+| `PUT /notifications/email-alerts` | Body `{ agentId: string \| null, enabled: boolean }`; `null` is Alia; an agent's switch is its owner's alone |
 
 **Socket.IO.** Connect at the API origin, emit `subscribe-notifications` with the user id,
 and listen for `notification`, `alia.approval_request` and `alia.approval_result`. The same

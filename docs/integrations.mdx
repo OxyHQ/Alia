@@ -1,43 +1,61 @@
 ---
 title: "Integrations and tools"
-description: "How Alia connects to Telegram, WhatsApp, Discord, MCP servers, Oxy ecosystem services, and arbitrary webhooks."
+description: "Alia's tool families, Oxy apps (first party), MCP servers and channel integrations."
 order: 3
 ---
 
 # Integrations and tools
 
-Alia's reach across channels and external systems comes from three layers:
+Alia's reach comes from four layers:
 
-1. **Native tools** registered in `packages/api/src/lib/tools/` — the runtime exposes them to the model directly.
-2. **MCP servers** — Model Context Protocol bridges to user-installed tools.
-3. **Channel integrations** — long-running connectors in `packages/integrations/` that mirror messages from Telegram, WhatsApp, Discord, Signal, Gmail, and a headless browser into Alia.
+1. **Native tools** in `packages/api/src/lib/tools/`, assembled per turn by one
+   pipeline (`ToolPipeline.forUser`, `lib/tool-pipeline.ts`).
+2. **Oxy apps** — every app of the Oxy ecosystem, first party, built from Oxy's
+   signed capability catalogs.
+3. **MCP servers and OAuth integrations** — connectors a person installs.
+4. **Channel integrations** — long-running connectors in `packages/integrations/`
+   for Telegram, WhatsApp, Signal, Gmail and Discord.
+
+Which of these an actor may use is in [Actors: Alia and agents](./actors.mdx).
 
 ## Native tools
 
-Tools live in `packages/api/src/lib/tools/` and self-register through `registry.ts`. Each tool declares its name, description, default-enabled state, and category; the runtime assembles the per-request tool set based on the user's plan, the model's capabilities, and any explicit `tools` list on the request.
+An agent's tools are partitioned by capability family (`FIXED_FAMILY_TOOLS` in
+`domain/capability-grants.ts`, deny by default); Alia's own turns are not limited
+by a grant. The families and the tools each contributes:
 
-| Category | Tools |
-|----------|-------|
-| Utility | `getCurrentDate`, `getDeviceInfo` |
-| Research | `webSearch`, `webScraper`, `deepResearch` |
-| Memory | `saveUserMemory`, `updateUserPreferences`, `updateUserContext` |
-| Generation | `generateFile`, `canvas` |
-| Agents | `searchAgents`, `delegateToAgent`, `orchestrateAgents`, `createAgent`, `delegateSubtask` |
-| Triggers | `createTrigger`, `listTriggers`, `updateTrigger`, `deleteTrigger` |
-| Channels | `sendTelegramMessage`, `sendWhatsAppMessage`, `getWhatsAppChats`, `getWhatsAppMessages` |
-| Infrastructure | `sandbox`, `gatewayAdmin`, `planPreview` |
-| Bridges | `mcp`, `oxy-services`, `integrations` |
+| Family | Tools |
+|--------|-------|
+| `web` | `webSearch`, `webScraper`, `deepResearch`, `getWeather`, `getMarketQuote`, `getFairCoin` |
+| `browser` | `browser` — the runner's Clarity primitive (`search`, `goto`, `get_text`); no Chromium |
+| `artifacts` | `canvas`, `generateFile` |
+| `memory` | `memory` (the agent's own MEMORY.md and topic files), `searchThread` |
+| `messaging` | `sendTelegramMessage`, `getWhatsAppChats`, `getWhatsAppMessages`, `sendWhatsAppMessage` |
+| `automation` | `createAutomation` |
+| `delegation` | `createAgent`, `searchAgents`, `delegateToAgent`, `delegate` |
+| `computer` | `computer_*`, `run_computer_command`, `*_computer_file(s)`, `browser_*` — the agents' computer ([agents](./agents.md#the-agents-computer-computer)) |
+| `mcp:<id>`, `agent[:<id>]`, … | instanced families: one connector or agent per grant (`askAgent` for `agent`) |
+| no grant (`UNGRANTED_TOOLS`) | `getCurrentDate`, `getDeviceInfo`, `planPreview`, `plan`, `suggestNewConversation` |
 
-All tools wrap their executor in `safeExecute()` so errors surface as `alia.tool_result` events without breaking the SSE stream. Risk class is declared per-tool and enforced by the autonomy runtime — `R2` calls pause the stream for approval, `R3` calls are blocked outright.
+Alia's memory tools (`saveUserMemory`, `updateUserMemory`, `forgetUserMemory`,
+`updateUserPreferences`, `updateUserContext`) are hers alone and are never built
+for an agent ([memory](./memory-system.md)). The 128-tool request limit and the
+`useApps` router are in [chat runtime](./chat-runtime.mdx#tool-budget-and-the-app-router).
+
+Risk is classified per call by `classifyActionRisk` (`lib/agent/governance.ts`):
+`R2` asks for approval in an attended turn, `R3` is blocked — see
+[governance](./agents.md#governance).
 
 ### Adding a tool
 
-1. Create `packages/api/src/lib/tools/my-tool.ts` exporting a tool constructor
-2. Export it from `packages/api/src/lib/tools/index.ts`
-3. Register it with `registerTool({ name, description, tool, enabledByDefault, category })`
-4. Pick a risk class and wrap any external write in a `RollbackRecord` if reversible
-5. Add a description fragment under `packages/api/src/lib/tools/descriptions/`
-6. Test it under `packages/api/src/lib/tools/__tests__/`
+1. Write the tool constructor in `packages/api/src/lib/tools/` and export it from
+   `lib/tools/index.ts`.
+2. Put it in a capability family in `domain/capability-grants.ts`, or argue it into
+   `UNGRANTED_TOOLS` (the list is meant to stay short).
+3. Assemble it in `ToolPipeline.forUser` (`lib/tool-pipeline.ts`), the only assembler.
+4. Make sure `classifyActionRisk` gives it the right class.
+5. Test it under `lib/tools/__tests__/`; `lib/__tests__/capability-grants.test.ts`
+   fails if a family's grant reaches nothing.
 
 ## MCP servers
 
@@ -45,15 +63,32 @@ MCP integration lives in `packages/api/src/lib/tools/mcp.ts` and `packages/integ
 
 MCP capabilities are visible to the model with the same calling convention as native tools, so the LLM does not need to distinguish them.
 
-## Oxy service connector
+## Oxy apps
 
-Alia is part of the Oxy ecosystem. Each app registers one signed capability
-catalog in Oxy; Alia builds its internal tools from that registry. Adding an app
-requires a catalog and handlers in the app, not app-specific code in Alia.
+Oxy apps are **first party**. Alia and Oxy are the same ecosystem, so there is no
+"connect your inbox" or authorize step: Alia reaches every Oxy app of the person
+present in the turn, and an agent reaches its owner's apps per the levels the owner
+set, and its own account as itself ([actors](./actors.mdx)).
+
+Each app registers one signed capability catalog in Oxy; Alia builds its tools from
+that registry. Adding an app requires a catalog and handlers in the app, not
+app-specific code in Alia.
 
 - Oxy owns catalog registration, delegations and live authorization decisions.
-- `packages/api/src/lib/tools/oxy-services.ts` turns internal catalog tools into AI SDK tools.
-- `packages/api/src/lib/oxy-capability-authority.ts` exchanges request-scoped user approval for opaque execution-authorization ids.
+- `packages/api/src/lib/tools/oxy-services.ts` turns catalog tools into AI SDK tools,
+  named `oxy_<app>__<tool>` (the person's account) and, for an agent,
+  `self_<app>__<tool>` (its own account).
+- `packages/api/src/lib/oxy-capability-authority.ts` exchanges the turn's authority
+  (a direct request, an automation's standing authorization, or Oxy's agent-run lane)
+  for opaque execution-authorization ids and short-lived tickets.
+- When Oxy cannot confirm authority the model receives `oxy_app_unavailable` (or
+  `oxy_app_result_unknown` when an effect's outcome is unknown) with a fixed
+  sentence, never Oxy's raw reason, and is told not to route around it.
+- Each call carries one idempotency key per tool call (`idempotencyKey` in
+  `oxy-services.ts`); Inbox's catalog 2.0.0 takes it only from that header, not
+  from a model-written argument.
+- What still uses each app's advertised HTTP invocation, and the Mention MCP pilot,
+  are in [Oxy application authority](./oxy-capability-boundaries.md).
 
 Inbound service events go through `POST /webhooks/oxy`:
 
@@ -63,6 +98,8 @@ Inbound service events go through `POST /webhooks/oxy`:
 - Observation records actor/action decisions with no execution.
 - Execution requires every declared resource/tool authorization, then obtains a
   short-lived capability ticket for the fresh run and step.
+- Inbox's `new_email` also feeds important-email outreach
+  ([background work](./proactive-intelligence.md#writing-first-an-important-email)).
 
 User sessions are never forwarded to apps or retained by background runs. The
 app receives only a one-minute capability ticket with its exact audience,
@@ -80,9 +117,9 @@ resource, actor, account, run, step and tool.
 | `accounts/gmail/` | Gmail | IMAP / Gmail API sync |
 | `bots/telegram-bot/` | Telegram bot | Bot API bridge |
 | `bots/discord-bot/` | Discord | Bot user that mirrors guild channels |
-| `browser/` | Headless browser | Channel bridge only; the API's web tools read pages through Clarity |
-| `terminal/` | Terminal sessions | Used by Codea CLI for shell access |
-| `realtime/` | Realtime audio | Voice-tier model bridge |
+| `browser/` | Headless browser sessions | Not the agents' computer (that is `packages/alia-computer-host`); the API's web tools read pages through Clarity |
+| `terminal/` | PTY sessions | Streamed to their owner over `/ws` |
+| `realtime/` | The `/ws` WebSocket server | Subscription auth and broadcasting for terminal and browser sessions |
 
 Inbound messages arrive at the API as either:
 
@@ -94,23 +131,6 @@ Outbound tools (e.g. `sendTelegramMessage`, `sendWhatsAppMessage`) require `R2` 
 
 ## Structured Automations
 
-`/automations` stores the objective, actor selection, exact actions and resources,
-data flow, limits, autonomy and `observe | execute` mode. Scheduled definitions use
-the one elected `trigger-engine.ts` cron registry. Event definitions are matched by
-the normalized Oxy event route. The legacy `/triggers` model is gone.
-
-Active control-plane endpoints:
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| `GET` | `/automations` | List definitions and declared actions |
-| `POST` | `/automations` | Create an observe/execute definition and editable receipt |
-| `PATCH` | `/automations/:id` | Edit the receipt fields and revalidate execution authority |
-| `DELETE` | `/automations/:id` | Stop immediately and revoke its Oxy authorizations |
-| `POST` | `/automations/:id/run` | Execute a manual definition; owner-only and idempotency-keyed |
-| `GET` | `/automations/runs` | Decision and execution history |
-| `GET` | `/automations/runs/:runId/steps` | Ordered, correlated step history |
-
-Manual execution requires `execute_on_request` or `autonomous`. Background event and
-schedule execution requires `autonomous`; `draft` and `read_only` definitions cannot
-produce effects without a future explicit approval flow.
+Background tasks — who runs them, their triggers and how a run executes — are in
+[Background work and proactive outreach](./proactive-intelligence.md); the
+`/automations` endpoints are in the [API reference](./api-reference.md#structured-automations).

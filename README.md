@@ -1,7 +1,7 @@
 # Alia
 
 <p align="center">
-  <b>A multi surface context agent platform, built for autonomous execution with policy controls.</b><br>
+  <b>Oxy's assistant: it acts for you in your Oxy apps, works in the background, and lets you create agents of your own.</b><br>
   One chat runtime behind an app, a VS Code extension, a desktop client, a CLI and an HTTP API.
 </p>
 
@@ -48,8 +48,10 @@ rather than an investigation.
 </table>
 
 > [!IMPORTANT]
-> **Alia has no models of its own.** A person picks a real `<publisher>/<model>` from
-> Oxy's catalogue (`GET /catalogue`, filtered to text models with tools); the default,
+> **Alia has no models of its own.** A person picks a power level (`auto` … `ultra`) and
+> Oxy picks the model ([ADR 0014](docs/adr/0014-people-choose-power-levels-not-models.md));
+> an API caller may name a real `<publisher>/<model>` from Oxy's catalogue (`GET /catalogue`,
+> filtered to text models with tools). The default,
 > featured, utility and speech models are computed from that catalogue and Alia's usage,
 > never hardcoded. Model and publisher names are shown. The operator serving a deployment
 > and deployment IDs stay off the **product surface** — product API responses, errors, the
@@ -115,7 +117,8 @@ and Kaana credential-runtime rollout gates. The
 the separate long-context refusal and its verified serving backport.
 
 `/automations` is the normalized scheduling and control API for explicit actors,
-resources, actions, data flow and autonomy, run by one elected scheduler. The legacy
+resources, actions, data flow and autonomy, run by one elected scheduler. Every task has
+an actor — Alia by default, or one of the person's agents ([actors](docs/actors.mdx)). The legacy
 `/triggers` model is gone. There is no backward-compatible model resolution endpoint —
 `POST /v1/resolve-model` and `POST /v1/report-usage` return `410 Gone`.
 
@@ -249,7 +252,8 @@ bun run web    # or ios, or android
 | Doc | Subject |
 |---|---|
 | [Onboarding](docs/onboarding.md) | **Start here if you are new** |
-| [Overview](docs/index.mdx) | What Alia is |
+| [Overview](docs/index.mdx) | What Alia is, and the reading order |
+| [Actors: Alia and agents](docs/actors.mdx) | Who acts, for whom or as itself, with what permission |
 | [Chat runtime](docs/chat-runtime.mdx) | The handler, the SSE events, the Kaana boundary |
 | [Models in Alia](docs/model-abstraction.mdx) | Real models from Oxy's catalogue, chosen automatically |
 | [API reference](docs/api-reference.md) | The HTTP surface, by boundary |
@@ -261,10 +265,10 @@ bun run web    # or ios, or android
 
 | Doc | Subject |
 |---|---|
-| [Agents and autonomy](docs/agents.md) | Execution and policy |
+| [Agents](docs/agents.md) | Bot accounts, capabilities, Oxy apps, the computer |
 | [Memory and context graph](docs/memory-system.md) | Recall and retrieval |
-| [Proactive intelligence](docs/proactive-intelligence.md) | Acting unprompted |
-| [Integrations](docs/integrations.mdx) | Channels and messaging |
+| [Background work](docs/proactive-intelligence.md) | Tasks, watches, writing first |
+| [Integrations](docs/integrations.mdx) | Tools, Oxy apps, MCP, channels |
 | [Oxy auth](docs/oxyhq-auth.md) | Identity and sessions |
 | [Developer access](docs/developers-portal.md) | Credentials for Alia's API; `alia_sk_*` is retired |
 | [Dependency updates](docs/dependencies.md) | Reviewable Oxy updates and Doctor |
@@ -283,8 +287,8 @@ each is easy to break by accident and none is caught by types:
    on the **product surface** — product API responses, errors, the UI, customer-facing
    analytics. Model and publisher names are fine; it is a product and privacy boundary, not
    a global ban on the words.
-2. `trigger-engine.ts` is the only scheduler. Legacy triggers and structured automation
-   schedules must both register through it; do not add a second scheduling loop.
+2. `trigger-engine.ts` is the only scheduler. Structured automation schedules register
+   through it; do not add a second scheduling loop.
 3. No model id in code or environment, and no curated model list. Alia names real
    `<publisher>/<model>` ids from Oxy's catalogue and computes every default
    ([ADR 0012](docs/adr/0012-alia-uses-real-models.md)); product modes and `route:*` profiles
