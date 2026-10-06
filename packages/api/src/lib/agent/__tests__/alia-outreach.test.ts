@@ -9,6 +9,8 @@ const state = vi.hoisted(() => ({
   notify: vi.fn(),
   emit: vi.fn(),
   to: vi.fn(),
+  countOutreach: vi.fn(),
+  latestMarks: vi.fn(),
 }));
 
 const database = { kind: 'test-db' };
@@ -24,12 +26,15 @@ vi.mock('../../../db/chat/conversationRepository.js', () => ({
 vi.mock('../../../db/chat/messageRepository.js', () => ({
   findLastMessage: state.lastMessage,
   insertMessages: state.insert,
+  countOutreachInConversationSince: state.countOutreach,
+  listLatestMessageMarks: state.latestMarks,
 }));
 vi.mock('../../notification-service.js', () => ({ sendNotification: state.notify }));
 vi.mock('../../../socket.js', () => ({ getIO: () => ({ to: state.to }) }));
 vi.mock('../../logger.js', () => ({ log: { agents: { warn: vi.fn() } } }));
 
-import { postAliaMessage } from '../alia-outreach.js';
+import { aliaOutreachConversationId, postAliaCheckIn, postAliaMessage } from '../alia-outreach.js';
+import { CHECK_IN_DAILY_LIMIT } from '../outreach-budget.js';
 
 const base = {
   oxyUserId: 'owner-1',
@@ -47,6 +52,8 @@ beforeEach(() => {
   state.insert.mockResolvedValue(undefined);
   state.notify.mockResolvedValue(undefined);
   state.to.mockReturnValue({ emit: state.emit });
+  state.countOutreach.mockResolvedValue(0);
+  state.latestMarks.mockResolvedValue([{ role: 'user', clientMessageId: 'msg-1' }]);
 });
 
 describe('Alia posting a task result', () => {
@@ -116,6 +123,45 @@ describe('Alia posting a task result', () => {
     await expect(postAliaMessage({ ...base, conversationId: null, content: '  ' }))
       .resolves.toEqual({ posted: false, reason: 'empty' });
     expect(state.insert).not.toHaveBeenCalled();
+    expect(state.notify).not.toHaveBeenCalled();
+  });
+});
+
+describe('Alia writing first, on her own initiative', () => {
+  const checkIn = { oxyUserId: 'owner-1', content: 'An important email arrived.', title: 'Important email', conversationTitle: 'Alia' };
+
+  it('uses one conversation of hers per person, derived rather than stored', () => {
+    const id = aliaOutreachConversationId('owner-1');
+    expect(id).toBe(aliaOutreachConversationId('owner-1'));
+    expect(id).not.toBe(aliaOutreachConversationId('owner-2'));
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  it('posts into it, marked, and notifies as a proactive insight', async () => {
+    const outcome = await postAliaCheckIn({ ...checkIn, data: { emailId: 'msg-1' } });
+
+    const conversationId = aliaOutreachConversationId('owner-1');
+    expect(outcome).toEqual({ posted: true, conversationId, messageId: expect.stringMatching(/^agent-push-/) });
+    expect(state.upsert).toHaveBeenNthCalledWith(1, database, expect.objectContaining({ conversationId, titleOnInsert: 'Alia' }));
+    expect(state.notify).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'proactive_insight',
+      title: 'Important email',
+      data: expect.objectContaining({ conversationId, emailId: 'msg-1' }),
+    }));
+  });
+
+  it('spends the agents\' budget: three a day', async () => {
+    state.countOutreach.mockResolvedValue(CHECK_IN_DAILY_LIMIT);
+    await expect(postAliaCheckIn(checkIn)).resolves.toEqual({ posted: false, reason: 'daily_limit' });
+    expect(state.insert).not.toHaveBeenCalled();
+  });
+
+  it('and none while her last two went unanswered', async () => {
+    state.latestMarks.mockResolvedValue([
+      { role: 'assistant', clientMessageId: 'agent-push-a' },
+      { role: 'assistant', clientMessageId: 'agent-push-b' },
+    ]);
+    await expect(postAliaCheckIn(checkIn)).resolves.toEqual({ posted: false, reason: 'unanswered' });
     expect(state.notify).not.toHaveBeenCalled();
   });
 });

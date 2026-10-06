@@ -1,71 +1,17 @@
 /**
  * User Context Builder
  *
- * Shared utility for building user context (name, memory, preferences, language)
- * from Oxy user data and UserMemory. Used by `routes/internal.ts`.
+ * The `# USER CONTEXT` block a background prompt opens with (Alia's tasks,
+ * `routes/internal.ts`). What Alia REMEMBERS is in it as labelled data
+ * (`lib/memory/memory-prompt.ts`), never as bare lines a remembered sentence
+ * could pose as an instruction in.
+ *
+ * `buildUserContext`, the fetching half that once lived here, had no caller
+ * left and appended the person's memory unlabelled; it is gone rather than
+ * fixed.
  */
 
-import { oxyClient } from '../middleware/auth.js';
-import { getDb } from '../db/index.js';
-import { findUserMemory } from '../db/memory/userMemoryRepository.js';
-import { log } from './logger.js';
-
-export interface UserContext {
-  userName: string | null;
-  language: string | null;
-  contextString: string;
-}
-
-/**
- * Build user context string from Oxy profile and UserMemory.
- * Returns the user's name, language preference, and a combined context string
- * containing known facts, preferences, and context.
- */
-export async function buildUserContext(userId: string): Promise<UserContext> {
-  let userName: string | null = null;
-  let language: string | null = null;
-  let contextString = '';
-
-  // Fetch user name from Oxy
-  try {
-    const user = await oxyClient.users.get(userId);
-    userName = user?.name?.full || user?.name?.first || user?.username || null;
-    if (userName) {
-      contextString += `\nThe user's name is ${userName}.`;
-    }
-  } catch { /* user lookup optional */ }
-
-  // Load user memory
-  try {
-    const userMemory = await findUserMemory(getDb(), userId);
-    if (userMemory) {
-      if (userMemory.memories.length > 0) {
-        contextString += '\n\n## Known Facts:\n' + userMemory.memories.map(m => `- ${m.title}: ${m.summary}`).join('\n');
-      }
-      if (userMemory.preferences && Object.keys(userMemory.preferences).length > 0) {
-        const prefs = Object.entries(userMemory.preferences)
-          .filter(([k, v]) => v !== undefined && v !== null && k !== 'language')
-          .map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.join(', ') : v}`);
-        if (prefs.length > 0) {
-          contextString += '\n\n## Preferences:\n' + prefs.join('\n');
-        }
-      }
-      if (userMemory.context && Object.keys(userMemory.context).length > 0) {
-        const ctx = Object.entries(userMemory.context)
-          .filter(([_, v]) => v !== undefined && v !== null)
-          .map(([k, v]) => `- ${k}: ${v}`);
-        if (ctx.length > 0) {
-          contextString += '\n\n## Context:\n' + ctx.join('\n');
-        }
-      }
-      language = userMemory.preferences?.language || null;
-    }
-  } catch (e) {
-    log.memory.error({ err: e }, 'Error loading user memory');
-  }
-
-  return { userName, language, contextString };
-}
+import { memoryDataBlock, memoryFactLines } from './memory/memory-prompt.js';
 
 /**
  * The `# USER CONTEXT` block a background prompt opens with, from data the
@@ -84,8 +30,7 @@ export async function buildUserContext(userId: string): Promise<UserContext> {
  *
  * Takes fetched values rather than a `userId`: both callers already hold them,
  * and re-fetching inside a prompt builder would put an Oxy round trip on a path
- * that has one of its own. That is what separates this from
- * {@link buildUserContext} above, which is the fetching half.
+ * that has one of its own.
  */
 export function formatUserContextLines(
   oxyUser?: { name?: { full?: string; first?: string; middle?: string; last?: string }; username?: string; location?: string; bio?: string } | null,
@@ -112,15 +57,13 @@ export function formatUserContextLines(
     if (memory.preferences?.language) {
       lines.push(`User's preferred language: ${memory.preferences.language}.`);
     }
-    if (memory.context?.occupation) lines.push(`The user works as a ${memory.context.occupation}.`);
-    if (memory.context?.location && !oxyUser?.location) {
-      lines.push(`The user is located in ${memory.context.location}.`);
-    }
-    if (memory.preferences?.tone) lines.push(`The user prefers a ${memory.preferences.tone} tone.`);
-    if (memory.memories?.length) {
-      const items = memory.memories.map((m) => `- ${m.title}: ${m.summary}`).join('\n');
-      lines.push(`\nThings to remember about the user:\n${items}`);
-    }
+    const remembered: string[] = [];
+    if (memory.context?.occupation) remembered.push(`- occupation: ${memory.context.occupation}`);
+    if (memory.context?.location && !oxyUser?.location) remembered.push(`- location: ${memory.context.location}`);
+    if (memory.preferences?.tone) remembered.push(`- preferred tone: ${memory.preferences.tone}`);
+    if (memory.memories?.length) remembered.push(memoryFactLines(memory.memories));
+    const block = memoryDataBlock('What you remember about the user', remembered.join('\n'));
+    if (block !== '') lines.push(block.trimStart());
   }
 
   return lines;

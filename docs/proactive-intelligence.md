@@ -1,6 +1,6 @@
 # Proactive Intelligence
 
-Last updated: 2026-10-01
+Last updated: 2026-10-06
 
 Alia proactive intelligence has one normalized control plane (`/automations`) and
 one elected scheduler (`trigger-engine.ts`). A task always owns its human objective,
@@ -46,6 +46,51 @@ replies `NOTHING_TO_REPORT` otherwise. Ticks are free; only the run holds and
 spends credits. The run's trigger id `watch:<id>:<hash>` makes it and its
 message idempotent. A failing source backs off `min(60, 2^n)` minutes and after
 5 failures in a row the task is disabled with one notification.
+
+## Writing first: an important email
+
+Alia and every agent behave like a friend who tells you when something that
+needs you arrives — and never like a feed. `lib/proactive/email-outreach.ts`
+handles Inbox's `new_email` event (catalog 1.1.0: `messageId`, `from`,
+`subject`, a one-line `snippet` of at most 140 characters, and `folder`),
+delivered on the same signed lane as every Oxy event (`POST /webhooks/oxy`).
+It runs once per claimed event, beside — never instead of — automation
+matching, and its failures notify nobody.
+
+| Mailbox | Who is told | Where |
+|---|---|---|
+| The person's own Inbox | the person, by Alia | Alia's outreach conversation (`postAliaCheckIn`): one per person, id derived from the person (`aliaOutreachConversationId`) |
+| An agent's OWN mailbox (its bot account, ADR 0015 `self_*`) | the agent's owner (`owner_oxy_account_id`), by the agent | their thread with the agent (`postAgentMessage`, `check_in`) |
+
+The order is cheapest first, and the model is last:
+
+1. `folder` other than `inbox` (Junk) → nothing.
+2. Who would be told: a person who never opened Alia (no conversation at all)
+   is skipped; an agent without an owner tells nobody.
+3. Their switch — "Avísame de emails importantes", per actor, default **on**
+   (`email_alert_preferences`; `GET|PUT /notifications/email-alerts`, the app's
+   *Avisos* settings page). An agent's switch is its owner's alone.
+4. The idempotency claim, `email_outreach_decisions(mailbox, message id)`,
+   written before the classifier: a redelivered or duplicated event stops here.
+   It stores the verdict and a closed-vocabulary reason, never the email, and is
+   swept after 90 days (`db/expiryTargets.ts`).
+5. The initiative budget, the agents' and now Alia's too
+   (`lib/agent/outreach-budget.ts`): at most **3** own-initiative messages to a
+   person per actor per rolling day, and none while the actor's last **2** are
+   unanswered. A person who got three today costs no inference.
+6. One call to the computed utility model (`generateTextViaKaana` with no
+   `model`, ADR 0012), `json_schema` response, temperature 0.
+
+**The email is untrusted.** The classifier sees sender, subject and snippet —
+never the body — JSON-encoded inside an `<email>` block it is told is data
+written by a stranger (`<` escaped, so no field can close the block). It may
+answer only `{verdict: important | not_important, category}` from two closed
+lists; anything else, or a verdict whose category belongs to the other list, is
+a failure and tells nobody. What the person reads is a fixed, localised
+template (es/en) filled with the markdown-escaped, one-line, bounded sender and
+subject: no model-written text exists that an injected email could steer, and
+the snippet is never shown. `automation_events` stores the event without its
+snippet.
 
 ## Abandoned Alia runs
 

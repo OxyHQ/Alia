@@ -92,6 +92,12 @@ vi.mock('@/features/settings/ui/writing-style-section', () => ({
 vi.mock('@/features/settings/ui/connector-detail-section', () => ({
   ConnectorDetailSection: () => null,
 }));
+vi.mock('@/features/settings/ui/agent-memory-section', () => ({
+  AgentMemorySection: () => null,
+}));
+vi.mock('@/features/settings/ui/proactive-section', () => ({
+  ProactiveSection: () => null,
+}));
 
 import { AliaSettingsProvider } from '@/features/settings/ui/alia-settings';
 import {

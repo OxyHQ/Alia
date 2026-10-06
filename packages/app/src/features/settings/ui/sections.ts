@@ -14,6 +14,7 @@ import { RiSmartphoneLine } from "@oxy.so/bloom/icons/RiSmartphoneLine";
 import { RiRobot2Line } from "@oxy.so/bloom/icons/RiRobot2Line";
 import { RiPlugLine } from "@oxy.so/bloom/icons/RiPlugLine";
 import { RiComputerLine } from "@oxy.so/bloom/icons/RiComputerLine";
+import { RiNotification3Line } from "@oxy.so/bloom/icons/RiNotification3Line";
 
 export interface SettingsSection {
   id: string;
@@ -46,6 +47,7 @@ export const SETTINGS_GROUPS: { titleKey: string; sections: SettingsSection[] }[
     sections: [
       { id: "personalization", route: "/(app)/settings/personalization", icon: RiPaletteLine, labelKey: "settings.sections.personalization" },
       { id: "memory", route: "/(app)/settings/memory", icon: RiLightbulbFlashLine, labelKey: "settings.sections.memory" },
+      { id: "proactive", route: "/(app)/settings/proactive", icon: RiNotification3Line, labelKey: "settings.sections.proactive" },
       { id: "writing-style", route: "/(app)/settings/writing-style", icon: RiQuillPenLine, labelKey: "settings.sections.writingStyle" },
     ],
   },

@@ -211,7 +211,8 @@
       "writingStyle": "Writing Style",
       "localModels": "Local models",
       "profile": "Profile",
-      "storage": "Storage"
+      "storage": "Storage",
+      "proactive": "Notifications"
     },
     "accentColor": {
       "title": "App Color",
@@ -451,6 +452,43 @@
           "pt": "Portuguese",
           "de": "German"
         }
+      },
+      "agentMemory": {
+        "title": "What an agent remembers",
+        "agentsTitle": "What your agents remember",
+        "agentsEmpty": "No agent remembers anything about you yet",
+        "agentsEmptyDescription": "Each agent keeps its own memory of you, separate from Alia's.",
+        "unnamedAgent": "Agent",
+        "fileCount": {
+          "one": "1 note",
+          "other": "{{count}} notes"
+        },
+        "open": "View",
+        "description": "What {{name}} remembers about you. It is its own memory, not Alia's: edit it or make it forget.",
+        "back": "Memory",
+        "empty": "{{name}} does not remember anything about you.",
+        "forget": "Forget",
+        "forgetAll": "Forget everything",
+        "forgetAllTitle": "Make {{name}} forget everything",
+        "forgetAllDescription": "Deletes every note this agent keeps about you.",
+        "forgetFileTitle": "Forget {{path}}",
+        "forgetDescription": "{{name}} will not remember it any more. This cannot be undone.",
+        "forgotten": "Forgotten",
+        "forgetFailed": "Could not forget it. Try again.",
+        "changedMeanwhile": "The agent changed this note while you were editing. Its latest version is shown."
+      },
+      "proactive": {
+        "emailTitle": "Important emails",
+        "aliaEmailLabel": "Tell me about important emails",
+        "aliaEmailDescription": "Alia writes to you when something that needs you arrives in your Inbox. She only reads the sender, the subject and the first line.",
+        "agentsTitle": "Your agents' own mailboxes",
+        "agentEmailLabel": "Let {{name}} tell me about important emails",
+        "agentEmailDescription": "{{name}} writes to you when its own mailbox gets something you should see, such as a verification or a reply.",
+        "noAgents": "You have no agents yet.",
+        "unnamedAgent": "Agent",
+        "limitsLabel": "They never pester you",
+        "limitsDescription": "At most three messages a day each, and none while their last two are unanswered.",
+        "loadFailed": "Could not load these settings."
       }
     }
   },

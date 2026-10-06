@@ -11,21 +11,41 @@ import {
 } from '../../lib/agent/memory-contract.js';
 import {
   AgentMemoryConflictError,
+  deleteAgentMemory,
   listAgentMemory,
   readAgentMemory,
   writeAgentMemory,
 } from '../../db/agents/agentMemoryRepository.js';
+import { findAgentById } from '../../db/agents/agentRepository.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
 
-async function ownedAgent(req: Request, res: Response) {
+/**
+ * The agent whose memory of the CALLER this request may read or change.
+ *
+ * The rows are always the caller's own (`oxy_user_id = req.user.id`): an
+ * agent's memory is of one person, and nobody — not even the agent's owner —
+ * reads another person's through here. What is decided is only whether the
+ * caller may address this agent at all:
+ *
+ * - it already remembers something about them (they talked to it — a public
+ *   agent included), so they can see and forget it; or
+ * - they may act as its bot account (its owner or an operator), checked with
+ *   Oxy, as every agent write path is (`loadAgentForActor`).
+ *
+ * Anybody else gets the same 404 an unknown agent does.
+ */
+async function agentForMemory(req: Request, res: Response) {
   if (!req.user?.id || !req.accessToken) {
     res.status(401).json({ error: 'Unauthorized' });
     return null;
   }
+  const agentId = String(req.params.id);
+  const agent = await findAgentById(getDb(), agentId);
+  if (agent && (await listAgentMemory(getDb(), req.user.id, agent._id)).length > 0) return agent;
   const loaded = await loadAgentForActor(getDb(), {
-    agentId: String(req.params.id),
+    agentId,
     oxyUserId: req.user.id,
     accessToken: req.accessToken,
     cache: false,
@@ -40,7 +60,7 @@ async function ownedAgent(req: Request, res: Response) {
 
 router.get('/:id/memory', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const agent = await ownedAgent(req, res);
+    const agent = await agentForMemory(req, res);
     if (!agent || !req.user?.id) return;
     const path = typeof req.query.path === 'string' ? req.query.path : undefined;
     if (!path) return res.json({ documents: await listAgentMemory(getDb(), req.user.id, agent._id) });
@@ -55,7 +75,7 @@ router.get('/:id/memory', authenticateToken, async (req: Request, res: Response)
 
 router.put('/:id/memory', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const agent = await ownedAgent(req, res);
+    const agent = await agentForMemory(req, res);
     if (!agent || !req.user?.id) return;
     const path = typeof req.body?.path === 'string' ? req.body.path : '';
     const content = typeof req.body?.content === 'string' ? req.body.content : '';
@@ -81,6 +101,26 @@ router.put('/:id/memory', authenticateToken, async (req: Request, res: Response)
       return res.status(409).json({ error: error.message, currentHash: error.currentHash, currentContent: error.currentContent });
     }
     res.status(400).json({ error: error instanceof Error ? error.message : 'Failed to write memory' });
+  }
+});
+
+/**
+ * DELETE /agents/:id/memory[?path=…] — "olvidar".
+ *
+ * One file with `path`, everything this agent remembers about the caller
+ * without it. The file goes with its journal (`deleteAgentMemory`), so a
+ * forgotten note is not kept as history either.
+ */
+router.delete('/:id/memory', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const agent = await agentForMemory(req, res);
+    if (!agent || !req.user?.id) return;
+    const path = typeof req.query.path === 'string' ? req.query.path : undefined;
+    if (path !== undefined) parseAgentMemoryPath(path);
+    const removed = await deleteAgentMemory(getDb(), { oxyUserId: req.user.id, agentId: agent._id, ...(path === undefined ? {} : { path }) });
+    res.json({ removed });
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid memory path' });
   }
 });
 
