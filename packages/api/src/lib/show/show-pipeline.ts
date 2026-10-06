@@ -1,3 +1,4 @@
+import { reserveBackgroundProductCredits } from '../product-credit-access';
 /**
  * Producing one episode of a show series, and delivering it to Syra.
  *
@@ -40,7 +41,6 @@ import { deleteS3Objects, uploadToS3 } from '../s3.js';
 import {
   finalizeFixedCredits,
   refundReservation,
-  reserveCredits,
   type CreditReservation,
 } from '../credits-manager.js';
 import { getOrCreateUserCredits } from '../user-credits-helpers.js';
@@ -273,7 +273,7 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
 
   try {
     await getOrCreateUserCredits(episode.userId);
-    reservation = await reserveCredits(episode.userId);
+    reservation = await reserveBackgroundProductCredits(episode.userId);
     if (!reservation) {
       // Nothing was reserved, so there is nothing to give back — but Syra is
       // already holding a draft for an episode that will never be recorded.

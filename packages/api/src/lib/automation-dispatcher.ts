@@ -1,3 +1,4 @@
+import { reserveBackgroundProductCredits } from './product-credit-access';
 /** Shared policy, actor selection and queueing for normalized automations. */
 
 import { uuidv7 } from '@oxy.so/db';
@@ -26,7 +27,7 @@ import { automationExecutionPolicyError } from './automation-execution-policy.js
 import { enqueueAgentSession } from './task-queue.js';
 import { enqueueAliaTask } from './alia-task-queue.js';
 import { mayRunForAutomationOwner } from './automation-actors.js';
-import { reserveCredits, safeRefund, type CreditReservation } from './credits-manager.js';
+import { safeRefund, type CreditReservation } from './credits-manager.js';
 import { listActiveAliaTaskAuthorizations } from '../db/automation/aliaTaskAuthorityRepository.js';
 import {
   findAutomationWatchState,
@@ -108,7 +109,7 @@ async function reserveAutomationRun(
   trigger: AutomationDispatchTrigger,
 ): Promise<CreditReservation | null> {
   await getOrCreateUserCredits(automation.ownerAccountId);
-  const reservation = await reserveCredits(automation.ownerAccountId);
+  const reservation = await reserveBackgroundProductCredits(automation.ownerAccountId);
   if (!reservation) {
     await notifyNoExecution(automation, trigger, 'Not enough credits to run this task.');
   }

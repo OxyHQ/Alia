@@ -99,3 +99,13 @@ describe('the plan usage window', () => {
     expect(agentLimitsProps(credits(), null, NOW, t).limits).toHaveLength(1);
   });
 });
+
+it('shows bundle usage beside daily free and individual plan, then falls back at exact expiry', () => {
+  const productAllowance = {source:'oxy_one' as const,planId:'pro',periodStart:new Date(NOW-1000).toISOString(),periodEnd:new Date(NOW+60000).toISOString(),included:10000,consumed:100,reserved:20,remaining:9880};
+  const active=agentLimitsProps(credits({productAllowance}),subscription('active'),NOW,t);
+  expect(active.plan).toBe('Oxy One · Pro');
+  expect(active.limits[0]).toMatchObject({label:'Oxy One · credits.credits',used:0.012});
+  expect(active.limits[1].label).toBe('chat.bloom.limits.dailyFree');
+  expect(agentLimitsProps(credits({productAllowance}),subscription('active'),NOW+60000,t).plan).toBe('Pro');
+  expect(agentLimitsProps(credits({productAllowance:null}),null,NOW,t).plan).toBe('credits.free');
+});

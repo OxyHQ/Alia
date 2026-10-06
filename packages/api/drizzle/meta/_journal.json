@@ -603,6 +603,20 @@
       "when": 1791264666298,
       "tag": "0085_agent_memory_per_person",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1791288679174,
+      "tag": "0086_product_credit_allocations",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1791288680149,
+      "tag": "0087_agent_credit_operation_identity",
+      "breakpoints": true
     }
   ]
 }

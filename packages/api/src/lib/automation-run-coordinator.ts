@@ -1,3 +1,4 @@
+import { reserveBackgroundProductCredits } from './product-credit-access';
 /** Advance one persisted automation stage after its agent session finishes. */
 
 import {
@@ -10,7 +11,7 @@ import {
 } from '../db/agents/agentSessionRepository.js';
 import { getDb } from '../db/index.js';
 import { renderAutomationStageTask } from './automation-stage-task.js';
-import { reserveCredits, safeRefund } from './credits-manager.js';
+import { safeRefund } from './credits-manager.js';
 
 export type AutomationAdvanceResult =
   | { kind: 'not_automation' }
@@ -30,7 +31,7 @@ export async function advanceAutomationRunAfterSession(
     : progress;
   // Every stage is its own session and settles its own hold, as the first one
   // does (`automation-dispatcher.ts`); a later stage used to run unbilled.
-  const reservation = await reserveCredits(progress.ownerAccountId);
+  const reservation = await reserveBackgroundProductCredits(progress.ownerAccountId);
   if (!reservation) {
     await markAutomationRunForSession(getDb(), completedSession.id, 'failed');
     return { kind: 'terminal', status: 'failed', runId: progress.runId };

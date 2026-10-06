@@ -1,3 +1,4 @@
+import { reserveBackgroundProductCredits } from '../product-credit-access';
 /**
  * ONE agent turn, run from inside somebody else's turn — and PAID FOR.
  *
@@ -62,7 +63,6 @@ import { evolveAgentSoul } from '../agent/soul.js';
 import {
   finalizeCredits,
   refundReservation,
-  reserveCredits,
   type CreditReservation,
 } from '../credits-manager.js';
 import { log } from '../logger.js';
@@ -168,7 +168,7 @@ export async function runAgentTurn(input: {
    * Reserved before the call and after everything that can refuse without
    * spending, so a turn that was never going to run does not touch a balance.
    */
-  const reservation: CreditReservation | null = await reserveCredits(payerOxyUserId);
+  const reservation: CreditReservation | null = await reserveBackgroundProductCredits(payerOxyUserId);
   if (!reservation) {
     log.credits.info({ agentId: agent._id, payerOxyUserId }, 'Nested agent turn refused: no credits');
     return failed('Not enough credits to run that agent');

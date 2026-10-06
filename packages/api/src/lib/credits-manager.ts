@@ -1,3 +1,4 @@
+import { reserveProductCreditAllocation, settleProductCreditAllocation, type ProductCreditSnapshot } from './product-credit-allocations';
 import { and, eq } from 'drizzle-orm';
 import {
   creditOperations,
@@ -61,6 +62,8 @@ export interface CreditReservation {
   grantKind: CreditFundingSource;
   /** Server-created admission identity and immutable pricing, absent for legacy callers. */
   operationId?: string;
+  productAllocationId?: string;
+  refreshProductCreditSnapshot?: () => Promise<ProductCreditSnapshot | undefined>;
   priceBook?: CreditPriceBook;
 }
 
@@ -135,7 +138,7 @@ export async function calculateCredits(
 export async function reserveCredits(
   userId: string,
   amount: number = CREDITS_CONFIG.INITIAL_RESERVATION,
-  admission?: { priceBook: CreditPriceBook; requestedModel: string; aliaRequestId?: string },
+  admission?: { priceBook: CreditPriceBook; requestedModel: string; aliaRequestId?: string; productCreditSnapshot?: ProductCreditSnapshot },
 ): Promise<CreditReservation | null> {
   try {
     /**
@@ -148,11 +151,17 @@ export async function reserveCredits(
      * been stored; there is no column for it and none is added.
      */
     let operationId: string | undefined;
+    let productAllocationId: string | undefined;
     const reserveResult =
       admission === undefined
         ? await spendCreditsFreeFirst(getDb(), userId, amount)
         : await getDb().transaction(async (tx) => {
-            const balance = await spendCreditsFreeFirst(tx, userId, amount);
+            let balance = await spendCreditsFreeFirst(tx, userId, amount);
+            if (balance === null && admission.productCreditSnapshot) {
+              const allocation = await reserveProductCreditAllocation(tx,userId,admission.productCreditSnapshot,amount);
+              if (allocation) { productAllocationId = allocation.id; balance = await findUserCredits(tx,userId);
+                if(!balance) throw new Error('Product credit account is unavailable'); }
+            }
             if (balance === null) return null;
             const book = admission.priceBook;
             const insertedBook = await tx
@@ -191,7 +200,8 @@ export async function reserveCredits(
                   capturedAt: new Date(book.capturedAt),
                   status: 'admitted',
                   creditsReserved: amount,
-                  grantKind: fundingSourceOf(balance.creditsFree),
+                  grantKind: productAllocationId ? 'product_allowance' : fundingSourceOf(balance.creditsFree),
+                  productAllocationId,
                   initialFreeCredits: balance.creditsFree,
                   initialPaidCredits: balance.creditsPaid,
                 })
@@ -221,7 +231,7 @@ export async function reserveCredits(
      * decision, not a balance one, and the repository's whole contract is that
      * each balance change is one statement returning the row it wrote.
      */
-    const grantKind: CreditFundingSource = fundingSourceOf(reserveResult.creditsFree);
+    const grantKind: CreditFundingSource = productAllocationId ? 'product_allowance' : fundingSourceOf(reserveResult.creditsFree);
 
     log.credits.info({ amount, userId, grantKind }, 'Reserved credits for user');
     log.credits.info(
@@ -236,6 +246,7 @@ export async function reserveCredits(
       initialPaidCredits: reserveResult.creditsPaid,
       grantKind,
       ...(admission === undefined ? {} : { operationId, priceBook: admission.priceBook }),
+      ...(productAllocationId ? {productAllocationId} : {}),
     };
   } catch (error) {
     log.credits.error({ err: error }, 'Error reserving credits');
@@ -401,7 +412,42 @@ export async function finalizeFixedCredits(
    * finalizers agreeing about what a settled charge can be.
    */
   const chargeable = Math.max(Math.ceil(credits), CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
-  return _adjustReservation(reservation, chargeable, label);
+  if (!Number.isFinite(credits) || credits < 0) throw new Error('Invalid fixed credit charge');
+  if (!reservation.operationId) return _adjustReservation(reservation, chargeable, label);
+  const refreshed = reservation.refreshProductCreditSnapshot
+    ? await reservation.refreshProductCreditSnapshot().catch(() => undefined)
+    : reservation.productAllocationId
+      ? await (await import('./product-credit-access')).readConfiguredProductCreditSnapshotForService(reservation.userId).catch(() => undefined)
+      : undefined;
+  return getDb().transaction(async (tx) => {
+    const operation = await lockCreditOperation(tx, reservation);
+    if (operation.status === 'refunded') throw new Error('A refunded operation cannot be settled');
+    if (operation.status === 'settled') {
+      if (operation.creditsRequested !== chargeable || operation.promptTokens !== null
+        || operation.servedModelId !== null || operation.pricingRule !== null)
+        throw new Error('Conflicting fixed credit settlement replay');
+      if (operation.productAllocationId) {
+        const { productCreditAllocations } = await import('../db/schema/product-credit-allocations');
+        const [allocation] = await tx.select().from(productCreditAllocations)
+          .where(eq(productCreditAllocations.id, operation.productAllocationId));
+        if (!allocation || operation.creditsCharged === null) throw new Error('Settled product operation is incomplete');
+        const { isProductAllocationAuthorized } = await import('./product-credit-allocations');
+        return { creditsCharged: operation.creditsCharged, creditsRemaining: allocation.active
+          && isProductAllocationAuthorized(allocation, reservation.userId, refreshed)
+          ? allocation.included - allocation.consumed - allocation.reserved : 0 };
+      }
+      const balance = await findUserCredits(tx, reservation.userId);
+      if (!balance || operation.creditsCharged === null) throw new Error('Settled credit operation is incomplete');
+      return { creditsCharged: operation.creditsCharged, creditsRemaining: balance.creditsFree + balance.creditsPaid };
+    }
+    const result = operation.productAllocationId
+      ? await settleProductCreditAllocation(tx, reservation.userId, operation.productAllocationId,
+          operation.creditsReserved, chargeable, new Date(), refreshed)
+      : await _adjustReservation(reservation, chargeable, label, tx);
+    await tx.update(creditOperations).set({ status: 'settled', creditsRequested: chargeable,
+      creditsCharged: result.creditsCharged, settledAt: new Date() }).where(eq(creditOperations.id, operation.id));
+    return result;
+  });
 }
 
 /**
@@ -510,9 +556,10 @@ async function lockCreditOperation(tx: Executor, reservation: CreditReservation)
     .for('update');
   if (
     operation === undefined ||
-    operation.bookId !== reservation.priceBook?.id ||
+    (reservation.priceBook !== undefined && operation.bookId !== reservation.priceBook.id) ||
     operation.creditsReserved !== reservation.creditsReserved ||
-    operation.grantKind !== reservation.grantKind
+    operation.grantKind !== reservation.grantKind ||
+    (operation.productAllocationId ?? undefined) !== reservation.productAllocationId
   )
     throw new Error('Credit admission does not match its persisted operation');
   return operation;
@@ -553,6 +600,11 @@ async function settleTrackedReservation(
   usage: CreditUsage,
   modelId?: string,
 ) {
+  const refreshedProductSnapshot = reservation.refreshProductCreditSnapshot
+    ? await reservation.refreshProductCreditSnapshot().catch(() => undefined)
+    : reservation.productAllocationId
+      ? await (await import('./product-credit-access')).readConfiguredProductCreditSnapshotForService(reservation.userId).catch(() => undefined)
+      : undefined;
   return getDb().transaction(async (tx) => {
     const operation = await lockCreditOperation(tx, reservation);
     if (operation.status === 'refunded') throw new Error('A refunded operation cannot be settled');
@@ -566,6 +618,13 @@ async function settleTrackedReservation(
         operation.reasoningTokens !== (usage.reasoningTokens ?? 0)
       )
         throw new Error('Conflicting credit settlement replay');
+      if(operation.productAllocationId) {
+        const {productCreditAllocations} = await import('../db/schema/product-credit-allocations');
+        const [allocation] = await tx.select().from(productCreditAllocations).where(eq(productCreditAllocations.id,operation.productAllocationId));
+        if(!allocation || operation.creditsCharged === null) throw new Error('Settled product operation is incomplete');
+        return {creditsCharged:operation.creditsCharged,creditsRemaining:allocation.active && (await import('./product-credit-allocations')).isProductAllocationAuthorized(allocation,reservation.userId,refreshedProductSnapshot) && +allocation.periodEnd>Date.now()
+          ? allocation.included-allocation.consumed-allocation.reserved : 0};
+      }
       const balance = await findUserCredits(tx, reservation.userId);
       if (balance === null || operation.creditsRequested === null)
         throw new Error('Settled credit operation is incomplete');
@@ -576,6 +635,14 @@ async function settleTrackedReservation(
     }
     const book = await loadCreditPriceBook(tx, operation.bookId);
     const needed = await calculateCredits(usage, modelId, book);
+    if (operation.productAllocationId) {
+      const result = await settleProductCreditAllocation(tx,reservation.userId,operation.productAllocationId,operation.creditsReserved,needed,new Date(),refreshedProductSnapshot);
+      await tx.update(creditOperations).set({ status:'settled', creditsRequested:needed, creditsCharged:result.creditsCharged,
+        servedModelId:modelId??null, pricingRule:(usage.totalTokens || usage.promptTokens+usage.completionTokens)===0 ? 'minimum' : modelId && book.models[modelId]!=null ? 'catalogue_price' : 'base_rate', promptTokens:usage.promptTokens, completionTokens:usage.completionTokens,
+        totalTokens:usage.totalTokens,systemPromptTokens:usage.systemPromptTokens??0,reasoningTokens:usage.reasoningTokens??0,settledAt:new Date() })
+        .where(eq(creditOperations.id,operation.id));
+      return result;
+    }
     const { userCredits } = await import('../db/schema/billing.js');
     const [before] = await tx
       .select()
@@ -615,6 +682,11 @@ async function refundTrackedReservation(reservation: CreditReservation): Promise
   await getDb().transaction(async (tx) => {
     const operation = await lockCreditOperation(tx, reservation);
     if (operation.status !== 'admitted') return;
+    if(operation.productAllocationId) {
+      await settleProductCreditAllocation(tx,reservation.userId,operation.productAllocationId,operation.creditsReserved,0);
+      await tx.update(creditOperations).set({status:'refunded',creditsRequested:0,creditsCharged:0,settledAt:new Date()}).where(eq(creditOperations.id,operation.id));
+      return;
+    }
     const balance = await addCreditsToBalance(
       tx,
       reservation.userId,
@@ -684,6 +756,7 @@ export async function restoreCreditReservation(
       initialFreeCredits: operation.initialFreeCredits,
       initialPaidCredits: operation.initialPaidCredits,
       grantKind: operation.grantKind,
+      ...(operation.productAllocationId ? {productAllocationId:operation.productAllocationId} : {}),
       priceBook: await loadCreditPriceBook(tx, operation.bookId),
     };
   });

@@ -120,7 +120,7 @@ export function BillingSection({ success }: BillingSectionProps) {
 
   const isSubscribed = subscription && subscription.status === 'active';
   const freeCredits = creditsInfo
-    ? creditsInfo.credits - creditsInfo.paidCredits
+    ? creditsInfo.freeCredits
     : 0;
 
   const handlePurchaseCredits = async (packageId: string) => {
@@ -198,6 +198,8 @@ export function BillingSection({ success }: BillingSectionProps) {
         })
     : undefined;
 
+  const bundle = creditsInfo.productAllowance;
+  const activeBundle = bundle && Date.parse(bundle.periodStart) <= Date.now() && Date.parse(bundle.periodEnd) > Date.now();
   const plan = isSubscribed
     ? {
         badge: t('settings.account.currentPlan'),
@@ -221,7 +223,10 @@ export function BillingSection({ success }: BillingSectionProps) {
           </Button>
         ),
       }
-    : {
+    : activeBundle ? {
+        badge: t('settings.account.currentPlan'), title: 'Oxy One',
+        description: `${bundle.included.toLocaleString()} ${t('credits.credits')} · ${t('billing.creditsEvery24h', { count: creditsInfo.dailyRefresh })}`,
+      } : {
         badge: t('settings.account.currentPlan'),
         title: `${t('settings.account.billing.freePlan')} ${dollars(0)}${t('credits.perMonth')}`,
         description:
@@ -279,6 +284,17 @@ export function BillingSection({ success }: BillingSectionProps) {
       ],
     },
   ];
+
+  if (bundle && activeBundle) {
+    sections.unshift({
+      key: 'oxy-one', label: 'Oxy One',
+      description: `${bundle.included.toLocaleString()} ${t('credits.credits')} · ${new Date(bundle.periodEnd).toLocaleDateString()}`,
+      rows: [
+        { key: 'allowance', label: t('credits.credits'), control: <SettingsValueField>{`${bundle.remaining.toLocaleString()} / ${bundle.included.toLocaleString()}`}</SettingsValueField> },
+        { key: 'manage', label: t('credits.manageBilling'), control: <Button size="sm" appearance="outline" tone="neutral" onPress={() => Linking.openURL('https://accounts.oxy.so/payments')}>{t('settings.account.manage')}</Button> },
+      ],
+    });
+  }
 
   if (
     isSubscribed &&

@@ -36,7 +36,7 @@
  *     now would be a second authority for a number ADR 0005 moves to Oxy.
  */
 
-export const CREDIT_FUNDING_SOURCES = ['free_allowance', 'paid_balance'] as const;
+export const CREDIT_FUNDING_SOURCES = ['free_allowance', 'paid_balance', 'product_allowance'] as const;
 export type CreditFundingSource = (typeof CREDIT_FUNDING_SOURCES)[number];
 
 /**
