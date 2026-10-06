@@ -6,8 +6,11 @@
  * which is root on that machine, and is why nothing but the Alia API's role can
  * reach this API and why every container it creates runs under gVisor.
  */
+import { readFileSync } from 'node:fs';
 import pino from 'pino';
 import { WorkloadAuthority } from './attestation.js';
+import { BrowserService } from './browser-service.js';
+import { BrowserStack, upstreamResolvers } from './browser-stack.js';
 import { ComputerService } from './computer-service.js';
 import { loadConfig } from './config.js';
 import { runDocker } from './docker.js';
@@ -18,15 +21,56 @@ const REAP_INTERVAL_MS = 60_000;
 
 const log = pino({ level: process.env.LOG_LEVEL || 'info', base: { service: 'alia-computer-host' } });
 
+
 async function main() {
   const config = loadConfig();
   const store: ComputerStore = config.databaseUrl ? await PostgresStore.connect(config.databaseUrl) : new MemoryStore();
   if (!config.databaseUrl) log.warn('no DATABASE_URL: leases and receipts are in memory (local development only)');
 
-  const service = new ComputerService({ store, docker: runDocker, config, log });
+  // The two services refer to each other: the browser holds computer slots
+  // and its work keeps the host awake; a download lands in the computer.
+  let browser: BrowserService | null = null;
+  const service = new ComputerService({
+    store,
+    docker: runDocker,
+    config,
+    log,
+    reservedSlots: async () => (browser ? browser.reservedSlots() : 0),
+    extraActivity: async () => (browser ? browser.active() : false),
+  });
+  if (config.browser.enabled) {
+    let dns: string[] = [];
+    try {
+      dns = upstreamResolvers(readFileSync('/etc/resolv.conf', 'utf8'));
+    } catch {
+      log.warn({}, 'no /etc/resolv.conf: the browser proxy will use its own resolver');
+    }
+    const stack = new BrowserStack({
+      docker: runDocker,
+      deploymentId: config.deploymentId,
+      image: config.image,
+      runtime: config.runtime,
+      selfContainer: config.browser.selfContainer,
+      dns,
+      denyCidrs: config.browser.denyCidrs,
+      maxContexts: config.browser.maxContexts,
+      idleMs: config.browser.idleMs,
+      log,
+    });
+    // A worker left by an earlier process holds a token this one never saw.
+    await stack.reset().catch((err: unknown) => log.warn({ err: err instanceof Error ? err.message : 'unknown' }, 'browser reset failed'));
+    browser = new BrowserService({
+      store,
+      computers: service,
+      stack,
+      deploymentId: config.deploymentId,
+      maxRunning: config.maxRunning,
+      log,
+    });
+  }
   const authority = new WorkloadAuthority({ allowedRoleArns: config.allowedRoleArns });
   let ready = false;
-  const app = createApp({ service, authority, log, ready: () => ready });
+  const app = createApp({ service, browser, authority, log, ready: () => ready });
 
   const server = app.listen(config.port, () => {
     ready = true;
@@ -43,8 +87,9 @@ async function main() {
     reaping = true;
     service
       .reapIdle()
-      .then((stopped) => {
+      .then(async (stopped) => {
         if (stopped > 0) log.info({ stopped }, 'idle computers stopped');
+        await browser?.reapIdle();
       })
       .catch((err: unknown) => log.error({ err: err instanceof Error ? err.message : 'unknown' }, 'idle sweep failed'))
       .finally(() => {

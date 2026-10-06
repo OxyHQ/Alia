@@ -1,5 +1,5 @@
 {
-  "id": "37f46d6b-aaab-4d61-91b2-4ca6b76c6703",
+  "id": "b7b1768a-754d-4941-9e46-fa718e48ff76",
   "prevId": "b70d80d7-2199-4f9f-bb0b-ca180a8d6c7c",
   "version": "7",
   "dialect": "postgresql",
@@ -125,6 +125,113 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.agent_oxy_app_permissions": {
+      "name": "agent_oxy_app_permissions",
+      "schema": "",
+      "columns": {
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "level": {
+          "name": "level",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "oxy_grant_id": {
+          "name": "oxy_grant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "agent_oxy_app_permissions_agent_app_key": {
+          "name": "agent_oxy_app_permissions_agent_app_key",
+          "columns": [
+            {
+              "expression": "agent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_oxy_app_permissions_grant_key": {
+          "name": "agent_oxy_app_permissions_grant_key",
+          "columns": [
+            {
+              "expression": "oxy_grant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agent_oxy_app_permissions_agent_id_fk": {
+          "name": "agent_oxy_app_permissions_agent_id_fk",
+          "tableFrom": "agent_oxy_app_permissions",
+          "tableTo": "agents",
+          "columnsFrom": [
+            "agent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "agent_oxy_app_permissions_level_check": {
+          "name": "agent_oxy_app_permissions_level_check",
+          "value": "\"agent_oxy_app_permissions\".\"level\" in ('read', 'act')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.agent_skills": {
@@ -12385,12 +12492,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "product_allocation_id": {
-          "name": "product_allocation_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "book_id": {
           "name": "book_id",
           "type": "text",
@@ -12530,19 +12631,6 @@
         }
       },
       "foreignKeys": {
-        "credit_operations_product_allocation_id_product_credit_allocations_id_fk": {
-          "name": "credit_operations_product_allocation_id_product_credit_allocations_id_fk",
-          "tableFrom": "credit_operations",
-          "tableTo": "product_credit_allocations",
-          "columnsFrom": [
-            "product_allocation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
         "credit_operations_book_id_credit_price_books_id_fk": {
           "name": "credit_operations_book_id_credit_price_books_id_fk",
           "tableFrom": "credit_operations",
@@ -12571,11 +12659,7 @@
       "checkConstraints": {
         "credit_operations_funding_check": {
           "name": "credit_operations_funding_check",
-          "value": "\"credit_operations\".\"grant_kind\" IN ('free_allowance', 'paid_balance', 'product_allowance') AND \"credit_operations\".\"initial_free_credits\" >= 0 AND \"credit_operations\".\"initial_paid_credits\" >= 0"
-        },
-        "credit_operation_product_source": {
-          "name": "credit_operation_product_source",
-          "value": "(\"credit_operations\".\"grant_kind\" = 'product_allowance' AND \"credit_operations\".\"product_allocation_id\" IS NOT NULL) OR (\"credit_operations\".\"grant_kind\" <> 'product_allowance' AND \"credit_operations\".\"product_allocation_id\" IS NULL)"
+          "value": "\"credit_operations\".\"grant_kind\" IN ('free_allowance', 'paid_balance') AND \"credit_operations\".\"initial_free_credits\" >= 0 AND \"credit_operations\".\"initial_paid_credits\" >= 0"
         },
         "credit_operations_terminal_check": {
           "name": "credit_operations_terminal_check",
@@ -12591,7 +12675,7 @@
         },
         "credit_operations_grant_kind_check": {
           "name": "credit_operations_grant_kind_check",
-          "value": "\"credit_operations\".\"grant_kind\" in ('free_allowance', 'paid_balance', 'product_allowance')"
+          "value": "\"credit_operations\".\"grant_kind\" in ('free_allowance', 'paid_balance')"
         },
         "credit_operations_charge_check": {
           "name": "credit_operations_charge_check",
@@ -12748,115 +12832,6 @@
         "credit_price_books_terms_check": {
           "name": "credit_price_books_terms_check",
           "value": "\"credit_price_books\".\"rounding_scale\" > 0 AND \"credit_price_books\".\"usd_per_credit\" > 0 AND \"credit_price_books\".\"tokens_per_credit\" > 0 AND \"credit_price_books\".\"minimum_credits\" > 0 AND \"credit_price_books\".\"initial_reservation\" > 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.product_credit_allocations": {
-      "name": "product_credit_allocations",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "product_id": {
-          "name": "product_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "segment_id": {
-          "name": "segment_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "offer_id": {
-          "name": "offer_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "offer_version": {
-          "name": "offer_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "quota_key": {
-          "name": "quota_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "unit": {
-          "name": "unit",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "period_start": {
-          "name": "period_start",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "period_end": {
-          "name": "period_end",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "included": {
-          "name": "included",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "consumed": {
-          "name": "consumed",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "reserved": {
-          "name": "reserved",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "active": {
-          "name": "active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "product_credit_allocation_conservation": {
-          "name": "product_credit_allocation_conservation",
-          "value": "\"product_credit_allocations\".\"included\" >= 0 AND \"product_credit_allocations\".\"consumed\" >= 0 AND \"product_credit_allocations\".\"reserved\" >= 0 AND \"product_credit_allocations\".\"consumed\" + \"product_credit_allocations\".\"reserved\" <= \"product_credit_allocations\".\"included\""
-        },
-        "product_credit_allocation_period": {
-          "name": "product_credit_allocation_period",
-          "value": "\"product_credit_allocations\".\"period_end\" > \"product_credit_allocations\".\"period_start\""
         }
       },
       "isRLSEnabled": false

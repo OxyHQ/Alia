@@ -5,8 +5,9 @@ import { request as httpRequest } from 'node:http';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
-  claim: vi.fn(async () => false),
+  claim: vi.fn(async (_db: unknown, _event: unknown) => false),
   dispatch: vi.fn(),
+  emailOutreach: vi.fn(async (_event: unknown) => ({ status: 'ignored' })),
 }));
 
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
@@ -17,6 +18,7 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
 }));
 vi.mock('../../lib/automation-dispatcher.js', () => ({ dispatchStructuredAutomation: state.dispatch }));
 vi.mock('../../lib/notification-service.js', () => ({ sendNotification: vi.fn() }));
+vi.mock('../../lib/proactive/email-outreach.js', () => ({ handleInboxEmailEvent: state.emailOutreach }));
 vi.mock('../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return { log: { triggers: child, general: child } };
@@ -78,6 +80,7 @@ afterAll(async () => new Promise<void>((resolve, reject) => server.close((error)
 beforeEach(() => {
   state.claim.mockReset().mockResolvedValue(false);
   state.dispatch.mockReset();
+  state.emailOutreach.mockClear();
   serviceFetch.mockReset().mockResolvedValue(new Response(JSON.stringify({
     service: { appId: 'application-1', scopes: ['capability-events:publish'] },
     catalogAppIds: ['inbox'],
@@ -144,5 +147,23 @@ describe('normalized Oxy app events', () => {
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('event_type_not_in_catalog');
     expect(state.claim).not.toHaveBeenCalled();
+  });
+
+  it('hands a new email to the outreach path once, and never stores its snippet', async () => {
+    state.claim.mockResolvedValueOnce(true);
+    const withSnippet = { ...event, data: { ...event.data, from: 'a@b.c', subject: 'Hi', snippet: 'first line of the body', folder: 'inbox' } };
+
+    const response = await post(withSnippet, 'service-token');
+
+    expect(response.body).toEqual({ accepted: true, duplicate: false });
+    const stored = state.claim.mock.calls[0]![1] as { data: Record<string, unknown> };
+    expect(stored.data).toEqual({ messageId: 'message-1', mailboxId: 'mailbox-1', from: 'a@b.c', subject: 'Hi', folder: 'inbox' });
+    expect(state.emailOutreach).toHaveBeenCalledTimes(1);
+    expect(state.emailOutreach).toHaveBeenCalledWith({ accountId: 'account-1', data: withSnippet.data });
+  });
+
+  it('does not reconsider a duplicate email', async () => {
+    await post(event, 'service-token');
+    expect(state.emailOutreach).not.toHaveBeenCalled();
   });
 });

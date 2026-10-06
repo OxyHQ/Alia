@@ -16,10 +16,11 @@ An ADR records a decision that is **in force now**, the context that forced it, 
 | [0008](./0008-skills-are-agent-skills.md) | A skill is an Agent Skill, not a prompt fragment | Accepted | 2026-08-26 |
 | [0009](./0009-agent-threads-are-durable-execution-units.md) | Agent threads are durable execution units | Accepted | 2026-09-10 |
 | [0010](./0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md) | Alia keeps a product API; credentials come from Oxy Console | Accepted | 2026-09-10 |
-| [0011](./0011-autonomous-agents-run-durably-and-speak-first.md) | Autonomous agents run durably and may speak first | Proposed | 2026-09-24 |
+| [0011](./0011-autonomous-agents-run-durably-and-speak-first.md) | Autonomous agents run durably and may speak first | Proposed (implemented; extended by 0015) | 2026-09-24 |
 | [0012](./0012-alia-uses-real-models.md) | Alia uses real models from Oxy's catalogue | Accepted; superseded in part by 0014 | 2026-09-25 |
 | [0013](./0013-voice-runs-on-the-device-livekit-and-cohost-are-retired.md) | Voice runs on the device; LiveKit, cohost and voice minutes are retired | Accepted | 2026-09-24 |
 | [0014](./0014-people-choose-power-levels-not-models.md) | People choose power levels, not models | Accepted | 2026-10-01 |
+| [0015](./0015-actors-and-identities.md) | Actors and identities: Alia and agents, for the person and as themselves | Accepted | 2026-10-06 |
 
 Companion document: [the compatibility window and sunset criteria](../migration/compatibility-window.md), which binds ADR 0002, ADR 0003 and ADR 0004 to measurable removal gates — for paths (a) and (c); path (b) left the window under ADR 0010.
 
@@ -30,6 +31,8 @@ ADR 0006 recorded, without deciding, that four derived notes under `docs/migrati
 ADR 0012 is the owner's decision that Alia has no models of its own: a person picks a real `<publisher>/<model>` from Oxy's catalogue, and the default, featured, utility and speech models are computed rather than configured. It retires product modes and `route:*` routing profiles, and supersedes the parts of ADRs 0002, 0003 and 0004 that relied on them, by notes at the top of those records.
 
 ADR 0014 is the owner's later decision that people choose a **power level** (Oxy's routing profiles `auto` … `ultra`), never a model by name. Oxy picks the model of the level; Alia sends the level and reads back which model ran. It supersedes ADR 0012's "no Auto that is not a model" and its model picker, by a note at the top of that record.
+
+ADR 0015 is the owner's actor model: **Alia** (one for everybody, the default actor, acting for the person in all their Oxy apps without grants) and **agents** (personas with their own Oxy bot account, acting for their owner within per-app levels or as themselves). It is the decision behind [Actors: Alia and agents](../actors.mdx). ADR 0011 was written when background runs and outreach were agent-only; a note at the top of that record says how ADR 0015 and the Alia-task work extend it.
 
 ## Conventions
 

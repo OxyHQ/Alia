@@ -31,6 +31,9 @@ import { log } from '../lib/logger.js';
 import { generateText, stepCountIs } from 'ai';
 import { resolveUtilityModel, getAIModel } from '../lib/chat-core.js';
 import { saveUserMemoryTool } from '../lib/tools/index.js';
+import { listAgentsRememberingPerson } from '../db/agents/agentMemoryRepository.js';
+import { findAgentsByIds } from '../db/agents/agentRepository.js';
+import { attachAgentIdentities } from '../lib/agent-identity.js';
 
 const router = Router();
 
@@ -70,6 +73,41 @@ router.get('/stats', async (req, res) => {
   } catch (error: unknown) {
     log.memory.error({ err: error }, 'Error fetching memory stats');
     res.status(500).json({ error: 'Failed to fetch memory stats' });
+  }
+});
+
+/**
+ * GET /memory/agents
+ *
+ * Every agent that remembers something about the caller — the per-actor half
+ * of the memory screen. Alia's memory is `GET /memory`; each agent's is its
+ * own files (`GET /agents/:id/memory`), listed here so a person can find and
+ * forget what an agent they once talked to still knows.
+ */
+router.get('/agents', async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    const remembering = await listAgentsRememberingPerson(getDb(), userId);
+    const records = await findAgentsByIds(getDb(), remembering.map((row) => row.agentId));
+    const hydrated = await attachAgentIdentities(records);
+    const byId = new Map(hydrated.map((agent) => [agent._id, agent]));
+    res.json({
+      agents: remembering.flatMap((row) => {
+        const agent = byId.get(row.agentId);
+        if (!agent) return [];
+        return [{
+          agentId: agent._id,
+          name: agent.name,
+          handle: agent.handle,
+          color: agent.color,
+          files: row.files,
+          updatedAt: row.updatedAt,
+        }];
+      }),
+    });
+  } catch (error: unknown) {
+    log.memory.error({ err: error }, 'Error listing agent memories');
+    res.status(500).json({ error: 'Failed to list agent memories' });
   }
 });
 
@@ -364,7 +402,16 @@ router.delete('/:memoryId', async (req, res) => {
       return;
     }
 
-    await deleteEntryById(db, profile._id, String(req.params.memoryId));
+    const entryId = String(req.params.memoryId);
+    const forgotten = profile.memories.find((entry) => entry._id === entryId);
+    await deleteEntryById(db, profile._id, entryId);
+    // Forgetting a fact forgets its vector too, or recall could still match on it.
+    if (forgotten) {
+      const { deleteMemoryEmbedding } = await import('../lib/memory/index.js');
+      await deleteMemoryEmbedding(userId, forgotten.title);
+      const { invalidateUserEmbeddingCache } = await import('../lib/memory/vector-search.js');
+      invalidateUserEmbeddingCache(userId);
+    }
 
     res.json(await findUserMemory(db, userId));
   } catch (error: unknown) {

@@ -50,6 +50,7 @@ import {
   oauthStates,
 } from './schema/integrations';
 import { organizationInvites } from './schema/organizations';
+import { emailOutreachDecisions } from './schema/proactive';
 import { apiKeyUsage } from './schema/telemetry';
 
 const DAY = 24 * 60 * 60;
@@ -156,5 +157,15 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
     column: oauthStates.expiresAt,
     retentionSeconds: 0,
     reason: 'Abandoned integrations OAuth handshakes; the row carries its own deadline.',
+  },
+  {
+    table: emailOutreachDecisions,
+    /**
+     * From creation. A row is only the idempotency key of one email's
+     * outreach decision; Oxy redelivers an event within hours, never months.
+     */
+    column: emailOutreachDecisions.createdAt,
+    retentionSeconds: 90 * DAY,
+    reason: 'Idempotency keys for email outreach (one per considered email); they hold a verdict, never the email.',
   },
 ];

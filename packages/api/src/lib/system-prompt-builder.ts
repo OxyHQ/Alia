@@ -41,6 +41,7 @@ import { readCapabilityGrants } from '../domain/capability-grants.js';
 import type { IWritingStyleProfile } from '../domain/writing-style.js';
 import { formatStyleForPrompt } from './style/style-prompt.js';
 import { agentMemoryPromptSection } from './agent/agent-memory-runtime.js';
+import { memoryDataBlock, memoryFactLines } from './memory/memory-prompt.js';
 
 /** How many recent memories stand in for recall when recall returned nothing. */
 const KNOWN_FACTS_WITHOUT_RECALL = 20;
@@ -200,7 +201,14 @@ export class SystemPromptBuilder {
     const agentGrants = linkedAgent
       ? readCapabilityGrants(linkedAgent.capabilityGrants ?? [])
       : null;
-    const mayReadMemory = agentGrants === null || agentGrants.allows('memory');
+    /**
+     * Memory is per actor. Alia's memory of the person (recall, facts,
+     * preferences, context, writing style) is read by ALIA only; an agent with
+     * the `memory` grant reads its OWN memory of the person
+     * (`agentMemoryPromptSection`) and nothing of hers.
+     */
+    const mayReadAliaMemory = agentGrants === null;
+    const mayReadAgentMemory = agentGrants !== null && agentGrants.allows('memory');
     const mayUseMessaging = agentGrants === null || agentGrants.allows('messaging');
     const mayDelegate = agentGrants === null || agentGrants.allows('delegation');
     const mayReadSkills = agentGrants === null || skills?.agentScoped === true;
@@ -225,9 +233,8 @@ export class SystemPromptBuilder {
     }
 
     // 4. Recalled memories from hooks
-    if (mayReadMemory && recalledMemories?.length) {
-      const memoryLines = recalledMemories.slice(0, 12).map((m) => `- ${m.title}: ${m.summary}`).join('\n');
-      const recalled = `\n\n## Recalled Memories\n${memoryLines}`;
+    if (mayReadAliaMemory && recalledMemories?.length) {
+      const recalled = memoryDataBlock('Recalled Memories', memoryFactLines(recalledMemories.slice(0, 12)));
       systemMessage += recalled;
       memoryChars += recalled.length;
     }
@@ -273,26 +280,24 @@ export class SystemPromptBuilder {
       }
     }
 
-    // 7. User memory (direct sessions only)
-    if (mayReadMemory && userMemory && isDirectUserSession) {
-      const beforeUserMemory = systemMessage.length;
-      systemMessage += '\n\n## User Information';
-
+    // 7. User memory (direct sessions only) — Alia's, as labelled data.
+    if (mayReadAliaMemory && userMemory && isDirectUserSession) {
       // Recall chose the relevant memories above; dumping every one here as
       // well defeated it and grew the prompt with the person's whole history.
       // Without a recall result, the most recent few stand in for it. A person
       // who switched recall off gets neither.
       const recallOff = userMemory.settings?.recallEnabled === false;
       const knownFacts = recallOff || recalledMemories?.length ? [] : (userMemory.memories ?? []).slice(-KNOWN_FACTS_WITHOUT_RECALL);
+      const parts: string[] = [];
       if (knownFacts.length > 0) {
-        systemMessage += '\n### Known Facts:\n' + knownFacts.map(m => `- ${m.title}: ${m.summary}`).join('\n');
+        parts.push('### Known Facts:\n' + memoryFactLines(knownFacts));
       }
       if (userMemory.preferences && Object.keys(userMemory.preferences).length > 0) {
         const prefs = Object.entries(userMemory.preferences)
           .filter(([k, v]) => v !== undefined && v !== null && k !== 'language')
           .map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.join(', ') : v}`);
         if (prefs.length > 0) {
-          systemMessage += '\n### User Preferences:\n' + prefs.join('\n');
+          parts.push('### User Preferences:\n' + prefs.join('\n'));
         }
       }
       if (userMemory.context && Object.keys(userMemory.context).length > 0) {
@@ -300,10 +305,12 @@ export class SystemPromptBuilder {
           .filter(([_, v]) => v !== undefined && v !== null)
           .map(([k, v]) => `- ${k}: ${v}`);
         if (ctx.length > 0) {
-          systemMessage += '\n### Context:\n' + ctx.join('\n');
+          parts.push('### Context:\n' + ctx.join('\n'));
         }
       }
-      memoryChars += systemMessage.length - beforeUserMemory;
+      const block = memoryDataBlock('User Information', parts.join('\n'));
+      systemMessage += block;
+      memoryChars += block.length;
     }
 
     /**
@@ -314,9 +321,9 @@ export class SystemPromptBuilder {
      * reset it — but nothing ever put it in front of the model, so the whole
      * feature was a settings screen describing something that did nothing.
      *
-     * Gated exactly as the memory above is — a direct session, and an agent only
-     * with the `memory` grant — because it IS memory: something learned about a
-     * person from their own messages. A developer key or a product service
+     * Gated exactly as the memory above is — a direct session, and Alia only
+     * (an agent keeps its own memory) — because it IS memory: something learned
+     * about a person from their own messages. A developer key or a product service
      * token acting for somebody never receives it, for the same reason they
      * never receive the facts.
      *
@@ -330,7 +337,7 @@ export class SystemPromptBuilder {
      * a profile that is not ready yet, so an empty string adds nothing.
      */
     if (
-      mayReadMemory
+      mayReadAliaMemory
       && isDirectUserSession
       && userMemory
       && userMemory.settings?.recallEnabled !== false
@@ -387,7 +394,7 @@ export class SystemPromptBuilder {
      * changed.
      */
     // The agent's OWN memory of this person, under the same grant as the rest.
-    if (linkedAgent && mayReadMemory && userId && isDirectUserSession) {
+    if (linkedAgent && mayReadAgentMemory && userId && isDirectUserSession) {
       systemMessage += await agentMemoryPromptSection(userId, linkedAgent._id);
     }
 

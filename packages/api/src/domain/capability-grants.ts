@@ -81,9 +81,16 @@ export const FIXED_CAPABILITY_FAMILIES = [
 export const INSTANCED_CAPABILITY_FAMILIES = ['mcp', 'integration', 'agent'] as const;
 
 /**
- * Oxy apps are fetched like an instanced source, but are no longer granted in
- * this Alia-owned vocabulary. Oxy's normalized DelegationGrant records are the
- * sole authority for them.
+ * Oxy apps are fetched like an instanced source, but are not granted in this
+ * Alia-owned vocabulary — on purpose, and not as an exclusion to undo.
+ *
+ * What an agent may do with its OWNER's apps is one of three levels per app
+ * (*Nada* · *Ver* · *Ver y actuar*, ADR 0015), set in the agent editor's "Apps
+ * de Oxy" section and stored in `agent_oxy_app_permissions`. Each level IS an
+ * Oxy `DelegationGrant` (`lib/agent-oxy-apps.ts`), and Oxy is the sole
+ * authority at call time: a string here would be a second, ungoverned copy of
+ * the same decision. The agent's OWN account (`self_*` tools) needs no grant
+ * at all — it is the agent's.
  */
 export const OXY_SERVICE_TOOL_SOURCE = 'oxy_service' as const;
 
@@ -179,19 +186,19 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
   artifacts: ['canvas', 'generateFile'],
   /**
    * `searchThread` is here rather than in a family of its own because the
-   * family is "reach what this person has already told you". Three of the four
-   * write that down deliberately; this one reads back what was said in passing.
+   * family is "reach what this person has already told you". `memory` writes
+   * that down deliberately; this one reads back what was said in passing.
    * An owner who denies an agent memory is denying it exactly that, and a
    * separate family would let it recall the whole thread anyway.
    */
   memory: [
-    // The agent's own MEMORY.md and topic files about this person
-    // (`lib/agent/agent-memory-runtime.ts`), beside the person's global memory.
+    // The agent's OWN MEMORY.md and topic files about this person
+    // (`lib/agent/agent-memory-runtime.ts`). Memory is per actor: Alia's
+    // `saveUserMemory` / `updateUserMemory` / `forgetUserMemory` /
+    // `updateUserPreferences` / `updateUserContext` are her memory of the
+    // person and are never built for an agent, whatever it was granted
+    // (`lib/tool-pipeline.ts`), so they are in no agent family.
     'memory',
-    'saveUserMemory',
-    'updateUserMemory',
-    'updateUserPreferences',
-    'updateUserContext',
     'searchThread',
   ],
   messaging: [
@@ -203,9 +210,11 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
   automation: ['createAutomation'],
   delegation: ['createAgent', 'searchAgents', 'delegateToAgent', 'delegate'],
   /**
-   * The agent's own sandboxed Linux machine (`lib/computer/computer-tools.ts`).
-   * Built only on a runtime turn AND when a computer host is configured, so a
-   * grant on a deployment without one adds nothing — see `actions.ts`.
+   * The agent's own sandboxed Linux machine (`lib/computer/computer-tools.ts`)
+   * and the browser on it (`lib/computer/browser-tools.ts`) — one machine, one
+   * switch. Built only on a runtime turn AND when a computer host is
+   * configured, so a grant on a deployment without one adds nothing — see
+   * `actions.ts`.
    */
   computer: [
     'computer_status',
@@ -215,6 +224,14 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
     'list_computer_files',
     'read_computer_file',
     'write_computer_file',
+    'browser_open',
+    'browser_read',
+    'browser_screenshot',
+    'browser_click',
+    'browser_type',
+    'browser_key',
+    'browser_scroll',
+    'browser_close',
   ],
 };
 

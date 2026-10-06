@@ -25,7 +25,7 @@
  *   browser   — Web search and page reading, through Clarity         grant: browser
  *   plan      — Task planning + completion signal                  ungranted
  *   delegate  — Hire specialist agents                             grant: delegation
- *   computer_* / *_computer_* — the agent's own sandboxed machine   grant: computer
+ *   computer_* / *_computer_* / browser_* — the agent's own machine   grant: computer
  *
  * `shell` and `file_edit` were two more, and are gone with their families.
  * They acted through a sandbox container that production never had, so every
@@ -426,7 +426,12 @@ export async function applyRuntimePolicy(
           return `Error: Repeated identical tool call stopped after ${repeated.count} attempts. Inspect the previous result and choose a different action.`;
         }
       }
-      const risk = classifyActionRisk(name, inputArgs, { declaredReadOnly: isDeclaredReadOnly(action) });
+      // A chat turn is the one context with the person present
+      // (`continueInBackground` exists only there).
+      const risk = classifyActionRisk(name, inputArgs, {
+        declaredReadOnly: isDeclaredReadOnly(action),
+        attended: Boolean(ctx.continueInBackground),
+      });
 
       if (risk.riskLevel === 'R3') {
         eventStream?.append('system_message', `POLICY BLOCKED [R3]: ${risk.reason}`);

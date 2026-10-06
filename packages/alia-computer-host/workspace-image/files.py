@@ -11,7 +11,13 @@ cannot turn a read of /workspace/notes into a read of somewhere else.
 
 Writes are atomic (temporary file, fsync, rename) and refuse to replace anything
 that is not a regular file. Text only, 256 KB each way.
+
+`write_bytes` is the one binary write: a file the agent's browser downloaded
+(PDF, image, office document, text), base64 on stdin, at most 20 MiB. It never
+replaces anything — an existing name gets " (1)", " (2)"… — and creates its
+parent directories, so `/workspace/downloads` appears on the first download.
 """
+import base64
 import json
 import os
 import stat
@@ -19,6 +25,8 @@ import sys
 import uuid
 
 LIMIT = 256 * 1024
+BYTES_LIMIT = 20 * 1024 * 1024
+STDIN_LIMIT = 30 * 1024 * 1024
 MAX_ENTRIES = 1000
 DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
 # Where "/workspace" lives on disk. Always /workspace in the container; the
@@ -28,7 +36,7 @@ ROOT = sys.argv[2] if len(sys.argv) == 3 and sys.argv[1] == "--root" else "/work
 
 
 def main():
-    request = json.loads(sys.stdin.buffer.read(2 * 1024 * 1024))
+    request = json.loads(sys.stdin.buffer.read(STDIN_LIMIT))
     path = request["path"]
     if not isinstance(path, str) or "\x00" in path or ".." in path.split("/"):
         raise ValueError("Invalid workspace path")
@@ -37,13 +45,13 @@ def main():
         raise ValueError("Path must be inside /workspace")
     parts = [part for part in parts[2:] if part and part != "."]
     operation = request["operation"]
-    if operation not in ("list", "read", "write", "mkdir"):
+    if operation not in ("list", "read", "write", "mkdir", "write_bytes"):
         raise ValueError("Unsupported file operation")
     directory = os.open(ROOT, DIRECTORY_FLAGS)
     try:
         parents = parts if operation in ("list", "mkdir") else parts[:-1]
         for part in parents:
-            if operation == "mkdir":
+            if operation in ("mkdir", "write_bytes"):
                 try:
                     os.mkdir(part, mode=0o700, dir_fd=directory)
                 except FileExistsError:
@@ -115,6 +123,39 @@ def main():
                     os.unlink(temporary, dir_fd=directory)
                 except FileNotFoundError:
                     pass
+            result["bytes"] = len(content)
+        elif operation == "write_bytes":
+            if not parts:
+                raise ValueError("Choose a file")
+            data = request["data"]
+            if not isinstance(data, str) or len(data) > (BYTES_LIMIT * 4) // 3 + 8:
+                raise ValueError("File exceeds size limit")
+            content = base64.b64decode(data, validate=True)
+            if len(content) > BYTES_LIMIT:
+                raise ValueError("File exceeds size limit")
+            stem, dot, extension = parts[-1].rpartition(".")
+            if not dot or not stem:
+                stem, extension = parts[-1], ""
+            name = parts[-1]
+            for attempt in range(1, 101):
+                try:
+                    # O_EXCL: never replaces, never follows a planted link.
+                    fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory)
+                    break
+                except FileExistsError:
+                    name = stem + " (" + str(attempt) + ")" + ("." + extension if extension else "")
+            else:
+                raise ValueError("Too many files with that name")
+            try:
+                with os.fdopen(fd, "wb") as target:
+                    target.write(content)
+                    target.flush()
+                    os.fsync(target.fileno())
+            except BaseException:
+                os.unlink(name, dir_fd=directory)
+                raise
+            prefix = "/workspace" + ("/" + "/".join(parts[:-1]) if parts[:-1] else "")
+            result["path"] = prefix + "/" + name
             result["bytes"] = len(content)
         print(json.dumps(result))
     finally:

@@ -28,6 +28,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SettingsPreferenceSelect } from './preference-select';
+import { RememberingAgentsSection } from './agent-memory-section';
 
 /** This page's own strings. */
 const K = 'settings.assistant.memory';
@@ -675,6 +676,9 @@ export function MemorySection() {
             );
           })
         )}
+
+        {/* Memory is per actor: Alia's above, each agent's own below. */}
+        <RememberingAgentsSection />
       </View>
 
       {/* Export Dialog */}

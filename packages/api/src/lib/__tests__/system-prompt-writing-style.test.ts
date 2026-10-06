@@ -120,12 +120,14 @@ describe("the person's writing style in the system message", () => {
     expect(prompt).not.toContain(HEADER);
   });
 
-  it('is absent for an agent without the memory grant, and present with it', async () => {
+  it('is Alia\'s memory, so an agent never receives it — with or without the memory grant', async () => {
     const denied = await build({ userMemory: memory(), linkedAgent: agentWithGrants([]) });
     expect(denied).not.toContain(HEADER);
 
+    // The `memory` grant is the agent's OWN memory of the person; the style
+    // profile Alia learned is hers (memory is per actor).
     const granted = await build({ userMemory: memory(), linkedAgent: agentWithGrants(['memory']) });
-    expect(granted).toContain(HEADER);
+    expect(granted).not.toContain(HEADER);
   });
 });
 
