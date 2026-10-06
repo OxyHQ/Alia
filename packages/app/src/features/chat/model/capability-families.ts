@@ -163,6 +163,14 @@ const RUNTIME_TOOL_FAMILIES: Readonly<Record<string, string>> = {
   list_computer_files: 'computer',
   read_computer_file: 'computer',
   write_computer_file: 'computer',
+  browser_open: 'computer',
+  browser_read: 'computer',
+  browser_screenshot: 'computer',
+  browser_click: 'computer',
+  browser_type: 'computer',
+  browser_key: 'computer',
+  browser_scroll: 'computer',
+  browser_close: 'computer',
 };
 
 /**

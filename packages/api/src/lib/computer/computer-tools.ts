@@ -18,16 +18,18 @@
  * {@link UNTRUSTED_HEADER}, so the model reads it as data and not as
  * instructions.
  *
- * ## Extension points
+ * ## The browser
  *
- * The browser worker and the live view (next steps) add tools to this family
- * against the same client and the same actor id; nothing here assumes the
- * family is only a shell.
+ * The same machine has a browser (`browser-tools.ts`): its eight `browser_*`
+ * tools are built here, against the same client and the same actor id, so the
+ * one `computer` grant covers the shell and the browser together. The owner's
+ * live view of both is `routes/agents/computer.ts`.
  */
 import { createHash } from 'node:crypto';
 import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 import { getErrorMessage } from '../errors/index.js';
+import { BROWSER_TOOL_NAMES, buildBrowserTools } from './browser-tools.js';
 import { ComputerHostError, type CommandReceipt, type ComputerClient } from './computer-client.js';
 
 export const COMPUTER_TOOL_NAMES = [
@@ -38,6 +40,7 @@ export const COMPUTER_TOOL_NAMES = [
   'list_computer_files',
   'read_computer_file',
   'write_computer_file',
+  ...BROWSER_TOOL_NAMES,
 ] as const;
 
 export const UNTRUSTED_HEADER =
@@ -121,9 +124,11 @@ export function buildComputerTools(options: {
   const { client, actorId, scope } = options;
 
   return {
+    ...buildBrowserTools({ client, actorId }),
+
     computer_status: tool({
       description:
-        'Show whether your computer (a private Linux sandbox with node, python3, git and bash, no internet access, and a persistent /workspace) is running, stopped, or asleep (the whole machine sleeps when unused; any other computer tool wakes it, which takes up to a minute and a half).',
+        'Show whether your computer (a private Linux sandbox with node, python3, git and bash, no internet access from the shell, and a persistent /workspace) is running, stopped, or asleep (the whole machine sleeps when unused; any other computer tool wakes it, which takes up to a minute and a half).',
       inputSchema: z.object({}),
       execute: async () => {
         try {
