@@ -210,9 +210,11 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
   automation: ['createAutomation'],
   delegation: ['createAgent', 'searchAgents', 'delegateToAgent', 'delegate'],
   /**
-   * The agent's own sandboxed Linux machine (`lib/computer/computer-tools.ts`).
-   * Built only on a runtime turn AND when a computer host is configured, so a
-   * grant on a deployment without one adds nothing — see `actions.ts`.
+   * The agent's own sandboxed Linux machine (`lib/computer/computer-tools.ts`)
+   * and the browser on it (`lib/computer/browser-tools.ts`) — one machine, one
+   * switch. Built only on a runtime turn AND when a computer host is
+   * configured, so a grant on a deployment without one adds nothing — see
+   * `actions.ts`.
    */
   computer: [
     'computer_status',
@@ -222,6 +224,14 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
     'list_computer_files',
     'read_computer_file',
     'write_computer_file',
+    'browser_open',
+    'browser_read',
+    'browser_screenshot',
+    'browser_click',
+    'browser_type',
+    'browser_key',
+    'browser_scroll',
+    'browser_close',
   ],
 };
 

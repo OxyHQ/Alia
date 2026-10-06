@@ -611,6 +611,14 @@ describe('the app and the API name the same capability families', () => {
       'list_computer_files',
       'read_computer_file',
       'write_computer_file',
+      'browser_open',
+      'browser_read',
+      'browser_screenshot',
+      'browser_click',
+      'browser_type',
+      'browser_key',
+      'browser_scroll',
+      'browser_close',
     ];
     expect(primitives.filter((tool) => app[tool] === undefined)).toEqual([]);
     // And maps nothing that no longer exists: `shell` and `file_edit` left with

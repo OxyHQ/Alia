@@ -1,8 +1,11 @@
 # Deploy the agents' computer host: two images, one instance.
 #
 #  - `oxy/alia-computer-host`       the control API (packages/alia-computer-host/Dockerfile)
-#  - `oxy/alia-computer-workspace`  the image every actor's container runs
-#                                   (packages/alia-computer-host/workspace-image/)
+#  - `oxy/alia-computer-workspace`  the image every actor's container runs, and
+#                                   — with another entrypoint — the agents'
+#                                   browser and its egress proxy
+#                                   (packages/alia-computer-host/workspace-image/,
+#                                   built from the repository root)
 #
 # Not ECS: the host is one EC2 instance (oxy-infra
 # `terraform-uswest2/alia-computer-host.tf`) because Fargate cannot run Docker or
@@ -87,7 +90,7 @@ jobs:
             echo "Built $repository -> $img@$runtime"
           }
           build "$HOST_REPOSITORY" packages/alia-computer-host/Dockerfile . host
-          build "$WORKSPACE_REPOSITORY" packages/alia-computer-host/workspace-image/Dockerfile packages/alia-computer-host/workspace-image workspace
+          build "$WORKSPACE_REPOSITORY" packages/alia-computer-host/workspace-image/Dockerfile . workspace
 
       - name: Record the digests the instance will run
         env:

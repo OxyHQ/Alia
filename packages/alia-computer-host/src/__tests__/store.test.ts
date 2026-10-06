@@ -34,7 +34,7 @@ if (pgUrl) {
     'postgres',
     async () => {
       const sql = postgres(pgUrl, { max: 1, onnotice: () => undefined });
-      await sql`DROP TABLE IF EXISTS computer_leases, computer_activity, computer_commands`;
+      await sql`DROP TABLE IF EXISTS computer_leases, computer_activity, computer_commands, computer_browser_actions`;
       await sql.end();
       const store = await PostgresStore.connect(pgUrl);
       opened.push(store);
@@ -128,6 +128,24 @@ describe.each(backends)('%s store', (_name, open) => {
       await store.insertReceipt(receipt(actor, 'op-1'));
       expect(await store.getReceipt(`${actor}-other`, 'op-1')).toBeNull();
     });
+  });
+
+  it('lists an actor\'s receipts newest first, and only that actor\'s', async () => {
+    await store.insertReceipt(receipt(actor, 'old', { startedAt: new Date(Date.now() - 60_000).toISOString() }));
+    await store.insertReceipt(receipt(actor, 'new'));
+    await store.insertReceipt(receipt(`${actor}-other`, 'theirs'));
+    const listed = await store.listReceipts(actor, 10);
+    expect(listed.map((r) => r.operationId)).toEqual(['new', 'old']);
+    expect(await store.listReceipts(actor, 1)).toHaveLength(1);
+  });
+
+  it('records browser actions per actor, newest first', async () => {
+    const at = (offset: number) => new Date(Date.now() - offset).toISOString();
+    await store.recordBrowserAction({ actorId: actor, action: 'open', by: 'agent', origin: 'https://a.example', detail: '', status: 'ok', at: at(2000) });
+    await store.recordBrowserAction({ actorId: actor, action: 'input', by: 'owner', origin: 'https://a.example', detail: 'type 8 characters', status: 'ok', at: at(1000) });
+    await store.recordBrowserAction({ actorId: `${actor}-other`, action: 'open', by: 'agent', origin: '', detail: '', status: 'ok', at: at(0) });
+    const listed = await store.listBrowserActions(actor, 10);
+    expect(listed.map((a) => [a.action, a.by])).toEqual([['input', 'owner'], ['open', 'agent']]);
   });
 
   it('remembers activity', async () => {

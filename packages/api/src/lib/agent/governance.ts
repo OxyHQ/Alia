@@ -82,7 +82,11 @@ const R1 = (reason: string, reversible: boolean): ActionRisk => ({ riskLevel: 'R
  * unknown-tool default: R2, a 60s wait for an approval nobody could give in a
  * background run, then a denial.
  */
-function classifyPrimitive(toolName: string, args: Record<string, unknown> = {}): ActionRisk | null {
+function classifyPrimitive(
+  toolName: string,
+  args: Record<string, unknown> = {},
+  attended = false,
+): ActionRisk | null {
   switch (toolName) {
     case 'plan':
       return R0('Planning is internal to the session');
@@ -125,6 +129,38 @@ function classifyPrimitive(toolName: string, args: Record<string, unknown> = {})
             externalImpact: false,
           }
         : R1('Runs a bounded command inside the agent\'s own networkless sandbox', false);
+    // The agent's own browser (`lib/computer/browser-tools.ts`). Looking is
+    // autonomous. Opening, clicking, scrolling and closing act on the open web
+    // under the agent's own profile but submit nothing on their own. Typing and
+    // Enter are how a form is filled and SENT: with the person in the chat they
+    // are R1 (they see the turn, and can take the browser over); in a
+    // background run nobody is watching, so they need an approval.
+    case 'browser_read':
+    case 'browser_screenshot':
+    case 'browser_scroll':
+      return R0('Looking at the agent\'s own browser is autonomous');
+    case 'browser_open':
+    case 'browser_click':
+    case 'browser_close':
+      return R1('Navigates the agent\'s own browser; nothing is typed or submitted', false);
+    case 'browser_type':
+      return attended
+        ? R1('Types into a page in the agent\'s own browser while the person is in the conversation', false)
+        : {
+            riskLevel: 'R2',
+            reason: 'Typing into a web form in the background, where nobody sees what is sent',
+            reversible: false,
+            externalImpact: true,
+          };
+    case 'browser_key':
+      return args.key === 'Enter' && !attended
+        ? {
+            riskLevel: 'R2',
+            reason: 'Enter submits a web form in the background, where nobody sees what is sent',
+            reversible: false,
+            externalImpact: true,
+          }
+        : R1('Presses a key in the agent\'s own browser', false);
     default:
       return null;
   }
@@ -133,9 +169,17 @@ function classifyPrimitive(toolName: string, args: Record<string, unknown> = {})
 export function classifyActionRisk(
   toolName: string,
   args: Record<string, unknown>,
-  options: { declaredReadOnly?: boolean } = {},
+  options: {
+    declaredReadOnly?: boolean;
+    /**
+     * A person is in the conversation as this runs (a chat turn), rather than
+     * a background run nobody is watching. Only the browser's typing tools
+     * read it.
+     */
+    attended?: boolean;
+  } = {},
 ): ActionRisk {
-  const primitive = classifyPrimitive(toolName, args);
+  const primitive = classifyPrimitive(toolName, args, options.attended === true);
   // A search or a plan cannot run what its text names: "how to reboot a
   // router" is a query, not a command.
   if (primitive?.riskLevel === 'R0') return primitive;

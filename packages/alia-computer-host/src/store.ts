@@ -59,6 +59,23 @@ export interface CommandReceipt {
 
 export type ReceiptOutcome = Pick<CommandReceipt, 'status' | 'exitCode' | 'stdout' | 'stderr' | 'truncated'>;
 
+/**
+ * What an agent or its owner did in the browser, for the owner to read back.
+ *
+ * It never carries what was TYPED (a password is typed here) or a full URL (a
+ * query string can hold a token): only the action, who did it, the site's
+ * origin and the outcome.
+ */
+export interface BrowserAction {
+  actorId: string;
+  action: 'open' | 'navigate' | 'input' | 'control' | 'close' | 'download';
+  by: 'agent' | 'owner';
+  origin: string;
+  detail: string;
+  status: 'ok' | 'refused' | 'failed';
+  at: string;
+}
+
 export interface ComputerStore {
   /** Win the actor's lease, or `null` when a live one is held. */
   acquireLease(actorId: string, operation: LeaseOperation, ttlMs: number): Promise<Lease | null>;
@@ -77,6 +94,12 @@ export interface ComputerStore {
   finishReceipt(actorId: string, operationId: string, outcome: ReceiptOutcome): Promise<CommandReceipt | null>;
   /** Mark every `running` receipt of an actor interrupted, with a note. */
   interruptRunning(actorId: string, note: string): Promise<number>;
+  /** The actor's most recent receipts, newest first. */
+  listReceipts(actorId: string, limit: number): Promise<CommandReceipt[]>;
+
+  recordBrowserAction(action: BrowserAction): Promise<void>;
+  /** The actor's most recent browser actions, newest first. */
+  listBrowserActions(actorId: string, limit: number): Promise<BrowserAction[]>;
 
   /** Record control-API activity, which is what keeps a container from the idle reaper. */
   touch(actorId: string): Promise<void>;
@@ -126,6 +149,18 @@ const SCHEMA = [
    )`,
   `CREATE INDEX IF NOT EXISTS computer_commands_running ON computer_commands (actor_id) WHERE status = 'running'`,
   `CREATE INDEX IF NOT EXISTS computer_commands_started ON computer_commands (started_at)`,
+  `CREATE INDEX IF NOT EXISTS computer_commands_recent ON computer_commands (actor_id, started_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS computer_browser_actions (
+     id bigserial PRIMARY KEY,
+     actor_id text NOT NULL,
+     action text NOT NULL,
+     by_role text NOT NULL CHECK (by_role IN ('agent', 'owner')),
+     origin text NOT NULL DEFAULT '',
+     detail text NOT NULL DEFAULT '',
+     status text NOT NULL CHECK (status IN ('ok', 'refused', 'failed')),
+     at timestamptz NOT NULL DEFAULT now()
+   )`,
+  `CREATE INDEX IF NOT EXISTS computer_browser_actions_recent ON computer_browser_actions (actor_id, at DESC)`,
 ];
 
 interface ReceiptRow {
@@ -263,6 +298,34 @@ export class PostgresStore implements ComputerStore {
     return rows.length;
   }
 
+  async listReceipts(actorId: string, limit: number): Promise<CommandReceipt[]> {
+    const rows = await this.sql<ReceiptRow[]>`
+      SELECT * FROM computer_commands WHERE actor_id = ${actorId}
+      ORDER BY started_at DESC LIMIT ${limit}`;
+    return rows.map(toReceipt);
+  }
+
+  async recordBrowserAction(action: BrowserAction): Promise<void> {
+    await this.sql`
+      INSERT INTO computer_browser_actions (actor_id, action, by_role, origin, detail, status, at)
+      VALUES (${action.actorId}, ${action.action}, ${action.by}, ${action.origin}, ${action.detail}, ${action.status}, ${action.at})`;
+  }
+
+  async listBrowserActions(actorId: string, limit: number): Promise<BrowserAction[]> {
+    const rows = await this.sql<{ actor_id: string; action: BrowserAction['action']; by_role: BrowserAction['by']; origin: string; detail: string; status: BrowserAction['status']; at: Date }[]>`
+      SELECT actor_id, action, by_role, origin, detail, status, at FROM computer_browser_actions
+      WHERE actor_id = ${actorId} ORDER BY at DESC, id DESC LIMIT ${limit}`;
+    return rows.map((row) => ({
+      actorId: row.actor_id,
+      action: row.action,
+      by: row.by_role,
+      origin: row.origin,
+      detail: row.detail,
+      status: row.status,
+      at: row.at.toISOString(),
+    }));
+  }
+
   async touch(actorId: string): Promise<void> {
     await this.sql`
       INSERT INTO computer_activity (actor_id, last_active_at) VALUES (${actorId}, now())
@@ -280,6 +343,8 @@ export class PostgresStore implements ComputerStore {
       DELETE FROM computer_commands
       WHERE started_at < now() - ${olderThanMs} * interval '1 millisecond' AND status <> 'running'
       RETURNING operation_id`;
+    await this.sql`
+      DELETE FROM computer_browser_actions WHERE at < now() - ${olderThanMs} * interval '1 millisecond'`;
     return rows.length;
   }
 
@@ -301,6 +366,7 @@ export class MemoryStore implements ComputerStore {
   private readonly leases = new Map<string, Lease>();
   private readonly receipts = new Map<string, CommandReceipt>();
   private readonly activity = new Map<string, number>();
+  private readonly browserActions: BrowserAction[] = [];
 
   constructor(private readonly now: () => number = Date.now) {}
 
@@ -375,6 +441,27 @@ export class MemoryStore implements ComputerStore {
     return count;
   }
 
+  async listReceipts(actorId: string, limit: number): Promise<CommandReceipt[]> {
+    return [...this.receipts.values()]
+      .filter((receipt) => receipt.actorId === actorId)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+      .slice(0, limit)
+      .map((receipt) => ({ ...receipt }));
+  }
+
+  async recordBrowserAction(action: BrowserAction): Promise<void> {
+    this.browserActions.push({ ...action });
+  }
+
+  async listBrowserActions(actorId: string, limit: number): Promise<BrowserAction[]> {
+    return this.browserActions
+      .map((action, index) => ({ action, index }))
+      .filter(({ action }) => action.actorId === actorId)
+      .sort((a, b) => b.action.at.localeCompare(a.action.at) || b.index - a.index)
+      .slice(0, limit)
+      .map(({ action }) => ({ ...action }));
+  }
+
   async touch(actorId: string): Promise<void> {
     this.activity.set(actorId, this.now());
   }
@@ -390,6 +477,9 @@ export class MemoryStore implements ComputerStore {
         this.receipts.delete(key);
         count += 1;
       }
+    }
+    for (let i = this.browserActions.length - 1; i >= 0; i -= 1) {
+      if (Date.parse((this.browserActions[i] as BrowserAction).at) < this.now() - olderThanMs) this.browserActions.splice(i, 1);
     }
     return count;
   }

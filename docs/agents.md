@@ -369,7 +369,8 @@ migration 0071 (post phase) removed them from `agents.capability_grants`.
 
 Their successor, under a new name so no stored grant can turn it on:
 `computer` gives an agent its own Linux machine — node, python3, git and bash,
-**no network**, a persistent `/workspace` — through seven tools
+**no network** for the shell, a persistent `/workspace` — through seven shell
+tools (and the browser below)
 (`computer_status`, `computer_start`, `computer_stop`, `run_computer_command`,
 `list_computer_files`, `read_computer_file`, `write_computer_file`;
 `lib/computer/computer-tools.ts`). Built only on a runtime turn, only when
@@ -403,6 +404,72 @@ Their successor, under a new name so no stored grant can turn it on:
   `GetCallerIdentity` and allow-lists `oxy-alia-task`. No shared secret.
 
 Infrastructure: oxy-infra `terraform-uswest2/alia-computer-host.tf`.
+
+### The agent's browser (also `computer`)
+
+The same machine has a real browser, under the same grant — one machine, one
+switch (`browser` is taken by the Clarity primitive below). Eight tools,
+`lib/computer/browser-tools.ts`: `browser_open`, `browser_read`,
+`browser_screenshot`, `browser_click`, `browser_type`, `browser_key`,
+`browser_scroll`, `browser_close`. Every description sends the model to
+`webSearch` / `webScraper` first; the browser is for signing in, forms,
+JavaScript-only pages and downloads.
+
+- **One Chromium per host, one context per actor**, persistent: the actor's
+  storage state (cookies, localStorage, IndexedDB) is saved on a profiles volume
+  after activity, on idle close (10 min), on eviction and at shutdown, so a
+  sign-in survives the browser closing and the host sleeping. At most 3
+  contexts; a fourth evicts the least recently used one idle for a minute, or
+  answers "no browser slot". 1280×800.
+- **Network boundary.** The browser container (gVisor) sits only on an
+  `--internal` Docker network; its one way out is a separate egress-proxy
+  container that resolves each name once, refuses it if ANY answer is private,
+  loopback, link-local (metadata 169.254.169.254), CGNAT, reserved or the
+  deployment's extra CIDRs, and connects to exactly the checked address on
+  80/443 — no DNS rebinding. HTTPS is a CONNECT tunnel to 443 only; QUIC and
+  non-proxied WebRTC UDP are off; Chromium resolves no names itself. The shell
+  computers stay `--network none`. Reasoning and the memory budget:
+  `packages/alia-computer-host/src/browser-isolation.ts`.
+- **No caller JavaScript.** Input is click{x,y}, type (≤2000 chars), one key
+  from a short list, scroll. `browser_read` returns the visible text and the
+  clickable elements in view with their centre points (a fixed script in the
+  worker), because Oxy's inference surface is text-only and the model cannot
+  see the screenshot; `browser_screenshot` is for the person and says so.
+- **Untrusted.** Page content is fenced as web data, never instructions. A
+  password field is flagged: the model is told to hand over, not to type it.
+- **Risk:** read/screenshot/scroll R0; open/click/close R1; `browser_type` and
+  `browser_key` Enter (they fill and submit forms) are R2 in a background run,
+  R1 in a chat turn (`attended` in `classifyActionRisk`).
+- **Downloads** (PDF, images, office/zip, UTF-8 text; ≤20 MiB, checked by their
+  bytes) are moved into the actor's `/workspace/downloads/`, starting the
+  computer if needed. Anything else is refused and reported.
+- **Receipts** for every open/navigation/input/control/close/download: who did
+  it (agent or person), the site's origin and the outcome — never typed text,
+  never a full URL.
+- **Memory.** While the browser runs it holds two of the host's six computer
+  slots (1 GiB browser + 128 MiB proxy); it stops when no context is left.
+
+### The live view (`/agents/:id/computer`)
+
+The person an actor belongs to sees that computer in the app (agent page →
+Computer; `packages/app/src/features/agents/ui/computer/`): the browser live
+(a screenshot polled every 1.5 s while the screen is on show and the app is in
+the foreground), the `/workspace` files (read-only) and recent command and
+browser receipts. **Authorisation is the actor id**: `routes/agents/computer.ts`
+composes `agent:<agentId>:user:<caller>` from the caller's verified Oxy user,
+after `canReachAgent`, so nobody — not a public agent's creator — reaches a
+computer that is not theirs. The person can **take control** (for a login or a
+captcha: clicks, typing, a few keys, scroll, an address bar) and **hand back**;
+while they hold it the agent's actions are refused with `owner_in_control`,
+and control returns by itself after 15 minutes of the person doing nothing.
+Polling never wakes a sleeping host.
+
+**Signing up as the agent.** An agent IS an Oxy account, so the natural
+identity for a sign-up it does on its own is its own Oxy address — but there are
+no own-inbox tools yet to read a verification mail, and the person's Inbox (Oxy
+apps) is the OWNER's data, used only with them present. Until agent-own-inbox
+tools exist, a sign-up that needs an email or a code is handed to the person in
+the live view.
 
 `browser` is **Clarity-only**. The runtime image ships no Chromium, so the
 runner's `browser` primitive offers exactly what works without one: `search`,

@@ -75,6 +75,16 @@ export function AgentDetail({ agent }: { agent: Agent }) {
               onChat={actions.handleChat}
               onStartTask={actions.handleHirePress}
               onShare={actions.handleShare}
+              hasComputer={
+                (agent.access === 'public' || isOwner) &&
+                (agent.capabilityGrants ?? []).includes('computer')
+              }
+              onComputer={() =>
+                router.push({
+                  pathname: '/(app)/agents/computer/[id]',
+                  params: { id: agent._id },
+                })
+              }
             />
           ),
         }}
