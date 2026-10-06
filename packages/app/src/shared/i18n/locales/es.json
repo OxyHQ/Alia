@@ -1510,7 +1510,7 @@
         "closedHint": "Se abre cuando el agente navega, o puedes abrirlo para iniciar sesión en un sitio por él.",
         "openButton": "Abrir navegador",
         "urlLabel": "Dirección",
-        "urlPlaceholder": "https://…",
+        "urlPlaceholder": "Dirección de la página",
         "go": "Ir",
         "screenLabel": "El navegador del agente. Toca para hacer clic.",
         "loading": "Cargando la pantalla…",

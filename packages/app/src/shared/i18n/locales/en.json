@@ -1510,7 +1510,7 @@
         "closedHint": "It opens when the agent browses, or you can open it to sign in to a site for it.",
         "openButton": "Open browser",
         "urlLabel": "Address",
-        "urlPlaceholder": "https://…",
+        "urlPlaceholder": "Page address",
         "go": "Go",
         "screenLabel": "The agent's browser. Tap to click.",
         "loading": "Loading the screen…",

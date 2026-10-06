@@ -85,10 +85,16 @@ export async function ownComputer(req: Request, res: Response): Promise<Owned | 
     return null;
   }
   const agent = await findAgentById(getDb(), String(req.params.id));
-  const reach = agent
-    ? await canReachAgent(agent, { oxyUserId, accessToken: req.accessToken, applicationId: req.serviceApp?.appId })
-    : 'out_of_reach';
-  if (!agent || reach === 'out_of_reach') {
+  if (!agent) {
+    res.status(404).json({ error: 'Agent not found' });
+    return null;
+  }
+  const reach = await canReachAgent(agent, {
+    oxyUserId,
+    accessToken: req.accessToken,
+    applicationId: req.serviceApp?.appId,
+  });
+  if (reach === 'out_of_reach') {
     res.status(404).json({ error: 'Agent not found' });
     return null;
   }
