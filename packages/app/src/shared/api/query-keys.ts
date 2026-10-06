@@ -23,6 +23,8 @@ export const queryKeys = {
     reviews: (id: string) => ['agents', 'reviews', id] as const,
     /** What the owner could grant the agent being edited, which is left out. */
     capabilityConnectors: (id: string) => ['agents', 'capability-connectors', id] as const,
+    /** The agent's level per Oxy app, as its owner set them. */
+    oxyApps: (id: string) => ['agents', 'oxy-apps', id] as const,
     /**
      * Keyed by the USERNAME the URL carries, not by the agent id, because the
      * id is part of what the query answers — `/a/pepe` is resolvable before

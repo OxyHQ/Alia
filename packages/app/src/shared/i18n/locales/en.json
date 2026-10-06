@@ -1481,25 +1481,35 @@
       "loading": "Loading terminal…"
     },
     "modelPinned": "Pinned model (%{model})",
-    "modelPinnedDescription": "Runs on this exact model. Pick a level to let Alia choose."
+    "modelPinnedDescription": "Runs on this exact model. Pick a level to let Alia choose.",
+    "oxyApps": {
+      "title": "Oxy apps",
+      "footer": "What of YOUR data this agent may use, app by app. None: nothing. View: it can read. View and act: it can read and act for you, without asking. It always has its own account (its own inbox) as well.",
+      "none": "None",
+      "read": "View",
+      "act": "View and act",
+      "levelLabel": "What %{app} access this agent has",
+      "loadFailed": "Couldn't load your Oxy apps. Try again later.",
+      "saveFailed": "Couldn't change %{app}. Nothing was changed."
+    }
   },
   "authorize": {
     "linkingAccount": "Linking account...",
     "pleaseWait": "Please wait while we set up your access",
     "authRequired": "Authentication Required",
     "linked": "Linked!",
-    "linkSuccess": "Your {{app}} account has been linked successfully!",
+    "linkSuccess": "Your %{app} account has been linked successfully!",
     "linkFailed": "Link Failed",
     "failedToLink": "Failed to link your account. Please try again.",
-    "returnToApp": "You can now return to {{app}} and start chatting with Alia!",
+    "returnToApp": "You can now return to %{app} and start chatting with Alia!",
     "requestNewLink": "Request New Link",
     "invalidToken": "Invalid authentication token. The link you followed is not valid.",
     "tokenExpired": "This link has expired. Please request a new one.",
     "invalidOrExpiredToken": "Invalid or expired token. Please request a new link.",
-    "needLogin": "You need to log in first to link your {{app}} account.",
+    "needLogin": "You need to log in first to link your %{app} account.",
     "missingToken": "Missing authentication token.",
-    "authorizeApp": "Authorize {{app}}",
-    "appWantsAccess": "{{app}} wants to access your account"
+    "authorizeApp": "Authorize %{app}",
+    "appWantsAccess": "%{app} wants to access your account"
   },
   "memory": {
     "title": "Memory",
