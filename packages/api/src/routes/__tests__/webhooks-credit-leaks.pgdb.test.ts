@@ -27,6 +27,10 @@ import { eq } from 'drizzle-orm';
  */
 
 vi.mock('@oxy.so/core/server', () => ({ verifySecret: vi.fn(() => false) }));
+// Background product credits read `oxyClient` only when a product adapter is
+// configured, which this file never does; the real module would construct an
+// OxyServer at import time.
+vi.mock('../../middleware/auth.js', () => ({ oxyClient: {} }));
 vi.mock('ai', () => ({
   generateText: vi.fn(async () => ({ text: 'an answer', usage: { inputTokens: 10, outputTokens: 10 } })),
   stepCountIs: vi.fn(() => 5),
