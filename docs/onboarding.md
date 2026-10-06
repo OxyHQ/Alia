@@ -1,6 +1,6 @@
 # Alia Developer Onboarding
 
-Welcome to Alia -- a multi-surface context-agent platform with autonomous execution and policy controls. This guide gets you productive on day 1.
+Welcome to Alia -- Oxy's assistant, served to every surface by one runtime. This guide gets you productive on day 1. Read [the doc index](./index.mdx) and [Actors: Alia and agents](./actors.mdx) first: who acts, for whom, with what permission, is the model the rest of the code follows.
 
 Read [the ADRs](./adr/README.md) early. `packages/api` is PostgreSQL-only. Hosted
 inference follows one boundary: Alia calls Oxy with its service application
@@ -43,7 +43,7 @@ PostgreSQL is the hard dependency — the API exits at boot without `DATABASE_UR
 
 ### Autonomy Loop
 
-Every chat interaction runs one loop:
+Every chat interaction runs one loop (canonical: [memory and the context graph](./memory-system.md)):
 
 1. **classify** -- detect intent (meeting_prep, inbox_digest, research, general, etc.)
 2. **recall** -- load ranked context sources and learning rules from the context graph
@@ -52,6 +52,8 @@ Every chat interaction runs one loop:
 5. **learn** -- update source quality scores and persist learned rules
 
 ### Risk Governance
+
+Canonical: [agents → governance](./agents.md#governance).
 
 | Level | Meaning | Behavior |
 |-------|---------|----------|
@@ -76,6 +78,8 @@ Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_
 | `lib/chat/provider-loop.ts` | The streaming loop, conversation save, credit finalization | Streaming and persistence |
 | `lib/chat/stream-runner.ts` | Chunk handling, tool results, the named SSE writes | SSE event work |
 | `lib/agent/runner.ts` | Orchestrates autonomous agent sessions | Modifying agent execution flow |
+| `lib/alia-task-run.ts`, `lib/alia-task-queue.ts` | Alia's own unattended task runs | Background work Alia is responsible for |
+| `lib/computer/` | Client for the agents' computer (`packages/alia-computer-host`) | Computer and browser tools |
 | `lib/autonomy/runtime.ts` | Before/after chat hooks for the autonomy loop | Changing classify/recall/learn steps |
 | `lib/tools/index.ts` | Tool barrel file -- exports all tool constructors | Adding a new AI tool |
 | `lib/tool-pipeline.ts` | Assembles the per-request tool set | Adding a new AI tool |
@@ -276,14 +280,15 @@ with an Oxy application service credential and never receives a provider key.
 |-------|------|
 | Architecture decisions | [docs/adr/README.md](adr/README.md) |
 | What sunsets, and on what gate | [docs/migration/compatibility-window.md](migration/compatibility-window.md) |
+| Actors: Alia and agents, identities, permissions | [docs/actors.mdx](actors.mdx) |
 | Chat runtime, SSE events, the Kaana boundary | [docs/chat-runtime.mdx](chat-runtime.mdx) |
-| What the `alia-*` identifiers really are | [docs/model-abstraction.mdx](model-abstraction.mdx) |
-| Agents and autonomy loop | [docs/agents.md](agents.md) |
+| Models: power levels and the catalogue | [docs/model-abstraction.mdx](model-abstraction.mdx) |
+| Agents: bot accounts, capabilities, Oxy apps, the computer | [docs/agents.md](agents.md) |
 | API reference, by boundary | [docs/api-reference.md](api-reference.md) |
 | Memory and context graph | [docs/memory-system.md](memory-system.md) |
 | OxyHQ authentication | [docs/oxyhq-auth.md](oxyhq-auth.md) |
 | Deployment (AWS ECS Fargate) | [docs/deployment.md](deployment.md) |
-| Proactive intelligence / triggers | [docs/proactive-intelligence.md](proactive-intelligence.md) |
+| Background work, tasks and proactive outreach | [docs/proactive-intelligence.md](proactive-intelligence.md) |
 | Developer access (credentials for Alia's API) | [docs/developers-portal.md](developers-portal.md) |
 | Contributing | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 | Project conventions | [AGENTS.md](../AGENTS.md) (also read by AI coding assistants) |

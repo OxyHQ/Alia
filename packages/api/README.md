@@ -1,17 +1,19 @@
 # Alia API
 
-Express + TypeScript API for Alia autonomy runtime.
+Express + TypeScript API for Alia, Oxy's assistant. Who acts in it (Alia and the
+person's agents) is mapped in [`docs/actors.mdx`](../../docs/actors.mdx); the doc index
+is [`docs/index.mdx`](../../docs/index.mdx).
 
 ## What Is Live
 
 - Single chat runtime for all surfaces (`/alia/chat` and `/v1/chat/completions`).
 - Autonomy loop with intent classification and context-graph recall.
-- Structured automation control plane (`/automations`) for explicit actors, resources,
-  data flow, autonomy, observation and execution.
-- Read-only legacy trigger and execution history; its writes are retired.
+- Structured automation control plane (`/automations`): every task has an actor, Alia by
+  default (`docs/proactive-intelligence.md`).
 - Oxy service event ingestion with idempotency and autonomous session creation.
 - Governance by risk level (`R0` read, `R1` reversible write + rollback record, `R2` approval required, `R3` blocked).
-- Model abstraction on the product surface: only the `alia-*` identifiers are exposed.
+- Real models from Oxy's catalogue: a power level (`auto` … `ultra`) or `<publisher>/<model>`;
+  the serving operator and deployment ids stay off the product surface (`docs/model-abstraction.mdx`).
 - PostgreSQL through drizzle as the only store — no MongoDB connection is opened and no Mongoose model is registered.
 
 ## Runtime Flow
@@ -71,13 +73,14 @@ Express + TypeScript API for Alia autonomy runtime.
 Named SSE events written to the chat response stream:
 
 - `alia.plan_preview`
-- `alia.model_switch`
 - `alia.reasoning`
 - `alia.tool_result`
 - `alia.agent`
-- `alia.agent_session`
+- `alia.agent_turn`
+- `alia.context`
 - `alia.title`
 - `alia.research_progress`
+- `alia.suggest_new_conversation`
 
 `alia.approval_request` and `alia.approval_result` are **Socket.IO** events
 (`src/socket.ts`), not SSE. Nothing writes them to the HTTP stream.
@@ -117,6 +120,7 @@ Key groups:
   task attests its ECS role instead and carries neither, oxy ADR 0026)
 - Queue and async execution (`REDIS_URL`)
 - Integrations and channels (`INTEGRATIONS_URL`, `INTEGRATIONS_SECRET`, channel secrets)
+- The agents' computer (`ALIA_COMPUTER_HOST_URL`, `ALIA_COMPUTER_HOST_INSTANCE_ID`; optional)
 
 Upstream model credentials are not Alia configuration. Kaana owns them in its
 database; Alia must not receive them through environment variables, SSM or its own
