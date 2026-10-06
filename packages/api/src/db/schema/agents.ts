@@ -78,6 +78,7 @@ import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
 import { AGENT_ACCESS, AGENT_ARCHETYPES, AGENT_STATUSES } from '../../domain/agent.js';
+import { STORED_OXY_APP_LEVELS, type StoredOxyAppLevel } from '../../domain/agent-oxy-app-level.js';
 import { skills } from './skills';
 import { libraryFiles } from './library';
 
@@ -303,3 +304,42 @@ export const agentKnowledge = pgTable(
     index('agent_knowledge_library_file_id_idx').on(t.libraryFileId),
   ],
 );
+
+/**
+ * What of its owner's data an agent may use, one row per Oxy app (ADR 0015).
+ *
+ * The UI's source of truth for the three levels — `read` (Ver) and `act`
+ * (Ver y actuar); no row is `none` (Nada). Oxy stays the AUTHORITY: each row is
+ * mirrored by exactly one `DelegationGrant` whose id is `oxy_grant_id`, created,
+ * updated and revoked with the owner's bearer by `lib/agent-oxy-apps.ts`. A row
+ * is written only after Oxy accepted the grant, so a row always names one; when
+ * the grant is revoked elsewhere (the accounts app's Agency tab), the next read
+ * drops the row instead of showing a level Oxy no longer honours.
+ *
+ * `app_id` is the catalogue's app id, not a foreign key: the catalogue lives in
+ * Oxy's registry.
+ */
+export const agentOxyAppPermissions = pgTable(
+  'agent_oxy_app_permissions',
+  {
+    agentId: text().notNull(),
+    appId: text().notNull(),
+    level: text({ enum: STORED_OXY_APP_LEVELS as unknown as [string, ...string[]] })
+      .$type<StoredOxyAppLevel>()
+      .notNull(),
+    oxyGrantId: text().notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: 'agent_oxy_app_permissions_agent_id_fk',
+      columns: [t.agentId],
+      foreignColumns: [agents.id],
+    }).onDelete('cascade'),
+    uniqueIndex('agent_oxy_app_permissions_agent_app_key').on(t.agentId, t.appId),
+    uniqueIndex('agent_oxy_app_permissions_grant_key').on(t.oxyGrantId),
+    checkOneOf('agent_oxy_app_permissions_level_check', t.level, STORED_OXY_APP_LEVELS),
+  ],
+);
+

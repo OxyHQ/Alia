@@ -28,6 +28,7 @@ import { getErrorMessage } from '../errors/index.js';
 import { log } from '../logger.js';
 import { declareReadOnly } from '../agent/tool-effects.js';
 import {
+  createOxyAgentRunAuthorization,
   createOxyExecutionAuthorization,
   revokeOxyExecutionAuthorization,
 } from '../oxy-capability-authority.js';
@@ -88,10 +89,35 @@ function parseExecutionAuthorizationKey(key: string): { resource: ResourceRef; t
   }
 }
 
+/**
+ * Which of an AGENT's two identities its toolset carries (ADR 0015).
+ *
+ *  - `forUser`: its owner's apps, exactly as the agent's Oxy grants allow —
+ *    the per-app levels the owner set (*Ver* / *Ver y actuar*). Tools keep the
+ *    `oxy_<app>__<tool>` names and say whose account they reach.
+ *  - `self`: the agent's OWN bot account — its own Inbox, its own posts —
+ *    named `self_<app>__<tool>`. Oxy authorizes it without a grant: the bot is
+ *    the agent.
+ *  - `unattendedSessionId`: nobody is present (the agent runner). Each call is
+ *    authorized through Oxy's agent-run lane, which derives the requester from
+ *    the bot's owner; owner effects then need a *Ver y actuar* (autonomous)
+ *    grant.
+ *
+ * Absent on an agent means `{ forUser: true, self: false }`: the preauthorized
+ * automation stage, whose exact steps already name their resources.
+ */
+export interface OxyAgentIdentity {
+  forUser: boolean;
+  self: boolean;
+  unattendedSessionId?: string;
+}
+
 export interface OxyToolExecutionContext {
   requesterAccountId: string;
   ownerAccountId: string;
   actor: ActorRef;
+  /** Only read for `actor.type === 'agent'`; see {@link OxyAgentIdentity}. */
+  agentIdentity?: OxyAgentIdentity;
   runId?: string;
   autonomy?: OxyToolAutonomy;
   /** Live caller credential used only to create/revoke direct Oxy authority. */
@@ -120,6 +146,8 @@ interface BoundTool {
   compiled: CompiledTool;
   resource: ResourceRef;
   suffix: string | null;
+  /** Bound to the agent's own bot account rather than to the person's. */
+  self?: boolean;
 }
 
 const defsCache = new TTLCache<CatalogDef[]>({ ttlMs: 60_000, maxSize: 1 });
@@ -215,8 +243,12 @@ function getCatalogDefs(): Promise<CatalogDef[]> {
   return defsCache.getOrLoad(DEFS_KEY, loadCatalogDefs);
 }
 
+function agentIdentityOf(context: OxyToolExecutionContext): OxyAgentIdentity {
+  return context.agentIdentity ?? { forUser: true, self: false };
+}
+
 async function agentAssignments(context: OxyToolExecutionContext): Promise<Assignment[]> {
-  if (context.actor.type !== 'agent') return [];
+  if (context.actor.type !== 'agent' || !agentIdentityOf(context).forUser) return [];
   const parsed = mapResponseSchema.parse(await oxyAuthorityFetch('/capabilities/capability-map', {
     method: 'POST',
     body: JSON.stringify({
@@ -240,7 +272,8 @@ export async function getOxyAgentCapabilityMap(
   return agentAssignments(context);
 }
 
-function regularAliaBindings(defs: readonly CatalogDef[], context: OxyToolExecutionContext): BoundTool[] {
+/** Every internal tool of every app, bound to the account root of `accountId`. */
+function accountRootBindings(defs: readonly CatalogDef[], accountId: string, self = false): BoundTool[] {
   const bindings: BoundTool[] = [];
   for (const service of defs) {
     for (const compiled of service.compiledTools) {
@@ -249,15 +282,30 @@ function regularAliaBindings(defs: readonly CatalogDef[], context: OxyToolExecut
         compiled,
         resource: {
           appId: compiled.catalog.appId,
-          effectiveAccountId: context.requesterAccountId,
+          effectiveAccountId: accountId,
           resourceType: compiled.catalog.accountResourceType,
-          resourceId: context.requesterAccountId,
+          resourceId: accountId,
         },
         suffix: null,
+        ...(self ? { self: true } : {}),
       });
     }
   }
   return bindings;
+}
+
+function regularAliaBindings(defs: readonly CatalogDef[], context: OxyToolExecutionContext): BoundTool[] {
+  return accountRootBindings(defs, context.requesterAccountId);
+}
+
+/**
+ * The agent AS ITSELF: every app's account root, bound to its own bot account.
+ * Oxy authorizes these without a grant (ADR 0018 addendum) — the account is the
+ * agent's — and never lets the same agent reach any other account this way.
+ */
+function agentSelfBindings(defs: readonly CatalogDef[], context: OxyToolExecutionContext): BoundTool[] {
+  if (context.actor.type !== 'agent' || !agentIdentityOf(context).self) return [];
+  return accountRootBindings(defs, context.actor.accountId, true);
 }
 
 /**
@@ -310,13 +358,37 @@ export async function listOxyAccountReadTools(
     .map((binding) => ({ resource: binding.resource, tool: binding.compiled.definition.name }));
 }
 
-function agentBindings(defs: readonly CatalogDef[], assignments: readonly Assignment[]): BoundTool[] {
+/**
+ * Whether a grant at `maximumAutonomy` can ever run `definition` in this turn.
+ *
+ * A *Ver* grant (`read_only`) names whole packages, so the capability map lists
+ * that package's writes too; Oxy would refuse every one of them. With nobody
+ * present, an effect also needs the grant at `autonomous` (*Ver y actuar*):
+ * the agent-run lane asks for exactly that.
+ */
+function assignmentCanRun(
+  maximumAutonomy: OxyToolAutonomy,
+  definition: CatalogTool,
+  unattended: boolean,
+): boolean {
+  if (definition.effect === 'read') return true;
+  if (unattended) return maximumAutonomy === 'autonomous';
+  return maximumAutonomy === 'execute_on_request' || maximumAutonomy === 'autonomous';
+}
+
+function agentBindings(
+  defs: readonly CatalogDef[],
+  assignments: readonly Assignment[],
+  unattended = false,
+): BoundTool[] {
   const candidates: Array<{ compiled: CompiledTool; assignment: Assignment }> = [];
   for (const assignment of assignments) {
     const service = defs.find((entry) => entry.catalog.appId === assignment.resource.appId);
     if (!service) continue;
     for (const compiled of service.compiledTools) {
-      if (assignment.toolNames.includes(compiled.definition.name)) candidates.push({ compiled, assignment });
+      if (!assignment.toolNames.includes(compiled.definition.name)) continue;
+      if (!assignmentCanRun(assignment.maximumAutonomy, compiled.definition, unattended)) continue;
+      candidates.push({ compiled, assignment });
     }
   }
   const counts = new Map<string, number>();
@@ -443,6 +515,29 @@ async function createDirectExecutionAuthorization(
   });
 }
 
+/**
+ * An agent's unattended step: Oxy's agent-run lane, with the requester derived
+ * by Oxy from the bot's owner — never sent from here. Expires on its own; it
+ * is never retired with a bearer nobody holds.
+ */
+async function createAgentRunExecutionAuthorization(
+  context: OxyToolExecutionContext,
+  resource: ResourceRef,
+  definition: CatalogTool,
+  sessionId: string,
+): Promise<string> {
+  if (context.actor.type !== 'agent') throw new Error('Only an agent has an unattended run lane');
+  return createOxyAgentRunAuthorization({
+    actorAccountId: context.actor.accountId,
+    ownerAccountId: context.ownerAccountId,
+    sessionId,
+    resource,
+    tool: definition.name,
+    maximumAutonomy: definition.effect === 'read' ? 'read_only' : 'autonomous',
+    expiresAt: new Date(Date.now() + 5 * 60_000),
+  });
+}
+
 interface IssuedTicket {
   ticket: string;
   transientAuthorizationId?: string;
@@ -491,22 +586,25 @@ async function issueTicket(
   const preauthorized = context.executionAuthorizations?.[
     oxyExecutionAuthorizationKey(resource, definition.name)
   ];
+  const unattendedSessionId = context.actor.type === 'agent' && !context.userAccessToken
+    ? context.agentIdentity?.unattendedSessionId
+    : undefined;
   let executionAuthorizationId: string;
   if (expectedCatalog && !context.runId) throw new OxyAuthorityUnavailableError('Internal MCP requires a named run');
   try {
-    executionAuthorizationId = preauthorized?.id ?? await createDirectExecutionAuthorization(
-      context,
-      resource,
-      definition,
-      runId,
-    );
+    executionAuthorizationId = preauthorized?.id ?? (unattendedSessionId !== undefined
+      ? await createAgentRunExecutionAuthorization(context, resource, definition, unattendedSessionId)
+      : await createDirectExecutionAuthorization(context, resource, definition, runId));
   } catch (error: unknown) {
     if (expectedCatalog) throw new OxyAuthorityUnavailableError('Internal MCP requester approval unavailable');
     throw new OxyAuthorityUnavailableError(getErrorMessage(error), { cause: error });
   }
+  // Both a preauthorized step and an agent run are AUTOMATION authority, whose
+  // run is bound when the ticket is issued; a direct request bound its own.
+  const automationScoped = preauthorized !== undefined || unattendedSessionId !== undefined;
   try {
     const request = { executionAuthorizationId,
-      ...(preauthorized ? { runId, stepId: preauthorized.stepId } : {}),
+      ...(preauthorized ? { runId, stepId: preauthorized.stepId } : unattendedSessionId !== undefined ? { runId } : {}),
       ...(expectedCatalog ? { expectedCatalog } : {}) };
     const parsed = ticketResponseSchema.parse(await agency().issueCapabilityTicket(request));
     if (!parsed.decision.allowed || !parsed.ticket) {
@@ -514,10 +612,10 @@ async function issueTicket(
     }
     return {
       ticket: parsed.ticket,
-      ...(preauthorized ? {} : { transientAuthorizationId: executionAuthorizationId }),
+      ...(automationScoped ? {} : { transientAuthorizationId: executionAuthorizationId }),
     };
   } catch (error: unknown) {
-    if (!preauthorized) {
+    if (!automationScoped) {
       const retired = await revokeTransientAuthorization(context, executionAuthorizationId, runId, definition.name, expectedCatalog !== undefined);
       if (!retired) onPendingRetirement?.(executionAuthorizationId);
     }
@@ -705,6 +803,22 @@ function parseMcpTextResult(text: string): unknown {
   try { return JSON.parse(text); } catch { return text; }
 }
 
+/**
+ * Whose account a tool reaches, said first, because an agent holds BOTH sets
+ * and `oxy_inbox__searchEmails` and `self_inbox__searchEmails` read the same.
+ */
+function toolDescription(binding: BoundTool, context: OxyToolExecutionContext): string {
+  const app = appDisplayName(binding.compiled.catalog.appId);
+  const resource = `Resource: ${binding.resource.resourceType}/${binding.resource.resourceId}.`;
+  if (binding.self) {
+    return `[Your own ${app}] YOUR account as this agent (your own ${app.toLowerCase()}, not the person's): ${binding.compiled.definition.description} ${resource}`;
+  }
+  if (context.actor.type === 'agent') {
+    return `[${app}] The PERSON you work for — their account, used on their behalf within the permissions they gave you: ${binding.compiled.definition.description} ${resource}`;
+  }
+  return `[${app}] ${binding.compiled.definition.description} ${resource}`;
+}
+
 function sanitizeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9_]/g, '_');
 }
@@ -723,7 +837,11 @@ export async function buildOxyServiceTools(
       ? allDefs.filter((entry) => allowed.has(entry.catalog.appId) || allowed.has(`oxy-${entry.catalog.appId}`))
       : allDefs;
     const candidateBindings = context.actor.type === 'agent'
-      ? agentBindings(defs, await agentAssignments(context))
+      ? [
+          ...agentBindings(defs, await agentAssignments(context),
+            agentIdentityOf(context).unattendedSessionId !== undefined && !context.userAccessToken),
+          ...agentSelfBindings(defs, context),
+        ]
       : context.executionAuthorizations !== undefined
         ? authorizedAliaBindings(defs, context.executionAuthorizations)
         : regularAliaBindings(defs, context);
@@ -736,14 +854,14 @@ export async function buildOxyServiceTools(
     const tools: ToolSet = {};
     const retirements: InternalRetirements = new Map();
     for (const binding of bindings) {
-      const baseName = `oxy_${sanitizeName(binding.compiled.catalog.appId)}__${sanitizeName(binding.compiled.definition.name)}`;
+      const baseName = `${binding.self ? 'self' : 'oxy'}_${sanitizeName(binding.compiled.catalog.appId)}__${sanitizeName(binding.compiled.definition.name)}`;
       const toolName = binding.suffix ? `${baseName}__${binding.suffix}` : baseName;
       let preauthorizedInvocationStarted = false;
       const repeatable = context.executionAuthorizations?.[
         oxyExecutionAuthorizationKey(binding.resource, binding.compiled.definition.name)
       ]?.repeatable === true;
       const built = tool({
-        description: `[${appDisplayName(binding.compiled.catalog.appId)}] ${binding.compiled.definition.description} Resource: ${binding.resource.resourceType}/${binding.resource.resourceId}.`,
+        description: toolDescription(binding, context),
         inputSchema: binding.compiled.inputSchema,
         execute: async (args: Record<string, unknown>, { toolCallId }: { toolCallId?: string } = {}) => {
           if (context.executionAuthorizations !== undefined && !repeatable) {
@@ -783,6 +901,11 @@ export async function buildOxyServiceTools(
   }
 }
 
+/** The live app catalogues, for the per-agent permissions editor. */
+export async function listOxyAppCatalogs(): Promise<AppCapabilityCatalog[]> {
+  return (await getCatalogDefs()).map((entry) => entry.catalog);
+}
+
 export async function getOxyServiceContext(userId: string, accessToken: string): Promise<string> {
   const cached = contextCache.get(userId);
   if (cached !== undefined) return cached;
@@ -820,4 +943,26 @@ export function getOxyServicePromptFragment(_oxyUserId: string): string {
     return `- **${service.displayName}**: ${names.join(', ')}.`;
   });
   return `\n\n## Oxy apps\nUse the available Oxy app tools for the person's requested actions. Oxy checks account, resource and action authority. If an action is denied, request any required consent through the supported account flow.\n${lines.join('\n')}`;
+}
+
+/**
+ * What an agent is told about its two identities (ADR 0015), only when its
+ * toolset carries Oxy app tools at all. The tool descriptions say the same per
+ * tool; this says it once, before the model has to choose between them.
+ */
+export function agentIdentityPrompt(toolNames: readonly string[]): string {
+  const self = toolNames.some((name) => name.startsWith('self_'));
+  const forUser = toolNames.some((name) => name.startsWith('oxy_'));
+  if (!self && !forUser) return '';
+  const lines = ['\n\n## Your accounts'];
+  if (self) {
+    lines.push('- `self_*` tools act on YOUR OWN Oxy account as this agent: your own inbox, your own profile and sign-ups. Use them for anything addressed to you or done as yourself.');
+  }
+  if (forUser) {
+    lines.push('- `oxy_*` tools act on the account of the person you work for, only within the permissions they gave you. Use them for their email, their data, their behalf.');
+  }
+  if (self && forUser) {
+    lines.push('Never mix the two: reading "my email" when the person asks means theirs (`oxy_*`); an email someone sent to you is in yours (`self_*`).');
+  }
+  return lines.join('\n');
 }

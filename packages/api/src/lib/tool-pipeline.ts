@@ -156,6 +156,15 @@ export interface ForUserOptions {
   oxyAutonomy?: OxyToolAutonomy;
   /** Exact durable Oxy authorizations for a normalized background run. */
   oxyExecutionAuthorizations?: Readonly<Record<string, OxyExecutionAuthorizationRef>>;
+  /**
+   * The agent session of an UNATTENDED run (the runner, nobody present).
+   *
+   * With it, an agent's Oxy tools are authorized through Oxy's agent-run lane,
+   * which derives the requester from the bot's owner — the agent works within
+   * the levels its owner set, plus its own account. Without it (and without a
+   * bearer) an agent's tools could only ever be refused.
+   */
+  oxyAgentRunSessionId?: string;
   onOxyStepStatus?: (
     stepId: string,
     status: 'running' | 'succeeded' | 'failed',
@@ -346,6 +355,7 @@ export class ToolPipeline {
       runId,
       oxyAutonomy,
       oxyExecutionAuthorizations,
+      oxyAgentRunSessionId,
       onOxyStepStatus,
       editorToolDefinitions,
       sseEmitter,
@@ -592,6 +602,23 @@ export class ToolPipeline {
     const oxyOwnerAccountId = agent ? agent.ownerOxyAccountId : userId;
     // Owner data only for the owner: see `ForUserOptions.requesterAccountId`.
     const ownerIsPresent = oxyOwnerAccountId != null && requesterAccountId === oxyOwnerAccountId;
+    /**
+     * An agent's two identities (ADR 0015): the owner's apps per the levels the
+     * owner set, and its own bot account (`self_*`). Both only when the person
+     * in the turn IS the owner — a stranger on a shared agent gets neither the
+     * owner's inbox nor the agent's, whose mail may well be about the owner.
+     */
+    const unattendedSessionId = !isDirectSession ? oxyAgentRunSessionId : undefined;
+    const agentIdentity = agent
+      ? {
+          forUser: true,
+          // Only where a call can be authorized at all: the owner's bearer, or
+          // the runner's agent-run lane. Elsewhere (a Telegram turn) the agent's
+          // own account would be a list of tools Oxy refuses every time.
+          self: (isDirectSession && accessToken !== undefined) || unattendedSessionId !== undefined,
+          ...(unattendedSessionId !== undefined ? { unattendedSessionId } : {}),
+        }
+      : undefined;
     const [mcpTools, integrationTools, oxyServiceTools, ownAgentTools] = await Promise.all([
           actsForPerson && wants('mcp')
             ? buildMcpTools(userId, mcpSelection(mcpServerId, grants)).catch(bulkFailure('mcp'))
@@ -608,6 +635,7 @@ export class ToolPipeline {
                 actor: agent
                   ? { type: 'agent', accountId: agent.oxyAccountId }
                   : { type: 'alia', ownerAccountId: oxyOwnerAccountId },
+                ...(agentIdentity ? { agentIdentity } : {}),
                 runId: runId ?? requestId,
                 autonomy: oxyAutonomy,
                 userAccessToken: isDirectSession ? accessToken : undefined,
