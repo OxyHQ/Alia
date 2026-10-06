@@ -1462,7 +1462,7 @@
       },
       "computer": {
         "label": "Its own computer",
-        "description": "Run commands and keep files on a private Linux sandbox with no internet access"
+        "description": "Run commands and keep files on a private Linux sandbox, and browse the web with its own browser that stays signed in"
       }
     },
     "instancedFamily": {
@@ -1491,6 +1491,85 @@
       "levelLabel": "What %{app} access this agent has",
       "loadFailed": "Couldn't load your Oxy apps. Try again later.",
       "saveFailed": "Couldn't change %{app}. Nothing was changed."
+    },
+    "computer": {
+      "open": "Computer",
+      "title": "{{name}}'s computer",
+      "subtitle": "Your own computer with this agent: only you can see it.",
+      "unavailable": "Agent computers are not available here.",
+      "loadFailed": "The computer could not be loaded.",
+      "notGranted": "This agent is not allowed to use its computer. You can still look at what it left there.",
+      "state": {
+        "running": "On",
+        "stopped": "Off",
+        "asleep": "Asleep — it wakes on the next use"
+      },
+      "browser": {
+        "title": "Browser",
+        "closed": "The agent's browser is closed.",
+        "closedHint": "It opens when the agent browses, or you can open it to sign in to a site for it.",
+        "openButton": "Open browser",
+        "urlLabel": "Address",
+        "urlPlaceholder": "https://…",
+        "go": "Go",
+        "screenLabel": "The agent's browser. Tap to click.",
+        "loading": "Loading the screen…",
+        "agentInControl": "The agent is in control",
+        "youInControl": "You are in control — the agent waits",
+        "takeControl": "Take control",
+        "handBack": "Hand back to the agent",
+        "takeControlHint": "Take control to sign in or solve a captcha. Your clicks and typing go to the page; nothing you type is stored.",
+        "typeLabel": "Text to type",
+        "typePlaceholder": "Type into the selected field",
+        "send": "Send",
+        "scrollUp": "Scroll up",
+        "scrollDown": "Scroll down",
+        "keys": {
+          "Enter": "Enter",
+          "Tab": "Tab",
+          "Backspace": "Delete",
+          "Escape": "Esc"
+        },
+        "actionFailed": "That did not work: {{reason}}",
+        "disconnected": "The screen is not updating. It will retry."
+      },
+      "files": {
+        "title": "Files",
+        "off": "The computer is off. Turn it on to see its files.",
+        "turnOn": "Turn on",
+        "empty": "This folder is empty.",
+        "up": "Up",
+        "truncated": "Only the first 1000 entries are shown.",
+        "readOnly": "Read-only view of /workspace."
+      },
+      "activity": {
+        "title": "Recent activity",
+        "commands": "Commands",
+        "browser": "Browser",
+        "none": "Nothing yet.",
+        "by": {
+          "agent": "Agent",
+          "owner": "You"
+        },
+        "status": {
+          "running": "Running",
+          "started": "In background",
+          "succeeded": "Done",
+          "failed": "Failed",
+          "timed_out": "Timed out",
+          "interrupted": "Interrupted",
+          "ok": "Done",
+          "refused": "Refused"
+        },
+        "action": {
+          "open": "Opened the browser",
+          "navigate": "Went to a page",
+          "input": "Acted on the page",
+          "control": "Control changed",
+          "close": "Closed the browser",
+          "download": "Downloaded a file"
+        }
+      }
     }
   },
   "authorize": {

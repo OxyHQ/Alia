@@ -1452,7 +1452,7 @@
       },
       "computer": {
         "label": "Su propio ordenador",
-        "description": "Ejecutar comandos y guardar archivos en un entorno Linux privado sin acceso a internet"
+        "description": "Ejecutar comandos y guardar archivos en un entorno Linux privado, y navegar por la web con su propio navegador, que recuerda sus sesiones"
       }
     },
     "instancedFamily": {
@@ -1491,6 +1491,85 @@
       "levelLabel": "Qué acceso a %{app} tiene este agente",
       "loadFailed": "No se han podido cargar tus apps de Oxy. Inténtalo más tarde.",
       "saveFailed": "No se ha podido cambiar %{app}. No ha cambiado nada."
+    },
+    "computer": {
+      "open": "Ordenador",
+      "title": "El ordenador de {{name}}",
+      "subtitle": "Tu ordenador con este agente: solo tú puedes verlo.",
+      "unavailable": "Los ordenadores de agentes no están disponibles aquí.",
+      "loadFailed": "No se pudo cargar el ordenador.",
+      "notGranted": "Este agente no tiene permiso para usar su ordenador. Aun así puedes ver lo que dejó allí.",
+      "state": {
+        "running": "Encendido",
+        "stopped": "Apagado",
+        "asleep": "En reposo — se despierta con el próximo uso"
+      },
+      "browser": {
+        "title": "Navegador",
+        "closed": "El navegador del agente está cerrado.",
+        "closedHint": "Se abre cuando el agente navega, o puedes abrirlo para iniciar sesión en un sitio por él.",
+        "openButton": "Abrir navegador",
+        "urlLabel": "Dirección",
+        "urlPlaceholder": "https://…",
+        "go": "Ir",
+        "screenLabel": "El navegador del agente. Toca para hacer clic.",
+        "loading": "Cargando la pantalla…",
+        "agentInControl": "El agente tiene el control",
+        "youInControl": "Tienes el control — el agente espera",
+        "takeControl": "Tomar el control",
+        "handBack": "Devolver al agente",
+        "takeControlHint": "Toma el control para iniciar sesión o resolver un captcha. Tus clics y lo que escribas van a la página; no se guarda nada de lo que escribes.",
+        "typeLabel": "Texto a escribir",
+        "typePlaceholder": "Escribe en el campo seleccionado",
+        "send": "Enviar",
+        "scrollUp": "Subir",
+        "scrollDown": "Bajar",
+        "keys": {
+          "Enter": "Intro",
+          "Tab": "Tab",
+          "Backspace": "Borrar",
+          "Escape": "Esc"
+        },
+        "actionFailed": "No funcionó: {{reason}}",
+        "disconnected": "La pantalla no se está actualizando. Se reintentará."
+      },
+      "files": {
+        "title": "Archivos",
+        "off": "El ordenador está apagado. Enciéndelo para ver sus archivos.",
+        "turnOn": "Encender",
+        "empty": "Esta carpeta está vacía.",
+        "up": "Subir",
+        "truncated": "Solo se muestran las primeras 1000 entradas.",
+        "readOnly": "Vista de solo lectura de /workspace."
+      },
+      "activity": {
+        "title": "Actividad reciente",
+        "commands": "Comandos",
+        "browser": "Navegador",
+        "none": "Nada todavía.",
+        "by": {
+          "agent": "Agente",
+          "owner": "Tú"
+        },
+        "status": {
+          "running": "En curso",
+          "started": "En segundo plano",
+          "succeeded": "Hecho",
+          "failed": "Falló",
+          "timed_out": "Tiempo agotado",
+          "interrupted": "Interrumpido",
+          "ok": "Hecho",
+          "refused": "Rechazado"
+        },
+        "action": {
+          "open": "Abrió el navegador",
+          "navigate": "Fue a una página",
+          "input": "Actuó en la página",
+          "control": "Cambió el control",
+          "close": "Cerró el navegador",
+          "download": "Descargó un archivo"
+        }
+      }
     }
   },
   "authorize": {
