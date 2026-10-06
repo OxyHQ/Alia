@@ -47,8 +47,8 @@ in which case its body is prepended as instructions, or the model calls
 `loadSkill` after matching the index against the request.
 
 **Level 3 — resources.** `readSkillFile` returns one bundled text file.
-Bundled scripts are stored and listed but not run: there is no sandbox to run
-them in (see *Scripts are not run* below).
+Bundled scripts are stored and listed but not run (see *Scripts are not run*
+below).
 
 ## An install is the authorisation
 
@@ -99,7 +99,9 @@ decides.
 agent sandbox docker host. That host was never configured in production, so the
 tool was always withheld, and it was removed together with the host. A skill's
 scripts are imported and stored with the rest of its bundle; nothing executes
-them.
+them. The agents' computer (`packages/alia-computer-host`, under the `computer`
+grant) is a separate capability: no code path runs a skill's scripts there, and nothing
+copies a bundle onto it automatically.
 
 ## What it does not do
 

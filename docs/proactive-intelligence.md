@@ -1,4 +1,4 @@
-# Proactive Intelligence
+# Background work and proactive outreach
 
 Last updated: 2026-10-06
 
@@ -9,6 +9,22 @@ what an omitted `actorSelection` means), or one of the person's agents. Nobody h
 to pick an agent; agents are optional. Connected work additionally owns exact Oxy
 actions, data flow and limits; reminders, research and assistant responses
 deliberately carry no fabricated app resource or tool.
+
+The actor model behind this page is [Actors: Alia and agents](./actors.mdx); the
+control-plane endpoints are in [API reference](./api-reference.md).
+
+## Who runs a task
+
+| `actorSelection` (`automation_definitions.actor_mode`) | Who is responsible | How it runs |
+|---|---|---|
+| omitted, or `{ mode: 'alia' }` | Alia | One unattended Alia turn on the `alia-tasks` queue (below), under her standing authority. |
+| `{ mode: 'fixed', agentId }` | that agent | The agent receives the prompt in a durable session; connected actions go through the coordinator. |
+| `{ mode: 'automatic', eligibleAgentIds }` | the first eligible agent per action | The coordinator assigns each ordered action to an agent whose live capability map covers it. |
+
+Which agent may be named is one rule shared by creation and dispatch
+(`mayRunForAutomationOwner`, `lib/automation-actors.ts`): the owner's own agent, or a
+public, active marketplace agent — never by `author`, never a product-bound one.
+Schemas: `lib/structured-automation-creation.ts`.
 
 ## Alia's standing authority
 
@@ -51,7 +67,7 @@ message idempotent. A failing source backs off `min(60, 2^n)` minutes and after
 
 Alia and every agent behave like a friend who tells you when something that
 needs you arrives — and never like a feed. `lib/proactive/email-outreach.ts`
-handles Inbox's `new_email` event (catalog 1.1.0: `messageId`, `from`,
+handles Inbox's `new_email` event (version 1.1.0: `messageId`, `from`,
 `subject`, a one-line `snippet` of at most 140 characters, and `folder`),
 delivered on the same signed lane as every Oxy event (`POST /webhooks/oxy`).
 It runs once per claimed event, beside — never instead of — automation
@@ -101,11 +117,11 @@ whose lease lapsed or that stayed `planned` for 30 minutes, refunds it and tells
 the person. Every settlement is a conditional transition of an open run, so the
 reaper and a slow worker never both refund or charge.
 
-## Architecture
+## How a run executes
 
-1. User message (or external event) arrives.
-2. Runtime classifies intent and recalls context graph.
-3. For assistant-only work Alia is responsible for, the run is claimed with
+1. A trigger fires: a schedule tick, a matched Oxy event, or `POST
+   /automations/:id/run` for a manual task.
+2. For assistant-only work Alia is responsible for, the run is claimed with
    `selected_actor_type = 'alia'` and queued on `alia-tasks` (`lib/alia-task-queue.ts`).
    `lib/alia-task-run.ts` takes one unattended Alia turn for the owner (default
    model, no agent, web search on), settles the credit hold against the tokens
@@ -117,68 +133,50 @@ reaper and a slow worker never both refund or charge.
    For connected work, the coordinator assigns each ordered action to the first eligible agent
    whose live capability map covers it. The first stage must also cover every
    declared source resource.
-4. Consecutive actions for the same agent form one stage. Each stage has its
+3. Consecutive actions for the same agent form one stage. Each stage has its
    own session; one run may therefore identify several real Oxy bot accounts.
-5. Observation mode records the complete actor/action graph without making a
+4. Observation mode records the complete actor/action graph without making a
    session or an external effect.
-6. Execution mode loads only that stage's opaque Oxy authorization ids and asks
+5. Execution mode loads only that stage's opaque Oxy authorization ids and asks
    Oxy for fresh capability tickets bound to the shared run and exact steps.
-7. Stages run sequentially, with one durable session per `(run, stage)`. Each
+6. Stages run sequentially, with one durable session per `(run, stage)`. Each
    declared Oxy action can begin once in that session, and app idempotency keys
    protect effect retries. A prior result reaches the next agent only when the
    definition explicitly names a source and destination for that handoff.
-8. The run finishes only after every declared action step succeeds, then sends
+7. The run finishes only after every declared action step succeeds, then sends
    the configured result notification.
 
-## Trigger Engine
+An agent's own unattended run (a goal, `continueInBackground`, a follow-up) is a
+durable session with a lease and the run reaper (`lib/agent/run-reaper.ts`); its
+Oxy calls use Oxy's agent-run authorizations ([agents](./agents.md#oxy-apps-for-the-person-and-as-itself)).
 
-Source: `packages/api/src/lib/trigger-engine.ts`
+## Triggers
 
-Supported trigger types:
+`automationTriggerSchema` (`lib/structured-automation-creation.ts`) has three kinds:
 
-- `schedule` - cron/daily/interval.
-- `webhook` - token endpoint with optional HMAC/IP checks.
-- `integration_event` - matched by `service + event + filters`.
-- `agent_heartbeat` - periodic agent health/status checks.
+- `schedule` — a five-field `cron` and an IANA `timezone`. `lib/trigger-engine.ts`
+  is the one elected scheduler (leader election, a 30-second reconcile, and a
+  30-minute catch-up window for an occurrence missed during a deploy).
+- `event` — an Oxy app event (`appId`, `eventType`, optional resource), matched by
+  `POST /webhooks/oxy` (below).
+- `manual` — only `POST /automations/:id/run`.
 
-## Trigger Action Contract
+Runs persist in `automation_runs` and ordered `automation_steps`. Each Oxy step
+carries its stable action id, fresh run/step correlation and policy decision.
+Agent sessions carry an explicit `(automationRunId, stage)` binding; a unique
+database index prevents duplicate sessions for one stage. Alia stores no user
+bearer or app credential. The legacy `/triggers` model, its tables and its
+`TriggerExecution` records are gone (migrations 0069 and 0070).
 
-```ts
-{
-  prompt: string;
-  agentId?: ObjectId;
-  roleId?: string;
-  useTools: boolean;
-  notify?: boolean;
-  channelId?: string;
-}
-```
-
-## Execution Persistence
-
-Each run writes a `TriggerExecution` record with:
-
-- `status`: running/success/failed
-- input context (`event`, `payload`, `source`)
-- output summary
-- tool calls
-- token usage
-- duration
-
-Normalized runs also write `automation_runs` and ordered `automation_steps`.
-Each Oxy step carries its stable action id, fresh run/step correlation and
-policy decision. Agent sessions carry an explicit `(automationRunId, stage)`
-binding; a unique database index prevents duplicate sessions for one stage.
-Alia stores no user bearer or app credential.
+A task's `maximumAutonomy` bounds its connected actions: manual execution requires
+`execute_on_request` or `autonomous`; background event and schedule execution
+requires `autonomous`; `draft` and `read_only` definitions produce no effects.
 
 ## Governance and Approvals
 
-- `R0`: auto-run.
-- `R1`: auto-run + rollback record.
-- `R2`: waits for approval.
-- `R3`: blocked.
-
-Approvals emit `alia.approval_request` and `alia.approval_result`.
+The risk classes (`R0`–`R3`) and approvals are documented once, in
+[Agents → Governance](./agents.md#governance); a background run never waits for an
+approval ([Agents → Approvals nobody is waiting for](./agents.md#approvals-nobody-is-waiting-for)).
 
 The Oxy autonomy vocabulary is `read_only`, `draft`, `execute_on_request` and
 `autonomous`; the most restrictive live policy wins. Risk classes still govern
@@ -198,25 +196,6 @@ Behavior:
 - In observation mode, persist the decision graph and execute nothing.
 - In execution mode, require live capability coverage plus every durable action authorization before queueing.
 - If autonomous execution fails, send an in-app/push fallback notification.
-
-## Client Event Parity
-
-All chat clients consume the same named events with `eventVersion: 1`:
-
-- `alia.plan_preview`
-- `alia.approval_request`
-- `alia.approval_result`
-- `alia.research_progress`
-- `alia.agent_session`
-- `alia.reasoning`
-- `alia.tool_result`
-- `alia.title`
-
-## Important
-
-Scheduled execution is trigger-engine-native. `/automations` owns normalized
-schedules while existing trigger rows remain supported during migration; both
-use the same leader lease, cron registry and reconciliation loop.
 
 ## Prompt suggestions are not an automation
 

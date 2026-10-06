@@ -1,16 +1,36 @@
 ---
 title: "Alia"
-description: "Multi-surface context-agent platform with autonomous execution, persistent context graph, and policy controls."
+description: "Alia, the Oxy assistant: what it is, who acts in it, and where each topic is documented."
 order: 0
 ---
 
 # Alia
 
-Alia is a multi-surface context-agent platform focused on autonomous execution with policy controls. One runtime powers the Expo app, the Codea VS Code extension, the Cowork desktop client, the developer CLI, and every webhook-driven trigger — all on top of a shared autonomy loop and a persistent context graph.
+Alia is Oxy's assistant. One runtime serves the Expo app (web, iOS, Android), the
+Codea VS Code extension and CLI, the Cowork desktop client, other Oxy apps and
+third parties through the SDK. Alia acts for the person in their Oxy apps, runs
+tasks in the background, writes first when something needs them, and lets people
+create **agents** — personas with their own Oxy account, memory and computer.
+
+## Read in this order
+
+1. **What Alia is** — this page: the three roles, the inference boundary, the packages.
+2. **[Actors: Alia and agents](./actors.mdx)** — who acts, for whom or as itself, with
+   what permission. Start here for anything about agents, tasks, memory or the computer.
+3. **[Chat runtime](./chat-runtime.mdx)** — one turn end to end: request, tools, the
+   SSE contract, typed failures.
+4. **[Background work and proactive outreach](./proactive-intelligence.md)** — tasks,
+   Alia's standing authority, watches, writing first.
+5. **[Integrations and Oxy apps](./integrations.mdx)** — the tool families, Oxy apps
+   (first party), MCP, channels.
+6. **[The agents' computer](./agents.md#the-agents-computer-computer)** — the sandboxed
+   machine and browser, and its live view.
+7. **[Deployment](./deployment.md)** and the [runbooks](#operations) — operating it.
+8. **[Architecture decision records](./adr/README.md)** — what was decided, and why.
 
 ## What it is
 
-A single chat runtime (`/alia/chat` and `/v1/chat/completions`) serves every surface. Each turn runs the autonomy loop `classify → recall → retrieve → act → learn`, draws from a per-user context graph, and is governed by an explicit risk policy (`R0`/`R1`/`R2`/`R3`) so writes are reversible, external impact requires approval, and destructive actions are blocked.
+A single chat runtime (`/alia/chat` and `/v1/chat/completions`) serves every surface. Each turn is taken by an actor — Alia, or one of the person's agents ([actors](./actors.mdx)) — runs the autonomy loop `classify → recall → retrieve → act → learn` ([memory and the context graph](./memory-system.md)), and is governed by the risk policy `R0`–`R3` ([governance](./agents.md#governance)).
 
 Alia is one of three things, and the three are not nested
 ([ADR 0010](./adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md)):
@@ -70,6 +90,11 @@ the vocabulary behind it.
      +------------------+
 ```
 
+Beside these, the API reaches the person's Oxy apps through Oxy's capability tickets
+([integrations](./integrations.mdx#oxy-apps)), and the agents' computer host
+(`packages/alia-computer-host`, its own EC2 Spot instance) over the internal network
+([actors](./actors.mdx#the-agents-computer)).
+
 PostgreSQL is Alia's product store. The last domains — conversations, messages, agents, organizations, skills and the rest — are ported, and `packages/api` opens no MongoDB connection and registers no Mongoose model. Under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md), every hosted inference call crosses the published Oxy inference client and Oxy calls Kaana; only a user's explicitly connected local runtime stays outside that hop.
 
 | App | Stack | Purpose |
@@ -83,6 +108,7 @@ PostgreSQL is Alia's product store. The last domains — conversations, messages
 | `packages/integrations` | Express + TypeScript | Telegram / WhatsApp / Discord / browser bridges, and the MCP client |
 | `packages/alia-chat` | React | Published as `@alia.onl/sdk` — the CLIENT SDK (components, hooks, voice) |
 | `packages/alia-server` | TypeScript | Published as `@alia.onl/server` — the SERVER client a consumer backend calls Alia with |
+| `packages/alia-computer-host` | Node + Docker (gVisor) | The agents' computer: sandboxed machines and browser, on its own Spot host ([actors](./actors.mdx#the-agents-computer)) |
 
 ## Install
 
@@ -122,7 +148,7 @@ const res = await fetch('https://api.alia.onl/v1/chat/completions', {
     Authorization: 'Bearer <oxy-session-token>',
   },
   body: JSON.stringify({
-    model: 'profile:auto',
+    model: 'auto', // a power level (ADR 0014), or a real <publisher>/<model>
     messages: [{ role: 'user', content: 'Prepare my meeting with Sarah' }],
     stream: true,
   }),
@@ -132,106 +158,54 @@ const res = await fetch('https://api.alia.onl/v1/chat/completions', {
 
 The bearer is an Oxy credential: a user session or service token today (`packages/api/src/middleware/auth.ts`), an application key from Oxy Console once that path is built. The `alia_sk_*` keys are retired and refused — see [developer access](./developers-portal.md).
 
-## Core concepts
+## Where each topic lives
 
-### Autonomy loop
+One canonical page per topic; other pages link to it rather than repeat it.
 
-Every chat turn runs the same five-step loop in `packages/api/src/lib/autonomy/runtime.ts`:
+### Product and runtime
 
-1. **classify** — detect intent (`meeting_prep`, `inbox_digest`, `project_status`, `task_followup`, `monitoring`, `research`, `general`)
-2. **recall** — load ranked `ContextSource`s and `LearningRule`s from the per-user context graph
-3. **retrieve** — pull data from top sources (integrations, MCP servers, Oxy ecosystem services)
-4. **act** — produce the answer, call tools, stream the response over SSE
-5. **learn** — update source quality scores and persist new `LearningRule`s
+- [Actors: Alia and agents](./actors.mdx) — the map: identities, permissions, background work, outreach, memory, computer
+- [Agents](./agents.md) — the bot account, threads, capabilities, Oxy apps per level, the computer and browser, outreach, governance
+- [Chat runtime and SSE events](./chat-runtime.mdx) — request path, tool budget, typed failures
+- [Background work and proactive outreach](./proactive-intelligence.md) — `/automations`, Alia's tasks, watches, important email
+- [Memory and the context graph](./memory-system.md)
+- [Integrations and Oxy apps](./integrations.mdx) — tool families, Oxy apps, MCP, channels
+- [Oxy application authority and retained boundaries](./oxy-capability-boundaries.md)
+- [Models in Alia](./model-abstraction.mdx) — power levels, the catalogue, the Kaana boundary
+- [Skills: the Agent Skills format, and what an install authorises](./skills.mdx)
+- [Shows: generated podcast series on Syra](./shows.mdx)
+- [Voice: dictation and calls, recognized on the device](./voice.mdx)
+- [Ecosystem activity reporting](./platform-activity.md)
 
-The loop is shared verbatim across app, Codea, and Cowork. Feature flags (`AUTONOMY_RUNTIME_ENABLED`, `AUTONOMY_CONTEXT_GRAPH_ENABLED`, `AUTONOMY_APPROVALS_ENABLED`, `AUTONOMY_ROLLBACK_ENABLED`, `AUTONOMY_OXY_EVENTS_ENABLED`) gate each stage and default to enabled.
+### API and access
 
-### Context graph
+- [API reference](./api-reference.md)
+- [Developer access to Alia](./developers-portal.md) and the [Console machine chat contract](./machine-chat-contract.md)
+- [Oxy authentication and packages](./oxyhq-auth.md)
+- [`@alia.onl/sdk`](../packages/alia-chat/README.md) and [`@alia.onl/server`](../packages/alia-server/README.md)
 
-Persistent autonomy state:
-
-| Table | Tracks | Read through |
-|-------|--------|--------------|
-| `context_sources` | freshness, precision, average cost, latency, failure rate of a source | `db/autonomy/contextGraphRepository.ts` |
-| `context_nodes` | entities discovered during retrieval (people, projects, docs, threads) | `db/autonomy/contextGraphRepository.ts` |
-| `context_edges` | relationships and confidence weights between nodes | `db/autonomy/contextGraphRepository.ts` |
-| `retrieval_strategies` | per-intent source ordering and fallback paths | `db/autonomy/contextGraphRepository.ts` |
-| `learning_rules` | persisted corrections, constraints, and preferences | `db/autonomy/learningRuleRepository.ts` |
-| `rollback_records` | before/after state and rollback payload for `R1` writes | `db/agents/rollbackRecordRepository.ts` |
-
-User-visible memory (preferences, long-term facts, occupation, tone) lives in `user_memories` and `user_memory_entries`, exposed via `/memory/*`.
-
-### Risk governance
-
-Every action carries a risk class enforced by the runtime:
-
-| Level | Meaning | Behavior |
-|-------|---------|----------|
-| `R0` | Read-only | Fully autonomous |
-| `R1` | Reversible write | Autonomous + `RollbackRecord` saved |
-| `R2` | External / unknown impact | Requires user approval over Socket.IO (`alia.approval_request` / `alia.approval_result`) |
-| `R3` | Destructive | Blocked |
-
-Approvals are real-time. The client receives `alia.approval_request` while the stream is paused and resolves it with an `approve` / `deny` decision; timeouts default to 60s.
-
-### Model abstraction
-
-The product offers real models from Oxy's catalogue, named `<publisher>/<model>`,
-and computes the featured, default, utility and speech models from that catalogue
-and Alia's usage. Alia sends the chosen model to Oxy without selecting an upstream
-deployment itself. Oxy resolves policy; Kaana owns provider credentials, health, routing,
-retry and fallback; the serving operator and endpoints do not appear on the product
-surface.
-
-`packages/api/src/internal/providers` and the provider-labelled database tables
-remain only for historical data and credential migration. They are not on the
-hosted boot or chat path. [Model abstraction](./model-abstraction.mdx) documents
-the current boundary and the conditions for removing those retained records.
-
-### Trigger engine
-
-`/automations` is the normalized scheduling and control API. It records explicit actors,
-resources, actions, data flow, limits, autonomy and `observe | execute` mode. The elected
-`trigger-engine.ts` scheduler reads only enabled structured schedule definitions.
-Structured decisions and runs use `automation_runs` and `automation_steps`.
-
-The legacy trigger model, its `/triggers` routes and its tables are gone.
-
-## Guides
+### Building the app and the repo
 
 - [Developer onboarding](./onboarding.md)
 - [App architecture: the feature tree and its import rules](./app-architecture.mdx)
-- [API reference](./api-reference.md)
-- [Developer access to Alia](./developers-portal.md)
-- [Oxy authentication and packages](./oxyhq-auth.md)
-- [Deployment](./deployment.md)
+- [Bloom adoption](./bloom-adoption.mdx) and the [UI layer retirement](./ui-layer-retirement.mdx)
+- Baselines: [visual](./visual-baseline.mdx), [runtime](./runtime-baseline.mdx), [bundle](./bundle-baseline.mdx), [native validation](./native-validation.mdx)
 - [Dependency updates](./dependencies.md)
-
-## Deep dives
-
-- [Chat runtime and SSE events](./chat-runtime.mdx)
-- [Kaana model abstraction](./model-abstraction.mdx)
-- [Agents, tools, approvals and tasks](./agents.md)
-- [Memory and the context graph](./memory-system.md)
-- [Proactive intelligence and automations](./proactive-intelligence.md)
-- [Shows: generated podcast series on Syra](./shows.mdx)
-- [Voice: dictation and calls, recognized on the device](./voice.mdx) — and the ADR that retired LiveKit, cohost and voice minutes, in the [ADR index](./adr/README.md)
-- [Multi-channel integrations and tools](./integrations.mdx)
-- [Ecosystem activity reporting](./platform-activity.md)
 - [PostgreSQL-only runtime and the optional Mongo lock entry](./mongodb-runtime-boundary.md)
-- [Skills: the Agent Skills format, and what an install authorises](./skills.mdx)
-- [Bloom adoption: the Alia → Bloom map, the gaps and what #608 removed](./bloom-adoption.mdx)
-- [Visual baseline: the reference the refactor is measured against](./visual-baseline.mdx)
-- [Runtime baseline: what booting the web surface costs, and what route changes leak](./runtime-baseline.mdx)
-- [Bundle baseline: where the web export's bytes come from, and what was cut](./bundle-baseline.mdx)
-- [Native validation: the Android emulator pass, what it found, and what it cannot see](./native-validation.mdx)
-- [Architecture decision records](./adr/README.md)
-- [Compatibility window and sunset criteria](./migration/compatibility-window.md)
 
-## Runbooks
+### Operations
 
-- [Kaana cutover](./runbooks/kaana-cutover.md)
+- [Deployment](./deployment.md)
 - [Rolling Alia back](./runbooks/rollback.md)
 - [Rotating and revoking Alia credentials](./runbooks/credential-rotation.md)
 - [Upstream provider credential exposure](./runbooks/provider-credential-exposure.md)
 - [Integrations service rollout](./runbooks/integrations-service-rollout.md)
+- [Kaana cutover](./runbooks/kaana-cutover.md)
+- The agents' computer host: `OxyHQ/oxy-infra` `docs/runbooks/47-alia-computer-host.md`
+- Incident records: [provider unavailability 2026-09-12](./runbooks/provider-unavailable-2026-09-12.md), [Clarity search 2026-09-13](./runbooks/clarity-search-2026-09-13.md), [long-context refusal 2026-09-13](./runbooks/groq-token-capacity-2026-09-13.md), [speech recovery 2026-09-13](./runbooks/speech-recovery-2026-09-13.md)
+
+### Decisions and history
+
+- [Architecture decision records](./adr/README.md) — ADR 0015 is the actor model
+- [Compatibility window and sunset criteria](./migration/compatibility-window.md), and the rest of the epic #139 record under [`docs/migration/`](./migration/ownership.md)
+- `docs/audits/` and `docs/superpowers/` are dated evidence and working notes, not reference: when one disagrees with a page above, the page above is current.

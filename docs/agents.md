@@ -1,6 +1,10 @@
 # Alia Agents
 
-Alia runs as a context-agent system that prioritizes autonomous retrieval and policy-safe execution.
+An agent is one of Alia's two kinds of actor: a persona a person creates, with its
+own Oxy account, memory and computer, acting for its owner within the levels the
+owner set or as itself. Alia, the other actor, needs no agent for anything. The
+map of both is [Actors: Alia and agents](./actors.mdx); this page is the detail
+for agents.
 
 Agents, tools, approvals, the risk policy, deep research and triggers are Alia's own responsibility and stay that way under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md). None of it moves to the Kaana data plane.
 
@@ -313,41 +317,11 @@ exclusive and scrolls back; `?at=` opens the window CONTAINING a message, which
 is what a search hit's `cursor` is for — `before` cannot serve it, since the hit
 would be the one message missing from the window meant to reveal it.
 
-## Execution Loop
+## Execution loop and context graph
 
-Every interaction follows one runtime loop:
-
-1. `classify` - detect intent.
-2. `recall` - load ranked sources + rules.
-3. `retrieve` - gather context from top sources.
-4. `act` - produce answer and run tools.
-5. `learn` - update source quality and learned rules.
-
-This loop is shared across app, Codea, and Cowork.
-
-## Intents
-
-Current first-wave intents:
-
-- `meeting_prep`
-- `inbox_digest`
-- `project_status`
-- `task_followup`
-- `monitoring`
-- `research`
-- `general`
-
-## Context Graph
-
-Persistent entities, read through `db/autonomy/contextGraphRepository.ts`:
-
-- `context_sources` - where data lives and how reliable it is.
-- `context_nodes` - discovered entities (people, projects, docs, threads, etc.).
-- `context_edges` - relationships between nodes.
-- `retrieval_strategies` - per-intent navigation strategy.
-- `learning_rules` - learned corrections, preferences and constraints; read through `db/autonomy/learningRuleRepository.ts` rather than the context-graph repository.
-
-Ranking combines freshness, precision, and cost to choose source order.
+An agent's turn runs the same autonomy loop as Alia's (`classify → recall →
+retrieve → act → learn`) over the same context graph. Both are documented once, in
+[Memory and the context graph](./memory-system.md#2-context-graph-autonomy).
 
 ## Capabilities
 
@@ -403,7 +377,8 @@ tools (and the browser below)
   `requestWorkloadServiceToken` against the host, which replays the signed STS
   `GetCallerIdentity` and allow-lists `oxy-alia-task`. No shared secret.
 
-Infrastructure: oxy-infra `terraform-uswest2/alia-computer-host.tf`.
+Infrastructure: oxy-infra `terraform-uswest2/alia-computer-host.tf`; operating it:
+oxy-infra `docs/runbooks/47-alia-computer-host.md`.
 
 ### The agent's browser (also `computer`)
 
@@ -464,12 +439,11 @@ while they hold it the agent's actions are refused with `owner_in_control`,
 and control returns by itself after 15 minutes of the person doing nothing.
 Polling never wakes a sleeping host.
 
-**Signing up as the agent.** An agent IS an Oxy account, so the natural
-identity for a sign-up it does on its own is its own Oxy address — but there are
-no own-inbox tools yet to read a verification mail, and the person's Inbox (Oxy
-apps) is the OWNER's data, used only with them present. Until agent-own-inbox
-tools exist, a sign-up that needs an email or a code is handed to the person in
-the live view.
+**Signing up as the agent.** An agent IS an Oxy account, so the identity for a
+sign-up it does on its own is its own Oxy address, and it reads the verification
+mail in its OWN Inbox with its `self_inbox__*` tools (see "Oxy apps: for the
+person and as itself" below) — never in its owner's. A captcha, or a sign-in that
+needs the person's own credentials, is handed to the person in the live view.
 
 `browser` is **Clarity-only**. The runtime image ships no Chromium, so the
 runner's `browser` primitive offers exactly what works without one: `search`,
@@ -565,19 +539,13 @@ Risk policy is enforced per action:
 - `R2` external/unknown impact: approval required.
 - `R3` destructive: blocked.
 
-User approvals are interactive and real-time. `alia.approval_request` and `alia.approval_result` travel over Socket.IO, to the `agent-session:<sessionId>` room (`packages/api/src/socket.ts:216`, `:231`) — not over the chat SSE stream.
+Risk is classified per call by `classifyActionRisk` (`lib/agent/governance.ts`).
+User approvals are interactive and real-time. `alia.approval_request` and `alia.approval_result` travel over Socket.IO, to the `agent-session:<sessionId>` room (`packages/api/src/socket.ts`) — not over the chat SSE stream. An attended approval waits 60 seconds by default (`lib/agent/action-approval.ts`); a background run never waits (see "Approvals nobody is waiting for" below).
 
 ## Triggers and Proactive Runs
 
-`/automations` is the normalized control plane for proactive work. Each definition stores
-its objective, actor selection, trigger, resources, exact actions, allowed data flow,
-limits, autonomy policy and `observe | execute` mode. Runs and their correlated policy
-and tool decisions are persisted in `automation_runs` and `automation_steps`.
-
-The legacy trigger model is gone: the `/triggers` routes, the `triggers` and
-`trigger_executions` tables and the definitions that indexed them were removed by
-migrations 0069 and 0070. Active work is created and edited only through
-`/automations`.
+`/automations` is the control plane for background work; triggers, actor modes and
+how a run executes are in [Background work and proactive outreach](./proactive-intelligence.md).
 
 Every task has a responsible actor. Alia is the default (`actor_mode = 'alia'`):
 she runs it herself with no agent and posts results into a conversation of the

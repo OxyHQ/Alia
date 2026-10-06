@@ -1,0 +1,136 @@
+---
+title: "Actors: Alia and agents"
+description: "Who acts in Alia, on whose account, with what permission — in chat, in the background and on the agents' computer."
+order: 1
+---
+
+# Actors: Alia and agents
+
+Everything Alia does is done by an **actor**, and every actor acts either **for a
+person** (on that person's data) or **as itself** (on its own Oxy account). This
+page is the map; each section ends with the doc that holds the detail and the code
+where it is decided. The binding decision is
+[ADR 0015](./adr/0015-actors-and-identities.md).
+
+## The two actors
+
+| | For the person (their data) | As itself (its own account) |
+|---|---|---|
+| **Alia** — one for everybody, the default | Every Oxy app of the person, read and act, with no permission prompts and no "connect" step. Authority: the person present in the turn, or the task's standing authority in the background. | Oxy account "alia": a public identity with no mailbox. |
+| **An agent** — a persona a person creates | Only the Oxy apps and levels its owner gave it: **Nada** · **Ver** · **Ver y actuar**. | Its own Oxy `bot` account: its own Inbox, its own sign-ups on websites. No grant needed. |
+
+**Alia** is the assistant everyone gets: the orchestrator that answers, remembers,
+runs tasks and reaches the person's Oxy apps the way a mail assistant reads its
+owner's mail. Nobody has to create or pick an agent to use any of that.
+
+**An agent** is optional. It is an Oxy `bot` account owned by the person who
+created it; Alia stores only its runtime (prompt, model, archetype, marketplace
+listing). It has its own capability grants (deny by default), its own memory, its
+own computer and its own mailbox.
+
+- Detail: [Agents](./agents.md) — "An agent IS an Oxy `bot` account".
+- Code: `lib/agent-identity.ts`, `lib/agent-account.ts` (`packages/api/src/`).
+
+## Who is in the turn decides what is reachable
+
+The **requester** is the authenticated person in the turn (`requesterAccountId`).
+An agent's tools reach its owner's data only when that requester IS the owner;
+a stranger on a shared or public agent, or on its Telegram bot, gets neither the
+owner's apps nor the agent's own mailbox (which may hold mail about the owner).
+
+| Turn | Owner's apps (`oxy_<app>__<tool>`) | Agent's own account (`self_<app>__<tool>`) |
+|---|---|---|
+| The person with Alia | `direct_request` with their bearer | — |
+| Owner in the agent's chat | `direct_request`, owner's bearer, trimmed by Oxy to the levels | `direct_request`, no grant |
+| Agent run, nobody present | Oxy agent-run lane; effects need *Ver y actuar* | same lane, no grant |
+| Automation stage | its exact preauthorized steps only | — |
+| Somebody else on the agent | never | not in this phase |
+
+- Detail: [Agents → Oxy apps: for the person and as itself](./agents.md#oxy-apps-for-the-person-and-as-itself).
+- Code: `ownerIsPresent` in `lib/tool-pipeline.ts` (the one place this is decided),
+  `lib/tools/oxy-services.ts` (both toolsets, `agentIdentityPrompt`),
+  `lib/oxy-capability-authority.ts` (the agent-run lane).
+
+## Permissions
+
+- **Alia** needs no grant for the person's Oxy apps. Oxy apps are first party: there
+  is no "connect your inbox" or authorize step. When Oxy cannot confirm authority the
+  model receives `oxy_app_unavailable` (or `oxy_app_result_unknown`), never Oxy's raw
+  reason (`safeExecute` in `lib/tools/oxy-services.ts`).
+- **An agent's Oxy apps** are one selector per app in the editor's "Apps de Oxy"
+  section. Each level is one Oxy `DelegationGrant` from the owner to the agent's bot,
+  written with the owner's bearer (`lib/agent-oxy-apps.ts`,
+  `PUT /agents/:id/oxy-apps/:appId`, owner only) and reconciled with Oxy on every
+  read. `finance`, `security` and `delegate` are never part of a level. The levels
+  are never stored in `capability_grants`.
+- **Everything else an agent may use** (web, memory, messaging, MCP connectors, the
+  computer…) is `agents.capability_grants`, deny by default
+  (`domain/capability-grants.ts`).
+- **Risk** (`R0`–`R3`) governs Alia-local tools; Oxy app effects are authorized by
+  Oxy per call. See [Agents → Governance](./agents.md#governance).
+
+## Background work: every task has an actor, Alia by default
+
+A task (`/automations`) always has a responsible actor. `actorSelection` omitted
+means `{ mode: 'alia' }` (`automation_definitions.actor_mode`: `alia`, `fixed` or
+`automatic`). Nobody has to pick an agent.
+
+- **Alia's tasks** run unattended on the `alia-tasks` queue (`lib/alia-task-queue.ts`,
+  `lib/alia-task-run.ts`) and post their result into the task's own conversation.
+  They use **standing Oxy authority** asked for when the task is saved with the
+  owner present (`provisionAliaTaskAuthorizations` in `lib/automation-authority.ts`).
+- **Watches** make a recurring "tell me when X changes" cheap: each tick is a hashed
+  Clarity read, and only a change queues an Alia run (`lib/alia-watch.ts`).
+- **Abandoned Alia runs** are failed and refunded by `lib/alia-task-reaper.ts`,
+  inside the agent run reaper's sweep (`lib/agent/run-reaper.ts`).
+- **An agent's unattended runs** are durable sessions (lease + reaper, ADR 0011)
+  whose Oxy calls go through Oxy's agent-run authorizations.
+
+- Detail: [Background work and proactive outreach](./proactive-intelligence.md).
+
+## Writing first
+
+Alia and agents may start a conversation, within a budget: at most 3
+own-initiative messages a day per person and actor, none while the actor's last 2
+are unanswered (`lib/agent/outreach-budget.ts`).
+
+- **An important email.** Alia tells the person about their own Inbox (in her
+  outreach conversation, `lib/agent/alia-outreach.ts`); an agent tells its owner
+  about its OWN mailbox (in their thread, `lib/agent/agent-outreach.ts`). The email
+  is untrusted; the classifier sees sender, subject and snippet only, and the
+  message is a fixed template (`lib/proactive/email-outreach.ts`). The switch is per
+  actor (`GET|PUT /notifications/email-alerts`).
+- **Results and check-ins** from agents' background runs, and their own follow-ups.
+
+- Detail: [Background work → Writing first](./proactive-intelligence.md#writing-first-an-important-email),
+  [Agents → An agent writing first](./agents.md#an-agent-writing-first).
+
+## Memory is per actor
+
+Alia remembers the person in `user_memories`; each agent remembers them separately
+in `agent_memory_documents` (MEMORY.md plus topic files, per agent and person). An
+agent turn never receives Alia's memory or her memory tools. The person sees, edits
+and forgets both in Settings → Memory (`GET /memory/agents`,
+`GET|PUT|DELETE /agents/:id/memory`). Memory in a prompt is data, never
+instructions (`memoryDataBlock`, `lib/memory/memory-prompt.ts`).
+
+- Detail: [Memory](./memory-system.md), [Agents → Memory is per actor](./agents.md#memory-is-per-actor).
+
+## The agents' computer
+
+An agent with the `computer` grant has its own Linux machine and a real browser:
+
+- One gVisor container per agent and person (`agent:<agentId>:user:<oxyUserId>`),
+  no network for the shell, a persistent `/workspace`.
+- A persistent Chromium context per actor behind a validating egress proxy, so a
+  sign-in survives the browser closing and the host sleeping.
+- The host (`packages/alia-computer-host`) is a Spot instance that stops itself when
+  idle; the API wakes it on demand (`lib/computer/host-waker.ts`).
+- The person watches it live and can take control (agent page → Computer,
+  `routes/agents/computer.ts`, `packages/app/src/features/agents/ui/computer/`).
+- Alia herself has no computer; the tools are built only for an agent's runtime turn
+  (`lib/agent/actions.ts`) and only when `ALIA_COMPUTER_HOST_URL` is set.
+
+- Detail: [Agents → The agent's computer](./agents.md#the-agents-computer-computer).
+- Operations: `OxyHQ/oxy-infra` `docs/runbooks/47-alia-computer-host.md`;
+  infrastructure `terraform-uswest2/alia-computer-host.tf`.
