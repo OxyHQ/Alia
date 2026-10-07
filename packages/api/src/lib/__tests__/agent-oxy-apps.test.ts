@@ -62,7 +62,7 @@ interface Grant {
   resource: { appId: string; effectiveAccountId: string; resourceType: string; resourceId: string };
 }
 let grants: Grant[];
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetchMock: ReturnType<typeof vi.fn<(input: string | URL, init?: RequestInit) => Promise<Response>>>;
 let nextId: number;
 
 function grant(id: string, maximumAutonomy: string, overrides: Partial<Grant> = {}): Grant {
@@ -238,7 +238,8 @@ describe('deleting an agent with grants created in Agency', () => {
     const respond = fetchMock.getMockImplementation();
     fetchMock.mockImplementation(async (input: string | URL, init?: RequestInit) => {
       if (init?.method === 'DELETE') return new Response(null, { status: 404 });
-      return respond?.(input, init);
+      if (!respond) throw new Error('Missing simulated Oxy response');
+      return respond(input, init);
     });
     await expect(revokeAllAgentOxyApps(AGENT, 'OWNER-TOKEN')).resolves.toBeUndefined();
     expect(sent('DELETE')).toHaveLength(1);
@@ -266,7 +267,8 @@ describe('deleting an agent with grants created in Agency', () => {
     const respond = fetchMock.getMockImplementation();
     fetchMock.mockImplementation(async (input: string | URL, init?: RequestInit) => {
       if (init?.method === 'DELETE' && String(input).endsWith('/agency-1')) return new Response('down', { status: 503 });
-      return respond?.(input, init);
+      if (!respond) throw new Error('Missing simulated Oxy response');
+      return respond(input, init);
     });
     await revokeAllAgentOxyApps(AGENT, 'OWNER-TOKEN');
     expect(grants[0]?.revokedAt).toBeNull();
