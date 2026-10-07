@@ -95,6 +95,7 @@ export class AgentOxyAppsError extends Error {
 
 const grantSchema = z.object({
   id: z.string().min(1),
+  ownerAccountId: z.string().min(1),
   actor: z.object({ type: z.literal('agent'), accountId: z.string() }).passthrough(),
   resource: z.object({
     appId: z.string(),
@@ -156,6 +157,7 @@ async function liveGrantsByApp(
     const { data } = grant;
     const catalog = catalogs.find((entry) => entry.appId === data.resource.appId);
     if (!catalog
+      || data.ownerAccountId !== ownerAccountId
       || data.actor.accountId !== agent.oxyAccountId
       || data.revokedAt !== null
       || (data.expiresAt !== null && Date.parse(data.expiresAt) <= now)
@@ -276,12 +278,24 @@ export async function setAgentOxyAppLevel(
  * revocable — in the Agency tab.
  */
 export async function revokeAllAgentOxyApps(agent: AgentForOxyApps, accessToken: string): Promise<void> {
-  const stored = await listAgentOxyAppPermissions(getDb(), agent._id);
-  for (const row of stored) {
-    try {
-      await ownerRequest(accessToken, `/capabilities/grants/${encodeURIComponent(row.oxyGrantId)}`, { method: 'DELETE' });
-    } catch (error: unknown) {
-      log.agents.warn({ err: error, agentId: agent._id, appId: row.appId }, 'Could not revoke an agent\'s Oxy app grant');
+  let live: Map<string, OxyGrant[]>;
+  try {
+    const ownerAccountId = ownerOf(agent);
+    const catalogs = await listOxyAppCatalogs();
+    live = await liveGrantsByApp(agent, ownerAccountId, accessToken, catalogs);
+  } catch (error: unknown) {
+    log.agents.warn({ err: error, agentId: agent._id }, "Could not discover an agent's live Oxy app grants");
+    return;
+  }
+  // Agency may have created grants without an editor read. Local rows are
+  // neither a complete list nor authority to revoke a grant by id.
+  for (const [appId, grants] of live) {
+    for (const grant of grants) {
+      try {
+        await ownerRequest(accessToken, `/capabilities/grants/${encodeURIComponent(grant.id)}`, { method: 'DELETE' });
+      } catch (error: unknown) {
+        log.agents.warn({ err: error, agentId: agent._id, appId }, "Could not revoke an agent's Oxy app grant");
+      }
     }
   }
 }
