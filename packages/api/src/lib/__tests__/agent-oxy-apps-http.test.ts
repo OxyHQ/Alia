@@ -29,7 +29,7 @@ it('revokes an untracked Agency grant through the real HTTP owner transport', as
         id: 'agency-grant', ownerAccountId: 'owner-1',
         actor: { type: 'agent', accountId: 'bot-1' },
         resource: { appId: 'inbox', effectiveAccountId: 'owner-1', resourceType: 'email_account', resourceId: 'owner-1' },
-        maximumAutonomy: 'autonomous', expiresAt: null, revokedAt: null, createdAt: new Date().toISOString(),
+        maximumAutonomy: 'autonomous', expiresAt: null, revokedAt: isRevoked ? new Date().toISOString() : null, createdAt: new Date().toISOString(),
       }] }));
       return;
     }
@@ -51,6 +51,7 @@ it('revokes an untracked Agency grant through the real HTTP owner transport', as
     expect(requests).toEqual([
       'GET /capabilities/grants?ownerAccountId=owner-1',
       'DELETE /capabilities/grants/agency-grant',
+      'GET /capabilities/grants?ownerAccountId=owner-1',
     ]);
   } finally {
     server.closeAllConnections();
