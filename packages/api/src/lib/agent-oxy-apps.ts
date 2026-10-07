@@ -37,6 +37,7 @@ import {
   deleteAgentOxyAppPermission,
   listAgentOxyAppPermissions,
   upsertAgentOxyAppPermission,
+  type AgentOxyAppPermission,
 } from '../db/agents/agentOxyAppPermissionRepository.js';
 import type { OxyAppLevel, StoredOxyAppLevel } from '../domain/agent-oxy-app-level.js';
 import { log } from './logger.js';
@@ -95,6 +96,7 @@ export class AgentOxyAppsError extends Error {
 
 const grantSchema = z.object({
   id: z.string().min(1),
+  ownerAccountId: z.string().min(1),
   actor: z.object({ type: z.literal('agent'), accountId: z.string() }).passthrough(),
   resource: z.object({
     appId: z.string(),
@@ -143,6 +145,7 @@ async function liveGrantsByApp(
   ownerAccountId: string,
   accessToken: string,
   catalogs: readonly AppCapabilityCatalog[],
+  previouslyBound: readonly AgentOxyAppPermission[] = [],
 ): Promise<Map<string, OxyGrant[]>> {
   const parsed = z.object({ grants: z.array(z.unknown()) }).parse(await ownerRequest(
     accessToken,
@@ -155,12 +158,16 @@ async function liveGrantsByApp(
     if (!grant.success) continue;
     const { data } = grant;
     const catalog = catalogs.find((entry) => entry.appId === data.resource.appId);
-    if (!catalog
+    // A saved grant was bound to the app's owner root when it was written.
+    // Oxy does not allow its actor/resource binding to change under that id.
+    const isPreviouslyBound = previouslyBound.some((row) => row.oxyGrantId === data.id && row.appId === data.resource.appId);
+    if ((!catalog && !isPreviouslyBound)
+      || data.ownerAccountId !== ownerAccountId
       || data.actor.accountId !== agent.oxyAccountId
       || data.revokedAt !== null
       || (data.expiresAt !== null && Date.parse(data.expiresAt) <= now)
       || data.resource.effectiveAccountId !== ownerAccountId
-      || data.resource.resourceType !== catalog.accountResourceType
+      || (catalog !== undefined && !isPreviouslyBound && data.resource.resourceType !== catalog.accountResourceType)
       || data.resource.resourceId !== ownerAccountId) continue;
     byApp.set(data.resource.appId, [...(byApp.get(data.resource.appId) ?? []), data]);
   }
@@ -276,12 +283,44 @@ export async function setAgentOxyAppLevel(
  * revocable — in the Agency tab.
  */
 export async function revokeAllAgentOxyApps(agent: AgentForOxyApps, accessToken: string): Promise<void> {
-  const stored = await listAgentOxyAppPermissions(getDb(), agent._id);
-  for (const row of stored) {
+  let live: Map<string, OxyGrant[]>;
+  let ownerAccountId: string;
+  let catalogs: AppCapabilityCatalog[] = [];
+  let previouslyBound: AgentOxyAppPermission[];
+  try {
+    ownerAccountId = ownerOf(agent);
+    previouslyBound = await listAgentOxyAppPermissions(getDb(), agent._id);
     try {
-      await ownerRequest(accessToken, `/capabilities/grants/${encodeURIComponent(row.oxyGrantId)}`, { method: 'DELETE' });
+      catalogs = await listOxyAppCatalogs();
     } catch (error: unknown) {
-      log.agents.warn({ err: error, agentId: agent._id, appId: row.appId }, 'Could not revoke an agent\'s Oxy app grant');
+      log.agents.warn({ err: error, agentId: agent._id }, "Catalogue discovery failed; checking the agent's previously bound grants");
+    }
+    live = await liveGrantsByApp(agent, ownerAccountId, accessToken, catalogs, previouslyBound);
+  } catch (error: unknown) {
+    log.agents.warn({ err: error, agentId: agent._id }, "Could not discover an agent's live Oxy app grants");
+    return;
+  }
+  // Agency may have created grants without an editor read. Local rows alone
+  // never authorize a DELETE: every target is rechecked against Oxy's live data.
+  for (let pass = 0; pass < 2; pass++) {
+    for (const [appId, grants] of live) {
+      for (const grant of grants) {
+        try {
+          await ownerRequest(accessToken, `/capabilities/grants/${encodeURIComponent(grant.id)}`, { method: 'DELETE' });
+        } catch (error: unknown) {
+          log.agents.warn({ err: error, agentId: agent._id, appId }, "Could not revoke an agent's Oxy app grant");
+        }
+      }
+    }
+    if (pass === 0) {
+      // Catch grants created during the first sweep. Agency does not share a
+      // deletion fence with Alia; creation after the final read remains possible.
+      try {
+        live = await liveGrantsByApp(agent, ownerAccountId, accessToken, catalogs, previouslyBound);
+      } catch (error: unknown) {
+        log.agents.warn({ err: error, agentId: agent._id }, "Could not recheck an agent's live Oxy app grants");
+        return;
+      }
     }
   }
 }
