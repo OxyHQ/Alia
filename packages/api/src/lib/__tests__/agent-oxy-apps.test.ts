@@ -44,6 +44,8 @@ const INBOX = {
 
 vi.mock('../tools/oxy-services.js', () => ({ listOxyAppCatalogs: vi.fn(async () => [INBOX]) }));
 
+import { listOxyAppCatalogs } from '../tools/oxy-services.js';
+
 import {
   AgentOxyAppsError,
   grantTermsForLevel,
@@ -57,17 +59,17 @@ const OWNER = 'owner-1';
 const AGENT = { _id: 'agent-1', oxyAccountId: 'bot-1', ownerOxyAccountId: OWNER };
 
 interface Grant {
-  id: string; maximumAutonomy: string; revokedAt: string | null; expiresAt: string | null; createdAt: string;
+  id: string; ownerAccountId: string; maximumAutonomy: string; revokedAt: string | null; expiresAt: string | null; createdAt: string;
   actor: { type: 'agent'; accountId: string };
   resource: { appId: string; effectiveAccountId: string; resourceType: string; resourceId: string };
 }
 let grants: Grant[];
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetchMock: ReturnType<typeof vi.fn<(input: string | URL, init?: RequestInit) => Promise<Response>>>;
 let nextId: number;
 
 function grant(id: string, maximumAutonomy: string, overrides: Partial<Grant> = {}): Grant {
   return {
-    id, maximumAutonomy, revokedAt: null, expiresAt: null, createdAt: new Date(Date.now() - Number(id.replace(/\D/g, '') || 0)).toISOString(),
+    id, ownerAccountId: OWNER, maximumAutonomy, revokedAt: null, expiresAt: null, createdAt: new Date(Date.now() - Number(id.replace(/\D/g, '') || 0)).toISOString(),
     actor: { type: 'agent', accountId: AGENT.oxyAccountId },
     resource: { appId: 'inbox', effectiveAccountId: OWNER, resourceType: 'email_account', resourceId: OWNER },
     ...overrides,
@@ -219,6 +221,116 @@ it('revokes every level of a deleted agent and survives Oxy failing', async () =
   await setAgentOxyAppLevel(AGENT, 'OWNER-TOKEN', 'inbox', 'act');
   fetchMock.mockImplementationOnce(async () => new Response('down', { status: 503 }));
   await expect(revokeAllAgentOxyApps(AGENT, 'OWNER-TOKEN')).resolves.toBeUndefined();
+  await revokeAllAgentOxyApps(AGENT, 'OWNER-TOKEN');
+  expect(grants[0]?.revokedAt).not.toBeNull();
+});
+
+
+describe('deleting an agent with grants created in Agency', () => {
+  it('revokes an Agency grant when no local permission has ever been stored', async () => {
+    grants = [grant('agency-1', 'autonomous')];
+    expect(store.rows).toEqual([]);
+    await revokeAllAgentOxyApps(AGENT, 'OWNER-TOKEN');
+    expect(grants[0]?.revokedAt).not.toBeNull();
+    expect(sent('DELETE')).toHaveLength(1);
+  });
+
+  it('accepts a grant disappearing between discovery and revocation', async () => {
+    grants = [grant('agency-1', 'autonomous')];
+    const respond = fetchMock.getMockImplementation();
+    fetchMock.mockImplementation(async (input: string | URL, init?: RequestInit) => {
+      if (init?.method === 'DELETE') {
+        grants = [];
+        return new Response(null, { status: 404 });
+      }
+      if (!respond) throw new Error('Missing simulated Oxy response');
+      return respond(input, init);
+    });
+    await expect(revokeAllAgentOxyApps(AGENT, 'OWNER-TOKEN')).resolves.toBeUndefined();
+    expect(sent('DELETE')).toHaveLength(1);
+  });
+
+  it('revokes live grants without local rows and leaves other owners, actors and resources alone', async () => {
+    grants = [
+      grant('agency-1', 'autonomous'),
+      grant('other-actor', 'autonomous', { actor: { type: 'agent', accountId: 'other-bot' } }),
+      grant('other-owner', 'autonomous', { ownerAccountId: 'other-owner' }),
+      grant('other-account', 'autonomous', { resource: { appId: 'inbox', effectiveAccountId: 'other-owner', resourceType: 'email_account', resourceId: 'other-owner' } }),
+      grant('other-resource', 'autonomous', { resource: { appId: 'inbox', effectiveAccountId: OWNER, resourceType: 'email_account', resourceId: 'mailbox-1' } }),
+      grant('expired', 'autonomous', { expiresAt: new Date(0).toISOString() }),
+      grant('revoked', 'autonomous', { revokedAt: new Date().toISOString() }),
+    ];
+    store.rows = [{ agentId: AGENT._id, appId: 'inbox', level: 'act', oxyGrantId: 'other-actor' }];
+    await revokeAllAgentOxyApps(AGENT, 'OWNER-TOKEN');
+    expect(grants[0]?.revokedAt).not.toBeNull();
+    expect(grants.slice(1, 6).every((entry) => entry.revokedAt === null)).toBe(true);
+    expect(sent('DELETE')).toHaveLength(1);
+  });
+
+  it('continues after one revoke fails, and concurrent deletion is idempotent', async () => {
+    grants = [grant('agency-1', 'autonomous'), grant('agency-2', 'read_only')];
+    const respond = fetchMock.getMockImplementation();
+    fetchMock.mockImplementation(async (input: string | URL, init?: RequestInit) => {
+      if (init?.method === 'DELETE' && String(input).endsWith('/agency-1')) return new Response('down', { status: 503 });
+      if (!respond) throw new Error('Missing simulated Oxy response');
+      return respond(input, init);
+    });
+    await revokeAllAgentOxyApps(AGENT, 'OWNER-TOKEN');
+    expect(grants[0]?.revokedAt).toBeNull();
+    expect(grants[1]?.revokedAt).not.toBeNull();
+    if (respond) fetchMock.mockImplementation(respond);
+    await Promise.all([revokeAllAgentOxyApps(AGENT, 'OWNER-TOKEN'), revokeAllAgentOxyApps(AGENT, 'OWNER-TOKEN')]);
+    expect(grants.every((entry) => entry.revokedAt !== null)).toBe(true);
+  });
+
+  it('does not use a stale local grant id when live discovery is unavailable', async () => {
+    store.rows = [{ agentId: AGENT._id, appId: 'inbox', level: 'act', oxyGrantId: 'stale-id' }];
+    fetchMock.mockImplementationOnce(async () => new Response('down', { status: 503 }));
+    await expect(revokeAllAgentOxyApps(AGENT, 'OWNER-TOKEN')).resolves.toBeUndefined();
+    expect(sent('DELETE')).toEqual([]);
+  });
+});
+
+
+it('still revokes verified local grants when the catalogue is unavailable', async () => {
+  grants = [grant('local-1', 'autonomous'), grant('wrong-actor', 'autonomous', {
+    actor: { type: 'agent', accountId: 'other-bot' },
+  })];
+  store.rows = [
+    { agentId: AGENT._id, appId: 'inbox', level: 'act', oxyGrantId: 'local-1' },
+    { agentId: AGENT._id, appId: 'inbox', level: 'act', oxyGrantId: 'wrong-actor' },
+  ];
+  vi.mocked(listOxyAppCatalogs).mockRejectedValueOnce(new Error('catalogue unavailable'));
+  await revokeAllAgentOxyApps(AGENT, 'OWNER-TOKEN');
+  expect(grants[0]?.revokedAt).not.toBeNull();
+  expect(grants[1]?.revokedAt).toBeNull();
+  expect(sent('DELETE')).toHaveLength(1);
+});
+
+
+it('catches an Agency grant created while deletion revokes the first snapshot', async () => {
+  grants = [grant('initial-1', 'autonomous')];
+  const respond = fetchMock.getMockImplementation();
+  let isCreated = false;
+  fetchMock.mockImplementation(async (input: string | URL, init?: RequestInit) => {
+    if (!respond) throw new Error('Missing simulated Oxy response');
+    const response = await respond(input, init);
+    if (init?.method === 'DELETE' && !isCreated) {
+      isCreated = true;
+      grants.push(grant('concurrent-2', 'autonomous'));
+    }
+    return response;
+  });
+  await revokeAllAgentOxyApps(AGENT, 'OWNER-TOKEN');
+  expect(grants).toHaveLength(2);
+  expect(grants.every((entry) => entry.revokedAt !== null)).toBe(true);
+});
+
+
+it('revokes a previously bound grant when its app no longer appears in catalogue discovery', async () => {
+  grants = [grant('local-1', 'autonomous')];
+  store.rows = [{ agentId: AGENT._id, appId: 'inbox', level: 'act', oxyGrantId: 'local-1' }];
+  vi.mocked(listOxyAppCatalogs).mockResolvedValueOnce([]);
   await revokeAllAgentOxyApps(AGENT, 'OWNER-TOKEN');
   expect(grants[0]?.revokedAt).not.toBeNull();
 });
