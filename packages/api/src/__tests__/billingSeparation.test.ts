@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { CREDIT_FUNDING_SOURCES } from '../domain/credit-funding.js';
 import { allowanceKeyFor } from '../lib/plan-access.js';
+import { codeOfFile, snippet } from './support/source-code.js';
 
 /**
  * The line between an Alia PRODUCT entitlement and an Oxy FINANCIAL record —
@@ -790,17 +791,26 @@ describe('a cost record says which balance funded it (#139 ws12)', () => {
     // of a reservation a queued session is holding, and a copy of the
     // expression there would be free to disagree with this one. So this asserts
     // the decision at its owner AND that the reservation is built from it.
-    const funding = parse(`${API_SRC}/domain/credit-funding.ts`).getFullText();
-    expect(funding).toMatch(
-      /return freeCreditsRemaining > 0 \? 'free_allowance' : 'paid_balance';/,
+    //
+    // Read in the canonical form (`support/source-code.ts`), so the formatter
+    // wrapping the ternary cannot turn this red.
+    const funding = codeOfFile(path.join(REPO_ROOT, API_SRC, 'domain/credit-funding.ts'));
+    expect(funding).toContain(
+      snippet("return freeCreditsRemaining > 0 ? 'free_allowance' : 'paid_balance';"),
     );
-    expect(manager.getFullText()).toContain(
-      "const grantKind: CreditFundingSource = productAllocationId ? 'product_allowance' : fundingSourceOf(reserveResult.creditsFree);",
+    expect(codeOfFile(path.join(REPO_ROOT, API_SRC, 'lib/credits-manager.ts'))).toContain(
+      snippet(
+        "const grantKind: CreditFundingSource = productAllocationId ? 'product_allowance' : fundingSourceOf(reserveResult.creditsFree);",
+      ),
     );
     // A queued session holding a product allocation rebuilds that source;
     // otherwise it reaches the same free/paid verdict through the shared owner.
-    expect(parse(`${API_SRC}/db/agents/agentSessionRepository.ts`).getFullText()).toContain(
-      "grantKind: row.creditReservationProductAllocationId ? 'product_allowance' : fundingSourceOf(initialFreeCredits)",
+    expect(
+      codeOfFile(path.join(REPO_ROOT, API_SRC, 'db/agents/agentSessionRepository.ts')),
+    ).toContain(
+      snippet(
+        "grantKind: row.creditReservationProductAllocationId ? 'product_allowance' : fundingSourceOf(initialFreeCredits)",
+      ),
     );
   });
 

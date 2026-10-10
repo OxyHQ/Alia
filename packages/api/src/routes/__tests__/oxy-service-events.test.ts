@@ -1,8 +1,9 @@
 import express from 'express';
-import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import type { Server } from 'node:http';
 import { request as httpRequest } from 'node:http';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { codeOfFile, snippet } from '../../__tests__/support/source-code.js';
 
 const state = vi.hoisted(() => ({
   claim: vi.fn(async (_db: unknown, _event: unknown) => false),
@@ -121,9 +122,10 @@ beforeEach(() => {
 
 describe('normalized Oxy app events', () => {
   it('is mounted before the broad channel webhook route', () => {
-    const source = readFileSync(new URL('../../index.ts', import.meta.url), 'utf8');
-    const normalizedMount = "app.use('/webhooks/oxy', oxyServiceEventsRouter);";
-    const channelMount = "app.use('/webhooks', webhooksRouter);";
+    // Canonical form (`__tests__/support/source-code.ts`): layout-independent.
+    const source = codeOfFile(fileURLToPath(new URL('../../index.ts', import.meta.url)));
+    const normalizedMount = snippet("app.use('/webhooks/oxy', oxyServiceEventsRouter);");
+    const channelMount = snippet("app.use('/webhooks', webhooksRouter);");
 
     expect(source.split(normalizedMount)).toHaveLength(2);
     expect(source.split(channelMount)).toHaveLength(2);

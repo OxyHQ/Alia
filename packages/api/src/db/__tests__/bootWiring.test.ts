@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { codeOfFile, snippet } from '../../__tests__/support/source-code.js';
 
 /**
  * The boot wiring that nothing else can observe.
@@ -26,30 +27,26 @@ import { join } from 'node:path';
 
 const INDEX = join(__dirname, '..', '..', 'index.ts');
 const source = readFileSync(INDEX, 'utf8');
-const code = stripComments(source);
-
-/** Block comments and whole-line `//` comments, which name removed calls as prose. */
-function stripComments(text: string): string {
-  return text
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .filter((line) => !line.trimStart().startsWith('//'))
-    .join('\n');
-}
+/**
+ * The canonical form (`__tests__/support/source-code.ts`): comments, which name
+ * removed calls as prose, are gone, and so is the layout, so the formatter
+ * cannot turn an assertion red.
+ */
+const code = codeOfFile(INDEX);
 
 describe('src/index.ts boot wiring', () => {
   it('read an index.ts that is really the server entrypoint', () => {
     // Vacuity floor: without this, every assertion below passes on an empty
     // read for reasons that have nothing to do with the wiring.
     expect(source.length).toBeGreaterThan(5_000);
-    expect(source).toContain('server.listen(PORT');
-    expect(source).toContain("import express from 'express'");
+    expect(code).toContain(snippet('server.listen(PORT'));
+    expect(code).toContain(snippet("import express from 'express'"));
   });
 
   it('starts the expiry sweeper', () => {
     // The 14 TTL indexes this service used to have are now rows that only this
     // loop deletes. Without the call they are never deleted at all.
-    expect(source).toContain('startExpirySweeper(');
+    expect(code).toContain(snippet('startExpirySweeper('));
   });
 
   it('starts the expiry sweeper UNDER the leader lease', () => {
@@ -64,11 +61,11 @@ describe('src/index.ts boot wiring', () => {
      * `startExpirySweeper()` with no predicate defaults to "always leader" and
      * would restore exactly the behaviour this exists to prevent.
      */
-    expect(source).toContain('startExpirySweeper(isTriggerLeader)');
+    expect(code).toContain(snippet('startExpirySweeper(isTriggerLeader)'));
   });
 
   it('stops the expiry sweeper on shutdown', () => {
-    expect(source).toContain('stopExpirySweeper()');
+    expect(code).toContain(snippet('stopExpirySweeper()'));
   });
 
   it('runs every boot refusal before the socket opens', () => {
@@ -83,7 +80,9 @@ describe('src/index.ts boot wiring', () => {
      * bare search found the declaration instead, 1141 characters earlier and
      * also before `listen`. That assertion passed with the CALL deleted, which
      * is the only way it could ever have failed. Anchoring on a top-level
-     * statement is what makes it a check.
+     * statement is what makes it a check. In the canonical form a top-level
+     * statement follows the `;` or `}` that ends the one before it; a
+     * declaration follows `function ` and an import follows `{` or `,`.
      *
      * WHICH refusals run, in WHAT order, and that each one TERMINATES is now
      * `lib/__tests__/boot-guards.test.ts`, against the real function. Four
@@ -92,8 +91,8 @@ describe('src/index.ts boot wiring', () => {
      * `process.exit` — reporting the problem and starting anyway — with every
      * suite in the repo green.
      */
-    const guardsAt = source.indexOf('\nrunBootGuards({');
-    const listenAt = source.indexOf('server.listen(PORT');
+    const guardsAt = code.search(/[;}]runBootGuards\(\{/);
+    const listenAt = code.indexOf(snippet('server.listen(PORT'));
     expect(guardsAt).toBeGreaterThan(-1);
     expect(listenAt).toBeGreaterThan(-1);
     expect(guardsAt).toBeLessThan(listenAt);
@@ -109,9 +108,10 @@ describe('src/index.ts boot wiring', () => {
      * Still source text, and still not proof; it is the residue the extraction
      * could not remove, and it is smaller than the four assertions it replaced.
      */
-    const guardsAt = source.indexOf('\nrunBootGuards({');
-    const call = source.slice(guardsAt, guardsAt + 600);
-    expect(call).toContain('process.exit(code)');
+    const guardsAt = code.search(/[;}]runBootGuards\(\{/);
+    expect(guardsAt).toBeGreaterThan(-1);
+    const call = code.slice(guardsAt, guardsAt + 400);
+    expect(call).toContain(snippet('process.exit(code)'));
     expect(call).toContain('log.general.error');
     expect(call).toContain('log.general.info');
   });
@@ -119,7 +119,7 @@ describe('src/index.ts boot wiring', () => {
   it('runs no second migration ledger', () => {
     // `@oxy.so/db` owns the only migration ledger; a `runPendingMigrations`
     // call would be a second one. See CONVENTIONS.md, "One migration ledger".
-    expect(source).not.toContain('runPendingMigrations');
+    expect(code).not.toContain('runPendingMigrations');
   });
 
   it('starts the background services, unconditionally, from the listen callback', () => {
@@ -135,8 +135,8 @@ describe('src/index.ts boot wiring', () => {
      * function. This is the residue only a census can see: that the call is here,
      * that it is inside `listen`, and that nothing gates it.
      */
-    const listenAt = source.indexOf('server.listen(PORT');
-    const startAt = source.indexOf('startBackgroundServices();');
+    const listenAt = code.indexOf(snippet('server.listen(PORT'));
+    const startAt = code.indexOf(snippet('startBackgroundServices();'));
     expect(listenAt).toBeGreaterThan(-1);
     expect(startAt).toBeGreaterThan(listenAt);
 
@@ -157,6 +157,6 @@ describe('src/index.ts boot wiring', () => {
     // Started and never stopped is a leak on every SIGTERM, and for the trigger
     // engine specifically it strands the leadership lease — no other task
     // schedules anything until the TTL expires.
-    expect(source).toContain('await stopBackgroundServices();');
+    expect(code).toContain(snippet('await stopBackgroundServices();'));
   });
 });

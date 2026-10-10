@@ -1,7 +1,5 @@
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -158,29 +156,17 @@ import { findConversation } from '../../db/chat/conversationRepository.js';
 import { generateConversationTitle, generateTitle } from '../conversation-saver.js';
 import { generateTitleAsync, startParallelTitleGeneration } from '../chat-lifecycle.js';
 import type { ChatMessage } from '../message-converter.js';
+import { codeOfFile, snippet } from '../../__tests__/support/source-code.js';
 
 const API_SRC = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
-/** Source with comments stripped, so a census cannot read this repo's prose. */
+/**
+ * Source in its canonical form (`__tests__/support/source-code.ts`): comments
+ * dropped, so a census cannot read this repo's prose, and layout and quote
+ * style dropped, so the formatter cannot turn an assertion red.
+ */
 function code(relative: string): string {
-  const text = readFileSync(path.join(API_SRC, relative), 'utf8');
-  const source = ts.createSourceFile(relative, text, ts.ScriptTarget.Latest, true);
-  const ranges: [number, number][] = [];
-  const visit = (node: ts.Node): void => {
-    for (const comment of [
-      ...(ts.getLeadingCommentRanges(text, node.getFullStart()) ?? []),
-      ...(ts.getTrailingCommentRanges(text, node.getEnd()) ?? []),
-    ]) {
-      ranges.push([comment.pos, comment.end]);
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(source);
-  let out = text;
-  for (const [start, end] of ranges.sort((a, b) => b[0] - a[0])) {
-    out = out.slice(0, start) + ' '.repeat(end - start) + out.slice(end);
-  }
-  return out;
+  return codeOfFile(path.join(API_SRC, relative));
 }
 
 const USER_TURN: ChatMessage[] = [
@@ -333,7 +319,7 @@ describe('no title is never silent (operator logs, never the response body)', ()
     // function and landed in `provider-loop`'s catch, the one place that cannot
     // name it. Asserted at the source as well as by the case above.
     const saver = code('lib/conversation-saver.ts');
-    expect(saver).toMatch(/try \{\s*const resolved = await resolveUtilityModel\(\);/);
+    expect(saver).toContain(snippet('try { const resolved = await resolveUtilityModel();'));
   });
 
   it('the provider loop logs what it catches instead of discarding it', () => {
@@ -341,9 +327,9 @@ describe('no title is never silent (operator logs, never the response body)', ()
     // `startParallelTitleGeneration` could throw — both existence queries — so
     // titling could stop entirely against a sick database with nothing to read.
     const loop = code('lib/chat/provider-loop.ts');
-    expect(loop).not.toMatch(/startParallelTitleGeneration\([^)]*\)\.catch\(\(\) => null\)/);
-    expect(loop).toMatch(
-      /\.catch\(\(err: unknown\) => \{\s*log\.v1\.error\(\{ err, conversationId \}/,
+    expect(loop).not.toMatch(/startParallelTitleGeneration\([^)]*\)\.catch\(\(\)=>null\)/);
+    expect(loop).toContain(
+      snippet('.catch((err: unknown) => { log.v1.error({ err, conversationId }'),
     );
   });
 
@@ -355,7 +341,7 @@ describe('no title is never silent (operator logs, never the response body)', ()
     expect(await generateTitle('what do I take in my coffee')).toBeNull();
 
     const loop = code('lib/chat/provider-loop.ts');
-    expect(loop).toMatch(/if \(title\) \{\s*res\.write\(`event: alia\.title/);
+    expect(loop).toContain(snippet('if (title) { res.write(`event: alia.title'));
   });
 });
 
@@ -418,12 +404,12 @@ describe('the streaming path titles a new conversation only (#139 ws6)', () => {
     // that reconnects reads the row, not the stream it already missed.
     const loop = code('lib/chat/provider-loop.ts');
     expect(loop).toContain('export async function runProviderLoop');
-    expect(loop).toMatch(
-      /titlePromise = startParallelTitleGeneration\(req\.user\.id, conversationId, messages\)/,
+    expect(loop).toContain(
+      snippet('titlePromise = startParallelTitleGeneration(req.user.id, conversationId, messages)'),
     );
-    expect(loop).toMatch(/res\.write\(`event: alia\.title/);
-    expect(loop).toMatch(
-      /await updateConversationTitle\(getDb\(\), req\.user\.id, conversationId, title\);/,
+    expect(loop).toContain(snippet('res.write(`event: alia.title'));
+    expect(loop).toContain(
+      snippet('await updateConversationTitle(getDb(), req.user.id, conversationId, title);'),
     );
   });
 });
@@ -507,13 +493,15 @@ describe('the non-streaming path titles without clobbering (#139 ws6)', () => {
     // which send no `conversationId`, so nothing in the suite reaches this call.
     const nonStreaming = code('lib/chat/non-streaming.ts');
     expect(nonStreaming).toContain('export async function runNonStreaming');
-    expect(nonStreaming).toMatch(
-      /if \(conversationId && req\.user\?\.id && assistantResponse\) \{\s*generateTitleAsync\(req\.user\.id, conversationId, messages\);/,
+    expect(nonStreaming).toContain(
+      snippet(
+        'if (conversationId && req.user?.id && assistantResponse) { generateTitleAsync(req.user.id, conversationId, messages);',
+      ),
     );
 
     // The floor: this file really is the branch the provider loop takes for a
     // non-streaming request.
     const loop = code('lib/chat/provider-loop.ts');
-    expect(loop).toMatch(/if \(body\.stream !== true\) \{\s*await runNonStreaming\(\{/);
+    expect(loop).toContain(snippet('if (body.stream !== true) { await runNonStreaming({'));
   });
 });

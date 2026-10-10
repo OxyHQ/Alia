@@ -1,12 +1,13 @@
-import { readFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import express from 'express';
 import type { Express } from 'express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { DEV_ORIGINS, PRODUCTION_ORIGINS, createInternalCors } from '../../lib/cors-origins.js';
+import { codeOfFile, snippet } from '../../__tests__/support/source-code.js';
 
 /**
  * The browser-origin policy of the two chat mounts, pinned — issue #244.
@@ -53,7 +54,8 @@ import { DEV_ORIGINS, PRODUCTION_ORIGINS, createInternalCors } from '../../lib/c
  * Both halves must move together for this file to stay green.
  */
 
-const INDEX_SOURCE = readFileSync(new URL('../../index.ts', import.meta.url), 'utf8');
+/** `index.ts` in its canonical form, so the formatter cannot break the reading. */
+const INDEX_SOURCE = codeOfFile(fileURLToPath(new URL('../../index.ts', import.meta.url)));
 
 /** The origin #244 probed as "a consumer nobody enumerated". */
 const FOREIGN_ORIGIN = 'https://customer.example';
@@ -120,15 +122,15 @@ afterAll(
 describe('the browser-origin policy at the two chat mounts (#244)', () => {
   it('is wired in index.ts the way this file reproduces it', () => {
     // The `/v1` wildcard, mounted on `/v1` and nothing wider.
-    expect(INDEX_SOURCE).toMatch(/app\.use\('\/v1',\s*cors\(\{\s*origin: '\*'/);
+    expect(INDEX_SOURCE).toContain(snippet("app.use('/v1', cors({ origin: '*'"));
     // The internal allowlist covers every other path, `/alia/chat` included,
     // and is built by the function this test drives.
-    expect(INDEX_SOURCE).toContain("if (req.path.startsWith('/v1')) return next();");
-    expect(INDEX_SOURCE).toContain('createInternalCors(process.env.WEB_URL)');
-    expect(INDEX_SOURCE).toContain("app.use('/alia/chat', chatRouter);");
-    expect(INDEX_SOURCE).toContain("app.use('/v1', v1Router);");
+    expect(INDEX_SOURCE).toContain(snippet("if (req.path.startsWith('/v1')) return next();"));
+    expect(INDEX_SOURCE).toContain(snippet('createInternalCors(process.env.WEB_URL)'));
+    expect(INDEX_SOURCE).toContain(snippet("app.use('/alia/chat', chatRouter);"));
+    expect(INDEX_SOURCE).toContain(snippet("app.use('/v1', v1Router);"));
     // No separate CORS mount on `/alia/chat`: it takes the shared policy.
-    expect(INDEX_SOURCE).not.toMatch(/app\.use\('\/alia\/chat',\s*cors\(/);
+    expect(INDEX_SOURCE).not.toContain(snippet("app.use('/alia/chat', cors("));
   });
 
   it('answers /alia/chat preflights for the origins Alia owns, with credentials', async () => {
