@@ -71,63 +71,14 @@ jobs:
           role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
           aws-region: ${{ env.AWS_REGION }}
 
-      # The secrets are enumerated one at a time, on purpose.
-      #
-      # This step used to expand the entire `secrets` context with
-      # `toJSON(secrets)`, and that is what holds deploys. A workflow that walks
-      # every repository secret into a shell loop is shaped exactly like an
-      # exfiltration payload, so GitHub creates the run with conclusion
-      # `action_required` and ZERO jobs until a human clicks "Approve and run"
-      # in the UI. The REST approve endpoint only serves fork pull requests, so
-      # it cannot be automated, and the approval is per run — every deploy needs
-      # a person.
-      #
-      # Enumerating is also least privilege. The old loop copied every secret
-      # visible to the repo, so the org-wide CI credentials (NPM_TOKEN,
-      # CLOUDFLARE_API_TOKEN) ended up in this app's SSM
-      # namespace.
-      #
-      # The list is the GitHub-owned secrets the `alia` task definition
-      # consumes. Oxy's ApplicationCredential is intentionally absent: Oxy
-      # provisions it from its database into SSM, and the inference stage below
-      # only validates and binds those existing parameters.
-      #
-      # LIVEKIT_API_KEY and LIVEKIT_API_SECRET are deliberately absent. Alia
-      # read them only for the LiveKit voice room, and voice runs on the device
-      # since SDK 8.0.0 (docs/voice.mdx), so no Alia code reads them. Like
-      # every /oxy/_shared/ parameter they belong to oxy-infra; this workflow
-      # must not overwrite them.
-      - name: Sync GitHub secrets -> SSM (GitHub is the source of truth)
-        env:
-          APP_DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          APP_TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
-          APP_VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
-          APP_VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
-        run: |
-          sync_secret() {
-            name="$1"; value="$2"; path="$3"
-            if [ -z "$value" ] || [ "$value" = "-" ]; then
-              echo "::warning::skip empty/placeholder secret $name; SSM unchanged"
-              return 0
-            fi
-            aws ssm put-parameter --name "$path" --value "$value" --type SecureString --overwrite >/dev/null
-            echo "synced -> $path"
-          }
-
-          sync_secret DATABASE_URL "$APP_DATABASE_URL" "/oxy/$APP/DATABASE_URL"
-          sync_secret TOKEN_ENCRYPTION_KEY "$APP_TOKEN_ENCRYPTION_KEY" "/oxy/$APP/TOKEN_ENCRYPTION_KEY"
-          sync_secret VAPID_PUBLIC_KEY "$APP_VAPID_PUBLIC_KEY" "/oxy/$APP/VAPID_PUBLIC_KEY"
-          sync_secret VAPID_PRIVATE_KEY "$APP_VAPID_PRIVATE_KEY" "/oxy/$APP/VAPID_PRIVATE_KEY"
-
-          # Nothing here writes /oxy/_shared/*. Shared parameters are owned by
-          # oxy-infra, not by any app, and are rotated once, centrally (oxy-infra
-          # docs/runbooks/45-shared-ssm-parameters.md). When several app deploys
-          # each copied their own GitHub secret into /oxy/_shared/REDIS_URL, two
-          # held different values and every deploy flipped it between Redis
-          # clusters (incident 2026-09-27); the AWS keys had the same shape.
-          # Task definitions that read the shared parameters still do; only the
-          # write is gone.
-
+      # Runtime secrets are NOT in GitHub. SSM Parameter Store (/oxy/alia/*,
+      # SecureString) is their single source of truth: the task definition reads
+      # them at task start, and nothing in this workflow writes one. Setting or
+      # rotating a value is `aws ssm put-parameter --overwrite` by its owner
+      # (oxy-infra docs/runbooks/46-app-secrets-in-ssm.md), never a repo secret;
+      # /oxy/_shared/* belongs to oxy-infra (runbook 45). Until 2026-10-10 a step
+      # here copied GitHub repo secrets into SSM on every deploy; that made
+      # GitHub the source of truth for production credentials and is gone.
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
