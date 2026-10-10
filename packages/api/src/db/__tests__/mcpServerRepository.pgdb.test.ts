@@ -132,8 +132,7 @@ describe('`config` is flat in the database and nested on both wires', () => {
     /**
      * `{ url: null }` and `{}` are the same to `if (config.url)` and different
      * to a strict schema on the far side — and the far side is a separately
-     * deployed service. Mongoose omitted an unset sub-document field; a `null`
-     * column read back verbatim would not.
+     * deployed service. A `null` column read back verbatim would not omit it.
      */
     const row = await installMcpServer(
       db,

@@ -5,14 +5,10 @@
  * CHECK constraints from these exact tuples — so the Postgres schema depends on
  * them at runtime.
  *
- * The LIMITS and the `MemoryType` alias moved here when the Mongoose model was
- * deleted. They were never model concerns: `getMemoryLimit` reads a subscription
- * plan name and `MAX_MEMORY_TITLE_LENGTH` bounds a request body, and both had
- * importers (`lib/validators/memory-validators.ts`, `lib/tools/user-memory.ts`,
- * `routes/memory.ts`) that never touched the model at all. That is why a census
- * keyed on MODEL bindings could not see them, and why deleting the module
- * without moving them first would have broken four files a call-site count said
- * were not in the slice.
+ * The LIMITS and the `MemoryType` alias live here too. They are not storage
+ * concerns: `getMemoryLimit` reads a subscription plan name and
+ * `MAX_MEMORY_TITLE_LENGTH` bounds a request body (`lib/validators/memory-validators.ts`,
+ * `lib/tools/user-memory.ts`, `routes/memory.ts`).
  */
 
 export const MEMORY_TYPES = ['profile', 'topic', 'person'] as const;

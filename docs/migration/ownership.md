@@ -148,7 +148,7 @@ Each measured with a positive control on the same scan.
 
 Two more from the boot path, confirmed against the file's own comment
 (`packages/api/src/index.ts:435-446`): `startBackgroundServices()` runs only from
-`connectWithRetry()`'s success branch, MongoDB no longer exists, so
+`connectWithRetry()`'s success branch, which never resolved, so
 **`warmupGatewayClient()` and `syncZeroEval()` never run in production**.
 `warmupProviders()` sits outside that gate at `:449` and does run — nine unauthenticated
 outbound requests to provider hosts on every boot.
@@ -303,7 +303,7 @@ the module. LiveKit transport. Credits.
 **What is simply deleted.** The 15 thin OpenAI-compatible adapters (37-42 lines each,
 byte-identical modulo name and URL, knowledge already duplicated twice in live code); the
 unmounted admin module and its 12 route files, WebSocket server, service-auth middleware,
-broadcast helpers and second `mongoose.connect()`; `lib/auth-health.ts`, which sits
+broadcast helpers and second database connection; `lib/auth-health.ts`, which sits
 OUTSIDE `internal/providers` and will be stranded by a directory-scoped cleanup;
 `provider-warmup.ts`; the orphaned `packages/integrations/src/shared/model-resolver.ts`,
 which is the last in-repo artefact of the provider-key-handout model and names nine
@@ -422,15 +422,13 @@ is the product unit — Kaana bills Alia in dollars, Alia bills the user in cred
   duplicate-key error as "already credited". A destination without that index
   double-credits on redelivery.
 
-**The binding constraint on every "row count audited" gate**: the Mongo source database is
-gone (`packages/api/src/db/schema/CONVENTIONS.md:960`) and the backfill-audit runner was
-deleted with it. There is nothing to audit against. The only remaining verification is to
+**The binding constraint on every "row count audited" gate**: the source database is
+gone and the backfill-audit runner was deleted with it. There is nothing to audit against. The only remaining verification is to
 establish correctness in TESTS before each switch, with rows seeded by the migrator so
 that zero means filtering rather than emptiness.
 
 **Delete.** `spendCreditsPaidFirst` and `credits-manager.getUserCredits`, both test-only.
-The unrunnable `scripts/purge-ip-fields.ts` safety net is now deleted together with the
-last direct Mongo driver dependency. The `X-Key-Used` response header, which echoes the
+The unrunnable `scripts/purge-ip-fields.ts` safety net is now deleted. The `X-Key-Used` response header, which echoes the
 first 8 characters of a plaintext provider key, remains unreachable only because its
 router is unmounted; that is a reachability accident and not a control.
 

@@ -18,9 +18,9 @@ import { eq, sql } from 'drizzle-orm';
  * append is about to claim, and the index refuses it.
  *
  * The counterpart matters as much. A failure that is NOT a duplicate must
- * propagate and must NOT reach the destructive rewrite — Mongo's
- * read-back-after-duplicate-key recovery does not port, and answering "already
- * done" to an infrastructure failure is how a thread gets deleted and not
+ * propagate and must NOT reach the destructive rewrite — a
+ * read-back-after-duplicate-key recovery does not work in a transaction, and
+ * answering "already done" to an infrastructure failure is how a thread gets deleted and not
  * rewritten. That case is a real CHECK violation, not a fabricated one.
  */
 

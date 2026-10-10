@@ -1,10 +1,9 @@
 /**
  * Closed value sets for `event-stream-entry`.
  *
- * These live OUTSIDE `models/` because the drizzle schema renders its CHECK
+ * These live in `domain/` because the drizzle schema renders its CHECK
  * constraints from these exact tuples — so the Postgres schema depends on them
- * at runtime, and deleting the Mongoose model would break the schema itself.
- * The model imports them from here like any other consumer.
+ * at runtime, and this module must stay a leaf that imports nothing.
  */
 
 /**

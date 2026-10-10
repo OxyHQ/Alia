@@ -81,9 +81,8 @@ describe('a deliverable report', () => {
 
   /**
    * The id is minted by the service, BEFORE the insert, because the event id is
-   * derived from it and both rows are written in one pass. Mongo got this from a
-   * client-generated ObjectId; `reports.id` has no database default for the same
-   * reason.
+   * derived from it and both rows are written in one pass. `reports.id` has no
+   * database default for that reason.
    */
   it('mints an id the caller can read back', async () => {
     const result = await createReport({

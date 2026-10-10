@@ -23,8 +23,8 @@
  *
  * ## `ON CONFLICT DO NOTHING … RETURNING`, not a caught duplicate-key error
  *
- * Mongo caught code 11000 and read it as "somebody else has this". That does not
- * port, for the same two reasons the inbound dedupe claim does not: in Postgres a
+ * Catching a duplicate-key error to mean "somebody else has this" does not work
+ * here, for the same two reasons the inbound dedupe claim does not: in Postgres a
  * failed statement aborts the surrounding transaction, and an exception cannot
  * distinguish a duplicate from a dropped connection or an exhausted pool.
  * Treating either of the latter as "already enforced" would silently drop a
@@ -82,7 +82,7 @@ export interface NewEnforcement {
  * — which is a normal answer ("another delivery handled this"), not a failure.
  *
  * The id is minted here because `moderation_enforcements.id` has no database
- * default, the same as `reports`. Mongo's was a client-generated ObjectId.
+ * default, the same as `reports`.
  */
 export async function claimEnforcement(input: NewEnforcement): Promise<string | null> {
   const [claimed] = await getDb()
@@ -180,8 +180,8 @@ export async function findLastAppliedEnforcement(
     .limit(1);
   if (!row) return null;
   /**
-   * The row and its `previousState` stay TWO levels, exactly as Mongo returned
-   * them, because the callers distinguish them: `restore` treats "there was an
+   * The row and its `previousState` stay TWO levels, because the callers
+   * distinguish them: `restore` treats "there was an
    * applied restriction whose previous state we did not record" as "republish"
    * (`?? true`) and "there was no restriction at all" as "do nothing". Flattening
    * a missing `previousState` into `null` would silently merge those.
