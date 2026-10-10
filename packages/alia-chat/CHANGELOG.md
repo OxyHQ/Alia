@@ -1,5 +1,14 @@
 # @alia.onl/sdk
 
+## 10.1.1
+
+`ChatTextInput` no longer passes `placeholderClassName`. No styling runtime ever
+read it (react-native-css maps only `className` on `TextInput`, and the
+placeholder colour comes from the `placeholder:text-muted-foreground` class), and
+react-native-css 3.1.0-rc.0, the compiler Bloom 7.28+ requires, dropped the type
+declaration that let it compile, so apps that type-check this package's source
+failed on it. Nothing renders differently.
+
 ## 10.1.0
 
 A failed turn is a typed error. Alia now answers an inference failure before any
