@@ -10,7 +10,8 @@ export function workspacePanelKind(
   rightPanel: RightPanel,
   artifacts: readonly CanvasArtifact[],
 ): WorkspacePanelKind {
-  if (rightPanel === 'thought' || rightPanel === 'credits' || rightPanel === 'agent') return rightPanel;
+  if (rightPanel === 'thought' || rightPanel === 'credits' || rightPanel === 'agent')
+    return rightPanel;
   if (rightPanel === 'gallery') return 'gallery';
   if (rightPanel === 'canvas') return 'code';
   return artifacts[artifacts.length - 1]?.type === 'image' ? 'gallery' : 'code';

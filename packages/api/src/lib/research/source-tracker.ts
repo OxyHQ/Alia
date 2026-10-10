@@ -10,7 +10,7 @@ export interface Source {
   url: string;
   title: string;
   excerpt: string;
-  query: string;        // The search query that found this source
+  query: string; // The search query that found this source
   addedAt: number;
 }
 
@@ -25,7 +25,14 @@ export class SourceTracker {
     if (existing !== undefined) return existing;
 
     const id = this.sources.length + 1;
-    this.sources.push({ id, url, title, excerpt: excerpt.slice(0, 500), query, addedAt: Date.now() });
+    this.sources.push({
+      id,
+      url,
+      title,
+      excerpt: excerpt.slice(0, 500),
+      query,
+      addedAt: Date.now(),
+    });
     this.urlIndex.set(normalized, id);
     return id;
   }
@@ -58,14 +65,14 @@ export class SourceTracker {
   formatReferences(): string {
     if (this.sources.length === 0) return '';
 
-    const lines = this.sources.map(s => `[${s.id}] ${formatSourceLink(s)}`);
+    const lines = this.sources.map((s) => `[${s.id}] ${formatSourceLink(s)}`);
 
     return `\n\n---\n\n## References\n\n${lines.join('\n\n')}`;
   }
 
   /** Serialize for progress events. */
   toJSON(): Array<{ id: number; url: string; title: string }> {
-    return this.sources.map(s => ({ id: s.id, url: s.url, title: s.title }));
+    return this.sources.map((s) => ({ id: s.id, url: s.url, title: s.title }));
   }
 }
 
@@ -94,7 +101,16 @@ function normalizeUrl(url: string): string {
   try {
     const u = new URL(url);
     // Remove common tracking params
-    ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'ref', 'fbclid', 'gclid'].forEach(p => u.searchParams.delete(p));
+    [
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_content',
+      'utm_term',
+      'ref',
+      'fbclid',
+      'gclid',
+    ].forEach((p) => u.searchParams.delete(p));
     u.hash = '';
     return u.href.replace(/\/+$/, '');
   } catch {

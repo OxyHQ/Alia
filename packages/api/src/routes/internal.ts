@@ -32,7 +32,7 @@ const router = Router();
 function buildTriggerSystemPrompt(
   oxyUser?: OxyUser | null,
   memory?: UserMemoryProfile | null,
-  appName?: string
+  appName?: string,
 ): string {
   // Names nobody: `buildIdentityGuard` is prepended above this and owns that.
   const prompt = `You are processing an event from ${appName || 'an internal service'} on behalf of a user, unattended.
@@ -109,7 +109,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     // Load Oxy user profile for personalization
     let oxyUser: OxyUser | null = null;
     try {
-      oxyUser = await oxyClient.users.get(userId) as OxyUser;
+      oxyUser = (await oxyClient.users.get(userId)) as OxyUser;
     } catch (error: unknown) {
       log.general.info({ err: error }, 'Could not fetch Oxy user profile');
     }
@@ -133,7 +133,11 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
      * that had names. It is also why `__tests__/one-assembler.test.ts` counts
      * inline literals and not just exports.
      */
-    const { tools, routing: toolRouting, appCatalogPrompt } = await ToolPipeline.forUser({
+    const {
+      tools,
+      routing: toolRouting,
+      appCatalogPrompt,
+    } = await ToolPipeline.forUser({
       userId,
       isDirectSession: false,
       // A service token delegates a named end user, and acts for them.
@@ -175,11 +179,13 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     const responseTime = Date.now() - startTime;
 
     // Extract token usage (AI SDK uses inputTokens/outputTokens)
-    const tokenUsage = result.usage ? {
-      promptTokens: result.usage.inputTokens || 0,
-      completionTokens: result.usage.outputTokens || 0,
-      totalTokens: result.usage.totalTokens || 0,
-    } : null;
+    const tokenUsage = result.usage
+      ? {
+          promptTokens: result.usage.inputTokens || 0,
+          completionTokens: result.usage.outputTokens || 0,
+          totalTokens: result.usage.totalTokens || 0,
+        }
+      : null;
 
     // Record usage (no credits charged — platform cost)
     try {
@@ -188,7 +194,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
         200,
         tokenUsage?.totalTokens || 0,
         responseTime,
-        0 // no credits charged for internal
+        0, // no credits charged for internal
       );
     } catch (error: unknown) {
       log.general.error({ err: error }, 'Error recording usage');
@@ -200,7 +206,10 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
         .map((tc) => ({ tool: tc.toolName, args: tc.input })),
     );
 
-    log.general.info({ event, appName, userId, toolCalls: toolCalls.length, responseTime }, 'Trigger completed');
+    log.general.info(
+      { event, appName, userId, toolCalls: toolCalls.length, responseTime },
+      'Trigger completed',
+    );
 
     res.json({
       event,

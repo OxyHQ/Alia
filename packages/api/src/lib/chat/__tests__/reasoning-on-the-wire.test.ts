@@ -118,7 +118,9 @@ describe('sampling crosses the boundary only when the caller asked for it', () =
   });
 
   it('sends the temperature the caller chose', async () => {
-    expect(await requestFor(null, undefined, { temperature: 0.2 })).toMatchObject({ temperature: 0.2 });
+    expect(await requestFor(null, undefined, { temperature: 0.2 })).toMatchObject({
+      temperature: 0.2,
+    });
   });
 });
 
@@ -142,7 +144,9 @@ describe('the served revision comes back off the wire', () => {
       streamState: { hasStreamedContent: false } as never,
       oxyUserId: 'oxy-user-id',
       onUsage: () => undefined,
-      onResolvedModel: (reference) => { seen.push(reference); },
+      onResolvedModel: (reference) => {
+        seen.push(reference);
+      },
     });
     clearFirstByteTimer();
     const { tools: _tools, ...call } = config as Record<string, unknown>;
@@ -154,14 +158,21 @@ describe('the served revision comes back off the wire', () => {
   });
 });
 
-
 it('awaits Oxy correlation through the shared non-streaming model config before completion returns', async () => {
   const seen: { requestId: string; modelReference: string | null }[] = [];
   const { config, clearFirstByteTimer } = buildBaseConfig({
-    resolved: resolved(), body: {}, convertedMessages: [{ role: 'user', content: 'hello' }],
-    truncatedTools: {}, reasoningEffort: null, systemPromptTokens: 0,
-    streamState: { hasStreamedContent: false } as never, onUsage: () => undefined,
-    onInferenceRequest: async request => { await Promise.resolve(); seen.push(request); },
+    resolved: resolved(),
+    body: {},
+    convertedMessages: [{ role: 'user', content: 'hello' }],
+    truncatedTools: {},
+    reasoningEffort: null,
+    systemPromptTokens: 0,
+    streamState: { hasStreamedContent: false } as never,
+    onUsage: () => undefined,
+    onInferenceRequest: async (request) => {
+      await Promise.resolve();
+      seen.push(request);
+    },
   });
   clearFirstByteTimer();
   const { tools: _tools, ...call } = config as Record<string, unknown>;

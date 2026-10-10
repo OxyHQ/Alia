@@ -45,7 +45,11 @@ import { log } from './logger.js';
 import { startAgentRunReaper, stopAgentRunReaper } from './agent/run-reaper.js';
 import { initShowQueue, shutdownShowQueue, startShowWorker } from './show/show-queue.js';
 import { initTaskQueue, shutdownTaskQueue, startWorker } from './task-queue.js';
-import { initAliaTaskQueue, shutdownAliaTaskQueue, startAliaTaskWorker } from './alia-task-queue.js';
+import {
+  initAliaTaskQueue,
+  shutdownAliaTaskQueue,
+  startAliaTaskWorker,
+} from './alia-task-queue.js';
 import { startSkillRegistrySync, stopSkillRegistrySync } from './skills/scheduler.js';
 import { startTriggerEngine, stopTriggerEngine } from './trigger-engine.js';
 

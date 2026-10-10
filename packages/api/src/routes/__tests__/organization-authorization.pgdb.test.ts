@@ -70,12 +70,9 @@ vi.mock('../../middleware/auth.js', () => ({
 }));
 
 const { closePostgres, connectPostgres } = await import('../../db/index.js');
-const {
-  createInvite,
-  createOrganization,
-  findMemberRole,
-  findOrganizationById,
-} = await import('../../db/organizations/organizationRepository.js');
+const { createInvite, createOrganization, findMemberRole, findOrganizationById } = await import(
+  '../../db/organizations/organizationRepository.js'
+);
 const { organizationAgents, organizationMembers, organizations } = await import(
   '../../db/schema/organizations.js'
 );
@@ -224,9 +221,13 @@ describe('administering an organization requires owner or admin', () => {
   it('lets an admin update it, and refuses an ordinary member', async () => {
     const id = await aStaffedOrganization();
 
-    expect((await call('PATCH', `/organization/${id}`, ADMIN, { name: 'Renamed' })).status).toBe(200);
+    expect((await call('PATCH', `/organization/${id}`, ADMIN, { name: 'Renamed' })).status).toBe(
+      200,
+    );
     expect((await call('PATCH', `/organization/${id}`, MEMBER, { name: 'Nope' })).status).toBe(403);
-    expect((await call('PATCH', `/organization/${id}`, OUTSIDER, { name: 'Nope' })).status).toBe(403);
+    expect((await call('PATCH', `/organization/${id}`, OUTSIDER, { name: 'Nope' })).status).toBe(
+      403,
+    );
 
     expect((await findOrganizationById(db, id))?.name).toBe('Renamed');
   });
@@ -252,7 +253,9 @@ describe('administering an organization requires owner or admin', () => {
     expect(rows[0]?._id).toBe(invite._id);
     expect(rows[0]).not.toHaveProperty('token');
 
-    expect((await call('POST', `/organization/${id}/members`, MEMBER, { role: 'member' })).status).toBe(403);
+    expect(
+      (await call('POST', `/organization/${id}/members`, MEMBER, { role: 'member' })).status,
+    ).toBe(403);
     expect((await call('GET', `/organization/${id}/invites`, MEMBER)).status).toBe(403);
   });
 
@@ -278,15 +281,24 @@ describe('only the owner may delete the organization or change a role', () => {
 
   it('refuses an admin changing a role, and lets the owner do it', async () => {
     const id = await aStaffedOrganization();
-    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body
-      .members as { _id: string; role: string; oxyUserId: string }[];
+    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body.members as {
+      _id: string;
+      role: string;
+      oxyUserId: string;
+    }[];
     const target = members.find((m) => m.oxyUserId === MEMBER);
     if (!target) throw new Error('the fixture member is missing from the list');
 
-    expect((await call('PATCH', `/organization/${id}/members/${target._id}`, ADMIN, { role: 'admin' })).status).toBe(403);
+    expect(
+      (await call('PATCH', `/organization/${id}/members/${target._id}`, ADMIN, { role: 'admin' }))
+        .status,
+    ).toBe(403);
     expect(await findMemberRole(db, id, MEMBER)).toBe('member');
 
-    expect((await call('PATCH', `/organization/${id}/members/${target._id}`, OWNER, { role: 'admin' })).status).toBe(200);
+    expect(
+      (await call('PATCH', `/organization/${id}/members/${target._id}`, OWNER, { role: 'admin' }))
+        .status,
+    ).toBe(200);
     expect(await findMemberRole(db, id, MEMBER)).toBe('admin');
   });
 
@@ -303,8 +315,10 @@ describe('only the owner may delete the organization or change a role', () => {
      * route down.
      */
     const id = await aStaffedOrganization();
-    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body
-      .members as { _id: string; oxyUserId: string }[];
+    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body.members as {
+      _id: string;
+      oxyUserId: string;
+    }[];
     const own = members.find((m) => m.oxyUserId === OWNER);
     if (!own) throw new Error('the owner is missing from their own member list');
 
@@ -317,19 +331,26 @@ describe('only the owner may delete the organization or change a role', () => {
     expect(await findMemberRole(db, id, OWNER)).toBe('owner');
     // And the organization is still administerable, which is the property that
     // was actually at risk.
-    expect((await call('PATCH', `/organization/${id}`, OWNER, { name: 'Still Ours' })).status).toBe(200);
+    expect((await call('PATCH', `/organization/${id}`, OWNER, { name: 'Still Ours' })).status).toBe(
+      200,
+    );
   });
 
   it('still lets the owner change an ADMIN role, which the refusal must not break', async () => {
     // The positive control at the route: a refusal that also blocked ordinary
     // role changes would pass every assertion above.
     const id = await aStaffedOrganization();
-    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body
-      .members as { _id: string; oxyUserId: string }[];
+    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body.members as {
+      _id: string;
+      oxyUserId: string;
+    }[];
     const target = members.find((m) => m.oxyUserId === ADMIN);
     if (!target) throw new Error('the fixture admin is missing');
 
-    expect((await call('PATCH', `/organization/${id}/members/${target._id}`, OWNER, { role: 'member' })).status).toBe(200);
+    expect(
+      (await call('PATCH', `/organization/${id}/members/${target._id}`, OWNER, { role: 'member' }))
+        .status,
+    ).toBe(200);
     expect(await findMemberRole(db, id, ADMIN)).toBe('member');
   });
 
@@ -361,14 +382,25 @@ describe('only the owner may delete the organization or change a role', () => {
 describe('a caller cannot set their own role', () => {
   it('refuses a member promoting themselves, and an admin promoting themselves', async () => {
     const id = await aStaffedOrganization();
-    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body
-      .members as { _id: string; oxyUserId: string }[];
+    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body.members as {
+      _id: string;
+      oxyUserId: string;
+    }[];
     const asMember = members.find((m) => m.oxyUserId === MEMBER);
     const asAdmin = members.find((m) => m.oxyUserId === ADMIN);
     if (!asMember || !asAdmin) throw new Error('the fixture membership is incomplete');
 
-    expect((await call('PATCH', `/organization/${id}/members/${asMember._id}`, MEMBER, { role: 'admin' })).status).toBe(403);
-    expect((await call('PATCH', `/organization/${id}/members/${asAdmin._id}`, ADMIN, { role: 'admin' })).status).toBe(403);
+    expect(
+      (
+        await call('PATCH', `/organization/${id}/members/${asMember._id}`, MEMBER, {
+          role: 'admin',
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (await call('PATCH', `/organization/${id}/members/${asAdmin._id}`, ADMIN, { role: 'admin' }))
+        .status,
+    ).toBe(403);
 
     expect(await findMemberRole(db, id, MEMBER)).toBe('member');
     expect(await findMemberRole(db, id, ADMIN)).toBe('admin');
@@ -378,8 +410,10 @@ describe('a caller cannot set their own role', () => {
     // The one caller who passes the permission gate still cannot mint a second
     // owner: the value set is narrower than the membership one.
     const id = await aStaffedOrganization();
-    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body
-      .members as { _id: string; oxyUserId: string }[];
+    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body.members as {
+      _id: string;
+      oxyUserId: string;
+    }[];
     const target = members.find((m) => m.oxyUserId === MEMBER);
     if (!target) throw new Error('the fixture member is missing');
 
@@ -403,7 +437,9 @@ describe('a caller cannot set their own role', () => {
     const owners = await db
       .select()
       .from(organizationMembers)
-      .where(and(eq(organizationMembers.organizationId, id), eq(organizationMembers.role, 'owner')));
+      .where(
+        and(eq(organizationMembers.organizationId, id), eq(organizationMembers.role, 'owner')),
+      );
     expect(owners).toHaveLength(1);
   });
 
@@ -438,16 +474,22 @@ describe('a caller cannot set their own role', () => {
 describe('removing a member', () => {
   it('lets an admin remove an ordinary member but never the owner', async () => {
     const id = await aStaffedOrganization();
-    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body
-      .members as { _id: string; oxyUserId: string }[];
+    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body.members as {
+      _id: string;
+      oxyUserId: string;
+    }[];
     const ordinary = members.find((m) => m.oxyUserId === MEMBER);
     const owner = members.find((m) => m.oxyUserId === OWNER);
     if (!ordinary || !owner) throw new Error('the fixture membership is incomplete');
 
-    expect((await call('DELETE', `/organization/${id}/members/${owner._id}`, ADMIN)).status).toBe(400);
+    expect((await call('DELETE', `/organization/${id}/members/${owner._id}`, ADMIN)).status).toBe(
+      400,
+    );
     expect(await findMemberRole(db, id, OWNER)).toBe('owner');
 
-    expect((await call('DELETE', `/organization/${id}/members/${ordinary._id}`, ADMIN)).status).toBe(200);
+    expect(
+      (await call('DELETE', `/organization/${id}/members/${ordinary._id}`, ADMIN)).status,
+    ).toBe(200);
     expect(await findMemberRole(db, id, MEMBER)).toBeNull();
   });
 
@@ -465,8 +507,13 @@ describe('removing a member', () => {
     const victim = theirMembers.find((m) => m.oxyUserId === MEMBER);
     if (!victim) throw new Error('the second organization has no ordinary member');
 
-    expect((await call('DELETE', `/organization/${mine}/members/${victim._id}`, OWNER)).status).toBe(404);
-    expect((await call('PATCH', `/organization/${mine}/members/${victim._id}`, OWNER, { role: 'admin' })).status).toBe(404);
+    expect(
+      (await call('DELETE', `/organization/${mine}/members/${victim._id}`, OWNER)).status,
+    ).toBe(404);
+    expect(
+      (await call('PATCH', `/organization/${mine}/members/${victim._id}`, OWNER, { role: 'admin' }))
+        .status,
+    ).toBe(404);
 
     expect(await findMemberRole(db, theirs, MEMBER)).toBe('member');
   });
@@ -517,8 +564,12 @@ describe('the agents an organization shares', () => {
     const id = await aStaffedOrganization();
     await seedAgent(FIRST, 'oxy-bot-orgauth-first');
     await seedAgent(SECOND, 'oxy-bot-orgauth-second');
-    expect((await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST })).status).toBe(200);
-    expect((await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: SECOND })).status).toBe(200);
+    expect(
+      (await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST })).status,
+    ).toBe(200);
+    expect(
+      (await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: SECOND })).status,
+    ).toBe(200);
     // Two shares written in the same millisecond tie on `created_at`, and an
     // ordering assertion over a tie cannot fail.
     await db
@@ -592,12 +643,18 @@ describe('the agents an organization shares', () => {
     const id = await aStaffedOrganization();
     await seedAgent(FIRST, 'oxy-bot-orgauth-first');
 
-    expect((await call('POST', `/organization/${id}/agents`, MEMBER, { agentId: FIRST })).status).toBe(403);
+    expect(
+      (await call('POST', `/organization/${id}/agents`, MEMBER, { agentId: FIRST })).status,
+    ).toBe(403);
     expect((await call('DELETE', `/organization/${id}/agents/${FIRST}`, MEMBER)).status).toBe(403);
 
-    expect((await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST })).status).toBe(200);
+    expect(
+      (await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST })).status,
+    ).toBe(200);
     // Idempotent, as the Mongo upsert was.
-    expect((await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST })).status).toBe(200);
+    expect(
+      (await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST })).status,
+    ).toBe(200);
     expect((await call('DELETE', `/organization/${id}/agents/${FIRST}`, ADMIN)).status).toBe(200);
     // And the second removal finds nothing to remove.
     expect((await call('DELETE', `/organization/${id}/agents/${FIRST}`, ADMIN)).status).toBe(404);
@@ -623,12 +680,20 @@ describe('an invitation link is redeemable by whoever holds it', () => {
     // served, and no more: anyone holding a token reaches this endpoint.
     expect(Object.keys(preview.organization).sort()).toEqual(['_id', 'image', 'name', 'slug']);
 
-    const accepted = await call('POST', '/organization/invites/orgauth-token-flow/accept', OUTSIDER);
+    const accepted = await call(
+      'POST',
+      '/organization/invites/orgauth-token-flow/accept',
+      OUTSIDER,
+    );
     expect(accepted.status).toBe(200);
     expect(await findMemberRole(db, id, OUTSIDER)).toBe('admin');
 
     // Single-use: the second redemption of the same link finds nothing.
-    const replay = await call('POST', '/organization/invites/orgauth-token-flow/accept', 'orgauth-stranger');
+    const replay = await call(
+      'POST',
+      '/organization/invites/orgauth-token-flow/accept',
+      'orgauth-stranger',
+    );
     expect(replay.status).toBe(404);
     expect(await findMemberRole(db, id, 'orgauth-stranger')).toBeNull();
   });

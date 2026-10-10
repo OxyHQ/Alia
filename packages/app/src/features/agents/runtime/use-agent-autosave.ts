@@ -1,14 +1,7 @@
-import {
-  errorStatus,
-  errorMessage as getErrorMessage,
-} from '@/shared/api/error-utils';
+import { errorStatus, errorMessage as getErrorMessage } from '@/shared/api/error-utils';
 import { useUpdateAgent } from '@/features/agents/runtime/use-agents';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import type {
-  Agent,
-  AgentArchetype,
-  ArchetypeConfig,
-} from '@/shared/contracts/agents';
+import type { Agent, AgentArchetype, ArchetypeConfig } from '@/shared/contracts/agents';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services';
 import { useCallback, useRef, useState } from 'react';
@@ -245,8 +238,7 @@ export function useAgentIdentityAutosave(agent: Agent) {
          */
         let free = true;
         try {
-          free = (await oxyServices.auth.checkUsername(trimmed))
-            .available;
+          free = (await oxyServices.auth.checkUsername(trimmed)).available;
         } catch {
           free = true;
         }
@@ -273,8 +265,7 @@ export function useAgentIdentityAutosave(agent: Agent) {
           // absent-means-unchanged on `UpdateAccountInput`, so sending the
           // current one on every keystroke of the NAME field would write a
           // value nobody touched.
-          ...(next.color !== savedColor.current &&
-            next.color !== null && { color: next.color }),
+          ...(next.color !== savedColor.current && next.color !== null && { color: next.color }),
         });
         savedHandle.current = trimmed;
         savedColor.current = next.color;

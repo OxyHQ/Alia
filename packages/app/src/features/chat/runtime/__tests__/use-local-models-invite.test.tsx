@@ -32,10 +32,17 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: toastFn }));
 vi.mock('@oxy.so/services', () => ({ useAuth: () => ({ isAuthenticated: env.isAuthenticated }) }));
-vi.mock('@/shared/platform/use-is-large-screen', () => ({ useIsLargeScreen: () => env.isLargeScreen }));
-vi.mock('@/shared/i18n/use-translation', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock('@/shared/platform/use-is-large-screen', () => ({
+  useIsLargeScreen: () => env.isLargeScreen,
+}));
+vi.mock('@/shared/i18n/use-translation', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 
-import { LOCAL_MODELS_INVITE_TOAST_ID, useLocalModelsInvite } from '@/features/chat/runtime/use-local-models-invite';
+import {
+  LOCAL_MODELS_INVITE_TOAST_ID,
+  useLocalModelsInvite,
+} from '@/features/chat/runtime/use-local-models-invite';
 import { useLocalRuntimeStore } from '@/features/local-models/runtime/local-runtime-store';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

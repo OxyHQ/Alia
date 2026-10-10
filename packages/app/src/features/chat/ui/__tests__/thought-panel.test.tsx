@@ -25,10 +25,7 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     View: host('View'),
@@ -38,36 +35,65 @@ vi.mock('react-native', async () => {
   };
 });
 
-
-
-
-
 vi.mock('@oxy.so/bloom/loading', async () => {
   const ReactModule = await import('react');
   return {
-    Loading: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Loading', props),
+    Loading: (props: Record<string, unknown>) => ReactModule.createElement('Loading', props),
   };
 });
 
-vi.mock('@oxy.so/bloom/agent-log', async () => (await import('@/shared/testing/panel-bloom-stubs')).agentLogModule());
-vi.mock('@oxy.so/bloom/accordion', async () => (await import('@/shared/testing/panel-bloom-stubs')).accordionModule());
-vi.mock('@oxy.so/bloom/item', async () => (await import('@/shared/testing/panel-bloom-stubs')).itemModule());
-vi.mock('@oxy.so/bloom/empty-state', async () => (await import('@/shared/testing/panel-bloom-stubs')).emptyStateModule());
-vi.mock('@oxy.so/bloom/typography', async () => (await import('@/shared/testing/panel-bloom-stubs')).typographyModule());
-vi.mock('@oxy.so/bloom/theme', async () => (await import('@/shared/testing/panel-bloom-stubs')).themeModule());
-vi.mock('@oxy.so/bloom/chip', async () => ({ Chip: (await import('@/shared/testing/panel-bloom-stubs')).host('Chip') }));
-vi.mock('@oxy.so/bloom/code', async () => ({ CodeBlock: (await import('@/shared/testing/panel-bloom-stubs')).host('CodeBlock') }));
+vi.mock('@oxy.so/bloom/agent-log', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).agentLogModule(),
+);
+vi.mock('@oxy.so/bloom/accordion', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).accordionModule(),
+);
+vi.mock('@oxy.so/bloom/item', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).itemModule(),
+);
+vi.mock('@oxy.so/bloom/empty-state', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).emptyStateModule(),
+);
+vi.mock('@oxy.so/bloom/typography', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).typographyModule(),
+);
+vi.mock('@oxy.so/bloom/theme', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).themeModule(),
+);
+vi.mock('@oxy.so/bloom/chip', async () => ({
+  Chip: (await import('@/shared/testing/panel-bloom-stubs')).host('Chip'),
+}));
+vi.mock('@oxy.so/bloom/code', async () => ({
+  CodeBlock: (await import('@/shared/testing/panel-bloom-stubs')).host('CodeBlock'),
+}));
 vi.mock('expo-clipboard', () => ({ setStringAsync: async () => true }));
-vi.mock('@oxy.so/bloom/icons/RiArrowDownSLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiArrowDownSLine'));
-vi.mock('@oxy.so/bloom/icons/RiArrowRightSLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiArrowRightSLine'));
-vi.mock('@oxy.so/bloom/icons/RiCheckboxCircleLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiCheckboxCircleLine'));
-vi.mock('@oxy.so/bloom/icons/RiCloseCircleLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiCloseCircleLine'));
-vi.mock('@oxy.so/bloom/icons/RiCloseLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiCloseLine'));
-vi.mock('@oxy.so/bloom/icons/RiFileTextLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiFileTextLine'));
-vi.mock('@oxy.so/bloom/icons/RiForbidLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiForbidLine'));
-vi.mock('@oxy.so/bloom/icons/RiGlobalLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiGlobalLine'));
-vi.mock('@oxy.so/bloom/icons/RiTimeLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiTimeLine'));
+vi.mock('@oxy.so/bloom/icons/RiArrowDownSLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiArrowDownSLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiArrowRightSLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiArrowRightSLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiCheckboxCircleLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiCheckboxCircleLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiCloseCircleLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiCloseCircleLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiCloseLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiCloseLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiFileTextLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiFileTextLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiForbidLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiForbidLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiGlobalLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiGlobalLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiTimeLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiTimeLine'),
+);
 vi.mock('expo-web-browser', () => ({ openBrowserAsync: async () => {} }));
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -174,14 +200,9 @@ function text(r: ReactTestRenderer): string {
   return out.join(' | ');
 }
 
-const hosts = (r: ReactTestRenderer, name: string) =>
-  r.root.findAll((node) => node.type === name);
+const hosts = (r: ReactTestRenderer, name: string) => r.root.findAll((node) => node.type === name);
 
-const open = (
-  messageId: string,
-  s: ThoughtScope,
-  tab?: 'steps' | 'sources' | 'activity',
-) =>
+const open = (messageId: string, s: ThoughtScope, tab?: 'steps' | 'sources' | 'activity') =>
   act(() => {
     useUIStore.getState().openThoughtPanel(messageId, s, tab);
   });
@@ -272,10 +293,7 @@ describe('opened from a persisted tool row (#542)', () => {
     expect(text(r)).toContain('thought.messageGone');
 
     // A message that IS here and truly has nothing.
-    open(
-      'a3',
-      scope('c1', [...persisted, assistant('a3', { content: 'plain' })]),
-    );
+    open('a3', scope('c1', [...persisted, assistant('a3', { content: 'plain' })]));
     setTab('activity');
     // The Activity tab is the whole conversation's, so the earlier tools are
     // still listed; the empty wording is reserved for a conversation with none.
@@ -304,10 +322,7 @@ describe('watching a turn run (#543)', () => {
     expect(hosts(r, 'AgentLogWorkingRow')).toHaveLength(1);
 
     // A tool starts, then finishes; the model has not written yet.
-    messages = [
-      user('u1'),
-      assistant('a1', { isStreaming: true, toolInvocations: [searching] }),
-    ];
+    messages = [user('u1'), assistant('a1', { isStreaming: true, toolInvocations: [searching] })];
     sync(scope('c1', messages, { isLoading: true }));
     expect(hosts(r, 'Loading')).toHaveLength(1);
 
@@ -371,20 +386,12 @@ describe('watching a turn run (#543)', () => {
   });
 
   it('keeps a running tool spinning after an earlier one finished', () => {
-    const inv = [
-      persistedSearch('t1', 'https://one.test/'),
-      { ...searching, toolCallId: 't2' },
-    ];
+    const inv = [persistedSearch('t1', 'https://one.test/'), { ...searching, toolCallId: 't2' }];
     open(
       'a1',
-      scope(
-        'c1',
-        [
-          user('u1'),
-          assistant('a1', { isStreaming: true, toolInvocations: inv }),
-        ],
-        { isLoading: true },
-      ),
+      scope('c1', [user('u1'), assistant('a1', { isStreaming: true, toolInvocations: inv })], {
+        isLoading: true,
+      }),
     );
     const r = render();
     expect(hosts(r, 'Loading')).toHaveLength(1);
@@ -471,16 +478,13 @@ vi.mock('@oxy.so/bloom/ai-chat', () => ({
 vi.mock('@oxy.so/bloom/button', async () => {
   const R = await import('react');
   return {
-    Button: ({ children, icon, ...props }: any) =>
-      R.createElement('Button', props, icon, children),
+    Button: ({ children, icon, ...props }: any) => R.createElement('Button', props, icon, children),
   };
 });
 vi.mock('@oxy.so/bloom/tabs', async () => {
   const R = await import('react');
   return {
-    Tabs: ({ children, ...props }: any) =>
-      R.createElement('Tabs', props, children),
-    TabsTrigger: ({ label, ...props }: any) =>
-      R.createElement('TabsTrigger', props, label),
+    Tabs: ({ children, ...props }: any) => R.createElement('Tabs', props, children),
+    TabsTrigger: ({ label, ...props }: any) => R.createElement('TabsTrigger', props, label),
   };
 });

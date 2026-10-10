@@ -27,9 +27,7 @@ function formatDisplayDate(dateStr: string): string {
  */
 function levelsFor(maxCount: number): number[] | undefined {
   if (maxCount < 4) return undefined;
-  const steps = [0.25, 0.5, 0.75].map((ratio) =>
-    Math.max(2, Math.ceil(ratio * maxCount) + 1),
-  );
+  const steps = [0.25, 0.5, 0.75].map((ratio) => Math.max(2, Math.ceil(ratio * maxCount) + 1));
   return [...new Set(steps)];
 }
 

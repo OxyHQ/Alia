@@ -1,13 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import type { Workflow } from "@/lib/workflow-types";
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import type { Workflow } from '@/lib/workflow-types';
 
 interface LoadWorkflowDialogProps {
   isOpen: boolean;
@@ -17,10 +17,10 @@ interface LoadWorkflowDialogProps {
 
 export function LoadWorkflowDialog({ isOpen, onClose, onLoad }: LoadWorkflowDialogProps) {
   const { data: workflows = [], isLoading: loading } = useQuery({
-    queryKey: ["canvas", "workflows"],
+    queryKey: ['canvas', 'workflows'],
     enabled: isOpen,
     queryFn: async (): Promise<Workflow[]> => {
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4150";
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4150';
       const response = await fetch(`${API_URL}/api/workflows`);
       if (!response.ok) {
         throw new Error(`Failed to load workflows: HTTP ${response.status}`);
@@ -35,9 +35,7 @@ export function LoadWorkflowDialog({ isOpen, onClose, onLoad }: LoadWorkflowDial
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Load Workflow</DialogTitle>
-          <DialogDescription>
-            Select a workflow to load
-          </DialogDescription>
+          <DialogDescription>Select a workflow to load</DialogDescription>
         </DialogHeader>
         <div className="space-y-2 max-h-96 overflow-y-auto">
           {loading ? (

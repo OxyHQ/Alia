@@ -67,7 +67,10 @@ function app(): Express {
   const instance = express();
   // Same order as `index.ts`: the `/v1` wildcard first, then the internal
   // allowlist for everything that is not `/v1`.
-  instance.use('/v1', cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'], optionsSuccessStatus: 200 }));
+  instance.use(
+    '/v1',
+    cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'], optionsSuccessStatus: 200 }),
+  );
   const internalCors = createInternalCors(undefined);
   instance.use((req, res, next) => {
     if (req.path.startsWith('/v1')) return next();

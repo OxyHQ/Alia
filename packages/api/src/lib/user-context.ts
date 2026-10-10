@@ -33,7 +33,12 @@ import { memoryDataBlock, memoryFactLines } from './memory/memory-prompt.js';
  * that has one of its own.
  */
 export function formatUserContextLines(
-  oxyUser?: { name?: { full?: string; first?: string; middle?: string; last?: string }; username?: string; location?: string; bio?: string } | null,
+  oxyUser?: {
+    name?: { full?: string; first?: string; middle?: string; last?: string };
+    username?: string;
+    location?: string;
+    bio?: string;
+  } | null,
   memory?: {
     preferences?: { language?: string; tone?: string };
     context?: { occupation?: string; location?: string };
@@ -59,7 +64,8 @@ export function formatUserContextLines(
     }
     const remembered: string[] = [];
     if (memory.context?.occupation) remembered.push(`- occupation: ${memory.context.occupation}`);
-    if (memory.context?.location && !oxyUser?.location) remembered.push(`- location: ${memory.context.location}`);
+    if (memory.context?.location && !oxyUser?.location)
+      remembered.push(`- location: ${memory.context.location}`);
     if (memory.preferences?.tone) remembered.push(`- preferred tone: ${memory.preferences.tone}`);
     if (memory.memories?.length) remembered.push(memoryFactLines(memory.memories));
     const block = memoryDataBlock('What you remember about the user', remembered.join('\n'));

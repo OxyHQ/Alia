@@ -56,14 +56,9 @@ export default function SessionActivityScreen() {
           keyExtractor={(item) => item._id || String(item.seq)}
           renderItem={({ item }) => <SessionEventCard entry={item} />}
           contentContainerClassName="gap-2 px-4 pb-4"
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListEmptyComponent={
-            <EmptyState
-              icon={RiHistoryLine}
-              title={t('pages.agents.sessionEmpty')}
-            />
+            <EmptyState icon={RiHistoryLine} title={t('pages.agents.sessionEmpty')} />
           }
         />
       )}

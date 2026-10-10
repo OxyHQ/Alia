@@ -25,13 +25,29 @@ afterEach(() => vi.unstubAllGlobals());
 
 const geocodeOk = () => ({
   ok: true,
-  json: async () => ({ results: [{ name: 'Barcelona', admin1: 'Cataluña', country: 'España', latitude: 41.39, longitude: 2.16, timezone: 'Europe/Madrid' }] }),
+  json: async () => ({
+    results: [
+      {
+        name: 'Barcelona',
+        admin1: 'Cataluña',
+        country: 'España',
+        latitude: 41.39,
+        longitude: 2.16,
+        timezone: 'Europe/Madrid',
+      },
+    ],
+  }),
 });
 
 const forecastOk = () => ({
   ok: true,
   json: async () => ({
-    current: { temperature_2m: 28.4, relative_humidity_2m: 61, weather_code: 2, wind_speed_10m: 12 },
+    current: {
+      temperature_2m: 28.4,
+      relative_humidity_2m: 61,
+      weather_code: 2,
+      wind_speed_10m: 12,
+    },
     hourly: {
       time: ['2026-09-09T00:00', '2026-09-09T01:00', '2026-09-09T02:00'],
       temperature_2m: [24, 23.5, 23],
@@ -49,7 +65,10 @@ const forecastOk = () => ({
 
 const run = (location = 'Barcelona') =>
   // The AI SDK calls `execute` with (input, options); neither is read here.
-  (getWeatherTool.execute as (i: { location: string }, o: unknown) => Promise<any>)({ location }, {});
+  (getWeatherTool.execute as (i: { location: string }, o: unknown) => Promise<any>)(
+    { location },
+    {},
+  );
 
 describe('getWeather', () => {
   it('carries every hour and every day the card can show', async () => {
@@ -61,9 +80,18 @@ describe('getWeather', () => {
     expect(out.card.version).toBe(1);
     expect(out.card.data.place).toBe('Barcelona, Cataluña, España');
     expect(out.card.data.hourly).toHaveLength(3);
-    expect(out.card.data.hourly[0]).toEqual({ time: '2026-09-09T00:00', temperature: 24, precipitationChance: 10 });
+    expect(out.card.data.hourly[0]).toEqual({
+      time: '2026-09-09T00:00',
+      temperature: 24,
+      precipitationChance: 10,
+    });
     expect(out.card.data.daily).toHaveLength(2);
-    expect(out.card.data.daily[1]).toEqual({ date: '2026-09-10', condition: 'thunderstorm', high: 27, low: 21 });
+    expect(out.card.data.daily[1]).toEqual({
+      date: '2026-09-10',
+      condition: 'thunderstorm',
+      high: 27,
+      low: 21,
+    });
   });
 
   it('names the condition rather than leaving a WMO number for the client to decode', async () => {
@@ -88,7 +116,9 @@ describe('getWeather', () => {
   });
 
   it('does not invent a card when the forecast service is down', async () => {
-    fetchMock.mockResolvedValueOnce(geocodeOk()).mockResolvedValueOnce({ ok: false, json: async () => ({}) });
+    fetchMock
+      .mockResolvedValueOnce(geocodeOk())
+      .mockResolvedValueOnce({ ok: false, json: async () => ({}) });
     const out = await run();
     expect(out.card).toBeUndefined();
     expect(out.error).toBeTruthy();

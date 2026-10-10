@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback } from 'react';
 import {
   ReactFlowProvider,
   useNodesState,
@@ -6,63 +6,63 @@ import {
   addEdge,
   type Connection,
   type Edge,
-} from "@xyflow/react";
+} from '@xyflow/react';
 
-import type { WorkflowNode, WorkflowNodeType, WorkflowExecution } from "@/lib/workflow-types";
-import { WorkflowCanvas } from "./workflow-canvas";
-import { WorkflowToolbar } from "./workflow-toolbar";
-import { OutputPanel } from "./output-panel";
-import { LoadWorkflowDialog } from "./load-workflow-dialog";
-import { NodeEditPanel } from "./node-edit-panel";
-import { RunHistoryDialog } from "./run-history-dialog";
-import { withStoredModels } from "@/lib/catalogue";
+import type { WorkflowNode, WorkflowNodeType, WorkflowExecution } from '@/lib/workflow-types';
+import { WorkflowCanvas } from './workflow-canvas';
+import { WorkflowToolbar } from './workflow-toolbar';
+import { OutputPanel } from './output-panel';
+import { LoadWorkflowDialog } from './load-workflow-dialog';
+import { NodeEditPanel } from './node-edit-panel';
+import { RunHistoryDialog } from './run-history-dialog';
+import { withStoredModels } from '@/lib/catalogue';
 
 // Alia workflow API base (workflows, execute). Overridable at build time.
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4150";
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4150';
 
 // Default README Generator template
 const initialNodes: WorkflowNode[] = [
   {
-    id: "github-1",
-    type: "github",
+    id: 'github-1',
+    type: 'github',
     position: { x: 50, y: 200 },
     data: {
-      label: "GitHub Repo",
-      githubUrl: "",
-      branch: "main",
+      label: 'GitHub Repo',
+      githubUrl: '',
+      branch: 'main',
       fetchReadme: true,
       fetchStructure: true,
       fetchKeyFiles: true,
     },
   },
   {
-    id: "ai-1",
-    type: "aiText",
+    id: 'ai-1',
+    type: 'aiText',
     position: { x: 450, y: 150 },
     data: {
       // No `model`: the server's default model answers. See `src/lib/catalogue.ts`.
-      label: "Generate README",
+      label: 'Generate README',
       prompt:
-        "Based on the following repository context, generate a comprehensive README.md file with sections for: Overview, Features, Installation, Usage, API Reference (if applicable), and Contributing guidelines.\n\n{{input}}",
-      systemPrompt: "You are a technical documentation expert.",
+        'Based on the following repository context, generate a comprehensive README.md file with sections for: Overview, Features, Installation, Usage, API Reference (if applicable), and Contributing guidelines.\n\n{{input}}',
+      systemPrompt: 'You are a technical documentation expert.',
       temperature: 0.7,
     },
   },
   {
-    id: "output-1",
-    type: "output",
+    id: 'output-1',
+    type: 'output',
     position: { x: 900, y: 200 },
     data: {
-      label: "README Output",
-      outputType: "readme-md",
-      customFilename: "README.md",
-      customTemplate: "",
+      label: 'README Output',
+      outputType: 'readme-md',
+      customFilename: 'README.md',
+      customTemplate: '',
     },
   },
 ];
 const initialEdges: Edge[] = [
-  { id: "e1", source: "github-1", target: "ai-1", type: "default", animated: true },
-  { id: "e2", source: "ai-1", target: "output-1", type: "default", animated: true },
+  { id: 'e1', source: 'github-1', target: 'ai-1', type: 'default', animated: true },
+  { id: 'e2', source: 'ai-1', target: 'output-1', type: 'default', animated: true },
 ];
 
 // Static per-node-type default data. Module-scoped so it stays referentially
@@ -71,51 +71,51 @@ const defaultNodeData: Record<WorkflowNodeType, object> = {
   // Neither AI node names a model. A new node starts on the server default, which
   // is the absence of a `model` field rather than a value — see `src/lib/catalogue.ts`.
   aiText: {
-    label: "AI Text",
-    prompt: "",
-    systemPrompt: "",
+    label: 'AI Text',
+    prompt: '',
+    systemPrompt: '',
     temperature: 0.7,
   },
   aiImage: {
-    label: "AI Image",
-    prompt: "",
-    size: "1024x1024",
+    label: 'AI Image',
+    prompt: '',
+    size: '1024x1024',
   },
   condition: {
-    label: "Condition",
-    condition: "",
-    operator: "contains",
-    value: "",
+    label: 'Condition',
+    condition: '',
+    operator: 'contains',
+    value: '',
   },
   memory: {
-    label: "Memory",
-    memoryKey: "",
-    operation: "read",
-    dataType: "text",
-    defaultValue: "",
+    label: 'Memory',
+    memoryKey: '',
+    operation: 'read',
+    dataType: 'text',
+    defaultValue: '',
   },
   github: {
-    label: "GitHub",
-    githubUrl: "",
-    branch: "main",
+    label: 'GitHub',
+    githubUrl: '',
+    branch: 'main',
     fetchReadme: true,
     fetchStructure: true,
     fetchKeyFiles: false,
   },
   output: {
-    label: "Output",
-    outputType: "readme-md",
+    label: 'Output',
+    outputType: 'readme-md',
     agentType: undefined,
-    customFilename: "",
-    customTemplate: "",
+    customFilename: '',
+    customTemplate: '',
   },
   textInput: {
-    label: "Text Input",
-    text: "",
+    label: 'Text Input',
+    text: '',
   },
   merge: {
-    label: "Merge",
-    separator: "\n\n",
+    label: 'Merge',
+    separator: '\n\n',
   },
 };
 
@@ -123,7 +123,7 @@ function WorkflowEditorInner() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [workflowId, setWorkflowId] = useState<string | null>(null);
-  const [workflowName, setWorkflowName] = useState("README Generator");
+  const [workflowName, setWorkflowName] = useState('README Generator');
   const [hasChanges, setHasChanges] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -135,10 +135,10 @@ function WorkflowEditorInner() {
 
   const onConnect = useCallback(
     (params: Connection) => {
-      setEdges((eds) => addEdge({ ...params, type: "default", animated: true }, eds));
+      setEdges((eds) => addEdge({ ...params, type: 'default', animated: true }, eds));
       setHasChanges(true);
     },
-    [setEdges]
+    [setEdges],
   );
 
   const handleAddNode = useCallback(
@@ -149,12 +149,12 @@ function WorkflowEditorInner() {
         id: `${nodeType}-${Date.now()}`,
         type: nodeType,
         position: { x: xOffset, y: 200 },
-        data: defaultNodeData[nodeType] as WorkflowNode["data"],
+        data: defaultNodeData[nodeType] as WorkflowNode['data'],
       };
       setNodes((nds) => [...nds, newNode]);
       setHasChanges(true);
     },
-    [nodes.length, setNodes]
+    [nodes.length, setNodes],
   );
 
   /**
@@ -169,22 +169,22 @@ function WorkflowEditorInner() {
    */
 
   const handleNodeUpdate = useCallback(
-    (nodeId: string, data: Partial<WorkflowNode["data"]>) => {
+    (nodeId: string, data: Partial<WorkflowNode['data']>) => {
       setNodes((nds) =>
         nds.map((node) =>
           node.id === nodeId
-            ? { ...node, data: { ...node.data, ...data } as WorkflowNode["data"] }
-            : node
-        )
+            ? { ...node, data: { ...node.data, ...data } as WorkflowNode['data'] }
+            : node,
+        ),
       );
       setSelectedNode((prev) =>
         prev && prev.id === nodeId
-          ? { ...prev, data: { ...prev.data, ...data } as WorkflowNode["data"] }
-          : prev
+          ? { ...prev, data: { ...prev.data, ...data } as WorkflowNode['data'] }
+          : prev,
       );
       setHasChanges(true);
     },
-    [setNodes]
+    [setNodes],
   );
 
   const handleExecute = async () => {
@@ -196,9 +196,9 @@ function WorkflowEditorInner() {
 
     try {
       const response = await fetch(`${API_URL}/api/execute`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json"
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({ nodes: withStoredModels(nodes), edges, workflowId }),
       });
@@ -208,8 +208,8 @@ function WorkflowEditorInner() {
       if (response.ok) {
         setExecution({
           id: crypto.randomUUID(),
-          workflowId: workflowId || "",
-          status: "completed",
+          workflowId: workflowId || '',
+          status: 'completed',
           results: result.results,
           finalOutput: result.finalOutput,
           startedAt: new Date(),
@@ -218,12 +218,12 @@ function WorkflowEditorInner() {
       } else {
         setExecution({
           id: crypto.randomUUID(),
-          workflowId: workflowId || "",
-          status: "failed",
+          workflowId: workflowId || '',
+          status: 'failed',
           results: [
             {
-              nodeId: "error",
-              nodeType: "output",
+              nodeId: 'error',
+              nodeType: 'output',
               output: null,
               error: result.error,
               timestamp: new Date(),
@@ -237,10 +237,10 @@ function WorkflowEditorInner() {
     } catch (error) {
       setExecution({
         id: crypto.randomUUID(),
-        workflowId: workflowId || "",
-        status: "failed",
+        workflowId: workflowId || '',
+        status: 'failed',
         results: [],
-        finalOutput: `Execution failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        finalOutput: `Execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         startedAt: new Date(),
         completedAt: new Date(),
       });
@@ -253,13 +253,15 @@ function WorkflowEditorInner() {
     setIsSaving(true);
 
     try {
-      const url = workflowId ? `${API_URL}/api/workflows/${workflowId}` : `${API_URL}/api/workflows`;
-      const method = workflowId ? "PUT" : "POST";
+      const url = workflowId
+        ? `${API_URL}/api/workflows/${workflowId}`
+        : `${API_URL}/api/workflows`;
+      const method = workflowId ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
         method,
         headers: {
-          "Content-Type": "application/json"
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           name: workflowName,
@@ -277,7 +279,7 @@ function WorkflowEditorInner() {
         setHasChanges(false);
       }
     } catch (error) {
-      console.error("Failed to save workflow:", error);
+      console.error('Failed to save workflow:', error);
     } finally {
       setIsSaving(false);
     }
@@ -297,13 +299,13 @@ function WorkflowEditorInner() {
         setShowLoadDialog(false);
       }
     } catch (error) {
-      console.error("Failed to load workflow:", error);
+      console.error('Failed to load workflow:', error);
     }
   };
 
   const handleNew = () => {
     setWorkflowId(null);
-    setWorkflowName("Untitled Workflow");
+    setWorkflowName('Untitled Workflow');
     setNodes([]);
     setEdges([]);
     setHasChanges(false);
@@ -333,8 +335,8 @@ function WorkflowEditorInner() {
   const handleSelectHistoryRun = (output: string) => {
     setExecution({
       id: crypto.randomUUID(),
-      workflowId: workflowId || "",
-      status: "completed",
+      workflowId: workflowId || '',
+      status: 'completed',
       results: [],
       finalOutput: output,
       startedAt: new Date(),
@@ -347,7 +349,7 @@ function WorkflowEditorInner() {
     onNodesChange(changes);
 
     for (const change of changes) {
-      if (change.type === "select" && change.selected) {
+      if (change.type === 'select' && change.selected) {
         const node = nodes.find((n) => n.id === change.id);
         if (node) {
           setSelectedNode(node as WorkflowNode);

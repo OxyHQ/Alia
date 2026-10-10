@@ -97,7 +97,8 @@ export async function getUserTier(userId: string): Promise<string> {
   if (planName.includes('ultra')) return 'business';
   if (planName.includes('business')) return 'business';
   if (planName.includes('max')) return 'pro_plus';
-  if (planName.includes('pro+') || planName.includes('pro plus') || planName.includes('proplus')) return 'pro_plus';
+  if (planName.includes('pro+') || planName.includes('pro plus') || planName.includes('proplus'))
+    return 'pro_plus';
   if (planName.includes('pro')) return 'pro';
   if (planName.includes('go')) return 'pro';
 
@@ -112,7 +113,7 @@ export async function getUserTier(userId: string): Promise<string> {
 export async function apiKeyRateLimit(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   // Internal service tokens bypass rate limiting (platform cost)
   if (req.serviceApp) {
@@ -126,13 +127,17 @@ export async function apiKeyRateLimit(
       const result = await checkLimit(req.user.id, tier);
 
       if (!result.allowed) {
-        return sendRateLimitResponse(res, {
-          limited: true,
-          limitType: 'requestsPerMinute',
-          current: result.current,
-          limit: result.limit,
-          resetInSeconds: result.resetInSeconds,
-        }, tier);
+        return sendRateLimitResponse(
+          res,
+          {
+            limited: true,
+            limitType: 'requestsPerMinute',
+            current: result.current,
+            limit: result.limit,
+            resetInSeconds: result.resetInSeconds,
+          },
+          tier,
+        );
       }
 
       return next();
@@ -149,11 +154,7 @@ export async function apiKeyRateLimit(
 /**
  * Send rate limit exceeded response
  */
-function sendRateLimitResponse(
-  res: Response,
-  status: RateLimitStatus,
-  tier?: string
-): void {
+function sendRateLimitResponse(res: Response, status: RateLimitStatus, tier?: string): void {
   const limitTypeMessages: Record<string, string> = {
     requestsPerMinute: 'requests per minute',
     requestsPerDay: 'requests per day',
@@ -220,12 +221,15 @@ export async function recordUsage(
   statusCode: number,
   tokensUsed?: number,
   responseTime?: number,
-  creditsUsed?: number
+  creditsUsed?: number,
 ): Promise<void> {
   try {
     const oxyUserId = req.user?.id || req.userId;
     if (!oxyUserId) {
-      log.rateLimit.warn({ endpoint: req.path, method: req.method }, 'Skipping usage record without auth context');
+      log.rateLimit.warn(
+        { endpoint: req.path, method: req.method },
+        'Skipping usage record without auth context',
+      );
       return;
     }
 

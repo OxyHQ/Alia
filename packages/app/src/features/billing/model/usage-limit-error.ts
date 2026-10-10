@@ -35,6 +35,10 @@ export class UsageLimitError extends Error {
   }
 
   get shouldShowUpgrade(): boolean {
-    return this.details.suggestedAction === 'upgrade' || this.details.type === 'credits' || this.details.type === 'model_access';
+    return (
+      this.details.suggestedAction === 'upgrade' ||
+      this.details.type === 'credits' ||
+      this.details.type === 'model_access'
+    );
   }
 }

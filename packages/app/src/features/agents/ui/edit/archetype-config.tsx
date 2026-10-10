@@ -17,10 +17,7 @@ import {
   SegmentedControlItem,
   SegmentedControlItemText,
 } from '@oxy.so/bloom/segmented-control';
-import {
-  SettingsListGroup,
-  SettingsListItem,
-} from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Switch } from '@oxy.so/bloom/switch';
 import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -43,14 +40,7 @@ export function ArchetypeConfigSection({
   return null;
 }
 
-const INBOUND_CHANNELS = [
-  'email',
-  'slack',
-  'discord',
-  'webhook',
-  'github',
-  'linear',
-];
+const INBOUND_CHANNELS = ['email', 'slack', 'discord', 'webhook', 'github', 'linear'];
 
 /**
  * A status-update agent's report: its template and whether it compares with
@@ -90,9 +80,7 @@ function StatusUpdateConfig({ config, onChange }: ConfigProps) {
             <Switch
               accessibilityLabel={t('agents.archetype.compareWithPrevious')}
               checked={config.compareWithPrevious || false}
-              onCheckedChange={(val) =>
-                onChange({ ...config, compareWithPrevious: val })
-              }
+              onCheckedChange={(val) => onChange({ ...config, compareWithPrevious: val })}
             />
           }
         />
@@ -135,9 +123,7 @@ function TaskRouterConfig({ config, onChange }: ConfigProps) {
 
   return (
     <View className="gap-4">
-      <Text variant="headline-semibold">
-        {t('agents.archetype.routingConfig')}
-      </Text>
+      <Text variant="headline-semibold">{t('agents.archetype.routingConfig')}</Text>
 
       {/* Inbound Channels */}
       <View className="gap-1.5">
@@ -148,9 +134,7 @@ function TaskRouterConfig({ config, onChange }: ConfigProps) {
               key={channel}
               size="xl"
               selected={(config.inboundChannels || []).includes(channel)}
-              onPress={() =>
-                onChange(withChannelToggled(config, 'inboundChannels', channel))
-              }
+              onPress={() => onChange(withChannelToggled(config, 'inboundChannels', channel))}
             >
               {t(`agents.archetype.channel.${channel}`)}
             </Chip>
@@ -179,9 +163,7 @@ function TaskRouterConfig({ config, onChange }: ConfigProps) {
                   label={t('agents.archetype.ruleCondition')}
                   value={rule.condition}
                   onChangeText={(text) =>
-                    onChange(
-                      withRoutingRuleEdited(config, index, { condition: text }),
-                    )
+                    onChange(withRoutingRuleEdited(config, index, { condition: text }))
                   }
                   placeholder={t('agents.archetype.ruleCondition')}
                 />
@@ -227,9 +209,7 @@ function TaskRouterConfig({ config, onChange }: ConfigProps) {
                     appearance="plain"
                     icon={RiCloseLine}
                     accessibilityLabel={t('pages.agents.removeRoutingRule')}
-                    onPress={() =>
-                      onChange(withRoutingRuleRemoved(config, index))
-                    }
+                    onPress={() => onChange(withRoutingRuleRemoved(config, index))}
                   />
                 </View>
                 <Input

@@ -87,7 +87,9 @@ const OTHER: Conversation = {
 function seed() {
   client.setQueryData(queryKeys.conversations.detail('c1'), THREAD);
   client.setQueryData(queryKeys.conversations.all, {
-    pages: [{ conversations: [{ ...THREAD, messages: [] }, OTHER], nextCursor: null, hasMore: false }],
+    pages: [
+      { conversations: [{ ...THREAD, messages: [] }, OTHER], nextCursor: null, hasMore: false },
+    ],
     pageParams: [undefined],
   });
 }
@@ -120,7 +122,9 @@ describe('useClearConversation', () => {
   it('sends one DELETE to the messages sub-resource, never to the conversation itself', async () => {
     await mount();
 
-    await act(async () => { await api.mutateAsync('c1'); });
+    await act(async () => {
+      await api.mutateAsync('c1');
+    });
 
     expect(http.requests).toEqual(['DELETE /conversations/c1/messages']);
   });
@@ -128,7 +132,9 @@ describe('useClearConversation', () => {
   it('empties the cached thread and drops its preview on success, keeping the row', async () => {
     await mount();
 
-    await act(async () => { await api.mutateAsync('c1'); });
+    await act(async () => {
+      await api.mutateAsync('c1');
+    });
 
     const detail = client.getQueryData<Conversation>(queryKeys.conversations.detail('c1'));
     // Empty, not gone: the title and the entry survive; only what the server
@@ -136,7 +142,9 @@ describe('useClearConversation', () => {
     expect(detail).toMatchObject({ id: 'c1', title: 'Capitals', messages: [] });
     expect(detail?.lastMessage).toBeUndefined();
 
-    const list = client.getQueryData<{ pages: { conversations: Conversation[] }[] }>(queryKeys.conversations.all);
+    const list = client.getQueryData<{ pages: { conversations: Conversation[] }[] }>(
+      queryKeys.conversations.all,
+    );
     const entries = list?.pages[0].conversations ?? [];
     expect(entries.map((c) => c.id)).toEqual(['c1', 'c2']);
     expect(entries[0].lastMessage).toBeUndefined();
@@ -148,7 +156,9 @@ describe('useClearConversation', () => {
     await mount();
     const invalidate = vi.spyOn(client, 'invalidateQueries');
 
-    await act(async () => { await api.mutateAsync('c1'); });
+    await act(async () => {
+      await api.mutateAsync('c1');
+    });
 
     const keys = invalidate.mock.calls.map(([filters]) => filters?.queryKey);
     expect(keys).toContainEqual(queryKeys.conversations.detail('c1'));
@@ -174,7 +184,9 @@ describe('useClearConversation', () => {
       'DELETE /conversations/c1/messages',
     ]);
     expect(client.getQueryData(queryKeys.conversations.detail('c1'))).toEqual(THREAD);
-    const list = client.getQueryData<{ pages: { conversations: Conversation[] }[] }>(queryKeys.conversations.all);
+    const list = client.getQueryData<{ pages: { conversations: Conversation[] }[] }>(
+      queryKeys.conversations.all,
+    );
     expect(list?.pages[0].conversations[0].lastMessage).toBe('Lima');
   });
 });

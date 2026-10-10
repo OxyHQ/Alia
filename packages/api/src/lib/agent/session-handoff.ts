@@ -106,7 +106,12 @@ export interface HirableAgent {
 }
 
 export type AgentSessionHandoff =
-  | { readonly ok: true; readonly sessionId: string; readonly queued: boolean; readonly jobId?: string }
+  | {
+      readonly ok: true;
+      readonly sessionId: string;
+      readonly queued: boolean;
+      readonly jobId?: string;
+    }
   /**
    * `creditsNeeded` rides on the refusal so the 402 body does not need a second
    * copy of {@link agentHirePrice} — the price that was actually
@@ -172,7 +177,10 @@ export async function startAgentSession(input: {
 
   const reservation = await reserveBackgroundProductCredits(userId, price);
   if (!reservation) {
-    log.agents.info({ userId, agentId: agent._id, price }, 'Agent hire refused: insufficient credits');
+    log.agents.info(
+      { userId, agentId: agent._id, price },
+      'Agent hire refused: insufficient credits',
+    );
     return { ok: false, reason: 'insufficient_credits', creditsNeeded: price };
   }
 
@@ -220,7 +228,10 @@ export async function startAgentSession(input: {
 
     return { ok: true, sessionId: session._id, queued, ...(jobId === undefined ? {} : { jobId }) };
   } catch (error: unknown) {
-    log.agents.error({ err: error, userId, agentId: agent._id, sessionId }, 'Agent session handoff failed');
+    log.agents.error(
+      { err: error, userId, agentId: agent._id, sessionId },
+      'Agent session handoff failed',
+    );
 
     /**
      * The row is neutralised BEFORE the refund, and the refund happens only
@@ -237,11 +248,17 @@ export async function startAgentSession(input: {
     const neutralised =
       sessionId === null
         ? true
-        : await cancelUnsettledAgentSession(getDb(), sessionId, 'Handoff failed before the session started')
-            .catch((cancelErr: unknown) => {
-              log.agents.error({ err: cancelErr, sessionId }, 'Could not cancel a session whose handoff failed');
-              return false;
-            });
+        : await cancelUnsettledAgentSession(
+            getDb(),
+            sessionId,
+            'Handoff failed before the session started',
+          ).catch((cancelErr: unknown) => {
+            log.agents.error(
+              { err: cancelErr, sessionId },
+              'Could not cancel a session whose handoff failed',
+            );
+            return false;
+          });
 
     if (neutralised) {
       await safeRefund(reservation, 'agent session handoff failed');
@@ -298,7 +315,10 @@ export async function reclaimOrphanedAgentSessions(now: Date = new Date()): Prom
   }
 
   if (claimed.length > 0) {
-    log.agents.warn({ stranded: claimed.length, refunded }, 'Reclaimed agent sessions that were never picked up');
+    log.agents.warn(
+      { stranded: claimed.length, refunded },
+      'Reclaimed agent sessions that were never picked up',
+    );
   }
   return refunded;
 }

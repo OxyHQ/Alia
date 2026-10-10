@@ -47,18 +47,29 @@ const body = (data: unknown[], extra: Record<string, unknown> = {}) => ({
 describe('parseCatalogue', () => {
   it('reads models, the server default and the featured ids', () => {
     const catalogue = parseCatalogue(
-      body([model(), model({ id: 'zeta/bolt', name: 'Bolt', publisher: { id: 'zeta', name: 'Zeta' } })], {
-        featuredIds: ['zeta/bolt'],
-      }),
+      body(
+        [
+          model(),
+          model({ id: 'zeta/bolt', name: 'Bolt', publisher: { id: 'zeta', name: 'Zeta' } }),
+        ],
+        {
+          featuredIds: ['zeta/bolt'],
+        },
+      ),
     );
     expect(catalogue.models.map((m) => m.id)).toEqual(['acme/rocket-1', 'zeta/bolt']);
     expect(catalogue.defaultModelId).toBe('acme/rocket-1');
     expect(catalogue.featuredIds).toEqual(['zeta/bolt']);
-    expect(catalogue.models[0]).toMatchObject({ contextWindow: 200_000, publisher: { name: 'Acme' } });
+    expect(catalogue.models[0]).toMatchObject({
+      contextWindow: 200_000,
+      publisher: { name: 'Acme' },
+    });
   });
 
   it('drops entries that are not models or not `publisher/model`', () => {
-    const catalogue = parseCatalogue(body([model(), model({ id: 'no-slash' }), model({ object: 'routing_profile', id: 'x/y' })]));
+    const catalogue = parseCatalogue(
+      body([model(), model({ id: 'no-slash' }), model({ object: 'routing_profile', id: 'x/y' })]),
+    );
     expect(catalogue.models.map((m) => m.id)).toEqual(['acme/rocket-1']);
   });
 
@@ -68,7 +79,11 @@ describe('parseCatalogue', () => {
   });
 
   it('accepts a genuinely empty catalogue and a missing default', () => {
-    expect(parseCatalogue({ object: 'list', data: [] })).toEqual({ models: [], defaultModelId: null, featuredIds: [] });
+    expect(parseCatalogue({ object: 'list', data: [] })).toEqual({
+      models: [],
+      defaultModelId: null,
+      featuredIds: [],
+    });
   });
 });
 
@@ -101,7 +116,15 @@ describe('groupModels', () => {
 describe('a stored node model', () => {
   it('is only ever a `publisher/model` id; anything else is the server default', () => {
     expect(storedModelId('acme/rocket-1')).toBe('acme/rocket-1');
-    for (const retired of ['mode' + ':auto', 'route' + ':instant', 'profile' + ':fast', '', ' a/b', undefined, null]) {
+    for (const retired of [
+      'mode' + ':auto',
+      'route' + ':instant',
+      'profile' + ':fast',
+      '',
+      ' a/b',
+      undefined,
+      null,
+    ]) {
       expect(storedModelId(retired), String(retired)).toBeUndefined();
     }
     expect(isModelId('/x')).toBe(false);

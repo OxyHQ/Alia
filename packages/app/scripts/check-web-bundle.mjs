@@ -34,7 +34,9 @@ let chunks;
 try {
   chunks = readdirSync(jsDir).filter((f) => f.endsWith('.js'));
 } catch {
-  console.error(`check-web-bundle: no export at ${jsDir} — run \`expo export --platform web\` first.`);
+  console.error(
+    `check-web-bundle: no export at ${jsDir} — run \`expo export --platform web\` first.`,
+  );
   process.exit(1);
 }
 if (chunks.length === 0) {

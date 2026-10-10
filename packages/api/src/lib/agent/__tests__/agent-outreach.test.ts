@@ -27,7 +27,12 @@ vi.mock('../../../db/chat/messageRepository.js', () => ({
   insertMessages: H.insert,
 }));
 vi.mock('../../agent-identity.js', () => ({
-  attachAgentIdentity: async (agent: object) => ({ ...agent, name: 'Scout', handle: 'scout', color: 'blue' }),
+  attachAgentIdentity: async (agent: object) => ({
+    ...agent,
+    name: 'Scout',
+    handle: 'scout',
+    color: 'blue',
+  }),
   agentPromptName: (agent: { name: string }) => agent.name,
 }));
 vi.mock('../../notification-service.js', () => ({ sendNotification: H.notify }));
@@ -53,21 +58,32 @@ beforeEach(() => {
 
 describe('an agent writing to a person first', () => {
   it('appends to the END of its conversation, marked, and tells the person', async () => {
-    const outcome = await postAgentMessage({ oxyUserId: 'u', agentId: 'agent-1', kind: 'check_in', content: 'Found it' });
+    const outcome = await postAgentMessage({
+      oxyUserId: 'u',
+      agentId: 'agent-1',
+      kind: 'check_in',
+      content: 'Found it',
+    });
 
     expect(outcome).toMatchObject({ posted: true, conversationId: 'conv-1' });
     const [[, [row]]] = H.insert.mock.calls as [[unknown, Array<Record<string, unknown>>]];
     expect(row).toMatchObject({ role: 'assistant', content: 'Found it', seq: 4 });
     expect(String(row.clientMessageId)).toMatch(/^agent-push-/);
-    expect(H.emit).toHaveBeenCalledWith('conversation:message', expect.objectContaining({ conversationId: 'conv-1' }));
-    expect(H.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u', conversationId: 'conv-1', type: 'proactive_insight' }));
+    expect(H.emit).toHaveBeenCalledWith(
+      'conversation:message',
+      expect.objectContaining({ conversationId: 'conv-1' }),
+    );
+    expect(H.notify).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'u', conversationId: 'conv-1', type: 'proactive_insight' }),
+    );
   });
 
   it('stops check-ins at the daily budget', async () => {
     H.countOutreach.mockResolvedValue(CHECK_IN_DAILY_LIMIT);
 
-    await expect(postAgentMessage({ oxyUserId: 'u', agentId: 'agent-1', kind: 'check_in', content: 'Again' }))
-      .resolves.toEqual({ posted: false, reason: 'daily_limit' });
+    await expect(
+      postAgentMessage({ oxyUserId: 'u', agentId: 'agent-1', kind: 'check_in', content: 'Again' }),
+    ).resolves.toEqual({ posted: false, reason: 'daily_limit' });
     expect(H.insert).not.toHaveBeenCalled();
   });
 
@@ -77,8 +93,9 @@ describe('an agent writing to a person first', () => {
       { role: 'assistant', clientMessageId: 'agent-push-a' },
     ]);
 
-    await expect(postAgentMessage({ oxyUserId: 'u', agentId: 'agent-1', kind: 'check_in', content: 'Hello?' }))
-      .resolves.toEqual({ posted: false, reason: 'unanswered' });
+    await expect(
+      postAgentMessage({ oxyUserId: 'u', agentId: 'agent-1', kind: 'check_in', content: 'Hello?' }),
+    ).resolves.toEqual({ posted: false, reason: 'unanswered' });
   });
 
   it('always delivers a result the person asked for, whatever the budget', async () => {
@@ -88,8 +105,14 @@ describe('an agent writing to a person first', () => {
       { role: 'assistant', clientMessageId: 'agent-push-a' },
     ]);
 
-    await expect(postAgentMessage({ oxyUserId: 'u', agentId: 'agent-1', kind: 'result', content: 'Your report' }))
-      .resolves.toMatchObject({ posted: true });
+    await expect(
+      postAgentMessage({
+        oxyUserId: 'u',
+        agentId: 'agent-1',
+        kind: 'result',
+        content: 'Your report',
+      }),
+    ).resolves.toMatchObject({ posted: true });
     expect(H.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'agent_task_complete' }));
   });
 
@@ -98,10 +121,18 @@ describe('an agent writing to a person first', () => {
     H.createConversation.mockResolvedValue({ conversationId: 'new-conv' });
     H.findLast.mockResolvedValue(undefined);
 
-    const outcome = await postAgentMessage({ oxyUserId: 'u', agentId: 'agent-1', kind: 'result', content: 'Hi' });
+    const outcome = await postAgentMessage({
+      oxyUserId: 'u',
+      agentId: 'agent-1',
+      kind: 'result',
+      content: 'Hi',
+    });
 
     expect(outcome).toMatchObject({ posted: true, conversationId: 'new-conv' });
-    expect(H.createConversation).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ agentId: 'agent-1', oxyUserId: 'u' }));
+    expect(H.createConversation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ agentId: 'agent-1', oxyUserId: 'u' }),
+    );
     const [[, [row]]] = H.insert.mock.calls as [[unknown, Array<Record<string, unknown>>]];
     expect(row).toMatchObject({ seq: 0 });
   });

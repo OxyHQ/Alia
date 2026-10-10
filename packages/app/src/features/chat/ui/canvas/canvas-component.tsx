@@ -21,7 +21,8 @@ export function CanvasComponent({ component, onFormSubmit }: CanvasComponentProp
   const { t } = useTranslation();
 
   // Code carries its own header (the file name), and a chart card its own title.
-  if (component.type === 'code') return <CodeRenderer data={component.data} filename={component.title} />;
+  if (component.type === 'code')
+    return <CodeRenderer data={component.data} filename={component.title} />;
   if (component.type === 'artifact' && component.data.language)
     return (
       <CodeRenderer
@@ -29,7 +30,8 @@ export function CanvasComponent({ component, onFormSubmit }: CanvasComponentProp
         filename={component.title}
       />
     );
-  if (component.type === 'chart') return <ChartRenderer data={component.data} title={component.title} />;
+  if (component.type === 'chart')
+    return <ChartRenderer data={component.data} title={component.title} />;
 
   const content = (() => {
     switch (component.type) {

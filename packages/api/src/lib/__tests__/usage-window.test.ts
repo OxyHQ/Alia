@@ -6,7 +6,9 @@ vi.mock('../../db/telemetry/apiKeyUsageRepository.js', () => ({
   creditSpendWindow: vi.fn(async () => spend),
 }));
 
-const { readUsageWindow, secondsUntilReset, USAGE_WINDOW_CREDITS } = await import('../usage-window.js');
+const { readUsageWindow, secondsUntilReset, USAGE_WINDOW_CREDITS } = await import(
+  '../usage-window.js'
+);
 
 const HOUR = 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 8, 24, 12, 0, 0);

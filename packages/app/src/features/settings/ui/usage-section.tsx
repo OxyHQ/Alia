@@ -24,7 +24,10 @@ export function UsageSection() {
   const { plan, limits } = agentLimitsProps(credits, subscription, Date.now(), t);
   const subscribed = subscription?.status === 'active';
   // The latest conversation's context window, as ChatGPT and Claude show it.
-  const context = contextCardProps(useUIStore((s) => s.lastContextUsage), t);
+  const context = contextCardProps(
+    useUIStore((s) => s.lastContextUsage),
+    t,
+  );
 
   if (isLoading) return <Skeleton.Box width="100%" height={112} borderRadius={16} />;
 
@@ -32,7 +35,9 @@ export function UsageSection() {
     <AgentLimitsCard
       plan={plan}
       limits={limits}
-      onPlanPress={() => (subscribed ? settings.open('usage') : router.push('/(biglayout)/subscribe'))}
+      onPlanPress={() =>
+        subscribed ? settings.open('usage') : router.push('/(biglayout)/subscribe')
+      }
       context={context}
       labels={{
         contextWindow: t('chat.bloom.context.title'),

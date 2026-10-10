@@ -81,20 +81,23 @@ export async function generateTextViaKaana(request: KaanaTextRequest): Promise<s
   if (client === null) throw new KaanaClientUnavailableError();
 
   const budgetMs = request.budgetMs ?? DEFAULT_BUDGET_MS;
-  const completion = await client.respond({
-    model: request.model ?? (await getUtilityModelId()),
-    input: [{ role: 'user', content: [{ type: 'text', text: request.prompt }] }],
-    maxOutputTokens: request.maxOutputTokens,
-    ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
-    tools: [],
-    ...(request.responseFormat === undefined ? {} : { responseFormat: request.responseFormat }),
-    labels: { 'alia.surface': request.surface, 'alia.visibility': 'derived' },
-  }, {
-    signal: request.signal ?? AbortSignal.timeout(budgetMs),
-    ...(request.oxyUserId === undefined || request.oxyUserId === null
-      ? {}
-      : { delegatedUserId: request.oxyUserId }),
-  });
+  const completion = await client.respond(
+    {
+      model: request.model ?? (await getUtilityModelId()),
+      input: [{ role: 'user', content: [{ type: 'text', text: request.prompt }] }],
+      maxOutputTokens: request.maxOutputTokens,
+      ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
+      tools: [],
+      ...(request.responseFormat === undefined ? {} : { responseFormat: request.responseFormat }),
+      labels: { 'alia.surface': request.surface, 'alia.visibility': 'derived' },
+    },
+    {
+      signal: request.signal ?? AbortSignal.timeout(budgetMs),
+      ...(request.oxyUserId === undefined || request.oxyUserId === null
+        ? {}
+        : { delegatedUserId: request.oxyUserId }),
+    },
+  );
   const text = completion.output
     .flatMap((message) => message.content)
     .filter((part) => part.type === 'text' || part.type === 'refusal')

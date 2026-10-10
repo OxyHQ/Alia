@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { threadHistory, threadSeamIds, type ThreadPage, type WireThreadMessage } from '../thread-history';
+import {
+  threadHistory,
+  threadSeamIds,
+  type ThreadPage,
+  type WireThreadMessage,
+} from '../thread-history';
 
 /**
  * The history above the live conversation, and where the joins are.
@@ -11,7 +16,9 @@ import { threadHistory, threadSeamIds, type ThreadPage, type WireThreadMessage }
  * scrolled to — which is the only situation this function exists for.
  */
 
-function wire(over: Partial<WireThreadMessage> & { cursor: string; conversationId: string }): WireThreadMessage {
+function wire(
+  over: Partial<WireThreadMessage> & { cursor: string; conversationId: string },
+): WireThreadMessage {
   return {
     role: 'user',
     content: 'said something',
@@ -53,7 +60,10 @@ describe('the history above the live conversation', () => {
     // `id` is the CLIENT's id and a message the server wrote never had one, yet
     // it is what the list keys on and what the vote URL carries. A cursor
     // addresses exactly one message, so it is the id that message can have.
-    const [message] = threadHistory([page([wire({ cursor: 'k9', conversationId: 'previous' })])], 'active');
+    const [message] = threadHistory(
+      [page([wire({ cursor: 'k9', conversationId: 'previous' })])],
+      'active',
+    );
 
     expect(message.id).toBe('k9');
     expect(message.cursor).toBe('k9');

@@ -1,4 +1,9 @@
-import type { ChannelPlugin, OutboundContext, OutboundResult, ChannelInboundMessage } from '../types.js';
+import type {
+  ChannelPlugin,
+  OutboundContext,
+  OutboundResult,
+  ChannelInboundMessage,
+} from '../types.js';
 import type { Request } from 'express';
 import { getErrorMessage } from '../../errors/index.js';
 
@@ -21,8 +26,7 @@ export const signalPlugin: ChannelPlugin = {
   },
 
   config: {
-    isConfigured: () =>
-      !!(process.env.SIGNAL_CLI_URL && process.env.SIGNAL_PHONE_NUMBER),
+    isConfigured: () => !!(process.env.SIGNAL_CLI_URL && process.env.SIGNAL_PHONE_NUMBER),
     getBotSecret: () => process.env.SIGNAL_BOT_SECRET,
     getEnvPrefix: () => 'SIGNAL',
   },
@@ -56,7 +60,7 @@ export const signalPlugin: ChannelPlugin = {
           return { channel: 'signal', ok: false, error: `Signal API ${res.status}: ${body}` };
         }
 
-        const data = await res.json() as SignalSendResponse;
+        const data = (await res.json()) as SignalSendResponse;
         return { channel: 'signal', ok: true, messageId: data.timestamp?.toString() };
       } catch (err: unknown) {
         return { channel: 'signal', ok: false, error: getErrorMessage(err) };
@@ -77,7 +81,9 @@ export const signalPlugin: ChannelPlugin = {
         if (decoded.length > 0 && decoded.toString('base64') === trimmed) {
           return trimmed;
         }
-      } catch { /* not base64 */ }
+      } catch {
+        /* not base64 */
+      }
       return undefined;
     },
 
@@ -91,7 +97,9 @@ export const signalPlugin: ChannelPlugin = {
       try {
         const decoded = Buffer.from(trimmed, 'base64');
         if (decoded.length > 0 && decoded.toString('base64') === trimmed) return true;
-      } catch { /* not base64 */ }
+      } catch {
+        /* not base64 */
+      }
       return false;
     },
   },

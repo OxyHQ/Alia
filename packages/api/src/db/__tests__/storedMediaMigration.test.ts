@@ -22,15 +22,12 @@ describe('the stored-media migration owns only Alia objects', () => {
     // The sole unanchored occurrence prefilters a JSON array's serialized text;
     // each element is still rewritten by the anchored expression above.
     expect(quotedPatterns.filter((pattern) => pattern === OWN_BUCKET_SCAN_PATTERN)).toHaveLength(1);
-    expect(new Set(quotedPatterns)).toEqual(
-      new Set([OWN_BUCKET_PATTERN, OWN_BUCKET_SCAN_PATTERN]),
-    );
+    expect(new Set(quotedPatterns)).toEqual(new Set([OWN_BUCKET_PATTERN, OWN_BUCKET_SCAN_PATTERN]));
   });
 
   it('strips Alia object addresses and preserves a foreign S3 avatar', () => {
     const ownKey = 'production/agents/avatar-123.png';
-    const ownAddress =
-      `https://oxy-alia-media-usw2-237343248947.s3.us-west-2.amazonaws.com/${ownKey}`;
+    const ownAddress = `https://oxy-alia-media-usw2-237343248947.s3.us-west-2.amazonaws.com/${ownKey}`;
     const foreignAddress =
       'https://customer-assets.s3.us-west-2.amazonaws.com/avatars/external.png';
     const pattern = new RegExp(OWN_BUCKET_PATTERN);

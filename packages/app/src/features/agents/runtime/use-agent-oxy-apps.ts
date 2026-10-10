@@ -46,7 +46,9 @@ export function useAgentOxyApps(agentId: string): AgentOxyApps {
     queryKey: key,
     queryFn: async (): Promise<AgentOxyApp[] | null> => {
       try {
-        const response = await apiClient.get<{ apps: AgentOxyApp[] }>(API_ROUTES.agents.oxyApps(agentId));
+        const response = await apiClient.get<{ apps: AgentOxyApp[] }>(
+          API_ROUTES.agents.oxyApps(agentId),
+        );
         return response.data.apps ?? [];
       } catch (error) {
         if (errorStatus(error) === 403) return null;
@@ -68,8 +70,11 @@ export function useAgentOxyApps(agentId: string): AgentOxyApps {
     onMutate: async ({ app, level }) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<AgentOxyApp[] | null>(key);
-      queryClient.setQueryData<AgentOxyApp[] | null>(key, (current) =>
-        current?.map((entry) => (entry.appId === app.appId ? { ...entry, level } : entry)) ?? current,
+      queryClient.setQueryData<AgentOxyApp[] | null>(
+        key,
+        (current) =>
+          current?.map((entry) => (entry.appId === app.appId ? { ...entry, level } : entry)) ??
+          current,
       );
       return { previous };
     },
@@ -78,8 +83,10 @@ export function useAgentOxyApps(agentId: string): AgentOxyApps {
       toast.error(t('agents.oxyApps.saveFailed', { app: app.name }));
     },
     onSuccess: (saved) => {
-      queryClient.setQueryData<AgentOxyApp[] | null>(key, (current) =>
-        current?.map((entry) => (entry.appId === saved.appId ? saved : entry)) ?? current,
+      queryClient.setQueryData<AgentOxyApp[] | null>(
+        key,
+        (current) =>
+          current?.map((entry) => (entry.appId === saved.appId ? saved : entry)) ?? current,
       );
     },
   });

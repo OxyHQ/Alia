@@ -272,8 +272,19 @@ function readMatrix(): MatrixRow[] {
   return rows.map((row, index) => {
     if (typeof row !== 'object' || row === null) throw new Error(`row ${index} is not an object`);
     const r = row as Record<string, unknown>;
-    for (const field of ['id', 'workstream', 'domain', 'kind', 'currentPath', 'reachable',
-      'owner', 'targetPath', 'removalGate', 'provenance', 'evidence']) {
+    for (const field of [
+      'id',
+      'workstream',
+      'domain',
+      'kind',
+      'currentPath',
+      'reachable',
+      'owner',
+      'targetPath',
+      'removalGate',
+      'provenance',
+      'evidence',
+    ]) {
       if (typeof r[field] !== 'string' || r[field] === '') {
         throw new Error(`row ${index} (${String(r.id)}): missing ${field}`);
       }
@@ -283,7 +294,9 @@ function readMatrix(): MatrixRow[] {
     // satisfy `'removedIn' in row` and exempt the row from the existence check
     // while recording nothing about who removed it.
     if (r.removedIn !== undefined && (typeof r.removedIn !== 'string' || r.removedIn === '')) {
-      throw new Error(`row ${index} (${String(r.id)}): removedIn is present but not a non-empty string`);
+      throw new Error(
+        `row ${index} (${String(r.id)}): removedIn is present but not a non-empty string`,
+      );
     }
     return row as MatrixRow;
   });

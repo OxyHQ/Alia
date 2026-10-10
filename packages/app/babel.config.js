@@ -10,11 +10,14 @@ module.exports = function (api) {
       ],
     ],
     plugins: [
-      ['module-resolver', {
-        root: ['./'],
-        alias: { '@': './src' },
-        extensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.svg'],
-      }],
+      [
+        'module-resolver',
+        {
+          root: ['./'],
+          alias: { '@': './src' },
+          extensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.svg'],
+        },
+      ],
       '@babel/plugin-syntax-dynamic-import',
       '@babel/plugin-transform-export-namespace-from',
       'react-native-worklets/plugin',

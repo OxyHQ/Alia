@@ -29,7 +29,12 @@ import type { ResolvedModel } from '../chat-core.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { recordEvent } from '../observability/index.js';
-import { writeTextChunk, writeStopChunk, writeContentChunk, makeChunk } from '../streaming-helpers.js';
+import {
+  writeTextChunk,
+  writeStopChunk,
+  writeContentChunk,
+  makeChunk,
+} from '../streaming-helpers.js';
 import type { SSEWriter } from './sse-writer.js';
 import { isInvalidToolCall, toolRoundTrip } from './tool-calls.js';
 
@@ -114,7 +119,7 @@ export interface RunStreamParams<TOOLS extends ToolSet> {
   requestId: string;
   modelId: string;
   resolved: ResolvedModel;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK config is dynamically extended; strict SDK param types don't support this pattern
+  // biome-ignore lint/suspicious/noExplicitAny: AI SDK config is dynamically extended; strict SDK param types don't support this pattern
   baseConfig: any;
   convertedMessages: ModelMessage[];
   toolNameMapping: Map<string, string>;
@@ -141,10 +146,22 @@ export interface RunStreamResult {
  * the provider loop's catch) on every `error` chunk the tool-free synthesis
  * retry does not recover, whether or not content was already streamed.
  */
-export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<TOOLS>): Promise<RunStreamResult> {
+export async function runStream<TOOLS extends ToolSet>(
+  params: RunStreamParams<TOOLS>,
+): Promise<RunStreamResult> {
   const {
-    result, res, sse, requestId, modelId, resolved, baseConfig,
-    convertedMessages, toolNameMapping, agentMessages, state, onFirstChunk,
+    result,
+    res,
+    sse,
+    requestId,
+    modelId,
+    resolved,
+    baseConfig,
+    convertedMessages,
+    toolNameMapping,
+    agentMessages,
+    state,
+    onFirstChunk,
   } = params;
 
   // Tool tracking for observability
@@ -170,10 +187,13 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
    * also the safe recovery for a provider error after tools ran.
    */
   const synthesizeCompletedToolResults = async (): Promise<boolean> => {
-    const completed = toolInvocations.filter(t => t.state === 'result');
+    const completed = toolInvocations.filter((t) => t.state === 'result');
     if (completed.length === 0 || res.writableEnded) return false;
 
-    const followUpMessages: ModelMessage[] = [...convertedMessages, ...completed.flatMap(toolRoundTrip)];
+    const followUpMessages: ModelMessage[] = [
+      ...convertedMessages,
+      ...completed.flatMap(toolRoundTrip),
+    ];
 
     const retryAbort = new AbortController();
     const retryTimer = setTimeout(() => retryAbort.abort(), 30_000);
@@ -222,10 +242,12 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       const thinkingMatch = chunk.text.match(/<thinking>([\s\S]*?)<\/thinking>/g);
       if (thinkingMatch) {
         // Send thinking content as named SSE event (non-standard, Alia extension)
-        thinkingMatch.forEach(match => {
+        thinkingMatch.forEach((match) => {
           const content = match.replace(/<\/?thinking>/g, '').trim();
           if (content) {
-            res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content })}\n\n`);
+            res.write(
+              `event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content })}\n\n`,
+            );
             log.v1.debug({ reasoningBytes: sizeForLog(content) }, 'Reasoning chunk (thinking tag)');
           }
         });
@@ -242,13 +264,18 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
 
       const reasoningText = chunk.text.trim();
       if (reasoningText) {
-        res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content: reasoningText })}\n\n`);
+        res.write(
+          `event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content: reasoningText })}\n\n`,
+        );
         log.v1.debug({ reasoningBytes: sizeForLog(reasoningText) }, 'Reasoning chunk (provider)');
       }
     } else if (chunk.type === 'tool-call') {
       // Neither this call nor the `tool-error` that follows it reaches the person.
       if (isInvalidToolCall(chunk)) {
-        log.v1.warn({ err: getErrorMessage(chunk.error), toolName: chunk.toolName }, 'Invalid tool call');
+        log.v1.warn(
+          { err: getErrorMessage(chunk.error), toolName: chunk.toolName },
+          'Invalid tool call',
+        );
         invalidToolCallIds.add(chunk.toolCallId);
         continue;
       }
@@ -259,13 +286,34 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
 
       // Log the tool call arguments being sent to the client
-      log.v1.debug({ toolName: originalToolName, argsBytes: sizeForLog(chunk.input) }, 'Streaming tool call');
+      log.v1.debug(
+        { toolName: originalToolName, argsBytes: sizeForLog(chunk.input) },
+        'Streaming tool call',
+      );
 
-      res.write(`data: ${JSON.stringify(makeChunk(requestId, modelId, [{
-        index: 0,
-        delta: { tool_calls: [{ index: 0, id: chunk.toolCallId, type: 'function', function: { name: originalToolName, arguments: JSON.stringify(chunk.input || {}) } }] },
-        finish_reason: null,
-      }]))}\n\n`);
+      res.write(
+        `data: ${JSON.stringify(
+          makeChunk(requestId, modelId, [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: chunk.toolCallId,
+                    type: 'function',
+                    function: {
+                      name: originalToolName,
+                      arguments: JSON.stringify(chunk.input || {}),
+                    },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ]),
+        )}\n\n`,
+      );
 
       // Track tool invocation for conversation save
       toolInvocations.push({
@@ -282,7 +330,12 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       // Tool iteration guard
       if (toolCallCount > MAX_TOOL_CALLS) {
         log.v1.warn({ toolCallCount, MAX_TOOL_CALLS }, 'Tool call limit exceeded, breaking stream');
-        recordEvent({ type: 'error', timestamp: Date.now(), code: 'TOOL_LIMIT_EXCEEDED', message: `Exceeded ${MAX_TOOL_CALLS} tool calls` });
+        recordEvent({
+          type: 'error',
+          timestamp: Date.now(),
+          code: 'TOOL_LIMIT_EXCEEDED',
+          message: `Exceeded ${MAX_TOOL_CALLS} tool calls`,
+        });
         break;
       }
     } else if (chunk.type === 'tool-result') {
@@ -290,25 +343,36 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       state.hasStreamedContent = true;
 
       const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
-      log.v1.debug({ toolName: originalToolName, outputBytes: sizeForLog(chunk.output) }, 'Tool result');
+      log.v1.debug(
+        { toolName: originalToolName, outputBytes: sizeForLog(chunk.output) },
+        'Tool result',
+      );
 
       // Record tool.call observability event
       const toolStart = toolTimers.get(chunk.toolCallId);
       if (toolStart) {
-        recordEvent({ type: 'tool.call', timestamp: Date.now(), toolName: originalToolName, durationMs: Date.now() - toolStart, success: true });
+        recordEvent({
+          type: 'tool.call',
+          timestamp: Date.now(),
+          toolName: originalToolName,
+          durationMs: Date.now() - toolStart,
+          success: true,
+        });
         toolTimers.delete(chunk.toolCallId);
       }
 
       // Stream tool result as named SSE event (non-standard, Alia extension)
-      res.write(`event: alia.tool_result\ndata: ${JSON.stringify({
-        eventVersion: 1,
-        tool_call_id: chunk.toolCallId,
-        name: originalToolName,
-        output: chunk.output,
-      })}\n\n`);
+      res.write(
+        `event: alia.tool_result\ndata: ${JSON.stringify({
+          eventVersion: 1,
+          tool_call_id: chunk.toolCallId,
+          name: originalToolName,
+          output: chunk.output,
+        })}\n\n`,
+      );
 
       // Update tool invocation state for conversation save
-      const existingIdx = toolInvocations.findIndex(t => t.toolCallId === chunk.toolCallId);
+      const existingIdx = toolInvocations.findIndex((t) => t.toolCallId === chunk.toolCallId);
       if (existingIdx >= 0) {
         toolInvocations[existingIdx].state = 'result';
         toolInvocations[existingIdx].result = chunk.output;
@@ -322,20 +386,31 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       }
 
       // Emit agent message as named SSE event (non-standard, Alia extension)
-      if (AGENT_ANSWER_TOOLS.has(originalToolName ?? '') && chunk.output && !(chunk.output as DelegateAgentToolOutput).error) {
+      if (
+        AGENT_ANSWER_TOOLS.has(originalToolName ?? '') &&
+        chunk.output &&
+        !(chunk.output as DelegateAgentToolOutput).error
+      ) {
         const ar = chunk.output as DelegateAgentToolOutput;
-        res.write(`event: alia.agent\ndata: ${JSON.stringify({
-          eventVersion: 1,
-          agentId: ar.agentId,
-          agentName: ar.agentName,
-          agentHandle: ar.agentHandle,
-          agentColor: ar.agentColor,
-          content: ar.response,
-        })}\n\n`);
+        res.write(
+          `event: alia.agent\ndata: ${JSON.stringify({
+            eventVersion: 1,
+            agentId: ar.agentId,
+            agentName: ar.agentName,
+            agentHandle: ar.agentHandle,
+            agentColor: ar.agentColor,
+            content: ar.response,
+          })}\n\n`,
+        );
         agentMessages.push({
           role: 'assistant',
           content: ar.response,
-          agentInfo: { id: ar.agentId, name: ar.agentName, color: ar.agentColor, handle: ar.agentHandle },
+          agentInfo: {
+            id: ar.agentId,
+            name: ar.agentName,
+            color: ar.agentColor,
+            handle: ar.agentHandle,
+          },
         });
       }
     } else if (chunk.type === 'tool-error') {
@@ -357,7 +432,11 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       log.v1.debug('Step started');
     } else if (chunk.type === 'text-start' || chunk.type === 'text-end') {
       // Text generation lifecycle events - no action needed
-    } else if (chunk.type === 'tool-input-start' || chunk.type === 'tool-input-end' || chunk.type === 'tool-input-delta') {
+    } else if (
+      chunk.type === 'tool-input-start' ||
+      chunk.type === 'tool-input-end' ||
+      chunk.type === 'tool-input-delta'
+    ) {
       // Tool input streaming events - no action needed
     } else if (chunk.type === 'source' || chunk.type === 'file' || chunk.type === 'raw') {
       // Source/file/raw events - no action needed
@@ -368,13 +447,19 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
 
       // If no content streamed yet, throw to trigger provider fallback
       if (!state.hasStreamedContent) {
-        log.v1.info({ provider: resolved.provider, modelId: resolved.modelId }, 'Stream error (no content sent), trying next provider');
+        log.v1.info(
+          { provider: resolved.provider, modelId: resolved.modelId },
+          'Stream error (no content sent), trying next provider',
+        );
         throw chunk.error;
       }
 
       // If only tool content was streamed (no text), retry synthesis with collected tool results
-      if (!hasStreamedText && toolInvocations.some(t => t.state === 'result')) {
-        log.v1.info({ provider: resolved.provider, modelId: resolved.modelId }, 'Synthesis failed after tool results, retrying without tools');
+      if (!hasStreamedText && toolInvocations.some((t) => t.state === 'result')) {
+        log.v1.info(
+          { provider: resolved.provider, modelId: resolved.modelId },
+          'Synthesis failed after tool results, retrying without tools',
+        );
         try {
           if (await synthesizeCompletedToolResults()) {
             writeStopChunk(res, requestId, modelId);
@@ -410,10 +495,10 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       if (
         !hasStreamedText &&
         agentMessages.length === 0 &&
-        toolInvocations.some(t => t.state === 'result')
+        toolInvocations.some((t) => t.state === 'result')
       ) {
         log.v1.info(
-          { toolResultCount: toolInvocations.filter(t => t.state === 'result').length },
+          { toolResultCount: toolInvocations.filter((t) => t.state === 'result').length },
           'Stream finished after tool results without an answer; synthesizing without tools',
         );
         try {

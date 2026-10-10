@@ -27,7 +27,8 @@ export function jsonSchemaToZod(schema: Record<string, any> | undefined, depth =
     for (const [key, propSchema] of Object.entries(properties)) {
       let zodProp = jsonSchemaToZod(propSchema as Record<string, any>, depth + 1);
 
-      const description: unknown = (propSchema as { description?: unknown } | null | undefined)?.description;
+      const description: unknown = (propSchema as { description?: unknown } | null | undefined)
+        ?.description;
       if (typeof description === 'string') {
         zodProp = zodProp.describe(description);
       }
@@ -66,7 +67,7 @@ export function jsonSchemaToZod(schema: Record<string, any> | undefined, depth =
     return z.union([
       jsonSchemaToZod(unionSchemas[0], depth + 1),
       jsonSchemaToZod(unionSchemas[1], depth + 1),
-      ...unionSchemas.slice(2).map(s => jsonSchemaToZod(s, depth + 1)),
+      ...unionSchemas.slice(2).map((s) => jsonSchemaToZod(s, depth + 1)),
     ] as [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]]);
   }
 

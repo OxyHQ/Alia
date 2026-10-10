@@ -29,10 +29,7 @@ vi.mock('../../../middleware/auth.js', () => ({
 
 import { findAgentById } from '../../../db/agents/agentRepository.js';
 import { findAgentReviewById } from '../../../db/agents/agentReviewRepository.js';
-import {
-  findReportedSkill,
-  type ModerationSkill,
-} from '../../../db/agents/skillRepository.js';
+import { findReportedSkill, type ModerationSkill } from '../../../db/agents/skillRepository.js';
 import { createAgentSubjectProvider } from '../subjects/agent-subject.js';
 import { createAgentReviewSubjectProvider } from '../subjects/agent-review-subject.js';
 import { createSkillSubjectProvider } from '../subjects/skill-subject.js';
@@ -42,8 +39,18 @@ import type { ModerationResource } from '../subjects/types.js';
 const BOT_ACCOUNT = '01996a6f-0000-7000-8000-00000000b07a';
 
 /** What Oxy says about {@link BOT_ACCOUNT}, as the default fixture. */
-function identity(overrides: Partial<{ username: string; displayName: string; avatar: string }> = {}) {
-  return [{ _id: BOT_ACCOUNT, username: 'helpful', displayName: 'Helpful Bot', avatar: 'file-1', ...overrides }];
+function identity(
+  overrides: Partial<{ username: string; displayName: string; avatar: string }> = {},
+) {
+  return [
+    {
+      _id: BOT_ACCOUNT,
+      username: 'helpful',
+      displayName: 'Helpful Bot',
+      avatar: 'file-1',
+      ...overrides,
+    },
+  ];
 }
 
 const findAgent = vi.mocked(findAgentById);
@@ -130,9 +137,7 @@ function assertContractValid(resource: ModerationResource): void {
     role: 'subject',
     sha256: `sha256:${'0'.repeat(64)}`,
     ...rest,
-    ...(createdAt === undefined
-      ? {}
-      : { createdAt: new Date(createdAt).toISOString() }),
+    ...(createdAt === undefined ? {} : { createdAt: new Date(createdAt).toISOString() }),
   });
   expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
 }

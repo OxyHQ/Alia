@@ -1,7 +1,7 @@
-import { useReducedMotion } from "react-native-reanimated";
-import SkillCoverCanvas from "./skill-cover-canvas";
-import SkillCoverStaticGrid from "./skill-cover-static";
-import type { SkillCoverCanvasProps } from "./skill-cover-palette";
+import { useReducedMotion } from 'react-native-reanimated';
+import SkillCoverCanvas from './skill-cover-canvas';
+import SkillCoverStaticGrid from './skill-cover-static';
+import type { SkillCoverCanvasProps } from './skill-cover-palette';
 
 /**
  * The animated cover — the ONE place motion is allowed in.

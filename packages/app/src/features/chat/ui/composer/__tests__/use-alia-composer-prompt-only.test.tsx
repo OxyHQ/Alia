@@ -22,26 +22,51 @@ vi.mock('@/features/chat/ui/composer/add-menu', () => ({
 }));
 const levels = vi.hoisted(() => ({ calls: [] as Array<{ devices?: boolean }> }));
 vi.mock('@/features/chat/ui/composer/power-level-options', () => ({
-  usePowerLevelSelector: (_stored: unknown, _onChange: unknown, options: { devices?: boolean } = {}) => {
+  usePowerLevelSelector: (
+    _stored: unknown,
+    _onChange: unknown,
+    options: { devices?: boolean } = {},
+  ) => {
     levels.calls.push(options);
     return {
-      modes: ['auto', 'instant', 'medium', 'high', 'xhigh', 'pro', 'ultra'].map((id) => ({ id, label: id, description: id, icon: () => null })),
+      modes: ['auto', 'instant', 'medium', 'high', 'xhigh', 'pro', 'ultra'].map((id) => ({
+        id,
+        label: id,
+        description: id,
+        icon: () => null,
+      })),
       mode: 'auto',
       onModeChange: () => {},
     };
   },
 }));
 vi.mock('@/features/chat/runtime/use-capability-modes', () => ({
-  useCapabilityModes: () => ({ active: { ghost: false, agent: false, deepResearch: false }, toggle: () => {} }),
+  useCapabilityModes: () => ({
+    active: { ghost: false, agent: false, deepResearch: false },
+    toggle: () => {},
+  }),
 }));
-vi.mock('@/features/connections/runtime/use-mcp-servers', () => ({ useMcpServers: () => ({ installed: [] }) }));
-vi.mock('@/features/skills/runtime/use-skills', () => ({ useInstalledSkills: () => ({ data: [] }) }));
-vi.mock('@/shared/i18n/use-translation', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock('@/features/connections/runtime/use-mcp-servers', () => ({
+  useMcpServers: () => ({ installed: [] }),
+}));
+vi.mock('@/features/skills/runtime/use-skills', () => ({
+  useInstalledSkills: () => ({ data: [] }),
+}));
+vi.mock('@/shared/i18n/use-translation', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 vi.mock('@/features/chat/runtime/model-store', () => {
-  const state = { selectedModel: 'm', setSelectedModel: () => {}, webSearch: false, setWebSearch: () => {} };
+  const state = {
+    selectedModel: 'm',
+    setSelectedModel: () => {},
+    webSearch: false,
+    setWebSearch: () => {},
+  };
   return { useModelStore: (selector: (s: typeof state) => unknown) => selector(state) };
 });
-vi.mock('@/features/chat/runtime/ui-store', () => ({ useUIStore: { getState: () => ({ setRightPanel: () => {} }) } }));
+vi.mock('@/features/chat/runtime/ui-store', () => ({
+  useUIStore: { getState: () => ({ setRightPanel: () => {} }) },
+}));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { info: () => {} } }));
 vi.mock('@oxy.so/bloom/icons/RiChat3Line', () => ({ RiChat3Line: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiRobot2Line', () => ({ RiRobot2Line: () => null }));
@@ -76,7 +101,15 @@ describe('a surface that sends a whole turn', () => {
     expect(props.onAddAttachment).toBeTypeOf('function');
     expect(props.attachments).toEqual([]);
     // The mode pill is the power level: the seven levels, and no model picker.
-    expect(props.modes?.map((mode) => mode.id)).toEqual(['auto', 'instant', 'medium', 'high', 'xhigh', 'pro', 'ultra']);
+    expect(props.modes?.map((mode) => mode.id)).toEqual([
+      'auto',
+      'instant',
+      'medium',
+      'high',
+      'xhigh',
+      'pro',
+      'ultra',
+    ]);
     expect(props.mode).toBe('auto');
     expect(props).not.toHaveProperty('providers');
     // The person's own device models are offered where a turn can run on them.

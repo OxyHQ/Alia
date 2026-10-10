@@ -20,12 +20,13 @@ async function probe(
   }));
   vi.doMock('../../lib/task-queue.js', () => ({ isQueueActive: () => true }));
   vi.doMock('../../lib/inference/oxy-inference.js', () => ({
-    unsetOxyInferenceVariables: () => options.inferenceConfigured === false ? ['credential'] : [],
+    unsetOxyInferenceVariables: () => (options.inferenceConfigured === false ? ['credential'] : []),
   }));
 
   const { default: router } = await import('../health.js');
   const layer = router.stack.find((candidate) => candidate.route?.path === route);
-  if (layer?.route?.stack[0]?.handle === undefined) throw new Error(`missing health route ${route}`);
+  if (layer?.route?.stack[0]?.handle === undefined)
+    throw new Error(`missing health route ${route}`);
 
   let status = 200;
   let body: Record<string, unknown> = {};

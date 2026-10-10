@@ -52,7 +52,10 @@ export function resolveModeSelection(
   deviceModelIds: readonly string[] | undefined,
 ): ModeSelection {
   if (isPowerLevel(stored)) return { shown: stored, send: stored, source: 'requested' };
-  if (isDeviceModelId(stored) && (deviceModelIds === undefined || deviceModelIds.includes(stored))) {
+  if (
+    isDeviceModelId(stored) &&
+    (deviceModelIds === undefined || deviceModelIds.includes(stored))
+  ) {
     return { shown: stored, send: stored, source: 'requested' };
   }
   return {

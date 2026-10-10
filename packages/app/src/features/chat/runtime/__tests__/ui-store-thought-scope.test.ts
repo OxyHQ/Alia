@@ -24,7 +24,11 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 const { useUIStore } = await import('@/features/chat/runtime/ui-store');
 type ThoughtScope = NonNullable<ReturnType<typeof useUIStore.getState>['thoughtScope']>;
 
-const scope = (conversationId: string | null, ids: string[], partial: Partial<ThoughtScope> = {}): ThoughtScope => ({
+const scope = (
+  conversationId: string | null,
+  ids: string[],
+  partial: Partial<ThoughtScope> = {},
+): ThoughtScope => ({
   conversationId,
   messages: ids.map((id) => ({ id, role: 'assistant' as const, content: '' })),
   status: 'ready',
@@ -34,7 +38,12 @@ const scope = (conversationId: string | null, ids: string[], partial: Partial<Th
 });
 
 beforeEach(() => {
-  useUIStore.setState({ rightPanel: null, thoughtMessageId: null, thoughtScope: null, thoughtTab: 'steps' });
+  useUIStore.setState({
+    rightPanel: null,
+    thoughtMessageId: null,
+    thoughtScope: null,
+    thoughtTab: 'steps',
+  });
 });
 
 describe('openThoughtPanel', () => {

@@ -212,11 +212,7 @@ export function PersonalizationSection() {
     <View className="w-full gap-6">
       <SettingsCard>
         {rows.map((row) => (
-          <SettingsRow
-            key={row.key}
-            label={row.label}
-            description={row.description}
-          >
+          <SettingsRow key={row.key} label={row.label} description={row.description}>
             {row.control}
           </SettingsRow>
         ))}
@@ -224,11 +220,7 @@ export function PersonalizationSection() {
       <SettingsCard>
         {FIELDS.filter((field) => !field.multiline).map(
           ({ key, titleKey, descriptionKey, placeholderKey }) => (
-            <SettingsRow
-              key={key}
-              label={t(titleKey)}
-              description={t(descriptionKey)}
-            >
+            <SettingsRow key={key} label={t(titleKey)} description={t(descriptionKey)}>
               <SettingsTextField
                 label={t(titleKey)}
                 placeholder={t(placeholderKey)}
@@ -242,11 +234,7 @@ export function PersonalizationSection() {
       </SettingsCard>
       {FIELDS.filter((field) => field.multiline).map(
         ({ key, titleKey, descriptionKey, placeholderKey }) => (
-          <SettingsSection
-            key={key}
-            label={t(titleKey)}
-            description={t(descriptionKey)}
-          >
+          <SettingsSection key={key} label={t(titleKey)} description={t(descriptionKey)}>
             <Textarea
               accessibilityLabel={t(titleKey)}
               placeholder={t(placeholderKey)}
@@ -261,10 +249,7 @@ export function PersonalizationSection() {
       )}
       <SettingsCard>
         <SettingsRow label={t('settings.saveButton')}>
-          <ButtonGroup
-            size="sm"
-            accessibilityLabel={t('settings.saveButton')}
-          >
+          <ButtonGroup size="sm" accessibilityLabel={t('settings.saveButton')}>
             <ButtonGroupItem onPress={handleCancel} disabled={saving}>
               {t('common.cancel')}
             </ButtonGroupItem>

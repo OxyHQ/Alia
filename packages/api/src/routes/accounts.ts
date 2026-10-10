@@ -35,7 +35,11 @@ const router = express.Router();
 const INTEGRATIONS_URL = process.env.INTEGRATIONS_URL;
 const INTEGRATIONS_SECRET = process.env.INTEGRATIONS_SECRET;
 
-const requireIntegrations = (_req: express.Request, res: express.Response, next: express.NextFunction): void => {
+const requireIntegrations = (
+  _req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+): void => {
   if (!INTEGRATIONS_URL || !INTEGRATIONS_SECRET) {
     res.status(503).json({ error: 'Integrations service not configured' });
     return;
@@ -65,7 +69,7 @@ async function proxyToIntegrations(
         data = await response.json();
       } catch {
         if (attempt < MAX_ATTEMPTS - 1) {
-          await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
+          await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
           continue;
         }
         res.status(502).json({ error: `${label}: non-JSON response` });
@@ -73,16 +77,19 @@ async function proxyToIntegrations(
       }
 
       if (response.status >= 500 && attempt < MAX_ATTEMPTS - 1) {
-        await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
+        await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
         continue;
       }
 
       res.status(response.status).json(data);
       return;
     } catch (error: unknown) {
-      log.channels.error({ err: error, label, attempt: attempt + 1, maxAttempts: MAX_ATTEMPTS }, 'Integrations proxy error');
+      log.channels.error(
+        { err: error, label, attempt: attempt + 1, maxAttempts: MAX_ATTEMPTS },
+        'Integrations proxy error',
+      );
       if (attempt < MAX_ATTEMPTS - 1) {
-        await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
+        await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
         continue;
       }
       res.status(502).json({ error: `Failed: ${label}` });
@@ -113,7 +120,10 @@ const PLATFORM_PATHS = new Map<string, string>([
 ]);
 
 // OAuth state store for Gmail connect flow
-const gmailOAuthStates = new Map<string, { userId: string; accountId: string; expiresAt: number }>();
+const gmailOAuthStates = new Map<
+  string,
+  { userId: string; accountId: string; expiresAt: number }
+>();
 setInterval(() => {
   const now = Date.now();
   for (const [key, value] of gmailOAuthStates) {
@@ -142,16 +152,20 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // List accounts for a specific platform
-router.get('/:platform', authenticateToken, async (req: express.Request<{ platform: string }>, res) => {
-  try {
-    const { platform } = req.params;
-    const accounts = await listConnectedAccountsForUser(getDb(), req.userId!, platform);
-    res.json({ accounts });
-  } catch (error: unknown) {
-    log.channels.error({ err: error }, 'List platform accounts error');
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+router.get(
+  '/:platform',
+  authenticateToken,
+  async (req: express.Request<{ platform: string }>, res) => {
+    try {
+      const { platform } = req.params;
+      const accounts = await listConnectedAccountsForUser(getDb(), req.userId!, platform);
+      res.json({ accounts });
+    } catch (error: unknown) {
+      log.channels.error({ err: error }, 'List platform accounts error');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
 
 // Gmail OAuth connect — returns OAuth URL for Google authorization
 router.post('/gmail/connect', authenticateToken, async (req, res) => {
@@ -239,7 +253,7 @@ router.get('/gmail/callback', async (req, res) => {
       signal: AbortSignal.timeout(10_000),
     });
 
-    const tokenData = await tokenResponse.json() as {
+    const tokenData = (await tokenResponse.json()) as {
       access_token?: string;
       refresh_token?: string;
       expires_in?: number;
@@ -256,7 +270,7 @@ router.get('/gmail/callback', async (req, res) => {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
       signal: AbortSignal.timeout(5_000),
     });
-    const profile = await profileResponse.json() as { email?: string; name?: string };
+    const profile = (await profileResponse.json()) as { email?: string; name?: string };
     const email = profile.email || 'unknown';
 
     // Update the ConnectedAccount. The four OAuth columns are written together,
@@ -296,7 +310,7 @@ router.get('/gmail/callback', async (req, res) => {
               signal: AbortSignal.timeout(10_000),
             },
           );
-          const sessionData = await sessionResponse.json() as { sessionId?: string };
+          const sessionData = (await sessionResponse.json()) as { sessionId?: string };
           if (sessionData.sessionId) {
             await setConnectedAccountSession(getDb(), account.id, sessionData.sessionId);
           }
@@ -404,7 +418,9 @@ router.get('/:id/status', authenticateToken, async (req: express.Request<{ id: s
             // not erase the stored one.
             // Only a status this table can hold: the reply is another
             // service's JSON, and the column is CHECK-constrained.
-            const liveStatus = CONNECTED_ACCOUNT_STATUSES.find((known) => known === statusData.status);
+            const liveStatus = CONNECTED_ACCOUNT_STATUSES.find(
+              (known) => known === statusData.status,
+            );
             if (liveStatus && liveStatus !== account.status) {
               const becameConnected = liveStatus === 'connected' && !account.connectedAt;
               const synced = await setConnectedAccountStatus(db, account.id, {
@@ -477,11 +493,14 @@ router.post('/:id/disconnect', ...authed, async (req: express.Request<{ id: stri
       const servicePath = PLATFORM_PATHS.get(account.platform);
       if (servicePath) {
         try {
-          await fetch(`${INTEGRATIONS_URL}/${servicePath}/sessions/${account.sessionId}/disconnect`, {
-            method: 'POST',
-            headers: { 'X-Gateway-Secret': INTEGRATIONS_SECRET! },
-            signal: AbortSignal.timeout(10_000),
-          });
+          await fetch(
+            `${INTEGRATIONS_URL}/${servicePath}/sessions/${account.sessionId}/disconnect`,
+            {
+              method: 'POST',
+              headers: { 'X-Gateway-Secret': INTEGRATIONS_SECRET! },
+              signal: AbortSignal.timeout(10_000),
+            },
+          );
         } catch {
           // Continue even if integrations service fails
         }
@@ -524,31 +543,35 @@ router.get('/:id/chats', ...authed, async (req: express.Request<{ id: string }>,
 });
 
 // Get messages from a chat
-router.get('/:id/chats/:chatId/messages', ...authed, async (req: express.Request<{ id: string; chatId: string }>, res) => {
-  try {
-    const account = await findConnectedAccountForUser(getDb(), req.params.id, req.userId!);
+router.get(
+  '/:id/chats/:chatId/messages',
+  ...authed,
+  async (req: express.Request<{ id: string; chatId: string }>, res) => {
+    try {
+      const account = await findConnectedAccountForUser(getDb(), req.params.id, req.userId!);
 
-    if (!account || !account.sessionId) {
-      return res.status(404).json({ error: 'Account not found or not connected' });
+      if (!account || !account.sessionId) {
+        return res.status(404).json({ error: 'Account not found or not connected' });
+      }
+
+      const servicePath = PLATFORM_PATHS.get(account.platform);
+      if (!servicePath) {
+        return res.status(400).json({ error: 'Platform does not support messages' });
+      }
+
+      const limit = String(req.query.limit || '20');
+      await proxyToIntegrations(
+        res,
+        `/${servicePath}/sessions/${account.sessionId}/chats/${encodeURIComponent(req.params.chatId)}/messages?limit=${limit}`,
+        undefined,
+        `${account.platform} messages`,
+      );
+    } catch (error: unknown) {
+      log.channels.error({ err: error }, 'Get messages error');
+      res.status(500).json({ error: 'Internal server error' });
     }
-
-    const servicePath = PLATFORM_PATHS.get(account.platform);
-    if (!servicePath) {
-      return res.status(400).json({ error: 'Platform does not support messages' });
-    }
-
-    const limit = String(req.query.limit || '20');
-    await proxyToIntegrations(
-      res,
-      `/${servicePath}/sessions/${account.sessionId}/chats/${encodeURIComponent(req.params.chatId)}/messages?limit=${limit}`,
-      undefined,
-      `${account.platform} messages`,
-    );
-  } catch (error: unknown) {
-    log.channels.error({ err: error }, 'Get messages error');
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+  },
+);
 
 // Send message via connected account
 router.post('/:id/send', ...authed, async (req: express.Request<{ id: string }>, res) => {
@@ -581,40 +604,44 @@ router.post('/:id/send', ...authed, async (req: express.Request<{ id: string }>,
 });
 
 // Update account settings (auto-reply, context, tools, etc.)
-router.patch('/:id/settings', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
-  try {
-    const {
-      autoReply,
-      autoReplyAgentId,
-      customContext,
-      allowedTools,
-      blockedTools,
-      allowedSkillIds,
-    } = req.body;
+router.patch(
+  '/:id/settings',
+  authenticateToken,
+  async (req: express.Request<{ id: string }>, res) => {
+    try {
+      const {
+        autoReply,
+        autoReplyAgentId,
+        customContext,
+        allowedTools,
+        blockedTools,
+        allowedSkillIds,
+      } = req.body;
 
-    // Each clearable field maps a falsy-but-PRESENT value to an explicit `null`.
-    // Mongo unset a field assigned `undefined`; drizzle would silently skip it,
-    // so `autoReplyAgentId: null` from the client would have left the agent
-    // bound while the UI showed it cleared.
-    const account = await updateConnectedAccountSettings(getDb(), req.params.id, req.userId!, {
-      autoReply,
-      autoReplyAgentId,
-      customContext,
-      allowedTools,
-      blockedTools,
-      allowedSkillIds,
-    });
+      // Each clearable field maps a falsy-but-PRESENT value to an explicit `null`.
+      // Mongo unset a field assigned `undefined`; drizzle would silently skip it,
+      // so `autoReplyAgentId: null` from the client would have left the agent
+      // bound while the UI showed it cleared.
+      const account = await updateConnectedAccountSettings(getDb(), req.params.id, req.userId!, {
+        autoReply,
+        autoReplyAgentId,
+        customContext,
+        allowedTools,
+        blockedTools,
+        allowedSkillIds,
+      });
 
-    if (!account) {
-      return res.status(404).json({ error: 'Account not found' });
+      if (!account) {
+        return res.status(404).json({ error: 'Account not found' });
+      }
+
+      res.json({ account });
+    } catch (error: unknown) {
+      log.channels.error({ err: error }, 'Update settings error');
+      res.status(500).json({ error: 'Internal server error' });
     }
-
-    res.json({ account });
-  } catch (error: unknown) {
-    log.channels.error({ err: error }, 'Update settings error');
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+  },
+);
 
 // Delete account
 router.delete('/:id', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
@@ -630,11 +657,14 @@ router.delete('/:id', authenticateToken, async (req: express.Request<{ id: strin
       const servicePath = PLATFORM_PATHS.get(account.platform);
       if (servicePath) {
         try {
-          await fetch(`${INTEGRATIONS_URL}/${servicePath}/sessions/${account.sessionId}/disconnect`, {
-            method: 'POST',
-            headers: { 'X-Gateway-Secret': INTEGRATIONS_SECRET! },
-            signal: AbortSignal.timeout(10_000),
-          });
+          await fetch(
+            `${INTEGRATIONS_URL}/${servicePath}/sessions/${account.sessionId}/disconnect`,
+            {
+              method: 'POST',
+              headers: { 'X-Gateway-Secret': INTEGRATIONS_SECRET! },
+              signal: AbortSignal.timeout(10_000),
+            },
+          );
         } catch {
           // Best effort
         }

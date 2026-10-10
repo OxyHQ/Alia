@@ -25,12 +25,19 @@ describe('model store persisted-state migration (v4: power levels)', () => {
     [null, 3],
     [undefined, 2],
   ])('turns the stored model %s (v%s) into auto', (selectedModel, version) => {
-    expect(migrateModelState({ selectedModel, reasoningEffort: null, webSearch: true }, version).selectedLevel).toBe('auto');
+    expect(
+      migrateModelState({ selectedModel, reasoningEffort: null, webSearch: true }, version)
+        .selectedLevel,
+    ).toBe('auto');
   });
 
-  it('keeps a model running on the person\'s own device', () => {
-    expect(migrateModelState({ selectedModel: 'local/ollama/llama' }, 3).selectedLevel).toBe('local/ollama/llama');
-    expect(migrateModelState({ selectedModel: 'local/ollama/llama' }, 2).selectedLevel).toBe('local/ollama/llama');
+  it("keeps a model running on the person's own device", () => {
+    expect(migrateModelState({ selectedModel: 'local/ollama/llama' }, 3).selectedLevel).toBe(
+      'local/ollama/llama',
+    );
+    expect(migrateModelState({ selectedModel: 'local/ollama/llama' }, 2).selectedLevel).toBe(
+      'local/ollama/llama',
+    );
   });
 
   it.each([
@@ -42,11 +49,15 @@ describe('model store persisted-state migration (v4: power levels)', () => {
     ['high', 'auto'],
     [null, 'auto'],
   ])('maps the pre-v3 effort %s to the level %s', (reasoningEffort, expected) => {
-    expect(migrateModelState({ selectedModel: AUTO, reasoningEffort }, 2).selectedLevel).toBe(expected);
+    expect(migrateModelState({ selectedModel: AUTO, reasoningEffort }, 2).selectedLevel).toBe(
+      expected,
+    );
   });
 
   it('does not read v3 efforts as levels: v3 had already collapsed max into high', () => {
-    expect(migrateModelState({ selectedModel: 'acme/model', reasoningEffort: 'high' }, 3).selectedLevel).toBe('auto');
+    expect(
+      migrateModelState({ selectedModel: 'acme/model', reasoningEffort: 'high' }, 3).selectedLevel,
+    ).toBe('auto');
   });
 
   it('keeps a v4 level and a v4 device model, and repairs an unknown one', () => {
@@ -54,14 +65,21 @@ describe('model store persisted-state migration (v4: power levels)', () => {
       selectedLevel: 'xhigh',
       webSearch: false,
     });
-    expect(migrateModelState({ selectedLevel: 'local/lm/qwen' }, 4).selectedLevel).toBe('local/lm/qwen');
+    expect(migrateModelState({ selectedLevel: 'local/lm/qwen' }, 4).selectedLevel).toBe(
+      'local/lm/qwen',
+    );
     expect(migrateModelState({ selectedLevel: 'acme/model' }, 4).selectedLevel).toBe('auto');
   });
 
   it('keeps web search, drops effort and pins, and survives a malformed state', () => {
     expect(
       migrateModelState(
-        { selectedModel: 'a/b', reasoningEffort: 'low', webSearch: false, pinnedModels: ['a/b', legacy('route', 'pro'), 3] },
+        {
+          selectedModel: 'a/b',
+          reasoningEffort: 'low',
+          webSearch: false,
+          pinnedModels: ['a/b', legacy('route', 'pro'), 3],
+        },
         3,
       ),
     ).toEqual({ selectedLevel: 'auto', webSearch: false });

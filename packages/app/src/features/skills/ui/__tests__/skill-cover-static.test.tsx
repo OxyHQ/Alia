@@ -118,7 +118,10 @@ function isHost(node: ReactTestInstance, name: string): boolean {
 
 /** Host nodes that would only exist if a Skia canvas had mounted. */
 function canvasNodes(root: ReactTestInstance): ReactTestInstance[] {
-  return root.findAll((node) => typeof node.type === 'string' && /^(Canvas|Rect|RoundedRect|Group|Shadow)$/.test(node.type));
+  return root.findAll(
+    (node) =>
+      typeof node.type === 'string' && /^(Canvas|Rect|RoundedRect|Group|Shadow)$/.test(node.type),
+  );
 }
 
 function covers(root: ReactTestInstance): ReactTestInstance[] {
@@ -136,7 +139,10 @@ describe('the web cover facade', () => {
     const { root } = render(React.createElement(WebCanvas, props));
 
     const cells = root.findAll(
-      (node) => isHost(node, 'View') && typeof node.props.style?.backgroundColor === 'string' && node.props.style?.width === props.cellW,
+      (node) =>
+        isHost(node, 'View') &&
+        typeof node.props.style?.backgroundColor === 'string' &&
+        node.props.style?.width === props.cellW,
     );
     expect(cells).toHaveLength(CELLS);
     expect(cells.map((cell) => cell.props.style.backgroundColor)).toEqual(props.staticColors);
@@ -150,10 +156,14 @@ describe('the web cover facade', () => {
     // could see a skia import in it either.
     // Comments are allowed to NAME what the code must not import.
     const code = (path: string) =>
-      readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8').replace(/^\s*\/\/.*$/gm, '');
+      readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8').replace(
+        /^\s*\/\/.*$/gm,
+        '',
+      );
     const facade = code('../skill-cover-canvas.web.tsx');
     const grid = code('../skill-cover-static.tsx');
-    const importsSkia = /from\s+["']@shopify\/react-native-skia|import\(\s*["'][^"']*skia|require\(\s*["'][^"']*skia|canvaskit/;
+    const importsSkia =
+      /from\s+["']@shopify\/react-native-skia|import\(\s*["'][^"']*skia|require\(\s*["'][^"']*skia|canvaskit/;
     expect(facade).not.toMatch(importsSkia);
     expect(grid).not.toMatch(importsSkia);
     expect(grid).not.toMatch(/from\s+["'](react-native-reanimated|expo-blur)["']/);
@@ -182,7 +192,9 @@ describe('the catalogue cover', () => {
     expect(canvasNodes(root)).toHaveLength(0);
     // Every cover carries its full grid, so the fallback is the real picture
     // and not a placeholder waiting for a runtime.
-    const cells = root.findAll((node) => isHost(node, 'View') && node.props.style?.width === 110 / GRID_SIZE);
+    const cells = root.findAll(
+      (node) => isHost(node, 'View') && node.props.style?.width === 110 / GRID_SIZE,
+    );
     expect(cells).toHaveLength(60 * CELLS);
     // The title scrim is a gradient, never a blur view.
     expect(root.findAll((node) => isHost(node, 'BlurView'))).toHaveLength(0);
@@ -191,15 +203,23 @@ describe('the catalogue cover', () => {
   });
 
   it('keeps a readable title without any renderer', () => {
-    const { root } = render(React.createElement(SkillCover, { seed: 'plain', title: 'Plain title', author: 'me' }));
+    const { root } = render(
+      React.createElement(SkillCover, { seed: 'plain', title: 'Plain title', author: 'me' }),
+    );
     const texts = root.findAll((node) => isHost(node, 'Text')).map((node) => node.props.children);
     expect(texts).toContain('Plain title');
     expect(texts).toContain('me');
-    expect(root.findAll((node) => isHost(node, 'View') && node.props.accessibilityLabel === 'Plain title')).toHaveLength(1);
+    expect(
+      root.findAll(
+        (node) => isHost(node, 'View') && node.props.accessibilityLabel === 'Plain title',
+      ),
+    ).toHaveLength(1);
   });
 
   it('ignores the animated opt-in on web, so the animated module is never fetched', () => {
-    const { root } = render(React.createElement(SkillCover, { seed: 'focused', title: 'Focused', animated: true }));
+    const { root } = render(
+      React.createElement(SkillCover, { seed: 'focused', title: 'Focused', animated: true }),
+    );
     expect(covers(root)).toHaveLength(1);
     expect(canvasNodes(root)).toHaveLength(0);
     // No Suspense boundary was even entered: the static grid is the content.

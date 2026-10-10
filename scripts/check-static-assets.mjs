@@ -49,12 +49,23 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const rootFlag = process.argv.indexOf('--root');
-const root = rootFlag === -1
-  ? resolve(dirname(fileURLToPath(import.meta.url)), '..')
-  : resolve(process.argv[rootFlag + 1] ?? '.');
+const root =
+  rootFlag === -1
+    ? resolve(dirname(fileURLToPath(import.meta.url)), '..')
+    : resolve(process.argv[rootFlag + 1] ?? '.');
 
 /** Walked, not listed — see the header. */
-const SKIP = new Set(['node_modules', '.git', '.worktrees', 'dist', 'build', '.expo', 'coverage', 'ios', 'android']);
+const SKIP = new Set([
+  'node_modules',
+  '.git',
+  '.worktrees',
+  'dist',
+  'build',
+  '.expo',
+  'coverage',
+  'ios',
+  'android',
+]);
 const SOURCE = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
 
 /**
@@ -68,7 +79,7 @@ const ASSET = String.raw`png|jpe?g|webp|gif|svg|avif|ttf|otf|woff2?|mp3|wav|m4a|
 /** `require('…')` and `from '…'`, for a path ending in one of those. */
 const REFERENCES = new RegExp(
   String.raw`(?:require\(\s*|from\s*)(['"])([^'"]+\.(?:${ASSET}))\1`,
-  'g'
+  'g',
 );
 
 /** Where `@/` points, per package that declares it. Only the app does today. */
@@ -147,5 +158,5 @@ if (missing.length > 0) {
 
 console.log(
   `check-static-assets: OK — ${String(referenced.length)} asset references across ` +
-    `${String(files.length)} source files, every one resolves.`
+    `${String(files.length)} source files, every one resolves.`,
 );

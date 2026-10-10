@@ -58,15 +58,14 @@ export async function executeSubtasks(
   opts: ExecutorPoolOptions,
 ): Promise<ExecutorResult[]> {
   const results = new Map<number, ExecutorResult>();
-  const pending = new Set(subtasks.map(s => s.id));
+  const pending = new Set(subtasks.map((s) => s.id));
   const running = new Map<number, Promise<ExecutorResult>>();
 
   while (pending.size > 0 || running.size > 0) {
     // Find subtasks whose dependencies are all satisfied
-    const ready = subtasks.filter(s =>
-      pending.has(s.id) &&
-      !running.has(s.id) &&
-      s.dependsOn.every(dep => results.has(dep)),
+    const ready = subtasks.filter(
+      (s) =>
+        pending.has(s.id) && !running.has(s.id) && s.dependsOn.every((dep) => results.has(dep)),
     );
 
     // Launch ready subtasks up to concurrency limit
@@ -87,9 +86,12 @@ export async function executeSubtasks(
 
     if (running.size === 0 && pending.size > 0) {
       // Deadlock: remaining tasks have unsatisfied dependencies
-      log.agents.warn({ pending: [...pending] }, 'ExecutorPool: deadlock detected, forcing remaining tasks');
+      log.agents.warn(
+        { pending: [...pending] },
+        'ExecutorPool: deadlock detected, forcing remaining tasks',
+      );
       for (const id of pending) {
-        const subtask = subtasks.find(s => s.id === id)!;
+        const subtask = subtasks.find((s) => s.id === id)!;
         const promise = executeSubtask(subtask, opts, results);
         running.set(id, promise);
         pending.delete(id);
@@ -99,21 +101,25 @@ export async function executeSubtasks(
     // Wait for at least one to complete
     if (running.size > 0) {
       const settled = await Promise.race(
-        [...running.entries()].map(([id, p]) => p.then(r => ({ id, result: r }))),
+        [...running.entries()].map(([id, p]) => p.then((r) => ({ id, result: r }))),
       );
 
       results.set(settled.id, settled.result);
       running.delete(settled.id);
 
       log.agents.info(
-        { subtaskId: settled.id, success: settled.result.success, durationMs: settled.result.durationMs },
+        {
+          subtaskId: settled.id,
+          success: settled.result.success,
+          durationMs: settled.result.durationMs,
+        },
         'ExecutorPool: subtask completed',
       );
     }
   }
 
   // Return results in subtask order
-  return subtasks.map(s => results.get(s.id)!).filter(Boolean);
+  return subtasks.map((s) => results.get(s.id)!).filter(Boolean);
 }
 
 async function executeSubtask(
@@ -126,9 +132,9 @@ async function executeSubtask(
   try {
     // Build context from dependency results
     const depContext = subtask.dependsOn
-      .map(depId => previousResults.get(depId))
+      .map((depId) => previousResults.get(depId))
       .filter(Boolean)
-      .map(r => `[Result from "${r!.subtask}"]: ${r!.result.slice(0, 500)}`)
+      .map((r) => `[Result from "${r!.subtask}"]: ${r!.result.slice(0, 500)}`)
       .join('\n');
 
     const taskWithContext = depContext
@@ -147,7 +153,8 @@ async function executeSubtask(
     }
 
     // Determine resource limits based on complexity
-    const stepsMultiplier = subtask.complexity === 'light' ? 0.3 : subtask.complexity === 'medium' ? 0.6 : 1;
+    const stepsMultiplier =
+      subtask.complexity === 'light' ? 0.3 : subtask.complexity === 'medium' ? 0.6 : 1;
     const maxSteps = Math.max(5, Math.floor(opts.maxStepsPerExecutor * stepsMultiplier));
     const maxTokens = Math.max(5000, Math.floor(opts.maxTokensPerExecutor * stepsMultiplier));
 

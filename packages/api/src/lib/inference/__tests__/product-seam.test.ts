@@ -3,10 +3,7 @@ import ts from 'typescript';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import {
-  ALIA_BILLING_MODES,
-  ALIA_INFERENCE_SURFACES,
-} from '../product-seam.js';
+import { ALIA_BILLING_MODES, ALIA_INFERENCE_SURFACES } from '../product-seam.js';
 
 /**
  * The anti-drift gate for the Alia-side inference seam — epic #139 workstream 3.
@@ -52,10 +49,18 @@ const seam = ts.createSourceFile(SEAM_PATH, sourceText, ts.ScriptTarget.Latest, 
 function moduleRefs(sf: ts.SourceFile): string[] {
   const out: string[] = [];
   const visit = (n: ts.Node): void => {
-    if ((ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) && n.moduleSpecifier && ts.isStringLiteral(n.moduleSpecifier)) {
+    if (
+      (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) &&
+      n.moduleSpecifier &&
+      ts.isStringLiteral(n.moduleSpecifier)
+    ) {
       out.push(n.moduleSpecifier.text);
     }
-    if (ts.isImportTypeNode(n) && ts.isLiteralTypeNode(n.argument) && ts.isStringLiteral(n.argument.literal)) {
+    if (
+      ts.isImportTypeNode(n) &&
+      ts.isLiteralTypeNode(n.argument) &&
+      ts.isStringLiteral(n.argument.literal)
+    ) {
       out.push(n.argument.literal.text);
     }
     if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword) {
@@ -138,7 +143,8 @@ function typeReferenceNames(node: ts.Node): Set<string> {
  * identical clean result as a seam that is clean.
  */
 describe('the extractors recognise every form they claim to handle', () => {
-  const parse = (text: string) => ts.createSourceFile('probe.ts', text, ts.ScriptTarget.Latest, true);
+  const parse = (text: string) =>
+    ts.createSourceFile('probe.ts', text, ts.ScriptTarget.Latest, true);
 
   const refCases: readonly [string, string][] = [
     [`import { A } from 'x1';`, 'x1'],
@@ -160,7 +166,9 @@ describe('the extractors recognise every form they claim to handle', () => {
     // the seam's doc comment names it too. Comments are trivia to the parser and
     // never appear as a StringLiteral, which is why this is an AST walk and not
     // a grep — `grep` is line-based and would count both.
-    expect(moduleRefs(parse(`// import { A } from '@oxy.so/contracts';\nconst x = 1;`))).toEqual([]);
+    expect(moduleRefs(parse(`// import { A } from '@oxy.so/contracts';\nconst x = 1;`))).toEqual(
+      [],
+    );
   });
 
   it('finds an exported declaration of each kind, and skips unexported ones', () => {

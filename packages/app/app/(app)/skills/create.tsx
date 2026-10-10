@@ -45,18 +45,15 @@ export default function CreateSkillScreen() {
       toast.success(t('skills.created'));
       router.replace(`/(app)/skills/edit/${skill._id}`);
     } catch (error) {
-      const message = (
-        error as { response?: { data?: { error?: { message?: string } } } }
-      ).response?.data?.error?.message;
+      const message = (error as { response?: { data?: { error?: { message?: string } } } }).response
+        ?.data?.error?.message;
       toast.error(message ?? t('skills.generateFailed'));
     }
   };
 
   return (
     <>
-      <Stack.Screen
-        options={{ title: t('skills.createTitle'), headerBackVisible: true }}
-      />
+      <Stack.Screen options={{ title: t('skills.createTitle'), headerBackVisible: true }} />
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"

@@ -44,7 +44,10 @@ export async function refineStyleWithLLM(
     const model = getAIModel(resolved, 'authoring');
 
     // Build prompt with heuristic analysis and sample messages
-    const sampleMessages = messages.slice(-20).map((m, i) => `${i + 1}. "${m}"`).join('\n');
+    const sampleMessages = messages
+      .slice(-20)
+      .map((m, i) => `${i + 1}. "${m}"`)
+      .join('\n');
 
     const prompt = `Analyze this user's writing style based on their messages and the existing heuristic analysis. Respond in JSON only.
 
@@ -84,7 +87,10 @@ Respond with ONLY valid JSON, no markdown or explanation.`;
     // Parse response
     const text = result.text.trim();
     // Remove markdown code fences if present
-    const jsonStr = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+    const jsonStr = text
+      .replace(/^```(?:json)?\n?/, '')
+      .replace(/\n?```$/, '')
+      .trim();
     const parsed = JSON.parse(jsonStr);
 
     const refinement: Partial<IWritingStyleProfile> = {};
@@ -101,7 +107,13 @@ Respond with ONLY valid JSON, no markdown or explanation.`;
       refinement.jargonTerms = parsed.jargonTerms.slice(0, 10).map(String);
     }
 
-    const validFormalities = ['very_informal', 'informal', 'neutral', 'formal', 'very_formal'] as const;
+    const validFormalities = [
+      'very_informal',
+      'informal',
+      'neutral',
+      'formal',
+      'very_formal',
+    ] as const;
     if (parsed.formality && validFormalities.includes(parsed.formality)) {
       refinement.formality = parsed.formality;
     }

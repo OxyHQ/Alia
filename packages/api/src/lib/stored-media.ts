@@ -38,7 +38,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { Request } from 'express';
 
-
 /** Long enough to start playing and seek; short enough that a leaked link dies. */
 export const PLAYBACK_LINK_TTL_MS = 15 * 60 * 1000;
 
@@ -77,7 +76,11 @@ export function mintPlaybackQuery(
 ): string | null {
   const key = signingKey();
   if (key === null || objectKey === '' || userId === '') return null;
-  const fields: PlaybackLinkFields = { key: objectKey, userId, expiresAtMs: now + PLAYBACK_LINK_TTL_MS };
+  const fields: PlaybackLinkFields = {
+    key: objectKey,
+    userId,
+    expiresAtMs: now + PLAYBACK_LINK_TTL_MS,
+  };
   const params = new URLSearchParams({
     o: Buffer.from(fields.key, 'utf8').toString('base64url'),
     u: fields.userId,

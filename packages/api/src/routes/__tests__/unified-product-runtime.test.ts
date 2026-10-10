@@ -49,7 +49,9 @@ interface RouteLayer {
 
 function postHandlers(router: unknown, routePath: string): unknown[] {
   const stack = (router as { stack: RouteLayer[] }).stack;
-  const layer = stack.find((entry) => entry.route?.path === routePath && entry.route.methods?.post === true);
+  const layer = stack.find(
+    (entry) => entry.route?.path === routePath && entry.route.methods?.post === true,
+  );
   expect(layer?.route, `POST ${routePath} is not mounted on this router`).toBeDefined();
   return (layer?.route?.stack ?? []).map((entry) => entry.handle);
 }
@@ -97,7 +99,9 @@ describe('both public chat surfaces run the same handler object', () => {
     // `authenticateRequesterAssertion` (ADR 0025 in OxyHQServices) follows the
     // token check on BOTH surfaces, before the limiter: a product's present
     // requester reaches a native agent the same way through either URL.
-    const { authenticateRequesterAssertion, authenticateTokenOrApiKey } = await import('../../middleware/auth.js');
+    const { authenticateRequesterAssertion, authenticateTokenOrApiKey } = await import(
+      '../../middleware/auth.js'
+    );
     const { apiKeyRateLimit } = await import('../../middleware/api-key-rate-limit.js');
     const handlers = postHandlers(aliaChatRouter, '/');
     expect(handlers).toEqual([

@@ -20,10 +20,7 @@
  */
 import { Router, type Request, type Response } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
-import {
-  formatUserRuntimeModel,
-  listUserRuntimes,
-} from '../lib/inference/user-runtime-bridge.js';
+import { formatUserRuntimeModel, listUserRuntimes } from '../lib/inference/user-runtime-bridge.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();

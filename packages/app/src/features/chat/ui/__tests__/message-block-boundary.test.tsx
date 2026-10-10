@@ -41,10 +41,7 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     View: host('View'),
@@ -64,13 +61,14 @@ vi.mock('@oxy.so/bloom/badge', () => ({ Badge: () => null }));
 vi.mock('@oxy.so/bloom/chart-cards', () => ({ LineChartCard: () => null }));
 vi.mock('@oxy.so/bloom/item', () => ({ Item: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiArrowRightSLine', () => ({ RiArrowRightSLine: () => null }));
-vi.mock('@oxy.so/bloom/icons/RiCalendarScheduleLine', () => ({ RiCalendarScheduleLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiCalendarScheduleLine', () => ({
+  RiCalendarScheduleLine: () => null,
+}));
 vi.mock('@oxy.so/bloom/icons/RiCloudLine', () => ({ RiCloudLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiDropLine', () => ({ RiDropLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiSnowflakeLine', () => ({ RiSnowflakeLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiSunFoggyLine', () => ({ RiSunFoggyLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiSunLine', () => ({ RiSunLine: () => null }));
-
 
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => key, locale: 'en' }),
@@ -196,11 +194,7 @@ describe('MessageBlockBoundary', () => {
 
     act(() => {
       renderer = create(
-        React.createElement(
-          MessageBlockBoundary,
-          null,
-          React.createElement('AGoodBlock'),
-        ),
+        React.createElement(MessageBlockBoundary, null, React.createElement('AGoodBlock')),
       );
     });
 

@@ -3,7 +3,10 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { useOxy } from '@oxy.so/services';
 import { generateAPIUrl } from '@/shared/api/generate-api-url';
 import { API_ROUTES } from '@/shared/api/routes';
-import { PERSONALITY_STYLE_MAP, type PersonalityStyleId } from '@/features/settings/model/personality-styles';
+import {
+  PERSONALITY_STYLE_MAP,
+  type PersonalityStyleId,
+} from '@/features/settings/model/personality-styles';
 import { errorName } from '@/shared/api/error-utils';
 import { useTranslation } from '@/shared/i18n/use-translation';
 
@@ -94,7 +97,8 @@ export function usePersonalitySamplePhrase() {
           });
 
           if (!res.ok || !res.body) {
-            if (!controller.signal.aborted) setPhrase(t(`settings.personalityStyle.styles.${style.id}.greeting`));
+            if (!controller.signal.aborted)
+              setPhrase(t(`settings.personalityStyle.styles.${style.id}.greeting`));
             return;
           }
 

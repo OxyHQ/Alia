@@ -30,24 +30,19 @@ export default function ImportSkillScreen() {
       const result = await importSkill.mutateAsync({ source: source.trim() });
       toast.success(t('skills.imported', { count: result.skills.length }));
       if (result.rejected.length > 0) {
-        toast.info(
-          t('skills.importRejected', { count: result.rejected.length }),
-        );
+        toast.info(t('skills.importRejected', { count: result.rejected.length }));
       }
       router.replace('/(app)/skills');
     } catch (error) {
-      const message = (
-        error as { response?: { data?: { error?: { message?: string } } } }
-      ).response?.data?.error?.message;
+      const message = (error as { response?: { data?: { error?: { message?: string } } } }).response
+        ?.data?.error?.message;
       toast.error(message ?? t('skills.importFailed'));
     }
   };
 
   return (
     <>
-      <Stack.Screen
-        options={{ title: t('skills.importTitle'), headerBackVisible: true }}
-      />
+      <Stack.Screen options={{ title: t('skills.importTitle'), headerBackVisible: true }} />
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"

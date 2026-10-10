@@ -1,10 +1,10 @@
-import React, { useEffect } from "react";
-import { Pressable, ActivityIndicator } from "react-native";
-import Mic from "lucide-react-native/icons/mic";
-import MicOff from "lucide-react-native/icons/mic-off";
-import { cn } from "../../../lib/utils";
-import { useSpeechToText } from "../../../hooks/useSpeechToText";
-import { usePromptInput } from "./context";
+import React, { useEffect } from 'react';
+import { Pressable, ActivityIndicator } from 'react-native';
+import Mic from 'lucide-react-native/icons/mic';
+import MicOff from 'lucide-react-native/icons/mic-off';
+import { cn } from '../../../lib/utils';
+import { useSpeechToText } from '../../../hooks/useSpeechToText';
+import { usePromptInput } from './context';
 
 export type PromptInputMicButtonProps = {
   className?: string;
@@ -37,8 +37,8 @@ export function PromptInputMicButton({ className }: PromptInputMicButtonProps) {
       onPress={handlePress}
       disabled={stt.isTranscribing}
       className={cn(
-        "h-8 w-8 rounded-full items-center justify-center active:opacity-70",
-        className
+        'h-8 w-8 rounded-full items-center justify-center active:opacity-70',
+        className,
       )}
     >
       {stt.isTranscribing ? (

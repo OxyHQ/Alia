@@ -78,9 +78,18 @@ function getRouteHandler(method: 'get' | 'post' | 'put' | 'delete', path: string
 function makeMockRes() {
   const res: any = {};
   res.statusCode = 200;
-  res.status = vi.fn((code: number) => { res.statusCode = code; return res; });
-  res.json = vi.fn((body: unknown) => { res.body = body; return res; });
-  res.redirect = vi.fn((url: string) => { res.redirectUrl = url; return res; });
+  res.status = vi.fn((code: number) => {
+    res.statusCode = code;
+    return res;
+  });
+  res.json = vi.fn((body: unknown) => {
+    res.body = body;
+    return res;
+  });
+  res.redirect = vi.fn((url: string) => {
+    res.redirectUrl = url;
+    return res;
+  });
   return res;
 }
 
@@ -131,7 +140,12 @@ describe('integrations-oauth.ts — POST /:service/complete CSRF binding', () =>
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ access_token: 'at', refresh_token: 'rt', expires_in: 3600, token_type: 'Bearer' }),
+      json: async () => ({
+        access_token: 'at',
+        refresh_token: 'rt',
+        expires_in: 3600,
+        token_type: 'Bearer',
+      }),
     });
 
     const saved = {

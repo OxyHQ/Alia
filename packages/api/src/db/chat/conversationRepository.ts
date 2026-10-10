@@ -127,10 +127,7 @@ export async function findConversation(
     .select()
     .from(conversations)
     .where(
-      and(
-        eq(conversations.oxyUserId, oxyUserId),
-        eq(conversations.conversationId, conversationId),
-      ),
+      and(eq(conversations.oxyUserId, oxyUserId), eq(conversations.conversationId, conversationId)),
     );
   return row;
 }
@@ -141,13 +138,16 @@ export async function findActiveAgentThreadConversation(
   oxyUserId: string,
   agentThreadId: string,
 ): Promise<ConversationRow | undefined> {
-  const [row] = await db.select().from(conversations).where(and(
-    eq(conversations.oxyUserId, oxyUserId),
-    eq(conversations.agentThreadId, agentThreadId),
-  )).orderBy(desc(conversations.updatedAt)).limit(1);
+  const [row] = await db
+    .select()
+    .from(conversations)
+    .where(
+      and(eq(conversations.oxyUserId, oxyUserId), eq(conversations.agentThreadId, agentThreadId)),
+    )
+    .orderBy(desc(conversations.updatedAt))
+    .limit(1);
   return row;
 }
-
 
 /**
  * Whether this person has ever used Alia — any conversation at all.
@@ -174,10 +174,7 @@ export async function conversationExists(
     .select({ one: sql<number>`1` })
     .from(conversations)
     .where(
-      and(
-        eq(conversations.oxyUserId, oxyUserId),
-        eq(conversations.conversationId, conversationId),
-      ),
+      and(eq(conversations.oxyUserId, oxyUserId), eq(conversations.conversationId, conversationId)),
     )
     .limit(1);
   return row !== undefined;
@@ -285,10 +282,7 @@ export async function updateConversationTitle(
     .update(conversations)
     .set({ title })
     .where(
-      and(
-        eq(conversations.oxyUserId, oxyUserId),
-        eq(conversations.conversationId, conversationId),
-      ),
+      and(eq(conversations.oxyUserId, oxyUserId), eq(conversations.conversationId, conversationId)),
     );
   return result.count;
 }
@@ -321,10 +315,7 @@ export async function clearConversationPreview(
     .update(conversations)
     .set({ lastMessage: null })
     .where(
-      and(
-        eq(conversations.oxyUserId, oxyUserId),
-        eq(conversations.conversationId, conversationId),
-      ),
+      and(eq(conversations.oxyUserId, oxyUserId), eq(conversations.conversationId, conversationId)),
     );
   return result.count;
 }
@@ -344,10 +335,7 @@ export async function deleteConversation(
   const result = await db
     .delete(conversations)
     .where(
-      and(
-        eq(conversations.oxyUserId, oxyUserId),
-        eq(conversations.conversationId, conversationId),
-      ),
+      and(eq(conversations.oxyUserId, oxyUserId), eq(conversations.conversationId, conversationId)),
     );
   return result.count;
 }
@@ -444,10 +432,7 @@ export async function latestMessagePerAgent(
     })
     .from(conversations)
     .where(
-      and(
-        eq(conversations.oxyUserId, oxyUserId),
-        inArray(conversations.agentId, [...agentIds]),
-      ),
+      and(eq(conversations.oxyUserId, oxyUserId), inArray(conversations.agentId, [...agentIds])),
     )
     .orderBy(conversations.agentId, desc(conversations.updatedAt), desc(conversations.id));
 

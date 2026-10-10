@@ -15,15 +15,22 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
-  const host = (name: string) =>
+  const host =
+    (name: string) =>
     ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
-  return { View: host('View'), Pressable: host('Pressable'), Image: host('Image'), Text: host('Text') };
+  return {
+    View: host('View'),
+    Pressable: host('Pressable'),
+    Image: host('Image'),
+    Text: host('Text'),
+  };
 });
 
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({
-    t: (key: string, values?: Record<string, unknown>) => (values ? `${key} ${JSON.stringify(values)}` : key),
+    t: (key: string, values?: Record<string, unknown>) =>
+      values ? `${key} ${JSON.stringify(values)}` : key,
   }),
 }));
 
@@ -36,7 +43,10 @@ vi.mock('@oxy.so/bloom/button', async () => {
 });
 vi.mock('@oxy.so/bloom/chip', async () => {
   const ReactModule = await import('react');
-  return { Chip: ({ children }: React.PropsWithChildren) => ReactModule.createElement('Chip', null, children) };
+  return {
+    Chip: ({ children }: React.PropsWithChildren) =>
+      ReactModule.createElement('Chip', null, children),
+  };
 });
 vi.mock('@oxy.so/bloom/loading', async () => {
   const ReactModule = await import('react');
@@ -44,16 +54,26 @@ vi.mock('@oxy.so/bloom/loading', async () => {
 });
 vi.mock('@oxy.so/bloom/text-field', async () => {
   const ReactModule = await import('react');
-  return { TextFieldInput: (props: Record<string, unknown>) => ReactModule.createElement('TextFieldInput', props) };
+  return {
+    TextFieldInput: (props: Record<string, unknown>) =>
+      ReactModule.createElement('TextFieldInput', props),
+  };
 });
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
-  const host = (name: string) =>
+  const host =
+    (name: string) =>
     ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return { Text: host('BloomText'), Muted: host('Muted') };
 });
-for (const icon of ['RiArrowDownLine', 'RiArrowUpLine', 'RiGlobalLine', 'RiFileTextLine', 'RiFolderLine']) {
+for (const icon of [
+  'RiArrowDownLine',
+  'RiArrowUpLine',
+  'RiGlobalLine',
+  'RiFileTextLine',
+  'RiFolderLine',
+]) {
   vi.doMock(`@oxy.so/bloom/icons/${icon}`, async () => {
     const ReactModule = await import('react');
     return { [icon]: () => ReactModule.createElement(icon) };
@@ -104,7 +124,8 @@ function liveView(over: Record<string, unknown> = {}) {
   return { root, props };
 }
 
-const byTestId = (root: ReactTestInstance, id: string) => root.find((node) => node.props.testID === id);
+const byTestId = (root: ReactTestInstance, id: string) =>
+  root.find((node) => node.props.testID === id);
 const textOf = (node: ReactTestInstance): string =>
   node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
 
@@ -113,7 +134,11 @@ describe('the live browser', () => {
     const { root, props } = liveView();
     const screen = byTestId(root, 'browser-screen');
     act(() => screen.props.onLayout({ nativeEvent: { layout: { width: 640, height: 400 } } }));
-    act(() => byTestId(root, 'browser-screen').props.onPress({ nativeEvent: { locationX: 320, locationY: 100 } }));
+    act(() =>
+      byTestId(root, 'browser-screen').props.onPress({
+        nativeEvent: { locationX: 320, locationY: 100 },
+      }),
+    );
     expect(props.onInput).toHaveBeenCalledWith({ type: 'click', x: 640, y: 200 });
   });
 
@@ -131,7 +156,9 @@ describe('the live browser', () => {
     act(() => renderer?.unmount());
 
     const personDriving = liveView({ browser: browser({ controller: 'owner' }) });
-    expect(personDriving.root.findAll((node) => node.props.testID === 'take-control')).toHaveLength(0);
+    expect(personDriving.root.findAll((node) => node.props.testID === 'take-control')).toHaveLength(
+      0,
+    );
     act(() => byTestId(personDriving.root, 'hand-back').props.onPress());
     expect(personDriving.props.onControl).toHaveBeenCalledWith('agent');
   });
@@ -147,7 +174,9 @@ describe('the live browser', () => {
 
   it('offers only the short list of keys, and scrolling', () => {
     const { root, props } = liveView();
-    const buttons = root.findAll((node) => (node.type as unknown) === 'Button' && node.props.size === 'sm');
+    const buttons = root.findAll(
+      (node) => (node.type as unknown) === 'Button' && node.props.size === 'sm',
+    );
     expect(buttons.map((button) => textOf(button))).toEqual([
       'agents.computer.browser.keys.Enter',
       'agents.computer.browser.keys.Tab',
@@ -164,8 +193,16 @@ describe('the live browser', () => {
 
   it('does not act while an action is in flight', () => {
     const { root, props } = liveView({ busy: true });
-    act(() => byTestId(root, 'browser-screen').props.onLayout({ nativeEvent: { layout: { width: 640, height: 400 } } }));
-    act(() => byTestId(root, 'browser-screen').props.onPress({ nativeEvent: { locationX: 1, locationY: 1 } }));
+    act(() =>
+      byTestId(root, 'browser-screen').props.onLayout({
+        nativeEvent: { layout: { width: 640, height: 400 } },
+      }),
+    );
+    act(() =>
+      byTestId(root, 'browser-screen').props.onPress({
+        nativeEvent: { locationX: 1, locationY: 1 },
+      }),
+    );
     expect(props.onInput).not.toHaveBeenCalled();
   });
 
@@ -182,22 +219,29 @@ describe('the live browser', () => {
 describe('files and activity are read-only', () => {
   it('opens folders in place and goes up, with nothing that writes', () => {
     const onOpenDirectory = vi.fn();
-    const root = mount(React.createElement(WorkspaceFiles, {
-      running: true,
-      path: '/workspace/downloads',
-      listing: {
+    const root = mount(
+      React.createElement(WorkspaceFiles, {
+        running: true,
         path: '/workspace/downloads',
-        truncated: false,
-        entries: [
-          { name: 'old', path: '/workspace/downloads/old', type: 'directory', size: 0 },
-          { name: 'factura.pdf', path: '/workspace/downloads/factura.pdf', type: 'file', size: 2048 },
-        ],
-      },
-      loading: false,
-      starting: false,
-      onOpenDirectory,
-      onStart: vi.fn(),
-    }));
+        listing: {
+          path: '/workspace/downloads',
+          truncated: false,
+          entries: [
+            { name: 'old', path: '/workspace/downloads/old', type: 'directory', size: 0 },
+            {
+              name: 'factura.pdf',
+              path: '/workspace/downloads/factura.pdf',
+              type: 'file',
+              size: 2048,
+            },
+          ],
+        },
+        loading: false,
+        starting: false,
+        onOpenDirectory,
+        onStart: vi.fn(),
+      }),
+    );
     act(() => root.findByType('Pressable' as never).props.onPress());
     expect(onOpenDirectory).toHaveBeenCalledWith('/workspace/downloads/old');
     const up = root.findByType('Button' as never);
@@ -208,20 +252,50 @@ describe('files and activity are read-only', () => {
 
   it('offers to turn a stopped computer on instead of listing', () => {
     const onStart = vi.fn();
-    const root = mount(React.createElement(WorkspaceFiles, {
-      running: false, path: '/workspace', listing: undefined, loading: false, starting: false, onOpenDirectory: vi.fn(), onStart,
-    }));
+    const root = mount(
+      React.createElement(WorkspaceFiles, {
+        running: false,
+        path: '/workspace',
+        listing: undefined,
+        loading: false,
+        starting: false,
+        onOpenDirectory: vi.fn(),
+        onStart,
+      }),
+    );
     act(() => root.findByType('Button' as never).props.onPress());
     expect(onStart).toHaveBeenCalled();
   });
 
   it('shows what ran and what was done, never output or typed text', () => {
-    const root = mount(React.createElement(ComputerActivity, {
-      receipts: {
-        commands: [{ operationId: 'a:1', command: 'npm test', cwd: '/workspace', background: false, status: 'failed', exitCode: 1, startedAt: '2026-10-01T10:00:00Z', completedAt: '2026-10-01T10:00:05Z' }],
-        browser: [{ action: 'input', by: 'owner', origin: 'https://bank.example', detail: 'type 8 characters', status: 'ok', at: '2026-10-01T10:01:00Z' }],
-      },
-    }));
+    const root = mount(
+      React.createElement(ComputerActivity, {
+        receipts: {
+          commands: [
+            {
+              operationId: 'a:1',
+              command: 'npm test',
+              cwd: '/workspace',
+              background: false,
+              status: 'failed',
+              exitCode: 1,
+              startedAt: '2026-10-01T10:00:00Z',
+              completedAt: '2026-10-01T10:00:05Z',
+            },
+          ],
+          browser: [
+            {
+              action: 'input',
+              by: 'owner',
+              origin: 'https://bank.example',
+              detail: 'type 8 characters',
+              status: 'ok',
+              at: '2026-10-01T10:01:00Z',
+            },
+          ],
+        },
+      }),
+    );
     const text = textOf(root);
     expect(text).toContain('npm test');
     expect(text).toContain('exit 1');

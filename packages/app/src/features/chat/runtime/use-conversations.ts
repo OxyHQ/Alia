@@ -1,4 +1,10 @@
-import { useQuery, useMutation, useQueryClient, useInfiniteQuery, type QueryClient } from '@tanstack/react-query';
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  useInfiniteQuery,
+  type QueryClient,
+} from '@tanstack/react-query';
 import i18n from '@/shared/i18n';
 import { useOxy } from '@oxy.so/services';
 import { AccountScopedKey } from '@/shared/state/account-scope';
@@ -146,7 +152,7 @@ interface ConversationsInfiniteData {
  * account-scoped stores in `app/(app)/_layout.tsx`; signed out it reads
  * nothing and writes nothing.
  */
-export const offlineConversations = new AccountScopedKey("alia-conversations");
+export const offlineConversations = new AccountScopedKey('alia-conversations');
 
 /** A stable signal for a URL whose server-side conversation no longer exists. */
 export class ConversationNotFoundError extends Error {
@@ -175,11 +181,11 @@ async function removeStoredConversation(id: string): Promise<void> {
 // lastMessage) need the flattened text either way.
 function messageText(message: Message | undefined): string {
   const content = message?.content;
-  if (typeof content === "string") return content;
-  if (!content) return "";
+  if (typeof content === 'string') return content;
+  if (!content) return '';
   return content
-    .map((part) => (typeof part.text === "string" ? part.text : ""))
-    .join(" ")
+    .map((part) => (typeof part.text === 'string' ? part.text : ''))
+    .join(' ')
     .trim();
 }
 
@@ -226,7 +232,10 @@ async function fetchConversationsPage({ pageParam }: { pageParam?: string }): Pr
   } catch (error: unknown) {
     // If unauthorized, fall back to local storage
     if (errorStatus(error) === 401) {
-      const conversations = (await fetchConversations()).map((c) => ({ ...c, messages: [] as Message[] }));
+      const conversations = (await fetchConversations()).map((c) => ({
+        ...c,
+        messages: [] as Message[],
+      }));
       const offset = pageParam ? parseInt(pageParam) : 0;
       const limit = 20;
       const page = conversations.slice(offset, offset + limit);
@@ -249,7 +258,7 @@ export function useConversations() {
     queryKey: queryKeys.conversations.all,
     queryFn: fetchConversationsPage,
     initialPageParam: undefined,
-    getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextCursor : undefined,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 2,
     enabled: isAuthenticated,
@@ -353,7 +362,7 @@ export function useSaveConversation() {
           source: data.source,
           createdAt: new Date(data.createdAt),
           updatedAt: new Date(data.updatedAt),
-          messages
+          messages,
         };
       } catch (error: unknown) {
         // If unauthorized, save to local storage
@@ -361,7 +370,10 @@ export function useSaveConversation() {
           const conversations = await fetchConversations();
           const existingIndex = conversations.findIndex((c) => c.id === id);
 
-          const offlineTitle = title || messageText(messages.find((m) => m.role === "user")).slice(0, 50) || "New chat";
+          const offlineTitle =
+            title ||
+            messageText(messages.find((m) => m.role === 'user')).slice(0, 50) ||
+            'New chat';
           const conversation: Conversation = {
             id,
             title: offlineTitle,
@@ -386,49 +398,56 @@ export function useSaveConversation() {
     },
     onSuccess: (data) => {
       // Update infinite query cache
-      queryClient.setQueryData(queryKeys.conversations.all, (oldData: ConversationsInfiniteData | undefined) => {
-        if (!oldData?.pages) {
-          return {
-            pages: [{
-              conversations: [{ ...data, messages: [] }],
-              nextCursor: null,
-              hasMore: false,
-            }],
-            pageParams: [undefined],
-          };
-        }
-
-        const newPages = [...oldData.pages];
-        const conversationMetadata = { ...data, messages: [] };
-
-        // Remove conversation from its current position (if it exists in any page)
-        for (let i = 0; i < newPages.length; i++) {
-          const existingIndex = newPages[i].conversations.findIndex((c: Conversation) => c.id === data.id);
-          if (existingIndex >= 0) {
-            newPages[i] = {
-              ...newPages[i],
-              conversations: [
-                ...newPages[i].conversations.slice(0, existingIndex),
-                ...newPages[i].conversations.slice(existingIndex + 1),
+      queryClient.setQueryData(
+        queryKeys.conversations.all,
+        (oldData: ConversationsInfiniteData | undefined) => {
+          if (!oldData?.pages) {
+            return {
+              pages: [
+                {
+                  conversations: [{ ...data, messages: [] }],
+                  nextCursor: null,
+                  hasMore: false,
+                },
               ],
+              pageParams: [undefined],
             };
-            break;
           }
-        }
 
-        // Always add to top of first page (most recently updated first)
-        if (newPages[0]) {
-          newPages[0] = {
-            ...newPages[0],
-            conversations: [conversationMetadata, ...newPages[0].conversations],
+          const newPages = [...oldData.pages];
+          const conversationMetadata = { ...data, messages: [] };
+
+          // Remove conversation from its current position (if it exists in any page)
+          for (let i = 0; i < newPages.length; i++) {
+            const existingIndex = newPages[i].conversations.findIndex(
+              (c: Conversation) => c.id === data.id,
+            );
+            if (existingIndex >= 0) {
+              newPages[i] = {
+                ...newPages[i],
+                conversations: [
+                  ...newPages[i].conversations.slice(0, existingIndex),
+                  ...newPages[i].conversations.slice(existingIndex + 1),
+                ],
+              };
+              break;
+            }
+          }
+
+          // Always add to top of first page (most recently updated first)
+          if (newPages[0]) {
+            newPages[0] = {
+              ...newPages[0],
+              conversations: [conversationMetadata, ...newPages[0].conversations],
+            };
+          }
+
+          return {
+            ...oldData,
+            pages: newPages,
           };
-        }
-
-        return {
-          ...oldData,
-          pages: newPages,
-        };
-      });
+        },
+      );
 
       // Update individual conversation cache with full data including messages
       queryClient.setQueryData(queryKeys.conversations.detail(data.id), data);
@@ -486,17 +505,20 @@ export function useDeleteConversation() {
     },
     onSuccess: (id) => {
       // Remove from infinite query cache
-      queryClient.setQueryData(queryKeys.conversations.all, (oldData: ConversationsInfiniteData | undefined) => {
-        if (!oldData?.pages) return oldData;
+      queryClient.setQueryData(
+        queryKeys.conversations.all,
+        (oldData: ConversationsInfiniteData | undefined) => {
+          if (!oldData?.pages) return oldData;
 
-        return {
-          ...oldData,
-          pages: oldData.pages.map((page) => ({
-            ...page,
-            conversations: page.conversations.filter((c) => c.id !== id),
-          })),
-        };
-      });
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page) => ({
+              ...page,
+              conversations: page.conversations.filter((c) => c.id !== id),
+            })),
+          };
+        },
+      );
 
       // Invalidate individual conversation cache
       queryClient.removeQueries({ queryKey: queryKeys.conversations.detail(id) });
@@ -551,18 +573,24 @@ export function useClearConversation() {
     onSuccess: (id) => {
       queryClient.setQueryData(
         queryKeys.conversations.detail(id),
-        (old: Conversation | undefined) => (old ? { ...old, messages: [], lastMessage: undefined } : old),
+        (old: Conversation | undefined) =>
+          old ? { ...old, messages: [], lastMessage: undefined } : old,
       );
-      queryClient.setQueryData(queryKeys.conversations.all, (oldData: ConversationsInfiniteData | undefined) => {
-        if (!oldData?.pages) return oldData;
-        return {
-          ...oldData,
-          pages: oldData.pages.map((page) => ({
-            ...page,
-            conversations: page.conversations.map((c) => (c.id === id ? { ...c, lastMessage: undefined } : c)),
-          })),
-        };
-      });
+      queryClient.setQueryData(
+        queryKeys.conversations.all,
+        (oldData: ConversationsInfiniteData | undefined) => {
+          if (!oldData?.pages) return oldData;
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page) => ({
+              ...page,
+              conversations: page.conversations.map((c) =>
+                c.id === id ? { ...c, lastMessage: undefined } : c,
+              ),
+            })),
+          };
+        },
+      );
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
     },
@@ -614,35 +642,40 @@ export function useCreateConversation() {
     },
     onSuccess: (data) => {
       // Add to first page of infinite query cache
-      queryClient.setQueryData(queryKeys.conversations.all, (oldData: ConversationsInfiniteData | undefined) => {
-        if (!oldData?.pages) {
-          return {
-            pages: [{
-              conversations: [data],
-              nextCursor: null,
-              hasMore: false,
-            }],
-            pageParams: [undefined],
-          };
-        }
-
-        const newPages = [...oldData.pages];
-        if (newPages[0]) {
-          // Check if already exists
-          const exists = newPages[0].conversations.some((c) => c.id === data.id);
-          if (!exists) {
-            newPages[0] = {
-              ...newPages[0],
-              conversations: [data, ...newPages[0].conversations],
+      queryClient.setQueryData(
+        queryKeys.conversations.all,
+        (oldData: ConversationsInfiniteData | undefined) => {
+          if (!oldData?.pages) {
+            return {
+              pages: [
+                {
+                  conversations: [data],
+                  nextCursor: null,
+                  hasMore: false,
+                },
+              ],
+              pageParams: [undefined],
             };
           }
-        }
 
-        return {
-          ...oldData,
-          pages: newPages,
-        };
-      });
+          const newPages = [...oldData.pages];
+          if (newPages[0]) {
+            // Check if already exists
+            const exists = newPages[0].conversations.some((c) => c.id === data.id);
+            if (!exists) {
+              newPages[0] = {
+                ...newPages[0],
+                conversations: [data, ...newPages[0].conversations],
+              };
+            }
+          }
+
+          return {
+            ...oldData,
+            pages: newPages,
+          };
+        },
+      );
 
       // Set individual conversation cache
       queryClient.setQueryData(queryKeys.conversations.detail(data.id), data);

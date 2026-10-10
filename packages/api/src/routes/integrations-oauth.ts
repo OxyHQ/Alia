@@ -14,7 +14,10 @@ import {
   findLiveOAuthState,
   OAUTH_STATE_TTL_MS,
 } from '../db/integrations/oauthStateRepository.js';
-import { INTEGRATION_REGISTRY, type IntegrationRegistryEntry } from '../lib/integration-registry.js';
+import {
+  INTEGRATION_REGISTRY,
+  type IntegrationRegistryEntry,
+} from '../lib/integration-registry.js';
 import { log } from '../lib/logger.js';
 
 /**
@@ -36,10 +39,12 @@ interface OAuthTokenResponse {
 const router = express.Router();
 
 function getRegistryEntry(service: string): IntegrationRegistryEntry | undefined {
-  return INTEGRATION_REGISTRY.find(i => i.service === service);
+  return INTEGRATION_REGISTRY.find((i) => i.service === service);
 }
 
-function getOAuthCredentials(entry: IntegrationRegistryEntry): { clientId: string; clientSecret: string } | null {
+function getOAuthCredentials(
+  entry: IntegrationRegistryEntry,
+): { clientId: string; clientSecret: string } | null {
   const clientId = process.env[entry.oauthConfig.envClientId];
   const clientSecret = process.env[entry.oauthConfig.envClientSecret];
   if (!clientId || !clientSecret) return null;
@@ -48,7 +53,7 @@ function getOAuthCredentials(entry: IntegrationRegistryEntry): { clientId: strin
 
 // List available integrations
 router.get('/available', authenticateToken, (_req, res) => {
-  const available = INTEGRATION_REGISTRY.map(entry => {
+  const available = INTEGRATION_REGISTRY.map((entry) => {
     const creds = getOAuthCredentials(entry);
     return {
       service: entry.service,
@@ -73,41 +78,45 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Generate OAuth URL for a service
-router.get('/:service/oauth-url', authenticateToken, async (req: express.Request<{ service: string }>, res) => {
-  const { service } = req.params;
-  const entry = getRegistryEntry(service);
-  if (!entry) {
-    return res.status(404).json({ error: `Unknown service: ${service}` });
-  }
+router.get(
+  '/:service/oauth-url',
+  authenticateToken,
+  async (req: express.Request<{ service: string }>, res) => {
+    const { service } = req.params;
+    const entry = getRegistryEntry(service);
+    if (!entry) {
+      return res.status(404).json({ error: `Unknown service: ${service}` });
+    }
 
-  const creds = getOAuthCredentials(entry);
-  if (!creds) {
-    return res.status(503).json({ error: `${entry.name} integration is not configured` });
-  }
+    const creds = getOAuthCredentials(entry);
+    if (!creds) {
+      return res.status(503).json({ error: `${entry.name} integration is not configured` });
+    }
 
-  const state = crypto.randomBytes(32).toString('hex');
-  await createOAuthState(getDb(), {
-    state,
-    service,
-    userId: req.userId!,
-    expiresAt: new Date(Date.now() + OAUTH_STATE_TTL_MS),
-  });
+    const state = crypto.randomBytes(32).toString('hex');
+    await createOAuthState(getDb(), {
+      state,
+      service,
+      userId: req.userId!,
+      expiresAt: new Date(Date.now() + OAUTH_STATE_TTL_MS),
+    });
 
-  const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
-  const redirectUri = `${apiBaseUrl}/integrations/${service}/callback`;
+    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
+    const redirectUri = `${apiBaseUrl}/integrations/${service}/callback`;
 
-  const params = new URLSearchParams({
-    client_id: creds.clientId,
-    redirect_uri: redirectUri,
-    scope: entry.oauthConfig.scopes.join(' '),
-    state,
-    response_type: 'code',
-    access_type: 'offline',
-  });
+    const params = new URLSearchParams({
+      client_id: creds.clientId,
+      redirect_uri: redirectUri,
+      scope: entry.oauthConfig.scopes.join(' '),
+      state,
+      response_type: 'code',
+      access_type: 'offline',
+    });
 
-  const authUrl = `${entry.oauthConfig.authUrl}?${params.toString()}`;
-  res.json({ authUrl });
-});
+    const authUrl = `${entry.oauthConfig.authUrl}?${params.toString()}`;
+    res.json({ authUrl });
+  },
+);
 
 // Public OAuth callback — the provider redirects the browser here after consent.
 // It does NOT finalize the link: identity from the `state` alone is NOT trusted
@@ -157,136 +166,141 @@ router.get('/:service/callback', async (req: express.Request<{ service: string }
 // state was issued to THIS user before exchanging the code, defeating
 // account-linking CSRF. The frontend calls this with the int_oauth_state/
 // int_oauth_code it received on the /settings/integrations screen.
-router.post('/:service/complete', authenticateToken, async (req: express.Request<{ service: string }>, res) => {
-  const { service } = req.params;
-  const { state, code } = req.body;
+router.post(
+  '/:service/complete',
+  authenticateToken,
+  async (req: express.Request<{ service: string }>, res) => {
+    const { service } = req.params;
+    const { state, code } = req.body;
 
-  if (!state || !code || typeof state !== 'string' || typeof code !== 'string') {
-    return res.status(400).json({ error: 'state and code are required' });
-  }
-
-  const db = getDb();
-
-  // Load and validate the state WITHOUT consuming it, so a mismatched caller
-  // cannot burn the initiating user's state.
-  const stateRow = await findLiveOAuthState(db, state, service);
-  if (!stateRow) {
-    return res.status(400).json({ error: 'Invalid or expired state' });
-  }
-
-  // CSRF binding: the state must have been issued to the authenticated caller.
-  // Whoever holds the code (the browser that got the callback) can only finish
-  // the link into their OWN account, never someone else's.
-  if (stateRow.userId !== req.userId) {
-    return res.status(403).json({ error: 'State was not issued to this account' });
-  }
-
-  // Consume the state (single-use) now that the caller is verified. The atomic
-  // delete also guards against replay/race between the load above and here.
-  if (!(await consumeOAuthState(db, state))) {
-    return res.status(400).json({ error: 'Invalid or expired state' });
-  }
-
-  const entry = getRegistryEntry(service);
-  if (!entry) {
-    return res.status(404).json({ error: 'Unknown service' });
-  }
-
-  const creds = getOAuthCredentials(entry);
-  if (!creds) {
-    return res.status(503).json({ error: 'Service not configured' });
-  }
-
-  try {
-    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
-    const redirectUri = `${apiBaseUrl}/integrations/${service}/callback`;
-
-    // Build token exchange request (provider-specific auth method)
-    const authMethod = entry.oauthConfig.authMethod || 'body';
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Accept: 'application/json',
-    };
-    const bodyParams: Record<string, string> = {
-      code,
-      redirect_uri: redirectUri,
-      grant_type: 'authorization_code',
-    };
-
-    if (authMethod === 'basic') {
-      headers['Authorization'] = `Basic ${Buffer.from(`${creds.clientId}:${creds.clientSecret}`).toString('base64')}`;
-    } else {
-      bodyParams.client_id = creds.clientId;
-      bodyParams.client_secret = creds.clientSecret;
+    if (!state || !code || typeof state !== 'string' || typeof code !== 'string') {
+      return res.status(400).json({ error: 'state and code are required' });
     }
 
-    const tokenResponse = await fetch(entry.oauthConfig.tokenUrl, {
-      method: 'POST',
-      headers,
-      body: new URLSearchParams(bodyParams),
-      signal: AbortSignal.timeout(10_000),
-    });
+    const db = getDb();
 
-    const tokenData = (await tokenResponse.json()) as OAuthTokenResponse;
-
-    if (!tokenResponse.ok || !tokenData.access_token) {
-      log.general.error(
-        { error: tokenData.error, errorDescription: tokenData.error_description, service },
-        'OAuth token exchange failed',
-      );
-      return res.status(400).json({ error: 'Failed to exchange code for tokens' });
+    // Load and validate the state WITHOUT consuming it, so a mismatched caller
+    // cannot burn the initiating user's state.
+    const stateRow = await findLiveOAuthState(db, state, service);
+    if (!stateRow) {
+      return res.status(400).json({ error: 'Invalid or expired state' });
     }
 
-    // Fetch user profile from the connected service (best-effort)
-    let profileData: { accountId?: string; accountName?: string; avatarUrl?: string } = {};
-    if (entry.profile) {
-      try {
-        const profileHeaders: Record<string, string> = {
-          Authorization: `${tokenData.token_type || 'Bearer'} ${tokenData.access_token}`,
-          Accept: 'application/json',
-          ...entry.profile.headers,
-        };
-        const profileResponse = await fetch(entry.profile.url, {
-          method: entry.profile.method || 'GET',
-          headers: profileHeaders,
-          body: entry.profile.body || undefined,
-          signal: AbortSignal.timeout(5_000),
-        });
-        if (profileResponse.ok) {
-          const raw = await profileResponse.json();
-          profileData = entry.profile.mapResponse(raw);
-        }
-      } catch (profileErr: unknown) {
-        log.general.warn({ err: profileErr, service }, 'Profile fetch failed (non-blocking)');
+    // CSRF binding: the state must have been issued to the authenticated caller.
+    // Whoever holds the code (the browser that got the callback) can only finish
+    // the link into their OWN account, never someone else's.
+    if (stateRow.userId !== req.userId) {
+      return res.status(403).json({ error: 'State was not issued to this account' });
+    }
+
+    // Consume the state (single-use) now that the caller is verified. The atomic
+    // delete also guards against replay/race between the load above and here.
+    if (!(await consumeOAuthState(db, state))) {
+      return res.status(400).json({ error: 'Invalid or expired state' });
+    }
+
+    const entry = getRegistryEntry(service);
+    if (!entry) {
+      return res.status(404).json({ error: 'Unknown service' });
+    }
+
+    const creds = getOAuthCredentials(entry);
+    if (!creds) {
+      return res.status(503).json({ error: 'Service not configured' });
+    }
+
+    try {
+      const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
+      const redirectUri = `${apiBaseUrl}/integrations/${service}/callback`;
+
+      // Build token exchange request (provider-specific auth method)
+      const authMethod = entry.oauthConfig.authMethod || 'body';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+      };
+      const bodyParams: Record<string, string> = {
+        code,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      };
+
+      if (authMethod === 'basic') {
+        headers['Authorization'] =
+          `Basic ${Buffer.from(`${creds.clientId}:${creds.clientSecret}`).toString('base64')}`;
+      } else {
+        bodyParams.client_id = creds.clientId;
+        bodyParams.client_secret = creds.clientSecret;
       }
+
+      const tokenResponse = await fetch(entry.oauthConfig.tokenUrl, {
+        method: 'POST',
+        headers,
+        body: new URLSearchParams(bodyParams),
+        signal: AbortSignal.timeout(10_000),
+      });
+
+      const tokenData = (await tokenResponse.json()) as OAuthTokenResponse;
+
+      if (!tokenResponse.ok || !tokenData.access_token) {
+        log.general.error(
+          { error: tokenData.error, errorDescription: tokenData.error_description, service },
+          'OAuth token exchange failed',
+        );
+        return res.status(400).json({ error: 'Failed to exchange code for tokens' });
+      }
+
+      // Fetch user profile from the connected service (best-effort)
+      let profileData: { accountId?: string; accountName?: string; avatarUrl?: string } = {};
+      if (entry.profile) {
+        try {
+          const profileHeaders: Record<string, string> = {
+            Authorization: `${tokenData.token_type || 'Bearer'} ${tokenData.access_token}`,
+            Accept: 'application/json',
+            ...entry.profile.headers,
+          };
+          const profileResponse = await fetch(entry.profile.url, {
+            method: entry.profile.method || 'GET',
+            headers: profileHeaders,
+            body: entry.profile.body || undefined,
+            signal: AbortSignal.timeout(5_000),
+          });
+          if (profileResponse.ok) {
+            const raw = await profileResponse.json();
+            profileData = entry.profile.mapResponse(raw);
+          }
+        } catch (profileErr: unknown) {
+          log.general.warn({ err: profileErr, service }, 'Profile fetch failed (non-blocking)');
+        }
+      }
+
+      // Create the integration bound to the authenticated caller (never the state
+      // row's identity — that is the CSRF fix). `createIntegration` returns the
+      // SAFE projection, so the response cannot carry the tokens: it is a
+      // different type with no token field, rather than a re-read that drops them.
+      const integration = await createIntegration(db, {
+        oxyUserId: req.userId!,
+        service,
+        displayName: entry.name,
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+        expiresAt: tokenData.expires_in
+          ? new Date(Date.now() + tokenData.expires_in * 1000)
+          : undefined,
+        scope: tokenData.scope || entry.oauthConfig.scopes.join(' '),
+        tokenType: tokenData.token_type || 'Bearer',
+        accountId: profileData.accountId,
+        accountName: profileData.accountName,
+        avatarUrl: profileData.avatarUrl,
+      });
+
+      res.json({ integration });
+    } catch (error: unknown) {
+      log.general.error({ err: error }, 'OAuth complete error');
+      res.status(500).json({ error: 'Internal server error' });
     }
-
-    // Create the integration bound to the authenticated caller (never the state
-    // row's identity — that is the CSRF fix). `createIntegration` returns the
-    // SAFE projection, so the response cannot carry the tokens: it is a
-    // different type with no token field, rather than a re-read that drops them.
-    const integration = await createIntegration(db, {
-      oxyUserId: req.userId!,
-      service,
-      displayName: entry.name,
-      accessToken: tokenData.access_token,
-      refreshToken: tokenData.refresh_token,
-      expiresAt: tokenData.expires_in
-        ? new Date(Date.now() + tokenData.expires_in * 1000)
-        : undefined,
-      scope: tokenData.scope || entry.oauthConfig.scopes.join(' '),
-      tokenType: tokenData.token_type || 'Bearer',
-      accountId: profileData.accountId,
-      accountName: profileData.accountName,
-      avatarUrl: profileData.avatarUrl,
-    });
-
-    res.json({ integration });
-  } catch (error: unknown) {
-    log.general.error({ err: error }, 'OAuth complete error');
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+  },
+);
 
 // Disconnect integration
 router.delete('/:id', authenticateToken, async (req: express.Request<{ id: string }>, res) => {

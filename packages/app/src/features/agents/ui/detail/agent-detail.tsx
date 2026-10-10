@@ -1,8 +1,5 @@
 import { AgentTerminal } from '@/features/chat/ui/workspace/agent-terminal';
-import {
-  AgentDetailSection,
-  ChipList,
-} from '@/features/agents/ui/detail/agent-detail-section';
+import { AgentDetailSection, ChipList } from '@/features/agents/ui/detail/agent-detail-section';
 import { AgentHeaderActions } from '@/features/agents/ui/detail/agent-header-actions';
 import { AgentIdentitySummary } from '@/features/agents/ui/detail/agent-identity-summary';
 import { AgentReviewsSection } from '@/features/agents/ui/detail/agent-reviews-section';
@@ -17,10 +14,7 @@ import { useIsLargeScreen } from '@/shared/platform/use-is-large-screen';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import type { Agent } from '@/shared/contracts/agents';
 import { Divider } from '@oxy.so/bloom/divider';
-import {
-  SettingsListGroup,
-  SettingsListItem,
-} from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Switch } from '@oxy.so/bloom/switch';
 import { Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '@oxy.so/services';
@@ -51,9 +45,7 @@ export function AgentDetail({ agent }: { agent: Agent }) {
 
   const isOwner = !!(user && user.id === agent.author);
   const handle = agentHandle(agent);
-  const capabilityLabels = grantedFamilyLabels(agent.capabilityGrants ?? []).map(
-    (key) => t(key),
-  );
+  const capabilityLabels = grantedFamilyLabels(agent.capabilityGrants ?? []).map((key) => t(key));
 
   return (
     <View className={isLargeScreen ? 'flex-1 flex-row' : 'flex-1 flex-col'}>
@@ -91,13 +83,7 @@ export function AgentDetail({ agent }: { agent: Agent }) {
       />
       {/* Agent details (full width on mobile) */}
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View
-          className={
-            isLargeScreen
-              ? 'w-full max-w-[672px] gap-5 p-4'
-              : 'w-full gap-5 p-4'
-          }
-        >
+        <View className={isLargeScreen ? 'w-full max-w-[672px] gap-5 p-4' : 'w-full gap-5 p-4'}>
           <AgentIdentitySummary agent={agent} />
 
           {/* Owner controls */}
@@ -105,9 +91,7 @@ export function AgentDetail({ agent }: { agent: Agent }) {
             <SettingsListGroup>
               <SettingsListItem
                 title={
-                  agent.status === 'active'
-                    ? t('agents.statusActive')
-                    : t('agents.statusPaused')
+                  agent.status === 'active' ? t('agents.statusActive') : t('agents.statusPaused')
                 }
                 description={
                   agent.status === 'active'
@@ -118,9 +102,7 @@ export function AgentDetail({ agent }: { agent: Agent }) {
                   <Switch
                     accessibilityLabel={t('agents.acceptingHires')}
                     checked={agent.status === 'active'}
-                    onCheckedChange={(on) =>
-                      actions.handleStatusToggle(on ? 'active' : 'idle')
-                    }
+                    onCheckedChange={(on) => actions.handleStatusToggle(on ? 'active' : 'idle')}
                   />
                 }
               />
@@ -180,11 +162,7 @@ export function AgentDetail({ agent }: { agent: Agent }) {
           )}
 
           <Divider />
-          <AgentReviewsSection
-            agentId={agent._id}
-            viewerId={user?.id ?? null}
-            isOwner={isOwner}
-          />
+          <AgentReviewsSection agentId={agent._id} viewerId={user?.id ?? null} isOwner={isOwner} />
 
           {/* Activity terminal — mobile only; desktop has it beside. */}
           {!isLargeScreen && (

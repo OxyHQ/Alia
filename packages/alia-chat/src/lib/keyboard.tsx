@@ -18,7 +18,7 @@ type KeyboardAwareScrollViewProps = ScrollViewProps & {
 const KeyboardAwareScrollView = React.forwardRef<ScrollView, KeyboardAwareScrollViewProps>(
   ({ bottomOffset, disableScrollOnKeyboardHide, enabled, extraKeyboardSpace, ...props }, ref) => (
     <ScrollView ref={ref} {...props} />
-  )
+  ),
 );
 KeyboardAwareScrollView.displayName = 'KeyboardAwareScrollView';
 

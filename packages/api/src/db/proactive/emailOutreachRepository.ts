@@ -17,11 +17,17 @@ import {
 export const EMAIL_ALERTS_DEFAULT = true;
 
 function actorIs(agentId: string | null) {
-  return agentId === null ? isNull(emailAlertPreferences.agentId) : eq(emailAlertPreferences.agentId, agentId);
+  return agentId === null
+    ? isNull(emailAlertPreferences.agentId)
+    : eq(emailAlertPreferences.agentId, agentId);
 }
 
 /** Whether this person wants to hear about important email from this actor (`null` = Alia). */
-export async function isEmailAlertEnabled(db: Executor, oxyUserId: string, agentId: string | null): Promise<boolean> {
+export async function isEmailAlertEnabled(
+  db: Executor,
+  oxyUserId: string,
+  agentId: string | null,
+): Promise<boolean> {
   const [row] = await db
     .select({ enabled: emailAlertPreferences.enabled })
     .from(emailAlertPreferences)
@@ -31,7 +37,10 @@ export async function isEmailAlertEnabled(db: Executor, oxyUserId: string, agent
 }
 
 /** Every switch this person has set, keyed by agent id (`null` = Alia). Unset ones are absent. */
-export async function listEmailAlertPreferences(db: Executor, oxyUserId: string): Promise<Map<string | null, boolean>> {
+export async function listEmailAlertPreferences(
+  db: Executor,
+  oxyUserId: string,
+): Promise<Map<string | null, boolean>> {
   const rows = await db
     .select({ agentId: emailAlertPreferences.agentId, enabled: emailAlertPreferences.enabled })
     .from(emailAlertPreferences)
@@ -66,7 +75,9 @@ export async function claimEmailOutreach(
   const [row] = await db
     .insert(emailOutreachDecisions)
     .values({ ...input, verdict: 'pending' })
-    .onConflictDoNothing({ target: [emailOutreachDecisions.mailboxAccountId, emailOutreachDecisions.messageId] })
+    .onConflictDoNothing({
+      target: [emailOutreachDecisions.mailboxAccountId, emailOutreachDecisions.messageId],
+    })
     .returning({ id: emailOutreachDecisions.id });
   return row?.id ?? null;
 }
@@ -75,7 +86,11 @@ export async function claimEmailOutreach(
 export async function settleEmailOutreach(
   db: Executor,
   id: string,
-  outcome: { verdict: Exclude<EmailOutreachVerdict, 'pending'>; reason?: string | null; postedMessageId?: string | null },
+  outcome: {
+    verdict: Exclude<EmailOutreachVerdict, 'pending'>;
+    reason?: string | null;
+    postedMessageId?: string | null;
+  },
 ): Promise<void> {
   await db
     .update(emailOutreachDecisions)
@@ -92,10 +107,12 @@ export async function findEmailOutreach(db: Executor, mailboxAccountId: string, 
   const [row] = await db
     .select()
     .from(emailOutreachDecisions)
-    .where(and(
-      eq(emailOutreachDecisions.mailboxAccountId, mailboxAccountId),
-      eq(emailOutreachDecisions.messageId, messageId),
-    ))
+    .where(
+      and(
+        eq(emailOutreachDecisions.mailboxAccountId, mailboxAccountId),
+        eq(emailOutreachDecisions.messageId, messageId),
+      ),
+    )
     .limit(1);
   return row ?? null;
 }

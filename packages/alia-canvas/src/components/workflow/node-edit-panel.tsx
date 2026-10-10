@@ -1,8 +1,8 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
@@ -11,9 +11,9 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import type { WorkflowNode } from "@/lib/workflow-types";
+} from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import type { WorkflowNode } from '@/lib/workflow-types';
 import {
   DEFAULT_MODEL,
   defaultLabel,
@@ -21,11 +21,11 @@ import {
   groupModels,
   storedModelId,
   useCatalogue,
-} from "@/lib/catalogue";
+} from '@/lib/catalogue';
 
 interface NodeEditPanelProps {
   node: WorkflowNode;
-  onUpdate: (nodeId: string, data: Partial<WorkflowNode["data"]>) => void;
+  onUpdate: (nodeId: string, data: Partial<WorkflowNode['data']>) => void;
   onClose: () => void;
 }
 
@@ -51,7 +51,7 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
    * would put a string the API has never heard of into saved data.
    */
   const handleModelChange = (value: string) => {
-    handleChange("model", value === DEFAULT_MODEL ? undefined : value);
+    handleChange('model', value === DEFAULT_MODEL ? undefined : value);
   };
 
   return (
@@ -74,13 +74,13 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
             <Label htmlFor="label">Label</Label>
             <Input
               id="label"
-              value={node.data.label || ""}
-              onChange={(e) => handleChange("label", e.target.value)}
+              value={node.data.label || ''}
+              onChange={(e) => handleChange('label', e.target.value)}
             />
           </div>
 
           {/* AI Text Node */}
-          {node.type === "aiText" && (
+          {node.type === 'aiText' && (
             <>
               <div>
                 <Label htmlFor="model">Model</Label>
@@ -95,14 +95,16 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
                     )}
                     {modelGroups.map((group) => (
                       <SelectGroup key={group.key}>
-                        <SelectLabel>{group.label ?? "Featured"}</SelectLabel>
+                        <SelectLabel>{group.label ?? 'Featured'}</SelectLabel>
                         {group.models.map((model) => {
                           const context = formatContextWindow(model.contextWindow);
                           return (
                             <SelectItem key={model.id} value={model.id}>
                               <span className="font-medium">{model.name}</span>
                               {context !== null && (
-                                <span className="ml-2 text-xs text-muted-foreground">{context}</span>
+                                <span className="ml-2 text-xs text-muted-foreground">
+                                  {context}
+                                </span>
                               )}
                             </SelectItem>
                           );
@@ -117,8 +119,8 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
                 <Label htmlFor="prompt">Prompt</Label>
                 <Textarea
                   id="prompt"
-                  value={node.data.prompt || ""}
-                  onChange={(e) => handleChange("prompt", e.target.value)}
+                  value={node.data.prompt || ''}
+                  onChange={(e) => handleChange('prompt', e.target.value)}
                   rows={4}
                 />
               </div>
@@ -127,8 +129,8 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
                 <Label htmlFor="systemPrompt">System Prompt</Label>
                 <Textarea
                   id="systemPrompt"
-                  value={node.data.systemPrompt || ""}
-                  onChange={(e) => handleChange("systemPrompt", e.target.value)}
+                  value={node.data.systemPrompt || ''}
+                  onChange={(e) => handleChange('systemPrompt', e.target.value)}
                   rows={3}
                 />
               </div>
@@ -142,7 +144,7 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
                   max="2"
                   step="0.1"
                   value={node.data.temperature || 0.7}
-                  onChange={(e) => handleChange("temperature", parseFloat(e.target.value))}
+                  onChange={(e) => handleChange('temperature', parseFloat(e.target.value))}
                 />
               </div>
             </>
@@ -150,21 +152,21 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
 
           {/* AI Image Node */}
           {/*
-            * An image node has no mode control, because it has no choice to
-            * offer: `packages/api/src/routes/canvas/execute.ts` runs the
-            * `aiImage` case through `getModelMappingsForTier('v1-image')` and
-            * never reads `node.data.model`. The control that used to sit here
-            * showed an alias name and changed nothing — a picker whose value the
-            * server ignores is a claim the product does not make.
-            */}
-          {node.type === "aiImage" && (
+           * An image node has no mode control, because it has no choice to
+           * offer: `packages/api/src/routes/canvas/execute.ts` runs the
+           * `aiImage` case through `getModelMappingsForTier('v1-image')` and
+           * never reads `node.data.model`. The control that used to sit here
+           * showed an alias name and changed nothing — a picker whose value the
+           * server ignores is a claim the product does not make.
+           */}
+          {node.type === 'aiImage' && (
             <>
               <div>
                 <Label htmlFor="prompt">Prompt</Label>
                 <Textarea
                   id="prompt"
-                  value={node.data.prompt || ""}
-                  onChange={(e) => handleChange("prompt", e.target.value)}
+                  value={node.data.prompt || ''}
+                  onChange={(e) => handleChange('prompt', e.target.value)}
                   rows={4}
                 />
               </div>
@@ -172,8 +174,8 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
               <div>
                 <Label htmlFor="size">Size</Label>
                 <Select
-                  value={node.data.size || "1024x1024"}
-                  onValueChange={(value) => handleChange("size", value)}
+                  value={node.data.size || '1024x1024'}
+                  onValueChange={(value) => handleChange('size', value)}
                 >
                   <SelectTrigger id="size">
                     <SelectValue />
@@ -191,14 +193,14 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
           )}
 
           {/* GitHub Node */}
-          {node.type === "github" && (
+          {node.type === 'github' && (
             <>
               <div>
                 <Label htmlFor="githubUrl">GitHub URL</Label>
                 <Input
                   id="githubUrl"
-                  value={node.data.githubUrl || ""}
-                  onChange={(e) => handleChange("githubUrl", e.target.value)}
+                  value={node.data.githubUrl || ''}
+                  onChange={(e) => handleChange('githubUrl', e.target.value)}
                   placeholder="https://github.com/user/repo"
                 />
               </div>
@@ -207,8 +209,8 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
                 <Label htmlFor="branch">Branch</Label>
                 <Input
                   id="branch"
-                  value={node.data.branch || "main"}
-                  onChange={(e) => handleChange("branch", e.target.value)}
+                  value={node.data.branch || 'main'}
+                  onChange={(e) => handleChange('branch', e.target.value)}
                 />
               </div>
 
@@ -217,7 +219,7 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
                 <Switch
                   id="fetchReadme"
                   checked={node.data.fetchReadme || false}
-                  onCheckedChange={(checked) => handleChange("fetchReadme", checked)}
+                  onCheckedChange={(checked) => handleChange('fetchReadme', checked)}
                 />
               </div>
 
@@ -226,7 +228,7 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
                 <Switch
                   id="fetchStructure"
                   checked={node.data.fetchStructure || false}
-                  onCheckedChange={(checked) => handleChange("fetchStructure", checked)}
+                  onCheckedChange={(checked) => handleChange('fetchStructure', checked)}
                 />
               </div>
 
@@ -235,33 +237,33 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
                 <Switch
                   id="fetchKeyFiles"
                   checked={node.data.fetchKeyFiles || false}
-                  onCheckedChange={(checked) => handleChange("fetchKeyFiles", checked)}
+                  onCheckedChange={(checked) => handleChange('fetchKeyFiles', checked)}
                 />
               </div>
             </>
           )}
 
           {/* Text Input Node */}
-          {node.type === "textInput" && (
+          {node.type === 'textInput' && (
             <div>
               <Label htmlFor="text">Text</Label>
               <Textarea
                 id="text"
-                value={node.data.text || ""}
-                onChange={(e) => handleChange("text", e.target.value)}
+                value={node.data.text || ''}
+                onChange={(e) => handleChange('text', e.target.value)}
                 rows={6}
               />
             </div>
           )}
 
           {/* Output Node */}
-          {node.type === "output" && (
+          {node.type === 'output' && (
             <>
               <div>
                 <Label htmlFor="outputType">Output Type</Label>
                 <Select
-                  value={node.data.outputType || "readme-md"}
-                  onValueChange={(value) => handleChange("outputType", value)}
+                  value={node.data.outputType || 'readme-md'}
+                  onValueChange={(value) => handleChange('outputType', value)}
                 >
                   <SelectTrigger id="outputType">
                     <SelectValue />
@@ -279,21 +281,21 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
                 <Label htmlFor="customFilename">Custom Filename</Label>
                 <Input
                   id="customFilename"
-                  value={node.data.customFilename || ""}
-                  onChange={(e) => handleChange("customFilename", e.target.value)}
+                  value={node.data.customFilename || ''}
+                  onChange={(e) => handleChange('customFilename', e.target.value)}
                 />
               </div>
             </>
           )}
 
           {/* Merge Node */}
-          {node.type === "merge" && (
+          {node.type === 'merge' && (
             <div>
               <Label htmlFor="separator">Separator</Label>
               <Input
                 id="separator"
-                value={node.data.separator || "\n\n"}
-                onChange={(e) => handleChange("separator", e.target.value)}
+                value={node.data.separator || '\n\n'}
+                onChange={(e) => handleChange('separator', e.target.value)}
               />
             </div>
           )}

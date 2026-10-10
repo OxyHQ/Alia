@@ -40,7 +40,8 @@ describe('leader election: the CAS Mongo did with an aggregation pipeline', () =
    * SERVER's clock, never the application's, because two tasks whose clocks
    * disagree by more than the TTL would otherwise both believe they lead.
    */
-  const acquire = (name: string, holderId: string, ttlSeconds: number) => db.execute<{ holder_id: string }>(sql`
+  const acquire = (name: string, holderId: string, ttlSeconds: number) =>
+    db.execute<{ holder_id: string }>(sql`
     insert into ${leases} (name, holder_id, expires_at, acquired_at)
     values (${name}, ${holderId}, now() + make_interval(secs => ${ttlSeconds}), now())
     on conflict (name) do update
@@ -81,7 +82,9 @@ describe('leader election: the CAS Mongo did with an aggregation pipeline', () =
 
   it('an EXPIRED lease is claimable by another instance', async () => {
     await acquire('election-3', 'task-a', 60);
-    await db.execute(sql`update ${leases} set expires_at = now() - interval '1 second' where name = 'election-3'`);
+    await db.execute(
+      sql`update ${leases} set expires_at = now() - interval '1 second' where name = 'election-3'`,
+    );
 
     const taken = await acquire('election-3', 'task-b', 60);
 

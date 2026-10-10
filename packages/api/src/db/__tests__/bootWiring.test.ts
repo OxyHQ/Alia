@@ -82,7 +82,9 @@ function resolveRelative(fromFile: string, specifier: string): string | null {
     `${base}.ts`,
     `${base.replace(/\.js$/, '')}/index.ts`,
   ];
-  return candidates.find((candidate) => existsSync(candidate) && statSync(candidate).isFile()) ?? null;
+  return (
+    candidates.find((candidate) => existsSync(candidate) && statSync(candidate).isFile()) ?? null
+  );
 }
 
 interface Walk {
@@ -133,7 +135,7 @@ describe('src/index.ts boot wiring', () => {
     // Vacuity floor: without this, every assertion below passes on an empty
     // read for reasons that have nothing to do with the wiring.
     expect(source.length).toBeGreaterThan(5_000);
-    expect(source).toContain("server.listen(PORT");
+    expect(source).toContain('server.listen(PORT');
     expect(source).toContain("import express from 'express'");
   });
 
@@ -273,7 +275,8 @@ describe('the boot path reaches no MongoDB driver', () => {
 
   it('never reaches mongoose or the raw driver from src/index.ts', () => {
     const drivers = [...boot.externals.keys()].filter(
-      (specifier) => specifier === 'mongoose' || specifier === 'mongodb' || specifier.startsWith('mongodb/'),
+      (specifier) =>
+        specifier === 'mongoose' || specifier === 'mongodb' || specifier.startsWith('mongodb/'),
     );
     expect(drivers).toEqual([]);
   });
@@ -367,9 +370,7 @@ describe('the Mongo drivers have no first-party surface', () => {
   });
 
   it('has no importer and no direct dependency', () => {
-    const importers = [
-      ...new Set([...importersOf('mongoose'), ...importersOf('mongodb')]),
-    ].sort();
+    const importers = [...new Set([...importersOf('mongoose'), ...importersOf('mongodb')])].sort();
 
     expect(
       importers,

@@ -172,7 +172,10 @@ describe('POST /skills', () => {
     await handlerFor('post', '/')(
       {
         user: USER,
-        body: { document: '---\nname: my-skill\ndescription: Does a thing. Use when a thing needs doing.\n---\n\nBody.' },
+        body: {
+          document:
+            '---\nname: my-skill\ndescription: Does a thing. Use when a thing needs doing.\n---\n\nBody.',
+        },
       },
       res,
     );
@@ -238,22 +241,33 @@ describe('POST /skills/import', () => {
       ...IMPORT,
       skills: [
         ...IMPORT.skills,
-        { directory: 'skills/xlsx', bundle: { document: { frontmatter: { name: 'xlsx' } }, warnings: [] } },
+        {
+          directory: 'skills/xlsx',
+          bundle: { document: { frontmatter: { name: 'xlsx' } }, warnings: [] },
+        },
       ],
     } as never);
 
     const res = makeRes();
-    await handlerFor('post', '/import')({ user: USER, body: { source: 'anthropics/skills', name: 'xlsx' } }, res);
+    await handlerFor('post', '/import')(
+      { user: USER, body: { source: 'anthropics/skills', name: 'xlsx' } },
+      res,
+    );
 
     expect(res.statusCode).toBe(201);
     expect(vi.mocked(storeSkillBundle)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(storeSkillBundle).mock.calls[0][2]).toMatchObject({ sourcePath: 'skills/xlsx' });
+    expect(vi.mocked(storeSkillBundle).mock.calls[0][2]).toMatchObject({
+      sourcePath: 'skills/xlsx',
+    });
   });
 
   it('answers 404 when the named skill is not in that repository', async () => {
     vi.mocked(importSkillsFromGitHub).mockResolvedValue(IMPORT as never);
     const res = makeRes();
-    await handlerFor('post', '/import')({ user: USER, body: { source: 'anthropics/skills', name: 'missing' } }, res);
+    await handlerFor('post', '/import')(
+      { user: USER, body: { source: 'anthropics/skills', name: 'missing' } },
+      res,
+    );
 
     expect(res.statusCode).toBe(404);
     expect(vi.mocked(storeSkillBundle)).not.toHaveBeenCalled();
@@ -283,7 +297,8 @@ describe('POST /skills/upload', () => {
     return res;
   }
 
-  const DOCUMENT = '---\nname: my-skill\ndescription: Does a thing. Use when a thing needs doing.\n---\n\nBody.';
+  const DOCUMENT =
+    '---\nname: my-skill\ndescription: Does a thing. Use when a thing needs doing.\n---\n\nBody.';
 
   it('accepts path-qualified files, the shape the Skills API takes', async () => {
     const res = await upload([
@@ -330,7 +345,11 @@ describe('PATCH /skills/:id', () => {
   it('carries presentation and publication through', async () => {
     const res = makeRes();
     await handlerFor('patch', '/:id')(
-      { user: USER, params: { id: 'sk1' }, body: { displayName: 'Renamed', visibility: 'public', tags: ['writing'] } },
+      {
+        user: USER,
+        params: { id: 'sk1' },
+        body: { displayName: 'Renamed', visibility: 'public', tags: ['writing'] },
+      },
       res,
     );
 
@@ -359,7 +378,10 @@ describe('PATCH /skills/:id', () => {
   it('is scoped to the caller: the repository decides, and a miss is a 404', async () => {
     vi.mocked(updateOwnedSkill).mockResolvedValue(undefined);
     const res = makeRes();
-    await handlerFor('patch', '/:id')({ user: USER, params: { id: 'sk1' }, body: { displayName: 'x' } }, res);
+    await handlerFor('patch', '/:id')(
+      { user: USER, params: { id: 'sk1' }, body: { displayName: 'x' } },
+      res,
+    );
 
     expect(res.statusCode).toBe(404);
     expect(vi.mocked(updateOwnedSkill).mock.calls[0][2]).toBe(USER.id);
@@ -381,9 +403,15 @@ describe('POST /skills/:id/versions', () => {
   });
 
   it('refuses a version for somebody else’s skill as a 404', async () => {
-    vi.mocked(findSkillById).mockResolvedValue({ ...SKILL, ownerOxyUserId: 'someone-else' } as never);
+    vi.mocked(findSkillById).mockResolvedValue({
+      ...SKILL,
+      ownerOxyUserId: 'someone-else',
+    } as never);
     const res = makeRes();
-    await handlerFor('post', '/:id/versions')({ user: USER, params: { id: 'sk1' }, body: VALID }, res);
+    await handlerFor('post', '/:id/versions')(
+      { user: USER, params: { id: 'sk1' }, body: VALID },
+      res,
+    );
 
     expect(res.statusCode).toBe(404);
   });
@@ -391,7 +419,11 @@ describe('POST /skills/:id/versions', () => {
 
 describe('the shelf', () => {
   it('installs a public skill somebody else owns', async () => {
-    vi.mocked(findSkillById).mockResolvedValue({ ...SKILL, ownerOxyUserId: 'other', visibility: 'public' } as never);
+    vi.mocked(findSkillById).mockResolvedValue({
+      ...SKILL,
+      ownerOxyUserId: 'other',
+      visibility: 'public',
+    } as never);
     const res = makeRes();
     await handlerFor('post', '/:id/install')({ user: USER, params: { id: 'sk1' }, body: {} }, res);
 
@@ -400,7 +432,11 @@ describe('the shelf', () => {
   });
 
   it('refuses to install a private skill belonging to somebody else', async () => {
-    vi.mocked(findSkillById).mockResolvedValue({ ...SKILL, ownerOxyUserId: 'other', visibility: 'private' } as never);
+    vi.mocked(findSkillById).mockResolvedValue({
+      ...SKILL,
+      ownerOxyUserId: 'other',
+      visibility: 'private',
+    } as never);
     vi.mocked(findSkillByName).mockResolvedValue(null);
     const res = makeRes();
     await handlerFor('post', '/:id/install')({ user: USER, params: { id: 'sk1' }, body: {} }, res);
@@ -427,13 +463,19 @@ describe('the shelf', () => {
     );
 
     expect(res.statusCode).toBe(200);
-    expect(vi.mocked(updateInstall).mock.calls[0][3]).toEqual({ enabled: false, pinnedVersion: null });
+    expect(vi.mocked(updateInstall).mock.calls[0][3]).toEqual({
+      enabled: false,
+      pinnedVersion: null,
+    });
   });
 
   it('answers 404 when patching an install that does not exist', async () => {
     vi.mocked(updateInstall).mockResolvedValue(false);
     const res = makeRes();
-    await handlerFor('patch', '/:id/install')({ user: USER, params: { id: 'sk1' }, body: { enabled: true } }, res);
+    await handlerFor('patch', '/:id/install')(
+      { user: USER, params: { id: 'sk1' }, body: { enabled: true } },
+      res,
+    );
 
     expect(res.statusCode).toBe(404);
   });

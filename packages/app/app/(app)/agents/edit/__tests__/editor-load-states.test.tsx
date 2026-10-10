@@ -1,11 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
-import {
-  act,
-  create,
-  type ReactTestInstance,
-  type ReactTestRenderer,
-} from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -98,10 +93,7 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     Platform: {
@@ -116,19 +108,14 @@ vi.mock('react-native', async () => {
 vi.mock('@oxy.so/bloom/textarea', async () => {
   const ReactModule = await import('react');
   return {
-    Textarea: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Textarea', props),
+    Textarea: (props: Record<string, unknown>) => ReactModule.createElement('Textarea', props),
   };
 });
 vi.mock('@oxy.so/bloom/text-field', async () => {
   const ReactModule = await import('react');
   return {
-    TextFieldInput: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Input', props),
-    TextField: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    TextFieldInput: (props: Record<string, unknown>) => ReactModule.createElement('Input', props),
+    TextField: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('TextField', props, children),
     TextFieldIcon: (props: Record<string, unknown>) =>
       ReactModule.createElement('TextFieldIcon', props),
@@ -137,37 +124,27 @@ vi.mock('@oxy.so/bloom/text-field', async () => {
 vi.mock('@oxy.so/bloom/switch', async () => {
   const ReactModule = await import('react');
   return {
-    Switch: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Switch', props),
+    Switch: (props: Record<string, unknown>) => ReactModule.createElement('Switch', props),
   };
 });
 vi.mock('@oxy.so/bloom/label', async () => {
   const ReactModule = await import('react');
   return {
-    Label: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Label: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Label', props, children),
   };
 });
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   // `Muted` is the same text in the secondary tone, so it renders as a Text.
-  const text = ({
-    children,
-    ...props
-  }: React.PropsWithChildren<Record<string, unknown>>) =>
+  const text = ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
     ReactModule.createElement('Text', props, children);
   return { Text: text, Muted: text };
 });
 vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
   return {
-    Button: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Button: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Button', props, children),
   };
 });
@@ -175,10 +152,7 @@ vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     DropdownMenu: host('MenuRoot'),
@@ -190,20 +164,14 @@ vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
 vi.mock('@oxy.so/bloom/dialog', async () => {
   const ReactModule = await import('react');
   return {
-    Dialog: ({
-      open,
-      children,
-    }: React.PropsWithChildren<{ open?: boolean }>) =>
-      open === true
-        ? ReactModule.createElement('Dialog', null, children)
-        : null,
+    Dialog: ({ open, children }: React.PropsWithChildren<{ open?: boolean }>) =>
+      open === true ? ReactModule.createElement('Dialog', null, children) : null,
   };
 });
 vi.mock('@oxy.so/bloom/search', async () => {
   const ReactModule = await import('react');
   return {
-    Search: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Search', props),
+    Search: (props: Record<string, unknown>) => ReactModule.createElement('Search', props),
   };
 });
 vi.mock('@oxy.so/bloom/button', async () => {
@@ -215,26 +183,20 @@ vi.mock('@oxy.so/bloom/button', async () => {
       ReactModule.createElement(
         'Button',
         props,
-        typeof children === 'string'
-          ? ReactModule.createElement('Text', null, children)
-          : children,
+        typeof children === 'string' ? ReactModule.createElement('Text', null, children) : children,
       ),
   };
 });
 vi.mock('@oxy.so/bloom/item', async () => {
   const ReactModule = await import('react');
   return {
-    Item: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Item', props),
+    Item: (props: Record<string, unknown>) => ReactModule.createElement('Item', props),
   };
 });
 vi.mock('@oxy.so/bloom/settings-list', async () => {
   const ReactModule = await import('react');
   return {
-    SettingsListGroup: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    SettingsListGroup: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('SettingsListGroup', props, children),
     SettingsListItem: (props: Record<string, unknown>) =>
       ReactModule.createElement('SettingsListItem', props),
@@ -254,18 +216,14 @@ vi.mock('@alia.onl/sdk', async () => {
 vi.mock('@oxy.so/bloom/badge', async () => {
   const ReactModule = await import('react');
   return {
-    Badge: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Badge', props),
+    Badge: (props: Record<string, unknown>) => ReactModule.createElement('Badge', props),
   };
 });
 vi.mock('@oxy.so/bloom/card', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return { Card: host('Card'), CardBody: host('CardBody') };
 });
@@ -273,36 +231,28 @@ vi.mock('@oxy.so/bloom/chip', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return { Chip: host('Chip'), ChipRow: host('ChipRow') };
 });
 vi.mock('@oxy.so/bloom/divider', async () => {
   const ReactModule = await import('react');
   return {
-    Divider: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Divider', props),
+    Divider: (props: Record<string, unknown>) => ReactModule.createElement('Divider', props),
   };
 });
 vi.mock('@oxy.so/bloom/loading', async () => {
   const ReactModule = await import('react');
   // The label as a Text node, so "what the screen says" reads it like any other.
   return {
-    Loading: ({ text }: { text?: string }) =>
-      ReactModule.createElement('Text', null, text),
+    Loading: ({ text }: { text?: string }) => ReactModule.createElement('Text', null, text),
   };
 });
 vi.mock('@oxy.so/bloom/segmented-control', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     SegmentedControl: host('SegmentedControl'),
@@ -314,10 +264,7 @@ vi.mock('@oxy.so/bloom/tabs', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return { Tabs: host('Tabs'), TabsTrigger: host('TabsTrigger') };
 });
@@ -450,11 +397,7 @@ let renderer: ReactTestRenderer | null = null;
  * — because how many times the query retries is one of the things measured.
  */
 function screenElement(client: QueryClient): React.ReactElement {
-  return React.createElement(
-    QueryClientProvider,
-    { client },
-    React.createElement(EditAgentScreen),
-  );
+  return React.createElement(QueryClientProvider, { client }, React.createElement(EditAgentScreen));
 }
 
 async function renderScreen(): Promise<{
@@ -481,21 +424,15 @@ async function letTimePass(seconds: number): Promise<void> {
 
 function texts(root: ReactTestInstance): string[] {
   return root
-    .findAll(
-      (node) => isHost(node, 'Text') && typeof node.props.children === 'string',
-    )
+    .findAll((node) => isHost(node, 'Text') && typeof node.props.children === 'string')
     .map((node) => node.props.children as string);
 }
 
-function buttonLabelled(
-  root: ReactTestInstance,
-  label: string,
-): ReactTestInstance {
+function buttonLabelled(root: ReactTestInstance, label: string): ReactTestInstance {
   const found = root.findAll(
     (node) => isHost(node, 'Button') && node.props.accessibilityLabel === label,
   );
-  if (found.length !== 1)
-    throw new Error(`expected one "${label}" button, found ${found.length}`);
+  if (found.length !== 1) throw new Error(`expected one "${label}" button, found ${found.length}`);
   return found[0];
 }
 
@@ -505,11 +442,8 @@ function editorIsOpen(root: ReactTestInstance): boolean {
   // `Textarea`, found by its testID rather than by being the only Textarea on
   // the screen.
   return (
-    root.findAll(
-      (node) =>
-        isHost(node, 'Textarea') &&
-        node.props.testID === 'agent-system-prompt',
-    ).length > 0
+    root.findAll((node) => isHost(node, 'Textarea') && node.props.testID === 'agent-system-prompt')
+      .length > 0
   );
 }
 
@@ -538,10 +472,7 @@ describe('before the session can sign the request', () => {
     const { renderer: screen, client } = await renderScreen();
     await letTimePass(2);
 
-    expect(
-      agentRequests(),
-      'a request before the bearer exists is the 404 itself',
-    ).toBe(0);
+    expect(agentRequests(), 'a request before the bearer exists is the 404 itself').toBe(0);
     expect(texts(screen.root)).toContain('common.loading');
     expect(editorIsOpen(screen.root)).toBe(false);
 
@@ -553,10 +484,9 @@ describe('before the session can sign the request', () => {
     await letTimePass(2);
 
     expect(agentRequests()).toBe(1);
-    expect(
-      editorIsOpen(screen.root),
-      'the editor opens on its own once the query can run',
-    ).toBe(true);
+    expect(editorIsOpen(screen.root), 'the editor opens on its own once the query can run').toBe(
+      true,
+    );
   });
 
   /**
@@ -575,20 +505,14 @@ describe('before the session can sign the request', () => {
     // A fresh element per render: React skips a re-render handed the very same
     // element object, and the probe has to re-read the session to see it change.
     const element = () =>
-      React.createElement(
-        QueryClientProvider,
-        { client },
-        React.createElement(Probe),
-      );
+      React.createElement(QueryClientProvider, { client }, React.createElement(Probe));
     let probe!: ReactTestRenderer;
     await act(async () => {
       probe = create(element());
     });
     renderer = probe;
     await letTimePass(1);
-    expect(new Set(seen), 'never fetching while pending').toEqual(
-      new Set(['idle']),
-    );
+    expect(new Set(seen), 'never fetching while pending').toEqual(new Set(['idle']));
     expect(agentRequests()).toBe(0);
 
     session.isPrivateApiPending = false;
@@ -614,23 +538,16 @@ describe('when the route says the agent is not there', () => {
     const shown = texts(screen.root);
     expect(shown).toContain('agents.notFound');
     expect(shown).toContain('agents.notFoundDetail');
-    expect(shown, 'a failed query is not a loading one').not.toContain(
-      'common.loading',
-    );
+    expect(shown, 'a failed query is not a loading one').not.toContain('common.loading');
     expect(agentRequests(), 'a deliberate 404 is asked once').toBe(1);
 
     await act(async () => {
-      (
-        buttonLabelled(screen.root, 'agents.backToAgents').props
-          .onPress as () => void
-      )();
+      (buttonLabelled(screen.root, 'agents.backToAgents').props.onPress as () => void)();
     });
     expect(replace).toHaveBeenCalledWith('/(app)/agents');
     expect(
       screen.root.findAll(
-        (node) =>
-          isHost(node, 'Button') &&
-          node.props.accessibilityLabel === 'agents.retry',
+        (node) => isHost(node, 'Button') && node.props.accessibilityLabel === 'agents.retry',
       ),
     ).toHaveLength(0);
   });
@@ -656,16 +573,12 @@ describe('when the route fails for any other reason', () => {
       'Agent infrastructure unavailable',
     );
     expect(shown).not.toContain('common.loading');
-    expect(agentRequests(), 'a transient failure IS retried').toBeGreaterThan(
-      1,
-    );
+    expect(agentRequests(), 'a transient failure IS retried').toBeGreaterThan(1);
     const askedBeforeRetry = agentRequests();
 
     failing = false;
     await act(async () => {
-      (
-        buttonLabelled(screen.root, 'agents.retry').props.onPress as () => void
-      )();
+      (buttonLabelled(screen.root, 'agents.retry').props.onPress as () => void)();
     });
     await letTimePass(2);
 
@@ -673,4 +586,3 @@ describe('when the route fails for any other reason', () => {
     expect(editorIsOpen(screen.root)).toBe(true);
   });
 });
-

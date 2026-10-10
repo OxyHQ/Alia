@@ -125,10 +125,7 @@ async function anOrganization(overrides: { slug?: string; ownerId?: string } = {
  * That is a test that cannot fail, so the timestamps are made to differ.
  */
 async function pinCreatedAt(organizationId: string, createdAt: Date): Promise<void> {
-  await db
-    .update(organizations)
-    .set({ createdAt })
-    .where(eq(organizations.id, organizationId));
+  await db.update(organizations).set({ createdAt }).where(eq(organizations.id, organizationId));
 }
 
 async function seatMember(organizationId: string, oxyUserId: string, role: 'admin' | 'member') {
@@ -849,7 +846,12 @@ describe('deleting an organization takes everything hanging off it', () => {
       invitedBy: OWNER,
       expiresAt: inSevenDays(),
     });
-    await shareAgentWithOrganization(db, organization.id, '01900000-0000-7000-8000-00000000000c', OWNER);
+    await shareAgentWithOrganization(
+      db,
+      organization.id,
+      '01900000-0000-7000-8000-00000000000c',
+      OWNER,
+    );
 
     await deleteOrganization(db, organization.id);
 

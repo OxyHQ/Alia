@@ -42,11 +42,7 @@ export interface ErrorEvent {
   message: string;
 }
 
-export type ObserverEvent =
-  | AgentStartEvent
-  | AgentEndEvent
-  | ToolCallEvent
-  | ErrorEvent;
+export type ObserverEvent = AgentStartEvent | AgentEndEvent | ToolCallEvent | ErrorEvent;
 
 // ── Metric Types ──
 

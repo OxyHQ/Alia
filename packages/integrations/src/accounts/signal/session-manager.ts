@@ -226,7 +226,7 @@ class SessionManager {
       ],
       {
         stdio: ['pipe', 'pipe', 'pipe'],
-      }
+      },
     );
 
     this.daemons.set(sessionId, daemon);
@@ -277,18 +277,18 @@ class SessionManager {
         await markSignalFailed(getDb(), sessionId);
         this.reconnectAttempts.delete(sessionId);
         logger.error(
-          `Session ${sessionId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`
+          `Session ${sessionId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`,
         );
       } else {
         const delay =
           Math.min(
             SessionManager.BASE_RECONNECT_MS * Math.pow(2, attempts - 1),
-            SessionManager.MAX_RECONNECT_MS
+            SessionManager.MAX_RECONNECT_MS,
           ) + Math.floor(Math.random() * SessionManager.JITTER_MAX_MS);
 
         await markSignalDisconnected(getDb(), sessionId);
         logger.info(
-          `Session ${sessionId} disconnected (code ${code}), reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`
+          `Session ${sessionId} disconnected (code ${code}), reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`,
         );
 
         // Clear any existing reconnect timer
@@ -298,7 +298,7 @@ class SessionManager {
         const timer = setTimeout(() => {
           this.reconnectTimers.delete(sessionId);
           this.startDaemon(sessionId).catch((err) =>
-            logger.error(`Reconnect failed for ${sessionId}:`, err)
+            logger.error(`Reconnect failed for ${sessionId}:`, err),
           );
         }, delay);
         this.reconnectTimers.set(sessionId, timer);
@@ -383,26 +383,30 @@ class SessionManager {
               continue;
             }
 
-            await handleIncomingMessage({
-              platform: 'signal',
-              sessionId,
-              oxyUserId,
-              chatId: contactId,
-              messageText: text,
-              senderName: msg.sourceName || '',
-              sendResponse: async (responseText) => {
-                await fetch(`http://127.0.0.1:${port}/api/v1/send`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    recipients: [sender],
-                    message: responseText,
-                  }),
-                });
+            await handleIncomingMessage(
+              {
+                platform: 'signal',
+                sessionId,
+                oxyUserId,
+                chatId: contactId,
+                messageText: text,
+                senderName: msg.sourceName || '',
+                sendResponse: async (responseText) => {
+                  await fetch(`http://127.0.0.1:${port}/api/v1/send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      recipients: [sender],
+                      message: responseText,
+                    }),
+                  });
+                },
+                charLimit: 4096,
+                platformContext:
+                  'Accessible via Signal. Keep responses under 3000 characters when possible.',
               },
-              charLimit: 4096,
-              platformContext: 'Accessible via Signal. Keep responses under 3000 characters when possible.',
-            }, apiClient);
+              apiClient,
+            );
           } catch (err) {
             logger.error(`Error handling message:`, err);
           }

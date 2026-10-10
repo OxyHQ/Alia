@@ -21,9 +21,10 @@ const introspect = vi.hoisted(() => vi.fn());
 const serviceClient = vi.hoisted(() => ({ configured: true }));
 
 vi.mock('../../lib/oxy-service-client.js', () => ({
-  oxyServiceClient: () => serviceClient.configured
-    ? { agency: { introspectRequesterAssertion: introspect }, baseURL: 'https://api.oxy.so' }
-    : null,
+  oxyServiceClient: () =>
+    serviceClient.configured
+      ? { agency: { introspectRequesterAssertion: introspect }, baseURL: 'https://api.oxy.so' }
+      : null,
 }));
 vi.mock('../../lib/logger.js', () => {
   const channel = () => ({ error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() });
@@ -43,20 +44,27 @@ const SINDI_CREDENTIAL = '01a0648e-ad3f-7608-aa8b-c07bfef6cf73';
 const SINDI_AGENT = '01a0646a-078f-7514-9800-9f43ceed7df8';
 const USER = '6981c9178fcdefaf81988ffb';
 
-function assertion(overrides: Record<string, unknown> = {}, privateKey = KEY.privateKey, keyId = KID): string {
+function assertion(
+  overrides: Record<string, unknown> = {},
+  privateKey = KEY.privateKey,
+  keyId = KID,
+): string {
   const iat = Math.floor(Date.now() / 1000);
-  return signOxyRequesterAssertion({
-    iss: 'https://api.oxy.so',
-    aud: 'alia',
-    sub: USER,
-    jti: randomUUID(),
-    iat,
-    exp: iat + 120,
-    azp: HOMIIO_APP,
-    cid: SINDI_CREDENTIAL,
-    agentId: SINDI_AGENT,
-    ...overrides,
-  } as never, { keyId, privateKey });
+  return signOxyRequesterAssertion(
+    {
+      iss: 'https://api.oxy.so',
+      aud: 'alia',
+      sub: USER,
+      jti: randomUUID(),
+      iat,
+      exp: iat + 120,
+      azp: HOMIIO_APP,
+      cid: SINDI_CREDENTIAL,
+      agentId: SINDI_AGENT,
+      ...overrides,
+    } as never,
+    { keyId, privateKey },
+  );
 }
 
 function claimsOf(token: string): Record<string, unknown> {
@@ -103,7 +111,7 @@ async function send(headers: Record<string, string>) {
     headers: { 'content-type': 'application/json', ...headers },
     body: '{}',
   });
-  return { status: response.status, body: await response.json() as Record<string, unknown> };
+  return { status: response.status, body: (await response.json()) as Record<string, unknown> };
 }
 
 const fetchReal = globalThis.fetch;
@@ -123,7 +131,9 @@ beforeAll(async () => {
   app.post('/v1/chat/completions', authenticateRequesterAssertion, (req, res) => {
     res.json({ userId: req.user?.id ?? null, requester: req.oxyRequester ?? null });
   });
-  await new Promise<void>((resolve) => { server = app.listen(0, '127.0.0.1', () => resolve()); });
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, '127.0.0.1', () => resolve());
+  });
 });
 
 afterAll(async () => {
@@ -151,7 +161,11 @@ describe('present-requester assertions on /v1/chat/completions', () => {
     const result = await send({ ...homiio, 'x-oxy-requester-assertion': token });
     expect(result.status).toBe(200);
     expect(result.body.userId).toBe(USER);
-    expect(result.body.requester).toMatchObject({ userId: USER, agentId: SINDI_AGENT, applicationId: HOMIIO_APP });
+    expect(result.body.requester).toMatchObject({
+      userId: USER,
+      agentId: SINDI_AGENT,
+      applicationId: HOMIIO_APP,
+    });
     expect(introspect).toHaveBeenCalledWith({
       assertion: token,
       presenter: { applicationId: HOMIIO_APP, credentialId: SINDI_CREDENTIAL },
@@ -171,7 +185,13 @@ describe('present-requester assertions on /v1/chat/completions', () => {
     for (const [token, code] of [
       [assertion({}, OTHER_KEY.privateKey), 'invalid_signature'],
       [assertion({}, KEY.privateKey, 'unpublished-kid'), 'unknown_key'],
-      [assertion({ iat: Math.floor(Date.now() / 1000) - 400, exp: Math.floor(Date.now() / 1000) - 280 }), 'expired'],
+      [
+        assertion({
+          iat: Math.floor(Date.now() / 1000) - 400,
+          exp: Math.floor(Date.now() / 1000) - 280,
+        }),
+        'expired',
+      ],
       [assertion({ aud: 'syra' }), 'wrong_audience'],
       [assertion({ iss: 'https://evil.example' }), 'wrong_issuer'],
     ] as const) {
@@ -202,7 +222,11 @@ describe('present-requester assertions on /v1/chat/completions', () => {
   });
 
   it('refuses to combine with offline delegation', async () => {
-    const result = await send({ ...homiio, 'x-oxy-requester-assertion': assertion(), 'x-oxy-user-id': 'someone-else' });
+    const result = await send({
+      ...homiio,
+      'x-oxy-requester-assertion': assertion(),
+      'x-oxy-user-id': 'someone-else',
+    });
     expect(result.status).toBe(400);
     expect(introspect).not.toHaveBeenCalled();
   });

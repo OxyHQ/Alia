@@ -18,7 +18,6 @@ import Head from 'expo-router/head';
 import type { RequireContext } from 'expo-router/build/types';
 
 // The exact string expo-router resolves specially; see its `qualified-entry`.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { ctx: appContext } = require('expo-router/_ctx') as { ctx: RequireContext };
 
 /** Lazy, like `app/` on web (`asyncRoutes.web` in app.json). */

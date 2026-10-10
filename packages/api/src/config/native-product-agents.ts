@@ -143,9 +143,7 @@ export const NATIVE_PRODUCT_AGENT_MANIFEST_SHA256 =
 
 /** The hash of what THIS file holds, recomputed rather than restated. */
 export function nativeProductAgentManifestSha256(): string {
-  return createHash('sha256')
-    .update(JSON.stringify(NATIVE_PRODUCT_AGENT_MANIFEST))
-    .digest('hex');
+  return createHash('sha256').update(JSON.stringify(NATIVE_PRODUCT_AGENT_MANIFEST)).digest('hex');
 }
 
 /** The manifest entry for an exact agent primary key, or null. */

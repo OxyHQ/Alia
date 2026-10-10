@@ -31,7 +31,14 @@
 import { DescribeInstancesCommand, EC2Client, StartInstancesCommand } from '@aws-sdk/client-ec2';
 import { ComputerHostError } from './computer-errors.js';
 
-export type InstanceState = 'pending' | 'running' | 'stopping' | 'stopped' | 'shutting-down' | 'terminated' | 'unknown';
+export type InstanceState =
+  | 'pending'
+  | 'running'
+  | 'stopping'
+  | 'stopped'
+  | 'shutting-down'
+  | 'terminated'
+  | 'unknown';
 
 /** What the waker needs from EC2, so a test can hand it a double. */
 export interface InstanceControl {
@@ -62,7 +69,9 @@ export class Ec2InstanceControl implements InstanceControl {
   }
 
   async state(): Promise<InstanceState> {
-    const answer = await this.client.send(new DescribeInstancesCommand({ InstanceIds: [this.instanceId] }));
+    const answer = await this.client.send(
+      new DescribeInstancesCommand({ InstanceIds: [this.instanceId] }),
+    );
     const name = answer.Reservations?.[0]?.Instances?.[0]?.State?.Name;
     return (name as InstanceState | undefined) ?? 'unknown';
   }
@@ -117,7 +126,11 @@ export class HostWaker {
     while (this.now() < deadline) {
       const state = await this.options.control.state();
       if (state === 'terminated' || state === 'shutting-down' || state === 'unknown') {
-        throw new ComputerHostError('The computer host does not exist any more', 503, 'host_unavailable');
+        throw new ComputerHostError(
+          'The computer host does not exist any more',
+          503,
+          'host_unavailable',
+        );
       }
       if (state === 'running' && (await this.options.healthy())) return;
       // `stopping` cannot be started yet: wait for `stopped`. A start that
@@ -137,7 +150,11 @@ export class HostWaker {
             );
           }
           if (name !== 'IncorrectInstanceState') {
-            throw new ComputerHostError('The computer host could not be started', 503, 'host_unavailable');
+            throw new ComputerHostError(
+              'The computer host could not be started',
+              503,
+              'host_unavailable',
+            );
           }
         }
       }

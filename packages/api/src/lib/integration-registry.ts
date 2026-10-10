@@ -40,7 +40,10 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
     oauthConfig: {
       authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
       tokenUrl: 'https://oauth2.googleapis.com/token',
-      scopes: ['https://www.googleapis.com/auth/calendar.readonly', 'https://www.googleapis.com/auth/calendar.events'],
+      scopes: [
+        'https://www.googleapis.com/auth/calendar.readonly',
+        'https://www.googleapis.com/auth/calendar.events',
+      ],
       envClientId: 'GOOGLE_OAUTH_CLIENT_ID',
       envClientSecret: 'GOOGLE_OAUTH_CLIENT_SECRET',
     },

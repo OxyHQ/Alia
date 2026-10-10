@@ -56,7 +56,9 @@ const H = vi.hoisted(() => ({
 
 vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child } };
+  return {
+    log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child },
+  };
 });
 
 vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
@@ -271,7 +273,10 @@ const POOL_OPTS = {
 };
 
 /** One full turn of the event loop, which flushes every pending microtask. */
-const settle = (): Promise<void> => new Promise((resolve) => { setImmediate(resolve); });
+const settle = (): Promise<void> =>
+  new Promise((resolve) => {
+    setImmediate(resolve);
+  });
 
 /**
  * Release parked executors until the pool settles.
@@ -283,8 +288,14 @@ const settle = (): Promise<void> => new Promise((resolve) => { setImmediate(reso
 async function drainUntil<T>(running: Promise<T>): Promise<T> {
   let done = false;
   const settled = running.then(
-    (value) => { done = true; return value; },
-    (error: unknown) => { done = true; throw error; },
+    (value) => {
+      done = true;
+      return value;
+    },
+    (error: unknown) => {
+      done = true;
+      throw error;
+    },
   );
   for (let tick = 0; tick < 500 && !done; tick += 1) {
     for (const id of [...H.inFlight]) H.gates.get(id)?.();

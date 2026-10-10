@@ -179,7 +179,11 @@ function declaredPaths(screens, prefix = '') {
 
 /** A concrete URL for a pattern: every parameter filled with something inert. */
 function concrete(pattern) {
-  return `/${pattern.split('/').map((s) => (s.startsWith(':') || s.startsWith('*') ? 'probe' : s)).filter(Boolean).join('/')}`;
+  return `/${pattern
+    .split('/')
+    .map((s) => (s.startsWith(':') || s.startsWith('*') ? 'probe' : s))
+    .filter(Boolean)
+    .join('/')}`;
 }
 
 const groupScreens = config.screens?.['(app)'];
@@ -193,7 +197,9 @@ const declared = declaredPaths(groupScreens.screens);
 const others = declared.filter((route) => route.name !== DYNAMIC);
 
 if (others.length < 20) {
-  console.error(`check-single-segment-routes: only ${String(others.length)} routes beside the dynamic one.`);
+  console.error(
+    `check-single-segment-routes: only ${String(others.length)} routes beside the dynamic one.`,
+  );
   console.error('  The group moved or was renamed, so this gate is measuring nothing.');
   process.exit(1);
 }
@@ -208,14 +214,18 @@ if (others.length < 20) {
  */
 const bareDynamics = declared.filter((route) => /^:[^/]*$/.test(route.pattern));
 if (bareDynamics.length !== 1 || bareDynamics[0].name !== DYNAMIC) {
-  console.error('check-single-segment-routes: the group root does not hold exactly one dynamic route.');
+  console.error(
+    'check-single-segment-routes: the group root does not hold exactly one dynamic route.',
+  );
   console.error('');
-  console.error(`  found: ${bareDynamics.map((r) => r.name).join(', ') || '(none)'} — expected only ${DYNAMIC}.`);
+  console.error(
+    `  found: ${bareDynamics.map((r) => r.name).join(', ') || '(none)'} — expected only ${DYNAMIC}.`,
+  );
   console.error('');
   console.error(
     '  One dynamic route at the root of a group matches every single-segment path.\n' +
       '  A second one is unreachable, and which of the two loses is not a decision\n' +
-      '  anybody made. Nest it under a static segment instead.'
+      '  anybody made. Nest it under a static segment instead.',
   );
   process.exit(1);
 }
@@ -224,7 +234,9 @@ for (const route of others) {
   const path = concrete(route.pattern);
   const chain = resolveRoute(path, config);
   if (chain.includes(DYNAMIC)) {
-    failures.push(`${path} (${route.name}) resolves to ${chain.join(' > ')} — the agent profile swallowed it.`);
+    failures.push(
+      `${path} (${route.name}) resolves to ${chain.join(' > ')} — the agent profile swallowed it.`,
+    );
   }
 }
 
@@ -251,11 +263,13 @@ const sacrificed = 'settings';
 const withoutOne = keys.filter((key) => !key.startsWith(`./(app)/${sacrificed}`));
 const controlChain = resolveRoute(`/${sacrificed}`, linkingConfig(withoutOne));
 if (!controlChain.includes(DYNAMIC)) {
-  console.error('check-single-segment-routes: the control did not fire, so nothing above is trustworthy.');
+  console.error(
+    'check-single-segment-routes: the control did not fire, so nothing above is trustworthy.',
+  );
   console.error('');
   console.error(
     `  With ./(app)/${sacrificed}.tsx removed, /${sacrificed} resolves to ` +
-      `${controlChain.join(' > ')} rather than ${DYNAMIC}.`
+      `${controlChain.join(' > ')} rather than ${DYNAMIC}.`,
   );
   console.error('');
   console.error('  Removing a route it claims MUST hand that path to the dynamic route. That it');
@@ -271,12 +285,12 @@ if (failures.length > 0) {
   console.error('');
   console.error(
     '  `app/(app)/[username].tsx` matches every single-segment path that no static\n' +
-      '  route claims. Restore the route, or move the agent profile off the group root.'
+      '  route claims. Restore the route, or move the agent profile off the group root.',
   );
   process.exit(1);
 }
 
 console.log(
   `check-single-segment-routes: OK — ${String(others.length)} declared routes resolve past ` +
-    `${DYNAMIC}, /@pepe and /pepe reach it, and removing /${sacrificed} moves it there.`
+    `${DYNAMIC}, /@pepe and /pepe reach it, and removing /${sacrificed} moves it there.`,
 );

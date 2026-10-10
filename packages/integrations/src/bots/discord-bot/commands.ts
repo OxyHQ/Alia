@@ -56,9 +56,10 @@ function renderModelList(
   const beyond = lines.length - shown.length;
   const more = (omitted: number) => `…and ${omitted + beyond} more.`;
   const budget = DISCORD_MAX_CHARS - heading.length - footer.length - 4;
-  const body = beyond > 0
-    ? fitLines([...shown, more(0)], budget, (omitted) => more(omitted - 1))
-    : fitLines(shown, budget, more);
+  const body =
+    beyond > 0
+      ? fitLines([...shown, more(0)], budget, (omitted) => more(omitted - 1))
+      : fitLines(shown, budget, more);
   return `${heading}\n${body}\n\n${footer}`;
 }
 
@@ -140,7 +141,9 @@ export async function runModelCommand(
 
 export async function registerSlashCommands(client: Client): Promise<void> {
   const commands = [
-    new SlashCommandBuilder().setName('start').setDescription('Start using Alia AI / Link your account'),
+    new SlashCommandBuilder()
+      .setName('start')
+      .setDescription('Start using Alia AI / Link your account'),
     new SlashCommandBuilder().setName('status').setDescription('Check your account status'),
     new SlashCommandBuilder().setName('new').setDescription('Start a new conversation'),
     new SlashCommandBuilder()
@@ -244,7 +247,8 @@ async function handleStatus(message: Message): Promise<void> {
     }
     // Omitted only when the catalogue could not be read.
     const catalogue = await apiClient.fetchCatalogue();
-    const modelLabel = catalogue === null ? null : currentModelLabel(botUser.preferredModel, catalogue);
+    const modelLabel =
+      catalogue === null ? null : currentModelLabel(botUser.preferredModel, catalogue);
     await message.reply({
       embeds: [
         {
@@ -294,7 +298,7 @@ async function handleHelp(message: Message): Promise<void> {
     embeds: [
       {
         title: 'Alia AI - Discord Bot',
-        description: "DM me or @mention me in a channel to chat!",
+        description: 'DM me or @mention me in a channel to chat!',
         color: 0x5865f2,
         fields: [
           { name: '/start', value: 'Link your Alia account', inline: true },

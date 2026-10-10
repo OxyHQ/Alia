@@ -71,10 +71,7 @@ export default function AgentsScreen() {
   const handleCreateAgent = useCallback(() => {
     router.push('/(app)/agents/create');
   }, [router]);
-  const handleTeams = useCallback(
-    () => router.push('/(app)/agents/teams'),
-    [router],
-  );
+  const handleTeams = useCallback(() => router.push('/(app)/agents/teams'), [router]);
 
   const categories = useMemo(() => {
     const cats = new Set(agents.map((a) => a.category));
@@ -84,9 +81,7 @@ export default function AgentsScreen() {
   const filteredAgents = useMemo(() => {
     let filtered = agents;
     if (selectedCategory && selectedCategory !== t('common.all')) {
-      filtered = filtered.filter(
-        (agent) => agent.category === selectedCategory,
-      );
+      filtered = filtered.filter((agent) => agent.category === selectedCategory);
     }
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -104,10 +99,7 @@ export default function AgentsScreen() {
     return filtered;
   }, [agents, searchQuery, selectedCategory, t]);
 
-  const featuredAgents = useMemo(
-    () => agents.filter((a) => a.isFeatured),
-    [agents],
-  );
+  const featuredAgents = useMemo(() => agents.filter((a) => a.isFeatured), [agents]);
 
   const renderItem = useCallback(
     ({ item: agent }: { item: (typeof filteredAgents)[0] }) => (
@@ -147,29 +139,19 @@ export default function AgentsScreen() {
   const categoryChips = useMemo(
     () => (
       <View className="py-3">
-        <ChipRow
-          role="radiogroup"
-          accessibilityLabel={t('pages.agents.categories')}
-        >
+        <ChipRow role="radiogroup" accessibilityLabel={t('pages.agents.categories')}>
           {categories.map((category) => {
             const isActive =
-              selectedCategory === category ||
-              (!selectedCategory && category === t('common.all'));
+              selectedCategory === category || (!selectedCategory && category === t('common.all'));
             return (
               <Chip
                 key={category}
                 size="xl"
                 role="radio"
                 selected={isActive}
-                onPress={() =>
-                  setSelectedCategory(
-                    category === t('common.all') ? null : category,
-                  )
-                }
+                onPress={() => setSelectedCategory(category === t('common.all') ? null : category)}
               >
-                {category === t('common.all')
-                  ? category
-                  : agentCategoryLabel(category, t)}
+                {category === t('common.all') ? category : agentCategoryLabel(category, t)}
               </Chip>
             );
           })}
@@ -180,8 +162,7 @@ export default function AgentsScreen() {
   );
 
   const featuredSection = useMemo(() => {
-    if (searchQuery || selectedCategory || featuredAgents.length === 0)
-      return null;
+    if (searchQuery || selectedCategory || featuredAgents.length === 0) return null;
     return (
       <View className="gap-2 pb-4">
         <Text variant="headline-semibold">{t('agents.featured')}</Text>
@@ -203,15 +184,7 @@ export default function AgentsScreen() {
         </ScrollView>
       </View>
     );
-  }, [
-    searchQuery,
-    selectedCategory,
-    featuredAgents,
-    t,
-    handleSelectAgent,
-    handleChat,
-    handleHire,
-  ]);
+  }, [searchQuery, selectedCategory, featuredAgents, t, handleSelectAgent, handleChat, handleHire]);
 
   const sectionTitle = useMemo(
     () => (
@@ -232,10 +205,7 @@ export default function AgentsScreen() {
     return (
       <View className="-m-1.5 flex-row flex-wrap">
         {Array.from({ length: 6 }).map((_, i) => (
-          <View
-            key={i}
-            className={isLargeScreen ? 'w-1/3 p-1.5' : 'w-1/2 p-1.5'}
-          >
+          <View key={i} className={isLargeScreen ? 'w-1/3 p-1.5' : 'w-1/2 p-1.5'}>
             <Card appearance="outline">
               <CardBody>
                 <View className="gap-2.5 py-2">
@@ -269,17 +239,11 @@ export default function AgentsScreen() {
       <EmptyState
         icon={RiRobot2Line}
         title={t('agents.noAgents')}
-        description={
-          searchQuery
-            ? t('common.tryDifferentSearch')
-            : t('agents.createFirstHint')
-        }
+        description={searchQuery ? t('common.tryDifferentSearch') : t('agents.createFirstHint')}
         // Creating an agent is a real screen, so an empty list offers it
         // rather than saying it is "coming soon" (#608, rule 6).
         action={
-          searchQuery
-            ? undefined
-            : { label: t('agents.createAgent'), onPress: handleCreateAgent }
+          searchQuery ? undefined : { label: t('agents.createAgent'), onPress: handleCreateAgent }
         }
       />
     );
@@ -324,9 +288,7 @@ export default function AgentsScreen() {
         ListEmptyComponent={listEmpty}
         ListFooterComponent={<View className="h-6" />}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       />
     </View>
   );

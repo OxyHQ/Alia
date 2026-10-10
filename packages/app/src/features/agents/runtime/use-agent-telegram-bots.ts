@@ -23,8 +23,7 @@ export function botConnectErrorKey(status: number | undefined): string {
  */
 export function useAgentTelegramBots(agentId: string) {
   const { t } = useTranslation();
-  const { bots, registerBot, removeBot, setOwnerPaysAgentTurns } =
-    useAgentBots(agentId);
+  const { bots, registerBot, removeBot, setOwnerPaysAgentTurns } = useAgentBots(agentId);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [token, setToken] = useState('');
   const [connecting, setConnecting] = useState(false);

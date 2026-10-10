@@ -18,11 +18,7 @@
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useShowStore } from '@/features/shows/runtime/show-store';
 import { Dialog } from '@oxy.so/bloom/dialog';
-import {
-  TextFieldHint,
-  TextFieldInput,
-  TextFieldLabel,
-} from '@oxy.so/bloom/text-field';
+import { TextFieldHint, TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { Muted } from '@oxy.so/bloom/typography';
@@ -111,9 +107,7 @@ export function EpisodeCreateDialog({
       actions={[
         { label: t('common.cancel'), color: 'cancel', disabled: starting },
         {
-          label: starting
-            ? t('shows.starting')
-            : t('shows.episodeDialog.record'),
+          label: starting ? t('shows.starting') : t('shows.episodeDialog.record'),
           onPress: handleStart,
           disabled: starting || topicTooShort || titleTooShort,
           shouldCloseOnPress: false,

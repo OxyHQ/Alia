@@ -46,7 +46,7 @@ describe('the generated icon set is the sheet', () => {
     expect(new Set(ICONS.map((icon) => icon.id)).size).toBe(ICONS.length);
   });
 
-  it('carries each symbol\'s own viewBox rather than one for all of them', () => {
+  it("carries each symbol's own viewBox rather than one for all of them", () => {
     // The sheet mixes 16, 20 and 24-unit art. Normalising to one box crops the
     // larger glyphs, so every component must carry the box of ITS symbol, read
     // off the sheet here rather than written into the test.

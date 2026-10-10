@@ -149,9 +149,7 @@ describe('the colours the editor offers', () => {
       expect(painted, `${swatch} does not resolve, so its swatch is the theme's grey`).not.toBe(
         MUTED,
       );
-      expect(painted, `${swatch} resolves to no colour at all`).toBe(
-        APP_COLOR_PRESETS[swatch].hex,
-      );
+      expect(painted, `${swatch} resolves to no colour at all`).toBe(APP_COLOR_PRESETS[swatch].hex);
     }
   });
 

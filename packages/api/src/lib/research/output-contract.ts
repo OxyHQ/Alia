@@ -44,9 +44,32 @@ export interface OutputContract {
 
 const NUMBER_WORDS: Record<string, number> = {
   // English
-  a: 1, an: 1, one: 1, single: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  a: 1,
+  an: 1,
+  one: 1,
+  single: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
   // Spanish (accents stripped before lookup)
-  un: 1, una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10,
+  un: 1,
+  una: 1,
+  uno: 1,
+  dos: 2,
+  tres: 3,
+  cuatro: 4,
+  cinco: 5,
+  seis: 6,
+  siete: 7,
+  ocho: 8,
+  nueve: 9,
+  diez: 10,
 };
 
 /** Two and up, in digits or words: a plural count never collides with an article. */
@@ -68,7 +91,10 @@ function fold(text: string): string {
   let out = '';
   for (let i = 0; i < text.length; i += 1) {
     const unit = text[i];
-    const folded = unit.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const folded = unit
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
     out += folded.length === 1 ? folded : unit;
   }
   return out;
@@ -95,25 +121,66 @@ interface ShapeRule {
  * "brief" words. Every pattern is written against the FOLDED request.
  */
 const SHAPE_RULES: ShapeRule[] = [
-  { shape: 'sentences', re: new RegExp(String.raw`\b(?:in|en|de|con|of|using)?\s*${PLURAL}[\s-]*(sentences?|frases?|oraciones?|lineas?|lines?)\b`), countGroup: 1 },
-  { shape: 'sentences', re: new RegExp(String.raw`\b(?:in|en)\s+${SINGULAR}[\s-]*(sentence|frase|oracion|linea|line)\b`), countGroup: 1 },
-  { shape: 'words', re: new RegExp(String.raw`\b(?:in|en|de|under|max(?:imum|imo)?|at most|no more than|menos de|como maximo|hasta)?\s*(\d{1,4})[\s-]*(words?|palabras?)\b`), countGroup: 1 },
-  { shape: 'bullets', re: new RegExp(String.raw`\b${PLURAL}[\s-]*(bullets?|bullet points?|puntos|vinetas)\b`), countGroup: 1 },
-  { shape: 'paragraphs', re: new RegExp(String.raw`\b(?:in|en|de)?\s*${PLURAL}[\s-]*(paragraphs?|parrafos?)\b`), countGroup: 1 },
-  { shape: 'paragraphs', re: new RegExp(String.raw`\b(?:in|en)\s+${SINGULAR}[\s-]*(paragraph|parrafo)\b`), countGroup: 1 },
-  { shape: 'bullets', re: /\b(bullet(?:ed)? ?(?:list|points?)|as a list|in a list|lista de puntos|en (?:una )?lista|en vinetas|en puntos|con vinetas)\b/ },
-  { shape: 'brief', re: /\b(briefly|in brief|in short|in a nutshell|tl;?dr|short answer|quick answer|concisely|brevemente|en breve|resumidamente|en pocas palabras|respuesta corta|respuesta breve|de forma breve|de forma concisa)\b/ },
+  {
+    shape: 'sentences',
+    re: new RegExp(
+      String.raw`\b(?:in|en|de|con|of|using)?\s*${PLURAL}[\s-]*(sentences?|frases?|oraciones?|lineas?|lines?)\b`,
+    ),
+    countGroup: 1,
+  },
+  {
+    shape: 'sentences',
+    re: new RegExp(
+      String.raw`\b(?:in|en)\s+${SINGULAR}[\s-]*(sentence|frase|oracion|linea|line)\b`,
+    ),
+    countGroup: 1,
+  },
+  {
+    shape: 'words',
+    re: new RegExp(
+      String.raw`\b(?:in|en|de|under|max(?:imum|imo)?|at most|no more than|menos de|como maximo|hasta)?\s*(\d{1,4})[\s-]*(words?|palabras?)\b`,
+    ),
+    countGroup: 1,
+  },
+  {
+    shape: 'bullets',
+    re: new RegExp(String.raw`\b${PLURAL}[\s-]*(bullets?|bullet points?|puntos|vinetas)\b`),
+    countGroup: 1,
+  },
+  {
+    shape: 'paragraphs',
+    re: new RegExp(String.raw`\b(?:in|en|de)?\s*${PLURAL}[\s-]*(paragraphs?|parrafos?)\b`),
+    countGroup: 1,
+  },
+  {
+    shape: 'paragraphs',
+    re: new RegExp(String.raw`\b(?:in|en)\s+${SINGULAR}[\s-]*(paragraph|parrafo)\b`),
+    countGroup: 1,
+  },
+  {
+    shape: 'bullets',
+    re: /\b(bullet(?:ed)? ?(?:list|points?)|as a list|in a list|lista de puntos|en (?:una )?lista|en vinetas|en puntos|con vinetas)\b/,
+  },
+  {
+    shape: 'brief',
+    re: /\b(briefly|in brief|in short|in a nutshell|tl;?dr|short answer|quick answer|concisely|brevemente|en breve|resumidamente|en pocas palabras|respuesta corta|respuesta breve|de forma breve|de forma concisa)\b/,
+  },
 ];
 
 const SOURCE_RULES: RegExp[] = [
-  new RegExp(String.raw`\b(?:with|citing|cite|using|include|con|cita(?:ndo)?|incluye(?:ndo)?|usando)\s+(?:${PLURAL}|${SINGULAR})\s+(sources?|references?|citations?|links?|fuentes?|referencias?|citas?|enlaces?)\b`),
+  new RegExp(
+    String.raw`\b(?:with|citing|cite|using|include|con|cita(?:ndo)?|incluye(?:ndo)?|usando)\s+(?:${PLURAL}|${SINGULAR})\s+(sources?|references?|citations?|links?|fuentes?|referencias?|citas?|enlaces?)\b`,
+  ),
   /\b(?:with|citing|cite|include|con|cita(?:ndo)?|incluye(?:ndo)?)\s+(?:the\s+|its\s+|las?\s+|sus?\s+)?(sources?|references?|citations?|links?|fuentes?|referencias?|citas?|enlaces?)\b/,
 ];
 
 /** Explicitly named target languages; anything else means "mirror the request". */
 const LANGUAGE_RULES: Array<{ language: string; re: RegExp }> = [
   { language: 'English', re: /\b(in english|en ingles|in inglese|en anglais|auf englisch)\b/ },
-  { language: 'Spanish', re: /\b(in spanish|en espanol|en castellano|in spagnolo|en espagnol|auf spanisch)\b/ },
+  {
+    language: 'Spanish',
+    re: /\b(in spanish|en espanol|en castellano|in spagnolo|en espagnol|auf spanisch)\b/,
+  },
   { language: 'French', re: /\b(in french|en frances|en francais|auf franzosisch)\b/ },
   { language: 'German', re: /\b(in german|en aleman|auf deutsch|in tedesco)\b/ },
   { language: 'Portuguese', re: /\b(in portuguese|en portugues|em portugues)\b/ },
@@ -154,7 +221,12 @@ export function parseOutputContract(query: string): OutputContract {
     break;
   }
   // A count that parsed to nothing usable is a report of the default shape.
-  if (shape !== 'report' && shape !== 'bullets' && shape !== 'brief' && (count === undefined || count <= 0)) {
+  if (
+    shape !== 'report' &&
+    shape !== 'bullets' &&
+    shape !== 'brief' &&
+    (count === undefined || count <= 0)
+  ) {
     shape = 'report';
     count = undefined;
     removed.length = 0;
@@ -203,7 +275,10 @@ function buildSubject(original: string, removed: Array<[number, number]>): strin
     if (removed.some(([start, end]) => i >= start && i < end)) continue;
     out += original[i];
   }
-  out = out.replace(/\s+/g, ' ').replace(/\s+([,.;:?!])/g, '$1').trim();
+  out = out
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,.;:?!])/g, '$1')
+    .trim();
 
   const foldedOut = fold(out);
   const lead = LEADING_INSTRUCTION_RE.exec(foldedOut);

@@ -138,7 +138,13 @@ describe('GET /catalogue', () => {
     // A request that names nothing runs on auto (ADR 0014).
     expect((body as unknown as { defaultPowerLevel: string }).defaultPowerLevel).toBe('auto');
     expect((body as unknown as { powerLevels: string[] }).powerLevels).toEqual([
-      'auto', 'instant', 'medium', 'high', 'xhigh', 'pro', 'ultra',
+      'auto',
+      'instant',
+      'medium',
+      'high',
+      'xhigh',
+      'pro',
+      'ultra',
     ]);
     expect(body.object).toBe('list');
     expect(body.defaultModelId).toBe('acme/alpha');
@@ -165,7 +171,12 @@ describe('GET /catalogue', () => {
       featured: true,
     });
     const bravo = body.data.find((entry) => entry.id === 'beta/bravo');
-    expect(bravo).toMatchObject({ pricing: null, contextWindow: null, maxOutput: null, featured: true });
+    expect(bravo).toMatchObject({
+      pricing: null,
+      contextWindow: null,
+      maxOutput: null,
+      featured: true,
+    });
     const zed = body.data.find((entry) => entry.id === 'zeta/zed-1');
     expect(zed?.featured).toBe(false);
   });

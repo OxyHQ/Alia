@@ -1,6 +1,6 @@
-import { useMemo } from "react";
-import { create } from "zustand";
-import type { Attachment } from "@/shared/contracts/chat-turn";
+import { useMemo } from 'react';
+import { create } from 'zustand';
+import type { Attachment } from '@/shared/contracts/chat-turn';
 
 /**
  * What a composer is holding before it is sent: the text, the attachments and
@@ -73,10 +73,10 @@ export interface ComposerDraft {
   editing?: DraftEdit;
 }
 
-export type DraftTurn = Pick<ComposerDraft, "mcpServerId" | "skillNames">;
+export type DraftTurn = Pick<ComposerDraft, 'mcpServerId' | 'skillNames'>;
 
 /** What the composer held before an edit took it over, for a cancel to give back. */
-export type DraftBeforeEdit = Pick<ComposerDraft, "text" | "mcpServerId" | "skillNames">;
+export type DraftBeforeEdit = Pick<ComposerDraft, 'text' | 'mcpServerId' | 'skillNames'>;
 
 export interface DraftEdit {
   /** The user turn being rewritten. */
@@ -91,7 +91,7 @@ export interface EditedTurn extends DraftTurn {
 }
 
 export const EMPTY_DRAFT: ComposerDraft = Object.freeze({
-  text: "",
+  text: '',
   attachments: [],
   mcpServerId: null,
   skillNames: [],
@@ -106,9 +106,8 @@ export const EMPTY_DRAFT: ComposerDraft = Object.freeze({
  * back.
  */
 export function releaseAttachmentUri(uri: string | undefined): void {
-  if (uri === undefined || !uri.startsWith("blob:")) return;
-  if (typeof URL === "undefined" || typeof URL.revokeObjectURL !== "function")
-    return;
+  if (uri === undefined || !uri.startsWith('blob:')) return;
+  if (typeof URL === 'undefined' || typeof URL.revokeObjectURL !== 'function') return;
   URL.revokeObjectURL(uri);
 }
 
@@ -116,7 +115,7 @@ export function releaseAttachments(attachments: readonly Attachment[]): void {
   for (const attachment of attachments) releaseAttachmentUri(attachment.uri);
 }
 
-const keyOf = (target: DraftTarget) => target ?? "";
+const keyOf = (target: DraftTarget) => target ?? '';
 
 interface DraftStoreState {
   /** The account whose drafts these are; `null` while signed out. */
@@ -194,8 +193,7 @@ export const useComposerDraftStore = create<DraftStoreState>((set, get) => {
 
     address: (target) => ({ account: get().account, target }),
 
-    setText: (address, text) =>
-      write(address, (draft) => ({ ...draft, text })),
+    setText: (address, text) => write(address, (draft) => ({ ...draft, text })),
 
     addAttachment: (address, attachment) =>
       write(

@@ -496,7 +496,9 @@ const CHECKED_WORKSPACE = [
 async function runWorkspace(args, browser) {
   const fixturesDir = await ensureFixturesExport(APP_ROOT, args);
   const bundleCheck = await assertFixturesStayOut(DIST, fixturesDir);
-  console.log(`· no fixture code in packages/app/dist (${bundleCheck.markers.length} markers checked)`);
+  console.log(
+    `· no fixture code in packages/app/dist (${bundleCheck.markers.length} markers checked)`,
+  );
   const server = await serveExport(fixturesDir);
   try {
     console.log(
@@ -532,7 +534,15 @@ async function runWorkspace(args, browser) {
 function printWorkspace(workspace) {
   const s = workspace.summary;
   const mib = (stat) =>
-    stat ? { ...stat, median: stat.median / 1024 / 1024, min: stat.min / 1024 / 1024, max: stat.max / 1024 / 1024, iqr: stat.iqr / 1024 / 1024 } : null;
+    stat
+      ? {
+          ...stat,
+          median: stat.median / 1024 / 1024,
+          min: stat.min / 1024 / 1024,
+          max: stat.max / 1024 / 1024,
+          iqr: stat.iqr / 1024 / 1024,
+        }
+      : null;
   console.log('\nchat workspace, 1,000 messages (fixtures export, 1x)');
   console.log(
     table([
@@ -544,15 +554,24 @@ function printWorkspace(workspace) {
       ['keydown → next frame, median', formatStat(s.keyToFrameMedian)],
       ['keydown → next frame, p95', formatStat(s.keyToFrameP95)],
       ['key events ≥16ms (Event Timing)', formatStat(s.keyEventsOver16, '')],
-      ['typing: script / layout / style per key', `${round(s.typingScriptMsPerKey?.median, 1)} / ${round(s.typingLayoutMsPerKey?.median, 1)} / ${round(s.typingStyleMsPerKey?.median, 1)}ms`],
+      [
+        'typing: script / layout / style per key',
+        `${round(s.typingScriptMsPerKey?.median, 1)} / ${round(s.typingLayoutMsPerKey?.median, 1)} / ${round(s.typingStyleMsPerKey?.median, 1)}ms`,
+      ],
       ['stream: task time per update', formatStat(s.streamTaskMsPerUpdate)],
-      ['stream: script / layout / style per update', `${round(s.streamScriptMsPerUpdate?.median, 1)} / ${round(s.streamLayoutMsPerUpdate?.median, 1)} / ${round(s.streamStyleMsPerUpdate?.median, 1)}ms`],
+      [
+        'stream: script / layout / style per update',
+        `${round(s.streamScriptMsPerUpdate?.median, 1)} / ${round(s.streamLayoutMsPerUpdate?.median, 1)} / ${round(s.streamStyleMsPerUpdate?.median, 1)}ms`,
+      ],
       ['stream: overrun past 60×50ms', formatStat(s.streamOverrunMs)],
       ['stream: frames per second', formatStat(s.streamFps, 'fps')],
       ['scroll: frame p95', formatStat(s.scrollFrameP95)],
       ['scroll: frames over 33ms', formatStat(s.scrollFramesOver33, '')],
       ['scroll: wall time, top to bottom', formatStat(s.scrollWallMs)],
-      ['scroll: script / layout / style', `${round(s.scrollScriptMs?.median, 0)} / ${round(s.scrollLayoutMs?.median, 0)} / ${round(s.scrollStyleMs?.median, 0)}ms`],
+      [
+        'scroll: script / layout / style',
+        `${round(s.scrollScriptMs?.median, 0)} / ${round(s.scrollLayoutMs?.median, 0)} / ${round(s.scrollStyleMs?.median, 0)}ms`,
+      ],
       ['long tasks, whole pass', formatStat(s.longTaskCountTotal, '')],
       ['long-task time, whole pass', formatStat(s.longTaskMsTotal)],
       ['blocking time, whole pass', formatStat(s.blockingMsTotal)],

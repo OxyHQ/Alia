@@ -2,10 +2,7 @@ import { Router } from 'express';
 import { authenticateToken } from '../../middleware/auth.js';
 import { getJobStatus, cancelJob } from '../../lib/task-queue.js';
 import { getDb } from '../../db/index.js';
-import {
-  updateAgent,
-  withoutInternalAgentBindings,
-} from '../../db/agents/agentRepository.js';
+import { updateAgent, withoutInternalAgentBindings } from '../../db/agents/agentRepository.js';
 import { loadAgentForActor, refusalMessage, refusalStatus } from '../../lib/agent-account.js';
 import { resolveAgentIdentities, type AgentIdentity } from '../../lib/agent-identity.js';
 import {

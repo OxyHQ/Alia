@@ -33,7 +33,11 @@ async function boot(browser: Partial<BrowserService> | null, authorised = true) 
   return (path: string, init?: RequestInit) =>
     fetch(`http://127.0.0.1:${port}${path}`, {
       ...init,
-      headers: { authorization: 'Bearer t', 'content-type': 'application/json', ...(init?.headers ?? {}) },
+      headers: {
+        authorization: 'Bearer t',
+        'content-type': 'application/json',
+        ...(init?.headers ?? {}),
+      },
     });
 }
 
@@ -47,14 +51,22 @@ describe('browser routes', () => {
 
   it('answer 404 browser_disabled where the browser is off', async () => {
     const call = await boot(null);
-    const response = await call(`/v1/actors/${ACTOR}/browser/open`, { method: 'POST', body: JSON.stringify({ by: 'agent' }) });
+    const response = await call(`/v1/actors/${ACTOR}/browser/open`, {
+      method: 'POST',
+      body: JSON.stringify({ by: 'agent' }),
+    });
     expect(response.status).toBe(404);
     expect(await response.json()).toMatchObject({ error: { code: 'browser_disabled' } });
   });
 
   it('refuse input outside the vocabulary before the browser is asked', async () => {
     const seen: unknown[] = [];
-    const call = await boot({ input: async (...args: unknown[]) => { seen.push(args); return {} as never; } });
+    const call = await boot({
+      input: async (...args: unknown[]) => {
+        seen.push(args);
+        return {} as never;
+      },
+    });
     for (const body of [
       { by: 'agent', input: { type: 'key', key: 'Control+Shift+I' } },
       { by: 'agent', input: { type: 'evaluate', script: 'document.cookie' } },
@@ -62,7 +74,10 @@ describe('browser routes', () => {
       { by: 'root', input: { type: 'click', x: 1, y: 1 } },
       { by: 'agent', input: { type: 'click', x: 1, y: 1 }, script: 'x' },
     ]) {
-      const response = await call(`/v1/actors/${ACTOR}/browser/input`, { method: 'POST', body: JSON.stringify(body) });
+      const response = await call(`/v1/actors/${ACTOR}/browser/input`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
       expect(response.status).toBe(400);
     }
     expect(seen).toEqual([]);

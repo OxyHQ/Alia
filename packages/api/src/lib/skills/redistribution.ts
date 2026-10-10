@@ -41,11 +41,15 @@ const PERMISSIVE = [
   { name: 'MPL-2.0', pattern: /mozilla public license version 2\.0/i },
   { name: 'CC0-1.0', pattern: /\bCC0 1\.0\b/i },
   { name: 'CC-BY-4.0', pattern: /creative commons attribution 4\.0/i },
-  { name: 'Unlicense', pattern: /this is free and unencumbered software released into the public domain/i },
+  {
+    name: 'Unlicense',
+    pattern: /this is free and unencumbered software released into the public domain/i,
+  },
 ] as const;
 
 /** A short licence identifier in frontmatter is evidence on its own. */
-const SPDX = /^(apache-2\.0|mit|bsd-2-clause|bsd-3-clause|isc|mpl-2\.0|cc0-1\.0|cc-by-4\.0|unlicense)$/i;
+const SPDX =
+  /^(apache-2\.0|mit|bsd-2-clause|bsd-3-clause|isc|mpl-2\.0|cc0-1\.0|cc-by-4\.0|unlicense)$/i;
 
 /** Filenames that conventionally hold the terms. */
 const LICENCE_FILE = /^(licen[cs]e|copying)(\.[a-z]+)?$/i;
@@ -65,11 +69,17 @@ export function classifyRedistribution(bundle: SkillBundle): RedistributionVerdi
     return { permitted: true, license: declared, evidence: 'the SKILL.md `license` field' };
   }
 
-  const licenceFile = bundle.files.find((file) => LICENCE_FILE.test(file.path.split('/').pop() ?? ''));
+  const licenceFile = bundle.files.find((file) =>
+    LICENCE_FILE.test(file.path.split('/').pop() ?? ''),
+  );
   if (licenceFile?.contentText) {
     const match = PERMISSIVE.find((entry) => entry.pattern.test(licenceFile.contentText!));
     if (match) {
-      return { permitted: true, license: match.name, evidence: `${licenceFile.path} in the bundle` };
+      return {
+        permitted: true,
+        license: match.name,
+        evidence: `${licenceFile.path} in the bundle`,
+      };
     }
     return {
       permitted: false,
@@ -81,7 +91,8 @@ export function classifyRedistribution(bundle: SkillBundle): RedistributionVerdi
   // The frontmatter may also carry the full name of a permissive licence rather
   // than its identifier — `license: Apache License 2.0` is common.
   const named = declared ? PERMISSIVE.find((entry) => entry.pattern.test(declared)) : undefined;
-  if (named) return { permitted: true, license: named.name, evidence: 'the SKILL.md `license` field' };
+  if (named)
+    return { permitted: true, license: named.name, evidence: 'the SKILL.md `license` field' };
 
   return {
     permitted: false,

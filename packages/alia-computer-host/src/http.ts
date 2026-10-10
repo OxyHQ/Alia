@@ -43,14 +43,18 @@ import { actorRoleSchema, browserInputSchema } from './browser/input.js';
 import type { ComputerService } from './computer-service.js';
 import { HostError } from './errors.js';
 
-const commandSchema = z.object({
-  operationId: z.string().min(1).max(128),
-  command: z.string().min(1).max(16_000),
-  cwd: z.string().max(2048).optional(),
-  timeoutSeconds: z.number().int().positive().max(3600).optional(),
-  background: z.boolean().optional(),
-}).strict();
-const writeSchema = z.object({ path: z.string().min(1).max(2048), text: z.string().max(256 * 1024) }).strict();
+const commandSchema = z
+  .object({
+    operationId: z.string().min(1).max(128),
+    command: z.string().min(1).max(16_000),
+    cwd: z.string().max(2048).optional(),
+    timeoutSeconds: z.number().int().positive().max(3600).optional(),
+    background: z.boolean().optional(),
+  })
+  .strict();
+const writeSchema = z
+  .object({ path: z.string().min(1).max(2048), text: z.string().max(256 * 1024) })
+  .strict();
 const pathSchema = z.object({ path: z.string().min(1).max(2048) }).strict();
 const browserUrl = z.string().min(1).max(8192);
 const openSchema = z.object({ url: browserUrl.optional(), by: actorRoleSchema }).strict();
@@ -96,7 +100,12 @@ export function createApp(options: {
     try {
       res.json({ data: { nonce: authority.issueNonce() } });
     } catch (error) {
-      res.status(429).json({ error: { code: error instanceof AttestationError ? error.reason : 'challenge_failed', message: 'Try again shortly.' } });
+      res.status(429).json({
+        error: {
+          code: error instanceof AttestationError ? error.reason : 'challenge_failed',
+          message: 'Try again shortly.',
+        },
+      });
     }
   });
 
@@ -118,53 +127,101 @@ export function createApp(options: {
     const header = req.headers.authorization;
     const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
     if (!authority.verifyToken(token)) {
-      res.status(401).json({ error: { code: 'unauthenticated', message: 'A workload token is required.' } });
+      res
+        .status(401)
+        .json({ error: { code: 'unauthenticated', message: 'A workload token is required.' } });
       return;
     }
     next();
   });
 
-  v1.get('/actors/:actor/computer', route((req) => service.status(req.params.actor as string)));
-  v1.post('/actors/:actor/computer/start', route((req) => service.start(req.params.actor as string)));
-  v1.post('/actors/:actor/computer/stop', route((req) => service.stop(req.params.actor as string)));
-  v1.post('/actors/:actor/commands', route((req) => service.command(req.params.actor as string, commandSchema.parse(req.body))));
-  v1.get('/actors/:actor/commands', route((req) => service.recentReceipts(req.params.actor as string, queryLimit(req, 20))));
-  v1.get('/actors/:actor/commands/:operationId', route(async (req) => {
-    const receipt = await service.receipt(req.params.actor as string, req.params.operationId as string);
-    if (!receipt) throw new HostError('No command with that operationId', 404, 'not_found');
-    return receipt;
-  }));
-  v1.get('/actors/:actor/files', route((req) => service.list(req.params.actor as string, queryPath(req))));
-  v1.get('/actors/:actor/files/content', route((req) => {
-    const path = queryPath(req);
-    if (!path) throw new HostError('path is required', 400, 'invalid_path');
-    return service.read(req.params.actor as string, path);
-  }));
-  v1.put('/actors/:actor/files/content', route((req) => {
-    const body = writeSchema.parse(req.body);
-    return service.write(req.params.actor as string, body.path, body.text);
-  }));
-  v1.post('/actors/:actor/files/directories', route((req) => {
-    const body = pathSchema.parse(req.body);
-    return service.mkdir(req.params.actor as string, body.path);
-  }));
+  v1.get(
+    '/actors/:actor/computer',
+    route((req) => service.status(req.params.actor as string)),
+  );
+  v1.post(
+    '/actors/:actor/computer/start',
+    route((req) => service.start(req.params.actor as string)),
+  );
+  v1.post(
+    '/actors/:actor/computer/stop',
+    route((req) => service.stop(req.params.actor as string)),
+  );
+  v1.post(
+    '/actors/:actor/commands',
+    route((req) => service.command(req.params.actor as string, commandSchema.parse(req.body))),
+  );
+  v1.get(
+    '/actors/:actor/commands',
+    route((req) => service.recentReceipts(req.params.actor as string, queryLimit(req, 20))),
+  );
+  v1.get(
+    '/actors/:actor/commands/:operationId',
+    route(async (req) => {
+      const receipt = await service.receipt(
+        req.params.actor as string,
+        req.params.operationId as string,
+      );
+      if (!receipt) throw new HostError('No command with that operationId', 404, 'not_found');
+      return receipt;
+    }),
+  );
+  v1.get(
+    '/actors/:actor/files',
+    route((req) => service.list(req.params.actor as string, queryPath(req))),
+  );
+  v1.get(
+    '/actors/:actor/files/content',
+    route((req) => {
+      const path = queryPath(req);
+      if (!path) throw new HostError('path is required', 400, 'invalid_path');
+      return service.read(req.params.actor as string, path);
+    }),
+  );
+  v1.put(
+    '/actors/:actor/files/content',
+    route((req) => {
+      const body = writeSchema.parse(req.body);
+      return service.write(req.params.actor as string, body.path, body.text);
+    }),
+  );
+  v1.post(
+    '/actors/:actor/files/directories',
+    route((req) => {
+      const body = pathSchema.parse(req.body);
+      return service.mkdir(req.params.actor as string, body.path);
+    }),
+  );
 
   const browserRoutes = express.Router({ mergeParams: true });
   const browser = () => {
-    if (!options.browser) throw new HostError('The browser is turned off on this host', 404, 'browser_disabled');
+    if (!options.browser)
+      throw new HostError('The browser is turned off on this host', 404, 'browser_disabled');
     return options.browser;
   };
   const actor = (req: Request) => req.params.actor as string;
-  browserRoutes.get('/', route((req) => browser().status(actor(req))));
-  browserRoutes.post('/open', route((req) => {
-    const body = openSchema.parse(req.body ?? {});
-    return browser().open(actor(req), body.url, body.by);
-  }));
-  browserRoutes.post('/navigate', route((req) => {
-    const body = navigateSchema.parse(req.body);
-    return browser().navigate(actor(req), body.url, body.by);
-  }));
-  browserRoutes.get('/read', route((req) => browser().read(actor(req))));
+  browserRoutes.get(
+    '/',
+    route((req) => browser().status(actor(req))),
+  );
+  browserRoutes.post(
+    '/open',
+    route((req) => {
+      const body = openSchema.parse(req.body ?? {});
+      return browser().open(actor(req), body.url, body.by);
+    }),
+  );
+  browserRoutes.post(
+    '/navigate',
+    route((req) => {
+      const body = navigateSchema.parse(req.body);
+      return browser().navigate(actor(req), body.url, body.by);
+    }),
+  );
+  browserRoutes.get(
+    '/read',
+    route((req) => browser().read(actor(req))),
+  );
   browserRoutes.get('/screenshot', (req, res, next) => {
     browser()
       .screenshot(actor(req))
@@ -172,13 +229,25 @@ export function createApp(options: {
         res.set({ 'content-type': 'image/jpeg', 'cache-control': 'no-store' }).send(bytes);
       }, next);
   });
-  browserRoutes.post('/input', route((req) => {
-    const body = inputSchema.parse(req.body);
-    return browser().input(actor(req), body.input, body.by);
-  }));
-  browserRoutes.post('/control', route((req) => browser().control(actor(req), controlSchema.parse(req.body).controller)));
-  browserRoutes.post('/close', route((req) => browser().close(actor(req), bySchema.parse(req.body ?? {}).by)));
-  browserRoutes.get('/actions', route((req) => browser().actions(actor(req), queryLimit(req, 20))));
+  browserRoutes.post(
+    '/input',
+    route((req) => {
+      const body = inputSchema.parse(req.body);
+      return browser().input(actor(req), body.input, body.by);
+    }),
+  );
+  browserRoutes.post(
+    '/control',
+    route((req) => browser().control(actor(req), controlSchema.parse(req.body).controller)),
+  );
+  browserRoutes.post(
+    '/close',
+    route((req) => browser().close(actor(req), bySchema.parse(req.body ?? {}).by)),
+  );
+  browserRoutes.get(
+    '/actions',
+    route((req) => browser().actions(actor(req), queryLimit(req, 20))),
+  );
   v1.use('/actors/:actor/browser', browserRoutes);
 
   app.use('/v1', v1);
@@ -193,16 +262,26 @@ export function createApp(options: {
       return;
     }
     if (error instanceof z.ZodError) {
-      res.status(400).json({ error: { code: 'invalid_request', message: error.issues[0]?.message ?? 'Invalid request' } });
+      res.status(400).json({
+        error: {
+          code: 'invalid_request',
+          message: error.issues[0]?.message ?? 'Invalid request',
+        },
+      });
       return;
     }
     // express.json() reports a body it could not parse or that is too large.
     const status = (error as { status?: unknown })?.status;
     if (typeof status === 'number' && status >= 400 && status < 500) {
-      res.status(status).json({ error: { code: 'invalid_request', message: 'The request body was refused.' } });
+      res
+        .status(status)
+        .json({ error: { code: 'invalid_request', message: 'The request body was refused.' } });
       return;
     }
-    log.error({ err: error instanceof Error ? error.name : 'unknown' }, 'unhandled control API error');
+    log.error(
+      { err: error instanceof Error ? error.name : 'unknown' },
+      'unhandled control API error',
+    );
     res.status(500).json({ error: { code: 'internal', message: 'The computer host failed.' } });
   });
 

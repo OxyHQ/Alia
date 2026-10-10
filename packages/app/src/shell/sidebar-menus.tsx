@@ -102,9 +102,7 @@ export const ConversationActions = React.memo(function ConversationActions({
                 value={projectId ?? NONE}
                 onValueChange={(value) => onMove(conversation.id, value || null)}
               >
-                <DropdownMenuRadioItem value={NONE}>
-                  {t('sidebar.noProject')}
-                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value={NONE}>{t('sidebar.noProject')}</DropdownMenuRadioItem>
                 {projects.map((project) => (
                   <DropdownMenuRadioItem key={project.id} value={project.id}>
                     {project.name}
@@ -122,9 +120,7 @@ export const ConversationActions = React.memo(function ConversationActions({
                 value={folderId ?? NONE}
                 onValueChange={(value) => onMoveToFolder(conversation.id, value || null)}
               >
-                <DropdownMenuRadioItem value={NONE}>
-                  {t('sidebar.noFolder')}
-                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value={NONE}>{t('sidebar.noFolder')}</DropdownMenuRadioItem>
                 {folders.map((folder) => (
                   <DropdownMenuRadioItem key={folder.id} value={folder.id}>
                     {folder.name}
@@ -168,7 +164,9 @@ export const ProjectActions = React.memo(function ProjectActions({
     <DropdownMenu>
       <MoreTrigger label={t('sidebar.projectOptions', { name: project.name })} />
       <DropdownMenuContent minWidth={180}>
-        <DropdownMenuItem onPress={() => onEdit(project)}>{t('sidebar.editProject')}</DropdownMenuItem>
+        <DropdownMenuItem onPress={() => onEdit(project)}>
+          {t('sidebar.editProject')}
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem tone="danger" onPress={() => onDelete(project)}>
           {t('sidebar.deleteProject')}
@@ -193,7 +191,9 @@ export const FolderActions = React.memo(function FolderActions({
     <DropdownMenu>
       <MoreTrigger label={t('sidebar.folderOptions', { name: folder.name })} />
       <DropdownMenuContent minWidth={180}>
-        <DropdownMenuItem onPress={() => onRename(folder)}>{t('sidebar.renameFolder')}</DropdownMenuItem>
+        <DropdownMenuItem onPress={() => onRename(folder)}>
+          {t('sidebar.renameFolder')}
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem tone="danger" onPress={() => onDelete(folder)}>
           {t('sidebar.deleteFolder')}

@@ -152,8 +152,9 @@ describe('the pinned native product-agent manifest', () => {
   });
 
   it('grants Clarity nothing, which DENIES rather than leaving it unset', () => {
-    expect(findNativeProductAgent('01a0646a-078f-7642-95ef-439952f4f3f9')?.capabilityGrants)
-      .toEqual([]);
+    expect(
+      findNativeProductAgent('01a0646a-078f-7642-95ef-439952f4f3f9')?.capabilityGrants,
+    ).toEqual([]);
     // Empty is what an ungranted agent reaches, stated through the reader so
     // this is the vocabulary's answer and not this file's opinion of it.
     expect(readCapabilityGrants([]).allows('web')).toBe(false);

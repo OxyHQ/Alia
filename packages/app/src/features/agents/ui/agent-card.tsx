@@ -70,23 +70,14 @@ export const AgentCard = React.memo(function AgentCard({
         <View className="gap-2 pt-2">
           {/* The mark, carrying the status dot, and Chat beside it. */}
           <View className="flex-row items-start justify-between">
-            <Badge
-              dot
-              color={STATUS_TONE[agent.status]}
-              placement="bottom-right"
-            >
+            <Badge dot color={STATUS_TONE[agent.status]} placement="bottom-right">
               <IdentityMark
                 size={isFeatured ? 64 : 56}
                 color={agentTint(agent.color, colors)}
                 accessibilityLabel={agentDisplayName(agent)}
               />
             </Badge>
-            <Button
-              size="sm"
-              tone="neutral"
-              stopPropagation
-              onPress={() => onChat?.(agent._id)}
-            >
+            <Button size="sm" tone="neutral" stopPropagation onPress={() => onChat?.(agent._id)}>
               {t('agents.chat')}
             </Button>
           </View>

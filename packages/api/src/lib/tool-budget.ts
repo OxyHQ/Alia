@@ -129,7 +129,12 @@ function bracketLabel(description: string | undefined): string | null {
 }
 
 function slug(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'app';
+  return (
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'app'
+  );
 }
 
 /**
@@ -139,13 +144,92 @@ function slug(text: string): string {
  * and issues. What is left once these are gone is what the app covers.
  */
 const ACTION_WORDS = new Set([
-  'get', 'list', 'search', 'find', 'query', 'read', 'fetch', 'load', 'view', 'show', 'lookup', 'look',
-  'create', 'add', 'new', 'insert', 'make', 'build', 'generate', 'upload', 'import', 'export', 'download',
-  'update', 'edit', 'modify', 'patch', 'set', 'put', 'upsert', 'change', 'rename', 'replace', 'toggle',
-  'delete', 'remove', 'clear', 'reset', 'close', 'open', 'archive', 'unarchive', 'restore',
-  'send', 'move', 'copy', 'mark', 'check', 'use', 'run', 'call', 'execute', 'do', 'start', 'stop', 'cancel',
-  'is', 'has', 'can', 'by', 'for', 'from', 'to', 'of', 'in', 'on', 'at', 'with', 'and', 'or', 'the', 'a', 'an',
-  'my', 'me', 'all', 'one', 'many', 'id', 'ids', 'info', 'details', 'detail', 'data', 'item', 'items',
+  'get',
+  'list',
+  'search',
+  'find',
+  'query',
+  'read',
+  'fetch',
+  'load',
+  'view',
+  'show',
+  'lookup',
+  'look',
+  'create',
+  'add',
+  'new',
+  'insert',
+  'make',
+  'build',
+  'generate',
+  'upload',
+  'import',
+  'export',
+  'download',
+  'update',
+  'edit',
+  'modify',
+  'patch',
+  'set',
+  'put',
+  'upsert',
+  'change',
+  'rename',
+  'replace',
+  'toggle',
+  'delete',
+  'remove',
+  'clear',
+  'reset',
+  'close',
+  'open',
+  'archive',
+  'unarchive',
+  'restore',
+  'send',
+  'move',
+  'copy',
+  'mark',
+  'check',
+  'use',
+  'run',
+  'call',
+  'execute',
+  'do',
+  'start',
+  'stop',
+  'cancel',
+  'is',
+  'has',
+  'can',
+  'by',
+  'for',
+  'from',
+  'to',
+  'of',
+  'in',
+  'on',
+  'at',
+  'with',
+  'and',
+  'or',
+  'the',
+  'a',
+  'an',
+  'my',
+  'me',
+  'all',
+  'one',
+  'many',
+  'id',
+  'ids',
+  'info',
+  'details',
+  'detail',
+  'data',
+  'item',
+  'items',
 ]);
 
 /** The most a catalog line says about one app. */
@@ -154,7 +238,8 @@ const MAX_COVERS = 8;
 function singular(word: string): string {
   if (word.length > 4 && word.endsWith('ies')) return `${word.slice(0, -3)}y`;
   if (word.length > 4 && /(?:x|ch|sh|ss)es$/.test(word)) return word.slice(0, -2);
-  if (word.length > 3 && word.endsWith('s') && !/(?:ss|us|is)$/.test(word)) return word.slice(0, -1);
+  if (word.length > 3 && word.endsWith('s') && !/(?:ss|us|is)$/.test(word))
+    return word.slice(0, -1);
   return word;
 }
 
@@ -178,9 +263,14 @@ export function coversOf(names: readonly string[], exclude: readonly string[] = 
   const counts = new Map<string, number>();
   for (const name of names) {
     const words = actionOf(name)
-      .split(/(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])|[^A-Za-z0-9]+/)
+      .split(
+        /(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])|[^A-Za-z0-9]+/,
+      )
       .map((word) => singular(word.toLowerCase()))
-      .filter((word) => word.length > 2 && !/^\d+$/.test(word) && !ACTION_WORDS.has(word) && !skip.has(word));
+      .filter(
+        (word) =>
+          word.length > 2 && !/^\d+$/.test(word) && !ACTION_WORDS.has(word) && !skip.has(word),
+      );
     for (const word of new Set(words)) counts.set(word, (counts.get(word) ?? 0) + 1);
   }
   // Map order is first appearance, and the sort is stable: ties keep it.
@@ -201,7 +291,10 @@ export function appsOf(
   tools: ToolSet,
   sources: Readonly<Record<AppToolSource, ToolSet>>,
 ): ToolApp[] {
-  const grouped = new Map<string, { id: string; label: string; source: AppToolSource; names: string[] }>();
+  const grouped = new Map<
+    string,
+    { id: string; label: string; source: AppToolSource; names: string[] }
+  >();
   for (const source of ['oxy_service', 'mcp', 'integration'] as const) {
     for (const [name, built] of Object.entries(sources[source])) {
       if (tools[name] !== built) continue;
@@ -230,7 +323,13 @@ export function appsOf(
     for (let n = 2; taken.has(id); n += 1) id = `${entry.source}_${entry.id}_${n}`;
     taken.add(id);
     const names = entry.names.sort();
-    apps.push({ id, label: entry.label, source: entry.source, names, covers: coversOf(names, [id, entry.label]) });
+    apps.push({
+      id,
+      label: entry.label,
+      source: entry.source,
+      names,
+      covers: coversOf(names, [id, entry.label]),
+    });
   }
   return apps;
 }
@@ -254,7 +353,10 @@ function findApp(apps: readonly ToolApp[], requested: string): ToolApp | undefin
  * every request. `useApps` results are replayed (opened, then closed), and a
  * direct call to an app's tool counts as that app having been open.
  */
-export function stickyAppsFrom(apps: readonly ToolApp[], calls: readonly PriorToolCall[]): string[] {
+export function stickyAppsFrom(
+  apps: readonly ToolApp[],
+  calls: readonly PriorToolCall[],
+): string[] {
   const appOfTool = new Map<string, string>();
   for (const app of apps) for (const name of app.names) appOfTool.set(name, app.id);
   const recency: string[] = [];
@@ -272,10 +374,14 @@ export function stickyAppsFrom(apps: readonly ToolApp[], calls: readonly PriorTo
 
   for (const call of calls) {
     if (call.toolName === USE_APPS_TOOL) {
-      const result = call.result as { opened?: unknown; alreadyOpen?: unknown; closed?: unknown } | undefined;
+      const result = call.result as
+        | { opened?: unknown; alreadyOpen?: unknown; closed?: unknown }
+        | undefined;
       const args = call.args as { apps?: unknown; close?: unknown } | undefined;
       const closed = result ? strings(result.closed) : strings(args?.close);
-      const opened = result ? [...strings(result.opened), ...strings(result.alreadyOpen)] : strings(args?.apps);
+      const opened = result
+        ? [...strings(result.opened), ...strings(result.alreadyOpen)]
+        : strings(args?.apps);
       for (const id of closed) {
         const app = findApp(apps, id);
         if (app) untouch(app.id);
@@ -317,7 +423,13 @@ export interface BudgetToolsInput {
  * the budget.
  */
 export function budgetTools(input: BudgetToolsInput): BudgetedToolSet {
-  const { tools, sources, pins = [], priorToolCalls = [], budget = MAX_TOOLS_PER_INFERENCE_REQUEST } = input;
+  const {
+    tools,
+    sources,
+    pins = [],
+    priorToolCalls = [],
+    budget = MAX_TOOLS_PER_INFERENCE_REQUEST,
+  } = input;
   const allNames = Object.keys(tools);
 
   if (allNames.length <= budget) {
@@ -443,8 +555,8 @@ function createUseAppsTool(state: {
   return declareReadOnly(
     tool({
       description:
-        'Open the person\'s connected apps to reach their data and act in them — whatever each app covers. ' +
-        'An app\'s tools are available from your next step. Call this BEFORE saying you ' +
+        "Open the person's connected apps to reach their data and act in them — whatever each app covers. " +
+        "An app's tools are available from your next step. Call this BEFORE saying you " +
         'cannot access something an app covers. Close apps you no longer need to make room. ' +
         `Apps: ${apps.map((app) => `${app.id} (${app.label}${app.covers.length ? `: ${app.covers.join(', ')}` : ''})`).join('; ')}.`,
       inputSchema: z.object({
@@ -484,7 +596,9 @@ function createUseAppsTool(state: {
           opened,
           alreadyOpen,
           ...(closed.length ? { closed } : {}),
-          ...(keptOpen.length ? { keptOpen, keptOpenReason: 'selected by the person for this message' } : {}),
+          ...(keptOpen.length
+            ? { keptOpen, keptOpenReason: 'selected by the person for this message' }
+            : {}),
           ...(unknown.length ? { unknown, available: apps.map((app) => app.id) } : {}),
           ...(didNotFit.length
             ? {
@@ -496,7 +610,9 @@ function createUseAppsTool(state: {
             : {}),
           openApps: [...open],
           activeTools: active,
-          note: opened.length ? 'The opened apps\' tools are available from your next step.' : undefined,
+          note: opened.length
+            ? "The opened apps' tools are available from your next step."
+            : undefined,
         };
       },
     }),
@@ -514,7 +630,11 @@ function createUseAppsTool(state: {
  * The person may ask in any language and by any name — the model matches by
  * meaning, which is why the catalog carries subjects rather than keywords.
  */
-function appCatalogPrompt(apps: readonly ToolApp[], open: readonly string[], budget: number): string {
+function appCatalogPrompt(
+  apps: readonly ToolApp[],
+  open: readonly string[],
+  budget: number,
+): string {
   return (
     '\n\n## Apps\n' +
     'The person has connected the apps below, and through them you DO have access to their data and can act for ' +

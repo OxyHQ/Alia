@@ -159,9 +159,15 @@ export function useAliaComposer({
     offerGhost,
     turnSelection,
     onToggleSkill: (name: string) =>
-      updateTurn(address, (turn) => ({ ...turn, skillNames: toggleSkillName(turn.skillNames, name) })),
+      updateTurn(address, (turn) => ({
+        ...turn,
+        skillNames: toggleSkillName(turn.skillNames, name),
+      })),
     onToggleConnector: (id: string) =>
-      updateTurn(address, (turn) => ({ ...turn, mcpServerId: toggleConnectorId(turn.mcpServerId, id) })),
+      updateTurn(address, (turn) => ({
+        ...turn,
+        mcpServerId: toggleConnectorId(turn.mcpServerId, id),
+      })),
   });
 
   /**
@@ -191,10 +197,7 @@ export function useAliaComposer({
    * Empty the draft for a send. Its attachments are not released — the send
    * still needs them, and a failed one hands them back to the draft.
    */
-  const clearDraft = useCallback(
-    () => useComposerDraftStore.getState().clear(address),
-    [address],
-  );
+  const clearDraft = useCallback(() => useComposerDraftStore.getState().clear(address), [address]);
 
   return { props, text: draft.text, setText, attachments, turnOptions, address, clearDraft };
 }

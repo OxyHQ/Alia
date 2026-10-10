@@ -32,7 +32,8 @@ const insertMessage = (
   seq: number | null,
   oxyUserId = 'chat-user',
   content: unknown = 'hello',
-) => db.execute(sql`
+) =>
+  db.execute(sql`
   insert into ${messages} (id, conversation_id, oxy_user_id, role, content, seq)
   values (${id}, ${conversationId}, ${oxyUserId}, 'user', ${JSON.stringify(content)}::jsonb, ${seq})
 `);
@@ -105,10 +106,12 @@ describe('content is genuinely polymorphic, which is why it is jsonb', () => {
 
 describe('the closed value sets reached the server', () => {
   it('refuses a role outside the tuple', async () => {
-    await expect(db.execute(sql`
+    await expect(
+      db.execute(sql`
       insert into ${messages} (id, conversation_id, oxy_user_id, role, content)
       values ('chat-badrole', 'c', 'u', 'moderator', '"x"'::jsonb)
-    `)).rejects.toSatisfy((error: unknown) => {
+    `),
+    ).rejects.toSatisfy((error: unknown) => {
       expect(isCheckViolation(error)).toBe(true);
       expect(constraintNameOf(error)).toBe('messages_role_check');
       return true;
@@ -126,10 +129,12 @@ describe('the closed value sets reached the server', () => {
   });
 
   it('refuses a conversation source outside the tuple', async () => {
-    await expect(db.execute(sql`
+    await expect(
+      db.execute(sql`
       insert into ${conversations} (id, oxy_user_id, conversation_id, source)
       values ('chat-badsource', 'u', 'c', 'carrier-pigeon')
-    `)).rejects.toSatisfy((error: unknown) => {
+    `),
+    ).rejects.toSatisfy((error: unknown) => {
       expect(constraintNameOf(error)).toBe('conversations_source_check');
       return true;
     });
@@ -143,10 +148,12 @@ describe('a conversation id is unique per user, not globally', () => {
       values ('chat-conv-1', 'chat-dup-user', 'same-conv')
     `);
 
-    await expect(db.execute(sql`
+    await expect(
+      db.execute(sql`
       insert into ${conversations} (id, oxy_user_id, conversation_id)
       values ('chat-conv-2', 'chat-dup-user', 'same-conv')
-    `)).rejects.toSatisfy((error: unknown) => {
+    `),
+    ).rejects.toSatisfy((error: unknown) => {
       expect(constraintNameOf(error)).toBe('conversations_oxy_user_conversation_id_key');
       return true;
     });

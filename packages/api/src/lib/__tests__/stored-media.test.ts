@@ -37,14 +37,19 @@ describe('a minted link', () => {
     // is the attack this exists to stop, so it must not merely fail to play —
     // it must fail to VERIFY.
     const query = fields(mintPlaybackQuery(KEY, USER) as string);
-    const tampered = { ...query, o: Buffer.from('production/tts/user-2/private.mp3', 'utf8').toString('base64url') };
+    const tampered = {
+      ...query,
+      o: Buffer.from('production/tts/user-2/private.mp3', 'utf8').toString('base64url'),
+    };
     expect(verifyPlaybackQuery(tampered).kind).toBe('invalid');
   });
 
   it('rejects a link re-pointed at another user, and one given a later expiry', () => {
     const query = fields(mintPlaybackQuery(KEY, USER) as string);
     expect(verifyPlaybackQuery({ ...query, u: 'user-2' }).kind).toBe('invalid');
-    expect(verifyPlaybackQuery({ ...query, e: String(Date.now() + 10 * 365 * 24 * 3600_000) }).kind).toBe('invalid');
+    expect(
+      verifyPlaybackQuery({ ...query, e: String(Date.now() + 10 * 365 * 24 * 3600_000) }).kind,
+    ).toBe('invalid');
   });
 
   it('tells an expired link apart from a forged one', () => {
@@ -83,7 +88,9 @@ describe('a deployment with no signing secret', () => {
     // why an unsigned link is never produced as a fallback.
     vi.stubEnv('TOKEN_ENCRYPTION_KEY', '');
     expect(mintPlaybackQuery(KEY, USER)).toBeNull();
-    expect(verifyPlaybackQuery({ o: 'x', u: USER, e: String(Date.now() + 1000), s: 'x' }).kind).toBe('invalid');
+    expect(
+      verifyPlaybackQuery({ o: 'x', u: USER, e: String(Date.now() + 1000), s: 'x' }).kind,
+    ).toBe('invalid');
   });
 
   it('will not verify a link minted under a different secret', () => {

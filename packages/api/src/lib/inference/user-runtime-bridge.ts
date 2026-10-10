@@ -205,7 +205,9 @@ function ensureSubscriber(): void {
   const client = getRedisClient();
   if (!client) return;
   const subscriber = client.duplicate();
-  subscriber.on('error', (err: Error) => log.general.warn({ err }, 'user-runtime subscriber error'));
+  subscriber.on('error', (err: Error) =>
+    log.general.warn({ err }, 'user-runtime subscriber error'),
+  );
   subscriber.on('message', (_channel: string, raw: string) => {
     try {
       const parsed = JSON.parse(raw) as { userId: string; msg: UserRuntimeMessage };

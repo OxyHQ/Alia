@@ -7,7 +7,7 @@ import { renderRootComponent } from "expo-router/build/renderRootComponent";
 // every other export folds this to `App` and never bundles the fixtures.
 renderRootComponent(
   process.env.EXPO_PUBLIC_ALIA_FIXTURES === "1"
-    ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    ?
       require("./fixtures/entry").FixtureApp
     : App,
 );

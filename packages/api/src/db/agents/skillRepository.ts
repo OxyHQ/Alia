@@ -708,7 +708,12 @@ export async function listSkillMetadataByIds(
   const versions = await db
     .select({ skillId: skillVersions.skillId, version: max(skillVersions.version) })
     .from(skillVersions)
-    .where(inArray(skillVersions.skillId, rows.map((row) => row.skillId)))
+    .where(
+      inArray(
+        skillVersions.skillId,
+        rows.map((row) => row.skillId),
+      ),
+    )
     .groupBy(skillVersions.skillId);
   const latest = new Map(versions.map((row) => [row.skillId, row.version]));
 
@@ -848,9 +853,7 @@ export async function touchInstalls(
   await db
     .update(skillInstalls)
     .set({ lastUsedAt: new Date() })
-    .where(
-      and(eq(skillInstalls.oxyUserId, oxyUserId), inArray(skillInstalls.skillId, skillIds)),
-    );
+    .where(and(eq(skillInstalls.oxyUserId, oxyUserId), inArray(skillInstalls.skillId, skillIds)));
 }
 
 // ---------------------------------------------------------------------------
@@ -965,7 +968,9 @@ export async function findSkillInNamespace(
     .where(
       and(
         eq(skills.name, name),
-        ownerOxyUserId === null ? isNull(skills.ownerOxyUserId) : eq(skills.ownerOxyUserId, ownerOxyUserId),
+        ownerOxyUserId === null
+          ? isNull(skills.ownerOxyUserId)
+          : eq(skills.ownerOxyUserId, ownerOxyUserId),
       ),
     )
     .limit(1);

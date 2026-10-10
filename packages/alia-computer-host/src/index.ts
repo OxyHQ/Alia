@@ -19,13 +19,18 @@ import { MemoryStore, PostgresStore, type ComputerStore } from './store.js';
 
 const REAP_INTERVAL_MS = 60_000;
 
-const log = pino({ level: process.env.LOG_LEVEL || 'info', base: { service: 'alia-computer-host' } });
-
+const log = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  base: { service: 'alia-computer-host' },
+});
 
 async function main() {
   const config = loadConfig();
-  const store: ComputerStore = config.databaseUrl ? await PostgresStore.connect(config.databaseUrl) : new MemoryStore();
-  if (!config.databaseUrl) log.warn('no DATABASE_URL: leases and receipts are in memory (local development only)');
+  const store: ComputerStore = config.databaseUrl
+    ? await PostgresStore.connect(config.databaseUrl)
+    : new MemoryStore();
+  if (!config.databaseUrl)
+    log.warn('no DATABASE_URL: leases and receipts are in memory (local development only)');
 
   // The two services refer to each other: the browser holds computer slots
   // and its work keeps the host awake; a download lands in the computer.
@@ -58,7 +63,11 @@ async function main() {
       log,
     });
     // A worker left by an earlier process holds a token this one never saw.
-    await stack.reset().catch((err: unknown) => log.warn({ err: err instanceof Error ? err.message : 'unknown' }, 'browser reset failed'));
+    await stack
+      .reset()
+      .catch((err: unknown) =>
+        log.warn({ err: err instanceof Error ? err.message : 'unknown' }, 'browser reset failed'),
+      );
     browser = new BrowserService({
       store,
       computers: service,
@@ -74,7 +83,10 @@ async function main() {
 
   const server = app.listen(config.port, () => {
     ready = true;
-    log.info({ port: config.port, runtime: config.runtime, maxRunning: config.maxRunning }, 'computer host listening');
+    log.info(
+      { port: config.port, runtime: config.runtime, maxRunning: config.maxRunning },
+      'computer host listening',
+    );
   });
 
   // Bound to every interface INSIDE the container; the systemd unit publishes
@@ -91,7 +103,9 @@ async function main() {
         if (stopped > 0) log.info({ stopped }, 'idle computers stopped');
         await browser?.reapIdle();
       })
-      .catch((err: unknown) => log.error({ err: err instanceof Error ? err.message : 'unknown' }, 'idle sweep failed'))
+      .catch((err: unknown) =>
+        log.error({ err: err instanceof Error ? err.message : 'unknown' }, 'idle sweep failed'),
+      )
       .finally(() => {
         reaping = false;
       });
@@ -116,6 +130,9 @@ async function main() {
 }
 
 main().catch((err: unknown) => {
-  log.fatal({ err: err instanceof Error ? err.message : 'unknown' }, 'computer host failed to start');
+  log.fatal(
+    { err: err instanceof Error ? err.message : 'unknown' },
+    'computer host failed to start',
+  );
   process.exit(1);
 });

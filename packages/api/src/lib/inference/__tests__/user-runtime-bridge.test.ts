@@ -57,7 +57,10 @@ const OWNER = 'user-1';
 const MODEL = 'llama3.1:8b';
 
 function offerRuntime(id: string, models: string[] = [MODEL], socketId = `sock-${id}`) {
-  sockets.push({ id: socketId, data: { localRuntime: { id, label: 'Chrome on the desktop', models } } });
+  sockets.push({
+    id: socketId,
+    data: { localRuntime: { id, label: 'Chrome on the desktop', models } },
+  });
 }
 
 beforeEach(() => {
@@ -75,7 +78,10 @@ describe('the identifier a person selects', () => {
 
   it('round-trips through the spelling the API hands out', () => {
     const id = formatUserRuntimeModel('rt-1', 'hf.co/user/repo:Q4_K_M');
-    expect(parseUserRuntimeModel(id)).toEqual({ runtimeId: 'rt-1', model: 'hf.co/user/repo:Q4_K_M' });
+    expect(parseUserRuntimeModel(id)).toEqual({
+      runtimeId: 'rt-1',
+      model: 'hf.co/user/repo:Q4_K_M',
+    });
   });
 
   it('claims nothing that is not one', () => {
@@ -110,10 +116,16 @@ describe('what a person has connected', () => {
 
   it('answers whether a specific model can be served right now', async () => {
     offerRuntime('rt-1', [MODEL]);
-    await expect(userRuntimeCanServe(OWNER, { runtimeId: 'rt-1', model: MODEL })).resolves.toBe(true);
+    await expect(userRuntimeCanServe(OWNER, { runtimeId: 'rt-1', model: MODEL })).resolves.toBe(
+      true,
+    );
     // A model the device no longer has, and a device that is not there at all.
-    await expect(userRuntimeCanServe(OWNER, { runtimeId: 'rt-1', model: 'gone:70b' })).resolves.toBe(false);
-    await expect(userRuntimeCanServe(OWNER, { runtimeId: 'rt-9', model: MODEL })).resolves.toBe(false);
+    await expect(
+      userRuntimeCanServe(OWNER, { runtimeId: 'rt-1', model: 'gone:70b' }),
+    ).resolves.toBe(false);
+    await expect(userRuntimeCanServe(OWNER, { runtimeId: 'rt-9', model: MODEL })).resolves.toBe(
+      false,
+    );
   });
 });
 
@@ -154,9 +166,17 @@ describe('a turn travelling through a runtime', () => {
 
     // Two frames, because a single frame cannot show that the stream CONCATENATES
     // rather than replaces — and an SSE chunk is routinely split across frames.
-    deliverUserRuntimeMessage(OWNER, { runId, kind: 'chunk', data: new TextEncoder().encode('data: {"a":1}\n') });
+    deliverUserRuntimeMessage(OWNER, {
+      runId,
+      kind: 'chunk',
+      data: new TextEncoder().encode('data: {"a":1}\n'),
+    });
     // The base64 spelling is what a frame arriving from another task carries.
-    deliverUserRuntimeMessage(OWNER, { runId, kind: 'chunk', data: Buffer.from('\ndata: [DONE]\n\n').toString('base64') });
+    deliverUserRuntimeMessage(OWNER, {
+      runId,
+      kind: 'chunk',
+      data: Buffer.from('\ndata: [DONE]\n\n').toString('base64'),
+    });
     deliverUserRuntimeMessage(OWNER, { runId, kind: 'end' });
 
     expect(await response.text()).toBe('data: {"a":1}\n\ndata: [DONE]\n\n');
@@ -167,10 +187,18 @@ describe('a turn travelling through a runtime', () => {
     deliverUserRuntimeMessage(OWNER, { runId, kind: 'head', status: 200 });
     const response = await pending;
 
-    deliverUserRuntimeMessage('user-2', { runId, kind: 'chunk', data: new TextEncoder().encode('injected') });
+    deliverUserRuntimeMessage('user-2', {
+      runId,
+      kind: 'chunk',
+      data: new TextEncoder().encode('injected'),
+    });
     // The mutation control: the SAME frame from the owner does arrive, so an
     // empty body is evidence of the check rather than of a broken delivery path.
-    deliverUserRuntimeMessage(OWNER, { runId, kind: 'chunk', data: new TextEncoder().encode('genuine') });
+    deliverUserRuntimeMessage(OWNER, {
+      runId,
+      kind: 'chunk',
+      data: new TextEncoder().encode('genuine'),
+    });
     deliverUserRuntimeMessage(OWNER, { runId, kind: 'end' });
 
     expect(await response.text()).toBe('genuine');
@@ -202,10 +230,13 @@ describe('a turn travelling through a runtime', () => {
     // No runtime offered: the turn must fail here rather than wait out the
     // head timeout with an open SSE stream in front of the person.
     await expect(
-      userRuntimeFetch({ userId: OWNER, runtimeId: 'rt-1' })('http://user-runtime.invalid/v1/chat/completions', {
-        method: 'POST',
-        body: '{}',
-      }),
+      userRuntimeFetch({ userId: OWNER, runtimeId: 'rt-1' })(
+        'http://user-runtime.invalid/v1/chat/completions',
+        {
+          method: 'POST',
+          body: '{}',
+        },
+      ),
     ).rejects.toThrow('no longer connected');
     expect(emitted).toEqual([]);
   });

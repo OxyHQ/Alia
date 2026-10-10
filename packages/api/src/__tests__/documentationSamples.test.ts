@@ -69,10 +69,14 @@ const SELF = path.relative(REPO_ROOT, fileURLToPath(import.meta.url));
 
 /** Tracked plus untracked worktree files, excluding deleted index entries. */
 function tracked(...patterns: string[]): string[] {
-  return execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', ...patterns], {
-    cwd: REPO_ROOT,
-    encoding: 'utf8',
-  })
+  return execFileSync(
+    'git',
+    ['ls-files', '--cached', '--others', '--exclude-standard', '--', ...patterns],
+    {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    },
+  )
     .split('\n')
     .filter(Boolean)
     .filter((file) => existsSync(path.join(REPO_ROOT, file)))
@@ -107,10 +111,13 @@ const read = (file: string): string => readFileSync(path.join(REPO_ROOT, file), 
  *    fail.
  */
 const SUBJECT = /\b(provider|operator|upstream|model)\b/i;
-const NORMATIVE = /\b(must|may|shall|should|forbidden|banned|prohibited)\b|^\s*never\b|\bnever (expose|reveal|show|mention|use|name)\b/i;
+const NORMATIVE =
+  /\b(must|may|shall|should|forbidden|banned|prohibited)\b|^\s*never\b|\bnever (expose|reveal|show|mention|use|name)\b/i;
 const PROHIBITION = /\b(never|not|no|forbidden|banned|prohibited)\b/i;
-const GLOBAL_SCOPE = /\b(anywhere|everywhere|globally|in any (surface|context)|on (a|any) public surface)\b/i;
-const SCOPED = /\bproduct surface\b|\bproduct API\b|\buser-facing\b|\bcustomer-facing\b|\bend users?\b|\bnot a global ban\b/i;
+const GLOBAL_SCOPE =
+  /\b(anywhere|everywhere|globally|in any (surface|context)|on (a|any) public surface)\b/i;
+const SCOPED =
+  /\bproduct surface\b|\bproduct API\b|\buser-facing\b|\bcustomer-facing\b|\bend users?\b|\bnot a global ban\b/i;
 
 /**
  * The two spellings that carry the retired claim with no prohibition token of
@@ -137,7 +144,8 @@ const DOC_SUBJECT = /\b(provider|operator|upstream)\b/i;
 
 function assertsRetiredRule(sentence: string): boolean {
   if (RETIRED_AFFIRMATIONS.some((pattern) => pattern.test(sentence))) return true;
-  if (DOC_SUBJECT.test(sentence) && DOC_SCOPED_BAN.test(sentence) && !SCOPED.test(sentence)) return true;
+  if (DOC_SUBJECT.test(sentence) && DOC_SCOPED_BAN.test(sentence) && !SCOPED.test(sentence))
+    return true;
   return (
     SUBJECT.test(sentence) &&
     NORMATIVE.test(sentence) &&
@@ -149,7 +157,10 @@ function assertsRetiredRule(sentence: string): boolean {
 
 /** Sentence-ish. Newlines split too, because prose in this repo wraps hard. */
 const sentences = (text: string): string[] =>
-  text.split(/(?<=[.!?])\s+|\n/).map((line) => line.trim()).filter(Boolean);
+  text
+    .split(/(?<=[.!?])\s+|\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 
 /* -------------------------------------------------------------------------- */
 /*  Predicate 2 — an alias presented as a model Alia owns                      */
@@ -168,8 +179,19 @@ const R = ['route', ':'].join('');
  * module that declared them is deleted (ADR 0012).
  */
 const ALIASES: readonly string[] = [
-  'instant', 'auto', 'audio', 'research', 'code', 'cowork', 'multimodal',
-  'pro-standard', 'pro', 'thinking', 'vision', 'voice', 'voice-pro',
+  'instant',
+  'auto',
+  'audio',
+  'research',
+  'code',
+  'cowork',
+  'multimodal',
+  'pro-standard',
+  'pro',
+  'thinking',
+  'vision',
+  'voice',
+  'voice-pro',
 ].map((name) => `${R}${name}`);
 
 const aliasPattern = (): RegExp =>
@@ -185,7 +207,8 @@ const namesAlias = (text: string): boolean => aliasPattern().test(text);
  * is establishing, so a census that fired on it would be telling the truth to
  * delete itself.
  */
-const OWNERSHIP = /\bAlia\b[^.\n]{0,30}\b(offers?|publishes?|provides?|owns?|has)\b[^.\n]{0,30}\bmodels?\b|\bAlia'?s? models?\b|\bAlia (model )?IDs?\b|\bAvailable Models\b|"owned_by"\s*:\s*"alia"|\bour models\b|\bAlia-owned model\b/i;
+const OWNERSHIP =
+  /\bAlia\b[^.\n]{0,30}\b(offers?|publishes?|provides?|owns?|has)\b[^.\n]{0,30}\bmodels?\b|\bAlia'?s? models?\b|\bAlia (model )?IDs?\b|\bAvailable Models\b|"owned_by"\s*:\s*"alia"|\bour models\b|\bAlia-owned model\b/i;
 const NEGATED_OWNERSHIP = /\b(no|not|never|zero) models?\b|\bpublishes no\b|\bowns no\b/i;
 
 const presentsAliasAsRoutingProfile = (text: string): boolean =>
@@ -254,7 +277,11 @@ function markdownLines(): MarkdownLine[] {
 const MARKDOWN = markdownLines();
 const MARKDOWN_FILES = new Set(MARKDOWN.map((line) => line.file)).size;
 const FENCE_DELIMITERS = tracked('*.md', '*.mdx', '**/*.md', '**/*.mdx').reduce(
-  (total, file) => total + read(file).split('\n').filter((line) => /^\s*```/.test(line)).length,
+  (total, file) =>
+    total +
+    read(file)
+      .split('\n')
+      .filter((line) => /^\s*```/.test(line)).length,
   0,
 );
 
@@ -356,8 +383,18 @@ const LOCALE_FILES = new Set(TRANSLATIONS.map((entry) => entry.file));
 /* -------------------------------------------------------------------------- */
 
 const IMAGE_ASSETS = tracked(
-  '*.png', '*.jpg', '*.jpeg', '*.gif', '*.webp', '*.svg',
-  '**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.gif', '**/*.webp', '**/*.svg',
+  '*.png',
+  '*.jpg',
+  '*.jpeg',
+  '*.gif',
+  '*.webp',
+  '*.svg',
+  '**/*.png',
+  '**/*.jpg',
+  '**/*.jpeg',
+  '**/*.gif',
+  '**/*.webp',
+  '**/*.svg',
 );
 
 interface ImageReference {
@@ -368,8 +405,10 @@ interface ImageReference {
 /** Every image a tracked markdown file embeds, in both syntaxes. */
 function imageReferences(text: string, file: string): ImageReference[] {
   const out: ImageReference[] = [];
-  for (const match of text.matchAll(/!\[[^\]]*\]\(([^)\s]+)/g)) out.push({ file, target: match[1] });
-  for (const match of text.matchAll(/<img[^>]*\ssrc=["']([^"']+)/gi)) out.push({ file, target: match[1] });
+  for (const match of text.matchAll(/!\[[^\]]*\]\(([^)\s]+)/g))
+    out.push({ file, target: match[1] });
+  for (const match of text.matchAll(/<img[^>]*\ssrc=["']([^"']+)/gi))
+    out.push({ file, target: match[1] });
   return out;
 }
 
@@ -415,17 +454,20 @@ describe('the census reads what it claims to read', () => {
      * see the inversion — both sides are large — so the parse is driven with a
      * document whose answer is known line by line.
      */
-    const parsed = splitFences('probe.md', [
-      'prose before',
-      '```json',
-      '{ "fenced": true }',
-      '```',
-      'prose after',
-      '```',
-      'a second block',
-      '```',
-      'prose at the end',
-    ].join('\n'));
+    const parsed = splitFences(
+      'probe.md',
+      [
+        'prose before',
+        '```json',
+        '{ "fenced": true }',
+        '```',
+        'prose after',
+        '```',
+        'a second block',
+        '```',
+        'prose at the end',
+      ].join('\n'),
+    );
 
     expect(parsed.map((line) => `${line.fenced ? 'CODE' : 'PROSE'} ${line.text}`)).toEqual([
       'PROSE prose before',
@@ -478,10 +520,14 @@ describe('the census reads what it claims to read', () => {
 describe('no sample asserts the retired global rule (#139 ws20)', () => {
   const offenders = [
     ...MARKDOWN.flatMap(({ file, line, text }) =>
-      sentences(text).filter(assertsRetiredRule).map((sentence) => `${file}:${line} :: ${sentence}`),
+      sentences(text)
+        .filter(assertsRetiredRule)
+        .map((sentence) => `${file}:${line} :: ${sentence}`),
     ),
     ...COMMENTS.flatMap(({ file, text }) =>
-      sentences(text).filter(assertsRetiredRule).map((sentence) => `${file} :: ${sentence}`),
+      sentences(text)
+        .filter(assertsRetiredRule)
+        .map((sentence) => `${file} :: ${sentence}`),
     ),
   ];
 
@@ -588,9 +634,9 @@ describe('no sample presents an alia-* identifier as a model (#139 ws20)', () =>
       ...MARKDOWN.filter((line) => presentsAliasAsRoutingProfile(line.text)).map(
         (line) => `${line.file}:${line.line} :: ${line.text.trim()}`,
       ),
-      ...SOURCE.filter((entry) => entry.kind !== 'comment' && presentsAliasAsRoutingProfile(entry.text)).map(
-        (entry) => `${entry.file} (${entry.kind}) :: ${entry.text.trim().slice(0, 120)}`,
-      ),
+      ...SOURCE.filter(
+        (entry) => entry.kind !== 'comment' && presentsAliasAsRoutingProfile(entry.text),
+      ).map((entry) => `${entry.file} (${entry.kind}) :: ${entry.text.trim().slice(0, 120)}`),
     ];
     expect(offenders).toEqual([]);
   });
@@ -679,10 +725,9 @@ describe('every screenshot a document embeds exists (#139 ws20)', () => {
     const resolved = path.resolve(REPO_ROOT, path.dirname(planted.file), planted.target);
     expect(existsSync(resolved)).toBe(false);
     // And the reference extractor sees both syntaxes.
-    expect(imageReferences('![alt](one.png)\n<img src="two.png" />', 'f').map((r) => r.target)).toEqual([
-      'one.png',
-      'two.png',
-    ]);
+    expect(
+      imageReferences('![alt](one.png)\n<img src="two.png" />', 'f').map((r) => r.target),
+    ).toEqual(['one.png', 'two.png']);
   });
 
   it('no image asset is named after a retired alias', () => {

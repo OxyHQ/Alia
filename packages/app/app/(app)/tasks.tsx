@@ -84,10 +84,7 @@ export default function TasksPage() {
     ],
   );
 
-  const keyExtractor = useCallback(
-    (item: WorkItem) => `${item.kind}:${item.id}`,
-    [],
-  );
+  const keyExtractor = useCallback((item: WorkItem) => `${item.kind}:${item.id}`, []);
 
   const ListEmpty = work.isLoading ? (
     <View className="py-12">
@@ -96,23 +93,14 @@ export default function TasksPage() {
   ) : work.isError && work.items.length === 0 ? null : (
     <EmptyState
       icon={RiInbox2Line}
-      title={
-        work.tab === 'active' ? t('tasks.emptyActive') : t('tasks.emptyHistory')
-      }
-      description={
-        work.tab === 'active' ? t('tasks.emptyActiveHint') : undefined
-      }
+      title={work.tab === 'active' ? t('tasks.emptyActive') : t('tasks.emptyHistory')}
+      description={work.tab === 'active' ? t('tasks.emptyActiveHint') : undefined}
     />
   );
 
   const ListFooter = work.hasMoreHistory ? (
     <View className="mt-3 items-center">
-      <Button
-        tone="neutral"
-        appearance="subtle"
-        size="sm"
-        onPress={work.loadMoreHistory}
-      >
+      <Button tone="neutral" appearance="subtle" size="sm" onPress={work.loadMoreHistory}>
         {t('tasks.loadMore')}
       </Button>
     </View>
@@ -126,9 +114,7 @@ export default function TasksPage() {
       renderItem={renderItem}
       ItemSeparatorComponent={TaskSeparator}
       contentContainerClassName="gap-3 px-4 pb-6 pt-4"
-      refreshControl={
-        <RefreshControl refreshing={work.refreshing} onRefresh={work.refresh} />
-      }
+      refreshControl={<RefreshControl refreshing={work.refreshing} onRefresh={work.refresh} />}
       ListHeaderComponent={
         <WorkListHeader
           tab={work.tab}

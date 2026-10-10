@@ -28,7 +28,6 @@ import {
  *     silently egressing past a hand-maintained list.
  */
 
-
 const POLICY_ENV: NodeJS.ProcessEnv = {};
 
 let dispose: (() => void) | null = null;
@@ -128,7 +127,9 @@ describe('a provider API host cannot be reached (#139 ws8)', () => {
     expect(() =>
       https.get({ host: `${PROVIDER_API_HOSTS.anthropic}:443`, path: '/v1/messages' }),
     ).toThrow(ProviderEgressRefusal);
-    expect(() => http.request({ hostname: PROVIDER_API_HOSTS.groq })).toThrow(ProviderEgressRefusal);
+    expect(() => http.request({ hostname: PROVIDER_API_HOSTS.groq })).toThrow(
+      ProviderEgressRefusal,
+    );
   });
 
   it('names no provider in the error message, only on the error object', () => {

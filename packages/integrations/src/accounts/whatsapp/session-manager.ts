@@ -97,7 +97,10 @@ class SessionManager {
       try {
         await this.startSession(session.sessionId);
       } catch (err) {
-        logger.error(`Failed to restore session ${session.sessionId} (user ${session.oxyUserId}):`, err);
+        logger.error(
+          `Failed to restore session ${session.sessionId} (user ${session.oxyUserId}):`,
+          err,
+        );
       }
     }
   }
@@ -106,7 +109,9 @@ class SessionManager {
    * Create a brand-new session for a user who wants to link their WhatsApp.
    * Returns the sessionId and a promise that resolves with the first QR code string.
    */
-  async createSession(oxyUserId: string): Promise<{ sessionId: string; qrPromise: Promise<string> }> {
+  async createSession(
+    oxyUserId: string,
+  ): Promise<{ sessionId: string; qrPromise: Promise<string> }> {
     const sessionId = randomUUID();
 
     await createWhatsAppSession(getDb(), { sessionId, oxyUserId });
@@ -192,7 +197,9 @@ class SessionManager {
       }
 
       if (connection === 'close') {
-        const statusCode = (lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)?.output?.statusCode;
+        const statusCode = (
+          lastDisconnect?.error as { output?: { statusCode?: number } } | undefined
+        )?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
         this.sessions.delete(sessionId);
@@ -205,17 +212,18 @@ class SessionManager {
             await markWhatsAppFailed(getDb(), sessionId);
             this.reconnectAttempts.delete(sessionId);
             logger.error(
-              `Session ${sessionId} for ${oxyUserId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`
+              `Session ${sessionId} for ${oxyUserId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`,
             );
           } else {
-            const delay = Math.min(
-              SessionManager.BASE_RECONNECT_MS * Math.pow(2, attempts - 1),
-              SessionManager.MAX_RECONNECT_MS,
-            ) + Math.floor(Math.random() * SessionManager.JITTER_MAX_MS);
+            const delay =
+              Math.min(
+                SessionManager.BASE_RECONNECT_MS * Math.pow(2, attempts - 1),
+                SessionManager.MAX_RECONNECT_MS,
+              ) + Math.floor(Math.random() * SessionManager.JITTER_MAX_MS);
 
             await markWhatsAppDisconnected(getDb(), sessionId);
             logger.info(
-              `Session ${sessionId} disconnected for user ${oxyUserId} (status ${statusCode}), reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`
+              `Session ${sessionId} disconnected for user ${oxyUserId} (status ${statusCode}), reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`,
             );
 
             // Clear any existing reconnect timer
@@ -225,7 +233,7 @@ class SessionManager {
             const timer = setTimeout(() => {
               this.reconnectTimers.delete(sessionId);
               this.startSession(sessionId).catch((err) =>
-                logger.error(`Reconnect failed for session ${sessionId}:`, err)
+                logger.error(`Reconnect failed for session ${sessionId}:`, err),
               );
             }, delay);
             this.reconnectTimers.set(sessionId, timer);
@@ -245,9 +253,7 @@ class SessionManager {
       // Persist all messages (both notify and history sync)
       const rows: WhatsAppMessageInsert[] = [];
       for (const msg of messages) {
-        const text = msg.message?.conversation
-          || msg.message?.extendedTextMessage?.text
-          || '';
+        const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
         if (!text || !msg.key.id || !msg.key.remoteJid) continue;
 
         rows.push({
@@ -296,20 +302,26 @@ class SessionManager {
         }
 
         try {
-          await handleIncomingMessage({
-            platform: 'whatsapp',
-            sessionId,
-            oxyUserId: owner,
-            chatId: remoteJid,
-            messageText: text,
-            sendResponse: async (text) => { await sock.sendMessage(remoteJid, { text }); },
-            setTyping: async (typing) => {
-              await sock.presenceSubscribe(remoteJid);
-              await sock.sendPresenceUpdate(typing ? 'composing' : 'available', remoteJid);
+          await handleIncomingMessage(
+            {
+              platform: 'whatsapp',
+              sessionId,
+              oxyUserId: owner,
+              chatId: remoteJid,
+              messageText: text,
+              sendResponse: async (text) => {
+                await sock.sendMessage(remoteJid, { text });
+              },
+              setTyping: async (typing) => {
+                await sock.presenceSubscribe(remoteJid);
+                await sock.sendPresenceUpdate(typing ? 'composing' : 'available', remoteJid);
+              },
+              charLimit: 4000,
+              platformContext:
+                'Accessible via WhatsApp. Keep responses under 3000 characters when possible.',
             },
-            charLimit: 4000,
-            platformContext: 'Accessible via WhatsApp. Keep responses under 3000 characters when possible.',
-          }, apiClient);
+            apiClient,
+          );
         } catch (err) {
           logger.error(`Error handling message for session ${sessionId}:`, err);
         }
@@ -407,8 +419,8 @@ class SessionManager {
       for (const update of updates) {
         if (!update.key?.id) continue;
         // Handle message edits
-        const newText = update.update?.message?.conversation
-          || update.update?.message?.extendedTextMessage?.text;
+        const newText =
+          update.update?.message?.conversation || update.update?.message?.extendedTextMessage?.text;
         if (newText) {
           try {
             await updateWhatsAppMessageText(getDb(), sessionId, update.key.id, newText);
@@ -421,7 +433,9 @@ class SessionManager {
 
     // ---- History sync (bulk chat/message sets from WhatsApp) ----
     sock.ev.on('messaging-history.set', async ({ chats, messages, isLatest }) => {
-      logger.info(`History sync for session ${sessionId}: ${chats.length} chats, ${messages.length} messages (isLatest: ${isLatest})`);
+      logger.info(
+        `History sync for session ${sessionId}: ${chats.length} chats, ${messages.length} messages (isLatest: ${isLatest})`,
+      );
 
       const chatRows: WhatsAppChatSync[] = chats
         .filter((c) => c.id !== 'status@broadcast')

@@ -11,14 +11,7 @@ import {
   type TimelinePosition,
 } from '@/features/chat/model/timeline';
 import type { AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
-import {
-  useCallback,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type RefObject,
-} from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import type { Message } from '@/features/chat/runtime/use-conversations';
 
@@ -30,9 +23,9 @@ import type { Message } from '@/features/chat/runtime/use-conversations';
  * into, so it is for deriving structure — ids, roles, stamps, speakers — and
  * never for drawing text.
  */
-export function useTimelineShape<T extends Pick<Message, 'id' | 'role' | 'createdAt' | 'agentInfo'>>(
-  list: readonly T[],
-): readonly T[] {
+export function useTimelineShape<
+  T extends Pick<Message, 'id' | 'role' | 'createdAt' | 'agentInfo'>,
+>(list: readonly T[]): readonly T[] {
   const shape = useRef(list);
   if (!sameTimelineShape(shape.current, list)) shape.current = list;
   return shape.current;

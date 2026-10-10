@@ -71,11 +71,20 @@ beforeAll(async () => {
       role: 'assistant',
       content: [
         { type: 'text', text: 'I looked it up.' },
-        { type: 'tool-webSearch', input: { q: 'heronwatch' }, output: { url: 'https://heronwatch.example' } },
+        {
+          type: 'tool-webSearch',
+          input: { q: 'heronwatch' },
+          output: { url: 'https://heronwatch.example' },
+        },
         { type: 'file', filename: 'heronwatch-report.pdf', mediaType: 'application/pdf' },
       ] as MessageContent,
       toolInvocations: [
-        { toolCallId: 't1', toolName: 'webSearch', state: 'result', result: { title: 'heronwatch' } },
+        {
+          toolCallId: 't1',
+          toolName: 'webSearch',
+          state: 'result',
+          result: { title: 'heronwatch' },
+        },
       ],
       seq: 2,
     },
@@ -111,7 +120,9 @@ describe('a thread is searchable by what was said', () => {
     expect(hits[0].role).toBe('assistant');
     // The parts are joined IN ORDER, so a sentence split across two of them is
     // one string rather than two fragments in whatever order the array scanned.
-    expect(hits[0].text).toBe('Noted. Kingfisher it is, and the deadline is the fourteenth of March.');
+    expect(hits[0].text).toBe(
+      'Noted. Kingfisher it is, and the deadline is the fourteenth of March.',
+    );
   });
 
   it('finds both sides of one exchange', async () => {

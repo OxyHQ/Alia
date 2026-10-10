@@ -43,10 +43,7 @@ export type ShowSeriesRow = typeof showSeries.$inferSelect;
 /** An episode row as stored, INCLUDING its ingest ticket. */
 export type ShowEpisodeRow = typeof showEpisodes.$inferSelect;
 /** An episode as a route may see it — no ingest ticket. */
-export type ShowEpisodePublicRow = Omit<
-  ShowEpisodeRow,
-  'ingestTicket' | 'ingestTicketExpiresAt'
->;
+export type ShowEpisodePublicRow = Omit<ShowEpisodeRow, 'ingestTicket' | 'ingestTicketExpiresAt'>;
 /** One account's defaults. */
 export type ShowPreferencesRow = typeof showPreferences.$inferSelect;
 
@@ -103,10 +100,7 @@ export interface NewShowSeries {
   readonly coverImageAssetId?: string | undefined;
 }
 
-export async function createSeries(
-  db: ApiDatabase,
-  input: NewShowSeries,
-): Promise<ShowSeriesRow> {
+export async function createSeries(db: ApiDatabase, input: NewShowSeries): Promise<ShowSeriesRow> {
   const [row] = await db
     .insert(showSeries)
     .values({
@@ -362,11 +356,7 @@ export async function findEpisodeById(
   db: ApiDatabase,
   episodeId: string,
 ): Promise<ShowEpisodeRow | null> {
-  const [row] = await db
-    .select()
-    .from(showEpisodes)
-    .where(eq(showEpisodes.id, episodeId))
-    .limit(1);
+  const [row] = await db.select().from(showEpisodes).where(eq(showEpisodes.id, episodeId)).limit(1);
 
   return row ?? null;
 }

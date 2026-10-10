@@ -190,7 +190,6 @@ export function createOxyInferenceCredential(
   // character fails with a 401 that names nothing.
   const read = (variable: string): string => (env[variable] ?? '').trim();
 
-
   /**
    * Armed only with a COMPLETE pair, and left unconfigured otherwise on purpose.
    *

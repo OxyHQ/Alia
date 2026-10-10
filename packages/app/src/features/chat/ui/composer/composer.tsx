@@ -1,20 +1,25 @@
-import { useCallback, useEffect, useId, useMemo, type ReactNode, type RefObject } from "react";
-import { View, type NativeSyntheticEvent, type TextInput, type TextInputKeyPressEventData } from "react-native";
+import { useCallback, useEffect, useId, useMemo, type ReactNode, type RefObject } from 'react';
+import {
+  View,
+  type NativeSyntheticEvent,
+  type TextInput,
+  type TextInputKeyPressEventData,
+} from 'react-native';
 import {
   ComposerPanel,
   type ComposerPanelAddMenuGroup,
   type ComposerPanelAttachment,
   type ComposerPanelPermissionOption,
-} from "@oxy.so/bloom/composer-panel";
-import { toast } from "@oxy.so/bloom/toast";
-import { KeyboardAvoidingView } from "@/shared/platform/keyboard";
-import { useTranslation } from "@/shared/i18n/use-translation";
-import { useSpeechToText } from "@/features/voice/runtime/use-speech-to-text";
-import { voiceErrorText } from "@/features/voice/model/voice-error-text";
-import { composerTiles, intakeError } from "./attachment-tiles";
-import { ComposerDropOverlay, useComposerDropTarget, useComposerPasteTarget } from "./drop-zone";
-import { useAttachmentIntake } from "./use-attachment-intake";
-import type { Attachment } from "./types";
+} from '@oxy.so/bloom/composer-panel';
+import { toast } from '@oxy.so/bloom/toast';
+import { KeyboardAvoidingView } from '@/shared/platform/keyboard';
+import { useTranslation } from '@/shared/i18n/use-translation';
+import { useSpeechToText } from '@/features/voice/runtime/use-speech-to-text';
+import { voiceErrorText } from '@/features/voice/model/voice-error-text';
+import { composerTiles, intakeError } from './attachment-tiles';
+import { ComposerDropOverlay, useComposerDropTarget, useComposerPasteTarget } from './drop-zone';
+import { useAttachmentIntake } from './use-attachment-intake';
+import type { Attachment } from './types';
 
 /**
  * Alia's composer is Bloom's `ComposerPanel`. A running turn is its stop
@@ -99,7 +104,7 @@ export function Composer({
 }: ComposerProps) {
   const { t } = useTranslation();
   // Paste is a DOM gesture on a DOM node; the panel publishes no ref to one.
-  const hostId = `composer-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const hostId = `composer-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
 
   // The list's owner releases what a removed tile held (the draft store does).
   const takesFiles = onAddAttachment !== undefined;
@@ -107,7 +112,10 @@ export function Composer({
     (attachment: Attachment) => onAddAttachment?.(attachment),
     [onAddAttachment],
   );
-  const removeAttachment = useCallback((id: string) => onRemoveAttachment?.(id), [onRemoveAttachment]);
+  const removeAttachment = useCallback(
+    (id: string) => onRemoveAttachment?.(id),
+    [onRemoveAttachment],
+  );
   const intake = useAttachmentIntake({ addAttachment });
   // A surface that takes no files still catches a drop or a pasted file, so
   // the browser does not open it in place of the page — and then does nothing.
@@ -132,7 +140,7 @@ export function Composer({
    */
   useEffect(() => {
     for (const item of intake.items) {
-      if (item.status !== "refused") continue;
+      if (item.status !== 'refused') continue;
       const error = intakeError(item, t);
       if (error !== undefined) toast.error(error);
       intake.dismiss(item.id);
@@ -169,24 +177,24 @@ export function Composer({
         return;
       }
       const text = await stt.stopAndTranscribe();
-      if (text !== null) onValueChange(value === "" ? text : `${value} ${text}`);
+      if (text !== null) onValueChange(value === '' ? text : `${value} ${text}`);
     },
     [disabled, busy, stt, value, onValueChange],
   );
 
-  const hasContent = value.trim() !== "" || attachments.length > 0;
+  const hasContent = value.trim() !== '' || attachments.length > 0;
   const labels = useMemo(
     () => ({
-      message: t("composer.message"),
-      addMenu: t("composer.addMenu"),
-      permissions: t("composer.powerLevel"),
-      permissionMode: t("composer.powerLevel"),
-      voice: t("composer.voice"),
-      send: t("composer.send"),
-      stop: t("composer.stop"),
-      remove: t("composer.removeShort"),
+      message: t('composer.message'),
+      addMenu: t('composer.addMenu'),
+      permissions: t('composer.powerLevel'),
+      permissionMode: t('composer.powerLevel'),
+      voice: t('composer.voice'),
+      send: t('composer.send'),
+      stop: t('composer.stop'),
+      remove: t('composer.removeShort'),
       // Bloom names the button "<retry> <file name>".
-      retry: t("composer.retryShort"),
+      retry: t('composer.retryShort'),
     }),
     [t],
   );
@@ -230,5 +238,9 @@ export function Composer({
     </View>
   );
 
-  return disableKeyboardAvoidance ? host : <KeyboardAvoidingView behavior="padding">{host}</KeyboardAvoidingView>;
+  return disableKeyboardAvoidance ? (
+    host
+  ) : (
+    <KeyboardAvoidingView behavior="padding">{host}</KeyboardAvoidingView>
+  );
 }

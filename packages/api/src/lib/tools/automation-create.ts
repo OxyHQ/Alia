@@ -45,7 +45,10 @@ export function createAutomationTool(userId: string, accessToken: string | undef
         if (error instanceof AutomationCreationError) {
           return { success: false, error: error.code, ...error.context };
         }
-        log.triggers.error({ err: error, ownerAccountId: userId }, 'Failed to create automation via tool');
+        log.triggers.error(
+          { err: error, ownerAccountId: userId },
+          'Failed to create automation via tool',
+        );
         return { success: false, error: getErrorMessage(error) };
       }
     },

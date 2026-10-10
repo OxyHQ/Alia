@@ -23,7 +23,11 @@ import {
   findGrantedApproval,
   markApprovalExecuted,
 } from '../../db/agents/agentRuntimeRepository.js';
-import { createAgentSession, updateAgentSession, type AgentSessionRecord } from '../../db/agents/agentSessionRepository.js';
+import {
+  createAgentSession,
+  updateAgentSession,
+  type AgentSessionRecord,
+} from '../../db/agents/agentSessionRepository.js';
 import { safeRefund } from '../credits-manager.js';
 import { log } from '../logger.js';
 import { enqueueAgentSession } from '../task-queue.js';
@@ -40,12 +44,22 @@ const GRANT_USABLE_FOR_MS = 7 * 24 * 60 * 60 * 1000;
 function sortJson(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortJson);
   if (typeof value !== 'object' || value === null) return value;
-  return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, sortJson(v)]));
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => [k, sortJson(v)]),
+  );
 }
 
 /** The identity of one action by one agent: the same call hashes the same. */
-export function deferredActionHash(agentId: string, toolName: string, args: Record<string, unknown>): string {
-  return createHash('sha256').update(JSON.stringify(sortJson(['deferred', agentId, toolName, args]))).digest('hex');
+export function deferredActionHash(
+  agentId: string,
+  toolName: string,
+  args: Record<string, unknown>,
+): string {
+  return createHash('sha256')
+    .update(JSON.stringify(sortJson(['deferred', agentId, toolName, args])))
+    .digest('hex');
 }
 
 export interface DeferredApprovals {
@@ -95,9 +109,14 @@ export function deferredApprovalsFor(session: AgentSessionRecord): DeferredAppro
           kind: 'result',
           content: `I need your OK before I do this: ${summary}\n\nApprove or deny it in Alia; I'll do it as soon as you approve.`,
           title: 'Needs your approval',
-        }).catch((err: unknown) => log.agents.warn({ err, sessionId: session._id }, 'Could not tell the person about an approval'));
+        }).catch((err: unknown) =>
+          log.agents.warn(
+            { err, sessionId: session._id },
+            'Could not tell the person about an approval',
+          ),
+        );
       }
-      return 'This action needs the person\'s approval. They have been asked, and it will be done in a new run once they approve. Do NOT call it again now; continue with anything else, or finish and say it is waiting for their approval.';
+      return "This action needs the person's approval. They have been asked, and it will be done in a new run once they approve. Do NOT call it again now; continue with anything else, or finish and say it is waiting for their approval.";
     },
   };
 }
@@ -108,7 +127,9 @@ export function deferredApprovalsFor(session: AgentSessionRecord): DeferredAppro
  * Only for a request filed by a background run — one whose run is no longer
  * waiting for the answer. Holds credits like any background run.
  */
-export async function runApprovedAction(approvalId: string): Promise<{ started: boolean; sessionId?: string }> {
+export async function runApprovedAction(
+  approvalId: string,
+): Promise<{ started: boolean; sessionId?: string }> {
   const approval = await findAgentApproval(getDb(), approvalId);
   if (!approval || approval.status !== 'approved') return { started: false };
   const args = (approval.details as { args?: Record<string, unknown> }).args;
@@ -145,8 +166,10 @@ export async function runApprovedAction(approvalId: string): Promise<{ started: 
   } catch (error: unknown) {
     log.agents.error({ err: error, approvalId }, 'Could not start the run for an approved action');
     if (sessionId) {
-      await updateAgentSession(getDb(), sessionId, { status: 'failed', result: 'Could not queue the approved action' })
-        .catch(() => undefined);
+      await updateAgentSession(getDb(), sessionId, {
+        status: 'failed',
+        result: 'Could not queue the approved action',
+      }).catch(() => undefined);
     }
     await safeRefund(reservation, 'approved action could not be started');
     return { started: false };

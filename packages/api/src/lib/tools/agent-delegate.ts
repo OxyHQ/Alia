@@ -80,43 +80,82 @@ export interface AgentDelegationResult {
  *   unreachable rather than reachable — `canReachAgent` fails closed, and the
  *   assembler only builds this tool for a turn that holds a session.
  */
-export const createDelegateToAgentTool = (userId: string, accessToken: string | undefined) => tool({
-  description: 'Delegate a task to a specific agent by ID. The agent will autonomously process the task and return its response. Use after searchAgents to delegate work to the best-matching agent.',
+export const createDelegateToAgentTool = (userId: string, accessToken: string | undefined) =>
+  tool({
+    description:
+      'Delegate a task to a specific agent by ID. The agent will autonomously process the task and return its response. Use after searchAgents to delegate work to the best-matching agent.',
 
-  inputSchema: z.object({
-    agentId: z.string().describe('The ID of the agent to delegate to (from searchAgents results)'),
-    task: z.string().describe('The task or question to send to the agent. Be specific and provide full context.'),
-  }),
+    inputSchema: z.object({
+      agentId: z
+        .string()
+        .describe('The ID of the agent to delegate to (from searchAgents results)'),
+      task: z
+        .string()
+        .describe(
+          'The task or question to send to the agent. Be specific and provide full context.',
+        ),
+    }),
 
-  execute: async ({ agentId, task }): Promise<AgentDelegationResult> => {
-    try {
-      // Look up the agent, then its identity: the delegation result carries the
-      // agent's name, handle and colour for the client to render, and all three
-      // are the bot account's.
-      const found = await findAgentById(getDb(), agentId);
-      /**
-       * One answer for both refusals. `canReachAgent` is public-and-active, or
-       * standing in the bot account — an owner's own agent, or one shared with
-       * them by being added to it.
-       *
-       * Compared against `'reachable'`, never negated. This read `!(await
-       * canReachAgent(…))` while the function still answered a `boolean`; it now
-       * answers `'reachable' | 'out_of_reach' | 'identity_unavailable'`, and
-       * **every one of those is truthy**, so the negation was constantly false
-       * and the refusal below could not fire. TypeScript does not object to
-       * `!someString`, so nothing caught it — see
-       * `__tests__/reach-is-compared-not-negated.test.ts`, which does now.
-       *
-       * `identity_unavailable` is collapsed into the same refusal here on
-       * purpose. A delegation is model output derived from `searchAgents`, with
-       * no person waiting to be told the identity service is down and no
-       * surface to tell them on; the turn simply carries on without the
-       * delegation, which is what every unreachable agent already does.
-       */
-      if (found === null || (await canReachAgent(found, { oxyUserId: userId, accessToken })) !== 'reachable') {
-        if (found !== null) {
-          log.general.info({ agentId, userId }, 'Delegation refused: the caller cannot reach that agent');
+    execute: async ({ agentId, task }): Promise<AgentDelegationResult> => {
+      try {
+        // Look up the agent, then its identity: the delegation result carries the
+        // agent's name, handle and colour for the client to render, and all three
+        // are the bot account's.
+        const found = await findAgentById(getDb(), agentId);
+        /**
+         * One answer for both refusals. `canReachAgent` is public-and-active, or
+         * standing in the bot account — an owner's own agent, or one shared with
+         * them by being added to it.
+         *
+         * Compared against `'reachable'`, never negated. This read `!(await
+         * canReachAgent(…))` while the function still answered a `boolean`; it now
+         * answers `'reachable' | 'out_of_reach' | 'identity_unavailable'`, and
+         * **every one of those is truthy**, so the negation was constantly false
+         * and the refusal below could not fire. TypeScript does not object to
+         * `!someString`, so nothing caught it — see
+         * `__tests__/reach-is-compared-not-negated.test.ts`, which does now.
+         *
+         * `identity_unavailable` is collapsed into the same refusal here on
+         * purpose. A delegation is model output derived from `searchAgents`, with
+         * no person waiting to be told the identity service is down and no
+         * surface to tell them on; the turn simply carries on without the
+         * delegation, which is what every unreachable agent already does.
+         */
+        if (
+          found === null ||
+          (await canReachAgent(found, { oxyUserId: userId, accessToken })) !== 'reachable'
+        ) {
+          if (found !== null) {
+            log.general.info(
+              { agentId, userId },
+              'Delegation refused: the caller cannot reach that agent',
+            );
+          }
+          return {
+            agentId,
+            agentName: 'Unknown',
+            agentHandle: 'unknown',
+            agentColor: null,
+            response: '',
+            tokensUsed: 0,
+            error: 'Agent not found',
+          };
         }
+
+        const agent = await attachAgentIdentity(found);
+        const outcome = await runAgentTurn({ agent, task, payerOxyUserId: userId });
+
+        return {
+          agentId,
+          agentName: agentPromptName(agent),
+          agentHandle: agent.handle ?? 'unknown',
+          agentColor: agent.color,
+          response: outcome.response,
+          tokensUsed: outcome.tokensUsed,
+          ...(outcome.error === undefined ? {} : { error: outcome.error }),
+        };
+      } catch (error: unknown) {
+        log.general.error({ err: error, agentId }, 'Agent delegation failed');
         return {
           agentId,
           agentName: 'Unknown',
@@ -124,33 +163,8 @@ export const createDelegateToAgentTool = (userId: string, accessToken: string | 
           agentColor: null,
           response: '',
           tokensUsed: 0,
-          error: 'Agent not found',
+          error: getErrorMessage(error),
         };
       }
-
-      const agent = await attachAgentIdentity(found);
-      const outcome = await runAgentTurn({ agent, task, payerOxyUserId: userId });
-
-      return {
-        agentId,
-        agentName: agentPromptName(agent),
-        agentHandle: agent.handle ?? 'unknown',
-        agentColor: agent.color,
-        response: outcome.response,
-        tokensUsed: outcome.tokensUsed,
-        ...(outcome.error === undefined ? {} : { error: outcome.error }),
-      };
-    } catch (error: unknown) {
-      log.general.error({ err: error, agentId }, 'Agent delegation failed');
-      return {
-        agentId,
-        agentName: 'Unknown',
-        agentHandle: 'unknown',
-        agentColor: null,
-        response: '',
-        tokensUsed: 0,
-        error: getErrorMessage(error),
-      };
-    }
-  },
-});
+    },
+  });

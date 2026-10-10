@@ -1,5 +1,10 @@
 import crypto from 'crypto';
-import type { ChannelPlugin, OutboundContext, OutboundResult, ChannelInboundMessage } from '../types.js';
+import type {
+  ChannelPlugin,
+  OutboundContext,
+  OutboundResult,
+  ChannelInboundMessage,
+} from '../types.js';
 import type { Request } from 'express';
 import { getErrorMessage } from '../../errors/index.js';
 
@@ -22,8 +27,7 @@ export const discordPlugin: ChannelPlugin = {
   },
 
   config: {
-    isConfigured: () =>
-      !!(process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_BOT_SECRET),
+    isConfigured: () => !!(process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_BOT_SECRET),
     getBotSecret: () => process.env.DISCORD_BOT_SECRET,
     getEnvPrefix: () => 'DISCORD',
   },
@@ -41,7 +45,7 @@ export const discordPlugin: ChannelPlugin = {
         const res = await fetch(`https://discord.com/api/v10/channels/${ctx.to}/messages`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bot ${token}`,
+            Authorization: `Bot ${token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -57,7 +61,7 @@ export const discordPlugin: ChannelPlugin = {
           return { channel: 'discord', ok: false, error: `Discord API ${res.status}: ${body}` };
         }
 
-        const data = await res.json() as DiscordMessageResponse;
+        const data = (await res.json()) as DiscordMessageResponse;
         return { channel: 'discord', ok: true, messageId: data.id };
       } catch (err: unknown) {
         return { channel: 'discord', ok: false, error: getErrorMessage(err) };
@@ -78,9 +82,11 @@ export const discordPlugin: ChannelPlugin = {
 
     looksLikeTarget(raw: string): boolean {
       const trimmed = raw.trim();
-      return /^\d{17,20}$/.test(trimmed) ||
+      return (
+        /^\d{17,20}$/.test(trimmed) ||
         /^<[@#]!?\d{17,20}>$/.test(trimmed) ||
-        /^channel:\d{17,20}$/.test(trimmed);
+        /^channel:\d{17,20}$/.test(trimmed)
+      );
     },
   },
 
@@ -97,7 +103,18 @@ export const discordPlugin: ChannelPlugin = {
         const message = Buffer.from(timestamp + body);
         const sig = Buffer.from(signature, 'hex');
         const key = Buffer.from(publicKey, 'hex');
-        return crypto.verify(undefined, message, { key: crypto.createPublicKey({ key: Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), key]), format: 'der', type: 'spki' }) }, sig);
+        return crypto.verify(
+          undefined,
+          message,
+          {
+            key: crypto.createPublicKey({
+              key: Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), key]),
+              format: 'der',
+              type: 'spki',
+            }),
+          },
+          sig,
+        );
       } catch {
         return false;
       }

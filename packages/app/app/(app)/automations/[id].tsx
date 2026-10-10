@@ -3,10 +3,7 @@ import {
   automationStatusTone,
   type AutomationPillTone,
 } from '@/features/automations/ui/automation-pill';
-import {
-  actorLabel,
-  runStatusLabel,
-} from '@/features/automations/model/format';
+import { actorLabel, runStatusLabel } from '@/features/automations/model/format';
 import { triggerLabel, type AutomationUpdateInput } from '@/shared/contracts/automations';
 import { errorMessage } from '@/shared/api/error-utils';
 import {
@@ -22,10 +19,7 @@ import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
 import { Loading } from '@oxy.so/bloom/loading';
-import {
-  SettingsListGroup,
-  SettingsListItem,
-} from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { toast } from '@oxy.so/bloom/toast';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -55,12 +49,9 @@ export default function AutomationHistoryScreen() {
   const updateAutomation = useUpdateAutomation();
   const [editorOpen, setEditorOpen] = useState(false);
   const [visibleRuns, setVisibleRuns] = useState(RUN_PAGE_SIZE);
-  const automation = overview.data?.automations.find(
-    (candidate) => candidate.id === id,
-  );
+  const automation = overview.data?.automations.find((candidate) => candidate.id === id);
   const agentOptions = useMemo(
-    () =>
-      (agents ?? []).map((agent) => ({ id: agent._id, label: agentLabel(agent) })),
+    () => (agents ?? []).map((agent) => ({ id: agent._id, label: agentLabel(agent) })),
     [agents],
   );
 
@@ -92,8 +83,7 @@ export default function AutomationHistoryScreen() {
           title={t('pages.automations.historyLoadFailed')}
           action={{
             label: t('common.tryAgain'),
-            onPress: () =>
-              void Promise.all([overview.refetch(), runs.refetch()]),
+            onPress: () => void Promise.all([overview.refetch(), runs.refetch()]),
           }}
         />
       </>
@@ -168,9 +158,7 @@ export default function AutomationHistoryScreen() {
               variant="subtle"
               color={automation.enabled ? 'success' : 'default'}
               content={
-                automation.enabled
-                  ? t('pages.automations.active')
-                  : t('pages.automations.stopped')
+                automation.enabled ? t('pages.automations.active') : t('pages.automations.stopped')
               }
             />
           </View>
@@ -194,9 +182,7 @@ export default function AutomationHistoryScreen() {
               <SettingsListItem
                 key={run.id}
                 title={timestampLabel(run.startedAt)}
-                description={
-                  run.selectedAgentId ? agentName(run.selectedAgentId) : 'Alia'
-                }
+                description={run.selectedAgentId ? agentName(run.selectedAgentId) : 'Alia'}
                 rightElement={
                   <Badge
                     size="label-small"

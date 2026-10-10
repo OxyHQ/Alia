@@ -7,7 +7,11 @@ const router = express.Router();
 const INTEGRATIONS_URL = process.env.INTEGRATIONS_URL;
 const INTEGRATIONS_SECRET = process.env.INTEGRATIONS_SECRET;
 
-const requireIntegrations = (_req: express.Request, res: express.Response, next: express.NextFunction): void => {
+const requireIntegrations = (
+  _req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+): void => {
   if (!INTEGRATIONS_URL || !INTEGRATIONS_SECRET) {
     res.status(503).json({ error: 'Integrations service not configured' });
     return;
@@ -26,7 +30,10 @@ const CLIENT_SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/;
  * created by another user. The authoritative user id is also forwarded as a
  * header for the integrations service to re-verify the namespace.
  */
-function scopeSession(req: express.Request, res: express.Response): { scopedSessionId: string; userId: string } | null {
+function scopeSession(
+  req: express.Request,
+  res: express.Response,
+): { scopedSessionId: string; userId: string } | null {
   const userId = req.userId;
   if (!userId) {
     res.status(401).json({ error: 'Authentication required' });
@@ -67,7 +74,7 @@ async function proxyToIntegrations(
         data = await response.json();
       } catch {
         if (attempt < MAX_ATTEMPTS - 1) {
-          await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
+          await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
           continue;
         }
         res.status(502).json({ error: `${label}: non-JSON response` });
@@ -75,7 +82,7 @@ async function proxyToIntegrations(
       }
 
       if (response.status >= 500 && attempt < MAX_ATTEMPTS - 1) {
-        await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
+        await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
         continue;
       }
 
@@ -84,7 +91,7 @@ async function proxyToIntegrations(
     } catch (error: unknown) {
       log.channels.error({ err: error, label, attempt: attempt + 1 }, 'Tools proxy error');
       if (attempt < MAX_ATTEMPTS - 1) {
-        await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
+        await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
         continue;
       }
       res.status(502).json({ error: `Failed: ${label}` });
@@ -98,28 +105,46 @@ const authed = [authenticateToken, requireIntegrations] as const;
 router.post('/browser/session/:sessionId/navigate', ...authed, async (req, res) => {
   const scope = scopeSession(req, res);
   if (!scope) return;
-  await proxyToIntegrations(res, `/browser/session/${scope.scopedSessionId}/navigate`, scope.userId, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(req.body),
-  }, 'browser navigate');
+  await proxyToIntegrations(
+    res,
+    `/browser/session/${scope.scopedSessionId}/navigate`,
+    scope.userId,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    },
+    'browser navigate',
+  );
 });
 
 router.get('/browser/session/:sessionId/screenshot', ...authed, async (req, res) => {
   const scope = scopeSession(req, res);
   if (!scope) return;
-  await proxyToIntegrations(res, `/browser/session/${scope.scopedSessionId}/screenshot`, scope.userId, undefined, 'browser screenshot');
+  await proxyToIntegrations(
+    res,
+    `/browser/session/${scope.scopedSessionId}/screenshot`,
+    scope.userId,
+    undefined,
+    'browser screenshot',
+  );
 });
 
 // Terminal proxy
 router.post('/terminal/session/:sessionId/run', ...authed, async (req, res) => {
   const scope = scopeSession(req, res);
   if (!scope) return;
-  await proxyToIntegrations(res, `/terminal/session/${scope.scopedSessionId}/run`, scope.userId, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(req.body),
-  }, 'terminal run');
+  await proxyToIntegrations(
+    res,
+    `/terminal/session/${scope.scopedSessionId}/run`,
+    scope.userId,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    },
+    'terminal run',
+  );
 });
 
 export default router;

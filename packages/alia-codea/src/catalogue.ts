@@ -184,9 +184,10 @@ function pickerRow(model: CatalogueModel): PickerModel {
  */
 export function pickerCatalogue(catalogue: Catalogue): PickerCatalogue {
   const byId = new Map(catalogue.models.map((model) => [model.id, model]));
-  const featuredOrder = catalogue.featuredIds.length > 0
-    ? catalogue.featuredIds
-    : catalogue.models.filter((model) => model.featured).map((model) => model.id);
+  const featuredOrder =
+    catalogue.featuredIds.length > 0
+      ? catalogue.featuredIds
+      : catalogue.models.filter((model) => model.featured).map((model) => model.id);
   const featured = featuredOrder
     .map((id) => byId.get(id))
     .filter((model): model is CatalogueModel => model !== undefined);
@@ -207,7 +208,8 @@ export function pickerCatalogue(catalogue: Catalogue): PickerCatalogue {
     groups.push({ title: publisher, models: models.map(pickerRow) });
   }
 
-  const fallback = catalogue.defaultModelId === null ? undefined : byId.get(catalogue.defaultModelId);
+  const fallback =
+    catalogue.defaultModelId === null ? undefined : byId.get(catalogue.defaultModelId);
   const defaultLabel = fallback === undefined ? 'Default' : `Default (${fallback.name})`;
   return { groups, defaultLabel };
 }

@@ -22,10 +22,7 @@ import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { Item } from '@oxy.so/bloom/item';
 import { Loading } from '@oxy.so/bloom/loading';
-import {
-  SettingsListGroup,
-  SettingsListItem,
-} from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Switch } from '@oxy.so/bloom/switch';
 import type { AccentTone } from '@oxy.so/bloom/theme';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -147,10 +144,7 @@ export default function NotificationsScreen() {
   const StatusIcon = pushEnabled ? RiNotification3Line : RiNotificationOffLine;
 
   return (
-    <ScrollView
-      className="flex-1"
-      contentContainerClassName="gap-4 px-4 pb-6 pt-4"
-    >
+    <ScrollView className="flex-1" contentContainerClassName="gap-4 px-4 pb-6 pt-4">
       {/* Top row: the way back, the unread count and the page's actions. */}
       <View className="flex-row flex-wrap items-center gap-2">
         <Button
@@ -164,9 +158,7 @@ export default function NotificationsScreen() {
         </Button>
         <View className="flex-1">
           {unreadCount > 0 ? (
-            <Muted>
-              {t('pages.notifications.unread', { count: unreadCount })}
-            </Muted>
+            <Muted>{t('pages.notifications.unread', { count: unreadCount })}</Muted>
           ) : null}
         </View>
         {unreadCount > 0 ? (
@@ -210,9 +202,7 @@ export default function NotificationsScreen() {
         </SettingsListGroup>
       ) : null}
       {showSettings && permissionStatus === 'denied' ? (
-        <Admonition type="warning">
-          {t('notifications.permissionDenied')}
-        </Admonition>
+        <Admonition type="warning">{t('notifications.permissionDenied')}</Admonition>
       ) : null}
 
       {/* Notification feed */}
@@ -228,11 +218,8 @@ export default function NotificationsScreen() {
         <View>
           {notifications.map((notification: any) => {
             const Icon = TYPE_ICONS[notification.type] || RiNotification3Line;
-            const isUnread =
-              notification.status !== 'read' &&
-              notification.status !== 'dismissed';
-            const tone =
-              PRIORITY_TONES[notification.priority] || PRIORITY_TONES.normal;
+            const isUnread = notification.status !== 'read' && notification.status !== 'dismissed';
+            const tone = PRIORITY_TONES[notification.priority] || PRIORITY_TONES.normal;
 
             return (
               <Item
@@ -253,9 +240,7 @@ export default function NotificationsScreen() {
                     <Muted numberOfLines={1}>{notification.title}</Muted>
                   )
                 }
-                subtitle={
-                  <Muted numberOfLines={3}>{notification.body}</Muted>
-                }
+                subtitle={<Muted numberOfLines={3}>{notification.body}</Muted>}
                 trailing={
                   <View className="flex-row items-center gap-1">
                     <Muted>{timeAgo(notification.createdAt)}</Muted>

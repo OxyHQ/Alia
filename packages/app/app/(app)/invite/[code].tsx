@@ -98,13 +98,9 @@ export default function InviteScreen() {
             <EmptyState
               icon={RiUserHeartLine}
               media="circle"
-              title={
-                redeemMutation.isPending ? t('invitePage.redeeming') : undefined
-              }
+              title={redeemMutation.isPending ? t('invitePage.redeeming') : undefined}
               description={
-                redeemMutation.isPending
-                  ? t('invitePage.redeemingDescription')
-                  : undefined
+                redeemMutation.isPending ? t('invitePage.redeemingDescription') : undefined
               }
             />
           )}

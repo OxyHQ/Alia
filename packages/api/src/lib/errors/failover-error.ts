@@ -13,11 +13,7 @@
  * other.
  */
 
-import {
-  AliaError,
-  AliaErrorCode,
-  type FailoverReason,
-} from './error-codes';
+import { AliaError, AliaErrorCode, type FailoverReason } from './error-codes';
 import { BILLING_RE, AUTH_RE } from '../constants.js';
 import { OxyInferenceError } from '@oxy.so/core/inference';
 import type { InferenceErrorCode } from '@oxy.so/contracts';
@@ -62,17 +58,15 @@ const ABORT_TIMEOUT_RE = /request was aborted|request aborted/i;
 const RATE_LIMIT_RE = /rate.?limit|too many requests/i;
 const CONTENT_FILTER_RE = /content.?filter|safety|moderation|harmful/i;
 const OVERLOADED_RE = /overloaded|resource.?exhausted|quota exceeded/i;
-const TOOL_CAPABILITY_RE = /tool.?use.?failed|failed to call a function|does not support tools|tool.?call.*not supported/i;
-const MODEL_NOT_FOUND_RE = /model.{0,80}(not found|does not exist|has been (decommissioned|deprecated|retired)|is (decommissioned|deprecated|retired)|no longer (supported|available))|(unknown|invalid|unsupported) model|does not (have access to|support) (the )?model/i;
-const GEO_RESTRICTION_RE = /location.{0,20}not supported|not available in your (country|region)|geo.?restrict|region.?not.?supported|service.?not.?available.{0,30}(country|region|location)/i;
+const TOOL_CAPABILITY_RE =
+  /tool.?use.?failed|failed to call a function|does not support tools|tool.?call.*not supported/i;
+const MODEL_NOT_FOUND_RE =
+  /model.{0,80}(not found|does not exist|has been (decommissioned|deprecated|retired)|is (decommissioned|deprecated|retired)|no longer (supported|available))|(unknown|invalid|unsupported) model|does not (have access to|support) (the )?model/i;
+const GEO_RESTRICTION_RE =
+  /location.{0,20}not supported|not available in your (country|region)|geo.?restrict|region.?not.?supported|service.?not.?available.{0,30}(country|region|location)/i;
 
 /** Error codes that indicate a network-level timeout */
-const TIMEOUT_ERROR_CODES = new Set([
-  'ETIMEDOUT',
-  'ESOCKETTIMEDOUT',
-  'ECONNRESET',
-  'ECONNABORTED',
-]);
+const TIMEOUT_ERROR_CODES = new Set(['ETIMEDOUT', 'ESOCKETTIMEDOUT', 'ECONNRESET', 'ECONNABORTED']);
 
 // ============== ERROR INTROSPECTION HELPERS ==============
 
@@ -81,8 +75,7 @@ export function getStatusCode(err: unknown): number | undefined {
     return undefined;
   }
   const candidate =
-    (err as { status?: unknown }).status ??
-    (err as { statusCode?: unknown }).statusCode;
+    (err as { status?: unknown }).status ?? (err as { statusCode?: unknown }).statusCode;
   if (typeof candidate === 'number') {
     return candidate;
   }
@@ -145,8 +138,9 @@ function getRetryAfterHeader(err: unknown): number | undefined {
   if (typeof (headers as { get?: unknown }).get === 'function') {
     rawValue = (headers as { get: (key: string) => string | null }).get('retry-after');
   } else {
-    rawValue = (headers as Record<string, unknown>)['retry-after']
-            ?? (headers as Record<string, unknown>)['Retry-After'];
+    rawValue =
+      (headers as Record<string, unknown>)['retry-after'] ??
+      (headers as Record<string, unknown>)['Retry-After'];
   }
 
   if (typeof rawValue === 'string') {
@@ -293,7 +287,10 @@ export function classifyError(err: unknown): FailoverReason {
     // refusing THIS MODEL for the platform's account — e.g. OpenRouter's
     // "requires 18+ age verification" on meta/muse-spark-1.3. That is not the
     // user's authentication, and "try a different model" is what they can do.
-    if ((err.code === 'permission_denied' || err.code === 'commercial_permission_denied') && err.status >= 500) {
+    if (
+      (err.code === 'permission_denied' || err.code === 'commercial_permission_denied') &&
+      err.status >= 500
+    ) {
       return 'model_not_found';
     }
     return OXY_ERROR_REASONS[err.code];
@@ -313,7 +310,8 @@ export function classifyError(err: unknown): FailoverReason {
    * answer's own evidence is better than a label on it.
    */
   if (
-    typeof err === 'object' && err !== null &&
+    typeof err === 'object' &&
+    err !== null &&
     (err as { reason?: unknown }).reason === 'no_credential'
   ) {
     return 'no_credential';
@@ -372,16 +370,20 @@ export function classifyError(err: unknown): FailoverReason {
   if (providerData.openaiType === 'authentication_error') return 'auth';
   if (providerData.openaiType === 'server_error') return 'provider_unavailable';
   // OpenAI: billing codes surfaced as 400
-  if (providerData.openaiCode === 'billing_hard_limit_reached' ||
-      providerData.openaiCode === 'insufficient_quota') {
+  if (
+    providerData.openaiCode === 'billing_hard_limit_reached' ||
+    providerData.openaiCode === 'insufficient_quota'
+  ) {
     return 'billing';
   }
   // OpenAI-compatible: a dead or misspelled model id. MEASURED against Groq on
   // 2026-08-23 — `llama-3.3-70b-versatile` returns 404 with
   // `{type: invalid_request_error, code: model_not_found}`, which matched no
   // branch here and fell through to `unknown`.
-  if (providerData.openaiCode === 'model_not_found' ||
-      providerData.openaiCode === 'model_decommissioned') {
+  if (
+    providerData.openaiCode === 'model_not_found' ||
+    providerData.openaiCode === 'model_decommissioned'
+  ) {
     return 'model_not_found';
   }
 
@@ -517,9 +519,12 @@ export function toAliaError(
     // userMessage is intentionally omitted -- the AliaError constructor
     // will use the safe default from DEFAULT_USER_MESSAGES
     retryable: err instanceof OxyInferenceError ? err.retryable : mapping.retryable,
-    retryAfter: err instanceof OxyInferenceError
-      ? (err.retryable && err.retryAfterMs !== undefined ? Math.ceil(err.retryAfterMs / 1000) : undefined)
-      : retryAfterHeader ?? mapping.defaultRetryAfter,
+    retryAfter:
+      err instanceof OxyInferenceError
+        ? err.retryable && err.retryAfterMs !== undefined
+          ? Math.ceil(err.retryAfterMs / 1000)
+          : undefined
+        : (retryAfterHeader ?? mapping.defaultRetryAfter),
     reason,
     httpStatus: err instanceof OxyInferenceError ? undefined : status,
     cause: err instanceof Error ? err : undefined,

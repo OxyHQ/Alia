@@ -40,7 +40,13 @@ export interface Lease {
   stopping: boolean;
 }
 
-export type CommandStatus = 'running' | 'started' | 'succeeded' | 'failed' | 'timed_out' | 'interrupted';
+export type CommandStatus =
+  | 'running'
+  | 'started'
+  | 'succeeded'
+  | 'failed'
+  | 'timed_out'
+  | 'interrupted';
 
 export interface CommandReceipt {
   actorId: string;
@@ -57,7 +63,10 @@ export interface CommandReceipt {
   completedAt: string | null;
 }
 
-export type ReceiptOutcome = Pick<CommandReceipt, 'status' | 'exitCode' | 'stdout' | 'stderr' | 'truncated'>;
+export type ReceiptOutcome = Pick<
+  CommandReceipt,
+  'status' | 'exitCode' | 'stdout' | 'stderr' | 'truncated'
+>;
 
 /**
  * What an agent or its owner did in the browser, for the owner to read back.
@@ -91,7 +100,11 @@ export interface ComputerStore {
   /** Insert a fresh `running` receipt; `false` when the operationId already exists. */
   insertReceipt(receipt: CommandReceipt): Promise<boolean>;
   /** Finish a receipt only if it is still `running`. Returns the stored row. */
-  finishReceipt(actorId: string, operationId: string, outcome: ReceiptOutcome): Promise<CommandReceipt | null>;
+  finishReceipt(
+    actorId: string,
+    operationId: string,
+    outcome: ReceiptOutcome,
+  ): Promise<CommandReceipt | null>;
   /** Mark every `running` receipt of an actor interrupted, with a note. */
   interruptRunning(actorId: string, note: string): Promise<number>;
   /** The actor's most recent receipts, newest first. */
@@ -213,12 +226,21 @@ export class PostgresStore implements ComputerStore {
   private constructor(private readonly sql: postgres.Sql) {}
 
   static async connect(url: string): Promise<PostgresStore> {
-    const sql = postgres(url, { max: 5, idle_timeout: 30, connect_timeout: 10, onnotice: () => undefined });
+    const sql = postgres(url, {
+      max: 5,
+      idle_timeout: 30,
+      connect_timeout: 10,
+      onnotice: () => undefined,
+    });
     for (const statement of SCHEMA) await sql.unsafe(statement);
     return new PostgresStore(sql);
   }
 
-  async acquireLease(actorId: string, operation: LeaseOperation, ttlMs: number): Promise<Lease | null> {
+  async acquireLease(
+    actorId: string,
+    operation: LeaseOperation,
+    ttlMs: number,
+  ): Promise<Lease | null> {
     const token = randomUUID();
     const rows = await this.sql<LeaseRow[]>`
       INSERT INTO computer_leases (actor_id, token, operation, expires_at, stopping)
@@ -277,7 +299,11 @@ export class PostgresStore implements ComputerStore {
     return rows.length === 1;
   }
 
-  async finishReceipt(actorId: string, operationId: string, outcome: ReceiptOutcome): Promise<CommandReceipt | null> {
+  async finishReceipt(
+    actorId: string,
+    operationId: string,
+    outcome: ReceiptOutcome,
+  ): Promise<CommandReceipt | null> {
     const rows = await this.sql<ReceiptRow[]>`
       UPDATE computer_commands
         SET status = ${outcome.status}, exit_code = ${outcome.exitCode}, stdout = ${outcome.stdout},
@@ -312,7 +338,17 @@ export class PostgresStore implements ComputerStore {
   }
 
   async listBrowserActions(actorId: string, limit: number): Promise<BrowserAction[]> {
-    const rows = await this.sql<{ actor_id: string; action: BrowserAction['action']; by_role: BrowserAction['by']; origin: string; detail: string; status: BrowserAction['status']; at: Date }[]>`
+    const rows = await this.sql<
+      {
+        actor_id: string;
+        action: BrowserAction['action'];
+        by_role: BrowserAction['by'];
+        origin: string;
+        detail: string;
+        status: BrowserAction['status'];
+        at: Date;
+      }[]
+    >`
       SELECT actor_id, action, by_role, origin, detail, status, at FROM computer_browser_actions
       WHERE actor_id = ${actorId} ORDER BY at DESC, id DESC LIMIT ${limit}`;
     return rows.map((row) => ({
@@ -374,10 +410,20 @@ export class MemoryStore implements ComputerStore {
     return `${actorId}\u0000${operationId}`;
   }
 
-  async acquireLease(actorId: string, operation: LeaseOperation, ttlMs: number): Promise<Lease | null> {
+  async acquireLease(
+    actorId: string,
+    operation: LeaseOperation,
+    ttlMs: number,
+  ): Promise<Lease | null> {
     const current = this.leases.get(actorId);
     if (current && current.expiresAt > this.now()) return null;
-    const lease: Lease = { actorId, token: randomUUID(), operation, expiresAt: this.now() + ttlMs, stopping: false };
+    const lease: Lease = {
+      actorId,
+      token: randomUUID(),
+      operation,
+      expiresAt: this.now() + ttlMs,
+      stopping: false,
+    };
     this.leases.set(actorId, lease);
     return { ...lease };
   }
@@ -394,7 +440,8 @@ export class MemoryStore implements ComputerStore {
 
   async markStopping(actorId: string, token: string, ttlMs: number): Promise<boolean> {
     const current = this.leases.get(actorId);
-    if (!current || current.token !== token || current.stopping || current.expiresAt <= this.now()) return false;
+    if (!current || current.token !== token || current.stopping || current.expiresAt <= this.now())
+      return false;
     current.stopping = true;
     current.expiresAt = this.now() + ttlMs;
     return true;
@@ -420,7 +467,11 @@ export class MemoryStore implements ComputerStore {
     return true;
   }
 
-  async finishReceipt(actorId: string, operationId: string, outcome: ReceiptOutcome): Promise<CommandReceipt | null> {
+  async finishReceipt(
+    actorId: string,
+    operationId: string,
+    outcome: ReceiptOutcome,
+  ): Promise<CommandReceipt | null> {
     const current = this.receipts.get(this.key(actorId, operationId));
     if (!current || current.status !== 'running') return null;
     Object.assign(current, outcome, {
@@ -473,13 +524,17 @@ export class MemoryStore implements ComputerStore {
   async pruneReceipts(olderThanMs: number): Promise<number> {
     let count = 0;
     for (const [key, receipt] of this.receipts) {
-      if (receipt.status !== 'running' && Date.parse(receipt.startedAt) < this.now() - olderThanMs) {
+      if (
+        receipt.status !== 'running' &&
+        Date.parse(receipt.startedAt) < this.now() - olderThanMs
+      ) {
         this.receipts.delete(key);
         count += 1;
       }
     }
     for (let i = this.browserActions.length - 1; i >= 0; i -= 1) {
-      if (Date.parse((this.browserActions[i] as BrowserAction).at) < this.now() - olderThanMs) this.browserActions.splice(i, 1);
+      if (Date.parse((this.browserActions[i] as BrowserAction).at) < this.now() - olderThanMs)
+        this.browserActions.splice(i, 1);
     }
     return count;
   }

@@ -65,8 +65,6 @@ export function reportStateForDecision(input: {
 }): ReportDecisionState {
   return {
     status: legacyStatusForOutcome(input.outcome),
-    localStatus: TERMINAL_DECISION_STATUSES.has(input.decisionStatus)
-      ? 'closed'
-      : 'submitted',
+    localStatus: TERMINAL_DECISION_STATUSES.has(input.decisionStatus) ? 'closed' : 'submitted',
   };
 }

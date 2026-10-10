@@ -111,7 +111,7 @@ router.post('/send-invite', authenticateToken, async (req, res) => {
     const inviteUrl = `${BASE_URL}/invite/${referral.inviteCode}`;
     const subject = encodeURIComponent("You've been invited to Alia!");
     const body = encodeURIComponent(
-      `Hey! I've been using Alia and thought you'd love it too. Sign up with my link and we both get ${REFERRAL_CREDIT_REWARD} credits:\n\n${inviteUrl}`
+      `Hey! I've been using Alia and thought you'd love it too. Sign up with my link and we both get ${REFERRAL_CREDIT_REWARD} credits:\n\n${inviteUrl}`,
     );
 
     res.json({

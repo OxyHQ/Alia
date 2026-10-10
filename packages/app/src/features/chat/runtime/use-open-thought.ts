@@ -26,7 +26,9 @@ export function thoughtScopeFor(
   if (past === undefined) return live;
   return {
     conversationId: past.conversationId,
-    messages: history.filter((m) => m.conversationId === past.conversationId) as unknown as ConversationMessage[],
+    messages: history.filter(
+      (m) => m.conversationId === past.conversationId,
+    ) as unknown as ConversationMessage[],
     status: 'ready',
     isLoading: false,
     failedTurn: null,
@@ -48,7 +50,11 @@ export function useOpenThought(live: ThoughtScope, history: readonly ThreadMessa
   return useCallback<OpenThought>(
     (messageId, tab, opener) => {
       rememberOpener(opener);
-      openThoughtPanel(messageId, thoughtScopeFor(messageId, scopes.current.live, scopes.current.history), tab);
+      openThoughtPanel(
+        messageId,
+        thoughtScopeFor(messageId, scopes.current.live, scopes.current.history),
+        tab,
+      );
     },
     [openThoughtPanel],
   );

@@ -164,7 +164,9 @@ async function runCommandNow(sessionId: string, command: string): Promise<string
       // whatever runs next.
       const startIndex = output.indexOf(start);
       const body =
-        startIndex === -1 ? output.slice(0, endIndex) : output.slice(startIndex + start.length, endIndex);
+        startIndex === -1
+          ? output.slice(0, endIndex)
+          : output.slice(startIndex + start.length, endIndex);
       finish(body.trim());
     });
 

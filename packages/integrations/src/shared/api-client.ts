@@ -87,11 +87,9 @@ export class APIClient {
     username?: string;
     displayName?: string;
   }): Promise<BotUser> {
-    const response = await this.client.post(
-      `/bots/internal/${this.platform}/users`,
-      data,
-      { headers: this.authHeaders },
-    );
+    const response = await this.client.post(`/bots/internal/${this.platform}/users`, data, {
+      headers: this.authHeaders,
+    });
     return response.data;
   }
 
@@ -162,7 +160,10 @@ export class APIClient {
    * request per window.
    */
   async fetchCatalogue(): Promise<Catalogue | null> {
-    if (this.cachedCatalogue !== null && Date.now() - this.cachedCatalogueAt < CATALOGUE_CACHE_TTL_MS) {
+    if (
+      this.cachedCatalogue !== null &&
+      Date.now() - this.cachedCatalogueAt < CATALOGUE_CACHE_TTL_MS
+    ) {
       return this.cachedCatalogue;
     }
     try {
@@ -268,7 +269,9 @@ export class APIClient {
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-      const err: Error & { status?: number; code?: unknown } = new Error(body.error?.message || body.error || `HTTP ${response.status}`);
+      const err: Error & { status?: number; code?: unknown } = new Error(
+        body.error?.message || body.error || `HTTP ${response.status}`,
+      );
       err.status = response.status;
       err.code = body.error?.code;
       throw err;
@@ -285,11 +288,7 @@ export class APIClient {
   /**
    * Transcribe audio to text via the voice/transcribe API endpoint.
    */
-  async transcribe(
-    oxyUserId: string,
-    audio: string,
-    format?: string,
-  ): Promise<string> {
+  async transcribe(oxyUserId: string, audio: string, format?: string): Promise<string> {
     const response = await this.client.post(
       '/v1/voice/transcribe',
       { audio, format },
@@ -335,7 +334,9 @@ export class APIClient {
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-      const err: Error & { status?: number; code?: unknown } = new Error(body.error?.message || body.error || `HTTP ${response.status}`);
+      const err: Error & { status?: number; code?: unknown } = new Error(
+        body.error?.message || body.error || `HTTP ${response.status}`,
+      );
       err.status = response.status;
       err.code = body.error?.code;
       throw err;

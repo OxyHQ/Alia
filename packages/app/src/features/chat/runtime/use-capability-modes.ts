@@ -34,13 +34,16 @@ import { useTranslation } from '@/shared/i18n/use-translation';
 
 export type CapabilityMode = 'agent' | 'ghost' | 'deepResearch';
 
-const CAPABILITY_MODE_CONFIG: Record<CapabilityMode, {
-  label: string;
-  onToast: string;
-  offToast: string;
-  /** The plan feature this needs, when it needs one. Ghost is free. */
-  featureId?: string;
-}> = {
+const CAPABILITY_MODE_CONFIG: Record<
+  CapabilityMode,
+  {
+    label: string;
+    onToast: string;
+    offToast: string;
+    /** The plan feature this needs, when it needs one. Ghost is free. */
+    featureId?: string;
+  }
+> = {
   ghost: {
     label: 'modes.ghostLabel',
     onToast: 'modes.ghostOn',
@@ -74,34 +77,37 @@ export function useCapabilityModes(): CapabilityModes {
   const { t } = useTranslation();
   const router = useRouter();
 
-  const toggle = useCallback((mode: CapabilityMode) => {
-    const config = CAPABILITY_MODE_CONFIG[mode];
-    const store = useStore.getState();
-    const current = {
-      ghost: store.ghostMode,
-      agent: store.agentMode,
-      deepResearch: store.deepResearchMode,
-    }[mode];
+  const toggle = useCallback(
+    (mode: CapabilityMode) => {
+      const config = CAPABILITY_MODE_CONFIG[mode];
+      const store = useStore.getState();
+      const current = {
+        ghost: store.ghostMode,
+        agent: store.agentMode,
+        deepResearch: store.deepResearchMode,
+      }[mode];
 
-    /**
-     * Turning one ON needs the plan; turning one OFF never does. A person
-     * whose plan lapsed while a capability was on must still be able to switch
-     * it off, and sending them to the subscribe page to do that would trap the
-     * flag in the request body.
-     */
-    if (!current && config.featureId && !entitlements?.features[config.featureId]) {
-      toast.info(t('subscribe.featureRequiresPlan', { feature: t(config.label) }));
-      router.push('/(biglayout)/subscribe');
-      return;
-    }
+      /**
+       * Turning one ON needs the plan; turning one OFF never does. A person
+       * whose plan lapsed while a capability was on must still be able to switch
+       * it off, and sending them to the subscribe page to do that would trap the
+       * flag in the request body.
+       */
+      if (!current && config.featureId && !entitlements?.features[config.featureId]) {
+        toast.info(t('subscribe.featureRequiresPlan', { feature: t(config.label) }));
+        router.push('/(biglayout)/subscribe');
+        return;
+      }
 
-    const next = !current;
-    if (mode === 'ghost') store.setGhostMode(next);
-    if (mode === 'agent') store.setAgentMode(next);
-    if (mode === 'deepResearch') store.setDeepResearchMode(next);
+      const next = !current;
+      if (mode === 'ghost') store.setGhostMode(next);
+      if (mode === 'agent') store.setAgentMode(next);
+      if (mode === 'deepResearch') store.setDeepResearchMode(next);
 
-    toast.info(t(next ? config.onToast : config.offToast));
-  }, [entitlements, t, router]);
+      toast.info(t(next ? config.onToast : config.offToast));
+    },
+    [entitlements, t, router],
+  );
 
   return {
     active: { ghost, agent, deepResearch },

@@ -47,16 +47,19 @@ function autonomyCovers(granted: AutomationAutonomy, required: AutomationAutonom
 }
 
 export function sameAutomationResource(left: ResourceRef, right: ResourceRef): boolean {
-  return left.appId === right.appId
-    && left.effectiveAccountId === right.effectiveAccountId
-    && left.resourceType === right.resourceType
-    && left.resourceId === right.resourceId;
+  return (
+    left.appId === right.appId &&
+    left.effectiveAccountId === right.effectiveAccountId &&
+    left.resourceType === right.resourceType &&
+    left.resourceId === right.resourceId
+  );
 }
 
 export function uniqueAutomationResources(resources: readonly ResourceRef[]): ResourceRef[] {
-  return resources.filter((resource, index) => (
-    resources.findIndex((candidate) => sameAutomationResource(candidate, resource)) === index
-  ));
+  return resources.filter(
+    (resource, index) =>
+      resources.findIndex((candidate) => sameAutomationResource(candidate, resource)) === index,
+  );
 }
 
 function assignmentCoversResource(
@@ -66,15 +69,21 @@ function assignmentCoversResource(
 ): boolean {
   if (!autonomyCovers(assignment.maximumAutonomy, requiredAutonomy)) return false;
   const granted = assignment.resource;
-  if (granted.appId !== resource.appId
-    || granted.effectiveAccountId !== resource.effectiveAccountId) return false;
-  if (granted.resourceType === resource.resourceType) return granted.resourceId === resource.resourceId;
+  if (
+    granted.appId !== resource.appId ||
+    granted.effectiveAccountId !== resource.effectiveAccountId
+  )
+    return false;
+  if (granted.resourceType === resource.resourceType)
+    return granted.resourceId === resource.resourceId;
   // An Inbox email-account grant contains its mailboxes. No hierarchy is
   // inferred for another app or resource type.
-  return granted.appId === 'inbox'
-    && granted.resourceType === 'email_account'
-    && resource.resourceType === 'mailbox'
-    && granted.resourceId === granted.effectiveAccountId;
+  return (
+    granted.appId === 'inbox' &&
+    granted.resourceType === 'email_account' &&
+    resource.resourceType === 'mailbox' &&
+    granted.resourceId === granted.effectiveAccountId
+  );
 }
 
 export function candidateCoversResources(
@@ -82,10 +91,13 @@ export function candidateCoversResources(
   resources: readonly ResourceRef[],
   requiredAutonomy: AutomationAutonomy = 'autonomous',
 ): boolean {
-  return resources.every((resource) => candidate.assignments.some((assignment) => (
-    assignment.toolNames.length > 0
-      && assignmentCoversResource(assignment, resource, requiredAutonomy)
-  )));
+  return resources.every((resource) =>
+    candidate.assignments.some(
+      (assignment) =>
+        assignment.toolNames.length > 0 &&
+        assignmentCoversResource(assignment, resource, requiredAutonomy),
+    ),
+  );
 }
 
 export function candidateCoversAction(
@@ -93,10 +105,11 @@ export function candidateCoversAction(
   action: AutomationActionPlanInput,
   requiredAutonomy: AutomationAutonomy = 'autonomous',
 ): boolean {
-  return candidate.assignments.some((assignment) => (
-    assignment.toolNames.includes(action.tool)
-    && assignmentCoversResource(assignment, action.resource, requiredAutonomy)
-  ));
+  return candidate.assignments.some(
+    (assignment) =>
+      assignment.toolNames.includes(action.tool) &&
+      assignmentCoversResource(assignment, action.resource, requiredAutonomy),
+  );
 }
 
 export function authorizationPairKey(actionId: string, agentId: string): string {
@@ -115,14 +128,16 @@ export function planAutomationStages(input: {
   requiredAutonomy?: AutomationAutonomy;
 }): AutomationStagePlan[] | null {
   const requiredAutonomy = input.requiredAutonomy ?? 'autonomous';
-  const selected = input.actions.map((action, index) => input.candidates.find((candidate) => (
-    candidateCoversAction(candidate, action, requiredAutonomy)
-    && (index > 0 || candidateCoversResources(candidate, input.sourceResources, requiredAutonomy))
-    && (
-      input.activeAuthorizationPairs === undefined
-      || input.activeAuthorizationPairs.has(authorizationPairKey(action.id, candidate.agentId))
-    )
-  )));
+  const selected = input.actions.map((action, index) =>
+    input.candidates.find(
+      (candidate) =>
+        candidateCoversAction(candidate, action, requiredAutonomy) &&
+        (index > 0 ||
+          candidateCoversResources(candidate, input.sourceResources, requiredAutonomy)) &&
+        (input.activeAuthorizationPairs === undefined ||
+          input.activeAuthorizationPairs.has(authorizationPairKey(action.id, candidate.agentId))),
+    ),
+  );
   if (selected.some((candidate) => candidate === undefined)) return null;
 
   const stages: AutomationStagePlan[] = [];
@@ -150,12 +165,14 @@ export function provisionableAutomationPairs(input: {
   requiredAutonomy?: AutomationAutonomy;
 }) {
   const requiredAutonomy = input.requiredAutonomy ?? 'autonomous';
-  return input.actions.flatMap((action) => input.candidates
-    .filter((candidate) => candidateCoversAction(candidate, action, requiredAutonomy))
-    .map((candidate) => ({
-      agent: { agentId: candidate.agentId, actorAccountId: candidate.actorAccountId },
-      action,
-    })));
+  return input.actions.flatMap((action) =>
+    input.candidates
+      .filter((candidate) => candidateCoversAction(candidate, action, requiredAutonomy))
+      .map((candidate) => ({
+        agent: { agentId: candidate.agentId, actorAccountId: candidate.actorAccountId },
+        action,
+      })),
+  );
 }
 
 /** Load only capability maps. App content never enters the coordinator. */
@@ -165,26 +182,28 @@ export async function loadAutomationActorCandidates(
   autonomy: AutomationAutonomy = 'autonomous',
 ): Promise<AutomationActorCandidate[]> {
   const availableAgents = agents.filter((agent) => agent.status === 'active');
-  const results = await Promise.all(availableAgents.map(async (agent) => {
-    try {
-      const assignments = await getOxyAgentCapabilityMap({
-        requesterAccountId: ownerAccountId,
-        ownerAccountId,
-        actor: { type: 'agent', accountId: agent.oxyAccountId },
-        autonomy,
-      });
-      return {
-        agentId: agent.id,
-        actorAccountId: agent.oxyAccountId,
-        assignments,
-      } satisfies AutomationActorCandidate;
-    } catch (error: unknown) {
-      log.triggers.warn(
-        { err: error, agentId: agent.id, ownerAccountId },
-        'Agent capability-map lookup failed closed',
-      );
-      return null;
-    }
-  }));
-  return results.flatMap((candidate) => candidate ? [candidate] : []);
+  const results = await Promise.all(
+    availableAgents.map(async (agent) => {
+      try {
+        const assignments = await getOxyAgentCapabilityMap({
+          requesterAccountId: ownerAccountId,
+          ownerAccountId,
+          actor: { type: 'agent', accountId: agent.oxyAccountId },
+          autonomy,
+        });
+        return {
+          agentId: agent.id,
+          actorAccountId: agent.oxyAccountId,
+          assignments,
+        } satisfies AutomationActorCandidate;
+      } catch (error: unknown) {
+        log.triggers.warn(
+          { err: error, agentId: agent.id, ownerAccountId },
+          'Agent capability-map lookup failed closed',
+        );
+        return null;
+      }
+    }),
+  );
+  return results.flatMap((candidate) => (candidate ? [candidate] : []));
 }

@@ -38,4 +38,11 @@ export function recordMetric(metric: ObserverMetric): void {
 }
 
 // ── Extended observability modules ──
-export { onAlert, getRecentAlerts, checkInfiniteLoop, checkSessionRunaway, cleanupSessionAlerts, type Alert } from './alerts.js';
+export {
+  onAlert,
+  getRecentAlerts,
+  checkInfiniteLoop,
+  checkSessionRunaway,
+  cleanupSessionAlerts,
+  type Alert,
+} from './alerts.js';

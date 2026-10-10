@@ -78,10 +78,17 @@ export interface OxyExecutionAuthorizationRef {
 }
 
 /** The exact resource and tool an authorization key names. */
-function parseExecutionAuthorizationKey(key: string): { resource: ResourceRef; tool: string } | null {
+function parseExecutionAuthorizationKey(
+  key: string,
+): { resource: ResourceRef; tool: string } | null {
   try {
     const parsed: unknown = JSON.parse(key);
-    if (!Array.isArray(parsed) || parsed.length !== 5 || !parsed.every((part) => typeof part === 'string')) return null;
+    if (
+      !Array.isArray(parsed) ||
+      parsed.length !== 5 ||
+      !parsed.every((part) => typeof part === 'string')
+    )
+      return null;
     const [appId, effectiveAccountId, resourceType, resourceId, tool] = parsed as string[];
     return { resource: { appId, effectiveAccountId, resourceType, resourceId }, tool };
   } catch {
@@ -182,7 +189,9 @@ async function safeExecute(service: string, operation: () => Promise<unknown>): 
         message: `${appDisplayName(service)} is temporarily unavailable. Oxy could not confirm authority for this action. Do not claim it succeeded or use another route to bypass the check. Request any required consent through the supported account flow, or try again when authority is available.`,
       };
     }
-    return { error: `${appDisplayName(service)} could not complete the request: ${getErrorMessage(error).slice(0, 180)}` };
+    return {
+      error: `${appDisplayName(service)} could not complete the request: ${getErrorMessage(error).slice(0, 180)}`,
+    };
   }
 }
 
@@ -199,7 +208,9 @@ async function oxyAuthorityFetch(path: string, init: RequestInit = {}): Promise<
     signal: init.signal ?? AbortSignal.timeout(TOOL_TIMEOUT_MS),
   });
   if (!response.ok) {
-    throw new Error(`Oxy authority error (${response.status}): ${(await response.text()).slice(0, 240)}`);
+    throw new Error(
+      `Oxy authority error (${response.status}): ${(await response.text()).slice(0, 240)}`,
+    );
   }
   return response.json();
 }
@@ -211,9 +222,11 @@ function appDisplayName(appId: string): string {
 async function loadCatalogDefs(): Promise<CatalogDef[]> {
   // Every app uses canonical authority discovery; only the reviewed Mention
   // binding selects MCP for the subsequent product invocation.
-  const registrations = await agency().serviceCatalogs().catch(() => {
-    throw new OxyAuthorityUnavailableError('Oxy catalogue authority unavailable');
-  });
+  const registrations = await agency()
+    .serviceCatalogs()
+    .catch(() => {
+      throw new OxyAuthorityUnavailableError('Oxy catalogue authority unavailable');
+    });
   return registrations.map((registration) => {
     const catalog = appCapabilityCatalogSchema.parse(registration.catalog);
     let internalCatalogBinding: CapabilityCatalogBinding | undefined;
@@ -222,19 +235,29 @@ async function loadCatalogDefs(): Promise<CatalogDef[]> {
         throw new Error('Internal MCP requires complete registry provenance');
       }
       internalCatalogBinding = capabilityCatalogBindingSchema.parse({
-        registrationId: registration.id, version: registration.version, digest: registration.digest,
+        registrationId: registration.id,
+        version: registration.version,
+        digest: registration.digest,
       });
-      if (internalCatalogBinding.version !== catalog.version
-        || internalCatalogBinding.digest !== createHash('sha256').update(canonicalCapabilityJson(catalog)).digest('hex')) {
+      if (
+        internalCatalogBinding.version !== catalog.version ||
+        internalCatalogBinding.digest !==
+          createHash('sha256').update(canonicalCapabilityJson(catalog)).digest('hex')
+      ) {
         throw new Error('Registry catalogue content mismatch');
       }
     }
     return {
       catalog,
       displayName: appDisplayName(catalog.appId),
-      compiledTools: catalog.tools.filter(definition => definition.exposure.includes('internal'))
-        .map(definition => ({ catalog, definition, inputSchema: jsonSchemaToZod(definition.inputSchema),
-          ...(internalCatalogBinding ? { internalCatalogBinding } : {}) })),
+      compiledTools: catalog.tools
+        .filter((definition) => definition.exposure.includes('internal'))
+        .map((definition) => ({
+          catalog,
+          definition,
+          inputSchema: jsonSchemaToZod(definition.inputSchema),
+          ...(internalCatalogBinding ? { internalCatalogBinding } : {}),
+        })),
     };
   });
 }
@@ -249,35 +272,42 @@ function agentIdentityOf(context: OxyToolExecutionContext): OxyAgentIdentity {
 
 async function agentAssignments(context: OxyToolExecutionContext): Promise<Assignment[]> {
   if (context.actor.type !== 'agent' || !agentIdentityOf(context).forUser) return [];
-  const parsed = mapResponseSchema.parse(await oxyAuthorityFetch('/capabilities/capability-map', {
-    method: 'POST',
-    body: JSON.stringify({
-      requesterAccountId: context.requesterAccountId,
-      ownerAccountId: context.ownerAccountId,
-      actorAccountId: context.actor.accountId,
+  const parsed = mapResponseSchema.parse(
+    await oxyAuthorityFetch('/capabilities/capability-map', {
+      method: 'POST',
+      body: JSON.stringify({
+        requesterAccountId: context.requesterAccountId,
+        ownerAccountId: context.ownerAccountId,
+        actorAccountId: context.actor.accountId,
+      }),
     }),
-  }));
+  );
   return parsed.assignments;
 }
 
 /** Capability-only view used by the coordinator; it contains no app content. */
-export async function getOxyAgentCapabilityMap(
-  context: OxyToolExecutionContext,
-): Promise<ReadonlyArray<{
-  resource: ResourceRef;
-  maximumAutonomy: OxyToolAutonomy;
-  limits: ReadonlyArray<{ key: string; value?: unknown }>;
-  toolNames: readonly string[];
-}>> {
+export async function getOxyAgentCapabilityMap(context: OxyToolExecutionContext): Promise<
+  ReadonlyArray<{
+    resource: ResourceRef;
+    maximumAutonomy: OxyToolAutonomy;
+    limits: ReadonlyArray<{ key: string; value?: unknown }>;
+    toolNames: readonly string[];
+  }>
+> {
   return agentAssignments(context);
 }
 
 /** Every internal tool of every app, bound to the account root of `accountId`. */
-function accountRootBindings(defs: readonly CatalogDef[], accountId: string, self = false): BoundTool[] {
+function accountRootBindings(
+  defs: readonly CatalogDef[],
+  accountId: string,
+  self = false,
+): BoundTool[] {
   const bindings: BoundTool[] = [];
   for (const service of defs) {
     for (const compiled of service.compiledTools) {
-      if (!compiled.definition.resourceTypes.includes(compiled.catalog.accountResourceType)) continue;
+      if (!compiled.definition.resourceTypes.includes(compiled.catalog.accountResourceType))
+        continue;
       bindings.push({
         compiled,
         resource: {
@@ -294,7 +324,10 @@ function accountRootBindings(defs: readonly CatalogDef[], accountId: string, sel
   return bindings;
 }
 
-function regularAliaBindings(defs: readonly CatalogDef[], context: OxyToolExecutionContext): BoundTool[] {
+function regularAliaBindings(
+  defs: readonly CatalogDef[],
+  context: OxyToolExecutionContext,
+): BoundTool[] {
   return accountRootBindings(defs, context.requesterAccountId);
 }
 
@@ -303,7 +336,10 @@ function regularAliaBindings(defs: readonly CatalogDef[], context: OxyToolExecut
  * Oxy authorizes these without a grant (ADR 0018 addendum) — the account is the
  * agent's — and never lets the same agent reach any other account this way.
  */
-function agentSelfBindings(defs: readonly CatalogDef[], context: OxyToolExecutionContext): BoundTool[] {
+function agentSelfBindings(
+  defs: readonly CatalogDef[],
+  context: OxyToolExecutionContext,
+): BoundTool[] {
   if (context.actor.type !== 'agent' || !agentIdentityOf(context).self) return [];
   return accountRootBindings(defs, context.actor.accountId, true);
 }
@@ -321,9 +357,11 @@ function authorizedAliaBindings(
   for (const key of Object.keys(authorizations)) {
     const parsed = parseExecutionAuthorizationKey(key);
     if (!parsed) continue;
-    const compiled = defs.find((entry) => entry.catalog.appId === parsed.resource.appId)
+    const compiled = defs
+      .find((entry) => entry.catalog.appId === parsed.resource.appId)
       ?.compiledTools.find((entry) => entry.definition.name === parsed.tool);
-    if (!compiled || !compiled.definition.resourceTypes.includes(parsed.resource.resourceType)) continue;
+    if (!compiled || !compiled.definition.resourceTypes.includes(parsed.resource.resourceType))
+      continue;
     candidates.push({ compiled, resource: parsed.resource });
   }
   const counts = new Map<string, number>();
@@ -334,9 +372,15 @@ function authorizedAliaBindings(
   return candidates.map(({ compiled, resource }) => ({
     compiled,
     resource,
-    suffix: (counts.get(`${compiled.catalog.appId}:${compiled.definition.name}`) ?? 0) > 1
-      ? createHash('sha256').update([resource.resourceType, resource.resourceId, resource.effectiveAccountId].join(':')).digest('hex').slice(0, 8)
-      : null,
+    suffix:
+      (counts.get(`${compiled.catalog.appId}:${compiled.definition.name}`) ?? 0) > 1
+        ? createHash('sha256')
+            .update(
+              [resource.resourceType, resource.resourceId, resource.effectiveAccountId].join(':'),
+            )
+            .digest('hex')
+            .slice(0, 8)
+        : null,
   }));
 }
 
@@ -398,11 +442,16 @@ function agentBindings(
   }
   return candidates.map(({ compiled, assignment }) => {
     const key = `${compiled.catalog.appId}:${compiled.definition.name}`;
-    const digest = createHash('sha256').update([
-      assignment.resource.resourceType,
-      assignment.resource.resourceId,
-      assignment.resource.effectiveAccountId,
-    ].join(':')).digest('hex').slice(0, 8);
+    const digest = createHash('sha256')
+      .update(
+        [
+          assignment.resource.resourceType,
+          assignment.resource.resourceId,
+          assignment.resource.effectiveAccountId,
+        ].join(':'),
+      )
+      .digest('hex')
+      .slice(0, 8);
     return {
       compiled,
       resource: assignment.resource,
@@ -423,7 +472,8 @@ function resolveInvocation(
   const path = definition.invocation.path.replace(/\{(\w+)\}/g, (_match, parameter: string) => {
     const value = Object.hasOwn(remaining, parameter) ? remaining[parameter] : undefined;
     delete remaining[parameter];
-    if (value === undefined || value === null) throw new Error(`Missing required path parameter: ${parameter}`);
+    if (value === undefined || value === null)
+      throw new Error(`Missing required path parameter: ${parameter}`);
     return encodeURIComponent(String(value));
   });
   const baseUrl = new URL(catalog.internalBaseUrl);
@@ -489,7 +539,7 @@ function directMaximumAutonomy(
   if (definition.effect === 'read') return 'read_only';
   return context.autonomy === 'autonomous'
     ? 'execute_on_request'
-    : context.autonomy ?? 'execute_on_request';
+    : (context.autonomy ?? 'execute_on_request');
 }
 
 async function createDirectExecutionAuthorization(
@@ -543,9 +593,11 @@ interface IssuedTicket {
   transientAuthorizationId?: string;
 }
 
-const auditedResultSchema = z.object({
-  auditEventId: z.string().trim().min(1),
-}).passthrough();
+const auditedResultSchema = z
+  .object({
+    auditEventId: z.string().trim().min(1),
+  })
+  .passthrough();
 
 function responseAuditEventId(response: Response, result: unknown): string | undefined {
   const header = response.headers.get('x-oxy-audit-event-id')?.trim();
@@ -567,7 +619,8 @@ async function revokeTransientAuthorization(
     return true;
   } catch (error: unknown) {
     log.general.warn(
-      sharedAgency ? { runId, tool: toolName, failure: 'retirement_unavailable' }
+      sharedAgency
+        ? { runId, tool: toolName, failure: 'retirement_unavailable' }
         : { err: error, runId, tool: toolName },
       'Could not revoke transient Oxy execution authorization; expiry remains active',
     );
@@ -583,29 +636,44 @@ async function issueTicket(
   expectedCatalog?: CapabilityCatalogBinding,
   onPendingRetirement?: (authorizationId: string) => void,
 ): Promise<IssuedTicket> {
-  const preauthorized = context.executionAuthorizations?.[
-    oxyExecutionAuthorizationKey(resource, definition.name)
-  ];
-  const unattendedSessionId = context.actor.type === 'agent' && !context.userAccessToken
-    ? context.agentIdentity?.unattendedSessionId
-    : undefined;
+  const preauthorized =
+    context.executionAuthorizations?.[oxyExecutionAuthorizationKey(resource, definition.name)];
+  const unattendedSessionId =
+    context.actor.type === 'agent' && !context.userAccessToken
+      ? context.agentIdentity?.unattendedSessionId
+      : undefined;
   let executionAuthorizationId: string;
-  if (expectedCatalog && !context.runId) throw new OxyAuthorityUnavailableError('Internal MCP requires a named run');
+  if (expectedCatalog && !context.runId)
+    throw new OxyAuthorityUnavailableError('Internal MCP requires a named run');
   try {
-    executionAuthorizationId = preauthorized?.id ?? (unattendedSessionId !== undefined
-      ? await createAgentRunExecutionAuthorization(context, resource, definition, unattendedSessionId)
-      : await createDirectExecutionAuthorization(context, resource, definition, runId));
+    executionAuthorizationId =
+      preauthorized?.id ??
+      (unattendedSessionId !== undefined
+        ? await createAgentRunExecutionAuthorization(
+            context,
+            resource,
+            definition,
+            unattendedSessionId,
+          )
+        : await createDirectExecutionAuthorization(context, resource, definition, runId));
   } catch (error: unknown) {
-    if (expectedCatalog) throw new OxyAuthorityUnavailableError('Internal MCP requester approval unavailable');
+    if (expectedCatalog)
+      throw new OxyAuthorityUnavailableError('Internal MCP requester approval unavailable');
     throw new OxyAuthorityUnavailableError(getErrorMessage(error), { cause: error });
   }
   // Both a preauthorized step and an agent run are AUTOMATION authority, whose
   // run is bound when the ticket is issued; a direct request bound its own.
   const automationScoped = preauthorized !== undefined || unattendedSessionId !== undefined;
   try {
-    const request = { executionAuthorizationId,
-      ...(preauthorized ? { runId, stepId: preauthorized.stepId } : unattendedSessionId !== undefined ? { runId } : {}),
-      ...(expectedCatalog ? { expectedCatalog } : {}) };
+    const request = {
+      executionAuthorizationId,
+      ...(preauthorized
+        ? { runId, stepId: preauthorized.stepId }
+        : unattendedSessionId !== undefined
+          ? { runId }
+          : {}),
+      ...(expectedCatalog ? { expectedCatalog } : {}),
+    };
     const parsed = ticketResponseSchema.parse(await agency().issueCapabilityTicket(request));
     if (!parsed.decision.allowed || !parsed.ticket) {
       throw new Error(`Oxy policy denied ${definition.name}: ${parsed.decision.reason}`);
@@ -616,10 +684,17 @@ async function issueTicket(
     };
   } catch (error: unknown) {
     if (!automationScoped) {
-      const retired = await revokeTransientAuthorization(context, executionAuthorizationId, runId, definition.name, expectedCatalog !== undefined);
+      const retired = await revokeTransientAuthorization(
+        context,
+        executionAuthorizationId,
+        runId,
+        definition.name,
+        expectedCatalog !== undefined,
+      );
       if (!retired) onPendingRetirement?.(executionAuthorizationId);
     }
-    if (expectedCatalog) throw new OxyAuthorityUnavailableError('Internal MCP ticket authority unavailable');
+    if (expectedCatalog)
+      throw new OxyAuthorityUnavailableError('Internal MCP ticket authority unavailable');
     throw new OxyAuthorityUnavailableError(getErrorMessage(error), { cause: error });
   }
 }
@@ -642,47 +717,79 @@ const RETIRE_APPROVAL_TOOL = 'oxy_mention__retireApproval';
 function internalOutcome(outcome: InternalOperationOutcome) {
   return {
     status: outcome.status,
-    ...(outcome.status === 'succeeded' ? { result: outcome.result }
+    ...(outcome.status === 'succeeded'
+      ? { result: outcome.result }
       : { error: outcome.status === 'unknown' ? 'oxy_app_result_unknown' : 'oxy_app_unavailable' }),
     operation: { id: outcome.id, runId: outcome.runId, tool: outcome.tool },
-    retirement: { status: outcome.authorizationId === undefined ? 'not_required' : outcome.retired ? 'retired' : 'pending',
-      ...(!outcome.retired ? { retryTool: RETIRE_APPROVAL_TOOL } : {}) },
-    message: outcome.status === 'succeeded'
-      ? 'The operation succeeded. Do not execute it again. Only retry pending approval retirement with its operation ID.'
-      : outcome.status === 'unknown'
-        ? 'The operation outcome is unknown. Do not claim success or start a new operation. Only retry pending approval retirement; that does not resolve the operation outcome.'
-        : 'The operation was not confirmed successful. Retrying approval retirement never executes the operation.',
+    retirement: {
+      status:
+        outcome.authorizationId === undefined
+          ? 'not_required'
+          : outcome.retired
+            ? 'retired'
+            : 'pending',
+      ...(!outcome.retired ? { retryTool: RETIRE_APPROVAL_TOOL } : {}),
+    },
+    message:
+      outcome.status === 'succeeded'
+        ? 'The operation succeeded. Do not execute it again. Only retry pending approval retirement with its operation ID.'
+        : outcome.status === 'unknown'
+          ? 'The operation outcome is unknown. Do not claim success or start a new operation. Only retry pending approval retirement; that does not resolve the operation outcome.'
+          : 'The operation was not confirmed successful. Retrying approval retirement never executes the operation.',
   };
 }
 
 async function callInternalBoundTool(
-  binding: BoundTool, args: Record<string, unknown>, context: OxyToolExecutionContext,
-  toolCallId: string | undefined, retirements: InternalRetirements,
+  binding: BoundTool,
+  args: Record<string, unknown>,
+  context: OxyToolExecutionContext,
+  toolCallId: string | undefined,
+  retirements: InternalRetirements,
 ): Promise<unknown> {
   const definition = binding.compiled.definition;
   const runId = context.runId ?? '';
-  const operationId = idempotencyKey(runId, oxyExecutionAuthorizationKey(binding.resource, definition.name), args, toolCallId);
+  const operationId = idempotencyKey(
+    runId,
+    oxyExecutionAuthorizationKey(binding.resource, definition.name),
+    args,
+    toolCallId,
+  );
   const inputDigest = createHash('sha256').update(canonicalCapabilityJson(args)).digest('hex');
   const previous = retirements.get(operationId);
   // A retry of an operation with pending retirement must not issue new authority
   // or execute the operation, even if the caller repeats its original tool call.
   if (previous) {
-    if (previous.inputDigest !== inputDigest) return { error: 'oxy_operation_conflict', operationId };
+    if (previous.inputDigest !== inputDigest)
+      return { error: 'oxy_operation_conflict', operationId };
     return internalOutcome(previous);
   }
-  const outcome: InternalOperationOutcome = { id: operationId, runId, tool: definition.name,
-    status: 'not_executed', retired: true, inputDigest };
-  const stepId = context.executionAuthorizations?.[
-    oxyExecutionAuthorizationKey(binding.resource, definition.name)
-  ]?.stepId;
+  const outcome: InternalOperationOutcome = {
+    id: operationId,
+    runId,
+    tool: definition.name,
+    status: 'not_executed',
+    retired: true,
+    inputDigest,
+  };
+  const stepId =
+    context.executionAuthorizations?.[
+      oxyExecutionAuthorizationKey(binding.resource, definition.name)
+    ]?.stepId;
   if (stepId) await context.onStepStatus?.(stepId, 'running');
   let issued: IssuedTicket;
   try {
-    issued = await issueTicket(context, binding.resource, definition, runId,
-      binding.compiled.internalCatalogBinding, authorizationId => {
-        outcome.authorizationId = authorizationId; outcome.retired = false;
+    issued = await issueTicket(
+      context,
+      binding.resource,
+      definition,
+      runId,
+      binding.compiled.internalCatalogBinding,
+      (authorizationId) => {
+        outcome.authorizationId = authorizationId;
+        outcome.retired = false;
         retirements.set(operationId, outcome);
-      });
+      },
+    );
   } catch (error) {
     if (stepId) await context.onStepStatus?.(stepId, 'failed');
     if (!outcome.retired) return internalOutcome(outcome);
@@ -692,7 +799,10 @@ async function callInternalBoundTool(
   outcome.status = 'unknown';
   try {
     const endpoint = new URL('/_oxy/mcp', binding.compiled.catalog.internalBaseUrl);
-    const client = createInternalCatalogMcpClient({ endpoint: endpoint.href, timeoutMs: TOOL_TIMEOUT_MS });
+    const client = createInternalCatalogMcpClient({
+      endpoint: endpoint.href,
+      timeoutMs: TOOL_TIMEOUT_MS,
+    });
     const result = await client.callTool(issued.ticket, definition.name, args, {
       ...(definition.idempotency === 'required' ? { idempotencyKey: operationId } : {}),
     });
@@ -700,8 +810,9 @@ async function callInternalBoundTool(
       outcome.status = 'failed';
     } else {
       const textResult = singleMcpTextResultSchema.safeParse(result);
-      outcome.result = result.structuredContent ?? (textResult.success
-        ? parseMcpTextResult(textResult.data.content[0].text) : result);
+      outcome.result =
+        result.structuredContent ??
+        (textResult.success ? parseMcpTextResult(textResult.data.content[0].text) : result);
       outcome.status = 'succeeded';
     }
   } catch {
@@ -710,17 +821,27 @@ async function callInternalBoundTool(
     outcome.status = 'unknown';
   }
   if (issued.transientAuthorizationId) {
-    outcome.retired = await revokeTransientAuthorization(context,
-      issued.transientAuthorizationId, runId, definition.name, true);
+    outcome.retired = await revokeTransientAuthorization(
+      context,
+      issued.transientAuthorizationId,
+      runId,
+      definition.name,
+      true,
+    );
     if (!outcome.retired) retirements.set(operationId, outcome);
   }
   if (stepId) {
     const audit = auditedResultSchema.safeParse(outcome.result);
-    await context.onStepStatus?.(stepId, outcome.status === 'succeeded' ? 'succeeded' : 'failed',
-      audit.success ? audit.data.auditEventId : undefined);
+    await context.onStepStatus?.(
+      stepId,
+      outcome.status === 'succeeded' ? 'succeeded' : 'failed',
+      audit.success ? audit.data.auditEventId : undefined,
+    );
   }
   // Normal successful calls retain the existing domain result shape.
-  return outcome.status === 'succeeded' && outcome.retired ? outcome.result : internalOutcome(outcome);
+  return outcome.status === 'succeeded' && outcome.retired
+    ? outcome.result
+    : internalOutcome(outcome);
 }
 
 async function callBoundTool(
@@ -734,14 +855,25 @@ async function callBoundTool(
     return callInternalBoundTool(binding, args, context, toolCallId, retirements);
   }
   const runId = context.runId ?? randomUUID();
-  const stepId = context.executionAuthorizations?.[
-    oxyExecutionAuthorizationKey(binding.resource, binding.compiled.definition.name)
-  ]?.stepId;
+  const stepId =
+    context.executionAuthorizations?.[
+      oxyExecutionAuthorizationKey(binding.resource, binding.compiled.definition.name)
+    ]?.stepId;
   if (stepId) await context.onStepStatus?.(stepId, 'running');
   let issued: IssuedTicket | undefined;
   try {
-    issued = await issueTicket(context, binding.resource, binding.compiled.definition, runId, binding.compiled.internalCatalogBinding);
-    const { url, body } = resolveInvocation(binding.compiled.catalog, binding.compiled.definition, args);
+    issued = await issueTicket(
+      context,
+      binding.resource,
+      binding.compiled.definition,
+      runId,
+      binding.compiled.internalCatalogBinding,
+    );
+    const { url, body } = resolveInvocation(
+      binding.compiled.catalog,
+      binding.compiled.definition,
+      args,
+    );
     const headers: Record<string, string> = {
       authorization: `Capability ${issued.ticket}`,
       accept: 'application/json',
@@ -772,11 +904,7 @@ async function callBoundTool(
       ? response.json()
       : response.text());
     if (stepId) {
-      await context.onStepStatus?.(
-        stepId,
-        'succeeded',
-        responseAuditEventId(response, result),
-      );
+      await context.onStepStatus?.(stepId, 'succeeded', responseAuditEventId(response, result));
     }
     return result;
   } catch (error: unknown) {
@@ -795,12 +923,18 @@ async function callBoundTool(
   }
 }
 
-const singleMcpTextResultSchema = z.object({
-  content: z.tuple([z.object({ type: z.literal('text'), text: z.string() }).passthrough()]),
-}).passthrough();
+const singleMcpTextResultSchema = z
+  .object({
+    content: z.tuple([z.object({ type: z.literal('text'), text: z.string() }).passthrough()]),
+  })
+  .passthrough();
 
 function parseMcpTextResult(text: string): unknown {
-  try { return JSON.parse(text); } catch { return text; }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
 }
 
 /**
@@ -830,70 +964,105 @@ export async function buildOxyServiceTools(
 ): Promise<ToolSet> {
   try {
     const allDefs = await getCatalogDefs();
-    const allowed = serviceIds === undefined
-      ? null
-      : new Set(serviceIds.flatMap((id) => [id, id.replace(/^oxy-/, '')]));
+    const allowed =
+      serviceIds === undefined
+        ? null
+        : new Set(serviceIds.flatMap((id) => [id, id.replace(/^oxy-/, '')]));
     const defs = allowed
-      ? allDefs.filter((entry) => allowed.has(entry.catalog.appId) || allowed.has(`oxy-${entry.catalog.appId}`))
+      ? allDefs.filter(
+          (entry) => allowed.has(entry.catalog.appId) || allowed.has(`oxy-${entry.catalog.appId}`),
+        )
       : allDefs;
-    const candidateBindings = context.actor.type === 'agent'
-      ? [
-          ...agentBindings(defs, await agentAssignments(context),
-            agentIdentityOf(context).unattendedSessionId !== undefined && !context.userAccessToken),
-          ...agentSelfBindings(defs, context),
-        ]
-      : context.executionAuthorizations !== undefined
-        ? authorizedAliaBindings(defs, context.executionAuthorizations)
-        : regularAliaBindings(defs, context);
-    const bindings = context.executionAuthorizations === undefined
-      ? candidateBindings
-      : candidateBindings.filter((binding) => Object.hasOwn(
-          context.executionAuthorizations ?? {},
-          oxyExecutionAuthorizationKey(binding.resource, binding.compiled.definition.name),
-        ));
+    const candidateBindings =
+      context.actor.type === 'agent'
+        ? [
+            ...agentBindings(
+              defs,
+              await agentAssignments(context),
+              agentIdentityOf(context).unattendedSessionId !== undefined &&
+                !context.userAccessToken,
+            ),
+            ...agentSelfBindings(defs, context),
+          ]
+        : context.executionAuthorizations !== undefined
+          ? authorizedAliaBindings(defs, context.executionAuthorizations)
+          : regularAliaBindings(defs, context);
+    const bindings =
+      context.executionAuthorizations === undefined
+        ? candidateBindings
+        : candidateBindings.filter((binding) =>
+            Object.hasOwn(
+              context.executionAuthorizations ?? {},
+              oxyExecutionAuthorizationKey(binding.resource, binding.compiled.definition.name),
+            ),
+          );
     const tools: ToolSet = {};
     const retirements: InternalRetirements = new Map();
     for (const binding of bindings) {
       const baseName = `${binding.self ? 'self' : 'oxy'}_${sanitizeName(binding.compiled.catalog.appId)}__${sanitizeName(binding.compiled.definition.name)}`;
       const toolName = binding.suffix ? `${baseName}__${binding.suffix}` : baseName;
       let preauthorizedInvocationStarted = false;
-      const repeatable = context.executionAuthorizations?.[
-        oxyExecutionAuthorizationKey(binding.resource, binding.compiled.definition.name)
-      ]?.repeatable === true;
+      const repeatable =
+        context.executionAuthorizations?.[
+          oxyExecutionAuthorizationKey(binding.resource, binding.compiled.definition.name)
+        ]?.repeatable === true;
       const built = tool({
         description: toolDescription(binding, context),
         inputSchema: binding.compiled.inputSchema,
-        execute: async (args: Record<string, unknown>, { toolCallId }: { toolCallId?: string } = {}) => {
+        execute: async (
+          args: Record<string, unknown>,
+          { toolCallId }: { toolCallId?: string } = {},
+        ) => {
           if (context.executionAuthorizations !== undefined && !repeatable) {
             if (preauthorizedInvocationStarted) {
-              return { error: `${binding.compiled.definition.name} is authorized once for this automation stage` };
+              return {
+                error: `${binding.compiled.definition.name} is authorized once for this automation stage`,
+              };
             }
             preauthorizedInvocationStarted = true;
           }
-          return safeExecute(
-            binding.compiled.catalog.appId,
-            () => callBoundTool(binding, args, context, toolCallId, retirements),
+          return safeExecute(binding.compiled.catalog.appId, () =>
+            callBoundTool(binding, args, context, toolCallId, retirements),
           );
         },
       });
       // The catalog knows the effect; the runtime policy cannot tell it from the name.
-      tools[toolName] = binding.compiled.definition.effect === 'read' ? declareReadOnly(built) : built;
+      tools[toolName] =
+        binding.compiled.definition.effect === 'read' ? declareReadOnly(built) : built;
     }
-    if (context.userAccessToken && bindings.some(binding => binding.compiled.internalCatalogBinding)) {
-      if (tools[RETIRE_APPROVAL_TOOL]) throw new Error('Internal retirement tool name collides with catalogue');
+    if (
+      context.userAccessToken &&
+      bindings.some((binding) => binding.compiled.internalCatalogBinding)
+    ) {
+      if (tools[RETIRE_APPROVAL_TOOL])
+        throw new Error('Internal retirement tool name collides with catalogue');
       tools[RETIRE_APPROVAL_TOOL] = tool({
-        description: 'Retry only retirement of a temporary approval created by this run. Never executes or retries a domain operation. Use the operation ID returned with pending retirement.',
+        description:
+          'Retry only retirement of a temporary approval created by this run. Never executes or retries a domain operation. Use the operation ID returned with pending retirement.',
         inputSchema: z.object({ operationId: z.string().min(1) }).strict(),
         execute: async ({ operationId }: { operationId: string }) => {
           const outcome = retirements.get(operationId);
-          if (!outcome?.authorizationId) return { error: 'No pending approval belongs to this operation in this run' };
-          if (!outcome.retired && await revokeTransientAuthorization(context,
-            outcome.authorizationId, outcome.runId, outcome.tool, true)) outcome.retired = true;
+          if (!outcome?.authorizationId)
+            return { error: 'No pending approval belongs to this operation in this run' };
+          if (
+            !outcome.retired &&
+            (await revokeTransientAuthorization(
+              context,
+              outcome.authorizationId,
+              outcome.runId,
+              outcome.tool,
+              true,
+            ))
+          )
+            outcome.retired = true;
           return internalOutcome(outcome);
         },
       });
     }
-    log.general.info({ userId: oxyUserId, toolCount: Object.keys(tools).length }, 'Oxy capability tools loaded');
+    log.general.info(
+      { userId: oxyUserId, toolCount: Object.keys(tools).length },
+      'Oxy capability tools loaded',
+    );
     return tools;
   } catch (error: unknown) {
     log.general.error({ err: error, userId: oxyUserId }, 'Failed to load Oxy capability tools');
@@ -919,13 +1088,24 @@ export async function getOxyServiceContext(userId: string, accessToken: string):
   try {
     const defs = await getCatalogDefs();
     const service = defs.find((entry) => entry.catalog.appId === 'inbox');
-    const compiled = service?.compiledTools.find((entry) => entry.definition.name === 'getEmailContext');
+    const compiled = service?.compiledTools.find(
+      (entry) => entry.definition.name === 'getEmailContext',
+    );
     if (!compiled || !compiled.definition.resourceTypes.includes('email_account')) return '';
-    const result = await callBoundTool({
-      compiled,
-      resource: { appId: 'inbox', effectiveAccountId: userId, resourceType: 'email_account', resourceId: userId },
-      suffix: null,
-    }, {}, context);
+    const result = await callBoundTool(
+      {
+        compiled,
+        resource: {
+          appId: 'inbox',
+          effectiveAccountId: userId,
+          resourceType: 'email_account',
+          resourceId: userId,
+        },
+        suffix: null,
+      },
+      {},
+      context,
+    );
     const rendered = `\n\n## The person's Oxy apps\n- **Inbox** (their own Oxy mailbox, already available to you): ${JSON.stringify(result)}`;
     contextCache.set(userId, rendered);
     return rendered;
@@ -939,7 +1119,10 @@ export function getOxyServicePromptFragment(_oxyUserId: string): string {
   const defs = defsCache.get(DEFS_KEY);
   if (!defs?.length) return '';
   const lines = defs.map((service) => {
-    const names = service.compiledTools.map((entry) => `oxy_${sanitizeName(service.catalog.appId)}__${sanitizeName(entry.definition.name)}`);
+    const names = service.compiledTools.map(
+      (entry) =>
+        `oxy_${sanitizeName(service.catalog.appId)}__${sanitizeName(entry.definition.name)}`,
+    );
     return `- **${service.displayName}**: ${names.join(', ')}.`;
   });
   return `\n\n## Oxy apps\nUse the available Oxy app tools for the person's requested actions. Oxy checks account, resource and action authority. If an action is denied, request any required consent through the supported account flow.\n${lines.join('\n')}`;
@@ -956,13 +1139,19 @@ export function agentIdentityPrompt(toolNames: readonly string[]): string {
   if (!self && !forUser) return '';
   const lines = ['\n\n## Your accounts'];
   if (self) {
-    lines.push('- `self_*` tools act on YOUR OWN Oxy account as this agent: your own inbox, your own profile and sign-ups. Use them for anything addressed to you or done as yourself.');
+    lines.push(
+      '- `self_*` tools act on YOUR OWN Oxy account as this agent: your own inbox, your own profile and sign-ups. Use them for anything addressed to you or done as yourself.',
+    );
   }
   if (forUser) {
-    lines.push('- `oxy_*` tools act on the account of the person you work for, only within the permissions they gave you. Use them for their email, their data, their behalf.');
+    lines.push(
+      '- `oxy_*` tools act on the account of the person you work for, only within the permissions they gave you. Use them for their email, their data, their behalf.',
+    );
   }
   if (self && forUser) {
-    lines.push('Never mix the two: reading "my email" when the person asks means theirs (`oxy_*`); an email someone sent to you is in yours (`self_*`).');
+    lines.push(
+      'Never mix the two: reading "my email" when the person asks means theirs (`oxy_*`); an email someone sent to you is in yours (`self_*`).',
+    );
   }
   return lines.join('\n');
 }

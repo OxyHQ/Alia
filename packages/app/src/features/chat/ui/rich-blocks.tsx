@@ -42,7 +42,15 @@ export function CompactList({ title, items }: { title: string; items: CompactLis
               role="listitem"
               title={item.title}
               subtitle={item.meta}
-              leading={item.image ? <Image source={{ uri: item.image }} className="h-10 w-10 rounded" contentFit="cover" /> : undefined}
+              leading={
+                item.image ? (
+                  <Image
+                    source={{ uri: item.image }}
+                    className="h-10 w-10 rounded"
+                    contentFit="cover"
+                  />
+                ) : undefined
+              }
               trailing={item.href ? <RiExternalLinkLine size="sm" /> : undefined}
               onPress={item.href ? () => void Linking.openURL(item.href!) : undefined}
             />
@@ -58,7 +66,15 @@ type BannerType = 'info' | 'success' | 'warning' | 'danger';
 /** A block's tone, in Bloom's admonition vocabulary. */
 const ADMONITION = { info: 'info', success: 'tip', warning: 'warning', danger: 'error' } as const;
 
-export function Banner({ type = 'info', title, content }: { type?: BannerType; title: string; content: string }) {
+export function Banner({
+  type = 'info',
+  title,
+  content,
+}: {
+  type?: BannerType;
+  title: string;
+  content: string;
+}) {
   return (
     <View className="my-2">
       <AdmonitionRoot type={Object.hasOwn(ADMONITION, type) ? ADMONITION[type] : 'info'}>
@@ -149,7 +165,15 @@ export function Timeline({ title, items }: { title: string; items: TimelineItem[
   );
 }
 
-export function RichImage({ url, title, caption }: { url: string; title?: string; caption?: string }) {
+export function RichImage({
+  url,
+  title,
+  caption,
+}: {
+  url: string;
+  title?: string;
+  caption?: string;
+}) {
   return (
     <View className="my-2 gap-1">
       <Image source={{ uri: url }} className="aspect-video w-full rounded-lg" contentFit="cover" />

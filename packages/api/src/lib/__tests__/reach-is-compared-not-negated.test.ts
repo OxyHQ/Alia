@@ -50,7 +50,10 @@ interface CallSite {
 function consumerOf(node: ts.Node): ts.Node | undefined {
   let current: ts.Node = node;
   let parent = current.parent;
-  while (parent !== undefined && (ts.isAwaitExpression(parent) || ts.isParenthesizedExpression(parent))) {
+  while (
+    parent !== undefined &&
+    (ts.isAwaitExpression(parent) || ts.isParenthesizedExpression(parent))
+  ) {
     current = parent;
     parent = current.parent;
   }
@@ -84,7 +87,11 @@ function valueIsCompared(sf: ts.SourceFile, call: ts.Node): boolean {
   const consumer = consumerOf(call);
   if (isComparison(consumer)) return true;
 
-  if (consumer === undefined || !ts.isVariableDeclaration(consumer) || !ts.isIdentifier(consumer.name)) {
+  if (
+    consumer === undefined ||
+    !ts.isVariableDeclaration(consumer) ||
+    !ts.isIdentifier(consumer.name)
+  ) {
     return false;
   }
 
@@ -108,7 +115,11 @@ function callSites(file: string): CallSite[] {
   const out: CallSite[] = [];
 
   const visit = (node: ts.Node): void => {
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === GUARDED) {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === GUARDED
+    ) {
       out.push({
         file,
         line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
@@ -127,7 +138,13 @@ function productSources(): string[] {
   return execFileSync('git', ['ls-files', 'src'], { cwd: packageRoot, encoding: 'utf8' })
     .split('\n')
     .filter(Boolean)
-    .filter((f) => f.endsWith('.ts') && !f.includes('__tests__') && !f.endsWith('.test.ts') && existsSync(path.join(packageRoot, f)));
+    .filter(
+      (f) =>
+        f.endsWith('.ts') &&
+        !f.includes('__tests__') &&
+        !f.endsWith('.test.ts') &&
+        existsSync(path.join(packageRoot, f)),
+    );
 }
 
 describe('an agent-reach verdict is compared, never coerced', () => {
@@ -177,7 +194,11 @@ describe('an agent-reach verdict is compared, never coerced', () => {
     const sf = ts.createSourceFile('snippet.ts', snippet, ts.ScriptTarget.Latest, true);
     const verdicts: boolean[] = [];
     const visit = (n: ts.Node): void => {
-      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === GUARDED) {
+      if (
+        ts.isCallExpression(n) &&
+        ts.isIdentifier(n.expression) &&
+        n.expression.text === GUARDED
+      ) {
         verdicts.push(valueIsCompared(sf, n));
       }
       ts.forEachChild(n, visit);
@@ -188,9 +209,7 @@ describe('an agent-reach verdict is compared, never coerced', () => {
   });
 
   it('every call in product source compares the verdict', () => {
-    const coerced = sites
-      .filter((s) => !s.compared)
-      .map((s) => `${s.file}:${s.line}  ${s.text}`);
+    const coerced = sites.filter((s) => !s.compared).map((s) => `${s.file}:${s.line}  ${s.text}`);
 
     expect(coerced).toEqual([]);
   });

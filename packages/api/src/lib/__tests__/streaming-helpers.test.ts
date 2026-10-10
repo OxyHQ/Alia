@@ -5,7 +5,12 @@ import { writeContentChunk } from '../streaming-helpers.js';
 /** Collects the raw SSE frames a helper writes, so the chunk JSON can be asserted. */
 function captureRes(): { res: Response; frames: string[] } {
   const frames: string[] = [];
-  const res = { write: (frame: string) => { frames.push(frame); return true; } } as unknown as Response;
+  const res = {
+    write: (frame: string) => {
+      frames.push(frame);
+      return true;
+    },
+  } as unknown as Response;
   return { res, frames };
 }
 
@@ -19,14 +24,19 @@ describe('writeContentChunk', () => {
   it('tags the chunk with alia_meta when meta is given', () => {
     const { res, frames } = captureRes();
 
-    writeContentChunk(res, 'chatcmpl-test', 'acme/chat-1', 'brief interruption', { synthetic: true, retryable: true });
+    writeContentChunk(res, 'chatcmpl-test', 'acme/chat-1', 'brief interruption', {
+      synthetic: true,
+      retryable: true,
+    });
 
     expect(frames).toHaveLength(1);
     expect(parseFrame(frames[0])).toMatchObject({
       id: 'chatcmpl-test',
       object: 'chat.completion.chunk',
       model: 'acme/chat-1',
-      choices: [{ index: 0, delta: { content: 'brief interruption' }, finish_reason: null, logprobs: null }],
+      choices: [
+        { index: 0, delta: { content: 'brief interruption' }, finish_reason: null, logprobs: null },
+      ],
       alia_meta: { synthetic: true, retryable: true },
     });
   });
@@ -39,6 +49,8 @@ describe('writeContentChunk', () => {
     expect(frames).toHaveLength(1);
     const chunk = parseFrame(frames[0]);
     expect(chunk).not.toHaveProperty('alia_meta');
-    expect(chunk.choices).toEqual([{ index: 0, delta: { content: 'a real answer' }, finish_reason: null, logprobs: null }]);
+    expect(chunk.choices).toEqual([
+      { index: 0, delta: { content: 'a real answer' }, finish_reason: null, logprobs: null },
+    ]);
   });
 });

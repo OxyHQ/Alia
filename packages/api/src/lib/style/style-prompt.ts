@@ -48,7 +48,7 @@ export const STYLE_PROMPT_MAX_CHARS = 2000;
 const STYLE_FIELD_MAX_CHARS = 200;
 
 const HEADER = [
-  '## USER\'S WRITING STYLE',
+  "## USER'S WRITING STYLE",
   '',
   'When writing ON BEHALF of this user (composing emails, messages, replies, or drafts), match these patterns:',
   '',
@@ -86,7 +86,9 @@ export function formatStyleForPrompt(profile: IWritingStyleProfile | null | unde
   lines.push(`- **Formality**: ${FORMALITY_LABELS[profile.formality] || profile.formality}`);
 
   // Sentence structure
-  lines.push(`- **Sentences**: Typically ${COMPLEXITY_LABELS[profile.sentenceComplexity] || profile.sentenceComplexity} (~${Math.round(profile.avgSentenceLength)} words per sentence)`);
+  lines.push(
+    `- **Sentences**: Typically ${COMPLEXITY_LABELS[profile.sentenceComplexity] || profile.sentenceComplexity} (~${Math.round(profile.avgSentenceLength)} words per sentence)`,
+  );
 
   // Vocabulary
   lines.push(`- **Vocabulary**: ${profile.vocabularyLevel} level`);
@@ -95,7 +97,9 @@ export function formatStyleForPrompt(profile: IWritingStyleProfile | null | unde
   }
 
   // Capitalization
-  lines.push(`- **Capitalization**: ${CAP_LABELS[profile.capitalizationStyle] || profile.capitalizationStyle}`);
+  lines.push(
+    `- **Capitalization**: ${CAP_LABELS[profile.capitalizationStyle] || profile.capitalizationStyle}`,
+  );
 
   // Emoji
   lines.push(`- **Emoji**: ${EMOJI_LABELS[profile.emojiFrequency] || profile.emojiFrequency}`);

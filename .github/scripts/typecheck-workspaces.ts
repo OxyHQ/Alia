@@ -77,7 +77,8 @@ const CHECKED_ELSEWHERE: Readonly<Record<string, string>> = {
   '@alia/api': 'Lint & Test — "Typecheck API"',
   '@alia.onl/sdk': 'Lint & Test — "Typecheck SDK"',
   '@alia.onl/server': 'Lint & Test — "Typecheck server SDK"',
-  '@alia/integrations': 'Integrations (Postgres) — "Typecheck integrations" (script is `type-check`)',
+  '@alia/integrations':
+    'Integrations (Postgres) — "Typecheck integrations" (script is `type-check`)',
 };
 
 /**
@@ -91,7 +92,8 @@ const EXCLUDED: Readonly<Record<string, { readonly errors: number; readonly why:
 
 /** Has no `typecheck` script, and why that is the right answer for it. */
 const NO_TYPECHECK: Readonly<Record<string, string>> = {
-  'alia-canvas': 'solution-style tsconfig ("files": [], references only) — `tsc --noEmit` compiles nothing; checked by the "Typecheck the solution-style frontends" step of Frontend Typecheck, which runs `tsc -b` on it',
+  'alia-canvas':
+    'solution-style tsconfig ("files": [], references only) — `tsc --noEmit` compiles nothing; checked by the "Typecheck the solution-style frontends" step of Frontend Typecheck, which runs `tsc -b` on it',
   'webview-ui': 'same solution-style tsconfig; checked by the same `tsc -b` step',
 };
 
@@ -131,10 +133,14 @@ function assertPartition(workspaces: readonly Workspace[]): string[] {
     // A package listed as having no typecheck script that has since gained one,
     // or an excluded package that has lost its script, is a stale list.
     if (workspace.name in NO_TYPECHECK && workspace.hasTypecheck) {
-      problems.push(`${workspace.name} is in NO_TYPECHECK but now has a typecheck script — move it`);
+      problems.push(
+        `${workspace.name} is in NO_TYPECHECK but now has a typecheck script — move it`,
+      );
     }
     if (workspace.name in EXCLUDED && !workspace.hasTypecheck) {
-      problems.push(`${workspace.name} is EXCLUDED but has no typecheck script — it belongs in NO_TYPECHECK`);
+      problems.push(
+        `${workspace.name} is EXCLUDED but has no typecheck script — it belongs in NO_TYPECHECK`,
+      );
     }
     if (buckets.length === 0 && !workspace.hasTypecheck) {
       problems.push(
@@ -169,8 +175,7 @@ function main(): void {
   }
 
   const checked = workspaces.filter(
-    (w) =>
-      !(w.name in CHECKED_ELSEWHERE) && !(w.name in EXCLUDED) && !(w.name in NO_TYPECHECK),
+    (w) => !(w.name in CHECKED_ELSEWHERE) && !(w.name in EXCLUDED) && !(w.name in NO_TYPECHECK),
   );
 
   // The vacuity floor. An empty checked set satisfies "no package failed", and a
@@ -181,13 +186,19 @@ function main(): void {
     process.exit(1);
   }
 
-  console.log(`Typechecking ${checked.length} workspaces: ${checked.map((w) => w.name).join(', ')}`);
-  for (const [name, why] of Object.entries(CHECKED_ELSEWHERE)) console.log(`  elsewhere: ${name} — ${why}`);
-  for (const [name, { errors, why }] of Object.entries(EXCLUDED)) console.log(`  excluded:  ${name} (${errors} errors) — ${why}`);
-  for (const [name, why] of Object.entries(NO_TYPECHECK)) console.log(`  no script: ${name} — ${why}`);
+  console.log(
+    `Typechecking ${checked.length} workspaces: ${checked.map((w) => w.name).join(', ')}`,
+  );
+  for (const [name, why] of Object.entries(CHECKED_ELSEWHERE))
+    console.log(`  elsewhere: ${name} — ${why}`);
+  for (const [name, { errors, why }] of Object.entries(EXCLUDED))
+    console.log(`  excluded:  ${name} (${errors} errors) — ${why}`);
+  for (const [name, why] of Object.entries(NO_TYPECHECK))
+    console.log(`  no script: ${name} — ${why}`);
 
   const typecheck = (name: string, stdio: 'inherit' | 'ignore'): boolean =>
-    spawnSync('bun', ['run', '--filter', name, 'typecheck'], { cwd: REPO_ROOT, stdio }).status === 0;
+    spawnSync('bun', ['run', '--filter', name, 'typecheck'], { cwd: REPO_ROOT, stdio }).status ===
+    0;
 
   const failed: string[] = [];
   for (const workspace of checked) {

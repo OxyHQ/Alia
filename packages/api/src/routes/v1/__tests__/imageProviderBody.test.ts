@@ -57,8 +57,8 @@ interface RouteLayer {
 
 function handler() {
   const stack = (imagesRouter as unknown as { stack: RouteLayer[] }).stack;
-  const layer = stack.find((candidate) =>
-    candidate.route?.path === '/generations' && candidate.route.methods?.post,
+  const layer = stack.find(
+    (candidate) => candidate.route?.path === '/generations' && candidate.route.methods?.post,
   );
   const handle = layer?.route?.stack.at(-1)?.handle;
   if (handle === undefined) throw new Error('POST /generations not mounted');

@@ -24,7 +24,16 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { v1: child, chat: child, general: child, agents: child, credits: child, providers: child } };
+  return {
+    log: {
+      v1: child,
+      chat: child,
+      general: child,
+      agents: child,
+      credits: child,
+      providers: child,
+    },
+  };
 });
 vi.mock('../../observability/index.js', () => ({ recordEvent: vi.fn() }));
 vi.mock('../../chat-core.js', () => ({ reportModelUsage: vi.fn() }));

@@ -44,11 +44,7 @@
 import type { ExpirySweepTarget } from '@oxy.so/db/expiry';
 import { moderationEvents, moderationOutboxes } from './schema/moderation';
 import { audioJobs, notifications } from './schema/notifications';
-import {
-  MCP_OAUTH_STATE_TTL_SECONDS,
-  mcpOauthStates,
-  oauthStates,
-} from './schema/integrations';
+import { MCP_OAUTH_STATE_TTL_SECONDS, mcpOauthStates, oauthStates } from './schema/integrations';
 import { organizationInvites } from './schema/organizations';
 import { emailOutreachDecisions } from './schema/proactive';
 import { apiKeyUsage } from './schema/telemetry';
@@ -94,7 +90,8 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
     /** From creation. A job is ephemeral and whatever consumed it kept the URL. */
     column: audioJobs.createdAt,
     retentionSeconds: DAY,
-    reason: 'Audio generation jobs are ephemeral; the shortest retention in the schema, and intended.',
+    reason:
+      'Audio generation jobs are ephemeral; the shortest retention in the schema, and intended.',
   },
   {
     table: moderationOutboxes,
@@ -115,7 +112,8 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
     /** `expires_at` IS the deadline, so retention is ZERO. */
     column: moderationEvents.expiresAt,
     retentionSeconds: 0,
-    reason: 'Inbound dedupe claims; the claim must outlive every redelivery of its event and nothing after.',
+    reason:
+      'Inbound dedupe claims; the claim must outlive every redelivery of its event and nothing after.',
   },
   {
     table: organizationInvites,
@@ -166,6 +164,7 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
      */
     column: emailOutreachDecisions.createdAt,
     retentionSeconds: 90 * DAY,
-    reason: 'Idempotency keys for email outreach (one per considered email); they hold a verdict, never the email.',
+    reason:
+      'Idempotency keys for email outreach (one per considered email); they hold a verdict, never the email.',
   },
 ];

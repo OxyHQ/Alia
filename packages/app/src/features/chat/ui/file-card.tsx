@@ -65,9 +65,7 @@ export function FileCard({ file, onPress, onDelete }: FileCardProps) {
       leading={
         <Avatar
           size={36}
-          source={
-            file.category === 'images' && file.thumbnail ? file.thumbnail : null
-          }
+          source={file.category === 'images' && file.thumbnail ? file.thumbnail : null}
           color="neutral"
           placeholderIcon={categoryIcon(file.category)}
           alt={file.name}
@@ -79,10 +77,7 @@ export function FileCard({ file, onPress, onDelete }: FileCardProps) {
       trailing={
         onDelete === undefined ? undefined : (
           <DropdownMenu>
-            <DropdownMenuTrigger
-              label={t('library.fileActions', { name: file.name })}
-              asChild
-            >
+            <DropdownMenuTrigger label={t('library.fileActions', { name: file.name })} asChild>
               <Button
                 icon={RiMoreFill}
                 size="sm"

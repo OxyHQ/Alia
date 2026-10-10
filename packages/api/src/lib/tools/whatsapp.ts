@@ -48,15 +48,21 @@ async function gatewayFetch<T = unknown>(path: string, options?: RequestInit): P
  */
 export function createGetWhatsAppChatsTool(userId: string) {
   return tool({
-    description: 'Get the user\'s recent WhatsApp conversations. Returns chat names, unread counts, and last message previews.',
+    description:
+      "Get the user's recent WhatsApp conversations. Returns chat names, unread counts, and last message previews.",
     inputSchema: z.object({}),
     execute: async () => {
       try {
-        const data = await gatewayFetch<{ chats?: WhatsAppChatSummary[] }>(`/sessions/${userId}/chats`);
+        const data = await gatewayFetch<{ chats?: WhatsAppChatSummary[] }>(
+          `/sessions/${userId}/chats`,
+        );
         const chats = data.chats || [];
 
         if (chats.length === 0) {
-          return { success: true, message: 'No WhatsApp chats found. The session may still be syncing.' };
+          return {
+            success: true,
+            message: 'No WhatsApp chats found. The session may still be syncing.',
+          };
         }
 
         return {
@@ -84,14 +90,21 @@ export function createGetWhatsAppChatsTool(userId: string) {
  */
 export function createGetWhatsAppMessagesTool(userId: string) {
   return tool({
-    description: 'Get recent messages from a specific WhatsApp chat. First use getWhatsAppChats to find the chat name and JID.',
+    description:
+      'Get recent messages from a specific WhatsApp chat. First use getWhatsAppChats to find the chat name and JID.',
     inputSchema: z.object({
-      jid: z.string().describe('The chat JID (e.g. "1234567890@s.whatsapp.net"). Get this from getWhatsAppChats.'),
+      jid: z
+        .string()
+        .describe(
+          'The chat JID (e.g. "1234567890@s.whatsapp.net"). Get this from getWhatsAppChats.',
+        ),
       limit: z.number().optional().default(20).describe('Number of messages to fetch (max 50)'),
     }),
     execute: async ({ jid, limit }) => {
       try {
-        const data = await gatewayFetch<{ messages?: WhatsAppMessageSummary[] }>(`/sessions/${userId}/chats/${encodeURIComponent(jid)}/messages?limit=${limit}`);
+        const data = await gatewayFetch<{ messages?: WhatsAppMessageSummary[] }>(
+          `/sessions/${userId}/chats/${encodeURIComponent(jid)}/messages?limit=${limit}`,
+        );
         const messages = data.messages || [];
 
         if (messages.length === 0) {
@@ -101,7 +114,7 @@ export function createGetWhatsAppMessagesTool(userId: string) {
         return {
           success: true,
           messages: messages.map((m) => ({
-            from: m.fromMe ? 'You' : (m.pushName || 'Unknown'),
+            from: m.fromMe ? 'You' : m.pushName || 'Unknown',
             text: m.text,
             time: m.timestamp ? new Date(m.timestamp * 1000).toISOString() : null,
           })),
@@ -119,9 +132,14 @@ export function createGetWhatsAppMessagesTool(userId: string) {
  */
 export function createSendWhatsAppMessageTool(userId: string) {
   return tool({
-    description: 'Send a WhatsApp message. Use ONLY when the user explicitly asks to send a message on WhatsApp. First use getWhatsAppChats to find the recipient JID.',
+    description:
+      'Send a WhatsApp message. Use ONLY when the user explicitly asks to send a message on WhatsApp. First use getWhatsAppChats to find the recipient JID.',
     inputSchema: z.object({
-      jid: z.string().describe('The recipient JID (e.g. "1234567890@s.whatsapp.net"). Get this from getWhatsAppChats.'),
+      jid: z
+        .string()
+        .describe(
+          'The recipient JID (e.g. "1234567890@s.whatsapp.net"). Get this from getWhatsAppChats.',
+        ),
       message: z.string().describe('The message text to send'),
     }),
     execute: async ({ jid, message }) => {

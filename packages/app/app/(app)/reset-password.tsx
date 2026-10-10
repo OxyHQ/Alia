@@ -64,10 +64,7 @@ export default function ResetPasswordScreen() {
       signIn().catch(() => {});
     } catch (error: unknown) {
       console.error('Reset password error:', error);
-      const errorMessage = getErrorMessage(
-        error,
-        t('resetPassword.failedToReset'),
-      );
+      const errorMessage = getErrorMessage(error, t('resetPassword.failedToReset'));
       setError(errorMessage);
 
       toast.error(errorMessage);

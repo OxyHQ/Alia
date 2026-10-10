@@ -13,7 +13,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // `src/shared/platform/config.ts` and `src/shared/api/generate-api-url.ts` reach for the native runtime for
 // the API host, which has nothing to do with the identifier under test. Only
 // those two modules are stood in for; the hook itself is the real one.
-vi.mock('react-native', () => ({ Platform: { OS: 'web', select: (o: Record<string, unknown>) => o.web } }));
+vi.mock('react-native', () => ({
+  Platform: { OS: 'web', select: (o: Record<string, unknown>) => o.web },
+}));
 vi.mock('expo-constants', () => ({ default: { experienceUrl: undefined } }));
 
 const fetchCalls: { url: string; body: Record<string, unknown> }[] = [];

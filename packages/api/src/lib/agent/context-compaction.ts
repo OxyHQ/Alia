@@ -45,9 +45,7 @@ export interface CompactionResult {
  *   4. Replace the in-memory stream with compacted version, dropping the cold
  *      entries
  */
-export async function compactContext(
-  eventStream: EventStream,
-): Promise<CompactionResult> {
+export async function compactContext(eventStream: EventStream): Promise<CompactionResult> {
   const tokensBefore = eventStream.estimateTokens();
 
   // Skip if not enough tokens to warrant compaction
@@ -113,7 +111,12 @@ export async function compactContext(
   const tokensAfter = eventStream.estimateTokens();
 
   log.agents.info(
-    { tokensBefore, tokensAfter, summarizedCount, reduction: `${Math.round((1 - tokensAfter / tokensBefore) * 100)}%` },
+    {
+      tokensBefore,
+      tokensAfter,
+      summarizedCount,
+      reduction: `${Math.round((1 - tokensAfter / tokensBefore) * 100)}%`,
+    },
     'Context compaction: completed',
   );
 
@@ -126,8 +129,9 @@ export async function compactContext(
  */
 async function summarizeEntries(entries: EventStreamEntry[]): Promise<string> {
   const content = entries
-    .map(e => {
-      const prefix = e.type === 'action' ? 'ACTION' : e.type === 'observation' ? 'RESULT' : e.type.toUpperCase();
+    .map((e) => {
+      const prefix =
+        e.type === 'action' ? 'ACTION' : e.type === 'observation' ? 'RESULT' : e.type.toUpperCase();
       const tool = e.metadata?.toolName ? ` [${e.metadata.toolName}]` : '';
       return `${prefix}${tool}: ${e.content.slice(0, 500)}`;
     })
@@ -138,8 +142,8 @@ async function summarizeEntries(entries: EventStreamEntry[]): Promise<string> {
     if (!resolved) {
       // Fallback: simple truncation
       return entries
-        .filter(e => e.type === 'action' || e.type === 'observation' || e.type === 'error')
-        .map(e => `- ${e.metadata?.toolName || e.type}: ${e.content.slice(0, 100)}`)
+        .filter((e) => e.type === 'action' || e.type === 'observation' || e.type === 'error')
+        .map((e) => `- ${e.metadata?.toolName || e.type}: ${e.content.slice(0, 100)}`)
         .join('\n');
     }
 
@@ -147,7 +151,8 @@ async function summarizeEntries(entries: EventStreamEntry[]): Promise<string> {
 
     const result = await generateText({
       model,
-      system: 'Summarize the following agent activity log into a concise bullet-point summary. Focus on: what was done, what was found, what decisions were made, and any errors encountered. Keep it under 300 words.',
+      system:
+        'Summarize the following agent activity log into a concise bullet-point summary. Focus on: what was done, what was found, what decisions were made, and any errors encountered. Keep it under 300 words.',
       messages: [{ role: 'user', content }],
       temperature: 0.1,
       maxRetries: 1,
@@ -158,8 +163,8 @@ async function summarizeEntries(entries: EventStreamEntry[]): Promise<string> {
     log.agents.warn({ err }, 'Context compaction: summarization failed');
     // Fallback: extract just actions and errors
     return entries
-      .filter(e => e.type === 'action' || e.type === 'error')
-      .map(e => `- ${e.metadata?.toolName || e.type}: ${e.content.slice(0, 100)}`)
+      .filter((e) => e.type === 'action' || e.type === 'error')
+      .map((e) => `- ${e.metadata?.toolName || e.type}: ${e.content.slice(0, 100)}`)
       .join('\n');
   }
 }

@@ -113,10 +113,7 @@ export async function findIntegrationForUser(
  * A projection of ONE column, which is what `.select('service')` was — the tool
  * builder needs the names and nothing else, so nothing else is read.
  */
-export async function listConnectedServices(
-  db: ApiDatabase,
-  oxyUserId: string,
-): Promise<string[]> {
+export async function listConnectedServices(db: ApiDatabase, oxyUserId: string): Promise<string[]> {
   const rows = await db
     .select({ service: integrations.service })
     .from(integrations)

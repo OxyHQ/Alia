@@ -62,14 +62,12 @@ export function AgentIdentitySummary({ agent }: { agent: Agent }) {
             .join(' · ')}
         </Muted>
       )}
-      {agent.tagline ? (
-        <Text variant="body-regular">{agent.tagline}</Text>
-      ) : null}
+      {agent.tagline ? <Text variant="body-regular">{agent.tagline}</Text> : null}
       <View className="flex-row items-center gap-3">
         <Rating value={agent.rating} count={agent.reviewCount} size="small" />
         <Muted>
-          {formatCount(agent.hireCount)} {t('agents.hires')} ·{' '}
-          {formatCount(agent.usageCount)} {t('agents.uses')}
+          {formatCount(agent.hireCount)} {t('agents.hires')} · {formatCount(agent.usageCount)}{' '}
+          {t('agents.uses')}
         </Muted>
       </View>
     </View>

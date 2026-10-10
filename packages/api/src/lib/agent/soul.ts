@@ -119,9 +119,10 @@ export async function evolveAgentSoul(
 
     const newCount = (agent.soul?.interactionCount ?? 0) + 1;
 
-    const prompt = EVOLUTION_PROMPT
-      .replace('{{TASK}}', task.slice(0, 500))
-      .replace('{{RESPONSE}}', response.slice(0, 500));
+    const prompt = EVOLUTION_PROMPT.replace('{{TASK}}', task.slice(0, 500)).replace(
+      '{{RESPONSE}}',
+      response.slice(0, 500),
+    );
 
     // The utility model, for the cheapest possible evolution.
     const resolved = await resolveUtilityModel();

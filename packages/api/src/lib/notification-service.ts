@@ -67,7 +67,10 @@ export interface SendNotificationOptions {
  * If explicit channels are provided, use those. Otherwise, default to Alia
  * in-app and Oxy push. External messaging connections are opt-in per rule.
  */
-async function resolveChannels(userId: string, explicit?: NotificationChannel[]): Promise<NotificationChannel[]> {
+async function resolveChannels(
+  userId: string,
+  explicit?: NotificationChannel[],
+): Promise<NotificationChannel[]> {
   if (explicit && explicit.length > 0) {
     return explicit;
   }
@@ -126,7 +129,7 @@ async function deliverTelegram(userId: string, notification: NotificationRow): P
 async function deliverViaChannel(
   channelId: ChannelId,
   userId: string,
-  notification: NotificationRow
+  notification: NotificationRow,
 ): Promise<boolean> {
   // Find user's connected account for this channel
   const account = await findConnectedAccountForChannel(getDb(), userId, channelId);
@@ -169,7 +172,8 @@ async function deliverPush(userId: string, notification: NotificationRow): Promi
         ...notification.data,
       },
       sound: 'default',
-      priority: notification.priority === 'urgent' || notification.priority === 'high' ? 'high' : 'normal',
+      priority:
+        notification.priority === 'urgent' || notification.priority === 'high' ? 'high' : 'normal',
       channelId: 'default',
     });
   }
@@ -194,11 +198,20 @@ async function deliverPush(userId: string, notification: NotificationRow): Promi
           }
         } else {
           // ticket.status === 'error'
-          const errorDetail = ticket as { status: 'error'; message: string; details?: { error: string } };
+          const errorDetail = ticket as {
+            status: 'error';
+            message: string;
+            details?: { error: string };
+          };
           const failedTo = chunk[i].to;
           const failedToken = Array.isArray(failedTo) ? failedTo[0] : failedTo;
           log.general.warn(
-            { userId, token: failedToken, error: errorDetail.message, errorCode: errorDetail.details?.error },
+            {
+              userId,
+              token: failedToken,
+              error: errorDetail.message,
+              errorCode: errorDetail.details?.error,
+            },
             'Expo push ticket error',
           );
 
@@ -221,7 +234,7 @@ async function deliverPush(userId: string, notification: NotificationRow): Promi
 
   // Update lastUsedAt for active tokens
   if (anySucceeded) {
-    const activeTokenIds = tokens.filter(t => Expo.isExpoPushToken(t.token)).map(t => t.id);
+    const activeTokenIds = tokens.filter((t) => Expo.isExpoPushToken(t.token)).map((t) => t.id);
     await touchPushTokens(getDb(), activeTokenIds);
   }
 
@@ -243,13 +256,19 @@ async function checkPushReceipts(receiptIds: ExpoPushReceiptId[]): Promise<void>
       for (const [receiptId, receipt] of Object.entries(receipts)) {
         if (receipt.status === 'error') {
           const { message, details } = receipt;
-          log.general.warn({ receiptId, message, error: details?.error }, 'Expo push receipt error');
+          log.general.warn(
+            { receiptId, message, error: details?.error },
+            'Expo push receipt error',
+          );
 
           // Deactivate invalid device tokens
           if (details?.error === 'DeviceNotRegistered') {
             // We can't directly map receiptId -> token, but Expo will stop delivering
             // to unregistered devices. The token gets deactivated on the next send attempt.
-            log.general.info({ receiptId }, 'Device not registered — token will be deactivated on next send');
+            log.general.info(
+              { receiptId },
+              'Device not registered — token will be deactivated on next send',
+            );
           }
         }
       }
@@ -294,22 +313,31 @@ async function deliverWebPush(userId: string, notification: NotificationRow): Pr
         if (statusCode === 410 || statusCode === 404) {
           // Subscription expired or invalid — deactivate
           await deactivateWebPushSubscriptionById(getDb(), sub.id);
-          log.general.info({ userId, endpoint: sub.endpoint }, 'Web push subscription expired, deactivated');
+          log.general.info(
+            { userId, endpoint: sub.endpoint },
+            'Web push subscription expired, deactivated',
+          );
         } else {
-          log.general.warn({ err: error, userId, endpoint: sub.endpoint }, 'Web push delivery failed');
+          log.general.warn(
+            { err: error, userId, endpoint: sub.endpoint },
+            'Web push delivery failed',
+          );
         }
         throw error; // Re-throw so Promise.allSettled marks as rejected
       }
     }),
   );
 
-  return results.some(r => r.status === 'fulfilled');
+  return results.some((r) => r.status === 'fulfilled');
 }
 
 function formatNotificationText(notification: NotificationRow): string {
-  const priorityEmoji = notification.priority === 'urgent' ? '\u26a0\ufe0f '
-    : notification.priority === 'high' ? '\u2757 '
-    : '';
+  const priorityEmoji =
+    notification.priority === 'urgent'
+      ? '\u26a0\ufe0f '
+      : notification.priority === 'high'
+        ? '\u2757 '
+        : '';
 
   return `${priorityEmoji}${notification.title}\n\n${notification.body}`;
 }
@@ -342,7 +370,7 @@ export async function sendNotification(options: SendNotificationOptions): Promis
     body: body.slice(0, 4000), // Cap body length
     data,
     channels,
-    deliveryStatus: Object.fromEntries(channels.map(ch => [ch, 'pending'])),
+    deliveryStatus: Object.fromEntries(channels.map((ch) => [ch, 'pending'])),
     priority,
     triggerId,
     conversationId,
@@ -418,6 +446,9 @@ export async function markAllAsRead(userId: string): Promise<number> {
   return markAllNotificationsRead(getDb(), userId);
 }
 
-export async function dismissNotification(notificationId: string, userId: string): Promise<boolean> {
+export async function dismissNotification(
+  notificationId: string,
+  userId: string,
+): Promise<boolean> {
   return dismissNotificationRow(getDb(), notificationId, userId);
 }

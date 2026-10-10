@@ -95,7 +95,9 @@ export default function AuthorizeScreen() {
             title={t('authorize.linked')}
             description={message}
             footer={
-              <Muted className="text-center">{t('authorize.returnToApp', { app: displayName })}</Muted>
+              <Muted className="text-center">
+                {t('authorize.returnToApp', { app: displayName })}
+              </Muted>
             }
           />
         )}

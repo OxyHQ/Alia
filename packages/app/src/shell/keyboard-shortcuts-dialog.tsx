@@ -4,41 +4,35 @@ import { Dialog } from '@oxy.so/bloom/dialog';
 import { Kbd } from '@oxy.so/bloom/kbd';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Platform, View } from 'react-native';
-const isMac =
-  typeof navigator !== "undefined" &&
-  /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
 function modKey(): string {
-  return isMac ? "⌘" : "Ctrl";
+  return isMac ? '⌘' : 'Ctrl';
 }
 
 const SHORTCUT_SECTIONS = [
   {
-    titleKey: "keyboardShortcuts.navigation",
+    titleKey: 'keyboardShortcuts.navigation',
     shortcuts: [
-      { labelKey: "keyboardShortcuts.commandPalette", keys: () => [modKey(), "K"] },
-      { labelKey: "keyboardShortcuts.settings", keys: () => [modKey(), ","] },
-      { labelKey: "keyboardShortcuts.shortcuts", keys: () => [modKey(), "/"] },
+      { labelKey: 'keyboardShortcuts.commandPalette', keys: () => [modKey(), 'K'] },
+      { labelKey: 'keyboardShortcuts.settings', keys: () => [modKey(), ','] },
+      { labelKey: 'keyboardShortcuts.shortcuts', keys: () => [modKey(), '/'] },
     ],
   },
   {
-    titleKey: "keyboardShortcuts.composer",
+    titleKey: 'keyboardShortcuts.composer',
     shortcuts: [
-      { labelKey: "keyboardShortcuts.sendMessage", keys: () => ["Enter"] },
-      { labelKey: "keyboardShortcuts.newLine", keys: () => ["⇧", "Enter"] },
+      { labelKey: 'keyboardShortcuts.sendMessage', keys: () => ['Enter'] },
+      { labelKey: 'keyboardShortcuts.newLine', keys: () => ['⇧', 'Enter'] },
     ],
   },
   {
-    titleKey: "keyboardShortcuts.conversation",
-    shortcuts: [
-      { labelKey: "keyboardShortcuts.newChat", keys: () => [modKey(), "⇧", "N"] },
-    ],
+    titleKey: 'keyboardShortcuts.conversation',
+    shortcuts: [{ labelKey: 'keyboardShortcuts.newChat', keys: () => [modKey(), '⇧', 'N'] }],
   },
   {
-    titleKey: "keyboardShortcuts.general",
-    shortcuts: [
-      { labelKey: "keyboardShortcuts.closeDialog", keys: () => ["Esc"] },
-    ],
+    titleKey: 'keyboardShortcuts.general',
+    shortcuts: [{ labelKey: 'keyboardShortcuts.closeDialog', keys: () => ['Esc'] }],
   },
 ];
 
@@ -51,14 +45,14 @@ export function KeyboardShortcutsDialog() {
   const setOpen = useUIStore((s) => s.setShortcutsDialogOpen);
   const { t } = useTranslation();
 
-  if (Platform.OS !== "web") return null;
+  if (Platform.OS !== 'web') return null;
 
   return (
     <Dialog
       open={open}
       onClose={() => setOpen(false)}
-      placement={{ base: "bottom", md: "center" }}
-      title={t("keyboardShortcuts.title")}
+      placement={{ base: 'bottom', md: 'center' }}
+      title={t('keyboardShortcuts.title')}
       maxWidth={448}
     >
       <View className="gap-4">

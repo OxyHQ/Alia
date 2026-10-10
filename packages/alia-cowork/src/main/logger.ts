@@ -11,36 +11,36 @@
  * `NODE_ENV=development`; `info`/`warn`/`error` always log.
  */
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-const isDev = process.env.NODE_ENV === 'development'
+const isDev = process.env.NODE_ENV === 'development';
 
 function stringifyArg(arg: unknown): string {
-  if (arg instanceof Error) return arg.stack || arg.message
-  if (typeof arg === 'string') return arg
+  if (arg instanceof Error) return arg.stack || arg.message;
+  if (typeof arg === 'string') return arg;
   try {
-    return JSON.stringify(arg)
+    return JSON.stringify(arg);
   } catch {
-    return String(arg)
+    return String(arg);
   }
 }
 
 function write(level: LogLevel, scope: string, message: string, args: unknown[]): void {
-  if (level === 'debug' && !isDev) return
+  if (level === 'debug' && !isDev) return;
 
-  const timestamp = new Date().toISOString()
-  const suffix = args.length ? ` ${args.map(stringifyArg).join(' ')}` : ''
-  const line = `${timestamp} [${level.toUpperCase()}] [${scope}] ${message}${suffix}\n`
-  const stream = level === 'warn' || level === 'error' ? process.stderr : process.stdout
+  const timestamp = new Date().toISOString();
+  const suffix = args.length ? ` ${args.map(stringifyArg).join(' ')}` : '';
+  const line = `${timestamp} [${level.toUpperCase()}] [${scope}] ${message}${suffix}\n`;
+  const stream = level === 'warn' || level === 'error' ? process.stderr : process.stdout;
 
-  stream.write(line)
+  stream.write(line);
 }
 
 export interface Logger {
-  debug(message: string, ...args: unknown[]): void
-  info(message: string, ...args: unknown[]): void
-  warn(message: string, ...args: unknown[]): void
-  error(message: string, ...args: unknown[]): void
+  debug(message: string, ...args: unknown[]): void;
+  info(message: string, ...args: unknown[]): void;
+  warn(message: string, ...args: unknown[]): void;
+  error(message: string, ...args: unknown[]): void;
 }
 
 /** Creates a logger scoped to a single main-process module (e.g. `createLogger('ChatProvider')`). */
@@ -49,6 +49,6 @@ export function createLogger(scope: string): Logger {
     debug: (message, ...args) => write('debug', scope, message, args),
     info: (message, ...args) => write('info', scope, message, args),
     warn: (message, ...args) => write('warn', scope, message, args),
-    error: (message, ...args) => write('error', scope, message, args)
-  }
+    error: (message, ...args) => write('error', scope, message, args),
+  };
 }

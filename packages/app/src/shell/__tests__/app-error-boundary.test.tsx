@@ -32,7 +32,8 @@ vi.mock('@/shared/i18n/use-translation', () => ({
 vi.mock('@oxy.so/bloom/screen', async () => {
   const ReactModule = await import('react');
   return {
-    Screen: ({ children }: React.PropsWithChildren) => ReactModule.createElement('Screen', null, children),
+    Screen: ({ children }: React.PropsWithChildren) =>
+      ReactModule.createElement('Screen', null, children),
   };
 });
 vi.mock('@oxy.so/bloom/empty-state', async () => {
@@ -67,7 +68,7 @@ afterEach(() => {
 });
 
 describe('AppErrorBoundary', () => {
-  it('shows the catalogue\'s words, not the error', async () => {
+  it("shows the catalogue's words, not the error", async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     await act(async () => {
       renderer = create(
@@ -96,10 +97,12 @@ describe('AppErrorBoundary', () => {
     await act(async () => {
       empty.props.action.onPress();
     });
-    expect(renderer!.root.findAllByType('Recovered' as unknown as React.ElementType)).toHaveLength(1);
+    expect(renderer!.root.findAllByType('Recovered' as unknown as React.ElementType)).toHaveLength(
+      1,
+    );
   });
 
-  it('hands a caller\'s fallback the error and a reset', async () => {
+  it("hands a caller's fallback the error and a reset", async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const seen: { error?: Error; resetError?: () => void } = {};
     function Fallback({ error, resetError }: { error: Error; resetError: () => void }) {
@@ -120,6 +123,8 @@ describe('AppErrorBoundary', () => {
     await act(async () => {
       seen.resetError?.();
     });
-    expect(renderer!.root.findAllByType('Recovered' as unknown as React.ElementType)).toHaveLength(1);
+    expect(renderer!.root.findAllByType('Recovered' as unknown as React.ElementType)).toHaveLength(
+      1,
+    );
   });
 });

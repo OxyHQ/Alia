@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { getImagesFromContent, getTextFromContent } from '../../src/lib/content-utils';
-import { getResearchActiveLabel, getToolActiveLabel, getToolLabel } from '../../src/lib/tool-registry';
+import {
+  getResearchActiveLabel,
+  getToolActiveLabel,
+  getToolLabel,
+} from '../../src/lib/tool-registry';
 import { errorMessage, formatFileSize } from '../../src/lib/utils';
 
 /**

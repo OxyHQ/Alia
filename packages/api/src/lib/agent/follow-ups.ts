@@ -13,7 +13,10 @@
 
 import { getDb } from '../../db/index.js';
 import { listAutomationDefinitions } from '../../db/automation/automationDefinitionRepository.js';
-import { AutomationCreationError, createStructuredAutomation } from '../structured-automation-creation.js';
+import {
+  AutomationCreationError,
+  createStructuredAutomation,
+} from '../structured-automation-creation.js';
 
 export const AGENT_FOLLOW_UP_ORIGIN = 'agent_follow_up';
 
@@ -42,13 +45,15 @@ export async function scheduleAgentFollowUp(input: {
   const note = input.note.trim();
   if (!note) return { scheduled: false, reason: 'empty_note' };
 
-  const pending = (await listAutomationDefinitions(getDb(), input.ownerAccountId)).filter((automation) => (
-    automation.enabled
-    && automation.inputs.origin === AGENT_FOLLOW_UP_ORIGIN
-    && automation.actorSelection.mode === 'fixed'
-    && automation.actorSelection.agentId === input.agentId
-  ));
-  if (pending.length >= PENDING_FOLLOW_UP_LIMIT) return { scheduled: false, reason: 'too_many_pending' };
+  const pending = (await listAutomationDefinitions(getDb(), input.ownerAccountId)).filter(
+    (automation) =>
+      automation.enabled &&
+      automation.inputs.origin === AGENT_FOLLOW_UP_ORIGIN &&
+      automation.actorSelection.mode === 'fixed' &&
+      automation.actorSelection.agentId === input.agentId,
+  );
+  if (pending.length >= PENDING_FOLLOW_UP_LIMIT)
+    return { scheduled: false, reason: 'too_many_pending' };
 
   // One exact minute, in UTC: a five-field cron has no year, and `runOnce`
   // disables it when that occurrence is claimed, so it cannot fire again.

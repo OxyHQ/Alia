@@ -6,114 +6,117 @@
  * servers (filesystem, git, etc.) to be available in the chat pipeline.
  */
 
-import { spawn, type ChildProcess } from 'child_process'
-import Store from 'electron-store'
-import { errorMessage } from './errors'
-import { createLogger } from './logger'
-import { currentAccessToken } from './auth'
+import { spawn, type ChildProcess } from 'child_process';
+import Store from 'electron-store';
+import { errorMessage } from './errors';
+import { createLogger } from './logger';
+import { currentAccessToken } from './auth';
 
-const store = new Store()
-const logger = createLogger('MCP')
+const store = new Store();
+const logger = createLogger('MCP');
 
-const JSON_RPC_TIMEOUT_MS = 15_000
-const RECONNECT_DELAY_MS = 5_000
-const MAX_STDOUT_BUFFER = 1024 * 1024 // 1 MiB
+const JSON_RPC_TIMEOUT_MS = 15_000;
+const RECONNECT_DELAY_MS = 5_000;
+const MAX_STDOUT_BUFFER = 1024 * 1024; // 1 MiB
 
 interface McpServerConfig {
-  id: string
-  name: string
-  command: string
-  args: string[]
-  env?: Record<string, string>
+  id: string;
+  name: string;
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
 }
 
 interface McpTool {
-  name: string
-  description: string
-  inputSchema: Record<string, unknown>
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
 }
 
 interface LocalServer {
-  config: McpServerConfig
-  process: ChildProcess
-  tools: McpTool[]
-  nextId: number
-  pending: Map<number, {
-    resolve: (value: unknown) => void
-    reject: (reason: unknown) => void
-    timer: NodeJS.Timeout
-  }>
-  buffer: string
+  config: McpServerConfig;
+  process: ChildProcess;
+  tools: McpTool[];
+  nextId: number;
+  pending: Map<
+    number,
+    {
+      resolve: (value: unknown) => void;
+      reject: (reason: unknown) => void;
+      timer: NodeJS.Timeout;
+    }
+  >;
+  buffer: string;
 }
 
 /** Server entry returned by `GET /mcp/installed`. */
 interface InstalledServerEntry {
-  _id: string
-  name: string
-  runtime?: string
-  enabled?: boolean
-  config?: { command?: string; args?: string[]; env?: Record<string, string> }
+  _id: string;
+  name: string;
+  runtime?: string;
+  enabled?: boolean;
+  config?: { command?: string; args?: string[]; env?: Record<string, string> };
 }
 
 /** A single JSON-RPC `tools/list` tool descriptor. */
 interface RpcToolDescriptor {
-  name: string
-  description?: string
-  inputSchema?: Record<string, unknown>
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
 }
 
 /** A `tools/call` content block. */
 interface RpcContentBlock {
-  type: string
-  text?: string
+  type: string;
+  text?: string;
 }
 
 /** Inbound message from the relay WebSocket. */
 interface RelayMessage {
-  type: string
-  callId?: string
-  serverId?: string
-  toolName?: string
-  args?: Record<string, unknown>
-  error?: string
+  type: string;
+  callId?: string;
+  serverId?: string;
+  toolName?: string;
+  args?: Record<string, unknown>;
+  error?: string;
 }
 
 export class McpLocalClient {
-  private ws: WebSocket | null = null
-  private servers = new Map<string, LocalServer>()
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
-  private stopped = false
+  private ws: WebSocket | null = null;
+  private servers = new Map<string, LocalServer>();
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private stopped = false;
 
   /**
    * Start the MCP client: fetch local servers, spawn them, and connect to relay.
    */
   async start(): Promise<void> {
-    const apiKey = currentAccessToken()
-    if (!apiKey) return
+    const apiKey = currentAccessToken();
+    if (!apiKey) return;
 
     try {
-      const configs = await this.fetchLocalServers(apiKey)
-      if (!configs.length) return
+      const configs = await this.fetchLocalServers(apiKey);
+      if (!configs.length) return;
 
       for (const config of configs) {
-        await this.spawnServer(config)
+        await this.spawnServer(config);
       }
 
-      this.connectRelay(apiKey)
+      this.connectRelay(apiKey);
     } catch (err) {
-      logger.error('Failed to start:', err)
+      logger.error('Failed to start:', err);
     }
   }
 
   private async fetchLocalServers(apiKey: string): Promise<McpServerConfig[]> {
-    const baseUrl = (store.get('apiBaseUrl') as string) || 'https://api.alia.onl'
+    const baseUrl = (store.get('apiBaseUrl') as string) || 'https://api.alia.onl';
     const response = await fetch(`${baseUrl}/mcp/installed`, {
       headers: { Authorization: `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(10_000),
-    })
-    if (!response.ok) return []
+    });
+    if (!response.ok) return [];
 
-    const data = (await response.json()) as { servers?: InstalledServerEntry[] }
+    const data = (await response.json()) as { servers?: InstalledServerEntry[] };
     return (data.servers || [])
       .filter(
         (s): s is InstalledServerEntry & { config: { command: string } } =>
@@ -125,7 +128,7 @@ export class McpLocalClient {
         command: s.config.command,
         args: s.config.args || [],
         env: s.config.env,
-      }))
+      }));
   }
 
   private async spawnServer(config: McpServerConfig): Promise<void> {
@@ -133,7 +136,7 @@ export class McpLocalClient {
       const proc = spawn(config.command, config.args, {
         env: { ...process.env, ...config.env },
         stdio: ['pipe', 'pipe', 'pipe'],
-      })
+      });
 
       const server: LocalServer = {
         config,
@@ -142,70 +145,74 @@ export class McpLocalClient {
         nextId: 0,
         pending: new Map(),
         buffer: '',
-      }
+      };
 
       proc.stdout!.on('data', (chunk: Buffer) => {
-        server.buffer += chunk.toString()
+        server.buffer += chunk.toString();
         if (server.buffer.length > MAX_STDOUT_BUFFER) {
-          server.buffer = server.buffer.slice(-MAX_STDOUT_BUFFER)
+          server.buffer = server.buffer.slice(-MAX_STDOUT_BUFFER);
         }
-        this.processStdout(server)
-      })
+        this.processStdout(server);
+      });
 
       proc.stderr!.on('data', (chunk: Buffer) => {
-        logger.warn(`${config.name}: ${chunk.toString().trim()}`)
-      })
+        logger.warn(`${config.name}: ${chunk.toString().trim()}`);
+      });
 
       proc.on('exit', (code) => {
-        logger.info(`${config.name} exited (code ${code})`)
-        this.servers.delete(config.id)
-        this.sendMessage({ type: 'unregister-tools', serverId: config.id })
-      })
+        logger.info(`${config.name} exited (code ${code})`);
+        this.servers.delete(config.id);
+        this.sendMessage({ type: 'unregister-tools', serverId: config.id });
+      });
 
-      this.servers.set(config.id, server)
+      this.servers.set(config.id, server);
 
-      await this.initializeServer(server)
-      server.tools = await this.discoverTools(server)
-      logger.info(`${config.name} started with ${server.tools.length} tools`)
+      await this.initializeServer(server);
+      server.tools = await this.discoverTools(server);
+      logger.info(`${config.name} started with ${server.tools.length} tools`);
     } catch (err) {
-      logger.error(`${config.name} failed to spawn:`, err)
+      logger.error(`${config.name} failed to spawn:`, err);
     }
   }
 
-  private sendRpc(server: LocalServer, method: string, params?: Record<string, unknown>): Promise<unknown> {
+  private sendRpc(
+    server: LocalServer,
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      const id = ++server.nextId
+      const id = ++server.nextId;
       const timer = setTimeout(() => {
-        server.pending.delete(id)
-        reject(new Error(`JSON-RPC timeout: ${method}`))
-      }, JSON_RPC_TIMEOUT_MS)
+        server.pending.delete(id);
+        reject(new Error(`JSON-RPC timeout: ${method}`));
+      }, JSON_RPC_TIMEOUT_MS);
 
-      server.pending.set(id, { resolve, reject, timer })
+      server.pending.set(id, { resolve, reject, timer });
 
-      const msg = JSON.stringify({ jsonrpc: '2.0', id, method, params: params || {} }) + '\n'
-      server.process.stdin!.write(msg)
-    })
+      const msg = JSON.stringify({ jsonrpc: '2.0', id, method, params: params || {} }) + '\n';
+      server.process.stdin!.write(msg);
+    });
   }
 
   private processStdout(server: LocalServer): void {
-    const lines = server.buffer.split('\n')
-    server.buffer = lines.pop() || ''
+    const lines = server.buffer.split('\n');
+    server.buffer = lines.pop() || '';
 
     for (const line of lines) {
-      if (!line.trim()) continue
+      if (!line.trim()) continue;
       try {
-        const msg = JSON.parse(line)
-        if (msg.id === undefined) continue
+        const msg = JSON.parse(line);
+        if (msg.id === undefined) continue;
 
-        const pending = server.pending.get(msg.id)
-        if (!pending) continue
-        clearTimeout(pending.timer)
-        server.pending.delete(msg.id)
+        const pending = server.pending.get(msg.id);
+        if (!pending) continue;
+        clearTimeout(pending.timer);
+        server.pending.delete(msg.id);
 
         if (msg.error) {
-          pending.reject(new Error(msg.error.message || 'JSON-RPC error'))
+          pending.reject(new Error(msg.error.message || 'JSON-RPC error'));
         } else {
-          pending.resolve(msg.result)
+          pending.resolve(msg.result);
         }
       } catch {
         // Not valid JSON — skip
@@ -218,56 +225,56 @@ export class McpLocalClient {
       protocolVersion: '2024-11-05',
       capabilities: {},
       clientInfo: { name: 'alia-cowork', version: '1.0.0' },
-    })
+    });
     server.process.stdin!.write(
       JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n',
-    )
+    );
   }
 
   private async discoverTools(server: LocalServer): Promise<McpTool[]> {
-    const result = await this.sendRpc(server, 'tools/list')
-    const tools = (result as { tools?: RpcToolDescriptor[] } | null)?.tools || []
+    const result = await this.sendRpc(server, 'tools/list');
+    const tools = (result as { tools?: RpcToolDescriptor[] } | null)?.tools || [];
     return tools.map((t) => ({
       name: t.name,
       description: t.description || t.name,
       inputSchema: t.inputSchema || {},
-    }))
+    }));
   }
 
   private connectRelay(apiKey: string): void {
-    if (this.stopped) return
+    if (this.stopped) return;
 
-    const baseUrl = (store.get('apiBaseUrl') as string) || 'https://api.alia.onl'
-    const wsUrl = baseUrl.replace(/^http/, 'ws') + '/ws/mcp'
+    const baseUrl = (store.get('apiBaseUrl') as string) || 'https://api.alia.onl';
+    const wsUrl = baseUrl.replace(/^http/, 'ws') + '/ws/mcp';
 
     try {
-      this.ws = new WebSocket(wsUrl)
+      this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        logger.info('MCP relay connected')
-        this.sendMessage({ type: 'auth', token: apiKey })
-      }
+        logger.info('MCP relay connected');
+        this.sendMessage({ type: 'auth', token: apiKey });
+      };
 
       this.ws.onmessage = (event) => {
         try {
-          const msg = JSON.parse(event.data as string) as RelayMessage
-          this.handleRelayMessage(msg)
+          const msg = JSON.parse(event.data as string) as RelayMessage;
+          this.handleRelayMessage(msg);
         } catch (err) {
-          logger.error('Failed to handle relay message:', err)
+          logger.error('Failed to handle relay message:', err);
         }
-      }
+      };
 
       this.ws.onclose = () => {
-        if (this.stopped) return
-        logger.info('MCP relay disconnected, reconnecting...')
-        this.reconnectTimer = setTimeout(() => this.connectRelay(apiKey), RECONNECT_DELAY_MS)
-      }
+        if (this.stopped) return;
+        logger.info('MCP relay disconnected, reconnecting...');
+        this.reconnectTimer = setTimeout(() => this.connectRelay(apiKey), RECONNECT_DELAY_MS);
+      };
 
       this.ws.onerror = () => {
         // onclose will handle reconnection
-      }
+      };
     } catch (err) {
-      logger.error('Failed to connect relay:', err)
+      logger.error('Failed to connect relay:', err);
     }
   }
 
@@ -280,74 +287,74 @@ export class McpLocalClient {
             serverId: server.config.id,
             serverName: server.config.name,
             tools: server.tools,
-          })
+          });
         }
-        break
+        break;
 
       case 'auth-error':
-        logger.error('Auth failed:', msg.error)
-        this.ws?.close()
-        break
+        logger.error('Auth failed:', msg.error);
+        this.ws?.close();
+        break;
 
       case 'tool-call':
-        this.handleToolCall(msg).catch((err) => logger.error('Tool call handling failed:', err))
-        break
+        this.handleToolCall(msg).catch((err) => logger.error('Tool call handling failed:', err));
+        break;
     }
   }
 
   private async handleToolCall(msg: RelayMessage): Promise<void> {
-    const { callId, serverId, toolName, args } = msg
-    const server = serverId ? this.servers.get(serverId) : undefined
+    const { callId, serverId, toolName, args } = msg;
+    const server = serverId ? this.servers.get(serverId) : undefined;
 
     if (!server) {
-      this.sendMessage({ type: 'tool-error', callId, error: 'Server not found' })
-      return
+      this.sendMessage({ type: 'tool-error', callId, error: 'Server not found' });
+      return;
     }
 
     try {
       const result = await this.sendRpc(server, 'tools/call', {
         name: toolName,
         arguments: args || {},
-      })
+      });
 
       // Extract text content from MCP response
-      const content = (result as { content?: RpcContentBlock[] } | null)?.content
-      let text = ''
+      const content = (result as { content?: RpcContentBlock[] } | null)?.content;
+      let text = '';
       if (Array.isArray(content)) {
         text = content
           .filter((c) => c.type === 'text')
           .map((c) => c.text ?? '')
-          .join('\n')
+          .join('\n');
       } else {
-        text = JSON.stringify(result)
+        text = JSON.stringify(result);
       }
 
-      this.sendMessage({ type: 'tool-result', callId, result: text })
+      this.sendMessage({ type: 'tool-result', callId, result: text });
     } catch (err: unknown) {
-      this.sendMessage({ type: 'tool-error', callId, error: errorMessage(err) })
+      this.sendMessage({ type: 'tool-error', callId, error: errorMessage(err) });
     }
   }
 
   private sendMessage(msg: Record<string, unknown>): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(msg))
+      this.ws.send(JSON.stringify(msg));
     }
   }
 
   async shutdown(): Promise<void> {
-    this.stopped = true
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
+    this.stopped = true;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
 
     for (const server of this.servers.values()) {
       for (const pending of server.pending.values()) {
-        clearTimeout(pending.timer)
-        pending.reject(new Error('Shutting down'))
+        clearTimeout(pending.timer);
+        pending.reject(new Error('Shutting down'));
       }
-      server.process.kill('SIGTERM')
+      server.process.kill('SIGTERM');
     }
-    this.servers.clear()
+    this.servers.clear();
 
-    this.ws?.close()
-    this.ws = null
+    this.ws?.close();
+    this.ws = null;
   }
 }

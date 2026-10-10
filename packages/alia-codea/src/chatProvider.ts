@@ -93,12 +93,17 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   private _toolExecutor: ToolExecutor;
   private _isProcessing: boolean = false;
   private _currentMode: string = 'ask';
-  private _lastRequestParams: { baseUrl: string; accessToken: string; model: string | undefined; clientContext: string } | null = null;
+  private _lastRequestParams: {
+    baseUrl: string;
+    accessToken: string;
+    model: string | undefined;
+    clientContext: string;
+  } | null = null;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly _context: vscode.ExtensionContext,
-    private readonly _authProvider: AliaAuthenticationProvider
+    private readonly _authProvider: AliaAuthenticationProvider,
   ) {
     this._toolExecutor = new ToolExecutor();
 
@@ -146,7 +151,11 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     const accessToken = await this._authProvider.getAccessToken().catch(() => null);
 
     const picker = await fetchPickerCatalogue(baseUrl, accessToken ?? undefined);
-    this._view?.webview.postMessage({ type: 'models', groups: picker.groups, defaultLabel: picker.defaultLabel });
+    this._view?.webview.postMessage({
+      type: 'models',
+      groups: picker.groups,
+      defaultLabel: picker.defaultLabel,
+    });
   }
 
   private async handleSignOut(): Promise<void> {
@@ -172,13 +181,13 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
     context: vscode.WebviewViewResolveContext,
-    _token: vscode.CancellationToken
+    _token: vscode.CancellationToken,
   ) {
     this._view = webviewView;
 
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [this._extensionUri]
+      localResourceRoots: [this._extensionUri],
     };
 
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
@@ -232,13 +241,17 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
     const conversations = this.getConversations();
 
-    const firstUserMessage = this._messages.find(m => m.role === 'user');
-    const title = firstUserMessage && 'content' in firstUserMessage && typeof firstUserMessage.content === 'string'
-      ? firstUserMessage.content.slice(0, 50) + (firstUserMessage.content.length > 50 ? '...' : '')
-      : 'New conversation';
+    const firstUserMessage = this._messages.find((m) => m.role === 'user');
+    const title =
+      firstUserMessage &&
+      'content' in firstUserMessage &&
+      typeof firstUserMessage.content === 'string'
+        ? firstUserMessage.content.slice(0, 50) +
+          (firstUserMessage.content.length > 50 ? '...' : '')
+        : 'New conversation';
 
     if (this._currentConversationId) {
-      const index = conversations.findIndex(c => c.id === this._currentConversationId);
+      const index = conversations.findIndex((c) => c.id === this._currentConversationId);
       if (index !== -1) {
         conversations[index].messages = [...this._messages];
         conversations[index].title = title;
@@ -251,7 +264,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
         title,
         messages: [...this._messages],
         createdAt: Date.now(),
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       });
     }
 
@@ -272,7 +285,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       items.push({
         label: '$(selection) Selection',
         description: `${lineCount} line${lineCount > 1 ? 's' : ''} selected`,
-        detail: 'Add the currently selected text'
+        detail: 'Add the currently selected text',
       });
     }
 
@@ -281,27 +294,33 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       items.push({
         label: '$(file) Current File',
         description: relativePath,
-        detail: 'Add the currently open file to context'
+        detail: 'Add the currently open file to context',
       });
     }
 
     const allDiagnostics = vscode.languages.getDiagnostics();
-    const errorCount = allDiagnostics.reduce((sum, [, diags]) =>
-      sum + diags.filter(d => d.severity === vscode.DiagnosticSeverity.Error).length, 0);
-    const warningCount = allDiagnostics.reduce((sum, [, diags]) =>
-      sum + diags.filter(d => d.severity === vscode.DiagnosticSeverity.Warning).length, 0);
+    const errorCount = allDiagnostics.reduce(
+      (sum, [, diags]) =>
+        sum + diags.filter((d) => d.severity === vscode.DiagnosticSeverity.Error).length,
+      0,
+    );
+    const warningCount = allDiagnostics.reduce(
+      (sum, [, diags]) =>
+        sum + diags.filter((d) => d.severity === vscode.DiagnosticSeverity.Warning).length,
+      0,
+    );
     if (errorCount > 0 || warningCount > 0) {
       items.push({
         label: '$(error) Problems',
         description: `${errorCount} errors, ${warningCount} warnings`,
-        detail: 'Add current problems and diagnostics'
+        detail: 'Add current problems and diagnostics',
       });
     }
 
     items.push({
       label: '$(git-commit) Git Changes',
       description: 'Staged and unstaged changes',
-      detail: 'Add current git diff to context'
+      detail: 'Add current git diff to context',
     });
 
     const activeTerminal = vscode.window.activeTerminal;
@@ -309,39 +328,45 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       items.push({
         label: '$(terminal) Terminal',
         description: activeTerminal.name,
-        detail: 'Add last command output (requires shell integration)'
+        detail: 'Add last command output (requires shell integration)',
       });
     }
 
     items.push({
       label: '$(folder) Browse Files...',
       description: '',
-      detail: 'Select files from your workspace'
+      detail: 'Select files from your workspace',
     });
 
     const openTabs = vscode.window.tabGroups.all
-      .flatMap(group => group.tabs)
-      .filter(tab => tab.input instanceof vscode.TabInputText)
-      .map(tab => (tab.input as vscode.TabInputText).uri);
+      .flatMap((group) => group.tabs)
+      .filter((tab) => tab.input instanceof vscode.TabInputText)
+      .map((tab) => (tab.input as vscode.TabInputText).uri);
 
     if (openTabs.length > 0) {
-      items.push({ label: 'Open Tabs', kind: vscode.QuickPickItemKind.Separator } as vscode.QuickPickItem);
+      items.push({
+        label: 'Open Tabs',
+        kind: vscode.QuickPickItemKind.Separator,
+      } as vscode.QuickPickItem);
     }
 
     for (const uri of openTabs.slice(0, 10)) {
       const relativePath = vscode.workspace.asRelativePath(uri);
-      if (relativePath !== (activeEditor ? vscode.workspace.asRelativePath(activeEditor.document.uri) : '')) {
+      if (
+        relativePath !==
+        (activeEditor ? vscode.workspace.asRelativePath(activeEditor.document.uri) : '')
+      ) {
         items.push({
           label: `$(file) ${relativePath.split('/').pop()}`,
           description: relativePath,
-          detail: 'Open tab'
+          detail: 'Open tab',
         });
       }
     }
 
     const selected = await vscode.window.showQuickPick(items, {
       placeHolder: 'Select context to add',
-      canPickMany: true
+      canPickMany: true,
     });
 
     if (!selected || selected.length === 0) return;
@@ -358,7 +383,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
           contextItems.push({
             path: `Selection (${relativePath}:${startLine}-${endLine})`,
             content: selectedText,
-            language: activeEditor.document.languageId
+            language: activeEditor.document.languageId,
           });
         }
       } else if (item.label === '$(error) Problems') {
@@ -366,7 +391,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
         contextItems.push({
           path: 'Problems',
           content: diagnosticsText,
-          language: 'text'
+          language: 'text',
         });
       } else if (item.label === '$(git-commit) Git Changes') {
         try {
@@ -375,7 +400,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
             contextItems.push({
               path: 'Git Changes',
               content: gitDiff,
-              language: 'diff'
+              language: 'diff',
             });
           }
         } catch (e) {
@@ -385,7 +410,9 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
         const terminal = vscode.window.activeTerminal;
         if (terminal) {
           try {
-            const shellIntegration = terminal.shellIntegration as ExtendedShellIntegration | undefined;
+            const shellIntegration = terminal.shellIntegration as
+              | ExtendedShellIntegration
+              | undefined;
             const executedCommands = shellIntegration?.executedCommands;
             if (executedCommands && executedCommands.length > 0) {
               const execution = executedCommands[executedCommands.length - 1];
@@ -394,8 +421,9 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
                 if (output) {
                   contextItems.push({
                     path: `Terminal: ${execution.commandLine || 'last command'}`,
-                    content: output.slice(0, 10000) + (output.length > 10000 ? '\n... (truncated)' : ''),
-                    language: 'text'
+                    content:
+                      output.slice(0, 10000) + (output.length > 10000 ? '\n... (truncated)' : ''),
+                    language: 'text',
                   });
                 }
               }
@@ -403,13 +431,13 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
               const selection = await vscode.window.showInputBox({
                 prompt: 'Paste terminal output here (shell integration not available)',
                 placeHolder: 'Paste your terminal output...',
-                ignoreFocusOut: true
+                ignoreFocusOut: true,
               });
               if (selection) {
                 contextItems.push({
                   path: 'Terminal Output',
                   content: selection,
-                  language: 'text'
+                  language: 'text',
                 });
               }
             }
@@ -417,13 +445,13 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
             const selection = await vscode.window.showInputBox({
               prompt: 'Paste terminal output here',
               placeHolder: 'Paste your terminal output...',
-              ignoreFocusOut: true
+              ignoreFocusOut: true,
             });
             if (selection) {
               contextItems.push({
                 path: 'Terminal Output',
                 content: selection,
-                language: 'text'
+                language: 'text',
               });
             }
           }
@@ -432,7 +460,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
         const files = await vscode.window.showOpenDialog({
           canSelectMany: true,
           openLabel: 'Add to Context',
-          filters: { 'All Files': ['*'] }
+          filters: { 'All Files': ['*'] },
         });
         if (files) {
           for (const file of files) {
@@ -441,7 +469,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
               contextItems.push({
                 path: vscode.workspace.asRelativePath(file),
                 content: doc.getText(),
-                language: doc.languageId
+                language: doc.languageId,
               });
             } catch (e) {
               // Skip unreadable files
@@ -453,7 +481,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
           contextItems.push({
             path: vscode.workspace.asRelativePath(activeEditor.document.uri),
             content: activeEditor.document.getText(),
-            language: activeEditor.document.languageId
+            language: activeEditor.document.languageId,
           });
         }
       } else if (item.description && !item.label.startsWith('Open Tabs')) {
@@ -465,7 +493,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
             contextItems.push({
               path: item.description,
               content: doc.getText(),
-              language: doc.languageId
+              language: doc.languageId,
             });
           }
         } catch (e) {
@@ -477,7 +505,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     if (contextItems.length > 0) {
       this._view?.webview.postMessage({
         type: 'contextAdded',
-        items: contextItems
+        items: contextItems,
       });
     }
   }
@@ -492,9 +520,14 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       lines.push(`## ${relativePath}`);
 
       for (const diag of diags) {
-        const severity = diag.severity === vscode.DiagnosticSeverity.Error ? 'Error' :
-                        diag.severity === vscode.DiagnosticSeverity.Warning ? 'Warning' :
-                        diag.severity === vscode.DiagnosticSeverity.Information ? 'Info' : 'Hint';
+        const severity =
+          diag.severity === vscode.DiagnosticSeverity.Error
+            ? 'Error'
+            : diag.severity === vscode.DiagnosticSeverity.Warning
+              ? 'Warning'
+              : diag.severity === vscode.DiagnosticSeverity.Information
+                ? 'Info'
+                : 'Hint';
         const line = diag.range.start.line + 1;
         const col = diag.range.start.character + 1;
         const source = diag.source ? `[${diag.source}] ` : '';
@@ -516,21 +549,31 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
     return new Promise((resolve) => {
       const cp = require('child_process');
-      cp.exec('git diff HEAD', { cwd: workspaceFolder.uri.fsPath, maxBuffer: 1024 * 1024 }, (error: Error | null, stdout: string) => {
-        if (error) {
-          cp.exec('git diff', { cwd: workspaceFolder.uri.fsPath, maxBuffer: 1024 * 1024 }, (error2: Error | null, stdout2: string) => {
-            if (error2 || !stdout2) {
-              resolve(null);
-            } else {
-              resolve(stdout2.slice(0, 10000) + (stdout2.length > 10000 ? '\n... (truncated)' : ''));
-            }
-          });
-        } else if (stdout) {
-          resolve(stdout.slice(0, 10000) + (stdout.length > 10000 ? '\n... (truncated)' : ''));
-        } else {
-          resolve('No changes detected.');
-        }
-      });
+      cp.exec(
+        'git diff HEAD',
+        { cwd: workspaceFolder.uri.fsPath, maxBuffer: 1024 * 1024 },
+        (error: Error | null, stdout: string) => {
+          if (error) {
+            cp.exec(
+              'git diff',
+              { cwd: workspaceFolder.uri.fsPath, maxBuffer: 1024 * 1024 },
+              (error2: Error | null, stdout2: string) => {
+                if (error2 || !stdout2) {
+                  resolve(null);
+                } else {
+                  resolve(
+                    stdout2.slice(0, 10000) + (stdout2.length > 10000 ? '\n... (truncated)' : ''),
+                  );
+                }
+              },
+            );
+          } else if (stdout) {
+            resolve(stdout.slice(0, 10000) + (stdout.length > 10000 ? '\n... (truncated)' : ''));
+          } else {
+            resolve('No changes detected.');
+          }
+        },
+      );
     });
   }
 
@@ -542,17 +585,17 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const items = conversations.map(c => ({
+    const items = conversations.map((c) => ({
       label: c.title,
       description: new Date(c.updatedAt).toLocaleDateString(),
       detail: `${c.messages.length} messages`,
-      conversation: c
+      conversation: c,
     }));
 
     const selected = await vscode.window.showQuickPick(items, {
       placeHolder: 'Select a conversation to restore',
       matchOnDescription: true,
-      matchOnDetail: true
+      matchOnDetail: true,
     });
 
     if (selected) {
@@ -569,7 +612,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     for (const message of this._messages) {
       this._view?.webview.postMessage({
         type: 'addMessage',
-        message
+        message,
       });
     }
   }
@@ -595,7 +638,12 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage({ type: 'endAssistantMessage' });
   }
 
-  private async handleUserMessage(content: string, mode: string = 'ask', selectedModel?: string, addedContext?: { path: string; content: string; language: string }[]) {
+  private async handleUserMessage(
+    content: string,
+    mode: string = 'ask',
+    selectedModel?: string,
+    addedContext?: { path: string; content: string; language: string }[],
+  ) {
     if (this._isProcessing) return;
 
     if (mode) {
@@ -618,10 +666,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     const model = await resolveModelId(baseUrl, requestedModel, accessToken ?? undefined);
 
     if (!accessToken) {
-      vscode.window.showErrorMessage(
-        'Please sign in to use Codea',
-        'Sign In'
-      ).then(selection => {
+      vscode.window.showErrorMessage('Please sign in to use Codea', 'Sign In').then((selection) => {
         if (selection === 'Sign In') {
           vscode.commands.executeCommand('codea.signIn');
         }
@@ -645,7 +690,10 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     if (!addedContext || addedContext.length === 0) {
-      const referencesCode = /\b(this|the|explain|review|fix|debug|code|file|function|error|codebase|project)\b/i.test(content);
+      const referencesCode =
+        /\b(this|the|explain|review|fix|debug|code|file|function|error|codebase|project)\b/i.test(
+          content,
+        );
 
       if (referencesCode && context.selection) {
         enhancedContent = `${content}\n\n**Selected code (${context.openFile?.path || 'unknown'}, lines ${context.selection.startLine}-${context.selection.endLine}):**\n\`\`\`${context.openFile?.language || ''}\n${context.selection.text}\n\`\`\``;
@@ -659,7 +707,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     this._messages.push({ role: 'user', content: enhancedContent });
     this._view?.webview.postMessage({
       type: 'addMessage',
-      message: { role: 'user', content }
+      message: { role: 'user', content },
     });
 
     this._isProcessing = true;
@@ -729,7 +777,12 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
    * The final round is sent with `tool_choice: 'none'` so a model that would
    * keep calling tools is made to answer instead of being cut off silently.
    */
-  private async processConversation(baseUrl: string, accessToken: string, model: string | undefined, clientContext: string): Promise<void> {
+  private async processConversation(
+    baseUrl: string,
+    accessToken: string,
+    model: string | undefined,
+    clientContext: string,
+  ): Promise<void> {
     this._view?.webview.postMessage({ type: 'startAssistantMessage' });
     this._abortController = new AbortController();
 
@@ -754,7 +807,14 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
 
     const streamOnce = async (finalRound: boolean): Promise<StreamOutcome> => {
       const attempt = (token: string) =>
-        this.consume(streamAliaChat({ baseUrl, accessToken: token, body: request(finalRound), signal: this._abortController?.signal }));
+        this.consume(
+          streamAliaChat({
+            baseUrl,
+            accessToken: token,
+            body: request(finalRound),
+            signal: this._abortController?.signal,
+          }),
+        );
       try {
         return await attempt(currentToken);
       } catch (error: unknown) {
@@ -772,7 +832,8 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     try {
       for (let round = 0; this._isProcessing; round++) {
         const lastRound = round >= MAX_TOOL_ROUNDS;
-        if (lastRound) log.warn(`[Codea] Max tool rounds (${MAX_TOOL_ROUNDS}) reached, forcing final response`);
+        if (lastRound)
+          log.warn(`[Codea] Max tool rounds (${MAX_TOOL_ROUNDS}) reached, forcing final response`);
 
         const outcome = await streamOnce(lastRound);
 
@@ -882,7 +943,12 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
         tool_call_id: toolCall.id,
         content: 'Error: Malformed tool arguments. Please retry with valid JSON.',
       });
-      this._view?.webview.postMessage({ type: 'toolResult', tool: toolName, success: false, result: 'Malformed tool arguments' });
+      this._view?.webview.postMessage({
+        type: 'toolResult',
+        tool: toolName,
+        success: false,
+        result: 'Malformed tool arguments',
+      });
       return;
     }
 
@@ -910,8 +976,17 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
       });
     } catch (error: unknown) {
       const errorMsg = errorMessage(error);
-      this._messages.push({ role: 'tool', tool_call_id: toolCall.id, content: `Error: ${errorMsg}` });
-      this._view?.webview.postMessage({ type: 'toolResult', tool: toolName, success: false, result: errorMsg });
+      this._messages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: `Error: ${errorMsg}`,
+      });
+      this._view?.webview.postMessage({
+        type: 'toolResult',
+        tool: toolName,
+        success: false,
+        result: errorMsg,
+      });
     }
   }
 
@@ -954,9 +1029,15 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
   }
 
   private _getHtmlForWebview(webview: vscode.Webview): string {
-    const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'index.js'));
-    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'index.css'));
-    const logoUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'codea-logo.png'));
+    const scriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'index.js'),
+    );
+    const styleUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'index.css'),
+    );
+    const logoUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'codea-logo.png'),
+    );
 
     const nonce = getNonce();
 

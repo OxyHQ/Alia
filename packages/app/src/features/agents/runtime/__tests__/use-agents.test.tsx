@@ -90,7 +90,7 @@ async function mount(): Promise<Harness> {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  let latest: Omit<Harness, 'names'> & { list: { name: string }[] } | undefined;
+  let latest: (Omit<Harness, 'names'> & { list: { name: string }[] }) | undefined;
 
   function Probe() {
     const mine = useMyAgents();
@@ -158,7 +158,10 @@ describe('the sidebar’s list, after a write', () => {
   });
 
   it('drops one that has just been deleted', async () => {
-    server.mine = [{ _id: 'keep', name: 'Keep' }, { _id: 'drop', name: 'Drop' }];
+    server.mine = [
+      { _id: 'keep', name: 'Keep' },
+      { _id: 'drop', name: 'Drop' },
+    ];
     const harness = await mount();
     expect(harness.names()).toEqual(['Keep', 'Drop']);
 

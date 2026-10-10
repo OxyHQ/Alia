@@ -111,49 +111,53 @@ router.get('/:id/activity-grid', optionalAuth, async (req: Request, res: Respons
 });
 
 // GET /agents/:id/sessions/:sessionId/activity — Agent session activity timeline
-router.get('/:id/sessions/:sessionId/activity', authenticateToken, async (req: Request, res: Response) => {
-  try {
-    if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
+router.get(
+  '/:id/sessions/:sessionId/activity',
+  authenticateToken,
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { sessionId } = req.params;
-    const { type, limit = '200', offset = '0' } = req.query;
+      const { sessionId } = req.params;
+      const { type, limit = '200', offset = '0' } = req.query;
 
-    /**
-     * Ownership in the WHERE, not a comparison after the read.
-     *
-     * The source loaded the session by id and then compared `userId`, which
-     * answers 403 rather than 404 — so a stranger learned that a session id
-     * exists. It also put the check one edit away from being dropped. Not
-     * finding it and not owning it are now the same answer.
-     */
-    const session = await findAgentSessionOwnedBy(getDb(), String(sessionId), req.user.id);
-    if (!session) return res.status(404).json({ error: 'Session not found' });
+      /**
+       * Ownership in the WHERE, not a comparison after the read.
+       *
+       * The source loaded the session by id and then compared `userId`, which
+       * answers 403 rather than 404 — so a stranger learned that a session id
+       * exists. It also put the check one edit away from being dropped. Not
+       * finding it and not owning it are now the same answer.
+       */
+      const session = await findAgentSessionOwnedBy(getDb(), String(sessionId), req.user.id);
+      if (!session) return res.status(404).json({ error: 'Session not found' });
 
-    const limitNum = Math.min(500, Math.max(1, parseInt(limit as string, 10) || 200));
-    const offsetNum = Math.max(0, parseInt(offset as string, 10) || 0);
+      const limitNum = Math.min(500, Math.max(1, parseInt(limit as string, 10) || 200));
+      const offsetNum = Math.max(0, parseInt(offset as string, 10) || 0);
 
-    const { entries, total } = await listSessionActivity(getDb(), String(sessionId), {
-      ...(typeof type === 'string' && { type }),
-      limit: limitNum,
-      offset: offsetNum,
-    });
+      const { entries, total } = await listSessionActivity(getDb(), String(sessionId), {
+        ...(typeof type === 'string' && { type }),
+        limit: limitNum,
+        offset: offsetNum,
+      });
 
-    res.json({
-      entries,
-      total,
-      session: {
-        status: session.status,
-        task: session.task,
-        result: session.result,
-        stats: session.stats,
-        config: session.config,
-      },
-    });
-  } catch (error: unknown) {
-    log.agents.error({ err: error }, 'Error getting session activity');
-    res.status(500).json({ error: 'Failed to get activity' });
-  }
-});
+      res.json({
+        entries,
+        total,
+        session: {
+          status: session.status,
+          task: session.task,
+          result: session.result,
+          stats: session.stats,
+          config: session.config,
+        },
+      });
+    } catch (error: unknown) {
+      log.agents.error({ err: error }, 'Error getting session activity');
+      res.status(500).json({ error: 'Failed to get activity' });
+    }
+  },
+);
 
 // GET /agents/sessions/:sid/sources - get sources found during a session
 router.get('/sessions/:sid/sources', authenticateToken, async (req: Request, res: Response) => {

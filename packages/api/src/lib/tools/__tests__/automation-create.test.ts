@@ -102,11 +102,15 @@ describe('structured automation creation tool', () => {
     };
     const tool = createAutomationTool('owner-1', 'live-user-token') as unknown as ExecutableTool;
 
-    await expect(tool.execute(assistantTask)).resolves.toEqual(expect.objectContaining({
-      success: true,
-    }));
-    expect(createStructuredAutomation).toHaveBeenCalledWith(expect.objectContaining({
-      definition: assistantTask,
-    }));
+    await expect(tool.execute(assistantTask)).resolves.toEqual(
+      expect.objectContaining({
+        success: true,
+      }),
+    );
+    expect(createStructuredAutomation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        definition: assistantTask,
+      }),
+    );
   });
 });

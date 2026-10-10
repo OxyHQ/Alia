@@ -1,5 +1,5 @@
-import { useAuth } from "@oxy.so/services";
-import { LoginForm } from "@/components/auth/login-form";
+import { useAuth } from '@oxy.so/services';
+import { LoginForm } from '@/components/auth/login-form';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
