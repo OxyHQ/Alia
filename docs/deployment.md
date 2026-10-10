@@ -7,7 +7,8 @@ there are no AWS keys in this repository.
 
 Infrastructure — the task definition, the ALB, the target group, ECR, IAM and the SSM
 parameter tree — is owned by `oxy-infra`, not by this repository. What lives here is the
-image, the environment contract below, and the secret allow-list in the deploy workflow.
+image and the environment contract below. Runtime secret values live only in SSM (see
+[Secrets](#secrets)).
 ## Preconditions
 
 - **PostgreSQL, reachable.** `DATABASE_URL` is required. `packages/api/src/index.ts:411`
@@ -207,23 +208,36 @@ rollout is that Oxy returns a non-empty catalogue to the Alia application
 
 ### Secrets
 
-The deploy workflow syncs an explicitly enumerated set of operational GitHub
-secrets into SSM under `/oxy/alia/*` and `/oxy/_shared/*`
-(`.github/workflows/deploy-aws.yml:65` onward), and ECS injects them at task launch. The
-list is enumerated one secret at a time on purpose: a workflow that walks the whole
-`secrets` context is shaped like an exfiltration payload and makes every run wait for
-human approval. **Adding a new secret means adding it to that list, or it never reaches
-SSM.**
+SSM Parameter Store is the ONE source of every runtime secret: `/oxy/alia/<NAME>` and
+`/oxy/alia-integrations/<NAME>` (`SecureString`), plus the oxy-infra-owned
+`/oxy/_shared/*`. ECS injects them at task launch. GitHub holds none of them, and no
+workflow writes one: `packages/api/src/db/__tests__/deployWorkflow.test.ts` fails if a
+workflow writes a secret to SSM or reads a repo secret other than the job token and the
+Cloudflare credentials `deploy-frontends.yml` spends. Until 2026-10-10 the API and
+integrations deploys copied GitHub repo secrets into SSM on every run.
 
-`/oxy/alia/INTEGRATIONS_SECRET` and `/oxy/alia-integrations/DATABASE_URL` are
-SSM-owned exceptions. Deploys verify only their name and type, never retrieve,
-decrypt, log or overwrite their value. The old `/oxy/alia/OXY_SERVICE_API_*`
+```bash
+# set or rotate (the owner, never a workflow)
+aws ssm put-parameter --profile oxy --region us-west-2 --type SecureString \
+  --overwrite --name /oxy/alia/VAPID_PRIVATE_KEY --value '…'
+# then roll the service so new tasks read it
+aws ecs update-service --profile oxy --region us-west-2 --cluster oxy-cluster \
+  --service alia --force-new-deployment
+```
+
+A NEW secret is written to SSM FIRST and only then bound in the task definition: a task
+naming a parameter that does not exist registers fine and then cannot start. The full
+procedure is oxy-infra `docs/runbooks/46-app-secrets-in-ssm.md`.
+
+`/oxy/alia/INTEGRATIONS_SECRET` and `/oxy/alia/TOKEN_ENCRYPTION_KEY` are bound by BOTH
+`alia` and `alia-integrations` — one parameter each, so a rotation reaches both services
+and both must be rolled. Deploys verify only the name and type of
+`/oxy/alia/INTEGRATIONS_SECRET` and `/oxy/alia-integrations/DATABASE_URL`, never
+retrieve, decrypt, log or overwrite their value. The old `/oxy/alia/OXY_SERVICE_API_*`
 pair is no longer injected (`TASK_SECRET_REMOVALS_JSON` in `deploy-aws.yml`):
 production Alia is an attested workload, so what it may do on Oxy is the
 `oxy-alia-task` binding's scopes — `capability-tickets:issue` included, or no
 Oxy app tool can run.
-
-Never set a repository secret to a placeholder. The sync job overwrites the real value.
 
 ## Startup behaviour
 
