@@ -9,10 +9,9 @@
  *
  * ## `rowCount` IS the count the orphan sweep wants, and that is not automatic
  *
- * `cleanupOrphanedJobs` read Mongo's `modifiedCount` — the number of matched
- * documents the update actually CHANGED. Postgres reports only `rowCount`, which
- * behaves like `matchedCount`, so the two agree only when every matched row is
- * guaranteed to change.
+ * `cleanupOrphanedJobs` wants the number of matched rows the update actually
+ * CHANGED. Postgres reports only `rowCount`, the matched count, so the two agree
+ * only when every matched row is guaranteed to change.
  *
  * Here they do, and it is a property of the filter rather than a coincidence:
  * the update selects `status = 'processing'` and sets `status = 'failed'`, so a
@@ -93,11 +92,9 @@ export interface AudioJobStatusRow {
 /**
  * The three fields the polling route renders, for a job belonging to this user.
  *
- * Scoped by `userId` exactly as the source was: a job id alone must not reveal
- * another account's generation. `id` is `text`, so an id of any shape simply
- * fails to match rather than raising — where Mongo answered a malformed
- * `ObjectId` with a `CastError` the route turned into a 500, this returns the
- * 404 the caller deserved.
+ * Scoped by `userId`: a job id alone must not reveal another account's
+ * generation. `id` is `text`, so an id of any shape simply fails to match and
+ * the caller gets a 404.
  */
 export async function findAudioJobStatus(
   db: ApiDatabase,

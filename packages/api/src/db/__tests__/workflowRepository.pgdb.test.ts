@@ -47,10 +47,8 @@ const seed = (owner: string, workflowId: string, name = 'a workflow') =>
 
 describe('the workflow lifecycle', () => {
   /**
-   * The reason the `pre('save')` hook and the route's hand-set `updatedAt` could
-   * BOTH go. Mongoose maintained the column two ways — the hook, which never
-   * fired on `findOneAndUpdate`, and an explicit `updatedAt: new Date()` in the
-   * update document. `@oxy.so/db`'s `updatedAt()` carries `$onUpdate`, so drizzle
+   * Nothing sets `updatedAt` by hand. `@oxy.so/db`'s `updatedAt()` carries
+   * `$onUpdate`, so drizzle
    * writes it on every `db.update()`.
    *
    * Asserted as a strict INCREASE against the stored value: a column that was

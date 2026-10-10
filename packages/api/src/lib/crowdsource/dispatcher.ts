@@ -48,18 +48,9 @@ export class ModerationOutboxDispatcher {
   /**
    * Begin draining.
    *
-   * **There is no topology precondition any more, and its removal was mandatory
-   * rather than tidying.** Under Mongo this gated on `assertTransactionalTopology()`,
-   * because a standalone `mongod` accepted every other write Alia made and failed
-   * only where a report and its outbox event had to commit together. Postgres has
-   * no such mode: transactions are not a deployment option.
-   *
-   * Leaving the check in place across the port would have been the quiet failure
-   * it was written to prevent. It read `mongoose.connection.db`, which is absent
-   * now, so it would have answered "cannot run transactions" on every boot — the
-   * dispatcher would never have started, reports would have queued in Postgres,
-   * and the only sign would have been one error line naming a database this
-   * service no longer uses.
+   * **There is no topology precondition.** A report and its outbox event commit
+   * together in one Postgres transaction, and transactions are not a deployment
+   * option, so there is nothing to check at boot.
    *
    * `CROWDSOURCE_ENABLED` still gates the LOOP and never the durable record.
    */

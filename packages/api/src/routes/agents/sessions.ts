@@ -77,10 +77,8 @@ async function withAgentIdentities(
 /**
  * Attach child agent info to a page of parent sessions, in ONE query.
  *
- * Returns a NEW array rather than mutating the argument in place, which is what
- * the Mongoose version did to `.lean()` documents. A mutation in place is
- * invisible at the call site and only worked because those objects were plain;
- * doing it here would mean writing an extra property onto a repository record
+ * Returns a NEW array rather than mutating the argument in place. A mutation in
+ * place is invisible at the call site, and doing it here would mean writing an extra property onto a repository record
  * whose type does not have one.
  */
 async function withChildAgents(

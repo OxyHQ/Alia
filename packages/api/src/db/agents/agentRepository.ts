@@ -22,9 +22,8 @@
  * reversal is deliberate; `domain/capability-grants.ts` argues it.
  *
  * `soul` still takes the absent-group shape, for its own reason: a group is
- * `undefined` rather than an object of nulls, because Mongoose left an unset
- * sub-document off the document entirely and `'soul' in agent` is a test a
- * client can make.
+ * `undefined` rather than an object of nulls, because an unset group is absent
+ * from the response and `'soul' in agent` is a test a client can make.
  *
  * ## `_id` is served from the Postgres `id`
  *
@@ -35,8 +34,7 @@
  *
  * ## Searching `tags` is an EXISTS over `unnest`, not a comparison
  *
- * `routes/agents/crud.ts:130` builds `{ tags: /search/i }`, and a Mongo regex
- * against an ARRAY field matches when ANY element matches. Comparing the array
+ * A tag search matches an agent when ANY element of `tags` matches. Comparing the array
  * itself to a pattern in Postgres matches nothing and reads as "no results" —
  * the quietest possible failure for a search box, and the same trap
  * `suggestionRepository` documents for `trigger_words`. The escaping is redone
@@ -46,9 +44,7 @@
  *
  * ## Replacing a child list needs the parent row LOCKED
  *
- * Mongo replaced `skills`/`knowledge` inside one document write, so it was
- * atomic and serialized by the document. Here it is DELETE-then-INSERT, and two
- * differences matter. The gap between them is a real state: a crash, reset or
+ * Replacing `skills`/`knowledge` is DELETE-then-INSERT, and two things matter. The gap between them is a real state: a crash, reset or
  * statement timeout in that window leaves an agent with no skills and no error.
  * And a transaction alone does not restore the serialization — under READ
  * COMMITTED two concurrent replaces leave the UNION of both, because writer B's
@@ -420,7 +416,7 @@ function catalogueFilter(query: AgentCatalogueQuery): SQL | undefined {
    * Oxy owns the identity, so Oxy should own the search over it. It cannot
    * today: `GET /profiles/search` takes `{query, limit, offset}` and nothing
    * else (oxy-api `profileSearchQuerySchema`), matching `username`,
-   * `name.first`, `name.last` and `description` under `peopleSearchMongoMatch`.
+   * `name.first`, `name.last` and `description` in its people-search match stage.
    * There is no `kind` filter at any layer.
    *
    * Filtering the RESULTS to `kind: 'bot'` in Alia is the trap. That `$match`
@@ -739,13 +735,8 @@ export async function findAgentSkills(db: Executor, agentId: string): Promise<Ag
 }
 
 /**
- * The join that replaces `.populate('knowledge', 'name type category url')`.
- *
- * That populate THROWS today: `knowledge` is declared `ref: 'LibraryFile'` and
- * S6 deleted that model, so mongoose answers `MissingSchemaError` for any result
- * holding at least one DOCUMENT — measured, and an empty `knowledge: []` still
- * throws. Only a zero-row result survives. Four endpoints are affected; this is
- * where their fix lands, and the switch that calls it is Phase B.
+ * An agent's knowledge files, joined to `library_files` for
+ * `name`, `type`, `category` and `url`.
  */
 export async function findAgentKnowledge(
   db: Executor,
@@ -922,14 +913,14 @@ export interface UpdateAgentInput {
  * half-measure that kept `author_oxy_user_id` here as well would silently
  * refuse every legitimate delegate.
  *
- * The SET clause is built from DEFINED keys only. `$set: { x: undefined }` is a
- * NO-OP in Mongo and the same statement in Postgres writes NULL, so spreading
+ * The SET clause is built from DEFINED keys only. An `undefined` value would
+ * write NULL, so spreading
  * an input object whose optional members may be `undefined` would erase columns
  * the caller never mentioned.
  *
  * Returns null when no row matched, which is the 404 the route answers — and
- * `rowCount` behaves like Mongo's `matchedCount`, not `modifiedCount`, so a
- * no-change patch still reports a hit rather than a 404.
+ * `rowCount` counts rows MATCHED, not rows changed, so a no-change patch still
+ * reports a hit rather than a 404.
  */
 export async function updateAgent(
   db: ApiDatabase,
@@ -964,12 +955,11 @@ export async function updateAgent(
  *
  * No ownership predicate, for the reason {@link updateAgent} gives.
  *
- * BEHAVIOUR CHANGE, and a deliberate one: Mongo's `deleteOne` cleaned up
- * nothing, so orphaned reviews and team memberships accumulated. Under the
- * schema's foreign keys they go with the agent. Sessions SURVIVE (somebody's
+ * Under the schema's foreign keys, reviews and team memberships go with the
+ * agent. Sessions SURVIVE (somebody's
  * history and their credits) and a container template survives with `agent_id`
  * nulled — see CONVENTIONS §"One parent, four children". Returns the matched
- * count, which is what `deletedCount === 0` meant at the call site.
+ * count; `0` means nothing was deleted.
  */
 export async function deleteAgent(db: Executor, id: string): Promise<number> {
   const deleted = await db.delete(agents).where(eq(agents.id, id)).returning({ id: agents.id });
@@ -1065,8 +1055,8 @@ export async function setAgentCatalogueFlags(
  * Record that the agent interacted, WITHOUT evolving anything else.
  *
  * `lib/agent/soul.ts` takes this path three times — no model available, no JSON
- * in the model's answer, unparseable JSON — and in all three Mongo wrote
- * `soul.interactionCount` alone and left `soul.lastEvolvedAt` where it was. A
+ * in the model's answer, unparseable JSON — and in all three it writes
+ * `soul.interactionCount` alone and leaves `soul.lastEvolvedAt` where it was. A
  * counter that moved and a timestamp that did not is the record of "the agent
  * was used but learned nothing", so the two are not written together here
  * either.

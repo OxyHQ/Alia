@@ -1,8 +1,8 @@
 /**
  * The WhatsApp repository against a real Postgres.
  *
- * Every assertion here is about behaviour the Mongo original had and that a
- * plausible-looking rewrite loses SILENTLY: an ordering that differs only in
+ * Every assertion here is about behaviour that a plausible-looking rewrite
+ * loses SILENTLY: an ordering that differs only in
  * where nulls land, an upsert that resets a counter instead of advancing it, a
  * batch that raises `21000` on its own duplicates, a credential that survives a
  * logout. None of these fail loudly, and none of them can be observed without a
@@ -79,9 +79,8 @@ afterAll(async () => {
 describe('a chat list orders by recency with never-used chats LAST', () => {
   it('puts a null conversationTimestamp after every real one', async () => {
     /**
-     * The load-bearing ordering test. Mongo's `sort({ conversationTimestamp: -1 })`
-     * put a missing value LAST, because BSON orders `null` below every number.
-     * Postgres `DESC` is `NULLS FIRST`, so a plain `desc()` would float exactly
+     * The load-bearing ordering test. A chat with no `conversationTimestamp`
+     * belongs LAST. Postgres `DESC` is `NULLS FIRST`, so a plain `desc()` would float exactly
      * the chats that have never carried a message to the top of the page and
      * evict real ones — with no error anywhere.
      */
@@ -128,8 +127,7 @@ describe('a chat list orders by recency with never-used chats LAST', () => {
 describe('a partial chat update leaves the fields it did not mention alone', () => {
   it('keeps unreadCount and the timestamp when only the name changes', async () => {
     /**
-     * Baileys' `chats.update` reports only what changed. The Mongo original
-     * built its `$set` from exactly the present keys; an upsert that always
+     * Baileys' `chats.update` reports only what changed; an upsert that always
      * wrote all three would null the two the event never mentioned.
      */
     const sessionId = await newSession('wa-partial');
@@ -185,8 +183,7 @@ describe('a batch survives its own duplicates', () => {
   it('upserts a chat batch that names the same jid twice, last one winning', async () => {
     /**
      * `ON CONFLICT DO UPDATE` raises `21000` when one statement would touch a
-     * row twice, where Mongo's unordered `bulkWrite` applied both operations.
-     * A history sync really does carry the same jid more than once.
+     * row twice. A history sync really does carry the same jid more than once.
      */
     const sessionId = await newSession('wa-batch-chats');
     await upsertWhatsAppChats(db, [
@@ -332,8 +329,8 @@ describe('the Baileys key map is merged per key, never replaced', () => {
 
   it('treats a key containing a dot as one flat key, not a path', async () => {
     /**
-     * The Mongo original wrote dotted `$set` paths, so an id with a `.` in it
-     * would have created a nested object nothing could read back.
+     * A dotted-path write would turn an id with a `.` in it into a nested
+     * object nothing could read back.
      */
     const sessionId = await newSession('wa-dotted');
     await writeWhatsAppAuthKeys(db, sessionId, { set: { 'session-1.2': { k: 'flat' } }, remove: [] });

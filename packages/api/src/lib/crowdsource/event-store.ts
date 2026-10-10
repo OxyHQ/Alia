@@ -20,8 +20,7 @@ import {
  * transient failure permanent and lose a decision silently.
  *
  * The claim itself is an `ON CONFLICT DO NOTHING … RETURNING` in the repository,
- * NOT a caught duplicate-key error. Under Mongo, catching code 11000 was the
- * idiomatic spelling; on Postgres it would be wrong twice over — a failed
+ * NOT a caught duplicate-key error, which would be wrong twice over — a failed
  * statement aborts the surrounding transaction, and an exception cannot
  * distinguish a duplicate from a dropped connection. Reading the empty result set
  * as the answer keeps a real failure propagating, so the middleware answers

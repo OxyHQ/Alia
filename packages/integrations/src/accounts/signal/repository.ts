@@ -10,8 +10,8 @@
  * itself a secret, but nothing outside this process has any use for it and it
  * is meaningless on another host, so it is registered in
  * `db/protectedColumns.ts` and reached only by the daemon lifecycle below.
- * Before the port, `GET /sessions/:sessionId/status` returned the whole
- * Mongoose document and therefore returned it.
+ * `GET /sessions/:sessionId/status` must never return the whole row, which
+ * would include it.
  */
 
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
@@ -29,7 +29,7 @@ import { conflictKey } from '../conflictKey';
 
 const PUBLIC_SESSION = publicColumns(signalSessions, PROTECTED_COLUMNS);
 
-/** The subset the session-list endpoints returned under Mongoose's `.select()`. */
+/** The subset the session-list endpoints return. */
 const SESSION_SUMMARY = {
   sessionId: signalSessions.sessionId,
   oxyUserId: signalSessions.oxyUserId,

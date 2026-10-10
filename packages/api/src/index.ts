@@ -355,7 +355,7 @@ server.listen(PORT, '0.0.0.0', () => {
   log.general.info(`🚀 API Server running on http://0.0.0.0:${PORT}`);
 
   /**
-   * Delete rows whose expiry has passed. This replaces 14 Mongo TTL indexes and
+   * Delete rows whose expiry has passed. Postgres has no TTL index, and this
    * had NO caller when it was written — the targets were registered and tested,
    * and nothing ever swept them, so every expiry in the Postgres schema was
    * inert.
@@ -371,12 +371,9 @@ server.listen(PORT, '0.0.0.0', () => {
   /**
    * The trigger engine, the moderation-outbox dispatcher and both queues.
    *
-   * These were gated on `connectDB()` resolving, which after the Mongo
-   * decommission it never does, so none of them had started in production since.
-   * The gate is gone rather than relaxed: every one of them reads Postgres or
-   * self-gates on its own dependency, and `db/__tests__/bootWiring.test.ts`
-   * walks the import graph from this file to assert no Mongoose driver is
-   * reachable from it at all.
+   * Started unconditionally: every one of them reads Postgres or self-gates on
+   * its own dependency, and `db/__tests__/bootWiring.test.ts` asserts that
+   * nothing gates this call.
    *
    * Called here, after `listen`, for the same reason the seeders are not called
    * here at all: nothing on the boot path may stand between the process and

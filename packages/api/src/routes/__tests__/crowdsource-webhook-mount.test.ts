@@ -19,7 +19,7 @@ vi.mock('../../lib/crowdsource/inbound-service.js', () => ({
 /**
  * An in-memory dedupe store.
  *
- * The Mongo-backed one is the production store; here the point is the TRANSPORT —
+ * The Postgres-backed one is the production store; here the point is the TRANSPORT —
  * whether the receiver reads the bytes that arrived — so the store is replaced
  * rather than mocked field by field.
  */

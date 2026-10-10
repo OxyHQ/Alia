@@ -34,9 +34,8 @@ vi.mock('../models/catalogue.js', () => ({
 /**
  * `credits-manager`, against a REAL Postgres server.
  *
- * This suite used to mock the Mongoose UserCredits model and assert which
- * calls were made with which arguments. It could not survive the port and should
- * not have: the whole of it — "spend free before paid", "refuse when the balance
+ * A suite that mocked the store and asserted which calls were made with which
+ * arguments would mean nothing here: the whole of it — "spend free before paid", "refuse when the balance
  * will not cover it", "zero out when it will not" — is now ONE SQL statement per
  * operation, and a mocked repository accepts any statement, including one the
  * server would reject. Asserting the arithmetic against real rows is the only
@@ -438,9 +437,7 @@ describe('getUserCredits', () => {
 /**
  * What each entry point does when the STORE itself fails.
  *
- * The pre-port suite covered all three by making a mocked Mongoose model throw.
- * That technique does not survive the port and the cases nearly went with it —
- * they are three different deliberate answers to the same event, and each is a
+ * They are three different deliberate answers to the same event, and each is a
  * decision somebody made:
  *
  *   - `reserveCredits` RETHROWS. Credits are money; a spend that may or may not

@@ -37,11 +37,10 @@ router.get('/', authenticateToken, async (req, res) => {
 /**
  * Redeem an invite code.
  *
- * The claim is taken BEFORE the money moves. Under Mongo this route granted
- * credits to both parties and only then recorded the referral, so two concurrent
- * redemptions by one account both passed the "already redeemed?" read and both
- * paid out — a race no Mongo constraint could close, because the guard lived in
- * a sub-document array. `redeemReferral` claims a `UNIQUE(referred_user_id)` row
+ * The claim is taken BEFORE the money moves. Granting credits to both parties
+ * and only then recording the referral would let two concurrent redemptions by
+ * one account both pass the "already redeemed?" read and both pay out.
+ * `redeemReferral` claims a `UNIQUE(referred_user_id)` row
  * first and reports whether it won; credits are granted only then.
  */
 router.post('/redeem', authenticateToken, async (req, res) => {

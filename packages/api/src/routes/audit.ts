@@ -29,9 +29,8 @@ function parseDate(value: unknown): Date | undefined {
   if (typeof value !== 'string' || value === '') return undefined;
   const parsed = new Date(value);
   /**
-   * An unparseable date used to reach the filter as `NaN`, which Mongo compared
-   * against and matched nothing. Against a `bigint` column it is a driver
-   * serialisation error instead — a 500 on a typo'd query string — so it is
+   * An unparseable date reaching the filter as `NaN` against a `bigint` column
+   * is a driver serialisation error — a 500 on a typo'd query string — so it is
    * rejected here and the window simply stays open on that side.
    */
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;

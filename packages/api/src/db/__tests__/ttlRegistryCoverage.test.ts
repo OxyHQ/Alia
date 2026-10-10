@@ -9,38 +9,23 @@ import { EXPIRY_TARGETS } from '../expiryTargets';
 import * as schema from '../schema';
 
 /**
- * A Mongo TTL index that lost its Postgres sweep is the quietest failure in this
- * port. Mongo reaped; Postgres does not. The table simply grows, with no error,
- * no failing test and nothing removed from the diff for a reviewer to notice —
- * the thing doing the work was never in this codebase.
+ * Every retention rule this service declares has a matching expiry-sweep
+ * target. Postgres has no TTL index: a rule without a sweep entry means the
+ * table simply grows, with no error, no failing test and nothing in the diff for
+ * a reviewer to notice.
  *
- * ## The source of truth used to be a WALK. It is now a RECORD, and that is final
+ * ## The record is CLOSED
  *
- * This file walked the live Mongoose schemas for `expireAfterSeconds`, because a
- * hand-written list falls behind silently and a walk cannot. Every slice of the
- * port then deleted models, the walk saw fewer of them, and each deleted
- * declaration was transcribed into a list so its rule survived its schema. The
- * organizations slice retired the last one; the walk has returned `[]` since.
- *
- * A walk over a permanently empty set is not a source of truth, it is a prop —
- * and keeping Mongoose installed to run it would have made "the driver is still
- * a dependency" self-justifying. So the walk is gone and {@link MONGO_TTLS} is
- * the whole subject: thirteen declarations, closed, each read off the source at
- * the commit that deleted it — eight live, and five whose table has since been
+ * {@link DECLARED_TTLS} is the whole subject: thirteen declarations, each read
+ * off its source schema — eight live, and five whose table has since been
  * dropped, kept in {@link TTLS_RETIRED_WITH_THEIR_TABLE}.
- *
- * **The record cannot grow.** No Mongoose model can be declared in this package
- * any more, and `db/__tests__/bootWiring.test.ts` asserts that as an exact set of
- * importers rather than leaving it to convention. That is what replaced the
- * walk: it goes red the day a model comes back, which is the only event that
- * could add a fourteenth row here.
  *
  * **The record must not shrink.** Every live row is a retention requirement on
  * the Postgres sweep. The only way a row leaves the live record is with its
- * table, into the retired list, which asserts the table is gone. Deleting one
- * outright deletes the only surviving statement of what Mongo did, and every assertion below is a check on `EXPIRY_TARGETS` and the
- * drizzle schema as they are today — a dropped table, a repointed sweep column
- * or an altered retention is red, with no Mongo anywhere.
+ * table, into the retired list, which asserts the table is gone. Every
+ * assertion below is a check on `EXPIRY_TARGETS` and the drizzle schema as they
+ * are today — a dropped table, a repointed sweep column or an altered retention
+ * is red.
  *
  * ## Two failure directions, and only one of them is loud
  *
@@ -51,29 +36,28 @@ import * as schema from '../schema';
  * `partialFilterExpression` that the flat registry type cannot express.
  */
 
-/** A TTL index MongoDB enforced, as declared by the schema that has since been deleted. */
-interface MongoTtl {
+/** A retention rule, as its source schema declared it. */
+interface DeclaredTtl {
   readonly model: string;
   readonly collection: string;
-  /** The Mongoose PATH the TTL was measured from (e.g. `createdAt`, `timestamp`). */
+  /** The camelCase field the TTL is measured from (e.g. `createdAt`, `timestamp`). */
   readonly path: string;
   readonly expireAfterSeconds: number;
   /** Present when the TTL was CONDITIONAL — the case the flat registry cannot express. */
   readonly partialFilterExpression?: Record<string, unknown>;
-  /** The slice that deleted the model, so an entry can be traced to the commit that transcribed it. */
+  /** The slice that transcribed the rule, so an entry can be traced to its commit. */
   readonly retiredBy: string;
 }
 
 /**
- * Every TTL index this service ever declared in MongoDB.
+ * Every TTL rule this service declares.
  *
- * These are read off the source at the commit that removed each model and are
- * the last record of what Mongo did. The values are only as good as that
- * provenance, which is why each row cites the file and line it came from — those
+ * These were read off each source schema at the commit that transcribed it. The
+ * values are only as good as that provenance, which is why each row cites the file and line it came from — those
  * citations are repo-rooted deliberately, so nothing mistakes them for live
  * module specifiers.
  */
-const MONGO_TTLS: readonly MongoTtl[] = [
+const DECLARED_TTLS: readonly DeclaredTtl[] = [
   {
     model: 'ModerationOutbox',
     collection: 'moderation_outbox',
@@ -176,10 +160,8 @@ const MONGO_TTLS: readonly MongoTtl[] = [
     /**
      * `OrganizationInviteSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 30
      * * 24 * 60 * 60 })`, read off `src/models/organization-invite.ts:70` before
-     * it was deleted. The collection name was MEASURED by registering the schema
-     * (`mongoose.model('OrganizationInvite', …).collection.name`), not derived —
-     * see {@link MONGO_MODEL_TO_TABLE} for why nothing computes one from the
-     * other.
+     * it was deleted. The collection name was MEASURED, not derived — see
+     * {@link MODEL_TO_TABLE} for why nothing computes one from the other.
      *
      * **The LAST live TTL declaration in this service, and the only one measured
      * from a deadline with a NON-ZERO retention.** Every other `expires_at` TTL
@@ -196,23 +178,22 @@ const MONGO_TTLS: readonly MongoTtl[] = [
 ];
 
 /**
- * Mongoose collection name -> Postgres table name.
+ * Model name -> Postgres table name.
  *
- * Explicit rather than derived: Mongoose's name was a `pluralize()` artifact
- * (`authhealthmetrics`) and the Postgres name is a deliberate snake_case choice
- * (`auth_health_metrics`). Nothing can compute one from the other, so the pairing
- * is stated — and deriving it from names was tried and is not sound, because the
- * collection name was an arbitrary third argument to `mongoose.model()`
- * (`ModerationOutbox` stored in `moderation_outbox`, singular, while
- * `ModerationEvent` used `moderation_events`, plural).
+ * Explicit rather than derived: the source collection name was a `pluralize()`
+ * artifact (`authhealthmetrics`) and the Postgres name is a deliberate
+ * snake_case choice (`auth_health_metrics`). Nothing can compute one from the
+ * other, so the pairing is stated (`ModerationOutbox` was stored in
+ * `moderation_outbox`, singular, while `ModerationEvent` used
+ * `moderation_events`, plural).
  *
- * Every entry in {@link MONGO_TTLS} must appear here — an absence used to mean
+ * Every entry in {@link DECLARED_TTLS} must appear here — an absence used to mean
  * "not ported yet" and silently excused a model from every check below, which is
  * how `moderation_events` and `moderation_outboxes` went five batches with a TTL
  * and no sweep. Nothing is unported now, so the classification check is an
  * exact one.
  */
-const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
+const MODEL_TO_TABLE: Readonly<Record<string, string>> = {
   ApiKeyUsage: 'api_key_usage',
   OrganizationInvite: 'organization_invites',
   McpOAuthState: 'mcp_oauth_states',
@@ -226,7 +207,7 @@ const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
 /**
  * TTL rules whose TABLE was dropped, and the migration that dropped it.
  *
- * Moved out of {@link MONGO_TTLS} rather than deleted, because deleting a row
+ * Moved out of {@link DECLARED_TTLS} rather than deleted, because deleting a row
  * is exactly the silent shrink the record forbids. A rule here owes nothing to
  * the sweep — there are no rows to reap — and instead asserts the opposite of a
  * live rule: its table is ABSENT from the schema, has no registry entry, and is
@@ -238,7 +219,7 @@ const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
  * rollback window (`api_usage`, `fallback_events`), and three whose writer was
  * already gone (`auth_health_metrics`, `routing_logs`, `trigger_executions`).
  */
-interface RetiredTtl extends MongoTtl {
+interface RetiredTtl extends DeclaredTtl {
   readonly table: string;
   readonly droppedBy: string;
 }
@@ -332,7 +313,7 @@ function portedTables(): Map<string, PgTable> {
 
 const tables = portedTables();
 
-describe('every TTL index Mongo enforced has a matching expiry-sweep target', () => {
+describe('every declared TTL rule has a matching expiry-sweep target', () => {
   it('has the whole record, and read a real schema', () => {
     /**
      * Vacuity floor on both inputs. An empty record produces the same "no gaps"
@@ -341,14 +322,12 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
      * do with the sweep.
      *
      * EXACT rather than a floor, in the direction that matters: the record is
-     * CLOSED — no Mongoose model can be declared in this package, so a
-     * fourteenth row is not possible without `bootWiring.test.ts` going red
-     * first — and each live row is a retention requirement, so a missing one is
+     * CLOSED, and each live row is a retention requirement, so a missing one is
      * a rule silently deleted. 13 = 8 live + 5 retired with their table.
      */
-    expect(MONGO_TTLS.length).toBe(8);
+    expect(DECLARED_TTLS.length).toBe(8);
     expect(TTLS_RETIRED_WITH_THEIR_TABLE.length).toBe(5);
-    expect(MONGO_TTLS.length + TTLS_RETIRED_WITH_THEIR_TABLE.length).toBe(13);
+    expect(DECLARED_TTLS.length + TTLS_RETIRED_WITH_THEIR_TABLE.length).toBe(13);
     expect(tables.size).toBeGreaterThanOrEqual(5);
   });
 
@@ -356,25 +335,25 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
     // A repeated model or collection would let one rule stand in for another
     // while the count above still read 13 — across BOTH lists, so a rule
     // cannot be live and retired at once.
-    const all = [...MONGO_TTLS, ...TTLS_RETIRED_WITH_THEIR_TABLE];
+    const all = [...DECLARED_TTLS, ...TTLS_RETIRED_WITH_THEIR_TABLE];
     const models = all.map((t) => t.model);
     expect(new Set(models).size).toBe(models.length);
     const collections = all.map((t) => t.collection);
     expect(new Set(collections).size).toBe(collections.length);
     // Every entry says who retired it, so a row is auditable against history.
-    expect(MONGO_TTLS.filter((t) => t.retiredBy.trim() === '')).toEqual([]);
+    expect(DECLARED_TTLS.filter((t) => t.retiredBy.trim() === '')).toEqual([]);
   });
 
   it('every non-retired declaration names a table that EXISTS', () => {
     /**
      * The way this record rots. A row props the count up and feeds the column
      * and retention checks below — but those find their target through
-     * {@link MONGO_MODEL_TO_TABLE}, and skip when there is none. So a row whose
+     * {@link MODEL_TO_TABLE}, and skip when there is none. So a row whose
      * table was never mapped, or was later dropped from the schema, keeps the
      * count up while asserting about nothing at all.
      */
-    const orphaned = MONGO_TTLS.filter((t) => {
-      const table = MONGO_MODEL_TO_TABLE[t.model];
+    const orphaned = DECLARED_TTLS.filter((t) => {
+      const table = MODEL_TO_TABLE[t.model];
       return !table || !tables.has(table);
     }).map((t) => t.model);
 
@@ -400,8 +379,8 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
   it('maps nothing that the record does not name', () => {
     // The other direction, so the map cannot carry a table no rule requires —
     // which would make the check above pass on a stale pairing.
-    const recorded = new Set(MONGO_TTLS.map((t) => t.model));
-    expect(Object.keys(MONGO_MODEL_TO_TABLE).filter((m) => !recorded.has(m))).toEqual([]);
+    const recorded = new Set(DECLARED_TTLS.map((t) => t.model));
+    expect(Object.keys(MODEL_TO_TABLE).filter((m) => !recorded.has(m))).toEqual([]);
   });
 
   it('every declaration has a registry entry', () => {
@@ -409,9 +388,9 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
       EXPIRY_TARGETS.map((t) => [getTableName(t.table), t]),
     );
 
-    const missing = MONGO_TTLS.filter(
-      (ttl) => !byTable.has(MONGO_MODEL_TO_TABLE[ttl.model] ?? ''),
-    ).map((ttl) => `${ttl.model} -> ${String(MONGO_MODEL_TO_TABLE[ttl.model])}`);
+    const missing = DECLARED_TTLS.filter(
+      (ttl) => !byTable.has(MODEL_TO_TABLE[ttl.model] ?? ''),
+    ).map((ttl) => `${ttl.model} -> ${String(MODEL_TO_TABLE[ttl.model])}`);
 
     expect(missing).toEqual([]);
   });
@@ -430,9 +409,9 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
      * against a column that is NOT the source's". A conditional TTL pointing at
      * its original column is exactly the flat registration this forbids.
      */
-    const offenders = MONGO_TTLS.filter((ttl) => ttl.partialFilterExpression !== undefined).flatMap(
+    const offenders = DECLARED_TTLS.filter((ttl) => ttl.partialFilterExpression !== undefined).flatMap(
       (ttl) => {
-        const table = MONGO_MODEL_TO_TABLE[ttl.model];
+        const table = MODEL_TO_TABLE[ttl.model];
         const target = EXPIRY_TARGETS.find((t) => getTableName(t.table) === table);
         if (!table || !target) return [];
         const registeredPath = sqlColumnName(target.column);
@@ -463,7 +442,7 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
   it('knows the conditional case exists, so the check above is not vacuous', () => {
     // If this ever finds nothing, the assertion above is measuring an empty set
     // and would pass however the registry were written.
-    const conditional = MONGO_TTLS.filter((t) => t.partialFilterExpression !== undefined);
+    const conditional = DECLARED_TTLS.filter((t) => t.partialFilterExpression !== undefined);
     expect(conditional.map((t) => t.model)).toContain('Notification');
   });
 
@@ -471,7 +450,7 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
     const mismatched: string[] = [];
     for (const target of EXPIRY_TARGETS) {
       const table = getTableName(target.table);
-      const ttl = MONGO_TTLS.find((t) => MONGO_MODEL_TO_TABLE[t.model] === table);
+      const ttl = DECLARED_TTLS.find((t) => MODEL_TO_TABLE[t.model] === table);
       if (!ttl) continue;
       // A CONDITIONAL TTL is required to measure from a DIFFERENT column — that
       // difference IS the condition made into one, and the check above enforces
@@ -480,7 +459,7 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
       // which is stricter than either alone.
       if (ttl.partialFilterExpression !== undefined) continue;
       // `column.name` is the TypeScript property name; only sqlColumnName applies
-      // the configured casing. Mongoose's path was camelCase, so compare there.
+      // the configured casing. The source path is camelCase, so compare there.
       const registeredPath = sqlColumnName(target.column);
       const sourcePath = ttl.path.replace(/([A-Z])/g, '_$1').toLowerCase();
       if (registeredPath !== sourcePath) {
@@ -496,7 +475,7 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
     const mismatched: string[] = [];
     for (const target of EXPIRY_TARGETS) {
       const table = getTableName(target.table);
-      const ttl = MONGO_TTLS.find((t) => MONGO_MODEL_TO_TABLE[t.model] === table);
+      const ttl = DECLARED_TTLS.find((t) => MODEL_TO_TABLE[t.model] === table);
       if (!ttl) continue;
       if (ttl.expireAfterSeconds !== target.retentionSeconds) {
         mismatched.push(

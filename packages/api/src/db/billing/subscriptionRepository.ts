@@ -19,9 +19,9 @@
  *
  * ## `plan_snapshot_*` is what was SOLD
  *
- * Mongo nested a `plan` object beside the top-level `planId`, so `planId` and
+ * A `plan` snapshot sits beside the top-level `planId`, so `planId` and
  * `billingPeriod` appear twice. Readers of `subscription.plan.name` and
- * `.plan.planId` now read `planSnapshotName` / `planSnapshotPlanId`: the frozen
+ * `.plan.planId` read `planSnapshotName` / `planSnapshotPlanId`: the frozen
  * record of what the customer agreed to, which must not move when an admin edits
  * the catalogue.
  */
@@ -167,7 +167,7 @@ export interface AdminSubscriptionFilter {
 function adminWhere(filter: AdminSubscriptionFilter): SQL | undefined {
   const conditions: SQL[] = [];
   if (filter.status !== undefined) conditions.push(eq(subscriptions.status, filter.status));
-  // Mongo's `'plan.product'` — the SNAPSHOT, what was sold, not the live plan.
+  // `plan.product` — the SNAPSHOT, what was sold, not the live plan.
   if (filter.product !== undefined) {
     conditions.push(eq(subscriptions.planSnapshotProduct, filter.product));
   }

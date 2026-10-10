@@ -265,8 +265,7 @@ describe('deleting a review, and deleting the agent under it', () => {
   });
 
   /**
-   * BEHAVIOUR CHANGE, deliberate. Mongo's `deleteOne` on an agent cleaned up
-   * nothing, so reviews orphaned; `agent_reviews.agent_id` CASCADES because a
+   * `agent_reviews.agent_id` CASCADES because a
    * review's entire content is an opinion of one agent and there is nothing left
    * to read once it is gone.
    */
@@ -286,7 +285,7 @@ describe('deleting a review, and deleting the agent under it', () => {
 
 describe('the bounds the schema enforces', () => {
   /**
-   * Mongoose declared `min: 1, max: 5` — and 1, not 0, unlike `agents.rating`,
+   * Bounded 1..5 — and 1, not 0, unlike `agents.rating`,
    * which is an AVERAGE and may legitimately be 0 when there are no reviews at
    * all. The two bounds are different on purpose, and only the server can refuse
    * the write.
@@ -320,17 +319,9 @@ describe('the bounds the schema enforces', () => {
 });
 
 /**
- * The review half of `lib/__tests__/oxy-user-hydration-real-db.test.ts`, moved
- * here with its data.
- *
- * That file used `AgentReview` against a real MongoDB to prove a bug that
- * reached production: `.populate('userId', …)` on a field declared
- * `ref: 'User'` throws `MissingSchemaError`, but ONLY once there is at least one
- * document to populate — so an unreviewed agent worked and the endpoint failed
- * the moment somebody used the feature. This slice deleted that model, and it
- * was the file's LAST subject, so deleting the cases with it would have retired
- * a regression test on the grounds that its fixture changed database. The
- * organization half moved the same way, one slice earlier.
+ * A regression for a bug that reached production: joining an Oxy-owned author
+ * failed ONLY once there was at least one review — so an unreviewed agent
+ * worked and the endpoint failed the moment somebody used the feature.
  *
  * The NON-EMPTY fixture is the whole point: the empty case is the one that
  * always passed.

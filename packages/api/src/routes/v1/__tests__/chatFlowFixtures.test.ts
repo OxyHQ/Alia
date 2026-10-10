@@ -325,8 +325,7 @@ vi.mock('../../../db/memory/userMemoryRepository.js', () => ({
 }));
 
 /**
- * The chat repositories, stubbed at the module boundary the way the Mongoose
- * models were. `getDb()` is mocked to `{}` above, so a real repository call
+ * The chat repositories, stubbed at the module boundary. `getDb()` is mocked to `{}` above, so a real repository call
  * would throw on `db.select` — and the failure would be SILENT here, because
  * every caller in this flow catches: `request-context.ts` `.catch(() => null)`,
  * `chat-lifecycle.ts` around the title, `provider-loop.ts` around the save.

@@ -27,10 +27,9 @@ setInterval(() => {
  */
 function calculateDaysRemaining(todaySpend: number, userCredits: UserCreditsRow | null): number {
   /**
-   * `?? 0` rather than `|| 0`, and the balance row rather than a Mongoose
-   * document. The source read `userCredits?.credits?.free`, and after the
-   * sub-document became `credits_*` columns that path is `undefined` — which
-   * `|| 0` turns into a balance of ZERO, silently, in the low-credit warning.
+   * `?? 0` rather than `|| 0`, and the balance row's `credits_*` columns. A
+   * nested `userCredits?.credits?.free` path is `undefined` — which `|| 0`
+   * turns into a balance of ZERO, silently, in the low-credit warning.
    * A missed shape read is the quiet half of this port; a missed model call
    * throws.
    */

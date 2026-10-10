@@ -5,8 +5,7 @@
  *
  * `routes/billing.ts` credits a subscription renewal by INSERTING a transaction
  * first as a lock, keyed `<stripeSubscriptionId>_<periodStart>`, and treats the
- * duplicate-key error as "already credited, skip". In Mongo that lived in a
- * unique index on a path inside a `Mixed` field; here it is a STORED GENERATED
+ * duplicate-key error as "already credited, skip". The key is a STORED GENERATED
  * column over `metadata ->> 'dedup'` with a unique index, so callers keep passing
  * `metadata: { dedup }` and there is no way to write the metadata without the
  * constraint seeing it.

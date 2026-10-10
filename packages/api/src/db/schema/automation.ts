@@ -21,9 +21,8 @@ export type WorkflowExecutionStatus = (typeof WORKFLOW_EXECUTION_STATUSES)[numbe
  * written whole by the editor. `node.data` is additionally an arbitrary
  * per-node-type payload.
  *
- * Mongoose maintained `updatedAt` with a `pre('save')` hook. That is replaced by
- * the standard `updatedAt()` column builder, which `@oxy.so/db` maintains on every
- * `db.update()` — the same guarantee, expressed where the column is declared
+ * `updatedAt` is the standard `updatedAt()` column builder, which `@oxy.so/db`
+ * maintains on every `db.update()` — expressed where the column is declared
  * rather than in a hook nothing in this schema could see.
  */
 export const workflows = pgTable(
@@ -52,8 +51,7 @@ export const workflows = pgTable(
  *
  * `workflow_id` names `workflows.workflow_id` and carries no foreign key: this
  * is the record of what ran, and it must outlive the workflow being edited or
- * deleted. It has NO TTL, because Mongo declared none: adding one would delete
- * history the source kept.
+ * deleted. It has NO TTL: adding one would delete run history.
  *
  * `results` is `jsonb` — per-node outputs whose shape is the node type's, read
  * whole when the run is displayed.

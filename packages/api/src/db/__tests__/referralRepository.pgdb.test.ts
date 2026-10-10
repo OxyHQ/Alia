@@ -14,8 +14,7 @@ import {
 /**
  * Referrals, against a REAL server.
  *
- * The property this file exists for is the one Mongo could not express: an
- * account can be referred AT MOST ONCE, globally, enforced by the database
+ * The property this file exists for: an account can be referred AT MOST ONCE, globally, enforced by the database
  * rather than by a read the winner has not yet written. None of it is
  * expressible against a mock — a mocked insert accepts the second row.
  *

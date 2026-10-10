@@ -9,7 +9,7 @@ import { eq, sql } from 'drizzle-orm';
  * ## Why the handlers, and why a real database
  *
  * This file replaces a version that ran against a hand-written in-memory store
- * implementing the subset of Mongo query syntax the route happened to build. It
+ * implementing the subset of query syntax the route happened to build. It
  * also replaces `routes/__tests__/conversations.test.ts`, which called
  * `Conversation.create(...)` itself and asserted the mock was called with what
  * it had just passed — every assertion in it held with `routes/conversations.ts`
@@ -218,9 +218,7 @@ describe('a conversation is created, filled, read back and destroyed (#139 ws6)'
 
   it('stores the messages in the CLIENT’s order, not the planner’s', async () => {
     /**
-     * The port's sharpest edge. The source wrote these rows with no `seq` and
-     * read them back ordered by it, which worked only because Mongo's natural
-     * order approximates insertion order. Ten rows written in one statement,
+     * The sharpest edge. These rows are read back ordered by `seq`. Ten rows written in one statement,
      * every ORDER BY key tied, is exactly the shape Postgres is free to return
      * in any order — a conversation that renders scrambled with correct data in
      * every row. `replaceMessages` numbers them, which is what `seq` means.
@@ -278,8 +276,8 @@ describe('a conversation is created, filled, read back and destroyed (#139 ws6)'
 
   it('keeps the sidebar preview when a save carries no messages', async () => {
     /**
-     * `$set: { lastMessage: undefined }` was a no-op in Mongo and writes NULL in
-     * Postgres, and this request is how a client produces it. The failure is a
+     * `lastMessage: undefined` in a SET clause would write NULL, and this
+     * request is how a client produces it. The failure is a
      * thread whose preview blanks out with everything else intact.
      */
     await call('post', '/', {
@@ -307,9 +305,7 @@ describe('a conversation is created, filled, read back and destroyed (#139 ws6)'
 describe('POST / takes a whitelist, never the body (#139 ws6)', () => {
   it('ignores ownership, ordering and vote fields a client sends', async () => {
     /**
-     * The Mongoose schema WAS the whitelist: unknown keys were stripped and the
-     * sub-schemas cast. `content` and `tool_invocations` are `jsonb` now and
-     * enforce nothing, so a `{ ...m }` would store `oxyUserId`, `seq` and `vote`
+     * `content` and `tool_invocations` are `jsonb` and enforce nothing, so a `{ ...m }` would store `oxyUserId`, `seq` and `vote`
      * straight from the request — respectively somebody else's ownership, the
      * render order, and a feedback signal the product reads.
      *
@@ -353,11 +349,9 @@ describe('POST / takes a whitelist, never the body (#139 ws6)', () => {
 
   it('drops a message whose role is outside the tuple, rather than 500ing on the CHECK', async () => {
     /**
-     * A behaviour change, and the direction is deliberate. The source filtered
-     * on `msg.role` being truthy alone, so `role: 'moderator'` reached Mongoose,
-     * failed validation and turned the WHOLE save into a 500 — with the valid
-     * messages of an `ordered: false` bulk write already stored. Here the
-     * unrecognised message is dropped and the rest are saved as one transaction.
+     * Filtering on `msg.role` being truthy alone would let `role: 'moderator'`
+     * reach the CHECK and turn the WHOLE save into a 500. Here the unrecognised
+     * message is dropped and the rest are saved as one transaction.
      *
      * Without the route's check the CHECK constraint answers instead, and the
      * request is a 500 with nothing written. That is what this catches.
@@ -398,10 +392,8 @@ describe('POST / takes a whitelist, never the body (#139 ws6)', () => {
 
   it('drops a tool invocation whose state is outside the tuple', async () => {
     /**
-     * Mongoose validated this sub-schema `enum`, and `insertMany` DOES run
-     * validators — so unlike most of the validators this port met, it really
-     * fired. `tool_invocations` is `jsonb` and cannot carry a CHECK, so the
-     * enforcement moved to the route.
+     * `tool_invocations` is `jsonb` and cannot carry a CHECK, so the
+     * enforcement lives in the route.
      */
     await call('post', '/', {
       user: ALICE,
@@ -427,14 +419,12 @@ describe('POST / takes a whitelist, never the body (#139 ws6)', () => {
     ]);
   });
 
-  it('stores a multi-part body, which the source could not save at all', async () => {
+  it('stores a multi-part body', async () => {
     /**
-     * A behaviour CHANGE, stated rather than discovered. The source built the
-     * preview with `content?.slice(0, 100)`, which on an array is
-     * `Array.prototype.slice` — a parts array assigned to a `String` path, which
-     * Mongoose refused with a CastError and turned into a 500 for the whole
-     * save. So a conversation whose last message had an image could not be
-     * persisted. Here the preview is skipped and the message is stored.
+     * Building the preview with `content?.slice(0, 100)` on an array would be
+     * `Array.prototype.slice` — a parts array where a string belongs. A
+     * conversation whose last message has an image must still persist, so the
+     * preview is skipped and the message is stored.
      */
     const saved = await call('post', '/', {
       user: ALICE,

@@ -32,10 +32,10 @@ Read-only observations in AWS account `237343248947`, region `us-west-2`:
   `da1643132b1a4a11a7e307251ce2d4c7`; logs are under `/oxy/ecs` with
   `clarity-api/clarity-api/<task-id>` streams.
 - A third isolated task, `3e3e4695a92d476dbc013e8afca124c7`, timed out connecting
-  to the historical Mongo endpoint from the vault. This is a reachability
+  to the historical source endpoint from the vault. This is a reachability
   observation, not proof that every historical source has been deleted.
 - No cutover manifest or Clarity export was found in the examined vault/repo
-  paths. The S3 bucket `oxy-mongo-backups-usw2-237343248947` had 31 objects;
+  paths. The legacy backup S3 bucket in us-west-2 (account 237343248947) had 31 objects;
   both final 2026-08-10 source inventories omitted a Clarity database. These
   inventories are not sufficient to declare Clarity an empty-source migration.
 

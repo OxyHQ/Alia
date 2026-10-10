@@ -1,18 +1,9 @@
 /**
  * What Alia remembers about a user, and the vectors that find it.
  *
- * Two Mongoose models become THREE tables, because `UserMemory.memories` is a
+ * Two models become THREE tables, because `UserMemory.memories` is a
  * sub-document array whose elements have an identity — see
  * `user_memory_entries`.
- *
- * ## `MemoryEmbedding` is not in `src/models/`
- *
- * It is declared inline in `lib/memory/vector-search.ts:17`. A census over the
- * models directory cannot see it, which is the "finding less looks identical to
- * there being less" failure in its cheapest form. When enumerating models to
- * port, enumerate `mongoose.model(` calls across the package rather than files
- * in one directory — `models/__tests__/retiredModelFiles.test.ts` already
- * has to name a second directory for the same reason.
  *
  * No TTL index on either model, so neither appears in `db/expiryTargets.ts`.
  * These are the user's own memories and are deleted only when they say so.
@@ -38,13 +29,12 @@ import { checkOneOf } from './columns';
  * source row still carrying the legacy keys — rather than inherit this
  * sentence.
  *
- * ## `oxy_user_id` is unique, and `id` is still the Mongo `_id`
+ * ## `oxy_user_id` is unique, and `id` is an ordinary row id
  *
- * The document is one-per-user, so it is tempting to key the table by the
- * account. It is NOT the `user_credits` case: there Mongo declared
- * `_id: { type: String }` and wrote the account id INTO it, so the `_id` and the
- * account were the same value. Here `_id` is an ordinary ObjectId and
- * `oxyUserId` is a separate unique field, so `generatedId()` is right and the
+ * The profile is one-per-user, so it is tempting to key the table by the
+ * account. It is NOT the `user_credits` case: there the id IS the account id.
+ * Here `id` is an ordinary row identity and `oxyUserId` is a separate unique
+ * field, so `generatedId()` is right and the
  * uniqueness is an index.
  *
  * ## `preferences` and `context` are COLUMNS, and the interface lies
@@ -53,17 +43,9 @@ import { checkOneOf } from './columns';
  * and `:108` `$set` the ENTIRE unvalidated `req.body` into them — so they read
  * like open property bags, which would make `jsonb` obvious.
  *
- * They are not. **Measured against a real MongoDB**, issuing exactly the
- * statement `routes/memory.ts:104-113` issues with
- * `{language, favouriteColour, nested}` stores `{language}` alone: Mongoose's
- * default `strict` casts the update and drops every undeclared path, and a raw
- * driver read confirms nothing else reached the collection. The open bag is
- * unreachable through the write path, so columns lose nothing and give the
- * planner and a CHECK something to work with.
- *
- * The caveat that follows is an audit item rather than a doubt: a row written
- * before a key was declared, or by a raw driver write bypassing Mongoose, could
- * still hold something undeclared. Count those before the copy.
+ * They are not. The write path stores only the declared keys, so the open bag
+ * is unreachable through it; columns lose nothing and give the planner and a
+ * CHECK something to work with.
  *
  * ## `writing_style` is `jsonb`, and it is the clearest case in the batch
  *
@@ -127,17 +109,15 @@ export const userMemories = pgTable(
  *
  * ## `UNIQUE(user_memory_id, lower(trim(title)))` is NEW, and deliberately so
  *
- * Mongo could not express a unique index inside a sub-document array at all, so
- * what kept titles distinct was an in-JS array scan —
+ * What keeps titles distinct in the application is a scan —
  * `m.title.trim().toLowerCase() === normalized` at `user-memory.ts:60`, plus
  * the explicit collision refusal at `:174`. That IS the application's identity
  * rule, stated twice in one file, and the functional index makes it structural
  * rather than remembered. The `routing_profile_provider_mappings` precedent.
  *
- * It is a real tightening and therefore a real backfill risk: two memories
- * differing only in case or surrounding whitespace collide, where Mongo held
- * both. Failing there is the DESIGNED outcome — it surfaces two entries the
- * application already believed were one.
+ * Two memories differing only in case or surrounding whitespace collide. That
+ * is the DESIGNED outcome — they are two entries the application already
+ * believes are one.
  *
  * A `uniqueIndex` rather than `unique()` because only the index form takes an
  * expression; nothing declares a foreign key against the title, so the
@@ -170,8 +150,7 @@ export const userMemoryEntries = pgTable(
       t.userMemoryId,
       sql`lower(trim(${t.title}))`,
     ),
-    // Mongo indexed `memories.type` and `memories.updatedAt` on the parent
-    // document; these are the same two reads once the array is a table.
+    // The two reads over a profile's entries: by type, and by recency.
     index('user_memory_entries_memory_type_idx').on(t.userMemoryId, t.type),
     index('user_memory_entries_memory_updated_at_idx').on(t.userMemoryId, t.updatedAt.desc()),
     checkOneOf('user_memory_entries_type_check', t.type, MEMORY_TYPES),

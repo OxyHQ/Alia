@@ -36,11 +36,10 @@ import {
  * `db/__tests__/chat.pgdb.test.ts` covers the SCHEMA — that the constraints and
  * the partial unique reached the database. This file covers the conversation
  * and message queries, and
- * almost every case here exists because the Mongo original and the obvious
- * Postgres translation return different rows without either one erroring:
- * NULL ordering flips in both directions, `$set: { x: undefined }` stops being a
- * no-op, `findOneAndUpdate` stops meaning one row, `to_char` stops meaning UTC,
- * and `count(*)` stops being a number.
+ * almost every case here exists because the obvious query returns the wrong
+ * rows without erroring: default NULL ordering, an `undefined` in a SET clause
+ * writing NULL, an `UPDATE … WHERE` touching more than one row, `to_char` not
+ * meaning UTC, and `count(*)` not being a number.
  *
  * Every account and conversation id is unique to its test: the pgdb suite shares
  * one database across every file in it.
@@ -134,8 +133,7 @@ describe('upsertConversation', () => {
 
   it('leaves last_message alone when the caller supplies none', async () => {
     /**
-     * `$set: { lastMessage: undefined }` was a NO-OP in Mongo and writes NULL in
-     * Postgres. `POST /conversations` produces exactly that on a save whose
+     * `lastMessage: undefined` in a SET clause would write NULL. `POST /conversations` produces exactly that on a save whose
      * `messages` array is empty, so the naive translation erases the sidebar
      * preview of a thread every time a client sends an empty history.
      *
@@ -317,9 +315,9 @@ describe('the activity heatmap buckets in UTC, whatever the session says', () =>
 });
 
 describe('message ordering, which is where NULLs flip', () => {
-  it('renders seq-less legacy rows FIRST, as Mongo did', async () => {
+  it('renders seq-less legacy rows FIRST', async () => {
     /**
-     * Mongo sorts a missing field BELOW every number; Postgres's default for ASC
+     * A missing `seq` sorts BELOW every number; Postgres's default for ASC
      * is `NULLS LAST`. `routes/webhooks.ts` really does write seq-less rows, so
      * a thread that mixes eras renders with its oldest turns at the bottom under
      * the naive translation — a scrambled conversation and no error anywhere.
@@ -337,8 +335,8 @@ describe('message ordering, which is where NULLs flip', () => {
 
   it('treats a numbered row as the LAST one, not a legacy null', async () => {
     /**
-     * The mirror image, and the more dangerous of the two. Mongo's
-     * `sort({ seq: -1 })` puts numbers above nulls; Postgres's DESC default is
+     * The mirror image, and the more dangerous of the two. Descending, numbers
+     * must rank above nulls; Postgres's DESC default is
      * `NULLS FIRST`. `lib/conversation-saver.ts` reads this row's `seq` to decide
      * whether it can append — handed a legacy null it computes `canAppend`
      * against the wrong tail and rewrites the whole thread on every turn.
@@ -357,9 +355,8 @@ describe('message ordering, which is where NULLs flip', () => {
 
   it('replaceMessages numbers the list, so the stored order is the client’s order', async () => {
     /**
-     * `POST /conversations` wrote its messages with no `seq` and read them back
-     * ordered by it. On Mongo that worked by natural order; on Postgres a set of
-     * rows tying on every ORDER BY key comes back however the plan produces
+     * `POST /conversations` reads its messages back ordered by `seq`. On
+     * Postgres a set of rows tying on every ORDER BY key comes back however the plan produces
      * them. Asserting the ROUND TRIP rather than the column is what makes this
      * about the user-visible order.
      *
@@ -566,8 +563,8 @@ describe('the wire shape', () => {
 describe('the text-only reads the bots and the style refiner use', () => {
   it('returns turns oldest-first and drops non-string bodies', async () => {
     /**
-     * `jsonb_typeof(content) = 'string'` is the port of `{ $type: 'string' }`,
-     * which `lib/style/style-refiner.ts` already used in Mongo. A parts array
+     * `jsonb_typeof(content) = 'string'`, which `lib/style/style-refiner.ts`
+     * relies on. A parts array
      * cannot be rendered as a chat line, and picking one up puts
      * `[object Object]` into a model's context.
      *

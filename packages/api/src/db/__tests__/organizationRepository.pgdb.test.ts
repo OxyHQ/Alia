@@ -151,7 +151,7 @@ describe('creating an organization seats its owner, or refuses the slug', () => 
     expect(organization.ownerId).toBe(OWNER);
     expect(await findMemberRole(db, organization.id, OWNER)).toBe('owner');
     const [member] = await listMembers(db, organization.id);
-    // `permissions: ['*']` is what the Mongo route wrote for a creator.
+    // `permissions: ['*']` is what a creator gets.
     expect(member?.permissions).toEqual(['*']);
   });
 
@@ -410,16 +410,16 @@ describe('updating an organization', () => {
 
     const updated = await findOrganizationById(db, organization.id);
     expect(updated?.name).toBe('Renamed');
-    // `$set: { x: undefined }` is a no-op in Mongo and writes NULL in Postgres.
+    // An `undefined` in the SET clause would write NULL.
     // A description the caller never mentioned must survive a rename.
     expect(updated?.slug).toBe(organization.slug);
     expect(updated?.ownerId).toBe(OWNER);
   });
 
-  it('REPLACES the settings sub-document, exactly as `$set: { settings }` did', async () => {
+  it('REPLACES the settings block as a whole', async () => {
     /**
-     * The Mongo statement set the whole `settings` object, so a PATCH carrying
-     * only `billingEmail` cleared `apiCallLimit`. Flattening the two columns into
+     * An update sets the whole `settings` object, so a PATCH carrying only
+     * `billingEmail` clears `apiCallLimit`. Flattening the two columns into
      * independent optional updates would silently turn that into a partial
      * update — a behaviour change with no failing test and no visible diff.
      */
@@ -506,11 +506,9 @@ describe('a member lookup is scoped to its organization', () => {
 
   it('refuses to change a role in another organization', async () => {
     /**
-     * The regression for a live cross-tenant write. The Mongo route checked that
-     * the CALLER owned the organization in the URL and then wrote
-     * `OrganizationMember.findByIdAndUpdate(memberId, { role })` — the member id
-     * was never checked against that organization, so an owner of one
-     * organization could promote or demote a member of another.
+     * The regression for a cross-tenant write. Checking only that the CALLER owns
+     * the organization in the URL and then writing the member by id alone would
+     * let an owner of one organization promote or demote a member of another.
      */
     const mine = await anOrganization();
     const theirs = await anOrganization({ ownerId: OUTSIDER });
@@ -638,8 +636,7 @@ describe('an invitation is single-use, and its acceptance is one transaction', (
 
   it('answers not-found the SECOND time, and seats nobody twice', async () => {
     /**
-     * The Mongo idiom this replaces is insert-then-catch-E11000, which does not
-     * port: a raised error aborts the whole transaction (`25P02`), so the
+     * Insert-then-catch-the-duplicate does not work here: a raised error aborts the whole transaction (`25P02`), so the
      * invitation could not then be marked accepted, and a catch cannot tell a
      * duplicate from a dropped connection. The claim is the UPDATE, and
      * `ON CONFLICT DO NOTHING RETURNING` answers the membership question with no
@@ -678,8 +675,7 @@ describe('an invitation is single-use, and its acceptance is one transaction', (
     const result = await acceptInvite(db, 'orgtest-token-dup', MEMBER);
 
     expect(result).toEqual({ status: 'already-member' });
-    // The invitation is marked accepted even so — the Mongo route's behaviour,
-    // and what stops the link being reusable by somebody else.
+    // The invitation is marked accepted even so — what stops the link being reusable by somebody else.
     const [invite] = await db
       .select()
       .from(organizationInvites)
@@ -858,8 +854,7 @@ describe('deleting an organization takes everything hanging off it', () => {
     expect(await listPendingInvites(db, organization.id)).toEqual([]);
     expect(await listSharedAgentIds(db, organization.id)).toEqual([]);
     // The invitation TOKEN stops working too — a live credential to a deleted
-    // organization is what the Mongo route left behind, because it deleted the
-    // members by hand and nothing else.
+    // organization is what deleting the members by hand would leave behind.
     expect(await findLiveInviteByToken(db, 'orgtest-token-cascade')).toBeNull();
   });
 });
@@ -906,23 +901,17 @@ describe('every index this domain depends on exists on the migrated server', () 
 
     // The functional index is on `lower(slug)`, not on `slug`.
     expect(byName.get('organizations_slug_lower_key')).toContain('lower(slug)');
-    // The two `email` indexes are PARTIAL — Mongo's `sparse: true`.
+    // The two `email` indexes are PARTIAL over a nullable column.
     expect(byName.get('organization_invites_org_email_idx')).toContain('WHERE');
     expect(byName.get('organization_invites_email_status_idx')).toContain('WHERE');
   });
 });
 
 /**
- * The organization half of `lib/__tests__/oxy-user-hydration-real-db.test.ts`,
- * moved here with its data.
- *
- * That file used `OrganizationMember` against a real MongoDB to prove a bug that
- * reached production: `.populate('oxyUserId', …)` on a field declared
- * `ref: 'User'` throws `MissingSchemaError`, but ONLY once there is at least one
- * document to populate — so a fresh organization worked and the endpoint failed
- * the moment somebody used the feature. S9 deleted that model, and deleting the
- * case with it would have retired a regression test on the grounds that its
- * fixture changed database.
+ * A regression for a bug that reached production: joining an Oxy-owned member
+ * failed ONLY once there was at least one member to join — so a fresh
+ * organization worked and the endpoint failed the moment somebody used the
+ * feature.
  *
  * The NON-EMPTY fixture is the whole point and is why it is worth re-establishing
  * rather than dropping: the empty case is the one that always passed.
@@ -971,7 +960,7 @@ describe('an Oxy-owned member is read without a join, on a NON-EMPTY organizatio
 
 describe('the invitation sweep still has its target', () => {
   it('is registered against `expires_at` with a 30-day retention', async () => {
-    // The Mongo TTL was `{ expiresAt: 1 }, expireAfterSeconds: 30 days`, so a
+    // The TTL is `{ expiresAt: 1 }, expireAfterSeconds: 30 days`, so a
     // row leaves 30 days AFTER its own expiry — not at expiry, and not 30 days
     // after creation. `db/__tests__/ttlRegistryCoverage.test.ts` owns that rule;
     // this is the local reminder that the column it names is still indexed.

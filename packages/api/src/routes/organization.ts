@@ -605,8 +605,8 @@ router.patch('/:id/members/:memberId', async (req: Request, res: Response) => {
 
     // Scoped to THIS organization, and the owner exclusion is repeated in the
     // UPDATE itself so a role changing between the read and the write cannot
-    // demote an owner. The Mongo statement took the member id alone, so an owner
-    // here could rewrite a role in an organization they have nothing to do with.
+    // demote an owner. Taking the member id alone would let an owner here rewrite
+    // a role in an organization they have nothing to do with.
     const member = await updateNonOwnerMemberRole(getDb(), memberId, id, role);
 
     if (!member) {
@@ -715,9 +715,8 @@ router.get('/:id/agents', async (req: Request, res: Response) => {
      * is the same set.
      *
      * The ORDER is restored here rather than taken from that answer.
-     * `listSharedAgentIds` is sorted by when the agent was SHARED, which is what
-     * the Mongo `.sort({ createdAt: -1 })` sorted by (the join row's timestamp,
-     * not the agent's); `findAgentsByIds` is an `inArray` with no `ORDER BY`, so
+     * `listSharedAgentIds` is sorted by when the agent was SHARED (the join row's
+     * timestamp, not the agent's); `findAgentsByIds` is an `inArray` with no `ORDER BY`, so
      * Postgres may return any order at all. Serving that directly would reshuffle
      * the list on an unrelated day, which is the kind of difference nobody
      * reports and nobody can reproduce.

@@ -3,7 +3,7 @@
 Binding for every table in this schema. Decision and reason, nothing else.
 
 This is the FIRST Alia service on Postgres, and it is deliberately the smallest:
-it owns its own database, held 2 documents in Mongo, and has no deploy. It exists
+it owns its own database and has no deploy. It exists
 to establish the toolchain — `@oxy.so/db`, the migration ledger, deploy phases and
 the throwaway-database harness — somewhere a mistake costs nothing, so that
 `packages/api` inherits a working pattern instead of inventing one under
@@ -23,8 +23,7 @@ and creating one now would be a mistake rather than preparation. This service ha
 no ECS service, no task definition, and the API carries no `INTEGRATIONS_URL`, so
 nothing would connect to it — and **an unused credential is one nobody notices
 being used**. A `DATABASE_URL` sitting in SSM for a process that does not exist is
-the same shape as the stale `MONGODB_URI` parameters that had to be swept out of
-this account.
+a stale credential waiting to be swept.
 
 So the database is created locally (`docker-compose.postgres.yml`) and in CI, per
 run, and thrown away.
@@ -49,10 +48,8 @@ failure where it is not. It looks like protection and provides none.
 
 ## Naming
 
-**Tables: explicit snake_case, plural.** `whatsapp_sessions`, not Mongoose's
-derived `whatsappsessions`. The derived name is a `pluralize()` artifact, not a
-design, and nothing reads a collection name — call sites are being rewritten,
-not shimmed.
+**Tables: explicit snake_case, plural.** `whatsapp_sessions`, not a derived
+`whatsappsessions`. A derived name is a `pluralize()` artifact, not a design.
 
 **Columns: camelCase in TypeScript, snake_case in SQL**, derived by drizzle from
 `DATABASE_CASING` in `@oxy.so/db`. That one setting is read by `createDatabase()`
@@ -77,16 +74,15 @@ Child tables (`*_chats`, `*_messages`) take a `text` id from `generatedId()` —
 uuid v7, generated in the application because Postgres 17 has no native
 `uuidv7()`. The time component keeps the primary-key btree append-mostly.
 
-**No Mongo `_id` is preserved anywhere.** This service is a genuine greenfield:
-its Mongo database held one WhatsApp session and one Telegram session, both dead
-sign-in artifacts, and nothing outside it holds a reference to either. That is
-NOT the case for `packages/api`, which must preserve `_id` hex verbatim.
+**No legacy hex `_id` is preserved anywhere.** This service is a genuine
+greenfield: nothing outside it holds a reference to any of its ids. That is NOT
+the case for `packages/api`, which must preserve `_id` hex verbatim.
 
-## Foreign keys, which Mongo could not express
+## Foreign keys
 
 Chats and messages carry a real `references(() => …sessions.sessionId,
-{ onDelete: 'cascade' })`. Under Mongo, deleting a session orphaned every chat and
-message that named it and nothing ever collected them. A session's messages are
+{ onDelete: 'cascade' })`. Without it, deleting a session would orphan every chat
+and message that named it and nothing would ever collect them. A session's messages are
 meaningless without the session, so CASCADE is right here — unlike a commerce
 record, which must survive the deletion of what it points at.
 
@@ -114,22 +110,19 @@ links a device rather than scanning into a web session. Two protocols agreeing i
 not a shared contract, and one tuple would let a change to either silently widen
 the other.
 
-**Adding a value is a code change PLUS a migration.** Under Mongo the enum was
-read at runtime and the next write validated against it. Here the constraint is
-DDL that has already been applied: the tuple changes the TypeScript union
+**Adding a value is a code change PLUS a migration.** The constraint is DDL that
+has already been applied: the tuple changes the TypeScript union
 immediately and changes nothing in the database, so the first write of the new
 value fails its CHECK. Both must land in the same PR.
 
-> Note Mongoose never validated enums on `updateOne`/`findOneAndUpdate` at all, so
-> a live collection can hold values the schema forbids. This service's data was
-> audited before the port; `packages/api` must re-audit **inside its backfill
-> script, in the same invocation as the copy**, because an audit whose result can
-> expire between running it and using it is not a gate.
+> Before closing an open value set, audit the stored values **in the same
+> invocation as the migration**, because an audit whose result can expire between
+> running it and using it is not a gate.
 
 ## Timestamps
 
 `created_at` / `updated_at` are `timestamptz` via `createdAt()` / `updatedAt()`
-from `@oxy.so/db`, matching Mongoose's `timestamps: true`. `updated_at` is
+from `@oxy.so/db`. `updated_at` is
 maintained by the application (`$onUpdate`), not a trigger — a trigger is
 invisible in the schema file and would overwrite historical values during a
 backfill.
@@ -153,8 +146,8 @@ changes it across versions, so projecting it into columns would silently drop
 whatever a newer Baileys added — the same argument that makes a moderation payload
 legitimately shape-less.
 
-Everything else is real columns. Mongoose's `Map<string, unknown>` for `authKeys`
-is a plain object in JSON either way, so it needs no special handling.
+Everything else is real columns. `authKeys` is a plain object in JSON, so it
+needs no special handling.
 
 ## Protected columns — the `select: false` replacement
 
@@ -172,13 +165,12 @@ The MCP columns hold ciphertext, not plaintext, and are still protected:
 ciphertext plus a leaked `TOKEN_ENCRYPTION_KEY` is a token, and in an incident the
 two travel together.
 
-## Mongoose behaviour with no schema counterpart
+## Write-time normalisation has no schema counterpart
 
-`trim`, `lowercase` and setter-style defaults are Mongoose APPLICATION behaviour
-and do not survive. None of this schema's unique constraints depended on one, so
-nothing needed re-applying at a call site here — but that must be checked per
-column in `packages/api`, where a lowercased key backing a UNIQUE index would stop
-being unique case-insensitively.
+`trim`, `lowercase` and setter-style defaults are APPLICATION behaviour; drizzle
+applies none of them. None of this schema's unique constraints depends on one —
+but check per column, because a lowercased key backing a UNIQUE index stops being
+unique case-insensitively without a functional index.
 
 ## Migrations
 

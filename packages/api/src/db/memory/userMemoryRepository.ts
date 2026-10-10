@@ -3,10 +3,8 @@
  *
  * ## Two tables, one aggregate, and they are NOT separable
  *
- * `user_memories` and `user_memory_entries` come from ONE Mongo document —
- * `UserMemory.memories` was a sub-document array. Porting one without the other
- * would leave a single document half-switched across two stores, so this
- * repository owns both and the whole domain moved in one commit.
+ * `user_memories` and `user_memory_entries` are ONE aggregate —
+ * `UserMemory.memories` is the entry list. This repository owns both.
  *
  * That inheritance also explains the shape returned here. Consumers read
  * `memory.memories[…]`, `memory.settings.autoSaveEnabled`,
@@ -25,12 +23,10 @@
  *
  * ## Writes are explicit calls, because `save()` had no boundary
  *
- * The Mongoose path was "mutate the hydrated document anywhere, then
- * `memory.save()`". There is no equivalent, and reproducing one would mean
- * diffing an aggregate — so each mutation the callers actually perform is a
+ * There is no "mutate the hydrated object anywhere, then `save()`": reproducing
+ * one would mean diffing an aggregate — so each mutation the callers actually perform is a
  * named function here. `replaceEntries` is the only one needing a transaction:
- * it is a delete-then-insert that was one atomic document write in Mongo, and
- * this repository introduces the third transaction in the whole repository.
+ * it is a delete-then-insert that must be atomic.
  */
 
 import { and, asc, eq, sql } from 'drizzle-orm';
@@ -142,7 +138,7 @@ export function normalizeMemoryTitle(title: string): string {
   return title.trim().toLowerCase();
 }
 
-/** `null` columns become absent keys, matching what Mongoose served. */
+/** `null` columns become absent keys, which is what the API serves. */
 function optional<T>(value: T | null): T | undefined {
   return value === null ? undefined : value;
 }
@@ -190,8 +186,8 @@ function toProfile(row: ProfileRow, entries: EntryRow[]): UserMemoryProfile {
 /**
  * Entries in the order the API served them.
  *
- * `createdAt` ascending, which is the order a Mongo sub-document array preserved
- * — elements sat in insertion order and every consumer read them that way. The
+ * `createdAt` ascending — insertion order, which is how every consumer reads
+ * them. The
  * id is the tiebreaker because `@oxy.so/db`'s uuid v7 is NOT monotonic within a
  * millisecond, so two entries created in the same millisecond would otherwise
  * come back in an arbitrary and unstable order.
@@ -220,8 +216,8 @@ export async function findUserMemory(
  * `ON CONFLICT DO NOTHING` plus a re-read rather than a check-then-insert: two
  * concurrent requests for a user with no profile would otherwise race the
  * `user_memories_oxy_user_id_key` unique, and in Postgres a failed statement
- * aborts the whole transaction rather than being recoverable the way Mongo's
- * duplicate-key-then-read-back was.
+ * aborts the whole transaction, so a duplicate-key-then-read-back cannot
+ * recover.
  */
 export async function getOrCreateUserMemory(
   db: ApiDatabase,
@@ -243,9 +239,7 @@ export async function getOrCreateUserMemory(
 /**
  * A single preference, read without loading the profile or its entries.
  *
- * `getUserLanguage` is called on the chat hot path and wants one column; the
- * Mongo version used `.select('preferences.language').lean()` for the same
- * reason.
+ * `getUserLanguage` is called on the chat hot path and wants one column.
  */
 export async function findPreferredLanguage(
   db: ApiDatabase,
@@ -277,9 +271,9 @@ export async function updateSettings(
  * REPLACE the preference block, clearing anything not supplied.
  *
  * `PUT /api/memory/preferences` `$set` the whole `preferences` object, so a key
- * absent from the body was removed. Mongoose's `strict` silently dropped
- * undeclared keys on the way in — that is why these are columns and not a
- * property bag, and why "replace" here means the four declared columns.
+ * absent from the body is removed. Only declared keys are stored — that is why
+ * these are columns and not a property bag, and why "replace" here means the
+ * four declared columns.
  */
 export async function replacePreferences(
   db: ApiDatabase,
@@ -518,17 +512,15 @@ export async function addEntries(
 /**
  * Discard every fact and store this set instead.
  *
- * The ONE place in this slice needing a transaction. In Mongo, assigning
- * `memory.memories = [...]` and calling `save()` replaced the array inside a
- * single document write; here it is a DELETE and an INSERT, and a failure
+ * The ONE place in this slice needing a transaction. It is a DELETE and an
+ * INSERT, and a failure
  * between them would leave the user with no memories at all. The import route's
  * `replace` strategy is the only caller.
  *
  * ## The parent row is locked, and atomicity alone is not what that is for
  *
  * A transaction makes the pair all-or-nothing. It does NOT make two of them
- * serialize, and under READ COMMITTED they interleave in a way the Mongo
- * document write could not: B's DELETE blocks on A's row locks, and when it
+ * serialize, and under READ COMMITTED they interleave: B's DELETE blocks on A's row locks, and when it
  * unblocks its scan cannot see rows A inserted after that statement began — so
  * A's set survives B's replace and the user is left holding the UNION of two
  * imports. Measured on a real server, not reasoned about: with A holding an
@@ -536,15 +528,14 @@ export async function addEntries(
  * the table ended with one row from each.
  *
  * `for update` on the owning `user_memories` row makes that row the
- * serialization point, which is exactly what the Mongo document was. Two
+ * serialization point. Two
  * replaces now queue and the later one wins whole. It is the only writer that
  * takes this lock — every other one is a per-row upsert whose grain is the
  * functional unique — so there is no second lock to order against.
  *
- * Whole-array writers are the only pairing that regressed. `merge` and
- * `skip-duplicates` were also a whole-array `save()` in Mongo, which LOST a
- * concurrent write from the memory tool; as per-row upserts they no longer do.
- * That difference is an improvement and is left alone.
+ * Whole-list replaces are the only writers that need it. `merge` and
+ * `skip-duplicates` are per-row upserts, so they do not lose a concurrent write
+ * from the memory tool.
  */
 export async function replaceEntries(
   db: ApiDatabase,

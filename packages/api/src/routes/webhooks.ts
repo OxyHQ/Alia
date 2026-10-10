@@ -313,7 +313,7 @@ export async function processChannelMessage(
        *
        * These rows carry no `seq` (the append-ordering column), so `created_at`
        * IS the order they are read back in, and two identical timestamps leave
-       * that order undefined on Postgres where Mongo's natural order settled it.
+       * that order undefined.
        * The values are not invented to break a tie: they are when each message
        * exists, and a model call sits between them.
        */

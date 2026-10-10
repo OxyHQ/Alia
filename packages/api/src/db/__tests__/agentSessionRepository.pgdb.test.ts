@@ -120,8 +120,7 @@ describe('the plan is set and cleared as a PAIR', () => {
 
 describe('a patch touches only the keys it was given', () => {
   /**
-   * `$set: {x: undefined}` is a NO-OP in Mongo and writes NULL in Postgres. The
-   * runner patches `stats` six times a run with different members set, so a SET
+   * An `undefined` in the SET clause writes NULL. The runner patches `stats` six times a run with different members set, so a SET
    * clause built by spreading the input would erase whatever it did not mention
    * — silently, because every erased column is nullable.
    */
@@ -141,7 +140,7 @@ describe('a patch touches only the keys it was given', () => {
   it('reports a MATCH for a patch that changes nothing, not a miss', async () => {
     const session = await seedSession(await seedAgent());
     await updateAgentSession(db, session._id, { status: 'running' });
-    // `rowCount` behaves like Mongo's `matchedCount`, and the callers read it
+    // `rowCount` counts rows matched, and the callers read it
     // as "did the session exist" rather than as "did anything change".
     expect(await updateAgentSession(db, session._id, { status: 'running' })).toBe(1);
   });
@@ -194,8 +193,8 @@ describe('ownership is a predicate, never a comparison the caller makes', () => 
 
 describe('the task listings', () => {
   /**
-   * Mongo sorted `{'stats.completedAt': -1, createdAt: -1}` and puts a missing
-   * value LAST on a descending sort; Postgres defaults to NULLS FIRST there. So
+   * The history is ordered by completion DESC with a missing value LAST;
+   * Postgres defaults to NULLS FIRST there. So
    * a cancelled session that never completed would HEAD the history page — the
    * quietest possible ordering bug, since every row is real and present.
    */
@@ -477,8 +476,7 @@ describe('the columns whose TYPE is the whole point', () => {
   });
 
   /**
-   * The credit reservation is `default: undefined` in Mongoose: absent as a
-   * GROUP or whole. Synthesising zeros would make "took no credits" and "took a
+   * The credit reservation is optional as a group: absent as a GROUP or whole. Synthesising zeros would make "took no credits" and "took a
    * reservation of nothing" the same record, and `runner.ts` refunds on the
    * first and not the second.
    */

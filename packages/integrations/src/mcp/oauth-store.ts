@@ -13,7 +13,7 @@
  * calls `encrypt()` from `../shared/crypto` (AES-256-GCM, `iv:authTag:cipher`
  * hex, keyed by `TOKEN_ENCRYPTION_KEY`) before handing a value here, and
  * `decrypt()` after reading one back; the columns are plain `text` holding
- * opaque strings, which is exactly what the Mongoose schema did.
+ * opaque strings.
  *
  * Both directions of getting this wrong are silent:
  *
@@ -23,9 +23,8 @@
  *    still encrypts produces ciphertext-of-ciphertext. The write succeeds, the
  *    row looks perfectly stored, and every OAuth call fails at the first read.
  *
- * `packages/api` has an `encryptedText` custom type for columns whose Mongoose
- * counterpart carried a field-level `set: encrypt, get: decrypt`. These columns
- * did NOT: they were plain `String` with the provider encrypting. So the codec
+ * `packages/api` has an `encryptedText` custom type for columns encrypted on
+ * every write. These columns are not: the provider encrypts. So the codec
  * belongs where it already is, and this schema stays plain `text` —
  * `db/schema/columns.ts` in this package deliberately declares no such type.
  *
@@ -70,7 +69,7 @@ const AUTH_COLUMNS = {
  * OAuth callbacks racing for one (user, server) must converge on a single row
  * instead of leaving two half-finished authorizations. `DO NOTHING` is also
  * what keeps the loser from clobbering a record the winner has already begun
- * writing tokens into — Mongo's `$setOnInsert` upsert had the same property.
+ * writing tokens into.
  *
  * The follow-up `SELECT` is unconditional because `DO NOTHING` returns no row
  * for the loser. `RETURNING` alone would hand back `undefined` there, which is

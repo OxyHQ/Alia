@@ -1,19 +1,13 @@
 /**
  * Connected messaging accounts (WhatsApp, Telegram, Signal, Gmail), on Postgres.
  *
- * ## The port CLOSES a leak, and that is deliberate rather than incidental
+ * ## The safe row CLOSES a leak, by construction
  *
  * `connected_accounts.oauth_access_token` / `oauth_refresh_token` are
- * `encryptedText`, and in Mongoose the same pair lived in an `oauthTokens`
- * sub-document declared `{ toJSON: { getters: true } }` with **no
- * `select: false`**. Every route here answered `res.json({ account })` with the
- * whole document — so a Gmail access token scoped `gmail.send`, ciphertext at
- * rest, went onto the wire in the CLEAR on `GET /accounts`, `GET /:id/status`
- * and `PATCH /:id/settings`.
- *
- * Measured, not inferred: hydrating the model and `JSON.stringify`-ing it the
- * way Express does yields the plaintext, with a control string absent from the
- * document confirming the check is not a substring accident.
+ * `encryptedText`, decrypted on every read the query builder maps. Answering
+ * `res.json({ account })` with the whole row would put a Gmail access token
+ * scoped `gmail.send` onto the wire in the CLEAR on `GET /accounts`,
+ * `GET /:id/status` and `PATCH /:id/settings`.
  *
  * `ConnectedAccountSafeRow` has no token field, so the leak closes by
  * construction. Nothing reads what it drops —
@@ -209,9 +203,7 @@ export async function setConnectedAccountStatus(
  * Complete a Gmail link: identity, status, and the OAuth group as a WHOLE.
  *
  * `connected_accounts_oauth_pair_check` refuses a half-written group — a refresh
- * token or an expiry with no access token — which Mongo could not express,
- * because the sub-document's `required` only applied when the sub-document was
- * present at all. So the four columns are written together here, and the
+ * token or an expiry with no access token. So the four columns are written together here, and the
  * database rejects any other combination rather than storing it.
  */
 export async function completeGmailConnection(
@@ -258,11 +250,10 @@ export interface ConnectedAccountSettingsPatch {
 /**
  * Apply a settings patch, returning the updated row.
  *
- * ## `undefined` meant UNSET in Mongo and means NOTHING here
+ * ## `undefined` means NOTHING here, and `null` clears
  *
- * The source read `autoReplyAgentId ? new ObjectId(id) : undefined` and assigned
- * it to the document, which UNSET the field — so sending `autoReplyAgentId: null`
- * was how a user turned auto-reply's agent binding off. `.set({ x: undefined })`
+ * Sending `autoReplyAgentId: null` is how a user turns auto-reply's agent
+ * binding off. `.set({ x: undefined })`
  * in drizzle is a silent no-op: the agent would stay bound, and the UI would show
  * it cleared. Every clearable field below therefore maps a falsy-but-present
  * value to an explicit `null`, and `!== undefined` is what distinguishes "the

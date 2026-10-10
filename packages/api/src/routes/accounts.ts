@@ -260,8 +260,8 @@ router.get('/gmail/callback', async (req, res) => {
     const email = profile.email || 'unknown';
 
     // Update the ConnectedAccount. The four OAuth columns are written together,
-    // which `connected_accounts_oauth_pair_check` requires — Mongo could not
-    // express "the group is present as a whole or absent as a whole".
+    // which `connected_accounts_oauth_pair_check` requires: the group is present
+    // as a whole or absent as a whole.
     const expiresAt = tokenData.expires_in
       ? new Date(Date.now() + tokenData.expires_in * 1000)
       : undefined;
@@ -593,7 +593,7 @@ router.patch('/:id/settings', authenticateToken, async (req: express.Request<{ i
     } = req.body;
 
     // Each clearable field maps a falsy-but-PRESENT value to an explicit `null`.
-    // Mongo unset a field assigned `undefined`; drizzle would silently skip it,
+    // drizzle would silently skip an `undefined`,
     // so `autoReplyAgentId: null` from the client would have left the agent
     // bound while the UI showed it cleared.
     const account = await updateConnectedAccountSettings(getDb(), req.params.id, req.userId!, {

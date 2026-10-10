@@ -238,9 +238,8 @@ router.patch('/:id', authenticateToken, async (req: express.Request<{ id: string
       return res.status(400).json({ error: 'ownerPaysAgentTurns must be a boolean' });
     }
 
-    // An explicit clear writes NULL. The source assigned `undefined`, which
-    // unset the field in Mongo; the same assignment through drizzle is a silent
-    // no-op, so the bot would have kept answering with the old agent's prompt
+    // An explicit clear writes NULL. Assigning `undefined` through drizzle is a
+    // silent no-op, so the bot would have kept answering with the old agent's prompt
     // while the UI showed it unbound.
     let nextAgentId: string | null | undefined;
     if (agentId === undefined) {
@@ -359,8 +358,8 @@ router.post('/:id/link', authenticateToken, async (req: express.Request<{ id: st
       return res.status(404).json({ error: 'Auth token not found or expired' });
     }
 
-    // `linkBotUser` CLEARS the token to NULL. The source assigned `undefined`,
-    // which unset it in Mongo; the same through drizzle is a no-op, and a
+    // `linkBotUser` CLEARS the token to NULL. `undefined` through drizzle is a
+    // no-op, and a
     // redeemed one-time token would stay live for its remaining 15 minutes.
     await linkBotUser(db, botUser.id, {
       oxyUserId: req.userId!,

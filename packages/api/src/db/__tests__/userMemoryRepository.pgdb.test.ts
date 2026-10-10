@@ -25,8 +25,8 @@ import { userMemories, userMemoryEntries } from '../schema/memory';
  * The `user_memories` + `user_memory_entries` repository, against a real
  * server.
  *
- * These two tables are ONE Mongo document, so the cases here are mostly about
- * the seams that document did not have: a functional-unique upsert, a
+ * These two tables are ONE aggregate, so the cases here are mostly about the
+ * seams between them: a functional-unique upsert, a
  * replace-all that must be atomic, and the difference between merging a
  * preference block and replacing it.
  *
@@ -164,7 +164,7 @@ describe('the settings, preference and context blocks', () => {
     expect(after?.context).toEqual({ bio: 'Bakes bread' });
   });
 
-  it('omits an unset key rather than serving null, as Mongoose did', async () => {
+  it('omits an unset key rather than serving null', async () => {
     const p = await getOrCreateUserMemory(db, 'umr-absent');
     const profile = await findUserMemory(db, p.oxyUserId);
 
@@ -302,8 +302,7 @@ describe('changing and forgetting one fact by id', () => {
     const other = await saveEntryByTitle(db, p._id, { title: 'Free', summary: 'b', type: 'topic' });
 
     /**
-     * Mongo could not express a unique inside a sub-document array at all, so
-     * this was an in-JS scan that two concurrent renames could both pass. The
+     * An in-JS scan alone is one that two concurrent renames could both pass. The
      * functional unique makes it structural, and the collision is now a real
      * error rather than a silently duplicated title.
      */
@@ -364,8 +363,8 @@ describe('bulk import', () => {
     await saveEntryByTitle(db, p._id, { title: 'Keep', summary: 'a', type: 'topic' });
 
     /**
-     * This is what the transaction is for. The delete and the insert were ONE
-     * document write in Mongo; here a rejected insert after a successful delete
+     * This is what the transaction is for. A rejected insert after a successful
+     * delete
      * would leave the user with no memories at all — a silent, total loss on a
      * request that returns an error. `type` violates the CHECK, so the insert
      * fails on the server rather than in JavaScript.
@@ -394,8 +393,7 @@ describe('bulk import', () => {
      * Atomicity is not serialization, and this is the case that tells them
      * apart. Without `for update` on the parent, B's DELETE blocks on A's row
      * locks and then cannot see the rows A inserted after that statement
-     * began — so the table ends up holding the UNION of two imports, which the
-     * Mongo whole-array `save()` could never produce.
+     * began — so the table ends up holding the UNION of two imports.
      *
      * `Promise.all` would not reproduce it: starting two calls together does
      * not make their statements interleave, and a run where they happened to

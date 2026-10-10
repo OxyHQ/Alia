@@ -5,8 +5,8 @@
  *
  * `packages/integrations` had no deploy path. Not a broken one — an ABSENT one:
  * no ECS service, no ECR repository, and no workflow building its Dockerfile.
- * Every fix merged into this package, including the whole Mongo-to-Postgres
- * port, was undeliverable, and nothing anywhere was red about it. The sibling
+ * Every fix merged into this package, including the whole move to Postgres,
+ * was undeliverable, and nothing anywhere was red about it. The sibling
  * lesson is the same shape: `deploy-ecs-image.sh` carried complete migration
  * support for the API's whole life and nothing ever set `RUN_MIGRATIONS`, so
  * nothing applied its migrations in any environment, greenly.

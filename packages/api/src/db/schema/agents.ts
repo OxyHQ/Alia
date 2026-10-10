@@ -41,7 +41,7 @@
  *
  * It is declared `default: undefined`, so an agent either has the whole group
  * or has none of it, and nullable columns reproduce that exactly. No CHECK ties
- * the members together: Mongoose enforced no cross-field rule, so production
+ * the members together: no cross-field rule was ever enforced, so production
  * may hold a partially-written group — the `auth_health_metrics.method`
  * reasoning applied to a relationship rather than to a value, exactly as
  * `triggers` takes it.
@@ -85,8 +85,8 @@ import { libraryFiles } from './library';
 /**
  * A published (or draft) agent.
  *
- * `category` gets NO CHECK: Mongoose declares it `String, required, index` with
- * no `enum`, so it is free text and production may hold anything. The
+ * `category` gets NO CHECK: it is a required string with no enum, so it is
+ * free text and production may hold anything. The
  * `auth_health_metrics.method` answer.
  *
  * `rating` is `double precision`, not an integer or a money column:
@@ -131,10 +131,10 @@ export const agents = pgTable(
      * permission — see the file comment.
      */
     authorOxyUserId: text().notNull(),
-    /** Free text. No CHECK — Mongoose declares no enum. */
+    /** Free text. No CHECK — no enum was ever declared. */
     category: text().notNull(),
     tags: text().array().notNull().default([]),
-    /** A one-decimal average of the visible reviews. 0..5, as Mongoose declared. */
+    /** A one-decimal average of the visible reviews. 0..5. */
     rating: doublePrecision().notNull().default(0),
     reviewCount: integer().notNull().default(0),
     usageCount: integer().notNull().default(0),
@@ -217,7 +217,7 @@ export const agents = pgTable(
     checkOneOf('agents_access_check', t.access, AGENT_ACCESS),
     checkOneOf('agents_archetype_check', t.archetype, AGENT_ARCHETYPES),
     /**
-     * Mongoose declares `min: 0, max: 5`. A domain invariant, not input shaping:
+     * Bounded 0..5. A domain invariant, not input shaping:
      * the value is an average of 1..5 review ratings, so anything outside it
      * means a non-validating write path produced it.
      */
@@ -236,16 +236,13 @@ export const agents = pgTable(
  * skill still exist" would stay unanswerable in SQL — the same argument
  * `routing_profile_provider_mappings` made.
  *
- * The CASCADE is a deliberate behaviour CHANGE, and the same one that table
- * chose: Mongo left a deleted skill's id in the array and `populate` silently
- * dropped it, so the agent's skill list quietly shrank with no record of why.
- * Here the row goes with the skill.
+ * The CASCADE is the same call that table made: the row goes with the skill,
+ * rather than a dangling id silently dropped on read.
  *
  * `position` preserves the order the client sent, because the write path
  * replaces the whole array (`routes/agents/crud.ts:252`) and the read path
- * renders it in order. `UNIQUE(agent_id, skill_id)` is new — Mongo cannot index
- * inside a sub-document array at all — and it is a real backfill risk rather
- * than a formality; see the audit list.
+ * renders it in order. `UNIQUE(agent_id, skill_id)` stops one agent naming the
+ * same skill twice.
  */
 export const agentSkills = pgTable(
   'agent_skills',

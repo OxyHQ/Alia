@@ -115,8 +115,7 @@ describe('the enqueue is enlisted in the CALLER transaction', () => {
   /**
    * The type cannot tell `ApiDatabase` from a transaction handle once both are
    * widened to `Executor`, so passing the root connection where a `tx` belongs
-   * COMPILES. This is Mongo's `session.inTransaction()` check, ported: there the
-   * hole was a bare `startSession()` nobody opened a transaction on.
+   * COMPILES. The runtime check is what closes that hole.
    */
   it('refuses the root connection, and writes nothing when it refuses', async () => {
     await expect(enqueueModerationOutboxEvent(db, EVENT)).rejects.toBeInstanceOf(
@@ -264,10 +263,10 @@ describe('completing, renewing and failing a claim', () => {
 
   /**
    * Renewing twice in quick succession can write an identical `lease_until`.
-   * Mongo counted that as matched-but-not-modified, which is why this call site
-   * read `matchedCount` and not `modifiedCount` — reading the wrong one reports a
-   * still-held lease as LOST and abandons work mid-delivery. Postgres's row count
-   * is `matchedCount`, and this asserts the port kept that reading.
+   * That is matched-but-not-modified, which is why this call site reads the
+   * matched count — a changed-rows count would report a still-held lease as
+   * LOST and abandon work mid-delivery. Postgres's row count is the matched
+   * count, and this asserts that reading.
    */
   it('reports a renewal as successful even when nothing changed', async () => {
     await enqueueAndClaim('worker-a', 60_000);

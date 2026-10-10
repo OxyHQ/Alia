@@ -166,10 +166,8 @@ async function refreshAndPersist(integration: IntegrationTokenRow): Promise<stri
 
     // `encryptedText`'s `toDriver` encrypts on the way to the server, so there is
     // no spelling of this write through the query builder that stores the token
-    // in the clear. The Mongoose equivalent was a `set: encrypt` field setter,
-    // and the source had to reach for `document.save()` specifically because a
-    // dotted-path `updateOne()` bypassed it. That hazard is gone: the codec is on
-    // the COLUMN, so every write goes through it however it is spelled.
+    // in the clear: the codec is on the COLUMN, so every write goes through it
+    // however it is spelled.
     //
     // `refreshToken` and `expiresAt` are passed only when the reply carried
     // them, matching the source's `if (data.refresh_token)` — a provider that

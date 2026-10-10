@@ -153,7 +153,7 @@ export async function finishOAuth(
   }
 
   // A fresh provider reads the persisted DCR client info + PKCE verifier from
-  // Mongo. The state token is irrelevant here (the callback→(user,server)
+  // Postgres. The state token is irrelevant here (the callback→(user,server)
   // mapping already happened at the API), so a throwaway value is fine.
   const provider = new AliaOAuthProvider({
     oxyUserId,

@@ -7,9 +7,8 @@
  *
  * ## The wire shape keeps `_id`
  *
- * Mongo's `$group` names its key `_id`, and the routes hand the aggregate
- * documents to the client untouched, so `_id` is a published field of these
- * responses and not an artifact of the driver. Renaming it here would be a
+ * The aggregate rows name their group key `_id`, and the routes hand them to
+ * the client untouched, so `_id` is a published field of these responses. Renaming it here would be a
  * breaking API change disguised as a cleanup, and `packages/app` reads it.
  *
  * ## Three casts, one timezone, and none of them is optional
@@ -19,8 +18,8 @@
  * - **`avg(latency_ms)` returns `numeric`**, which decodes as a string too. This
  *   is the one that does not look like the others: `avg` over an `integer` is
  *   not an integer type, so the usual "it is a sum, cast it" instinct misses it.
- * - `to_char(created_at, …)` formats in the SESSION's timezone, while Mongo's
- *   `$dateToString` with no `timezone` is UTC. Without `at time zone 'UTC'` the
+ * - `to_char(created_at, …)` formats in the SESSION's timezone, while the day
+ *   buckets are UTC. Without `at time zone 'UTC'` the
  *   day buckets silently shift for any server not running on UTC, which is a
  *   wrong answer that looks like a plausible one.
  */
@@ -77,7 +76,7 @@ export async function insertChatAnalytics(
   });
 }
 
-/** The UTC calendar day a row falls on — Mongo's `$dateToString` default. */
+/** The UTC calendar day a row falls on. */
 const utcDay = sql<string>`to_char(${chatAnalytics.createdAt} at time zone 'UTC', 'YYYY-MM-DD')`;
 /** `avg` over an `integer` column is `numeric`, which decodes as a string. */
 const avgLatency = sql<number>`coalesce(avg(${chatAnalytics.latencyMs}), 0)::double precision`;

@@ -3,12 +3,10 @@
  *
  * ## The projection is the security property, and drizzle gives it no default
  *
- * `oauth_access_token` and `oauth_refresh_token` are `encryptedText`. Mongoose
- * expressed "do not hand these out" as `.select('-oauthTokens')` at each call
- * site; drizzle has no projection default at all, and — worse than Mongo — a
- * bare `db.select().from(integrations)` returns them **decrypted**, because
- * `fromDriver` runs on every read the query builder maps. A Mongo `find()`
- * without the getters at least yielded ciphertext.
+ * `oauth_access_token` and `oauth_refresh_token` are `encryptedText`. drizzle
+ * has no projection default at all, and a bare
+ * `db.select().from(integrations)` returns them **decrypted**, because
+ * `fromDriver` runs on every read the query builder maps.
  *
  * So there are exactly TWO shapes here, and no function returns the whole row:
  *

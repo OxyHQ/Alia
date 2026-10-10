@@ -53,13 +53,12 @@ const findReportedSkillMock = vi.mocked(findReportedSkill);
 /**
  * The agent and review ids are uuid v7; the skill ones stay 24-hex.
  *
- * Not cosmetic. Both providers used to open with
- * `mongoose.isValidObjectId(reportedId)` and answer `null` for anything else —
- * which, against these ids, is EVERY subject. The delivery worker reads that
+ * Not cosmetic. A provider that opened with a 24-hex-only id check and answered
+ * `null` for anything else would answer it for EVERY subject here. The delivery worker reads that
  * null as "the object was deleted" and closes the report locally, so a
  * moderation pipeline would have reported success while never looking at
- * anything. Real-shaped ids are what make the guard's removal testable at all:
- * with 24-hex fixtures the old code passes too.
+ * anything. Real-shaped ids are what make that testable at all: with 24-hex
+ * fixtures such a guard passes too.
  */
 const AGENT_ID = '01996a6f-0000-7000-8000-00000000a9e1';
 const REVIEW_ID = '01996a6f-0000-7000-8000-00000000a9e2';

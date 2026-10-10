@@ -22,7 +22,7 @@ import { ROLLBACK_RISK_LEVELS, ROLLBACK_STATUSES } from '../../domain/rollback-r
 /**
  * A rule the assistant learned about one account, applied to later turns.
  *
- * No CHECK on `priority` or `hit_count`. Mongoose declares no `min`/`max` on
+ * No CHECK on `priority` or `hit_count`. No `min`/`max` was ever declared on
  * either, and CONVENTIONS.md's third class applies: where the source constrained
  * nothing, neither does this schema — a bound invented here would fail on the
  * first legacy row that fell outside a range nobody ever enforced.
@@ -69,8 +69,7 @@ export const learningRules = pgTable(
  * ## `session_id` names an `agent_sessions` row and carries NO foreign key
  *
  * `lib/agent/actions.ts:399` writes `session._id.toString()` into it, so it is a
- * real reference — but Mongoose declares it `String` rather than an ObjectId
- * `ref`, and that is not an accident to correct. This is a safety audit of what
+ * real reference — but it is deliberately not a foreign key. This is a safety audit of what
  * an agent DID, and the `api_usage.key_id` reasoning applies unchanged: a
  * cascade deletes the evidence, `SET NULL` destroys the attribution that IS the
  * row's content, and `RESTRICT` makes a session undeletable. Every available
@@ -79,9 +78,9 @@ export const learningRules = pgTable(
  *
  * ## `expires_at` is a deadline with NO sweep behind it, deliberately
  *
- * Mongoose declares it `required, index: true` and NOT `expireAfterSeconds`, so
- * these rows accumulate in Mongo today and `db/expiryTargets.ts` gets no entry
- * for this table. Adding one would delete history the source kept — the
+ * It is required and indexed but is NOT a retention rule, so these rows
+ * accumulate and `db/expiryTargets.ts` gets no entry for this table. Adding one
+ * would delete history — the
  * `workflow_executions` call, for the same reason. The column bounds the
  * rollback WINDOW; it does not bound the row's life.
  *

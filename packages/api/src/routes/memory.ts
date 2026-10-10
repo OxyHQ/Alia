@@ -133,11 +133,9 @@ router.get('/', async (req, res) => {
 router.put('/context', async (req, res) => {
   try {
     /**
-     * The fields are named rather than spread. The source `$set` the whole of
-     * `req.body` into `context`, and what stopped that being mass assignment was
-     * Mongoose's `strict` silently dropping every undeclared path — a property
-     * of the driver, not of the route. Naming them keeps the same four columns
-     * writable and makes the boundary visible.
+     * The fields are named rather than spread, so `req.body` cannot become mass
+     * assignment. Naming them keeps exactly four columns writable and makes the
+     * boundary visible.
      */
     const userId = req.user!.id;
     const { occupation, location, timezone, bio } = req.body ?? {};
@@ -835,8 +833,8 @@ router.post('/import', async (req, res) => {
 
     // Apply merge strategy
     if (strategy === 'replace') {
-      // One transaction: the delete and the insert were a single document write
-      // in Mongo, and a failure between them would leave the user with nothing.
+      // One transaction: a failure between the delete and the insert would leave
+      // the user with nothing.
       stats.imported = await replaceEntries(db, memory._id, incoming);
 
       if (importData.preferences) await replacePreferences(db, memory._id, importData.preferences);

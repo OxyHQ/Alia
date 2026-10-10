@@ -10,7 +10,7 @@
  * not a third case — its whole update is `$inc: { usage_count: 1 }`, so it
  * cannot touch `text` and the derived columns cannot go stale there.
  *
- * A Mongoose hook has no Postgres counterpart, so it is re-expressed here at the
+ * A save hook has no Postgres counterpart, so it is re-expressed here at the
  * ONE place a `text` is written. That means the seed path now derives where it
  * previously did not, which is a behaviour change and was checked rather than
  * waved through:
@@ -359,8 +359,8 @@ export interface SuggestionSearchHit {
 /**
  * Autocomplete search over one scope.
  *
- * `trigger_words` is an array and Mongo's `$regex` matched if ANY element did,
- * so this is an `EXISTS` over `unnest` rather than a comparison against the
+ * `trigger_words` is an array and a word matches if ANY element does, so this is
+ * an `EXISTS` over `unnest` rather than a comparison against the
  * array itself — comparing an array to a pattern would match nothing and read as
  * "no results", which is the quietest possible failure for a search box.
  */

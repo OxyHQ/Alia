@@ -6,7 +6,7 @@
  * ## `owner` becomes `owner_oxy_user_id`, and the mapping is EXPLICIT
  *
  * Every other table in this schema names the account `oxy_user_id`; the
- * Mongoose model called it `owner`. `db/schema/library.ts` states why the
+ * API calls it `owner`. `db/schema/library.ts` states why the
  * column says what it holds — a pairing derived from NAMES would leave it null
  * and make every file unreachable while reporting success. So the mapping is
  * written out here, once, at the only boundary that performs it.
@@ -41,9 +41,9 @@ export interface LibraryFileRow {
  * be recalled, so the field is served from the Postgres `id` rather than
  * renamed. It retires when no supported client reads it.
  *
- * `thumbnail` is omitted rather than sent as `null`: Mongo's `lean()` left an
- * unset optional field off the document entirely, and a client distinguishing
- * "absent" from "null" would see a change that is invisible from here.
+ * `thumbnail` is omitted rather than sent as `null`: an unset optional field is
+ * absent from the response, and a client distinguishing "absent" from "null"
+ * would see a change that is invisible from here.
  */
 export interface LibraryFileResponse {
   readonly _id: string;
@@ -89,8 +89,7 @@ export function toLibraryFileResponse(row: LibraryFileRow): LibraryFileResponse 
  *
  * `category` is applied as a filter when supplied and ignored when not — the
  * route validates it against `FILE_CATEGORIES` before calling, and an
- * unrecognised value there means "no filter", exactly as the Mongo version's
- * `includes` check decided.
+ * unrecognised value there means "no filter".
  */
 export async function listLibraryFiles(
   db: ApiDatabase,

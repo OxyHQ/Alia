@@ -269,8 +269,7 @@ describe('a platform identity belongs to exactly one bot', () => {
 describe('the agent binding can be CLEARED', () => {
   it('writes NULL rather than silently doing nothing', async () => {
     /**
-     * The source assigned `undefined`, which unset the field in Mongo. The same
-     * assignment through drizzle is a no-op, so the bot would keep answering
+     * Assigning `undefined` through drizzle is a no-op, so the bot would keep answering
      * with the old agent's prompt while the UI showed it unbound.
      */
     const bot = await registerBot(
@@ -413,8 +412,8 @@ describe('a bot user is upserted, not read-then-branched', () => {
 describe('a link token is single-use, and unlinking really unlinks', () => {
   it('CLEARS the auth token on redemption, so it cannot be redeemed twice', async () => {
     /**
-     * The security-relevant half of the port. `botUser.authToken = undefined`
-     * unset the column in Mongo; through drizzle it is a silent no-op, and a
+     * The security-relevant half. `authToken: undefined` through drizzle is a
+     * silent no-op, and a
      * redeemed one-time link token would stay live for its remaining 15 minutes
      * — redeemable AGAIN, by anyone still holding it, into a DIFFERENT account.
      */

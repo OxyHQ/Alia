@@ -27,7 +27,7 @@ Epic #139 sets the target: Alia becomes a consumer of a shared inference platfor
 
 ## Implementation status
 
-The database cut and the inference cut are separate. [PR #465](https://github.com/OxyHQ/Alia/pull/465) completed the PostgreSQL-only runtime: `@alia/api` opens no MongoDB connection and has no Mongo or Mongoose dependency. Before this change, provider adapters and plaintext `provider_keys` rows remained in Alia, and the dormant client/configuration still carried legacy `ALIA_RELAY_*`, `RELAY_BASE_URL`, `X-Oxy-Relay-*` and `oxy-relay-envelope:v1` identifiers. Those identifiers described migration debt, not a supported second name or proof of production cutover.
+The database cut and the inference cut are separate. [PR #465](https://github.com/OxyHQ/Alia/pull/465) completed the PostgreSQL-only runtime. Before this change, provider adapters and plaintext `provider_keys` rows remained in Alia, and the dormant client/configuration still carried legacy `ALIA_RELAY_*`, `RELAY_BASE_URL`, `X-Oxy-Relay-*` and `oxy-relay-envelope:v1` identifiers. Those identifiers described migration debt, not a supported second name or proof of production cutover.
 
 The direct hosted runtime is removed and Alia uses the published
 `OxyInferenceClient`. The Oxy-only Alia boundary was deployed and read back on

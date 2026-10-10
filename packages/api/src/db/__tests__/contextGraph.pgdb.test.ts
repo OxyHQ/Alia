@@ -13,10 +13,7 @@ import { CONTEXT_EDGE_TYPES } from '../../domain/context-edge.js';
 /**
  * The context graph, against a REAL server.
  *
- * The referential integrity below is the ONLY thing in this batch that Mongo
- * could not express at all, so it is the only thing whose port is a genuine
- * behaviour change rather than a translation — and none of it has a mocked
- * counterpart.
+ * The referential integrity below has no mocked counterpart at all.
  */
 
 let db: ApiDatabase;
@@ -46,10 +43,8 @@ describe('an edge cannot outlive either of its endpoints', () => {
     await insertNode('ctx-n-real', 'real');
 
     /**
-     * Mongo stored `fromNodeId`/`toNodeId` as bare ObjectIds with a `ref` it
-     * never enforced, so this insert simply succeeded there and produced an
-     * edge nothing could traverse. This is the tightening, and it is the one a
-     * backfill can trip on.
+     * Without the foreign key this insert would simply succeed and produce an
+     * edge nothing could traverse.
      */
     await expect(insertEdge('ctx-e-dangling', 'ctx-n-real', 'ctx-n-missing')).rejects.toSatisfy(
       (error: unknown) => {

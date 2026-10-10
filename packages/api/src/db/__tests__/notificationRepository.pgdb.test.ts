@@ -115,7 +115,7 @@ describe('the dismissed_at CHECK survives every transition the routes allow', ()
 
   it('CLEARS dismissed_at when a dismissed notification is marked read', async () => {
     /**
-     * The transition Mongo allowed — `markAsRead` has no status filter — and the
+     * The transition that is allowed — `markAsRead` has no status filter — and the
      * one that violates `(status = 'dismissed') = (dismissed_at is not null)` if
      * the column is left behind. Without the clear this THROWS, so the route
      * 500s on a perfectly ordinary sequence.

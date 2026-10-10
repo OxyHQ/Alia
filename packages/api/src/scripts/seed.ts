@@ -11,7 +11,7 @@
  * not ported with them, and that is the whole defect: five of them sat inside
  * `runStartupSeed()`, which had zero callers repo-wide, and the rest sat inside
  * `startBackgroundServices()`, reachable only from `connectDB().then(...)` —
- * a Mongo connection that no longer exists and never resolves. Both groups are
+ * a connection that never resolved. Both groups are
  * correct code wired to nothing, which is why production holds 0 `plans` and
  * every account falls to the free floor.
  *

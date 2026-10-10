@@ -343,17 +343,14 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
         return entry ? entry.summary : '';
       } else if (operation === 'write') {
         /**
-         * One upsert where Mongo needed a read, then a positional `$set` OR a
-         * `$push` — three statements racing each other, so two canvas runs
-         * writing the same key could both take the `$push` branch and leave
-         * duplicate memories. `saveEntryByTitle` settles that on the server.
+         * One upsert rather than a read then an update-or-append — statements
+         * racing each other, so two canvas runs writing the same key could both
+         * append and leave duplicate memories. `saveEntryByTitle` settles that on
+         * the server.
          *
-         * A behaviour change comes with it, in the safe direction: the Mongo
-         * read matched `'memories.title'` EXACTLY while the write path
-         * everywhere else folds case and whitespace, so a canvas writing
-         * `"Coffee"` against a stored `"coffee"` used to append a second entry
-         * the rest of the application then treated as one. It now updates the
-         * entry that is already there.
+         * It folds case and whitespace like the write path everywhere else, so a
+         * canvas writing `"Coffee"` against a stored `"coffee"` updates the entry
+         * that is already there rather than appending a second one.
          */
         const userMemory = await getOrCreateUserMemory(db, userId);
         await saveEntryByTitle(db, userMemory._id, {

@@ -50,8 +50,7 @@ router.put('/', async (req, res) => {
     /**
      * Only user-editable fields. Written as a NEW object rather than mutated in
      * place: the column is `jsonb`, so the whole value is replaced on every
-     * write and there is nothing corresponding to `markModified` — which existed
-     * only because Mongoose could not see a mutation inside a `Mixed` path.
+     * write.
      */
     const next = {
       ...memory.writingStyle,

@@ -8,9 +8,9 @@
  * ## Deleting a plan now takes its feature mappings with it
  *
  * `plan_features.plan_id` is a foreign key to `plans.plan_id` with
- * `ON DELETE CASCADE`. Mongo left the mappings behind as orphans, where a plan
- * re-created under the same id silently inherited the withdrawn one's
- * entitlements. That is a deliberate change and it belongs to the schema rather
+ * `ON DELETE CASCADE`. Orphaned mappings would let a plan re-created under the
+ * same id silently inherit the withdrawn one's entitlements. That belongs to
+ * the schema rather
  * than to this file; it is stated here because `deletePlanByPlanId` is where it
  * happens.
  */
@@ -31,10 +31,9 @@ export type PlanUpdate = Partial<Omit<PlanInsert, 'id' | 'planId' | 'createdAt'>
 /**
  * The filter every caller actually uses.
  *
- * The Mongoose version took an arbitrary `Record<string, unknown>` and handed it
- * to `find()`. Four keys are used across the whole repository — measured, not
- * assumed — so this is the closed set. An open filter object cannot be ported to
- * a query builder without either writing an interpreter or telling a lie about
+ * Four keys are used across the whole repository — measured, not assumed — so
+ * this is the closed set. An open filter object cannot be handed to a query
+ * builder without either writing an interpreter or telling a lie about
  * what it supports.
  */
 export interface PlanFilter {
@@ -109,7 +108,7 @@ export async function deletePlanByPlanId(db: ApiDatabase, planId: string): Promi
  *
  * Which is what makes `inserted` readable without `xmax`: an empty result IS
  * the conflict branch. The previous version could not use the row count —
- * `rowCount` is 1 either way, like Mongo's `matchedCount` — and needed
+ * `rowCount` is 1 either way — and needed
  * `(xmax = 0)` to recover the insert branch. It does not need it now, and a
  * caller that wanted the existing row back would have to read it explicitly
  * rather than assume this returned one.

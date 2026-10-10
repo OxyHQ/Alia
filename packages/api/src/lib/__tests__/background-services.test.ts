@@ -14,8 +14,8 @@ import type { getDb as getDbSignature } from '../../db/index.js';
  * `src/index.ts`, which nothing imports because importing it opens a socket. So
  * the only available evidence was source text — and source text is what could
  * not see the defect that mattered: the function was reached ONLY from
- * `connectDB().then(...)`, a MongoDB connection whose URI left the task
- * definition at the decommission, so it retried forever and the trigger engine,
+ * `connectDB().then(...)`, a connection that never resolved, so it retried
+ * forever and the trigger engine,
  * the dispatcher and both queues never started at all. The
  * text of every one of those calls was correct the whole time.
  *

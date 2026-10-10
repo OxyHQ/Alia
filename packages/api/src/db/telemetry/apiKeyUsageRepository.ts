@@ -9,13 +9,12 @@
  * `api_key_id` / `app_id` values stay on old rows.
  *
  * Swept at 90 days by `db/expiryTargets.ts`, from `timestamp`: this table has no
- * `created_at` (the Mongoose schema set `timestamps: false`) so the event time is
- * its only clock. The retention is the longest in the schema on purpose — the
+ * `created_at`, so the event time is its only clock. The retention is the longest in the schema on purpose — the
  * billing and rate-limit reads work in monthly windows.
  *
  * ## Day buckets are UTC, explicitly
  *
- * Mongo's `$dateToString` with no `timezone` is UTC. `to_char()` over a
+ * Day buckets are UTC. `to_char()` over a
  * `timestamptz` uses the SESSION time zone, so the same code silently produces
  * different day boundaries depending on what the connection happens to be set
  * to — a whole day of usage moving between buckets, with no error and a

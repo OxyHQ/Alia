@@ -10,8 +10,8 @@
  * with no second factor. It is registered in `db/protectedColumns.ts`, so
  * `publicColumns` removes it from the row type of every read below, and the one
  * caller that needs it — reconnecting a session inside this process — asks for
- * it by name. Before the port, `GET /sessions/:sessionId/status` returned the
- * whole Mongoose document and therefore returned this credential.
+ * it by name. `GET /sessions/:sessionId/status` must never return the whole
+ * row, which would include this credential.
  */
 
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
@@ -29,7 +29,7 @@ import { conflictKey } from '../conflictKey';
 
 const PUBLIC_SESSION = publicColumns(telegramSessions, PROTECTED_COLUMNS);
 
-/** The subset the session-list endpoints returned under Mongoose's `.select()`. */
+/** The subset the session-list endpoints return. */
 const SESSION_SUMMARY = {
   sessionId: telegramSessions.sessionId,
   oxyUserId: telegramSessions.oxyUserId,
@@ -182,7 +182,7 @@ export async function markTelegramDisconnected(
 /**
  * A QR login that failed outright. Deliberately does NOT touch
  * `lastDisconnected`: the session was never connected, so there is no
- * disconnection instant to record, and the Mongo original wrote only a status.
+ * disconnection instant to record; only the status is written.
  */
 export async function markTelegramLoginFailed(
   db: IntegrationsDatabase,
@@ -231,9 +231,8 @@ export interface TelegramChatUpsert {
 /**
  * Record a chat and count one more unread message against it.
  *
- * The Mongo original combined `$set`, `$inc: { unreadCount: 1 }` and
- * `$setOnInsert`, which on INSERT left `unreadCount` at 1. The two halves are
- * spelled separately here: `1` in the inserted row, and the EXISTING value plus
+ * On INSERT `unreadCount` starts at 1. The two halves are spelled separately
+ * here: `1` in the inserted row, and the EXISTING value plus
  * one in the conflict branch. `excluded.unread_count` would be wrong — it is
  * the rejected row's `1`, so every update would reset the counter to one
  * instead of advancing it.
