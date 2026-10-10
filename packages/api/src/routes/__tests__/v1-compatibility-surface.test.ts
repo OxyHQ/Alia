@@ -71,6 +71,7 @@ import {
 } from '../../middleware/auth.js';
 import { apiKeyRateLimit } from '../../middleware/api-key-rate-limit.js';
 import { handleChatCompletions } from '../v1/chat-completions.js';
+import { codeOfFile, snippet } from '../../__tests__/support/source-code.js';
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../', import.meta.url)));
 const API_SRC = path.join(REPO_ROOT, 'packages/api/src');
@@ -866,18 +867,20 @@ describe('the two chat surfaces differ only where it is recorded (#139 ws6, ADR 
   });
 
   it('records the CORS difference, read at the mounts that produce it', () => {
-    const index = code('index.ts');
-    expect(index).toMatch(/app\.use\('\/v1',\s*cors\(\{\s*origin: '\*'/);
+    // Canonical form (`__tests__/support/source-code.ts`): the formatter may
+    // wrap these calls however it likes.
+    const index = codeOfFile(path.join(API_SRC, 'index.ts'));
+    expect(index).toContain(snippet("app.use('/v1', cors({ origin: '*'"));
     // And the other half: everything that is NOT /v1 goes through the allowlist.
-    expect(index).toContain("if (req.path.startsWith('/v1')) return next();");
-    expect(index).toContain('internalCors(req, res, next)');
+    expect(index).toContain(snippet("if (req.path.startsWith('/v1')) return next();"));
+    expect(index).toContain(snippet('internalCors(req, res, next)'));
     expect(SURFACE_DIFFERENCES.cors).toBeDefined();
   });
 
   it('records the socket-tuning difference, read at the mounts that produce it', () => {
-    const index = code('index.ts');
-    const aliaMount = index.indexOf("app.use('/alia/chat', (_req, res, next)");
-    const v1Mount = index.indexOf("app.use('/v1', (_req, res, next)");
+    const index = codeOfFile(path.join(API_SRC, 'index.ts'));
+    const aliaMount = index.indexOf(snippet("app.use('/alia/chat', (_req, res, next)"));
+    const v1Mount = index.indexOf(snippet("app.use('/v1', (_req, res, next)"));
     expect(aliaMount).toBeGreaterThan(-1);
     expect(v1Mount).toBeGreaterThan(-1);
 
@@ -887,9 +890,9 @@ describe('the two chat surfaces differ only where it is recorded (#139 ws6, ADR 
       const next = index.indexOf('app.use(', start + 1);
       return index.slice(start, next === -1 ? undefined : next);
     };
-    expect(body(aliaMount)).toContain('setTimeout(0)');
-    expect(body(aliaMount)).toContain('setNoDelay(true)');
-    expect(body(v1Mount)).not.toContain('setTimeout(0)');
+    expect(body(aliaMount)).toContain(snippet('setTimeout(0)'));
+    expect(body(aliaMount)).toContain(snippet('setNoDelay(true)'));
+    expect(body(v1Mount)).not.toContain(snippet('setTimeout(0)'));
     expect(body(v1Mount)).not.toContain('setNoDelay');
     // Both disable proxy buffering, which is the part they do share.
     expect(body(aliaMount)).toContain('X-Accel-Buffering');

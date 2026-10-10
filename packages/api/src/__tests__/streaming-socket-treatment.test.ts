@@ -1,10 +1,10 @@
-import { readFileSync } from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { codeOfFile, snippet } from './support/source-code.js';
 
 /**
  * Nagle, on the surface every shipped client actually uses — epic #139
@@ -55,13 +55,14 @@ import { describe, expect, it } from 'vitest';
  */
 
 const PACKAGE_SRC = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
-const boot = readFileSync(path.join(PACKAGE_SRC, 'index.ts'), 'utf8');
+/** In its canonical form (`support/source-code.ts`), so the formatter cannot break a reading. */
+const boot = codeOfFile(path.join(PACKAGE_SRC, 'index.ts'));
 
 describe('the boot file was read, so an absence is an absence', () => {
   it('is the real entrypoint', () => {
     expect(boot.length).toBeGreaterThan(5_000);
-    expect(boot).toContain('const server = http.createServer(');
-    expect(boot).toContain('server.listen(PORT');
+    expect(boot).toContain(snippet('const server = http.createServer('));
+    expect(boot).toContain(snippet('server.listen(PORT'));
   });
 });
 
@@ -71,9 +72,11 @@ describe('every connection gets Nagle disabled, /v1 included (#139 ws19)', () =>
     // handler ON THE SERVER rather than as the substring `setNoDelay`, because
     // the same call inside a per-route middleware would satisfy a substring
     // search while covering one route instead of all of them.
-    const handler = /server\.on\('connection',\s*\(socket\)\s*=>\s*\{([\s\S]*?)\n\}\);/.exec(boot);
+    // The body is read up to its first `}`, so a handler that grows a block of
+    // its own reads as moved rather than passing on a partial body.
+    const handler = /server\.on\('connection',\(socket\)=>\{([^{}]*)\}\);/.exec(boot);
     expect(handler, "the server's connection handler moved or was renamed").not.toBeNull();
-    expect(handler?.[1]).toContain('socket.setNoDelay(true)');
+    expect(handler?.[1]).toContain(snippet('socket.setNoDelay(true)'));
   });
 
   it('the handler is registered on the server that serves the routes', () => {
@@ -81,18 +84,20 @@ describe('every connection gets Nagle disabled, /v1 included (#139 ws19)', () =>
     // do nothing for `/v1`. There is one `http.createServer` in this file, it is
     // assigned to `server`, and `server` is what listens.
     expect(boot.match(/http\.createServer\(/g)).toHaveLength(1);
-    expect(boot.indexOf('const server = http.createServer(')).toBeLessThan(
-      boot.indexOf("server.on('connection'"),
+    expect(boot.indexOf(snippet('const server = http.createServer('))).toBeLessThan(
+      boot.indexOf(snippet("server.on('connection'")),
     );
-    expect(boot.indexOf("server.on('connection'")).toBeLessThan(boot.indexOf('server.listen(PORT'));
+    expect(boot.indexOf(snippet("server.on('connection'"))).toBeLessThan(
+      boot.indexOf(snippet('server.listen(PORT')),
+    );
   });
 
   it('/v1 still gets the proxy-buffering header, which is a different control', () => {
     // `X-Accel-Buffering` tells an nginx in front of the process not to buffer;
     // `setNoDelay` tells the kernel not to. Neither substitutes for the other,
     // and both are load-bearing for a stream.
-    expect(boot).toContain("app.use('/v1', (_req, res, next) => {");
-    expect(boot).toContain("res.setHeader('X-Accel-Buffering', 'no');");
+    expect(boot).toContain(snippet("app.use('/v1', (_req, res, next) => {"));
+    expect(boot).toContain(snippet("res.setHeader('X-Accel-Buffering', 'no');"));
   });
 
   it('a server built that way really does disable Nagle on the socket it accepts', async () => {
@@ -158,9 +163,9 @@ describe('what the per-route middleware on /alia/chat adds', () => {
     // (`server.timeout` is 0, so node calls `socket.setTimeout(0)` itself), and
     // the reason it was not deleted is that deleting a redundant safety net on a
     // dead surface buys nothing and costs the next reader the measurement.
-    expect(boot).toContain("app.use('/alia/chat', (_req, res, next) => {");
-    expect(boot).toContain('res.socket.setNoDelay(true)');
-    expect(boot).toContain('res.socket.setTimeout(0)');
+    expect(boot).toContain(snippet("app.use('/alia/chat', (_req, res, next) => {"));
+    expect(boot).toContain(snippet('res.socket.setNoDelay(true)'));
+    expect(boot).toContain(snippet('res.socket.setTimeout(0)'));
     expect(new http.Server().timeout).toBe(0);
   });
 });

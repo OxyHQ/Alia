@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { cardOf } from '@/features/chat/model/tool-cards';
+import { codeOfFile } from '@/shared/testing/source-code';
 import { fixtureConversation, parseFixtureId } from '../conversation';
 
 const APP = join(__dirname, '..', '..');
@@ -57,9 +58,11 @@ describe('fixtureConversation', () => {
 
 describe('the fixtures stay out of the product', () => {
   it('are mounted only behind the build-time flag', () => {
-    const entry = readFileSync(join(APP, 'index.web.tsx'), 'utf8');
+    // Canonical form (`src/shared/testing/source-code.ts`): layout and quote
+    // style dropped, so the formatter cannot turn this red.
+    const entry = codeOfFile(join(APP, 'index.web.tsx'));
     expect(entry).toMatch(
-      /process\.env\.EXPO_PUBLIC_ALIA_FIXTURES === "1"\s*\?[^:]*require\("\.\/fixtures\/entry"\)/,
+      /process\.env\.EXPO_PUBLIC_ALIA_FIXTURES==='1'\?[^:]*require\('\.\/fixtures\/entry'\)/,
     );
   });
 

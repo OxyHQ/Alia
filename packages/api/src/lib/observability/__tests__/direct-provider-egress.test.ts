@@ -6,6 +6,7 @@ import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { codeOfFile, snippet } from '../../../__tests__/support/source-code.js';
 
 import { getRecentAlerts, onAlert, type Alert } from '../alerts.js';
 import {
@@ -210,7 +211,8 @@ describe('the installed policy reaches the recorder', () => {
 });
 
 describe('there is one interceptor, and the entrypoint arms it', () => {
-  const boot = readFileSync(path.join(PACKAGE_SRC, 'index.ts'), 'utf8');
+  /** In its canonical form (`__tests__/support/source-code.ts`): layout-independent. */
+  const boot = codeOfFile(path.join(PACKAGE_SRC, 'index.ts'));
 
   it('src/index.ts arms the policy before the socket opens', () => {
     /*
@@ -227,9 +229,9 @@ describe('there is one interceptor, and the entrypoint arms it', () => {
      * rather than in a process about to exit, is asserted behaviourally in
      * `lib/__tests__/boot-guards.test.ts`.
      */
-    const guardsAt = boot.indexOf('runBootGuards({');
-    const listenAt = boot.indexOf('server.listen(');
-    expect(boot).toContain("from './lib/boot-guards.js'");
+    const guardsAt = boot.indexOf(snippet('runBootGuards({'));
+    const listenAt = boot.indexOf(snippet('server.listen('));
+    expect(boot).toContain(snippet("from './lib/boot-guards.js'"));
     // Both offsets, because `indexOf` answers -1 for absent and -1 is less than
     // everything: without these the ordering check passes on a file that names
     // neither.
