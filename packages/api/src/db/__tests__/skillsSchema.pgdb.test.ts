@@ -42,7 +42,11 @@ function skillValues(overrides: Partial<typeof skills.$inferInsert> = {}) {
   };
 }
 
-async function expectViolation(promise: Promise<unknown>, constraint: string, kind: 'check' | 'unique') {
+async function expectViolation(
+  promise: Promise<unknown>,
+  constraint: string,
+  kind: 'check' | 'unique',
+) {
   await expect(promise).rejects.toSatisfy((error: unknown) => {
     expect(kind === 'check' ? isCheckViolation(error) : isUniqueViolation(error)).toBe(true);
     expect(constraintNameOf(error)).toBe(constraint);
@@ -73,7 +77,11 @@ describe('skills', () => {
     ['sks-trailing-', 'a trailing hyphen'],
     [`sks-${'x'.repeat(70)}`, 'more than 64 characters'],
   ])('refuses %s (%s), which the spec forbids', async (name) => {
-    await expectViolation(db.insert(skills).values(skillValues({ name })), 'skills_name_format_check', 'check');
+    await expectViolation(
+      db.insert(skills).values(skillValues({ name })),
+      'skills_name_format_check',
+      'check',
+    );
   });
 
   it('refuses an empty description and one past the spec limit', async () => {
@@ -102,7 +110,9 @@ describe('skills', () => {
     await db.insert(skills).values(skillValues({ name, ownerOxyUserId: 'sks-owner-a' }));
     await db.insert(skills).values(skillValues({ name, ownerOxyUserId: 'sks-owner-b' }));
     // The shared catalogue is a namespace too — `coalesce(owner, '')`.
-    await db.insert(skills).values(skillValues({ name, ownerOxyUserId: null, visibility: 'public' }));
+    await db
+      .insert(skills)
+      .values(skillValues({ name, ownerOxyUserId: null, visibility: 'public' }));
 
     await expectViolation(
       db.insert(skills).values(skillValues({ name, ownerOxyUserId: 'sks-owner-a' })),
@@ -122,22 +132,47 @@ describe('skill_versions and skill_files', () => {
     const [skill] = await db.insert(skills).values(skillValues()).returning({ id: skills.id });
     const [version] = await db
       .insert(skillVersions)
-      .values({ skillId: skill.id, version: 1, body: 'b', frontmatter: {}, checksum: 'c', bytes: 1 })
+      .values({
+        skillId: skill.id,
+        version: 1,
+        body: 'b',
+        frontmatter: {},
+        checksum: 'c',
+        bytes: 1,
+      })
       .returning({ id: skillVersions.id });
     return version.id;
   }
 
   it('refuses a second version with the same number', async () => {
     const [skill] = await db.insert(skills).values(skillValues()).returning({ id: skills.id });
-    const row = { skillId: skill.id, version: 1, body: 'b', frontmatter: {}, checksum: 'c', bytes: 1 };
+    const row = {
+      skillId: skill.id,
+      version: 1,
+      body: 'b',
+      frontmatter: {},
+      checksum: 'c',
+      bytes: 1,
+    };
     await db.insert(skillVersions).values(row);
-    await expectViolation(db.insert(skillVersions).values(row), 'skill_versions_skill_version_key', 'unique');
+    await expectViolation(
+      db.insert(skillVersions).values(row),
+      'skill_versions_skill_version_key',
+      'unique',
+    );
   });
 
   it('refuses a version numbered below one', async () => {
     const [skill] = await db.insert(skills).values(skillValues()).returning({ id: skills.id });
     await expectViolation(
-      db.insert(skillVersions).values({ skillId: skill.id, version: 0, body: 'b', frontmatter: {}, checksum: 'c', bytes: 1 }),
+      db.insert(skillVersions).values({
+        skillId: skill.id,
+        version: 0,
+        body: 'b',
+        frontmatter: {},
+        checksum: 'c',
+        bytes: 1,
+      }),
       'skill_versions_version_check',
       'check',
     );
@@ -145,7 +180,14 @@ describe('skill_versions and skill_files', () => {
 
   it('stores a file in exactly one place', async () => {
     const versionId = await seedVersion();
-    const base = { versionId, path: 'references/API.md', kind: 'reference' as const, mime: 'text/markdown', bytes: 1, sha256: 'a' };
+    const base = {
+      versionId,
+      path: 'references/API.md',
+      kind: 'reference' as const,
+      mime: 'text/markdown',
+      bytes: 1,
+      sha256: 'a',
+    };
 
     await expectViolation(db.insert(skillFiles).values(base), 'skill_files_storage_check', 'check');
     await expectViolation(
@@ -189,7 +231,13 @@ describe('skill_versions and skill_files', () => {
    */
   it('accepts the ordinary paths a real bundle carries', async () => {
     const versionId = await seedVersion();
-    for (const path of ['SKILL.md', 'references/API.md', 'scripts/run.sh', 'assets/logo.png', 'a.b.c/d-e_f.md']) {
+    for (const path of [
+      'SKILL.md',
+      'references/API.md',
+      'scripts/run.sh',
+      'assets/logo.png',
+      'a.b.c/d-e_f.md',
+    ]) {
       await db.insert(skillFiles).values({
         versionId,
         path,
@@ -200,7 +248,10 @@ describe('skill_versions and skill_files', () => {
         contentText: 'x',
       });
     }
-    const rows = await db.select({ path: skillFiles.path }).from(skillFiles).where(sql`${skillFiles.versionId} = ${versionId}`);
+    const rows = await db
+      .select({ path: skillFiles.path })
+      .from(skillFiles)
+      .where(sql`${skillFiles.versionId} = ${versionId}`);
     expect(rows).toHaveLength(5);
   });
 });
@@ -216,7 +267,9 @@ describe('skill_installs', () => {
       'unique',
     );
     await expectViolation(
-      db.insert(skillInstalls).values({ oxyUserId: 'sks-other', skillId: skill.id, pinnedVersion: 0 }),
+      db
+        .insert(skillInstalls)
+        .values({ oxyUserId: 'sks-other', skillId: skill.id, pinnedVersion: 0 }),
       'skill_installs_pinned_version_check',
       'check',
     );

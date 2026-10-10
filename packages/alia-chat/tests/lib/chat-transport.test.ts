@@ -9,7 +9,8 @@ interface FetchCall {
 }
 
 function createJwt(expiresAt: number): string {
-  const encode = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const encode = (value: unknown): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url');
   return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ userId: 'user-1', exp: expiresAt })}.signature`;
 }
 
@@ -35,29 +36,44 @@ describe('streamAliaChat failed turns', () => {
   });
 
   it('carries the code, retryability and reference of an HTTP failure', async () => {
-    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({
-      error: {
-        message: 'Service temporarily unavailable. Please try again in a moment.',
-        type: 'server_error',
-        param: null,
-        code: 'PROVIDER_UNAVAILABLE',
-        retryable: true,
-        reference: 'chatcmpl-ref',
-      },
-    }), { status: 503, headers: { 'content-type': 'application/json' } }));
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              message: 'Service temporarily unavailable. Please try again in a moment.',
+              type: 'server_error',
+              param: null,
+              code: 'PROVIDER_UNAVAILABLE',
+              retryable: true,
+              reference: 'chatcmpl-ref',
+            },
+          }),
+          { status: 503, headers: { 'content-type': 'application/json' } },
+        ),
+    );
     const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
     oxy.session.setAccessToken(createJwt(Math.floor(Date.now() / 1000) + 3600));
     const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
 
     const failure = await streamAliaChat(
       linked.client,
-      { url: '/v1/chat/completions', model: 'example/model', messages: [{ role: 'user', content: 'Hola' }] },
+      {
+        url: '/v1/chat/completions',
+        model: 'example/model',
+        messages: [{ role: 'user', content: 'Hola' }],
+      },
       new AbortController().signal,
       () => undefined,
     ).catch((e: unknown) => e);
 
     expect(failure).toBeInstanceOf(AliaChatStreamError);
-    expect(failure).toMatchObject({ status: 503, code: 'PROVIDER_UNAVAILABLE', retryable: true, reference: 'chatcmpl-ref' });
+    expect(failure).toMatchObject({
+      status: 503,
+      code: 'PROVIDER_UNAVAILABLE',
+      retryable: true,
+      reference: 'chatcmpl-ref',
+    });
     expect((failure as Error).message).toBe('Alia request failed with status 503.');
     linked.dispose();
   });
@@ -87,7 +103,11 @@ describe('streamAliaChat authentication boundary', () => {
 
     await streamAliaChat(
       linked.client,
-      { url: '/v1/chat/completions', model: 'example/model', messages: [{ role: 'user', content: 'Hola' }] },
+      {
+        url: '/v1/chat/completions',
+        model: 'example/model',
+        messages: [{ role: 'user', content: 'Hola' }],
+      },
       new AbortController().signal,
       () => undefined,
     );
@@ -116,7 +136,11 @@ describe('streamAliaChat authentication boundary', () => {
 
     await streamAliaChat(
       linked.client,
-      { url: '/v1/chat/completions', model: 'example/model', messages: [{ role: 'user', content: 'Hola' }] },
+      {
+        url: '/v1/chat/completions',
+        model: 'example/model',
+        messages: [{ role: 'user', content: 'Hola' }],
+      },
       controller.signal,
       () => undefined,
     );
@@ -148,7 +172,11 @@ describe('streamAliaChat authentication boundary', () => {
     await expect(
       streamAliaChat(
         linked.client,
-        { url: '/v1/chat/completions', model: 'example/model', messages: [{ role: 'user', content: 'Hola' }] },
+        {
+          url: '/v1/chat/completions',
+          model: 'example/model',
+          messages: [{ role: 'user', content: 'Hola' }],
+        },
         new AbortController().signal,
         () => undefined,
       ),

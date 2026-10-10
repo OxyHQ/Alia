@@ -7,11 +7,7 @@ import { IdentityMark } from '@alia.onl/sdk';
 import { Chip, ChipRow } from '@oxy.so/bloom/chip';
 import { RiAtLine } from '@oxy.so/bloom/icons';
 import { Label } from '@oxy.so/bloom/label';
-import {
-  TextField,
-  TextFieldIcon,
-  TextFieldInput as Input,
-} from '@oxy.so/bloom/text-field';
+import { TextField, TextFieldIcon, TextFieldInput as Input } from '@oxy.so/bloom/text-field';
 import { View } from 'react-native';
 
 /**
@@ -68,9 +64,7 @@ export function AgentIdentityFields({
               role="radio"
               selected={identity.color === preset}
               onPress={() => onEdit({ color: preset })}
-              startIcon={
-                <IdentityMark size={18} color={agentTint(preset, colors)} />
-              }
+              startIcon={<IdentityMark size={18} color={agentTint(preset, colors)} />}
             >
               {preset}
             </Chip>

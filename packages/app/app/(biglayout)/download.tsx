@@ -16,8 +16,7 @@ import { useEffect, useState } from 'react';
 import { Linking, Platform, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
-const PLAY_STORE_URL =
-  'https://play.google.com/store/apps/details?id=onl.alia.app';
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=onl.alia.app';
 
 type StorePlatform = 'android' | 'ios';
 

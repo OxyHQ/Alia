@@ -1,5 +1,5 @@
-import { tool } from "ai";
-import { z } from "zod";
+import { tool } from 'ai';
+import { z } from 'zod';
 
 /**
  * FairCoin's price and network state, as a card the client draws.
@@ -19,10 +19,10 @@ import { z } from "zod";
  * Counterpart that draws this: `packages/app/components/cards/faircoin-card.tsx`.
  */
 
-const EXPLORER = "https://explorer.fairco.in/api";
+const EXPLORER = 'https://explorer.fairco.in/api';
 
 /** Exactly what `GET /api/price/history` accepts; the explorer retains no more. */
-const PERIODS = ["24h", "7d", "30d", "1y", "all"] as const;
+const PERIODS = ['24h', '7d', '30d', '1y', 'all'] as const;
 
 interface PricePayload {
   price: number | null;
@@ -34,11 +34,14 @@ interface PricePayload {
   updatedAt: string;
 }
 
-interface HistoryPoint { price_usd: number; timestamp: string }
+interface HistoryPoint {
+  price_usd: number;
+  timestamp: string;
+}
 
 export const getFairCoinTool = tool({
   description:
-    "Consultar el precio y el estado de la red de FairCoin (FAIR). Devuelve una tarjeta que la app dibuja; no repitas las series en el texto.",
+    'Consultar el precio y el estado de la red de FairCoin (FAIR). Devuelve una tarjeta que la app dibuja; no repitas las series en el texto.',
   inputSchema: z.object({}),
   execute: async () => {
     const [priceRes, ...historyRes] = await Promise.all([
@@ -46,7 +49,7 @@ export const getFairCoinTool = tool({
       ...PERIODS.map((period) => fetch(`${EXPLORER}/price/history?period=${period}`)),
     ]);
 
-    if (!priceRes.ok) return { error: "El explorador de FairCoin no responde ahora mismo." };
+    if (!priceRes.ok) return { error: 'El explorador de FairCoin no responde ahora mismo.' };
     const quote = (await priceRes.json()) as PricePayload;
 
     // Every range travels with the card, so switching one costs no request and a
@@ -61,7 +64,7 @@ export const getFairCoinTool = tool({
 
     return {
       card: {
-        type: "faircoin" as const,
+        type: 'faircoin' as const,
         version: 1 as const,
         data: {
           price: quote.price,
@@ -76,9 +79,10 @@ export const getFairCoinTool = tool({
           series,
         },
       },
-      summary: quote.price === null
-        ? "FairCoin: sin cotización disponible ahora mismo."
-        : `FairCoin (FAIR): ${quote.price} USD.`,
+      summary:
+        quote.price === null
+          ? 'FairCoin: sin cotización disponible ahora mismo.'
+          : `FairCoin (FAIR): ${quote.price} USD.`,
     };
   },
 });

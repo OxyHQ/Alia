@@ -11,12 +11,11 @@
 
 const TAG = String.raw`ALIA_TITLE|TITLE|TÍTULO|TITRE|TITOLO|TITEL|ЗАГОЛОВОК`;
 
-const TITLE_STRIP_RE = new RegExp(
-  String.raw`\[(${TAG})\].*?\[\/\1\]|<(${TAG})>.*?<\/\2>`, 'gi',
-);
+const TITLE_STRIP_RE = new RegExp(String.raw`\[(${TAG})\].*?\[\/\1\]|<(${TAG})>.*?<\/\2>`, 'gi');
 
 const TITLE_PARTIAL_RE = new RegExp(
-  String.raw`\[(${TAG})\].*?(\[\/\1\])?$|<(${TAG})>.*?(<\/\3>)?$`, 'si',
+  String.raw`\[(${TAG})\].*?(\[\/\1\])?$|<(${TAG})>.*?(<\/\3>)?$`,
+  'si',
 );
 
 /**
@@ -31,7 +30,10 @@ export function stripTitleTags(content: string, { trim = true }: { trim?: boolea
 }
 
 /** The same, for an answer still streaming: an opened tag hides the rest. */
-export function stripTitleTagsPartial(content: string, { trim = true }: { trim?: boolean } = {}): string {
+export function stripTitleTagsPartial(
+  content: string,
+  { trim = true }: { trim?: boolean } = {},
+): string {
   const stripped = content.replace(TITLE_STRIP_RE, '').replace(TITLE_PARTIAL_RE, '');
   return trim ? stripped.trim() : stripped;
 }
@@ -106,7 +108,11 @@ export function takeSpeechChunks(
     rest = '';
   } else if (rest.length > MAX_RUN_CHARS) {
     const window = rest.slice(0, MAX_RUN_CHARS);
-    const pause = Math.max(window.lastIndexOf(', '), window.lastIndexOf('; '), window.lastIndexOf(': '));
+    const pause = Math.max(
+      window.lastIndexOf(', '),
+      window.lastIndexOf('; '),
+      window.lastIndexOf(': '),
+    );
     const cut = pause > 0 ? pause + 2 : Math.max(window.lastIndexOf(' '), 1);
     sentences.push(rest.slice(0, cut));
     rest = rest.slice(cut);

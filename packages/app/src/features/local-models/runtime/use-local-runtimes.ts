@@ -63,7 +63,11 @@ export interface LocalModelOption {
  * ambiguous the moment two machines are connected — the same `llama3.1:8b` on a
  * laptop and on a desktop are two different answers with two different latencies.
  */
-export function useLocalModelOptions(): { options: LocalModelOption[]; ids: string[]; loading: boolean } {
+export function useLocalModelOptions(): {
+  options: LocalModelOption[];
+  ids: string[];
+  loading: boolean;
+} {
   const { data, isLoading } = useLocalRuntimes();
   const options = (data ?? []).flatMap((runtime) =>
     runtime.models.map((model) => ({ id: model.id, name: model.name, deviceLabel: runtime.label })),

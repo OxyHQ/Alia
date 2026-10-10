@@ -49,13 +49,7 @@ const VISIBILITY: Record<ShowVisibility, { label: string; icon: BadgeIcon }> = {
   public: { label: 'shows.visibility.public.label', icon: RiGlobalLine },
 };
 
-function SeriesRow({
-  series,
-  onOpen,
-}: {
-  series: ShowSeries;
-  onOpen: (id: string) => void;
-}) {
+function SeriesRow({ series, onOpen }: { series: ShowSeries; onOpen: (id: string) => void }) {
   const { colors } = useTheme();
   const { t } = useTranslation();
   const visibility = VISIBILITY[series.visibility];
@@ -64,8 +58,7 @@ function SeriesRow({
   const episodeCount = series.nextEpisodeNumber - 1;
   // Syra names a show's author under its title. Alia's author is its cast; a
   // series with no cast yet falls back to what the show is about.
-  const byline =
-    series.speakers.map((speaker) => speaker.name).join(', ') || series.brief;
+  const byline = series.speakers.map((speaker) => speaker.name).join(', ') || series.brief;
 
   return (
     <Card
@@ -87,18 +80,11 @@ function SeriesRow({
         title={series.title}
         subtitle={
           <>
-            <Text
-              numberOfLines={1}
-              className="text-[13px] leading-[18px] text-muted-foreground"
-            >
+            <Text numberOfLines={1} className="text-[13px] leading-[18px] text-muted-foreground">
               {byline}
             </Text>
-            <Text
-              numberOfLines={1}
-              className="text-xs text-muted-foreground"
-            >
-              {formatEpisodeCount(episodeCount, t)} ·{' '}
-              {t(`shows.formatName.${series.format}.label`)}
+            <Text numberOfLines={1} className="text-xs text-muted-foreground">
+              {formatEpisodeCount(episodeCount, t)} · {t(`shows.formatName.${series.format}.label`)}
             </Text>
           </>
         }
@@ -111,11 +97,7 @@ function SeriesRow({
               icon={visibility.icon}
               content={t(visibility.label)}
             />
-            <RiArrowRightSLine
-              width={20}
-              height={20}
-              fill={colors.textSecondary}
-            />
+            <RiArrowRightSLine width={20} height={20} fill={colors.textSecondary} />
           </View>
         }
       />
@@ -153,15 +135,10 @@ export default function ShowsScreen() {
     setRefreshing(false);
   }, [fetchSeries]);
 
-  const openSeries = useCallback(
-    (id: string) => router.push(`/(app)/shows/${id}`),
-    [router],
-  );
+  const openSeries = useCallback((id: string) => router.push(`/(app)/shows/${id}`), [router]);
 
   const renderItem = useCallback(
-    ({ item }: { item: ShowSeries }) => (
-      <SeriesRow series={item} onOpen={openSeries} />
-    ),
+    ({ item }: { item: ShowSeries }) => <SeriesRow series={item} onOpen={openSeries} />,
     [openSeries],
   );
 
@@ -178,12 +155,7 @@ export default function ShowsScreen() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Button
-              tone="action"
-              size="md"
-              leadingIcon={RiAddLine}
-              onPress={startShow}
-            >
+            <Button tone="action" size="md" leadingIcon={RiAddLine} onPress={startShow}>
               {t('shows.new')}
             </Button>
           ),
@@ -245,11 +217,7 @@ export default function ShowsScreen() {
         }
       />
 
-      <SeriesCreateDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onCreated={openSeries}
-      />
+      <SeriesCreateDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={openSeries} />
     </>
   );
 }

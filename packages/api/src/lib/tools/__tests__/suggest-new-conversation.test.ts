@@ -39,9 +39,7 @@ describe('it suggests, and cannot create', () => {
     const result = await run(emitted)({ reason: 'we have moved to the billing bug' });
 
     expect(result.suggested).toBe(true);
-    expect(emitted).toEqual([
-      { eventVersion: 1, reason: 'we have moved to the billing bug' },
-    ]);
+    expect(emitted).toEqual([{ eventVersion: 1, reason: 'we have moved to the billing bug' }]);
   });
 
   it('writes NO conversation, and the spy can see one being written', async () => {
@@ -55,7 +53,9 @@ describe('it suggests, and cannot create', () => {
      */
     const createSpy = vi
       .spyOn(conversationRepository, 'createConversation')
-      .mockResolvedValue({} as Awaited<ReturnType<typeof conversationRepository.createConversation>>);
+      .mockResolvedValue(
+        {} as Awaited<ReturnType<typeof conversationRepository.createConversation>>,
+      );
 
     // The positive control: this spy really does observe a creation.
     await conversationRepository.createConversation({} as never, {

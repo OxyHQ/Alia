@@ -3,10 +3,7 @@ import { AgentResourcesPanel } from '@/features/agents/ui/edit/agent-resources-p
 import { AgentSettingsPanel } from '@/features/agents/ui/edit/agent-settings-panel';
 import { ConnectTelegramBotDialog } from '@/features/agents/ui/edit/telegram-bots-section';
 import type { GrantableConnector } from '@/features/chat/model/capability-families';
-import type {
-  AgentDraft,
-  LinkedSkill,
-} from '@/features/agents/runtime/use-agent-autosave';
+import type { AgentDraft, LinkedSkill } from '@/features/agents/runtime/use-agent-autosave';
 import type { AgentOxyApps } from '@/features/agents/runtime/use-agent-oxy-apps';
 import type { AgentTelegramBots } from '@/features/agents/runtime/use-agent-telegram-bots';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -51,11 +48,7 @@ export function AgentEditorSidebar({
 
   return (
     <View className="flex-1">
-      <Tabs
-        value={tab}
-        onValueChange={(next) => onTabChange(next as SidebarTab)}
-        fullWidth
-      >
+      <Tabs value={tab} onValueChange={(next) => onTabChange(next as SidebarTab)} fullWidth>
         <TabsTrigger value="resources" label={t('agents.resources')} />
         <TabsTrigger value="settings" label={t('agents.settings')} />
       </Tabs>

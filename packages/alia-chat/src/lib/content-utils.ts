@@ -28,8 +28,9 @@ export function getTextFromContent(content: MessageContent | null | undefined): 
 export function getImagesFromContent(content: MessageContent | null | undefined): string[] {
   if (!Array.isArray(content)) return [];
   return content
-    .filter((p): p is ContentPart & { image_url: { url: string } } =>
-      p.type === 'image_url' && typeof p.image_url?.url === 'string',
+    .filter(
+      (p): p is ContentPart & { image_url: { url: string } } =>
+        p.type === 'image_url' && typeof p.image_url?.url === 'string',
     )
     .map((p) => p.image_url.url);
 }

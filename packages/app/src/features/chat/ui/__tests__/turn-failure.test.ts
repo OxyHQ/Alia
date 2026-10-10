@@ -26,17 +26,19 @@ describe('readAliaMeta', () => {
   });
 
   it('keeps only the safe failure code and correlation reference', () => {
-    expect(readAliaMeta({
-      alia_meta: {
-        synthetic: true,
-        retryable: true,
-        error: {
-          code: 'RATE_LIMITED',
-          reference: 'chatcmpl-safe-reference',
-          retryAfter: 10,
+    expect(
+      readAliaMeta({
+        alia_meta: {
+          synthetic: true,
+          retryable: true,
+          error: {
+            code: 'RATE_LIMITED',
+            reference: 'chatcmpl-safe-reference',
+            retryAfter: 10,
+          },
         },
-      },
-    })).toEqual({
+      }),
+    ).toEqual({
       synthetic: true,
       retryable: true,
       code: 'RATE_LIMITED',
@@ -46,12 +48,14 @@ describe('readAliaMeta', () => {
   });
 
   it('drops malformed failure detail instead of rendering upstream data', () => {
-    expect(readAliaMeta({
-      alia_meta: {
-        synthetic: true,
-        error: { code: { provider: 'secret' }, reference: 42, retryAfter: 'soon' },
-      },
-    })).toEqual({ synthetic: true, retryable: true });
+    expect(
+      readAliaMeta({
+        alia_meta: {
+          synthetic: true,
+          error: { code: { provider: 'secret' }, reference: 42, retryAfter: 'soon' },
+        },
+      }),
+    ).toEqual({ synthetic: true, retryable: true });
   });
 
   it('treats a chunk with no meta as real output', () => {
@@ -62,11 +66,22 @@ describe('readAliaMeta', () => {
   });
 
   it('defaults retryable to true when the meta leaves it out', () => {
-    expect(readAliaMeta({ alia_meta: { synthetic: true } })).toEqual({ synthetic: true, retryable: true });
+    expect(readAliaMeta({ alia_meta: { synthetic: true } })).toEqual({
+      synthetic: true,
+      retryable: true,
+    });
   });
 
   it('survives every shape a chunk can have', () => {
-    for (const odd of [null, undefined, 'text', 42, { alia_meta: null }, { alia_meta: 'yes' }, { alia_meta: { synthetic: 'true' } }]) {
+    for (const odd of [
+      null,
+      undefined,
+      'text',
+      42,
+      { alia_meta: null },
+      { alia_meta: 'yes' },
+      { alia_meta: { synthetic: 'true' } },
+    ]) {
       expect(readAliaMeta(odd)).toEqual({ synthetic: false, retryable: true });
     }
   });

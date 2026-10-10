@@ -173,9 +173,7 @@ export async function listMessages(
   return db
     .select()
     .from(messages)
-    .where(
-      and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)),
-    )
+    .where(and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)))
     .orderBy(sql`${messages.seq} asc nulls first`, asc(messages.createdAt));
 }
 
@@ -534,9 +532,7 @@ export async function findLastMessage(
   const [row] = await db
     .select({ seq: messages.seq, role: messages.role, content: messages.content })
     .from(messages)
-    .where(
-      and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)),
-    )
+    .where(and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)))
     .orderBy(sql`${messages.seq} desc nulls last`, desc(messages.createdAt))
     .limit(1);
   return row;
@@ -551,9 +547,7 @@ export async function countMessages(
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(messages)
-    .where(
-      and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)),
-    );
+    .where(and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)));
   return row?.count ?? 0;
 }
 
@@ -603,10 +597,7 @@ export async function messageExistsInConversation(
  * the caller wants — it rewrites the whole thread on the error path — and a
  * half-written history was never a state anything could use.
  */
-export async function insertMessages(
-  db: ApiDatabase,
-  rows: readonly NewMessage[],
-): Promise<void> {
+export async function insertMessages(db: ApiDatabase, rows: readonly NewMessage[]): Promise<void> {
   if (rows.length === 0) return;
   await db.insert(messages).values(rows.map(toInsert));
 }
@@ -625,9 +616,7 @@ export async function deleteMessages(
 ): Promise<number> {
   const result = await db
     .delete(messages)
-    .where(
-      and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)),
-    );
+    .where(and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)));
   return result.count;
 }
 
@@ -661,9 +650,7 @@ export async function replaceMessages(
   await db.transaction(async (tx) => {
     await tx
       .delete(messages)
-      .where(
-        and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)),
-      );
+      .where(and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)));
     if (rows.length === 0) return;
     await tx
       .insert(messages)
@@ -789,12 +776,14 @@ export async function countAgentOutreachSince(
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(messages)
-    .where(and(
-      eq(messages.oxyUserId, oxyUserId),
-      eq(messages.agentInfoId, agentId),
-      sql`${messages.clientMessageId} like ${`${AGENT_OUTREACH_MESSAGE_ID_PREFIX}%`}`,
-      sql`${messages.createdAt} >= ${since.toISOString()}::timestamptz`,
-    ));
+    .where(
+      and(
+        eq(messages.oxyUserId, oxyUserId),
+        eq(messages.agentInfoId, agentId),
+        sql`${messages.clientMessageId} like ${`${AGENT_OUTREACH_MESSAGE_ID_PREFIX}%`}`,
+        sql`${messages.createdAt} >= ${since.toISOString()}::timestamptz`,
+      ),
+    );
   return row?.count ?? 0;
 }
 
@@ -814,12 +803,14 @@ export async function countOutreachInConversationSince(
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(messages)
-    .where(and(
-      eq(messages.oxyUserId, oxyUserId),
-      eq(messages.conversationId, conversationId),
-      sql`${messages.clientMessageId} like ${`${AGENT_OUTREACH_MESSAGE_ID_PREFIX}%`}`,
-      sql`${messages.createdAt} >= ${since.toISOString()}::timestamptz`,
-    ));
+    .where(
+      and(
+        eq(messages.oxyUserId, oxyUserId),
+        eq(messages.conversationId, conversationId),
+        sql`${messages.clientMessageId} like ${`${AGENT_OUTREACH_MESSAGE_ID_PREFIX}%`}`,
+        sql`${messages.createdAt} >= ${since.toISOString()}::timestamptz`,
+      ),
+    );
   return row?.count ?? 0;
 }
 

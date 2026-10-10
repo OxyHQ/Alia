@@ -31,13 +31,9 @@ export function AliaWelcomeMessage({
             <IdentityMark size={markSize} spinOnPress />
           </View>
           <View className="space-y-2">
-            <Text className="text-3xl font-bold tracking-tight text-foreground">
-              {greeting}
-            </Text>
+            <Text className="text-3xl font-bold tracking-tight text-foreground">{greeting}</Text>
             {subtitle ? (
-              <Text className="text-xl font-medium text-muted-foreground">
-                {subtitle}
-              </Text>
+              <Text className="text-xl font-medium text-muted-foreground">{subtitle}</Text>
             ) : null}
           </View>
         </View>
@@ -54,13 +50,13 @@ export function AliaWelcomeMessage({
                 >
                   <BlurView intensity={60} tint="default" style={StyleSheet.absoluteFill} />
                   <View className="p-4 w-full">
-                    <Text className="text-sm font-medium text-surface-foreground mb-1" numberOfLines={1}>
-                      {item.title}
-                    </Text>
                     <Text
-                      className="text-xs text-muted-foreground line-clamp-1"
+                      className="text-sm font-medium text-surface-foreground mb-1"
                       numberOfLines={1}
                     >
+                      {item.title}
+                    </Text>
+                    <Text className="text-xs text-muted-foreground line-clamp-1" numberOfLines={1}>
                       {item.description}
                     </Text>
                   </View>

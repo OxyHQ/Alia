@@ -49,13 +49,19 @@ describe('selectFeatured', () => {
       model('b/new', { releasedAt: '2026-07-01' }),
     ];
     // Publisher a's usage is on its OLD model; its newest still leads its slot.
-    expect(selectFeatured(models, [{ modelId: 'a/old', turns: 50 }, { modelId: 'b/new', turns: 10 }]))
-      .toEqual(['a/new', 'b/new']);
+    expect(
+      selectFeatured(models, [
+        { modelId: 'a/old', turns: 50 },
+        { modelId: 'b/new', turns: 10 },
+      ]),
+    ).toEqual(['a/new', 'b/new']);
   });
 
   it('falls back to recency on a cold start, and caps the list', () => {
     const models = Array.from({ length: FEATURED_LIMIT + 3 }, (_, i) =>
-      model(`p${String(i).padStart(2, '0')}/m`, { releasedAt: `2026-01-${String(i + 1).padStart(2, '0')}` }),
+      model(`p${String(i).padStart(2, '0')}/m`, {
+        releasedAt: `2026-01-${String(i + 1).padStart(2, '0')}`,
+      }),
     );
     const featured = selectFeatured(models, []);
     expect(featured).toHaveLength(FEATURED_LIMIT);
@@ -63,7 +69,9 @@ describe('selectFeatured', () => {
   });
 
   it('puts an undated model after dated ones', () => {
-    expect(selectFeatured([model('a/undated', { releasedAt: null }), model('a/dated')], [])).toEqual(['a/dated']);
+    expect(
+      selectFeatured([model('a/undated', { releasedAt: null }), model('a/dated')], []),
+    ).toEqual(['a/dated']);
   });
 });
 
@@ -76,19 +84,29 @@ describe('selectDefaultModelId', () => {
   const featuredIds = ['b/dear', 'a/cheap'];
 
   it('is the person’s last-used model while it is still offered', () => {
-    expect(selectDefaultModelId({ models, featuredIds, usage: [], lastUsedModelId: 'c/unfeatured' })).toBe('c/unfeatured');
+    expect(
+      selectDefaultModelId({ models, featuredIds, usage: [], lastUsedModelId: 'c/unfeatured' }),
+    ).toBe('c/unfeatured');
   });
 
   it('ignores a last-used model the catalogue no longer offers', () => {
-    expect(selectDefaultModelId({ models, featuredIds, usage: [], lastUsedModelId: 'gone/model' })).toBe('a/cheap');
+    expect(
+      selectDefaultModelId({ models, featuredIds, usage: [], lastUsedModelId: 'gone/model' }),
+    ).toBe('a/cheap');
   });
 
   it('is the most-used featured model for a new person', () => {
-    expect(selectDefaultModelId({
-      models,
-      featuredIds,
-      usage: [{ modelId: 'b/dear', turns: 9 }, { modelId: 'a/cheap', turns: 3 }, { modelId: 'c/unfeatured', turns: 99 }],
-    })).toBe('b/dear');
+    expect(
+      selectDefaultModelId({
+        models,
+        featuredIds,
+        usage: [
+          { modelId: 'b/dear', turns: 9 },
+          { modelId: 'a/cheap', turns: 3 },
+          { modelId: 'c/unfeatured', turns: 99 },
+        ],
+      }),
+    ).toBe('b/dear');
   });
 
   it('is the cheapest featured model on a cold start', () => {
@@ -103,16 +121,23 @@ describe('selectDefaultModelId', () => {
 
 describe('selectUtilityModelId', () => {
   it('is the cheapest chat model with enough context', () => {
-    expect(selectUtilityModelId([
-      model('a/tiny', { contextWindow: UTILITY_MIN_CONTEXT - 1, pricing: { inputPerMTok: '0.01', outputPerMTok: '0.01' } }),
-      model('b/ok', { pricing: { inputPerMTok: '0.5', outputPerMTok: '1' } }),
-      model('c/dear'),
-      model('d/no-tools', { tools: false, pricing: { inputPerMTok: '0', outputPerMTok: '0' } }),
-    ])).toBe('b/ok');
+    expect(
+      selectUtilityModelId([
+        model('a/tiny', {
+          contextWindow: UTILITY_MIN_CONTEXT - 1,
+          pricing: { inputPerMTok: '0.01', outputPerMTok: '0.01' },
+        }),
+        model('b/ok', { pricing: { inputPerMTok: '0.5', outputPerMTok: '1' } }),
+        model('c/dear'),
+        model('d/no-tools', { tools: false, pricing: { inputPerMTok: '0', outputPerMTok: '0' } }),
+      ]),
+    ).toBe('b/ok');
   });
 
   it('never prefers an unpriced model over a priced one', () => {
-    expect(selectUtilityModelId([model('a/unpriced', { pricing: null }), model('b/priced')])).toBe('b/priced');
+    expect(selectUtilityModelId([model('a/unpriced', { pricing: null }), model('b/priced')])).toBe(
+      'b/priced',
+    );
     expect(blendedPrice(model('a/unpriced', { pricing: null }))).toBe(Number.POSITIVE_INFINITY);
   });
 
@@ -124,11 +149,21 @@ describe('selectUtilityModelId', () => {
 
 describe('selectSpeechModelId', () => {
   it('is the cheapest model with audio output', () => {
-    expect(selectSpeechModelId([
-      model('a/chat'),
-      model('b/voice-dear', { outputModalities: ['audio'], tools: false, pricing: { inputPerMTok: '5', outputPerMTok: '5' } }),
-      model('c/voice-cheap', { outputModalities: ['audio'], tools: false, pricing: { inputPerMTok: '1', outputPerMTok: '1' } }),
-    ])).toBe('c/voice-cheap');
+    expect(
+      selectSpeechModelId([
+        model('a/chat'),
+        model('b/voice-dear', {
+          outputModalities: ['audio'],
+          tools: false,
+          pricing: { inputPerMTok: '5', outputPerMTok: '5' },
+        }),
+        model('c/voice-cheap', {
+          outputModalities: ['audio'],
+          tools: false,
+          pricing: { inputPerMTok: '1', outputPerMTok: '1' },
+        }),
+      ]),
+    ).toBe('c/voice-cheap');
     expect(selectSpeechModelId([model('a/chat')])).toBeNull();
   });
 });
@@ -139,7 +174,10 @@ describe('what Alia chooses for somebody is a settled, paid release', () => {
       model('a/stable', { releasedAt: '2026-01-01' }),
       model('a/next-preview', { releasedAt: '2026-08-01' }),
       model('a/exp-2', { releasedAt: '2026-08-02' }),
-      model('a/free', { releasedAt: '2026-08-03', pricing: { inputPerMTok: '0', outputPerMTok: '0' } }),
+      model('a/free', {
+        releasedAt: '2026-08-03',
+        pricing: { inputPerMTok: '0', outputPerMTok: '0' },
+      }),
       model('a/unpriced', { releasedAt: '2026-08-04', pricing: null }),
     ];
     expect(selectFeatured(models, [])).toEqual(['a/stable']);
@@ -165,7 +203,9 @@ describe('what Alia chooses for somebody is a settled, paid release', () => {
       model('b/mid', { pricing: { inputPerMTok: '1', outputPerMTok: '1' } }),
       model('c/dear', { pricing: { inputPerMTok: '10', outputPerMTok: '10' } }),
     ];
-    expect(selectDefaultModelId({ models, featuredIds: ['a/cheap', 'b/mid', 'c/dear'], usage: [] })).toBe('b/mid');
+    expect(
+      selectDefaultModelId({ models, featuredIds: ['a/cheap', 'b/mid', 'c/dear'], usage: [] }),
+    ).toBe('b/mid');
   });
 
   it('runs background calls on the cheapest PAID model, not a free tier', () => {

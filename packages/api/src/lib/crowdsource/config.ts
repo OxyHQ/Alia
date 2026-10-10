@@ -24,11 +24,7 @@ import { log } from '../logger.js';
 
 export type ModerationEnforcementMode = 'observe' | 'manual' | 'automatic';
 
-const ENFORCEMENT_MODES: readonly ModerationEnforcementMode[] = [
-  'observe',
-  'manual',
-  'automatic',
-];
+const ENFORCEMENT_MODES: readonly ModerationEnforcementMode[] = ['observe', 'manual', 'automatic'];
 
 const DEFAULT_OUTBOX_BATCH_SIZE = 50;
 const DEFAULT_OUTBOX_POLL_INTERVAL_MS = 5_000;

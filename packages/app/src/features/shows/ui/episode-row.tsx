@@ -53,15 +53,6 @@ import { View } from 'react-native';
  * and it plays. See `src/features/shows/runtime/use-episode-audio.ts`.
  */
 
-
-
-
-
-
-
-
-
-
 /**
  * What a listener reads when an episode will not play, one line each.
  *
@@ -142,13 +133,10 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
    * progress bar already saying the work is not done.
    */
   const missingLines =
-    episode.segments?.filter(
-      (segment) => segment.type === 'dialogue' && segment.renderFailed,
-    ).length ?? 0;
+    episode.segments?.filter((segment) => segment.type === 'dialogue' && segment.renderFailed)
+      .length ?? 0;
   const missingLinesLabel =
-    isGenerating || missingLines === 0
-      ? ''
-      : t('shows.linesMissing', { count: missingLines });
+    isGenerating || missingLines === 0 ? '' : t('shows.linesMissing', { count: missingLines });
 
   /**
    * `date · duration`, the way Syra states it, behind the episode number — which
@@ -170,9 +158,7 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
     problem === null
       ? formatEpisodeDuration(episode.durationMs, t)
       : t(EPISODE_AUDIO_PROBLEM_LABEL[problem]),
-    episode.creditsCharged
-      ? t('shows.credits', { count: episode.creditsCharged })
-      : '',
+    episode.creditsCharged ? t('shows.credits', { count: episode.creditsCharged }) : '',
     missingLinesLabel,
   ]);
 
@@ -255,10 +241,7 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
               valueText={`${progress}%`}
             />
             <View className="flex-row justify-between gap-2">
-              <Text
-                numberOfLines={1}
-                className="text-[11px] leading-[15px] text-muted-foreground"
-              >
+              <Text numberOfLines={1} className="text-[11px] leading-[15px] text-muted-foreground">
                 {live?.currentStep || t(STEP_LABEL[episode.status])}
               </Text>
               {live?.segmentIndex !== undefined && live.totalSegments !== undefined ? (

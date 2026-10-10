@@ -37,7 +37,9 @@ vi.mock('../../../socket.js', () => ({
 
 vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child } };
+  return {
+    log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child },
+  };
 });
 
 import {
@@ -196,7 +198,14 @@ describe('"always allow" is scoped to the session and to the pattern', () => {
   });
 
   const askOn = (sessionId: string, toolName: string): Promise<ApprovalDecision> =>
-    requestApproval({ sessionId, agentId: 'agent-ws13', toolName, args: {}, threat: THREAT, timeout: 60_000 });
+    requestApproval({
+      sessionId,
+      agentId: 'agent-ws13',
+      toolName,
+      args: {},
+      threat: THREAT,
+      timeout: 60_000,
+    });
 
   it('auto-approves the same tool and pattern without asking again', async () => {
     const first = askOn('sess-always', 'browser');

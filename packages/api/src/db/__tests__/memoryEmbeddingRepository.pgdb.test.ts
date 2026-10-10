@@ -122,7 +122,7 @@ describe('storing a vector', () => {
     expect(second.createdAt.getTime()).toBe(first.createdAt.getTime());
   });
 
-  it('keeps one account\'s vectors out of another\'s under the same key', async () => {
+  it("keeps one account's vectors out of another's under the same key", async () => {
     await upsertMemoryEmbedding(db, 'mer-scope-a', 'Shared Title', [1, 0]);
     await upsertMemoryEmbedding(db, 'mer-scope-b', 'Shared Title', [0, 1]);
 

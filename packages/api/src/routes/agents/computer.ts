@@ -51,16 +51,26 @@ import { authenticateToken } from '../../middleware/auth.js';
 
 const router = Router();
 
-const route = (handler: (req: Request, res: Response) => Promise<unknown>) =>
+const route =
+  (handler: (req: Request, res: Response) => Promise<unknown>) =>
   (req: Request, res: Response, next: NextFunction) => {
     void handler(req, res).catch(next);
   };
 
 const pathSchema = z.string().min(1).max(2048).startsWith('/workspace');
 // The host decides what is reachable; this only refuses what is not a web address.
-const urlSchema = z.string().max(8192).regex(/^https?:\/\/[^\s]+$/i, 'Use an http(s) address');
+const urlSchema = z
+  .string()
+  .max(8192)
+  .regex(/^https?:\/\/[^\s]+$/i, 'Use an http(s) address');
 const inputSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('click'), x: z.number().int().min(0).max(1279), y: z.number().int().min(0).max(799) }).strict(),
+  z
+    .object({
+      type: z.literal('click'),
+      x: z.number().int().min(0).max(1279),
+      y: z.number().int().min(0).max(799),
+    })
+    .strict(),
   z.object({ type: z.literal('type'), text: z.string().min(1).max(2000) }).strict(),
   z.object({ type: z.literal('key'), key: z.enum(BROWSER_KEYS) }).strict(),
   z.object({ type: z.literal('scroll'), deltaY: z.number().int().min(-5000).max(5000) }).strict(),
@@ -104,7 +114,9 @@ export async function ownComputer(req: Request, res: Response): Promise<Owned | 
   }
   const client = getComputerClient();
   if (!client) {
-    res.status(404).json({ error: 'computer_unavailable', message: 'This deployment has no agent computers.' });
+    res
+      .status(404)
+      .json({ error: 'computer_unavailable', message: 'This deployment has no agent computers.' });
     return null;
   }
   return {
@@ -118,14 +130,21 @@ function hostFailure(res: Response, error: unknown) {
   if (error instanceof ComputerHostError) {
     // A host-side 5xx is "unavailable" to the app; never the host's wording.
     const status = error.status >= 500 || error.status < 400 ? 503 : error.status;
-    res.status(status).json({ error: error.code, message: status === 503 ? 'The computer is unavailable right now.' : error.message });
+    res.status(status).json({
+      error: error.code,
+      message: status === 503 ? 'The computer is unavailable right now.' : error.message,
+    });
     return;
   }
   if (error instanceof z.ZodError) {
-    res.status(400).json({ error: 'invalid_request', message: error.issues[0]?.message ?? 'Invalid request' });
+    res
+      .status(400)
+      .json({ error: 'invalid_request', message: error.issues[0]?.message ?? 'Invalid request' });
     return;
   }
-  res.status(503).json({ error: 'host_unavailable', message: 'The computer is unavailable right now.' });
+  res
+    .status(503)
+    .json({ error: 'host_unavailable', message: 'The computer is unavailable right now.' });
 }
 
 const withComputer = (handler: (owned: Owned, req: Request, res: Response) => Promise<unknown>) =>
@@ -140,67 +159,121 @@ const withComputer = (handler: (owned: Owned, req: Request, res: Response) => Pr
     }
   });
 
-router.get('/:id/computer', authenticateToken, withComputer(async ({ client, actorId, granted }) => {
-  const [computer, browser] = await Promise.all([client.status(actorId), client.browserStatus(actorId)]);
-  return { granted, computer, browser };
-}));
+router.get(
+  '/:id/computer',
+  authenticateToken,
+  withComputer(async ({ client, actorId, granted }) => {
+    const [computer, browser] = await Promise.all([
+      client.status(actorId),
+      client.browserStatus(actorId),
+    ]);
+    return { granted, computer, browser };
+  }),
+);
 
-router.post('/:id/computer/start', authenticateToken, withComputer(async ({ client, actorId }) => ({
-  computer: await client.start(actorId),
-})));
+router.post(
+  '/:id/computer/start',
+  authenticateToken,
+  withComputer(async ({ client, actorId }) => ({
+    computer: await client.start(actorId),
+  })),
+);
 
-router.get('/:id/computer/files', authenticateToken, withComputer(async ({ client, actorId }, req) => {
-  const path = pathSchema.parse(typeof req.query.path === 'string' ? req.query.path : '/workspace');
-  return client.list(actorId, path);
-}));
+router.get(
+  '/:id/computer/files',
+  authenticateToken,
+  withComputer(async ({ client, actorId }, req) => {
+    const path = pathSchema.parse(
+      typeof req.query.path === 'string' ? req.query.path : '/workspace',
+    );
+    return client.list(actorId, path);
+  }),
+);
 
-router.get('/:id/computer/files/content', authenticateToken, withComputer(async ({ client, actorId }, req) => {
-  const path = pathSchema.parse(req.query.path);
-  return client.read(actorId, path);
-}));
+router.get(
+  '/:id/computer/files/content',
+  authenticateToken,
+  withComputer(async ({ client, actorId }, req) => {
+    const path = pathSchema.parse(req.query.path);
+    return client.read(actorId, path);
+  }),
+);
 
-router.get('/:id/computer/receipts', authenticateToken, withComputer(async ({ client, actorId }) => {
-  const [commands, browser] = await Promise.all([client.recentCommands(actorId, 20), client.browserActions(actorId, 20)]);
-  return {
-    // What ran, how it ended, when. Output stays on the computer.
-    commands: commands.map((receipt) => ({
-      operationId: receipt.operationId,
-      command: receipt.command.slice(0, 500),
-      cwd: receipt.cwd,
-      background: receipt.background,
-      status: receipt.status,
-      exitCode: receipt.exitCode,
-      startedAt: receipt.startedAt,
-      completedAt: receipt.completedAt,
-    })),
-    browser,
-  };
-}));
+router.get(
+  '/:id/computer/receipts',
+  authenticateToken,
+  withComputer(async ({ client, actorId }) => {
+    const [commands, browser] = await Promise.all([
+      client.recentCommands(actorId, 20),
+      client.browserActions(actorId, 20),
+    ]);
+    return {
+      // What ran, how it ended, when. Output stays on the computer.
+      commands: commands.map((receipt) => ({
+        operationId: receipt.operationId,
+        command: receipt.command.slice(0, 500),
+        cwd: receipt.cwd,
+        background: receipt.background,
+        status: receipt.status,
+        exitCode: receipt.exitCode,
+        startedAt: receipt.startedAt,
+        completedAt: receipt.completedAt,
+      })),
+      browser,
+    };
+  }),
+);
 
-router.get('/:id/computer/browser/screenshot', authenticateToken, withComputer(async ({ client, actorId }, _req, res) => {
-  const bytes = await client.browserScreenshot(actorId);
-  res.set('cache-control', 'no-store');
-  return { mimeType: 'image/jpeg', width: 1280, height: 800, data: bytes.toString('base64') };
-}));
+router.get(
+  '/:id/computer/browser/screenshot',
+  authenticateToken,
+  withComputer(async ({ client, actorId }, _req, res) => {
+    const bytes = await client.browserScreenshot(actorId);
+    res.set('cache-control', 'no-store');
+    return { mimeType: 'image/jpeg', width: 1280, height: 800, data: bytes.toString('base64') };
+  }),
+);
 
-router.post('/:id/computer/browser/open', authenticateToken, withComputer(async ({ client, actorId }, req) => {
-  const url = z.object({ url: urlSchema.optional() }).strict().parse(req.body ?? {}).url;
-  return client.browserOpen(actorId, url, 'owner');
-}));
+router.post(
+  '/:id/computer/browser/open',
+  authenticateToken,
+  withComputer(async ({ client, actorId }, req) => {
+    const url = z
+      .object({ url: urlSchema.optional() })
+      .strict()
+      .parse(req.body ?? {}).url;
+    return client.browserOpen(actorId, url, 'owner');
+  }),
+);
 
-router.post('/:id/computer/browser/navigate', authenticateToken, withComputer(async ({ client, actorId }, req) => {
-  const { url } = z.object({ url: urlSchema }).strict().parse(req.body);
-  return client.browserNavigate(actorId, url, 'owner');
-}));
+router.post(
+  '/:id/computer/browser/navigate',
+  authenticateToken,
+  withComputer(async ({ client, actorId }, req) => {
+    const { url } = z.object({ url: urlSchema }).strict().parse(req.body);
+    return client.browserNavigate(actorId, url, 'owner');
+  }),
+);
 
-router.post('/:id/computer/browser/input', authenticateToken, withComputer(async ({ client, actorId }, req) => {
-  const { input } = z.object({ input: inputSchema }).strict().parse(req.body);
-  return client.browserInput(actorId, input, 'owner');
-}));
+router.post(
+  '/:id/computer/browser/input',
+  authenticateToken,
+  withComputer(async ({ client, actorId }, req) => {
+    const { input } = z.object({ input: inputSchema }).strict().parse(req.body);
+    return client.browserInput(actorId, input, 'owner');
+  }),
+);
 
-router.post('/:id/computer/browser/control', authenticateToken, withComputer(async ({ client, actorId }, req) => {
-  const { controller } = z.object({ controller: z.enum(['owner', 'agent']) }).strict().parse(req.body);
-  return client.browserControl(actorId, controller);
-}));
+router.post(
+  '/:id/computer/browser/control',
+  authenticateToken,
+  withComputer(async ({ client, actorId }, req) => {
+    const { controller } = z
+      .object({ controller: z.enum(['owner', 'agent']) })
+      .strict()
+      .parse(req.body);
+    return client.browserControl(actorId, controller);
+  }),
+);
 
 export default router;

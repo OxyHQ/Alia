@@ -85,7 +85,9 @@ describe('marketChart', () => {
   it('keeps the day’s open, high and low, and the totals, as lines under the chart', () => {
     const notes = marketChart(MARKET, t, 'en-US')?.notes ?? [];
     expect(notes[0]).toBe('market.open $100.00 · market.dayHigh $120.00 · market.dayLow $90.00');
-    expect(notes[1]).toBe('market.volume market.scale.billion[35] USD · market.marketCap market.scale.trillion[2.2] USD');
+    expect(notes[1]).toBe(
+      'market.volume market.scale.billion[35] USD · market.marketCap market.scale.trillion[2.2] USD',
+    );
   });
 
   it('gives up the chart, not the card, when nothing has two points', () => {

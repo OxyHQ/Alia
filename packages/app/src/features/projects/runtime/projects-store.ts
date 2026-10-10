@@ -1,19 +1,27 @@
-import { create } from "zustand";
-import { AccountScopedKey } from "@/shared/state/account-scope";
-import { CollectionPersister, type CollectionItem } from "@/shared/state/create-collection-store";
+import { create } from 'zustand';
+import { AccountScopedKey } from '@/shared/state/account-scope';
+import { CollectionPersister, type CollectionItem } from '@/shared/state/create-collection-store';
 
 export interface Project extends CollectionItem {
   description?: string;
 }
 
 const PROJECT_ICONS = [
-  "FolderOpen", "Briefcase", "Folder", "Package", "Rocket",
-  "Target", "Lightbulb", "Star", "Heart", "Zap",
+  'FolderOpen',
+  'Briefcase',
+  'Folder',
+  'Package',
+  'Rocket',
+  'Target',
+  'Lightbulb',
+  'Star',
+  'Heart',
+  'Zap',
 ];
-const persister = new CollectionPersister<Project>("alia-projects", "project", PROJECT_ICONS);
+const persister = new CollectionPersister<Project>('alia-projects', 'project', PROJECT_ICONS);
 // The selected project is one of the account's projects, so it is scoped the
 // same way and bound together with the list.
-const currentProjectKey = new AccountScopedKey("alia-current-project");
+const currentProjectKey = new AccountScopedKey('alia-current-project');
 
 interface ProjectsStoreState {
   projects: Project[];
@@ -25,7 +33,12 @@ interface ProjectsStoreState {
    * the one-time legacy migration and the stale-load guard.
    */
   loadProjects: (userId: string | null) => Promise<void>;
-  createProject: (name: string, description?: string, icon?: string, color?: string) => Promise<void>;
+  createProject: (
+    name: string,
+    description?: string,
+    icon?: string,
+    color?: string,
+  ) => Promise<void>;
   updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   setCurrentProject: (id: string | null) => void;
@@ -63,7 +76,7 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => {
         if (!persister.storage.isCurrent(token)) return;
         set({ projects, currentProjectId: currentProjectData || null });
       } catch (error) {
-        console.error("Error loading projects:", error);
+        console.error('Error loading projects:', error);
       }
     },
 
@@ -76,7 +89,7 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => {
         } as Partial<Project>);
         await commit([...get().projects, project]);
       } catch (error) {
-        console.error("Error creating project:", error);
+        console.error('Error creating project:', error);
       }
     },
 
@@ -84,7 +97,7 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => {
       try {
         await commit(persister.updateIn(get().projects, id, updates));
       } catch (error) {
-        console.error("Error updating project:", error);
+        console.error('Error updating project:', error);
       }
     },
 
@@ -100,7 +113,7 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => {
           await commit(projects);
         }
       } catch (error) {
-        console.error("Error deleting project:", error);
+        console.error('Error deleting project:', error);
       }
     },
 
@@ -114,17 +127,17 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => {
         }
         if (currentProjectKey.isCurrent(token)) set({ currentProjectId: id });
       } catch (error) {
-        console.error("Error setting current project:", error);
+        console.error('Error setting current project:', error);
       }
     },
 
     toggleProject: async (id: string) => {
       try {
-        await commit(get().projects.map((p) =>
-          p.id === id ? { ...p, isExpanded: !p.isExpanded } : p
-        ));
+        await commit(
+          get().projects.map((p) => (p.id === id ? { ...p, isExpanded: !p.isExpanded } : p)),
+        );
       } catch (error) {
-        console.error("Error toggling project:", error);
+        console.error('Error toggling project:', error);
       }
     },
 
@@ -132,7 +145,7 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => {
       try {
         await commit(persister.addConversation(get().projects, projectId, conversationId));
       } catch (error) {
-        console.error("Error adding conversation to project:", error);
+        console.error('Error adding conversation to project:', error);
       }
     },
 
@@ -140,7 +153,7 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => {
       try {
         await commit(persister.removeConversation(get().projects, projectId, conversationId));
       } catch (error) {
-        console.error("Error removing conversation from project:", error);
+        console.error('Error removing conversation from project:', error);
       }
     },
   };

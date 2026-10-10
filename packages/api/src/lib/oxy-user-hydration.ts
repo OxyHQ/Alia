@@ -113,7 +113,9 @@ function toHydrated(user: User): HydratedOxyUser | null {
 export async function hydrateOxyUsers(
   ids: readonly (string | null | undefined)[],
 ): Promise<Map<string, HydratedOxyUser>> {
-  const wanted = [...new Set(ids.filter((id): id is string => typeof id === 'string' && id !== ''))];
+  const wanted = [
+    ...new Set(ids.filter((id): id is string => typeof id === 'string' && id !== '')),
+  ];
   const resolved = new Map<string, HydratedOxyUser>();
   if (wanted.length === 0) return resolved;
 
@@ -134,10 +136,7 @@ export async function hydrateOxyUsers(
        * accounts exist" are the same value at this seam; they are not the same
        * event, and only one of them is a deployment fault.
        */
-      log.general.warn(
-        { requested: wanted.length },
-        'Oxy resolved none of the requested accounts',
-      );
+      log.general.warn({ requested: wanted.length }, 'Oxy resolved none of the requested accounts');
     }
   } catch (error: unknown) {
     // Counted, not swallowed: a persistent gap here shows as every author

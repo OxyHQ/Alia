@@ -91,7 +91,11 @@ describe('finding or creating the profile', () => {
 
   it('returns the profile WITH its entries on the second call', async () => {
     const created = await getOrCreateUserMemory(db, 'umr-withentries');
-    await saveEntryByTitle(db, created._id, { title: 'Coffee', summary: 'Flat white', type: 'topic' });
+    await saveEntryByTitle(db, created._id, {
+      title: 'Coffee',
+      summary: 'Flat white',
+      type: 'topic',
+    });
 
     /**
      * The insert path returns a profile with no entries because it just made
@@ -196,7 +200,7 @@ describe('the settings, preference and context blocks', () => {
       messagesAnalyzed: 42,
       isReady: true,
       commonWords: ['pues', 'vale'],
-      _raw: { wordFrequency: { pues: 12, 'vale': 3 }, totalMessages: 42 },
+      _raw: { wordFrequency: { pues: 12, vale: 3 }, totalMessages: 42 },
     };
 
     await setWritingStyle(db, p._id, style as never);
@@ -218,8 +222,16 @@ describe('saving a fact under its title', () => {
   it('inserts the first time and OVERWRITES the second, without a duplicate', async () => {
     const p = await getOrCreateUserMemory(db, 'umr-save');
 
-    const first = await saveEntryByTitle(db, p._id, { title: 'Coffee', summary: 'Tea, actually', type: 'topic' });
-    const second = await saveEntryByTitle(db, p._id, { title: 'Coffee', summary: 'Flat white', type: 'profile' });
+    const first = await saveEntryByTitle(db, p._id, {
+      title: 'Coffee',
+      summary: 'Tea, actually',
+      type: 'topic',
+    });
+    const second = await saveEntryByTitle(db, p._id, {
+      title: 'Coffee',
+      summary: 'Flat white',
+      type: 'profile',
+    });
 
     // Same row, so the id a client already holds keeps working.
     expect(second._id).toBe(first._id);
@@ -230,7 +242,11 @@ describe('saving a fact under its title', () => {
 
   it('treats a title differing only in case and space as the SAME fact', async () => {
     const p = await getOrCreateUserMemory(db, 'umr-fold');
-    const first = await saveEntryByTitle(db, p._id, { title: 'Coffee Preferences', summary: 'a', type: 'topic' });
+    const first = await saveEntryByTitle(db, p._id, {
+      title: 'Coffee Preferences',
+      summary: 'a',
+      type: 'topic',
+    });
 
     /**
      * The fixture law: the second title MUST be in the un-normalised form. Two
@@ -239,7 +255,11 @@ describe('saving a fact under its title', () => {
      * nothing. This exact pair is what `lib/tools/user-memory.ts` treated as one
      * memory in JavaScript.
      */
-    const second = await saveEntryByTitle(db, p._id, { title: '  coffee preferences  ', summary: 'b', type: 'topic' });
+    const second = await saveEntryByTitle(db, p._id, {
+      title: '  coffee preferences  ',
+      summary: 'b',
+      type: 'topic',
+    });
 
     expect(second._id).toBe(first._id);
     expect(await countEntries(db, p._id)).toBe(1);
@@ -276,7 +296,11 @@ describe('saving a fact under its title', () => {
 describe('changing and forgetting one fact by id', () => {
   it('updates only the supplied fields', async () => {
     const p = await getOrCreateUserMemory(db, 'umr-update');
-    const entry = await saveEntryByTitle(db, p._id, { title: 'Food', summary: 'Strawberries', type: 'topic' });
+    const entry = await saveEntryByTitle(db, p._id, {
+      title: 'Food',
+      summary: 'Strawberries',
+      type: 'topic',
+    });
 
     const updated = await updateEntryById(db, p._id, entry._id, { summary: 'Raspberries' });
 
@@ -288,7 +312,11 @@ describe('changing and forgetting one fact by id', () => {
 
   it('renames, and the new title becomes the identity', async () => {
     const p = await getOrCreateUserMemory(db, 'umr-rename');
-    const entry = await saveEntryByTitle(db, p._id, { title: 'Old Name', summary: 's', type: 'topic' });
+    const entry = await saveEntryByTitle(db, p._id, {
+      title: 'Old Name',
+      summary: 's',
+      type: 'topic',
+    });
 
     await updateEntryById(db, p._id, entry._id, { title: 'New Name' });
 
@@ -307,15 +335,17 @@ describe('changing and forgetting one fact by id', () => {
      * functional unique makes it structural, and the collision is now a real
      * error rather than a silently duplicated title.
      */
-    await expect(
-      updateEntryById(db, p._id, other._id, { title: '  taken  ' }),
-    ).rejects.toThrow();
+    await expect(updateEntryById(db, p._id, other._id, { title: '  taken  ' })).rejects.toThrow();
   });
 
-  it('will not touch another account\'s entry', async () => {
+  it("will not touch another account's entry", async () => {
     const mine = await getOrCreateUserMemory(db, 'umr-own-a');
     const theirs = await getOrCreateUserMemory(db, 'umr-own-b');
-    const entry = await saveEntryByTitle(db, mine._id, { title: 'Mine', summary: 's', type: 'topic' });
+    const entry = await saveEntryByTitle(db, mine._id, {
+      title: 'Mine',
+      summary: 's',
+      type: 'topic',
+    });
 
     expect(await updateEntryById(db, theirs._id, entry._id, { summary: 'stolen' })).toBeUndefined();
     expect(await deleteEntryById(db, theirs._id, entry._id)).toBe(0);
@@ -403,7 +433,9 @@ describe('bulk import', () => {
      * transaction held OPEN until B is provably queued behind it.
      */
     let release!: () => void;
-    const held = new Promise<void>((resolve) => { release = resolve; });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
 
     /**
      * A's backend pid, read INSIDE its transaction. Not compared against the
@@ -422,7 +454,10 @@ describe('bulk import', () => {
       await tx.execute(sql`select id from ${userMemories} where id = ${p._id} for update`);
       await tx.delete(userMemoryEntries).where(eq(userMemoryEntries.userMemoryId, p._id));
       await tx.insert(userMemoryEntries).values({
-        userMemoryId: p._id, title: 'A wins', summary: 'a', type: 'topic',
+        userMemoryId: p._id,
+        title: 'A wins',
+        summary: 'a',
+        type: 'topic',
       });
       holdsLock = true;
       await held;
@@ -490,7 +525,11 @@ describe('the shape the API serves', () => {
 
   it('orders entries oldest-first, as the sub-document array did', async () => {
     const p = await getOrCreateUserMemory(db, 'umr-order');
-    const first = await saveEntryByTitle(db, p._id, { title: 'First', summary: 'a', type: 'topic' });
+    const first = await saveEntryByTitle(db, p._id, {
+      title: 'First',
+      summary: 'a',
+      type: 'topic',
+    });
     // Explicit instants, relative to now: `created_at` defaults to `now()` and
     // three inserts can share a millisecond, in which case uuid v7 is NOT
     // monotonic and the order would be arbitrary.
@@ -498,7 +537,11 @@ describe('the shape the API serves', () => {
       .update(userMemoryEntries)
       .set({ createdAt: new Date(Date.now() - 3 * 60_000) })
       .where(eq(userMemoryEntries.id, first._id));
-    const second = await saveEntryByTitle(db, p._id, { title: 'Second', summary: 'b', type: 'topic' });
+    const second = await saveEntryByTitle(db, p._id, {
+      title: 'Second',
+      summary: 'b',
+      type: 'topic',
+    });
     await db
       .update(userMemoryEntries)
       .set({ createdAt: new Date(Date.now() - 2 * 60_000) })

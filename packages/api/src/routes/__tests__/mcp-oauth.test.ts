@@ -150,10 +150,22 @@ function getRouteHandler(method: 'get' | 'post' | 'put' | 'delete' | 'patch', pa
 function makeMockRes() {
   const res: any = {};
   res.statusCode = 200;
-  res.status = vi.fn((code: number) => { res.statusCode = code; return res; });
-  res.json = vi.fn((body: unknown) => { res.body = body; return res; });
-  res.redirect = vi.fn((url: string) => { res.redirectUrl = url; return res; });
-  res.sendStatus = vi.fn((code: number) => { res.statusCode = code; return res; });
+  res.status = vi.fn((code: number) => {
+    res.statusCode = code;
+    return res;
+  });
+  res.json = vi.fn((body: unknown) => {
+    res.body = body;
+    return res;
+  });
+  res.redirect = vi.fn((url: string) => {
+    res.redirectUrl = url;
+    return res;
+  });
+  res.sendStatus = vi.fn((code: number) => {
+    res.statusCode = code;
+    return res;
+  });
   return res;
 }
 
@@ -237,7 +249,9 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
 
   describe('POST /:id/oauth/start — authorization URL contract', () => {
     it('returns the authorization URL from integrations and creates state', async () => {
-      mockFindServer.mockResolvedValue(serverRow({ runtime: 'server', transport: 'streamable-http' }));
+      mockFindServer.mockResolvedValue(
+        serverRow({ runtime: 'server', transport: 'streamable-http' }),
+      );
       mockFetch.mockResolvedValue({
         ok: true,
         status: 200,
@@ -264,7 +278,9 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
     });
 
     it('fails and removes the state when integrations does not return an authorization URL', async () => {
-      mockFindServer.mockResolvedValue(serverRow({ runtime: 'server', transport: 'streamable-http' }));
+      mockFindServer.mockResolvedValue(
+        serverRow({ runtime: 'server', transport: 'streamable-http' }),
+      );
       mockFetch.mockResolvedValue({
         ok: true,
         status: 200,

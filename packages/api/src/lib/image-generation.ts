@@ -36,8 +36,8 @@ export async function generateImage(
  *
  * Kept as the bytes-oriented product seam for callers that store artwork.
  */
-export async function generateImageBytes(
-  request: ImageGenerationRequest,
-): Promise<Buffer | null> {
-  return generateImage(request).then((generated) => generated?.kind === 'bytes' ? generated.bytes : null);
+export async function generateImageBytes(request: ImageGenerationRequest): Promise<Buffer | null> {
+  return generateImage(request).then((generated) =>
+    generated?.kind === 'bytes' ? generated.bytes : null,
+  );
 }

@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,7 +7,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import {
   Plus,
   Play,
@@ -20,9 +20,9 @@ import {
   Sun,
   Moon,
   Code2,
-} from "lucide-react";
-import { useTheme } from "next-themes";
-import type { WorkflowNodeType } from "@/lib/workflow-types";
+} from 'lucide-react';
+import { useTheme } from 'next-themes';
+import type { WorkflowNodeType } from '@/lib/workflow-types';
 
 interface WorkflowToolbarProps {
   workflowName: string;
@@ -60,11 +60,11 @@ export function WorkflowToolbar({
   const { theme, setTheme } = useTheme();
 
   const nodeTypes: { type: WorkflowNodeType; label: string; icon: React.ReactNode }[] = [
-    { type: "textInput", label: "Text Input", icon: <FileText className="w-4 h-4" /> },
-    { type: "aiText", label: "AI Text", icon: <Code2 className="w-4 h-4" /> },
-    { type: "github", label: "GitHub", icon: <Code2 className="w-4 h-4" /> },
-    { type: "output", label: "Output", icon: <FileText className="w-4 h-4" /> },
-    { type: "merge", label: "Merge", icon: <LayoutGrid className="w-4 h-4" /> },
+    { type: 'textInput', label: 'Text Input', icon: <FileText className="w-4 h-4" /> },
+    { type: 'aiText', label: 'AI Text', icon: <Code2 className="w-4 h-4" /> },
+    { type: 'github', label: 'GitHub', icon: <Code2 className="w-4 h-4" /> },
+    { type: 'output', label: 'Output', icon: <FileText className="w-4 h-4" /> },
+    { type: 'merge', label: 'Merge', icon: <LayoutGrid className="w-4 h-4" /> },
   ];
 
   return (
@@ -113,7 +113,7 @@ export function WorkflowToolbar({
 
         <Button variant="ghost" size="sm" className="h-9" onClick={onToggleOutput}>
           <LayoutGrid className="w-4 h-4 sm:mr-1.5" />
-          <span className="hidden sm:inline">{showOutput ? "Hide" : "Show"} Output</span>
+          <span className="hidden sm:inline">{showOutput ? 'Hide' : 'Show'} Output</span>
         </Button>
 
         <Button variant="ghost" size="sm" className="h-9" onClick={onClear}>
@@ -156,22 +156,17 @@ export function WorkflowToolbar({
         variant="ghost"
         size="sm"
         className="h-9 w-9"
-        onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
       >
-        {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
       </Button>
 
       <div className="h-6 w-px bg-border" />
 
       {/* Run Button */}
-      <Button
-        onClick={onExecute}
-        disabled={isExecuting}
-        size="sm"
-        className="h-9 px-4"
-      >
+      <Button onClick={onExecute} disabled={isExecuting} size="sm" className="h-9 px-4">
         <Play className="w-4 h-4 mr-1.5" />
-        {isExecuting ? "Running..." : "Run"}
+        {isExecuting ? 'Running...' : 'Run'}
       </Button>
     </div>
   );

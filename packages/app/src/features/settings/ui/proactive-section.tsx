@@ -41,7 +41,10 @@ export function ProactiveSection() {
     <View className="w-full gap-6">
       <SettingsSection label={t(`${K}.emailTitle`)}>
         <SettingsCard>
-          <SettingsRow label={t(`${K}.aliaEmailLabel`)} description={t(`${K}.aliaEmailDescription`)}>
+          <SettingsRow
+            label={t(`${K}.aliaEmailLabel`)}
+            description={t(`${K}.aliaEmailDescription`)}
+          >
             <Switch
               accessibilityLabel={t(`${K}.aliaEmailLabel`)}
               checked={alerts.alia.enabled}
@@ -57,9 +60,14 @@ export function ProactiveSection() {
             <SettingsRow label={t(`${K}.noAgents`)} />
           ) : (
             alerts.agents.map((agent) => {
-              const name = agent.name ?? (agent.handle ? `@${agent.handle}` : t(`${K}.unnamedAgent`));
+              const name =
+                agent.name ?? (agent.handle ? `@${agent.handle}` : t(`${K}.unnamedAgent`));
               return (
-                <SettingsRow key={agent.agentId} label={name} description={t(`${K}.agentEmailDescription`, { name })}>
+                <SettingsRow
+                  key={agent.agentId}
+                  label={name}
+                  description={t(`${K}.agentEmailDescription`, { name })}
+                >
                   <Switch
                     accessibilityLabel={t(`${K}.agentEmailLabel`, { name })}
                     checked={agent.enabled}

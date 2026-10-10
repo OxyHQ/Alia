@@ -54,15 +54,25 @@ vi.mock('@oxy.so/services', () => ({
   useOxy: () => ({ oxyServices: { session: { accessToken: 'token' } } }),
 }));
 vi.mock('@/shared/platform/device-info', () => ({ collectDeviceInfo: async () => ({}) }));
-vi.mock('@/features/chat/runtime/use-agent-row-preview', () => ({ useAgentRowPreview: () => () => {} }));
+vi.mock('@/features/chat/runtime/use-agent-row-preview', () => ({
+  useAgentRowPreview: () => () => {},
+}));
 vi.mock('@/features/memory/runtime/use-user-data', () => ({ USER_MEMORY_QUERY_KEY: ['memory'] }));
 vi.mock('@/features/chat/runtime/model-store', () => ({
   useModelStore: { getState: () => ({ webSearch: true, setSelectedModel: () => {} }) },
 }));
 vi.mock('@/features/chat/runtime/ui-store', () => ({
-  useUIStore: { getState: () => ({ addCanvasArtifact: () => {}, setRightPanel: () => {}, openAgentPanel: () => {} }) },
+  useUIStore: {
+    getState: () => ({
+      addCanvasArtifact: () => {},
+      setRightPanel: () => {},
+      openAgentPanel: () => {},
+    }),
+  },
 }));
-vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
+vi.mock('@oxy.so/bloom/toast', () => ({
+  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
+}));
 vi.mock('@/shared/i18n', () => ({ default: { t: (k: string) => k } }));
 
 import { useStreamingChat } from '@/features/chat/runtime/use-streaming-chat';
@@ -96,7 +106,11 @@ const done = 'data: [DONE]\n\n';
 
 /** The server's whole answer when every provider is exhausted, as it writes it. */
 const BUSY = "I'm sorry, all models are currently busy. Please try again in a few seconds.";
-const synthetic = (retryable = true) => [contentFrame(BUSY, { synthetic: true, retryable }), stopFrame, done];
+const synthetic = (retryable = true) => [
+  contentFrame(BUSY, { synthetic: true, retryable }),
+  stopFrame,
+  done,
+];
 
 beforeEach(() => {
   harness.requests.length = 0;
@@ -117,7 +131,9 @@ describe('a synthetic reply', () => {
     await mount();
 
     let outcome: string | undefined;
-    await act(async () => { outcome = await api.append({ role: 'user', content: 'hello?' }); });
+    await act(async () => {
+      outcome = await api.append({ role: 'user', content: 'hello?' });
+    });
 
     expect(outcome).toBe('errored');
     // The turn is still there — and ONLY the turn: no empty assistant bubble.
@@ -134,7 +150,9 @@ describe('a synthetic reply', () => {
   it('never renders the stand-in text as Alia’s words', async () => {
     harness.responses.push(synthetic());
     await mount();
-    await act(async () => { await api.append({ role: 'user', content: 'hello?' }); });
+    await act(async () => {
+      await api.append({ role: 'user', content: 'hello?' });
+    });
 
     expect(JSON.stringify(api.messages)).not.toContain('all models are currently busy');
   });
@@ -142,7 +160,9 @@ describe('a synthetic reply', () => {
   it('offers no retry when the server says the turn is not retryable', async () => {
     harness.responses.push(synthetic(false));
     await mount();
-    await act(async () => { await api.append({ role: 'user', content: 'hello?' }); });
+    await act(async () => {
+      await api.append({ role: 'user', content: 'hello?' });
+    });
 
     expect(api.failedTurn?.retryable).toBe(false);
   });
@@ -150,17 +170,23 @@ describe('a synthetic reply', () => {
   it('re-sends the same turn on retry, onto a history that holds it once', async () => {
     harness.responses.push(synthetic(), [contentFrame('Hello!'), stopFrame, done]);
     await mount();
-    await act(async () => { await api.append({ role: 'user', content: 'hello?' }); });
+    await act(async () => {
+      await api.append({ role: 'user', content: 'hello?' });
+    });
 
     let outcome: string | undefined;
-    await act(async () => { outcome = await api.retryFailedTurn(); });
+    await act(async () => {
+      outcome = await api.retryFailedTurn();
+    });
 
     expect(outcome).toBe('sent');
     // Two requests, and the second carries the message exactly once — the
     // failed turn was cut out of the history before it was re-sent, so the
     // server neither sees it twice nor stores it twice.
     expect(harness.requests).toHaveLength(2);
-    expect(harness.requests[1].messages).toEqual([{ id: expect.any(String), role: 'user', content: 'hello?' }]);
+    expect(harness.requests[1].messages).toEqual([
+      { id: expect.any(String), role: 'user', content: 'hello?' },
+    ]);
     expect(api.messages.map((m) => [m.role, m.content])).toEqual([
       ['user', 'hello?'],
       ['assistant', 'Hello!'],
@@ -171,14 +197,19 @@ describe('a synthetic reply', () => {
   it('keeps real output that came before a synthetic tail, and marks the tail as an error', async () => {
     harness.responses.push([
       contentFrame('Here is the first half'),
-      contentFrame('\n\nI encountered a brief interruption. Please send your message again.', { synthetic: true, retryable: true }),
+      contentFrame('\n\nI encountered a brief interruption. Please send your message again.', {
+        synthetic: true,
+        retryable: true,
+      }),
       stopFrame,
       done,
     ]);
     await mount();
 
     let outcome: string | undefined;
-    await act(async () => { outcome = await api.append({ role: 'user', content: 'tell me' }); });
+    await act(async () => {
+      outcome = await api.append({ role: 'user', content: 'tell me' });
+    });
 
     // The output is theirs to keep, so this is a sent turn…
     expect(outcome).toBe('sent');
@@ -198,14 +229,16 @@ describe('a synthetic reply', () => {
   it('keeps output that came before an in-stream error frame, and shows code and reference, not the server prose', async () => {
     // What the server writes when a step fails after text and a tool call:
     // the `{"error": …}` frame and [DONE], with no stop chunk.
-    const errorFrame = `data: ${JSON.stringify({ error: {
-      message: 'Service temporarily unavailable. Please try again in a moment.',
-      type: 'server_error',
-      param: null,
-      code: 'PROVIDER_UNAVAILABLE',
-      retryable: true,
-      reference: 'chatcmpl-ref-1',
-    } })}\n\n`;
+    const errorFrame = `data: ${JSON.stringify({
+      error: {
+        message: 'Service temporarily unavailable. Please try again in a moment.',
+        type: 'server_error',
+        param: null,
+        code: 'PROVIDER_UNAVAILABLE',
+        retryable: true,
+        reference: 'chatcmpl-ref-1',
+      },
+    })}\n\n`;
     harness.responses.push(
       [contentFrame('Voy a abrir Mention y mirar las tendencias.'), errorFrame, done],
       [contentFrame('Estas son las tendencias.'), stopFrame, done],
@@ -213,7 +246,9 @@ describe('a synthetic reply', () => {
     await mount();
 
     let outcome: string | undefined;
-    await act(async () => { outcome = await api.append({ role: 'user', content: 'Que tendencias hay en Mention?' }); });
+    await act(async () => {
+      outcome = await api.append({ role: 'user', content: 'Que tendencias hay en Mention?' });
+    });
 
     expect(outcome).toBe('sent');
     expect(api.messages.map((m) => [m.role, m.content])).toEqual([
@@ -229,7 +264,9 @@ describe('a synthetic reply', () => {
     });
 
     // Retry re-sends the question once, without the half answer.
-    await act(async () => { await api.retryFailedTurn(); });
+    await act(async () => {
+      await api.retryFailedTurn();
+    });
     expect(harness.requests[1].messages.filter((m) => m.role === 'user')).toHaveLength(1);
     expect(harness.requests[1].messages.some((m) => m.role === 'assistant')).toBe(false);
     expect(api.messages.map((m) => [m.role, m.content])).toEqual([
@@ -240,14 +277,16 @@ describe('a synthetic reply', () => {
   });
 
   /** Alia's envelope for a turn that failed before any output. */
-  const preOutputFailure = (retryable = true) => ({ error: {
-    message: 'Service temporarily unavailable. Please try again in a moment.',
-    type: 'server_error',
-    param: null,
-    code: 'PROVIDER_UNAVAILABLE',
-    retryable,
-    reference: 'chatcmpl-ref-0',
-  } });
+  const preOutputFailure = (retryable = true) => ({
+    error: {
+      message: 'Service temporarily unavailable. Please try again in a moment.',
+      type: 'server_error',
+      param: null,
+      code: 'PROVIDER_UNAVAILABLE',
+      retryable,
+      reference: 'chatcmpl-ref-0',
+    },
+  });
 
   it('draws a failure before any output, sent as an error frame, as a failed turn with Retry', async () => {
     harness.responses.push(
@@ -257,7 +296,9 @@ describe('a synthetic reply', () => {
     await mount();
 
     let outcome: string | undefined;
-    await act(async () => { outcome = await api.append({ role: 'user', content: 'hola' }); });
+    await act(async () => {
+      outcome = await api.append({ role: 'user', content: 'hola' });
+    });
 
     expect(outcome).toBe('errored');
     // No answer row, nothing of the server's prose: the person's turn, with the card.
@@ -269,9 +310,14 @@ describe('a synthetic reply', () => {
       detail: 'PROVIDER_UNAVAILABLE · Ref chatcmpl-ref-0',
     });
 
-    await act(async () => { await api.retryFailedTurn(); });
+    await act(async () => {
+      await api.retryFailedTurn();
+    });
     expect(harness.requests[1].messages.filter((m) => m.role === 'user')).toHaveLength(1);
-    expect(api.messages.map((m) => [m.role, m.content])).toEqual([['user', 'hola'], ['assistant', 'Hola.']]);
+    expect(api.messages.map((m) => [m.role, m.content])).toEqual([
+      ['user', 'hola'],
+      ['assistant', 'Hola.'],
+    ]);
     expect(api.failedTurn).toBeNull();
   });
 
@@ -281,7 +327,9 @@ describe('a synthetic reply', () => {
     await mount();
 
     let outcome: string | undefined;
-    await act(async () => { outcome = await api.append({ role: 'user', content: 'hola' }); });
+    await act(async () => {
+      outcome = await api.append({ role: 'user', content: 'hola' });
+    });
 
     expect(outcome).toBe('errored');
     expect(api.messages.map((m) => m.role)).toEqual(['user']);
@@ -297,17 +345,23 @@ describe('a synthetic reply', () => {
     harness.responses.push([JSON.stringify(preOutputFailure(false))]);
     await mount();
 
-    await act(async () => { await api.append({ role: 'user', content: 'hola' }); });
+    await act(async () => {
+      await api.append({ role: 'user', content: 'hola' });
+    });
     expect(api.failedTurn).toMatchObject({ retryable: false, partial: false });
   });
 
   it('takes the failure down the moment a new message is sent', async () => {
     harness.responses.push(synthetic(), [contentFrame('Sure.'), stopFrame, done]);
     await mount();
-    await act(async () => { await api.append({ role: 'user', content: 'first' }); });
+    await act(async () => {
+      await api.append({ role: 'user', content: 'first' });
+    });
     expect(api.failedTurn).not.toBeNull();
 
-    await act(async () => { await api.append({ role: 'user', content: 'second' }); });
+    await act(async () => {
+      await api.append({ role: 'user', content: 'second' });
+    });
 
     expect(api.failedTurn).toBeNull();
   });

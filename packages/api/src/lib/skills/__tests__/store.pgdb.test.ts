@@ -2,7 +2,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { like } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../../../db/index';
 import { skills } from '../../../db/schema/skills';
-import { findLatestVersion, listSkillVersions, listVersionFiles } from '../../../db/agents/skillRepository';
+import {
+  findLatestVersion,
+  listSkillVersions,
+  listVersionFiles,
+} from '../../../db/agents/skillRepository';
 import { buildSkillBundle } from '../bundle.js';
 import { storeSkillBundle } from '../store.js';
 
@@ -29,11 +33,20 @@ afterAll(async () => {
 });
 
 let counter = 0;
-function document(name: string, body: string, description = 'Does a thing. Use when a thing needs doing.') {
+function document(
+  name: string,
+  body: string,
+  description = 'Does a thing. Use when a thing needs doing.',
+) {
   return `---\nname: ${name}\ndescription: ${description}\n---\n\n${body}\n`;
 }
 
-function bundleOf(name: string, body: string, extra: { path: string; content: string }[] = [], description?: string) {
+function bundleOf(
+  name: string,
+  body: string,
+  extra: { path: string; content: string }[] = [],
+  description?: string,
+) {
   return buildSkillBundle([
     { path: 'SKILL.md', content: Buffer.from(document(name, body, description)) },
     ...extra.map((file) => ({ path: file.path, content: Buffer.from(file.content) })),
@@ -48,9 +61,11 @@ function uniqueName(): string {
 describe('storeSkillBundle', () => {
   it('creates the skill and its first version, with the files inline', async () => {
     const name = uniqueName();
-    const result = await storeSkillBundle(db, bundleOf(name, '# Title\n\nBody.', [
-      { path: 'references/API.md', content: '# API' },
-    ]), { source: 'authored', ownerOxyUserId: 'sst-owner' });
+    const result = await storeSkillBundle(
+      db,
+      bundleOf(name, '# Title\n\nBody.', [{ path: 'references/API.md', content: '# API' }]),
+      { source: 'authored', ownerOxyUserId: 'sst-owner' },
+    );
 
     expect(result.createdSkill).toBe(true);
     expect(result.unchanged).toBe(false);
@@ -65,7 +80,11 @@ describe('storeSkillBundle', () => {
   it('does nothing when the same bundle is stored again', async () => {
     const name = uniqueName();
     const bundle = bundleOf(name, '# Title\n\nBody.');
-    await storeSkillBundle(db, bundle, { source: 'registry', ownerOxyUserId: null, sourceRepo: 'o/r' });
+    await storeSkillBundle(db, bundle, {
+      source: 'registry',
+      ownerOxyUserId: null,
+      sourceRepo: 'o/r',
+    });
 
     const again = await storeSkillBundle(db, bundleOf(name, '# Title\n\nBody.'), {
       source: 'registry',
@@ -98,10 +117,14 @@ describe('storeSkillBundle', () => {
 
   it('refreshes the metadata a person browses from the new version', async () => {
     const name = uniqueName();
-    await storeSkillBundle(db, bundleOf(name, '# Title\n\nBody.', [], 'The first description. Use when first.'), {
-      source: 'authored',
-      ownerOxyUserId: 'sst-owner',
-    });
+    await storeSkillBundle(
+      db,
+      bundleOf(name, '# Title\n\nBody.', [], 'The first description. Use when first.'),
+      {
+        source: 'authored',
+        ownerOxyUserId: 'sst-owner',
+      },
+    );
     const updated = await storeSkillBundle(
       db,
       bundleOf(name, '# Title\n\nBody two.', [], 'The second description. Use when second.'),

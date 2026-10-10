@@ -57,7 +57,14 @@ const live: ThoughtScope = {
 };
 const history = [
   { id: 'h1', role: 'user', content: 'old', conversationId: 'c-old', cursor: '1' },
-  { id: 'h2', role: 'assistant', content: 'answer', thinking: 'why', conversationId: 'c-old', cursor: '2' },
+  {
+    id: 'h2',
+    role: 'assistant',
+    content: 'answer',
+    thinking: 'why',
+    conversationId: 'c-old',
+    cursor: '2',
+  },
   { id: 'h3', role: 'assistant', content: 'older', conversationId: 'c-older', cursor: '0' },
 ] as unknown as ThreadMessage[];
 
@@ -68,7 +75,12 @@ describe('thoughtScopeFor', () => {
 
   it('scopes a past turn to ITS stretch, complete and not streaming', () => {
     const scope = thoughtScopeFor('h2', live, history);
-    expect(scope).toMatchObject({ conversationId: 'c-old', status: 'ready', isLoading: false, failedTurn: null });
+    expect(scope).toMatchObject({
+      conversationId: 'c-old',
+      status: 'ready',
+      isLoading: false,
+      failedTurn: null,
+    });
     expect(scope.messages.map((m) => m.id)).toEqual(['h1', 'h2']);
   });
 });
@@ -79,14 +91,25 @@ afterEach(async () => {
   renderer = null;
 });
 beforeEach(() => {
-  useUIStore.setState({ rightPanel: null, thoughtMessageId: null, thoughtScope: null, thoughtTab: 'steps' });
+  useUIStore.setState({
+    rightPanel: null,
+    thoughtMessageId: null,
+    thoughtScope: null,
+    thoughtTab: 'steps',
+  });
 });
 
 describe('opening a past turn', () => {
   it('opens the panel on that turn, keyed by its conversation, from its status line', async () => {
     function Row() {
       const open = useOpenThought(live, history);
-      return <TurnStatusLine label="Worked for 3s" hint="thought.viewDetails" onPress={() => open('h2', 'steps')} />;
+      return (
+        <TurnStatusLine
+          label="Worked for 3s"
+          hint="thought.viewDetails"
+          onPress={() => open('h2', 'steps')}
+        />
+      );
     }
     await act(async () => {
       renderer = create(<Row />);

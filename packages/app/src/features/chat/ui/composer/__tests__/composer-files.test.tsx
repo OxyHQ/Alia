@@ -99,7 +99,8 @@ beforeEach(() => {
       set.add(listener);
       listeners.set(type, set);
     },
-    removeEventListener: (type: string, listener: Listener) => listeners.get(type)?.delete(listener),
+    removeEventListener: (type: string, listener: Listener) =>
+      listeners.get(type)?.delete(listener),
   };
   vi.stubGlobal('document', {
     getElementById: (id: string) => {
@@ -140,7 +141,9 @@ function mount(props: Partial<React.ComponentProps<typeof Composer>> = {}) {
 }
 
 const overlay = () =>
-  renderer!.root.findAll((node) => node.type === ('View' as never) && node.props.accessibilityRole === 'alert');
+  renderer!.root.findAll(
+    (node) => node.type === ('View' as never) && node.props.accessibilityRole === 'alert',
+  );
 
 describe('dropping files on the composer', () => {
   it('listens on its own element, the one the paste target uses', () => {
@@ -163,7 +166,9 @@ describe('dropping files on the composer', () => {
 
     expect(drop.preventDefault).toHaveBeenCalled();
     expect(overlay()).toHaveLength(0);
-    expect(added).toMatchObject([{ name: 'notes.pdf', type: 'document', uri: 'blob:http://app/dropped' }]);
+    expect(added).toMatchObject([
+      { name: 'notes.pdf', type: 'document', uri: 'blob:http://app/dropped' },
+    ]);
   });
 
   it('takes nothing while a turn is running, and says so', () => {
@@ -171,7 +176,9 @@ describe('dropping files on the composer', () => {
     mount({ busy: true, attachments: [], onAddAttachment: (a) => added.push(a) });
 
     fire('dragenter');
-    expect(overlay()[0]?.findByType('Text' as never).props.children).toBe('composer.dropUnavailable');
+    expect(overlay()[0]?.findByType('Text' as never).props.children).toBe(
+      'composer.dropUnavailable',
+    );
     fire('drop', [new File(['x'], 'a.pdf', { type: 'application/pdf' })]);
 
     expect(added).toEqual([]);
@@ -201,7 +208,18 @@ describe('dropping files on the composer', () => {
 
 describe('a message that is only a file', () => {
   it('can be sent with no text', () => {
-    mount({ attachments: [{ id: 'a', uri: 'data:image/png;base64,AA', type: 'image', name: 'a.png', size: 2, mimeType: 'image/png' }] });
+    mount({
+      attachments: [
+        {
+          id: 'a',
+          uri: 'data:image/png;base64,AA',
+          type: 'image',
+          name: 'a.png',
+          size: 2,
+          mimeType: 'image/png',
+        },
+      ],
+    });
 
     expect(panel.props?.disabled).toBe(false);
   });
@@ -281,15 +299,52 @@ describe('a file that could not be read', () => {
     const t = (key: string, options?: Record<string, unknown>) =>
       options?.name ? `${key}:${String(options.name)}` : key;
     const items: IntakeItem[] = [
-      { id: 'r', name: 'cat.png', size: 3, mimeType: 'image/png', kind: 'image', status: 'reading', fraction: 0.5 },
-      { id: 'f', name: 'dog.png', size: 3, mimeType: 'image/png', kind: 'image', status: 'failed', fraction: null },
-      { id: 'x', name: 'huge.png', size: 9e9, mimeType: 'image/png', kind: 'document', status: 'refused', fraction: null, refusal: 'too-large' },
+      {
+        id: 'r',
+        name: 'cat.png',
+        size: 3,
+        mimeType: 'image/png',
+        kind: 'image',
+        status: 'reading',
+        fraction: 0.5,
+      },
+      {
+        id: 'f',
+        name: 'dog.png',
+        size: 3,
+        mimeType: 'image/png',
+        kind: 'image',
+        status: 'failed',
+        fraction: null,
+      },
+      {
+        id: 'x',
+        name: 'huge.png',
+        size: 9e9,
+        mimeType: 'image/png',
+        kind: 'document',
+        status: 'refused',
+        fraction: null,
+        refusal: 'too-large',
+      },
     ];
 
     expect(composerTiles([], items, t)).toEqual([
       { id: 'r', name: 'cat.png', kind: 'image', progress: 50 },
-      { id: 'f', name: 'dog.png', kind: 'image', error: 'composer.readFailed:dog.png', retryable: true },
-      { id: 'x', name: 'huge.png', kind: 'document', error: 'composer.fileTooLarge:huge.png', retryable: false },
+      {
+        id: 'f',
+        name: 'dog.png',
+        kind: 'image',
+        error: 'composer.readFailed:dog.png',
+        retryable: true,
+      },
+      {
+        id: 'x',
+        name: 'huge.png',
+        kind: 'document',
+        error: 'composer.fileTooLarge:huge.png',
+        retryable: false,
+      },
     ]);
   });
 });

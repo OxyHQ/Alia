@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-const forbidden = vi.hoisted(() => vi.fn(() => { throw new Error('Machine turns must not read product authority'); }));
+const forbidden = vi.hoisted(() =>
+  vi.fn(() => {
+    throw new Error('Machine turns must not read product authority');
+  }),
+);
 vi.mock('../../db/index.js', () => ({ getDb: forbidden }));
 import { ToolPipeline } from '../tool-pipeline.js';
 

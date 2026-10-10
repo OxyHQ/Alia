@@ -77,9 +77,14 @@ vi.mock('../../../middleware/auth.js', () => ({
   authenticateToken: maybeSignIn,
   optionalAuth: maybeSignIn,
   authenticateTokenOrApiKey: maybeSignIn,
-  oxyClient: { users: { getMany: async () => [
-      { id: 'acct-bot', username: 'pepe', name: { displayName: 'Pepe' }, color: 'mint' },
-    ], byUsername: async () => ({ id: 'acct-bot' }) } },
+  oxyClient: {
+    users: {
+      getMany: async () => [
+        { id: 'acct-bot', username: 'pepe', name: { displayName: 'Pepe' }, color: 'mint' },
+      ],
+      byUsername: async () => ({ id: 'acct-bot' }),
+    },
+  },
 }));
 
 const repository = vi.hoisted(() => ({
@@ -180,7 +185,11 @@ beforeEach(() => {
   repository.findAgentById.mockResolvedValue({ ...AGENT_ROW });
 });
 
-async function card(): Promise<{ status: number; agent: Record<string, unknown> | undefined; raw: string }> {
+async function card(): Promise<{
+  status: number;
+  agent: Record<string, unknown> | undefined;
+  raw: string;
+}> {
   const res = await fetch(`${baseUrl}/agents/agent-1`);
   const raw = await res.text();
   const body = JSON.parse(raw) as { agent?: Record<string, unknown> };
@@ -265,7 +274,11 @@ describe('the prompt on a public agent’s card', () => {
 
 describe('a draft is not addressable at all', () => {
   beforeEach(() => {
-    repository.findAgentById.mockResolvedValue({ ...AGENT_ROW, isPublished: false, access: 'private' });
+    repository.findAgentById.mockResolvedValue({
+      ...AGENT_ROW,
+      isPublished: false,
+      access: 'private',
+    });
   });
 
   it('answers 404 to a stranger', async () => {

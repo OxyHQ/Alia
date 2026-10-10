@@ -1,7 +1,4 @@
-import {
-  errorStatus,
-  errorMessage as getErrorMessage,
-} from '@/shared/api/error-utils';
+import { errorStatus, errorMessage as getErrorMessage } from '@/shared/api/error-utils';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { Loading } from '@oxy.so/bloom/loading';
@@ -36,9 +33,7 @@ export function AgentEditorLoadFailed({
         {notFound ? t('agents.notFound') : t('agents.loadFailed')}
       </Text>
       <Muted className="text-center text-sm text-muted-foreground">
-        {notFound
-          ? t('agents.notFoundDetail')
-          : getErrorMessage(error, t('agents.loadFailed'))}
+        {notFound ? t('agents.notFoundDetail') : getErrorMessage(error, t('agents.loadFailed'))}
       </Muted>
       {notFound ? (
         <Button

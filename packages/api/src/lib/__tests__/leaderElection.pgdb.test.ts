@@ -97,7 +97,8 @@ async function until(
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     if (await ready()) return;
-    if (Date.now() > deadline) throw new Error(`Timed out after ${timeoutMs}ms waiting for ${label}`);
+    if (Date.now() > deadline)
+      throw new Error(`Timed out after ${timeoutMs}ms waiting for ${label}`);
     await wait(5);
   }
 }
@@ -177,11 +178,22 @@ describe('leader-election', () => {
 
     const electedA = vi.fn();
     const electedB = vi.fn();
-    const handleA = modA.startLeaderElection(name, { onElected: electedA, onDemoted: vi.fn() }, { heartbeatMs: HEARTBEAT_MS, leaseTtlMs: 60_000 });
-    const handleB = modB.startLeaderElection(name, { onElected: electedB, onDemoted: vi.fn() }, { heartbeatMs: HEARTBEAT_MS, leaseTtlMs: 60_000 });
+    const handleA = modA.startLeaderElection(
+      name,
+      { onElected: electedA, onDemoted: vi.fn() },
+      { heartbeatMs: HEARTBEAT_MS, leaseTtlMs: 60_000 },
+    );
+    const handleB = modB.startLeaderElection(
+      name,
+      { onElected: electedB, onDemoted: vi.fn() },
+      { heartbeatMs: HEARTBEAT_MS, leaseTtlMs: 60_000 },
+    );
     handles.push(handleA, handleB);
 
-    await until('one of the two instances to be elected', () => handleA.isLeader() || handleB.isLeader());
+    await until(
+      'one of the two instances to be elected',
+      () => handleA.isLeader() || handleB.isLeader(),
+    );
     await settle();
 
     const leaders = (handleA.isLeader() ? 1 : 0) + (handleB.isLeader() ? 1 : 0);
@@ -202,7 +214,11 @@ describe('leader-election', () => {
 
     const modB = await loadInstance();
     const electedB = vi.fn();
-    const handleB = modB.startLeaderElection(name, { onElected: electedB, onDemoted: vi.fn() }, { heartbeatMs: HEARTBEAT_MS, leaseTtlMs: 60_000 });
+    const handleB = modB.startLeaderElection(
+      name,
+      { onElected: electedB, onDemoted: vi.fn() },
+      { heartbeatMs: HEARTBEAT_MS, leaseTtlMs: 60_000 },
+    );
     handles.push(handleB);
 
     await until('B to claim the abandoned lease', () => handleB.isLeader());
@@ -284,7 +300,11 @@ describe('leader-election', () => {
     const modA = await loadInstance();
 
     const demotedA = vi.fn();
-    const handleA = modA.startLeaderElection(name, { onElected: vi.fn(), onDemoted: demotedA }, { heartbeatMs: HEARTBEAT_MS, leaseTtlMs: 60_000 });
+    const handleA = modA.startLeaderElection(
+      name,
+      { onElected: vi.fn(), onDemoted: demotedA },
+      { heartbeatMs: HEARTBEAT_MS, leaseTtlMs: 60_000 },
+    );
     handles.push(handleA);
 
     await until('A to be elected', () => handleA.isLeader());
@@ -309,7 +329,11 @@ describe('leader-election', () => {
     const modA = await loadInstance();
 
     const demotedA = vi.fn();
-    const handleA = modA.startLeaderElection(name, { onElected: vi.fn(), onDemoted: demotedA }, { heartbeatMs: HEARTBEAT_MS, leaseTtlMs: 60_000 });
+    const handleA = modA.startLeaderElection(
+      name,
+      { onElected: vi.fn(), onDemoted: demotedA },
+      { heartbeatMs: HEARTBEAT_MS, leaseTtlMs: 60_000 },
+    );
 
     await until('A to be elected', () => handleA.isLeader());
 

@@ -52,7 +52,9 @@ vi.mock('../lib/redis.js', () => ({
   getRedisSubClient: vi.fn(() => null),
 }));
 vi.mock('../middleware/auth.js', () => ({
-  oxyClient: { middleware: { socket: vi.fn(() => (_socket: unknown, next: () => void) => next()) } },
+  oxyClient: {
+    middleware: { socket: vi.fn(() => (_socket: unknown, next: () => void) => next()) },
+  },
 }));
 
 // Stores only. `notification-service.ts` itself, and its channel resolution, run.
@@ -85,7 +87,15 @@ vi.mock('../lib/channels/outbound.js', () => ({ sendChannelMessage: vi.fn(async 
 vi.mock('../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return {
-    log: { general: child, agents: child, chat: child, v1: child, providers: child, codea: child, triggers: child },
+    log: {
+      general: child,
+      agents: child,
+      chat: child,
+      v1: child,
+      providers: child,
+      codea: child,
+      triggers: child,
+    },
   };
 });
 
@@ -173,7 +183,11 @@ describe('each product event is emitted under its own name, to its own room', ()
       toolName: 'browser',
       args: { action: 'search', query: 'alia' },
     });
-    expect(broadcasts[3].payload).toEqual({ eventVersion: 1, requestId: 'req-1', decision: 'approved' });
+    expect(broadcasts[3].payload).toEqual({
+      eventVersion: 1,
+      requestId: 'req-1',
+      decision: 'approved',
+    });
   });
 
   it('agent activity, to the agent room AND the session room', () => {
@@ -194,7 +208,11 @@ describe('each product event is emitted under its own name, to its own room', ()
   });
 
   it('audio job, telegram link and workflow, each on its own room', () => {
-    emitAudioJobUpdate('user-ws13', { jobId: 'job-1', status: 'completed', audioUrl: 'https://x.test/a.mp3' });
+    emitAudioJobUpdate('user-ws13', {
+      jobId: 'job-1',
+      status: 'completed',
+      audioUrl: 'https://x.test/a.mp3',
+    });
     emitTelegramLinked('tok-1', { linked: true });
     emitWorkflowProgress('exec-1', { step: 2 });
 
@@ -256,7 +274,8 @@ function appSocketListeners(): { names: string[]; filesScanned: number } {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        if (entry.name === 'node_modules' || entry.name === '.expo' || entry.name === 'dist') continue;
+        if (entry.name === 'node_modules' || entry.name === '.expo' || entry.name === 'dist')
+          continue;
         walk(full);
         continue;
       }
@@ -268,7 +287,9 @@ function appSocketListeners(): { names: string[]; filesScanned: number } {
         // codebase, and a comment is excluded rather than counted.
         const trimmed = line.trim();
         if (trimmed.startsWith('//') || trimmed.startsWith('*')) continue;
-        for (const match of line.matchAll(/\bsocket(?:Ref\.current)?\??\.on\(\s*['"]([^'"]+)['"]/g)) {
+        for (const match of line.matchAll(
+          /\bsocket(?:Ref\.current)?\??\.on\(\s*['"]([^'"]+)['"]/g,
+        )) {
           names.add(match[1]);
         }
       }
@@ -298,7 +319,15 @@ describe('every socket event the app listens for is one the API emits', () => {
      * the union of the names they produced. This is what the app must find.
      */
     broadcasts.length = 0;
-    emitApprovalRequest('s', { requestId: 'r', agentId: 'a', toolName: 't', args: {}, description: '', severity: 'info', timeout: 1 });
+    emitApprovalRequest('s', {
+      requestId: 'r',
+      agentId: 'a',
+      toolName: 't',
+      args: {},
+      description: '',
+      severity: 'info',
+      timeout: 1,
+    });
     emitApprovalResult('s', { requestId: 'r', decision: 'approved' });
     emitAgentActivity('a', { type: 'system', content: '', timestamp: 1, sessionId: 's' });
     emitAudioJobUpdate('u', { jobId: 'j', status: 'completed' });

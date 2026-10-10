@@ -36,11 +36,23 @@
  * purpose is freshness.
  */
 
-import { boolean, doublePrecision, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  doublePrecision,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { CONTEXT_NODE_TYPES } from '../../domain/context-node.js';
 import { CONTEXT_EDGE_TYPES } from '../../domain/context-edge.js';
-import { CONTEXT_SOURCE_AVAILABILITIES, CONTEXT_SOURCE_KINDS } from '../../domain/context-source.js';
+import {
+  CONTEXT_SOURCE_AVAILABILITIES,
+  CONTEXT_SOURCE_KINDS,
+} from '../../domain/context-source.js';
 import { AUTONOMY_INTENTS } from '../../domain/retrieval-strategy.js';
 import { checkOneOf } from './columns';
 
@@ -198,7 +210,11 @@ export const contextSources = pgTable(
   },
   (t) => [
     uniqueIndex('context_sources_oxy_user_source_key_key').on(t.oxyUserId, t.sourceKey),
-    index('context_sources_oxy_user_kind_updated_at_idx').on(t.oxyUserId, t.kind, t.updatedAt.desc()),
+    index('context_sources_oxy_user_kind_updated_at_idx').on(
+      t.oxyUserId,
+      t.kind,
+      t.updatedAt.desc(),
+    ),
     checkOneOf('context_sources_kind_check', t.kind, CONTEXT_SOURCE_KINDS),
     checkOneOf('context_sources_availability_check', t.availability, CONTEXT_SOURCE_AVAILABILITIES),
   ],

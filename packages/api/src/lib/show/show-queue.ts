@@ -94,7 +94,9 @@ export async function startShowWorker(): Promise<void> {
             priority: 'high',
             data: { episodeId, status: 'failed' },
           });
-        } catch { /* notification failure is non-fatal */ }
+        } catch {
+          /* notification failure is non-fatal */
+        }
 
         throw err;
       }
@@ -140,13 +142,16 @@ export async function enqueueShowGeneration(
       log.general.info({ episodeId: data.episodeId, jobId: job.id }, 'Episode generation enqueued');
       return { queued: true, jobId: job.id ?? undefined };
     } catch (err) {
-      log.general.warn({ err, episodeId: data.episodeId }, 'Failed to enqueue an episode — falling back to direct');
+      log.general.warn(
+        { err, episodeId: data.episodeId },
+        'Failed to enqueue an episode — falling back to direct',
+      );
     }
   }
 
   // Fallback: direct execution
   const { runShowPipeline } = await import('./show-pipeline.js');
-  runShowPipeline(data.episodeId).catch(err => {
+  runShowPipeline(data.episodeId).catch((err) => {
     log.general.error({ err, episodeId: data.episodeId }, 'Direct episode generation failed');
   });
 

@@ -146,7 +146,12 @@ function mountPath(source: string): string {
   return match[1].replace(/\\\//g, '/');
 }
 
-function walk(router: unknown, prefix: string, inherited: readonly string[], into: Endpoint[]): void {
+function walk(
+  router: unknown,
+  prefix: string,
+  inherited: readonly string[],
+  into: Endpoint[],
+): void {
   /**
    * Router-level middleware IN STACK ORDER, each with the mount path it is
    * scoped to (`null` for every path). Express runs a path-scoped middleware at
@@ -155,10 +160,13 @@ function walk(router: unknown, prefix: string, inherited: readonly string[], int
    * per-path bucket appended at mount time would report a middleware declared
    * before the limiter as running after it.
    */
-  const ordered: { readonly source: string | null; readonly name: string }[] =
-    inherited.map((name) => ({ source: null, name }));
+  const ordered: { readonly source: string | null; readonly name: string }[] = inherited.map(
+    (name) => ({ source: null, name }),
+  );
   const chainFor = (source: string | null): string[] =>
-    ordered.filter((entry) => entry.source === null || entry.source === source).map((entry) => entry.name);
+    ordered
+      .filter((entry) => entry.source === null || entry.source === source)
+      .map((entry) => entry.name);
 
   for (const layer of (router as { stack: readonly Layer[] }).stack) {
     if (layer.route !== undefined) {
@@ -315,7 +323,11 @@ describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => 
  * `routes/v1.ts`; it is identified by the assertion below rather than by its
  * name, because it has none.
  */
-const AUTHENTICATED: readonly string[] = ['?anonymous', 'authenticateTokenOrApiKey', 'apiKeyRateLimit'];
+const AUTHENTICATED: readonly string[] = [
+  '?anonymous',
+  'authenticateTokenOrApiKey',
+  'apiKeyRateLimit',
+];
 /**
  * The chat surface alone also accepts a product's present-requester assertion
  * (ADR 0025 in OxyHQServices). It is not a new credential: the bearer is still
@@ -563,10 +575,7 @@ describe('the compatibility surface keeps Oxy authority and refuses retired Alia
 
   it('holds exactly these four secrets, so a new shared secret is visible', () => {
     // Every shared-secret lane is enumerated, so adding one remains visible.
-    expect(environmentRead(auth)).toEqual([
-      'OXY_API_URL',
-      'TELEGRAM_BOT_SECRET',
-    ]);
+    expect(environmentRead(auth)).toEqual(['OXY_API_URL', 'TELEGRAM_BOT_SECRET']);
   });
 
   it('the /v1 router itself reads only the channel-bot pair', () => {
@@ -604,10 +613,7 @@ describe('the compatibility surface keeps Oxy authority and refuses retired Alia
  * Provider-account health and key spend no longer exist in this service: Kaana
  * owns provider credentials and their operational state.
  */
-const PROVIDER_COST_WRITERS: readonly string[] = [
-  'insertCostEntry',
-  'recordCost',
-];
+const PROVIDER_COST_WRITERS: readonly string[] = ['insertCostEntry', 'recordCost'];
 
 /** Comment-stripped source, so a census cannot read this repository's prose. */
 function code(relative: string): string {
@@ -659,7 +665,9 @@ describe('the compatibility surface reintroduces no provider billing (#139 ws6, 
      * calls none of them. A census over raw text would report it as two call
      * sites — and the whole guard below would then be reporting itself.
      */
-    expect(namesCallTo('recordApiKeyUsage', ['middleware/api-key-rate-limit.ts'])).toEqual(['middleware/api-key-rate-limit.ts']);
+    expect(namesCallTo('recordApiKeyUsage', ['middleware/api-key-rate-limit.ts'])).toEqual([
+      'middleware/api-key-rate-limit.ts',
+    ]);
 
     const self = 'routes/__tests__/v1-compatibility-surface.test.ts';
     for (const writer of PROVIDER_COST_WRITERS) {
@@ -728,9 +736,14 @@ function namesCallTo(name: string, modules: readonly string[]): string[] {
 
 /** Every shipped (non-test) module under `packages/api/src`. */
 function shippedModules(): string[] {
-  return execFileSync('git', ['ls-files', '--', 'packages/api/src'], { cwd: REPO_ROOT, encoding: 'utf8' })
+  return execFileSync('git', ['ls-files', '--', 'packages/api/src'], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+  })
     .split('\n')
-    .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/') && !file.endsWith('.test.ts'))
+    .filter(
+      (file) => file.endsWith('.ts') && !file.includes('/__tests__/') && !file.endsWith('.test.ts'),
+    )
     .filter((file) => existsSync(path.join(REPO_ROOT, file)))
     .map((file) => path.relative(API_SRC, path.join(REPO_ROOT, file)))
     .sort();
@@ -802,7 +815,9 @@ describe('the two chat surfaces differ only where it is recorded (#139 ws6, ADR 
      * mounts `authenticateTokenOrApiKey` — is asserted by the test below it.
      */
     const auth = code('middleware/auth.ts');
-    expect(auth).toContain("const channelBotSecret = req.headers['x-channel-bot-secret'] as string;");
+    expect(auth).toContain(
+      "const channelBotSecret = req.headers['x-channel-bot-secret'] as string;",
+    );
     expect(auth).toContain('void authenticateChannelBotSecret(req, res, next);');
 
     // And the difference that survives, in the same currency: two different
@@ -838,8 +853,10 @@ describe('the two chat surfaces differ only where it is recorded (#139 ws6, ADR 
   it('records the pre-auth difference as the only one in the mounted chains', () => {
     const product = aliaChat.find((e) => e.signature === 'POST /alia/chat');
     const generic = v1.find((e) => e.signature === 'POST /v1/chat/completions');
-    const effective = (endpoint: Endpoint | undefined): string[] =>
-      [...(endpoint?.chain ?? []), ...(endpoint?.own ?? [])];
+    const effective = (endpoint: Endpoint | undefined): string[] => [
+      ...(endpoint?.chain ?? []),
+      ...(endpoint?.own ?? []),
+    ];
 
     const onlyOnGeneric = effective(generic).filter((name) => !effective(product).includes(name));
     const onlyOnProduct = effective(product).filter((name) => !effective(generic).includes(name));
@@ -889,7 +906,8 @@ describe('the two chat surfaces differ only where it is recorded (#139 ws6, ADR 
       'cors',
       'sse-socket-tuning',
     ]);
-    for (const reason of Object.values(SURFACE_DIFFERENCES)) expect(reason.length).toBeGreaterThan(40);
+    for (const reason of Object.values(SURFACE_DIFFERENCES))
+      expect(reason.length).toBeGreaterThan(40);
   });
 });
 
@@ -928,9 +946,16 @@ describe('an anonymous caller is refused on both chat surfaces (#139 ws6)', () =
   });
 
   it('refuses POST /alia/chat with no credential, exactly as /v1 always has', async () => {
-    const body = JSON.stringify({ model: 'acme/chat-1', messages: [{ role: 'user', content: 'hi' }] });
+    const body = JSON.stringify({
+      model: 'acme/chat-1',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
     const send = (route: string): Promise<Response> =>
-      fetch(`${base}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
 
     const product = await send('/alia/chat');
     const generic = await send('/v1/chat/completions');
@@ -952,7 +977,9 @@ describe('an anonymous caller is refused on both chat surfaces (#139 ws6)', () =
      */
     const banner = await fetch(`${base}/alia/chat`);
     expect(banner.status).toBe(200);
-    expect((await banner.json()) as Record<string, unknown>).toMatchObject({ runtime: 'autonomy-v1' });
+    expect((await banner.json()) as Record<string, unknown>).toMatchObject({
+      runtime: 'autonomy-v1',
+    });
 
     const version = await fetch(`${base}/v1`);
     expect(version.status).toBe(200);
@@ -990,7 +1017,11 @@ describe('the retired voice session and transcription routes are gone', () => {
   });
 
   const post = (route: string): Promise<Response> =>
-    fetch(`${base}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
 
   it.each(['/v1/voice/token', '/v1/voice/transcribe'])('%s answers 404', async (route) => {
     const response = await post(route);

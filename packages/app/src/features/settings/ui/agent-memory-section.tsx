@@ -25,7 +25,9 @@ const K = 'settings.assistant.agentMemory';
 
 /** The files an agent keeps, the index first. */
 function sortFiles(files: AgentMemoryFile[]): AgentMemoryFile[] {
-  return [...files].sort((a, b) => (a.path === 'MEMORY.md' ? -1 : b.path === 'MEMORY.md' ? 1 : a.path.localeCompare(b.path)));
+  return [...files].sort((a, b) =>
+    a.path === 'MEMORY.md' ? -1 : b.path === 'MEMORY.md' ? 1 : a.path.localeCompare(b.path),
+  );
 }
 
 /**
@@ -45,7 +47,10 @@ export function RememberingAgentsSection() {
             <Skeleton.Box width={120} height={28} borderRadius={10} />
           </SettingsRow>
         ) : !agents?.length ? (
-          <SettingsRow label={t(`${K}.agentsEmpty`)} description={t(`${K}.agentsEmptyDescription`)} />
+          <SettingsRow
+            label={t(`${K}.agentsEmpty`)}
+            description={t(`${K}.agentsEmptyDescription`)}
+          />
         ) : (
           agents.map((agent) => (
             <SettingsRow
@@ -57,10 +62,12 @@ export function RememberingAgentsSection() {
                 size="sm"
                 appearance="outline"
                 tone="neutral"
-                onPress={() => settings.open('agent-memory', {
-                  agentId: agent.agentId,
-                  name: agent.name ?? agent.handle ?? '',
-                })}
+                onPress={() =>
+                  settings.open('agent-memory', {
+                    agentId: agent.agentId,
+                    name: agent.name ?? agent.handle ?? '',
+                  })
+                }
               >
                 {t(`${K}.open`)}
               </Button>
@@ -73,7 +80,15 @@ export function RememberingAgentsSection() {
 }
 
 /** One file: read, edit in place, save with the hash it was read at, or forget. */
-function MemoryFileEditor({ agentId, path, onForget }: { agentId: string; path: string; onForget: (path: string) => void }) {
+function MemoryFileEditor({
+  agentId,
+  path,
+  onForget,
+}: {
+  agentId: string;
+  path: string;
+  onForget: (path: string) => void;
+}) {
   const { t } = useTranslation();
   const { data: document, isPending, refetch } = useAgentMemoryDocument(agentId, path);
   const { save } = useAgentMemoryMutations(agentId);
@@ -154,7 +169,10 @@ export function AgentMemorySection() {
 
   const handleForget = async (path?: string) => {
     const ok = await confirm({
-      title: path === undefined ? t(`${K}.forgetAllTitle`, { name }) : t(`${K}.forgetFileTitle`, { path }),
+      title:
+        path === undefined
+          ? t(`${K}.forgetAllTitle`, { name })
+          : t(`${K}.forgetFileTitle`, { path }),
       description: t(`${K}.forgetDescription`, { name }),
       confirmLabel: t(`${K}.forget`),
       cancelLabel: t('common.cancel'),
@@ -174,7 +192,13 @@ export function AgentMemorySection() {
     <View className="w-full gap-6">
       <SettingsCard>
         <SettingsRow label={name} description={t(`${K}.description`, { name })}>
-          <Button size="sm" appearance="outline" tone="neutral" leadingIcon={RiArrowLeftLine} onPress={goBack}>
+          <Button
+            size="sm"
+            appearance="outline"
+            tone="neutral"
+            leadingIcon={RiArrowLeftLine}
+            onPress={goBack}
+          >
             {t(`${K}.back`)}
           </Button>
         </SettingsRow>
@@ -193,11 +217,25 @@ export function AgentMemorySection() {
       ) : (
         <>
           {sortFiles(files).map((file) => (
-            <MemoryFileEditor key={file.path} agentId={agentId} path={file.path} onForget={handleForget} />
+            <MemoryFileEditor
+              key={file.path}
+              agentId={agentId}
+              path={file.path}
+              onForget={handleForget}
+            />
           ))}
           <SettingsCard>
-            <SettingsRow label={t(`${K}.forgetAllTitle`, { name })} description={t(`${K}.forgetAllDescription`)}>
-              <Button size="sm" appearance="outline" tone="danger" leadingIcon={RiDeleteBinLine} onPress={() => handleForget()}>
+            <SettingsRow
+              label={t(`${K}.forgetAllTitle`, { name })}
+              description={t(`${K}.forgetAllDescription`)}
+            >
+              <Button
+                size="sm"
+                appearance="outline"
+                tone="danger"
+                leadingIcon={RiDeleteBinLine}
+                onPress={() => handleForget()}
+              >
                 {t(`${K}.forgetAll`)}
               </Button>
             </SettingsRow>

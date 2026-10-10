@@ -71,12 +71,14 @@ const BUCKET_NAME = process.env.AWS_S3_BUCKET || '';
  * place that can produce one.
  */
 async function executeUpload(key: string, file: Buffer, contentType: string): Promise<string> {
-  await s3Client.send(new PutObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key,
-    Body: file,
-    ContentType: contentType,
-  }));
+  await s3Client.send(
+    new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+      Body: file,
+      ContentType: contentType,
+    }),
+  );
 
   return key;
 }
@@ -91,7 +93,7 @@ export async function uploadToS3(
   file: Buffer,
   filename: string,
   folder: string = 'uploads',
-  descriptor: string = 'file'
+  descriptor: string = 'file',
 ): Promise<string> {
   const env = process.env.NODE_ENV || 'development';
   const ext = filename.split('.').pop() || '';
@@ -111,7 +113,6 @@ export async function uploadToS3Deterministic(
 ): Promise<string> {
   return executeUpload(key, file, contentType);
 }
-
 
 /** One stored object, for a route that streams it to a player. */
 export interface S3ObjectStream {
@@ -232,5 +233,7 @@ function getContentType(extension: string): string {
   // the S3 object was written with `function Object() { [native code] }` as its
   // Content-Type.
   const normalized = extension.toLowerCase();
-  return Object.hasOwn(contentTypes, normalized) ? contentTypes[normalized] : 'application/octet-stream';
+  return Object.hasOwn(contentTypes, normalized)
+    ? contentTypes[normalized]
+    : 'application/octet-stream';
 }

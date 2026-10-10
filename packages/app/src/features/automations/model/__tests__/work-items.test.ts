@@ -50,8 +50,21 @@ function automation(
   };
 }
 
-function run(id: string, automationId: string, status: AutomationRun['status'], startedAt: string): AutomationRun {
-  return { id, automationId, selectedAgentId: null, status, policyDecision: null, startedAt, completedAt: null };
+function run(
+  id: string,
+  automationId: string,
+  status: AutomationRun['status'],
+  startedAt: string,
+): AutomationRun {
+  return {
+    id,
+    automationId,
+    selectedAgentId: null,
+    status,
+    policyDecision: null,
+    startedAt,
+    completedAt: null,
+  };
 }
 
 describe('unifiedWorkItems', () => {
@@ -95,7 +108,11 @@ describe('unifiedWorkItems', () => {
     const history = unifiedWorkItems({ tasks, automations, runs: [], tab: 'history' });
     expect(history.map((item) => item.id)).toEqual(['off', 'b', 'c', 'd']);
     expect(history[0]).toMatchObject({ kind: 'automation', lifecycle: 'paused' });
-    expect(history.slice(1).map((item) => item.lifecycle)).toEqual(['completed', 'failed', 'cancelled']);
+    expect(history.slice(1).map((item) => item.lifecycle)).toEqual([
+      'completed',
+      'failed',
+      'cancelled',
+    ]);
   });
 
   it('narrows by type without changing the unified default', () => {
@@ -107,15 +124,21 @@ describe('unifiedWorkItems', () => {
     };
     expect(unifiedWorkItems(input).map((item) => item.kind)).toEqual(['task', 'automation']);
     expect(unifiedWorkItems({ ...input, typeFilter: 'all' })).toEqual(unifiedWorkItems(input));
-    expect(unifiedWorkItems({ ...input, typeFilter: 'tasks' }).map((item) => item.id)).toEqual(['t']);
-    expect(unifiedWorkItems({ ...input, typeFilter: 'automations' }).map((item) => item.id)).toEqual(['a']);
+    expect(unifiedWorkItems({ ...input, typeFilter: 'tasks' }).map((item) => item.id)).toEqual([
+      't',
+    ]);
+    expect(
+      unifiedWorkItems({ ...input, typeFilter: 'automations' }).map((item) => item.id),
+    ).toEqual(['a']);
   });
 
   it('folds a session that executes an automation run under that automation', () => {
     const items = unifiedWorkItems({
       tasks: [
         session('stage', 'running', '2026-09-09T09:00:00.000Z', { automationRunId: 'r1' }),
-        session('orphan', 'running', '2026-09-09T08:00:00.000Z', { automationRunId: 'unknown-run' }),
+        session('orphan', 'running', '2026-09-09T08:00:00.000Z', {
+          automationRunId: 'unknown-run',
+        }),
       ],
       automations: [automation('parent', { trigger: { type: 'manual' } })],
       runs: [run('r1', 'parent', 'planned', '2026-09-09T08:59:00.000Z')],
@@ -135,7 +158,12 @@ describe('unifiedWorkItems', () => {
 
   it('does not list the same session twice when both sources return it', () => {
     const same = session('dup', 'running', '2026-09-09T09:00:00.000Z');
-    const items = unifiedWorkItems({ tasks: [same, { ...same }], automations: [], runs: [], tab: 'active' });
+    const items = unifiedWorkItems({
+      tasks: [same, { ...same }],
+      automations: [],
+      runs: [],
+      tab: 'active',
+    });
     expect(items).toHaveLength(1);
   });
 });
@@ -147,8 +175,12 @@ describe('automationLifecycle', () => {
     expect(automationLifecycle(scheduled, { status: 'succeeded' })).toBe('scheduled');
     expect(automationLifecycle(scheduled, { status: 'running' })).toBe('running');
     expect(automationLifecycle(scheduled, { status: 'planned' })).toBe('running');
-    expect(automationLifecycle(automation('m', { trigger: { type: 'manual' } }))).toBe('on_request');
-    expect(automationLifecycle(automation('p', { enabled: false }), { status: 'running' })).toBe('paused');
+    expect(automationLifecycle(automation('m', { trigger: { type: 'manual' } }))).toBe(
+      'on_request',
+    );
+    expect(automationLifecycle(automation('p', { enabled: false }), { status: 'running' })).toBe(
+      'paused',
+    );
   });
 
   it('labels every lifecycle', () => {

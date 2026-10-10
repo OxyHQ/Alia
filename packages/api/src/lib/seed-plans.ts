@@ -140,22 +140,26 @@ export async function seedPlans(): Promise<{ seeded: number; skipped: number }> 
     try {
       // Every field is set only when the row is created.
       // A plan that exists is left exactly as it is.
-      const result = await seedPlan(db, {
-        planId: planData.planId,
-        name: planData.name,
-        product: planData.product,
-        creditsPerMonth: planData.creditsPerMonth,
-        dailyFreeCredits: planData.dailyFreeCredits,
-        monthlyPrice: planData.monthlyPrice,
-        annualPrice: planData.annualPrice,
-        currency: planData.currency,
-        subtitle: planData.subtitle,
-        creditsLabel: planData.creditsLabel,
-        isFeatured: planData.isFeatured,
-        sortOrder: planData.sortOrder,
-        isFree: planData.isFree,
-        isActive: true,
-      }, SEED_ACTOR);
+      const result = await seedPlan(
+        db,
+        {
+          planId: planData.planId,
+          name: planData.name,
+          product: planData.product,
+          creditsPerMonth: planData.creditsPerMonth,
+          dailyFreeCredits: planData.dailyFreeCredits,
+          monthlyPrice: planData.monthlyPrice,
+          annualPrice: planData.annualPrice,
+          currency: planData.currency,
+          subtitle: planData.subtitle,
+          creditsLabel: planData.creditsLabel,
+          isFeatured: planData.isFeatured,
+          sortOrder: planData.sortOrder,
+          isFree: planData.isFree,
+          isActive: true,
+        },
+        SEED_ACTOR,
+      );
 
       if (result.inserted) {
         seeded++;

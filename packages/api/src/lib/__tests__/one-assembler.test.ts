@@ -45,7 +45,10 @@ function trackedSources(): string[] {
   return out
     .split('\n')
     .filter((f) => f.endsWith('.ts'))
-    .filter((f) => !f.includes('__tests__') && !f.endsWith('.test.ts') && existsSync(path.join(REPO_ROOT, f)));
+    .filter(
+      (f) =>
+        !f.includes('__tests__') && !f.endsWith('.test.ts') && existsSync(path.join(REPO_ROOT, f)),
+    );
 }
 
 /**
@@ -482,15 +485,23 @@ describe('nothing hands a model a tool set the assembler did not build', () => {
     // The defect, including the shape `voice.ts` actually has — the array is
     // built here and reaches the call through a function, so a check on the
     // `tools:` VALUE would miss it.
-    expect(probe('const t: OpenAITool[] = [{ type: "function" }];\nawait s.create(u, m, { tools: filter(t) });')).toBe(true);
+    expect(
+      probe(
+        'const t: OpenAITool[] = [{ type: "function" }];\nawait s.create(u, m, { tools: filter(t) });',
+      ),
+    ).toBe(true);
     // A pass-through PARAMETER, which is what fifteen provider adapters do.
-    expect(probe('async function proxy(k: K, m: M[], tools?: OpenAITool[]) { return call({ tools }); }')).toBe(false);
+    expect(
+      probe('async function proxy(k: K, m: M[], tools?: OpenAITool[]) { return call({ tools }); }'),
+    ).toBe(false);
     // A manifest's `tools`, and a threat pattern's — same field name, not a
     // tool set, and what sank the version keyed on the `tools:` position.
     expect(probe("const seed = { tools: [{ name: 'searchEmails' }] };")).toBe(false);
     expect(probe("const patterns = [{ id: 'dc-001', tools: ['shell'] }];")).toBe(false);
     // A set the assembler built, named at the call.
-    expect(probe('const { tools } = await ToolPipeline.forUser(o);\nawait run({ tools });')).toBe(false);
+    expect(probe('const { tools } = await ToolPipeline.forUser(o);\nawait run({ tools });')).toBe(
+      false,
+    );
     // An empty annotated array is a declaration, not an assembly.
     expect(probe('const t: OpenAITool[] = [];')).toBe(false);
   });
@@ -524,7 +535,9 @@ describe('there is exactly one tool assembler', () => {
     // The other direction. Without it the list becomes a place stale names
     // accumulate, and a stale name is indistinguishable from a real exemption.
     const found = toolSetConstructions();
-    const stale = Object.keys(ALLOWED).filter((f) => !found.has(f)).sort();
+    const stale = Object.keys(ALLOWED)
+      .filter((f) => !found.has(f))
+      .sort();
     expect(stale).toEqual([]);
   });
 

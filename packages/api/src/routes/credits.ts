@@ -22,9 +22,7 @@ router.get('/', authenticateToken, async (req, res) => {
     // The plan's rolling window (`lib/usage-window.ts`), or `null` when the
     // plan has none or it cannot be read: the balance is still worth showing.
     const planId = effectiveCreditPlan(entitlements?.planId, productAllowance?.planId ?? null);
-    const window = planId
-      ? await readUsageWindow(req.user!.id, planId).catch(() => null)
-      : null;
+    const window = planId ? await readUsageWindow(req.user!.id, planId).catch(() => null) : null;
 
     res.set('Cache-Control', 'no-store');
     res.json({
@@ -39,7 +37,12 @@ router.get('/', authenticateToken, async (req, res) => {
       window:
         window === null
           ? null
-          : { hours: window.hours, used: window.used, limit: window.limit, resetsAt: window.resetsAt },
+          : {
+              hours: window.hours,
+              used: window.used,
+              limit: window.limit,
+              resetsAt: window.resetsAt,
+            },
     });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error');

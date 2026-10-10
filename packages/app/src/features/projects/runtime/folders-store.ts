@@ -1,12 +1,12 @@
-import { create } from "zustand";
-import { CollectionPersister, type CollectionItem } from "@/shared/state/create-collection-store";
+import { create } from 'zustand';
+import { CollectionPersister, type CollectionItem } from '@/shared/state/create-collection-store';
 
 export interface Folder extends CollectionItem {
   isFavorite?: boolean;
 }
 
-const FOLDER_ICONS = ["Folder", "FolderOpen", "FolderClosed", "Archive", "Inbox", "BookMarked"];
-const persister = new CollectionPersister<Folder>("alia-folders", "folder", FOLDER_ICONS);
+const FOLDER_ICONS = ['Folder', 'FolderOpen', 'FolderClosed', 'Archive', 'Inbox', 'BookMarked'];
+const persister = new CollectionPersister<Folder>('alia-folders', 'folder', FOLDER_ICONS);
 
 interface FoldersStoreState {
   folders: Folder[];
@@ -49,16 +49,16 @@ export const useFoldersStore = create<FoldersStoreState>((set, get) => {
         if (!persister.storage.isCurrent(token)) return;
         set({ folders });
       } catch (error) {
-        console.error("Error loading folders:", error);
+        console.error('Error loading folders:', error);
       }
     },
 
     createFolder: async (name: string, icon?: string) => {
       try {
-        const folder = persister.newItem(name, icon ? { icon } as Partial<Folder> : undefined);
+        const folder = persister.newItem(name, icon ? ({ icon } as Partial<Folder>) : undefined);
         await commit([...get().folders, folder]);
       } catch (error) {
-        console.error("Error creating folder:", error);
+        console.error('Error creating folder:', error);
       }
     },
 
@@ -66,7 +66,7 @@ export const useFoldersStore = create<FoldersStoreState>((set, get) => {
       try {
         await commit(persister.updateIn(get().folders, id, updates));
       } catch (error) {
-        console.error("Error updating folder:", error);
+        console.error('Error updating folder:', error);
       }
     },
 
@@ -74,17 +74,17 @@ export const useFoldersStore = create<FoldersStoreState>((set, get) => {
       try {
         await commit(get().folders.filter((f) => f.id !== id));
       } catch (error) {
-        console.error("Error deleting folder:", error);
+        console.error('Error deleting folder:', error);
       }
     },
 
     toggleFolder: async (id: string) => {
       try {
-        await commit(get().folders.map((f) =>
-          f.id === id ? { ...f, isExpanded: !f.isExpanded } : f
-        ));
+        await commit(
+          get().folders.map((f) => (f.id === id ? { ...f, isExpanded: !f.isExpanded } : f)),
+        );
       } catch (error) {
-        console.error("Error toggling folder:", error);
+        console.error('Error toggling folder:', error);
       }
     },
 
@@ -92,7 +92,7 @@ export const useFoldersStore = create<FoldersStoreState>((set, get) => {
       try {
         await commit(persister.addConversation(get().folders, folderId, conversationId));
       } catch (error) {
-        console.error("Error adding conversation to folder:", error);
+        console.error('Error adding conversation to folder:', error);
       }
     },
 
@@ -100,7 +100,7 @@ export const useFoldersStore = create<FoldersStoreState>((set, get) => {
       try {
         await commit(persister.removeConversation(get().folders, folderId, conversationId));
       } catch (error) {
-        console.error("Error removing conversation from folder:", error);
+        console.error('Error removing conversation from folder:', error);
       }
     },
   };

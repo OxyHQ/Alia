@@ -42,7 +42,10 @@ export function normalizeCitationMarkers(text: string, knownIds?: Iterable<numbe
     .replace(FULLWIDTH_MARKER_RE, '[$1]')
     .replace(ASCII_DAGGER_MARKER_RE, '[$1]')
     .replace(COMMA_LIST_RE, (_m, list: string) =>
-      list.split(',').map((n) => `[${n.trim()}]`).join(''),
+      list
+        .split(',')
+        .map((n) => `[${n.trim()}]`)
+        .join(''),
     );
 
   if (known && known.size > 0) {

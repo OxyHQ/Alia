@@ -146,177 +146,184 @@ export function useTTS(options: UseTTSOptions = {}) {
    * gets to rebuild rather than the person getting an error about a button they
    * pressed twice.
    */
-  const playFromUrl = useCallback((
-    audioUrl: string,
-    _messageId: string,
-    signal: AbortSignal,
-    onUnplayable?: () => void,
-  ) => {
-    releasePlayer();
+  const playFromUrl = useCallback(
+    (audioUrl: string, _messageId: string, signal: AbortSignal, onUnplayable?: () => void) => {
+      releasePlayer();
 
-    (async () => {
-      try {
-        const { createAudioPlayer } = await import('expo-audio');
-        if (signal.aborted) return;
-        /**
-         * `crossOrigin` is web-only and ignored elsewhere, and it is what makes
-         * the waveform readable there: a browser will not let an `AnalyserNode`
-         * see a cross-origin media element loaded without CORS, so without this
-         * `setAudioSamplingEnabled` below silently declines and the field never
-         * moves. Clips are served by `GET /media` on the API host, which is a
-         * different origin from the app on every deployment.
-         *
-         * It costs the clip its CORS headers if the app's origin is not on the
-         * API's allowlist — but such an origin cannot load a conversation to
-         * read aloud in the first place, since `/media` and `/conversations`
-         * share that allowlist. Measured against production 2026-08-26:
-         * `Origin: https://alia.onl` is answered
-         * `access-control-allow-origin: https://alia.onl`, with `Vary: Origin`.
-         */
-        const player = createAudioPlayer({ uri: audioUrl }, { crossOrigin: 'anonymous' });
-        playerRef.current = player;
+      (async () => {
+        try {
+          const { createAudioPlayer } = await import('expo-audio');
+          if (signal.aborted) return;
+          /**
+           * `crossOrigin` is web-only and ignored elsewhere, and it is what makes
+           * the waveform readable there: a browser will not let an `AnalyserNode`
+           * see a cross-origin media element loaded without CORS, so without this
+           * `setAudioSamplingEnabled` below silently declines and the field never
+           * moves. Clips are served by `GET /media` on the API host, which is a
+           * different origin from the app on every deployment.
+           *
+           * It costs the clip its CORS headers if the app's origin is not on the
+           * API's allowlist — but such an origin cannot load a conversation to
+           * read aloud in the first place, since `/media` and `/conversations`
+           * share that allowlist. Measured against production 2026-08-26:
+           * `Origin: https://alia.onl` is answered
+           * `access-control-allow-origin: https://alia.onl`, with `Vary: Origin`.
+           */
+          const player = createAudioPlayer({ uri: audioUrl }, { crossOrigin: 'anonymous' });
+          playerRef.current = player;
 
-        /**
-         * The real waveform, which is what the ambient field behind the
-         * conversation moves to. Enabled BEFORE `play()`: on web this is what
-         * builds the analyser, and the sampling loop only starts if the player
-         * is already playing or starts afterwards.
-         *
-         * It can decline, and declining is not an error. Android routes
-         * playback sampling through `android.media.audiofx.Visualizer`, which
-         * needs `RECORD_AUDIO` already granted — and asking a person for the
-         * microphone so that a background can move would be a worse trade than
-         * the background not moving. Where it declines no buffer ever arrives,
-         * the level stays at zero and the field simply rests. That is the
-         * honest reading of "we cannot hear this", and it is deliberately not
-         * papered over with motion that does not come from the audio.
-         */
-        player.setAudioSamplingEnabled(true);
-        const meter = createAudioLevelMeter();
-        player.addListener('audioSampleUpdate', (sample: AudioSample) => {
-          const frames = sample.channels[0]?.frames;
-          if (frames === undefined) return;
-          ttsWaveAmplitude.value = meter.push(frames, Date.now());
-        });
+          /**
+           * The real waveform, which is what the ambient field behind the
+           * conversation moves to. Enabled BEFORE `play()`: on web this is what
+           * builds the analyser, and the sampling loop only starts if the player
+           * is already playing or starts afterwards.
+           *
+           * It can decline, and declining is not an error. Android routes
+           * playback sampling through `android.media.audiofx.Visualizer`, which
+           * needs `RECORD_AUDIO` already granted — and asking a person for the
+           * microphone so that a background can move would be a worse trade than
+           * the background not moving. Where it declines no buffer ever arrives,
+           * the level stays at zero and the field simply rests. That is the
+           * honest reading of "we cannot hear this", and it is deliberately not
+           * papered over with motion that does not come from the audio.
+           */
+          player.setAudioSamplingEnabled(true);
+          const meter = createAudioLevelMeter();
+          player.addListener('audioSampleUpdate', (sample: AudioSample) => {
+            const frames = sample.channels[0]?.frames;
+            if (frames === undefined) return;
+            ttsWaveAmplitude.value = meter.push(frames, Date.now());
+          });
 
-        player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
-          if (signal.aborted || playerRef.current !== player) return;
-          if (status.error) {
-            releasePlayer();
-            if (onUnplayable) {
-              onUnplayable();
+          player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
+            if (signal.aborted || playerRef.current !== player) return;
+            if (status.error) {
+              releasePlayer();
+              if (onUnplayable) {
+                onUnplayable();
+                return;
+              }
+              setError(status.error);
               return;
             }
-            setError(status.error);
+            if (status.didJustFinish) {
+              releasePlayer();
+              reset();
+            }
+          });
+
+          player.play();
+          setPlaybackState('playing');
+        } catch {
+          if (signal.aborted) return;
+          if (onUnplayable) {
+            onUnplayable();
             return;
           }
-          if (status.didJustFinish) {
-            releasePlayer();
-            reset();
-          }
-        });
+          setError('Audio playback not available');
+        }
+      })();
+    },
+    [releasePlayer, reset, setPlaybackState, setError],
+  );
 
-        player.play();
-        setPlaybackState('playing');
-      } catch {
-        if (signal.aborted) return;
-        if (onUnplayable) {
-          onUnplayable();
+  const readAloud = useCallback(
+    async (messageId: string, text: string, conversationId?: string, audioUrl?: string) => {
+      // Read volatile playback state at call time (not via closure) so this
+      // callback's identity survives every playback transition. It is passed to
+      // memoized message rows — an unstable identity re-renders all of them.
+      const { activeMessageId, playbackState } = useTTSStore.getState();
+
+      // If same message is playing, toggle pause/play
+      if (activeMessageId === messageId) {
+        if (playbackState === 'playing') {
+          playerRef.current?.pause();
+          setPlaybackState('paused');
           return;
         }
-        setError('Audio playback not available');
+        if (playbackState === 'paused') {
+          playerRef.current?.play();
+          setPlaybackState('playing');
+          return;
+        }
       }
-    })();
-  }, [releasePlayer, reset, setPlaybackState, setError]);
 
-  const readAloud = useCallback(async (
-    messageId: string,
-    text: string,
-    conversationId?: string,
-    audioUrl?: string,
-  ) => {
-    // Read volatile playback state at call time (not via closure) so this
-    // callback's identity survives every playback transition. It is passed to
-    // memoized message rows — an unstable identity re-renders all of them.
-    const { activeMessageId, playbackState } = useTTSStore.getState();
-
-    // If same message is playing, toggle pause/play
-    if (activeMessageId === messageId) {
-      if (playbackState === 'playing') {
-        playerRef.current?.pause();
-        setPlaybackState('paused');
-        return;
+      // Stop any current playback
+      if (activeMessageId) {
+        stop();
       }
-      if (playbackState === 'paused') {
-        playerRef.current?.play();
-        setPlaybackState('playing');
-        return;
-      }
-    }
 
-    // Stop any current playback
-    if (activeMessageId) {
-      stop();
-    }
+      const controller = new AbortController();
+      requestRef.current = controller;
+      try {
+        setActiveMessage(messageId);
+        setPlaybackState('loading');
 
-    const controller = new AbortController();
-    requestRef.current = controller;
-    try {
-      setActiveMessage(messageId);
-      setPlaybackState('loading');
+        /**
+         * Ask the server to make it, and play what comes back.
+         *
+         * Hoisted out of the cached branch below so a clip that has aged out of
+         * storage can fall back to it. `playFromUrl` is called WITHOUT a fallback
+         * here: a freshly made clip that will not play is a real failure, and
+         * retrying it would be a loop.
+         */
+        const synthesize = async () => {
+          const token = getToken();
+          if (!token) {
+            throw new Error('Not authenticated');
+          }
 
-      /**
-       * Ask the server to make it, and play what comes back.
-       *
-       * Hoisted out of the cached branch below so a clip that has aged out of
-       * storage can fall back to it. `playFromUrl` is called WITHOUT a fallback
-       * here: a freshly made clip that will not play is a real failure, and
-       * retrying it would be a loop.
-       */
-      const synthesize = async () => {
-        const token = getToken();
-        if (!token) {
-          throw new Error('Not authenticated');
+          const audioUrl = await requestSpeechClip({
+            apiUrl,
+            token,
+            model: voiceModel,
+            input: text,
+            voice: getTTSVoice(),
+            speed: getTTSSpeed(),
+            conversationId,
+            messageId,
+            signal: controller.signal,
+          });
+          playFromUrl(audioUrl, messageId, controller.signal);
+        };
+
+        /**
+         * A stored clip plays straight away, and is remade if it has gone.
+         *
+         * The row keeps its key long after a `tts/` object ages out of storage,
+         * so the link is signed, valid, and points at nothing — a failure only
+         * the player ever sees. Remaking it is cheaper than keeping every clip
+         * forever, and the person notices nothing.
+         */
+        if (audioUrl) {
+          playFromUrl(audioUrl, messageId, controller.signal, () => {
+            void synthesize().catch((e: unknown) => {
+              if (!controller.signal.aborted) setError(errorMessage(e, 'Failed to read aloud'));
+            });
+          });
+          return;
         }
 
-        const audioUrl = await requestSpeechClip({
-          apiUrl,
-          token,
-          model: voiceModel,
-          input: text,
-          voice: getTTSVoice(),
-          speed: getTTSSpeed(),
-          conversationId,
-          messageId,
-          signal: controller.signal,
-        });
-        playFromUrl(audioUrl, messageId, controller.signal);
-      };
-
-      /**
-       * A stored clip plays straight away, and is remade if it has gone.
-       *
-       * The row keeps its key long after a `tts/` object ages out of storage,
-       * so the link is signed, valid, and points at nothing — a failure only
-       * the player ever sees. Remaking it is cheaper than keeping every clip
-       * forever, and the person notices nothing.
-       */
-      if (audioUrl) {
-        playFromUrl(audioUrl, messageId, controller.signal, () => {
-          void synthesize().catch((e: unknown) => {
-            if (!controller.signal.aborted) setError(errorMessage(e, 'Failed to read aloud'));
-          });
-        });
-        return;
+        await synthesize();
+      } catch (e: unknown) {
+        if (controller.signal.aborted) return;
+        console.error('[TTS] Error:', e);
+        setError(errorMessage(e, 'Failed to read aloud'));
       }
-
-      await synthesize();
-    } catch (e: unknown) {
-      if (controller.signal.aborted) return;
-      console.error('[TTS] Error:', e);
-      setError(errorMessage(e, 'Failed to read aloud'));
-    }
-  }, [getToken, apiUrl, voiceModel, getTTSVoice, getTTSSpeed, stop, playFromUrl, setActiveMessage, setPlaybackState, setError]);
+    },
+    [
+      getToken,
+      apiUrl,
+      voiceModel,
+      getTTSVoice,
+      getTTSSpeed,
+      stop,
+      playFromUrl,
+      setActiveMessage,
+      setPlaybackState,
+      setError,
+    ],
+  );
 
   // Cleanup on unmount
   useEffect(() => {

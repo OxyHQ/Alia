@@ -1,8 +1,4 @@
-import {
-  AmbientField,
-  PARALLAX_DURATION,
-  PARALLAX_EASE,
-} from '@/features/chat/ui/ambient-field';
+import { AmbientField, PARALLAX_DURATION, PARALLAX_EASE } from '@/features/chat/ui/ambient-field';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
 import { IdentityMark } from '@alia.onl/sdk';
@@ -11,12 +7,7 @@ import { Text } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services';
 import { useScreenOnShow } from '@/shared/platform/use-screen-on-show';
 import { useEffect, useState, type ReactNode } from 'react';
-import {
-  Platform,
-  View,
-  type LayoutChangeEvent,
-  type PointerEvent,
-} from 'react-native';
+import { Platform, View, type LayoutChangeEvent, type PointerEvent } from 'react-native';
 import Animated, {
   Easing,
   runOnJS,
@@ -123,14 +114,8 @@ export function WelcomeIntro({
   useEffect(() => {
     headlineIn.value = withTiming(1, { duration: 500, easing: EASE_OUT });
     reveal.value = withTiming(1, { duration: 800, easing: EASE_REVEAL });
-    subtitleIn.value = withDelay(
-      400,
-      withTiming(1, { duration: 500, easing: EASE_OUT }),
-    );
-    ctaIn.value = withDelay(
-      700,
-      withTiming(1, { duration: 400, easing: EASE_OUT }),
-    );
+    subtitleIn.value = withDelay(400, withTiming(1, { duration: 500, easing: EASE_OUT }));
+    ctaIn.value = withDelay(700, withTiming(1, { duration: 400, easing: EASE_OUT }));
   }, [headlineIn, reveal, subtitleIn, ctaIn]);
 
   // Reveal the headline one character at a time; the interval clears itself
@@ -171,13 +156,9 @@ export function WelcomeIntro({
     // The mark is last out, so its completion is the end of the whole exit.
     markFall.value = withDelay(
       FALL_MARK.delay,
-      withTiming(
-        1,
-        { duration: FALL_MARK.duration, easing: EASE_FALL },
-        (finished) => {
-          if (finished) runOnJS(onDismissed)();
-        },
-      ),
+      withTiming(1, { duration: FALL_MARK.duration, easing: EASE_FALL }, (finished) => {
+        if (finished) runOnJS(onDismissed)();
+      }),
     );
   };
 
@@ -193,8 +174,7 @@ export function WelcomeIntro({
     opacity: headlineIn.value * (1 - markFall.value),
     transform: [
       {
-        translateY:
-          (1 - headlineIn.value) * 10 + markFall.value * FALL_DISTANCE,
+        translateY: (1 - headlineIn.value) * 10 + markFall.value * FALL_DISTANCE,
       },
       { scale: (0.97 + headlineIn.value * 0.03) * (1 - markFall.value * 0.03) },
     ],
@@ -204,12 +184,10 @@ export function WelcomeIntro({
     opacity: headlineIn.value * (1 - headlineFall.value),
     transform: [
       {
-        translateY:
-          (1 - headlineIn.value) * 10 + headlineFall.value * FALL_DISTANCE,
+        translateY: (1 - headlineIn.value) * 10 + headlineFall.value * FALL_DISTANCE,
       },
       {
-        scale:
-          (0.97 + headlineIn.value * 0.03) * (1 - headlineFall.value * 0.03),
+        scale: (0.97 + headlineIn.value * 0.03) * (1 - headlineFall.value * 0.03),
       },
     ],
   }));
@@ -224,8 +202,7 @@ export function WelcomeIntro({
     opacity: subtitleIn.value * (1 - subtitleFall.value),
     transform: [
       {
-        translateY:
-          (1 - subtitleIn.value) * 10 + subtitleFall.value * FALL_DISTANCE,
+        translateY: (1 - subtitleIn.value) * 10 + subtitleFall.value * FALL_DISTANCE,
       },
       { scale: 1 - subtitleFall.value * 0.03 },
     ],
@@ -304,10 +281,7 @@ export function WelcomeIntro({
         </Animated.View>
 
         <Animated.View className="w-full overflow-hidden" style={revealStyle}>
-          <View
-            className="w-full items-center gap-6"
-            onLayout={handleBodyLayout}
-          >
+          <View className="w-full items-center gap-6" onLayout={handleBodyLayout}>
             <Animated.View style={subtitleStyle}>
               <Text className="max-w-[520px] text-center text-muted-foreground">
                 {t('welcome.intro.subtitle')}
@@ -318,12 +292,7 @@ export function WelcomeIntro({
               <Button tone="action" onPress={handleGetStarted}>
                 {t('welcome.intro.cta')}
               </Button>
-              <Button
-                tone="neutral"
-                appearance="plain"
-                size="sm"
-                onPress={startExit}
-              >
+              <Button tone="neutral" appearance="plain" size="sm" onPress={startExit}>
                 {t('welcome.intro.skip')}
               </Button>
             </Animated.View>

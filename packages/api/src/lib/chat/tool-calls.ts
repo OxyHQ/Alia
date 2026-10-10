@@ -18,22 +18,35 @@ export function isInvalidToolCall(call: { readonly invalid?: boolean }): boolean
  * call, in the SDK's own shape — `tool-call` content parts carrying `input`,
  * not v4's `toolCalls: [{ args }]`, which v6 does not read.
  */
-export function toolRoundTrip({ toolCallId, toolName, args, result }: {
+export function toolRoundTrip({
+  toolCallId,
+  toolName,
+  args,
+  result,
+}: {
   readonly toolCallId: string;
   readonly toolName: string;
   readonly args?: unknown;
   readonly result?: unknown;
 }): ModelMessage[] {
   return [
-    { role: 'assistant', content: [{ type: 'tool-call', toolCallId, toolName, input: args ?? {} }] },
+    {
+      role: 'assistant',
+      content: [{ type: 'tool-call', toolCallId, toolName, input: args ?? {} }],
+    },
     {
       role: 'tool',
-      content: [{
-        type: 'tool-result',
-        toolCallId,
-        toolName,
-        output: { type: 'text', value: typeof result === 'string' ? result : JSON.stringify(result) },
-      }],
+      content: [
+        {
+          type: 'tool-result',
+          toolCallId,
+          toolName,
+          output: {
+            type: 'text',
+            value: typeof result === 'string' ? result : JSON.stringify(result),
+          },
+        },
+      ],
     },
   ];
 }

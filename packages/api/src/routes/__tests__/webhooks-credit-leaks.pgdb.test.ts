@@ -32,7 +32,10 @@ vi.mock('@oxy.so/core/server', () => ({ verifySecret: vi.fn(() => false) }));
 // OxyServer at import time.
 vi.mock('../../middleware/auth.js', () => ({ oxyClient: {} }));
 vi.mock('ai', () => ({
-  generateText: vi.fn(async () => ({ text: 'an answer', usage: { inputTokens: 10, outputTokens: 10 } })),
+  generateText: vi.fn(async () => ({
+    text: 'an answer',
+    usage: { inputTokens: 10, outputTokens: 10 },
+  })),
   stepCountIs: vi.fn(() => 5),
 }));
 vi.mock('../../lib/channels/registry.js', () => ({ getChannel: vi.fn(() => null) }));
@@ -46,11 +49,23 @@ vi.mock('../../lib/agent-identity.js', () => ({
   attachAgentIdentity: vi.fn(async (agent: unknown) => agent),
   agentPromptName: vi.fn(() => 'Agent'),
 }));
-vi.mock('../../lib/channels/outbound.js', () => ({ sendChannelMessage: vi.fn(async () => undefined) }));
+vi.mock('../../lib/channels/outbound.js', () => ({
+  sendChannelMessage: vi.fn(async () => undefined),
+}));
 vi.mock('../../lib/prompt-loader.js', () => ({ loadPrompt: vi.fn(async () => 'be helpful') }));
 vi.mock('../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { webhook: child, general: child, agents: child, chat: child, credits: child, v1: child, providers: child } };
+  return {
+    log: {
+      webhook: child,
+      general: child,
+      agents: child,
+      chat: child,
+      credits: child,
+      v1: child,
+      providers: child,
+    },
+  };
 });
 vi.mock('../../lib/chat-core.js', () => ({
   resolveStoredModel: vi.fn(async () => ({
@@ -95,7 +110,10 @@ let seq = 0;
 async function account(free: number, paid: number): Promise<string> {
   const id = `${SUITE}-${seq++}`;
   await getOrCreateUserCredits(db, id);
-  await db.update(userCredits).set({ creditsFree: free, creditsPaid: paid }).where(eq(userCredits.id, id));
+  await db
+    .update(userCredits)
+    .set({ creditsFree: free, creditsPaid: paid })
+    .where(eq(userCredits.id, id));
   return id;
 }
 
@@ -223,7 +241,12 @@ describe('processAgentBotMessage — a user-registered bot', () => {
   it("charges the OWNER's turn when it answers", async () => {
     const ownerId = await account(100, 0);
 
-    await processAgentBotMessage(await userOwnedBot(ownerId), linkedBotUser(ownerId), message, 'telegram');
+    await processAgentBotMessage(
+      await userOwnedBot(ownerId),
+      linkedBotUser(ownerId),
+      message,
+      'telegram',
+    );
 
     expect(await balanceOf(ownerId)).toEqual({ free: 99, paid: 0 });
   });
@@ -232,7 +255,12 @@ describe('processAgentBotMessage — a user-registered bot', () => {
     const ownerId = await account(100, 0);
     vi.mocked(resolveStoredModel).mockRejectedValueOnce(new Error('no model'));
 
-    await processAgentBotMessage(await userOwnedBot(ownerId), linkedBotUser(ownerId), message, 'telegram');
+    await processAgentBotMessage(
+      await userOwnedBot(ownerId),
+      linkedBotUser(ownerId),
+      message,
+      'telegram',
+    );
 
     expect(await balanceOf(ownerId)).toEqual({ free: 100, paid: 0 });
   });
@@ -241,7 +269,12 @@ describe('processAgentBotMessage — a user-registered bot', () => {
     const ownerId = await account(100, 0);
     vi.mocked(generateText).mockRejectedValueOnce(new Error('every provider is down'));
 
-    await processAgentBotMessage(await userOwnedBot(ownerId), linkedBotUser(ownerId), message, 'telegram');
+    await processAgentBotMessage(
+      await userOwnedBot(ownerId),
+      linkedBotUser(ownerId),
+      message,
+      'telegram',
+    );
 
     expect(await balanceOf(ownerId)).toEqual({ free: 100, paid: 0 });
   });
@@ -255,7 +288,7 @@ describe('processAgentBotMessage — a user-registered bot', () => {
  * gives: a double debit looks exactly like the right answer from either side
  * alone.
  */
-describe('processAgentBotMessage — who pays for the agent\'s turn', () => {
+describe("processAgentBotMessage — who pays for the agent's turn", () => {
   async function rowExists(id: string): Promise<boolean> {
     const [row] = await db.select().from(userCredits).where(eq(userCredits.id, id));
     return row !== undefined;

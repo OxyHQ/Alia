@@ -96,19 +96,17 @@ export function useNotificationSetup() {
     if (Platform.OS === 'web') return;
     const Notifications = require('expo-notifications') as typeof import('expo-notifications');
 
-    const subscription = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        if (!isAuthenticated) return;
-        const data = response.notification.request.content.data;
-        // An agent's message opens its permanent thread (`/@handle`), where the
-        // conversation lives, not the plain `/c/:id` screen.
-        if (typeof data?.agentHandle === 'string' && data.agentHandle) {
-          router.push(`/@${data.agentHandle}`);
-        } else if (data?.conversationId) {
-          router.push(`/(app)/c/${data.conversationId}`);
-        }
-      },
-    );
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (!isAuthenticated) return;
+      const data = response.notification.request.content.data;
+      // An agent's message opens its permanent thread (`/@handle`), where the
+      // conversation lives, not the plain `/c/:id` screen.
+      if (typeof data?.agentHandle === 'string' && data.agentHandle) {
+        router.push(`/@${data.agentHandle}`);
+      } else if (data?.conversationId) {
+        router.push(`/(app)/c/${data.conversationId}`);
+      }
+    });
 
     return () => subscription.remove();
   }, [router, isAuthenticated]);
@@ -192,16 +190,23 @@ export function useNotificationSetup() {
     // An agent wrote into a conversation on its own. The open chat appends it
     // itself (`use-chat-conversation`); everything else that shows the
     // conversation — the sidebar, the thread history — is refetched.
-    const onConversationMessage = (event: { conversationId?: string; agentHandle?: string | null }) => {
+    const onConversationMessage = (event: {
+      conversationId?: string;
+      agentHandle?: string | null;
+    }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
       if (event.conversationId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(event.conversationId) });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.conversations.detail(event.conversationId),
+        });
       }
       // The message may be the agent asking for an approval.
       queryClient.invalidateQueries({ queryKey: ['agent-approvals'] });
       if (event.agentHandle) {
         queryClient.invalidateQueries({ queryKey: queryKeys.agents.thread(event.agentHandle) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.agents.threadMessages(event.agentHandle) });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.agents.threadMessages(event.agentHandle),
+        });
       }
     };
     socket.on('conversation:message', onConversationMessage);

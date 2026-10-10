@@ -24,7 +24,7 @@ export function useDocumentPicker(): UseDocumentPickerResult {
       });
 
       if (result.canceled === false && result.assets && result.assets.length > 0) {
-        return result.assets.map(asset => ({
+        return result.assets.map((asset) => ({
           uri: asset.uri,
           name: asset.name,
           size: asset.size || 0,

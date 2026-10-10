@@ -9,10 +9,7 @@ import {
   setAgentReviewHidden,
 } from '../../db/agents/agentReviewRepository.js';
 import { getDb } from '../../db/index.js';
-import {
-  findSkillPublication,
-  setSkillPublication,
-} from '../../db/agents/skillRepository.js';
+import { findSkillPublication, setSkillPublication } from '../../db/agents/skillRepository.js';
 import { ReportedType } from '../../domain/report.js';
 import {
   claimEnforcement,
@@ -121,14 +118,12 @@ interface PublishableState {
  * id whose shape the storage layer owns has no correct resting place — the
  * lookup itself is the check, and a `text` column simply does not match.
  */
-async function loadPublishable(
-  subject: EnforcementSubject,
-): Promise<PublishableState | null> {
+async function loadPublishable(subject: EnforcementSubject): Promise<PublishableState | null> {
   if (subject.type === ReportedType.AGENT) {
     return await findAgentModerationState(getDb(), subject.id);
   }
   if (subject.type === ReportedType.SKILL) {
-    return await findSkillPublication(getDb(), subject.id) ?? null;
+    return (await findSkillPublication(getDb(), subject.id)) ?? null;
   }
   return null;
 }
@@ -315,10 +310,7 @@ async function applyEffect(
  * anything down or demoting it still waits for a person. `automatic` allows the
  * mapped set.
  */
-function modeAllows(
-  mode: ModerationEnforcementMode,
-  action: ModerationEnforcementAction,
-): boolean {
+function modeAllows(mode: ModerationEnforcementMode, action: ModerationEnforcementAction): boolean {
   switch (mode) {
     case 'observe':
       return false;

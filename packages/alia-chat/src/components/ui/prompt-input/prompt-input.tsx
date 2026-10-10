@@ -1,22 +1,17 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  View,
-  Pressable,
-  type TextInput as RNTextInput,
-  type ViewStyle,
-} from "react-native";
-import { KeyboardAvoidingView } from "../../../lib/keyboard";
-import Maximize2 from "lucide-react-native/icons/maximize-2";
-import Minimize2 from "lucide-react-native/icons/minimize-2";
-import { cn } from "../../../lib/utils";
-import { PromptInputContext, type Attachment, type Completion } from "./context";
-import { PromptInputTextarea } from "./textarea";
-import { PromptInputActions } from "./actions";
-import { PromptInputMicButton } from "./mic-button";
-import { PromptInputAutocomplete } from "./autocomplete";
-import { PromptInputAttachments } from "./attachments";
-import { PromptInputSubmitButton } from "./submit-button";
-import { PromptInputAddMenu } from "./add-menu";
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Pressable, type TextInput as RNTextInput, type ViewStyle } from 'react-native';
+import { KeyboardAvoidingView } from '../../../lib/keyboard';
+import Maximize2 from 'lucide-react-native/icons/maximize-2';
+import Minimize2 from 'lucide-react-native/icons/minimize-2';
+import { cn } from '../../../lib/utils';
+import { PromptInputContext, type Attachment, type Completion } from './context';
+import { PromptInputTextarea } from './textarea';
+import { PromptInputActions } from './actions';
+import { PromptInputMicButton } from './mic-button';
+import { PromptInputAutocomplete } from './autocomplete';
+import { PromptInputAttachments } from './attachments';
+import { PromptInputSubmitButton } from './submit-button';
+import { PromptInputAddMenu } from './add-menu';
 
 export type PromptInputProps = {
   isLoading?: boolean;
@@ -31,7 +26,7 @@ export type PromptInputProps = {
   // Simple mode props (when no children)
   placeholder?: string;
   autocomplete?: boolean;
-  autocompletePosition?: "top" | "bottom";
+  autocompletePosition?: 'top' | 'bottom';
   // Shows the add menu as a standalone button to the left of the input box
   leadingAddMenu?: boolean;
   // Custom left-side actions (replaces default add menu in the actions bar)
@@ -49,7 +44,7 @@ export type PromptInputProps = {
   onSuggestionUsed?: (suggestionId: string) => void;
   // Injectable error handler (replaces toast)
   onError?: (message: string) => void;
-} & Omit<React.ComponentProps<typeof View>, "children">;
+} & Omit<React.ComponentProps<typeof View>, 'children'>;
 
 export function PromptInput({
   className,
@@ -63,7 +58,7 @@ export function PromptInput({
   onImagePaste,
   placeholder,
   autocomplete = false,
-  autocompletePosition = "top",
+  autocompletePosition = 'top',
   leadingAddMenu = false,
   actionsLeft,
   onStop,
@@ -77,16 +72,16 @@ export function PromptInput({
   onError,
   ...props
 }: PromptInputProps) {
-  const [internalValue, setInternalValue] = useState(value || "");
+  const [internalValue, setInternalValue] = useState(value || '');
   const [currentHeight, setCurrentHeight] = useState(44);
   const [showFullscreen, setShowFullscreen] = useState(false);
-  const [handleCompletionKey, setHandleCompletionKey] = useState<((key: string) => boolean) | null>(null);
+  const [handleCompletionKey, setHandleCompletionKey] = useState<((key: string) => boolean) | null>(
+    null,
+  );
   const textareaRef = useRef<RNTextInput>(null);
 
   // Internal attachment state (used when no controlled props)
-  const [internalAttachments, setInternalAttachments] = useState<Attachment[]>(
-    []
-  );
+  const [internalAttachments, setInternalAttachments] = useState<Attachment[]>([]);
   const attachments = controlledAttachments ?? internalAttachments;
 
   const addAttachment = useCallback(
@@ -97,7 +92,7 @@ export function PromptInput({
         setInternalAttachments((prev) => [...prev, a]);
       }
     },
-    [onAddAttachment]
+    [onAddAttachment],
   );
 
   const removeAttachment = useCallback(
@@ -108,7 +103,7 @@ export function PromptInput({
         setInternalAttachments((prev) => prev.filter((a) => a.id !== id));
       }
     },
-    [onRemoveAttachment]
+    [onRemoveAttachment],
   );
 
   const updateAttachment = useCallback(
@@ -116,12 +111,10 @@ export function PromptInput({
       if (onUpdateAttachment) {
         onUpdateAttachment(id, updates);
       } else {
-        setInternalAttachments((prev) =>
-          prev.map((a) => (a.id === id ? { ...a, ...updates } : a))
-        );
+        setInternalAttachments((prev) => prev.map((a) => (a.id === id ? { ...a, ...updates } : a)));
       }
     },
-    [onUpdateAttachment]
+    [onUpdateAttachment],
   );
 
   const handleChange = (newValue: string) => {
@@ -170,10 +163,7 @@ export function PromptInput({
   const content = isSimpleMode ? (
     <>
       <PromptInputAttachments />
-      <PromptInputTextarea
-        placeholder={placeholder}
-        className="min-h-[44px] text-base py-3"
-      />
+      <PromptInputTextarea placeholder={placeholder} className="min-h-[44px] text-base py-3" />
       <PromptInputActions className="flex-row items-center justify-between gap-2 mt-2 mb-1 px-3">
         <View className="flex-row items-center gap-1.5">
           {actionsLeft ?? <PromptInputAddMenu />}
@@ -201,9 +191,9 @@ export function PromptInput({
     >
       <View
         className={cn(
-          "rounded-[24px] border border-border bg-background relative overflow-hidden",
-          disabled && "opacity-60",
-          className
+          'rounded-[24px] border border-border bg-background relative overflow-hidden',
+          disabled && 'opacity-60',
+          className,
         )}
         {...props}
       >
@@ -222,23 +212,20 @@ export function PromptInput({
 
   return (
     <PromptInputContext.Provider value={contextValue}>
-      {autocomplete && autocompletePosition === "top" && !leadingAddMenu && (
+      {autocomplete && autocompletePosition === 'top' && !leadingAddMenu && (
         <PromptInputAutocomplete position="top" />
       )}
 
       <KeyboardAvoidingView behavior="padding">
         {leadingAddMenu ? (
           <View className="flex-row items-end gap-2">
-            <PromptInputAddMenu
-              iconSize={20}
-              className="h-10 w-10 rounded-full border"
-            />
+            <PromptInputAddMenu iconSize={20} className="h-10 w-10 rounded-full border" />
             <View className="flex-1">
-              {autocomplete && autocompletePosition === "top" && (
+              {autocomplete && autocompletePosition === 'top' && (
                 <PromptInputAutocomplete position="top" />
               )}
               {inputBox}
-              {autocomplete && autocompletePosition === "bottom" && (
+              {autocomplete && autocompletePosition === 'bottom' && (
                 <PromptInputAutocomplete position="bottom" />
               )}
             </View>
@@ -248,7 +235,7 @@ export function PromptInput({
         )}
       </KeyboardAvoidingView>
 
-      {autocomplete && autocompletePosition === "bottom" && !leadingAddMenu && (
+      {autocomplete && autocompletePosition === 'bottom' && !leadingAddMenu && (
         <PromptInputAutocomplete position="bottom" />
       )}
 
@@ -256,7 +243,7 @@ export function PromptInput({
         <View
           style={{
             // `position: 'fixed'` is a web-only value (NativeWind) not in RN's ViewStyle union.
-            position: "fixed" as unknown as ViewStyle["position"],
+            position: 'fixed' as unknown as ViewStyle['position'],
             top: 0,
             left: 0,
             right: 0,

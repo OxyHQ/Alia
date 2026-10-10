@@ -153,7 +153,11 @@ describe('what the routes read', () => {
     expect(all.total).toBe(3);
     expect(all.entries.map((e) => e.seq)).toEqual([0, 1, 2]);
 
-    const actions = await listSessionActivity(db, sessionId, { type: 'action', limit: 10, offset: 0 });
+    const actions = await listSessionActivity(db, sessionId, {
+      type: 'action',
+      limit: 10,
+      offset: 0,
+    });
     expect(actions.total).toBe(2);
     expect(actions.entries.map((e) => e.seq)).toEqual([0, 2]);
 
@@ -234,7 +238,10 @@ describe('the compliance export', () => {
   it('counts events by type across a set of sessions', async () => {
     const first = await seedSession();
     const second = await seedSession();
-    await appendEventStreamEntries(db, first, [entry(0, { type: 'action' }), entry(1, { type: 'error' })]);
+    await appendEventStreamEntries(db, first, [
+      entry(0, { type: 'action' }),
+      entry(1, { type: 'error' }),
+    ]);
     await appendEventStreamEntries(db, second, [entry(0, { type: 'action' })]);
 
     const counts = await countEventStreamEntriesByType(db, [first, second]);

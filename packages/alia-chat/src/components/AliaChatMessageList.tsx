@@ -74,10 +74,7 @@ function ToolBullet({ isRunning }: { isRunning: boolean }) {
   useEffect(() => {
     if (isRunning) {
       opacity.value = withRepeat(
-        withSequence(
-          withTiming(0.3, { duration: 500 }),
-          withTiming(1, { duration: 500 }),
-        ),
+        withSequence(withTiming(0.3, { duration: 500 }), withTiming(1, { duration: 500 })),
         -1,
       );
     } else {
@@ -88,9 +85,7 @@ function ToolBullet({ isRunning }: { isRunning: boolean }) {
   const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
   return (
     <Animated.View style={style}>
-      <Text style={{ color: isRunning ? '#eab308' : '#22c55e', fontSize: 10 }}>
-        {'\u25CF'}
-      </Text>
+      <Text style={{ color: isRunning ? '#eab308' : '#22c55e', fontSize: 10 }}>{'\u25CF'}</Text>
     </Animated.View>
   );
 }
@@ -163,7 +158,11 @@ const UserBubble = React.memo(function UserBubble({
                 {images.map((imgUrl, imgIdx) => {
                   if (!ExpoImage) return null;
                   return (
-                    <View key={`img-${imgIdx}`} className="rounded-xl overflow-hidden" style={{ width: 120, height: 120 }}>
+                    <View
+                      key={`img-${imgIdx}`}
+                      className="rounded-xl overflow-hidden"
+                      style={{ width: 120, height: 120 }}
+                    >
                       <ExpoImage
                         source={{ uri: imgUrl }}
                         className="w-full h-full"
@@ -253,7 +252,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
   let thinkingIndicator: React.ReactNode = null;
   if (isLoading && isLastMessage && !hasContent) {
     const activeTool = message.toolInvocations?.find(
-      t => t.state === 'call' || t.state === 'partial-call',
+      (t) => t.state === 'call' || t.state === 'partial-call',
     );
     const rp = message.researchProgress;
     let activeStatus: string | undefined;
@@ -311,18 +310,14 @@ const AssistantMessage = React.memo(function AssistantMessage({
             <ToolBullet isRunning={isRunning} />
             <Text className="text-sm text-foreground flex-1 flex-shrink">
               <Text className="font-bold">{toolLabel}</Text>
-              {description ? (
-                <Text className="text-muted-foreground"> {description}</Text>
-              ) : null}
+              {description ? <Text className="text-muted-foreground"> {description}</Text> : null}
             </Text>
           </Pressable>
         );
       })}
 
       {/* Research Progress */}
-      {message.researchProgress && (
-        <ResearchProgressCard progress={message.researchProgress} />
-      )}
+      {message.researchProgress && <ResearchProgressCard progress={message.researchProgress} />}
 
       {/* Extended Thinking */}
       {hasThinking && (
@@ -369,9 +364,17 @@ const AssistantMessage = React.memo(function AssistantMessage({
                   onPress={() => onReadAloud(message.id, messageText)}
                 >
                   {isThisPlaying || isThisPaused ? (
-                    <Square size={14} className={isThisPlaying ? 'text-primary' : 'text-muted-foreground'} />
+                    <Square
+                      size={14}
+                      className={isThisPlaying ? 'text-primary' : 'text-muted-foreground'}
+                    />
                   ) : (
-                    <Volume2 size={14} className={isThisLoading ? 'text-primary opacity-50' : 'text-muted-foreground'} />
+                    <Volume2
+                      size={14}
+                      className={
+                        isThisLoading ? 'text-primary opacity-50' : 'text-muted-foreground'
+                      }
+                    />
                   )}
                 </Pressable>
               )}
@@ -386,12 +389,18 @@ const AssistantMessage = React.memo(function AssistantMessage({
                 )}
               </Pressable>
               {onThumbsUp && (
-                <Pressable className="p-1.5 rounded-lg active:bg-muted" onPress={() => onThumbsUp(message.id)}>
+                <Pressable
+                  className="p-1.5 rounded-lg active:bg-muted"
+                  onPress={() => onThumbsUp(message.id)}
+                >
                   <ThumbsUp size={14} className="text-muted-foreground" />
                 </Pressable>
               )}
               {onThumbsDown && (
-                <Pressable className="p-1.5 rounded-lg active:bg-muted" onPress={() => onThumbsDown(message.id)}>
+                <Pressable
+                  className="p-1.5 rounded-lg active:bg-muted"
+                  onPress={() => onThumbsDown(message.id)}
+                >
                   <ThumbsDown size={14} className="text-muted-foreground" />
                 </Pressable>
               )}
@@ -438,7 +447,9 @@ export function AliaChatMessageList({
   useEffect(() => {
     if (messages.length > 0) {
       const timer = setTimeout(() => {
-        (scrollRef.current as { scrollToEnd?: (opts: { animated: boolean }) => void } | null)?.scrollToEnd?.({ animated: true });
+        (
+          scrollRef.current as { scrollToEnd?: (opts: { animated: boolean }) => void } | null
+        )?.scrollToEnd?.({ animated: true });
       }, 100);
       return () => clearTimeout(timer);
     }
@@ -473,20 +484,23 @@ export function AliaChatMessageList({
   const editedContentRef = useRef(editedContent);
   editedContentRef.current = editedContent;
 
-  const handleSaveEdit = useCallback((messageId: string) => {
-    if (onEditMessage && editedContentRef.current.trim()) {
-      onEditMessage(messageId, editedContentRef.current);
-    }
-    setEditingMessageId(null);
-    setEditedContent('');
-  }, [onEditMessage]);
+  const handleSaveEdit = useCallback(
+    (messageId: string) => {
+      if (onEditMessage && editedContentRef.current.trim()) {
+        onEditMessage(messageId, editedContentRef.current);
+      }
+      setEditingMessageId(null);
+      setEditedContent('');
+    },
+    [onEditMessage],
+  );
 
   const handleCancelEdit = useCallback(() => {
     setEditingMessageId(null);
     setEditedContent('');
   }, []);
 
-  const filteredMessages = useMemo(() => messages.filter(m => m.role !== 'system'), [messages]);
+  const filteredMessages = useMemo(() => messages.filter((m) => m.role !== 'system'), [messages]);
 
   return (
     <Animated.ScrollView
@@ -498,11 +512,12 @@ export function AliaChatMessageList({
       onScroll={scrollHandler}
       scrollEventThrottle={16}
     >
-      <View className="max-w-3xl mx-auto w-full" style={!filteredMessages.length ? { flex: 1, justifyContent: 'center' } : undefined}>
+      <View
+        className="max-w-3xl mx-auto w-full"
+        style={!filteredMessages.length ? { flex: 1, justifyContent: 'center' } : undefined}
+      >
         {/* Welcome or loading */}
-        {!filteredMessages.length && (
-          welcomeComponent || null
-        )}
+        {!filteredMessages.length && (welcomeComponent || null)}
 
         {/* Messages */}
         <View className="gap-2">
@@ -513,10 +528,7 @@ export function AliaChatMessageList({
             const messageText = getTextFromContent(msg.content);
 
             return (
-              <Animated.View
-                key={msg.id}
-                entering={isNewMessage ? chatMessageEnter : undefined}
-              >
+              <Animated.View key={msg.id} entering={isNewMessage ? chatMessageEnter : undefined}>
                 {msg.role === 'user' ? (
                   <UserBubble
                     message={msg}

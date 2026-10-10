@@ -52,6 +52,6 @@ export const useModelStore = create<ModelState>()(
        * `ultra`; a device model survives (`model-store-migration.ts`).
        */
       migrate: (persisted, version) => migrateModelState(persisted, version) as ModelState,
-    }
-  )
+    },
+  ),
 );

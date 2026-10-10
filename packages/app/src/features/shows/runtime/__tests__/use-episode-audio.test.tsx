@@ -46,7 +46,15 @@ vi.mock('react-native', () => ({
 }));
 
 vi.mock('@oxy.so/services', () => ({
-  useOxy: () => ({ oxyServices: { session: { get accessToken() { return env.token; } } } }),
+  useOxy: () => ({
+    oxyServices: {
+      session: {
+        get accessToken() {
+          return env.token;
+        },
+      },
+    },
+  }),
 }));
 
 vi.mock('expo-audio', () => ({
@@ -217,7 +225,9 @@ describe('useEpisodeAudio on the web', () => {
     env.token = 'refreshed-token';
     await press();
 
-    expect(fetchMock.mock.calls[0][1]?.headers).toEqual({ Authorization: 'Bearer refreshed-token' });
+    expect(fetchMock.mock.calls[0][1]?.headers).toEqual({
+      Authorization: 'Bearer refreshed-token',
+    });
   });
 
   describe('a response that is not audio never becomes audio', () => {

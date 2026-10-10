@@ -1,11 +1,11 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 
 /** A file/folder context item attached to a chat message. */
 interface ContextItem {
-  type: 'file' | 'folder'
-  path: string
-  content?: string
-  language?: string
+  type: 'file' | 'folder';
+  path: string;
+  content?: string;
+  language?: string;
 }
 
 /**
@@ -30,12 +30,12 @@ interface ContextItem {
  */
 function subscribe<TPayload>(channel: string, callback: (payload: TPayload) => void): () => void {
   const listener = (_event: IpcRendererEvent, payload: TPayload): void => {
-    callback(payload)
-  }
-  ipcRenderer.on(channel, listener)
+    callback(payload);
+  };
+  ipcRenderer.on(channel, listener);
   return () => {
-    ipcRenderer.removeListener(channel, listener)
-  }
+    ipcRenderer.removeListener(channel, listener);
+  };
 }
 
 // Custom APIs for renderer
@@ -51,8 +51,12 @@ const api = {
   zoomReset: () => ipcRenderer.invoke('window:zoom-reset'),
 
   // Chat
-  sendMessage: (message: string, mode: string, model: string | undefined, context?: ContextItem[]) =>
-    ipcRenderer.invoke('chat:send', message, mode, model, context),
+  sendMessage: (
+    message: string,
+    mode: string,
+    model: string | undefined,
+    context?: ContextItem[],
+  ) => ipcRenderer.invoke('chat:send', message, mode, model, context),
   stopGeneration: () => ipcRenderer.invoke('chat:stop'),
   clearChat: () => ipcRenderer.invoke('chat:clear'),
 
@@ -79,15 +83,20 @@ const api = {
 
   // Event listeners
   onChatStart: (callback: () => void) => subscribe<void>('chat:start', callback),
-  onChatStream: (callback: (data: { content: string }) => void) => subscribe('chat:stream', callback),
-  onChatThinking: (callback: (data: { content: string }) => void) => subscribe('chat:thinking', callback),
+  onChatStream: (callback: (data: { content: string }) => void) =>
+    subscribe('chat:stream', callback),
+  onChatThinking: (callback: (data: { content: string }) => void) =>
+    subscribe('chat:thinking', callback),
   onChatEnd: (callback: () => void) => subscribe<void>('chat:end', callback),
   onChatError: (callback: (data: { message: string }) => void) => subscribe('chat:error', callback),
-  onChatTool: (callback: (data: { tool: string; args: Record<string, unknown>; status: string }) => void) =>
-    subscribe('chat:tool', callback),
-  onChatToolResult: (callback: (data: { tool: string; success: boolean; result: string }) => void) =>
-    subscribe('chat:toolResult', callback),
-  onModeChanged: (callback: (data: { mode: string }) => void) => subscribe('chat:modeChanged', callback),
+  onChatTool: (
+    callback: (data: { tool: string; args: Record<string, unknown>; status: string }) => void,
+  ) => subscribe('chat:tool', callback),
+  onChatToolResult: (
+    callback: (data: { tool: string; success: boolean; result: string }) => void,
+  ) => subscribe('chat:toolResult', callback),
+  onModeChanged: (callback: (data: { mode: string }) => void) =>
+    subscribe('chat:modeChanged', callback),
   onFullScreenChanged: (callback: (isFullScreen: boolean) => void) =>
     subscribe('window:fullscreen-changed', callback),
   onAuthCode: (callback: (data: { code: string; url: string; expiresAt: number }) => void) =>
@@ -97,11 +106,11 @@ const api = {
   onAuthSuccess: (callback: (data: { userInfo: unknown }) => void) =>
     subscribe('auth:success', callback),
   onAuthError: (callback: (data: { message: string }) => void) => subscribe('auth:error', callback),
-  onAuthSignedOut: (callback: () => void) => subscribe<void>('auth:signedOut', callback)
-}
+  onAuthSignedOut: (callback: () => void) => subscribe<void>('auth:signedOut', callback),
+};
 
-type BridgeCallback = (...args: unknown[]) => void
-type IpcListener = (event: IpcRendererEvent, ...args: unknown[]) => void
+type BridgeCallback = (...args: unknown[]) => void;
+type IpcListener = (event: IpcRendererEvent, ...args: unknown[]) => void;
 
 /**
  * The wrapper actually registered for each `(channel, callback)` pair.
@@ -118,38 +127,38 @@ type IpcListener = (event: IpcRendererEvent, ...args: unknown[]) => void
  * exactly one instance, the most recently added. Popping matches that; storing a
  * single wrapper would orphan the earlier registration.
  */
-const bridgeListeners = new Map<string, Map<BridgeCallback, IpcListener[]>>()
+const bridgeListeners = new Map<string, Map<BridgeCallback, IpcListener[]>>();
 
 // Generic electron IPC bridge for dynamic channels (e.g., browser events)
 const electron = {
   on: (channel: string, callback: BridgeCallback) => {
     const listener: IpcListener = (_event, ...args) => {
-      callback(...args)
-    }
-    let byCallback = bridgeListeners.get(channel)
+      callback(...args);
+    };
+    let byCallback = bridgeListeners.get(channel);
     if (byCallback === undefined) {
-      byCallback = new Map()
-      bridgeListeners.set(channel, byCallback)
+      byCallback = new Map();
+      bridgeListeners.set(channel, byCallback);
     }
-    byCallback.set(callback, [...(byCallback.get(callback) ?? []), listener])
-    ipcRenderer.on(channel, listener)
+    byCallback.set(callback, [...(byCallback.get(callback) ?? []), listener]);
+    ipcRenderer.on(channel, listener);
   },
   off: (channel: string, callback: BridgeCallback) => {
-    const byCallback = bridgeListeners.get(channel)
-    if (byCallback === undefined) return
-    const listeners = byCallback.get(callback)
-    if (listeners === undefined) return
-    const listener = listeners.pop()
-    if (listener === undefined) return
+    const byCallback = bridgeListeners.get(channel);
+    if (byCallback === undefined) return;
+    const listeners = byCallback.get(callback);
+    if (listeners === undefined) return;
+    const listener = listeners.pop();
+    if (listener === undefined) return;
 
-    ipcRenderer.removeListener(channel, listener)
+    ipcRenderer.removeListener(channel, listener);
     // Drop the bookkeeping with the last listener it describes, so a long-lived
     // window does not accumulate empty maps for every channel it ever used.
-    if (listeners.length === 0) byCallback.delete(callback)
-    if (byCallback.size === 0) bridgeListeners.delete(channel)
-  }
-}
+    if (listeners.length === 0) byCallback.delete(callback);
+    if (byCallback.size === 0) bridgeListeners.delete(channel);
+  },
+};
 
 // Expose APIs to renderer
-contextBridge.exposeInMainWorld('api', api)
-contextBridge.exposeInMainWorld('electron', electron)
+contextBridge.exposeInMainWorld('api', api);
+contextBridge.exposeInMainWorld('electron', electron);

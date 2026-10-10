@@ -38,18 +38,12 @@ import { describe, expect, it } from 'vitest';
  * own scaffolding rather than against the composition.
  */
 
-const INTERFACE = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '..',
-  'chat-interface.tsx',
-);
+const INTERFACE = join(dirname(fileURLToPath(import.meta.url)), '..', 'chat-interface.tsx');
 
 const source = readFileSync(INTERFACE, 'utf8');
 
 /** Source with block and line comments removed — the prose explains the old code. */
-const code = source
-  .replace(/\/\*[\s\S]*?\*\//g, '')
-  .replace(/^\s*\/\/.*$/gm, '');
+const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 describe('the thread renders Bloom AI Chat turns', () => {
   it('imports both turn components from the published subpath', () => {

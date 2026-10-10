@@ -112,7 +112,8 @@ export const PERSONALITY_STYLES: PersonalityStyleUI[] = [
     icon: 'GraduationCap',
     color: '#3b82f6',
     tagline: 'Thoughtful and guiding',
-    sampleGreeting: "Good question. Let's think through this together — what have you tried so far?",
+    sampleGreeting:
+      "Good question. Let's think through this together — what have you tried so far?",
     subtitles: [
       "Let's break this down together.",
       'What are you trying to achieve?',
@@ -143,5 +144,5 @@ export const PERSONALITY_STYLES: PersonalityStyleUI[] = [
 ];
 
 export const PERSONALITY_STYLE_MAP = Object.fromEntries(
-  PERSONALITY_STYLES.map(s => [s.id, s])
+  PERSONALITY_STYLES.map((s) => [s.id, s]),
 ) as Record<PersonalityStyleId, PersonalityStyleUI>;

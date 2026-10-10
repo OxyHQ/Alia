@@ -211,9 +211,14 @@ main().then(
     console.error(error instanceof Error ? error.message : error);
     const cause: unknown = error instanceof Error ? error.cause : undefined;
     if (cause !== undefined) {
-      const code = typeof cause === 'object' && cause !== null && 'code' in cause ? String(cause.code) : undefined;
+      const code =
+        typeof cause === 'object' && cause !== null && 'code' in cause
+          ? String(cause.code)
+          : undefined;
       const detail =
-        typeof cause === 'object' && cause !== null && 'detail' in cause ? String(cause.detail) : undefined;
+        typeof cause === 'object' && cause !== null && 'detail' in cause
+          ? String(cause.detail)
+          : undefined;
       console.error(`cause: ${cause instanceof Error ? cause.message : String(cause)}`);
       if (code !== undefined) console.error(`sqlstate: ${code}`);
       if (detail !== undefined) console.error(`detail: ${detail}`);

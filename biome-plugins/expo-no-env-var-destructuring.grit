@@ -5,9 +5,5 @@ language js
 
 `$pattern = process.env` where {
   $pattern <: JsObjectBindingPattern(),
-  register_diagnostic(
-    span = $pattern,
-    message = "Unexpected destructuring. Cannot destructure variables from process.env: Expo only inlines `process.env.EXPO_PUBLIC_*` member reads.",
-    severity = "error"
-  )
+  register_diagnostic(span=$pattern, message="Unexpected destructuring. Cannot destructure variables from process.env: Expo only inlines `process.env.EXPO_PUBLIC_*` member reads.", severity="error")
 }

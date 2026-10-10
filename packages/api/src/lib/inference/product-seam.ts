@@ -277,10 +277,7 @@ export interface AliaInferencePort<TRequestPayload, TCompletion, TStreamEvent, T
    * Run a call to completion. Rejects with `TError`; the caller decides what
    * that means for its surface by asking {@link AliaInferencePort.degrade}.
    */
-  generate(
-    call: AliaInferenceCall<TRequestPayload>,
-    signal: AbortSignal,
-  ): Promise<TCompletion>;
+  generate(call: AliaInferenceCall<TRequestPayload>, signal: AbortSignal): Promise<TCompletion>;
 
   /**
    * Run a streaming call. The contract's terminal error event ends the stream,

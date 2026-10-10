@@ -36,12 +36,8 @@ vi.mock('@/shared/api/client', () => ({
   },
 }));
 
-const {
-  useAgentReviewDraft,
-  useAgentReviews,
-  useDeleteAgentReview,
-  useSubmitAgentReview,
-} = await import('../use-agent-reviews');
+const { useAgentReviewDraft, useAgentReviews, useDeleteAgentReview, useSubmitAgentReview } =
+  await import('../use-agent-reviews');
 const { queryKeys } = await import('@/shared/api/query-keys');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

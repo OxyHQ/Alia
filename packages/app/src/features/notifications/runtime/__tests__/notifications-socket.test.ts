@@ -15,7 +15,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 /** Every socket the module has asked for, so the count is the measurement. */
-const created: Array<{ on: ReturnType<typeof vi.fn>; emit: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn>; connected: boolean }> = [];
+const created: Array<{
+  on: ReturnType<typeof vi.fn>;
+  emit: ReturnType<typeof vi.fn>;
+  disconnect: ReturnType<typeof vi.fn>;
+  connected: boolean;
+}> = [];
 
 vi.mock('socket.io-client', () => ({
   io: vi.fn(() => {
@@ -87,7 +92,7 @@ describe('the shared notifications socket', () => {
     expect(created).toHaveLength(2);
   });
 
-  it('ignores a repeated release rather than closing somebody else\'s socket', async () => {
+  it("ignores a repeated release rather than closing somebody else's socket", async () => {
     const { acquireNotificationsSocket } = await loadModule();
 
     const first = acquireNotificationsSocket();

@@ -115,13 +115,21 @@ describe('a bot carries two credentials that must NOT be treated alike', () => {
 
 describe('a bot user is unique per bot, and goes with its bot', () => {
   it('refuses the same platform user twice on one bot', async () => {
-    await db
-      .insert(botUsers)
-      .values({ id: 'bu-1', botId: 'bot-hook', platform: 'telegram', platformUserId: 'p1', chatId: 'c1' });
+    await db.insert(botUsers).values({
+      id: 'bu-1',
+      botId: 'bot-hook',
+      platform: 'telegram',
+      platformUserId: 'p1',
+      chatId: 'c1',
+    });
 
-    const duplicate = db
-      .insert(botUsers)
-      .values({ id: 'bu-2', botId: 'bot-hook', platform: 'telegram', platformUserId: 'p1', chatId: 'c2' });
+    const duplicate = db.insert(botUsers).values({
+      id: 'bu-2',
+      botId: 'bot-hook',
+      platform: 'telegram',
+      platformUserId: 'p1',
+      chatId: 'c2',
+    });
 
     await expect(duplicate).rejects.toSatisfy((error: unknown) => {
       expect(isUniqueViolation(error)).toBe(true);
@@ -133,10 +141,16 @@ describe('a bot user is unique per bot, and goes with its bot', () => {
   it('permits the same platform user on a DIFFERENT bot', async () => {
     // The uniqueness is per bot, not global — two bots may both be talking to
     // the same person, and each keeps its own row.
-    await db.insert(bots).values({ id: 'bot-other', platform: 'telegram', botId: 'tg-3', name: 'Other' });
     await db
-      .insert(botUsers)
-      .values({ id: 'bu-3', botId: 'bot-other', platform: 'telegram', platformUserId: 'p1', chatId: 'c3' });
+      .insert(bots)
+      .values({ id: 'bot-other', platform: 'telegram', botId: 'tg-3', name: 'Other' });
+    await db.insert(botUsers).values({
+      id: 'bu-3',
+      botId: 'bot-other',
+      platform: 'telegram',
+      platformUserId: 'p1',
+      chatId: 'c3',
+    });
 
     // Scoped to the two bots THIS FILE created. The count was unscoped —
     // `where platform_user_id = 'p1'` across the whole table — and several

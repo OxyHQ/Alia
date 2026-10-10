@@ -1,6 +1,10 @@
 import chalk from 'chalk';
 import * as readline from 'readline';
-import { buildSystemMessage, getCodebaseContext, loadProjectInstructions } from '../utils/context.js';
+import {
+  buildSystemMessage,
+  getCodebaseContext,
+  loadProjectInstructions,
+} from '../utils/context.js';
 import { processConversation, Message, ToolExecution } from '../utils/conversation.js';
 import { parseApprovalMode } from '../utils/approval.js';
 import { formatToolArgs } from '../utils/format.js';
@@ -19,7 +23,12 @@ interface JsonOutput {
   model: string | null;
   prompt: string;
   response: string;
-  tool_calls: Array<{ tool: string; args: Record<string, unknown>; result: string; success: boolean }>;
+  tool_calls: Array<{
+    tool: string;
+    args: Record<string, unknown>;
+    result: string;
+    success: boolean;
+  }>;
 }
 
 export async function runPrompt(prompt: string, options: RunOptions): Promise<void> {
@@ -38,7 +47,7 @@ export async function runPrompt(prompt: string, options: RunOptions): Promise<vo
   const systemMessage = buildSystemMessage(codebaseContext, instructions);
 
   const approvalMode = options.yes
-    ? 'full-auto' as const
+    ? ('full-auto' as const)
     : parseApprovalMode(options.approvalMode);
 
   let fullResponse = '';
@@ -47,7 +56,10 @@ export async function runPrompt(prompt: string, options: RunOptions): Promise<vo
   // nobody reads still runs — and is billed — to completion.
   const controller = new AbortController();
 
-  process.once('SIGINT', () => { active = false; controller.abort(); });
+  process.once('SIGINT', () => {
+    active = false;
+    controller.abort();
+  });
 
   await processConversation({
     messages,
@@ -76,7 +88,12 @@ export async function runPrompt(prompt: string, options: RunOptions): Promise<vo
         case 'tool_start':
           if (!options.quiet && !options.json) {
             console.log();
-            console.log(chalk.cyan('  → ') + chalk.bold(event.execution.tool) + ' ' + chalk.gray(formatToolArgs(event.execution.tool, event.execution.args)));
+            console.log(
+              chalk.cyan('  → ') +
+                chalk.bold(event.execution.tool) +
+                ' ' +
+                chalk.gray(formatToolArgs(event.execution.tool, event.execution.args)),
+            );
           }
           break;
         case 'tool_done':

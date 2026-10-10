@@ -35,7 +35,16 @@ vi.mock('../../../middleware/auth.js', () => {
 });
 vi.mock('../../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { agents: child, chat: child, general: child, v1: child, credits: child, providers: child } };
+  return {
+    log: {
+      agents: child,
+      chat: child,
+      general: child,
+      v1: child,
+      credits: child,
+      providers: child,
+    },
+  };
 });
 vi.mock('../../../lib/chat-core.js', () => ({
   getRoutingProfile: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
@@ -54,7 +63,6 @@ import { createAgentThread } from '../../../db/agents/agentRuntimeRepository.js'
 import { getOrCreateUserCredits } from '../../../db/billing/userCreditsRepository.js';
 import { enqueueAgentSession } from '../../../lib/task-queue.js';
 import threadsRouter from '../threads.js';
-
 
 let db: ApiDatabase;
 let server: Server;
@@ -99,7 +107,10 @@ let seq = 0;
 async function account(free: number, paid: number): Promise<string> {
   const id = `${SUITE}-${seq++}`;
   await getOrCreateUserCredits(db, id);
-  await db.update(userCredits).set({ creditsFree: free, creditsPaid: paid }).where(eq(userCredits.id, id));
+  await db
+    .update(userCredits)
+    .set({ creditsFree: free, creditsPaid: paid })
+    .where(eq(userCredits.id, id));
   return id;
 }
 
@@ -235,7 +246,11 @@ describe('POST /agents/threads/:threadId/goals — the reservation', () => {
     const userId = `${SUITE}-fresh-${seq++}`;
     const agentId = await seedAgent();
 
-    const res = await hire(userId, await threadFor(userId, agentId), 'first action on this account');
+    const res = await hire(
+      userId,
+      await threadFor(userId, agentId),
+      'first action on this account',
+    );
 
     expect(res.status, JSON.stringify(res.body)).toBe(202);
     // The default allowance minus the agent's price: the credits they already

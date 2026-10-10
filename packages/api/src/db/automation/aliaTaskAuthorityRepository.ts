@@ -38,7 +38,9 @@ export async function listActiveAliaTaskAuthorizations(
   automationId: string,
   now: Date = new Date(),
 ) {
-  const rows = await db.select().from(aliaTaskAuthorizations)
+  const rows = await db
+    .select()
+    .from(aliaTaskAuthorizations)
     .where(liveFor(automationId, now))
     .orderBy(asc(aliaTaskAuthorizations.resourceAppId), asc(aliaTaskAuthorizations.tool));
   return rows.map((row) => ({
@@ -65,36 +67,45 @@ export async function replaceAliaTaskAuthorizations(
   automationId: string,
   authorizations: readonly AliaTaskAuthorizationInput[],
 ): Promise<void> {
-  await db.update(aliaTaskAuthorizations)
+  await db
+    .update(aliaTaskAuthorizations)
     .set({ revokedAt: new Date() })
-    .where(and(eq(aliaTaskAuthorizations.automationId, automationId), isNull(aliaTaskAuthorizations.revokedAt)));
+    .where(
+      and(
+        eq(aliaTaskAuthorizations.automationId, automationId),
+        isNull(aliaTaskAuthorizations.revokedAt),
+      ),
+    );
   for (const authorization of authorizations) {
-    await db.insert(aliaTaskAuthorizations).values({
-      automationId,
-      automationActionId: authorization.automationActionId,
-      resourceAppId: authorization.resource.appId,
-      effectiveAccountId: authorization.resource.effectiveAccountId,
-      resourceType: authorization.resource.resourceType,
-      resourceId: authorization.resource.resourceId,
-      tool: authorization.tool,
-      oxyAuthorizationId: authorization.oxyAuthorizationId,
-      expiresAt: authorization.expiresAt,
-    }).onConflictDoUpdate({
-      target: [
-        aliaTaskAuthorizations.automationId,
-        aliaTaskAuthorizations.resourceAppId,
-        aliaTaskAuthorizations.effectiveAccountId,
-        aliaTaskAuthorizations.resourceType,
-        aliaTaskAuthorizations.resourceId,
-        aliaTaskAuthorizations.tool,
-      ],
-      set: {
+    await db
+      .insert(aliaTaskAuthorizations)
+      .values({
+        automationId,
         automationActionId: authorization.automationActionId,
+        resourceAppId: authorization.resource.appId,
+        effectiveAccountId: authorization.resource.effectiveAccountId,
+        resourceType: authorization.resource.resourceType,
+        resourceId: authorization.resource.resourceId,
+        tool: authorization.tool,
         oxyAuthorizationId: authorization.oxyAuthorizationId,
         expiresAt: authorization.expiresAt,
-        revokedAt: null,
-      },
-    });
+      })
+      .onConflictDoUpdate({
+        target: [
+          aliaTaskAuthorizations.automationId,
+          aliaTaskAuthorizations.resourceAppId,
+          aliaTaskAuthorizations.effectiveAccountId,
+          aliaTaskAuthorizations.resourceType,
+          aliaTaskAuthorizations.resourceId,
+          aliaTaskAuthorizations.tool,
+        ],
+        set: {
+          automationActionId: authorization.automationActionId,
+          oxyAuthorizationId: authorization.oxyAuthorizationId,
+          expiresAt: authorization.expiresAt,
+          revokedAt: null,
+        },
+      });
   }
 }
 
@@ -109,15 +120,22 @@ export async function listActiveTaskAuthorityIds(
   now: Date = new Date(),
 ): Promise<string[]> {
   const [agentRows, aliaRows] = await Promise.all([
-    db.select({ id: automationActionAuthorizations.oxyAuthorizationId })
+    db
+      .select({ id: automationActionAuthorizations.oxyAuthorizationId })
       .from(automationActionAuthorizations)
-      .innerJoin(automationActions, eq(automationActions.id, automationActionAuthorizations.automationActionId))
-      .where(and(
-        eq(automationActions.automationId, automationId),
-        isNull(automationActionAuthorizations.revokedAt),
-        gt(automationActionAuthorizations.expiresAt, now),
-      )),
-    db.select({ id: aliaTaskAuthorizations.oxyAuthorizationId })
+      .innerJoin(
+        automationActions,
+        eq(automationActions.id, automationActionAuthorizations.automationActionId),
+      )
+      .where(
+        and(
+          eq(automationActions.automationId, automationId),
+          isNull(automationActionAuthorizations.revokedAt),
+          gt(automationActionAuthorizations.expiresAt, now),
+        ),
+      ),
+    db
+      .select({ id: aliaTaskAuthorizations.oxyAuthorizationId })
       .from(aliaTaskAuthorizations)
       .where(liveFor(automationId, now)),
   ]);
@@ -132,10 +150,12 @@ export async function markTaskAuthorityRevoked(
   if (oxyAuthorizationIds.length === 0) return;
   const ids = [...oxyAuthorizationIds];
   const now = new Date();
-  await db.update(automationActionAuthorizations)
+  await db
+    .update(automationActionAuthorizations)
     .set({ revokedAt: now })
     .where(inArray(automationActionAuthorizations.oxyAuthorizationId, ids));
-  await db.update(aliaTaskAuthorizations)
+  await db
+    .update(aliaTaskAuthorizations)
     .set({ revokedAt: now })
     .where(inArray(aliaTaskAuthorizations.oxyAuthorizationId, ids));
 }
@@ -163,30 +183,37 @@ export async function listAliaTaskAuthorizationsForRun(
 ): Promise<AliaRunAuthorization[]> {
   const [authorizations, steps] = await Promise.all([
     listActiveAliaTaskAuthorizations(db, automationId, now),
-    db.select({ id: automationSteps.id, automationActionId: automationSteps.automationActionId })
+    db
+      .select({ id: automationSteps.id, automationActionId: automationSteps.automationActionId })
       .from(automationSteps)
       .where(eq(automationSteps.runId, runId)),
   ]);
-  const stepByAction = new Map(steps.flatMap((step) => (
-    step.automationActionId ? [[step.automationActionId, step.id] as const] : []
-  )));
+  const stepByAction = new Map(
+    steps.flatMap((step) =>
+      step.automationActionId ? [[step.automationActionId, step.id] as const] : [],
+    ),
+  );
   return authorizations.flatMap((authorization): AliaRunAuthorization[] => {
     if (authorization.automationActionId === null) {
-      return [{
-        resource: authorization.resource,
-        tool: authorization.tool,
-        oxyAuthorizationId: authorization.oxyAuthorizationId,
-        repeatable: true,
-      }];
+      return [
+        {
+          resource: authorization.resource,
+          tool: authorization.tool,
+          oxyAuthorizationId: authorization.oxyAuthorizationId,
+          repeatable: true,
+        },
+      ];
     }
     const stepId = stepByAction.get(authorization.automationActionId);
     if (!stepId) return [];
-    return [{
-      resource: authorization.resource,
-      tool: authorization.tool,
-      oxyAuthorizationId: authorization.oxyAuthorizationId,
-      stepId,
-      repeatable: false,
-    }];
+    return [
+      {
+        resource: authorization.resource,
+        tool: authorization.tool,
+        oxyAuthorizationId: authorization.oxyAuthorizationId,
+        stepId,
+        repeatable: false,
+      },
+    ];
   });
 }

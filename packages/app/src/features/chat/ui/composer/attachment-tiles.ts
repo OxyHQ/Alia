@@ -1,7 +1,7 @@
-import type { ComposerPanelAttachment } from "@oxy.so/bloom/composer-panel";
-import { MAX_ATTACHMENT_BYTES } from "@/features/chat/model/attachment-intake";
-import type { IntakeItem } from "./use-attachment-intake";
-import type { Attachment } from "./types";
+import type { ComposerPanelAttachment } from '@oxy.so/bloom/composer-panel';
+import { MAX_ATTACHMENT_BYTES } from '@/features/chat/model/attachment-intake';
+import type { IntakeItem } from './use-attachment-intake';
+import type { Attachment } from './types';
 
 /**
  * The composer's tiles: landed files, then the ones the intake still holds.
@@ -24,19 +24,19 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 /** Why an intake item is not an attachment, or `undefined` while it is being read. */
 export function intakeError(item: IntakeItem, t: Translate): string | undefined {
-  const name = item.name || t("composer.untitled");
+  const name = item.name || t('composer.untitled');
   switch (item.status) {
-    case "reading":
+    case 'reading':
       return undefined;
-    case "failed":
-      return t("composer.readFailed", { name });
-    case "refused":
-      return item.refusal === "too-large"
-        ? t("composer.fileTooLarge", {
+    case 'failed':
+      return t('composer.readFailed', { name });
+    case 'refused':
+      return item.refusal === 'too-large'
+        ? t('composer.fileTooLarge', {
             name,
             limit: `${Math.round(MAX_ATTACHMENT_BYTES / (1024 * 1024))} MB`,
           })
-        : t("composer.fileEmpty", { name });
+        : t('composer.fileEmpty', { name });
   }
 }
 
@@ -49,22 +49,22 @@ export function composerTiles(
     ...attachments.map((a) => ({
       id: a.id,
       name: a.name,
-      kind: a.type === "image" ? ("image" as const) : ("document" as const),
-      src: a.type === "image" ? a.uri : undefined,
+      kind: a.type === 'image' ? ('image' as const) : ('document' as const),
+      src: a.type === 'image' ? a.uri : undefined,
     })),
     ...items.map((item): ComposerTile => {
       const tile: ComposerTile = {
         id: item.id,
-        name: item.name || t("composer.untitled"),
-        kind: item.kind === "image" ? "image" : "document",
+        name: item.name || t('composer.untitled'),
+        kind: item.kind === 'image' ? 'image' : 'document',
       };
-      if (item.status === "reading") {
+      if (item.status === 'reading') {
         // Real progress only; an unmeasured read is an empty ring, not a guess.
         tile.progress = item.fraction === null ? 0 : Math.round(item.fraction * 100);
         return tile;
       }
       tile.error = intakeError(item, t);
-      tile.retryable = item.status === "failed";
+      tile.retryable = item.status === 'failed';
       return tile;
     }),
   ];

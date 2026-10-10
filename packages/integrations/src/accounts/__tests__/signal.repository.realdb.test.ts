@@ -141,8 +141,12 @@ describe('the data directory stays inside the process', () => {
     expect(session?.sessionId).toBe(sessionId);
     expect(session?.status).toBe('linking');
 
-    expect((await findSignalDaemonState(db, sessionId))?.dataDir).toBe('/var/lib/signal/sig-secret');
-    expect((await findSignalSessionQr(db, sessionId))?.lastQr).toBe('sgnl://linkdevice?uuid=secret');
+    expect((await findSignalDaemonState(db, sessionId))?.dataDir).toBe(
+      '/var/lib/signal/sig-secret',
+    );
+    expect((await findSignalSessionQr(db, sessionId))?.lastQr).toBe(
+      'sgnl://linkdevice?uuid=secret',
+    );
   });
 
   it('returns null for a session that does not exist', async () => {
@@ -158,10 +162,20 @@ describe('the unread counter advances rather than resetting', () => {
     const sessionId = await newSession('sig-unread');
     const chat = { sessionId, contactId: '+34600999888' };
 
-    await upsertSignalChat(db, { ...chat, name: 'First', lastMessageTimestamp: 100, chatType: 'direct' });
+    await upsertSignalChat(db, {
+      ...chat,
+      name: 'First',
+      lastMessageTimestamp: 100,
+      chatType: 'direct',
+    });
     expect((await listSignalChats(db, sessionId, 50))[0]?.unreadCount).toBe(1);
 
-    await upsertSignalChat(db, { ...chat, name: 'Second', lastMessageTimestamp: 200, chatType: 'group' });
+    await upsertSignalChat(db, {
+      ...chat,
+      name: 'Second',
+      lastMessageTimestamp: 200,
+      chatType: 'group',
+    });
     const [row] = await listSignalChats(db, sessionId, 50);
     expect(row?.unreadCount).toBe(2);
     expect(row?.name).toBe('Second');
@@ -188,9 +202,33 @@ describe('a message list is newest first and scoped to its contact', () => {
   it('orders three messages descending', async () => {
     const sessionId = await newSession('sig-msgs');
     await insertSignalMessages(db, [
-      { sessionId, contactId: 'c1', messageTimestamp: '1700000000100', fromMe: false, timestamp: 100, text: 'oldest', senderName: 'A' },
-      { sessionId, contactId: 'c1', messageTimestamp: '1700000000200', fromMe: false, timestamp: 200, text: 'middle', senderName: 'A' },
-      { sessionId, contactId: 'c1', messageTimestamp: '1700000000300', fromMe: false, timestamp: 300, text: 'newest', senderName: 'B' },
+      {
+        sessionId,
+        contactId: 'c1',
+        messageTimestamp: '1700000000100',
+        fromMe: false,
+        timestamp: 100,
+        text: 'oldest',
+        senderName: 'A',
+      },
+      {
+        sessionId,
+        contactId: 'c1',
+        messageTimestamp: '1700000000200',
+        fromMe: false,
+        timestamp: 200,
+        text: 'middle',
+        senderName: 'A',
+      },
+      {
+        sessionId,
+        contactId: 'c1',
+        messageTimestamp: '1700000000300',
+        fromMe: false,
+        timestamp: 300,
+        text: 'newest',
+        senderName: 'B',
+      },
     ]);
 
     const messages = await listSignalMessages(db, sessionId, 'c1', 50);
@@ -202,7 +240,15 @@ describe('a message list is newest first and scoped to its contact', () => {
   it('ignores another contact in the same session', async () => {
     const sessionId = 'sig-msgs';
     await insertSignalMessages(db, [
-      { sessionId, contactId: 'c2', messageTimestamp: '1700000009999', fromMe: false, timestamp: 999, text: 'elsewhere', senderName: '' },
+      {
+        sessionId,
+        contactId: 'c2',
+        messageTimestamp: '1700000009999',
+        fromMe: false,
+        timestamp: 999,
+        text: 'elsewhere',
+        senderName: '',
+      },
     ]);
     expect((await listSignalMessages(db, sessionId, 'c1', 50)).map((m) => m.text)).toEqual([
       'newest',
@@ -215,8 +261,24 @@ describe('a message list is newest first and scoped to its contact', () => {
   it('keeps the first row when a batch repeats a send-timestamp', async () => {
     const sessionId = await newSession('sig-dup');
     await insertSignalMessages(db, [
-      { sessionId, contactId: 'c', messageTimestamp: 'same', fromMe: false, timestamp: 1, text: 'kept', senderName: '' },
-      { sessionId, contactId: 'c', messageTimestamp: 'same', fromMe: false, timestamp: 2, text: 'dropped', senderName: '' },
+      {
+        sessionId,
+        contactId: 'c',
+        messageTimestamp: 'same',
+        fromMe: false,
+        timestamp: 1,
+        text: 'kept',
+        senderName: '',
+      },
+      {
+        sessionId,
+        contactId: 'c',
+        messageTimestamp: 'same',
+        fromMe: false,
+        timestamp: 2,
+        text: 'dropped',
+        senderName: '',
+      },
     ]);
     expect((await listSignalMessages(db, sessionId, 'c', 50)).map((m) => m.text)).toEqual(['kept']);
   });

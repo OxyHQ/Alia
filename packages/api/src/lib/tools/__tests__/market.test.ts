@@ -17,7 +17,10 @@ import { getMarketQuoteTool } from '../market.js';
  */
 
 const fetchMock = vi.fn();
-beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal('fetch', fetchMock); });
+beforeEach(() => {
+  fetchMock.mockReset();
+  vi.stubGlobal('fetch', fetchMock);
+});
 afterEach(() => vi.unstubAllGlobals());
 
 const DAY = 86_400_000;
@@ -30,15 +33,29 @@ const ok = (body: unknown) => ({ ok: true, json: async () => body });
 function mockAll({ daily = dailySeries(800) } = {}) {
   fetchMock
     .mockResolvedValueOnce(ok({ coins: [{ id: 'bitcoin', name: 'Bitcoin', symbol: 'btc' }] }))
-    .mockResolvedValueOnce(ok({ prices: [[1, 79000], [2, 79500]] }))          // intraday
-    .mockResolvedValueOnce(ok({ prices: daily }))                              // daily history
-    .mockResolvedValueOnce(ok({ bitcoin: { usd: 78420, usd_24h_change: -0.7, usd_24h_vol: 42, usd_market_cap: 1_500_000 } }));
+    .mockResolvedValueOnce(
+      ok({
+        prices: [
+          [1, 79000],
+          [2, 79500],
+        ],
+      }),
+    ) // intraday
+    .mockResolvedValueOnce(ok({ prices: daily })) // daily history
+    .mockResolvedValueOnce(
+      ok({
+        bitcoin: { usd: 78420, usd_24h_change: -0.7, usd_24h_vol: 42, usd_market_cap: 1_500_000 },
+      }),
+    );
 }
 
 const run = (coin = 'bitcoin', currency = 'usd') =>
-  (getMarketQuoteTool.execute as (i: { coin: string; currency: string }, o: unknown) => Promise<any>)(
-    { coin, currency }, {},
-  );
+  (
+    getMarketQuoteTool.execute as (
+      i: { coin: string; currency: string },
+      o: unknown,
+    ) => Promise<any>
+  )({ coin, currency }, {});
 
 describe('getMarketQuote', () => {
   it('makes two history requests, not one per range', async () => {
@@ -51,9 +68,16 @@ describe('getMarketQuote', () => {
   it('carries every range the card can offer', async () => {
     mockAll();
     const out = await run();
-    expect(Object.keys(out.card.data.series).sort()).toEqual(
-      ['1D', '1M', '1Y', '5D', '5Y', '6M', 'MAX', 'YTD'],
-    );
+    expect(Object.keys(out.card.data.series).sort()).toEqual([
+      '1D',
+      '1M',
+      '1Y',
+      '5D',
+      '5Y',
+      '6M',
+      'MAX',
+      'YTD',
+    ]);
   });
 
   it('slices the shorter ranges out of the daily history', async () => {
@@ -78,7 +102,11 @@ describe('getMarketQuote', () => {
     mockAll();
     const out = await run();
     expect(out.card.data).toMatchObject({
-      symbol: 'BTC', currency: 'usd', price: 78420, changePct: -0.7, marketCap: 1_500_000,
+      symbol: 'BTC',
+      currency: 'usd',
+      price: 78420,
+      changePct: -0.7,
+      marketCap: 1_500_000,
     });
   });
 

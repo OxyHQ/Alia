@@ -103,12 +103,12 @@ describe('crypto-utils', () => {
   describe('invalid key format', () => {
     it('throws on non-hex key', async () => {
       process.env.TOKEN_ENCRYPTION_KEY = 'not-a-valid-hex-key-at-all!!!!!!';
-      await expect(import('../crypto-utils.js').then(m => m.encrypt('test'))).rejects.toThrow();
+      await expect(import('../crypto-utils.js').then((m) => m.encrypt('test'))).rejects.toThrow();
     });
 
     it('throws on wrong-length hex key', async () => {
       process.env.TOKEN_ENCRYPTION_KEY = 'aabb'; // too short
-      await expect(import('../crypto-utils.js').then(m => m.encrypt('test'))).rejects.toThrow();
+      await expect(import('../crypto-utils.js').then((m) => m.encrypt('test'))).rejects.toThrow();
     });
   });
 });

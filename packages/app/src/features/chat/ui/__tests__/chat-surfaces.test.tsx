@@ -59,7 +59,9 @@ vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
   };
 });
 vi.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
-const surfaces = vi.hoisted(() => ({ confirm: vi.fn(async (_options: Record<string, unknown>) => true) }));
+const surfaces = vi.hoisted(() => ({
+  confirm: vi.fn(async (_options: Record<string, unknown>) => true),
+}));
 vi.mock('@oxy.so/bloom/surfaces', () => surfaces);
 for (const icon of [
   'RiDeleteBinLine',
@@ -117,7 +119,9 @@ describe('ChatHeaderActions', () => {
     all(r, 'MenuItem').map((item) => item.props.children as string);
 
   it('offers search, the panel, export and delete when the screen can do all of them', () => {
-    const r = render(<ChatHeaderActions onSearch={vi.fn()} onExport={vi.fn()} onDelete={vi.fn()} />);
+    const r = render(
+      <ChatHeaderActions onSearch={vi.fn()} onExport={vi.fn()} onDelete={vi.fn()} />,
+    );
     expect(labels(r)).toEqual([
       'chatHeader.searchThread',
       'chatHeader.showPanel',
@@ -156,7 +160,9 @@ describe('ChatHeaderActions', () => {
   });
 
   it('never offers a share it could not honour', () => {
-    const r = render(<ChatHeaderActions onSearch={vi.fn()} onExport={vi.fn()} onDelete={vi.fn()} />);
+    const r = render(
+      <ChatHeaderActions onSearch={vi.fn()} onExport={vi.fn()} onDelete={vi.fn()} />,
+    );
     expect(labels(r).some((label) => /share/i.test(label))).toBe(false);
   });
 
@@ -178,7 +184,13 @@ describe('ChatHeaderActions — clear and terminal', () => {
     expect(item(r, 'chatHeader.agentTerminal')).toBeUndefined();
     act(() => renderer?.unmount());
 
-    r = render(<ChatHeaderActions onExport={vi.fn()} onClear={vi.fn(async () => true)} onOpenTerminal={vi.fn()} />);
+    r = render(
+      <ChatHeaderActions
+        onExport={vi.fn()}
+        onClear={vi.fn(async () => true)}
+        onOpenTerminal={vi.fn()}
+      />,
+    );
     expect(item(r, 'chatHeader.clearConversation')?.props.tone).toBe('danger');
     expect(item(r, 'chatHeader.agentTerminal')).toBeDefined();
   });
@@ -201,7 +213,12 @@ describe('ChatHeaderActions — clear and terminal', () => {
 
   it('starts one clear at a time', async () => {
     let finish: (value: boolean) => void = () => {};
-    const onClear = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; }));
+    const onClear = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finish = resolve;
+        }),
+    );
     surfaces.confirm.mockResolvedValue(true);
     const r = render(<ChatHeaderActions onExport={vi.fn()} onClear={onClear} />);
     await act(async () => {

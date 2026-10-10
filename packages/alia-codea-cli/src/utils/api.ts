@@ -26,11 +26,11 @@ export const fileTools = [
       parameters: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'The file path to read' }
+          path: { type: 'string', description: 'The file path to read' },
         },
-        required: ['path']
-      }
-    }
+        required: ['path'],
+      },
+    },
   },
   {
     type: 'function',
@@ -41,44 +41,47 @@ export const fileTools = [
         type: 'object',
         properties: {
           path: { type: 'string', description: 'The file path to write to' },
-          content: { type: 'string', description: 'The content to write' }
+          content: { type: 'string', description: 'The content to write' },
         },
-        required: ['path', 'content']
-      }
-    }
+        required: ['path', 'content'],
+      },
+    },
   },
   {
     type: 'function',
     function: {
       name: 'edit_file',
-      description: 'Make targeted edits to a file by replacing specific text. For small single-location changes.',
+      description:
+        'Make targeted edits to a file by replacing specific text. For small single-location changes.',
       parameters: {
         type: 'object',
         properties: {
           path: { type: 'string', description: 'The file path to edit' },
           old_text: { type: 'string', description: 'The text to find and replace' },
-          new_text: { type: 'string', description: 'The replacement text' }
+          new_text: { type: 'string', description: 'The replacement text' },
         },
-        required: ['path', 'old_text', 'new_text']
-      }
-    }
+        required: ['path', 'old_text', 'new_text'],
+      },
+    },
   },
   {
     type: 'function',
     function: {
       name: 'apply_patch',
-      description: 'Apply a unified diff patch to one or more files. Preferred for multi-line or multi-file changes. Uses standard unified diff format with fuzzy line matching (±20 line drift).',
+      description:
+        'Apply a unified diff patch to one or more files. Preferred for multi-line or multi-file changes. Uses standard unified diff format with fuzzy line matching (±20 line drift).',
       parameters: {
         type: 'object',
         properties: {
           patch: {
             type: 'string',
-            description: 'The unified diff patch text. Must include --- a/file and +++ b/file headers and @@ hunk headers.'
-          }
+            description:
+              'The unified diff patch text. Must include --- a/file and +++ b/file headers and @@ hunk headers.',
+          },
         },
-        required: ['patch']
-      }
-    }
+        required: ['patch'],
+      },
+    },
   },
   {
     type: 'function',
@@ -89,28 +92,35 @@ export const fileTools = [
         type: 'object',
         properties: {
           path: { type: 'string', description: 'The directory path (default: current directory)' },
-          recursive: { type: 'boolean', description: 'Whether to list recursively' }
-        }
-      }
-    }
+          recursive: { type: 'boolean', description: 'Whether to list recursively' },
+        },
+      },
+    },
   },
   {
     type: 'function',
     function: {
       name: 'search_files',
-      description: 'Search for text patterns across files. Uses ripgrep when available for fast results with context lines.',
+      description:
+        'Search for text patterns across files. Uses ripgrep when available for fast results with context lines.',
       parameters: {
         type: 'object',
         properties: {
           pattern: { type: 'string', description: 'The search pattern (regex supported)' },
           path: { type: 'string', description: 'Directory to search in (default: current)' },
           file_pattern: { type: 'string', description: 'File glob pattern (e.g., "*.ts")' },
-          context_lines: { type: 'number', description: 'Number of context lines around matches (default: 2)' },
-          max_results: { type: 'number', description: 'Maximum number of matches to return (default: 50)' }
+          context_lines: {
+            type: 'number',
+            description: 'Number of context lines around matches (default: 2)',
+          },
+          max_results: {
+            type: 'number',
+            description: 'Maximum number of matches to return (default: 50)',
+          },
         },
-        required: ['pattern']
-      }
-    }
+        required: ['pattern'],
+      },
+    },
   },
   {
     type: 'function',
@@ -121,12 +131,12 @@ export const fileTools = [
         type: 'object',
         properties: {
           command: { type: 'string', description: 'The command to execute' },
-          cwd: { type: 'string', description: 'Working directory (default: current)' }
+          cwd: { type: 'string', description: 'Working directory (default: current)' },
         },
-        required: ['command']
-      }
-    }
-  }
+        required: ['command'],
+      },
+    },
+  },
 ];
 
 /**
@@ -153,7 +163,7 @@ export async function streamChat(
   systemMessage: string,
   model: string,
   callbacks: StreamCallbacks,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<void> {
   /**
    * The bearer is the Oxy session token, restored from this machine's device
@@ -184,7 +194,7 @@ export async function streamChat(
         };
       }
       return { role: m.role as 'user' | 'assistant', content: m.content };
-    })
+    }),
   ];
 
   try {
@@ -234,8 +244,8 @@ export async function streamChat(
         new Error(
           synthetic.retryable
             ? 'Alia could not finish that answer. Please send your message again.'
-            : 'Alia could not answer that request.'
-        )
+            : 'Alia could not answer that request.',
+        ),
       );
       return;
     }

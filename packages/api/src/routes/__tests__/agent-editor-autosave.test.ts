@@ -54,7 +54,10 @@ const EDITOR = [
 ];
 const FAMILIES = 'packages/app/src/features/chat/model/capability-families.ts';
 
-const state = vi.hoisted(() => ({ userId: 'oxy-caller', accessToken: 'token-abc' as string | undefined }));
+const state = vi.hoisted(() => ({
+  userId: 'oxy-caller',
+  accessToken: 'token-abc' as string | undefined,
+}));
 
 vi.mock('../../middleware/auth.js', () => ({
   authenticateToken: (req: Request, _res: Response, next: NextFunction) => {
@@ -110,8 +113,13 @@ vi.mock('../../lib/logger.js', () => ({
   },
 }));
 // The model check asks Oxy's catalogue; this file is about the body, not the catalogue.
-vi.mock('../../lib/chat-core.js', () => ({ resolveModel: vi.fn(async (modelId: string) => ({ modelId })) }));
-vi.mock('../../lib/trigger-engine.js', () => ({ reloadTrigger: vi.fn(), generateWebhookToken: () => 'tok' }));
+vi.mock('../../lib/chat-core.js', () => ({
+  resolveModel: vi.fn(async (modelId: string) => ({ modelId })),
+}));
+vi.mock('../../lib/trigger-engine.js', () => ({
+  reloadTrigger: vi.fn(),
+  generateWebhookToken: () => 'tok',
+}));
 
 const AGENT_ROW = {
   _id: 'agent-1',
@@ -212,7 +220,15 @@ function editorSavePayloads(): ts.ObjectLiteralExpression[] {
   };
   for (const relative of EDITOR) {
     const file = path.join(REPO_ROOT, relative);
-    visit(ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX));
+    visit(
+      ts.createSourceFile(
+        file,
+        readFileSync(file, 'utf8'),
+        ts.ScriptTarget.Latest,
+        true,
+        ts.ScriptKind.TSX,
+      ),
+    );
   }
   return payloads;
 }
@@ -232,7 +248,13 @@ function editorSaveKeys(): string[] {
 
 /** Every `catch` in the source whose block does nothing at all. */
 function emptyCatchCount(source: string): number {
-  const file = ts.createSourceFile('probe.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const file = ts.createSourceFile(
+    'probe.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
   let count = 0;
   const visit = (node: ts.Node): void => {
     if (ts.isCatchClause(node) && node.block.statements.length === 0) count += 1;
@@ -321,7 +343,9 @@ describe('the editor and the route agree on what a save contains', () => {
 
     const res = await patch(body);
 
-    expect(res.status, `PATCH refused the editor's own body: ${JSON.stringify(res.body)}`).toBe(200);
+    expect(res.status, `PATCH refused the editor's own body: ${JSON.stringify(res.body)}`).toBe(
+      200,
+    );
     expect(repository.updateAgent).toHaveBeenCalledTimes(1);
 
     /**
@@ -331,8 +355,13 @@ describe('the editor and the route agree on what a save contains', () => {
      * DROPPED rather than that the names match.
      */
     const written = repository.updateAgent.mock.calls[0][2] as Record<string, unknown>;
-    const renamed: Readonly<Record<string, string>> = { skills: 'skillIds', knowledge: 'libraryFileIds' };
-    const missing = keys.filter((key) => !(renamed[key] ?? key in written) && !((renamed[key] ?? key) in written));
+    const renamed: Readonly<Record<string, string>> = {
+      skills: 'skillIds',
+      knowledge: 'libraryFileIds',
+    };
+    const missing = keys.filter(
+      (key) => !(renamed[key] ?? key in written) && !((renamed[key] ?? key) in written),
+    );
     expect(missing, `${missing.join(', ')} never reached the repository`).toEqual([]);
     expect(written.capabilityGrants).toEqual(['web', 'mcp:conn-1']);
   });
@@ -354,7 +383,13 @@ describe('the editor and the route agree on what a save contains', () => {
       { _id: 'skill-1', name: 'research', displayName: 'Research', icon: '🔎', color: 'blue' },
     ]);
     repository.findAgentKnowledge.mockResolvedValue([
-      { _id: 'file-1', name: 'handbook.pdf', type: 'pdf', category: 'docs', url: 'https://x/handbook.pdf' },
+      {
+        _id: 'file-1',
+        name: 'handbook.pdf',
+        type: 'pdf',
+        category: 'docs',
+        url: 'https://x/handbook.pdf',
+      },
     ]);
 
     const res = await patch({ tagline: 'a tagline' });
@@ -365,7 +400,13 @@ describe('the editor and the route agree on what a save contains', () => {
       { _id: 'skill-1', name: 'research', displayName: 'Research', icon: '🔎', color: 'blue' },
     ]);
     expect(agent.knowledge).toEqual([
-      { _id: 'file-1', name: 'handbook.pdf', type: 'pdf', category: 'docs', url: 'https://x/handbook.pdf' },
+      {
+        _id: 'file-1',
+        name: 'handbook.pdf',
+        type: 'pdf',
+        category: 'docs',
+        url: 'https://x/handbook.pdf',
+      },
     ]);
   });
 
@@ -463,7 +504,13 @@ describe('the editor and the route agree on what a save contains', () => {
  */
 function appRuntimeToolFamilies(): Record<string, string> {
   const file = path.join(REPO_ROOT, FAMILIES);
-  const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const source = ts.createSourceFile(
+    file,
+    readFileSync(file, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
   const map: Record<string, string> = {};
 
   const visit = (node: ts.Node): void => {
@@ -473,7 +520,9 @@ function appRuntimeToolFamilies(): Record<string, string> {
       node.name.text === 'RUNTIME_TOOL_FAMILIES' &&
       node.initializer !== undefined
     ) {
-      const literal = ts.isAsExpression(node.initializer) ? node.initializer.expression : node.initializer;
+      const literal = ts.isAsExpression(node.initializer)
+        ? node.initializer.expression
+        : node.initializer;
       if (ts.isObjectLiteralExpression(literal)) {
         for (const property of literal.properties) {
           if (
@@ -494,7 +543,13 @@ function appRuntimeToolFamilies(): Record<string, string> {
 
 function appFamilyIds(): string[] {
   const file = path.join(REPO_ROOT, FAMILIES);
-  const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const source = ts.createSourceFile(
+    file,
+    readFileSync(file, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
   const ids: string[] = [];
 
   const visit = (node: ts.Node): void => {
@@ -514,7 +569,9 @@ function appFamilyIds(): string[] {
       node.name.text === 'INSTANCED_FAMILY_LABELS' &&
       node.initializer !== undefined
     ) {
-      const literal = ts.isAsExpression(node.initializer) ? node.initializer.expression : node.initializer;
+      const literal = ts.isAsExpression(node.initializer)
+        ? node.initializer.expression
+        : node.initializer;
       if (ts.isObjectLiteralExpression(literal)) {
         for (const property of literal.properties) {
           // `mcp: 'Connectors'` and `'oxy_service': '…'` alike: a key written
@@ -648,8 +705,11 @@ describe('the editor screen reports a failed save instead of swallowing it', () 
      * A check that fires on prose about the bug is a check that cannot tell the
      * bug from its own commit message.
      */
-    const editorSource = EDITOR.map((file) => readFileSync(path.join(REPO_ROOT, file), 'utf8')).join('\n');
-    expect(emptyCatchCount(editorSource), 
+    const editorSource = EDITOR.map((file) =>
+      readFileSync(path.join(REPO_ROOT, file), 'utf8'),
+    ).join('\n');
+    expect(
+      emptyCatchCount(editorSource),
       'A save that fails must say so. An empty catch here is what turned every ' +
         'autosave 400 into a spinner that stopped and a screen that looked saved.',
     ).toBe(0);
@@ -669,7 +729,10 @@ describe('the editor screen reports a failed save instead of swallowing it', () 
     // All of them, and TRACKED rather than merely present: a new file is invisible to
     // `git ls-files` until it is staged, so this also says the app half of the
     // change was actually committed.
-    const tracked = execFileSync('git', ['ls-files', ...EDITOR, FAMILIES], { cwd: REPO_ROOT, encoding: 'utf8' });
+    const tracked = execFileSync('git', ['ls-files', ...EDITOR, FAMILIES], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    });
     expect(tracked.trim().split('\n').sort()).toEqual([...EDITOR, FAMILIES].sort());
   });
 });

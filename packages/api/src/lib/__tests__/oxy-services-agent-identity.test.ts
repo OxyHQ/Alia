@@ -8,8 +8,13 @@ import { createRequire } from 'node:module';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../oxy-service-client.js', () => {
-  const { OxyServer }: typeof import('@oxy.so/core/server') = createRequire(import.meta.url)('@oxy.so/core/server');
-  const client = new OxyServer({ baseURL: 'https://api.oxy.so', serviceAuth: { apiKey: 'synthetic-app', apiSecret: 'synthetic-secret' } });
+  const { OxyServer }: typeof import('@oxy.so/core/server') = createRequire(import.meta.url)(
+    '@oxy.so/core/server',
+  );
+  const client = new OxyServer({
+    baseURL: 'https://api.oxy.so',
+    serviceAuth: { apiKey: 'synthetic-app', apiSecret: 'synthetic-secret' },
+  });
   return { oxyServiceClient: () => client, oxyServiceToken: async () => 'ALIA-SERVICE-TOKEN' };
 });
 
@@ -29,12 +34,22 @@ import {
 const OWNER = 'owner-1';
 const AGENT = 'agent-bot-1';
 
-function tool(name: string, effect: 'read' | 'external', capabilityPackage: string, method: 'GET' | 'POST', path: string) {
+function tool(
+  name: string,
+  effect: 'read' | 'external',
+  capabilityPackage: string,
+  method: 'GET' | 'POST',
+  path: string,
+) {
   return {
     name,
     version: '1.0.0',
     description: `${name} tool`,
-    inputSchema: { type: 'object', properties: { q: { type: 'string' } }, additionalProperties: false },
+    inputSchema: {
+      type: 'object',
+      properties: { q: { type: 'string' } },
+      additionalProperties: false,
+    },
     outputSchema: { type: 'object' },
     capabilityPackage,
     requiredCapabilities: [`email.${name}`],
@@ -70,32 +85,44 @@ interface ExecutableTool {
 let grantAutonomy: OxyToolAutonomy = 'read_only';
 let fetchMock: ReturnType<typeof vi.fn>;
 
-const ownerRoot = { appId: 'inbox', effectiveAccountId: OWNER, resourceType: 'email_account', resourceId: OWNER };
+const ownerRoot = {
+  appId: 'inbox',
+  effectiveAccountId: OWNER,
+  resourceType: 'email_account',
+  resourceId: OWNER,
+};
 
 beforeEach(() => {
   grantAutonomy = 'read_only';
   fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
     const json = (body: unknown, status = 200) => Response.json(body, { status });
-    if (url.endsWith('/auth/service-token')) return json({ token: 'ALIA-SERVICE-TOKEN', expiresIn: 300 });
-    if (url.endsWith('/capabilities/catalogs')) return json({ registrations: [{ catalog: CATALOG }] });
+    if (url.endsWith('/auth/service-token'))
+      return json({ token: 'ALIA-SERVICE-TOKEN', expiresIn: 300 });
+    if (url.endsWith('/capabilities/catalogs'))
+      return json({ registrations: [{ catalog: CATALOG }] });
     if (url.endsWith('/capabilities/service-identity')) {
       return json({ service: { applicationId: 'alia-app', credentialId: 'alia-credential' } });
     }
     if (url.endsWith('/capabilities/capability-map')) {
-      return json({ assignments: [{
-        grantId: 'grant-1',
-        resource: ownerRoot,
-        maximumAutonomy: grantAutonomy,
-        limits: [],
-        // Oxy lists every tool of a granted package; the level decides which run.
-        toolNames: ['searchEmails', 'sendEmail'],
-      }] });
+      return json({
+        assignments: [
+          {
+            grantId: 'grant-1',
+            resource: ownerRoot,
+            maximumAutonomy: grantAutonomy,
+            limits: [],
+            // Oxy lists every tool of a granted package; the level decides which run.
+            toolNames: ['searchEmails', 'sendEmail'],
+          },
+        ],
+      });
     }
     if (url.endsWith('/capabilities/execution-authorizations') && init?.method === 'POST') {
       return json({ authorization: { id: 'DIRECT-1' } }, 201);
     }
-    if (url.endsWith('/capabilities/agent-run-authorizations')) return json({ authorization: { id: 'RUN-1' } }, 201);
+    if (url.endsWith('/capabilities/agent-run-authorizations'))
+      return json({ authorization: { id: 'RUN-1' } }, 201);
     if (url.endsWith('/capabilities/tickets')) {
       return json({ decision: { allowed: true, reason: 'allowed' }, ticket: 'SHORT-TICKET' }, 201);
     }
@@ -137,29 +164,38 @@ describe('an agent with its owner present', () => {
       'self_inbox__searchEmails',
       'self_inbox__sendEmail',
     ]);
-    expect((tools.self_inbox__searchEmails as unknown as ExecutableTool).description)
-      .toMatch(/^\[Your own Inbox\] YOUR account as this agent/);
-    expect((tools.oxy_inbox__searchEmails as unknown as ExecutableTool).description)
-      .toMatch(/^\[Inbox\] The PERSON you work for/);
+    expect((tools.self_inbox__searchEmails as unknown as ExecutableTool).description).toMatch(
+      /^\[Your own Inbox\] YOUR account as this agent/,
+    );
+    expect((tools.oxy_inbox__searchEmails as unknown as ExecutableTool).description).toMatch(
+      /^\[Inbox\] The PERSON you work for/,
+    );
   });
 
-  it('gives the owner\'s writes only at Ver y actuar', async () => {
+  it("gives the owner's writes only at Ver y actuar", async () => {
     grantAutonomy = 'autonomous';
     const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: true, self: false }));
     expect(Object.keys(tools).sort()).toEqual(['oxy_inbox__searchEmails', 'oxy_inbox__sendEmail']);
   });
 
-  it('authorizes its own inbox with the owner\'s bearer, on the agent\'s own account', async () => {
+  it("authorizes its own inbox with the owner's bearer, on the agent's own account", async () => {
     const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: false, self: true }));
     expect(calls('/capabilities/capability-map')).toHaveLength(0);
     await (tools.self_inbox__searchEmails as unknown as ExecutableTool).execute({ q: 'hi' });
     const [created] = calls('/capabilities/execution-authorizations');
-    expect(new Headers((created?.[1] as RequestInit).headers).get('authorization')).toBe('Bearer OWNER-TOKEN');
+    expect(new Headers((created?.[1] as RequestInit).headers).get('authorization')).toBe(
+      'Bearer OWNER-TOKEN',
+    );
     expect(body(created)).toMatchObject({
       kind: 'direct_request',
       ownerAccountId: OWNER,
       actor: { type: 'agent', accountId: AGENT },
-      resource: { appId: 'inbox', effectiveAccountId: AGENT, resourceType: 'email_account', resourceId: AGENT },
+      resource: {
+        appId: 'inbox',
+        effectiveAccountId: AGENT,
+        resourceType: 'email_account',
+        resourceId: AGENT,
+      },
       tool: 'searchEmails',
     });
     expect(calls('/capabilities/agent-run-authorizations')).toHaveLength(0);
@@ -173,7 +209,11 @@ describe('an agent with its owner present', () => {
 });
 
 describe('an agent running with nobody present', () => {
-  const unattended: OxyAgentIdentity = { forUser: true, self: true, unattendedSessionId: 'session-9' };
+  const unattended: OxyAgentIdentity = {
+    forUser: true,
+    self: true,
+    unattendedSessionId: 'session-9',
+  };
 
   it('authorizes each step through the agent-run lane and never names a requester', async () => {
     const tools = await buildOxyServiceTools(OWNER, agentContext(unattended, false));
@@ -182,7 +222,9 @@ describe('an agent running with nobody present', () => {
 
     const runs = calls('/capabilities/agent-run-authorizations');
     expect(runs).toHaveLength(2);
-    expect(new Headers((runs[0]?.[1] as RequestInit).headers).get('authorization')).toBe('Bearer ALIA-SERVICE-TOKEN');
+    expect(new Headers((runs[0]?.[1] as RequestInit).headers).get('authorization')).toBe(
+      'Bearer ALIA-SERVICE-TOKEN',
+    );
     expect(body(runs[0])).toMatchObject({
       actorAccountId: AGENT,
       ownerAccountId: OWNER,
@@ -203,16 +245,29 @@ describe('an agent running with nobody present', () => {
       expect(body(ticket)).toEqual({ executionAuthorizationId: 'RUN-1', runId: 'run-1' });
     }
     expect(calls('/capabilities/execution-authorizations')).toHaveLength(0);
-    expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'DELETE')).toBe(false);
+    expect(
+      fetchMock.mock.calls.some(
+        ([, init]) => (init as RequestInit | undefined)?.method === 'DELETE',
+      ),
+    ).toBe(false);
   });
 
-  it('offers the owner\'s writes only when the grant allows unattended effects', async () => {
+  it("offers the owner's writes only when the grant allows unattended effects", async () => {
     grantAutonomy = 'execute_on_request';
-    const onRequest = await buildOxyServiceTools(OWNER, agentContext({ ...unattended, self: false }, false));
+    const onRequest = await buildOxyServiceTools(
+      OWNER,
+      agentContext({ ...unattended, self: false }, false),
+    );
     expect(Object.keys(onRequest)).toEqual(['oxy_inbox__searchEmails']);
     grantAutonomy = 'autonomous';
-    const autonomous = await buildOxyServiceTools(OWNER, agentContext({ ...unattended, self: false }, false));
-    expect(Object.keys(autonomous).sort()).toEqual(['oxy_inbox__searchEmails', 'oxy_inbox__sendEmail']);
+    const autonomous = await buildOxyServiceTools(
+      OWNER,
+      agentContext({ ...unattended, self: false }, false),
+    );
+    expect(Object.keys(autonomous).sort()).toEqual([
+      'oxy_inbox__searchEmails',
+      'oxy_inbox__sendEmail',
+    ]);
   });
 });
 

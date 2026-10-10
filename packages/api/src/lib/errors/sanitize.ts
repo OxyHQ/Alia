@@ -97,14 +97,21 @@ const CODE_MARKER = '[code]';
  * information for no privacy gain.
  */
 const UPSTREAM_ERROR_CODES = new Set<string>([
-  'failed_precondition', 'resource_exhausted', 'permission_denied',
-  'rate_limit_error', 'authentication_error', 'server_error',
-  'billing_hard_limit_reached', 'insufficient_quota', 'overloaded_error',
+  'failed_precondition',
+  'resource_exhausted',
+  'permission_denied',
+  'rate_limit_error',
+  'authentication_error',
+  'server_error',
+  'billing_hard_limit_reached',
+  'insufficient_quota',
+  'overloaded_error',
   'tool_use_failed',
   // OpenAI-compatible providers use these for a model id they do not serve.
   // They name an operator as surely as the others: an id that 404s on one
   // deployment and answers on another is a route fingerprint.
-  'model_not_found', 'model_decommissioned',
+  'model_not_found',
+  'model_decommissioned',
 ]);
 
 /**
@@ -126,10 +133,23 @@ const ERROR_CODE_PATTERN = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gi;
  */
 const WORD_SLUGS = new Set<string>([
   // Registered operators whose slug is an ordinary English or Spanish word.
-  'google', 'together', 'replicate', 'cohere', 'fireworks', 'perplexity',
-  'hyperbolic', 'mistral',
+  'google',
+  'together',
+  'replicate',
+  'cohere',
+  'fireworks',
+  'perplexity',
+  'hyperbolic',
+  'mistral',
   // Model families and publishers in the same position.
-  'claude', 'llama', 'whisper', 'command', 'meta', 'grok', 'tts', 'flux',
+  'claude',
+  'llama',
+  'whisper',
+  'command',
+  'meta',
+  'grok',
+  'tts',
+  'flux',
   'sonar',
   // ElevenLabs' own model ids are `eleven_<family>_<version>`, so the part that
   // names the route is the bare number word. Here rather than in
@@ -147,8 +167,18 @@ const WORD_SLUGS = new Set<string>([
  * covers, so the list cannot silently fall behind the routing it describes.
  */
 const EXTRA_OPAQUE_SLUGS = [
-  'gpt', 'gemini', 'qwen', 'mixtral', 'alibaba', 'elevenlabs', 'sdxl',
-  'fal', 'dall', 'o1', 'o3', 'o4',
+  'gpt',
+  'gemini',
+  'qwen',
+  'mixtral',
+  'alibaba',
+  'elevenlabs',
+  'sdxl',
+  'fal',
+  'dall',
+  'o1',
+  'o3',
+  'o4',
 ] as const;
 
 /** Every slug concealed wherever it appears, ordinary-word slugs excepted. */

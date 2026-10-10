@@ -15,15 +15,25 @@ describe('speakableText', () => {
   });
 
   it('is not keyed on any language: an unseen cue goes too', () => {
-    expect(speakableText('Bien sûr. [rires] On y arrive.', PLAIN_MODEL)).toBe('Bien sûr. On y arrive.');
-    expect(speakableText('そうですね。[笑い] 続けましょう。', PLAIN_MODEL)).toBe('そうですね。 続けましょう。');
-    expect(speakableText('Vale. [suspira profundamente] Sigamos.', PLAIN_MODEL)).toBe('Vale. Sigamos.');
+    expect(speakableText('Bien sûr. [rires] On y arrive.', PLAIN_MODEL)).toBe(
+      'Bien sûr. On y arrive.',
+    );
+    expect(speakableText('そうですね。[笑い] 続けましょう。', PLAIN_MODEL)).toBe(
+      'そうですね。 続けましょう。',
+    );
+    expect(speakableText('Vale. [suspira profundamente] Sigamos.', PLAIN_MODEL)).toBe(
+      'Vale. Sigamos.',
+    );
   });
 
   it('leaves no doubled space, and no space orphaned in front of punctuation', () => {
     expect(speakableText('Eso es genial [ríe].', PLAIN_MODEL)).toBe('Eso es genial.');
-    expect(speakableText('Pero bueno [ríe], ya veremos.', PLAIN_MODEL)).toBe('Pero bueno, ya veremos.');
-    expect(speakableText('¿En serio [ríe]? No me lo creo.', PLAIN_MODEL)).toBe('¿En serio? No me lo creo.');
+    expect(speakableText('Pero bueno [ríe], ya veremos.', PLAIN_MODEL)).toBe(
+      'Pero bueno, ya veremos.',
+    );
+    expect(speakableText('¿En serio [ríe]? No me lo creo.', PLAIN_MODEL)).toBe(
+      '¿En serio? No me lo creo.',
+    );
     expect(speakableText('Sí [ríe] claro', PLAIN_MODEL)).toBe('Sí claro');
   });
 
@@ -97,7 +107,9 @@ describe('speakableText', () => {
 
   it('accepts a tag however the model capitalised or spaced it, and normalises it', () => {
     expect(speakableText('Bueno [Laughs] ya está.', TAG_MODEL)).toBe('Bueno [laughs] ya está.');
-    expect(speakableText('Bueno [ WHISPERS ] ya está.', TAG_MODEL)).toBe('Bueno [whispers] ya está.');
+    expect(speakableText('Bueno [ WHISPERS ] ya está.', TAG_MODEL)).toBe(
+      'Bueno [whispers] ya está.',
+    );
   });
 
   it('refuses a tag that only looks like one', () => {

@@ -36,7 +36,11 @@ vi.mock('../../middleware/auth.js', async () => {
   );
   return {
     ...actual,
-    authenticateToken: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+    authenticateToken: (
+      req: express.Request,
+      _res: express.Response,
+      next: express.NextFunction,
+    ) => {
       req.user = { id: USER_ID };
       next();
     },
@@ -48,7 +52,8 @@ vi.mock('../../lib/show/cover-art.js', () => ({
 }));
 
 vi.mock('../../lib/syra/syra.js', async () => {
-  const actual = await vi.importActual<typeof import('../../lib/syra/syra.js')>('../../lib/syra/syra.js');
+  const actual =
+    await vi.importActual<typeof import('../../lib/syra/syra.js')>('../../lib/syra/syra.js');
   return {
     ...actual,
     syraForRequest: () => ({
@@ -134,7 +139,10 @@ beforeEach(() => {
   finalized = 0;
   vi.spyOn(log.general, 'warn').mockImplementation(((fields: unknown, message?: string) => {
     warned.push({
-      fields: (typeof fields === 'object' && fields !== null ? fields : {}) as Record<string, unknown>,
+      fields: (typeof fields === 'object' && fields !== null ? fields : {}) as Record<
+        string,
+        unknown
+      >,
       message: message ?? String(fields),
     });
     return undefined;

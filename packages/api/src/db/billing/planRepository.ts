@@ -119,7 +119,11 @@ export async function seedPlan(
   values: PlanInsert,
   actor: ConfigAuditActor,
 ): Promise<{ inserted: boolean }> {
-  const rows = await db.insert(plans).values(values).onConflictDoNothing({ target: plans.planId }).returning();
+  const rows = await db
+    .insert(plans)
+    .values(values)
+    .onConflictDoNothing({ target: plans.planId })
+    .returning();
   const row = rows[0];
   if (row === undefined) return { inserted: false };
 

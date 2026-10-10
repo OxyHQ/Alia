@@ -70,7 +70,12 @@ const mockGetOrCreate = getOrCreateUserMemory as unknown as ReturnType<typeof vi
  * true of a handler that writes the wrong thing. `doc.save` counts writes, the
  * question the Mongoose `save()` it replaces was asked.
  */
-interface FakeEntry { _id: string; title: string; summary: string; type: string }
+interface FakeEntry {
+  _id: string;
+  title: string;
+  summary: string;
+  type: string;
+}
 interface FakeProfile {
   _id: string;
   memories: FakeEntry[];
@@ -82,9 +87,15 @@ function useProfile(doc: FakeProfile) {
   mockGetOrCreate.mockResolvedValue(doc);
   const fold = (t: string) => t.trim().toLowerCase();
 
-  vi.mocked(findUserMemory).mockResolvedValue(doc as unknown as Awaited<ReturnType<typeof findUserMemory>>);
-  vi.mocked(findEntryByTitle).mockImplementation(async (_db, _id, title) =>
-    doc.memories.find((m) => fold(m.title) === fold(title)) as unknown as Awaited<ReturnType<typeof findEntryByTitle>>);
+  vi.mocked(findUserMemory).mockResolvedValue(
+    doc as unknown as Awaited<ReturnType<typeof findUserMemory>>,
+  );
+  vi.mocked(findEntryByTitle).mockImplementation(
+    async (_db, _id, title) =>
+      doc.memories.find((m) => fold(m.title) === fold(title)) as unknown as Awaited<
+        ReturnType<typeof findEntryByTitle>
+      >,
+  );
   vi.mocked(saveEntryByTitle).mockImplementation(async (_db, _id, incoming) => {
     doc.save();
     const i = doc.memories.findIndex((m) => fold(m.title) === fold(incoming.title));
@@ -105,7 +116,7 @@ function useProfile(doc: FakeProfile) {
 
 function getRouteHandler(method: 'get' | 'post' | 'put' | 'delete', path: string) {
   const layer = (router as any).stack.find(
-    (l: any) => l.route?.path === path && l.route.methods[method]
+    (l: any) => l.route?.path === path && l.route.methods[method],
   );
   if (!layer) throw new Error(`No route handler found for ${method.toUpperCase()} ${path}`);
   return layer.route.stack[0].handle as (req: any, res: any) => Promise<void>;
@@ -114,8 +125,14 @@ function getRouteHandler(method: 'get' | 'post' | 'put' | 'delete', path: string
 function makeMockRes() {
   const res: any = {};
   res.statusCode = 200;
-  res.status = vi.fn((code: number) => { res.statusCode = code; return res; });
-  res.json = vi.fn((body: unknown) => { res.body = body; return res; });
+  res.status = vi.fn((code: number) => {
+    res.statusCode = code;
+    return res;
+  });
+  res.json = vi.fn((body: unknown) => {
+    res.body = body;
+    return res;
+  });
   return res;
 }
 
@@ -125,7 +142,11 @@ describe('memory routes — validators and core logic', () => {
   });
 
   it('AddMemorySchema accepts title/summary/type and rejects a missing type', () => {
-    const valid = AddMemorySchema.safeParse({ title: 'Food', summary: 'Loves strawberries', type: 'topic' });
+    const valid = AddMemorySchema.safeParse({
+      title: 'Food',
+      summary: 'Loves strawberries',
+      type: 'topic',
+    });
     expect(valid.success).toBe(true);
 
     const invalid = AddMemorySchema.safeParse({ title: 'Food', summary: 'Loves strawberries' });
@@ -152,14 +173,21 @@ describe('memory routes — validators and core logic', () => {
     useProfile(doc);
 
     const handler = getRouteHandler('post', '/add');
-    const req: any = { user: { id: 'user-1' }, body: { title: 'Food', summary: 'Loves strawberries', type: 'topic' } };
+    const req: any = {
+      user: { id: 'user-1' },
+      body: { title: 'Food', summary: 'Loves strawberries', type: 'topic' },
+    };
     const res = makeMockRes();
 
     await handler(req, res);
 
     expect(res.statusCode).toBe(200);
     expect(doc.memories).toHaveLength(1);
-    expect(doc.memories[0]).toMatchObject({ title: 'Food', summary: 'Loves strawberries', type: 'topic' });
+    expect(doc.memories[0]).toMatchObject({
+      title: 'Food',
+      summary: 'Loves strawberries',
+      type: 'topic',
+    });
     expect(doc.save).toHaveBeenCalled();
   });
 
@@ -192,7 +220,9 @@ vi.mock('ai', async () => {
 });
 
 vi.mock('../../lib/chat-core.js', () => ({
-  resolveUtilityModel: vi.fn().mockResolvedValue({ keyConfig: {}, provider: 'test', modelId: 'test' }),
+  resolveUtilityModel: vi
+    .fn()
+    .mockResolvedValue({ keyConfig: {}, provider: 'test', modelId: 'test' }),
   getAIModel: vi.fn().mockReturnValue({}),
 }));
 
@@ -207,19 +237,32 @@ describe('POST /memory/import/from-text', () => {
   it('extracts and returns saved memories via the real route handler', async () => {
     (generateText as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       toolResults: [
-        { toolName: 'saveUserMemory', input: { title: 'Food', summary: 'Loves strawberries', type: 'topic' }, output: { success: true } },
-        { toolName: 'saveUserMemory', input: { title: 'Bad', summary: 'x', type: 'topic' }, output: { success: false } },
+        {
+          toolName: 'saveUserMemory',
+          input: { title: 'Food', summary: 'Loves strawberries', type: 'topic' },
+          output: { success: true },
+        },
+        {
+          toolName: 'saveUserMemory',
+          input: { title: 'Bad', summary: 'x', type: 'topic' },
+          output: { success: false },
+        },
       ],
     });
 
     const handler = getRouteHandler('post', '/import/from-text');
-    const req: any = { user: { id: 'user-1' }, body: { text: 'The user loves strawberries and dislikes cilantro.' } };
+    const req: any = {
+      user: { id: 'user-1' },
+      body: { text: 'The user loves strawberries and dislikes cilantro.' },
+    };
     const res = makeMockRes();
 
     await handler(req, res);
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ saved: [{ title: 'Food', summary: 'Loves strawberries', type: 'topic' }] });
+    expect(res.body).toEqual({
+      saved: [{ title: 'Food', summary: 'Loves strawberries', type: 'topic' }],
+    });
   });
 
   it('rejects text over 50,000 characters without calling generateText', async () => {

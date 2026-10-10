@@ -135,7 +135,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('the session is core\'s, not the extension\'s', () => {
+describe("the session is core's, not the extension's", () => {
   it('re-mints by calling HttpService.refreshAccessToken', async () => {
     // The delegation itself. A reintroduced local rotation would satisfy
     // "returns true" while never touching this mock, so the assertion is on the
@@ -169,7 +169,7 @@ describe('the session is core\'s, not the extension\'s', () => {
     provider.dispose();
   });
 
-  it('installs core\'s refresh handler and scheduler at construction', async () => {
+  it("installs core's refresh handler and scheduler at construction", async () => {
     // A mechanism can be green and inert. The handler is what turns a 401 into
     // a re-mint, so its INSTALLATION is asserted rather than assumed — an
     // extension that built the store but never installed the handler would pass
@@ -229,7 +229,8 @@ function statedTokens(file: string, source: string): Set<string> {
   const out = new Set<string>();
   const visit = (node: ts.Node): void => {
     if (ts.isIdentifier(node)) out.add(node.text);
-    else if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) out.add(node.text);
+    else if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
+      out.add(node.text);
     else if (ts.isTemplateExpression(node)) {
       out.add(node.head.text);
       for (const span of node.templateSpans) out.add(span.literal.text);
@@ -268,7 +269,9 @@ describe('the duplication does not come back', () => {
     // forbidden below, in prose; a substring census failed on exactly that.
     const planted = statedTokens('synthetic.ts', '// refreshWithToken\nconst x = 1;');
     expect(planted.has('refreshWithToken')).toBe(false);
-    expect(statedTokens('synthetic.ts', 'a.refreshWithToken();').has('refreshWithToken')).toBe(true);
+    expect(statedTokens('synthetic.ts', 'a.refreshWithToken();').has('refreshWithToken')).toBe(
+      true,
+    );
   });
 
   it('calls no method @oxy.so/core does not have', () => {
@@ -310,7 +313,8 @@ describe('the duplication does not come back', () => {
     const visit = (node: ts.Node): void => {
       if (ts.isInterfaceDeclaration(node) && node.name.text === 'PersistedSession') {
         for (const member of node.members) {
-          if (member.name !== undefined && ts.isIdentifier(member.name)) members.push(member.name.text);
+          if (member.name !== undefined && ts.isIdentifier(member.name))
+            members.push(member.name.text);
         }
       }
       ts.forEachChild(node, visit);

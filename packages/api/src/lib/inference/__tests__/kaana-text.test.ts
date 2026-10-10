@@ -30,13 +30,15 @@ describe('one-shot product inference through Oxy', () => {
   });
 
   it('sends the named catalogue model', async () => {
-    await expect(generateTextViaKaana({
-      model: 'acme/big-2',
-      prompt: 'resume esto',
-      surface: 'background',
-      maxOutputTokens: 128,
-      oxyUserId: 'user-id',
-    })).resolves.toBe('resultado');
+    await expect(
+      generateTextViaKaana({
+        model: 'acme/big-2',
+        prompt: 'resume esto',
+        surface: 'background',
+        maxOutputTokens: 128,
+        oxyUserId: 'user-id',
+      }),
+    ).resolves.toBe('resultado');
 
     expect(mocks.request).not.toHaveProperty('routingProfile');
     expect(mocks.request).not.toHaveProperty('routingProfileId');

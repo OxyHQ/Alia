@@ -79,9 +79,6 @@ export interface NewLearningRule {
  * a different fact from an instruction. There is no dedup: the source created a
  * row per correction and two identical corrections are two pieces of evidence.
  */
-export async function createLearningRule(
-  db: ApiDatabase,
-  input: NewLearningRule,
-): Promise<void> {
+export async function createLearningRule(db: ApiDatabase, input: NewLearningRule): Promise<void> {
   await db.insert(learningRules).values({ ...input, active: true });
 }

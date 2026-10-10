@@ -71,7 +71,8 @@ function scrubSerializedError(serialized: Record<string, unknown>): Record<strin
   if (typeof serialized !== 'object' || serialized === null) return serialized;
 
   for (const [key, value] of Object.entries(serialized)) {
-    serialized[key] = typeof value === 'string' ? redactSecrets(value).redacted : scrubDeep(value, 1);
+    serialized[key] =
+      typeof value === 'string' ? redactSecrets(value).redacted : scrubDeep(value, 1);
   }
   return serialized;
 }

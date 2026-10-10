@@ -14,7 +14,8 @@ export const APP_ROOT: string = (() => {
   let dir = dirname(fileURLToPath(import.meta.url));
   for (;;) {
     const manifest = join(dir, 'package.json');
-    if (existsSync(manifest) && JSON.parse(readFileSync(manifest, 'utf8')).name === '@alia/app') return dir;
+    if (existsSync(manifest) && JSON.parse(readFileSync(manifest, 'utf8')).name === '@alia/app')
+      return dir;
     const parent = dirname(dir);
     if (parent === dir) throw new Error('packages/app not found above src/shared/testing');
     dir = parent;

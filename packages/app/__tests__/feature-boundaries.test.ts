@@ -42,20 +42,43 @@ import { APP_ROOT } from '@/shared/testing/app-root';
 /** Feature → the features it may import. Anything not here imports only `shared/`. */
 const ALLOWED: Record<string, readonly string[]> = {
   // memory and shows: the account lifecycle resets their stores (`src/shell/account-lifecycle.ts`).
-  shell: ['agents', 'chat', 'library', 'memory', 'notifications', 'onboarding', 'projects', 'settings', 'shows'],
+  shell: [
+    'agents',
+    'chat',
+    'library',
+    'memory',
+    'notifications',
+    'onboarding',
+    'projects',
+    'settings',
+    'shows',
+  ],
   settings: ['billing', 'chat', 'connections', 'library', 'local-models', 'memory'],
   automations: ['agents', 'chat'],
   agents: ['chat', 'library'],
   chat: [
-    'billing', 'connections', 'library', 'local-models', 'memory', 'notifications', 'projects',
-    'research', 'skills', 'voice',
+    'billing',
+    'connections',
+    'library',
+    'local-models',
+    'memory',
+    'notifications',
+    'projects',
+    'research',
+    'skills',
+    'voice',
   ],
   voice: ['memory'],
   shows: ['notifications'],
 };
 
 /** What `shared/ui` may not reach: it renders what it is handed. */
-const UI_MAY_NOT_IMPORT = [/^@\/shared\/api(\/|$)/, /^@tanstack\/react-query/, /^socket\.io-client/, /^zustand/];
+const UI_MAY_NOT_IMPORT = [
+  /^@\/shared\/api(\/|$)/,
+  /^@tanstack\/react-query/,
+  /^socket\.io-client/,
+  /^zustand/,
+];
 
 const OLD_LAYOUT = ['components', 'lib', 'types', 'test'];
 const LAYERS = new Set(['ui', 'runtime', 'model']);
@@ -100,11 +123,16 @@ function specifiers(file: SourceFile): string[] {
 /** The package-relative path a specifier names, or `undefined` for a package import. */
 function target(from: string, spec: string): string | undefined {
   if (spec.startsWith('@/')) return `src/${spec.slice(2)}`;
-  if (spec.startsWith('./') || spec.startsWith('../')) return posix.normalize(posix.join(posix.dirname(from), spec));
+  if (spec.startsWith('./') || spec.startsWith('../'))
+    return posix.normalize(posix.join(posix.dirname(from), spec));
   return undefined;
 }
 
-type Node = { kind: 'shell' } | { kind: 'feature'; name: string } | { kind: 'shared'; name: string } | { kind: 'app' | 'fixtures' | 'other' };
+type Node =
+  | { kind: 'shell' }
+  | { kind: 'feature'; name: string }
+  | { kind: 'shared'; name: string }
+  | { kind: 'app' | 'fixtures' | 'other' };
 
 function nodeOf(path: string): Node | undefined {
   const parts = path.split('/');
@@ -114,7 +142,8 @@ function nodeOf(path: string): Node | undefined {
     return { kind: 'other' };
   }
   if (parts[1] === 'shell' && parts.length > 2) return { kind: 'shell' };
-  if (parts[1] === 'features' && parts.length > 4 && LAYERS.has(parts[3])) return { kind: 'feature', name: parts[2] };
+  if (parts[1] === 'features' && parts.length > 4 && LAYERS.has(parts[3]))
+    return { kind: 'feature', name: parts[2] };
   if (parts[1] === 'shared' && parts.length > 3) return { kind: 'shared', name: parts[2] };
   return undefined;
 }
@@ -162,39 +191,72 @@ function cycles(graph: Map<string, Set<string>>): string[][] {
 }
 
 /** Every broken rule, as one line each. Empty means the tree is the shape it claims. */
-function violations(files: readonly SourceFile[], allowed: Record<string, readonly string[]>): string[] {
+function violations(
+  files: readonly SourceFile[],
+  allowed: Record<string, readonly string[]>,
+): string[] {
   const found: string[] = [];
   const graph = new Map<string, Set<string>>();
   const witness = new Map<string, string>();
 
   for (const file of files) {
     const from = nodeOf(file.path);
-    if (file.path.startsWith('src/app/')) found.push(`[1] ${file.path}: src/app is expo-router's routes directory`);
-    else if (!from) found.push(`[1] ${file.path}: not inside src/shell, src/features/<x>/{ui,runtime,model} or src/shared/<y>`);
+    if (file.path.startsWith('src/app/'))
+      found.push(`[1] ${file.path}: src/app is expo-router's routes directory`);
+    else if (!from)
+      found.push(
+        `[1] ${file.path}: not inside src/shell, src/features/<x>/{ui,runtime,model} or src/shared/<y>`,
+      );
     const fromName = graphName(from);
     if (fromName) graph.set(fromName, graph.get(fromName) ?? new Set());
 
     for (const spec of specifiers(file)) {
       const path = target(file.path, spec);
       if (path === undefined) {
-        if (from?.kind === 'shared' && from.name === 'ui' && !isTest(file.path) && UI_MAY_NOT_IMPORT.some((re) => re.test(spec))) {
+        if (
+          from?.kind === 'shared' &&
+          from.name === 'ui' &&
+          !isTest(file.path) &&
+          UI_MAY_NOT_IMPORT.some((re) => re.test(spec))
+        ) {
           found.push(`[5] ${file.path}: shared/ui imports '${spec}'`);
         }
         continue;
       }
       const at = `${file.path}: '${spec}'`;
-      if (OLD_LAYOUT.some((dir) => path === dir || path.startsWith(`${dir}/`) || path === `src/${dir}` || path.startsWith(`src/${dir}/`))) {
+      if (
+        OLD_LAYOUT.some(
+          (dir) =>
+            path === dir ||
+            path.startsWith(`${dir}/`) ||
+            path === `src/${dir}` ||
+            path.startsWith(`src/${dir}/`),
+        )
+      ) {
         found.push(`[8] ${at} names the old layout`);
         continue;
       }
-      if (isTest(file.path) || !from || from.kind === 'app' || from.kind === 'fixtures' || from.kind === 'other') continue;
+      if (
+        isTest(file.path) ||
+        !from ||
+        from.kind === 'app' ||
+        from.kind === 'fixtures' ||
+        from.kind === 'other'
+      )
+        continue;
 
       const to = nodeOf(path);
-      if (to?.kind === 'app' || to?.kind === 'fixtures') found.push(`[7] ${at} imports ${to.kind === 'app' ? 'a route' : 'a fixture'}`);
-      if (to?.kind === 'shared' && to.name === 'testing') found.push(`[7] ${at} imports shared/testing outside a test`);
+      if (to?.kind === 'app' || to?.kind === 'fixtures')
+        found.push(`[7] ${at} imports ${to.kind === 'app' ? 'a route' : 'a fixture'}`);
+      if (to?.kind === 'shared' && to.name === 'testing')
+        found.push(`[7] ${at} imports shared/testing outside a test`);
       if (from.kind === 'shared') {
-        if (to?.kind === 'feature' || to?.kind === 'shell') found.push(`[4] ${at}: shared imports ${to.kind === 'shell' ? 'the shell' : `features/${to.name}`}`);
-        if (from.name === 'ui' && to?.kind === 'shared' && to.name === 'api') found.push(`[5] ${at}: shared/ui imports shared/api`);
+        if (to?.kind === 'feature' || to?.kind === 'shell')
+          found.push(
+            `[4] ${at}: shared imports ${to.kind === 'shell' ? 'the shell' : `features/${to.name}`}`,
+          );
+        if (from.name === 'ui' && to?.kind === 'shared' && to.name === 'api')
+          found.push(`[5] ${at}: shared/ui imports shared/api`);
         continue;
       }
       if (from.kind === 'feature' && to?.kind === 'shell') {
@@ -207,7 +269,9 @@ function violations(files: readonly SourceFile[], allowed: Record<string, readon
         const edge = `${fromName} -> ${toName}`;
         if (!witness.has(edge)) witness.set(edge, at);
         if (!(allowed[fromName] ?? []).includes(toName)) {
-          found.push(`[3] ${at}: ${edge} is not an allowed edge — add it to ALLOWED deliberately, or import a shared contract instead`);
+          found.push(
+            `[3] ${at}: ${edge} is not an allowed edge — add it to ALLOWED deliberately, or import a shared contract instead`,
+          );
         }
       }
     }
@@ -218,11 +282,16 @@ function violations(files: readonly SourceFile[], allowed: Record<string, readon
       const [a, b] = edge.split(' -> ');
       return component.includes(a) && component.includes(b);
     });
-    found.push(`[2] cycle between ${component.join(', ')}: ${edges.map(([edge, at]) => `${edge} (${at})`).join('; ')}`);
+    found.push(
+      `[2] cycle between ${component.join(', ')}: ${edges.map(([edge, at]) => `${edge} (${at})`).join('; ')}`,
+    );
   }
   for (const [from, tos] of Object.entries(allowed)) {
     for (const to of tos) {
-      if (!graph.get(from)?.has(to)) found.push(`[3] ALLOWED lists ${from} -> ${to}, which nothing imports any more — remove it`);
+      if (!graph.get(from)?.has(to))
+        found.push(
+          `[3] ALLOWED lists ${from} -> ${to}, which nothing imports any more — remove it`,
+        );
     }
   }
   return found;
@@ -237,7 +306,10 @@ function readTree(): SourceFile[] {
       const path = join(dir, entry.name);
       if (entry.isDirectory()) walk(path);
       else if (/\.tsx?$/.test(entry.name) && !entry.name.endsWith('.d.ts')) {
-        files.push({ path: relative(APP_ROOT, path).split('\\').join('/'), source: readFileSync(path, 'utf8') });
+        files.push({
+          path: relative(APP_ROOT, path).split('\\').join('/'),
+          source: readFileSync(path, 'utf8'),
+        });
       }
     }
   };
@@ -258,7 +330,8 @@ describe('the feature tree', () => {
   });
 
   it('has no old layout directory and no src/app', () => {
-    for (const dir of [...OLD_LAYOUT, 'src/app']) expect(existsSync(join(APP_ROOT, dir)), dir).toBe(false);
+    for (const dir of [...OLD_LAYOUT, 'src/app'])
+      expect(existsSync(join(APP_ROOT, dir)), dir).toBe(false);
   });
 
   it('allows no cycle in the list itself', () => {
@@ -295,8 +368,14 @@ describe('the gate catches', () => {
 
   it('[2] a type-only cycle', () => {
     const files = [
-      { path: 'src/features/a/model/t.ts', source: "import type { B } from '@/features/b/model/t';" },
-      { path: 'src/features/b/model/t.ts', source: "export type { A } from '@/features/a/model/t';" },
+      {
+        path: 'src/features/a/model/t.ts',
+        source: "import type { B } from '@/features/b/model/t';",
+      },
+      {
+        path: 'src/features/b/model/t.ts',
+        source: "export type { A } from '@/features/a/model/t';",
+      },
     ];
     expect(rules(files, { a: ['b'], b: ['a'] })).toEqual(['[2]']);
   });
@@ -322,18 +401,37 @@ describe('the gate catches', () => {
   });
 
   it('[7] src importing a route, a fixture or test scaffolding', () => {
-    expect(rules([file('src/features/chat/ui/x.tsx', '../../../../app/(app)/index')])).toEqual(['[7]']);
+    expect(rules([file('src/features/chat/ui/x.tsx', '../../../../app/(app)/index')])).toEqual([
+      '[7]',
+    ]);
     expect(rules([file('src/shared/api/x.ts', '../../../fixtures/conversation')])).toEqual(['[7]']);
-    expect(rules([file('src/features/chat/ui/x.tsx', '@/shared/testing/translate')])).toEqual(['[7]']);
+    expect(rules([file('src/features/chat/ui/x.tsx', '@/shared/testing/translate')])).toEqual([
+      '[7]',
+    ]);
   });
 
   it('[8] a specifier naming the old layout, from anywhere', () => {
     expect(rules([file('app/index.tsx', '@/lib/hooks/use-translation')])).toEqual(['[8]']);
-    expect(rules([{ path: 'src/features/chat/ui/__tests__/x.test.ts', source: "vi.mock('@/components/sidebar');" }])).toEqual(['[8]']);
+    expect(
+      rules([
+        {
+          path: 'src/features/chat/ui/__tests__/x.test.ts',
+          source: "vi.mock('@/components/sidebar');",
+        },
+      ]),
+    ).toEqual(['[8]']);
     expect(rules([file('__tests__/x.test.ts', '../components/sidebar')])).toEqual(['[8]']);
   });
 
   it('and lets a test mount whatever it needs', () => {
-    expect(rules([file('src/features/chat/ui/__tests__/x.test.tsx', '@/features/agents/ui/y', '@/shell/sidebar')])).toEqual([]);
+    expect(
+      rules([
+        file(
+          'src/features/chat/ui/__tests__/x.test.tsx',
+          '@/features/agents/ui/y',
+          '@/shell/sidebar',
+        ),
+      ]),
+    ).toEqual([]);
   });
 });

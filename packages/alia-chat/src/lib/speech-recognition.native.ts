@@ -16,7 +16,10 @@
  * listeners.
  */
 
-import type { ExpoSpeechRecognitionErrorCode, ExpoSpeechRecognitionModule as NativeModule } from 'expo-speech-recognition';
+import type {
+  ExpoSpeechRecognitionErrorCode,
+  ExpoSpeechRecognitionModule as NativeModule,
+} from 'expo-speech-recognition';
 import {
   clampLevel,
   matchSpeechLocale,
@@ -68,7 +71,10 @@ export async function requestSpeechRecognitionPermission(): Promise<SpeechRecogn
     const permission = await module.requestPermissionsAsync();
     return permission.granted ? null : { code: 'not-allowed', detail: permission.status };
   } catch (error: unknown) {
-    return { code: 'other', detail: error instanceof Error ? error.message : 'permission request failed' };
+    return {
+      code: 'other',
+      detail: error instanceof Error ? error.message : 'permission request failed',
+    };
   }
 }
 
@@ -134,7 +140,8 @@ export async function chooseSpeechRecognizer(lang: string): Promise<SpeechRecogn
   for (const service of order) {
     let offered: string[];
     try {
-      offered = (await module.getSupportedLocales({ androidRecognitionServicePackage: service })).locales;
+      offered = (await module.getSupportedLocales({ androidRecognitionServicePackage: service }))
+        .locales;
     } catch {
       continue;
     }
@@ -209,7 +216,11 @@ export function startSpeechRecognition(
       ...(options.echoCancellation ? { iosVoiceProcessingEnabled: true } : {}),
     });
   } catch (error: unknown) {
-    if (!ended) handlers.onError({ code: 'other', detail: error instanceof Error ? error.message : 'start failed' });
+    if (!ended)
+      handlers.onError({
+        code: 'other',
+        detail: error instanceof Error ? error.message : 'start failed',
+      });
     finish();
   }
 

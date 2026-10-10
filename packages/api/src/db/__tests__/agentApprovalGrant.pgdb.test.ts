@@ -50,11 +50,30 @@ describe('a deferred approval', () => {
     expect((await listPendingApprovals(db, USER)).map((r) => r.id)).toContain(row.id);
 
     const since = new Date(Date.now() - 60_000);
-    expect(await findGrantedApproval(db, { oxyUserId: USER, agentId: 'agent-1', actionHash: 'hash-a', decidedAfter: since })).toBeUndefined();
+    expect(
+      await findGrantedApproval(db, {
+        oxyUserId: USER,
+        agentId: 'agent-1',
+        actionHash: 'hash-a',
+        decidedAfter: since,
+      }),
+    ).toBeUndefined();
 
     await decideAgentApproval(db, { approvalId: row.id, oxyUserId: USER, approved: true });
-    expect(await findGrantedApproval(db, { oxyUserId: USER, agentId: 'agent-1', actionHash: 'hash-other', decidedAfter: since })).toBeUndefined();
-    const grant = await findGrantedApproval(db, { oxyUserId: USER, agentId: 'agent-1', actionHash: 'hash-a', decidedAfter: since });
+    expect(
+      await findGrantedApproval(db, {
+        oxyUserId: USER,
+        agentId: 'agent-1',
+        actionHash: 'hash-other',
+        decidedAfter: since,
+      }),
+    ).toBeUndefined();
+    const grant = await findGrantedApproval(db, {
+      oxyUserId: USER,
+      agentId: 'agent-1',
+      actionHash: 'hash-a',
+      decidedAfter: since,
+    });
     expect(grant?.id).toBe(row.id);
   });
 
@@ -62,14 +81,26 @@ describe('a deferred approval', () => {
     const row = await file('hash-b');
     await decideAgentApproval(db, { approvalId: row.id, oxyUserId: USER, approved: true });
 
-    const spent = await Promise.all([markApprovalExecuted(db, row.id), markApprovalExecuted(db, row.id)]);
+    const spent = await Promise.all([
+      markApprovalExecuted(db, row.id),
+      markApprovalExecuted(db, row.id),
+    ]);
     expect(spent.filter(Boolean)).toHaveLength(1);
     const since = new Date(Date.now() - 60_000);
-    expect(await findGrantedApproval(db, { oxyUserId: USER, agentId: 'agent-1', actionHash: 'hash-b', decidedAfter: since })).toBeUndefined();
+    expect(
+      await findGrantedApproval(db, {
+        oxyUserId: USER,
+        agentId: 'agent-1',
+        actionHash: 'hash-b',
+        decidedAfter: since,
+      }),
+    ).toBeUndefined();
   });
 
   it('cannot be answered by somebody else', async () => {
     const row = await file('hash-c');
-    expect(await decideAgentApproval(db, { approvalId: row.id, oxyUserId: 'intruder', approved: true })).toBeUndefined();
+    expect(
+      await decideAgentApproval(db, { approvalId: row.id, oxyUserId: 'intruder', approved: true }),
+    ).toBeUndefined();
   });
 });

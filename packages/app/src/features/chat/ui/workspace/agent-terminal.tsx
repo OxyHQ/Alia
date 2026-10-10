@@ -13,14 +13,7 @@ interface AgentTerminalProps {
 }
 
 interface AgentActivityEvent {
-  type:
-    | "system"
-    | "thinking"
-    | "response"
-    | "tool_call"
-    | "tool_result"
-    | "error"
-    | "complete";
+  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete';
   content: string;
   timestamp: number;
   sessionId: string;
@@ -32,27 +25,25 @@ interface AgentActivityEvent {
  */
 function formatActivity(event: AgentActivityEvent): string {
   const time = new Date(event.timestamp);
-  const ts = `\x1b[90m[${time.toLocaleTimeString("en-US", { hour12: false })}]\x1b[0m`;
+  const ts = `\x1b[90m[${time.toLocaleTimeString('en-US', { hour12: false })}]\x1b[0m`;
 
   switch (event.type) {
-    case "system":
+    case 'system':
       return `${ts} \x1b[90m\u25B8 ${event.content}\x1b[0m\r\n`;
-    case "thinking":
+    case 'thinking':
       return `${ts} \x1b[33m\u25C6 ${event.content}\x1b[0m\r\n`;
-    case "tool_call":
+    case 'tool_call':
       return `${ts} \x1b[36m\u26A1 ${event.content}\x1b[0m\r\n`;
-    case "tool_result": {
+    case 'tool_result': {
       const truncated =
-        event.content.length > 300
-          ? event.content.slice(0, 300) + "..."
-          : event.content;
+        event.content.length > 300 ? event.content.slice(0, 300) + '...' : event.content;
       return `${ts} \x1b[90m\u2190 ${truncated}\x1b[0m\r\n`;
     }
-    case "response":
+    case 'response':
       return `${ts} \x1b[32m${event.content}\x1b[0m\r\n`;
-    case "error":
+    case 'error':
       return `${ts} \x1b[31m\u2717 ${event.content}\x1b[0m\r\n`;
-    case "complete":
+    case 'complete':
       return `${ts} \x1b[32m\u2713 ${event.content}\x1b[0m\r\n`;
     default:
       return `${ts} ${event.content}\r\n`;
@@ -68,7 +59,7 @@ function formatActivity(event: AgentActivityEvent): string {
  * Backfills recent activity on mount via REST API.
  */
 export function AgentTerminal({ agentId }: AgentTerminalProps) {
-  if (Platform.OS === "web") {
+  if (Platform.OS === 'web') {
     return <WebTerminal agentId={agentId} />;
   }
   return <NativeTerminal agentId={agentId} />;
@@ -94,18 +85,17 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
 
     async function init() {
       try {
-        const { Terminal } = await import("@xterm/xterm");
-        const { FitAddon } = await import("@xterm/addon-fit");
+        const { Terminal } = await import('@xterm/xterm');
+        const { FitAddon } = await import('@xterm/addon-fit');
 
         if (cancelled || !containerRef.current) return;
 
         // Inject xterm CSS if not already present
-        if (!document.getElementById("xterm-css")) {
-          const link = document.createElement("link");
-          link.id = "xterm-css";
-          link.rel = "stylesheet";
-          link.href =
-            "https://cdn.jsdelivr.net/npm/@xterm/xterm/css/xterm.css";
+        if (!document.getElementById('xterm-css')) {
+          const link = document.createElement('link');
+          link.id = 'xterm-css';
+          link.rel = 'stylesheet';
+          link.href = 'https://cdn.jsdelivr.net/npm/@xterm/xterm/css/xterm.css';
           document.head.appendChild(link);
         }
 
@@ -116,26 +106,26 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
           fontSize: 13,
           fontFamily: "'Fira Code', 'Cascadia Code', 'Menlo', monospace",
           theme: {
-            background: "#0d0d0d",
-            foreground: "#d4d4d4",
-            cursor: "#d4d4d4",
-            selectionBackground: "#264f78",
-            black: "#1e1e1e",
-            red: "#f44747",
-            green: "#6a9955",
-            yellow: "#d7ba7d",
-            blue: "#569cd6",
-            magenta: "#c586c0",
-            cyan: "#4ec9b0",
-            white: "#d4d4d4",
-            brightBlack: "#808080",
-            brightRed: "#f44747",
-            brightGreen: "#6a9955",
-            brightYellow: "#d7ba7d",
-            brightBlue: "#569cd6",
-            brightMagenta: "#c586c0",
-            brightCyan: "#4ec9b0",
-            brightWhite: "#ffffff",
+            background: '#0d0d0d',
+            foreground: '#d4d4d4',
+            cursor: '#d4d4d4',
+            selectionBackground: '#264f78',
+            black: '#1e1e1e',
+            red: '#f44747',
+            green: '#6a9955',
+            yellow: '#d7ba7d',
+            blue: '#569cd6',
+            magenta: '#c586c0',
+            cyan: '#4ec9b0',
+            white: '#d4d4d4',
+            brightBlack: '#808080',
+            brightRed: '#f44747',
+            brightGreen: '#6a9955',
+            brightYellow: '#d7ba7d',
+            brightBlue: '#569cd6',
+            brightMagenta: '#c586c0',
+            brightCyan: '#4ec9b0',
+            brightWhite: '#ffffff',
           },
           scrollback: 5000,
           convertEol: true,
@@ -149,12 +139,12 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
         fitAddonRef.current = fitAddon;
 
         terminal.writeln(`\x1b[90m--- ${i18n.t('agents.terminal.banner')} ---\x1b[0m`);
-        terminal.writeln("");
+        terminal.writeln('');
 
         setReady(true);
       } catch (err: unknown) {
         if (!cancelled) {
-          console.error("[AgentTerminal] xterm init error:", err);
+          console.error('[AgentTerminal] xterm init error:', err);
           setError(getErrorMessage(err) || i18n.t('agents.terminal.initFailed'));
         }
       }
@@ -183,10 +173,10 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
 
     const observer = new ResizeObserver(handleResize);
     observer.observe(containerRef.current);
-    window.addEventListener("resize", handleResize);
+    window.addEventListener('resize', handleResize);
     return () => {
       observer.disconnect();
-      window.removeEventListener("resize", handleResize);
+      window.removeEventListener('resize', handleResize);
     };
   }, [ready]);
 
@@ -203,9 +193,7 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
           terminalRef.current?.write(formatActivity(event));
         }
         if (events.length === 0) {
-          terminalRef.current?.writeln(
-            `\x1b[90m${i18n.t('agents.terminal.waiting')}\x1b[0m`
-          );
+          terminalRef.current?.writeln(`\x1b[90m${i18n.t('agents.terminal.waiting')}\x1b[0m`);
         }
       })
       .catch(() => {
@@ -225,33 +213,33 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
     });
     socketRef.current = socket;
 
-    socket.on("connect", () => {
-      socket.emit("subscribe-agent", agentId);
+    socket.on('connect', () => {
+      socket.emit('subscribe-agent', agentId);
       if (wasConnected) {
         terminalRef.current?.writeln(
-          `\x1b[32m\u25B8 ${i18n.t('agents.terminal.reconnected')}\x1b[0m`
+          `\x1b[32m\u25B8 ${i18n.t('agents.terminal.reconnected')}\x1b[0m`,
         );
       }
       wasConnected = true;
     });
 
-    socket.on("agent-activity", (data: any) => {
+    socket.on('agent-activity', (data: any) => {
       if (data.agentId === agentId) {
         terminalRef.current?.write(formatActivity(data));
       }
     });
 
-    socket.on("disconnect", (reason) => {
-      if (reason !== "io client disconnect") {
+    socket.on('disconnect', (reason) => {
+      if (reason !== 'io client disconnect') {
         terminalRef.current?.writeln(
-          `\x1b[33m\u25B8 ${i18n.t('agents.terminal.connectionLost')}\x1b[0m`
+          `\x1b[33m\u25B8 ${i18n.t('agents.terminal.connectionLost')}\x1b[0m`,
         );
       }
     });
 
-    socket.on("connect_error", () => {
+    socket.on('connect_error', () => {
       terminalRef.current?.writeln(
-        `\x1b[31m\u25B8 ${i18n.t('agents.terminal.connectionError')}\x1b[0m`
+        `\x1b[31m\u25B8 ${i18n.t('agents.terminal.connectionError')}\x1b[0m`,
       );
     });
 
@@ -274,16 +262,14 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
       {!ready && (
         <View className="absolute inset-0 items-center justify-center z-10">
           <ActivityIndicator size="small" color={colors.mutedForeground} />
-          <Text className="text-muted-foreground text-xs mt-2">
-            {t('agents.terminal.loading')}
-          </Text>
+          <Text className="text-muted-foreground text-xs mt-2">{t('agents.terminal.loading')}</Text>
         </View>
       )}
       <div
         ref={containerRef}
         style={{
-          width: "100%",
-          height: "100%",
+          width: '100%',
+          height: '100%',
           minHeight: 200,
         }}
       />
@@ -416,7 +402,7 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
   // Dynamically import WebView
   useEffect(() => {
     let cancelled = false;
-    import("react-native-webview")
+    import('react-native-webview')
       .then((mod) => {
         if (!cancelled) {
           setWebViewComponent(() => mod.default || mod.WebView);
@@ -424,7 +410,7 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
       })
       .catch((err) => {
         if (!cancelled) {
-          console.error("[AgentTerminal] WebView not available:", err);
+          console.error('[AgentTerminal] WebView not available:', err);
           setError(i18n.t('agents.terminal.unavailable'));
         }
       });
@@ -433,14 +419,9 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
     };
   }, []);
 
-  const writeToWebView = useCallback(
-    (text: string) => {
-      webViewRef.current?.postMessage(
-        JSON.stringify({ type: "write", data: text })
-      );
-    },
-    []
-  );
+  const writeToWebView = useCallback((text: string) => {
+    webViewRef.current?.postMessage(JSON.stringify({ type: 'write', data: text }));
+  }, []);
 
   // Backfill + Socket.IO once WebView is ready
   useEffect(() => {
@@ -477,27 +458,27 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
     });
     socketRef.current = socket;
 
-    socket.on("connect", () => {
-      socket.emit("subscribe-agent", agentId);
+    socket.on('connect', () => {
+      socket.emit('subscribe-agent', agentId);
       if (wasConnected) {
         writeToWebView(`\x1b[32m\u25B8 ${i18n.t('agents.terminal.reconnected')}\x1b[0m\r\n`);
       }
       wasConnected = true;
     });
 
-    socket.on("agent-activity", (data: any) => {
+    socket.on('agent-activity', (data: any) => {
       if (data.agentId === agentId) {
         writeToWebView(formatActivity(data));
       }
     });
 
-    socket.on("disconnect", (reason) => {
-      if (reason !== "io client disconnect") {
+    socket.on('disconnect', (reason) => {
+      if (reason !== 'io client disconnect') {
         writeToWebView(`\x1b[33m\u25B8 ${i18n.t('agents.terminal.connectionLost')}\x1b[0m\r\n`);
       }
     });
 
-    socket.on("connect_error", () => {
+    socket.on('connect_error', () => {
       writeToWebView(`\x1b[31m\u25B8 ${i18n.t('agents.terminal.connectionError')}\x1b[0m\r\n`);
     });
 
@@ -510,7 +491,7 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
   const handleWebViewMessage = useCallback((event: any) => {
     try {
       const msg = JSON.parse(event.nativeEvent.data);
-      if (msg.type === "ready") {
+      if (msg.type === 'ready') {
         setWebViewReady(true);
       }
     } catch {
@@ -530,9 +511,7 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
     return (
       <View className="flex-1 bg-[#0d0d0d] items-center justify-center">
         <ActivityIndicator size="small" color={colors.mutedForeground} />
-        <Text className="text-muted-foreground text-xs mt-2">
-          {t('agents.terminal.loading')}
-        </Text>
+        <Text className="text-muted-foreground text-xs mt-2">{t('agents.terminal.loading')}</Text>
       </View>
     );
   }
@@ -544,10 +523,10 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
       <RNWebView
         ref={webViewRef}
         source={{ html: TERMINAL_HTML }}
-        originWhitelist={["*"]}
+        originWhitelist={['*']}
         javaScriptEnabled
         onMessage={handleWebViewMessage}
-        style={{ flex: 1, backgroundColor: "#0d0d0d" }}
+        style={{ flex: 1, backgroundColor: '#0d0d0d' }}
         scrollEnabled={false}
       />
     </View>

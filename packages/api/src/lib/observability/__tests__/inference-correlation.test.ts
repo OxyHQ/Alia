@@ -34,7 +34,9 @@ vi.mock('../../logger.js', () => ({
   log: { correlation: child, v1: child, chat: child, general: child },
 }));
 
-const { recordInferenceCorrelation, kaanaCorrelationOf } = await import('../inference-correlation.js');
+const { recordInferenceCorrelation, kaanaCorrelationOf } = await import(
+  '../inference-correlation.js'
+);
 
 /** Parsed through the contract, so the shape is the contract's rather than ours. */
 function contractEvent(raw: unknown) {

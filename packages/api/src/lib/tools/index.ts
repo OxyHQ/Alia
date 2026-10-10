@@ -21,11 +21,21 @@
 
 export { getCurrentDateTool } from './date.js';
 export { webSearchTool } from './web-search.js';
-export { saveUserMemoryTool, updateUserMemoryTool, forgetUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from './user-memory.js';
+export {
+  saveUserMemoryTool,
+  updateUserMemoryTool,
+  forgetUserMemoryTool,
+  updateUserPreferencesTool,
+  updateUserContextTool,
+} from './user-memory.js';
 export { createSearchThreadTool } from './thread-search.js';
 export { createSuggestNewConversationTool } from './suggest-new-conversation.js';
 export { createSendTelegramTool } from './telegram.js';
-export { createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool } from './whatsapp.js';
+export {
+  createGetWhatsAppChatsTool,
+  createGetWhatsAppMessagesTool,
+  createSendWhatsAppMessageTool,
+} from './whatsapp.js';
 export { webScraperTool } from './web-scraper.js';
 export { generateFileTool } from './file-generator.js';
 export { createSearchAgentsTool } from './agent-search.js';

@@ -57,14 +57,15 @@ function ampScaleFromSource(): (amp: number, configAmp: number, pulse: number) =
   if (match === null) throw new Error('ambient-field.tsx no longer declares `const ampScale`');
   const expression = match[1];
   if (!ARITHMETIC_ONLY.test(expression)) {
-    throw new Error(`ampScale is no longer plain arithmetic, so this cannot hold it: ${expression}`);
+    throw new Error(
+      `ampScale is no longer plain arithmetic, so this cannot hold it: ${expression}`,
+    );
   }
-  const evaluate = new Function(
-    'amp',
-    'config',
-    'pulse',
-    `return ${expression};`,
-  ) as (amp: number, config: { amp: number }, pulse: { value: number }) => number;
+  const evaluate = new Function('amp', 'config', 'pulse', `return ${expression};`) as (
+    amp: number,
+    config: { amp: number },
+    pulse: { value: number },
+  ) => number;
   return (amp, configAmp, pulse) => evaluate(amp, { amp: configAmp }, { value: pulse });
 }
 
@@ -95,10 +96,7 @@ describe('the ambient field blob scale', () => {
     for (const amp of SPEAKING_LEVELS) {
       for (const configAmp of blobReaches()) {
         for (const pulse of PULSE_PHASES) {
-          expect(ampScale(amp, configAmp, pulse)).toBeCloseTo(
-            asItWas(amp, configAmp, pulse),
-            10,
-          );
+          expect(ampScale(amp, configAmp, pulse)).toBeCloseTo(asItWas(amp, configAmp, pulse), 10);
         }
       }
     }

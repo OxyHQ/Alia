@@ -55,7 +55,9 @@ async function readLease(name: string) {
 
 /** Make an existing lease look like a dead holder's, WITHOUT waiting out a real TTL. */
 function expireLease(name: string) {
-  return db.execute(sql`update ${leases} set expires_at = now() - interval '1 second' where name = ${name}`);
+  return db.execute(
+    sql`update ${leases} set expires_at = now() - interval '1 second' where name = ${name}`,
+  );
 }
 
 describe('acquiring and renewing', () => {
@@ -115,7 +117,7 @@ describe('acquiring and renewing', () => {
     expect(after.acquiredAt.getTime()).toBeGreaterThan(before.acquiredAt.getTime());
   });
 
-  it('derives expiry from the SERVER clock, not the caller\'s', async () => {
+  it("derives expiry from the SERVER clock, not the caller's", async () => {
     const name = 'lease-repo-clock';
     await acquireOrRenewLease(db, name, HOLDER_A, TTL_MS);
     const row = await readLease(name);

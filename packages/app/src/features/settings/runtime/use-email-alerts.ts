@@ -33,7 +33,8 @@ export function useEmailAlerts() {
 
   const query = useQuery({
     queryKey: key,
-    queryFn: async (): Promise<EmailAlerts> => (await apiClient.get<EmailAlerts>(API_ROUTES.emailAlerts)).data,
+    queryFn: async (): Promise<EmailAlerts> =>
+      (await apiClient.get<EmailAlerts>(API_ROUTES.emailAlerts)).data,
     enabled: isAuthenticated,
   });
 
@@ -44,9 +45,19 @@ export function useEmailAlerts() {
     onMutate: async ({ agentId, enabled }) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<EmailAlerts>(key);
-      queryClient.setQueryData<EmailAlerts>(key, (current) => current && (agentId === null
-        ? { ...current, alia: { enabled } }
-        : { ...current, agents: current.agents.map((agent) => (agent.agentId === agentId ? { ...agent, enabled } : agent)) }));
+      queryClient.setQueryData<EmailAlerts>(
+        key,
+        (current) =>
+          current &&
+          (agentId === null
+            ? { ...current, alia: { enabled } }
+            : {
+                ...current,
+                agents: current.agents.map((agent) =>
+                  agent.agentId === agentId ? { ...agent, enabled } : agent,
+                ),
+              }),
+      );
       return { previous };
     },
     onError: (_error, _input, context) => {

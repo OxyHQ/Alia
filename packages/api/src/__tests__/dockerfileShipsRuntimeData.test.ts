@@ -144,8 +144,9 @@ describe('the runtime image ships what the code reads by path', () => {
     const seedSource = readFileSync(`${packageRoot}src/lib/skills/seed.ts`, 'utf8');
     expect(buildSource).toContain("outfile: 'dist/scripts/seed.js'");
 
-    const candidates = [...seedSource.matchAll(/join\(HERE, '([^']*skills)'\)/g)]
-      .map((match) => resolve('/app/packages/api/dist/scripts', match[1]));
+    const candidates = [...seedSource.matchAll(/join\(HERE, '([^']*skills)'\)/g)].map((match) =>
+      resolve('/app/packages/api/dist/scripts', match[1]),
+    );
 
     expect(candidates).toContain('/app/packages/api/skills');
     expect(copiedIntoPackage).toContain('skills');

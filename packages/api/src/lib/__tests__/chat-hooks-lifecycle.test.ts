@@ -125,7 +125,9 @@ vi.mock('../credits-manager.js', () => ({
 }));
 vi.mock('../credit-anomaly.js', () => ({ detectCreditAnomaly: vi.fn(async () => null) }));
 vi.mock('../gateway-client.js', () => ({ getRoutingProfile: vi.fn(async () => null) }));
-vi.mock('../../middleware/api-key-rate-limit.js', () => ({ recordUsage: vi.fn(async () => undefined) }));
+vi.mock('../../middleware/api-key-rate-limit.js', () => ({
+  recordUsage: vi.fn(async () => undefined),
+}));
 vi.mock('../notification-service.js', () => ({ sendNotification: vi.fn(async () => undefined) }));
 vi.mock('../../db/chat/conversationRepository.js', () => ({
   conversationExists: vi.fn(async () => false),
@@ -135,11 +137,17 @@ vi.mock('../../db/chat/conversationRepository.js', () => ({
 
 vi.mock('../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { chat: child, v1: child, general: child, agents: child, providers: child, codea: child } };
+  return {
+    log: { chat: child, v1: child, general: child, agents: child, providers: child, codea: child },
+  };
 });
 
 import { runAfterChatHooks, runBeforeChatHooks } from '../hooks/index.js';
-import { runPostChatHooks, type LifecycleContext, type TurnObservation } from '../chat-lifecycle.js';
+import {
+  runPostChatHooks,
+  type LifecycleContext,
+  type TurnObservation,
+} from '../chat-lifecycle.js';
 import { runAutonomyAfterChat, runAutonomyBeforeChat } from '../autonomy/runtime.js';
 import { AliaErrorCode } from '../errors/error-codes.js';
 
@@ -172,7 +180,11 @@ function lifecycleContext(overrides: Partial<LifecycleContext> = {}): LifecycleC
 }
 
 /** A turn that streamed its first chunk quickly and was not cancelled. */
-const OBSERVED: TurnObservation = { timeToFirstTokenMs: 120, cancelled: false, resolvedModelReference: null };
+const OBSERVED: TurnObservation = {
+  timeToFirstTokenMs: 120,
+  cancelled: false,
+  resolvedModelReference: null,
+};
 
 /** `runPostChatHooks` is fire-and-forget by design; drain what it spawned. */
 async function settle(): Promise<void> {
@@ -263,7 +275,12 @@ describe('the after-run entrypoint drives every learning path there is', () => {
     });
     H.timeline.length = 0;
 
-    runPostChatHooks(lifecycleContext({ autonomyRuntime: runtime }), 'You decided to ship the canvas first.', OBSERVED, null);
+    runPostChatHooks(
+      lifecycleContext({ autonomyRuntime: runtime }),
+      'You decided to ship the canvas first.',
+      OBSERVED,
+      null,
+    );
     await settle();
 
     // A floor first: an empty timeline is what a `runPostChatHooks` that
@@ -314,7 +331,11 @@ describe('the after-run entrypoint drives every learning path there is', () => {
       runPostChatHooks(
         lifecycleContext(),
         'answer',
-        { timeToFirstTokenMs: 240, cancelled: true, resolvedModelReference: 'openai/gpt-5-mini@2026-08-18' },
+        {
+          timeToFirstTokenMs: 240,
+          cancelled: true,
+          resolvedModelReference: 'openai/gpt-5-mini@2026-08-18',
+        },
         AliaErrorCode.CONTENT_FILTERED,
       );
       await settle();
@@ -436,7 +457,12 @@ describe('the after-run entrypoint drives every learning path there is', () => {
   });
 
   it('learns nothing about an anonymous turn', async () => {
-    runPostChatHooks(lifecycleContext({ userId: undefined, autonomyRuntime: null }), 'answer', OBSERVED, null);
+    runPostChatHooks(
+      lifecycleContext({ userId: undefined, autonomyRuntime: null }),
+      'answer',
+      OBSERVED,
+      null,
+    );
     await settle();
     expect(H.timeline).toEqual([]);
   });

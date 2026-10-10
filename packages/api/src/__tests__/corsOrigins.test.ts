@@ -116,7 +116,12 @@ describe('the internal-routes CORS middleware', () => {
   });
 
   it('answers no custom scheme, on the middleware that ships', async () => {
-    for (const origin of [...CUSTOM_SCHEME_ORIGINS, 'file://', 'null', 'https://evil.example.com']) {
+    for (const origin of [
+      ...CUSTOM_SCHEME_ORIGINS,
+      'file://',
+      'null',
+      'https://evil.example.com',
+    ]) {
       const answer = await ask(MOUNTS.shipped, origin);
       expect({ origin, ...answer }).toEqual({
         origin,

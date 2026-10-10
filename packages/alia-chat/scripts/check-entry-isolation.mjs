@@ -118,7 +118,10 @@ if (root.visited.size < MIN_MODULES_FROM_ROOT) {
   );
 }
 
-for (const [entry, result] of [['src/index.ts', root], ['src/voice.ts', voice]]) {
+for (const [entry, result] of [
+  ['src/index.ts', root],
+  ['src/voice.ts', voice],
+]) {
   if (result.hits.length > 0) {
     failures.push(
       `${entry} reaches ${RETIRED_MODULE}, which the SDK no longer depends on. ` +

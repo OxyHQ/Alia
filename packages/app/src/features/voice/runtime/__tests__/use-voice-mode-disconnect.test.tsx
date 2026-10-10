@@ -36,12 +36,14 @@ const room = vi.hoisted(() => ({
   turnErrorCode: null as string | null,
   disconnectCalls: 0,
   connectCalls: 0,
-  sendTurn: null as null | ((turn: {
-    text: string;
-    history: [];
-    signal: AbortSignal;
-    onText: (text: string) => void;
-  }) => Promise<void>),
+  sendTurn: null as
+    | null
+    | ((turn: {
+        text: string;
+        history: [];
+        signal: AbortSignal;
+        onText: (text: string) => void;
+      }) => Promise<void>),
 }));
 
 const toasts = vi.hoisted(() => ({ error: vi.fn(), info: vi.fn(), success: vi.fn() }));
@@ -60,8 +62,12 @@ vi.mock('@/features/voice/runtime/use-voice-room', () => ({
       isMuted: false,
       isConnected: room.roomState === 'connected',
       room: null,
-      connect: () => { room.connectCalls += 1; },
-      disconnect: () => { room.disconnectCalls += 1; },
+      connect: () => {
+        room.connectCalls += 1;
+      },
+      disconnect: () => {
+        room.disconnectCalls += 1;
+      },
       toggleMute: vi.fn(),
     };
   },
@@ -102,7 +108,11 @@ function mountFromEmptyChat(initial: Scope = { owner: 'user-a:conv-1', isFocused
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
   function Probe(props: Scope) {
-    api = useVoiceMode({ sendMessage: chat.sendMessage, stopGeneration: chat.stopGeneration, ...props });
+    api = useVoiceMode({
+      sendMessage: chat.sendMessage,
+      stopGeneration: chat.stopGeneration,
+      ...props,
+    });
     return null;
   }
 
@@ -122,15 +132,21 @@ function mountFromEmptyChat(initial: Scope = { owner: 'user-a:conv-1', isFocused
     /** Move the room and let the effects that watch it run. */
     setRoomState(next: typeof room.roomState) {
       room.roomState = next;
-      act(() => { renderer.update(tree()); });
+      act(() => {
+        renderer.update(tree());
+      });
     },
     /** What the screen around the hook changed: its focus, its conversation, its account. */
     setScope(next: Partial<Scope>) {
       scope = { ...scope, ...next };
-      act(() => { renderer.update(tree()); });
+      act(() => {
+        renderer.update(tree());
+      });
     },
     unmount() {
-      act(() => { renderer.unmount(); });
+      act(() => {
+        renderer.unmount();
+      });
     },
   };
 }
@@ -153,7 +169,9 @@ describe('useVoiceMode — unexpected disconnection', () => {
   it('ends a call that started from an empty chat and then dropped', () => {
     const harness = mountFromEmptyChat();
 
-    act(() => { harness.api.activateVoice(); });
+    act(() => {
+      harness.api.activateVoice();
+    });
     expect(harness.api.isVoiceActive).toBe(true);
     expect(room.connectCalls).toBe(1);
 
@@ -171,7 +189,9 @@ describe('useVoiceMode — unexpected disconnection', () => {
 
     // `activateVoice` asks the room to connect; the room is still reporting
     // `disconnected` on the render right after, which is NOT a dropped call.
-    act(() => { harness.api.activateVoice(); });
+    act(() => {
+      harness.api.activateVoice();
+    });
     harness.setRoomState('disconnected');
 
     expect(harness.api.isVoiceActive).toBe(true);
@@ -197,18 +217,37 @@ describe('useVoiceMode — a call speaks through the conversation', () => {
       return true;
     });
 
-    await room.sendTurn!({ text: 'Hola Alia', history: [], signal: new AbortController().signal, onText: (text) => seen.push(text) });
+    await room.sendTurn!({
+      text: 'Hola Alia',
+      history: [],
+      signal: new AbortController().signal,
+      onText: (text) => seen.push(text),
+    });
 
-    expect(chat.sendMessage).toHaveBeenCalledWith('Hola Alia', undefined, expect.objectContaining({ responseMode: 'voice' }));
+    expect(chat.sendMessage).toHaveBeenCalledWith(
+      'Hola Alia',
+      undefined,
+      expect.objectContaining({ responseMode: 'voice' }),
+    );
     expect(seen).toEqual(['Hola', 'Hola, ¿qué tal?']);
   });
 
   it('talking over the answer stops the turn streaming', async () => {
     mountFromEmptyChat();
     let finish!: (sent: boolean) => void;
-    chat.sendMessage.mockImplementation(() => new Promise<boolean>((resolve) => { finish = resolve; }));
+    chat.sendMessage.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finish = resolve;
+        }),
+    );
     const controller = new AbortController();
-    const pending = room.sendTurn!({ text: 'Cuéntame', history: [], signal: controller.signal, onText: () => undefined });
+    const pending = room.sendTurn!({
+      text: 'Cuéntame',
+      history: [],
+      signal: controller.signal,
+      onText: () => undefined,
+    });
 
     controller.abort();
     expect(chat.stopGeneration).toHaveBeenCalledOnce();
@@ -219,10 +258,17 @@ describe('useVoiceMode — a call speaks through the conversation', () => {
   it('ends the call when the turn is refused, without repeating what the send already said', async () => {
     const harness = mountFromEmptyChat();
     chat.sendMessage.mockResolvedValue(false);
-    const refused = room.sendTurn!({ text: 'Hola', history: [], signal: new AbortController().signal, onText: () => undefined });
+    const refused = room.sendTurn!({
+      text: 'Hola',
+      history: [],
+      signal: new AbortController().signal,
+      onText: () => undefined,
+    });
     await expect(refused).rejects.toThrow();
 
-    act(() => { harness.api.activateVoice(); });
+    act(() => {
+      harness.api.activateVoice();
+    });
     room.error = (await refused.catch((error: Error) => error.message)) ?? null;
     harness.setRoomState('error');
 
@@ -232,7 +278,9 @@ describe('useVoiceMode — a call speaks through the conversation', () => {
 
   it('reports a turn that failed without ending the call', () => {
     const harness = mountFromEmptyChat();
-    act(() => { harness.api.activateVoice(); });
+    act(() => {
+      harness.api.activateVoice();
+    });
     harness.setRoomState('connected');
     room.turnError = 'The answer could not be played aloud';
     room.turnErrorCode = 'not-played';
@@ -246,7 +294,9 @@ describe('useVoiceMode — a call speaks through the conversation', () => {
 describe('useVoiceMode — what the person is told, in their language', () => {
   it('says why the call could not start with the translated reason', () => {
     const harness = mountFromEmptyChat();
-    act(() => { harness.api.activateVoice(); });
+    act(() => {
+      harness.api.activateVoice();
+    });
     room.error = 'Microphone permission required';
     room.errorCode = 'microphone-denied';
     harness.setRoomState('error');
@@ -257,7 +307,9 @@ describe('useVoiceMode — what the person is told, in their language', () => {
 
   it('says the connection failed, translated, when the room fails without a reason', () => {
     const harness = mountFromEmptyChat();
-    act(() => { harness.api.activateVoice(); });
+    act(() => {
+      harness.api.activateVoice();
+    });
     harness.setRoomState('error');
 
     expect(toasts.error).toHaveBeenCalledWith('t:voice.connectionFailed');
@@ -279,7 +331,9 @@ describe('useVoiceMode — what the person is told, in their language', () => {
 describe('useVoiceMode — navigation and account switches end the call', () => {
   function liveCall() {
     const harness = mountFromEmptyChat();
-    act(() => { harness.api.activateVoice(); });
+    act(() => {
+      harness.api.activateVoice();
+    });
     harness.setRoomState('connected');
     expect(harness.api.isVoiceActive).toBe(true);
     return harness;
@@ -319,19 +373,23 @@ describe('useVoiceMode — navigation and account switches end the call', () => 
 
   it('does not start a call from a screen that is not on show', () => {
     const harness = mountFromEmptyChat({ owner: 'user-a:conv-1', isFocused: false });
-    act(() => { harness.api.activateVoice(); });
+    act(() => {
+      harness.api.activateVoice();
+    });
 
     expect(harness.api.isVoiceActive).toBe(false);
     expect(room.connectCalls).toBe(0);
   });
 
-  it('a call started after coming back is the new owner\'s, and the next change still ends it', () => {
+  it("a call started after coming back is the new owner's, and the next change still ends it", () => {
     const harness = liveCall();
     harness.setScope({ owner: 'user-a:conv-2' });
     expect(harness.api.isVoiceActive).toBe(false);
 
     room.roomState = 'disconnected';
-    act(() => { harness.api.activateVoice(); });
+    act(() => {
+      harness.api.activateVoice();
+    });
     harness.setRoomState('connected');
     expect(harness.api.isVoiceActive).toBe(true);
 

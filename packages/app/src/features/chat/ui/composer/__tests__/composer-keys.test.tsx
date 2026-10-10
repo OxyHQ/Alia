@@ -101,20 +101,33 @@ vi.mock('react-native', async () => {
         this.setValue = () => {};
         this.addListener = () => '0';
         this.removeAllListeners = () => {};
-      } as unknown as new (value: number) => unknown,
+      } as unknown as new (
+        value: number,
+      ) => unknown,
       timing: () => ({ start: () => {} }),
       spring: () => ({ start: () => {} }),
     },
-    Dimensions: { get: () => ({ width: 1280, height: 800, scale: 1, fontScale: 1 }), addEventListener: () => ({ remove: () => {} }) },
+    Dimensions: {
+      get: () => ({ width: 1280, height: 800, scale: 1, fontScale: 1 }),
+      addEventListener: () => ({ remove: () => {} }),
+    },
     PixelRatio: { get: () => 1, getFontScale: () => 1, roundToNearestPixel: (n: number) => n },
     I18nManager: { isRTL: false },
     Appearance: { getColorScheme: () => 'light', addChangeListener: () => ({ remove: () => {} }) },
     useColorScheme: () => 'light',
     findNodeHandle: () => null,
     UIManager: { measure: () => {} },
-    InteractionManager: { runAfterInteractions: (fn: () => void) => { fn(); return { cancel: () => {} }; } },
+    InteractionManager: {
+      runAfterInteractions: (fn: () => void) => {
+        fn();
+        return { cancel: () => {} };
+      },
+    },
     Keyboard: { dismiss: () => {}, addListener: () => ({ remove: () => {} }) },
-    AccessibilityInfo: { isReduceMotionEnabled: async () => true, addEventListener: () => ({ remove: () => {} }) },
+    AccessibilityInfo: {
+      isReduceMotionEnabled: async () => true,
+      addEventListener: () => ({ remove: () => {} }),
+    },
     // The panel asks below 640 for a shorter placeholder. A desktop width keeps
     // the full one, which is the string this file names.
     useWindowDimensions: () => ({ width: 1280, height: 800, scale: 1, fontScale: 1 }),
@@ -192,7 +205,9 @@ vi.mock('react-native-svg', async () => {
  * (Bloom 4.25), so the panel now imports the insets hook — and the real
  * package reaches into `react-native` itself, which node cannot parse.
  */
-vi.mock('react-native-safe-area-context', async () => (await import('@/shared/testing/native-module-stubs')).safeAreaModule());
+vi.mock('react-native-safe-area-context', async () =>
+  (await import('@/shared/testing/native-module-stubs')).safeAreaModule(),
+);
 
 import { ComposerPanel } from '@oxy.so/bloom/composer-panel';
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';

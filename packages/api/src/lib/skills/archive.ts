@@ -82,7 +82,12 @@ export async function readTarGzArchive(buffer: Buffer): Promise<RawFile[]> {
         return;
       }
       if (symlink) {
-        files.push({ path: String(entry.path), content: Buffer.alloc(0), mode: entry.mode, symlink: true });
+        files.push({
+          path: String(entry.path),
+          content: Buffer.alloc(0),
+          mode: entry.mode,
+          symlink: true,
+        });
         entry.resume();
         return;
       }
@@ -100,7 +105,9 @@ export async function readTarGzArchive(buffer: Buffer): Promise<RawFile[]> {
         files.push({ path: String(entry.path), content: Buffer.concat(chunks), mode: entry.mode });
       });
     });
-    parser.on('error', (err) => reject(new SkillArchiveError(`the tarball is not readable: ${err.message}`)));
+    parser.on('error', (err) =>
+      reject(new SkillArchiveError(`the tarball is not readable: ${err.message}`)),
+    );
     parser.on('end', () => resolve());
     parser.end(buffer);
   });
@@ -108,7 +115,8 @@ export async function readTarGzArchive(buffer: Buffer): Promise<RawFile[]> {
   // tar's parser is lenient: bytes that are not a tarball yield no entries and
   // no error, so "unreadable" and "empty" arrive here as the same state and the
   // message has to cover both rather than claim the one it cannot distinguish.
-  if (files.length === 0) throw new SkillArchiveError('the tarball is not readable, or holds no files');
+  if (files.length === 0)
+    throw new SkillArchiveError('the tarball is not readable, or holds no files');
   return files;
 }
 
@@ -138,7 +146,11 @@ async function walk(root: string, dir: string, files: RawFile[]): Promise<void> 
     }
     if (!entry.isFile()) continue;
     const info = await stat(full);
-    files.push({ path: toPosix(relative(root, full)), content: await readFile(full), mode: info.mode });
+    files.push({
+      path: toPosix(relative(root, full)),
+      content: await readFile(full),
+      mode: info.mode,
+    });
   }
 }
 

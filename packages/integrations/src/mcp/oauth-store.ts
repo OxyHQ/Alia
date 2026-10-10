@@ -81,9 +81,12 @@ export async function getOrCreateConnectorAuth(
   oxyUserId: string,
   serverId: string,
 ): Promise<McpConnectorAuthRow> {
-  await db.insert(mcpConnectorAuths).values({ oxyUserId, serverId }).onConflictDoNothing({
-    target: [mcpConnectorAuths.oxyUserId, mcpConnectorAuths.serverId],
-  });
+  await db
+    .insert(mcpConnectorAuths)
+    .values({ oxyUserId, serverId })
+    .onConflictDoNothing({
+      target: [mcpConnectorAuths.oxyUserId, mcpConnectorAuths.serverId],
+    });
 
   const [row] = await db
     .select(AUTH_COLUMNS)

@@ -3,18 +3,12 @@ import { SkillPickerDialog } from '@/features/agents/ui/edit/skill-picker-dialog
 import { AgentCapabilityToggles } from '@/features/agents/ui/agent-capability-toggles';
 import { AgentConnectorGrants } from '@/features/agents/ui/agent-connector-grants';
 import type { GrantableConnector } from '@/features/chat/model/capability-families';
-import type {
-  AgentDraft,
-  LinkedSkill,
-} from '@/features/agents/runtime/use-agent-autosave';
+import type { AgentDraft, LinkedSkill } from '@/features/agents/runtime/use-agent-autosave';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import type { LibraryFile } from '@/features/library/runtime/library-store';
 import { Button } from '@oxy.so/bloom/button';
 import { RiAddLine, RiCloseLine, RiFileTextLine } from '@oxy.so/bloom/icons';
-import {
-  SettingsListGroup,
-  SettingsListItem,
-} from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Text } from '@oxy.so/bloom/typography';
 import { useState } from 'react';
 

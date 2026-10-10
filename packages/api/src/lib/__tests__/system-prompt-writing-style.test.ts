@@ -91,7 +91,9 @@ describe("the person's writing style in the system message", () => {
     expect(prompt).toContain('Writes mostly in lowercase');
     expect(prompt).toContain('"— nate"');
     // The footer that keeps it from restyling Alia's own answers comes with it.
-    expect(prompt).toContain('Only apply this style when composing text that will be sent AS the user');
+    expect(prompt).toContain(
+      'Only apply this style when composing text that will be sent AS the user',
+    );
   });
 
   it('is appended as context, below the base prompt', async () => {
@@ -105,7 +107,9 @@ describe("the person's writing style in the system message", () => {
   });
 
   it('is absent while the profile is still learning', async () => {
-    const prompt = await build({ userMemory: memory({ writingStyle: profile({ isReady: false }) }) });
+    const prompt = await build({
+      userMemory: memory({ writingStyle: profile({ isReady: false }) }),
+    });
     expect(prompt).not.toContain(HEADER);
   });
 
@@ -115,12 +119,12 @@ describe("the person's writing style in the system message", () => {
     expect(prompt).not.toContain('— nate');
   });
 
-  it('is absent for a request that is not the person\'s own session', async () => {
+  it("is absent for a request that is not the person's own session", async () => {
     const prompt = await build({ userMemory: memory(), isDirectUserSession: false });
     expect(prompt).not.toContain(HEADER);
   });
 
-  it('is Alia\'s memory, so an agent never receives it — with or without the memory grant', async () => {
+  it("is Alia's memory, so an agent never receives it — with or without the memory grant", async () => {
     const denied = await build({ userMemory: memory(), linkedAgent: agentWithGrants([]) });
     expect(denied).not.toContain(HEADER);
 
@@ -134,18 +138,22 @@ describe("the person's writing style in the system message", () => {
 describe('formatStyleForPrompt budget', () => {
   it('never exceeds its ceiling, however long the edited fields are', () => {
     const huge = 'x'.repeat(5_000);
-    const block = formatStyleForPrompt(profile({
-      signOff: huge,
-      llmSummary: huge,
-      greetingPatterns: Array.from({ length: 50 }, () => huge),
-      closingPatterns: Array.from({ length: 50 }, () => huge),
-      toneDescriptors: Array.from({ length: 50 }, () => huge),
-    }));
+    const block = formatStyleForPrompt(
+      profile({
+        signOff: huge,
+        llmSummary: huge,
+        greetingPatterns: Array.from({ length: 50 }, () => huge),
+        closingPatterns: Array.from({ length: 50 }, () => huge),
+        toneDescriptors: Array.from({ length: 50 }, () => huge),
+      }),
+    );
     expect(block.length).toBeGreaterThan(0);
     expect(block.length).toBeLessThanOrEqual(STYLE_PROMPT_MAX_CHARS);
     expect(block.startsWith(HEADER)).toBe(true);
     // Trimming drops body lines, never the footer.
-    expect(block).toContain('Only apply this style when composing text that will be sent AS the user');
+    expect(block).toContain(
+      'Only apply this style when composing text that will be sent AS the user',
+    );
   });
 
   it('keeps an ordinary profile whole', () => {

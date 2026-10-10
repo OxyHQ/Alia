@@ -60,7 +60,12 @@ const ACTIVE_INTENSITY = 0.35;
  * reanimated-web; the combiner is a pure-read `useDerivedValue`. Effect-free — no
  * React `useEffect`.
  */
-export function useAmbientWave({ voice, isTTSPlaying, ttsWaveAmplitude, isGenerating }: UseAmbientWaveOptions): UseAmbientWaveResult {
+export function useAmbientWave({
+  voice,
+  isTTSPlaying,
+  ttsWaveAmplitude,
+  isGenerating,
+}: UseAmbientWaveOptions): UseAmbientWaveResult {
   // ── Idle breath: subtle 0.04↔0.09 swell (~7s), started once on mount ──
   const idleBreath = useSharedValue(0.04);
   useAnimatedReaction(
@@ -131,14 +136,26 @@ export function useAmbientWave({ voice, isTTSPlaying, ttsWaveAmplitude, isGenera
   // ── Combined amplitude — pure reads only (ticks on web) ──
   const voiceAmplitude = voice?.waveAmplitude;
   const waveAmplitude = useDerivedValue(
-    () => Math.max(idleBreath.value, voiceAmplitude ? voiceAmplitude.value : 0, ttsWaveAmplitude.value, stt.value, thinkingAmp.value),
+    () =>
+      Math.max(
+        idleBreath.value,
+        voiceAmplitude ? voiceAmplitude.value : 0,
+        ttsWaveAmplitude.value,
+        stt.value,
+        thinkingAmp.value,
+      ),
     [voiceAmplitude, ttsWaveAmplitude],
   );
 
   // ── Mode → palette state + overlay intensity (plain derived) ──
   return useMemo<UseAmbientWaveResult>(() => {
     if (voice?.isActive && voice.isConnected) {
-      return { waveAmplitude, agentState: voice.agentState, intensity: ACTIVE_INTENSITY, mode: 'voice' };
+      return {
+        waveAmplitude,
+        agentState: voice.agentState,
+        intensity: ACTIVE_INTENSITY,
+        mode: 'voice',
+      };
     }
     if (isTTSPlaying) {
       return { waveAmplitude, agentState: 'speaking', intensity: ACTIVE_INTENSITY, mode: 'tts' };
@@ -147,8 +164,21 @@ export function useAmbientWave({ voice, isTTSPlaying, ttsWaveAmplitude, isGenera
       return { waveAmplitude, agentState: 'listening', intensity: ACTIVE_INTENSITY, mode: 'stt' };
     }
     if (isGenerating) {
-      return { waveAmplitude, agentState: 'thinking', intensity: THINKING_INTENSITY, mode: 'thinking' };
+      return {
+        waveAmplitude,
+        agentState: 'thinking',
+        intensity: THINKING_INTENSITY,
+        mode: 'thinking',
+      };
     }
     return { waveAmplitude, agentState: 'idle', intensity: IDLE_INTENSITY, mode: 'idle' };
-  }, [waveAmplitude, voice?.isActive, voice?.isConnected, voice?.agentState, isTTSPlaying, sttIsRecording, isGenerating]);
+  }, [
+    waveAmplitude,
+    voice?.isActive,
+    voice?.isConnected,
+    voice?.agentState,
+    isTTSPlaying,
+    sttIsRecording,
+    isGenerating,
+  ]);
 }

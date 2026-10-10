@@ -82,9 +82,7 @@ function hosts(root: ReturnType<typeof render>, name: string) {
 
 /** One of the two answers, found by its label. */
 function button(root: ReturnType<typeof render>, label: string) {
-  return hosts(root, 'Pressable').find(
-    (node) => node.props.accessibilityLabel === label,
-  );
+  return hosts(root, 'Pressable').find((node) => node.props.accessibilityLabel === label);
 }
 
 function texts(root: ReturnType<typeof render>) {
@@ -140,15 +138,11 @@ describe('the offer to start a new conversation', () => {
     // substitute of ours would read as theirs.
     const reason = 'we have moved from the migration to the billing bug';
 
-    expect(
-      texts(render({ reason, onAccept: vi.fn(), onDismiss: vi.fn() })),
-    ).toContain(reason);
+    expect(texts(render({ reason, onAccept: vi.fn(), onDismiss: vi.fn() }))).toContain(reason);
   });
 
   it('drops the line rather than inventing one when no reason came', () => {
-    const shown = texts(
-      render({ reason: '', onAccept: vi.fn(), onDismiss: vi.fn() }),
-    );
+    const shown = texts(render({ reason: '', onAccept: vi.fn(), onDismiss: vi.fn() }));
 
     // The offer and its two answers, and nothing standing in for the reason.
     expect(shown).toEqual([

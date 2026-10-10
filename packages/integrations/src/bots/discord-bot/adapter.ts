@@ -96,9 +96,8 @@ export class DiscordBotAdapter implements BotAdapter {
             } else {
               // The model row is omitted only when the catalogue could not be read.
               const catalogue = await apiClient.fetchCatalogue();
-              const modelLabel = catalogue === null
-                ? null
-                : currentModelLabel(botUser.preferredModel, catalogue);
+              const modelLabel =
+                catalogue === null ? null : currentModelLabel(botUser.preferredModel, catalogue);
               await interaction.editReply(
                 modelLabel === null ? 'Connected' : `Connected | Model: ${modelLabel}`,
               );
@@ -140,18 +139,20 @@ export class DiscordBotAdapter implements BotAdapter {
 
         case 'help':
           await interaction.reply({
-            embeds: [{
-              title: 'Alia AI - Discord Bot',
-              description: 'DM me or @mention me to chat!',
-              color: 0x5865f2,
-              fields: [
-                { name: '/start', value: 'Link account' },
-                { name: '/status', value: 'Check status' },
-                { name: '/new', value: 'New conversation' },
-                { name: '/model [text]', value: 'Choose the model Alia answers with' },
-                { name: '/logout', value: 'Disconnect' },
-              ],
-            }],
+            embeds: [
+              {
+                title: 'Alia AI - Discord Bot',
+                description: 'DM me or @mention me to chat!',
+                color: 0x5865f2,
+                fields: [
+                  { name: '/start', value: 'Link account' },
+                  { name: '/status', value: 'Check status' },
+                  { name: '/new', value: 'New conversation' },
+                  { name: '/model [text]', value: 'Choose the model Alia answers with' },
+                  { name: '/logout', value: 'Disconnect' },
+                ],
+              },
+            ],
             ephemeral: true,
           });
           break;
@@ -233,7 +234,10 @@ export class DiscordBotAdapter implements BotAdapter {
             messages_history = conversation.messages
               .filter((m) => m.role === 'user' || m.role === 'assistant')
               .slice(-20)
-              .map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }));
+              .map((m) => ({
+                role: m.role,
+                content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+              }));
           }
         } catch (error) {
           // History load is best-effort — a missing or unreadable conversation just starts fresh.
@@ -248,21 +252,18 @@ export class DiscordBotAdapter implements BotAdapter {
         const apiMessages = [
           {
             role: 'system',
-            content: 'The user is chatting via Discord. Be concise and friendly. Use Discord markdown. Keep responses under 1800 characters when possible.',
+            content:
+              'The user is chatting via Discord. Be concise and friendly. Use Discord markdown. Keep responses under 1800 characters when possible.',
           },
           ...messages_history,
         ];
 
-        const result = await apiClient.chatCompletion(
-          botUser.oxyUserId,
-          apiMessages,
-          {
-            // Unset, or no longer in the catalogue, means the request names no
-            // model and the server's default applies. See `shared/catalogue.ts`.
-            model: await apiClient.requestModel(botUser.preferredModel),
-            conversationId,
-          },
-        );
+        const result = await apiClient.chatCompletion(botUser.oxyUserId, apiMessages, {
+          // Unset, or no longer in the catalogue, means the request names no
+          // model and the server's default applies. See `shared/catalogue.ts`.
+          model: await apiClient.requestModel(botUser.preferredModel),
+          conversationId,
+        });
 
         const fullResponse = result.content;
 

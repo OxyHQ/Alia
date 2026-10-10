@@ -62,7 +62,11 @@ vi.mock('react-native-reanimated', async () => {
       to,
       duration: config?.duration,
     }),
-    withDelay: (delay: number, animation: Described): Described => ({ kind: 'delay', delay, animation }),
+    withDelay: (delay: number, animation: Described): Described => ({
+      kind: 'delay',
+      delay,
+      animation,
+    }),
     withRepeat: (animation: Described, reps: number, reverse: boolean): Described => ({
       kind: 'repeat',
       animation,
@@ -85,7 +89,11 @@ vi.mock('react-native', async () => {
       },
       addEventListener: (_event: string, listener: (state: string) => void) => {
         appState.listener = listener;
-        return { remove: () => { appState.listener = null; } };
+        return {
+          remove: () => {
+            appState.listener = null;
+          },
+        };
       },
     },
   };
@@ -93,8 +101,10 @@ vi.mock('react-native', async () => {
 
 vi.mock('react-native-svg', async () => {
   const ReactModule = await import('react');
-  const host = (name: string) => ({ children }: React.PropsWithChildren) =>
-    ReactModule.createElement(name, null, children);
+  const host =
+    (name: string) =>
+    ({ children }: React.PropsWithChildren) =>
+      ReactModule.createElement(name, null, children);
   return {
     default: host('Svg'),
     Circle: host('Circle'),
@@ -194,7 +204,9 @@ describe('AmbientField stops while nobody can see it', () => {
     }
     // The first blob's float: 8000ms laps, so 6000ms left.
     const firstFloat = loops.find(
-      (loop) => ((loop.value as Extract<Described, { kind: 'sequence' }>).steps[0] as { duration: number }).duration === 6000,
+      (loop) =>
+        ((loop.value as Extract<Described, { kind: 'sequence' }>).steps[0] as { duration: number })
+          .duration === 6000,
     );
     expect(firstFloat).toBeDefined();
   });
@@ -221,16 +233,15 @@ describe('AmbientField stops while nobody can see it', () => {
 
 describe('AmbientField with reduced motion', () => {
   function parallaxOffsets(renderer: ReactTestRenderer): number[] {
-    return renderer.root
-      .findAllByType('AnimatedView' as never)
-      .flatMap((node) => {
-        const style = (node.props as { style?: unknown[] }).style;
-        const layers = Array.isArray(style) ? style : [];
-        return layers.flatMap((layer) => {
-          const transform = (layer as { transform?: Array<Record<string, number>> } | null)?.transform;
-          return transform?.map((step) => step.translateX).filter((x) => x !== undefined) ?? [];
-        });
+    return renderer.root.findAllByType('AnimatedView' as never).flatMap((node) => {
+      const style = (node.props as { style?: unknown[] }).style;
+      const layers = Array.isArray(style) ? style : [];
+      return layers.flatMap((layer) => {
+        const transform = (layer as { transform?: Array<Record<string, number>> } | null)
+          ?.transform;
+        return transform?.map((step) => step.translateX).filter((x) => x !== undefined) ?? [];
       });
+    });
   }
 
   it('follows the pointer normally, and not at all with reduced motion on', () => {

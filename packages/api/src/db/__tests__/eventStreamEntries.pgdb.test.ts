@@ -136,7 +136,7 @@ describe('event_stream_entries', () => {
     });
   });
 
-  it('GOES with its session, because it is that session\'s own log', async () => {
+  it("GOES with its session, because it is that session's own log", async () => {
     // An event is unreadable once its session is gone, and this is the biggest
     // agent table — the one place orphans would accumulate without bound.
     await db.insert(agentSessions).values(sessionValues('cs-cascade'));

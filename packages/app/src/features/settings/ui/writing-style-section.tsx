@@ -56,25 +56,13 @@ const K = 'settings.assistant.writingStyle';
 
 /** The enum values with a translated label; anything else shows raw. */
 const KNOWN = {
-  formality: [
-    'very_informal',
-    'informal',
-    'neutral',
-    'formal',
-    'very_formal',
-  ],
+  formality: ['very_informal', 'informal', 'neutral', 'formal', 'very_formal'],
   emoji: ['never', 'rare', 'moderate', 'frequent'],
   language: ['en', 'es', 'fr', 'pt', 'de'],
 } as const;
 
-function enumLabel(
-  t: (key: string) => string,
-  group: keyof typeof KNOWN,
-  value: string,
-): string {
-  return (KNOWN[group] as readonly string[]).includes(value)
-    ? t(`${K}.${group}.${value}`)
-    : value;
+function enumLabel(t: (key: string) => string, group: keyof typeof KNOWN, value: string): string {
+  return (KNOWN[group] as readonly string[]).includes(value) ? t(`${K}.${group}.${value}`) : value;
 }
 
 function splitList(value: string): string[] {
@@ -259,9 +247,7 @@ export function WritingStyleSection() {
             rows: [
               valueRow(
                 'status',
-                profile.isReady
-                  ? t(`${K}.statusActive`)
-                  : t(`${K}.statusBuilding`),
+                profile.isReady ? t(`${K}.statusActive`) : t(`${K}.statusBuilding`),
                 t(`${K}.messagesAnalyzed`, { n: profile.messagesAnalyzed }),
               ),
               ...(profile.llmSummary
@@ -284,11 +270,7 @@ export function WritingStyleSection() {
                 t(`${K}.formalityLabel`),
                 enumLabel(t, 'formality', profile.formality),
               ),
-              valueRow(
-                'vocabulary',
-                t(`${K}.vocabulary`),
-                profile.vocabularyLevel,
-              ),
+              valueRow('vocabulary', t(`${K}.vocabulary`), profile.vocabularyLevel),
               valueRow(
                 'sentence',
                 t(`${K}.avgSentence`),
@@ -306,11 +288,7 @@ export function WritingStyleSection() {
                 t(`${K}.languageLabel`),
                 enumLabel(t, 'language', profile.primaryLanguage),
               ),
-              valueRow(
-                'capitalization',
-                t(`${K}.capitalization`),
-                profile.capitalizationStyle,
-              ),
+              valueRow('capitalization', t(`${K}.capitalization`), profile.capitalizationStyle),
             ],
           },
           {
@@ -351,9 +329,8 @@ export function WritingStyleSection() {
                 key: 'languages',
                 label: t(`${K}.otherLanguages`),
                 description:
-                  profile.secondaryLanguages
-                    .map((l) => enumLabel(t, 'language', l))
-                    .join(', ') || t(`${K}.noneDetected`),
+                  profile.secondaryLanguages.map((l) => enumLabel(t, 'language', l)).join(', ') ||
+                  t(`${K}.noneDetected`),
               },
               ...(profile.codeSwitch
                 ? [
@@ -464,10 +441,7 @@ export function WritingStyleSection() {
               onValueChange={setEditGreetings}
             />
           </SettingsSection>
-          <SettingsSection
-            label={t(`${K}.closingPatterns`)}
-            description={t(`${K}.commaSeparated`)}
-          >
+          <SettingsSection label={t(`${K}.closingPatterns`)} description={t(`${K}.commaSeparated`)}>
             <TextFieldInput
               label={t(`${K}.closingPatterns`)}
               placeholder={t(`${K}.closingPlaceholder`)}
@@ -475,10 +449,7 @@ export function WritingStyleSection() {
               onValueChange={setEditClosings}
             />
           </SettingsSection>
-          <SettingsSection
-            label={t(`${K}.toneDescriptors`)}
-            description={t(`${K}.commaSeparated`)}
-          >
+          <SettingsSection label={t(`${K}.toneDescriptors`)} description={t(`${K}.commaSeparated`)}>
             <TextFieldInput
               label={t(`${K}.toneDescriptors`)}
               placeholder={t(`${K}.tonePlaceholder`)}

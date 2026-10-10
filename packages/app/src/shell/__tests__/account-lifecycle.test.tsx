@@ -41,11 +41,23 @@ function seedAccountA(client: QueryClient) {
     rightPanelWidth: 480,
     rightPanel: 'thought',
     thoughtMessageId: 'm1',
-    thoughtScope: { conversationId: 'c1', messages: [message], status: 'ready', isLoading: false, failedTurn: null },
+    thoughtScope: {
+      conversationId: 'c1',
+      messages: [message],
+      status: 'ready',
+      isLoading: false,
+      failedTurn: null,
+    },
     canvasArtifacts: [{ id: 'a1' } as never],
   });
   useStore.setState({
-    pendingInitialMessage: { content: 'hi', text: 'hi', attachments: [], mcpServerId: null, skillNames: [] },
+    pendingInitialMessage: {
+      content: 'hi',
+      text: 'hi',
+      attachments: [],
+      mcpServerId: null,
+      skillNames: [],
+    },
     ghostMode: true,
   });
   useUserDataStore.setState({ memory: { memories: [{ _id: 'x' }] } as never });

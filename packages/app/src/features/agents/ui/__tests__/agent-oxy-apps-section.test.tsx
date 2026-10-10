@@ -25,11 +25,13 @@ const { hosts, slotted } = vi.hoisted(() => ({
   },
   hosts: async (...names: string[]) => {
     const ReactModule = await import('react');
-    return Object.fromEntries(names.map((name) => [
-      name,
-      ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-        ReactModule.createElement(name, props, children as React.ReactNode),
-    ]));
+    return Object.fromEntries(
+      names.map((name) => [
+        name,
+        ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+          ReactModule.createElement(name, props, children as React.ReactNode),
+      ]),
+    );
   },
 }));
 
@@ -46,7 +48,9 @@ vi.mock('@oxy.so/bloom/settings-list', async () => ({
 }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: toastError, success: vi.fn() } }));
 vi.mock('@oxy.so/services', () => ({ useOxy: () => ({ isAuthenticated: true }) }));
-vi.mock('@/shared/api/client', () => ({ default: { get: api.get, put: api.put, post: vi.fn(), patch: vi.fn(), delete: vi.fn() } }));
+vi.mock('@/shared/api/client', () => ({
+  default: { get: api.get, put: api.put, post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+}));
 
 const { AgentOxyAppsSection } = await import('@/features/agents/ui/edit/agent-oxy-apps-section');
 const { useAgentOxyApps } = await import('@/features/agents/runtime/use-agent-oxy-apps');
@@ -147,7 +151,9 @@ describe('Apps de Oxy', () => {
   });
 
   it('shows nothing to somebody who is not the owner', async () => {
-    api.get.mockRejectedValue(Object.assign(new Error('owner_only'), { response: { status: 403 } }));
+    api.get.mockRejectedValue(
+      Object.assign(new Error('owner_only'), { response: { status: 403 } }),
+    );
     const tree = await render();
     expect(tree.toJSON()).toBeNull();
   });

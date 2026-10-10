@@ -138,7 +138,8 @@ export function useSubscription(product?: 'alia' | 'codea') {
   return useQuery({
     queryKey: [...queryKeys.billing.subscription(product), user?.id, activeSessionId],
     queryFn: () => fetchSubscription(product),
-    staleTime: 0, gcTime: 0, // 2 minutes
+    staleTime: 0,
+    gcTime: 0, // 2 minutes
     retry: 2,
     enabled: isAuthenticated && !!user?.id && !!activeSessionId,
   });
@@ -154,7 +155,7 @@ export function useSubscription(product?: 'alia' | 'codea') {
  */
 export function useSubscriptionPolling(
   product?: 'alia' | 'codea',
-  options?: { enabled?: boolean; intervalMs?: number; maxAttempts?: number }
+  options?: { enabled?: boolean; intervalMs?: number; maxAttempts?: number },
 ) {
   const { enabled = false, intervalMs = 2000, maxAttempts = 15 } = options || {};
 
@@ -243,7 +244,12 @@ export interface CreditPriceInfo {
 }
 
 export function useCreditPrice() {
-  return useAuthQuery<CreditPriceInfo>(queryKeys.credits.price, '/billing/credit-price', undefined, { staleTime: 600_000 });
+  return useAuthQuery<CreditPriceInfo>(
+    queryKeys.credits.price,
+    '/billing/credit-price',
+    undefined,
+    { staleTime: 600_000 },
+  );
 }
 
 export function useCreateSubscriptionCheckout() {
@@ -334,13 +340,20 @@ const FREE_ENTITLEMENTS: Entitlements = {
 
 export function useEntitlements() {
   const { user, activeSessionId, isAuthenticated } = useOxy();
-  return useAuthQuery<Entitlements>([...queryKeys.billing.entitlements, user?.id, activeSessionId], '/billing/entitlements', undefined, {
-    enabled: isAuthenticated && !!user?.id && !!activeSessionId, staleTime: 0, gcTime: 0,
-    placeholderData: FREE_ENTITLEMENTS,
-    queryFn: async () => {
-      const { data } = await apiClient.get('/billing/entitlements');
-      if (data.subjectAccountId !== user?.id) throw new Error('Entitlement account changed');
-      return data;
+  return useAuthQuery<Entitlements>(
+    [...queryKeys.billing.entitlements, user?.id, activeSessionId],
+    '/billing/entitlements',
+    undefined,
+    {
+      enabled: isAuthenticated && !!user?.id && !!activeSessionId,
+      staleTime: 0,
+      gcTime: 0,
+      placeholderData: FREE_ENTITLEMENTS,
+      queryFn: async () => {
+        const { data } = await apiClient.get('/billing/entitlements');
+        if (data.subjectAccountId !== user?.id) throw new Error('Entitlement account changed');
+        return data;
+      },
     },
-  });
+  );
 }

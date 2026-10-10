@@ -35,8 +35,14 @@ import { destinationFor, type Cidr4, type HostResolver } from './network.js';
 export const REFUSAL_HEADER = 'x-alia-egress';
 
 const HOP_BY_HOP = [
-  'connection', 'proxy-connection', 'proxy-authorization', 'proxy-authenticate',
-  'keep-alive', 'te', 'trailer', 'upgrade',
+  'connection',
+  'proxy-connection',
+  'proxy-authorization',
+  'proxy-authenticate',
+  'keep-alive',
+  'te',
+  'trailer',
+  'upgrade',
 ];
 
 export interface EgressProxyOptions {
@@ -48,7 +54,10 @@ export interface EgressProxyOptions {
   /** Simultaneous client connections; Chromium opens ~6 per origin. */
   maxConnections?: number;
   /** Injected in tests so a "public" address can be served locally. */
-  sendHttp?: (options: RequestOptions, onResponse: (response: IncomingMessage) => void) => ClientRequest;
+  sendHttp?: (
+    options: RequestOptions,
+    onResponse: (response: IncomingMessage) => void,
+  ) => ClientRequest;
   connectTcp?: (options: { host: string; port: number; family: 4 | 6 }) => Socket;
   /** Called with each refusal, for the log; never with a URL path or query. */
   onRefused?: (reason: string, host: string) => void;
@@ -64,7 +73,9 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
   const sockets = new Set<Socket>();
   const extraDenied = options.extraDenied ?? [];
   const sendHttp = options.sendHttp ?? httpRequest;
-  const connectTcp = options.connectTcp ?? ((target) => connect({ host: target.host, port: target.port, family: target.family }));
+  const connectTcp =
+    options.connectTcp ??
+    ((target) => connect({ host: target.host, port: target.port, family: target.family }));
   const refused = (reason: string, host: string) => options.onRefused?.(reason, host);
 
   const server = createServer(async (incoming, response) => {
@@ -79,7 +90,8 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
         }
       })();
       const target = await destinationFor(raw, options.resolve, extraDenied);
-      if (target.url.protocol !== 'http:') throw new Error('An HTTP proxy request must name an http: URL');
+      if (target.url.protocol !== 'http:')
+        throw new Error('An HTTP proxy request must name an http: URL');
       const headers: OutgoingHttpHeaders = { ...incoming.headers, host: target.url.host };
       for (const name of HOP_BY_HOP) delete headers[name];
       const upstream = sendHttp(
@@ -113,7 +125,8 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
     } catch (error) {
       refused(error instanceof Error ? error.message : 'refused', host);
       // Marked, so the worker can tell a refusal from a site's own 403.
-      if (!response.headersSent) response.writeHead(403, { 'content-type': 'text/plain', [REFUSAL_HEADER]: 'refused' });
+      if (!response.headersSent)
+        response.writeHead(403, { 'content-type': 'text/plain', [REFUSAL_HEADER]: 'refused' });
       response.end('Destination blocked');
     }
   });
@@ -124,7 +137,8 @@ export async function startEgressProxy(options: EgressProxyOptions): Promise<Egr
     try {
       // Port 443 only: a tunnel to 80 would carry plain HTTP past the request
       // path above, and a tunnel anywhere else is not the web.
-      if (!/^(?:\[[0-9a-f:]+\]|[a-z0-9.-]+):443$/i.test(authority)) throw new Error('Only port 443 can be tunnelled');
+      if (!/^(?:\[[0-9a-f:]+\]|[a-z0-9.-]+):443$/i.test(authority))
+        throw new Error('Only port 443 can be tunnelled');
       const target = await destinationFor(`https://${authority}`, options.resolve, extraDenied);
       if (client.destroyed) return;
       const upstream = connectTcp({ host: target.address, port: 443, family: target.family });

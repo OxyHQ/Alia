@@ -16,14 +16,22 @@ import { getFairCoinTool } from '../faircoin.js';
  */
 
 const fetchMock = vi.fn();
-beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal('fetch', fetchMock); });
+beforeEach(() => {
+  fetchMock.mockReset();
+  vi.stubGlobal('fetch', fetchMock);
+});
 afterEach(() => vi.unstubAllGlobals());
 
 const ok = (body: unknown) => ({ ok: true, json: async () => body });
 
 const quote = {
-  price: 0.0421, change24h: -1.8, volume24h: 1234, liquidityUsd: 56789,
-  marketCapUsd: 2_000_000, source: 'wfair-base', updatedAt: '2026-09-09T12:00:00.000Z',
+  price: 0.0421,
+  change24h: -1.8,
+  volume24h: 1234,
+  liquidityUsd: 56789,
+  marketCapUsd: 2_000_000,
+  source: 'wfair-base',
+  updatedAt: '2026-09-09T12:00:00.000Z',
 };
 
 const history = (n: number) => ({
@@ -68,7 +76,11 @@ describe('getFairCoin', () => {
     mockAll();
     const out = await run();
     expect(out.card.data).toMatchObject({
-      price: 0.0421, changePct: -1.8, volume24h: 1234, liquidityUsd: 56789, marketCapUsd: 2_000_000,
+      price: 0.0421,
+      changePct: -1.8,
+      volume24h: 1234,
+      liquidityUsd: 56789,
+      marketCapUsd: 2_000_000,
     });
   });
 

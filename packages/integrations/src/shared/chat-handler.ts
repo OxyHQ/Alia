@@ -82,7 +82,10 @@ export async function handleIncomingMessage(
         messages = conversation.messages
           .filter((m) => m.role === 'user' || m.role === 'assistant')
           .slice(-20)
-          .map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }));
+          .map((m) => ({
+            role: m.role,
+            content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+          }));
       }
     } catch (error) {
       logger.error('Failed to load history:', error);
@@ -101,16 +104,12 @@ export async function handleIncomingMessage(
     ];
 
     // Route through the main API to get system prompt, memory, tools, etc.
-    const result = await apiClient.chatCompletion(
-      botUser.oxyUserId,
-      apiMessages,
-      {
-        // Unset, or no longer in the catalogue, means the request names no
-        // model and the server's default applies. See `./catalogue.ts`.
-        model: await apiClient.requestModel(botUser.preferredModel),
-        conversationId,
-      },
-    );
+    const result = await apiClient.chatCompletion(botUser.oxyUserId, apiMessages, {
+      // Unset, or no longer in the catalogue, means the request names no
+      // model and the server's default applies. See `./catalogue.ts`.
+      model: await apiClient.requestModel(botUser.preferredModel),
+      conversationId,
+    });
 
     const fullResponse = result.content;
 

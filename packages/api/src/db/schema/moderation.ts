@@ -18,18 +18,37 @@
  * one definition throughout, at no point duplicated.
  */
 
-import { boolean, check, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkArrayWithin, checkOneOf } from './columns';
 import { MODERATION_ENFORCEMENT_ACTIONS } from '../../domain/moderation-enforcement.js';
-import { MODERATION_LOCAL_STATUSES, ReportCategory, ReportStatus, ReportedType } from '../../domain/report.js';
+import {
+  MODERATION_LOCAL_STATUSES,
+  ReportCategory,
+  ReportStatus,
+  ReportedType,
+} from '../../domain/report.js';
 
 const REPORTED_TYPES = Object.values(ReportedType);
 const REPORT_CATEGORIES = Object.values(ReportCategory);
 const REPORT_STATUSES = Object.values(ReportStatus);
 export const MODERATION_OUTBOX_KINDS = ['report.submit', 'decision.apply'] as const;
-export const MODERATION_OUTBOX_STATUSES = ['pending', 'processing', 'processed', 'dead_letter'] as const;
+export const MODERATION_OUTBOX_STATUSES = [
+  'pending',
+  'processing',
+  'processed',
+  'dead_letter',
+] as const;
 export const MODERATION_EVENT_STATES = ['claimed', 'queued', 'ignored'] as const;
 export const MODERATION_ENFORCEMENT_MODES = ['observe', 'manual', 'automatic'] as const;
 
@@ -68,8 +87,12 @@ export const reports = pgTable(
       .array()
       .notNull(),
     details: text(),
-    status: text({ enum: REPORT_STATUSES as [string, ...string[]] }).notNull().default(ReportStatus.PENDING),
-    localStatus: text({ enum: MODERATION_LOCAL_STATUSES as [string, ...string[]] }).notNull().default('received'),
+    status: text({ enum: REPORT_STATUSES as [string, ...string[]] })
+      .notNull()
+      .default(ReportStatus.PENDING),
+    localStatus: text({ enum: MODERATION_LOCAL_STATUSES as [string, ...string[]] })
+      .notNull()
+      .default('received'),
     localStatusReason: text(),
     lastDeliveryError: text(),
     crowdSourceReportId: text(),

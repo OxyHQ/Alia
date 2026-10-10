@@ -70,7 +70,7 @@ if (dockerfiles.length === 0) {
 const copied = dockerfiles.flatMap((dockerfile) =>
   [
     ...readFileSync(dockerfile, 'utf8').matchAll(/^COPY\s+(packages\/[^\s]*?)\/package\.json/gm),
-  ].map((m) => ({ dockerfile: relative(root, dockerfile), workspace: m[1] }))
+  ].map((m) => ({ dockerfile: relative(root, dockerfile), workspace: m[1] })),
 );
 
 if (copied.length === 0) {
@@ -82,13 +82,17 @@ if (copied.length === 0) {
 const missing = copied.filter((c) => !existsSync(join(root, c.workspace, 'package.json')));
 
 if (missing.length > 0) {
-  console.error('check-dockerfile-workspaces: a Dockerfile copies a workspace that does not exist.');
+  console.error(
+    'check-dockerfile-workspaces: a Dockerfile copies a workspace that does not exist.',
+  );
   console.error('');
   for (const c of missing) {
     console.error(`  ${c.workspace}/package.json is COPYed by ${c.dockerfile} and is not on disk.`);
   }
   console.error('');
-  console.error('  Delete the COPY line, or restore the workspace. A deploy fails on this; nothing else does.');
+  console.error(
+    '  Delete the COPY line, or restore the workspace. A deploy fails on this; nothing else does.',
+  );
   process.exit(1);
 }
 
@@ -101,7 +105,8 @@ if (missing.length > 0) {
  * workspace graph, and one that copies none (an image whose build context is
  * its own package) is not this gate's business.
  */
-const rootWorkspaces = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).workspaces ?? [];
+const rootWorkspaces =
+  JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).workspaces ?? [];
 
 const globbed = rootWorkspaces.filter((member) => member.includes('*'));
 if (globbed.length > 0) {
@@ -122,13 +127,19 @@ for (const dockerfile of dockerfiles) {
 }
 
 if (uncopied.length > 0) {
-  console.error('check-dockerfile-workspaces: a Dockerfile installs the root workspace graph without every member.');
+  console.error(
+    'check-dockerfile-workspaces: a Dockerfile installs the root workspace graph without every member.',
+  );
   console.error('');
   for (const c of uncopied) {
-    console.error(`  ${c.dockerfile} never COPYs ${c.workspace}/package.json, which the root workspaces array names.`);
+    console.error(
+      `  ${c.dockerfile} never COPYs ${c.workspace}/package.json, which the root workspaces array names.`,
+    );
   }
   console.error('');
-  console.error('  `bun install` reads every member manifest before resolving, so this fails the image build');
+  console.error(
+    '  `bun install` reads every member manifest before resolving, so this fails the image build',
+  );
   console.error('  with "Workspace not found" no matter what --filter says. Add the COPY line.');
   process.exit(1);
 }
@@ -136,5 +147,5 @@ if (uncopied.length > 0) {
 console.log(
   `check-dockerfile-workspaces: OK — ${String(dockerfiles.length)} Dockerfiles, ` +
     `${String(copied.length)} workspace COPY lines, every one resolves, ` +
-    `and every one of the ${String(rootWorkspaces.length)} workspace members is copied by each root-graph image.`
+    `and every one of the ${String(rootWorkspaces.length)} workspace members is copied by each root-graph image.`,
 );

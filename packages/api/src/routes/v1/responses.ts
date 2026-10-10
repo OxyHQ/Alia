@@ -33,7 +33,7 @@ router.post('/', (req: Request, res: Response, next: NextFunction) => {
           // Already message-like format
           return {
             role: item.role || 'user',
-            content: item.content || item.text || ''
+            content: item.content || item.text || '',
           };
         } else if (item.type === 'text') {
           return { role: 'user', content: item.text };
@@ -52,8 +52,8 @@ router.post('/', (req: Request, res: Response, next: NextFunction) => {
       error: {
         message: 'Invalid input: expected "input" array or "messages" array',
         type: 'invalid_request_error',
-        code: 'invalid_input'
-      }
+        code: 'invalid_input',
+      },
     });
   }
 
@@ -70,31 +70,37 @@ router.post('/', (req: Request, res: Response, next: NextFunction) => {
     // Pass through Alia-specific params
     conversationId: body.conversationId,
     // The Responses API spells it `reasoning: { effort }`.
-    reasoningEffort: body.reasoningEffort ?? (body.reasoning as { effort?: unknown } | undefined)?.effort,
+    reasoningEffort:
+      body.reasoningEffort ?? (body.reasoning as { effort?: unknown } | undefined)?.effort,
     surface: body.surface,
     webSearch: body.webSearch,
     mcpServerId: body.mcpServerId,
   };
 
-  log.v1.info({ messageCount: messages.length, model: req.body.model, stream: req.body.stream }, 'Responses API converted to chat completions format');
+  log.v1.info(
+    { messageCount: messages.length, model: req.body.model, stream: req.body.stream },
+    'Responses API converted to chat completions format',
+  );
 
   // Rewrite URL and forward to chat completions handler
   req.url = '/';
   req.originalUrl = '/v1/chat/completions';
 
   // Import and use the chat completions router
-  import('./chat-completions.js').then(module => {
-    module.default(req, res, next);
-  }).catch(err => {
-    log.v1.error({ err: err }, 'Error loading chat-completions');
-    res.status(500).json({
-      error: {
-        message: 'Internal server error',
-        type: 'internal_error',
-        code: 'internal_error'
-      }
+  import('./chat-completions.js')
+    .then((module) => {
+      module.default(req, res, next);
+    })
+    .catch((err) => {
+      log.v1.error({ err: err }, 'Error loading chat-completions');
+      res.status(500).json({
+        error: {
+          message: 'Internal server error',
+          type: 'internal_error',
+          code: 'internal_error',
+        },
+      });
     });
-  });
 });
 
 export default router;

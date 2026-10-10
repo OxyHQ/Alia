@@ -26,7 +26,12 @@ router.get('/', async (req, res) => {
 
     // Return profile without _raw data (it's internal)
     const { _raw, ...publicProfile } = memory.writingStyle;
-    res.json({ writingStyle: { ...publicProfile, messagesAnalyzed: _raw?.totalMessages || publicProfile.messagesAnalyzed } });
+    res.json({
+      writingStyle: {
+        ...publicProfile,
+        messagesAnalyzed: _raw?.totalMessages || publicProfile.messagesAnalyzed,
+      },
+    });
   } catch (error: unknown) {
     log.chat.error({ err: error }, 'Error fetching writing style');
     res.status(500).json({ error: 'Failed to fetch writing style profile' });
@@ -43,7 +48,9 @@ router.put('/', async (req, res) => {
     const memory = await getOrCreateUserMemory(req.user!.id);
 
     if (!memory.writingStyle) {
-      res.status(400).json({ error: 'No writing style profile exists yet. Keep chatting to build one.' });
+      res
+        .status(400)
+        .json({ error: 'No writing style profile exists yet. Keep chatting to build one.' });
       return;
     }
 
@@ -96,7 +103,9 @@ router.post('/refresh', async (req, res) => {
     const memory = await getOrCreateUserMemory(req.user!.id);
 
     if (!memory.writingStyle) {
-      res.status(400).json({ error: 'No writing style profile exists yet. Keep chatting to build one.' });
+      res
+        .status(400)
+        .json({ error: 'No writing style profile exists yet. Keep chatting to build one.' });
       return;
     }
 

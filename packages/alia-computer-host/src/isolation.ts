@@ -109,37 +109,63 @@ export function workspacePath(path: string): string {
 
 /** `docker container create` arguments: the isolation contract, as flags. */
 export function createArgs(identity: ComputerIdentity, image: string, runtime: string): string[] {
-  const labels = Object.entries(identity.labels).flatMap(([key, value]) => ['--label', `${key}=${value}`]);
+  const labels = Object.entries(identity.labels).flatMap(([key, value]) => [
+    '--label',
+    `${key}=${value}`,
+  ]);
   return [
-    'container', 'create',
-    '--pull', 'never',
-    '--name', identity.container,
+    'container',
+    'create',
+    '--pull',
+    'never',
+    '--name',
+    identity.container,
     ...labels,
-    '--runtime', runtime,
-    '--user', CONTAINER_USER,
-    '--workdir', WORKSPACE,
+    '--runtime',
+    runtime,
+    '--user',
+    CONTAINER_USER,
+    '--workdir',
+    WORKSPACE,
     '--read-only',
-    '--cap-drop', 'ALL',
-    '--security-opt', 'no-new-privileges',
-    '--network', 'none',
-    '--ipc', 'private',
-    '--memory', '512m',
-    '--memory-swap', '512m',
-    '--cpus', '1',
-    '--pids-limit', String(PIDS_LIMIT),
-    '--restart', 'no',
-    '--tmpfs', `/tmp:${TMPFS_OPTIONS}`,
-    '--mount', `type=volume,source=${identity.volume},target=${WORKSPACE}`,
-    '--env', `HOME=${WORKSPACE}`,
-    '--env', 'LANG=C.UTF-8',
-    '--entrypoint', '/usr/bin/sleep',
+    '--cap-drop',
+    'ALL',
+    '--security-opt',
+    'no-new-privileges',
+    '--network',
+    'none',
+    '--ipc',
+    'private',
+    '--memory',
+    '512m',
+    '--memory-swap',
+    '512m',
+    '--cpus',
+    '1',
+    '--pids-limit',
+    String(PIDS_LIMIT),
+    '--restart',
+    'no',
+    '--tmpfs',
+    `/tmp:${TMPFS_OPTIONS}`,
+    '--mount',
+    `type=volume,source=${identity.volume},target=${WORKSPACE}`,
+    '--env',
+    `HOME=${WORKSPACE}`,
+    '--env',
+    'LANG=C.UTF-8',
+    '--entrypoint',
+    '/usr/bin/sleep',
     image,
     'infinity',
   ];
 }
 
 export function volumeCreateArgs(identity: ComputerIdentity): string[] {
-  const labels = Object.entries(identity.labels).flatMap(([key, value]) => ['--label', `${key}=${value}`]);
+  const labels = Object.entries(identity.labels).flatMap(([key, value]) => [
+    '--label',
+    `${key}=${value}`,
+  ]);
   return ['volume', 'create', ...labels, identity.volume];
 }
 
@@ -216,7 +242,9 @@ export function isolationViolations(
     image: c.Config.Image === image,
     user: c.Config.User === CONTAINER_USER,
     workdir: c.Config.WorkingDir === WORKSPACE,
-    labels: Object.entries(identity.labels).every(([key, value]) => c.Config.Labels?.[key] === value),
+    labels: Object.entries(identity.labels).every(
+      ([key, value]) => c.Config.Labels?.[key] === value,
+    ),
     env: c.Config.Env.every((value) => ALLOWED_ENV.has(value.split('=')[0] ?? '')),
     entrypoint: JSON.stringify(c.Config.Entrypoint) === '["/usr/bin/sleep"]',
     cmd: JSON.stringify(c.Config.Cmd) === '["infinity"]',
@@ -249,7 +277,9 @@ export function isolationViolations(
   };
   return {
     inspection: c,
-    violations: Object.entries(checks).filter(([, ok]) => !ok).map(([name]) => name),
+    violations: Object.entries(checks)
+      .filter(([, ok]) => !ok)
+      .map(([name]) => name),
   };
 }
 
@@ -275,7 +305,11 @@ export function volumeViolations(raw: unknown, identity: ComputerIdentity): stri
     volumeDriver: v.Driver === 'local',
     volumeScope: v.Scope === 'local',
     volumeOptions: Object.keys(v.Options ?? {}).length === 0,
-    volumeLabels: Object.entries(identity.labels).every(([key, value]) => v.Labels?.[key] === value),
+    volumeLabels: Object.entries(identity.labels).every(
+      ([key, value]) => v.Labels?.[key] === value,
+    ),
   };
-  return Object.entries(checks).filter(([, ok]) => !ok).map(([name]) => name);
+  return Object.entries(checks)
+    .filter(([, ok]) => !ok)
+    .map(([name]) => name);
 }

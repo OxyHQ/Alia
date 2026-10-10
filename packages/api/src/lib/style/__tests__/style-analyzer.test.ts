@@ -117,8 +117,8 @@ describe('derived fields', () => {
 
     const terse = profileFrom('Yes. No. Fine. Sure. Good. Done. Next. Stop.');
     const verbose = profileFrom(
-      'I would very much appreciate it if you could possibly take a considered look at the '
-        + 'accumulated documentation before we proceed any further with this particular matter.',
+      'I would very much appreciate it if you could possibly take a considered look at the ' +
+        'accumulated documentation before we proceed any further with this particular matter.',
     );
 
     expect(verbose.avgSentenceLength).toBeGreaterThan(terse.avgSentenceLength);
@@ -134,8 +134,8 @@ describe('derived fields', () => {
 
     const plain = profileFrom('the cat sat on the mat and then the dog ran to the box and back');
     const dense = profileFrom(
-      'epistemological considerations necessarily complicate interdisciplinary methodological '
-        + 'frameworks underpinning contemporary organisational transformation initiatives',
+      'epistemological considerations necessarily complicate interdisciplinary methodological ' +
+        'frameworks underpinning contemporary organisational transformation initiatives',
     );
 
     expect(rank[dense.vocabularyLevel]).toBeGreaterThanOrEqual(rank[plain.vocabularyLevel]);

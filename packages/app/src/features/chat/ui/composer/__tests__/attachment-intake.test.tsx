@@ -171,9 +171,7 @@ describe('taking a file in', () => {
     // nobody consumes.
     expect(started).toHaveLength(0);
     expect(intake.items).toHaveLength(0);
-    expect(added[0]).toEqual(
-      expect.objectContaining({ uri: 'blob:alia/doc-1', type: 'document' }),
-    );
+    expect(added[0]).toEqual(expect.objectContaining({ uri: 'blob:alia/doc-1', type: 'document' }));
   });
 });
 

@@ -67,7 +67,11 @@ export function ToolStep({
   const chips = sources ? sources.slice(0, CHIP_LIMIT) : [];
   const extra = sources ? Math.max(0, sources.length - CHIP_LIMIT) : 0;
   const statusWord =
-    status === 'error' ? t('thought.failed') : status === 'interrupted' ? t('thought.cancelled') : null;
+    status === 'error'
+      ? t('thought.failed')
+      : status === 'interrupted'
+        ? t('thought.cancelled')
+        : null;
   const Chevron = expanded ? RiArrowDownSLine : RiArrowRightSLine;
   const labels = { copy: t('panels.code.copy'), copied: t('panels.code.copied') };
 
@@ -93,7 +97,11 @@ export function ToolStep({
       {expanded ? (
         <View className="gap-2 pb-2">
           {input.length > 0 || output.length > 0 ? (
-            <ScrollView className="max-h-[200px]" contentContainerClassName="gap-2" nestedScrollEnabled>
+            <ScrollView
+              className="max-h-[200px]"
+              contentContainerClassName="gap-2"
+              nestedScrollEnabled
+            >
               {input.length > 0 ? (
                 <CodeBlock
                   code={input}

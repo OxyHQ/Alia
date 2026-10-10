@@ -25,7 +25,9 @@ router.post('/servers/:id/start', async (req, res) => {
     return res.status(400).json({ error: 'oxyUserId must be a non-empty string' });
   }
   if (!transport || !VALID_TRANSPORTS.has(transport)) {
-    return res.status(400).json({ error: `transport must be one of: ${[...VALID_TRANSPORTS].join(', ')}` });
+    return res
+      .status(400)
+      .json({ error: `transport must be one of: ${[...VALID_TRANSPORTS].join(', ')}` });
   }
   if (!config || typeof config !== 'object' || Array.isArray(config)) {
     return res.status(400).json({ error: 'config must be an object' });
@@ -33,8 +35,13 @@ router.post('/servers/:id/start', async (req, res) => {
   if (transport === 'stdio' && (!config.command || typeof config.command !== 'string')) {
     return res.status(400).json({ error: 'stdio transport requires config.command as a string' });
   }
-  if ((transport === 'streamable-http' || transport === 'sse') && (!config.url || typeof config.url !== 'string')) {
-    return res.status(400).json({ error: `${transport} transport requires config.url as a string` });
+  if (
+    (transport === 'streamable-http' || transport === 'sse') &&
+    (!config.url || typeof config.url !== 'string')
+  ) {
+    return res
+      .status(400)
+      .json({ error: `${transport} transport requires config.url as a string` });
   }
 
   try {
@@ -57,7 +64,12 @@ router.post('/servers/:id/oauth/start', async (req, res) => {
   if (transport !== 'sse' && transport !== 'streamable-http') {
     return res.status(400).json({ error: 'OAuth requires an sse or streamable-http transport' });
   }
-  if (!config || typeof config !== 'object' || Array.isArray(config) || typeof config.url !== 'string') {
+  if (
+    !config ||
+    typeof config !== 'object' ||
+    Array.isArray(config) ||
+    typeof config.url !== 'string'
+  ) {
     return res.status(400).json({ error: 'config must be an object with a url string' });
   }
   if (!stateToken || typeof stateToken !== 'string') {
@@ -68,7 +80,14 @@ router.post('/servers/:id/oauth/start', async (req, res) => {
   }
 
   try {
-    const result = await manager.startOAuth(serverId, oxyUserId, transport, config, stateToken, callbackUrl);
+    const result = await manager.startOAuth(
+      serverId,
+      oxyUserId,
+      transport,
+      config,
+      stateToken,
+      callbackUrl,
+    );
     res.json({ authorizationUrl: result.authorizationUrl });
   } catch (err: unknown) {
     logger.error(`Failed to start OAuth for server ${serverId}:`, errorMessage(err));
@@ -87,7 +106,12 @@ router.post('/servers/:id/oauth/finish', async (req, res) => {
   if (transport !== 'sse' && transport !== 'streamable-http') {
     return res.status(400).json({ error: 'OAuth requires an sse or streamable-http transport' });
   }
-  if (!config || typeof config !== 'object' || Array.isArray(config) || typeof config.url !== 'string') {
+  if (
+    !config ||
+    typeof config !== 'object' ||
+    Array.isArray(config) ||
+    typeof config.url !== 'string'
+  ) {
     return res.status(400).json({ error: 'config must be an object with a url string' });
   }
   if (!code || typeof code !== 'string') {
@@ -98,7 +122,14 @@ router.post('/servers/:id/oauth/finish', async (req, res) => {
   }
 
   try {
-    const result = await manager.finishOAuth(serverId, oxyUserId, transport, config, code, callbackUrl);
+    const result = await manager.finishOAuth(
+      serverId,
+      oxyUserId,
+      transport,
+      config,
+      code,
+      callbackUrl,
+    );
     res.json({ success: true, tools: result.tools, resources: result.resources });
   } catch (err: unknown) {
     logger.error(`Failed to finish OAuth for server ${serverId}:`, errorMessage(err));

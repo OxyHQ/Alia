@@ -23,7 +23,9 @@ const retiredRuntimeFiles = [
 describe('Alia to Oxy to Kaana boundary', () => {
   it('has no direct Kaana client, signer or bespoke wire transport', () => {
     for (const file of retiredRuntimeFiles) {
-      expect(existsSync(path.join(REPO_ROOT, 'packages/api/src/lib/inference', file)), file).toBe(false);
+      expect(existsSync(path.join(REPO_ROOT, 'packages/api/src/lib/inference', file)), file).toBe(
+        false,
+      );
     }
   });
 

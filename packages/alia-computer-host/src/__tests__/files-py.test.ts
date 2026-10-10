@@ -5,7 +5,15 @@
  * container — and the only one that can see a symlink.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -16,8 +24,15 @@ const python = spawnSync('python3', ['--version']).status === 0;
 let root: string;
 let outside: string;
 
-function run(request: Record<string, unknown>): { ok: boolean; body: Record<string, unknown> | null; error: string } {
-  const result = spawnSync('python3', ['-I', SCRIPT, '--root', root], { input: JSON.stringify(request), encoding: 'utf8' });
+function run(request: Record<string, unknown>): {
+  ok: boolean;
+  body: Record<string, unknown> | null;
+  error: string;
+} {
+  const result = spawnSync('python3', ['-I', SCRIPT, '--root', root], {
+    input: JSON.stringify(request),
+    encoding: 'utf8',
+  });
   return {
     ok: result.status === 0,
     body: result.status === 0 ? (JSON.parse(result.stdout) as Record<string, unknown>) : null,
@@ -39,26 +54,38 @@ afterEach(() => {
 describe.skipIf(!python)('files.py', () => {
   it('writes atomically, reads back, lists and makes directories', () => {
     expect(run({ operation: 'mkdir', path: '/workspace/src/lib' }).ok).toBe(true);
-    expect(run({ operation: 'write', path: '/workspace/src/lib/a.txt', text: 'hola' }).body).toEqual({ path: '/workspace/src/lib/a.txt', bytes: 4 });
-    expect(run({ operation: 'read', path: '/workspace/src/lib/a.txt' }).body).toEqual({ path: '/workspace/src/lib/a.txt', text: 'hola' });
+    expect(
+      run({ operation: 'write', path: '/workspace/src/lib/a.txt', text: 'hola' }).body,
+    ).toEqual({ path: '/workspace/src/lib/a.txt', bytes: 4 });
+    expect(run({ operation: 'read', path: '/workspace/src/lib/a.txt' }).body).toEqual({
+      path: '/workspace/src/lib/a.txt',
+      text: 'hola',
+    });
     const listing = run({ operation: 'list', path: '/workspace/src' }).body;
-    expect(listing).toMatchObject({ entries: [{ name: 'lib', type: 'directory' }], truncated: false });
+    expect(listing).toMatchObject({
+      entries: [{ name: 'lib', type: 'directory' }],
+      truncated: false,
+    });
     // No temporary file is left behind.
     expect(readdirSync(join(root, 'src', 'lib'))).toEqual(['a.txt']);
   });
 
   it('writes a download as bytes, creating its directory and never replacing a file', () => {
     const data = Buffer.from('%PDF-1.7 fake').toString('base64');
-    expect(run({ operation: 'write_bytes', path: '/workspace/downloads/report.pdf', data }).body)
-      .toEqual({ path: '/workspace/downloads/report.pdf', bytes: 13 });
-    expect(run({ operation: 'write_bytes', path: '/workspace/downloads/report.pdf', data }).body)
-      .toEqual({ path: '/workspace/downloads/report (1).pdf', bytes: 13 });
+    expect(
+      run({ operation: 'write_bytes', path: '/workspace/downloads/report.pdf', data }).body,
+    ).toEqual({ path: '/workspace/downloads/report.pdf', bytes: 13 });
+    expect(
+      run({ operation: 'write_bytes', path: '/workspace/downloads/report.pdf', data }).body,
+    ).toEqual({ path: '/workspace/downloads/report (1).pdf', bytes: 13 });
     expect(readFileSync(join(root, 'downloads', 'report (1).pdf'), 'utf8')).toBe('%PDF-1.7 fake');
   });
 
   it('refuses a download through a planted symlink, and invalid base64', () => {
     symlinkSync(outside, join(root, 'downloads'));
-    expect(run({ operation: 'write_bytes', path: '/workspace/downloads/x.pdf', data: 'aGk=' }).ok).toBe(false);
+    expect(
+      run({ operation: 'write_bytes', path: '/workspace/downloads/x.pdf', data: 'aGk=' }).ok,
+    ).toBe(false);
     expect(readdirSync(outside)).toEqual(['secret']);
     expect(run({ operation: 'write_bytes', path: '/workspace/y.bin', data: '***' }).ok).toBe(false);
   });
@@ -80,17 +107,24 @@ describe.skipIf(!python)('files.py', () => {
     expect(readdirSync(outside)).toEqual(['secret']);
   });
 
-  it.each(['/workspace/../etc/passwd', '/etc/passwd', 'workspace/a', '/workspace/a\u0000b'])('refuses the path %j', (path) => {
-    expect(run({ operation: 'read', path }).ok).toBe(false);
-  });
+  it.each(['/workspace/../etc/passwd', '/etc/passwd', 'workspace/a', '/workspace/a\u0000b'])(
+    'refuses the path %j',
+    (path) => {
+      expect(run({ operation: 'read', path }).ok).toBe(false);
+    },
+  );
 
   it('enforces the 256 KB limit both ways', () => {
-    expect(run({ operation: 'write', path: '/workspace/big', text: 'x'.repeat(256 * 1024 + 1) })).toMatchObject({
+    expect(
+      run({ operation: 'write', path: '/workspace/big', text: 'x'.repeat(256 * 1024 + 1) }),
+    ).toMatchObject({
       ok: false,
       error: 'File exceeds size limit',
     });
     writeFileSync(join(root, 'big'), 'x'.repeat(256 * 1024 + 1));
-    expect(run({ operation: 'read', path: '/workspace/big' }).error).toBe('File exceeds size limit');
+    expect(run({ operation: 'read', path: '/workspace/big' }).error).toBe(
+      'File exceeds size limit',
+    );
   });
 
   it('refuses binary content rather than corrupting it', () => {
@@ -100,6 +134,9 @@ describe.skipIf(!python)('files.py', () => {
 
   it('refuses an operation it does not know', () => {
     mkdirSync(join(root, 'd'));
-    expect(run({ operation: 'delete', path: '/workspace/d' })).toMatchObject({ ok: false, error: 'Unsupported file operation' });
+    expect(run({ operation: 'delete', path: '/workspace/d' })).toMatchObject({
+      ok: false,
+      error: 'Unsupported file operation',
+    });
   });
 });

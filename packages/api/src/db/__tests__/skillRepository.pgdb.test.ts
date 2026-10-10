@@ -92,7 +92,13 @@ async function withVersion(
   const version = await db.transaction((tx) =>
     insertSkillVersion(
       tx,
-      { skillId: skill._id, body, frontmatter: { name }, checksum: `sum-${name}-${body.length}`, bytes: body.length },
+      {
+        skillId: skill._id,
+        body,
+        frontmatter: { name },
+        checksum: `sum-${name}-${body.length}`,
+        bytes: body.length,
+      },
       files,
     ),
   );
@@ -126,7 +132,9 @@ describe('createSkill', () => {
   });
 
   it('refuses an imported skill with no repository to attribute it to', async () => {
-    await expect(createSkill(db, newSkill(uniqueName('unattributed'), { source: 'github' }))).rejects.toThrow();
+    await expect(
+      createSkill(db, newSkill(uniqueName('unattributed'), { source: 'github' })),
+    ).rejects.toThrow();
   });
 });
 
@@ -136,7 +144,11 @@ describe('versions', () => {
     expect(version.version).toBe(1);
 
     const second = await db.transaction((tx) =>
-      insertSkillVersion(tx, { skillId: skill._id, body: 'second', frontmatter: {}, checksum: 'sum-2', bytes: 6 }, []),
+      insertSkillVersion(
+        tx,
+        { skillId: skill._id, body: 'second', frontmatter: {}, checksum: 'sum-2', bytes: 6 },
+        [],
+      ),
     );
     expect(second.version).toBe(2);
     expect((await findLatestVersion(db, skill._id))?.body).toBe('second');
@@ -146,7 +158,11 @@ describe('versions', () => {
   it('refuses to write a version outside a transaction', async () => {
     const skill = await createSkill(db, newSkill(uniqueName('untransacted')));
     await expect(
-      insertSkillVersion(db, { skillId: skill._id, body: 'x', frontmatter: {}, checksum: 'c', bytes: 1 }, []),
+      insertSkillVersion(
+        db,
+        { skillId: skill._id, body: 'x', frontmatter: {}, checksum: 'c', bytes: 1 },
+        [],
+      ),
     ).rejects.toBeInstanceOf(SkillChildWriteOutsideTransactionError);
   });
 
@@ -160,7 +176,14 @@ describe('versions', () => {
 
   it('deletes versions and their files with the skill', async () => {
     const { skill, version } = await withVersion(uniqueName('cascade'), 'body', {}, [
-      { path: 'references/API.md', kind: 'reference', mime: 'text/markdown', bytes: 5, sha256: 'a', contentText: '# API' },
+      {
+        path: 'references/API.md',
+        kind: 'reference',
+        mime: 'text/markdown',
+        bytes: 5,
+        sha256: 'a',
+        contentText: '# API',
+      },
     ]);
     expect(await listVersionFiles(db, version._id)).toHaveLength(1);
 
@@ -173,21 +196,49 @@ describe('versions', () => {
 describe('files', () => {
   it('stores text inline and refuses a file stored in both places or neither', async () => {
     const { skill, version } = await withVersion(uniqueName('files'), 'body', {}, [
-      { path: 'references/API.md', kind: 'reference', mime: 'text/markdown', bytes: 5, sha256: 'a', contentText: '# API' },
-      { path: 'assets/logo.png', kind: 'asset', mime: 'image/png', bytes: 9, sha256: 'b', s3Key: 'k/logo.png' },
+      {
+        path: 'references/API.md',
+        kind: 'reference',
+        mime: 'text/markdown',
+        bytes: 5,
+        sha256: 'a',
+        contentText: '# API',
+      },
+      {
+        path: 'assets/logo.png',
+        kind: 'asset',
+        mime: 'image/png',
+        bytes: 9,
+        sha256: 'b',
+        s3Key: 'k/logo.png',
+      },
     ]);
 
     const inline = await findSkillFileByPath(db, version._id, 'references/API.md');
     expect(inline?.contentText).toBe('# API');
     expect(inline?.s3Key).toBeNull();
-    expect((await findSkillFileByPath(db, version._id, 'assets/logo.png'))?.s3Key).toBe('k/logo.png');
+    expect((await findSkillFileByPath(db, version._id, 'assets/logo.png'))?.s3Key).toBe(
+      'k/logo.png',
+    );
     expect(await findSkillFileByPath(db, version._id, 'references/MISSING.md')).toBeNull();
 
     await expect(
       db.transaction((tx) =>
-        insertSkillVersion(tx, { skillId: skill._id, body: 'b', frontmatter: {}, checksum: 'c2', bytes: 1 }, [
-          { path: 'both.md', kind: 'reference', mime: 'text/markdown', bytes: 1, sha256: 'c', contentText: 'x', s3Key: 'k' },
-        ]),
+        insertSkillVersion(
+          tx,
+          { skillId: skill._id, body: 'b', frontmatter: {}, checksum: 'c2', bytes: 1 },
+          [
+            {
+              path: 'both.md',
+              kind: 'reference',
+              mime: 'text/markdown',
+              bytes: 1,
+              sha256: 'c',
+              contentText: 'x',
+              s3Key: 'k',
+            },
+          ],
+        ),
       ),
     ).rejects.toThrow();
   });
@@ -196,9 +247,20 @@ describe('files', () => {
     const skill = await createSkill(db, newSkill(uniqueName('traversal')));
     await expect(
       db.transaction((tx) =>
-        insertSkillVersion(tx, { skillId: skill._id, body: 'b', frontmatter: {}, checksum: 'c', bytes: 1 }, [
-          { path: '../escape.md', kind: 'reference', mime: 'text/markdown', bytes: 1, sha256: 'd', contentText: 'x' },
-        ]),
+        insertSkillVersion(
+          tx,
+          { skillId: skill._id, body: 'b', frontmatter: {}, checksum: 'c', bytes: 1 },
+          [
+            {
+              path: '../escape.md',
+              kind: 'reference',
+              mime: 'text/markdown',
+              bytes: 1,
+              sha256: 'd',
+              contentText: 'x',
+            },
+          ],
+        ),
       ),
     ).rejects.toThrow();
   });
@@ -218,17 +280,26 @@ describe('the catalogue', () => {
 
   it('filters by source, tag and publisher', async () => {
     const name = uniqueName('filtered');
-    await createSkill(db, newSkill(name, {
-      visibility: 'public',
-      source: 'registry',
-      sourceRepo: 'anthropics/skills',
-      publisher: 'anthropics',
-      tags: ['skr-documents'],
-    }));
+    await createSkill(
+      db,
+      newSkill(name, {
+        visibility: 'public',
+        source: 'registry',
+        sourceRepo: 'anthropics/skills',
+        publisher: 'anthropics',
+        tags: ['skr-documents'],
+      }),
+    );
 
-    expect((await listSkillCatalogue(db, { tag: 'skr-documents' })).map((s) => s.name)).toEqual([name]);
-    expect((await listSkillCatalogue(db, { publisher: 'anthropics', query: 'skr-' })).map((s) => s.name)).toContain(name);
-    expect((await listSkillCatalogue(db, { source: 'upload', query: name })).map((s) => s.name)).toEqual([]);
+    expect((await listSkillCatalogue(db, { tag: 'skr-documents' })).map((s) => s.name)).toEqual([
+      name,
+    ]);
+    expect(
+      (await listSkillCatalogue(db, { publisher: 'anthropics', query: 'skr-' })).map((s) => s.name),
+    ).toContain(name);
+    expect(
+      (await listSkillCatalogue(db, { source: 'upload', query: name })).map((s) => s.name),
+    ).toEqual([]);
   });
 
   it('resolves a name to the caller their own skill before a public one', async () => {
@@ -266,14 +337,25 @@ describe('patching', () => {
 
   it('is scoped to the owner', async () => {
     const skill = await createSkill(db, newSkill(uniqueName('scoped-patch')));
-    expect(await updateOwnedSkill(db, skill._id, STRANGER, { displayName: 'Theirs' })).toBeUndefined();
-    expect((await updateOwnedSkill(db, skill._id, OWNER, { displayName: 'Mine' }))?.displayName).toBe('Mine');
+    expect(
+      await updateOwnedSkill(db, skill._id, STRANGER, { displayName: 'Theirs' }),
+    ).toBeUndefined();
+    expect(
+      (await updateOwnedSkill(db, skill._id, OWNER, { displayName: 'Mine' }))?.displayName,
+    ).toBe('Mine');
   });
 
   it('writes a catalogue skill only through the catalogue-scoped patch', async () => {
-    const skill = await createSkill(db, newSkill(uniqueName('catalogue'), { ownerOxyUserId: null, visibility: 'public' }));
-    expect(await updateOwnedSkill(db, skill._id, OWNER, { displayName: 'Hijacked' })).toBeUndefined();
-    expect((await updateCatalogueSkill(db, skill._id, { displayName: 'Seeded' }))?.displayName).toBe('Seeded');
+    const skill = await createSkill(
+      db,
+      newSkill(uniqueName('catalogue'), { ownerOxyUserId: null, visibility: 'public' }),
+    );
+    expect(
+      await updateOwnedSkill(db, skill._id, OWNER, { displayName: 'Hijacked' }),
+    ).toBeUndefined();
+    expect(
+      (await updateCatalogueSkill(db, skill._id, { displayName: 'Seeded' }))?.displayName,
+    ).toBe('Seeded');
   });
 });
 
@@ -293,7 +375,11 @@ describe('the shelf', () => {
   it('resolves the installed version as the pin, else the latest', async () => {
     const { skill } = await withVersion(uniqueName('pinned'), 'v1');
     await db.transaction((tx) =>
-      insertSkillVersion(tx, { skillId: skill._id, body: 'v2', frontmatter: {}, checksum: 'p2', bytes: 2 }, []),
+      insertSkillVersion(
+        tx,
+        { skillId: skill._id, body: 'v2', frontmatter: {}, checksum: 'p2', bytes: 2 },
+        [],
+      ),
     );
     await installSkill(db, OWNER, skill._id);
 
@@ -311,7 +397,9 @@ describe('the shelf', () => {
   });
 
   it('is what authorizes loading: an uninstalled public skill resolves to nothing', async () => {
-    const { skill } = await withVersion(uniqueName('uninstalled'), 'body', { visibility: 'public' });
+    const { skill } = await withVersion(uniqueName('uninstalled'), 'body', {
+      visibility: 'public',
+    });
     expect(await findInstalledSkillVersion(db, STRANGER, skill.name)).toBeNull();
     // …and the same row reached through an agent link does resolve, because the
     // link is its own authorization.
@@ -333,16 +421,26 @@ describe('the shelf', () => {
   it('drops an installed skill that has no version rather than advertising it', async () => {
     const skill = await createSkill(db, newSkill(uniqueName('versionless')));
     await installSkill(db, OWNER, skill._id);
-    expect((await listInstalledSkillMetadata(db, OWNER)).map((entry) => entry.name)).not.toContain(skill.name);
+    expect((await listInstalledSkillMetadata(db, OWNER)).map((entry) => entry.name)).not.toContain(
+      skill.name,
+    );
   });
 
   it('carries only a name and a description into level one', async () => {
     const { skill } = await withVersion(uniqueName('metadata'), 'a long body that must not travel');
     await installSkill(db, OWNER, skill._id);
 
-    const entry = (await listInstalledSkillMetadata(db, OWNER)).find((row) => row.name === skill.name);
+    const entry = (await listInstalledSkillMetadata(db, OWNER)).find(
+      (row) => row.name === skill.name,
+    );
     expect(entry).toBeDefined();
-    expect(Object.keys(entry!).sort()).toEqual(['autoInvoke', 'description', 'name', 'skillId', 'version']);
+    expect(Object.keys(entry!).sort()).toEqual([
+      'autoInvoke',
+      'description',
+      'name',
+      'skillId',
+      'version',
+    ]);
   });
 
   it('refuses an install patch that changes nothing, and one for a skill not installed', async () => {
@@ -384,7 +482,10 @@ describe('moderation', () => {
   });
 
   it('translates visibility into the contract publication vocabulary', async () => {
-    const skill = await createSkill(db, newSkill(uniqueName('publication'), { visibility: 'public' }));
+    const skill = await createSkill(
+      db,
+      newSkill(uniqueName('publication'), { visibility: 'public' }),
+    );
     expect(await findSkillPublication(db, skill._id)).toEqual({ isPublished: true });
 
     await setSkillPublication(db, skill._id, false);

@@ -87,13 +87,17 @@ export type AutomationDispatchResult =
 /** The agents this automation may run — see {@link mayRunForAutomationOwner}. */
 async function eligibleAgents(automation: AutomationDefinitionRecord) {
   const selection = automation.actorSelection;
-  const candidateIds = selection.mode === 'fixed'
-    ? [selection.agentId].filter((id): id is string => Boolean(id))
-    : selection.mode === 'automatic' ? selection.eligibleAgentIds : [];
+  const candidateIds =
+    selection.mode === 'fixed'
+      ? [selection.agentId].filter((id): id is string => Boolean(id))
+      : selection.mode === 'automatic'
+        ? selection.eligibleAgentIds
+        : [];
   const agents = await Promise.all(candidateIds.map((agentId) => findAgentById(getDb(), agentId)));
-  return agents.filter((agent): agent is NonNullable<typeof agent> => (
-    agent !== null && mayRunForAutomationOwner(agent, automation.ownerAccountId)
-  ));
+  return agents.filter(
+    (agent): agent is NonNullable<typeof agent> =>
+      agent !== null && mayRunForAutomationOwner(agent, automation.ownerAccountId),
+  );
 }
 
 /**
@@ -121,11 +125,8 @@ async function notifyNoExecution(
   trigger: AutomationDispatchTrigger,
   reason: string,
 ): Promise<void> {
-  const source = trigger.kind === 'event'
-    ? trigger.appId
-    : trigger.kind === 'schedule'
-      ? 'Scheduled'
-      : 'Manual';
+  const source =
+    trigger.kind === 'event' ? trigger.appId : trigger.kind === 'schedule' ? 'Scheduled' : 'Manual';
   await sendNotification({
     userId: automation.ownerAccountId,
     type: 'oxy_service',
@@ -143,12 +144,15 @@ function primaryResource(
   sourceResources: readonly AutomationResourceRef[],
 ): AutomationResourceRef {
   if (trigger.kind === 'event') return trigger.resource;
-  return sourceResources[0] ?? automation.actions[0]?.resource ?? {
-    appId: 'alia',
-    effectiveAccountId: automation.ownerAccountId,
-    resourceType: 'automation',
-    resourceId: automation.id,
-  };
+  return (
+    sourceResources[0] ??
+    automation.actions[0]?.resource ?? {
+      appId: 'alia',
+      effectiveAccountId: automation.ownerAccountId,
+      resourceType: 'automation',
+      resourceId: automation.id,
+    }
+  );
 }
 
 export async function dispatchStructuredAutomation(
@@ -174,16 +178,22 @@ export async function dispatchStructuredAutomation(
     return { status: 'denied', reason: executionPolicyError };
   }
 
-  const requiredAutonomy = automation.executionMode === 'observe' || trigger.kind === 'manual'
-    ? automation.maximumAutonomy
-    : 'autonomous';
+  const requiredAutonomy =
+    automation.executionMode === 'observe' || trigger.kind === 'manual'
+      ? automation.maximumAutonomy
+      : 'autonomous';
   const sourceResources = uniqueAutomationResources([
     ...(trigger.kind === 'event' ? [trigger.resource] : []),
     ...automation.dataFlow.sources,
   ]);
   if (automation.actorSelection.mode === 'alia') {
     const watch = watchConfigOf(automation.inputs);
-    if (watch && automation.executionMode === 'execute' && trigger.kind === 'schedule' && !trigger.watch) {
+    if (
+      watch &&
+      automation.executionMode === 'execute' &&
+      trigger.kind === 'schedule' &&
+      !trigger.watch
+    ) {
       return tickAliaWatch(automation, trigger, watch, sourceResources);
     }
     return dispatchAliaTask(automation, trigger, sourceResources);
@@ -197,24 +207,27 @@ export async function dispatchStructuredAutomation(
       return { status: 'denied', reason: 'responsible_agent_unavailable' };
     }
     const resource = primaryResource(automation, trigger, sourceResources);
-    const stages = [{
-      stage: 0,
-      agentId: agent.id,
-      actorAccountId: agent.oxyAccountId,
-      actions: [],
-    }];
-    const requesterAccountId = trigger.kind === 'manual'
-      ? trigger.requesterAccountId
-      : automation.ownerAccountId;
+    const stages = [
+      {
+        stage: 0,
+        agentId: agent.id,
+        actorAccountId: agent.oxyAccountId,
+        actions: [],
+      },
+    ];
+    const requesterAccountId =
+      trigger.kind === 'manual' ? trigger.requesterAccountId : automation.ownerAccountId;
     const taskInputs = automationStageTaskInputs(automation, trigger, stages);
-    const runStages = [{
-      stage: 0,
-      selectedAgentId: agent.id,
-      selectedActorAccountId: agent.oxyAccountId,
-      resource,
-      taskInput: taskInputs[0] ?? {},
-      actions: [],
-    }];
+    const runStages = [
+      {
+        stage: 0,
+        selectedAgentId: agent.id,
+        selectedActorAccountId: agent.oxyAccountId,
+        resource,
+        taskInput: taskInputs[0] ?? {},
+        actions: [],
+      },
+    ];
     if (automation.executionMode === 'observe') {
       const created = await createObservedAutomationRun({
         db: getDb(),
@@ -272,7 +285,10 @@ export async function dispatchStructuredAutomation(
       });
     } catch (error: unknown) {
       await Promise.all([
-        updateAgentSession(getDb(), session.id, { status: 'failed', result: 'Could not queue automation run' }),
+        updateAgentSession(getDb(), session.id, {
+          status: 'failed',
+          result: 'Could not queue automation run',
+        }),
         markAutomationRunForSession(getDb(), session.id, 'failed'),
         safeRefund(reservation, 'automation run could not be queued'),
       ]);
@@ -285,11 +301,14 @@ export async function dispatchStructuredAutomation(
     agents,
     requiredAutonomy,
   );
-  const activeAuthorizationPairs = automation.executionMode === 'execute'
-    ? new Set((await listActiveAutomationAuthorizations(getDb(), automation.id)).map((authorization) => (
-        authorizationPairKey(authorization.automationActionId, authorization.agentId)
-      )))
-    : undefined;
+  const activeAuthorizationPairs =
+    automation.executionMode === 'execute'
+      ? new Set(
+          (await listActiveAutomationAuthorizations(getDb(), automation.id)).map((authorization) =>
+            authorizationPairKey(authorization.automationActionId, authorization.agentId),
+          ),
+        )
+      : undefined;
   const stages = planAutomationStages({
     candidates,
     sourceResources,
@@ -298,15 +317,15 @@ export async function dispatchStructuredAutomation(
     requiredAutonomy,
   });
   if (!stages || stages.length === 0) {
-    const reason = 'No deterministic actor plan currently covers the source resources and every declared action.';
+    const reason =
+      'No deterministic actor plan currently covers the source resources and every declared action.';
     await notifyNoExecution(automation, trigger, reason);
     return { status: 'denied', reason: 'no_eligible_actor_plan' };
   }
 
   const resource = primaryResource(automation, trigger, sourceResources);
-  const requesterAccountId = trigger.kind === 'manual'
-    ? trigger.requesterAccountId
-    : automation.ownerAccountId;
+  const requesterAccountId =
+    trigger.kind === 'manual' ? trigger.requesterAccountId : automation.ownerAccountId;
   const taskInputs = automationStageTaskInputs(automation, trigger, stages);
   const runStages = stages.map((stage, index) => ({
     stage: stage.stage,
@@ -366,7 +385,10 @@ export async function dispatchStructuredAutomation(
     });
   } catch (error: unknown) {
     await Promise.all([
-      updateAgentSession(getDb(), session.id, { status: 'failed', result: 'Could not queue automation run' }),
+      updateAgentSession(getDb(), session.id, {
+        status: 'failed',
+        result: 'Could not queue automation run',
+      }),
       markAutomationRunForSession(getDb(), session.id, 'failed'),
       safeRefund(reservation, 'automation run could not be queued'),
     ]);
@@ -397,8 +419,10 @@ async function tickAliaWatch(
   } catch (error: unknown) {
     const failures = await recordAutomationWatchFailure(getDb(), automation.id, now);
     log.triggers.warn({ err: error, automationId: automation.id, failures }, 'Watch tick failed');
-    if (failures >= WATCH_PAUSE_AFTER_FAILURES
-      && await pauseFailingAutomationWatch(getDb(), automation.id, WATCH_PAUSE_AFTER_FAILURES, now)) {
+    if (
+      failures >= WATCH_PAUSE_AFTER_FAILURES &&
+      (await pauseFailingAutomationWatch(getDb(), automation.id, WATCH_PAUSE_AFTER_FAILURES, now))
+    ) {
       // One notification per failure streak: only the caller that paused it.
       await notifyNoExecution(
         automation,
@@ -410,24 +434,29 @@ async function tickAliaWatch(
     return { status: 'denied', reason: 'watch_source_failed' };
   }
   const decision = decideWatch(watch, state, observation);
-  const record = () => recordAutomationWatchObservation(getDb(), {
-    automationId: automation.id,
-    hash: observation.hash,
-    items: observation.items,
-    matched: decision.matched,
-    changed: decision.changed,
-    now,
-  });
+  const record = () =>
+    recordAutomationWatchObservation(getDb(), {
+      automationId: automation.id,
+      hash: observation.hash,
+      items: observation.items,
+      matched: decision.matched,
+      changed: decision.changed,
+      now,
+    });
   if (!decision.fire) {
     await record();
     return { status: 'unchanged' };
   }
-  const result = await dispatchAliaTask(automation, {
-    kind: 'schedule',
-    id: watchTriggerId(automation.id, observation.hash),
-    occurredAt: now,
-    watch: watchTriggerContext(watch, observation, decision),
-  }, sourceResources);
+  const result = await dispatchAliaTask(
+    automation,
+    {
+      kind: 'schedule',
+      id: watchTriggerId(automation.id, observation.hash),
+      occurredAt: now,
+      watch: watchTriggerContext(watch, observation, decision),
+    },
+    sourceResources,
+  );
   // A run that could not be claimed (no credits) leaves the state alone, so
   // the next tick sees the same change and tries again.
   if (result.status === 'queued' || result.status === 'duplicate') await record();
@@ -449,8 +478,11 @@ async function dispatchAliaTask(
   sourceResources: readonly AutomationResourceRef[],
 ): Promise<AutomationDispatchResult> {
   if (automation.actions.length > 0 && automation.executionMode === 'execute') {
-    const covered = new Set((await listActiveAliaTaskAuthorizations(getDb(), automation.id))
-      .flatMap((authorization) => authorization.automationActionId ? [authorization.automationActionId] : []));
+    const covered = new Set(
+      (await listActiveAliaTaskAuthorizations(getDb(), automation.id)).flatMap((authorization) =>
+        authorization.automationActionId ? [authorization.automationActionId] : [],
+      ),
+    );
     if (!automation.actions.every((action) => covered.has(action.id))) {
       await notifyNoExecution(
         automation,
@@ -460,18 +492,21 @@ async function dispatchAliaTask(
       return { status: 'denied', reason: 'alia_action_authority_missing' };
     }
   }
-  const requesterAccountId = trigger.kind === 'manual'
-    ? trigger.requesterAccountId
-    : automation.ownerAccountId;
-  const [taskInput = {}] = automationStageTaskInputs(automation, trigger, [{ actions: automation.actions }]);
-  const runStages = [{
-    stage: 0,
-    selectedAgentId: null,
-    selectedActorAccountId: automation.ownerAccountId,
-    resource: primaryResource(automation, trigger, sourceResources),
-    taskInput,
-    actions: automation.actions,
-  }];
+  const requesterAccountId =
+    trigger.kind === 'manual' ? trigger.requesterAccountId : automation.ownerAccountId;
+  const [taskInput = {}] = automationStageTaskInputs(automation, trigger, [
+    { actions: automation.actions },
+  ]);
+  const runStages = [
+    {
+      stage: 0,
+      selectedAgentId: null,
+      selectedActorAccountId: automation.ownerAccountId,
+      resource: primaryResource(automation, trigger, sourceResources),
+      taskInput,
+      actions: automation.actions,
+    },
+  ];
   if (automation.executionMode === 'observe') {
     const created = await createObservedAutomationRun({
       db: getDb(),

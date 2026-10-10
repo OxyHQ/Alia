@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import apiClient from "@/shared/api/client";
-import { API_ROUTES } from "@/shared/api/routes";
+import { useQuery } from '@tanstack/react-query';
+import apiClient from '@/shared/api/client';
+import { API_ROUTES } from '@/shared/api/routes';
 
 export interface ActivityGridDay {
   date: string; // "YYYY-MM-DD"
@@ -15,12 +15,11 @@ export interface ActivityGridData {
 
 export function useActivityGrid(agentId: string, weeks: number = 52) {
   return useQuery<ActivityGridData>({
-    queryKey: ["agent-activity-grid", agentId, weeks],
+    queryKey: ['agent-activity-grid', agentId, weeks],
     queryFn: async () => {
-      const res = await apiClient.get(
-        API_ROUTES.agents.activityGrid(agentId),
-        { params: { weeks } }
-      );
+      const res = await apiClient.get(API_ROUTES.agents.activityGrid(agentId), {
+        params: { weeks },
+      });
       return res.data;
     },
     staleTime: 1000 * 60 * 5,

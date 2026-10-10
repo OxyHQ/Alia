@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { Platform } from 'react-native';
 
 /**
  * Where keyboard focus goes back to when the execution panel closes.
@@ -21,7 +21,11 @@ type Focusable = { focus: () => void };
 let opener: Focusable | null = null;
 
 function isFocusable(value: unknown): value is Focusable {
-  return typeof value === "object" && value !== null && typeof (value as { focus?: unknown }).focus === "function";
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { focus?: unknown }).focus === 'function'
+  );
 }
 
 /**
@@ -37,7 +41,11 @@ export function rememberOpener(candidate?: unknown): void {
     opener = candidate;
     return;
   }
-  if (Platform.OS === "web" && typeof document !== "undefined" && isFocusable(document.activeElement)) {
+  if (
+    Platform.OS === 'web' &&
+    typeof document !== 'undefined' &&
+    isFocusable(document.activeElement)
+  ) {
     opener = document.activeElement;
     return;
   }

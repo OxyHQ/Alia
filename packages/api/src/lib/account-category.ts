@@ -23,9 +23,9 @@ import { SELECTABLE_ACCOUNT_CATEGORY_IDS, type AccountCategoryId } from '@oxy.so
  */
 
 /** The offered ids, as the list a model is shown. */
-export const accountCategoryChoices = SELECTABLE_ACCOUNT_CATEGORY_IDS
-  .map((id) => `"${id}"`)
-  .join(', ');
+export const accountCategoryChoices = SELECTABLE_ACCOUNT_CATEGORY_IDS.map((id) => `"${id}"`).join(
+  ', ',
+);
 
 /**
  * Whether a value IS one of the offered categories.
@@ -42,6 +42,8 @@ export const accountCategoryChoices = SELECTABLE_ACCOUNT_CATEGORY_IDS
  * brand-new account would propose something the server refuses.
  */
 export function isOfferedAccountCategory(value: unknown): value is AccountCategoryId {
-  return typeof value === 'string'
-    && (SELECTABLE_ACCOUNT_CATEGORY_IDS as readonly string[]).includes(value);
+  return (
+    typeof value === 'string' &&
+    (SELECTABLE_ACCOUNT_CATEGORY_IDS as readonly string[]).includes(value)
+  );
 }

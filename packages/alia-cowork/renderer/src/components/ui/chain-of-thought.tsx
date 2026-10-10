@@ -1,43 +1,36 @@
-"use client"
+'use client';
 
-import * as React from "react"
-import { useControllableState } from "@radix-ui/react-use-controllable-state"
-import { Brain, Check, Dot, Loader2 } from "lucide-react"
-import type { LucideIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { Badge } from "@/components/ui/badge"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
+import * as React from 'react';
+import { useControllableState } from '@radix-ui/react-use-controllable-state';
+import { Brain, Check, Dot, Loader2 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 // Context for managing the chain of thought state
 type ChainOfThoughtContextValue = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
 
-const ChainOfThoughtContext = React.createContext<
-  ChainOfThoughtContextValue | undefined
->(undefined)
+const ChainOfThoughtContext = React.createContext<ChainOfThoughtContextValue | undefined>(
+  undefined,
+);
 
 function useChainOfThought() {
-  const context = React.useContext(ChainOfThoughtContext)
+  const context = React.useContext(ChainOfThoughtContext);
   if (!context) {
-    throw new Error(
-      "ChainOfThought components must be used within a ChainOfThought provider"
-    )
+    throw new Error('ChainOfThought components must be used within a ChainOfThought provider');
   }
-  return context
+  return context;
 }
 
 // Main ChainOfThought component
-export interface ChainOfThoughtProps
-  extends React.ComponentPropsWithoutRef<"div"> {
-  open?: boolean
-  defaultOpen?: boolean
-  onOpenChange?: (open: boolean) => void
+export interface ChainOfThoughtProps extends React.ComponentPropsWithoutRef<'div'> {
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function ChainOfThought({
@@ -52,45 +45,40 @@ export function ChainOfThought({
     prop: openProp,
     defaultProp: defaultOpen,
     onChange: onOpenChange,
-  })
+  });
 
   return (
-    <ChainOfThoughtContext.Provider
-      value={{ open, onOpenChange: setOpen }}
-    >
+    <ChainOfThoughtContext.Provider value={{ open, onOpenChange: setOpen }}>
       <Collapsible open={open} onOpenChange={setOpen}>
         <div
-          className={cn(
-            "rounded-lg border bg-card text-card-foreground shadow-sm",
-            className
-          )}
+          className={cn('rounded-lg border bg-card text-card-foreground shadow-sm', className)}
           {...props}
         >
           {children}
         </div>
       </Collapsible>
     </ChainOfThoughtContext.Provider>
-  )
+  );
 }
 
 // Header component
 export interface ChainOfThoughtHeaderProps
   extends React.ComponentPropsWithoutRef<typeof CollapsibleTrigger> {
-  children?: React.ReactNode
+  children?: React.ReactNode;
 }
 
 export function ChainOfThoughtHeader({
-  children = "Chain of Thought",
+  children = 'Chain of Thought',
   className,
   ...props
 }: ChainOfThoughtHeaderProps) {
-  const { open } = useChainOfThought()
+  const { open } = useChainOfThought();
 
   return (
     <CollapsibleTrigger
       className={cn(
-        "flex w-full items-center justify-between gap-2 px-4 py-3 font-medium transition-colors hover:bg-muted/50",
-        className
+        'flex w-full items-center justify-between gap-2 px-4 py-3 font-medium transition-colors hover:bg-muted/50',
+        className,
       )}
       {...props}
     >
@@ -99,10 +87,7 @@ export function ChainOfThoughtHeader({
         <span className="text-sm">{children}</span>
       </div>
       <svg
-        className={cn(
-          "h-4 w-4 transition-transform duration-200",
-          open && "rotate-180"
-        )}
+        className={cn('h-4 w-4 transition-transform duration-200', open && 'rotate-180')}
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -111,23 +96,22 @@ export function ChainOfThoughtHeader({
         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
       </svg>
     </CollapsibleTrigger>
-  )
+  );
 }
 
 // Step component
-export interface ChainOfThoughtStepProps
-  extends React.ComponentPropsWithoutRef<"div"> {
-  icon?: LucideIcon
-  label?: string
-  description?: string
-  status?: "complete" | "active" | "pending"
+export interface ChainOfThoughtStepProps extends React.ComponentPropsWithoutRef<'div'> {
+  icon?: LucideIcon;
+  label?: string;
+  description?: string;
+  status?: 'complete' | 'active' | 'pending';
 }
 
 export function ChainOfThoughtStep({
   icon: Icon = Dot,
   label,
   description,
-  status = "complete",
+  status = 'complete',
   className,
   children,
   ...props
@@ -136,48 +120,33 @@ export function ChainOfThoughtStep({
     complete: Check,
     active: Loader2,
     pending: Dot,
-  }[status]
+  }[status];
 
-  const StatusIcon = statusIcon
+  const StatusIcon = statusIcon;
 
   return (
-    <div className={cn("flex gap-3", className)} {...props}>
+    <div className={cn('flex gap-3', className)} {...props}>
       <div className="flex flex-col items-center">
         <div
           className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-full border-2",
-            status === "complete" &&
-              "border-primary bg-primary text-primary-foreground",
-            status === "active" &&
-              "border-primary bg-background text-primary",
-            status === "pending" &&
-              "border-muted-foreground/30 bg-background text-muted-foreground"
+            'flex h-8 w-8 items-center justify-center rounded-full border-2',
+            status === 'complete' && 'border-primary bg-primary text-primary-foreground',
+            status === 'active' && 'border-primary bg-background text-primary',
+            status === 'pending' &&
+              'border-muted-foreground/30 bg-background text-muted-foreground',
           )}
         >
-          <StatusIcon
-            className={cn(
-              "h-4 w-4",
-              status === "active" && "animate-spin"
-            )}
-          />
+          <StatusIcon className={cn('h-4 w-4', status === 'active' && 'animate-spin')} />
         </div>
-        {children && (
-          <div className="h-full w-px bg-border my-2" />
-        )}
+        {children && <div className="h-full w-px bg-border my-2" />}
       </div>
       <div className="flex-1 pb-4">
-        {label && (
-          <div className="font-medium text-sm mb-1">{label}</div>
-        )}
-        {description && (
-          <div className="text-sm text-muted-foreground">
-            {description}
-          </div>
-        )}
+        {label && <div className="font-medium text-sm mb-1">{label}</div>}
+        {description && <div className="text-sm text-muted-foreground">{description}</div>}
         {children && <div className="mt-2">{children}</div>}
       </div>
     </div>
-  )
+  );
 }
 
 // Content component
@@ -190,18 +159,14 @@ export function ChainOfThoughtContent({
   ...props
 }: ChainOfThoughtContentProps) {
   return (
-    <CollapsibleContent
-      className={cn("border-t px-4 py-4", className)}
-      {...props}
-    >
+    <CollapsibleContent className={cn('border-t px-4 py-4', className)} {...props}>
       <div className="space-y-4">{children}</div>
     </CollapsibleContent>
-  )
+  );
 }
 
 // Search Results container
-export interface ChainOfThoughtSearchResultsProps
-  extends React.ComponentPropsWithoutRef<"div"> {}
+export interface ChainOfThoughtSearchResultsProps extends React.ComponentPropsWithoutRef<'div'> {}
 
 export function ChainOfThoughtSearchResults({
   className,
@@ -209,13 +174,10 @@ export function ChainOfThoughtSearchResults({
   ...props
 }: ChainOfThoughtSearchResultsProps) {
   return (
-    <div
-      className={cn("flex flex-wrap gap-2", className)}
-      {...props}
-    >
+    <div className={cn('flex flex-wrap gap-2', className)} {...props}>
       {children}
     </div>
-  )
+  );
 }
 
 // Search Result badge
@@ -224,25 +186,20 @@ export interface ChainOfThoughtSearchResultProps
 
 export function ChainOfThoughtSearchResult({
   className,
-  variant = "secondary",
+  variant = 'secondary',
   children,
   ...props
 }: ChainOfThoughtSearchResultProps) {
   return (
-    <Badge
-      variant={variant}
-      className={cn("text-xs", className)}
-      {...props}
-    >
+    <Badge variant={variant} className={cn('text-xs', className)} {...props}>
       {children}
     </Badge>
-  )
+  );
 }
 
 // Image component
-export interface ChainOfThoughtImageProps
-  extends React.ComponentPropsWithoutRef<"div"> {
-  caption?: string
+export interface ChainOfThoughtImageProps extends React.ComponentPropsWithoutRef<'div'> {
+  caption?: string;
 }
 
 export function ChainOfThoughtImage({
@@ -252,13 +209,9 @@ export function ChainOfThoughtImage({
   ...props
 }: ChainOfThoughtImageProps) {
   return (
-    <div className={cn("space-y-2", className)} {...props}>
-      <div className="overflow-hidden rounded-lg border bg-muted">
-        {children}
-      </div>
-      {caption && (
-        <p className="text-xs text-muted-foreground italic">{caption}</p>
-      )}
+    <div className={cn('space-y-2', className)} {...props}>
+      <div className="overflow-hidden rounded-lg border bg-muted">{children}</div>
+      {caption && <p className="text-xs text-muted-foreground italic">{caption}</p>}
     </div>
-  )
+  );
 }

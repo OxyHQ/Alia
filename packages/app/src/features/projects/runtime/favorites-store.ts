@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import { AccountScopedKey } from "@/shared/state/account-scope";
+import { create } from 'zustand';
+import { AccountScopedKey } from '@/shared/state/account-scope';
 
 interface FavoritesStoreState {
   favoriteConversationIds: string[];
@@ -14,7 +14,7 @@ interface FavoritesStoreState {
   isFavorite: (conversationId: string) => boolean;
 }
 
-const storage = new AccountScopedKey("alia-favorite-conversations");
+const storage = new AccountScopedKey('alia-favorite-conversations');
 
 export const useFavoritesStore = create<FavoritesStoreState>((set, get) => ({
   favoriteConversationIds: [],
@@ -33,7 +33,7 @@ export const useFavoritesStore = create<FavoritesStoreState>((set, get) => ({
         set({ favoriteConversationIds: favorites });
       }
     } catch (error) {
-      console.error("Error loading favorites:", error);
+      console.error('Error loading favorites:', error);
     }
   },
 
@@ -52,7 +52,7 @@ export const useFavoritesStore = create<FavoritesStoreState>((set, get) => ({
       await storage.setItem(JSON.stringify(newFavorites));
       if (storage.isCurrent(token)) set({ favoriteConversationIds: newFavorites });
     } catch (error) {
-      console.error("Error toggling favorite:", error);
+      console.error('Error toggling favorite:', error);
     }
   },
 

@@ -1,10 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
-import {
-  constraintNameOf,
-  isCheckViolation,
-  isUniqueViolation,
-} from '@oxy.so/db';
+import { constraintNameOf, isCheckViolation, isUniqueViolation } from '@oxy.so/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { agentReviews, agentSessions } from '../schema/agent-sessions';
 import { agents } from '../schema/agents';
@@ -256,4 +252,3 @@ describe('agent_reviews', () => {
     expect(rows).toEqual([]);
   });
 });
-

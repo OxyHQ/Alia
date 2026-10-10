@@ -91,7 +91,8 @@ export async function searchWeb(query: string): Promise<WebSearchResponse> {
 }
 
 export const webSearchTool = tool({
-  description: 'Search the web for current information, news, and facts. Use this when you need up-to-date information or are uncertain about something — not for common knowledge or well-established facts.',
+  description:
+    'Search the web for current information, news, and facts. Use this when you need up-to-date information or are uncertain about something — not for common knowledge or well-established facts.',
   inputSchema: z.object({
     query: z.string().describe('The search query'),
   }),

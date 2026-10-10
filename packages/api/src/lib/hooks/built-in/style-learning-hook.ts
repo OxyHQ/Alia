@@ -24,7 +24,7 @@ registerHook({
     // Extract user messages only, skip very short ones
     const userMessages = ctx.messages
       .filter((m: any) => m.role === 'user')
-      .map((m: any) => typeof m.content === 'string' ? m.content : '')
+      .map((m: any) => (typeof m.content === 'string' ? m.content : ''))
       .filter((text: string) => text.length > 5);
 
     if (userMessages.length === 0) return;
@@ -42,9 +42,10 @@ registerHook({
       if (!profile) return;
 
       // Check if LLM refinement is due
-      const shouldRefine = profile.messagesAnalyzed >= STYLE_LLM_REFINE_MIN_MESSAGES
-        && (!profile.lastLLMRefinedAt
-          || Date.now() - new Date(profile.lastLLMRefinedAt).getTime() > STYLE_LLM_REFINE_INTERVAL_MS);
+      const shouldRefine =
+        profile.messagesAnalyzed >= STYLE_LLM_REFINE_MIN_MESSAGES &&
+        (!profile.lastLLMRefinedAt ||
+          Date.now() - new Date(profile.lastLLMRefinedAt).getTime() > STYLE_LLM_REFINE_INTERVAL_MS);
 
       if (shouldRefine) {
         try {

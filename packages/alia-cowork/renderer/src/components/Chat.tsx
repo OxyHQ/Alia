@@ -1,23 +1,15 @@
-"use client"
+'use client';
 
-import * as React from "react"
-import Markdown from "react-markdown"
-import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupTextarea,
-} from "@/components/ui/input-group"
-import { cn } from "@/lib/utils"
-import { defaultLabel, formatContextWindow, groupModels, type ModelCatalogue } from "@/lib/models"
-import { HugeiconsIcon } from "@hugeicons/react"
+import * as React from 'react';
+import Markdown from 'react-markdown';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { InputGroup, InputGroupAddon, InputGroupTextarea } from '@/components/ui/input-group';
+import { cn } from '@/lib/utils';
+import { defaultLabel, formatContextWindow, groupModels, type ModelCatalogue } from '@/lib/models';
+import { HugeiconsIcon } from '@hugeicons/react';
 import {
   ArrowUp02Icon,
   StopIcon,
@@ -26,199 +18,220 @@ import {
   FileAttachmentIcon,
   Folder02Icon,
   Image01Icon,
-} from "@hugeicons/core-free-icons"
+} from '@hugeicons/core-free-icons';
 import {
   ChainOfThought,
   ChainOfThoughtHeader,
   ChainOfThoughtContent,
   ChainOfThoughtStep,
-} from "@/components/ui/chain-of-thought"
+} from '@/components/ui/chain-of-thought';
 
 // Types
 interface Message {
-  role: "user" | "assistant"
-  content: string
-  context?: ContextItem[]
+  role: 'user' | 'assistant';
+  content: string;
+  context?: ContextItem[];
 }
 
 interface ToolExecution {
-  tool: string
-  args: Record<string, unknown>
-  status: "preparing" | "running" | "success" | "error"
-  result?: string
+  tool: string;
+  args: Record<string, unknown>;
+  status: 'preparing' | 'running' | 'success' | 'error';
+  result?: string;
 }
 
 interface ContextItem {
-  type?: 'file' | 'folder'
-  path: string
-  name?: string
-  fullPath?: string
-  content?: string
-  language?: string
+  type?: 'file' | 'folder';
+  path: string;
+  name?: string;
+  fullPath?: string;
+  content?: string;
+  language?: string;
 }
 
 // Greetings
 const greetings = [
   "let's get started",
-  "how can I help?",
-  "ready to assist",
-  "what shall we do?",
+  'how can I help?',
+  'ready to assist',
+  'what shall we do?',
   "let's be productive",
-]
+];
 
 // Tool labels
 const toolLabels: Record<string, string> = {
-  read_file: "Read",
-  write_file: "Write",
-  edit_file: "Edit",
-  delete_file: "Delete",
-  list_files: "List",
-  search_files: "Search",
-  run_command: "Bash",
-  open_application: "Open App",
-  open_url: "Open URL",
-  clipboard_read: "Read Clipboard",
-  clipboard_write: "Write Clipboard",
-  get_system_info: "System Info",
-  screenshot: "Screenshot",
-  set_mode: "Mode",
-}
+  read_file: 'Read',
+  write_file: 'Write',
+  edit_file: 'Edit',
+  delete_file: 'Delete',
+  list_files: 'List',
+  search_files: 'Search',
+  run_command: 'Bash',
+  open_application: 'Open App',
+  open_url: 'Open URL',
+  clipboard_read: 'Read Clipboard',
+  clipboard_write: 'Write Clipboard',
+  get_system_info: 'System Info',
+  screenshot: 'Screenshot',
+  set_mode: 'Mode',
+};
 
 // Thinking phrases
-const thinkingPhrases = ["Thinking...", "Pondering...", "Processing...", "Analyzing..."]
-const workingPhrases = ["Working...", "Executing...", "Running...", "Building..."]
+const thinkingPhrases = ['Thinking...', 'Pondering...', 'Processing...', 'Analyzing...'];
+const workingPhrases = ['Working...', 'Executing...', 'Running...', 'Building...'];
 
 function ThinkingIndicator({ isWorking = false }: { isWorking?: boolean }) {
-  const phrases = isWorking ? workingPhrases : thinkingPhrases
-  const [phraseIndex, setPhraseIndex] = React.useState(() => Math.floor(Math.random() * phrases.length))
-  const [displayText, setDisplayText] = React.useState("")
-  const [isTyping, setIsTyping] = React.useState(true)
+  const phrases = isWorking ? workingPhrases : thinkingPhrases;
+  const [phraseIndex, setPhraseIndex] = React.useState(() =>
+    Math.floor(Math.random() * phrases.length),
+  );
+  const [displayText, setDisplayText] = React.useState('');
+  const [isTyping, setIsTyping] = React.useState(true);
 
   React.useEffect(() => {
-    const phrase = phrases[phraseIndex]
-    let charIndex = 0
-    setIsTyping(true)
-    setDisplayText("")
+    const phrase = phrases[phraseIndex];
+    let charIndex = 0;
+    setIsTyping(true);
+    setDisplayText('');
 
     // The hold-then-advance timer is tracked so the cleanup can cancel it.
     // Only the interval was cleared before, and this component unmounts the
     // moment `isGenerating` goes false — which is normally mid-phrase, so the
     // pending 1500 ms timeout went on to `setPhraseIndex` on an unmounted
     // component every time a turn finished.
-    let advanceTimer: ReturnType<typeof setTimeout> | undefined
+    let advanceTimer: ReturnType<typeof setTimeout> | undefined;
 
     const typeInterval = setInterval(() => {
       if (charIndex < phrase.length) {
-        setDisplayText(phrase.slice(0, charIndex + 1))
-        charIndex++
+        setDisplayText(phrase.slice(0, charIndex + 1));
+        charIndex++;
       } else {
-        clearInterval(typeInterval)
-        setIsTyping(false)
-        advanceTimer = setTimeout(() => setPhraseIndex((prev) => (prev + 1) % phrases.length), 1500)
+        clearInterval(typeInterval);
+        setIsTyping(false);
+        advanceTimer = setTimeout(
+          () => setPhraseIndex((prev) => (prev + 1) % phrases.length),
+          1500,
+        );
       }
-    }, 40)
+    }, 40);
 
     return () => {
-      clearInterval(typeInterval)
-      if (advanceTimer) clearTimeout(advanceTimer)
-    }
-  }, [phraseIndex, phrases])
+      clearInterval(typeInterval);
+      if (advanceTimer) clearTimeout(advanceTimer);
+    };
+  }, [phraseIndex, phrases]);
 
   return (
     <div className="flex items-center gap-2 py-1 text-sm text-muted-foreground">
       <span className="animate-spin">✱</span>
-      <span>{displayText}{isTyping && <span className="animate-pulse">|</span>}</span>
+      <span>
+        {displayText}
+        {isTyping && <span className="animate-pulse">|</span>}
+      </span>
     </div>
-  )
+  );
 }
 
 export function Chat() {
-  const [messages, setMessages] = React.useState<Message[]>([])
-  const [input, setInput] = React.useState("")
-  const [isGenerating, setIsGenerating] = React.useState(false)
-  const [currentMode, setCurrentMode] = React.useState("ask")
+  const [messages, setMessages] = React.useState<Message[]>([]);
+  const [input, setInput] = React.useState('');
+  const [isGenerating, setIsGenerating] = React.useState(false);
+  const [currentMode, setCurrentMode] = React.useState('ask');
   /**
    * The model picker: real models from `GET /catalogue` (via the main process),
    * and the person's pick, `null` meaning "Default" — `model` is then omitted
    * and the server answers with its own default. The pick is persisted by the
    * main process, which also re-checks it against the catalogue on every send.
    */
-  const [catalogue, setCatalogue] = React.useState<ModelCatalogue | null>(null)
-  const [selectedModel, setSelectedModel] = React.useState<string | null>(null)
-  const currentModel = selectedModel ?? undefined
-  const [streamingContent, setStreamingContent] = React.useState("")
-  const [userName, setUserName] = React.useState<string | null>(null)
-  const [toolExecutions, setToolExecutions] = React.useState<ToolExecution[]>([])
-  const [thinkingSteps, setThinkingSteps] = React.useState<string[]>([])
-  const [attachedFiles, setAttachedFiles] = React.useState<ContextItem[]>([])
-  const bottomRef = React.useRef<HTMLDivElement>(null)
-  const textareaRef = React.useRef<HTMLTextAreaElement>(null)
-  const streamingContentRef = React.useRef("")
-  const prevMessagesLengthRef = React.useRef(0)
+  const [catalogue, setCatalogue] = React.useState<ModelCatalogue | null>(null);
+  const [selectedModel, setSelectedModel] = React.useState<string | null>(null);
+  const currentModel = selectedModel ?? undefined;
+  const [streamingContent, setStreamingContent] = React.useState('');
+  const [userName, setUserName] = React.useState<string | null>(null);
+  const [toolExecutions, setToolExecutions] = React.useState<ToolExecution[]>([]);
+  const [thinkingSteps, setThinkingSteps] = React.useState<string[]>([]);
+  const [attachedFiles, setAttachedFiles] = React.useState<ContextItem[]>([]);
+  const bottomRef = React.useRef<HTMLDivElement>(null);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const streamingContentRef = React.useRef('');
+  const prevMessagesLengthRef = React.useRef(0);
 
   React.useEffect(() => {
-    streamingContentRef.current = streamingContent
-  }, [streamingContent])
+    streamingContentRef.current = streamingContent;
+  }, [streamingContent]);
 
   // Initialize and set up listeners
   React.useEffect(() => {
-    window.api.listModels().then(setCatalogue).catch(() => setCatalogue(null))
-    window.api.getSelectedModel().then(setSelectedModel).catch(() => setSelectedModel(null))
+    window.api
+      .listModels()
+      .then(setCatalogue)
+      .catch(() => setCatalogue(null));
+    window.api
+      .getSelectedModel()
+      .then(setSelectedModel)
+      .catch(() => setSelectedModel(null));
 
     // Get user info
     window.api.getUserInfo().then((user) => {
       if (user) {
-        setUserName(user.name || user.username || null)
+        setUserName(user.name || user.username || null);
       }
-    })
+    });
 
     // Chat event listeners
     const unsubStart = window.api.onChatStart(() => {
-      setIsGenerating(true)
-      setStreamingContent("")
-      streamingContentRef.current = ""
-      setToolExecutions([])
-      setThinkingSteps([])
-    })
+      setIsGenerating(true);
+      setStreamingContent('');
+      streamingContentRef.current = '';
+      setToolExecutions([]);
+      setThinkingSteps([]);
+    });
 
     const unsubStream = window.api.onChatStream((data) => {
-      setStreamingContent((prev) => prev + data.content)
-    })
+      setStreamingContent((prev) => prev + data.content);
+    });
 
     const unsubThinking = window.api.onChatThinking((data) => {
-      setThinkingSteps((prev) => [...prev, data.content])
-    })
+      setThinkingSteps((prev) => [...prev, data.content]);
+    });
 
     const unsubEnd = window.api.onChatEnd(() => {
-      setIsGenerating(false)
-      const finalContent = streamingContentRef.current
+      setIsGenerating(false);
+      const finalContent = streamingContentRef.current;
       if (finalContent) {
-        setMessages((prev) => [...prev, { role: "assistant", content: finalContent }])
+        setMessages((prev) => [...prev, { role: 'assistant', content: finalContent }]);
       }
-      setStreamingContent("")
-      streamingContentRef.current = ""
-      setToolExecutions([])
+      setStreamingContent('');
+      streamingContentRef.current = '';
+      setToolExecutions([]);
       // Keep thinking steps visible briefly, then clear
-      setTimeout(() => setThinkingSteps([]), 2000)
-    })
+      setTimeout(() => setThinkingSteps([]), 2000);
+    });
 
     const unsubError = window.api.onChatError((data) => {
-      setIsGenerating(false)
-      setMessages((prev) => [...prev, { role: "assistant", content: `Error: ${data.message}` }])
-      setStreamingContent("")
-      setToolExecutions([])
-      setThinkingSteps([])
-    })
+      setIsGenerating(false);
+      setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${data.message}` }]);
+      setStreamingContent('');
+      setToolExecutions([]);
+      setThinkingSteps([]);
+    });
 
     const unsubTool = window.api.onChatTool((data) => {
       setToolExecutions((prev) => {
-        const existingIndex = prev.findIndex(t => t.tool === data.tool && t.status === "preparing")
-        if (existingIndex >= 0 && data.status === "running") {
-          return prev.map((t, i) => i === existingIndex ? { ...t, args: data.args, status: "running" } : t)
+        const existingIndex = prev.findIndex(
+          (t) => t.tool === data.tool && t.status === 'preparing',
+        );
+        if (existingIndex >= 0 && data.status === 'running') {
+          return prev.map((t, i) =>
+            i === existingIndex ? { ...t, args: data.args, status: 'running' } : t,
+          );
         }
-        return [...prev, { tool: data.tool, args: data.args, status: data.status as ToolExecution["status"] }]
-      })
-    })
+        return [
+          ...prev,
+          { tool: data.tool, args: data.args, status: data.status as ToolExecution['status'] },
+        ];
+      });
+    });
 
     const unsubToolResult = window.api.onChatToolResult((data) => {
       setToolExecutions((prev) => {
@@ -236,102 +249,108 @@ export function Chat() {
         // A reverse loop rather than `findLastIndex`, which needs an ES2023
         // lib; this file compiles against ES2022 and the target is not worth
         // moving for one search.
-        let target = -1
+        let target = -1;
         for (let i = prev.length - 1; i >= 0; i--) {
-          const row = prev[i]
-          if (row.tool === data.tool && (row.status === "running" || row.status === "preparing")) {
-            target = i
-            break
+          const row = prev[i];
+          if (row.tool === data.tool && (row.status === 'running' || row.status === 'preparing')) {
+            target = i;
+            break;
           }
         }
-        if (target === -1) return prev
+        if (target === -1) return prev;
         return prev.map((t, i) =>
-          i === target ? { ...t, status: data.success ? "success" : "error", result: data.result } : t,
-        )
-      })
-    })
+          i === target
+            ? { ...t, status: data.success ? 'success' : 'error', result: data.result }
+            : t,
+        );
+      });
+    });
 
     const unsubMode = window.api.onModeChanged((data) => {
-      setCurrentMode(data.mode)
-    })
+      setCurrentMode(data.mode);
+    });
 
     return () => {
-      unsubStart()
-      unsubStream()
-      unsubThinking()
-      unsubEnd()
-      unsubError()
-      unsubTool()
-      unsubToolResult()
-      unsubMode()
-    }
-  }, [])
+      unsubStart();
+      unsubStream();
+      unsubThinking();
+      unsubEnd();
+      unsubError();
+      unsubTool();
+      unsubToolResult();
+      unsubMode();
+    };
+  }, []);
 
   // Auto-scroll
   React.useEffect(() => {
     // Use instant scroll when transitioning from welcome screen to first message
-    const isFirstMessage = prevMessagesLengthRef.current === 0 && messages.length > 0
-    prevMessagesLengthRef.current = messages.length
+    const isFirstMessage = prevMessagesLengthRef.current === 0 && messages.length > 0;
+    prevMessagesLengthRef.current = messages.length;
 
-    bottomRef.current?.scrollIntoView({ behavior: isFirstMessage ? "instant" : "smooth" })
-  }, [messages, streamingContent, toolExecutions, thinkingSteps])
+    bottomRef.current?.scrollIntoView({ behavior: isFirstMessage ? 'instant' : 'smooth' });
+  }, [messages, streamingContent, toolExecutions, thinkingSteps]);
 
   const sendMessage = () => {
-    if (!input.trim() || isGenerating) return
-    const context = attachedFiles.length > 0 ? attachedFiles : undefined
-    setMessages((prev) => [...prev, { role: "user", content: input.trim(), context }])
-    window.api.sendMessage(input.trim(), currentMode, currentModel, context)
-    setInput("")
-    setAttachedFiles([]) // Clear attachments after sending
-  }
+    if (!input.trim() || isGenerating) return;
+    const context = attachedFiles.length > 0 ? attachedFiles : undefined;
+    setMessages((prev) => [...prev, { role: 'user', content: input.trim(), context }]);
+    window.api.sendMessage(input.trim(), currentMode, currentModel, context);
+    setInput('');
+    setAttachedFiles([]); // Clear attachments after sending
+  };
 
   const handleModelChange = (value: string) => {
-    const next = value === "" ? null : value
-    setSelectedModel(next)
-    void window.api.selectModel(next)
-  }
+    const next = value === '' ? null : value;
+    setSelectedModel(next);
+    void window.api.selectModel(next);
+  };
 
   const handleAttachFile = async () => {
-    const result = await window.api.selectFiles()
+    const result = await window.api.selectFiles();
     if (result && result.length > 0) {
-      setAttachedFiles((prev) => [...prev, ...result])
+      setAttachedFiles((prev) => [...prev, ...result]);
     }
-  }
+  };
 
   const handleAttachFolder = async () => {
-    const result = await window.api.selectFolder()
+    const result = await window.api.selectFolder();
     if (result && result.length > 0) {
-      setAttachedFiles((prev) => [...prev, ...result])
+      setAttachedFiles((prev) => [...prev, ...result]);
     }
-  }
+  };
 
   const removeAttachment = (index: number) => {
-    setAttachedFiles((prev) => prev.filter((_, i) => i !== index))
-  }
+    setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const stopGeneration = () => {
-    window.api.stopGeneration()
-  }
+    window.api.stopGeneration();
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
       if (isGenerating) {
-        stopGeneration()
+        stopGeneration();
       } else {
-        sendMessage()
+        sendMessage();
       }
     }
-  }
+  };
 
-  const greeting = React.useMemo(() => greetings[Math.floor(Math.random() * greetings.length)], [])
+  const greeting = React.useMemo(() => greetings[Math.floor(Math.random() * greetings.length)], []);
 
   return (
     <div className="flex flex-1 flex-col min-h-0">
       {/* Messages */}
       <ScrollArea className="flex-1 min-h-0">
         {messages.length === 0 && !isGenerating ? (
-          <WelcomeScreen userName={userName} greeting={greeting} onSuggestionClick={(text) => setInput(text)} />
+          <WelcomeScreen
+            userName={userName}
+            greeting={greeting}
+            onSuggestionClick={(text) => setInput(text)}
+          />
         ) : (
           <div className="flex flex-col gap-4 p-4">
             {messages.map((msg, i) => (
@@ -348,7 +367,7 @@ export function Chat() {
                           key={i}
                           label={`Step ${i + 1}`}
                           description={step}
-                          status={i === thinkingSteps.length - 1 ? "active" : "complete"}
+                          status={i === thinkingSteps.length - 1 ? 'active' : 'complete'}
                         />
                       ))}
                     </ChainOfThoughtContent>
@@ -362,9 +381,14 @@ export function Chat() {
                   </div>
                 )}
                 {streamingContent ? (
-                  <MessageBubble message={{ role: "assistant", content: streamingContent }} isStreaming />
+                  <MessageBubble
+                    message={{ role: 'assistant', content: streamingContent }}
+                    isStreaming
+                  />
                 ) : (
-                  <ThinkingIndicator isWorking={toolExecutions.length > 0 || thinkingSteps.length > 0} />
+                  <ThinkingIndicator
+                    isWorking={toolExecutions.length > 0 || thinkingSteps.length > 0}
+                  />
                 )}
               </>
             )}
@@ -385,9 +409,11 @@ export function Chat() {
               >
                 <HugeiconsIcon
                   icon={
-                    file.type === 'folder' ? Folder02Icon :
-                    file.language === 'image' ? Image01Icon :
-                    FileAttachmentIcon
+                    file.type === 'folder'
+                      ? Folder02Icon
+                      : file.language === 'image'
+                        ? Image01Icon
+                        : FileAttachmentIcon
                   }
                   strokeWidth={2}
                   className="size-3 text-muted-foreground"
@@ -427,7 +453,12 @@ export function Chat() {
               <>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button size="icon" variant="ghost" className="size-7 rounded-full" onClick={handleAttachFile}>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7 rounded-full"
+                      onClick={handleAttachFile}
+                    >
                       <HugeiconsIcon icon={Attachment02Icon} strokeWidth={2} className="size-4" />
                     </Button>
                   </TooltipTrigger>
@@ -435,7 +466,12 @@ export function Chat() {
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button size="icon" variant="ghost" className="size-7 rounded-full" onClick={handleAttachFolder}>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7 rounded-full"
+                      onClick={handleAttachFolder}
+                    >
                       <HugeiconsIcon icon={Folder02Icon} strokeWidth={2} className="size-4" />
                     </Button>
                   </TooltipTrigger>
@@ -444,22 +480,40 @@ export function Chat() {
               </>
             )}
             {isGenerating ? (
-              <Button size="icon" variant="destructive" className="size-7 rounded-full" onClick={stopGeneration}>
+              <Button
+                size="icon"
+                variant="destructive"
+                className="size-7 rounded-full"
+                onClick={stopGeneration}
+              >
                 <HugeiconsIcon icon={StopIcon} strokeWidth={2} className="size-4" />
               </Button>
             ) : (
-              <Button size="icon" className="size-7 rounded-full" onClick={sendMessage} disabled={!input.trim()}>
+              <Button
+                size="icon"
+                className="size-7 rounded-full"
+                onClick={sendMessage}
+                disabled={!input.trim()}
+              >
                 <HugeiconsIcon icon={ArrowUp02Icon} strokeWidth={2} className="size-4" />
               </Button>
             )}
           </InputGroupAddon>
         </InputGroup>
         <div className="mt-2 text-center text-[10px] text-muted-foreground">
-          Powered by <a href="https://alia.onl" target="_blank" rel="noopener noreferrer" className="hover:underline">Alia</a>
+          Powered by{' '}
+          <a
+            href="https://alia.onl"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline"
+          >
+            Alia
+          </a>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 /**
@@ -474,21 +528,22 @@ function ModelPicker({
   disabled,
   onChange,
 }: {
-  catalogue: ModelCatalogue | null
-  selected: string | null
-  disabled: boolean
-  onChange: (value: string) => void
+  catalogue: ModelCatalogue | null;
+  selected: string | null;
+  disabled: boolean;
+  onChange: (value: string) => void;
 }) {
-  const groups = catalogue === null ? [] : groupModels(catalogue)
-  const unlisted = selected !== null && !(catalogue?.models.some((model) => model.id === selected) ?? false)
-  const optionLabel = (model: ModelCatalogue["models"][number]) => {
-    const context = formatContextWindow(model.contextWindow)
-    return context === null ? model.name : `${model.name} · ${context}`
-  }
+  const groups = catalogue === null ? [] : groupModels(catalogue);
+  const unlisted =
+    selected !== null && !(catalogue?.models.some((model) => model.id === selected) ?? false);
+  const optionLabel = (model: ModelCatalogue['models'][number]) => {
+    const context = formatContextWindow(model.contextWindow);
+    return context === null ? model.name : `${model.name} · ${context}`;
+  };
   return (
     <select
       aria-label="Model"
-      value={selected ?? ""}
+      value={selected ?? ''}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       className="mr-auto h-7 max-w-[220px] truncate rounded-full border bg-transparent px-2 text-xs text-muted-foreground hover:text-foreground focus:outline-none disabled:opacity-50"
@@ -496,7 +551,7 @@ function ModelPicker({
       <option value="">{defaultLabel(catalogue)}</option>
       {unlisted && <option value={selected}>{selected}</option>}
       {groups.map((group) => (
-        <optgroup key={group.key} label={group.label ?? "Featured"}>
+        <optgroup key={group.key} label={group.label ?? 'Featured'}>
           {group.models.map((model) => (
             <option key={`${group.key}:${model.id}`} value={model.id}>
               {optionLabel(model)}
@@ -505,67 +560,81 @@ function ModelPicker({
         </optgroup>
       ))}
     </select>
-  )
+  );
 }
 
 // Tool execution item
 function ToolExecutionItem({ execution }: { execution: ToolExecution }) {
-  const [isExpanded, setIsExpanded] = React.useState(execution.tool === 'run_command')
-  const label = toolLabels[execution.tool] || execution.tool
+  const [isExpanded, setIsExpanded] = React.useState(execution.tool === 'run_command');
+  const label = toolLabels[execution.tool] || execution.tool;
 
   const getDescription = () => {
     switch (execution.tool) {
       case 'read_file':
       case 'write_file':
       case 'edit_file':
-        return String(execution.args.path || '')
+        return String(execution.args.path || '');
       case 'run_command':
-        const cmd = String(execution.args.command || '')
-        if (cmd.includes('npm run build')) return 'Build the project'
-        if (cmd.includes('npm test')) return 'Run tests'
-        return ''
+        const cmd = String(execution.args.command || '');
+        if (cmd.includes('npm run build')) return 'Build the project';
+        if (cmd.includes('npm test')) return 'Run tests';
+        return '';
       case 'open_url':
-        return String(execution.args.url || '')
+        return String(execution.args.url || '');
       case 'open_application':
-        return String(execution.args.path || '')
+        return String(execution.args.path || '');
       default:
-        return ''
+        return '';
     }
-  }
+  };
 
-  const description = getDescription()
-  const isCommand = execution.tool === 'run_command'
-  const hasExpandable = isCommand || (execution.result && execution.status !== 'running')
+  const description = getDescription();
+  const isCommand = execution.tool === 'run_command';
+  const hasExpandable = isCommand || (execution.result && execution.status !== 'running');
 
   return (
     <div className="py-1.5">
       <div
-        className={cn("flex items-start gap-2 text-sm", hasExpandable && "cursor-pointer hover:opacity-80")}
+        className={cn(
+          'flex items-start gap-2 text-sm',
+          hasExpandable && 'cursor-pointer hover:opacity-80',
+        )}
         onClick={() => hasExpandable && setIsExpanded(!isExpanded)}
       >
-        <span className={cn("mt-0.5 text-base leading-none",
-          execution.status === "preparing" && "text-muted-foreground animate-pulse",
-          execution.status === "running" && "text-yellow-500 animate-pulse",
-          execution.status === "success" && "text-green-500",
-          execution.status === "error" && "text-destructive"
-        )}>●</span>
+        <span
+          className={cn(
+            'mt-0.5 text-base leading-none',
+            execution.status === 'preparing' && 'text-muted-foreground animate-pulse',
+            execution.status === 'running' && 'text-yellow-500 animate-pulse',
+            execution.status === 'success' && 'text-green-500',
+            execution.status === 'error' && 'text-destructive',
+          )}
+        >
+          ●
+        </span>
         <div className="flex-1 min-w-0">
           <span className="font-bold">{label}</span>
           {description && <span className="text-muted-foreground ml-2">{description}</span>}
-          {hasExpandable && <span className="text-muted-foreground ml-1 text-xs">{isExpanded ? '˅' : '˃'}</span>}
+          {hasExpandable && (
+            <span className="text-muted-foreground ml-1 text-xs">{isExpanded ? '˅' : '˃'}</span>
+          )}
         </div>
       </div>
       {isExpanded && isCommand && (
         <div className="ml-5 mt-2 rounded-lg bg-muted/30 border overflow-hidden text-xs font-mono">
           <div className="flex border-b">
-            <span className="text-muted-foreground px-3 py-2 w-12 shrink-0 border-r bg-muted/20">IN</span>
+            <span className="text-muted-foreground px-3 py-2 w-12 shrink-0 border-r bg-muted/20">
+              IN
+            </span>
             <div className="px-3 py-2 flex-1 overflow-x-auto">
               <code>{String(execution.args.command || '')}</code>
             </div>
           </div>
           {execution.result && (
             <div className="flex">
-              <span className="text-muted-foreground px-3 py-2 w-12 shrink-0 border-r bg-muted/20">OUT</span>
+              <span className="text-muted-foreground px-3 py-2 w-12 shrink-0 border-r bg-muted/20">
+                OUT
+              </span>
               <div className="px-3 py-2 flex-1 max-h-40 overflow-auto">
                 <pre className="text-muted-foreground whitespace-pre-wrap">{execution.result}</pre>
               </div>
@@ -574,12 +643,12 @@ function ToolExecutionItem({ execution }: { execution: ToolExecution }) {
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // Message bubble
 function MessageBubble({ message, isStreaming }: { message: Message; isStreaming?: boolean }) {
-  if (message.role === "user") {
+  if (message.role === 'user') {
     return (
       <div className="flex justify-end">
         <div className="max-w-[85%] flex flex-col gap-2">
@@ -592,9 +661,11 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
                 >
                   <HugeiconsIcon
                     icon={
-                      file.type === 'folder' ? Folder02Icon :
-                      file.language === 'image' ? Image01Icon :
-                      FileAttachmentIcon
+                      file.type === 'folder'
+                        ? Folder02Icon
+                        : file.language === 'image'
+                          ? Image01Icon
+                          : FileAttachmentIcon
                     }
                     strokeWidth={2}
                     className="size-3 text-muted-foreground"
@@ -606,17 +677,15 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
               ))}
             </div>
           )}
-          <div className="rounded-2xl bg-muted px-3 py-2 text-sm">
-            {message.content}
-          </div>
+          <div className="rounded-2xl bg-muted px-3 py-2 text-sm">{message.content}</div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="flex gap-3">
-      <Avatar size="sm" className={cn(isStreaming && !message.content && "animate-pulse")}>
+      <Avatar size="sm" className={cn(isStreaming && !message.content && 'animate-pulse')}>
         <AvatarImage src="icon.png" alt="Alia" />
         <AvatarFallback>AI</AvatarFallback>
       </Avatar>
@@ -632,17 +701,25 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
         )}
       </div>
     </div>
-  )
+  );
 }
 
 // Welcome screen
-function WelcomeScreen({ userName, greeting, onSuggestionClick }: { userName: string | null; greeting: string; onSuggestionClick: (text: string) => void }) {
+function WelcomeScreen({
+  userName,
+  greeting,
+  onSuggestionClick,
+}: {
+  userName: string | null;
+  greeting: string;
+  onSuggestionClick: (text: string) => void;
+}) {
   const suggestions = [
-    { title: "Open an app", description: "Open Visual Studio Code" },
-    { title: "Run a command", description: "List files in my Documents folder" },
-    { title: "System info", description: "Show my system information" },
-    { title: "Take screenshot", description: "Capture my screen" },
-  ]
+    { title: 'Open an app', description: 'Open Visual Studio Code' },
+    { title: 'Run a command', description: 'List files in my Documents folder' },
+    { title: 'System info', description: 'Show my system information' },
+    { title: 'Take screenshot', description: 'Capture my screen' },
+  ];
 
   return (
     <div className="flex flex-col items-center justify-center gap-6 p-8 py-16 text-center">
@@ -673,5 +750,5 @@ function WelcomeScreen({ userName, greeting, onSuggestionClick }: { userName: st
         ))}
       </div>
     </div>
-  )
+  );
 }

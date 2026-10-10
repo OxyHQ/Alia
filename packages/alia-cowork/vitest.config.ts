@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig } from 'vitest/config';
 
 /**
  * Cowork's suite.
@@ -20,4 +20,4 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/__tests__/**/*.test.ts', 'src/**/*.test.ts'],
   },
-})
+});

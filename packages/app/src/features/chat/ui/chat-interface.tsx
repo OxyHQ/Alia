@@ -67,12 +67,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
 import { useQueryClient } from '@tanstack/react-query';
 import { Image } from '@/shared/ui/image';
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   type LayoutChangeEvent,
@@ -233,18 +228,19 @@ type MessageRowProps = {
   handleCopyMessage: (content: string) => Promise<boolean>;
   /** This reply's read-aloud, as a primitive so only its own row re-renders. */
   readAloudState: ReadAloudState;
-  onReadAloud: (messageId: string, text: string, audioUrl?: string, conversationId?: string) => void;
+  onReadAloud: (
+    messageId: string,
+    text: string,
+    audioUrl?: string,
+    conversationId?: string,
+  ) => void;
   /** A call or a dictation holds the audio. */
   readAloudBlocked: boolean;
   /** Given only to the one reply that may be regenerated. */
   onRegenerate?: (assistantMessageId: string) => void;
   /** Given only to a question that may be edited. */
   onStartEdit?: (userMessageId: string) => void;
-  handleVote: (
-    messageId: string,
-    vote: 'up' | 'down',
-    conversationId?: string,
-  ) => void;
+  handleVote: (messageId: string, vote: 'up' | 'down', conversationId?: string) => void;
   /**
    * The turn's timing for its work summary, as primitives so the row's memo
    * holds: epoch ms of the send, and of the persisted end or `null` for a
@@ -290,9 +286,7 @@ const MessageRow = React.memo(function MessageRow({
    * the row is memoised on `m` already.
    */
   const workInvocations =
-    m.role === 'assistant'
-      ? (m.toolInvocations ?? []).filter((t) => !hasToolCard(t))
-      : [];
+    m.role === 'assistant' ? (m.toolInvocations ?? []).filter((t) => !hasToolCard(t)) : [];
   /** The template swaps the steps for the reply once the turn is done. */
   const turnWorking = isLoading && isLastAlia && m.isStreaming === true;
   /**
@@ -302,17 +296,12 @@ const MessageRow = React.memo(function MessageRow({
    * (`src/features/chat/model/work-log.ts`), never by their own demo ticker.
    */
   const webLog =
-    m.role === 'assistant'
-      ? webSearchLog(workInvocations, m.researchProgress, rowT)
-      : null;
+    m.role === 'assistant' ? webSearchLog(workInvocations, m.researchProgress, rowT) : null;
   const taskInvocations = workInvocations.filter((t) => !isWebInvocation(t));
   const taskLog =
-    taskInvocations.length === 0 || turnWorking
-      ? null
-      : taskListLog(taskInvocations, false, rowT);
+    taskInvocations.length === 0 || turnWorking ? null : taskListLog(taskInvocations, false, rowT);
   const hasWorkLog =
-    (webLog !== null && webLog.steps.length > 0) ||
-    (workInvocations.length > 0 && !turnWorking);
+    (webLog !== null && webLog.steps.length > 0) || (workInvocations.length > 0 && !turnWorking);
   /** The calls that returned a card, drawn inside the turn where the answer is read. */
   const toolCards =
     m.role === 'assistant'
@@ -337,9 +326,7 @@ const MessageRow = React.memo(function MessageRow({
   const storedIn = m.unsaved === true ? undefined : chatId?.id;
   const hasText = messageText.length > 0;
   const reading =
-    readAloudState === 'loading' ||
-    readAloudState === 'playing' ||
-    readAloudState === 'paused';
+    readAloudState === 'loading' || readAloudState === 'playing' || readAloudState === 'paused';
   const readAloudAction: AiChatTurnAction | null =
     m.role !== 'assistant' || !hasText
       ? null
@@ -442,9 +429,7 @@ const MessageRow = React.memo(function MessageRow({
       {taskInvocations.length === 0 || !turnWorking ? null : (
         <AgentProgress
           steps={taskInvocations.map((invocation) => getToolPillLabel(invocation.toolName, rowT))}
-          completedCount={
-            taskInvocations.filter((t) => t.state === 'result').length
-          }
+          completedCount={taskInvocations.filter((t) => t.state === 'result').length}
         />
       )}
 
@@ -456,10 +441,7 @@ const MessageRow = React.memo(function MessageRow({
         messageImages.length > 0 ||
         (m.role === 'assistant' && (hasWorkLog || toolCards.length > 0)) ||
         (m.isStreaming && m.source === 'voice')) && (
-        <View
-          key="message-content"
-          className="w-full"
-        >
+        <View key="message-content" className="w-full">
           {m.role === 'assistant' ? (
             <View className="flex-col">
               {m.agentInfo ? (
@@ -469,9 +451,7 @@ const MessageRow = React.memo(function MessageRow({
                     color={agentTint(m.agentInfo.color, colors)}
                     accessibilityLabel={m.agentInfo.name}
                   />
-                  <Text className="text-xs font-semibold text-foreground">
-                    {m.agentInfo.name}
-                  </Text>
+                  <Text className="text-xs font-semibold text-foreground">{m.agentInfo.name}</Text>
                 </View>
               ) : null}
               {/* The template's reply: Bloom's reveal and its own feedback
@@ -778,9 +758,8 @@ export const ChatInterface = React.memo(function ChatInterface({
   const liveThoughtScope = useMemo<ThoughtScope>(() => {
     const loadFailed =
       activeConversationId !== undefined &&
-      queryClient.getQueryState(
-        queryKeys.conversations.detail(activeConversationId),
-      )?.status === 'error';
+      queryClient.getQueryState(queryKeys.conversations.detail(activeConversationId))?.status ===
+        'error';
     return {
       conversationId: activeConversationId ?? null,
       messages: liveMessages,
@@ -788,14 +767,7 @@ export const ChatInterface = React.memo(function ChatInterface({
       isLoading: isLoading === true,
       failedTurn: failedTurn ?? null,
     };
-  }, [
-    activeConversationId,
-    liveMessages,
-    conversationLoading,
-    isLoading,
-    failedTurn,
-    queryClient,
-  ]);
+  }, [activeConversationId, liveMessages, conversationLoading, isLoading, failedTurn, queryClient]);
 
   useEffect(() => {
     syncThoughtScope(liveThoughtScope);
@@ -817,7 +789,8 @@ export const ChatInterface = React.memo(function ChatInterface({
   useEffect(() => {
     if (workingTurnId === null || autoOpenedTurn.current === workingTurnId) return;
     autoOpenedTurn.current = workingTurnId;
-    if (useUIStore.getState().rightPanel === null) openThoughtPanel(workingTurnId, liveThoughtScope);
+    if (useUIStore.getState().rightPanel === null)
+      openThoughtPanel(workingTurnId, liveThoughtScope);
   }, [workingTurnId, liveThoughtScope, openThoughtPanel]);
 
   const handleCopyMessage = useCallback(
@@ -888,10 +861,7 @@ export const ChatInterface = React.memo(function ChatInterface({
   );
 
   /** Optional extra thread clearance; the template composer occupies its own row. */
-  const bottomSpacerStyle = useMemo(
-    () => ({ height: bottomPadding }),
-    [bottomPadding],
-  );
+  const bottomSpacerStyle = useMemo(() => ({ height: bottomPadding }), [bottomPadding]);
 
   /**
    * Put the message a jump was aimed at under the reader's eyes.
@@ -959,12 +929,8 @@ export const ChatInterface = React.memo(function ChatInterface({
 
     return (
       <React.Fragment key={m.id || `msg-${index}`}>
-        {seamIds.has(m.id) ? (
-          <Divider spacing={16}>{t('chat.newStretch')}</Divider>
-        ) : null}
-        {dayLabel === undefined ? null : (
-          <ChatDateHeader label={dayLabel} placement="inline" />
-        )}
+        {seamIds.has(m.id) ? <Divider spacing={16}>{t('chat.newStretch')}</Divider> : null}
+        {dayLabel === undefined ? null : <ChatDateHeader label={dayLabel} placement="inline" />}
         <MessageRow
           m={m}
           index={index}
@@ -976,9 +942,7 @@ export const ChatInterface = React.memo(function ChatInterface({
           // re-render the whole thread when a turn starts and when it ends.
           isLoading={isLastAlia ? isLoading : false}
           chatId={
-            fromHistory
-              ? (historyChatIds.get(history[index].conversationId) ?? chatId)
-              : chatId
+            fromHistory ? (historyChatIds.get(history[index].conversationId) ?? chatId) : chatId
           }
           onRowLayout={index === focusIndex ? handleFocusLayout : undefined}
           handleCopyMessage={handleCopyMessage}
@@ -989,9 +953,7 @@ export const ChatInterface = React.memo(function ChatInterface({
           onRegenerate={canRegenerate(m, index) ? onRegenerate : undefined}
           // A question of an earlier conversation is not in the list an edit
           // cuts, so the "edit" would silently become a new turn.
-          onStartEdit={
-            m.role === 'user' && !fromHistory && !callActive ? onStartEdit : undefined
-          }
+          onStartEdit={m.role === 'user' && !fromHistory && !callActive ? onStartEdit : undefined}
           workStartedAt={timing.startedAt}
           workEndedAt={timing.endedAt}
           onOpenThought={openThought}
@@ -1046,7 +1008,10 @@ export const ChatInterface = React.memo(function ChatInterface({
   if (isEmpty) {
     return (
       // Above the floating composer: the container measures it for us.
-      <View className="flex-1 justify-center px-4" style={{ paddingBottom: chromeInsets?.bottom ?? 0 }}>
+      <View
+        className="flex-1 justify-center px-4"
+        style={{ paddingBottom: chromeInsets?.bottom ?? 0 }}
+      >
         <View className="w-full max-w-[768px] self-center">
           <WelcomeMessage />
         </View>
@@ -1069,23 +1034,23 @@ export const ChatInterface = React.memo(function ChatInterface({
             (896 against its 768), so the answer has room to breathe. */}
         <View className="w-full max-w-4xl self-center">
           {!filteredMessages.length && conversationLoading ? (
-              <View className="gap-5 py-4">
-                <View className="items-end">
-                  <Skeleton.Box width="65%" height={48} borderRadius={24} />
-                </View>
-                <View className="items-start gap-2.5">
-                  <Skeleton.Box width="80%" height={14} borderRadius={8} />
-                  <Skeleton.Box width="70%" height={14} borderRadius={8} />
-                  <Skeleton.Box width="45%" height={14} borderRadius={8} />
-                </View>
-                <View className="items-end">
-                  <Skeleton.Box width="50%" height={40} borderRadius={24} />
-                </View>
-                <View className="items-start gap-2.5">
-                  <Skeleton.Box width="85%" height={14} borderRadius={8} />
-                  <Skeleton.Box width="60%" height={14} borderRadius={8} />
-                </View>
+            <View className="gap-5 py-4">
+              <View className="items-end">
+                <Skeleton.Box width="65%" height={48} borderRadius={24} />
               </View>
+              <View className="items-start gap-2.5">
+                <Skeleton.Box width="80%" height={14} borderRadius={8} />
+                <Skeleton.Box width="70%" height={14} borderRadius={8} />
+                <Skeleton.Box width="45%" height={14} borderRadius={8} />
+              </View>
+              <View className="items-end">
+                <Skeleton.Box width="50%" height={40} borderRadius={24} />
+              </View>
+              <View className="items-start gap-2.5">
+                <Skeleton.Box width="85%" height={14} borderRadius={8} />
+                <Skeleton.Box width="60%" height={14} borderRadius={8} />
+              </View>
+            </View>
           ) : null}
 
           <View className="relative" onLayout={timeline.onListLayout}>
@@ -1133,13 +1098,8 @@ export const ChatInterface = React.memo(function ChatInterface({
                 but there's no pending assistant message yet (e.g. right after user speaks) */}
           {voiceAgentState === 'thinking' &&
             !isLoading &&
-            (messages.length === 0 ||
-              messages[messages.length - 1]?.role !== 'assistant') && (
-              <AgentThinking
-                variant="wave"
-                label={t('chat.thinking')}
-                showTimer={false}
-              />
+            (messages.length === 0 || messages[messages.length - 1]?.role !== 'assistant') && (
+              <AgentThinking variant="wave" label={t('chat.thinking')} showTimer={false} />
             )}
 
           {/* Bloom's `AgentChat`: while a turn is busy and its reply has no

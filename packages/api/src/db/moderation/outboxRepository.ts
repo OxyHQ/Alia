@@ -187,10 +187,7 @@ export async function enqueueModerationOutboxEvent(
 /** Due work: pending and its time has come, or processing with a dead lease. */
 function claimable() {
   return or(
-    and(
-      eq(moderationOutboxes.status, 'pending'),
-      lte(moderationOutboxes.availableAt, sql`now()`),
-    ),
+    and(eq(moderationOutboxes.status, 'pending'), lte(moderationOutboxes.availableAt, sql`now()`)),
     and(
       eq(moderationOutboxes.status, 'processing'),
       isNotNull(moderationOutboxes.leaseUntil),
@@ -349,10 +346,7 @@ export async function failModerationOutboxEvent(
   message: string,
   deadLettered: boolean,
 ): Promise<ModerationOutboxFailure> {
-  const backoffSeconds = Math.min(
-    2 ** Math.max(0, Math.min(event.attempts - 1, 20)),
-    6 * 60 * 60,
-  );
+  const backoffSeconds = Math.min(2 ** Math.max(0, Math.min(event.attempts - 1, 20)), 6 * 60 * 60);
   const rows = await getDb()
     .update(moderationOutboxes)
     .set({

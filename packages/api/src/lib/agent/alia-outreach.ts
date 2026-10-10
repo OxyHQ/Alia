@@ -62,7 +62,12 @@ export type AliaOutreachOutcome =
   | { readonly posted: false; readonly reason: 'empty' };
 
 /** Append one marked assistant message at the end of an Alia conversation and tell an open client. */
-async function appendAliaMessage(oxyUserId: string, conversationId: string, title: string, content: string): Promise<string> {
+async function appendAliaMessage(
+  oxyUserId: string,
+  conversationId: string,
+  title: string,
+  content: string,
+): Promise<string> {
   const messageId = `${AGENT_OUTREACH_MESSAGE_ID_PREFIX}${randomUUID()}`;
   // Appended at the end with the next `seq`; retried on exactly the conflict a
   // concurrent turn taking the same seq produces (see `postAgentMessage`).
@@ -70,15 +75,17 @@ async function appendAliaMessage(oxyUserId: string, conversationId: string, titl
     const last = await findLastMessage(getDb(), oxyUserId, conversationId);
     const seq = last?.seq == null ? 0 : last.seq + 1;
     try {
-      await insertMessages(getDb(), [{
-        conversationId,
-        oxyUserId,
-        clientMessageId: messageId,
-        role: 'assistant',
-        content,
-        seq,
-        createdAt: new Date(),
-      }]);
+      await insertMessages(getDb(), [
+        {
+          conversationId,
+          oxyUserId,
+          clientMessageId: messageId,
+          role: 'assistant',
+          content,
+          seq,
+          createdAt: new Date(),
+        },
+      ]);
       break;
     } catch (err: unknown) {
       if (attempt >= 3 || !isUniqueViolation(err, SEQ_INDEX)) throw err;
@@ -93,10 +100,12 @@ async function appendAliaMessage(oxyUserId: string, conversationId: string, titl
   });
 
   // Live, for a client that has this conversation open.
-  getIO()?.to(`user:${oxyUserId}`).emit('conversation:message', {
-    conversationId,
-    message: { id: messageId, role: 'assistant', content, createdAt: new Date() },
-  });
+  getIO()
+    ?.to(`user:${oxyUserId}`)
+    .emit('conversation:message', {
+      conversationId,
+      message: { id: messageId, role: 'assistant', content, createdAt: new Date() },
+    });
 
   return messageId;
 }
@@ -106,10 +115,11 @@ export async function postAliaMessage(input: AliaTaskMessageInput): Promise<Alia
   if (!content) return { posted: false, reason: 'empty' };
   const title = input.objective.trim().slice(0, MAX_TITLE_CHARS) || 'Scheduled task';
 
-  const conversationId = input.conversationId
-    ?? await claimAutomationConversation(getDb(), input.automationId, randomUUID())
+  const conversationId =
+    input.conversationId ??
+    (await claimAutomationConversation(getDb(), input.automationId, randomUUID())) ??
     // The definition vanished between the run and its delivery; still deliver.
-    ?? randomUUID();
+    randomUUID();
 
   // Created before the message, as a thread is. A person who deleted the
   // task's conversation gets it back under the same id.
@@ -131,7 +141,12 @@ export async function postAliaMessage(input: AliaTaskMessageInput): Promise<Alia
     body: content.slice(0, 500),
     conversationId,
     data: { conversationId, automationId: input.automationId, messageId },
-  }).catch((err: unknown) => log.agents.warn({ err, automationId: input.automationId }, 'Could not notify about an Alia task result'));
+  }).catch((err: unknown) =>
+    log.agents.warn(
+      { err, automationId: input.automationId },
+      'Could not notify about an Alia task result',
+    ),
+  );
 
   return { posted: true, conversationId, messageId };
 }
@@ -157,7 +172,8 @@ export async function aliaCheckInRefusal(oxyUserId: string): Promise<CheckInRefu
   return checkInRefusal({
     oxyUserId,
     conversationId,
-    countSince: (since) => countOutreachInConversationSince(getDb(), oxyUserId, conversationId, since),
+    countSince: (since) =>
+      countOutreachInConversationSince(getDb(), oxyUserId, conversationId, since),
   });
 }
 

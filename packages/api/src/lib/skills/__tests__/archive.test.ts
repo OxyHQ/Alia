@@ -34,7 +34,10 @@ describe('readZipArchive', () => {
     zip.addFile('my-skill/SKILL.md', Buffer.from('---\nname: x\n---\n'));
     zip.addFile('my-skill/scripts/run.sh', Buffer.from('echo hi'));
     const files = readZipArchive(zip.toBuffer());
-    expect(files.map((f) => f.path).sort()).toEqual(['my-skill/SKILL.md', 'my-skill/scripts/run.sh']);
+    expect(files.map((f) => f.path).sort()).toEqual([
+      'my-skill/SKILL.md',
+      'my-skill/scripts/run.sh',
+    ]);
     expect(files.find((f) => f.path.endsWith('run.sh'))!.content.toString()).toBe('echo hi');
   });
 
@@ -52,7 +55,10 @@ describe('readTarGzArchive', () => {
     const buffer = await createTar({ gzip: true, cwd: dir }, ['repo-sha']).concat();
 
     const files = await readTarGzArchive(Buffer.from(buffer));
-    expect(files.map((f) => f.path).sort()).toEqual(['repo-sha/README.md', 'repo-sha/skills/pdf/SKILL.md']);
+    expect(files.map((f) => f.path).sort()).toEqual([
+      'repo-sha/README.md',
+      'repo-sha/skills/pdf/SKILL.md',
+    ]);
   });
 
   it('flags a symlink instead of reading through it', async () => {
@@ -71,7 +77,9 @@ describe('readTarGzArchive', () => {
   // tar parses leniently: garbage produces no entries rather than an error, so
   // the refusal comes from the empty result and says both things it could be.
   it('refuses a buffer that is not a tarball', async () => {
-    await expect(readTarGzArchive(Buffer.from('nope'))).rejects.toThrow(/not readable, or holds no files/);
+    await expect(readTarGzArchive(Buffer.from('nope'))).rejects.toThrow(
+      /not readable, or holds no files/,
+    );
   });
 });
 

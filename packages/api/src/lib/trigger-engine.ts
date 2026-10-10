@@ -91,7 +91,10 @@ export function missedOccurrence(
   const { cron: expression, timezone } = automation.trigger;
   if (!expression || !timezone || automationScheduleError(expression, timezone)) return null;
   try {
-    const previous = cronParser.parseExpression(expression, { currentDate: now, tz: timezone }).prev().toDate();
+    const previous = cronParser
+      .parseExpression(expression, { currentDate: now, tz: timezone })
+      .prev()
+      .toDate();
     const since = Math.max(now.getTime() - CATCH_UP_WINDOW_MS, automation.updatedAt.getTime());
     if (previous.getTime() <= since) return null;
     return occurrenceAt(automation.id, previous);
@@ -106,7 +109,8 @@ async function catchUpMissedOccurrences(now: Date = new Date()): Promise<void> {
     // `schedule:<automation uuid>:<ISO instant>` — the instant is everything
     // after the second colon.
     const at = Date.parse(id.split(':').slice(2).join(':'));
-    if (!Number.isNaN(at) && at < now.getTime() - 2 * CATCH_UP_WINDOW_MS) attemptedOccurrences.delete(id);
+    if (!Number.isNaN(at) && at < now.getTime() - 2 * CATCH_UP_WINDOW_MS)
+      attemptedOccurrences.delete(id);
   }
   const automations = await listSchedulableAutomationDefinitions(getDb());
   for (const automation of automations) {
@@ -119,12 +123,21 @@ async function catchUpMissedOccurrences(now: Date = new Date()): Promise<void> {
       if (await automationRunExists(getDb(), automation.id, occurrence.id)) continue;
       // Idempotent by occurrence id: a run the live cron already claimed is a
       // `duplicate` here, and nothing else happens.
-      const result = await dispatchStructuredAutomation(automation, { kind: 'schedule', ...occurrence });
+      const result = await dispatchStructuredAutomation(automation, {
+        kind: 'schedule',
+        ...occurrence,
+      });
       if (result.status === 'queued') {
-        log.triggers.warn({ automationId: automation.id, occurrence: occurrence.id }, 'Ran a missed scheduled occurrence');
+        log.triggers.warn(
+          { automationId: automation.id, occurrence: occurrence.id },
+          'Ran a missed scheduled occurrence',
+        );
       }
     } catch (error: unknown) {
-      log.triggers.error({ err: error, automationId: automation.id }, 'Could not catch up a missed occurrence');
+      log.triggers.error(
+        { err: error, automationId: automation.id },
+        'Could not catch up a missed occurrence',
+      );
     }
   }
 }
@@ -149,17 +162,21 @@ function scheduleAutomation(automation: AutomationDefinitionRecord): void {
   }
 
   try {
-    const task = cron.schedule(cronExpression, async (context) => {
-      try {
-        const fresh = await findAutomationDefinitionById(getDb(), automationId);
-        if (!fresh?.enabled || fresh.trigger.type !== 'schedule') return;
-        const occurrence = scheduleOccurrence(automationId, context);
-        attemptedOccurrences.add(occurrence.id);
-        await dispatchStructuredAutomation(fresh, { kind: 'schedule', ...occurrence });
-      } catch (error: unknown) {
-        log.triggers.error({ err: error, automationId }, 'Scheduled automation failed');
-      }
-    }, { timezone, noOverlap: true });
+    const task = cron.schedule(
+      cronExpression,
+      async (context) => {
+        try {
+          const fresh = await findAutomationDefinitionById(getDb(), automationId);
+          if (!fresh?.enabled || fresh.trigger.type !== 'schedule') return;
+          const occurrence = scheduleOccurrence(automationId, context);
+          attemptedOccurrences.add(occurrence.id);
+          await dispatchStructuredAutomation(fresh, { kind: 'schedule', ...occurrence });
+        } catch (error: unknown) {
+          log.triggers.error({ err: error, automationId }, 'Scheduled automation failed');
+        }
+      },
+      { timezone, noOverlap: true },
+    );
     scheduledTasks.set(automationId, task);
     scheduledUpdatedAt.set(automationId, automation.updatedAt.getTime());
     log.triggers.info({ automationId, cronExpression, timezone }, 'Scheduled automation');
@@ -193,10 +210,14 @@ async function reconcileScheduledAutomations(): Promise<void> {
  */
 export function startTriggerEngine(options?: LeaderElectionOptions): LeaderElectionHandle {
   if (electionHandle) return electionHandle;
-  electionHandle = startLeaderElection('trigger-engine', {
-    onElected: () => startTriggerScheduler(),
-    onDemoted: () => stopAllScheduledTasks(),
-  }, options);
+  electionHandle = startLeaderElection(
+    'trigger-engine',
+    {
+      onElected: () => startTriggerScheduler(),
+      onDemoted: () => stopAllScheduledTasks(),
+    },
+    options,
+  );
   return electionHandle;
 }
 
@@ -215,15 +236,17 @@ export async function startTriggerScheduler(): Promise<void> {
   log.triggers.info('Starting automation scheduler');
   try {
     const automations = await listSchedulableAutomationDefinitions(getDb());
-    log.triggers.info({ automationCount: automations.length }, 'Found enabled automation schedules');
+    log.triggers.info(
+      { automationCount: automations.length },
+      'Found enabled automation schedules',
+    );
     for (const automation of automations) scheduleAutomation(automation);
     // A new leader first runs what fell in the gap before it took over.
     await catchUpMissedOccurrences();
     if (!reconcileTimer) {
-      reconcileTimer = setInterval(
-        () => { void reconcileScheduledAutomations(); },
-        RECONCILE_INTERVAL_MS,
-      );
+      reconcileTimer = setInterval(() => {
+        void reconcileScheduledAutomations();
+      }, RECONCILE_INTERVAL_MS);
       reconcileTimer.unref?.();
     }
     log.triggers.info('Automation scheduler started');

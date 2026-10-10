@@ -70,18 +70,21 @@ export function useSoundEffects(enabled: boolean = false, sounds: SoundSources =
     };
   }, [enabled, sounds]);
 
-  const play = useCallback((sound: SoundName) => {
-    if (!enabled) return;
-    const player = playersRef.current.get(sound);
-    if (player) {
-      try {
-        player.seekTo(0);
-        player.play();
-      } catch {
-        // Playback failed — ignore
+  const play = useCallback(
+    (sound: SoundName) => {
+      if (!enabled) return;
+      const player = playersRef.current.get(sound);
+      if (player) {
+        try {
+          player.seekTo(0);
+          player.play();
+        } catch {
+          // Playback failed — ignore
+        }
       }
-    }
-  }, [enabled]);
+    },
+    [enabled],
+  );
 
   return { play };
 }

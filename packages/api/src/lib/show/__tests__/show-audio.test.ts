@@ -41,9 +41,12 @@ async function synthesize(seconds: number, bitrate: string): Promise<Buffer> {
   const path = join(workspace, `tone-${seconds}-${bitrate}.mp3`);
   await run(ffmpeg, [
     '-y',
-    '-f', 'lavfi',
-    '-i', `sine=frequency=440:duration=${seconds}`,
-    '-b:a', bitrate,
+    '-f',
+    'lavfi',
+    '-i',
+    `sine=frequency=440:duration=${seconds}`,
+    '-b:a',
+    bitrate,
     path,
   ]);
   return readFile(path);
@@ -57,7 +60,7 @@ beforeAll(async () => {
   workspace = await mkdtemp(join(tmpdir(), 'show-audio-test-'));
 });
 
-describe('measuring a show\'s duration', () => {
+describe("measuring a show's duration", () => {
   it('reads the real length of a file the byte estimate gets badly wrong', async () => {
     // 64 kbps: half the bitrate the old formula assumed, so it under-reports by
     // about half. This is the fixture that discriminates — a 128 kbps one would
@@ -105,7 +108,7 @@ describe('measuring a show\'s duration', () => {
   });
 });
 
-describe('reading ffmpeg\'s timestamps', () => {
+describe("reading ffmpeg's timestamps", () => {
   /**
    * The rule under test is "take the LAST `time=`", and this module's public
    * entry point cannot reach it: a show-length file decodes in about a
@@ -125,10 +128,14 @@ describe('reading ffmpeg\'s timestamps', () => {
 
     // A non-zero exit would throw; `-f null -` on a valid file exits 0.
     const { stderr } = await run(ffmpeg, [
-      '-stats_period', '0.3',
+      '-stats_period',
+      '0.3',
       '-re',
-      '-i', path,
-      '-f', 'null', '-',
+      '-i',
+      path,
+      '-f',
+      'null',
+      '-',
     ]);
 
     const stamps = [...stderr.matchAll(/time=(\d+):(\d{2}):(\d{2})\.(\d{2})/g)];
@@ -166,10 +173,7 @@ describe('reading ffmpeg\'s timestamps', () => {
 
 describe('joining segments', () => {
   it('produces one file as long as its parts together', async () => {
-    const parts = await Promise.all([
-      synthesize(2, '128k'),
-      synthesize(3, '128k'),
-    ]);
+    const parts = await Promise.all([synthesize(2, '128k'), synthesize(3, '128k')]);
 
     const joined = await concatenateAudioSegments(parts);
     const measured = await measureAudioDurationMs(joined);
@@ -223,7 +227,9 @@ describe('cleaning up after itself', () => {
     // and a `finally` that only covered the happy one would leak on every
     // failed show — which is the run that happens under load.
     await measureAudioDurationMs(Buffer.from('not audio'));
-    await concatenateAudioSegments(await Promise.all([synthesize(1, '128k'), synthesize(1, '128k')]));
+    await concatenateAudioSegments(
+      await Promise.all([synthesize(1, '128k'), synthesize(1, '128k')]),
+    );
 
     const after = (await readdir(tmpdir())).filter((n) => n.startsWith('show-'));
     expect(after.length).toBe(before.length);

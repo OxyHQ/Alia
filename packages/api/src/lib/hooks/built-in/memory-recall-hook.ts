@@ -14,15 +14,11 @@ registerHook({
     if (!ctx.userId) return;
 
     // Extract the latest user message for the recall query
-    const lastUserMsg = [...ctx.messages]
-      .reverse()
-      .find((m: any) => m.role === 'user');
+    const lastUserMsg = [...ctx.messages].reverse().find((m: any) => m.role === 'user');
 
     if (!lastUserMsg?.content) return;
 
-    const messageText = typeof lastUserMsg.content === 'string'
-      ? lastUserMsg.content
-      : '';
+    const messageText = typeof lastUserMsg.content === 'string' ? lastUserMsg.content : '';
 
     if (!messageText) return;
 

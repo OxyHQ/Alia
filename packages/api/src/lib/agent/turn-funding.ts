@@ -79,10 +79,7 @@ import { reserveBackgroundProductCredits } from '../product-credit-access';
  * outage, with nothing to tell them apart afterwards.
  */
 
-import {
-  CREDITS_CONFIG,
-  type CreditReservation,
-} from '../credits-manager.js';
+import { CREDITS_CONFIG, type CreditReservation } from '../credits-manager.js';
 import { log } from '../logger.js';
 
 /** Whose balance a turn was actually taken from. */
@@ -101,7 +98,10 @@ export type AgentTurnFunding =
    * either answer reaches the person who can act on it, so a caller that maps
    * both to one string throws away the whole distinction at the last step.
    */
-  | { readonly ok: false; readonly reason: 'owner_fallback_not_authorised' | 'both_out_of_credits' };
+  | {
+      readonly ok: false;
+      readonly reason: 'owner_fallback_not_authorised' | 'both_out_of_credits';
+    };
 
 /**
  * Take the turn's credits from the agent, or from its owner, or from neither.
@@ -143,6 +143,9 @@ export async function reserveAgentTurn(input: {
     return { ok: true, payer: 'owner', reservation: fromOwner };
   }
 
-  log.credits.info({ agentAccountId, ownerUserId, amount }, 'Agent turn refused: neither balance covers it');
+  log.credits.info(
+    { agentAccountId, ownerUserId, amount },
+    'Agent turn refused: neither balance covers it',
+  );
   return { ok: false, reason: 'both_out_of_credits' };
 }

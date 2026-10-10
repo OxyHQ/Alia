@@ -92,7 +92,7 @@ async function inlineObjectUrl(uri: string, mimeType?: string): Promise<string> 
  */
 export async function buildMessageContent(
   text: string,
-  attachments: Attachment[]
+  attachments: Attachment[],
 ): Promise<BuiltMessageContent> {
   const dropped: DroppedAttachment[] = [];
 
@@ -114,12 +114,16 @@ export async function buildMessageContent(
 
     if (!isInlineData(url)) {
       try {
-        url = Platform.OS === 'web'
-          ? await inlineObjectUrl(att.uri, att.mimeType)
-          // Native file URIs (`file://`) are read off the filesystem.
-          : `data:${att.mimeType || 'image/jpeg'};base64,${await FileSystem.readAsStringAsync(att.uri, {
-              encoding: FileSystem.EncodingType.Base64,
-            })}`;
+        url =
+          Platform.OS === 'web'
+            ? await inlineObjectUrl(att.uri, att.mimeType)
+            : // Native file URIs (`file://`) are read off the filesystem.
+              `data:${att.mimeType || 'image/jpeg'};base64,${await FileSystem.readAsStringAsync(
+                att.uri,
+                {
+                  encoding: FileSystem.EncodingType.Base64,
+                },
+              )}`;
       } catch {
         // Reported rather than skipped. A picture that did not arrive is worth
         // a sentence; it used to be a `continue`.

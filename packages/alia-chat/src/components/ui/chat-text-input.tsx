@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from 'react';
 import {
   TextInput,
   Platform,
@@ -8,13 +8,13 @@ import {
   type NativeSyntheticEvent as RNSyntheticEvent,
   type TextInputContentSizeChangeEventData,
   type TextStyle,
-} from "react-native";
-import { cn } from "../../lib/utils";
+} from 'react-native';
+import { cn } from '../../lib/utils';
 
 // react-native-web forwards the DOM KeyboardEvent modifier flags on the key-press
 // nativeEvent, but React Native's `TextInputKeyPressEventData` only declares `key`.
 // Augment the type (web-only field, hence optional) so `shiftKey` is readable without a cast.
-declare module "react-native" {
+declare module 'react-native' {
   interface TextInputKeyPressEventData {
     shiftKey?: boolean;
   }
@@ -35,48 +35,48 @@ type ChatTextInputProps = React.ComponentPropsWithoutRef<typeof TextInput> & {
 };
 
 const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
-  ({
-    className,
-    unstyled = false,
-    noFocus = false,
-    onEnterPress,
-    onCompletionKey,
-    onKeyPress,
-    maxHeight = 200,
-    minHeight = 44,
-    onContentSizeChange,
-    onHeightChange,
-    style,
-    disableEnterToSubmit = false,
-    disableAutoHeight = false,
-    onImagePaste,
-    fillContainer = false,
-    ...props
-  }, ref) => {
+  (
+    {
+      className,
+      unstyled = false,
+      noFocus = false,
+      onEnterPress,
+      onCompletionKey,
+      onKeyPress,
+      maxHeight = 200,
+      minHeight = 44,
+      onContentSizeChange,
+      onHeightChange,
+      style,
+      disableEnterToSubmit = false,
+      disableAutoHeight = false,
+      onImagePaste,
+      fillContainer = false,
+      ...props
+    },
+    ref,
+  ) => {
     const inputRef = React.useRef<TextInput>(null);
     const wrapperRef = React.useRef<View>(null);
 
     // react-native-css observes `style` by reference. Memoizing the composed
     // value prevents its own state update from manufacturing another changed
     // style prop and recursively re-rendering this TextInput on native.
-    const inputStyle = React.useMemo(() => [
-      style,
-      !fillContainer && props.multiline && !disableAutoHeight && ({
-        minHeight,
-        maxHeight,
-        ...(Platform.OS === 'web'
-          ? { overflow: 'auto' as const, fieldSizing: 'content' }
-          : {}),
-      } as TextStyle & { fieldSizing?: string }),
-      fillContainer && { flex: 1, height: '100%' as const },
-    ], [
-      disableAutoHeight,
-      fillContainer,
-      maxHeight,
-      minHeight,
-      props.multiline,
-      style,
-    ]);
+    const inputStyle = React.useMemo(
+      () => [
+        style,
+        !fillContainer &&
+          props.multiline &&
+          !disableAutoHeight &&
+          ({
+            minHeight,
+            maxHeight,
+            ...(Platform.OS === 'web' ? { overflow: 'auto' as const, fieldSizing: 'content' } : {}),
+          } as TextStyle & { fieldSizing?: string }),
+        fillContainer && { flex: 1, height: '100%' as const },
+      ],
+      [disableAutoHeight, fillContainer, maxHeight, minHeight, props.multiline, style],
+    );
 
     React.useImperativeHandle(ref, () => inputRef.current as TextInput);
 
@@ -122,21 +122,22 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
       };
     }, [onImagePaste]);
 
-    const handleKeyPress = (
-      e: NativeSyntheticEvent<TextInputKeyPressEventData>
-    ) => {
+    const handleKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
       onKeyPress?.(e);
 
       const key = e.nativeEvent.key;
 
-      if (onCompletionKey && (key === "ArrowUp" || key === "ArrowDown" || key === "Enter" || key === "Escape")) {
+      if (
+        onCompletionKey &&
+        (key === 'ArrowUp' || key === 'ArrowDown' || key === 'Enter' || key === 'Escape')
+      ) {
         if (onCompletionKey(key)) {
           e.preventDefault();
           return;
         }
       }
 
-      if (key === "Enter" && !disableEnterToSubmit) {
+      if (key === 'Enter' && !disableEnterToSubmit) {
         if (Platform.OS !== 'web' || !e.nativeEvent.shiftKey) {
           e.preventDefault();
           onEnterPress?.();
@@ -144,9 +145,7 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
       }
     };
 
-    const handleContentSizeChange = (
-      e: RNSyntheticEvent<TextInputContentSizeChangeEventData>
-    ) => {
+    const handleContentSizeChange = (e: RNSyntheticEvent<TextInputContentSizeChangeEventData>) => {
       onContentSizeChange?.(e);
     };
 
@@ -159,14 +158,14 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
         <TextInput
           ref={inputRef}
           className={cn(
-            "native:text-md native:leading-[1.25] text-base text-foreground file:border-0 file:bg-transparent file:font-medium placeholder:text-muted-foreground web:flex web:w-full web:py-2 lg:text-sm",
-            !unstyled && "rounded-xl border border-input bg-background px-3.5",
-            "web:ring-offset-background web:focus-visible:outline-none web:focus-visible:ring-2 web:focus-visible:ring-ring web:focus-visible:ring-offset-2",
-            !fillContainer && !props.multiline && "h-9",
-            fillContainer && "h-full",
-            noFocus && "web:focus-visible:ring-0 web:focus-visible:ring-offset-0",
-            props.editable === false && "opacity-50 web:cursor-not-allowed",
-            className
+            'native:text-md native:leading-[1.25] text-base text-foreground file:border-0 file:bg-transparent file:font-medium placeholder:text-muted-foreground web:flex web:w-full web:py-2 lg:text-sm',
+            !unstyled && 'rounded-xl border border-input bg-background px-3.5',
+            'web:ring-offset-background web:focus-visible:outline-none web:focus-visible:ring-2 web:focus-visible:ring-ring web:focus-visible:ring-offset-2',
+            !fillContainer && !props.multiline && 'h-9',
+            fillContainer && 'h-full',
+            noFocus && 'web:focus-visible:ring-0 web:focus-visible:ring-offset-0',
+            props.editable === false && 'opacity-50 web:cursor-not-allowed',
+            className,
           )}
           onKeyPress={handleKeyPress}
           onContentSizeChange={handleContentSizeChange}
@@ -176,9 +175,9 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
         />
       </View>
     );
-  }
+  },
 );
 
-ChatTextInput.displayName = "ChatTextInput";
+ChatTextInput.displayName = 'ChatTextInput';
 
 export { ChatTextInput };

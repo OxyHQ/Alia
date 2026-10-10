@@ -1,8 +1,6 @@
 /** Fail closed before Alia listens unless its Oxy inference lane is complete. */
 
-import {
-  OXY_API_URL_ENV,
-} from './oxy-inference-credential.js';
+import { OXY_API_URL_ENV } from './oxy-inference-credential.js';
 import {
   oxyInferenceEndpointRefusal,
   resolveOxyDeploymentEnvironment,
@@ -13,9 +11,7 @@ import {
 export function oxyInferenceBootConfigurationFailure(
   env: NodeJS.ProcessEnv = process.env,
 ): string | null {
-  const unset = [
-    ...unsetOxyInferenceVariables(env),
-  ];
+  const unset = [...unsetOxyInferenceVariables(env)];
   const uniqueUnset = [...new Set(unset)].sort();
   if (uniqueUnset.length > 0) {
     return `the Oxy inference client is required but these variables are not set: ${uniqueUnset.join(', ')}`;

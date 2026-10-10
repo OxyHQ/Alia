@@ -268,8 +268,7 @@ async function captureCase(browser, origin, testCase, copy) {
   await page.waitForFunction(
     (headline) =>
       [...document.querySelectorAll('[aria-label]')].some(
-        (el) =>
-          el.getAttribute('aria-label') === headline && el.textContent?.trim() === headline,
+        (el) => el.getAttribute('aria-label') === headline && el.textContent?.trim() === headline,
       ),
     copy.headline,
     { timeout: 60_000 },
@@ -389,7 +388,10 @@ async function smoke(args) {
           })
           .filter((el) => getComputedStyle(el).visibility !== 'hidden')
           .slice(0, 3)
-          .map((el) => `${el.tagName.toLowerCase()}${el.getAttribute('aria-label') ? `[${el.getAttribute('aria-label')}]` : ''} → ${Math.round(el.getBoundingClientRect().right)}px`);
+          .map(
+            (el) =>
+              `${el.tagName.toLowerCase()}${el.getAttribute('aria-label') ? `[${el.getAttribute('aria-label')}]` : ''} → ${Math.round(el.getBoundingClientRect().right)}px`,
+          );
         return { scrollWidth: doc.scrollWidth, clientWidth: doc.clientWidth, wide };
       });
       await context.close();
@@ -527,7 +529,9 @@ async function main() {
     if (args.keep) console.log(`· captures and diffs kept in ${outDir}`);
     else await rm(outDir, { recursive: true, force: true });
     const worst = captured.reduce((max, c) => Math.max(max, c.comparison?.maxDelta ?? 0), 0);
-    console.log(`\n· worst per-channel delta across the matrix: ${worst} (tolerance ±${args.tolerance})`);
+    console.log(
+      `\n· worst per-channel delta across the matrix: ${worst} (tolerance ±${args.tolerance})`,
+    );
   }
 
   if (failures > 0) {

@@ -16,9 +16,7 @@ import type { AgentState } from '../../types';
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 /** Cross-platform blur: CSS string on web, RN array syntax on native */
-type BlurStyle =
-  | { filter: string; WebkitFilter: string }
-  | { filter: Array<{ blur: number }> };
+type BlurStyle = { filter: string; WebkitFilter: string } | { filter: Array<{ blur: number }> };
 
 function blurStyle(radius: number): BlurStyle {
   return Platform.OS === 'web'
@@ -208,7 +206,10 @@ function lighten(rgb: [number, number, number], factor: number): [number, number
   ];
 }
 
-function deriveWavePalette(color: string, isDark: boolean): { waves: string[]; blobs: string[] } | null {
+function deriveWavePalette(
+  color: string,
+  isDark: boolean,
+): { waves: string[]; blobs: string[] } | null {
   const rgb = parseColor(color);
   if (!rgb) return null;
   // Dark mode: lighter/brighter waves visible against dark bg
@@ -252,7 +253,7 @@ export function AudioWaveVisualizer({
 }: AudioWaveVisualizerProps) {
   const { width: screenWidth } = useWindowDimensions();
   const scheme = useColorScheme();
-  const effectiveIsDark = isDarkMode ?? (scheme === 'dark');
+  const effectiveIsDark = isDarkMode ?? scheme === 'dark';
   const state = WAVE_COLORS[agentState] ? agentState : 'idle';
 
   // Use theme-derived palette for idle/listening, keep hardcoded for thinking/speaking
@@ -343,12 +344,9 @@ function OceanWave({
     // Draw undulating surface across the width
     for (let i = 0; i < NUM_POINTS; i++) {
       const x1 = (i + 1) * segW;
-      const y0 =
-        surfaceY +
-        Math.sin(currentPhase + (i / NUM_POINTS) * Math.PI * 2) * crestHeight;
+      const y0 = surfaceY + Math.sin(currentPhase + (i / NUM_POINTS) * Math.PI * 2) * crestHeight;
       const y1 =
-        surfaceY +
-        Math.sin(currentPhase + ((i + 1) / NUM_POINTS) * Math.PI * 2) * crestHeight;
+        surfaceY + Math.sin(currentPhase + ((i + 1) / NUM_POINTS) * Math.PI * 2) * crestHeight;
 
       const cp1x = i * segW + segW * 0.5;
       const cp2x = x1 - segW * 0.5;

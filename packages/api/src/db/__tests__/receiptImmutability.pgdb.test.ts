@@ -120,9 +120,9 @@ describe('transactions is append-only at the DATABASE (#139 ws12)', () => {
   it('still lets a correction be recorded FORWARD, which is what makes the refusal usable', async () => {
     // A constraint whose cheapest green is "stop recording corrections" would be
     // the wrong invariant. `refund` is already in TRANSACTION_TYPES for this.
-    await db.insert(transactions).values(
-      receipt('txn-immutable-charge', { metadata: { dedup: 'immutable-charge' } }),
-    );
+    await db
+      .insert(transactions)
+      .values(receipt('txn-immutable-charge', { metadata: { dedup: 'immutable-charge' } }));
     await db.insert(transactions).values(
       receipt('txn-immutable-refund', {
         type: 'refund',

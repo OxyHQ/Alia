@@ -61,7 +61,9 @@ describe('functional completion response lifecycle', () => {
         if (event === 'close') closeListeners.delete(listener);
       },
       write: vi.fn(() => true),
-      end() { response.writableEnded = true; },
+      end() {
+        response.writableEnded = true;
+      },
     };
     const params = {
       req: { off: vi.fn() },
@@ -111,7 +113,9 @@ describe('functional completion response lifecycle', () => {
       on: vi.fn(),
       off: vi.fn(),
       write: vi.fn(() => true),
-      end() { response.writableEnded = true; },
+      end() {
+        response.writableEnded = true;
+      },
     };
     const params = {
       req: { off: vi.fn(), user: { id: 'user-1' } },

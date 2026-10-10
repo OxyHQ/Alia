@@ -17,7 +17,9 @@ export function useAgentThreads(agentId: string | undefined) {
   return useQuery({
     queryKey: ['agents', agentId, 'threads'],
     queryFn: async () => {
-      const response = await apiClient.get<{ threads: AgentThreadSummary[] }>(API_ROUTES.agents.threads(agentId!));
+      const response = await apiClient.get<{ threads: AgentThreadSummary[] }>(
+        API_ROUTES.agents.threads(agentId!),
+      );
       return response.data.threads;
     },
     enabled: isAuthenticated && Boolean(agentId),

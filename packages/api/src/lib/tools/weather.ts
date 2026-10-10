@@ -1,5 +1,5 @@
-import { tool } from "ai";
-import { z } from "zod";
+import { tool } from 'ai';
+import { z } from 'zod';
 
 /**
  * Weather, as a card the client draws rather than a paragraph the model writes.
@@ -19,8 +19,8 @@ import { z } from "zod";
  * as it already is for `ToolInvocation`.
  */
 
-const GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search";
-const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
+const GEOCODE_URL = 'https://geocoding-api.open-meteo.com/v1/search';
+const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 
 /** Days of forecast the strip shows. Open-Meteo serves up to 16. */
 const FORECAST_DAYS = 7;
@@ -31,16 +31,16 @@ const FORECAST_DAYS = 7;
  * this table, and they would disagree.
  */
 function conditionFromCode(code: number): string {
-  if (code === 0) return "clear";
-  if (code <= 2) return "partly-cloudy";
-  if (code === 3) return "cloudy";
-  if (code <= 48) return "fog";
-  if (code <= 57) return "drizzle";
-  if (code <= 67) return "rain";
-  if (code <= 77) return "snow";
-  if (code <= 82) return "showers";
-  if (code <= 86) return "snow-showers";
-  return "thunderstorm";
+  if (code === 0) return 'clear';
+  if (code <= 2) return 'partly-cloudy';
+  if (code === 3) return 'cloudy';
+  if (code <= 48) return 'fog';
+  if (code <= 57) return 'drizzle';
+  if (code <= 67) return 'rain';
+  if (code <= 77) return 'snow';
+  if (code <= 82) return 'showers';
+  if (code <= 86) return 'snow-showers';
+  return 'thunderstorm';
 }
 
 interface GeocodeHit {
@@ -62,11 +62,9 @@ async function geocode(place: string): Promise<GeocodeHit | null> {
 
 export const getWeatherTool = tool({
   description:
-    "Consultar el tiempo actual y la previsión de una ubicación. Devuelve una tarjeta que la app dibuja; no repitas todos los datos en el texto.",
+    'Consultar el tiempo actual y la previsión de una ubicación. Devuelve una tarjeta que la app dibuja; no repitas todos los datos en el texto.',
   inputSchema: z.object({
-    location: z
-      .string()
-      .describe("Ciudad o lugar, por ejemplo 'Barcelona' o 'Ciudad de México'."),
+    location: z.string().describe("Ciudad o lugar, por ejemplo 'Barcelona' o 'Ciudad de México'."),
   }),
   execute: async ({ location }) => {
     const place = await geocode(location);
@@ -75,27 +73,37 @@ export const getWeatherTool = tool({
     const params = new URLSearchParams({
       latitude: String(place.latitude),
       longitude: String(place.longitude),
-      current: "temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m",
-      hourly: "temperature_2m,precipitation_probability",
-      daily: "weather_code,temperature_2m_max,temperature_2m_min",
-      timezone: place.timezone ?? "auto",
+      current: 'temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m',
+      hourly: 'temperature_2m,precipitation_probability',
+      daily: 'weather_code,temperature_2m_max,temperature_2m_min',
+      timezone: place.timezone ?? 'auto',
       forecast_days: String(FORECAST_DAYS),
     });
     const res = await fetch(`${FORECAST_URL}?${params}`);
-    if (!res.ok) return { error: "El servicio de meteorología no responde ahora mismo." };
+    if (!res.ok) return { error: 'El servicio de meteorología no responde ahora mismo.' };
 
     const data = (await res.json()) as {
-      current: { temperature_2m: number; relative_humidity_2m: number; weather_code: number; wind_speed_10m: number };
+      current: {
+        temperature_2m: number;
+        relative_humidity_2m: number;
+        weather_code: number;
+        wind_speed_10m: number;
+      };
       hourly: { time: string[]; temperature_2m: number[]; precipitation_probability: number[] };
-      daily: { time: string[]; weather_code: number[]; temperature_2m_max: number[]; temperature_2m_min: number[] };
+      daily: {
+        time: string[];
+        weather_code: number[];
+        temperature_2m_max: number[];
+        temperature_2m_min: number[];
+      };
       timezone: string;
     };
 
-    const label = [place.name, place.admin1, place.country].filter(Boolean).join(", ");
+    const label = [place.name, place.admin1, place.country].filter(Boolean).join(', ');
 
     return {
       card: {
-        type: "weather" as const,
+        type: 'weather' as const,
         version: 1 as const,
         data: {
           place: label,

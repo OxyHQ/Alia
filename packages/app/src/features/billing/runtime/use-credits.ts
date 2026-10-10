@@ -5,7 +5,16 @@ import { useAuthQuery } from '@/shared/api/create-query';
 
 export interface CreditsInfo {
   subjectAccountId?: string;
-  productAllowance?: { source: 'oxy_one'; planId: string; periodStart: string; periodEnd: string; included: number; consumed: number; reserved: number; remaining: number } | null;
+  productAllowance?: {
+    source: 'oxy_one';
+    planId: string;
+    periodStart: string;
+    periodEnd: string;
+    included: number;
+    consumed: number;
+    reserved: number;
+    remaining: number;
+  } | null;
   credits: number;
   freeCredits: number;
   freeLimit: number;
@@ -24,13 +33,21 @@ export interface CreditsInfo {
 export function useCredits() {
   const { user, activeSessionId, isAuthenticated } = useOxy();
   const subject = user?.id;
-  const query = useAuthQuery<CreditsInfo>([...queryKeys.credits.info, subject, activeSessionId], '/credits', undefined, {
-    enabled: isAuthenticated && !!subject && !!activeSessionId, staleTime: 0, gcTime: 0, refetchInterval: 10_000,
-    queryFn: async () => {
-      const { data } = await apiClient.get('/credits');
-      if (data.subjectAccountId !== subject) throw new Error('Credit account changed');
-      return data;
+  const query = useAuthQuery<CreditsInfo>(
+    [...queryKeys.credits.info, subject, activeSessionId],
+    '/credits',
+    undefined,
+    {
+      enabled: isAuthenticated && !!subject && !!activeSessionId,
+      staleTime: 0,
+      gcTime: 0,
+      refetchInterval: 10_000,
+      queryFn: async () => {
+        const { data } = await apiClient.get('/credits');
+        if (data.subjectAccountId !== subject) throw new Error('Credit account changed');
+        return data;
+      },
     },
-  });
+  );
   return { ...query, data: query.isError || !isAuthenticated ? undefined : query.data };
 }

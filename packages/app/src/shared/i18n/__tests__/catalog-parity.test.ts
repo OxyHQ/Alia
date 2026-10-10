@@ -34,7 +34,13 @@ function leaves(catalog: Catalog, prefix = ''): Map<string, string[]> {
 }
 
 const placeholders = (strings: string[]): string[] =>
-  [...new Set(strings.flatMap((text) => [...text.matchAll(/\{\{\s*(\w+)\s*\}\}|%\{(\w+)\}/g)].map((m) => m[1] ?? m[2])))].sort();
+  [
+    ...new Set(
+      strings.flatMap((text) =>
+        [...text.matchAll(/\{\{\s*(\w+)\s*\}\}|%\{(\w+)\}/g)].map((m) => m[1] ?? m[2]),
+      ),
+    ),
+  ].sort();
 
 const EN = leaves(en as Catalog);
 const ES = leaves(es as Catalog);
@@ -53,7 +59,8 @@ describe('the locale catalogs', () => {
     // `effort.headlinePrefix` is "" in English and a word in Spanish: word
     // order differs, so an affix may legitimately be nothing.
     const empty = [...EN, ...ES].filter(
-      ([key, strings]) => !/(Prefix|Suffix)$/.test(key) && strings.some((text) => text.trim() === ''),
+      ([key, strings]) =>
+        !/(Prefix|Suffix)$/.test(key) && strings.some((text) => text.trim() === ''),
     );
     expect(empty.map(([key]) => key)).toEqual([]);
   });
@@ -61,7 +68,9 @@ describe('the locale catalogs', () => {
   it('interpolate the same placeholders in both languages', () => {
     const mismatched = [...EN]
       .filter(([key]) => ES.has(key))
-      .filter(([key, strings]) => placeholders(strings).join() !== placeholders(ES.get(key)!).join())
+      .filter(
+        ([key, strings]) => placeholders(strings).join() !== placeholders(ES.get(key)!).join(),
+      )
       .map(([key]) => key);
     expect(mismatched).toEqual([]);
   });

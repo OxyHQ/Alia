@@ -47,16 +47,15 @@ import { ReportCategory } from '../../domain/report.js';
  */
 export const REPORT_TAXONOMY_VERSION = '2026.07';
 
-const CATEGORY_TO_ALLEGATION: Readonly<Record<ReportCategory, TaxonomyCode>> =
-  Object.freeze({
-    [ReportCategory.SPAM]: 'integrity.spam',
-    [ReportCategory.HARASSMENT]: 'harassment.targeted_abuse',
-    [ReportCategory.HATE_SPEECH]: 'hate.protected_targeting',
-    [ReportCategory.EXPLICIT_CONTENT]: 'sexual_content.explicit_activity',
-    [ReportCategory.IMPERSONATION]: 'integrity.impersonation',
-    [ReportCategory.MALICIOUS_INSTRUCTIONS]: 'platform_abuse.automation_abuse',
-    [ReportCategory.OTHER]: 'other.unclassifiable',
-  });
+const CATEGORY_TO_ALLEGATION: Readonly<Record<ReportCategory, TaxonomyCode>> = Object.freeze({
+  [ReportCategory.SPAM]: 'integrity.spam',
+  [ReportCategory.HARASSMENT]: 'harassment.targeted_abuse',
+  [ReportCategory.HATE_SPEECH]: 'hate.protected_targeting',
+  [ReportCategory.EXPLICIT_CONTENT]: 'sexual_content.explicit_activity',
+  [ReportCategory.IMPERSONATION]: 'integrity.impersonation',
+  [ReportCategory.MALICIOUS_INSTRUCTIONS]: 'platform_abuse.automation_abuse',
+  [ReportCategory.OTHER]: 'other.unclassifiable',
+});
 
 /**
  * The allegation codes for a report's categories, deduplicated and ORDERED.
@@ -67,9 +66,7 @@ const CATEGORY_TO_ALLEGATION: Readonly<Record<ReportCategory, TaxonomyCode>> =
  * a permanent 409 — days later, as a report silently stuck in a queue. Sorting
  * makes the same report produce the same bytes every time.
  */
-export function allegationsForCategories(
-  categories: readonly ReportCategory[],
-): TaxonomyCode[] {
+export function allegationsForCategories(categories: readonly ReportCategory[]): TaxonomyCode[] {
   const codes = new Set<TaxonomyCode>();
   for (const category of categories) {
     const code = CATEGORY_TO_ALLEGATION[category];

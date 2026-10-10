@@ -3,10 +3,7 @@ import { useTranslation } from '@/shared/i18n/use-translation';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import { Loading } from '@oxy.so/bloom/loading';
-import {
-  SettingsListGroup,
-  SettingsListItem,
-} from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Muted } from '@oxy.so/bloom/typography';
 import { Stack } from 'expo-router';
 import { ScrollView } from 'react-native';

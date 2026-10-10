@@ -55,12 +55,16 @@ export interface GrantTerms {
 }
 
 /** The grant a level stands for on this app, or null when the app offers nothing at it. */
-export function grantTermsForLevel(catalog: AppCapabilityCatalog, level: StoredOxyAppLevel): GrantTerms | null {
-  const tools = catalog.tools.filter((tool) => (
-    tool.exposure.includes('internal')
-    && tool.resourceTypes.includes(catalog.accountResourceType)
-    && !SENSITIVE_PACKAGES.has(tool.capabilityPackage)
-  ));
+export function grantTermsForLevel(
+  catalog: AppCapabilityCatalog,
+  level: StoredOxyAppLevel,
+): GrantTerms | null {
+  const tools = catalog.tools.filter(
+    (tool) =>
+      tool.exposure.includes('internal') &&
+      tool.resourceTypes.includes(catalog.accountResourceType) &&
+      !SENSITIVE_PACKAGES.has(tool.capabilityPackage),
+  );
   const chosen = level === 'read' ? tools.filter((tool) => tool.effect === 'read') : tools;
   const capabilityPackages = [...new Set(chosen.map((tool) => tool.capabilityPackage))].sort();
   if (capabilityPackages.length === 0) return null;
@@ -88,30 +92,42 @@ export interface AgentForOxyApps {
 }
 
 export class AgentOxyAppsError extends Error {
-  constructor(readonly status: number, readonly code: string, message: string) {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+  ) {
     super(message);
     this.name = 'AgentOxyAppsError';
   }
 }
 
-const grantSchema = z.object({
-  id: z.string().min(1),
-  ownerAccountId: z.string().min(1),
-  actor: z.object({ type: z.literal('agent'), accountId: z.string() }).passthrough(),
-  resource: z.object({
-    appId: z.string(),
-    effectiveAccountId: z.string(),
-    resourceType: z.string(),
-    resourceId: z.string(),
-  }).passthrough(),
-  maximumAutonomy: z.enum(['read_only', 'draft', 'execute_on_request', 'autonomous']),
-  expiresAt: z.string().nullable(),
-  revokedAt: z.string().nullable(),
-  createdAt: z.string(),
-}).passthrough();
+const grantSchema = z
+  .object({
+    id: z.string().min(1),
+    ownerAccountId: z.string().min(1),
+    actor: z.object({ type: z.literal('agent'), accountId: z.string() }).passthrough(),
+    resource: z
+      .object({
+        appId: z.string(),
+        effectiveAccountId: z.string(),
+        resourceType: z.string(),
+        resourceId: z.string(),
+      })
+      .passthrough(),
+    maximumAutonomy: z.enum(['read_only', 'draft', 'execute_on_request', 'autonomous']),
+    expiresAt: z.string().nullable(),
+    revokedAt: z.string().nullable(),
+    createdAt: z.string(),
+  })
+  .passthrough();
 type OxyGrant = z.infer<typeof grantSchema>;
 
-async function ownerRequest(accessToken: string, path: string, init: RequestInit = {}): Promise<unknown> {
+async function ownerRequest(
+  accessToken: string,
+  path: string,
+  init: RequestInit = {},
+): Promise<unknown> {
   const response = await fetch(`${OXY_API_URL}${path}`, {
     ...init,
     headers: {
@@ -122,19 +138,31 @@ async function ownerRequest(accessToken: string, path: string, init: RequestInit
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (response.status === 403) {
-    throw new AgentOxyAppsError(403, 'owner_authority_required', 'Only the agent\'s owner can change what it may use');
+    throw new AgentOxyAppsError(
+      403,
+      'owner_authority_required',
+      "Only the agent's owner can change what it may use",
+    );
   }
   if (response.status === 404 && init.method === 'DELETE') return null;
   if (!response.ok) {
     log.agents.warn({ status: response.status, path }, 'Oxy refused an agent permission change');
-    throw new AgentOxyAppsError(502, 'oxy_unavailable', 'Oxy could not save this permission right now');
+    throw new AgentOxyAppsError(
+      502,
+      'oxy_unavailable',
+      'Oxy could not save this permission right now',
+    );
   }
   return response.status === 204 ? null : response.json();
 }
 
 function ownerOf(agent: AgentForOxyApps): string {
   if (!agent.ownerOxyAccountId) {
-    throw new AgentOxyAppsError(409, 'agent_owner_unknown', 'This agent has no owner account to share data from');
+    throw new AgentOxyAppsError(
+      409,
+      'agent_owner_unknown',
+      'This agent has no owner account to share data from',
+    );
   }
   return agent.ownerOxyAccountId;
 }
@@ -147,10 +175,14 @@ async function liveGrantsByApp(
   catalogs: readonly AppCapabilityCatalog[],
   previouslyBound: readonly AgentOxyAppPermission[] = [],
 ): Promise<Map<string, OxyGrant[]>> {
-  const parsed = z.object({ grants: z.array(z.unknown()) }).parse(await ownerRequest(
-    accessToken,
-    `/capabilities/grants?ownerAccountId=${encodeURIComponent(ownerAccountId)}`,
-  ));
+  const parsed = z
+    .object({ grants: z.array(z.unknown()) })
+    .parse(
+      await ownerRequest(
+        accessToken,
+        `/capabilities/grants?ownerAccountId=${encodeURIComponent(ownerAccountId)}`,
+      ),
+    );
   const now = Date.now();
   const byApp = new Map<string, OxyGrant[]>();
   for (const raw of parsed.grants) {
@@ -160,18 +192,26 @@ async function liveGrantsByApp(
     const catalog = catalogs.find((entry) => entry.appId === data.resource.appId);
     // A saved grant was bound to the app's owner root when it was written.
     // Oxy does not allow its actor/resource binding to change under that id.
-    const isPreviouslyBound = previouslyBound.some((row) => row.oxyGrantId === data.id && row.appId === data.resource.appId);
-    if ((!catalog && !isPreviouslyBound)
-      || data.ownerAccountId !== ownerAccountId
-      || data.actor.accountId !== agent.oxyAccountId
-      || data.revokedAt !== null
-      || (data.expiresAt !== null && Date.parse(data.expiresAt) <= now)
-      || data.resource.effectiveAccountId !== ownerAccountId
-      || (catalog !== undefined && !isPreviouslyBound && data.resource.resourceType !== catalog.accountResourceType)
-      || data.resource.resourceId !== ownerAccountId) continue;
+    const isPreviouslyBound = previouslyBound.some(
+      (row) => row.oxyGrantId === data.id && row.appId === data.resource.appId,
+    );
+    if (
+      (!catalog && !isPreviouslyBound) ||
+      data.ownerAccountId !== ownerAccountId ||
+      data.actor.accountId !== agent.oxyAccountId ||
+      data.revokedAt !== null ||
+      (data.expiresAt !== null && Date.parse(data.expiresAt) <= now) ||
+      data.resource.effectiveAccountId !== ownerAccountId ||
+      (catalog !== undefined &&
+        !isPreviouslyBound &&
+        data.resource.resourceType !== catalog.accountResourceType) ||
+      data.resource.resourceId !== ownerAccountId
+    )
+      continue;
     byApp.set(data.resource.appId, [...(byApp.get(data.resource.appId) ?? []), data]);
   }
-  for (const grants of byApp.values()) grants.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  for (const grants of byApp.values())
+    grants.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return byApp;
 }
 
@@ -187,9 +227,14 @@ function rowFor(catalog: AppCapabilityCatalog, level: OxyAppLevel): AgentOxyAppR
 }
 
 /** One row per Oxy app, at the level Oxy currently honours. */
-export async function listAgentOxyApps(agent: AgentForOxyApps, accessToken: string): Promise<AgentOxyAppRow[]> {
+export async function listAgentOxyApps(
+  agent: AgentForOxyApps,
+  accessToken: string,
+): Promise<AgentOxyAppRow[]> {
   const ownerAccountId = ownerOf(agent);
-  const catalogs = (await listOxyAppCatalogs()).filter((catalog) => rowFor(catalog, 'none').levels.length > 1);
+  const catalogs = (await listOxyAppCatalogs()).filter(
+    (catalog) => rowFor(catalog, 'none').levels.length > 1,
+  );
   const [grants, stored] = await Promise.all([
     liveGrantsByApp(agent, ownerAccountId, accessToken, catalogs),
     listAgentOxyAppPermissions(getDb(), agent._id),
@@ -204,10 +249,14 @@ export async function listAgentOxyApps(agent: AgentForOxyApps, accessToken: stri
       rows.push(rowFor(catalog, 'none'));
       continue;
     }
-    const level = current.id === row?.oxyGrantId ? row.level : levelOfGrant(current.maximumAutonomy);
+    const level =
+      current.id === row?.oxyGrantId ? row.level : levelOfGrant(current.maximumAutonomy);
     if (current.id !== row?.oxyGrantId || level !== row.level) {
       await upsertAgentOxyAppPermission(getDb(), {
-        agentId: agent._id, appId: catalog.appId, level, oxyGrantId: current.id,
+        agentId: agent._id,
+        appId: catalog.appId,
+        level,
+        oxyGrantId: current.id,
       });
     }
     rows.push(rowFor(catalog, level));
@@ -230,15 +279,19 @@ export async function setAgentOxyAppLevel(
 ): Promise<AgentOxyAppRow> {
   const ownerAccountId = ownerOf(agent);
   const catalog = (await listOxyAppCatalogs()).find((entry) => entry.appId === appId);
-  if (!catalog) throw new AgentOxyAppsError(404, 'oxy_app_not_found', 'That Oxy app does not exist');
+  if (!catalog)
+    throw new AgentOxyAppsError(404, 'oxy_app_not_found', 'That Oxy app does not exist');
   const terms = level === 'none' ? null : grantTermsForLevel(catalog, level);
   if (level !== 'none' && !terms) {
     throw new AgentOxyAppsError(400, 'level_not_available', 'This app does not offer that level');
   }
-  const live = (await liveGrantsByApp(agent, ownerAccountId, accessToken, [catalog])).get(appId) ?? [];
+  const live =
+    (await liveGrantsByApp(agent, ownerAccountId, accessToken, [catalog])).get(appId) ?? [];
   const [keep, ...extra] = terms ? live : [];
   for (const grant of terms ? extra : live) {
-    await ownerRequest(accessToken, `/capabilities/grants/${encodeURIComponent(grant.id)}`, { method: 'DELETE' });
+    await ownerRequest(accessToken, `/capabilities/grants/${encodeURIComponent(grant.id)}`, {
+      method: 'DELETE',
+    });
   }
   if (!terms || level === 'none') {
     await deleteAgentOxyAppPermission(getDb(), agent._id, appId);
@@ -272,8 +325,15 @@ export async function setAgentOxyAppLevel(
           },
         }),
       });
-  const grantId = z.object({ grant: z.object({ id: z.string().min(1) }).passthrough() }).parse(saved).grant.id;
-  await upsertAgentOxyAppPermission(getDb(), { agentId: agent._id, appId, level, oxyGrantId: grantId });
+  const grantId = z
+    .object({ grant: z.object({ id: z.string().min(1) }).passthrough() })
+    .parse(saved).grant.id;
+  await upsertAgentOxyAppPermission(getDb(), {
+    agentId: agent._id,
+    appId,
+    level,
+    oxyGrantId: grantId,
+  });
   return rowFor(catalog, level);
 }
 
@@ -282,7 +342,10 @@ export async function setAgentOxyAppLevel(
  * account outlives the agent, so a grant left behind is still visible — and
  * revocable — in the Agency tab.
  */
-export async function revokeAllAgentOxyApps(agent: AgentForOxyApps, accessToken: string): Promise<void> {
+export async function revokeAllAgentOxyApps(
+  agent: AgentForOxyApps,
+  accessToken: string,
+): Promise<void> {
   let live: Map<string, OxyGrant[]>;
   let ownerAccountId: string;
   let catalogs: AppCapabilityCatalog[] = [];
@@ -293,11 +356,17 @@ export async function revokeAllAgentOxyApps(agent: AgentForOxyApps, accessToken:
     try {
       catalogs = await listOxyAppCatalogs();
     } catch (error: unknown) {
-      log.agents.warn({ err: error, agentId: agent._id }, "Catalogue discovery failed; checking the agent's previously bound grants");
+      log.agents.warn(
+        { err: error, agentId: agent._id },
+        "Catalogue discovery failed; checking the agent's previously bound grants",
+      );
     }
     live = await liveGrantsByApp(agent, ownerAccountId, accessToken, catalogs, previouslyBound);
   } catch (error: unknown) {
-    log.agents.warn({ err: error, agentId: agent._id }, "Could not discover an agent's live Oxy app grants");
+    log.agents.warn(
+      { err: error, agentId: agent._id },
+      "Could not discover an agent's live Oxy app grants",
+    );
     return;
   }
   // Agency may have created grants without an editor read. Local rows alone
@@ -306,9 +375,14 @@ export async function revokeAllAgentOxyApps(agent: AgentForOxyApps, accessToken:
     for (const [appId, grants] of live) {
       for (const grant of grants) {
         try {
-          await ownerRequest(accessToken, `/capabilities/grants/${encodeURIComponent(grant.id)}`, { method: 'DELETE' });
+          await ownerRequest(accessToken, `/capabilities/grants/${encodeURIComponent(grant.id)}`, {
+            method: 'DELETE',
+          });
         } catch (error: unknown) {
-          log.agents.warn({ err: error, agentId: agent._id, appId }, "Could not revoke an agent's Oxy app grant");
+          log.agents.warn(
+            { err: error, agentId: agent._id, appId },
+            "Could not revoke an agent's Oxy app grant",
+          );
         }
       }
     }
@@ -318,7 +392,10 @@ export async function revokeAllAgentOxyApps(agent: AgentForOxyApps, accessToken:
       try {
         live = await liveGrantsByApp(agent, ownerAccountId, accessToken, catalogs, previouslyBound);
       } catch (error: unknown) {
-        log.agents.warn({ err: error, agentId: agent._id }, "Could not recheck an agent's live Oxy app grants");
+        log.agents.warn(
+          { err: error, agentId: agent._id },
+          "Could not recheck an agent's live Oxy app grants",
+        );
         return;
       }
     }

@@ -10,4 +10,4 @@
 // `skill-cover-canvas-static.test.tsx` mocks the skia package to throw on
 // import and renders this module, so a skia import creeping back in fails CI
 // rather than a browser.
-export { default } from "./skill-cover-static";
+export { default } from './skill-cover-static';

@@ -26,7 +26,10 @@ function frames(...values: Array<string | Record<string, unknown>>): string {
     .join('');
 }
 
-function responseFrom(parts: Array<string | Uint8Array>, contentType = 'text/event-stream; charset=utf-8'): Response {
+function responseFrom(
+  parts: Array<string | Uint8Array>,
+  contentType = 'text/event-stream; charset=utf-8',
+): Response {
   return new Response(
     new ReadableStream<Uint8Array>({
       start(controller) {
@@ -51,20 +54,25 @@ describe('consumeAliaChatStream', () => {
     const wire = [
       ': keep-alive\n\n',
       'event: alia.context\ndata: {"eventVersion":1,"conversationId":null,"categories":[]}\n\n',
-      frames({
-        error: {
-          message: 'Service temporarily unavailable. Please try again in a moment.',
-          type: 'server_error',
-          param: null,
-          code: 'PROVIDER_UNAVAILABLE',
-          retryable: true,
-          retryAfter: 4,
-          reference: 'chatcmpl-ref',
+      frames(
+        {
+          error: {
+            message: 'Service temporarily unavailable. Please try again in a moment.',
+            type: 'server_error',
+            param: null,
+            code: 'PROVIDER_UNAVAILABLE',
+            retryable: true,
+            retryAfter: 4,
+            reference: 'chatcmpl-ref',
+          },
         },
-      }, '[DONE]'),
+        '[DONE]',
+      ),
     ];
     const events: AliaChatStreamEvent[] = [];
-    const failure = await consumeAliaChatStream(responseFrom(wire), (event) => events.push(event)).catch((e: unknown) => e);
+    const failure = await consumeAliaChatStream(responseFrom(wire), (event) =>
+      events.push(event),
+    ).catch((e: unknown) => e);
     expect(failure).toBeInstanceOf(AliaChatStreamError);
     expect(failure).toMatchObject({
       code: 'PROVIDER_UNAVAILABLE',
@@ -79,14 +87,18 @@ describe('consumeAliaChatStream', () => {
     const wire = [
       ': keep-alive\n\n',
       'event: alia.reasoning\ndata: {"eventVersion":1,"content":"pensando"}\n\n',
-      frames(chunk({
-        tool_calls: [{
-          index: 0,
-          id: 'call-1',
-          type: 'function',
-          function: { name: 'lookup', arguments: '{"query":"mañana"}' },
-        }],
-      })),
+      frames(
+        chunk({
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{"query":"mañana"}' },
+            },
+          ],
+        }),
+      ),
       'event: alia.tool_result\ndata: {"eventVersion":1,"tool_call_id":"call-1","name":"lookup","output":{"ok":true}}\n\n',
       'event: alia.plan_preview\ndata: {"eventVersion":1,"planId":"plan-1","steps":[{"action":"Buscar","description":"Busca"},{"action":"Responder","description":"Resume"}]}\n\n',
       frames(chunk({ content: 'Mañana' })),
@@ -144,7 +156,9 @@ describe('consumeAliaChatStream', () => {
     const response = new Response(
       new ReadableStream<Uint8Array>({
         start(controller) {
-          controller.enqueue(encoder.encode(JSON.stringify({ choices: [{ message: { content: 'fake' } }] })));
+          controller.enqueue(
+            encoder.encode(JSON.stringify({ choices: [{ message: { content: 'fake' } }] })),
+          );
         },
         cancel() {
           cancelled = true;
@@ -161,15 +175,30 @@ describe('consumeAliaChatStream', () => {
   it.each([
     ['malformed JSON', 'data: {broken}\n\n', 'malformed JSON'],
     ['unknown SSE field', 'retry: 1000\n\n', 'unsupported SSE field'],
-    ['unknown named event', 'event: alia.future\ndata: {"eventVersion":1}\n\n', 'Unsupported Alia stream event'],
-    ['truncated frame', `data: ${JSON.stringify(chunk({ content: 'partial' }))}`, 'inside an SSE frame'],
+    [
+      'unknown named event',
+      'event: alia.future\ndata: {"eventVersion":1}\n\n',
+      'Unsupported Alia stream event',
+    ],
+    [
+      'truncated frame',
+      `data: ${JSON.stringify(chunk({ content: 'partial' }))}`,
+      'inside an SSE frame',
+    ],
     ['empty EOF', '', 'before completing'],
     ['missing DONE', frames(chunk({ content: 'partial' }), chunk({}, 'stop')), 'before completing'],
-    ['DONE without finish', frames(chunk({ content: 'partial' }), '[DONE]'), 'without a finish chunk'],
+    [
+      'DONE without finish',
+      frames(chunk({ content: 'partial' }), '[DONE]'),
+      'without a finish chunk',
+    ],
     ['empty assistant', frames(chunk({}, 'stop'), '[DONE]'), 'without an assistant answer'],
     [
       'error frame',
-      frames({ error: { message: 'internal detail', type: 'server_error', code: 'failed' } }, '[DONE]'),
+      frames(
+        { error: { message: 'internal detail', type: 'server_error', code: 'failed' } },
+        '[DONE]',
+      ),
       'ended the stream with an error',
     ],
     [
@@ -189,14 +218,18 @@ describe('consumeAliaChatStream', () => {
     ],
     [
       'malformed tool arguments',
-      frames(chunk({
-        tool_calls: [{
-          index: 0,
-          id: 'call-1',
-          type: 'function',
-          function: { name: 'lookup', arguments: '{bad' },
-        }],
-      })),
+      frames(
+        chunk({
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{bad' },
+            },
+          ],
+        }),
+      ),
       'not valid JSON',
     ],
   ])('fails closed for %s', async (_case, wire, expected) => {
@@ -212,11 +245,9 @@ describe('consumeAliaChatStream', () => {
     const response = new Response(
       new ReadableStream<Uint8Array>({
         start(controller) {
-          controller.enqueue(encoder.encode(frames(
-            chunk({ content: 'finished' }),
-            chunk({}, 'stop'),
-            '[DONE]',
-          )));
+          controller.enqueue(
+            encoder.encode(frames(chunk({ content: 'finished' }), chunk({}, 'stop'), '[DONE]')),
+          );
         },
         cancel() {
           cancelled = true;

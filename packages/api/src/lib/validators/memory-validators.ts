@@ -4,32 +4,44 @@ import { MEMORY_TYPES } from '../../domain/user-memory.js';
 
 // Schema for individual memory item
 export const MemoryItemSchema = z.object({
-  title: z.string()
+  title: z
+    .string()
     .min(1, 'Title is required')
     .max(MAX_MEMORY_TITLE_LENGTH, `Title must be less than ${MAX_MEMORY_TITLE_LENGTH} characters`),
-  summary: z.string()
+  summary: z
+    .string()
     .min(1, 'Summary is required')
-    .max(MAX_MEMORY_SUMMARY_LENGTH, `Summary must be less than ${MAX_MEMORY_SUMMARY_LENGTH} characters`),
+    .max(
+      MAX_MEMORY_SUMMARY_LENGTH,
+      `Summary must be less than ${MAX_MEMORY_SUMMARY_LENGTH} characters`,
+    ),
   type: z.enum(MEMORY_TYPES),
   createdAt: z.coerce.date().optional(),
   updatedAt: z.coerce.date().optional(),
 });
 
 // Schema for preferences
-export const PreferencesSchema = z.object({
-  language: z.string().regex(/^[a-z]{2}-[A-Z]{2}$/, 'Must be a BCP 47 locale code (e.g., en-US, es-ES)').optional(),
-  tone: z.string().max(50).optional(),
-  responseLength: z.enum(['short', 'medium', 'long']).optional(),
-  interests: z.array(z.string().max(100)).max(50, 'Maximum 50 interests allowed').optional(),
-}).passthrough(); // Allow additional properties
+export const PreferencesSchema = z
+  .object({
+    language: z
+      .string()
+      .regex(/^[a-z]{2}-[A-Z]{2}$/, 'Must be a BCP 47 locale code (e.g., en-US, es-ES)')
+      .optional(),
+    tone: z.string().max(50).optional(),
+    responseLength: z.enum(['short', 'medium', 'long']).optional(),
+    interests: z.array(z.string().max(100)).max(50, 'Maximum 50 interests allowed').optional(),
+  })
+  .passthrough(); // Allow additional properties
 
 // Schema for context
-export const ContextSchema = z.object({
-  occupation: z.string().max(200).optional(),
-  location: z.string().max(200).optional(),
-  timezone: z.string().max(100).optional(),
-  bio: z.string().max(1000).optional(),
-}).passthrough(); // Allow additional properties
+export const ContextSchema = z
+  .object({
+    occupation: z.string().max(200).optional(),
+    location: z.string().max(200).optional(),
+    timezone: z.string().max(100).optional(),
+    bio: z.string().max(1000).optional(),
+  })
+  .passthrough(); // Allow additional properties
 
 // Export format schema
 export const ExportFormatSchema = z.enum(['json', 'csv']);
@@ -48,9 +60,13 @@ export const MergeStrategySchema = z.enum(['replace', 'merge', 'skip-duplicates'
 
 // Memory update schema for API endpoints
 export const UpdateMemorySchema = z.object({
-  summary: z.string()
+  summary: z
+    .string()
     .min(1, 'Summary is required')
-    .max(MAX_MEMORY_SUMMARY_LENGTH, `Summary must be less than ${MAX_MEMORY_SUMMARY_LENGTH} characters`),
+    .max(
+      MAX_MEMORY_SUMMARY_LENGTH,
+      `Summary must be less than ${MAX_MEMORY_SUMMARY_LENGTH} characters`,
+    ),
   type: z.enum(MEMORY_TYPES).optional(),
 });
 
@@ -62,11 +78,16 @@ export const MemorySettingsSchema = z.object({
 
 // Add memory schema for API endpoints
 export const AddMemorySchema = z.object({
-  title: z.string()
+  title: z
+    .string()
     .min(1, 'Title is required')
     .max(MAX_MEMORY_TITLE_LENGTH, `Title must be less than ${MAX_MEMORY_TITLE_LENGTH} characters`),
-  summary: z.string()
+  summary: z
+    .string()
     .min(1, 'Summary is required')
-    .max(MAX_MEMORY_SUMMARY_LENGTH, `Summary must be less than ${MAX_MEMORY_SUMMARY_LENGTH} characters`),
+    .max(
+      MAX_MEMORY_SUMMARY_LENGTH,
+      `Summary must be less than ${MAX_MEMORY_SUMMARY_LENGTH} characters`,
+    ),
   type: z.enum(MEMORY_TYPES),
 });

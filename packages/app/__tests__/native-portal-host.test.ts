@@ -50,7 +50,10 @@ describe("Bloom's native portal host", () => {
   it('is needed: the installed settings modal renders through that portal on native', () => {
     const require = createRequire(join(APP_ROOT, 'package.json'));
     const bloom = dirname(require.resolve('@oxy.so/bloom/package.json'));
-    const nativePortal = readFileSync(join(bloom, 'src/settings-modal/modal-portal.native.tsx'), 'utf8');
+    const nativePortal = readFileSync(
+      join(bloom, 'src/settings-modal/modal-portal.native.tsx'),
+      'utf8',
+    );
     expect(nativePortal).toMatch(/export \{ Portal as ModalPortal \} from '\.\.\/portal'/);
   });
 });

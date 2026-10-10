@@ -49,7 +49,8 @@ export async function reapAgentRuns(now: Date = new Date()): Promise<ReapResult>
         const failed = await failExhaustedAgentSessionRun(getDb(), run.id, now);
         if (!failed) continue;
         result.failed++;
-        if (failed.creditReservation) await safeRefund(failed.creditReservation, 'run interrupted too many times');
+        if (failed.creditReservation)
+          await safeRefund(failed.creditReservation, 'run interrupted too many times');
         await markAutomationRunForSession(getDb(), run.id, 'failed');
         await sendNotification({
           userId: run.oxyUserId,
@@ -57,11 +58,18 @@ export async function reapAgentRuns(now: Date = new Date()): Promise<ReapResult>
           title: 'A task could not finish',
           body: 'It was interrupted too many times and was stopped. Your credits were returned.',
           data: { sessionId: run.id, agentId: run.agentId, status: 'failed' },
-        }).catch((err: unknown) => log.agents.warn({ err, sessionId: run.id }, 'Could not notify an exhausted run'));
+        }).catch((err: unknown) =>
+          log.agents.warn({ err, sessionId: run.id }, 'Could not notify an exhausted run'),
+        );
         continue;
       }
       await enqueueAgentSession(
-        { sessionId: run.id, userId: run.oxyUserId, agentId: run.agentId, agentName: `Agent ${run.agentId}` },
+        {
+          sessionId: run.id,
+          userId: run.oxyUserId,
+          agentId: run.agentId,
+          agentName: `Agent ${run.agentId}`,
+        },
         { resumeAttempt: run.attempts },
       );
       result.resumed++;
@@ -82,14 +90,17 @@ async function sweep(): Promise<void> {
   // Sessions queued and never picked up, and approvals nobody answered: the
   // same "nothing will ever settle this" event, so the same sweep. Both are
   // single conditional UPDATEs and safe on every task.
-  await reclaimOrphanedAgentSessions()
-    .catch((err: unknown) => log.agents.error({ err }, '[AgentSession] Orphan reclaim error'));
-  await expireAgentApprovals(getDb())
-    .catch((err: unknown) => log.agents.error({ err }, '[AgentApproval] Expiry error'));
+  await reclaimOrphanedAgentSessions().catch((err: unknown) =>
+    log.agents.error({ err }, '[AgentSession] Orphan reclaim error'),
+  );
+  await expireAgentApprovals(getDb()).catch((err: unknown) =>
+    log.agents.error({ err }, '[AgentApproval] Expiry error'),
+  );
   // Alia's own task runs have no session to resume; one whose worker vanished
   // is failed and refunded (`alia-task-reaper.ts`).
-  await reapAbandonedAliaRuns()
-    .catch((err: unknown) => log.agents.error({ err }, '[AliaTaskRun] Reap error'));
+  await reapAbandonedAliaRuns().catch((err: unknown) =>
+    log.agents.error({ err }, '[AliaTaskRun] Reap error'),
+  );
 }
 
 export function startAgentRunReaper(): void {

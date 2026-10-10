@@ -66,7 +66,13 @@ const RESOLVED = {
   modelId: CHAT_MODEL,
   keyConfig: { provider: 'kaana', modelId: CHAT_MODEL },
   oxyInferenceTarget: { kind: 'model', model: CHAT_MODEL },
-  catalogue: { id: CHAT_MODEL, name: 'Chat 1', publisher: { id: 'acme', name: 'Acme' }, contextWindow: 128000, reasoningEfforts: [] },
+  catalogue: {
+    id: CHAT_MODEL,
+    name: 'Chat 1',
+    publisher: { id: 'acme', name: 'Acme' },
+    contextWindow: 128000,
+    reasoningEfforts: [],
+  },
 };
 
 vi.mock('../../../lib/chat-core.js', () => ({
@@ -157,7 +163,12 @@ vi.mock('../../../lib/tools/web-search.js', () => ({
 }));
 
 vi.mock('../../../lib/credits-manager.js', () => ({
-  reserveCredits: vi.fn(async () => ({ userId: 'user-ws13', creditsReserved: 1, initialFreeCredits: 100, initialPaidCredits: 0 })),
+  reserveCredits: vi.fn(async () => ({
+    userId: 'user-ws13',
+    creditsReserved: 1,
+    initialFreeCredits: 100,
+    initialPaidCredits: 0,
+  })),
   finalizeCredits: vi.fn(async () => ({ creditsCharged: 3, creditsRemaining: 97 })),
   refundReservation: vi.fn(async () => undefined),
   safeRefund: vi.fn(async () => undefined),
@@ -182,7 +193,9 @@ vi.mock('../../../lib/conversation-saver.js', () => ({
   generateTitle: vi.fn(async () => null),
   generateConversationTitle: vi.fn(async () => null),
 }));
-vi.mock('../../../lib/notification-service.js', () => ({ sendNotification: vi.fn(async () => undefined) }));
+vi.mock('../../../lib/notification-service.js', () => ({
+  sendNotification: vi.fn(async () => undefined),
+}));
 vi.mock('../../../lib/credit-anomaly.js', () => ({ detectCreditAnomaly: vi.fn(async () => null) }));
 vi.mock('../../../middleware/api-key-rate-limit.js', () => ({
   recordUsage: vi.fn(async () => undefined),
@@ -195,7 +208,9 @@ vi.mock('../../../middleware/auth.js', () => ({
   authenticateTokenOrApiKey: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
 }));
 vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
-vi.mock('../../../db/memory/userMemoryRepository.js', () => ({ findUserMemory: vi.fn(async () => null) }));
+vi.mock('../../../db/memory/userMemoryRepository.js', () => ({
+  findUserMemory: vi.fn(async () => null),
+}));
 /**
  * The chat repositories, stubbed at the module boundary the way the Mongoose
  * models were. `getDb()` is mocked to `{}` above, so a real repository call
@@ -221,9 +236,13 @@ vi.mock('../../../db/chat/messageRepository.js', () => ({
 vi.mock('../../../db/agents/skillRepository.js', () => ({
   findSkillPrompt: vi.fn(async () => undefined),
 }));
-vi.mock('../../../db/agents/agentRepository.js', () => ({ findAgentById: vi.fn(async () => null) }));
+vi.mock('../../../db/agents/agentRepository.js', () => ({
+  findAgentById: vi.fn(async () => null),
+}));
 vi.mock('../../../lib/tools/mcp.js', () => ({ buildMcpTools: vi.fn(async () => ({})) }));
-vi.mock('../../../lib/tools/integrations.js', () => ({ buildIntegrationTools: vi.fn(async () => ({})) }));
+vi.mock('../../../lib/tools/integrations.js', () => ({
+  buildIntegrationTools: vi.fn(async () => ({})),
+}));
 vi.mock('../../../lib/tools/oxy-services.js', () => ({
   buildOxyServiceTools: vi.fn(async () => ({})),
   getOxyServicePromptFragment: vi.fn(async () => ''),
@@ -241,7 +260,16 @@ vi.mock('../../../lib/logger.js', () => {
     error: vi.fn(),
     debug: vi.fn(),
   };
-  return { log: { v1: child, chat: child, general: child, providers: child, codea: child, correlation: child } };
+  return {
+    log: {
+      v1: child,
+      chat: child,
+      general: child,
+      providers: child,
+      codea: child,
+      correlation: child,
+    },
+  };
 });
 
 import { handleChatCompletions } from '../chat-completions.js';
@@ -320,7 +348,14 @@ function sessionReq() {
 type RouteReq = Parameters<typeof handleChatCompletions>[0];
 type RouteRes = Parameters<typeof handleChatCompletions>[1];
 
-async function run(options: { failWriteOn?: string; includeUsage?: boolean; cancelled?: boolean; stream?: boolean } = {}): Promise<ReturnType<typeof recordingRes>> {
+async function run(
+  options: {
+    failWriteOn?: string;
+    includeUsage?: boolean;
+    cancelled?: boolean;
+    stream?: boolean;
+  } = {},
+): Promise<ReturnType<typeof recordingRes>> {
   const req = sessionReq();
   if (options.stream === false) req.body.stream = false;
   if (options.includeUsage === true) req.body.stream_options = { include_usage: true };

@@ -46,8 +46,10 @@ async function agentWith(grants: string[]): Promise<string> {
 }
 
 async function stored(ids: string[]): Promise<Record<string, string[]>> {
-  const rows = await db.select({ id: agents.id, grants: agents.capabilityGrants })
-    .from(agents).where(inArray(agents.id, ids));
+  const rows = await db
+    .select({ id: agents.id, grants: agents.capabilityGrants })
+    .from(agents)
+    .where(inArray(agents.id, ids));
   return Object.fromEntries(rows.map((row) => [row.id, row.grants]));
 }
 
@@ -64,7 +66,10 @@ describe('migration 0071 removes the retired grants and nothing else', () => {
     const both = await agentWith(['web', 'shell', 'mcp:conn-1', 'files', 'agent']);
     const onlyRetired = await agentWith(['shell', 'files']);
     const clean = await agentWith(['browser', 'memory']);
-    const cleanBefore = await db.select({ updatedAt: agents.updatedAt }).from(agents).where(eq(agents.id, clean));
+    const cleanBefore = await db
+      .select({ updatedAt: agents.updatedAt })
+      .from(agents)
+      .where(eq(agents.id, clean));
 
     await db.execute(sql.raw(readFileSync(MIGRATION, 'utf8')));
 
@@ -75,7 +80,10 @@ describe('migration 0071 removes the retired grants and nothing else', () => {
     });
     // The WHERE clause is the "nothing else": a row without a retired grant is
     // not rewritten at all.
-    const cleanAfter = await db.select({ updatedAt: agents.updatedAt }).from(agents).where(eq(agents.id, clean));
+    const cleanAfter = await db
+      .select({ updatedAt: agents.updatedAt })
+      .from(agents)
+      .where(eq(agents.id, clean));
     expect(cleanAfter).toEqual(cleanBefore);
   });
 

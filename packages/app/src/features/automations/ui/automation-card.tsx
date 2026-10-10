@@ -10,17 +10,10 @@ import {
   type AutomationDefinition,
   type AutomationRun,
 } from '@/shared/contracts/automations';
-import {
-  automationLifecycle,
-  lifecycleLabel,
-} from '@/features/automations/model/work-items';
+import { automationLifecycle, lifecycleLabel } from '@/features/automations/model/work-items';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  Card,
-  CardFooter,
-  CardTitle,
-} from '@oxy.so/bloom/card';
+import { Card, CardFooter, CardTitle } from '@oxy.so/bloom/card';
 import { RiPlayLine } from '@oxy.so/bloom/icons/RiPlayLine';
 import { RiStopFill } from '@oxy.so/bloom/icons/RiStopFill';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
@@ -31,10 +24,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import type { AccentTone } from '@oxy.so/bloom/theme';
 import { Muted } from '@oxy.so/bloom/typography';
 import { View } from 'react-native';
-import {
-  automationStatusTone,
-  type AutomationPillTone,
-} from './automation-pill';
+import { automationStatusTone, type AutomationPillTone } from './automation-pill';
 
 /** The lifecycle and run tones, spoken in Bloom's accent vocabulary. */
 const BADGE_TONE: Record<AutomationPillTone, AccentTone> = {
@@ -44,21 +34,8 @@ const BADGE_TONE: Record<AutomationPillTone, AccentTone> = {
   danger: 'error',
 };
 
-function StatusBadge({
-  label,
-  tone = 'neutral',
-}: {
-  label: string;
-  tone?: AutomationPillTone;
-}) {
-  return (
-    <Badge
-      size="label-small"
-      variant="subtle"
-      color={BADGE_TONE[tone]}
-      content={label}
-    />
-  );
+function StatusBadge({ label, tone = 'neutral' }: { label: string; tone?: AutomationPillTone }) {
+  return <Badge size="label-small" variant="subtle" color={BADGE_TONE[tone]} content={label} />;
 }
 
 /**
@@ -134,11 +111,7 @@ export function AutomationCard({
         <Item
           density="compact"
           leading={<RiUserLine {...iconProps} />}
-          title={
-            <Muted>
-              {actorLabel(automation.actorSelection, agentName, t)}
-            </Muted>
-          }
+          title={<Muted>{actorLabel(automation.actorSelection, agentName, t)}</Muted>}
         />
       )}
       {latestRun ? (
@@ -146,9 +119,7 @@ export function AutomationCard({
           density="compact"
           title={
             <Muted>
-              {compact
-                ? t('automations.card.latestRun')
-                : t('automations.card.latestDecision')}
+              {compact ? t('automations.card.latestRun') : t('automations.card.latestDecision')}
             </Muted>
           }
           subtitle={lastReason ? <Muted>{lastReason}</Muted> : undefined}
@@ -205,9 +176,7 @@ export function AutomationCard({
             disabled={controlsDisabled}
             onPress={() => onViewHistory(automation)}
           >
-            {compact
-              ? t('automations.card.history')
-              : t('automations.card.viewHistory')}
+            {compact ? t('automations.card.history') : t('automations.card.viewHistory')}
           </Button>
         </View>
       </CardFooter>

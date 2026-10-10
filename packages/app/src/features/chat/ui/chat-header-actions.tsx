@@ -85,7 +85,8 @@ export const ChatHeaderActions = React.memo(function ChatHeaderActions({
   const togglePanel = () => {
     const { setRightPanel, canvasArtifacts } = useUIStore.getState();
     if (panelOpen) setRightPanel(null);
-    else setRightPanel(workspacePanelKind(null, canvasArtifacts) === 'gallery' ? 'gallery' : 'canvas');
+    else
+      setRightPanel(workspacePanelKind(null, canvasArtifacts) === 'gallery' ? 'gallery' : 'canvas');
   };
   return (
     <DropdownMenu>

@@ -96,10 +96,11 @@ interface ToolInput {
 async function create(input: ToolInput) {
   const execute = TOOL.execute;
   if (execute === undefined) throw new Error('the tool has no execute');
-  return (await execute(
-    { category: 'Assistant', ...input },
-    {} as ToolCallOptions,
-  )) as { success: boolean; error?: string; agent?: { handle: string } };
+  return (await execute({ category: 'Assistant', ...input }, {} as ToolCallOptions)) as {
+    success: boolean;
+    error?: string;
+    agent?: { handle: string };
+  };
 }
 
 beforeEach(() => {

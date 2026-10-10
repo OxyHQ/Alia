@@ -1,6 +1,6 @@
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import type { WorkflowExecution } from "@/lib/workflow-types";
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import type { WorkflowExecution } from '@/lib/workflow-types';
 
 interface OutputPanelProps {
   execution: WorkflowExecution | null;
@@ -20,9 +20,7 @@ export function OutputPanel({ execution, isExecuting, onClose }: OutputPanelProp
 
       <ScrollArea className="flex-1 p-4">
         {isExecuting && !execution && (
-          <div className="text-center py-8 text-muted-foreground">
-            Running workflow...
-          </div>
+          <div className="text-center py-8 text-muted-foreground">Running workflow...</div>
         )}
 
         {execution && (
@@ -31,11 +29,11 @@ export function OutputPanel({ execution, isExecuting, onClose }: OutputPanelProp
               <div className="text-sm font-medium mb-2">Status</div>
               <div
                 className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                  execution.status === "completed"
-                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
-                    : execution.status === "failed"
-                      ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100"
-                      : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
+                  execution.status === 'completed'
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
+                    : execution.status === 'failed'
+                      ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
+                      : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'
                 }`}
               >
                 {execution.status}

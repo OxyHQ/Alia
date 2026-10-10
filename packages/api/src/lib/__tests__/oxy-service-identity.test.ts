@@ -65,7 +65,9 @@ const TOKEN_KEY = generateKeyPairSync('ed25519');
 function serviceIdentityToken(): string {
   const now = Math.floor(Date.now() / 1000);
   const header = Buffer.from(JSON.stringify({ alg: 'EdDSA', typ: 'JWT' })).toString('base64url');
-  const payload = Buffer.from(JSON.stringify({ type: 'service', iat: now, exp: now + 300 })).toString('base64url');
+  const payload = Buffer.from(
+    JSON.stringify({ type: 'service', iat: now, exp: now + 300 }),
+  ).toString('base64url');
   const input = `${header}.${payload}`;
   return `${input}.${sign(null, Buffer.from(input), TOKEN_KEY.privateKey).toString('base64url')}`;
 }
@@ -145,7 +147,9 @@ class OxyEdge {
       const authorization = req.headers.authorization ?? null;
       const parsed: unknown = body === '' ? {} : JSON.parse(body);
       const ids =
-        typeof parsed === 'object' && parsed !== null && Array.isArray((parsed as { ids?: unknown }).ids)
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        Array.isArray((parsed as { ids?: unknown }).ids)
           ? (parsed as { ids: unknown[] }).ids.filter((id): id is string => typeof id === 'string')
           : [];
       this.byIds.push({ authorization, ids });

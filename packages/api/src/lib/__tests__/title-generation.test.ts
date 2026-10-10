@@ -69,8 +69,15 @@ vi.mock('../logger.js', () => {
           : { level, fields, message: message ?? '' },
       );
     });
-  const child = { info: record('info'), warn: record('warn'), error: record('error'), debug: record('debug') };
-  return { log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child } };
+  const child = {
+    info: record('info'),
+    warn: record('warn'),
+    error: record('error'),
+    debug: record('debug'),
+  };
+  return {
+    log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child },
+  };
 });
 
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
@@ -78,10 +85,12 @@ vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock('../../db/chat/conversationRepository.js', () => ({
   findConversation: vi.fn(async () => H.conversation ?? undefined),
   conversationExists: vi.fn(async () => H.conversation !== null),
-  updateConversationTitle: vi.fn(async (_db: unknown, oxyUserId: string, conversationId: string, title: string) => {
-    H.updates.push({ oxyUserId, conversationId, title });
-    return H.conversation ? 1 : 0;
-  }),
+  updateConversationTitle: vi.fn(
+    async (_db: unknown, oxyUserId: string, conversationId: string, title: string) => {
+      H.updates.push({ oxyUserId, conversationId, title });
+      return H.conversation ? 1 : 0;
+    },
+  ),
 }));
 
 vi.mock('../../db/chat/messageRepository.js', () => ({
@@ -113,26 +122,36 @@ vi.mock('../chat-core.js', () => ({
  * cannot produce that outcome cannot catch the bug that produces it.
  */
 vi.mock('ai', () => ({
-  generateText: vi.fn(async (
-    { messages, maxOutputTokens }: { messages: Array<{ role: string; content: string }>; maxOutputTokens?: number },
-  ) => {
-    H.titlePrompts.push(messages.find((m) => m.role === 'user')?.content ?? '');
-    H.titleBudgets.push(maxOutputTokens);
-    if (H.modelThrows) throw H.modelThrows;
-    const budget = maxOutputTokens ?? Number.MAX_SAFE_INTEGER;
-    if (budget <= H.reasoningTokens) {
+  generateText: vi.fn(
+    async ({
+      messages,
+      maxOutputTokens,
+    }: {
+      messages: Array<{ role: string; content: string }>;
+      maxOutputTokens?: number;
+    }) => {
+      H.titlePrompts.push(messages.find((m) => m.role === 'user')?.content ?? '');
+      H.titleBudgets.push(maxOutputTokens);
+      if (H.modelThrows) throw H.modelThrows;
+      const budget = maxOutputTokens ?? Number.MAX_SAFE_INTEGER;
+      if (budget <= H.reasoningTokens) {
+        return {
+          text: '',
+          finishReason: 'length',
+          usage: { outputTokens: budget, reasoningTokens: budget - 2, inputTokens: 117 },
+        };
+      }
       return {
-        text: '',
-        finishReason: 'length',
-        usage: { outputTokens: budget, reasoningTokens: budget - 2, inputTokens: 117 },
+        text: H.titleText,
+        finishReason: 'stop',
+        usage: {
+          outputTokens: H.reasoningTokens + 15,
+          reasoningTokens: H.reasoningTokens,
+          inputTokens: 117,
+        },
       };
-    }
-    return {
-      text: H.titleText,
-      finishReason: 'stop',
-      usage: { outputTokens: H.reasoningTokens + 15, reasoningTokens: H.reasoningTokens, inputTokens: 117 },
-    };
-  }),
+    },
+  ),
 }));
 
 import { findConversation } from '../../db/chat/conversationRepository.js';
@@ -220,7 +239,7 @@ describe('a title is generated from the first user message (#139 ws6)', () => {
   });
 });
 
-describe('the title budget covers the model\'s reasoning, not just the title', () => {
+describe("the title budget covers the model's reasoning, not just the title", () => {
   it('still gets a title out of a model that spends a hundred tokens thinking first', async () => {
     // The production failure, reproduced. `maxOutputTokens: 30` was budgeted
     // from the length of a title — six words, ~15 tokens, doubled for safety —
@@ -269,7 +288,9 @@ describe('the title budget covers the model\'s reasoning, not just the title', (
 describe('no title is never silent (operator logs, never the response body)', () => {
   /** The messages logged at or above `warn`, which is where a fault belongs. */
   const faults = (): string[] =>
-    H.logs.filter((entry) => entry.level === 'warn' || entry.level === 'error').map((entry) => entry.message);
+    H.logs
+      .filter((entry) => entry.level === 'warn' || entry.level === 'error')
+      .map((entry) => entry.message);
 
   it('says so when the model answered and produced nothing usable', async () => {
     // THE path that was firing in production, and the only one of the three
@@ -321,7 +342,9 @@ describe('no title is never silent (operator logs, never the response body)', ()
     // titling could stop entirely against a sick database with nothing to read.
     const loop = code('lib/chat/provider-loop.ts');
     expect(loop).not.toMatch(/startParallelTitleGeneration\([^)]*\)\.catch\(\(\) => null\)/);
-    expect(loop).toMatch(/\.catch\(\(err: unknown\) => \{\s*log\.v1\.error\(\{ err, conversationId \}/);
+    expect(loop).toMatch(
+      /\.catch\(\(err: unknown\) => \{\s*log\.v1\.error\(\{ err, conversationId \}/,
+    );
   });
 
   it('and none of it reaches the client, which is simply told nothing', async () => {
@@ -348,7 +371,9 @@ describe('the streaming path titles a new conversation only (#139 ws6)', () => {
     H.conversation = {};
     H.messageExists = false;
 
-    expect(await startParallelTitleGeneration('user-ws6', 'conv-1', USER_TURN)).toBe('Oat milk preferences');
+    expect(await startParallelTitleGeneration('user-ws6', 'conv-1', USER_TURN)).toBe(
+      'Oat milk preferences',
+    );
     expect(H.titlePrompts).toEqual(['what do I take in my coffee']);
   });
 
@@ -380,7 +405,9 @@ describe('the streaming path titles a new conversation only (#139 ws6)', () => {
       } as unknown as ChatMessage,
     ];
 
-    expect(await startParallelTitleGeneration('user-ws6', 'conv-1', parts)).toBe('Oat milk preferences');
+    expect(await startParallelTitleGeneration('user-ws6', 'conv-1', parts)).toBe(
+      'Oat milk preferences',
+    );
     expect(H.titlePrompts).toEqual(['what is in this picture']);
   });
 
@@ -391,7 +418,9 @@ describe('the streaming path titles a new conversation only (#139 ws6)', () => {
     // that reconnects reads the row, not the stream it already missed.
     const loop = code('lib/chat/provider-loop.ts');
     expect(loop).toContain('export async function runProviderLoop');
-    expect(loop).toMatch(/titlePromise = startParallelTitleGeneration\(req\.user\.id, conversationId, messages\)/);
+    expect(loop).toMatch(
+      /titlePromise = startParallelTitleGeneration\(req\.user\.id, conversationId, messages\)/,
+    );
     expect(loop).toMatch(/res\.write\(`event: alia\.title/);
     expect(loop).toMatch(
       /await updateConversationTitle\(getDb\(\), req\.user\.id, conversationId, title\);/,
@@ -454,7 +483,9 @@ describe('the non-streaming path titles without clobbering (#139 ws6)', () => {
     H.messageCount = 0;
 
     generateTitleAsync('user-ws6', 'conv-1', USER_TURN);
-    await new Promise((resolve) => { setImmediate(resolve); });
+    await new Promise((resolve) => {
+      setImmediate(resolve);
+    });
 
     // The system message must not become the title, which is what a naive
     // `messages[0]` would do — the route replaces `messages[0]` with the whole

@@ -5,7 +5,11 @@ import responsesRouter from './v1/responses.js';
 import modelsRouter from './v1/models.js';
 import audioRouter from './v1/audio.js';
 import imagesRouter from './v1/images.js';
-import { authenticateRequesterAssertion, authenticateTokenOrApiKey, oxyClient } from '../middleware/auth.js';
+import {
+  authenticateRequesterAssertion,
+  authenticateTokenOrApiKey,
+  oxyClient,
+} from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
 import { listChannels } from '../lib/channels/registry.js';
@@ -15,11 +19,10 @@ import { isLiveEntityId } from '@oxy.so/db';
 
 const router = Router();
 
-
 router.get('/', (_req, res) => {
   res.json({
     message: 'AI Platform API v1',
-    version: '1.0.0'
+    version: '1.0.0',
   });
 });
 
@@ -52,8 +55,10 @@ router.use((req: Request, _res: Response, next) => {
     if (!expected) continue;
     const expectedBuf = Buffer.from(expected);
     const providedBuf = Buffer.from(botSecret);
-    if (expectedBuf.length === providedBuf.length &&
-        crypto.timingSafeEqual(expectedBuf, providedBuf)) {
+    if (
+      expectedBuf.length === providedBuf.length &&
+      crypto.timingSafeEqual(expectedBuf, providedBuf)
+    ) {
       req.user = { id: oxyUserId };
       req.channelType = channel.id;
       return next();
@@ -121,7 +126,8 @@ router.get('/me', async (req: Request, res: Response) => {
 router.post('/resolve-model', async (_req: Request, res: Response) => {
   res.status(410).json({
     error: 'Endpoint removed',
-    message: 'Use /v1/chat/completions with a model id from GET /v1/models. Direct model resolution is internal-only.',
+    message:
+      'Use /v1/chat/completions with a model id from GET /v1/models. Direct model resolution is internal-only.',
   });
 });
 

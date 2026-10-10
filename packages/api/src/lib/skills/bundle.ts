@@ -33,7 +33,12 @@
 
 import { createHash } from 'node:crypto';
 import type { SkillFileKind } from '../../domain/skill.js';
-import { type ParseOptions, type ParsedSkillDocument, SkillSpecError, parseSkillDocument } from './spec.js';
+import {
+  type ParseOptions,
+  type ParsedSkillDocument,
+  SkillSpecError,
+  parseSkillDocument,
+} from './spec.js';
 
 /** Anthropic's Skills API refuses an upload past 30 MB uncompressed; matching it keeps skills portable. */
 export const MAX_BUNDLE_BYTES = 30 * 1024 * 1024;
@@ -136,7 +141,11 @@ export const SKILL_DOCUMENT = 'SKILL.md';
  */
 export function splitSkillDirectories(files: RawFile[]): Map<string, RawFile[]> {
   const roots = files
-    .filter((file) => normalisePath(file.path).endsWith(`/${SKILL_DOCUMENT}`) || normalisePath(file.path) === SKILL_DOCUMENT)
+    .filter(
+      (file) =>
+        normalisePath(file.path).endsWith(`/${SKILL_DOCUMENT}`) ||
+        normalisePath(file.path) === SKILL_DOCUMENT,
+    )
     .map((file) => directoryOf(normalisePath(file.path)))
     .sort((a, b) => b.length - a.length);
 
@@ -176,12 +185,15 @@ export function buildSkillBundle(files: RawFile[], opts: BuildOptions = {}): Ski
   for (const file of files) {
     const path = normalisePath(file.path);
     if (path === SKILL_DOCUMENT) continue;
-    if (file.symlink) throw new SkillBundleError(`"${file.path}" is a symlink, which a skill may not bundle`);
+    if (file.symlink)
+      throw new SkillBundleError(`"${file.path}" is a symlink, which a skill may not bundle`);
     assertSafePath(file.path, path);
 
     bytes += file.content.byteLength;
     if (bytes > MAX_BUNDLE_BYTES) {
-      throw new SkillBundleError(`the bundle is larger than ${MAX_BUNDLE_BYTES} bytes uncompressed`);
+      throw new SkillBundleError(
+        `the bundle is larger than ${MAX_BUNDLE_BYTES} bytes uncompressed`,
+      );
     }
     if (bundled.length + 1 > MAX_FILES) {
       throw new SkillBundleError(`the bundle holds more than ${MAX_FILES} files`);
@@ -213,7 +225,10 @@ function describeFile(path: string, file: RawFile): BundleFile {
   const executable = kind === 'script' || (file.mode !== undefined && (file.mode & 0o111) !== 0);
 
   const textMime = TEXT_EXTENSIONS.get(extension);
-  const inlinable = textMime !== undefined && file.content.byteLength <= MAX_INLINE_BYTES && isUtf8Text(file.content);
+  const inlinable =
+    textMime !== undefined &&
+    file.content.byteLength <= MAX_INLINE_BYTES &&
+    isUtf8Text(file.content);
   if (inlinable) {
     return {
       path,
@@ -267,7 +282,8 @@ function directoryOf(path: string): string {
 function assertSafePath(original: string, path: string): void {
   if (path === '') throw new SkillBundleError('a bundled file has an empty path');
   if (path.startsWith('/')) throw new SkillBundleError(`"${original}" is an absolute path`);
-  if (path.includes('\\')) throw new SkillBundleError(`"${original}" uses backslashes; skill paths are forward-slashed`);
+  if (path.includes('\\'))
+    throw new SkillBundleError(`"${original}" uses backslashes; skill paths are forward-slashed`);
   if (path.includes('\0')) throw new SkillBundleError('a bundled file path contains a null byte');
   if (path.split('/').some((segment) => segment === '..')) {
     throw new SkillBundleError(`"${original}" escapes the skill directory`);

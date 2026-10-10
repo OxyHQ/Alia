@@ -251,7 +251,6 @@ describe('reads and ownership', () => {
     expect(after?.updatedAt.getTime()).toBeGreaterThan(before.updatedAt.getTime());
   });
 
-
   it('deletes only the owner’s thread, and reports the count off count', async () => {
     await createConversation(db, {
       oxyUserId: 'del-alice',
@@ -424,8 +423,20 @@ describe('the append race the saver branches on', () => {
 
   it('counts a thread’s messages as a NUMBER, scoped and unscoped', async () => {
     await insertMessages(db, [
-      { conversationId: 'count-conv', oxyUserId: 'count-alice', role: 'user', content: 'a', seq: 0 },
-      { conversationId: 'count-conv', oxyUserId: 'count-alice', role: 'user', content: 'b', seq: 1 },
+      {
+        conversationId: 'count-conv',
+        oxyUserId: 'count-alice',
+        role: 'user',
+        content: 'a',
+        seq: 0,
+      },
+      {
+        conversationId: 'count-conv',
+        oxyUserId: 'count-alice',
+        role: 'user',
+        content: 'b',
+        seq: 1,
+      },
       { conversationId: 'count-conv', oxyUserId: 'count-bob', role: 'user', content: 'c', seq: 0 },
     ]);
 
@@ -463,11 +474,27 @@ describe('voting picks exactly one row', () => {
      * predicate applied directly makes the second assertion `['up', 'up']`.
      */
     await insertMessages(db, [
-      { conversationId: 'vote-conv', oxyUserId: 'vote-user', role: 'assistant', content: 'a', seq: 0, clientMessageId: 'msg-dup' },
-      { conversationId: 'vote-conv', oxyUserId: 'vote-user', role: 'assistant', content: 'b', seq: 1, clientMessageId: 'msg-dup' },
+      {
+        conversationId: 'vote-conv',
+        oxyUserId: 'vote-user',
+        role: 'assistant',
+        content: 'a',
+        seq: 0,
+        clientMessageId: 'msg-dup',
+      },
+      {
+        conversationId: 'vote-conv',
+        oxyUserId: 'vote-user',
+        role: 'assistant',
+        content: 'b',
+        seq: 1,
+        clientMessageId: 'msg-dup',
+      },
     ]);
 
-    expect(await voteMessage(db, 'vote-user', 'vote-conv', 'msg-dup', 'up')).toEqual({ vote: 'up' });
+    expect(await voteMessage(db, 'vote-user', 'vote-conv', 'msg-dup', 'up')).toEqual({
+      vote: 'up',
+    });
 
     const rows = await listMessages(db, 'vote-user', 'vote-conv');
     expect(rows.map((row) => row.vote)).toEqual(['up', null]);
@@ -486,7 +513,14 @@ describe('voting picks exactly one row', () => {
 
   it('clears a vote with null, the port of $unset', async () => {
     await insertMessages(db, [
-      { conversationId: 'unvote-conv', oxyUserId: 'unvote-user', role: 'assistant', content: 'a', seq: 0, clientMessageId: 'm0' },
+      {
+        conversationId: 'unvote-conv',
+        oxyUserId: 'unvote-user',
+        role: 'assistant',
+        content: 'a',
+        seq: 0,
+        clientMessageId: 'm0',
+      },
     ]);
     await voteMessage(db, 'unvote-user', 'unvote-conv', 'm0', 'up');
 
@@ -495,7 +529,14 @@ describe('voting picks exactly one row', () => {
 
   it('answers nothing for another account, leaving the vote alone', async () => {
     await insertMessages(db, [
-      { conversationId: 'voteown-conv', oxyUserId: 'voteown-alice', role: 'assistant', content: 'a', seq: 0, clientMessageId: 'm0' },
+      {
+        conversationId: 'voteown-conv',
+        oxyUserId: 'voteown-alice',
+        role: 'assistant',
+        content: 'a',
+        seq: 0,
+        clientMessageId: 'm0',
+      },
     ]);
     await voteMessage(db, 'voteown-alice', 'voteown-conv', 'm0', 'up');
 
@@ -522,16 +563,31 @@ describe('the wire shape', () => {
         seq: 0,
         clientMessageId: 'client-abc',
         agentInfo: { id: 'a1', name: 'Scout', color: 'teal', handle: 'scout' },
-        toolInvocations: [{ toolCallId: 't1', toolName: 'search', state: 'result', result: { ok: true } }],
+        toolInvocations: [
+          { toolCallId: 't1', toolName: 'search', state: 'result', result: { ok: true } },
+        ],
       },
-      { conversationId: 'wire-conv', oxyUserId: 'wire-user', role: 'user', content: 'plain', seq: 1 },
+      {
+        conversationId: 'wire-conv',
+        oxyUserId: 'wire-user',
+        role: 'user',
+        content: 'plain',
+        seq: 1,
+      },
     ]);
 
-    const [withAgent, plain] = (await listMessages(db, 'wire-user', 'wire-conv')).map(toStoredMessage);
+    const [withAgent, plain] = (await listMessages(db, 'wire-user', 'wire-conv')).map(
+      toStoredMessage,
+    );
 
     expect(withAgent.id).toBe('client-abc');
     expect(withAgent.content).toEqual([{ type: 'text', text: 'hi' }]);
-    expect(withAgent.agentInfo).toEqual({ id: 'a1', name: 'Scout', color: 'teal', handle: 'scout' });
+    expect(withAgent.agentInfo).toEqual({
+      id: 'a1',
+      name: 'Scout',
+      color: 'teal',
+      handle: 'scout',
+    });
     expect(withAgent.toolInvocations).toEqual([
       { toolCallId: 't1', toolName: 'search', state: 'result', result: { ok: true } },
     ]);
@@ -549,16 +605,29 @@ describe('the wire shape', () => {
 
   it('links and reads back a cached audio url by the client id', async () => {
     await insertMessages(db, [
-      { conversationId: 'audio-conv', oxyUserId: 'audio-user', role: 'assistant', content: 'a', seq: 0, clientMessageId: 'am0' },
+      {
+        conversationId: 'audio-conv',
+        oxyUserId: 'audio-user',
+        role: 'assistant',
+        content: 'a',
+        seq: 0,
+        clientMessageId: 'am0',
+      },
     ]);
 
     expect(await findMessageAudioUrl(db, 'audio-user', 'audio-conv', 'am0')).toBeNull();
-    expect(await setMessageAudioUrl(db, 'audio-user', 'audio-conv', 'am0', 'https://x/a.mp3')).toBe(1);
-    expect(await findMessageAudioUrl(db, 'audio-user', 'audio-conv', 'am0')).toBe('https://x/a.mp3');
+    expect(await setMessageAudioUrl(db, 'audio-user', 'audio-conv', 'am0', 'https://x/a.mp3')).toBe(
+      1,
+    );
+    expect(await findMessageAudioUrl(db, 'audio-user', 'audio-conv', 'am0')).toBe(
+      'https://x/a.mp3',
+    );
 
     // Another account writes nothing and reads nothing: `undefined` is "no such
     // message", which is what the route turns into a fresh synthesis.
-    expect(await setMessageAudioUrl(db, 'audio-other', 'audio-conv', 'am0', 'https://x/b.mp3')).toBe(0);
+    expect(
+      await setMessageAudioUrl(db, 'audio-other', 'audio-conv', 'am0', 'https://x/b.mp3'),
+    ).toBe(0);
     expect(await findMessageAudioUrl(db, 'audio-other', 'audio-conv', 'am0')).toBeUndefined();
   });
 });

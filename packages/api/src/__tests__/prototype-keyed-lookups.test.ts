@@ -66,7 +66,11 @@ interface TableRead {
 function tableReads(): TableRead[] {
   const tsconfigPath = path.join(REPO_ROOT, 'packages/api/tsconfig.json');
   const configFile = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
-  const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, path.dirname(tsconfigPath));
+  const parsed = ts.parseJsonConfigFileContent(
+    configFile.config,
+    ts.sys,
+    path.dirname(tsconfigPath),
+  );
   const program = ts.createProgram(parsed.fileNames, { ...parsed.options, noEmit: true });
   const checker = program.getTypeChecker();
 
@@ -84,12 +88,14 @@ function tableReads(): TableRead[] {
     const collect = (node: ts.Node): void => {
       if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
         let init: ts.Expression = node.initializer;
-        while (ts.isAsExpression(init) || ts.isParenthesizedExpression(init)) init = init.expression;
+        while (ts.isAsExpression(init) || ts.isParenthesizedExpression(init))
+          init = init.expression;
         if (ts.isCallExpression(init) && init.arguments.length === 1) {
           const [only] = init.arguments;
           if (ts.isObjectLiteralExpression(only)) init = only;
         }
-        if (ts.isObjectLiteralExpression(init) && init.properties.length > 0) tables.add(node.name.text);
+        if (ts.isObjectLiteralExpression(init) && init.properties.length > 0)
+          tables.add(node.name.text);
       }
       ts.forEachChild(node, collect);
     };
@@ -97,17 +103,26 @@ function tableReads(): TableRead[] {
     if (tables.size === 0) continue;
 
     const visit = (node: ts.Node): void => {
-      if (ts.isElementAccessExpression(node) && ts.isIdentifier(node.expression) && tables.has(node.expression.text)) {
+      if (
+        ts.isElementAccessExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        tables.has(node.expression.text)
+      ) {
         const key = node.argumentExpression;
         const keyType = checker.typeToString(checker.getTypeAtLocation(key));
-        const openString = keyType === 'string' || keyType === 'string | undefined' || keyType === 'any';
+        const openString =
+          keyType === 'string' || keyType === 'string | undefined' || keyType === 'any';
         const isWrite =
           ts.isBinaryExpression(node.parent) &&
           node.parent.left === node &&
           node.parent.operatorToken.kind === ts.SyntaxKind.EqualsToken;
         if (openString && !isWrite) {
           let scope: ts.Node = node;
-          while (scope.parent && !ts.isFunctionLike(scope.parent) && !ts.isSourceFile(scope.parent)) {
+          while (
+            scope.parent &&
+            !ts.isFunctionLike(scope.parent) &&
+            !ts.isSourceFile(scope.parent)
+          ) {
             scope = scope.parent;
           }
           const table = node.expression.text;
@@ -223,7 +238,12 @@ describe('no lookup table answers an untrusted key from Object.prototype', () =>
     // `return` in it is a string literal, so no computed string can reach the
     // tables it keys. This goes red the moment somebody returns a variable.
     const file = path.join(REPO_ROOT, 'packages/api/src/middleware/api-key-rate-limit.ts');
-    const source = ts.createSourceFile(file, ts.sys.readFile(file) ?? '', ts.ScriptTarget.Latest, true);
+    const source = ts.createSourceFile(
+      file,
+      ts.sys.readFile(file) ?? '',
+      ts.ScriptTarget.Latest,
+      true,
+    );
     let fn: ts.FunctionDeclaration | undefined;
     const find = (n: ts.Node): void => {
       if (ts.isFunctionDeclaration(n) && n.name?.text === 'getUserTier') fn = n;
@@ -240,7 +260,10 @@ describe('no lookup table answers an untrusted key from Object.prototype', () =>
     walk(fn as unknown as ts.Node);
     // The floor: the walk found the returns rather than an empty function.
     expect(returns.length).toBeGreaterThanOrEqual(6);
-    expect(returns.every((r) => /^'[a-z_]+'$/.test(r)), `computed tier: ${returns.join(', ')}`).toBe(true);
+    expect(
+      returns.every((r) => /^'[a-z_]+'$/.test(r)),
+      `computed tier: ${returns.join(', ')}`,
+    ).toBe(true);
     // …and none of the literals it can return is an inherited name.
     for (const value of returns) expect(INHERITED).not.toContain(value.slice(1, -1));
   });

@@ -20,7 +20,11 @@ vi.mock('../../lib/s3.js', () => ({
   readS3Object: async (key: string) => {
     H.requestedKey = key;
     return H.exists
-      ? { body: Readable.from([Buffer.from('ID3fake-audio')]), contentType: 'audio/mpeg', contentLength: 13 }
+      ? {
+          body: Readable.from([Buffer.from('ID3fake-audio')]),
+          contentType: 'audio/mpeg',
+          contentLength: 13,
+        }
       : null;
   },
 }));
@@ -31,14 +35,20 @@ const { default: playbackRouter } = await import('../media.js');
 const KEY = 'production/tts/user-1/speech-abc.mp3';
 let server: Server | null = null;
 
-async function get(query: string): Promise<{ status: number; body: string; contentType: string | null }> {
+async function get(
+  query: string,
+): Promise<{ status: number; body: string; contentType: string | null }> {
   const app = express();
   app.use('/media', playbackRouter);
   server = app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve) => server?.once('listening', resolve));
   const { port } = server.address() as AddressInfo;
   const response = await fetch(`http://127.0.0.1:${port}/media?${query}`);
-  return { status: response.status, body: await response.text(), contentType: response.headers.get('content-type') };
+  return {
+    status: response.status,
+    body: await response.text(),
+    contentType: response.headers.get('content-type'),
+  };
 }
 
 beforeEach(() => {
@@ -68,13 +78,17 @@ describe('playing a signed clip', () => {
   it('reads no key from the caller', async () => {
     // The signed payload is the only source of the key. A `key=` on the query
     // string must change nothing — otherwise the URL is a file picker.
-    const response = await get(`${mintPlaybackQuery(KEY, 'user-1')}&key=production/tts/user-2/private.mp3`);
+    const response = await get(
+      `${mintPlaybackQuery(KEY, 'user-1')}&key=production/tts/user-2/private.mp3`,
+    );
     expect(response.status).toBe(200);
     expect(H.requestedKey).toBe(KEY);
   });
 
   it('refuses a forged link without reading anything from S3', async () => {
-    const response = await get('o=cHJvZHVjdGlvbi90dHMvdXNlci0yL3ByaXZhdGUubXAz&u=user-2&e=99999999999999&s=forged');
+    const response = await get(
+      'o=cHJvZHVjdGlvbi90dHMvdXNlci0yL3ByaXZhdGUubXAz&u=user-2&e=99999999999999&s=forged',
+    );
     expect(response.status).toBe(403);
     expect(H.requestedKey).toBeNull();
   });

@@ -140,7 +140,9 @@ function currentMonth(): BillingPeriod {
  * Ties break on `planId` so two plans at the same price cannot make the grant
  * flip between them from one release to the next, rewriting the row for nothing.
  */
-function mostExpensivePlanPerProduct(plans: readonly PlanData[]): Map<PlanData['product'], PlanData> {
+function mostExpensivePlanPerProduct(
+  plans: readonly PlanData[],
+): Map<PlanData['product'], PlanData> {
   const best = new Map<PlanData['product'], PlanData>();
   for (const plan of plans) {
     if (plan.isFree || !plan.isActive) continue;
@@ -322,7 +324,10 @@ export async function seedCompedAccounts(): Promise<{
         cancelAtPeriodEnd: false,
       });
       withdrawn++;
-      log.seed.info({ oxyUserId, username, product }, 'Comped subscription withdrawn: the product is no longer offered');
+      log.seed.info(
+        { oxyUserId, username, product },
+        'Comped subscription withdrawn: the product is no longer offered',
+      );
     }
   }
 

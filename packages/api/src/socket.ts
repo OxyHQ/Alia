@@ -68,7 +68,9 @@ function runtimeOffer(value: unknown): UserRuntimePresence | null {
   if (typeof id !== 'string' || id.length === 0 || id.length > 128) return null;
   if (typeof label !== 'string' || label.length > 128) return null;
   if (!Array.isArray(models)) return null;
-  const names = models.filter((m): m is string => typeof m === 'string' && m.length > 0 && m.length <= 200);
+  const names = models.filter(
+    (m): m is string => typeof m === 'string' && m.length > 0 && m.length <= 200,
+  );
   if (names.length === 0 || names.length > 200) return null;
   return { id, label, models: names };
 }
@@ -143,18 +145,23 @@ export function initSocket(server: http.Server) {
       // Telegram link tokens are short-lived, single-use codes minted for the
       // authenticated user who initiated linking; the room is the token itself.
       if (typeof token !== 'string' || token.length === 0 || token.length > 256) return;
-      Promise.resolve(socket.join(`telegram-token:${token}`)).catch((err) => log.general.warn({ err }, 'socket.join telegram-token failed'));
+      Promise.resolve(socket.join(`telegram-token:${token}`)).catch((err) =>
+        log.general.warn({ err }, 'socket.join telegram-token failed'),
+      );
     });
 
     socket.on('subscribe-workflow', async (executionId: string) => {
-      if (typeof executionId !== 'string' || executionId.length === 0 || executionId.length > 256) return;
+      if (typeof executionId !== 'string' || executionId.length === 0 || executionId.length > 256)
+        return;
       if (!userId) return;
       // `oxy_user_id` is `text`, so the source's `.toString()` on a stored
       // ObjectId has no counterpart — but the comparison it guarded does, and it
       // is the whole access check for this room.
       const owner = await findExecutionOwner(getDb(), executionId);
       if (owner !== userId) return;
-      Promise.resolve(socket.join(`workflow:${executionId}`)).catch((err) => log.general.warn({ err }, 'socket.join workflow failed'));
+      Promise.resolve(socket.join(`workflow:${executionId}`)).catch((err) =>
+        log.general.warn({ err }, 'socket.join workflow failed'),
+      );
     });
 
     socket.on('subscribe-agent', async (agentId: string) => {
@@ -171,11 +178,12 @@ export function initSocket(server: http.Server) {
       // question as who may edit it. The verdict is cached, so a subscription
       // storm costs one round trip rather than one each.
       const accessToken = socketAccessToken(socket);
-      const oxyAccountId = accessToken === null
-        ? null
-        : await findAgentOxyAccountId(getDb(), agentId);
-      const operator = oxyAccountId !== null && accessToken !== null
-        && (
+      const oxyAccountId =
+        accessToken === null ? null : await findAgentOxyAccountId(getDb(), agentId);
+      const operator =
+        oxyAccountId !== null &&
+        accessToken !== null &&
+        (
           await verifyAgentAccount({
             oxyUserId: userId,
             accessToken,
@@ -188,13 +196,17 @@ export function initSocket(server: http.Server) {
         ).permitted;
       const hasSession = operator || (await accountHasSessionWithAgent(getDb(), agentId, userId));
       if (!operator && !hasSession) return;
-      Promise.resolve(socket.join(`agent:${agentId}`)).catch((err) => log.general.warn({ err }, 'socket.join agent failed'));
+      Promise.resolve(socket.join(`agent:${agentId}`)).catch((err) =>
+        log.general.warn({ err }, 'socket.join agent failed'),
+      );
     });
 
     socket.on('subscribe-agent-session', async (sessionId: string) => {
       if (typeof sessionId !== 'string' || sessionId.length === 0 || sessionId.length > 256) return;
       if (!userId || !(await ownsAgentSession(userId, sessionId))) return;
-      Promise.resolve(socket.join(`agent-session:${sessionId}`)).catch((err) => log.general.warn({ err }, 'socket.join agent-session failed'));
+      Promise.resolve(socket.join(`agent-session:${sessionId}`)).catch((err) =>
+        log.general.warn({ err }, 'socket.join agent-session failed'),
+      );
     });
 
     /**
@@ -217,7 +229,9 @@ export function initSocket(server: http.Server) {
       const presence = runtimeOffer(offer);
       if (!presence) return;
       socket.data.localRuntime = presence;
-      Promise.resolve(socket.join(userRuntimeRoom(userId))).catch((err) => log.general.warn({ err }, 'socket.join user-runtime failed'));
+      Promise.resolve(socket.join(userRuntimeRoom(userId))).catch((err) =>
+        log.general.warn({ err }, 'socket.join user-runtime failed'),
+      );
     });
 
     /**
@@ -229,7 +243,9 @@ export function initSocket(server: http.Server) {
     socket.on('unsubscribe-user-runtime', () => {
       if (!userId) return;
       delete socket.data.localRuntime;
-      Promise.resolve(socket.leave(userRuntimeRoom(userId))).catch((err) => log.general.warn({ err }, 'socket.leave user-runtime failed'));
+      Promise.resolve(socket.leave(userRuntimeRoom(userId))).catch((err) =>
+        log.general.warn({ err }, 'socket.leave user-runtime failed'),
+      );
     });
 
     /**
@@ -249,9 +265,12 @@ export function initSocket(server: http.Server) {
       if (!userId || typeof frame?.runId !== 'string') return;
       const { data } = frame;
       const bytes =
-        typeof data === 'string' ? data
-          : data instanceof Uint8Array ? data
-            : Buffer.isBuffer(data) ? new Uint8Array(data)
+        typeof data === 'string'
+          ? data
+          : data instanceof Uint8Array
+            ? data
+            : Buffer.isBuffer(data)
+              ? new Uint8Array(data)
               : null;
       if (bytes === null) return;
       deliverUserRuntimeMessage(userId, { runId: frame.runId, kind: 'chunk', data: bytes });
@@ -269,7 +288,10 @@ export function initSocket(server: http.Server) {
        * back, so it is capped rather than sanitised — but never trusted for
        * length, because a client controls it.
        */
-      const message = typeof frame.message === 'string' ? frame.message.slice(0, 500) : 'The local runtime failed.';
+      const message =
+        typeof frame.message === 'string'
+          ? frame.message.slice(0, 500)
+          : 'The local runtime failed.';
       deliverUserRuntimeMessage(userId, { runId: frame.runId, kind: 'error', message });
     });
 
@@ -277,47 +299,66 @@ export function initSocket(server: http.Server) {
       // Room is always derived from the authenticated user — any client-supplied
       // userId is ignored to prevent subscribing to another user's notifications.
       if (!userId) return;
-      Promise.resolve(socket.join(`user:${userId}`)).catch((err) => log.general.warn({ err }, 'socket.join notifications failed'));
+      Promise.resolve(socket.join(`user:${userId}`)).catch((err) =>
+        log.general.warn({ err }, 'socket.join notifications failed'),
+      );
     });
 
     // Agent action approval response from user
-    socket.on('agent-approval-response', async (data: { requestId: string; sessionId: string; approved: boolean; alwaysAllow?: boolean }) => {
-      if (!data?.requestId || typeof data.requestId !== 'string' || typeof data.sessionId !== 'string') return;
-      if (!userId) return;
+    socket.on(
+      'agent-approval-response',
+      async (data: {
+        requestId: string;
+        sessionId: string;
+        approved: boolean;
+        alwaysAllow?: boolean;
+      }) => {
+        if (
+          !data?.requestId ||
+          typeof data.requestId !== 'string' ||
+          typeof data.sessionId !== 'string'
+        )
+          return;
+        if (!userId) return;
 
-      const { getPendingApprovalSession, resolveApprovalDecision } = await import('./lib/agent/action-approval.js');
-      const { decideAgentApproval, findPendingApproval } = await import('./db/agents/agentRuntimeRepository.js');
-      const { getDb } = await import('./db/index.js');
+        const { getPendingApprovalSession, resolveApprovalDecision } = await import(
+          './lib/agent/action-approval.js'
+        );
+        const { decideAgentApproval, findPendingApproval } = await import(
+          './db/agents/agentRuntimeRepository.js'
+        );
+        const { getDb } = await import('./db/index.js');
 
-      // The pending approval is bound to a sessionId at creation time. Reject if
-      // the claimed session does not match the request, or the user does not own it.
-      const durable = await findPendingApproval(getDb(), userId, data.requestId);
-      const boundSessionId = getPendingApprovalSession(data.requestId) ?? durable?.turnId ?? null;
-      if (!boundSessionId || boundSessionId !== data.sessionId) return;
-      if (!(await ownsAgentSession(userId, data.sessionId))) return;
+        // The pending approval is bound to a sessionId at creation time. Reject if
+        // the claimed session does not match the request, or the user does not own it.
+        const durable = await findPendingApproval(getDb(), userId, data.requestId);
+        const boundSessionId = getPendingApprovalSession(data.requestId) ?? durable?.turnId ?? null;
+        if (!boundSessionId || boundSessionId !== data.sessionId) return;
+        if (!(await ownsAgentSession(userId, data.sessionId))) return;
 
-      if (durable) {
-        await decideAgentApproval(getDb(), {
-          approvalId: data.requestId,
-          oxyUserId: userId,
+        if (durable) {
+          await decideAgentApproval(getDb(), {
+            approvalId: data.requestId,
+            oxyUserId: userId,
+            approved: !!data.approved,
+          });
+        }
+
+        // Resolve pending approval in-memory and broadcast the decision.
+        resolveApprovalDecision({
+          requestId: data.requestId,
           approved: !!data.approved,
+          alwaysAllow: data.alwaysAllow || false,
         });
-      }
 
-      // Resolve pending approval in-memory and broadcast the decision.
-      resolveApprovalDecision({
-        requestId: data.requestId,
-        approved: !!data.approved,
-        alwaysAllow: data.alwaysAllow || false,
-      });
-
-      // Also mirror to the session room for real-time client updates.
-      io!.to(`agent-session:${data.sessionId}`).emit('agent-approval-decision', {
-        requestId: data.requestId,
-        approved: data.approved,
-        alwaysAllow: data.alwaysAllow || false,
-      });
-    });
+        // Also mirror to the session room for real-time client updates.
+        io!.to(`agent-session:${data.sessionId}`).emit('agent-approval-decision', {
+          requestId: data.requestId,
+          approved: data.approved,
+          alwaysAllow: data.alwaysAllow || false,
+        });
+      },
+    );
   });
   return io;
 }
@@ -339,19 +380,52 @@ export function emitWorkflowProgress(executionId: string, data: any) {
 }
 
 export interface AgentActivityEvent {
-  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete' | 'screenshot' | 'plan_progress' | 'file_change' | 'source_found' | 'threat' | 'approval_request';
+  type:
+    | 'system'
+    | 'thinking'
+    | 'response'
+    | 'tool_call'
+    | 'tool_result'
+    | 'error'
+    | 'complete'
+    | 'screenshot'
+    | 'plan_progress'
+    | 'file_change'
+    | 'source_found'
+    | 'threat'
+    | 'approval_request';
   content: string;
   timestamp: number;
   sessionId: string;
-  metadata?: { toolName?: string; args?: any; duration?: number; url?: string; title?: string; domain?: string; threatSeverity?: string; threatCategory?: string };
+  metadata?: {
+    toolName?: string;
+    args?: any;
+    duration?: number;
+    url?: string;
+    title?: string;
+    domain?: string;
+    threatSeverity?: string;
+    threatCategory?: string;
+  };
   data?: {
     base64?: string;
     url?: string;
-    plan?: { items: Array<{ id: number; text: string; status: string }>; completed: number; total: number };
+    plan?: {
+      items: Array<{ id: number; text: string; status: string }>;
+      completed: number;
+      total: number;
+    };
     files?: string[];
     currentStep?: number;
     maxSteps?: number;
-    approval?: { requestId: string; toolName: string; args: any; description: string; severity: string; timeout: number };
+    approval?: {
+      requestId: string;
+      toolName: string;
+      args: any;
+      description: string;
+      severity: string;
+      timeout: number;
+    };
     taskProgress?: {
       stepIndex: number;
       maxSteps: number;
@@ -365,16 +439,19 @@ export interface AgentActivityEvent {
   };
 }
 
-export function emitApprovalRequest(sessionId: string, data: {
-  eventVersion?: number;
-  requestId: string;
-  agentId: string;
-  toolName: string;
-  args: any;
-  description: string;
-  severity: string;
-  timeout: number;
-}) {
+export function emitApprovalRequest(
+  sessionId: string,
+  data: {
+    eventVersion?: number;
+    requestId: string;
+    agentId: string;
+    toolName: string;
+    args: any;
+    description: string;
+    severity: string;
+    timeout: number;
+  },
+) {
   if (io) {
     const payload = {
       eventVersion: data.eventVersion ?? 1,
@@ -385,11 +462,14 @@ export function emitApprovalRequest(sessionId: string, data: {
   }
 }
 
-export function emitApprovalResult(sessionId: string, data: {
-  eventVersion?: number;
-  requestId: string;
-  decision: 'approved' | 'denied' | 'timeout';
-}) {
+export function emitApprovalResult(
+  sessionId: string,
+  data: {
+    eventVersion?: number;
+    requestId: string;
+    decision: 'approved' | 'denied' | 'timeout';
+  },
+) {
   if (io) {
     const payload = {
       eventVersion: data.eventVersion ?? 1,

@@ -5,10 +5,7 @@ import type { AgentTelegramBots } from '@/features/agents/runtime/use-agent-tele
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Chip, ChipRow } from '@oxy.so/bloom/chip';
 import { Label } from '@oxy.so/bloom/label';
-import {
-  SettingsListGroup,
-  SettingsListItem,
-} from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Switch } from '@oxy.so/bloom/switch';
 import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -20,10 +17,7 @@ export function AgentSettingsPanel({
   onEdit,
   telegram,
 }: {
-  draft: Pick<
-    AgentDraft,
-    'category' | 'tagline' | 'description' | 'price' | 'access'
-  >;
+  draft: Pick<AgentDraft, 'category' | 'tagline' | 'description' | 'price' | 'access'>;
   onEdit: (patch: Partial<AgentDraft>) => void;
   telegram: AgentTelegramBots;
 }) {
@@ -35,10 +29,7 @@ export function AgentSettingsPanel({
       {/* Category */}
       <View className="gap-1.5">
         <Label>{t('agents.listing.category')}</Label>
-        <ChipRow
-          role="radiogroup"
-          accessibilityLabel={t('agents.listing.category')}
-        >
+        <ChipRow role="radiogroup" accessibilityLabel={t('agents.listing.category')}>
           {AGENT_CATEGORIES.map((cat) => (
             <Chip
               key={cat}
@@ -98,9 +89,7 @@ export function AgentSettingsPanel({
             <Switch
               accessibilityLabel={t('agents.accessPublic')}
               checked={access === 'public'}
-              onCheckedChange={(next) =>
-                onEdit({ access: next ? 'public' : 'private' })
-              }
+              onCheckedChange={(next) => onEdit({ access: next ? 'public' : 'private' })}
             />
           }
         />

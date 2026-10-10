@@ -34,11 +34,7 @@ import {
   SegmentedControlItem,
   SegmentedControlItemText,
 } from '@oxy.so/bloom/segmented-control';
-import {
-  TextFieldHint,
-  TextFieldInput,
-  TextFieldLabel,
-} from '@oxy.so/bloom/text-field';
+import { TextFieldHint, TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
@@ -122,11 +118,7 @@ interface SeriesCreateDialogProps {
   onCreated?: (seriesId: string) => void;
 }
 
-export function SeriesCreateDialog({
-  open,
-  onOpenChange,
-  onCreated,
-}: SeriesCreateDialogProps) {
+export function SeriesCreateDialog({ open, onOpenChange, onCreated }: SeriesCreateDialogProps) {
   const { colors } = useTheme();
   const { t } = useTranslation();
   const preferences = useShowStore((s) => s.preferences);
@@ -142,8 +134,7 @@ export function SeriesCreateDialog({
   const [creating, setCreating] = useState(false);
 
   const chosenFormat = format ?? preferences?.defaultFormat ?? 'podcast';
-  const chosenVisibility =
-    visibility ?? preferences?.defaultVisibility ?? 'private';
+  const chosenVisibility = visibility ?? preferences?.defaultVisibility ?? 'private';
 
   const handleCreate = useCallback(async () => {
     if (title.trim().length < 3 || brief.trim().length < 10) {
@@ -172,16 +163,7 @@ export function SeriesCreateDialog({
     } finally {
       setCreating(false);
     }
-  }, [
-    title,
-    brief,
-    chosenFormat,
-    chosenVisibility,
-    createSeries,
-    onOpenChange,
-    onCreated,
-    t,
-  ]);
+  }, [title, brief, chosenFormat, chosenVisibility, createSeries, onOpenChange, onCreated, t]);
 
   return (
     <Dialog
@@ -193,12 +175,9 @@ export function SeriesCreateDialog({
       actions={[
         { label: t('common.cancel'), color: 'cancel', disabled: creating },
         {
-          label: creating
-            ? t('shows.seriesDialog.creating')
-            : t('shows.seriesDialog.create'),
+          label: creating ? t('shows.seriesDialog.creating') : t('shows.seriesDialog.create'),
           onPress: handleCreate,
-          disabled:
-            creating || title.trim().length < 3 || brief.trim().length < 10,
+          disabled: creating || title.trim().length < 3 || brief.trim().length < 10,
           // Creation draws cover art and calls Syra, so the dialog owns the
           // progress label and stays mounted while it runs.
           shouldCloseOnPress: false,
@@ -234,10 +213,7 @@ export function SeriesCreateDialog({
 
           <View>
             <TextFieldLabel>{t('shows.seriesDialog.format')}</TextFieldLabel>
-            <ChipRow
-              role="radiogroup"
-              accessibilityLabel={t('shows.seriesDialog.format')}
-            >
+            <ChipRow role="radiogroup" accessibilityLabel={t('shows.seriesDialog.format')}>
               {FORMATS.map((option) => {
                 const Icon = option.icon;
                 const selected = chosenFormat === option.id;
@@ -270,17 +246,12 @@ export function SeriesCreateDialog({
             >
               {VISIBILITIES.map((option) => (
                 <SegmentedControlItem key={option.id} value={option.id}>
-                  <SegmentedControlItemText>
-                    {t(option.label)}
-                  </SegmentedControlItemText>
+                  <SegmentedControlItemText>{t(option.label)}</SegmentedControlItemText>
                 </SegmentedControlItem>
               ))}
             </SegmentedControl>
             <TextFieldHint>
-              {t(
-                VISIBILITIES.find((v) => v.id === chosenVisibility)
-                  ?.description ?? '',
-              )}
+              {t(VISIBILITIES.find((v) => v.id === chosenVisibility)?.description ?? '')}
             </TextFieldHint>
           </View>
         </View>

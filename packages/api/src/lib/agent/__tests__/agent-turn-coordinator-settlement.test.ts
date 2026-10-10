@@ -7,20 +7,36 @@ const updateAgentSession = vi.fn(async (_db: unknown, _id: string, patch: { stat
 });
 
 vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
-vi.mock('../../../db/chat/conversationRepository.js', () => ({ findConversation: vi.fn(async () => undefined) }));
-vi.mock('../../../db/agents/agentSessionRepository.js', () => ({ createAgentSession, updateAgentSession }));
+vi.mock('../../../db/chat/conversationRepository.js', () => ({
+  findConversation: vi.fn(async () => undefined),
+}));
+vi.mock('../../../db/agents/agentSessionRepository.js', () => ({
+  createAgentSession,
+  updateAgentSession,
+}));
 vi.mock('../../../db/agents/agentRuntimeRepository.js', () => ({
-  withAgentAdmission: vi.fn(async (_db: unknown, _admission: unknown, _max: number, callback: (tx: unknown) => Promise<unknown>) => ({
-    admitted: true,
-    value: await callback({}),
-  })),
+  withAgentAdmission: vi.fn(
+    async (
+      _db: unknown,
+      _admission: unknown,
+      _max: number,
+      callback: (tx: unknown) => Promise<unknown>,
+    ) => ({
+      admitted: true,
+      value: await callback({}),
+    }),
+  ),
 }));
 vi.mock('../browser-session.js', () => ({ BrowserSession: class {} }));
 vi.mock('../todo-manager.js', () => ({ TodoManager: class {} }));
-vi.mock('../event-stream.js', () => ({ EventStream: class {
-  append = vi.fn();
-  flush = vi.fn(async () => { events.push('events:flushed'); });
-} }));
+vi.mock('../event-stream.js', () => ({
+  EventStream: class {
+    append = vi.fn();
+    flush = vi.fn(async () => {
+      events.push('events:flushed');
+    });
+  },
+}));
 vi.mock('../../logger.js', () => ({ log: { agents: { warn: vi.fn() } } }));
 const startAgentSession = vi.fn(async () => ({ ok: true, sessionId: 'bg-1', queued: true }));
 vi.mock('../session-handoff.js', () => ({ startAgentSession }));
@@ -45,10 +61,7 @@ describe('agent turn settlement', () => {
 
     // The status write IS the admission release, and it is the final step:
     // the Clarity-only browser holds nothing to tear down behind it.
-    expect(events).toEqual([
-      'events:flushed',
-      'status:completed',
-    ]);
+    expect(events).toEqual(['events:flushed', 'status:completed']);
   });
 
   it('settles only once when two completion paths race', async () => {
@@ -71,18 +84,26 @@ describe('agent turn settlement', () => {
       task: 'continue',
     });
 
-    const told = await turn.runtime.continueInBackground!('Compare the 20 flights and report the three best');
+    const told = await turn.runtime.continueInBackground!(
+      'Compare the 20 flights and report the three best',
+    );
 
     expect(told).toMatch(/^Started\./);
-    expect(startAgentSession).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 'user-1',
-      task: 'Compare the 20 flights and report the three best',
-      origin: 'delegation',
-    }));
+    expect(startAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        task: 'Compare the 20 flights and report the three best',
+        origin: 'delegation',
+      }),
+    );
   });
 
   it('tells the model plainly when the background run could not be paid for', async () => {
-    startAgentSession.mockResolvedValueOnce({ ok: false, reason: 'insufficient_credits', creditsNeeded: 15 } as never);
+    startAgentSession.mockResolvedValueOnce({
+      ok: false,
+      reason: 'insufficient_credits',
+      creditsNeeded: 15,
+    } as never);
     const turn = await AgentTurnCoordinator.begin({
       agent: { _id: 'agent-1', maxConcurrentThreads: 3 } as never,
       oxyUserId: 'user-1',
@@ -92,4 +113,3 @@ describe('agent turn settlement', () => {
     expect(await turn.runtime.continueInBackground!('x')).toMatch(/not have enough credits/);
   });
 });
-

@@ -10,8 +10,8 @@ import config from '@/shared/platform/config';
 import { useUserDataStore } from '@/features/memory/runtime/user-data-store';
 
 export function useTTS() {
-  const voicePref = useUserDataStore(s => s.memory?.preferences?.voice);
-  const tonePref = useUserDataStore(s => s.memory?.preferences?.tone);
+  const voicePref = useUserDataStore((s) => s.memory?.preferences?.voice);
+  const tonePref = useUserDataStore((s) => s.memory?.preferences?.tone);
 
   return useTTSSDK({
     apiUrl: config.apiUrl,

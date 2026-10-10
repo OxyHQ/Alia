@@ -48,8 +48,16 @@ export function uniqueStepLabels(texts: readonly string[]): string[] {
 
 export const AgentTaskCard = React.memo(function AgentTaskCard({ activity }: AgentTaskCardProps) {
   const { t } = useTranslation();
-  const { plan, currentAction, isComplete, hasError, lastError, eventCount, startedAt, latestResponse } =
-    activity;
+  const {
+    plan,
+    currentAction,
+    isComplete,
+    hasError,
+    lastError,
+    eventCount,
+    startedAt,
+    latestResponse,
+  } = activity;
   const [now, setNow] = useState(() => Date.now());
 
   // The clock runs while the agent does; a finished run keeps its last reading.
@@ -112,7 +120,6 @@ export const AgentTaskCard = React.memo(function AgentTaskCard({ activity }: Age
           ) : null}
 
           {hasError && lastError ? <Admonition type="error">{lastError}</Admonition> : null}
-
         </View>
       </CardBody>
     </Card>

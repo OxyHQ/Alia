@@ -1,7 +1,7 @@
-import { memo } from "react";
-import { BaseNode } from "./base-node";
-import { FileOutput } from "lucide-react";
-import type { WorkflowNodeData } from "@/lib/workflow-types";
+import { memo } from 'react';
+import { BaseNode } from './base-node';
+import { FileOutput } from 'lucide-react';
+import type { WorkflowNodeData } from '@/lib/workflow-types';
 
 interface OutputNodeProps {
   id: string;
@@ -21,12 +21,13 @@ export const OutputNode = memo(function OutputNode({ id, data, selected }: Outpu
       <div className="space-y-1.5">
         <input
           placeholder="output.md"
-          value={data.customFilename || "README.md"}
+          value={data.customFilename || 'README.md'}
           className="w-full px-2 py-1 text-xs bg-background border border-input rounded"
           disabled
         />
         <div className="text-[10px] text-muted-foreground">
-          Output: <span className="font-mono text-foreground">{data.outputType || "readme-md"}</span>
+          Output:{' '}
+          <span className="font-mono text-foreground">{data.outputType || 'readme-md'}</span>
         </div>
       </div>
     </BaseNode>

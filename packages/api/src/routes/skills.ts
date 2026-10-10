@@ -85,7 +85,11 @@ function fail(res: Response, status: number, message: string, code: string): voi
 
 /** The three importer errors are the caller's fault, and their messages say why. */
 function handleWriteError(res: Response, err: unknown, action: string): void {
-  if (err instanceof SkillSpecError || err instanceof SkillBundleError || err instanceof SkillArchiveError) {
+  if (
+    err instanceof SkillSpecError ||
+    err instanceof SkillBundleError ||
+    err instanceof SkillArchiveError
+  ) {
     fail(res, 400, err.message, 'invalid_skill');
     return;
   }
@@ -103,9 +107,13 @@ function handleWriteError(res: Response, err: unknown, action: string): void {
  * The order matters: an id is unambiguous, a name is only unique per owner, and
  * a caller's own skill wins over a public one with the same name.
  */
-async function resolveVisibleSkill(idOrName: string, oxyUserId?: string): Promise<PublicSkill | null> {
+async function resolveVisibleSkill(
+  idOrName: string,
+  oxyUserId?: string,
+): Promise<PublicSkill | null> {
   const byId = await findSkillById(getDb(), idOrName);
-  if (byId && (byId.visibility === 'public' || (oxyUserId && byId.ownerOxyUserId === oxyUserId))) return byId;
+  if (byId && (byId.visibility === 'public' || (oxyUserId && byId.ownerOxyUserId === oxyUserId)))
+    return byId;
   return findSkillByName(getDb(), idOrName, oxyUserId);
 }
 
@@ -172,10 +180,17 @@ router.post('/import', authenticateToken, async (req: Request, res: Response) =>
   try {
     const imported = await importSkillsFromGitHub(parsed.data.source);
     const wanted = parsed.data.name
-      ? imported.skills.filter((skill) => skill.bundle.document.frontmatter.name === parsed.data.name)
+      ? imported.skills.filter(
+          (skill) => skill.bundle.document.frontmatter.name === parsed.data.name,
+        )
       : imported.skills;
     if (wanted.length === 0) {
-      return fail(res, 404, `No skill named "${parsed.data.name}" in that repository`, 'skill_not_found');
+      return fail(
+        res,
+        404,
+        `No skill named "${parsed.data.name}" in that repository`,
+        'skill_not_found',
+      );
     }
 
     const stored = [];
@@ -199,7 +214,11 @@ router.post('/import', authenticateToken, async (req: Request, res: Response) =>
 
     res.status(201).json({
       commit: imported.commit,
-      skills: stored.map((entry) => ({ ...entry.skill, version: entry.version?.version ?? null, unchanged: entry.unchanged })),
+      skills: stored.map((entry) => ({
+        ...entry.skill,
+        version: entry.version?.version ?? null,
+        unchanged: entry.unchanged,
+      })),
       rejected: imported.rejected,
       warnings: wanted.flatMap((skill) => skill.bundle.warnings),
     });
@@ -229,11 +248,14 @@ router.post('/import', authenticateToken, async (req: Request, res: Response) =>
 router.post('/upload', authenticateToken, upload.any(), async (req: Request, res: Response) => {
   if (!req.user?.id) return fail(res, 401, 'Unauthorized', 'unauthorized');
   const uploaded = Array.isArray(req.files) ? req.files : [];
-  if (uploaded.length === 0) return fail(res, 400, 'A zip file, or the skill\'s files, are required', 'missing_file');
+  if (uploaded.length === 0)
+    return fail(res, 400, "A zip file, or the skill's files, are required", 'missing_file');
 
   try {
     const single = uploaded.length === 1 ? uploaded[0] : undefined;
-    const isZip = single !== undefined && (single.mimetype.includes('zip') || single.originalname.endsWith('.zip'));
+    const isZip =
+      single !== undefined &&
+      (single.mimetype.includes('zip') || single.originalname.endsWith('.zip'));
 
     // Path-qualified files carry the skill's directory in their own names, which
     // is what the Skills API's `filename=skill/SKILL.md` form means.
@@ -243,7 +265,8 @@ router.post('/upload', authenticateToken, upload.any(), async (req: Request, res
 
     const roots = files.filter((file) => file.path.endsWith('SKILL.md'));
     if (roots.length === 0) return fail(res, 400, 'The upload has no SKILL.md', 'invalid_skill');
-    if (roots.length > 1) return fail(res, 400, 'The upload holds more than one skill', 'invalid_skill');
+    if (roots.length > 1)
+      return fail(res, 400, 'The upload holds more than one skill', 'invalid_skill');
 
     const prefix = roots[0].path.slice(0, roots[0].path.length - 'SKILL.md'.length);
     const rebased = files
@@ -257,7 +280,9 @@ router.post('/upload', authenticateToken, upload.any(), async (req: Request, res
       createdByOxyUserId: req.user.id,
     });
     await installSkill(getDb(), req.user.id, result.skill._id);
-    res.status(201).json({ skill: result.skill, version: result.version, warnings: bundle.warnings });
+    res
+      .status(201)
+      .json({ skill: result.skill, version: result.version, warnings: bundle.warnings });
   } catch (err) {
     handleWriteError(res, err, 'read that archive');
   }
@@ -279,9 +304,13 @@ const authoredBody = z
     icon: z.string().trim().max(16).optional(),
     color: z.string().trim().max(32).optional(),
   })
-  .refine((value) => value.document !== undefined || (value.name !== undefined && value.description !== undefined), {
-    message: 'Send either a SKILL.md document, or a name and a description',
-  });
+  .refine(
+    (value) =>
+      value.document !== undefined || (value.name !== undefined && value.description !== undefined),
+    {
+      message: 'Send either a SKILL.md document, or a name and a description',
+    },
+  );
 
 /**
  * Compose the `SKILL.md` a write is really about.
@@ -310,12 +339,19 @@ function documentFrom(input: z.infer<typeof authoredBody>): string {
 router.post('/', authenticateToken, async (req: Request, res: Response) => {
   if (!req.user?.id) return fail(res, 401, 'Unauthorized', 'unauthorized');
   const parsed = authoredBody.safeParse(req.body);
-  if (!parsed.success) return fail(res, 400, parsed.error.issues[0]?.message ?? 'Invalid skill', 'invalid_skill');
+  if (!parsed.success)
+    return fail(res, 400, parsed.error.issues[0]?.message ?? 'Invalid skill', 'invalid_skill');
 
   try {
     const document = documentFrom(parsed.data);
-    const bundle = buildSkillBundle([{ path: 'SKILL.md', content: Buffer.from(document) }], { authored: true });
-    const existing = await findSkillInNamespace(getDb(), bundle.document.frontmatter.name, req.user.id);
+    const bundle = buildSkillBundle([{ path: 'SKILL.md', content: Buffer.from(document) }], {
+      authored: true,
+    });
+    const existing = await findSkillInNamespace(
+      getDb(),
+      bundle.document.frontmatter.name,
+      req.user.id,
+    );
     if (existing) {
       return fail(res, 409, `You already have a skill named "${existing.name}"`, 'skill_exists');
     }
@@ -330,7 +366,9 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       color: parsed.data.color,
     });
     await installSkill(getDb(), req.user.id, result.skill._id);
-    res.status(201).json({ skill: result.skill, version: result.version, warnings: bundle.warnings });
+    res
+      .status(201)
+      .json({ skill: result.skill, version: result.version, warnings: bundle.warnings });
   } catch (err) {
     handleWriteError(res, err, 'create that skill');
   }
@@ -348,7 +386,8 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
 router.post('/generate', authenticateToken, async (req: Request, res: Response) => {
   if (!req.user?.id) return fail(res, 401, 'Unauthorized', 'unauthorized');
   const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
-  if (prompt.length < 10) return fail(res, 400, 'A prompt of at least 10 characters is required', 'invalid_prompt');
+  if (prompt.length < 10)
+    return fail(res, 400, 'A prompt of at least 10 characters is required', 'invalid_prompt');
   const language = typeof req.body?.language === 'string' ? req.body.language : 'en-US';
 
   // A bounded retry of the same model: Oxy and Kaana own deployment choice, so
@@ -379,10 +418,18 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
 
   // The model is asked for a bare document, but wraps it in a fence often
   // enough that unwrapping one is cheaper than a retry.
-  const document = text.replace(/^\s*```(?:markdown|md)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+  const document = text
+    .replace(/^\s*```(?:markdown|md)?\s*\n?/, '')
+    .replace(/\n?```\s*$/, '')
+    .trim();
   try {
     const parsed = parseSkillDocument(document, { authored: true });
-    res.json({ document, frontmatter: parsed.frontmatter, body: parsed.body, warnings: parsed.warnings });
+    res.json({
+      document,
+      frontmatter: parsed.frontmatter,
+      body: parsed.body,
+      warnings: parsed.warnings,
+    });
   } catch (err) {
     log.skills.error({ chars: document.length }, 'The drafted skill did not parse');
     fail(res, 502, `The generated skill was not valid: ${(err as Error).message}`, 'draft_invalid');
@@ -431,7 +478,12 @@ router.get('/:idOrName', optionalAuth, async (req: Request, res: Response) => {
             createdAt: latest.createdAt,
           }
         : null,
-      files: files.map((file) => ({ path: file.path, kind: file.kind, mime: file.mime, bytes: file.bytes })),
+      files: files.map((file) => ({
+        path: file.path,
+        kind: file.kind,
+        mime: file.mime,
+        bytes: file.bytes,
+      })),
     });
   } catch (err) {
     log.skills.error({ err }, 'Failed to read a skill');
@@ -520,16 +572,21 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
 router.post('/:id/versions', authenticateToken, async (req: Request, res: Response) => {
   if (!req.user?.id) return fail(res, 401, 'Unauthorized', 'unauthorized');
   const parsed = authoredBody.safeParse(req.body);
-  if (!parsed.success) return fail(res, 400, parsed.error.issues[0]?.message ?? 'Invalid skill', 'invalid_skill');
+  if (!parsed.success)
+    return fail(res, 400, parsed.error.issues[0]?.message ?? 'Invalid skill', 'invalid_skill');
 
   const skill = await findSkillById(getDb(), param(req, 'id'));
-  if (!skill || skill.ownerOxyUserId !== req.user.id) return fail(res, 404, 'Skill not found', 'skill_not_found');
+  if (!skill || skill.ownerOxyUserId !== req.user.id)
+    return fail(res, 404, 'Skill not found', 'skill_not_found');
 
   try {
-    const bundle = buildSkillBundle([{ path: 'SKILL.md', content: Buffer.from(documentFrom(parsed.data)) }], {
-      authored: true,
-      directoryName: skill.name,
-    });
+    const bundle = buildSkillBundle(
+      [{ path: 'SKILL.md', content: Buffer.from(documentFrom(parsed.data)) }],
+      {
+        authored: true,
+        directoryName: skill.name,
+      },
+    );
     if (bundle.document.frontmatter.name !== skill.name) {
       return fail(res, 400, 'A new version cannot rename the skill', 'name_immutable');
     }
@@ -538,7 +595,9 @@ router.post('/:id/versions', authenticateToken, async (req: Request, res: Respon
       ownerOxyUserId: req.user.id,
       createdByOxyUserId: req.user.id,
     });
-    res.status(201).json({ skill: result.skill, version: result.version, unchanged: result.unchanged });
+    res
+      .status(201)
+      .json({ skill: result.skill, version: result.version, unchanged: result.unchanged });
   } catch (err) {
     handleWriteError(res, err, 'add that version');
   }

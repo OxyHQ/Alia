@@ -34,40 +34,80 @@ async function agent() {
 describe('agent_oxy_app_permissions (migration 0083)', () => {
   it('keeps one level per agent and app, replaced in place', async () => {
     const created = await agent();
-    await upsertAgentOxyAppPermission(db, { agentId: created._id, appId: 'inbox', level: 'read', oxyGrantId: `g-${randomUUID()}` });
+    await upsertAgentOxyAppPermission(db, {
+      agentId: created._id,
+      appId: 'inbox',
+      level: 'read',
+      oxyGrantId: `g-${randomUUID()}`,
+    });
     const grantId = `g-${randomUUID()}`;
-    await upsertAgentOxyAppPermission(db, { agentId: created._id, appId: 'inbox', level: 'act', oxyGrantId: grantId });
-    await upsertAgentOxyAppPermission(db, { agentId: created._id, appId: 'mention', level: 'read', oxyGrantId: `g-${randomUUID()}` });
+    await upsertAgentOxyAppPermission(db, {
+      agentId: created._id,
+      appId: 'inbox',
+      level: 'act',
+      oxyGrantId: grantId,
+    });
+    await upsertAgentOxyAppPermission(db, {
+      agentId: created._id,
+      appId: 'mention',
+      level: 'read',
+      oxyGrantId: `g-${randomUUID()}`,
+    });
     const rows = await listAgentOxyAppPermissions(db, created._id);
     expect(rows.sort((a, b) => a.appId.localeCompare(b.appId))).toEqual([
       { agentId: created._id, appId: 'inbox', level: 'act', oxyGrantId: grantId },
       expect.objectContaining({ appId: 'mention', level: 'read' }),
     ]);
     await deleteAgentOxyAppPermission(db, created._id, 'inbox');
-    expect((await listAgentOxyAppPermissions(db, created._id)).map((row) => row.appId)).toEqual(['mention']);
+    expect((await listAgentOxyAppPermissions(db, created._id)).map((row) => row.appId)).toEqual([
+      'mention',
+    ]);
   });
 
   it('stores only Ver and Ver y actuar — Nada is the absence of a row', async () => {
     const created = await agent();
-    await expect(db.execute(sql`
+    await expect(
+      db.execute(sql`
       insert into agent_oxy_app_permissions (agent_id, app_id, level, oxy_grant_id)
       values (${created._id}, 'inbox', 'none', ${`g-${randomUUID()}`})
-    `)).rejects.toMatchObject({ cause: { code: '23514' } });
+    `),
+    ).rejects.toMatchObject({ cause: { code: '23514' } });
   });
 
   it('never lets two levels claim one Oxy grant', async () => {
     const first = await agent();
     const second = await agent();
     const grantId = `g-${randomUUID()}`;
-    await upsertAgentOxyAppPermission(db, { agentId: first._id, appId: 'inbox', level: 'read', oxyGrantId: grantId });
-    await expect(upsertAgentOxyAppPermission(db, { agentId: second._id, appId: 'inbox', level: 'read', oxyGrantId: grantId }))
-      .rejects.toMatchObject({ cause: { code: '23505' } });
+    await upsertAgentOxyAppPermission(db, {
+      agentId: first._id,
+      appId: 'inbox',
+      level: 'read',
+      oxyGrantId: grantId,
+    });
+    await expect(
+      upsertAgentOxyAppPermission(db, {
+        agentId: second._id,
+        appId: 'inbox',
+        level: 'read',
+        oxyGrantId: grantId,
+      }),
+    ).rejects.toMatchObject({ cause: { code: '23505' } });
   });
 
   it('goes with its agent', async () => {
     const created = await agent();
-    await upsertAgentOxyAppPermission(db, { agentId: created._id, appId: 'inbox', level: 'act', oxyGrantId: `g-${randomUUID()}` });
+    await upsertAgentOxyAppPermission(db, {
+      agentId: created._id,
+      appId: 'inbox',
+      level: 'act',
+      oxyGrantId: `g-${randomUUID()}`,
+    });
     await deleteAgent(db, created._id);
-    expect(await db.select().from(agentOxyAppPermissions).where(eq(agentOxyAppPermissions.agentId, created._id))).toEqual([]);
+    expect(
+      await db
+        .select()
+        .from(agentOxyAppPermissions)
+        .where(eq(agentOxyAppPermissions.agentId, created._id)),
+    ).toEqual([]);
   });
 });

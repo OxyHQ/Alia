@@ -17,7 +17,15 @@
  *   (`db/expiryTargets.ts`): a redelivery that late is not a thing Oxy does.
  */
 
-import { boolean, foreignKey, index, pgTable, text, unique, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  foreignKey,
+  index,
+  pgTable,
+  text,
+  unique,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import { agents } from './agents';
 import { checkOneOf } from './columns';
@@ -50,7 +58,13 @@ export const emailAlertPreferences = pgTable(
  * `failed` is a classifier or delivery error — never retried, because a second
  * look could only produce a late notification.
  */
-export const EMAIL_OUTREACH_VERDICTS = ['pending', 'important', 'not_important', 'skipped', 'failed'] as const;
+export const EMAIL_OUTREACH_VERDICTS = [
+  'pending',
+  'important',
+  'not_important',
+  'skipped',
+  'failed',
+] as const;
 export type EmailOutreachVerdict = (typeof EMAIL_OUTREACH_VERDICTS)[number];
 
 export const emailOutreachDecisions = pgTable(

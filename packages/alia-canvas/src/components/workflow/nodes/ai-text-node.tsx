@@ -1,9 +1,9 @@
-import { memo } from "react";
-import { BaseNode } from "./base-node";
-import { Sparkles } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import type { WorkflowNodeData } from "@/lib/workflow-types";
-import { labelForNode, useCatalogue } from "@/lib/catalogue";
+import { memo } from 'react';
+import { BaseNode } from './base-node';
+import { Sparkles } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import type { WorkflowNodeData } from '@/lib/workflow-types';
+import { labelForNode, useCatalogue } from '@/lib/catalogue';
 
 interface AITextNodeProps {
   id: string;
@@ -36,11 +36,11 @@ export const AITextNode = memo(function AITextNode({ id, data, selected }: AITex
         )}
 
         <div className="text-[10px] text-muted-foreground line-clamp-1">
-          {data.systemPrompt || "You are a technical documentation expert."}
+          {data.systemPrompt || 'You are a technical documentation expert.'}
         </div>
 
         <div className="text-[10px] text-foreground/80 line-clamp-3 p-1.5 bg-muted/50 rounded text-left">
-          {data.prompt || "Enter prompt..."}
+          {data.prompt || 'Enter prompt...'}
         </div>
 
         <div className="flex items-center gap-1.5 pt-0.5">

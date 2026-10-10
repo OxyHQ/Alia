@@ -39,7 +39,8 @@ function* eventsFromChunk(value: unknown, shape: () => AliaChunkShape): Generato
     yield {
       type: 'error',
       code: asStringOrNull(error.code),
-      message: typeof error.message === 'string' ? error.message : 'Alia ended the stream with an error.',
+      message:
+        typeof error.message === 'string' ? error.message : 'Alia ended the stream with an error.',
       errorType: asStringOrNull(error.type),
       param: asStringOrNull(error.param),
       ...failureDetailOf(error),
@@ -59,14 +60,19 @@ function* eventsFromChunk(value: unknown, shape: () => AliaChunkShape): Generato
     const delta = rawChoice.delta;
 
     if (delta.content !== undefined && delta.content !== null) {
-      if (typeof delta.content !== 'string') throw new AliaStreamError('content_not_string', shape());
+      if (typeof delta.content !== 'string')
+        throw new AliaStreamError('content_not_string', shape());
       yield { type: 'text', text: delta.content, ...(meta === undefined ? {} : { meta }) };
     }
     if (typeof delta.reasoning === 'string' && delta.reasoning !== '') {
       yield { type: 'reasoning', text: delta.reasoning };
     }
     if (typeof rawChoice.finish_reason === 'string') {
-      yield { type: 'finish', reason: rawChoice.finish_reason, ...(meta === undefined ? {} : { meta }) };
+      yield {
+        type: 'finish',
+        reason: rawChoice.finish_reason,
+        ...(meta === undefined ? {} : { meta }),
+      };
     }
   }
 }

@@ -88,7 +88,12 @@ export async function detectCreditAnomaly(userId: string): Promise<CreditWarning
   if (dailySpending.length === 0) {
     const daysRemaining = calculateDaysRemaining(todaySpend, userCredits);
     if (daysRemaining <= 1) {
-      const result: CreditWarning = { level: 'critical', daysRemaining, todaySpend, avgDailySpend: 0 };
+      const result: CreditWarning = {
+        level: 'critical',
+        daysRemaining,
+        todaySpend,
+        avgDailySpend: 0,
+      };
       anomalyCache.set(userId, { result, expiresAt: Date.now() + ANOMALY_CACHE_TTL_MS });
       return result;
     }
@@ -118,7 +123,12 @@ export async function detectCreditAnomaly(userId: string): Promise<CreditWarning
   }
 
   const daysRemaining = calculateDaysRemaining(todaySpend, userCredits);
-  const result: CreditWarning = { level, daysRemaining, todaySpend, avgDailySpend: Math.round(avgDailySpend) };
+  const result: CreditWarning = {
+    level,
+    daysRemaining,
+    todaySpend,
+    avgDailySpend: Math.round(avgDailySpend),
+  };
   anomalyCache.set(userId, { result, expiresAt: Date.now() + ANOMALY_CACHE_TTL_MS });
   return result;
 }

@@ -36,8 +36,10 @@ export function authenticateChannelBot(channelType: ChannelId) {
     const expectedBuffer = Buffer.from(expectedSecret);
     const providedBuffer = Buffer.from(botSecret);
 
-    if (expectedBuffer.length !== providedBuffer.length ||
-        !crypto.timingSafeEqual(expectedBuffer, providedBuffer)) {
+    if (
+      expectedBuffer.length !== providedBuffer.length ||
+      !crypto.timingSafeEqual(expectedBuffer, providedBuffer)
+    ) {
       res.status(401).json({ error: 'Invalid bot authentication' });
       return;
     }

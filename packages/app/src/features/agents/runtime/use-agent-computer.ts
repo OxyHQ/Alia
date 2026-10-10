@@ -38,7 +38,9 @@ export const agentComputerKey = (agentId: string) => ['agent-computer', agentId]
 export function useAppActive(): boolean {
   const [active, setActive] = useState(AppState.currentState !== 'background');
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (next) => setActive(next === 'active'));
+    const subscription = AppState.addEventListener('change', (next) =>
+      setActive(next === 'active'),
+    );
     return () => subscription.remove();
   }, []);
   return active;
@@ -48,7 +50,8 @@ export function useAgentComputer(agentId: string, live: boolean) {
   const { isAuthenticated } = useOxy();
   return useQuery({
     queryKey: agentComputerKey(agentId),
-    queryFn: async () => (await apiClient.get<AgentComputer>(API_ROUTES.agents.computer(agentId))).data,
+    queryFn: async () =>
+      (await apiClient.get<AgentComputer>(API_ROUTES.agents.computer(agentId))).data,
     enabled: isAuthenticated && Boolean(agentId),
     refetchInterval: live ? STATUS_POLL_MS : false,
     retry: false,
@@ -58,7 +61,8 @@ export function useAgentComputer(agentId: string, live: boolean) {
 export function useBrowserScreenshot(agentId: string, live: boolean) {
   return useQuery({
     queryKey: [...agentComputerKey(agentId), 'screenshot'],
-    queryFn: async () => (await apiClient.get<BrowserScreenshot>(API_ROUTES.agents.computerScreenshot(agentId))).data,
+    queryFn: async () =>
+      (await apiClient.get<BrowserScreenshot>(API_ROUTES.agents.computerScreenshot(agentId))).data,
     enabled: live,
     refetchInterval: live ? SCREENSHOT_POLL_MS : false,
     // The last frame stays on screen while the next one loads.
@@ -72,7 +76,8 @@ export function useComputerReceipts(agentId: string, live: boolean) {
   const { isAuthenticated } = useOxy();
   return useQuery({
     queryKey: [...agentComputerKey(agentId), 'receipts'],
-    queryFn: async () => (await apiClient.get<ComputerReceipts>(API_ROUTES.agents.computerReceipts(agentId))).data,
+    queryFn: async () =>
+      (await apiClient.get<ComputerReceipts>(API_ROUTES.agents.computerReceipts(agentId))).data,
     enabled: isAuthenticated && Boolean(agentId),
     refetchInterval: live ? 10_000 : false,
     retry: false,
@@ -83,7 +88,8 @@ export function useComputerReceipts(agentId: string, live: boolean) {
 export function useWorkspaceFiles(agentId: string, path: string, enabled: boolean) {
   return useQuery({
     queryKey: [...agentComputerKey(agentId), 'files', path],
-    queryFn: async () => (await apiClient.get<WorkspaceListing>(API_ROUTES.agents.computerFiles(agentId, path))).data,
+    queryFn: async () =>
+      (await apiClient.get<WorkspaceListing>(API_ROUTES.agents.computerFiles(agentId, path))).data,
     enabled,
     retry: false,
   });
@@ -100,35 +106,64 @@ export function useComputerActions(agentId: string) {
 
   const input = useMutation({
     mutationFn: async (value: BrowserInput) =>
-      (await apiClient.post<BrowserStatus>(API_ROUTES.agents.computerBrowserInput(agentId), { input: value }, { timeout: ACTION_TIMEOUT_MS })).data,
+      (
+        await apiClient.post<BrowserStatus>(
+          API_ROUTES.agents.computerBrowserInput(agentId),
+          { input: value },
+          { timeout: ACTION_TIMEOUT_MS },
+        )
+      ).data,
     onSuccess: writeBrowser,
-    onSettled: () => queryClient.invalidateQueries({ queryKey: [...agentComputerKey(agentId), 'screenshot'] }),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: [...agentComputerKey(agentId), 'screenshot'] }),
   });
 
   const control = useMutation({
     mutationFn: async (controller: BrowserController) =>
-      (await apiClient.post<BrowserStatus>(API_ROUTES.agents.computerBrowserControl(agentId), { controller }, { timeout: ACTION_TIMEOUT_MS })).data,
+      (
+        await apiClient.post<BrowserStatus>(
+          API_ROUTES.agents.computerBrowserControl(agentId),
+          { controller },
+          { timeout: ACTION_TIMEOUT_MS },
+        )
+      ).data,
     onSuccess: writeBrowser,
     onSettled: refresh,
   });
 
   const navigate = useMutation({
     mutationFn: async (url: string) =>
-      (await apiClient.post<BrowserStatus>(API_ROUTES.agents.computerBrowserNavigate(agentId), { url }, { timeout: ACTION_TIMEOUT_MS })).data,
+      (
+        await apiClient.post<BrowserStatus>(
+          API_ROUTES.agents.computerBrowserNavigate(agentId),
+          { url },
+          { timeout: ACTION_TIMEOUT_MS },
+        )
+      ).data,
     onSuccess: writeBrowser,
     onSettled: refresh,
   });
 
   const open = useMutation({
     mutationFn: async (url?: string) =>
-      (await apiClient.post<BrowserStatus>(API_ROUTES.agents.computerBrowserOpen(agentId), url ? { url } : {}, { timeout: ACTION_TIMEOUT_MS })).data,
+      (
+        await apiClient.post<BrowserStatus>(
+          API_ROUTES.agents.computerBrowserOpen(agentId),
+          url ? { url } : {},
+          { timeout: ACTION_TIMEOUT_MS },
+        )
+      ).data,
     onSuccess: writeBrowser,
     onSettled: refresh,
   });
 
   const start = useMutation({
     mutationFn: async () => {
-      await apiClient.post(API_ROUTES.agents.computerStart(agentId), {}, { timeout: ACTION_TIMEOUT_MS });
+      await apiClient.post(
+        API_ROUTES.agents.computerStart(agentId),
+        {},
+        { timeout: ACTION_TIMEOUT_MS },
+      );
     },
     onSettled: refresh,
   });

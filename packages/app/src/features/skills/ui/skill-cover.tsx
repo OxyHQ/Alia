@@ -1,16 +1,16 @@
-import React, { Suspense, useMemo } from "react";
-import { View, Text, StyleSheet, Platform } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { useColorScheme } from "@/shared/platform/useColorScheme";
-import SkillCoverStaticGrid from "./skill-cover-static";
+import React, { Suspense, useMemo } from 'react';
+import { View, Text, StyleSheet, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useColorScheme } from '@/shared/platform/useColorScheme';
+import SkillCoverStaticGrid from './skill-cover-static';
 import {
   GRID_SIZE,
   hashSeed,
   generatePalette,
   generateGrid,
   computeCellColor,
-} from "./skill-cover-palette";
-import type { SkillCoverCanvasProps } from "./skill-cover-palette";
+} from './skill-cover-palette';
+import type { SkillCoverCanvasProps } from './skill-cover-palette';
 
 /**
  * A skill's cover: a deterministic grid of colour seeded by its name, with the
@@ -39,7 +39,7 @@ import type { SkillCoverCanvasProps } from "./skill-cover-palette";
 // Native-only: on web this is never fetched, so the web bundle carries no
 // animated cover at all. The module is resolved lazily so the static path's
 // import graph stays free of it too.
-const LazyAnimatedCanvas = React.lazy(() => import("./skill-cover-animated"));
+const LazyAnimatedCanvas = React.lazy(() => import('./skill-cover-animated'));
 
 /**
  * A boundary whose whole job is to keep a cover on screen. If the animated
@@ -63,10 +63,10 @@ class CoverErrorBoundary extends React.Component<
 }
 
 function formatShortDate(dateStr?: string): string {
-  if (!dateStr) return "";
+  if (!dateStr) return '';
   const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return "";
-  return d.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
 }
 
 export interface SkillCoverProps {
@@ -119,8 +119,8 @@ export function SkillCover({
     const r = Math.round(255 * f(0));
     const g = Math.round(255 * f(8));
     const b = Math.round(255 * f(4));
-    const hex = (v: number) => v.toString(16).padStart(2, "0");
-    return "#" + hex(r) + hex(g) + hex(b);
+    const hex = (v: number) => v.toString(16).padStart(2, '0');
+    return '#' + hex(r) + hex(g) + hex(b);
   }, [palette, lightMode]);
 
   const staticColors = useMemo(
@@ -147,7 +147,7 @@ export function SkillCover({
   const staticGrid = <SkillCoverStaticGrid {...canvasProps} />;
   // Web is excluded HERE, before any import, so the animated module is not
   // even requested from the web bundle.
-  const wantsMotion = animated && Platform.OS !== "web";
+  const wantsMotion = animated && Platform.OS !== 'web';
 
   // Scale font sizes relative to width
   const titleSize = Math.round(width * 0.17);
@@ -161,7 +161,7 @@ export function SkillCover({
         width,
         height,
         borderRadius: 4,
-        overflow: "hidden",
+        overflow: 'hidden',
       }}
     >
       {wantsMotion ? (
@@ -178,22 +178,22 @@ export function SkillCover({
       {(title || author || updatedAt) && (
         <View
           style={{
-            position: "absolute",
+            position: 'absolute',
             bottom: 2,
             left: 2,
             right: 2,
             height: height - 3 * (height / rows) - 2,
             borderBottomLeftRadius: 2,
             borderBottomRightRadius: 2,
-            overflow: "hidden",
+            overflow: 'hidden',
           }}
           pointerEvents="none"
         >
           <LinearGradient
             colors={[
-              "transparent",
-              isDarkColorScheme ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.55)",
-              isDarkColorScheme ? "rgba(0,0,0,0.85)" : "rgba(255,255,255,0.85)",
+              'transparent',
+              isDarkColorScheme ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.55)',
+              isDarkColorScheme ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.85)',
             ]}
             locations={[0, 0.35, 1]}
             style={StyleSheet.absoluteFill}
@@ -201,7 +201,7 @@ export function SkillCover({
           <View
             style={{
               flex: 1,
-              justifyContent: "space-between",
+              justifyContent: 'space-between',
               padding: width * 0.07,
             }}
           >
@@ -209,22 +209,24 @@ export function SkillCover({
               <Text
                 numberOfLines={3}
                 style={{
-                  color: isDarkColorScheme ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.9)",
+                  color: isDarkColorScheme ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.9)',
                   fontSize: titleSize,
-                  fontWeight: "900",
+                  fontWeight: '900',
                   lineHeight: titleSize * 1.15,
                 }}
               >
                 {title}
               </Text>
-            ) : <View />}
+            ) : (
+              <View />
+            )}
             {(author || updatedAt) && (
               <View>
                 {author && (
                   <Text
                     numberOfLines={1}
                     style={{
-                      color: isDarkColorScheme ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)",
+                      color: isDarkColorScheme ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)',
                       fontSize: metaSize,
                     }}
                   >
@@ -235,7 +237,7 @@ export function SkillCover({
                   <Text
                     numberOfLines={1}
                     style={{
-                      color: isDarkColorScheme ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.35)",
+                      color: isDarkColorScheme ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)',
                       fontSize: metaSize,
                     }}
                   >

@@ -113,7 +113,7 @@ export async function getValidToken(userId: string, service: string): Promise<st
  */
 async function refreshAndPersist(integration: IntegrationTokenRow): Promise<string> {
   const db = getDb();
-  const entry = INTEGRATION_REGISTRY.find(e => e.service === integration.service);
+  const entry = INTEGRATION_REGISTRY.find((e) => e.service === integration.service);
   if (!entry) {
     throw new Error(`Unknown service: ${integration.service}`);
   }
@@ -138,7 +138,8 @@ async function refreshAndPersist(integration: IntegrationTokenRow): Promise<stri
   };
 
   if (authMethod === 'basic') {
-    headers['Authorization'] = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
+    headers['Authorization'] =
+      `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
   } else {
     bodyParams.client_id = clientId;
     bodyParams.client_secret = clientSecret;
@@ -157,7 +158,11 @@ async function refreshAndPersist(integration: IntegrationTokenRow): Promise<stri
     if (!response.ok || !data.access_token) {
       // Log only error fields — never log token values
       log.general.error(
-        { error: data.error, errorDescription: data.error_description, service: integration.service },
+        {
+          error: data.error,
+          errorDescription: data.error_description,
+          service: integration.service,
+        },
         'Token refresh failed',
       );
       await setIntegrationStatus(db, integration.id, 'expired');

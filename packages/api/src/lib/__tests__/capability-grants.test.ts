@@ -64,7 +64,11 @@ const asked = vi.hoisted(() => ({
   mcp: [] as (readonly string[] | undefined)[],
   integration: [] as (readonly string[] | undefined)[],
   oxy_service: [] as (readonly string[] | undefined)[],
-  oxy_context: [] as Array<{ requesterAccountId?: string; ownerAccountId?: string; actor?: unknown }>,
+  oxy_context: [] as Array<{
+    requesterAccountId?: string;
+    ownerAccountId?: string;
+    actor?: unknown;
+  }>,
   agent: [] as (readonly string[] | undefined)[],
 }));
 
@@ -96,14 +100,20 @@ vi.mock('../tools/integrations.js', () => ({
   }),
 }));
 vi.mock('../tools/oxy-services.js', () => ({
-  buildOxyServiceTools: vi.fn(async (_userId: string, context: { requesterAccountId?: string; ownerAccountId?: string; actor?: unknown }, ids?: readonly string[]) => {
-    asked.oxy_service.push(ids);
-    asked.oxy_context.push(context);
-    // Oxy grants now live in Oxy, outside this Alia-owned vocabulary. This
-    // suite proves local grants cannot widen them; oxy-services.test.ts covers
-    // the central capability map and ticket path.
-    return {};
-  }),
+  buildOxyServiceTools: vi.fn(
+    async (
+      _userId: string,
+      context: { requesterAccountId?: string; ownerAccountId?: string; actor?: unknown },
+      ids?: readonly string[],
+    ) => {
+      asked.oxy_service.push(ids);
+      asked.oxy_context.push(context);
+      // Oxy grants now live in Oxy, outside this Alia-owned vocabulary. This
+      // suite proves local grants cannot widen them; oxy-services.test.ts covers
+      // the central capability map and ticket path.
+      return {};
+    },
+  ),
 }));
 
 /**
@@ -116,24 +126,26 @@ vi.mock('../tools/oxy-services.js', () => ({
  * is `tools/__tests__/ask-agent.test.ts`, against the real builder.
  */
 vi.mock('../tools/ask-agent.js', () => ({
-  buildAskAgentTool: vi.fn(
-    async (_userId: string, selection: readonly string[] | undefined) => {
-      asked.agent.push(selection);
-      if (selection !== undefined && selection.length === 0) return {};
-      return { askAgent: { description: 'ask' } };
-    },
-  ),
+  buildAskAgentTool: vi.fn(async (_userId: string, selection: readonly string[] | undefined) => {
+    asked.agent.push(selection);
+    if (selection !== undefined && selection.length === 0) return {};
+    return { askAgent: { description: 'ask' } };
+  }),
 }));
 
 vi.mock('../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child } };
+  return {
+    log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child },
+  };
 });
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
 
 const { ToolPipeline } = await import('../tool-pipeline.js');
 const { buildAskAgentTool } = await import('../tools/ask-agent.js');
-const { GRANTS_EVERYTHING, readCapabilityGrants } = await import('../../domain/capability-grants.js');
+const { GRANTS_EVERYTHING, readCapabilityGrants } = await import(
+  '../../domain/capability-grants.js'
+);
 
 /**
  * An agent carrying exactly these grants, and nothing else this test reads.
@@ -152,9 +164,7 @@ function agentWith(
     _id: 'caller-agent',
     oxyAccountId: 'bot-account-1',
     ownerOxyAccountId: author,
-  } as NonNullable<
-    Parameters<typeof ToolPipeline.forUser>[0]['agent']
-  >;
+  } as NonNullable<Parameters<typeof ToolPipeline.forUser>[0]['agent']>;
 }
 
 /**
@@ -177,8 +187,12 @@ async function namesFor(
     toolsEnabled: true,
     webSearch: true,
     isLocalRuntime: false,
-    sseEmitter: { emit: vi.fn() } as unknown as Parameters<typeof ToolPipeline.forUser>[0]['sseEmitter'],
-    deviceInfo: { platform: 'web' } as unknown as Parameters<typeof ToolPipeline.forUser>[0]['deviceInfo'],
+    sseEmitter: { emit: vi.fn() } as unknown as Parameters<
+      typeof ToolPipeline.forUser
+    >[0]['sseEmitter'],
+    deviceInfo: { platform: 'web' } as unknown as Parameters<
+      typeof ToolPipeline.forUser
+    >[0]['deviceInfo'],
     runtime: runtimeDouble(),
     agent: grants === null ? null : agentWith(grants),
     ...over,
@@ -198,7 +212,11 @@ function runtimeDouble(): Parameters<typeof ToolPipeline.forUser>[0]['runtime'] 
     session: { _id: 's1', agentId: 'a1', oxyUserId: 'user-1' },
     onComplete: () => undefined,
     onHireAgent: async () => 'done',
-    todoManager: { update: () => undefined, toJSON: () => ({ items: [] }), serialize: () => 'plan' },
+    todoManager: {
+      update: () => undefined,
+      toJSON: () => ({ items: [] }),
+      serialize: () => 'plan',
+    },
     browserSession: { execute: async () => '' },
     // `computer` is structurally conditional on a configured host, exactly as
     // `delegate` is on `onHireAgent`: without one here the family would build
@@ -233,7 +251,10 @@ beforeEach(() => {
 
 describe('an agent reaches exactly what it was granted', () => {
   it('withholds automation creation when there is no live user session', async () => {
-    const names = await namesFor(['automation'], { isDirectSession: false, accessToken: undefined });
+    const names = await namesFor(['automation'], {
+      isDirectSession: false,
+      accessToken: undefined,
+    });
 
     expect(names).not.toContain('createAutomation');
     expect(names).not.toContain('listTriggers');
@@ -276,9 +297,12 @@ describe('an agent reaches exactly what it was granted', () => {
     expect(asked.oxy_context).toEqual([]);
   });
 
-  it('reaches its owner\'s Oxy apps only when the owner is the one present', async () => {
+  it("reaches its owner's Oxy apps only when the owner is the one present", async () => {
     // A public agent answering somebody else: the turn is the stranger's.
-    await namesFor([...EVERY_GRANT], { userId: 'stranger', agent: agentWith([...EVERY_GRANT], 'owner-1') });
+    await namesFor([...EVERY_GRANT], {
+      userId: 'stranger',
+      agent: agentWith([...EVERY_GRANT], 'owner-1'),
+    });
     // A stranger on the agent's bot, where the turn runs as the owner.
     await namesFor([...EVERY_GRANT], {
       userId: 'owner-1',
@@ -360,22 +384,25 @@ describe('an agent reaches exactly what it was granted', () => {
     expect(names).toEqual([...UNGRANTED_TOOLS].sort());
   });
 
-  it.each(FIXED_CAPABILITY_FAMILIES)('adds exactly the %s family and nothing else', async (family) => {
-    const base = await namesFor([]);
-    const granted = await namesFor([family]);
-    const added = granted.filter((name) => !base.includes(name)).sort();
+  it.each(FIXED_CAPABILITY_FAMILIES)(
+    'adds exactly the %s family and nothing else',
+    async (family) => {
+      const base = await namesFor([]);
+      const granted = await namesFor([family]);
+      const added = granted.filter((name) => !base.includes(name)).sort();
 
-    /**
-     * THE POSITIVE CONTROL. A grant that reaches nothing produces an empty
-     * difference, and that is precisely what `capabilities` did for its whole
-     * life — so this assertion, and not the equality below, is what says the
-     * vocabulary is connected to the assembler at all.
-     */
-    expect(added.length, `granting "${family}" changed nothing`).toBeGreaterThan(0);
-    expect(added).toEqual([...FIXED_FAMILY_TOOLS[family]].sort());
-    // And it took nothing away: a grant only ever adds.
-    expect(base.every((name) => granted.includes(name))).toBe(true);
-  });
+      /**
+       * THE POSITIVE CONTROL. A grant that reaches nothing produces an empty
+       * difference, and that is precisely what `capabilities` did for its whole
+       * life — so this assertion, and not the equality below, is what says the
+       * vocabulary is connected to the assembler at all.
+       */
+      expect(added.length, `granting "${family}" changed nothing`).toBeGreaterThan(0);
+      expect(added).toEqual([...FIXED_FAMILY_TOOLS[family]].sort());
+      // And it took nothing away: a grant only ever adds.
+      expect(base.every((name) => granted.includes(name))).toBe(true);
+    },
+  );
 
   it.each(INSTANCED_CAPABILITY_FAMILIES)(
     'adds only the named row of the %s family',
@@ -403,7 +430,9 @@ describe('an agent reaches exactly what it was granted', () => {
     // is what production has until ALIA_COMPUTER_HOST_URL is set — so turning
     // the switch on there must add nothing rather than seven failing tools.
     const base = await namesFor([]);
-    const granted = await namesFor(['computer'], { runtime: { ...runtimeDouble()!, computer: null } });
+    const granted = await namesFor(['computer'], {
+      runtime: { ...runtimeDouble()!, computer: null },
+    });
     expect(granted).toEqual(base);
   });
 
@@ -554,7 +583,7 @@ describe('the composer selection and the grants are intersected, never substitut
   });
 });
 
-describe('the `agent` family: the owner\'s own agents, and what a bare grant means', () => {
+describe("the `agent` family: the owner's own agents, and what a bare grant means", () => {
   it('asks for EVERY active agent when the grant names none, where a bare `mcp` asks for nothing', async () => {
     /**
      * The one instanced family whose bare grant is a decision rather than a

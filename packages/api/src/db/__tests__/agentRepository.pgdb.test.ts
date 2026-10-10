@@ -118,7 +118,10 @@ describe('capability grants round-trip, and an unmentioned agent is granted NOTH
   });
 
   it('replaces the whole list on update rather than merging into it', async () => {
-    const created = await createAgent(db, { ...newAgentInput(), capabilityGrants: ['web', 'shell'] });
+    const created = await createAgent(db, {
+      ...newAgentInput(),
+      capabilityGrants: ['web', 'shell'],
+    });
 
     const updated = await updateAgent(db, created._id, { capabilityGrants: ['web'] });
 
@@ -298,7 +301,7 @@ describe('concurrent replaces serialize on the parent row', () => {
    * Mutation proof: deleting the `.for('update')` in `lockAgent` leaves both
    * skill ids present and this red.
    */
-  it('leaves the LAST writer\'s list, not the union', async () => {
+  it("leaves the LAST writer's list, not the union", async () => {
     const first = await seedSkill();
     const second = await seedSkill();
     const preexisting = await seedSkill();
@@ -316,7 +319,10 @@ describe('concurrent replaces serialize on the parent row', () => {
     let holderPid = 0;
 
     const a = db.transaction(async (tx) => {
-      const [{ pid }] = await tx.select({ pid: sql<number>`pg_backend_pid()` }).from(agents).limit(1);
+      const [{ pid }] = await tx
+        .select({ pid: sql<number>`pg_backend_pid()` })
+        .from(agents)
+        .limit(1);
       holderPid = pid;
       await replaceAgentSkills(tx, created._id, [first]);
       await aHasLock; // hold the row lock open
@@ -384,7 +390,7 @@ describe('counters and the catalogue', () => {
     expect(found.agents.map((a) => a._id)).toContain(created._id);
   });
 
-  it('search escapes ILIKE metacharacters rather than a regex\'s', async () => {
+  it("search escapes ILIKE metacharacters rather than a regex's", async () => {
     // A literal '%' must match itself, not "anything". Escaping for the wrong
     // language is how a search silently starts matching everything.
     //
@@ -430,14 +436,20 @@ describe('counters and the catalogue', () => {
 
   it('orders equivalent coordinator candidates deterministically by id', async () => {
     const token = `coord${Math.random().toString(36).slice(2, 8)}`;
-    const first = await createAgent(db, newAgentInput({
-      tagline: token,
-      isPublished: true,
-    }));
-    const second = await createAgent(db, newAgentInput({
-      tagline: token,
-      isPublished: true,
-    }));
+    const first = await createAgent(
+      db,
+      newAgentInput({
+        tagline: token,
+        isPublished: true,
+      }),
+    );
+    const second = await createAgent(
+      db,
+      newAgentInput({
+        tagline: token,
+        isPublished: true,
+      }),
+    );
 
     const found = await searchActiveAgents(db, token, 10);
 
@@ -543,7 +555,6 @@ describe('cascade behaviour that arrives WITH the switch', () => {
     expect(k).toBe(0);
   });
 });
-
 
 /**
  * `listAgentsByAuthor` ORDERS the sidebar, and the order is the point.
@@ -652,7 +663,7 @@ describe('the order the sidebar draws its agents in', () => {
     ]);
   });
 
-  it('is ordered by the OWNER\'s thread, not by a stranger talking to the agent', async () => {
+  it("is ordered by the OWNER's thread, not by a stranger talking to the agent", async () => {
     const owner = `oxy-owner-scope-${Math.random().toString(36).slice(2, 10)}`;
     const mine = await createAgent(db, newAgentInput({ authorOxyUserId: owner }));
     await db.execute(
@@ -664,8 +675,11 @@ describe('the order the sidebar draws its agents in', () => {
     );
 
     // Somebody else's conversation, far newer than anything the owner has.
-    await stretch(`oxy-stranger-${Math.random().toString(36).slice(2, 10)}`, mine._id,
-      '2026-08-20T09:00:00Z');
+    await stretch(
+      `oxy-stranger-${Math.random().toString(36).slice(2, 10)}`,
+      mine._id,
+      '2026-08-20T09:00:00Z',
+    );
     await stretch(owner, other._id, '2026-08-01T09:00:00Z');
 
     const listed = await listAgentsByAuthor(db, owner);

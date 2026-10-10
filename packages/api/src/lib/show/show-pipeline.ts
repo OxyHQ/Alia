@@ -215,11 +215,7 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
    * redaction is absolute and an upstream error code names an operator as
    * surely as the operator's name would.
    */
-  const failRun = async (
-    error: string,
-    currentStep: string,
-    reason: string,
-  ): Promise<void> => {
+  const failRun = async (error: string, currentStep: string, reason: string): Promise<void> => {
     if (reservation && !settled) {
       await refundReservation(reservation).catch((err: unknown) =>
         log.general.error({ err, episodeId }, 'refundReservation failed on a failed show run'),
@@ -277,7 +273,11 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
     if (!reservation) {
       // Nothing was reserved, so there is nothing to give back — but Syra is
       // already holding a draft for an episode that will never be recorded.
-      await failRun('Insufficient credits', 'Out of credits', 'alia: out of credits before recording');
+      await failRun(
+        'Insufficient credits',
+        'Out of credits',
+        'alia: out of credits before recording',
+      );
       return;
     }
 
@@ -344,24 +344,36 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
       type: segment.type,
     }));
 
-    await applyUpdate({ status: 'generating_audio', segments, progress: 15, topic: subject, title });
+    await applyUpdate({
+      status: 'generating_audio',
+      segments,
+      progress: 15,
+      topic: subject,
+      title,
+    });
     emitProgress(episode, {
       status: 'generating_audio',
       progress: 15,
       currentStep: 'Recording...',
     });
 
-    const buffers = await renderSegments(episode, series.speakers, segments, segmentKeys, (done) => {
-      const progress = 15 + Math.round((done / segments.length) * 60);
-      void applyUpdate({ segments, progress });
-      emitProgress(episode, {
-        status: 'generating_audio',
-        progress,
-        currentStep: 'Recording...',
-        segmentIndex: done,
-        totalSegments: segments.length,
-      });
-    });
+    const buffers = await renderSegments(
+      episode,
+      series.speakers,
+      segments,
+      segmentKeys,
+      (done) => {
+        const progress = 15 + Math.round((done / segments.length) * 60);
+        void applyUpdate({ segments, progress });
+        emitProgress(episode, {
+          status: 'generating_audio',
+          progress,
+          currentStep: 'Recording...',
+          segmentIndex: done,
+          totalSegments: segments.length,
+        });
+      },
+    );
 
     if (buffers.length === 0) {
       await failRun(
@@ -704,7 +716,9 @@ function parseScript(
   const written: unknown = parsed.segments;
   if (!Array.isArray(written)) return null;
 
-  const segments: ShowScript['segments'] = (written as Array<Partial<ShowScript['segments'][number]>>)
+  const segments: ShowScript['segments'] = (
+    written as Array<Partial<ShowScript['segments'][number]>>
+  )
     .filter((segment) => segment?.type === 'dialogue')
     .map((segment) => ({
       type: 'dialogue',
@@ -758,7 +772,7 @@ async function renderSpeech(
   if (voice === undefined) {
     // The script parser already refuses a reply naming somebody outside the
     // cast, so reaching here means the cast changed under a queued episode.
-    log.general.warn({ speakerName }, 'Speaker is not in this series\' cast');
+    log.general.warn({ speakerName }, "Speaker is not in this series' cast");
     return null;
   }
 
@@ -771,6 +785,7 @@ async function renderSpeech(
     parts.push(synthesized.audio);
   }
   const [only] = parts;
-  const buffer = parts.length === 1 && only !== undefined ? only : await concatenateAudioSegments(parts);
+  const buffer =
+    parts.length === 1 && only !== undefined ? only : await concatenateAudioSegments(parts);
   return { buffer, format: 'mp3' };
 }

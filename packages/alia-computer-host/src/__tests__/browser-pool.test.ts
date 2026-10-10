@@ -58,12 +58,20 @@ describe('contexts', () => {
       serviceWorkers: 'block',
     });
     expect(String(browser.contexts[0]!.options.userAgent)).not.toContain('Headless');
-    expect(a).toMatchObject({ open: true, url: 'https://example.com/', controller: 'agent', pages: 1 });
+    expect(a).toMatchObject({
+      open: true,
+      url: 'https://example.com/',
+      controller: 'agent',
+      pages: 1,
+    });
   });
 
-  it('restores an actor\'s saved state and saves it back, owner-readable only', async () => {
+  it("restores an actor's saved state and saves it back, owner-readable only", async () => {
     mkdirSync(join(root, 'profiles', A), { recursive: true });
-    writeFileSync(join(root, 'profiles', A, 'state.json'), JSON.stringify({ cookies: [{ name: 'sid', value: '1' }], origins: [] }));
+    writeFileSync(
+      join(root, 'profiles', A, 'state.json'),
+      JSON.stringify({ cookies: [{ name: 'sid', value: '1' }], origins: [] }),
+    );
     await pool.open(A, undefined, 'agent');
     expect(browser.contexts[0]!.options.storageState).toBe(join(root, 'profiles', A, 'state.json'));
 
@@ -86,7 +94,10 @@ describe('contexts', () => {
     await pool.open(A, undefined, 'agent');
     clock += 1000;
     await pool.open(B, undefined, 'agent');
-    await expect(pool.open(C, undefined, 'agent')).rejects.toMatchObject({ code: 'browser_capacity', status: 503 });
+    await expect(pool.open(C, undefined, 'agent')).rejects.toMatchObject({
+      code: 'browser_capacity',
+      status: 503,
+    });
 
     clock += 61_000;
     await pool.open(B, undefined, 'agent'); // B is used again; A is now the oldest
@@ -110,7 +121,7 @@ describe('contexts', () => {
     expect((await pool.status(B)).open).toBe(false);
   });
 
-  it('closes idle contexts on sweep, then gives Chromium\'s memory back', async () => {
+  it("closes idle contexts on sweep, then gives Chromium's memory back", async () => {
     await pool.open(A, undefined, 'agent');
     clock += 9 * 60_000;
     expect(await pool.sweep()).toBe(0);
@@ -144,7 +155,9 @@ describe('contexts', () => {
   });
 
   it('refuses an actor key that is not a host hash', async () => {
-    await expect(pool.open('agent:x:user:y', undefined, 'agent')).rejects.toMatchObject({ code: 'invalid_actor' });
+    await expect(pool.open('agent:x:user:y', undefined, 'agent')).rejects.toMatchObject({
+      code: 'invalid_actor',
+    });
     await expect(pool.status('../etc')).rejects.toThrow(/Invalid actor key/);
   });
 });
@@ -153,7 +166,12 @@ describe('navigation', () => {
   it('refuses a private or metadata address before Chromium is asked', async () => {
     await pool.open(A, undefined, 'agent');
     const page = browser.contexts[0]!.pageList[0]!;
-    for (const url of ['http://169.254.169.254/latest/meta-data/', 'http://10.0.0.5/', 'file:///etc/passwd', 'https://example.com:8443/']) {
+    for (const url of [
+      'http://169.254.169.254/latest/meta-data/',
+      'http://10.0.0.5/',
+      'file:///etc/passwd',
+      'https://example.com:8443/',
+    ]) {
       await expect(pool.navigate(A, url, 'agent')).rejects.toMatchObject({ code: 'blocked_url' });
     }
     expect(page.gotos).toEqual([]);
@@ -163,7 +181,9 @@ describe('navigation', () => {
     await pool.open(A, undefined, 'agent');
     const page = browser.contexts[0]!.pageList[0]!;
     page.redirects.set('https://redirector.example/', 'http://192.168.1.1/admin');
-    await expect(pool.navigate(A, 'https://redirector.example/', 'agent')).rejects.toMatchObject({ code: 'blocked_url' });
+    await expect(pool.navigate(A, 'https://redirector.example/', 'agent')).rejects.toMatchObject({
+      code: 'blocked_url',
+    });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(page.gotos.at(-1)).toBe('about:blank');
   });
@@ -191,8 +211,13 @@ describe('owner control', () => {
     const page = browser.contexts[0]!.pageList[0]!;
     const taken = await pool.input(A, { type: 'click', x: 10, y: 20 }, 'owner');
     expect(taken.controller).toBe('owner');
-    await expect(pool.input(A, { type: 'type', text: 'x' }, 'agent')).rejects.toMatchObject({ code: 'owner_in_control', status: 409 });
-    await expect(pool.navigate(A, 'https://example.org/', 'agent')).rejects.toMatchObject({ code: 'owner_in_control' });
+    await expect(pool.input(A, { type: 'type', text: 'x' }, 'agent')).rejects.toMatchObject({
+      code: 'owner_in_control',
+      status: 409,
+    });
+    await expect(pool.navigate(A, 'https://example.org/', 'agent')).rejects.toMatchObject({
+      code: 'owner_in_control',
+    });
     // Looking is still allowed.
     await expect(pool.read(A)).resolves.toBeTruthy();
     await expect(pool.screenshot(A)).resolves.toBeInstanceOf(Buffer);

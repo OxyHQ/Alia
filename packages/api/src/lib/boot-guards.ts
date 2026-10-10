@@ -117,9 +117,12 @@ export function runBootGuards(deps: BootGuardDeps): void {
   // No gateway or provider credential may coexist with the Kaana-only runtime.
   assertDirectProviderModeOrExit(
     (failure) => {
-      deps.reportFatal('Kaana is the only hosted inference route — refusing direct provider configuration', {
-        failure,
-      });
+      deps.reportFatal(
+        'Kaana is the only hosted inference route — refusing direct provider configuration',
+        {
+          failure,
+        },
+      );
     },
     terminate,
     env,
@@ -128,6 +131,8 @@ export function runBootGuards(deps: BootGuardDeps): void {
 
   // Armed before the socket opens so every request inherits the deny policy.
   if (installProviderEgressBlock(env) !== null) {
-    deps.reportInfo('Provider egress policy armed — provider API hosts are unreachable from this process');
+    deps.reportInfo(
+      'Provider egress policy armed — provider API hosts are unreachable from this process',
+    );
   }
 }

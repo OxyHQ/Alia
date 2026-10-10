@@ -67,7 +67,9 @@ router.get('/', async (req: Request, res: Response) => {
 
     const rows = await listLibraryFiles(getDb(), userId, narrowed);
 
-    res.json({ files: rows.map((row) => withAddressableFile(req, userId, toLibraryFileResponse(row))) });
+    res.json({
+      files: rows.map((row) => withAddressableFile(req, userId, toLibraryFileResponse(row))),
+    });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error listing library files');
     res.status(500).json({ error: 'Failed to list files' });
@@ -120,12 +122,7 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
     }
 
     // Upload to S3
-    const url = await uploadToS3(
-      file.buffer,
-      file.originalname,
-      `library/${userId}`,
-      'file'
-    );
+    const url = await uploadToS3(file.buffer, file.originalname, `library/${userId}`, 'file');
 
     // Upload thumbnail for images
     let thumbnail: string | undefined;

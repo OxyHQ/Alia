@@ -16,10 +16,15 @@ export interface ContextUsage {
   memory: number;
   skills: number;
   messages: number;
-  mcpServers: Array<{ server: string; tokens: number; tools: Array<{ name: string; tokens: number }> }>;
+  mcpServers: Array<{
+    server: string;
+    tokens: number;
+    tools: Array<{ name: string; tokens: number }>;
+  }>;
 }
 
-const count = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0);
+const count = (value: unknown) =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
 
 /** The event's payload as a `ContextUsage`, or `null` when it is not one. */
 export function parseContextUsage(payload: unknown): ContextUsage | null {
@@ -35,12 +40,19 @@ export function parseContextUsage(payload: unknown): ContextUsage | null {
     skills: count(p.skills),
     messages: count(p.messages),
     mcpServers: servers
-      .filter((s): s is Record<string, unknown> => s !== null && typeof s === 'object' && typeof (s as { server?: unknown }).server === 'string')
+      .filter(
+        (s): s is Record<string, unknown> =>
+          s !== null &&
+          typeof s === 'object' &&
+          typeof (s as { server?: unknown }).server === 'string',
+      )
       .map((s) => ({
         server: String(s.server),
         tokens: count(s.tokens),
         tools: (Array.isArray(s.tools) ? s.tools : [])
-          .filter((tool): tool is Record<string, unknown> => tool !== null && typeof tool === 'object')
+          .filter(
+            (tool): tool is Record<string, unknown> => tool !== null && typeof tool === 'object',
+          )
           .map((tool) => ({ name: String(tool.name ?? ''), tokens: count(tool.tokens) })),
       })),
   };
@@ -51,7 +63,10 @@ export function parseContextUsage(payload: unknown): ContextUsage | null {
  * order a prompt is built, and the MCP servers as the expandable breakdown.
  * `undefined` without a window size — a bar needs something to be a share of.
  */
-export function contextCardProps(usage: ContextUsage | null | undefined, t: Translate): AgentLimitsContext | undefined {
+export function contextCardProps(
+  usage: ContextUsage | null | undefined,
+  t: Translate,
+): AgentLimitsContext | undefined {
   if (!usage || usage.max === null) return undefined;
   const segments = [
     { label: t('chat.bloom.context.system'), tokens: usage.system },

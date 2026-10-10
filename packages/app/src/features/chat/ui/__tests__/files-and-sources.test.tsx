@@ -19,10 +19,7 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     View: host('View'),
@@ -34,13 +31,24 @@ vi.mock('react-native', async () => {
   };
 });
 
-vi.mock('@oxy.so/bloom/accordion', async () => (await import('@/shared/testing/panel-bloom-stubs')).accordionModule());
-vi.mock('@oxy.so/bloom/item', async () => (await import('@/shared/testing/panel-bloom-stubs')).itemModule());
-vi.mock('@oxy.so/bloom/empty-state', async () => (await import('@/shared/testing/panel-bloom-stubs')).emptyStateModule());
-vi.mock('@oxy.so/bloom/theme', async () => (await import('@/shared/testing/panel-bloom-stubs')).themeModule());
-vi.mock('@oxy.so/bloom/icons/RiFileTextLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiFileTextLine'));
-vi.mock('@oxy.so/bloom/icons/RiGlobalLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiGlobalLine'));
-
+vi.mock('@oxy.so/bloom/accordion', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).accordionModule(),
+);
+vi.mock('@oxy.so/bloom/item', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).itemModule(),
+);
+vi.mock('@oxy.so/bloom/empty-state', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).emptyStateModule(),
+);
+vi.mock('@oxy.so/bloom/theme', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).themeModule(),
+);
+vi.mock('@oxy.so/bloom/icons/RiFileTextLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiFileTextLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiGlobalLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiGlobalLine'),
+);
 
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({
@@ -112,8 +120,7 @@ function text(r: ReactTestRenderer): string {
 
 const buttons = (r: ReactTestRenderer) =>
   r.root.findAll(
-    (node) =>
-      node.type === HOST_PRESSABLE && node.props.accessibilityRole === 'button',
+    (node) => node.type === HOST_PRESSABLE && node.props.accessibilityRole === 'button',
   );
 const labelled = (r: ReactTestRenderer, label: string) =>
   r.root.findAll(
@@ -163,15 +170,10 @@ describe('with outputs and sources', () => {
   it('opens a source where it points', () => {
     const onOpenSource = vi.fn();
     const r = render(
-      <FilesAndSources
-        outputs={outputs}
-        sources={sources}
-        onOpenSource={onOpenSource}
-      />,
+      <FilesAndSources outputs={outputs} sources={sources} onOpenSource={onOpenSource} />,
     );
     const second = buttons(r).find(
-      (b) =>
-        b.props.accessibilityLabel === 'thought.sourceLabel(n=2,title=Two)',
+      (b) => b.props.accessibilityLabel === 'thought.sourceLabel(n=2,title=Two)',
     );
     if (second === undefined) throw new Error('no source row');
     act(() => {
@@ -183,15 +185,9 @@ describe('with outputs and sources', () => {
 
   it('folds a section on its header and unfolds it again', () => {
     const r = render(
-      <FilesAndSources
-        outputs={outputs}
-        sources={sources}
-        onOpenSource={() => {}}
-      />,
+      <FilesAndSources outputs={outputs} sources={sources} onOpenSource={() => {}} />,
     );
-    const header = buttons(r).find(
-      (b) => b.props.accessibilityLabel === 'thought.outputs',
-    );
+    const header = buttons(r).find((b) => b.props.accessibilityLabel === 'thought.outputs');
     if (header === undefined) throw new Error('no header');
     expect(header.props.accessibilityState).toMatchObject({ expanded: true });
     act(() => {
@@ -210,9 +206,7 @@ describe('with outputs and sources', () => {
 
 describe('with nothing', () => {
   it('keeps both sections, each saying it is empty, and ships no add buttons', () => {
-    const r = render(
-      <FilesAndSources outputs={[]} sources={[]} onOpenSource={() => {}} />,
-    );
+    const r = render(<FilesAndSources outputs={[]} sources={[]} onOpenSource={() => {}} />);
     expect(text(r)).toContain('thought.outputs');
     expect(text(r)).toContain('thought.noOutputs');
     expect(text(r)).toContain('thought.sources');

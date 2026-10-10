@@ -10,8 +10,8 @@ export interface ChatHookContext {
 }
 
 export interface ChatHookResult {
-  messages?: any[];       // Modified messages (optional)
-  metadata?: Record<string, any>;  // Additional metadata to pass along
+  messages?: any[]; // Modified messages (optional)
+  metadata?: Record<string, any>; // Additional metadata to pass along
 }
 
 export interface AfterChatContext extends ChatHookContext {
@@ -53,7 +53,7 @@ export type AfterChatHook = (ctx: AfterChatContext) => Promise<void>;
 
 export interface ChatHook {
   name: string;
-  priority?: number;  // Lower number = runs first (default: 100)
+  priority?: number; // Lower number = runs first (default: 100)
   beforeChat?: BeforeChatHook;
   afterChat?: AfterChatHook;
 }

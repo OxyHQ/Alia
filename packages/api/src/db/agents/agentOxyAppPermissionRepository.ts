@@ -14,12 +14,15 @@ export async function listAgentOxyAppPermissions(
   db: ApiDatabase,
   agentId: string,
 ): Promise<AgentOxyAppPermission[]> {
-  return db.select({
-    agentId: agentOxyAppPermissions.agentId,
-    appId: agentOxyAppPermissions.appId,
-    level: agentOxyAppPermissions.level,
-    oxyGrantId: agentOxyAppPermissions.oxyGrantId,
-  }).from(agentOxyAppPermissions).where(eq(agentOxyAppPermissions.agentId, agentId));
+  return db
+    .select({
+      agentId: agentOxyAppPermissions.agentId,
+      appId: agentOxyAppPermissions.appId,
+      level: agentOxyAppPermissions.level,
+      oxyGrantId: agentOxyAppPermissions.oxyGrantId,
+    })
+    .from(agentOxyAppPermissions)
+    .where(eq(agentOxyAppPermissions.agentId, agentId));
 }
 
 /** Writes the level Oxy has just accepted; one row per agent and app. */
@@ -27,10 +30,13 @@ export async function upsertAgentOxyAppPermission(
   db: ApiDatabase,
   input: AgentOxyAppPermission,
 ): Promise<void> {
-  await db.insert(agentOxyAppPermissions).values(input).onConflictDoUpdate({
-    target: [agentOxyAppPermissions.agentId, agentOxyAppPermissions.appId],
-    set: { level: input.level, oxyGrantId: input.oxyGrantId, updatedAt: new Date() },
-  });
+  await db
+    .insert(agentOxyAppPermissions)
+    .values(input)
+    .onConflictDoUpdate({
+      target: [agentOxyAppPermissions.agentId, agentOxyAppPermissions.appId],
+      set: { level: input.level, oxyGrantId: input.oxyGrantId, updatedAt: new Date() },
+    });
 }
 
 export async function deleteAgentOxyAppPermission(
@@ -38,8 +44,9 @@ export async function deleteAgentOxyAppPermission(
   agentId: string,
   appId: string,
 ): Promise<void> {
-  await db.delete(agentOxyAppPermissions).where(and(
-    eq(agentOxyAppPermissions.agentId, agentId),
-    eq(agentOxyAppPermissions.appId, appId),
-  ));
+  await db
+    .delete(agentOxyAppPermissions)
+    .where(
+      and(eq(agentOxyAppPermissions.agentId, agentId), eq(agentOxyAppPermissions.appId, appId)),
+    );
 }

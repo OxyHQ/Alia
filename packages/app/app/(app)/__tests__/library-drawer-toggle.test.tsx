@@ -1,12 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import React from 'react';
-import {
-  act,
-  create,
-  type ReactTestInstance,
-  type ReactTestRenderer,
-} from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -43,10 +38,7 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     Platform: {
@@ -86,9 +78,7 @@ vi.mock('@shopify/flash-list', async () => {
         'FlashList',
         { refreshControl },
         ListHeaderComponent,
-        data.length === 0
-          ? ListEmptyComponent
-          : data.map((item) => renderItem({ item })),
+        data.length === 0 ? ListEmptyComponent : data.map((item) => renderItem({ item })),
       ),
   };
 });
@@ -96,8 +86,7 @@ vi.mock('@shopify/flash-list', async () => {
 vi.mock('@oxy.so/bloom/search', async () => {
   const ReactModule = await import('react');
   return {
-    Search: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Search', props),
+    Search: (props: Record<string, unknown>) => ReactModule.createElement('Search', props),
   };
 });
 vi.mock('@oxy.so/bloom/toast', () => ({
@@ -112,38 +101,28 @@ vi.mock('@oxy.so/bloom/chip', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return { Chip: host('Chip'), ChipRow: host('ChipRow') };
 });
 vi.mock('@oxy.so/bloom/empty-state', async () => {
   const ReactModule = await import('react');
   return {
-    EmptyState: (props: Record<string, unknown>) =>
-      ReactModule.createElement('EmptyState', props),
+    EmptyState: (props: Record<string, unknown>) => ReactModule.createElement('EmptyState', props),
   };
 });
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return { Text: host('Text'), Muted: host('Muted') };
 });
 vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
   return {
-    Button: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Button: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Button', props, children),
   };
 });
@@ -164,10 +143,7 @@ vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     DropdownMenu: host('MenuRoot'),
@@ -179,8 +155,7 @@ vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
 vi.mock('@/features/chat/ui/file-card', async () => {
   const ReactModule = await import('react');
   return {
-    FileCard: (props: Record<string, unknown>) =>
-      ReactModule.createElement('FileCard', props),
+    FileCard: (props: Record<string, unknown>) => ReactModule.createElement('FileCard', props),
   };
 });
 vi.mock('@/shared/platform/use-image-picker', () => ({
@@ -244,22 +219,15 @@ let renderer: ReactTestRenderer | null = null;
 async function renderLibrary(): Promise<ReactTestRenderer> {
   let next!: ReactTestRenderer;
   await act(async () => {
-    next = create(
-React.createElement(LibraryScreen)
-    );
+    next = create(React.createElement(LibraryScreen));
   });
   renderer = next;
   return next;
 }
 
 /** Host `Button` nodes carrying the given accessibility label. */
-function buttonsLabelled(
-  root: ReactTestInstance,
-  label: string,
-): ReactTestInstance[] {
-  return root.findAll(
-    (node) => isHost(node, 'Button') && node.props.accessibilityLabel === label,
-  );
+function buttonsLabelled(root: ReactTestInstance, label: string): ReactTestInstance[] {
+  return root.findAll((node) => isHost(node, 'Button') && node.props.accessibilityLabel === label);
 }
 
 afterEach(() => {
@@ -283,15 +251,10 @@ describe("the Library on the layout's surface", () => {
   it('draws no title of its own — the crumb says "Library"', async () => {
     const { root } = await renderLibrary();
 
-    expect(
-      root.findAll((node) => node.props.children === 'library.title'),
-    ).toHaveLength(0);
+    expect(root.findAll((node) => node.props.children === 'library.title')).toHaveLength(0);
     // Its one-line description stays, as Bloom's secondary text.
     expect(
-      root.findAll(
-        (node) =>
-          isHost(node, 'Muted') && node.props.children === 'library.subtitle',
-      ),
+      root.findAll((node) => isHost(node, 'Muted') && node.props.children === 'library.subtitle'),
     ).toHaveLength(1);
   });
 
@@ -413,10 +376,7 @@ describe('the labels are translated', () => {
       const messages = JSON.parse(
         readFileSync(
           fileURLToPath(
-            new URL(
-              `../../../src/shared/i18n/locales/${locale}.json`,
-              import.meta.url,
-            ),
+            new URL(`../../../src/shared/i18n/locales/${locale}.json`, import.meta.url),
           ),
           'utf8',
         ),
@@ -443,10 +403,7 @@ describe('the labels are translated', () => {
  */
 describe('the same opener on every top-level page', () => {
   const page = (name: string) =>
-    readFileSync(
-      fileURLToPath(new URL(`../${name}.tsx`, import.meta.url)),
-      'utf8',
-    );
+    readFileSync(fileURLToPath(new URL(`../${name}.tsx`, import.meta.url)), 'utf8');
 
   /**
    * Agents stands on the same container; only the opener is pinned here, the
@@ -490,7 +447,7 @@ describe('the same opener on every top-level page', () => {
    * button) as its header, and only the chat routes (which compose their own
    * container) are let through bare.
    */
-  it("wraps every non-chat route in the container whose header has the opener", () => {
+  it('wraps every non-chat route in the container whose header has the opener', () => {
     const layout = page('_layout');
     expect(layout).toContain('screenLayout={screenLayout}');
     expect(layout).toMatch(/<AiChatContainer[\s\S]*header=\{\s*<ShellPageHeader/);

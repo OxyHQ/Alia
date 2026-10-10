@@ -207,7 +207,7 @@ describe('a series', () => {
     expect(after?.title).toBe('The Wednesday Digest');
   });
 
-  it('lists an account its own series and nobody else\'s, newest first', async () => {
+  it("lists an account its own series and nobody else's, newest first", async () => {
     const mine = await seed(USER, 'syra-pod-mine');
     await seed(OTHER, 'syra-pod-theirs');
 

@@ -1,9 +1,9 @@
-import React from "react";
-import ArrowUp from "lucide-react-native/icons/arrow-up";
-import Square from "lucide-react-native/icons/square";
-import { cn } from "../../../lib/utils";
-import { Button } from "../button";
-import { usePromptInput } from "./context";
+import React from 'react';
+import ArrowUp from 'lucide-react-native/icons/arrow-up';
+import Square from 'lucide-react-native/icons/square';
+import { cn } from '../../../lib/utils';
+import { Button } from '../button';
+import { usePromptInput } from './context';
 
 export type PromptInputSubmitButtonProps = {
   isLoading?: boolean;
@@ -23,11 +23,7 @@ export function PromptInputSubmitButton({
 
   if (isLoading && onStop) {
     return (
-      <Button
-        size="icon"
-        onPress={onStop}
-        className={cn("h-8 w-8 rounded-full", className)}
-      >
+      <Button size="icon" onPress={onStop} className={cn('h-8 w-8 rounded-full', className)}>
         <Square size={12} color="white" className="fill-current" />
       </Button>
     );
@@ -42,7 +38,7 @@ export function PromptInputSubmitButton({
       size="icon"
       onPress={onSubmit}
       disabled={!hasContent}
-      className={cn("h-8 w-8 rounded-full", className)}
+      className={cn('h-8 w-8 rounded-full', className)}
     >
       <ArrowUp size={16} color="white" />
     </Button>

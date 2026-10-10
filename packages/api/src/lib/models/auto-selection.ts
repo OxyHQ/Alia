@@ -13,7 +13,12 @@
  * test can pin the rule rather than today's catalogue.
  */
 
-import { isChatUsable, isSpeechCapable, isStableRelease, type CatalogueModel } from './catalogue.js';
+import {
+  isChatUsable,
+  isSpeechCapable,
+  isStableRelease,
+  type CatalogueModel,
+} from './catalogue.js';
 
 /** Turns run on one model over the usage window. */
 export interface ModelUsage {
@@ -47,15 +52,22 @@ function byPriceThenId(a: CatalogueModel, b: CatalogueModel): number {
 
 /** Newest first; an undated model sorts after every dated one. */
 function byReleaseDesc(a: CatalogueModel, b: CatalogueModel): number {
-  const ta = a.releasedAt === null ? Number.NEGATIVE_INFINITY : Date.parse(a.releasedAt) || Number.NEGATIVE_INFINITY;
-  const tb = b.releasedAt === null ? Number.NEGATIVE_INFINITY : Date.parse(b.releasedAt) || Number.NEGATIVE_INFINITY;
+  const ta =
+    a.releasedAt === null
+      ? Number.NEGATIVE_INFINITY
+      : Date.parse(a.releasedAt) || Number.NEGATIVE_INFINITY;
+  const tb =
+    b.releasedAt === null
+      ? Number.NEGATIVE_INFINITY
+      : Date.parse(b.releasedAt) || Number.NEGATIVE_INFINITY;
   if (ta !== tb) return tb > ta ? 1 : -1;
   return a.id.localeCompare(b.id);
 }
 
 /** Descending by a per-publisher count. */
 function byPublisherCount(counts: ReadonlyMap<string, number>) {
-  return (a: CatalogueModel, b: CatalogueModel) => (counts.get(b.publisher.id) ?? 0) - (counts.get(a.publisher.id) ?? 0);
+  return (a: CatalogueModel, b: CatalogueModel) =>
+    (counts.get(b.publisher.id) ?? 0) - (counts.get(a.publisher.id) ?? 0);
 }
 
 /** The stable releases among `models`, or all of them when none is stable. */
@@ -90,16 +102,24 @@ export function selectFeatured(
   for (const model of models) {
     if (!isChatUsable(model)) continue;
     const publisher = model.publisher.id;
-    publisherTurns.set(publisher, (publisherTurns.get(publisher) ?? 0) + (turns.get(model.id) ?? 0));
+    publisherTurns.set(
+      publisher,
+      (publisherTurns.get(publisher) ?? 0) + (turns.get(model.id) ?? 0),
+    );
     publisherBreadth.set(publisher, (publisherBreadth.get(publisher) ?? 0) + 1);
     if (!isStableRelease(model)) continue;
     const current = newestByPublisher.get(publisher);
-    if (current === undefined || byReleaseDesc(model, current) < 0) newestByPublisher.set(publisher, model);
+    if (current === undefined || byReleaseDesc(model, current) < 0)
+      newestByPublisher.set(publisher, model);
   }
 
   return [...newestByPublisher.values()]
-    .sort((a, b) =>
-      byPublisherCount(publisherTurns)(a, b) || byPublisherCount(publisherBreadth)(a, b) || byReleaseDesc(a, b))
+    .sort(
+      (a, b) =>
+        byPublisherCount(publisherTurns)(a, b) ||
+        byPublisherCount(publisherBreadth)(a, b) ||
+        byReleaseDesc(a, b),
+    )
     .slice(0, Math.max(0, limit))
     .map((model) => model.id);
 }
@@ -124,7 +144,8 @@ export function selectDefaultModelId(input: {
 }): string | null {
   const chat = input.models.filter(isChatUsable);
   const byId = new Map(chat.map((model) => [model.id, model]));
-  if (input.lastUsedModelId != null && byId.has(input.lastUsedModelId)) return input.lastUsedModelId;
+  if (input.lastUsedModelId != null && byId.has(input.lastUsedModelId))
+    return input.lastUsedModelId;
 
   const featured = input.featuredIds.flatMap((id) => {
     const model = byId.get(id);

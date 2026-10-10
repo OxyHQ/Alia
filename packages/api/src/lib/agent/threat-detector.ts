@@ -61,9 +61,7 @@ export function analyzeThreat(toolName: string, args: Record<string, unknown>): 
   if (threats.length === 0) return EMPTY_RESULT;
 
   const maxSeverity = threats.reduce<ThreatSeverity>((max, t) => {
-    return SEVERITY_ORDER[t.pattern.severity] > SEVERITY_ORDER[max]
-      ? t.pattern.severity
-      : max;
+    return SEVERITY_ORDER[t.pattern.severity] > SEVERITY_ORDER[max] ? t.pattern.severity : max;
   }, 'info');
 
   return {
@@ -95,8 +93,7 @@ function extractTextFromArgs(toolName: string, args: Record<string, unknown>): s
 
     default: {
       // For unknown tools (MCP, integrations), scan all string args
-      const strings = Object.values(args)
-        .filter((v): v is string => typeof v === 'string');
+      const strings = Object.values(args).filter((v): v is string => typeof v === 'string');
       return strings.length > 0 ? strings.join('\n') : null;
     }
   }
@@ -108,8 +105,8 @@ function extractTextFromArgs(toolName: string, args: Record<string, unknown>): s
 export function formatThreatSummary(result: ThreatResult): string {
   if (result.threats.length === 0) return '';
 
-  const categories = [...new Set(result.threats.map(t => t.pattern.category))];
-  const descriptions = result.threats.map(t => t.pattern.description);
+  const categories = [...new Set(result.threats.map((t) => t.pattern.category))];
+  const descriptions = result.threats.map((t) => t.pattern.description);
 
   return `[${result.maxSeverity.toUpperCase()}] ${categories.join(', ')}: ${descriptions.join('; ')}`;
 }

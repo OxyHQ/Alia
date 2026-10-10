@@ -1,7 +1,7 @@
-import { memo } from "react";
-import { Handle, Position } from "@xyflow/react";
-import { Card } from "@/components/ui/card";
-import type { WorkflowNodeData } from "@/lib/workflow-types";
+import { memo } from 'react';
+import { Handle, Position } from '@xyflow/react';
+import { Card } from '@/components/ui/card';
+import type { WorkflowNodeData } from '@/lib/workflow-types';
 
 interface BaseNodeProps {
   id: string;
@@ -33,9 +33,7 @@ export const BaseNode = memo(function BaseNode({
 
       <Card
         className={`min-w-[220px] max-w-[280px] p-3 transition-all ${
-          selected
-            ? "ring-2 ring-primary shadow-lg"
-            : "shadow hover:shadow-md"
+          selected ? 'ring-2 ring-primary shadow-lg' : 'shadow hover:shadow-md'
         }`}
       >
         <div className="flex items-center gap-2 mb-2">

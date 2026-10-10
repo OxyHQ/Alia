@@ -108,20 +108,26 @@ export class EventStream {
         content,
         timestamp: entry.timestamp,
         sessionId: this.sessionId,
-        metadata: metadata ? {
-          toolName: metadata.toolName,
-          args: metadata.args,
-          duration: metadata.durationMs,
-          // Pass through source metadata for source_found events
-          ...(metadata.url && { url: metadata.url, title: metadata.title, domain: metadata.domain }),
-        } : undefined,
+        metadata: metadata
+          ? {
+              toolName: metadata.toolName,
+              args: metadata.args,
+              duration: metadata.durationMs,
+              // Pass through source metadata for source_found events
+              ...(metadata.url && {
+                url: metadata.url,
+                title: metadata.title,
+                domain: metadata.domain,
+              }),
+            }
+          : undefined,
         data: socketData,
       });
     }
 
     // Auto-flush when batch is full
     if (this.pendingFlush.length >= FLUSH_BATCH_SIZE) {
-      this.flush().catch(err => log.agents.warn({ err }, 'EventStream: auto-flush failed'));
+      this.flush().catch((err) => log.agents.warn({ err }, 'EventStream: auto-flush failed'));
     }
 
     return entry;
@@ -152,7 +158,7 @@ export class EventStream {
       await appendEventStreamEntries(
         getDb(),
         sessionId,
-        toFlush.map(entry => ({
+        toFlush.map((entry) => ({
           seq: entry.seq,
           timestamp: entry.timestamp,
           type: entry.type,
@@ -174,7 +180,7 @@ export class EventStream {
 
   /** Get entries since a given sequence number (exclusive) */
   getSince(seq: number): EventStreamEntry[] {
-    return this.entries.filter(e => e.seq > seq);
+    return this.entries.filter((e) => e.seq > seq);
   }
 
   /** Get the most recent entries that fit within a token budget */
@@ -199,7 +205,7 @@ export class EventStream {
    * Used by context compaction to identify cold entries for summarization.
    */
   getEventsOlderThan(seq: number): EventStreamEntry[] {
-    return this.entries.filter(e => e.seq < seq);
+    return this.entries.filter((e) => e.seq < seq);
   }
 
   /** Total estimated tokens in the stream */
@@ -221,9 +227,7 @@ export class EventStream {
    */
   serialize(entries?: EventStreamEntry[]): string {
     const items = entries || this.entries;
-    return items
-      .map(e => serializeEntry(e))
-      .join('\n\n');
+    return items.map((e) => serializeEntry(e)).join('\n\n');
   }
 
   /**
@@ -236,7 +240,7 @@ export class EventStream {
     try {
       const entries = await listEventStreamEntries(getDb(), this.sessionId);
 
-      this.entries = entries.map(e => ({
+      this.entries = entries.map((e) => ({
         seq: e.seq,
         timestamp: e.timestamp,
         type: e.type as EventType,
@@ -261,7 +265,7 @@ export class EventStream {
 
   /** Export the in-memory view stored with the session snapshot. */
   toJSON(): EventStreamEntry[] {
-    return this.entries.map(e => ({ ...e }));
+    return this.entries.map((e) => ({ ...e }));
   }
 }
 
@@ -273,38 +277,66 @@ function serializeEntry(entry: EventStreamEntry): string {
 
 function entryPrefix(type: EventType): string {
   switch (type) {
-    case 'user_message':   return '## User';
-    case 'system_message': return '## System';
-    case 'action':         return '## Action';
-    case 'observation':    return '## Observation';
-    case 'error':          return '## Error';
-    case 'plan_update':    return '## Plan Update';
-    case 'thinking':       return '## Thinking';
-    case 'response':       return '## Response';
-    case 'complete':       return '## Complete';
-    case 'screenshot':     return '## Screenshot';
-    case 'plan_progress':  return '## Plan Progress';
-    case 'file_change':    return '## File Change';
-    case 'source_found':   return '## Source';
-    case 'threat_detected': return '## Threat Detected';
+    case 'user_message':
+      return '## User';
+    case 'system_message':
+      return '## System';
+    case 'action':
+      return '## Action';
+    case 'observation':
+      return '## Observation';
+    case 'error':
+      return '## Error';
+    case 'plan_update':
+      return '## Plan Update';
+    case 'thinking':
+      return '## Thinking';
+    case 'response':
+      return '## Response';
+    case 'complete':
+      return '## Complete';
+    case 'screenshot':
+      return '## Screenshot';
+    case 'plan_progress':
+      return '## Plan Progress';
+    case 'file_change':
+      return '## File Change';
+    case 'source_found':
+      return '## Source';
+    case 'threat_detected':
+      return '## Threat Detected';
   }
 }
 
 function mapEventTypeToActivity(type: EventType): AgentActivityEvent['type'] {
   switch (type) {
-    case 'user_message':   return 'system';
-    case 'system_message': return 'system';
-    case 'action':         return 'tool_call';
-    case 'observation':    return 'tool_result';
-    case 'error':          return 'error';
-    case 'plan_update':    return 'system';
-    case 'thinking':       return 'thinking';
-    case 'response':       return 'response';
-    case 'complete':       return 'complete';
-    case 'screenshot':     return 'screenshot';
-    case 'plan_progress':  return 'plan_progress';
-    case 'file_change':    return 'file_change';
-    case 'source_found':   return 'source_found';
-    case 'threat_detected': return 'threat';
+    case 'user_message':
+      return 'system';
+    case 'system_message':
+      return 'system';
+    case 'action':
+      return 'tool_call';
+    case 'observation':
+      return 'tool_result';
+    case 'error':
+      return 'error';
+    case 'plan_update':
+      return 'system';
+    case 'thinking':
+      return 'thinking';
+    case 'response':
+      return 'response';
+    case 'complete':
+      return 'complete';
+    case 'screenshot':
+      return 'screenshot';
+    case 'plan_progress':
+      return 'plan_progress';
+    case 'file_change':
+      return 'file_change';
+    case 'source_found':
+      return 'source_found';
+    case 'threat_detected':
+      return 'threat';
   }
 }

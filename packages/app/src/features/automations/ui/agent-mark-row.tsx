@@ -68,9 +68,7 @@ export const AgentMarkRow = React.memo(function AgentMarkRow({
           accessibilityLabel={agent.name}
         />
       ))}
-      {overflow > 0 && (
-        <Badge size="large" variant="subtle" content={`+${overflow}`} />
-      )}
+      {overflow > 0 && <Badge size="large" variant="subtle" content={`+${overflow}`} />}
       <Muted>{t('tasks.agentCount', { count: agents.length })}</Muted>
     </View>
   );

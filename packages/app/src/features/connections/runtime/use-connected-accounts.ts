@@ -107,14 +107,16 @@ export function useConnectedAccounts(platform?: string) {
   // Clear polling when account connects
   useEffect(() => {
     if (activeQRAccountId) {
-      const account = accounts.find(a => a._id === activeQRAccountId);
+      const account = accounts.find((a) => a._id === activeQRAccountId);
       if (account?.status === 'connected') {
         setActiveQRAccountId(null);
       }
     }
   }, [accounts, activeQRAccountId]);
 
-  const connect = async (platformId: string): Promise<{ accountId: string; qr?: string; oauthUrl?: string }> => {
+  const connect = async (
+    platformId: string,
+  ): Promise<{ accountId: string; qr?: string; oauthUrl?: string }> => {
     const response = await apiClient.post(`/accounts/${platformId}/connect`);
     const data = response.data;
     if (data.accountId) {
@@ -144,7 +146,20 @@ export function useConnectedAccounts(platform?: string) {
     }
   };
 
-  const updateSettings = async (accountId: string, settings: Partial<Pick<ConnectedAccount, 'autoReply' | 'autoReplyAgentId' | 'customContext' | 'allowedTools' | 'blockedTools' | 'allowedSkillIds'>>) => {
+  const updateSettings = async (
+    accountId: string,
+    settings: Partial<
+      Pick<
+        ConnectedAccount,
+        | 'autoReply'
+        | 'autoReplyAgentId'
+        | 'customContext'
+        | 'allowedTools'
+        | 'blockedTools'
+        | 'allowedSkillIds'
+      >
+    >,
+  ) => {
     await apiClient.patch(`/accounts/${accountId}/settings`, settings);
     await fetchAccounts();
   };
@@ -157,7 +172,7 @@ export function useConnectedAccounts(platform?: string) {
     }
   };
 
-  const connectedCount = accounts.filter(a => a.status === 'connected').length;
+  const connectedCount = accounts.filter((a) => a.status === 'connected').length;
 
   return {
     accounts,

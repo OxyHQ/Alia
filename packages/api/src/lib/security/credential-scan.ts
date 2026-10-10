@@ -156,8 +156,7 @@ export const CREDENTIAL_PATTERNS: readonly CredentialPattern[] = [
     name: 'digitalocean_api_key',
     provider: 'digitalocean',
     pattern: /\bdop_v1_[a-f0-9]{64}\b/g,
-    control:
-      'dop_v1_' + '0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9',
+    control: 'dop_v1_' + '0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9',
   },
   {
     name: 'huggingface_api_key',
@@ -181,8 +180,7 @@ export const CREDENTIAL_PATTERNS: readonly CredentialPattern[] = [
     name: 'nvidia_api_key',
     provider: null,
     pattern: /\bnvapi-[A-Za-z0-9_-]{60,}/g,
-    control:
-      'nvapi-' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0U1v2W3x4Y5z6A1b2C3d4E5',
+    control: 'nvapi-' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0U1v2W3x4Y5z6A1b2C3d4E5',
   },
   {
     /**
@@ -321,7 +319,9 @@ export function assertPatternsMatchTheirControls(): void {
     entry.pattern.lastIndex = 0;
   }
   if (broken.length > 0) {
-    throw new Error(`credential patterns that no longer match their controls: ${broken.join(', ')}`);
+    throw new Error(
+      `credential patterns that no longer match their controls: ${broken.join(', ')}`,
+    );
   }
 }
 

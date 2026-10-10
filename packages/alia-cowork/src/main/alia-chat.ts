@@ -53,20 +53,20 @@
  * frames.
  */
 
-import type OpenAI from 'openai'
+import type OpenAI from 'openai';
 
 // ── Frames ──────────────────────────────────────────────────────────────────
 
 export interface SseFrame {
   /** The `event:` name, or `''` for an unnamed (OpenAI-shaped) frame. */
-  readonly event: string
+  readonly event: string;
   /** The `data:` payload, trimmed. `[DONE]` is passed through as-is. */
-  readonly data: string
+  readonly data: string;
 }
 
 export interface SseFrameReader {
   /** Feed one decoded chunk; get back every frame it completed. */
-  push(chunk: string): SseFrame[]
+  push(chunk: string): SseFrame[];
 }
 
 /**
@@ -80,63 +80,63 @@ export interface SseFrameReader {
  * likely to be split.
  */
 export function createSseFrameReader(): SseFrameReader {
-  let buffer = ''
-  let currentEventType = ''
+  let buffer = '';
+  let currentEventType = '';
 
   return {
     push(chunk: string): SseFrame[] {
-      buffer += chunk
+      buffer += chunk;
 
-      const frames: SseFrame[] = []
-      const lines = buffer.split('\n')
+      const frames: SseFrame[] = [];
+      const lines = buffer.split('\n');
       // Whatever followed the last newline is an incomplete line, unless the
       // chunk ended on a boundary, in which case it is `''` and costs nothing.
-      buffer = lines.pop() ?? ''
+      buffer = lines.pop() ?? '';
 
       for (const rawLine of lines) {
         // A CRLF stream leaves the CR on every line; `data: {…}\r` is not JSON.
-        const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
+        const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
 
         if (line.startsWith('event: ')) {
-          currentEventType = line.slice(7).trim()
-          continue
+          currentEventType = line.slice(7).trim();
+          continue;
         }
 
         // A blank line closes a frame, so the NEXT frame's `data:` cannot
         // inherit this frame's event name.
         if (line === '') {
-          currentEventType = ''
-          continue
+          currentEventType = '';
+          continue;
         }
 
         if (line.startsWith('data: ')) {
-          frames.push({ event: currentEventType, data: line.slice(6).trim() })
-          currentEventType = ''
-          continue
+          frames.push({ event: currentEventType, data: line.slice(6).trim() });
+          currentEventType = '';
+          continue;
         }
 
         // Comments (`: keep-alive`) and fields this client does not read.
       }
 
-      return frames
-    }
-  }
+      return frames;
+    },
+  };
 }
 
 // ── Events ──────────────────────────────────────────────────────────────────
 
 /** One `delta.tool_calls[]` entry, exactly as the chunk carries it. */
 export interface ToolCallDelta {
-  readonly index?: number
-  readonly id?: string
-  readonly function?: { readonly name?: string; readonly arguments?: string }
+  readonly index?: number;
+  readonly id?: string;
+  readonly function?: { readonly name?: string; readonly arguments?: string };
 }
 
 /** A tool call assembled from its deltas; the shape the history stores. */
 export interface StreamedToolCall {
-  id: string
-  type: 'function'
-  function: { name: string; arguments: string }
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
 }
 
 export type AliaStreamEvent =
@@ -152,7 +152,12 @@ export type AliaStreamEvent =
    * run it, this process does — so a consumer dispatches on the generic
    * `tool_calls` frame and reads this only for tools the server ran itself.
    */
-  | { readonly type: 'tool_result'; readonly toolCallId: string; readonly name: string; readonly output: unknown }
+  | {
+      readonly type: 'tool_result';
+      readonly toolCallId: string;
+      readonly name: string;
+      readonly output: unknown;
+    }
   /**
    * The stand-in text the server sends instead of an answer. Never rendered as
    * one, never stored as one; `retryable` says whether resending would help.
@@ -160,7 +165,7 @@ export type AliaStreamEvent =
   | { readonly type: 'synthetic'; readonly text: string; readonly retryable: boolean }
   | { readonly type: 'finish'; readonly reason: string }
   /** Any other named product event, for a consumer that wants it. */
-  | { readonly type: 'event'; readonly name: string; readonly data: Record<string, unknown> }
+  | { readonly type: 'event'; readonly name: string; readonly data: Record<string, unknown> };
 
 /**
  * A refusal from Alia's API, before or during the stream.
@@ -171,19 +176,19 @@ export type AliaStreamEvent =
  * `unknown_routing_profile`, `authentication_required`, …) when it sent one.
  */
 export class AliaChatError extends Error {
-  readonly status: number | null
-  readonly code: string | null
-  readonly retryable: boolean
+  readonly status: number | null;
+  readonly code: string | null;
+  readonly retryable: boolean;
 
   constructor(
     message: string,
-    options: { status?: number | null; code?: string | null; retryable?: boolean } = {}
+    options: { status?: number | null; code?: string | null; retryable?: boolean } = {},
   ) {
-    super(message)
-    this.name = 'AliaChatError'
-    this.status = options.status ?? null
-    this.code = options.code ?? null
-    this.retryable = options.retryable ?? false
+    super(message);
+    this.name = 'AliaChatError';
+    this.status = options.status ?? null;
+    this.code = options.code ?? null;
+    this.retryable = options.retryable ?? false;
   }
 }
 
@@ -191,30 +196,30 @@ export class AliaChatError extends Error {
 
 export interface AliaChatRequestBody {
   /** `publisher/model`; omitted for the server's default model. */
-  readonly model?: string
-  readonly messages: readonly OpenAI.Chat.ChatCompletionMessageParam[]
-  readonly tools?: readonly OpenAI.Chat.ChatCompletionTool[]
-  readonly tool_choice?: 'auto' | 'none'
-  readonly temperature?: number
-  readonly max_tokens?: number
+  readonly model?: string;
+  readonly messages: readonly OpenAI.Chat.ChatCompletionMessageParam[];
+  readonly tools?: readonly OpenAI.Chat.ChatCompletionTool[];
+  readonly tool_choice?: 'auto' | 'none';
+  readonly temperature?: number;
+  readonly max_tokens?: number;
 }
 
 export interface AliaChatStreamOptions {
-  readonly baseUrl: string
+  readonly baseUrl: string;
   /** The Oxy session bearer. Read at call time by the caller, never cached. */
-  readonly accessToken: string
-  readonly body: AliaChatRequestBody
-  readonly signal?: AbortSignal
+  readonly accessToken: string;
+  readonly body: AliaChatRequestBody;
+  readonly signal?: AbortSignal;
   /** Injectable for tests; defaults to the global. */
-  readonly fetch?: typeof fetch
+  readonly fetch?: typeof fetch;
 }
 
-type JsonObject = Record<string, unknown>
+type JsonObject = Record<string, unknown>;
 
 function asObject(value: unknown): JsonObject | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as JsonObject)
-    : null
+    : null;
 }
 
 /**
@@ -225,21 +230,21 @@ function asObject(value: unknown): JsonObject | null {
  * a body that is neither still yields a message naming the status.
  */
 function errorFrom(payload: unknown, status: number | null): AliaChatError {
-  const body = asObject(payload)
-  const error = body?.error
-  const fallback = status === null ? 'Alia returned an error.' : `Alia API error (HTTP ${status}).`
+  const body = asObject(payload);
+  const error = body?.error;
+  const fallback = status === null ? 'Alia returned an error.' : `Alia API error (HTTP ${status}).`;
   if (typeof error === 'string') {
-    return new AliaChatError(error, { status, retryable: isRetryableStatus(status) })
+    return new AliaChatError(error, { status, retryable: isRetryableStatus(status) });
   }
-  const detail = asObject(error)
-  const message = typeof detail?.message === 'string' ? detail.message : fallback
-  const code = typeof detail?.code === 'string' ? detail.code : null
-  const retryable = detail?.retryable === true || isRetryableStatus(status)
-  return new AliaChatError(message, { status, code, retryable })
+  const detail = asObject(error);
+  const message = typeof detail?.message === 'string' ? detail.message : fallback;
+  const code = typeof detail?.code === 'string' ? detail.code : null;
+  const retryable = detail?.retryable === true || isRetryableStatus(status);
+  return new AliaChatError(message, { status, code, retryable });
 }
 
 function isRetryableStatus(status: number | null): boolean {
-  return status === 429 || status === 502 || status === 503 || status === 504
+  return status === 429 || status === 502 || status === 503 || status === 504;
 }
 
 /**
@@ -252,61 +257,61 @@ function isRetryableStatus(status: number | null): boolean {
  * turn.
  */
 export function interpretFrame(frame: SseFrame): AliaStreamEvent[] | null {
-  if (frame.data === '[DONE]') return null
+  if (frame.data === '[DONE]') return null;
 
-  let parsed: unknown
+  let parsed: unknown;
   try {
-    parsed = JSON.parse(frame.data)
+    parsed = JSON.parse(frame.data);
   } catch {
-    return []
+    return [];
   }
-  const payload = asObject(parsed)
-  if (payload === null) return []
+  const payload = asObject(parsed);
+  if (payload === null) return [];
 
   if (frame.event !== '') {
     switch (frame.event) {
       case 'alia.reasoning': {
-        const text = typeof payload.content === 'string' ? payload.content : ''
-        return text === '' ? [] : [{ type: 'reasoning', text }]
+        const text = typeof payload.content === 'string' ? payload.content : '';
+        return text === '' ? [] : [{ type: 'reasoning', text }];
       }
       case 'alia.tool_result': {
-        const toolCallId = typeof payload.tool_call_id === 'string' ? payload.tool_call_id : ''
-        const name = typeof payload.name === 'string' ? payload.name : ''
-        return [{ type: 'tool_result', toolCallId, name, output: payload.output }]
+        const toolCallId = typeof payload.tool_call_id === 'string' ? payload.tool_call_id : '';
+        const name = typeof payload.name === 'string' ? payload.name : '';
+        return [{ type: 'tool_result', toolCallId, name, output: payload.output }];
       }
       default:
-        return [{ type: 'event', name: frame.event, data: payload }]
+        return [{ type: 'event', name: frame.event, data: payload }];
     }
   }
 
-  if (payload.error !== undefined) throw errorFrom(payload, null)
+  if (payload.error !== undefined) throw errorFrom(payload, null);
 
-  const events: AliaStreamEvent[] = []
-  const choice = Array.isArray(payload.choices) ? asObject(payload.choices[0]) : null
-  const delta = choice === null ? null : asObject(choice.delta)
-  const content = typeof delta?.content === 'string' ? delta.content : ''
+  const events: AliaStreamEvent[] = [];
+  const choice = Array.isArray(payload.choices) ? asObject(payload.choices[0]) : null;
+  const delta = choice === null ? null : asObject(choice.delta);
+  const content = typeof delta?.content === 'string' ? delta.content : '';
 
-  const meta = asObject(payload.alia_meta)
+  const meta = asObject(payload.alia_meta);
   if (meta?.synthetic === true) {
     // The whole chunk is the stand-in. Its text goes out under its own event
     // and nowhere else, so no consumer can render it by forgetting to check.
-    events.push({ type: 'synthetic', text: content, retryable: meta.retryable === true })
+    events.push({ type: 'synthetic', text: content, retryable: meta.retryable === true });
   } else if (content !== '') {
-    events.push({ type: 'content', text: content })
+    events.push({ type: 'content', text: content });
   }
 
   if (delta !== null && Array.isArray(delta.tool_calls)) {
     const deltas = delta.tool_calls
       .map(asObject)
-      .filter((call): call is JsonObject => call !== null) as unknown as ToolCallDelta[]
-    if (deltas.length > 0) events.push({ type: 'tool_calls', deltas })
+      .filter((call): call is JsonObject => call !== null) as unknown as ToolCallDelta[];
+    if (deltas.length > 0) events.push({ type: 'tool_calls', deltas });
   }
 
   if (typeof choice?.finish_reason === 'string') {
-    events.push({ type: 'finish', reason: choice.finish_reason })
+    events.push({ type: 'finish', reason: choice.finish_reason });
   }
 
-  return events
+  return events;
 }
 
 /**
@@ -316,29 +321,35 @@ export function interpretFrame(frame: SseFrame): AliaStreamEvent[] | null {
  * carry argument text to append. Three consumers used to write this loop
  * inline, twice each.
  */
-export function mergeToolCallDeltas(into: StreamedToolCall[], deltas: readonly ToolCallDelta[]): void {
+export function mergeToolCallDeltas(
+  into: StreamedToolCall[],
+  deltas: readonly ToolCallDelta[],
+): void {
   for (const delta of deltas) {
-    const index = delta.index ?? into.length
-    const existing = into[index]
+    const index = delta.index ?? into.length;
+    const existing = into[index];
     if (existing === undefined) {
       into[index] = {
         id: delta.id ?? '',
         type: 'function',
-        function: { name: delta.function?.name ?? '', arguments: delta.function?.arguments ?? '' }
-      }
-      continue
+        function: { name: delta.function?.name ?? '', arguments: delta.function?.arguments ?? '' },
+      };
+      continue;
     }
-    if (delta.id) existing.id = delta.id
-    if (delta.function?.name) existing.function.name = delta.function.name
-    if (delta.function?.arguments) existing.function.arguments += delta.function.arguments
+    if (delta.id) existing.id = delta.id;
+    if (delta.function?.name) existing.function.name = delta.function.name;
+    if (delta.function?.arguments) existing.function.arguments += delta.function.arguments;
   }
 }
 
 /** The calls that arrived whole: an id and a name. A sparse index is skipped. */
-export function completedToolCalls(calls: readonly (StreamedToolCall | undefined)[]): StreamedToolCall[] {
+export function completedToolCalls(
+  calls: readonly (StreamedToolCall | undefined)[],
+): StreamedToolCall[] {
   return calls.filter(
-    (call): call is StreamedToolCall => call !== undefined && call.id !== '' && call.function.name !== ''
-  )
+    (call): call is StreamedToolCall =>
+      call !== undefined && call.id !== '' && call.function.name !== '',
+  );
 }
 
 /**
@@ -352,52 +363,52 @@ export function completedToolCalls(calls: readonly (StreamedToolCall | undefined
  * connection: the `finally` cancels the reader.
  */
 export async function* streamAliaChat(
-  options: AliaChatStreamOptions
+  options: AliaChatStreamOptions,
 ): AsyncGenerator<AliaStreamEvent, void, undefined> {
-  const doFetch = options.fetch ?? fetch
+  const doFetch = options.fetch ?? fetch;
   const response = await doFetch(`${options.baseUrl}/alia/chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
-      Authorization: `Bearer ${options.accessToken}`
+      Authorization: `Bearer ${options.accessToken}`,
     },
     body: JSON.stringify({ ...options.body, stream: true }),
-    signal: options.signal
-  })
+    signal: options.signal,
+  });
 
   if (!response.ok) {
-    let payload: unknown = null
+    let payload: unknown = null;
     try {
-      payload = await response.json()
+      payload = await response.json();
     } catch {
       // A non-JSON refusal (a proxy page, an empty body) still names its status.
     }
-    throw errorFrom(payload, response.status)
+    throw errorFrom(payload, response.status);
   }
   if (response.body === null) {
-    throw new AliaChatError('Alia returned no response body.', { status: response.status })
+    throw new AliaChatError('Alia returned no response body.', { status: response.status });
   }
 
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  const frames = createSseFrameReader()
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const frames = createSseFrameReader();
 
   try {
     for (;;) {
-      const { done, value } = await reader.read()
-      if (done) return
+      const { done, value } = await reader.read();
+      if (done) return;
       // `{ stream: true }`: a multi-byte character split across two reads
       // decodes to U+FFFD without it.
       for (const frame of frames.push(decoder.decode(value, { stream: true }))) {
-        const events = interpretFrame(frame)
-        if (events === null) return
-        for (const event of events) yield event
+        const events = interpretFrame(frame);
+        if (events === null) return;
+        for (const event of events) yield event;
       }
     }
   } finally {
     // Reached by `[DONE]`, by an error and by a consumer that stopped early. A
     // cancelled reader on an already-closed body rejects, and that is noise.
-    reader.cancel().catch(() => {})
+    reader.cancel().catch(() => {});
   }
 }

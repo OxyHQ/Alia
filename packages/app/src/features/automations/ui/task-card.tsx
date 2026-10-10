@@ -35,26 +35,20 @@ const COLLAPSED_STEP_COUNT = 5;
  * its mark. The words are the automations' lifecycle words, so a task and an
  * automation in the same list say "Running" the same way.
  */
-const STATUS: Record<
-  TaskSession['status'],
-  { label: string; tone: AccentTone; icon: BadgeIcon }
-> = {
-  queued: { label: 'automations.lifecycle.queued', tone: 'default', icon: RiTimeLine },
-  running: { label: 'automations.lifecycle.running', tone: 'info', icon: RiLoader4Line },
-  completed: {
-    label: 'automations.lifecycle.completed',
-    tone: 'success',
-    icon: RiCheckboxCircleLine,
-  },
-  failed: { label: 'automations.lifecycle.failed', tone: 'error', icon: RiCloseCircleLine },
-  cancelled: { label: 'automations.lifecycle.cancelled', tone: 'default', icon: RiForbidLine },
-};
+const STATUS: Record<TaskSession['status'], { label: string; tone: AccentTone; icon: BadgeIcon }> =
+  {
+    queued: { label: 'automations.lifecycle.queued', tone: 'default', icon: RiTimeLine },
+    running: { label: 'automations.lifecycle.running', tone: 'info', icon: RiLoader4Line },
+    completed: {
+      label: 'automations.lifecycle.completed',
+      tone: 'success',
+      icon: RiCheckboxCircleLine,
+    },
+    failed: { label: 'automations.lifecycle.failed', tone: 'error', icon: RiCloseCircleLine },
+    cancelled: { label: 'automations.lifecycle.cancelled', tone: 'default', icon: RiForbidLine },
+  };
 
-export const TaskCard = React.memo(function TaskCard({
-  task,
-  activity,
-  onPress,
-}: TaskCardProps) {
+export const TaskCard = React.memo(function TaskCard({ task, activity, onPress }: TaskCardProps) {
   const { t } = useTranslation();
   const status = STATUS[task.status];
   const [expanded, setExpanded] = useState(false);
@@ -64,12 +58,10 @@ export const TaskCard = React.memo(function TaskCard({
   useEffect(() => {
     const startedAt = task.stats.startedAt;
     if (task.status !== 'running' || !startedAt) {
-      if (startedAt)
-        setElapsed(formatDuration(Date.now() - new Date(startedAt).getTime()));
+      if (startedAt) setElapsed(formatDuration(Date.now() - new Date(startedAt).getTime()));
       return;
     }
-    const update = () =>
-      setElapsed(formatDuration(Date.now() - new Date(startedAt).getTime()));
+    const update = () => setElapsed(formatDuration(Date.now() - new Date(startedAt).getTime()));
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
@@ -81,22 +73,16 @@ export const TaskCard = React.memo(function TaskCard({
     return task.plan?.items ?? [];
   }, [activity?.plan?.items, task.plan?.items]);
 
-  const completedCount = planItems.filter(
-    (i) => i.status === 'completed',
-  ).length;
+  const completedCount = planItems.filter((i) => i.status === 'completed').length;
   const totalCount = planItems.length;
   const hasTimeline = totalCount > 0;
   const needsCollapse = totalCount > COLLAPSED_STEP_COUNT;
   const visibleItems =
-    needsCollapse && !expanded
-      ? planItems.slice(0, COLLAPSED_STEP_COUNT)
-      : planItems;
+    needsCollapse && !expanded ? planItems.slice(0, COLLAPSED_STEP_COUNT) : planItems;
 
   // Current tool info for the in-progress step
   const currentToolName = activity?.currentAction?.toolName ?? null;
-  const currentToolLabel = currentToolName
-    ? getToolPillLabel(currentToolName, t)
-    : null;
+  const currentToolLabel = currentToolName ? getToolPillLabel(currentToolName, t) : null;
 
   // Build the agents list for the mark row
   const agents = useMemo(() => {
@@ -143,39 +129,30 @@ export const TaskCard = React.memo(function TaskCard({
             <TaskTimelineStep
               key={item.id}
               item={item}
-              isLast={
-                i === visibleItems.length - 1 && (expanded || !needsCollapse)
-              }
+              isLast={i === visibleItems.length - 1 && (expanded || !needsCollapse)}
               toolName={item.status === 'in_progress' ? currentToolName : null}
-              toolLabel={
-                item.status === 'in_progress' ? currentToolLabel : null
-              }
+              toolLabel={item.status === 'in_progress' ? currentToolLabel : null}
             />
           ))}
 
         {/* Current action (when no plan yet) */}
-        {!hasTimeline &&
-          activity?.currentAction &&
-          task.status === 'running' && (
-            <Item
-              density="compact"
-              title={
-                <Badge
-                  size="label-medium"
-                  variant="subtle"
-                  icon={RiLoader4Line}
-                  content={getToolPillLabel(activity.currentAction.toolName, t)}
-                />
-              }
-            />
-          )}
+        {!hasTimeline && activity?.currentAction && task.status === 'running' && (
+          <Item
+            density="compact"
+            title={
+              <Badge
+                size="label-medium"
+                variant="subtle"
+                icon={RiLoader4Line}
+                content={getToolPillLabel(activity.currentAction.toolName, t)}
+              />
+            }
+          />
+        )}
 
         {/* Result preview for completed tasks */}
         {task.result && task.status === 'completed' && !hasTimeline && (
-          <Item
-            density="compact"
-            title={<Muted numberOfLines={2}>{task.result}</Muted>}
-          />
+          <Item density="compact" title={<Muted numberOfLines={2}>{task.result}</Muted>} />
         )}
 
         {hasTimeline && (
@@ -195,9 +172,7 @@ export const TaskCard = React.memo(function TaskCard({
                   leadingIcon={expanded ? RiArrowUpSLine : RiArrowDownSLine}
                   onPress={() => setExpanded(!expanded)}
                 >
-                  {expanded
-                    ? t('tasks.showLess')
-                    : t('tasks.showAllSteps', { count: totalCount })}
+                  {expanded ? t('tasks.showLess') : t('tasks.showAllSteps', { count: totalCount })}
                 </Button>
               )}
             </View>

@@ -15,7 +15,12 @@ import { clientDouble } from '../../../lib/computer/__tests__/client-double.js';
 
 const state = vi.hoisted(() => ({
   userId: 'oxy-person' as string | undefined,
-  agent: { _id: 'agent-1', capabilityGrants: ['computer'], access: 'public', status: 'active' } as Record<string, unknown> | null,
+  agent: {
+    _id: 'agent-1',
+    capabilityGrants: ['computer'],
+    access: 'public',
+    status: 'active',
+  } as Record<string, unknown> | null,
   reach: 'reachable' as 'reachable' | 'out_of_reach' | 'identity_unavailable',
   client: null as ComputerClient | null,
 }));
@@ -63,7 +68,12 @@ afterAll(() => {
 
 beforeEach(() => {
   state.userId = 'oxy-person';
-  state.agent = { _id: 'agent-1', capabilityGrants: ['computer'], access: 'public', status: 'active' };
+  state.agent = {
+    _id: 'agent-1',
+    capabilityGrants: ['computer'],
+    access: 'public',
+    status: 'active',
+  };
   state.reach = 'reachable';
   state.client = clientDouble();
 });
@@ -71,10 +81,14 @@ beforeEach(() => {
 const host = () => state.client as ComputerClient;
 
 const post = (path: string, body: unknown) =>
-  fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  fetch(`${base}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 
 describe('whose computer', () => {
-  it('is always the caller\'s own computer with this agent', async () => {
+  it("is always the caller's own computer with this agent", async () => {
     const response = await fetch(`${base}/agent-1/computer`);
     expect(response.status).toBe(200);
     expect(host().status).toHaveBeenCalledWith('agent:agent-1:user:oxy-person');
@@ -83,10 +97,16 @@ describe('whose computer', () => {
   });
 
   it('cannot be steered to another person by anything in the request', async () => {
-    await fetch(`${base}/agent-1/computer/browser/screenshot?user=oxy-creator&actor=agent:agent-1:user:oxy-creator`);
+    await fetch(
+      `${base}/agent-1/computer/browser/screenshot?user=oxy-creator&actor=agent:agent-1:user:oxy-creator`,
+    );
     await post('/agent-1/computer/browser/input', { input: { type: 'click', x: 1, y: 1 } });
     for (const mock of [host().browserScreenshot, host().browserInput]) {
-      expect((mock as ReturnType<typeof vi.fn>).mock.calls.every((args) => args[0] === 'agent:agent-1:user:oxy-person')).toBe(true);
+      expect(
+        (mock as ReturnType<typeof vi.fn>).mock.calls.every(
+          (args) => args[0] === 'agent:agent-1:user:oxy-person',
+        ),
+      ).toBe(true);
     }
     // A body that tries to name the actor or the role is refused outright.
     const smuggled = await post('/agent-1/computer/browser/input', {
@@ -108,7 +128,13 @@ describe('whose computer', () => {
     state.agent = null;
     expect((await fetch(`${base}/missing/computer/files`)).status).toBe(404);
     const client = host();
-    for (const method of ['status', 'browserStatus', 'browserScreenshot', 'browserControl', 'list'] as const) {
+    for (const method of [
+      'status',
+      'browserStatus',
+      'browserScreenshot',
+      'browserControl',
+      'list',
+    ] as const) {
       expect(client[method]).not.toHaveBeenCalled();
     }
   });
@@ -135,7 +161,12 @@ describe('the live browser', () => {
   it('serves the screenshot as base64 JSON, uncached', async () => {
     const response = await fetch(`${base}/agent-1/computer/browser/screenshot`);
     expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(await response.json()).toEqual({ mimeType: 'image/jpeg', width: 1280, height: 800, data: Buffer.from([0xff, 0xd8, 0xff]).toString('base64') });
+    expect(await response.json()).toEqual({
+      mimeType: 'image/jpeg',
+      width: 1280,
+      height: 800,
+      data: Buffer.from([0xff, 0xd8, 0xff]).toString('base64'),
+    });
   });
 
   it('acts as the OWNER: input, navigation, take over and hand back', async () => {
@@ -144,8 +175,16 @@ describe('the live browser', () => {
     await post('/agent-1/computer/browser/control', { controller: 'owner' });
     await post('/agent-1/computer/browser/control', { controller: 'agent' });
     const actor = 'agent:agent-1:user:oxy-person';
-    expect(host().browserInput).toHaveBeenCalledWith(actor, { type: 'type', text: 'secret' }, 'owner');
-    expect(host().browserNavigate).toHaveBeenCalledWith(actor, 'https://example.com/login', 'owner');
+    expect(host().browserInput).toHaveBeenCalledWith(
+      actor,
+      { type: 'type', text: 'secret' },
+      'owner',
+    );
+    expect(host().browserNavigate).toHaveBeenCalledWith(
+      actor,
+      'https://example.com/login',
+      'owner',
+    );
     expect(host().browserControl).toHaveBeenNthCalledWith(1, actor, 'owner');
     expect(host().browserControl).toHaveBeenNthCalledWith(2, actor, 'agent');
   });
@@ -159,23 +198,31 @@ describe('the live browser', () => {
     ]) {
       expect((await post('/agent-1/computer/browser/input', { input })).status).toBe(400);
     }
-    expect((await post('/agent-1/computer/browser/navigate', { url: 'javascript:alert(1)' })).status).toBe(400);
+    expect(
+      (await post('/agent-1/computer/browser/navigate', { url: 'javascript:alert(1)' })).status,
+    ).toBe(400);
     expect(host().browserInput).not.toHaveBeenCalled();
   });
 
-  it('passes the host\'s refusals through, but never its 5xx wording', async () => {
+  it("passes the host's refusals through, but never its 5xx wording", async () => {
     state.client = clientDouble({
       browserScreenshot: vi.fn(async () => {
         throw new ComputerHostError('The browser is not open', 409, 'browser_closed');
       }),
       browserInput: vi.fn(async () => {
-        throw new ComputerHostError('docker said /var/lib/docker/... failed', 502, 'browser_failed');
+        throw new ComputerHostError(
+          'docker said /var/lib/docker/... failed',
+          502,
+          'browser_failed',
+        );
       }),
     });
     const closed = await fetch(`${base}/agent-1/computer/browser/screenshot`);
     expect(closed.status).toBe(409);
     expect(await closed.json()).toMatchObject({ error: 'browser_closed' });
-    const failed = await post('/agent-1/computer/browser/input', { input: { type: 'click', x: 1, y: 1 } });
+    const failed = await post('/agent-1/computer/browser/input', {
+      input: { type: 'click', x: 1, y: 1 },
+    });
     expect(failed.status).toBe(503);
     expect(JSON.stringify(await failed.json())).not.toContain('/var/lib/docker');
   });
@@ -183,23 +230,35 @@ describe('the live browser', () => {
 
 describe('files and receipts (read-only)', () => {
   it('lists and reads only inside /workspace', async () => {
-    expect((await fetch(`${base}/agent-1/computer/files?path=/workspace/downloads`)).status).toBe(200);
-    expect(host().list).toHaveBeenCalledWith('agent:agent-1:user:oxy-person', '/workspace/downloads');
+    expect((await fetch(`${base}/agent-1/computer/files?path=/workspace/downloads`)).status).toBe(
+      200,
+    );
+    expect(host().list).toHaveBeenCalledWith(
+      'agent:agent-1:user:oxy-person',
+      '/workspace/downloads',
+    );
     expect((await fetch(`${base}/agent-1/computer/files?path=/etc`)).status).toBe(400);
-    expect((await fetch(`${base}/agent-1/computer/files/content?path=/workspace/a`)).status).toBe(200);
+    expect((await fetch(`${base}/agent-1/computer/files/content?path=/workspace/a`)).status).toBe(
+      200,
+    );
     expect((await fetch(`${base}/agent-1/computer/files/content`)).status).toBe(400);
   });
 
   it('lists recent commands without their output, and browser actions', async () => {
     const response = await fetch(`${base}/agent-1/computer/receipts`);
-    const body = (await response.json()) as { commands: Record<string, unknown>[]; browser: unknown[] };
+    const body = (await response.json()) as {
+      commands: Record<string, unknown>[];
+      browser: unknown[];
+    };
     expect(body.commands[0]).toMatchObject({ command: 'ls', status: 'succeeded' });
     expect(body.commands[0]).not.toHaveProperty('stdout');
     expect(body.browser).toEqual([]);
   });
 
   it('offers no route that writes a file or runs a command', async () => {
-    expect((await post('/agent-1/computer/files/content', { path: '/workspace/a', text: 'x' })).status).toBe(404);
+    expect(
+      (await post('/agent-1/computer/files/content', { path: '/workspace/a', text: 'x' })).status,
+    ).toBe(404);
     expect((await post('/agent-1/computer/commands', { command: 'ls' })).status).toBe(404);
     expect(host().write).not.toHaveBeenCalled();
     expect(host().run).not.toHaveBeenCalled();

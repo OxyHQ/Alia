@@ -14,10 +14,7 @@ interface Placeholder {
 }
 
 function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 /**
@@ -96,24 +93,26 @@ export function markdownToTelegramHtml(text: string): string {
  * instead of showing raw asterisks and brackets.
  */
 export function stripMarkdown(text: string): string {
-  return text
-    // Code blocks: keep content, remove fences
-    .replace(/```\w*\n([\s\S]*?)```/g, '$1')
-    // Inline code: keep content
-    .replace(/`([^`\n]+)`/g, '$1')
-    // Links: show text (url)
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)')
-    // Bold+italic
-    .replace(/\*{3}(.+?)\*{3}/g, '$1')
-    // Bold
-    .replace(/\*{2}(.+?)\*{2}/g, '$1')
-    // Italic (not bullet lists)
-    .replace(/(?<=\s|^)\*(?!\s)(.+?)(?<!\s)\*(?!\*)/gm, '$1')
-    // Strikethrough
-    .replace(/~~(.+?)~~/g, '$1')
-    // Headings
-    .replace(/^#{1,6}\s+/gm, '')
-    // Bullet lists: - or * → •
-    .replace(/^(\s*)[-*]\s+/gm, '$1\u2022 ')
-    .trim();
+  return (
+    text
+      // Code blocks: keep content, remove fences
+      .replace(/```\w*\n([\s\S]*?)```/g, '$1')
+      // Inline code: keep content
+      .replace(/`([^`\n]+)`/g, '$1')
+      // Links: show text (url)
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)')
+      // Bold+italic
+      .replace(/\*{3}(.+?)\*{3}/g, '$1')
+      // Bold
+      .replace(/\*{2}(.+?)\*{2}/g, '$1')
+      // Italic (not bullet lists)
+      .replace(/(?<=\s|^)\*(?!\s)(.+?)(?<!\s)\*(?!\*)/gm, '$1')
+      // Strikethrough
+      .replace(/~~(.+?)~~/g, '$1')
+      // Headings
+      .replace(/^#{1,6}\s+/gm, '')
+      // Bullet lists: - or * → •
+      .replace(/^(\s*)[-*]\s+/gm, '$1\u2022 ')
+      .trim()
+  );
 }

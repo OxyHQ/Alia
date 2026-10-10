@@ -7,10 +7,14 @@ export type AutomationExecutionPolicyInput = {
 
 export function automationExecutionPolicyError(
   policy: AutomationExecutionPolicyInput,
-): 'manual_execution_requires_request_autonomy' | 'background_execution_requires_autonomous_policy' | null {
+):
+  | 'manual_execution_requires_request_autonomy'
+  | 'background_execution_requires_autonomous_policy'
+  | null {
   if (!policy.enabled || policy.executionMode === 'observe') return null;
   if (policy.triggerType === 'manual') {
-    return policy.maximumAutonomy === 'execute_on_request' || policy.maximumAutonomy === 'autonomous'
+    return policy.maximumAutonomy === 'execute_on_request' ||
+      policy.maximumAutonomy === 'autonomous'
       ? null
       : 'manual_execution_requires_request_autonomy';
   }

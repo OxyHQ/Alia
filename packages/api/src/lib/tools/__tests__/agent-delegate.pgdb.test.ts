@@ -70,8 +70,14 @@ vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return {
     log: {
-      credits: child, agents: child, general: child, chat: child,
-      v1: child, providers: child, tools: child, codea: child,
+      credits: child,
+      agents: child,
+      general: child,
+      chat: child,
+      v1: child,
+      providers: child,
+      tools: child,
+      codea: child,
     },
   };
 });
@@ -154,7 +160,10 @@ async function seedAgent(input: {
 async function account(free: number): Promise<string> {
   const id = uniqueId('caller');
   await getOrCreateUserCredits(db, id);
-  await db.update(userCredits).set({ creditsFree: free, creditsPaid: 0 }).where(eq(userCredits.id, id));
+  await db
+    .update(userCredits)
+    .set({ creditsFree: free, creditsPaid: 0 })
+    .where(eq(userCredits.id, id));
   return id;
 }
 
@@ -173,7 +182,10 @@ async function delegate(
   const tool = createDelegateToAgentTool(caller, accessToken);
   const execute = tool.execute;
   if (execute === undefined) throw new Error('delegateToAgent has no execute');
-  const outcome = await execute({ agentId, task: 'summarise this' }, { toolCallId: 'c1', messages: [] });
+  const outcome = await execute(
+    { agentId, task: 'summarise this' },
+    { toolCallId: 'c1', messages: [] },
+  );
   return outcome as AgentDelegationResult;
 }
 

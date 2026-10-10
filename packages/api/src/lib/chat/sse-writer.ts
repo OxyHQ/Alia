@@ -61,9 +61,15 @@ export class SSEWriter {
         type: errorPayload.type || 'server_error',
         param: errorPayload.param || null,
         code: errorPayload.code || null,
-        ...(typeof errorPayload.retryable === 'boolean' ? { retryable: errorPayload.retryable } : {}),
-        ...(typeof errorPayload.retryAfter === 'number' ? { retryAfter: errorPayload.retryAfter } : {}),
-        ...(typeof errorPayload.reference === 'string' ? { reference: errorPayload.reference } : {}),
+        ...(typeof errorPayload.retryable === 'boolean'
+          ? { retryable: errorPayload.retryable }
+          : {}),
+        ...(typeof errorPayload.retryAfter === 'number'
+          ? { retryAfter: errorPayload.retryAfter }
+          : {}),
+        ...(typeof errorPayload.reference === 'string'
+          ? { reference: errorPayload.reference }
+          : {}),
       },
     };
     this.res.write(`data: ${JSON.stringify(openAIError)}\n\n`);

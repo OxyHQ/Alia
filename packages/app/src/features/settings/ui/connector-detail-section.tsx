@@ -27,8 +27,7 @@ export function ConnectorDetailSection() {
   const { id } = settings.params;
   const { t } = useTranslation();
 
-  const { registry, installed, loading, install, uninstall, startOAuth } =
-    useMcpServers();
+  const { registry, installed, loading, install, uninstall, startOAuth } = useMcpServers();
 
   const [pending, setPending] = useState(false);
   const [envDialogOpen, setEnvDialogOpen] = useState(false);
@@ -158,8 +157,7 @@ export function ConnectorDetailSection() {
   // "Connected" requires the OAuth flow to have completed (server running) —
   // an installed-but-not-yet-authorized OAuth connector is NOT connected. A
   // non-OAuth (stdio) connector is done once installed.
-  const connected =
-    !!server && (requiresOAuth ? server.status === 'running' : true);
+  const connected = !!server && (requiresOAuth ? server.status === 'running' : true);
   const tools = server?.tools ?? [];
   const hasWriteTool = tools.some((tl) => WRITE_VERB.test(tl.name));
   const capabilities = hasWriteTool
@@ -222,9 +220,7 @@ export function ConnectorDetailSection() {
                         onPress={requiresOAuth ? handleConnect : handleInstall}
                         disabled={pending}
                       >
-                        {requiresOAuth
-                          ? t('connectors.connect')
-                          : t('connectors.install')}
+                        {requiresOAuth ? t('connectors.connect') : t('connectors.install')}
                       </Button>
                     )}
                     {server && (
@@ -256,9 +252,7 @@ export function ConnectorDetailSection() {
               {
                 key: 'capabilities',
                 label: t('connectors.capabilities'),
-                control: (
-                  <SettingsValueField>{capabilities}</SettingsValueField>
-                ),
+                control: <SettingsValueField>{capabilities}</SettingsValueField>,
               },
               {
                 key: 'auth',
@@ -299,9 +293,7 @@ export function ConnectorDetailSection() {
                   {
                     key: 'none',
                     label: t('settings.connections.noTools'),
-                    description: connected
-                      ? undefined
-                      : t('connectors.connectToSeeTools'),
+                    description: connected ? undefined : t('connectors.connectToSeeTools'),
                   },
                 ],
           },
@@ -318,9 +310,7 @@ export function ConnectorDetailSection() {
         actions={[
           { label: t('common.cancel'), color: 'cancel', disabled: pending },
           {
-            label: pending
-              ? t('connectors.installing')
-              : t('connectors.install'),
+            label: pending ? t('connectors.installing') : t('connectors.install'),
             onPress: handleInstallWithEnv,
             disabled: pending,
             // The install is in flight when this runs and the label reports it.
@@ -336,9 +326,7 @@ export function ConnectorDetailSection() {
                 label={t('connectors.enterValue', { name: envKey })}
                 placeholder={t('connectors.enterValue', { name: envKey })}
                 value={envValues[envKey] || ''}
-                onChangeText={(val) =>
-                  setEnvValues((prev) => ({ ...prev, [envKey]: val }))
-                }
+                onChangeText={(val) => setEnvValues((prev) => ({ ...prev, [envKey]: val }))}
                 secureTextEntry={
                   envKey.toLowerCase().includes('secret') ||
                   envKey.toLowerCase().includes('key') ||

@@ -131,9 +131,7 @@ export function AgentReviewsSection({
           {reviews.map((review) => (
             <View key={review._id} className="gap-1">
               <View className="flex-row items-center gap-2">
-                <Text variant="body-medium">
-                  {review.userId?.username || 'User'}
-                </Text>
+                <Text variant="body-medium">{review.userId?.username || 'User'}</Text>
                 <Rating value={review.rating} size="small" />
                 <View className="flex-1" />
                 {viewerId !== null && review.userId?._id === viewerId && (
@@ -147,9 +145,7 @@ export function AgentReviewsSection({
                   />
                 )}
               </View>
-              {review.comment ? (
-                <Text variant="body-regular">{review.comment}</Text>
-              ) : null}
+              {review.comment ? <Text variant="body-regular">{review.comment}</Text> : null}
             </View>
           ))}
         </View>

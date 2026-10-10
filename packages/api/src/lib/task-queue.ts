@@ -70,9 +70,14 @@ async function processAgentSession(data: AgentJobData): Promise<AgentJobResult> 
     return { sessionId, status: 'completed', result };
   }
 
-  const status = advance.kind === 'terminal'
-    ? (advance.status === 'succeeded' ? 'completed' : 'failed')
-    : (session?.status === 'completed' ? 'completed' : 'failed');
+  const status =
+    advance.kind === 'terminal'
+      ? advance.status === 'succeeded'
+        ? 'completed'
+        : 'failed'
+      : session?.status === 'completed'
+        ? 'completed'
+        : 'failed';
   try {
     // The result goes INTO the person's conversation with the agent, which
     // also notifies them; a finished run used to reach them only as a push
@@ -101,7 +106,9 @@ async function processAgentSession(data: AgentJobData): Promise<AgentJobResult> 
 async function isAgentFollowUp(automationRunId: string | null | undefined): Promise<boolean> {
   if (!automationRunId) return false;
   const { getDb } = await import('../db/index.js');
-  const { findAutomationInputsForRun } = await import('../db/automation/automationDefinitionRepository.js');
+  const { findAutomationInputsForRun } = await import(
+    '../db/automation/automationDefinitionRepository.js'
+  );
   const { AGENT_FOLLOW_UP_ORIGIN } = await import('./agent/follow-ups.js');
   const inputs = await findAutomationInputsForRun(getDb(), automationRunId);
   return inputs?.origin === AGENT_FOLLOW_UP_ORIGIN;
@@ -224,20 +231,24 @@ export async function enqueueAgentSession(
 ): Promise<{ queued: boolean; jobId?: string }> {
   if (queue && redisAvailable) {
     try {
-      const jobId = options.resumeAttempt === undefined
-        ? data.sessionId // Dedup by sessionId
-        : `${data.sessionId}-resume-${options.resumeAttempt}`;
+      const jobId =
+        options.resumeAttempt === undefined
+          ? data.sessionId // Dedup by sessionId
+          : `${data.sessionId}-resume-${options.resumeAttempt}`;
       const job = await queue.add(`session:${data.sessionId}`, data, { jobId });
       log.agents.info({ sessionId: data.sessionId, jobId: job.id }, 'Agent session enqueued');
       return { queued: true, jobId: job.id ?? undefined };
     } catch (err) {
-      log.agents.warn({ err, sessionId: data.sessionId }, 'Failed to enqueue — falling back to direct');
+      log.agents.warn(
+        { err, sessionId: data.sessionId },
+        'Failed to enqueue — falling back to direct',
+      );
     }
   }
 
   // Fallback: direct execution (fire-and-forget) through the same lifecycle as
   // the Redis worker, including deterministic automation-stage advancement.
-  processAgentSession(data).catch(err => {
+  processAgentSession(data).catch((err) => {
     log.agents.error({ err, sessionId: data.sessionId }, 'Direct agent session failed');
   });
 

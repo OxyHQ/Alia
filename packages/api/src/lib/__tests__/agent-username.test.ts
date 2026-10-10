@@ -87,9 +87,22 @@ describe('the username an agent is offered', () => {
     // either null or valid. A shaping step that produced a repeated separator
     // or a leading hyphen would land here.
     const names = [
-      'A', 'Al', 'Ana', 'Zoë Ruiz', '  spaced  out  ', '---', '_x_', 'a--b',
-      '日本語', 'Ünïcödé Nâme', '1984', '007 Bond', 'x'.repeat(200),
-      'Dr. Strange, PhD', 'foo_bar-baz', 'ends-with-',
+      'A',
+      'Al',
+      'Ana',
+      'Zoë Ruiz',
+      '  spaced  out  ',
+      '---',
+      '_x_',
+      'a--b',
+      '日本語',
+      'Ünïcödé Nâme',
+      '1984',
+      '007 Bond',
+      'x'.repeat(200),
+      'Dr. Strange, PhD',
+      'foo_bar-baz',
+      'ends-with-',
     ];
 
     for (const name of names) {
@@ -139,9 +152,23 @@ describe('the label a bot handle ends in', () => {
     // would produce a handle Oxy refuses for a reason that has nothing to do
     // with bots.
     const names = [
-      'A', 'Al', 'Ana', 'Zoë Ruiz', '  spaced  out  ', '---', '_x_', 'a--b',
-      '日本語', 'Ünïcödé Nâme', '1984', '007 Bond', 'x'.repeat(200),
-      'Dr. Strange, PhD', 'foo_bar-baz', 'ends-with-', 'Garden Helper',
+      'A',
+      'Al',
+      'Ana',
+      'Zoë Ruiz',
+      '  spaced  out  ',
+      '---',
+      '_x_',
+      'a--b',
+      '日本語',
+      'Ünïcödé Nâme',
+      '1984',
+      '007 Bond',
+      'x'.repeat(200),
+      'Dr. Strange, PhD',
+      'foo_bar-baz',
+      'ends-with-',
+      'Garden Helper',
       `${'ab '.repeat(40)}tail`,
     ];
 

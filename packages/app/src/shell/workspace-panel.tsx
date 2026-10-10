@@ -5,8 +5,15 @@ import { ThoughtPanel } from '@/features/chat/ui/thought-panel';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useLibraryStore } from '@/features/library/runtime/library-store';
 import { canSaveImage, imageFilename, saveImage } from '@/features/chat/runtime/save-image';
-import { useUIStore, type CanvasArtifact, type CodePanelView } from '@/features/chat/runtime/ui-store';
-import { workspacePanelKind, type WorkspacePanelKind } from '@/features/chat/model/workspace-panel-kind';
+import {
+  useUIStore,
+  type CanvasArtifact,
+  type CodePanelView,
+} from '@/features/chat/runtime/ui-store';
+import {
+  workspacePanelKind,
+  type WorkspacePanelKind,
+} from '@/features/chat/model/workspace-panel-kind';
 import {
   AiChatCodePanel,
   AiChatGalleryPanel,
@@ -67,8 +74,7 @@ export function useWorkspacePanelChrome(): { label: string; icon: BloomIconCompo
   const rightPanel = useUIStore((s) => s.rightPanel);
   const artifacts = useUIStore((s) => s.canvasArtifacts);
   const kind = workspacePanelKind(rightPanel, artifacts);
-  const label =
-    kind === 'thought' ? t('thought.title') : t(`panel.${kind}`);
+  const label = kind === 'thought' ? t('thought.title') : t(`panel.${kind}`);
   return { label, icon: PANEL_ICON[kind] };
 }
 
@@ -91,7 +97,13 @@ export function WorkspacePanel({ width }: { width: number | '100%' }) {
     case 'agent':
       return (
         <View className="h-full min-h-0" style={{ width }}>
-          {kind === 'thought' ? <ThoughtPanel /> : kind === 'credits' ? <CreditsLimits /> : <AgentPanel />}
+          {kind === 'thought' ? (
+            <ThoughtPanel />
+          ) : kind === 'credits' ? (
+            <CreditsLimits />
+          ) : (
+            <AgentPanel />
+          )}
         </View>
       );
     case 'gallery':
@@ -147,10 +159,12 @@ function CodePanel({
    */
   const pathname = usePathname();
   const terminal = useUIStore((s) => s.agentTerminal);
-  const terminalAgentId = terminal !== null && terminal.route === pathname ? terminal.agentId : null;
+  const terminalAgentId =
+    terminal !== null && terminal.route === pathname ? terminal.agentId : null;
   const storedView = useUIStore((s) => s.codePanelView);
   const setView = useUIStore((s) => s.setCodePanelView);
-  const view: CodePanelView = storedView === 'terminal' && terminalAgentId === null ? 'preview' : storedView;
+  const view: CodePanelView =
+    storedView === 'terminal' && terminalAgentId === null ? 'preview' : storedView;
   const showTerminal = view === 'terminal' && terminalAgentId !== null;
 
   /**
@@ -204,7 +218,12 @@ function CodePanel({
     </View>
   ) : current && current.type !== 'code' ? (
     <CanvasComponent
-      component={{ id: current.id, type: current.type, title: current.title || current.type, data: current.content }}
+      component={{
+        id: current.id,
+        type: current.type,
+        title: current.title || current.type,
+        data: current.content,
+      }}
     />
   ) : null;
 
@@ -285,7 +304,16 @@ function GalleryPanel({ width, style }: { width: number | '100%'; style?: typeof
       files.flatMap((f) => {
         const uri = f.url || f.thumbnail;
         if (f.category !== 'images' || !uri) return [];
-        return [{ id: f._id, prompt: f.name, uri, libraryId: f._id, source: { uri: f.thumbnail || uri }, aspectRatio: 1 }];
+        return [
+          {
+            id: f._id,
+            prompt: f.name,
+            uri,
+            libraryId: f._id,
+            source: { uri: f.thumbnail || uri },
+            aspectRatio: 1,
+          },
+        ];
       }),
     [files],
   );
@@ -314,13 +342,18 @@ function GalleryPanel({ width, style }: { width: number | '100%'; style?: typeof
     [t],
   );
 
-  const tiles = useMemo(() => new Map([...generated, ...generations].map((g) => [g.id, g])), [generated, generations]);
+  const tiles = useMemo(
+    () => new Map([...generated, ...generations].map((g) => [g.id, g])),
+    [generated, generations],
+  );
 
   const onDownload = useCallback(
     (generation: AiChatGeneration) => {
       const tile = tiles.get(generation.id);
       if (tile === undefined) return;
-      saveImage(tile.uri, imageFilename(tile.prompt, tile.uri)).catch(() => toast.error(t('panel.downloadFailed')));
+      saveImage(tile.uri, imageFilename(tile.prompt, tile.uri)).catch(() =>
+        toast.error(t('panel.downloadFailed')),
+      );
     },
     [tiles, t],
   );
@@ -349,9 +382,17 @@ function GalleryPanel({ width, style }: { width: number | '100%'; style?: typeof
   /** What the more menu holds for a tile; a tile with nothing in it gets no menu. */
   const moreButtons = useCallback(
     (tile: GalleryTile): AlertButton[] => [
-      ...(isRemote(tile.uri) ? [{ text: t('panel.open'), onPress: () => openImage(tile.uri) }] : []),
+      ...(isRemote(tile.uri)
+        ? [{ text: t('panel.open'), onPress: () => openImage(tile.uri) }]
+        : []),
       ...(tile.libraryId !== undefined
-        ? [{ text: t('common.delete'), style: 'destructive' as const, onPress: () => void remove(tile) }]
+        ? [
+            {
+              text: t('common.delete'),
+              style: 'destructive' as const,
+              onPress: () => void remove(tile),
+            },
+          ]
         : []),
     ],
     [remove, t],

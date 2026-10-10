@@ -26,7 +26,8 @@ const format = (value: number) => NUMBER.format(value);
 export function ChartRenderer({ data, title }: ChartRendererProps) {
   const { t } = useTranslation();
   const { chartType, labels, datasets } = data;
-  const itemsOf = (values: number[]) => labels.map((label, i) => ({ label, value: values[i] || 0 }));
+  const itemsOf = (values: number[]) =>
+    labels.map((label, i) => ({ label, value: values[i] || 0 }));
 
   if (chartType === 'line' && datasets.length === 1) {
     const series = datasets[0];

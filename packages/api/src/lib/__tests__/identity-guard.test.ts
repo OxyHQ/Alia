@@ -7,7 +7,9 @@ describe('buildIdentityGuard', () => {
   it('is Alia, and names the chosen model and its publisher when known', () => {
     const guard = buildIdentityGuard(MODEL);
     expect(guard).toContain('You are Alia,');
-    expect(guard).toContain('The model powering this conversation is Example Model 2, published by Example Labs');
+    expect(guard).toContain(
+      'The model powering this conversation is Example Model 2, published by Example Labs',
+    );
   });
 
   it('names the model without a publisher when only the model is known', () => {
@@ -79,7 +81,9 @@ describe('an agent speaks under its own name', () => {
     const guard = buildIdentityGuard(AGENT);
 
     expect(guard).toContain('Alia');
-    expect(guard).toContain('The model powering this conversation is Example Model 2, published by Example Labs');
+    expect(guard).toContain(
+      'The model powering this conversation is Example Model 2, published by Example Labs',
+    );
   });
 
   it('keeps the serving operator secret for an agent too', () => {
@@ -126,7 +130,9 @@ describe('an agent answers within its remit', () => {
     // emits it — see `agentSectionHeading`. "Everything below" was the first
     // wording and it was false of the trigger composition, where the only thing
     // below the guard was the trigger's own task.
-    expect(guard).toContain('The section headed `# AGENT: Claudio` below describes what Claudio is for');
+    expect(guard).toContain(
+      'The section headed `# AGENT: Claudio` below describes what Claudio is for',
+    );
     // The half that makes it general: no enumeration, in either direction.
     expect(guard).toContain('there is no list of allowed topics to check against');
   });

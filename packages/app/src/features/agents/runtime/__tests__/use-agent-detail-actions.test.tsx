@@ -17,8 +17,12 @@ const fx = vi.hoisted(() => ({
 
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: fx.push }) }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: fx.toastError, success: vi.fn() } }));
-vi.mock('@/shared/i18n/use-translation', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
-vi.mock('@/shared/api/client', () => ({ default: { post: fx.post, get: vi.fn(), patch: vi.fn() } }));
+vi.mock('@/shared/i18n/use-translation', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+vi.mock('@/shared/api/client', () => ({
+  default: { post: fx.post, get: vi.fn(), patch: vi.fn() },
+}));
 vi.mock('@tanstack/react-query', () => ({
   useMutation: () => ({ mutateAsync: vi.fn() }),
   useQueryClient: () => ({ invalidateQueries: vi.fn(), setQueryData: vi.fn() }),
@@ -33,7 +37,12 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 function actionsFor(agent: Partial<Agent>) {
   let actions!: ReturnType<typeof useAgentDetailActions>;
   function Harness() {
-    actions = useAgentDetailActions({ _id: 'agent-1', name: 'Lumen', status: 'active', ...agent } as Agent);
+    actions = useAgentDetailActions({
+      _id: 'agent-1',
+      name: 'Lumen',
+      status: 'active',
+      ...agent,
+    } as Agent);
     return null;
   }
   act(() => {
@@ -54,7 +63,10 @@ describe("the agent page's Chat", () => {
     act(() => {
       void actions.handleChat();
     });
-    expect(fx.push).toHaveBeenCalledWith({ pathname: '/(app)/[username]', params: { username: '@lumenbot' } });
+    expect(fx.push).toHaveBeenCalledWith({
+      pathname: '/(app)/[username]',
+      params: { username: '@lumenbot' },
+    });
     expect(fx.post).not.toHaveBeenCalled();
   });
 

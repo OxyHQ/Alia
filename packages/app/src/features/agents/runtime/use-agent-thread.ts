@@ -49,10 +49,12 @@ export function useAgentThread(username: string | undefined, threadId?: string) 
     queryKey: [...queryKeys.agents.thread(username ?? ''), threadId ?? 'default'],
     queryFn: async (): Promise<AgentThread> => {
       if (threadId) {
-        const response = await apiClient.get<{ thread: { id: string; agentId: string }; conversationId: string | null }>(
-          API_ROUTES.agents.threadById(threadId),
-        );
-        if (!response.data.conversationId) throw new Error('Agent thread has no active conversation');
+        const response = await apiClient.get<{
+          thread: { id: string; agentId: string };
+          conversationId: string | null;
+        }>(API_ROUTES.agents.threadById(threadId));
+        if (!response.data.conversationId)
+          throw new Error('Agent thread has no active conversation');
         const identity = await apiClient.get<AgentThread>(API_ROUTES.agents.thread(username ?? ''));
         return {
           agent: identity.data.agent,

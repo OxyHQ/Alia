@@ -76,9 +76,26 @@ export interface BaseConfigResult {
 
 /** Assemble the shared AI SDK config for one provider attempt + its first-byte abort. */
 export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult {
-  const { resolved, body, convertedMessages, truncatedTools, toolRouting, reasoningEffort, systemPromptTokens, streamState, oxyUserId, serviceToken, onUsage, onResolvedModel, onInferenceRequest } = params;
+  const {
+    resolved,
+    body,
+    convertedMessages,
+    truncatedTools,
+    toolRouting,
+    reasoningEffort,
+    systemPromptTokens,
+    streamState,
+    oxyUserId,
+    serviceToken,
+    onUsage,
+    onResolvedModel,
+    onInferenceRequest,
+  } = params;
 
-  const model = getAIModel(resolved, 'chat', oxyUserId, serviceToken, { reasoningEffort, onInferenceRequest });
+  const model = getAIModel(resolved, 'chat', oxyUserId, serviceToken, {
+    reasoningEffort,
+    onInferenceRequest,
+  });
 
   // Build common config for both streaming and non-streaming
   // biome-ignore lint/suspicious/noExplicitAny: AI SDK config is dynamically extended; strict SDK param types don't support this pattern
@@ -157,13 +174,16 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
   }
 
   if (process.env.NODE_ENV !== 'production') {
-    log.v1.debug({
-      modelProvider: resolved.provider,
-      model: resolved.keyConfig.modelId,
-      messageCount: baseConfig.messages.length,
-      toolCount: baseConfig.tools ? Object.keys(baseConfig.tools).length : 0,
-      stream: body.stream
-    }, 'AI SDK config');
+    log.v1.debug(
+      {
+        modelProvider: resolved.provider,
+        model: resolved.keyConfig.modelId,
+        messageCount: baseConfig.messages.length,
+        toolCount: baseConfig.tools ? Object.keys(baseConfig.tools).length : 0,
+        stream: body.stream,
+      },
+      'AI SDK config',
+    );
   }
 
   // Per-provider first-byte timeout — abort if no response within 20s
@@ -171,12 +191,24 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
   const providerAbort = new AbortController();
   let firstByteTimer: NodeJS.Timeout | null = setTimeout(() => {
     if (!streamState.hasStreamedContent) {
-      log.v1.warn({ provider: resolved.provider, modelId: resolved.modelId, timeoutMs: FIRST_BYTE_TIMEOUT_MS }, 'Provider first-byte timeout');
+      log.v1.warn(
+        {
+          provider: resolved.provider,
+          modelId: resolved.modelId,
+          timeoutMs: FIRST_BYTE_TIMEOUT_MS,
+        },
+        'Provider first-byte timeout',
+      );
       providerAbort.abort(new Error('Provider first-byte timeout'));
     }
   }, FIRST_BYTE_TIMEOUT_MS);
   baseConfig.abortSignal = providerAbort.signal;
-  const clearFirstByteTimer = () => { if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; } };
+  const clearFirstByteTimer = () => {
+    if (firstByteTimer) {
+      clearTimeout(firstByteTimer);
+      firstByteTimer = null;
+    }
+  };
 
   return { config: baseConfig, providerAbort, clearFirstByteTimer };
 }

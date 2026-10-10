@@ -111,7 +111,9 @@ function moduleRefs(absolute: string): string[] {
 function tracked(prefix: string): string[] {
   return execFileSync('git', ['ls-files', '--', prefix], { cwd: REPO_ROOT, encoding: 'utf8' })
     .split('\n')
-    .filter((file) => file.endsWith('.ts') && file !== SELF && existsSync(path.join(REPO_ROOT, file)))
+    .filter(
+      (file) => file.endsWith('.ts') && file !== SELF && existsSync(path.join(REPO_ROOT, file)),
+    )
     .map((file) => path.join(REPO_ROOT, file));
 }
 
@@ -166,7 +168,9 @@ describe('no token is read without being verified (#139 ws15)', () => {
     for (const file of SERVER_SOURCES) {
       scanned += 1;
       for (const spec of moduleRefs(file)) {
-        const root = spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0];
+        const root = spec.startsWith('@')
+          ? spec.split('/').slice(0, 2).join('/')
+          : spec.split('/')[0];
         if (FORBIDDEN_PACKAGES.includes(root)) {
           offenders.push(`${path.relative(REPO_ROOT, file)} -> ${spec}`);
         }
@@ -219,9 +223,10 @@ describe('no token is read without being verified (#139 ws15)', () => {
       `const claims = decodeJwt(raw);`,
     ];
     for (const [index, pattern] of HAND_ROLLED.entries()) {
-      expect(probes.some((probe) => pattern.test(probe)), `pattern ${String(index)} matches nothing`).toBe(
-        true,
-      );
+      expect(
+        probes.some((probe) => pattern.test(probe)),
+        `pattern ${String(index)} matches nothing`,
+      ).toBe(true);
     }
     // And the negative control: the three legitimate content decoders that a
     // blanket base64 ban would have caught are NOT matched by any of them.
@@ -230,7 +235,10 @@ describe('no token is read without being verified (#139 ws15)', () => {
       `return Buffer.from(base64, 'base64').toString('utf-8');`,
       `const parts = filename.split('.');`,
     ]) {
-      expect(HAND_ROLLED.some((pattern) => pattern.test(legitimate)), legitimate).toBe(false);
+      expect(
+        HAND_ROLLED.some((pattern) => pattern.test(legitimate)),
+        legitimate,
+      ).toBe(false);
     }
   });
 });
@@ -327,7 +335,9 @@ describe('every principal a request can acquire is mapped (#139 ws15)', () => {
       // And something IS granted afterwards, or the compare guards nothing and
       // the absence above would be true of dead code.
       const after = source.slice(guardAt);
-      expect(GRANT.test(after), `${grant.file}: nothing is granted after ${grant.guard}`).toBe(true);
+      expect(GRANT.test(after), `${grant.file}: nothing is granted after ${grant.guard}`).toBe(
+        true,
+      );
     }
 
     // The control for the absence: the same predicate over a window that DOES
@@ -413,7 +423,9 @@ describe('inbound verification is @oxy.so/core, not a local implementation (#139
       encoding: 'utf8',
     })
       .split('\n')
-      .filter((file) => file.endsWith('.ts') && !isTest(file) && existsSync(path.join(REPO_ROOT, file)));
+      .filter(
+        (file) => file.endsWith('.ts') && !isTest(file) && existsSync(path.join(REPO_ROOT, file)),
+      );
     expect(modules.length).toBeGreaterThanOrEqual(6);
 
     const FORBIDDEN_VERIFIERS = ['jwt.verify', 'verifyToken', 'createVerify', 'jwtVerify'];
@@ -434,10 +446,7 @@ describe('inbound verification is @oxy.so/core, not a local implementation (#139
 
     // The published SDK receives a presenter function backed by OxyServices;
     // Alia neither verifies nor parses an outbound token.
-    const credential = readFileSync(
-      path.join(kaanaDir, 'oxy-inference-credential.ts'),
-      'utf8',
-    );
+    const credential = readFileSync(path.join(kaanaDir, 'oxy-inference-credential.ts'), 'utf8');
     expect(credential).toContain('return () => oxy.serviceToken()');
     expect(credential).not.toMatch(/jwt\.verify|verifyToken|jwtVerify/);
   });

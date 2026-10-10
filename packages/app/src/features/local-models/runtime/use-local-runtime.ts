@@ -96,8 +96,22 @@ async function probeLocalRuntime(endpoint: string, signal?: AbortSignal): Promis
 function defaultLabel(): string {
   if (Platform.OS !== 'web') return `This ${Platform.OS} device`;
   const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent;
-  const browser = /Firefox/.test(agent) ? 'Firefox' : /Edg\//.test(agent) ? 'Edge' : /Chrome/.test(agent) ? 'Chrome' : /Safari/.test(agent) ? 'Safari' : 'This browser';
-  const os = /Macintosh/.test(agent) ? 'macOS' : /Windows/.test(agent) ? 'Windows' : /Linux/.test(agent) ? 'Linux' : '';
+  const browser = /Firefox/.test(agent)
+    ? 'Firefox'
+    : /Edg\//.test(agent)
+      ? 'Edge'
+      : /Chrome/.test(agent)
+        ? 'Chrome'
+        : /Safari/.test(agent)
+          ? 'Safari'
+          : 'This browser';
+  const os = /Macintosh/.test(agent)
+    ? 'macOS'
+    : /Windows/.test(agent)
+      ? 'Windows'
+      : /Linux/.test(agent)
+        ? 'Linux'
+        : '';
   return os ? `${browser} on ${os}` : browser;
 }
 
@@ -178,52 +192,58 @@ export function useLocalRuntime() {
    * rather than closed over, so editing it in settings takes effect on the next
    * turn instead of the next reconnect.
    */
-  const serve = useCallback(async (request: { runId?: unknown; path?: unknown; method?: unknown; body?: unknown }) => {
-    const socket = socketRef.current;
-    const runId = request.runId;
-    if (!socket || typeof runId !== 'string') return;
+  const serve = useCallback(
+    async (request: { runId?: unknown; path?: unknown; method?: unknown; body?: unknown }) => {
+      const socket = socketRef.current;
+      const runId = request.runId;
+      if (!socket || typeof runId !== 'string') return;
 
-    const controller = new AbortController();
-    runsRef.current.set(runId, controller);
-    const target = `${useLocalRuntimeStore.getState().endpoint.replace(/\/$/, '')}${
-      typeof request.path === 'string' ? request.path.replace(/^\/v1/, '') : '/chat/completions'
-    }`;
+      const controller = new AbortController();
+      runsRef.current.set(runId, controller);
+      const target = `${useLocalRuntimeStore.getState().endpoint.replace(/\/$/, '')}${
+        typeof request.path === 'string' ? request.path.replace(/^\/v1/, '') : '/chat/completions'
+      }`;
 
-    try {
-      const response = await fetch(target, {
-        method: typeof request.method === 'string' ? request.method : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: typeof request.body === 'string' ? request.body : undefined,
-        signal: controller.signal,
-      });
-      socket.emit('user-runtime:head', { runId, status: response.status });
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        // No streaming body to relay — hand the whole payload over as one frame
-        // so a non-streaming request still gets an answer.
-        socket.emit('user-runtime:chunk', { runId, data: new Uint8Array(await response.arrayBuffer()) });
-      } else {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) socket.emit('user-runtime:chunk', { runId, data: value });
-        }
-      }
-      socket.emit('user-runtime:end', { runId });
-    } catch (error: unknown) {
-      // An abort is the server or the person cancelling, and the run is already
-      // being torn down at the other end; anything else is worth reporting.
-      if (!controller.signal.aborted) {
-        socket.emit('user-runtime:error', {
-          runId,
-          message: error instanceof Error ? error.message : 'The local runtime failed.',
+      try {
+        const response = await fetch(target, {
+          method: typeof request.method === 'string' ? request.method : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: typeof request.body === 'string' ? request.body : undefined,
+          signal: controller.signal,
         });
+        socket.emit('user-runtime:head', { runId, status: response.status });
+
+        const reader = response.body?.getReader();
+        if (!reader) {
+          // No streaming body to relay — hand the whole payload over as one frame
+          // so a non-streaming request still gets an answer.
+          socket.emit('user-runtime:chunk', {
+            runId,
+            data: new Uint8Array(await response.arrayBuffer()),
+          });
+        } else {
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value) socket.emit('user-runtime:chunk', { runId, data: value });
+          }
+        }
+        socket.emit('user-runtime:end', { runId });
+      } catch (error: unknown) {
+        // An abort is the server or the person cancelling, and the run is already
+        // being torn down at the other end; anything else is worth reporting.
+        if (!controller.signal.aborted) {
+          socket.emit('user-runtime:error', {
+            runId,
+            message: error instanceof Error ? error.message : 'The local runtime failed.',
+          });
+        }
+      } finally {
+        runsRef.current.delete(runId);
       }
-    } finally {
-      runsRef.current.delete(runId);
-    }
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (consent !== 'granted' || !isAuthenticated) return;

@@ -37,18 +37,23 @@ vi.mock('@/shared/api/client', () => ({
         },
       };
     }),
-    post: vi.fn(async (path: string, body: { conversationId: string; title?: string; messages: unknown[] }) => {
-      http.requests.push(`POST ${path}`);
-      http.posted.push(body);
-      return {
-        data: {
-          id: body.conversationId,
-          title: body.title,
-          createdAt: '2026-09-01T00:00:00Z',
-          updatedAt: '2026-09-03T00:00:00Z',
-        },
-      };
-    }),
+    post: vi.fn(
+      async (
+        path: string,
+        body: { conversationId: string; title?: string; messages: unknown[] },
+      ) => {
+        http.requests.push(`POST ${path}`);
+        http.posted.push(body);
+        return {
+          data: {
+            id: body.conversationId,
+            title: body.title,
+            createdAt: '2026-09-01T00:00:00Z',
+            updatedAt: '2026-09-03T00:00:00Z',
+          },
+        };
+      },
+    ),
     delete: vi.fn(),
   },
 }));
@@ -59,7 +64,10 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { queryKeys } from '@/shared/api/query-keys';
-import { useRenameConversation, type Conversation } from '@/features/chat/runtime/use-conversations';
+import {
+  useRenameConversation,
+  type Conversation,
+} from '@/features/chat/runtime/use-conversations';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 

@@ -23,34 +23,46 @@ import { handleInboxEmailEvent } from '../lib/proactive/email-outreach.js';
 
 const OXY_API_URL = (process.env.OXY_API_URL || 'https://api.oxy.so').replace(/\/$/, '');
 
-const resourceSchema = z.object({
-  appId: z.string().min(1),
-  effectiveAccountId: z.string().min(1),
-  resourceType: z.string().min(1),
-  resourceId: z.string().min(1),
-}).strict();
-
-const normalizedEventSchema = z.object({
-  eventId: z.string().min(1),
-  appId: z.string().min(1),
-  accountId: z.string().min(1),
-  resource: resourceSchema,
-  type: z.string().min(1),
-  occurredAt: z.string().datetime(),
-  data: z.record(z.unknown()).default({}),
-}).strict();
-
-const serviceIdentitySchema = z.object({
-  service: z.object({
+const resourceSchema = z
+  .object({
     appId: z.string().min(1),
-    scopes: z.array(z.string()),
-  }).passthrough(),
-  catalogAppIds: z.array(z.string()),
-  catalogs: z.array(z.object({
+    effectiveAccountId: z.string().min(1),
+    resourceType: z.string().min(1),
+    resourceId: z.string().min(1),
+  })
+  .strict();
+
+const normalizedEventSchema = z
+  .object({
+    eventId: z.string().min(1),
     appId: z.string().min(1),
-    eventTypes: z.array(z.string().min(1)),
-  }).strict()),
-}).strict();
+    accountId: z.string().min(1),
+    resource: resourceSchema,
+    type: z.string().min(1),
+    occurredAt: z.string().datetime(),
+    data: z.record(z.unknown()).default({}),
+  })
+  .strict();
+
+const serviceIdentitySchema = z
+  .object({
+    service: z
+      .object({
+        appId: z.string().min(1),
+        scopes: z.array(z.string()),
+      })
+      .passthrough(),
+    catalogAppIds: z.array(z.string()),
+    catalogs: z.array(
+      z
+        .object({
+          appId: z.string().min(1),
+          eventTypes: z.array(z.string().min(1)),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
 
 function bearer(request: Request): string | null {
   const authorization = request.headers.authorization;
@@ -118,7 +130,9 @@ router.post('/', async (request: Request, response: Response) => {
   if (!token) return response.status(401).json({ error: 'service_bearer_required' });
   const parsed = normalizedEventSchema.safeParse(request.body);
   if (!parsed.success) {
-    return response.status(400).json({ error: 'invalid_normalized_event', details: parsed.error.flatten() });
+    return response
+      .status(400)
+      .json({ error: 'invalid_normalized_event', details: parsed.error.flatten() });
   }
   if (parsed.data.resource.appId !== parsed.data.appId) {
     return response.status(400).json({ error: 'event_resource_app_mismatch' });
@@ -134,12 +148,16 @@ router.post('/', async (request: Request, response: Response) => {
     return response.status(401).json({ error: 'invalid_service_identity' });
   }
   if (!publisher.service.scopes.includes('capability-events:publish')) {
-    return response.status(403).json({ error: 'insufficient_service_scope', requiredScope: 'capability-events:publish' });
+    return response
+      .status(403)
+      .json({ error: 'insufficient_service_scope', requiredScope: 'capability-events:publish' });
   }
   if (!publisher.catalogAppIds.includes(parsed.data.appId)) {
     return response.status(403).json({ error: 'catalog_not_owned_by_service' });
   }
-  const publisherCatalog = publisher.catalogs.find((catalog) => catalog.appId === parsed.data.appId);
+  const publisherCatalog = publisher.catalogs.find(
+    (catalog) => catalog.appId === parsed.data.appId,
+  );
   if (!publisherCatalog?.eventTypes.includes(parsed.data.type)) {
     return response.status(400).json({ error: 'event_type_not_in_catalog' });
   }
@@ -158,13 +176,20 @@ router.post('/', async (request: Request, response: Response) => {
     // Independent of any automation, and of their failure notification: an
     // important email is told by Alia or by the agent whose mailbox it is.
     if (isNewEmail(event)) {
-      void handleInboxEmailEvent({ accountId: event.accountId, data: parsed.data.data }).catch((error: unknown) => {
-        log.triggers.warn({ err: error, eventId: event.eventId }, 'Email outreach did not run');
-      });
+      void handleInboxEmailEvent({ accountId: event.accountId, data: parsed.data.data }).catch(
+        (error: unknown) => {
+          log.triggers.warn({ err: error, eventId: event.eventId }, 'Email outreach did not run');
+        },
+      );
     }
     void dispatchEvent(event).catch(async (error: unknown) => {
-      log.triggers.error({ err: error, eventId: event.eventId, appId: event.appId }, 'Normalized Oxy event failed');
-      await markAutomationEventStatus(getDb(), event.appId, event.eventId, 'failed').catch(() => undefined);
+      log.triggers.error(
+        { err: error, eventId: event.eventId, appId: event.appId },
+        'Normalized Oxy event failed',
+      );
+      await markAutomationEventStatus(getDb(), event.appId, event.eventId, 'failed').catch(
+        () => undefined,
+      );
       await sendNotification({
         userId: event.accountId,
         type: 'oxy_service',
@@ -177,15 +202,20 @@ router.post('/', async (request: Request, response: Response) => {
     });
     return response.status(202).json({ accepted: true, duplicate: false });
   } catch (error: unknown) {
-    log.triggers.error({ err: error, eventId: event.eventId }, 'Could not persist normalized Oxy event');
+    log.triggers.error(
+      { err: error, eventId: event.eventId },
+      'Could not persist normalized Oxy event',
+    );
     return response.status(503).json({ error: 'event_store_unavailable' });
   }
 });
 
 /** Legacy per-service HMAC webhooks are deliberately not accepted. */
-router.post('/:legacyServiceId', (_request: Request, response: Response) => response.status(410).json({
-  error: 'legacy_oxy_webhook_retired',
-  replacement: 'POST /webhooks/oxy with an Oxy service bearer and normalized event',
-}));
+router.post('/:legacyServiceId', (_request: Request, response: Response) =>
+  response.status(410).json({
+    error: 'legacy_oxy_webhook_retired',
+    replacement: 'POST /webhooks/oxy with an Oxy service bearer and normalized event',
+  }),
+);
 
 export default router;
