@@ -27,11 +27,16 @@ vi.mock('@oxy.so/bloom/toast', () => ({ toast: toastFn }));
 vi.mock('@oxy.so/services', () => ({
   useOxy: () => ({ user: env.userId === null ? null : { id: env.userId } }),
 }));
-vi.mock('expo-router', () => ({ useRouter: () => ({ push: (href: string) => env.pushed.push(href) }) }));
-vi.mock('@/features/billing/runtime/use-credits', () => ({ useCredits: () => ({ data: env.credits }) }));
+vi.mock('expo-router', () => ({
+  useRouter: () => ({ push: (href: string) => env.pushed.push(href) }),
+}));
+vi.mock('@/features/billing/runtime/use-credits', () => ({
+  useCredits: () => ({ data: env.credits }),
+}));
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => (options ? `${key}:${JSON.stringify(options)}` : key),
+    t: (key: string, options?: Record<string, unknown>) =>
+      options ? `${key}:${JSON.stringify(options)}` : key,
   }),
 }));
 
@@ -88,7 +93,10 @@ describe('the low-balance warning', () => {
     expect(toastFn.warning).toHaveBeenCalledOnce();
     const [message, options] = toastFn.warning.mock.calls[0];
     expect(message).toBe('usageLimit.creditsRemaining:{"count":12}');
-    expect(options).toMatchObject({ id: LOW_CREDITS_TOAST_ID, action: { label: 'usageLimit.buyMore' } });
+    expect(options).toMatchObject({
+      id: LOW_CREDITS_TOAST_ID,
+      action: { label: 'usageLimit.buyMore' },
+    });
     options.action.onClick();
     expect(env.pushed).toEqual(['/(app)/settings/usage']);
 
@@ -139,7 +147,10 @@ describe('the spending warning', () => {
   it('is an error when critical, and plain "spending high" when the refresh covers it', async () => {
     await mount();
     await warn('critical', 1);
-    expect(toastFn.error).toHaveBeenCalledWith('usageLimit.criticalMessage:{"days":1}', expect.anything());
+    expect(toastFn.error).toHaveBeenCalledWith(
+      'usageLimit.criticalMessage:{"days":1}',
+      expect.anything(),
+    );
     await warn('warning', 999);
     expect(toastFn.warning).toHaveBeenCalledWith('usageLimit.spendingHighToday', expect.anything());
   });

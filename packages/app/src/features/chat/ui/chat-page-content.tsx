@@ -11,10 +11,7 @@ import { useCreditWarnings } from '@/features/chat/runtime/use-credit-warnings';
 import { useLocalModelsInvite } from '@/features/chat/runtime/use-local-models-invite';
 import { useEntitlements } from '@/features/billing/runtime/use-billing';
 import { useCredits } from '@/features/billing/runtime/use-credits';
-import {
-  useRecordSuggestionUsage,
-  type Suggestion,
-} from '@/features/chat/runtime/use-suggestions';
+import { useRecordSuggestionUsage, type Suggestion } from '@/features/chat/runtime/use-suggestions';
 import { Button } from '@oxy.so/bloom/button';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { VoiceModeIcon } from '@/features/voice/ui/voice-mode-icon';
@@ -39,16 +36,18 @@ import type { Message } from '@/features/chat/model/chat';
 import { AmbientField } from '@/features/chat/ui/ambient-field';
 import { useTTS } from '@/features/voice/runtime/use-tts';
 import { VoiceControls, useAmbientWave } from '@alia.onl/sdk/voice';
-import {
-  AiChatMobileHeader,
-  type AiChatThreadHandle,
-} from '@oxy.so/bloom/ai-chat';
+import { AiChatMobileHeader, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
 import { useAuth } from '@oxy.so/services';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { ScrollToBottomButton } from '@oxy.so/bloom/chat-screen';
 import { useAtBottom } from '@/features/chat/runtime/use-at-bottom';
-import { View, type NativeSyntheticEvent, type TextInput, type TextInputKeyPressEventData } from 'react-native';
+import {
+  View,
+  type NativeSyntheticEvent,
+  type TextInput,
+  type TextInputKeyPressEventData,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardSafeAreaFloor } from '@/shared/platform/keyboard';
 
@@ -100,11 +99,7 @@ type VoiceState = ReturnType<typeof useVoiceMode>;
 interface ChatPageContentProps {
   messages: Message[];
   isLoading: boolean;
-  onSubmit: (
-    value: string,
-    attachments?: Attachment[],
-    options?: SendOptions,
-  ) => Promise<boolean>;
+  onSubmit: (value: string, attachments?: Attachment[], options?: SendOptions) => Promise<boolean>;
   onStop?: () => void;
   /**
    * Send a rewritten question in place of the one sent: the thread is cut back
@@ -297,8 +292,7 @@ export const ChatPageContent = ({
    * with no older stretch, and a request already in flight.
    */
   const handleLoadHistory = useCallback(() => {
-    if (onLoadHistory === undefined || !hasMoreHistory || isLoadingHistory)
-      return;
+    if (onLoadHistory === undefined || !hasMoreHistory || isLoadingHistory) return;
     onLoadHistory();
   }, [onLoadHistory, hasMoreHistory, isLoadingHistory]);
 
@@ -446,7 +440,6 @@ export const ChatPageContent = ({
     [recordSuggestionUsage],
   );
 
-
   // The old composer's suggestions, over it: welcome first, then matches.
   const suggestions = useComposerSuggestions({
     draft: inputValue,
@@ -471,10 +464,7 @@ export const ChatPageContent = ({
 
   if (intro) {
     return (
-      <ChatWorkspace
-        header={<AiChatMobileHeader title="Alia" />}
-        background={intro.background}
-      >
+      <ChatWorkspace header={<AiChatMobileHeader title="Alia" />} background={intro.background}>
         {intro.content}
       </ChatWorkspace>
     );
@@ -611,4 +601,3 @@ export const ChatPageContent = ({
     </ChatWorkspace>
   );
 };
-

@@ -244,10 +244,7 @@ describe('the MCP OAuth upsert converges', () => {
       .select()
       .from(mcpConnectorAuths)
       .where(
-        and(
-          eq(mcpConnectorAuths.oxyUserId, 'user-6'),
-          eq(mcpConnectorAuths.serverId, 'notion'),
-        ),
+        and(eq(mcpConnectorAuths.oxyUserId, 'user-6'), eq(mcpConnectorAuths.serverId, 'notion')),
       );
     expect(rows).toHaveLength(1);
     expect(rows[0]?.id).toBe('auth-1');

@@ -96,7 +96,10 @@ const H = vi.hoisted(() => {
      * Every request the fake model received, in call order. Reading the ASSEMBLED
      * request is what turns "recall ran first" into "recall reached the model".
      */
-    calls: [] as Array<{ prompt?: Array<{ role: string; content: unknown }>; tools?: Array<{ name: string }> }>,
+    calls: [] as Array<{
+      prompt?: Array<{ role: string; content: unknown }>;
+      tools?: Array<{ name: string }>;
+    }>,
     /**
      * Fired at the top of every model call. The only way to reach a mid-stream
      * event (a client disconnect) at a point where the route has actually
@@ -150,9 +153,10 @@ vi.mock('@oxy.so/core', async () => {
           kind: 'bot',
           relationship: H.state.oxyStanding === 'grants' ? 'owner' : 'none',
           account: { id: accountId, kind: 'bot' },
-          callerMembership: H.state.oxyStanding === 'grants'
-            ? { status: 'active', role: 'owner', permissions: ['account:act_as'] }
-            : null,
+          callerMembership:
+            H.state.oxyStanding === 'grants'
+              ? { status: 'active', role: 'owner', permissions: ['account:act_as'] }
+              : null,
         };
       }
     },
@@ -179,7 +183,10 @@ vi.mock('../../../lib/chat-core.js', () => ({
     provider: H.UPSTREAM_PROVIDER,
     modelId: H.UPSTREAM_MODEL_ID,
     supportedUrls: {},
-    doGenerate: async (options: { prompt?: Array<{ role: string; content: unknown }>; tools?: Array<{ name: string }> }) => {
+    doGenerate: async (options: {
+      prompt?: Array<{ role: string; content: unknown }>;
+      tools?: Array<{ name: string }>;
+    }) => {
       H.timeline.push('model:doGenerate');
       H.state.calls.push(options);
       return {
@@ -189,7 +196,10 @@ vi.mock('../../../lib/chat-core.js', () => ({
         warnings: [],
       };
     },
-    doStream: async (options: { prompt?: Array<{ role: string; content: unknown }>; tools?: Array<{ name: string }> }) => {
+    doStream: async (options: {
+      prompt?: Array<{ role: string; content: unknown }>;
+      tools?: Array<{ name: string }>;
+    }) => {
       H.timeline.push('model:doStream');
       H.state.calls.push(options);
       H.state.onModelCall?.(H.state.calls.length);
@@ -205,9 +215,11 @@ vi.mock('../../../lib/chat-core.js', () => ({
       };
     },
   })),
-  reportModelUsage: vi.fn(async (_keyId: unknown, _provider: unknown, _modelId: unknown, success: boolean) => {
-    H.timeline.push(`provider:reportUsage:${success ? 'ok' : 'fail'}`);
-  }),
+  reportModelUsage: vi.fn(
+    async (_keyId: unknown, _provider: unknown, _modelId: unknown, success: boolean) => {
+      H.timeline.push(`provider:reportUsage:${success ? 'ok' : 'fail'}`);
+    },
+  ),
 }));
 
 /**
@@ -227,9 +239,9 @@ const LOCAL = vi.hoisted(() => ({ connected: true }));
  * their own spelling.
  */
 vi.mock('../../../lib/inference/user-runtime-bridge.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../lib/inference/user-runtime-bridge.js')>(
-    '../../../lib/inference/user-runtime-bridge.js',
-  );
+  const actual = await vi.importActual<
+    typeof import('../../../lib/inference/user-runtime-bridge.js')
+  >('../../../lib/inference/user-runtime-bridge.js');
   return { ...actual, userRuntimeCanServe: vi.fn(async () => LOCAL.connected) };
 });
 
@@ -355,7 +367,9 @@ vi.mock('../../../db/agents/agentRepository.js', () => ({
 }));
 
 vi.mock('../../../lib/tools/mcp.js', () => ({ buildMcpTools: vi.fn(async () => ({})) }));
-vi.mock('../../../lib/tools/integrations.js', () => ({ buildIntegrationTools: vi.fn(async () => ({})) }));
+vi.mock('../../../lib/tools/integrations.js', () => ({
+  buildIntegrationTools: vi.fn(async () => ({})),
+}));
 vi.mock('../../../lib/tools/oxy-services.js', () => ({
   buildOxyServiceTools: vi.fn(async () => ({})),
   getOxyServicePromptFragment: vi.fn(async () => ''),
@@ -385,7 +399,16 @@ vi.mock('../../../lib/observability/index.js', () => ({
 
 vi.mock('../../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { v1: child, chat: child, general: child, providers: child, codea: child, correlation: child } };
+  return {
+    log: {
+      v1: child,
+      chat: child,
+      general: child,
+      providers: child,
+      codea: child,
+      correlation: child,
+    },
+  };
 });
 
 // ── Import the route AFTER the mocks ───────────────────────────────────────
@@ -400,7 +423,10 @@ import { clearAgentAccountVerdicts } from '../../../lib/agent-account.js';
 interface ParsedChunk {
   object?: string;
   error?: { code?: string };
-  choices?: Array<{ delta?: { content?: string; tool_calls?: unknown[] }; finish_reason?: string | null }>;
+  choices?: Array<{
+    delta?: { content?: string; tool_calls?: unknown[] };
+    finish_reason?: string | null;
+  }>;
   usage?: unknown;
 }
 
@@ -518,7 +544,9 @@ interface RecordingReq {
   disconnect(): void;
 }
 
-function recordingReq(overrides: Partial<RecordingReq> & { body: Record<string, unknown> }): RecordingReq {
+function recordingReq(
+  overrides: Partial<RecordingReq> & { body: Record<string, unknown> },
+): RecordingReq {
   const listeners = new Map<string, Set<() => void>>();
   return {
     user: { id: 'user-ws13' },
@@ -574,10 +602,21 @@ const RESOLVED = {
   modelId: CHAT_MODEL,
   keyConfig: { provider: 'kaana', modelId: CHAT_MODEL },
   oxyInferenceTarget: { kind: 'model', model: CHAT_MODEL },
-  catalogue: { id: CHAT_MODEL, name: 'Chat 1', publisher: { id: 'acme', name: 'Acme' }, contextWindow: 128000, reasoningEfforts: [] },
+  catalogue: {
+    id: CHAT_MODEL,
+    name: 'Chat 1',
+    publisher: { id: 'acme', name: 'Acme' },
+    contextWindow: 128000,
+    reasoningEfforts: [],
+  },
 };
 
-const RESERVATION = { userId: 'user-ws13', creditsReserved: 1, initialFreeCredits: 100, initialPaidCredits: 0 };
+const RESERVATION = {
+  userId: 'user-ws13',
+  creditsReserved: 1,
+  initialFreeCredits: 100,
+  initialPaidCredits: 0,
+};
 
 const ENTITLEMENTS = {
   tier: 'free',
@@ -707,15 +746,16 @@ describe('the frame classifier recognises every shape the route writes', () => {
 // ===========================================================================
 
 describe('fixture: an explicit agent id is fail-closed at the streaming route', () => {
-  const request = (agentId: string) => recordingReq({
-    accessToken: 'bearer-user-ws13',
-    body: {
-      messages: [{ role: 'user', content: 'answer as the selected agent' }],
-      model: CHAT_MODEL,
-      stream: true,
-      agentId,
-    },
-  });
+  const request = (agentId: string) =>
+    recordingReq({
+      accessToken: 'bearer-user-ws13',
+      body: {
+        messages: [{ role: 'user', content: 'answer as the selected agent' }],
+        model: CHAT_MODEL,
+        stream: true,
+        agentId,
+      },
+    });
 
   function clientFrames(res: RecordingRes): string[] {
     return res.raw.map(classifyFrame);
@@ -736,7 +776,8 @@ describe('fixture: an explicit agent id is fail-closed at the streaming route', 
     expect(H.timeline).not.toContain('model:doGenerate');
     expect(H.state.calls).toHaveLength(0);
     expect(H.timeline.filter((entry) => entry.startsWith('credits:'))).toEqual([
-      'credits:reserve', 'credits:refund',
+      'credits:reserve',
+      'credits:refund',
     ]);
   });
 
@@ -847,13 +888,20 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
   });
 
   it('recall reaches the model call, not merely precedes it', async () => {
-    const body = { messages: [{ role: 'user', content: 'what day is it' }], model: CHAT_MODEL, stream: true, conversationId: 'conv-ws13' };
+    const body = {
+      messages: [{ role: 'user', content: 'what day is it' }],
+      model: CHAT_MODEL,
+      stream: true,
+      conversationId: 'conv-ws13',
+    };
     await run(recordingReq({ body: { ...body } }), recordingRes());
 
     // Ordering alone is a weak claim: a recall that ran first and was then
     // dropped on the floor orders identically. What must survive an inference
     // swap is that the recalled text is IN the prompt the model receives.
-    expect(H.timeline.indexOf('recall:beforeChatHooks')).toBeLessThan(H.timeline.indexOf('model:doStream'));
+    expect(H.timeline.indexOf('recall:beforeChatHooks')).toBeLessThan(
+      H.timeline.indexOf('model:doStream'),
+    );
     const withRecall = systemPromptSeenByModel();
     expect(withRecall).toContain('## Recalled Memories');
     expect(withRecall).toContain('- Coffee: Prefers oat milk.');
@@ -873,7 +921,12 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
 
   it('executes the tool for real between the call frame and the result frame', async () => {
     const req = recordingReq({
-      body: { messages: [{ role: 'user', content: 'what day is it' }], model: CHAT_MODEL, stream: true, conversationId: 'conv-ws13' },
+      body: {
+        messages: [{ role: 'user', content: 'what day is it' }],
+        model: CHAT_MODEL,
+        stream: true,
+        conversationId: 'conv-ws13',
+      },
     });
     const res = recordingRes();
     const before = Date.now();
@@ -899,7 +952,9 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     // the result, so moving the result into a `data:` frame is a breaking change
     // for the app and the published SDK alike.
     const kinds = H.timeline.filter((entry) => entry.startsWith('sse:'));
-    expect(kinds.indexOf('sse:chunk:tool_calls')).toBeLessThan(kinds.indexOf('sse:event:alia.tool_result'));
+    expect(kinds.indexOf('sse:chunk:tool_calls')).toBeLessThan(
+      kinds.indexOf('sse:event:alia.tool_result'),
+    );
   });
 
   it('names the Alia product events it emits, and no others', async () => {
@@ -917,7 +972,9 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
 
     // Positive control: the scan sees a named event at all. Without it, "no
     // unexpected events" is what a scan of an empty array also reports.
-    const named = res.raw.filter((frame) => frame.startsWith('event: ')).map((frame) => frame.slice(7, frame.indexOf('\n')));
+    const named = res.raw
+      .filter((frame) => frame.startsWith('event: '))
+      .map((frame) => frame.slice(7, frame.indexOf('\n')));
     expect(named).toEqual(['alia.context', 'alia.tool_result', 'alia.title']);
 
     // The generic half: every `data:` frame that is not the terminator carries
@@ -928,7 +985,9 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
       .filter((frame) => frame.startsWith('data: ') && !frame.includes('[DONE]'))
       .map((frame) => JSON.parse(frame.slice(6).trim()) as { object?: string; model?: string });
     expect(dataFrames.length).toBeGreaterThan(0);
-    expect(new Set(dataFrames.map((frame) => frame.object))).toEqual(new Set(['chat.completion.chunk']));
+    expect(new Set(dataFrames.map((frame) => frame.object))).toEqual(
+      new Set(['chat.completion.chunk']),
+    );
     expect(new Set(dataFrames.map((frame) => frame.model))).toEqual(new Set([CHAT_MODEL]));
 
     // And the same invariant over the WHOLE byte stream, named events included.
@@ -945,7 +1004,12 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
 
   it('does not emit an approval request over SSE — approvals are a socket surface', async () => {
     const req = recordingReq({
-      body: { messages: [{ role: 'user', content: 'what day is it' }], model: CHAT_MODEL, stream: true, conversationId: 'conv-ws13' },
+      body: {
+        messages: [{ role: 'user', content: 'what day is it' }],
+        model: CHAT_MODEL,
+        stream: true,
+        conversationId: 'conv-ws13',
+      },
     });
     const res = recordingRes();
     await run(req, res);
@@ -995,7 +1059,9 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     expect(H.timeline).toContain('notify:disconnectedClient');
     // The notification comes after the terminator, so a client that reconnects
     // has already seen the full answer.
-    expect(H.timeline.indexOf('sse:[DONE]')).toBeLessThan(H.timeline.indexOf('notify:disconnectedClient'));
+    expect(H.timeline.indexOf('sse:[DONE]')).toBeLessThan(
+      H.timeline.indexOf('notify:disconnectedClient'),
+    );
   });
 
   it('synthesizes an answer when all five bounded steps were tool calls', async () => {
@@ -1009,16 +1075,19 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     ];
 
     const res = recordingRes();
-    await run(recordingReq({
-      body: {
-        messages: [{ role: 'user', content: 'what is the weather in Barcelona?' }],
-        model: CHAT_MODEL,
-        stream: true,
-        conversationId: 'conv-weather',
-      },
-    }), res);
+    await run(
+      recordingReq({
+        body: {
+          messages: [{ role: 'user', content: 'what is the weather in Barcelona?' }],
+          model: CHAT_MODEL,
+          stream: true,
+          conversationId: 'conv-weather',
+        },
+      }),
+      res,
+    );
 
-    expect(H.timeline.filter(entry => entry === 'model:doStream')).toHaveLength(6);
+    expect(H.timeline.filter((entry) => entry === 'model:doStream')).toHaveLength(6);
     expect(res.raw.join('')).toContain('Barcelona is sunny and mild today.');
     expect(H.timeline).toContain('persist:conversation("Barcelona is sunny and mild today.")');
     expect(H.timeline).toContain('credits:finalize');
@@ -1036,23 +1105,26 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     ];
 
     const res = recordingRes();
-    await run(recordingReq({
-      body: {
-        messages: [{ role: 'user', content: 'what is the weather in Barcelona?' }],
-        model: CHAT_MODEL,
-        stream: true,
-        conversationId: 'conv-weather-empty',
-      },
-    }), res);
+    await run(
+      recordingReq({
+        body: {
+          messages: [{ role: 'user', content: 'what is the weather in Barcelona?' }],
+          model: CHAT_MODEL,
+          stream: true,
+          conversationId: 'conv-weather-empty',
+        },
+      }),
+      res,
+    );
 
-    expect(H.timeline.filter(entry => entry === 'model:doStream')).toHaveLength(6);
-    expect(H.timeline.filter(entry => entry.startsWith('persist:'))).toEqual([]);
+    expect(H.timeline.filter((entry) => entry === 'model:doStream')).toHaveLength(6);
+    expect(H.timeline.filter((entry) => entry.startsWith('persist:'))).toEqual([]);
     expect(H.timeline).not.toContain('credits:finalize');
     expect(H.timeline).toContain('credits:refund');
     // Tool cards already streamed, so the turn ends as a failure in the open
     // stream: the typed error frame and [DONE], never a stop chunk.
-    expect(H.timeline.some(entry => entry.startsWith('sse:error('))).toBe(true);
-    expect(H.timeline.some(entry => entry.startsWith('sse:chunk:finish'))).toBe(false);
+    expect(H.timeline.some((entry) => entry.startsWith('sse:error('))).toBe(true);
+    expect(H.timeline.some((entry) => entry.startsWith('sse:chunk:finish'))).toBe(false);
     expect(res.raw.join('')).toContain('"retryable":true');
   });
 });
@@ -1064,18 +1136,35 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
 describe('fixture: what a failure surfaces to the user', () => {
   it('keeps a platform billing refusal non-retryable through the real chat handler', async () => {
     H.state.resolveAnswers = [RESOLVED, null];
-    H.state.streamTurns = [[streamStart, { type: 'error', error: new OxyInferenceError({
-      code: 'provider_billing_refused', retryable: false, status: 402,
-      message: `The platform's ${UPSTREAM_PROVIDER} account cannot be billed`,
-      requestId: 'oxy-private-request',
-    }) }]];
+    H.state.streamTurns = [
+      [
+        streamStart,
+        {
+          type: 'error',
+          error: new OxyInferenceError({
+            code: 'provider_billing_refused',
+            retryable: false,
+            status: 402,
+            message: `The platform's ${UPSTREAM_PROVIDER} account cannot be billed`,
+            requestId: 'oxy-private-request',
+          }),
+        },
+      ],
+    ];
     const res = recordingRes();
-    await run(recordingReq({
-      body: { messages: [{ role: 'user', content: 'hello' }], model: CHAT_MODEL, stream: true },
-    }), res);
+    await run(
+      recordingReq({
+        body: { messages: [{ role: 'user', content: 'hello' }], model: CHAT_MODEL, stream: true },
+      }),
+      res,
+    );
     const bytes = res.raw.join('');
     expect(bytes).not.toContain('"synthetic":true');
-    expect(H.timeline.filter(entry => /^(sse:(?!comment)|http:)/.test(entry)).slice(-3)).toEqual(['sse:error(PROVIDER_UNAVAILABLE)', 'sse:[DONE]', 'http:end']);
+    expect(H.timeline.filter((entry) => /^(sse:(?!comment)|http:)/.test(entry)).slice(-3)).toEqual([
+      'sse:error(PROVIDER_UNAVAILABLE)',
+      'sse:[DONE]',
+      'http:end',
+    ]);
     expect(bytes).toContain('"retryable":false');
     expect(bytes).toContain('"code":"PROVIDER_UNAVAILABLE"');
     expect(bytes).toMatch(/"reference":"chatcmpl-[0-9a-f-]{36}"/);
@@ -1085,8 +1174,8 @@ describe('fixture: what a failure surfaces to the user', () => {
     expect(bytes).not.toContain('oxy-private-request');
     expect(H.timeline).toContain('credits:refund');
     expect(H.timeline).not.toContain('credits:finalize');
-    expect(H.timeline.filter(entry => entry === 'model:doStream')).toHaveLength(1);
-    expect(H.timeline.filter(entry => entry.startsWith('persist:'))).toEqual([]);
+    expect(H.timeline.filter((entry) => entry === 'model:doStream')).toHaveLength(1);
+    expect(H.timeline.filter((entry) => entry.startsWith('persist:'))).toEqual([]);
   });
 
   /**
@@ -1097,33 +1186,58 @@ describe('fixture: what a failure surfaces to the user', () => {
    * for it — and the person saw nothing go wrong.
    */
   it('ends a turn that fails after text and a tool call as a FAILED turn', async () => {
-    const SQL_LEAK = 'provider: recording credential attempt: ERROR: provider credential attempt identity conflict (SQLSTATE P0001)';
+    const SQL_LEAK =
+      'provider: recording credential attempt: ERROR: provider credential attempt identity conflict (SQLSTATE P0001)';
     H.state.streamTurns = [
-      [streamStart, ...say('t1', 'Voy a abrir Mention y mirar las tendencias.'), ...callTool('call-1', 'getCurrentDate', '{}'), finish('tool-calls')],
-      [streamStart, { type: 'error', error: new OxyInferenceError({
-        code: 'provider_error', retryable: true, status: 502,
-        message: `${UPSTREAM_PROVIDER} ${SQL_LEAK}`,
-        requestId: 'oxy-private-request',
-      }) }, finish('error')],
+      [
+        streamStart,
+        ...say('t1', 'Voy a abrir Mention y mirar las tendencias.'),
+        ...callTool('call-1', 'getCurrentDate', '{}'),
+        finish('tool-calls'),
+      ],
+      [
+        streamStart,
+        {
+          type: 'error',
+          error: new OxyInferenceError({
+            code: 'provider_error',
+            retryable: true,
+            status: 502,
+            message: `${UPSTREAM_PROVIDER} ${SQL_LEAK}`,
+            requestId: 'oxy-private-request',
+          }),
+        },
+        finish('error'),
+      ],
     ];
     const res = recordingRes();
-    await run(recordingReq({
-      body: { messages: [{ role: 'user', content: 'Que tendencias hay en Mention?' }], model: CHAT_MODEL, stream: true, conversationId: 'conv-midstream' },
-    }), res);
+    await run(
+      recordingReq({
+        body: {
+          messages: [{ role: 'user', content: 'Que tendencias hay en Mention?' }],
+          model: CHAT_MODEL,
+          stream: true,
+          conversationId: 'conv-midstream',
+        },
+      }),
+      res,
+    );
 
     const bytes = res.raw.join('');
     // The partial output did reach the client, and the tool really ran.
     expect(bytes).toContain('Voy a abrir Mention y mirar las tendencias.');
     expect(H.timeline).toContain('sse:chunk:tool_calls');
     expect(H.timeline).toContain('sse:event:alia.tool_result');
-    expect(H.timeline.filter(entry => entry === 'model:doStream')).toHaveLength(2);
+    expect(H.timeline.filter((entry) => entry === 'model:doStream')).toHaveLength(2);
 
     // The stream ends with the typed error frame, then [DONE] — no stop chunk.
-    const ending = H.timeline.filter(entry => entry.startsWith('sse:') && !entry.startsWith('sse:comment'));
+    const ending = H.timeline.filter(
+      (entry) => entry.startsWith('sse:') && !entry.startsWith('sse:comment'),
+    );
     expect(ending.slice(-2)).toEqual(['sse:error(PROVIDER_UNAVAILABLE)', 'sse:[DONE]']);
     expect(H.timeline[H.timeline.indexOf('sse:[DONE]') + 1]).toBe('http:end');
-    expect(H.timeline.some(entry => entry.startsWith('sse:chunk:finish'))).toBe(false);
-    const errorFrame = res.raw.find(frame => frame.startsWith('data: {"error"'));
+    expect(H.timeline.some((entry) => entry.startsWith('sse:chunk:finish'))).toBe(false);
+    const errorFrame = res.raw.find((frame) => frame.startsWith('data: {"error"'));
     expect(errorFrame).toBeDefined();
     expect(JSON.parse(String(errorFrame).slice(6))).toEqual({
       error: {
@@ -1144,9 +1258,9 @@ describe('fixture: what a failure surfaces to the user', () => {
     expect(bytes).not.toContain('"synthetic":true');
 
     // A failed turn has no row, is not charged, and is recorded as failed.
-    expect(H.timeline.filter(entry => entry.startsWith('persist:conversation'))).toEqual([]);
+    expect(H.timeline.filter((entry) => entry.startsWith('persist:conversation'))).toEqual([]);
     expect(H.timeline).not.toContain('credits:finalize');
-    expect(H.timeline.filter(entry => entry === 'credits:refund')).toHaveLength(1);
+    expect(H.timeline.filter((entry) => entry === 'credits:refund')).toHaveLength(1);
     expect(H.afterChat).toHaveLength(1);
     expect(H.afterChat[0].errorClass).toBe('PROVIDER_UNAVAILABLE');
   });
@@ -1160,12 +1274,19 @@ describe('fixture: what a failure surfaces to the user', () => {
       [streamStart, ...say('t2', 'Hoy es martes.'), finish('stop')],
     ];
     const res = recordingRes();
-    await run(recordingReq({
-      body: { messages: [{ role: 'user', content: 'que dia es?' }], model: CHAT_MODEL, stream: true },
-    }), res);
+    await run(
+      recordingReq({
+        body: {
+          messages: [{ role: 'user', content: 'que dia es?' }],
+          model: CHAT_MODEL,
+          stream: true,
+        },
+      }),
+      res,
+    );
 
     expect(res.raw.join('')).toContain('Hoy es martes.');
-    expect(H.timeline.some(entry => entry.startsWith('sse:error'))).toBe(false);
+    expect(H.timeline.some((entry) => entry.startsWith('sse:error'))).toBe(false);
     expect(H.timeline).toContain('credits:finalize');
   });
 
@@ -1180,14 +1301,30 @@ describe('fixture: what a failure surfaces to the user', () => {
    */
   it('a failure before any output ends the stream with a typed error, never a stand-in answer', async () => {
     H.state.resolveAnswers = [RESOLVED, null];
-    H.state.streamTurns = [[streamStart, { type: 'error', error: new OxyInferenceError({
-      code: 'provider_overloaded', retryable: true, status: 503, retryAfterMs: 4_000,
-      message: `${UPSTREAM_PROVIDER} ${UPSTREAM_MODEL_ID} is overloaded (SQLSTATE 53300)`,
-      requestId: 'oxy-private-request',
-    }) }]];
+    H.state.streamTurns = [
+      [
+        streamStart,
+        {
+          type: 'error',
+          error: new OxyInferenceError({
+            code: 'provider_overloaded',
+            retryable: true,
+            status: 503,
+            retryAfterMs: 4_000,
+            message: `${UPSTREAM_PROVIDER} ${UPSTREAM_MODEL_ID} is overloaded (SQLSTATE 53300)`,
+            requestId: 'oxy-private-request',
+          }),
+        },
+      ],
+    ];
 
     const req = recordingReq({
-      body: { messages: [{ role: 'user', content: 'summarise this file' }], model: CHAT_MODEL, stream: true, conversationId: 'conv-preoutput' },
+      body: {
+        messages: [{ role: 'user', content: 'summarise this file' }],
+        model: CHAT_MODEL,
+        stream: true,
+        conversationId: 'conv-preoutput',
+      },
     });
     const res = recordingRes();
     await run(req, res);
@@ -1195,13 +1332,17 @@ describe('fixture: what a failure surfaces to the user', () => {
     const bytes = res.raw.join('');
     // Ends with the error frame, [DONE] and the end of the response: no content
     // chunk, no stop chunk, no stand-in prose in either language.
-    expect(H.timeline.filter(entry => /^(sse:(?!comment)|http:)/.test(entry)).slice(-3)).toEqual(['sse:error(PROVIDER_UNAVAILABLE)', 'sse:[DONE]', 'http:end']);
-    expect(H.timeline.some(entry => entry.startsWith('sse:chunk'))).toBe(false);
+    expect(H.timeline.filter((entry) => /^(sse:(?!comment)|http:)/.test(entry)).slice(-3)).toEqual([
+      'sse:error(PROVIDER_UNAVAILABLE)',
+      'sse:[DONE]',
+      'http:end',
+    ]);
+    expect(H.timeline.some((entry) => entry.startsWith('sse:chunk'))).toBe(false);
     expect(bytes).not.toContain('"finish_reason"');
     expect(bytes).not.toContain('"synthetic"');
     expect(bytes).not.toContain('all models are currently busy');
     expect(bytes).not.toContain('ocupados');
-    const errorFrame = res.raw.find(frame => frame.startsWith('data: {"error"'));
+    const errorFrame = res.raw.find((frame) => frame.startsWith('data: {"error"'));
     expect(JSON.parse(String(errorFrame).slice(6))).toEqual({
       error: {
         message: 'Service temporarily unavailable. Please try again in a moment.',
@@ -1215,9 +1356,9 @@ describe('fixture: what a failure surfaces to the user', () => {
     });
 
     // Nothing is stored and nothing is charged.
-    expect(H.timeline.filter(entry => entry.startsWith('persist:'))).toEqual([]);
+    expect(H.timeline.filter((entry) => entry.startsWith('persist:'))).toEqual([]);
     expect(H.timeline).not.toContain('credits:finalize');
-    expect(H.timeline.filter(entry => entry === 'credits:refund')).toHaveLength(1);
+    expect(H.timeline.filter((entry) => entry === 'credits:refund')).toHaveLength(1);
 
     // No provider identity, upstream words or private ids anywhere in the bytes.
     // The positive control is the frame parsed above: the scan reads the stream
@@ -1243,7 +1384,11 @@ describe('fixture: what a failure surfaces to the user', () => {
 
     await run(
       recordingReq({
-        body: { messages: [{ role: 'user', content: 'summarise this file' }], model: CHAT_MODEL, stream: true },
+        body: {
+          messages: [{ role: 'user', content: 'summarise this file' }],
+          model: CHAT_MODEL,
+          stream: true,
+        },
       }),
       recordingRes(),
     );
@@ -1264,7 +1409,9 @@ describe('fixture: what a failure surfaces to the user', () => {
     H.state.streamTurns = [[streamStart, ...say('t1', 'Here you go.'), finish('stop')]];
 
     await run(
-      recordingReq({ body: { messages: [{ role: 'user', content: 'hello' }], model: CHAT_MODEL, stream: true } }),
+      recordingReq({
+        body: { messages: [{ role: 'user', content: 'hello' }], model: CHAT_MODEL, stream: true },
+      }),
       recordingRes(),
     );
 
@@ -1287,7 +1434,16 @@ describe('fixture: what a failure surfaces to the user', () => {
     H.state.streamTurns = [[streamStart, { type: 'error', error: new Error('upstream exploded') }]];
 
     const spanish = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hola, ¿qué tal?' }], model: CHAT_MODEL, stream: true } }), spanish);
+    await run(
+      recordingReq({
+        body: {
+          messages: [{ role: 'user', content: 'hola, ¿qué tal?' }],
+          model: CHAT_MODEL,
+          stream: true,
+        },
+      }),
+      spanish,
+    );
     const bytes = spanish.raw.join('');
     expect(bytes).not.toContain('todos los modelos están ocupados');
     expect(bytes).toContain('"code":"PROVIDER_UNAVAILABLE"');
@@ -1297,7 +1453,12 @@ describe('fixture: what a failure surfaces to the user', () => {
   it('refuses before the model call when credits are exhausted', async () => {
     H.state.reservation = null;
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: CHAT_MODEL, stream: false } }), res);
+    await run(
+      recordingReq({
+        body: { messages: [{ role: 'user', content: 'hi' }], model: CHAT_MODEL, stream: false },
+      }),
+      res,
+    );
 
     expect(H.timeline).toEqual(['credits:reserve', 'http:status(402)', 'http:json']);
     expect(res.jsonBody).toEqual({
@@ -1318,7 +1479,12 @@ describe('fixture: what a failure surfaces to the user', () => {
     // property rather than a surprise.
     H.state.reservation = null;
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: CHAT_MODEL, stream: true } }), res);
+    await run(
+      recordingReq({
+        body: { messages: [{ role: 'user', content: 'hi' }], model: CHAT_MODEL, stream: true },
+      }),
+      res,
+    );
 
     expect(H.timeline).toEqual([
       'sse:comment(keep-alive)',
@@ -1339,7 +1505,12 @@ describe('fixture: what a failure surfaces to the user', () => {
       exhausted: true,
     };
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: CHAT_MODEL, stream: false } }), res);
+    await run(
+      recordingReq({
+        body: { messages: [{ role: 'user', content: 'hi' }], model: CHAT_MODEL, stream: false },
+      }),
+      res,
+    );
 
     // No reservation: nothing to refund, nothing charged.
     expect(H.timeline).toEqual(['credits:window', 'http:status(429)', 'http:json']);
@@ -1356,9 +1527,20 @@ describe('fixture: what a failure surfaces to the user', () => {
 
   it('refuses over the open stream when the window is spent', async () => {
     H.state.entitlements = { ...(ENTITLEMENTS as object), planId: 'pro' };
-    H.state.usageWindow = { hours: 5, used: 1200, limit: 1000, resetsAt: new Date(Date.now() + 60_000), exhausted: true };
+    H.state.usageWindow = {
+      hours: 5,
+      used: 1200,
+      limit: 1000,
+      resetsAt: new Date(Date.now() + 60_000),
+      exhausted: true,
+    };
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: CHAT_MODEL, stream: true } }), res);
+    await run(
+      recordingReq({
+        body: { messages: [{ role: 'user', content: 'hi' }], model: CHAT_MODEL, stream: true },
+      }),
+      res,
+    );
 
     expect(H.timeline).toEqual([
       'sse:comment(keep-alive)',
@@ -1374,7 +1556,12 @@ describe('fixture: what a failure surfaces to the user', () => {
     const { readUsageWindow } = await import('../../../lib/usage-window.js');
     vi.mocked(readUsageWindow).mockRejectedValueOnce(new Error('db down'));
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: CHAT_MODEL, stream: false } }), res);
+    await run(
+      recordingReq({
+        body: { messages: [{ role: 'user', content: 'hi' }], model: CHAT_MODEL, stream: false },
+      }),
+      res,
+    );
     expect(H.timeline).toContain('credits:reserve');
     expect(H.timeline).not.toContain('http:status(429)');
   });
@@ -1382,7 +1569,16 @@ describe('fixture: what a failure surfaces to the user', () => {
   it('refuses a model the catalogue does not offer, before holding any credit', async () => {
     vi.mocked(resolveModel).mockRejectedValueOnce(new ModelNotFoundError('nobody/no-such-model'));
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'nobody/no-such-model', stream: false } }), res);
+    await run(
+      recordingReq({
+        body: {
+          messages: [{ role: 'user', content: 'hi' }],
+          model: 'nobody/no-such-model',
+          stream: false,
+        },
+      }),
+      res,
+    );
 
     expect(H.timeline).not.toContain('credits:reserve');
     expect(H.timeline).toContain('http:status(400)');
@@ -1421,7 +1617,8 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
           { role: 'system', content: 'You are an expert code completion assistant.' },
           { role: 'user', content: 'complete this' },
         ],
-        model: CHAT_MODEL, surface: 'codea',
+        model: CHAT_MODEL,
+        surface: 'codea',
         max_tokens: 500,
         temperature: 0.2,
         stream: false,
@@ -1474,30 +1671,59 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
         provider: UPSTREAM_PROVIDER,
         modelId: UPSTREAM_MODEL_ID,
         supportedUrls: {},
-        doGenerate: async () => { throw error; },
-        doStream: async () => { throw error; },
+        doGenerate: async () => {
+          throw error;
+        },
+        doStream: async () => {
+          throw error;
+        },
       } as never);
       const res = recordingRes();
-      await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: CHAT_MODEL, surface: 'codea', stream: false }), res);
+      await run(
+        codeaReq({
+          messages: [{ role: 'user', content: 'complete this' }],
+          model: CHAT_MODEL,
+          surface: 'codea',
+          stream: false,
+        }),
+        res,
+      );
       return res;
     };
 
-    const busy = await failWith(new OxyInferenceError({
-      code: 'provider_overloaded', retryable: true, status: 503, retryAfterMs: 4_000,
-      message: `${UPSTREAM_PROVIDER} overloaded`, requestId: 'oxy-private-request',
-    }));
+    const busy = await failWith(
+      new OxyInferenceError({
+        code: 'provider_overloaded',
+        retryable: true,
+        status: 503,
+        retryAfterMs: 4_000,
+        message: `${UPSTREAM_PROVIDER} overloaded`,
+        requestId: 'oxy-private-request',
+      }),
+    );
     expect(H.timeline).toContain('http:status(503)');
     expect(busy.headers['Retry-After']).toBe('4');
-    expect((busy.jsonBody as { error: Record<string, unknown> }).error).toMatchObject({ retryable: true, retryAfter: 4 });
+    expect((busy.jsonBody as { error: Record<string, unknown> }).error).toMatchObject({
+      retryable: true,
+      retryAfter: 4,
+    });
 
     H.timeline.length = 0;
-    const refused = await failWith(new OxyInferenceError({
-      code: 'provider_billing_refused', retryable: false, status: 402,
-      message: `The platform's ${UPSTREAM_PROVIDER} account cannot be billed`, requestId: 'oxy-private-request',
-    }));
+    const refused = await failWith(
+      new OxyInferenceError({
+        code: 'provider_billing_refused',
+        retryable: false,
+        status: 402,
+        message: `The platform's ${UPSTREAM_PROVIDER} account cannot be billed`,
+        requestId: 'oxy-private-request',
+      }),
+    );
     expect(H.timeline).toContain('http:status(500)');
     expect(refused.headers['Retry-After']).toBeUndefined();
-    expect((refused.jsonBody as { error: Record<string, unknown> }).error).toMatchObject({ type: 'server_error', retryable: false });
+    expect((refused.jsonBody as { error: Record<string, unknown> }).error).toMatchObject({
+      type: 'server_error',
+      retryable: false,
+    });
     for (const res of [busy, refused]) {
       const json = JSON.stringify(res.jsonBody);
       expect(json).not.toContain(UPSTREAM_PROVIDER);
@@ -1525,7 +1751,15 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
     } as never);
 
     const res = recordingRes();
-    await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: CHAT_MODEL, surface: 'codea', stream: false }), res);
+    await run(
+      codeaReq({
+        messages: [{ role: 'user', content: 'complete this' }],
+        model: CHAT_MODEL,
+        surface: 'codea',
+        stream: false,
+      }),
+      res,
+    );
 
     // OpenAI-compatible: a 503 with the error envelope. A completion whose
     // `content` was Alia's apology is what an inline-completion client used to
@@ -1533,7 +1767,7 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
     expect(H.timeline).toContain('http:status(503)');
     expect(H.timeline).not.toContain('credits:finalize');
     expect(H.timeline).toContain('credits:refund');
-    expect(H.timeline.filter(entry => entry.startsWith('persist:'))).toEqual([]);
+    expect(H.timeline.filter((entry) => entry.startsWith('persist:'))).toEqual([]);
     const body = res.jsonBody as Record<string, unknown>;
     expect(body).toEqual({
       error: {
@@ -1550,7 +1784,6 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
     expect(res.raw).toEqual([]);
     expect(JSON.stringify(body)).not.toContain(UPSTREAM_PROVIDER);
   });
-
 });
 
 // ===========================================================================
@@ -1573,7 +1806,8 @@ describe('fixture: Cowork flow — Oxy session, streaming, client-supplied edito
 
   const COWORK_BODY = {
     messages: [{ role: 'user', content: 'read the readme' }],
-    model: CHAT_MODEL, surface: 'cowork',
+    model: CHAT_MODEL,
+    surface: 'cowork',
     stream: true,
     tools: EDITOR_TOOLS,
   };
@@ -1581,7 +1815,11 @@ describe('fixture: Cowork flow — Oxy session, streaming, client-supplied edito
   beforeEach(() => {
     H.state.resolveAnswers = [RESOLVED];
     H.state.streamTurns = [
-      [streamStart, ...callTool('call-fs', 'workspace_write_file', '{"path":"README.md"}'), finish('tool-calls')],
+      [
+        streamStart,
+        ...callTool('call-fs', 'workspace_write_file', '{"path":"README.md"}'),
+        finish('tool-calls'),
+      ],
       [streamStart, ...say('t1', 'The readme describes the project.'), finish('stop')],
     ];
   });
@@ -1630,8 +1868,17 @@ describe('fixture: Cowork flow — Oxy session, streaming, client-supplied edito
     // ...and the client is handed the ORIGINAL on the generic tool-call frame
     // AND on the Alia result event. Cowork dispatches on this string; a
     // regression here is a desktop app that silently stops executing tools.
-    const call = JSON.parse(res.raw.find((f) => f.includes('tool_calls'))?.slice(6).trim() ?? '{}') as {
-      choices?: Array<{ delta?: { tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }> } }>;
+    const call = JSON.parse(
+      res.raw
+        .find((f) => f.includes('tool_calls'))
+        ?.slice(6)
+        .trim() ?? '{}',
+    ) as {
+      choices?: Array<{
+        delta?: {
+          tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }>;
+        };
+      }>;
     };
     const fn = call.choices?.[0].delta?.tool_calls?.[0];
     expect(fn?.id).toBe('call-fs');
@@ -1670,11 +1917,19 @@ describe('fixture: Cowork flow — Oxy session, streaming, client-supplied edito
     await run(coworkReq({ ...COWORK_BODY, tools: undefined }), res);
 
     // Positive control: the reasoning DID travel, as a named Alia event.
-    expect(namedEvent(res, 'alia.reasoning')).toEqual({ eventVersion: 1, content: 'weighing the options' });
+    expect(namedEvent(res, 'alia.reasoning')).toEqual({
+      eventVersion: 1,
+      content: 'weighing the options',
+    });
 
     const deltas = res.raw
       .filter((frame) => frame.startsWith('data: ') && !frame.includes('[DONE]'))
-      .map((frame) => JSON.parse(frame.slice(6).trim()) as { choices?: Array<{ delta?: Record<string, unknown> }> })
+      .map(
+        (frame) =>
+          JSON.parse(frame.slice(6).trim()) as {
+            choices?: Array<{ delta?: Record<string, unknown> }>;
+          },
+      )
       .flatMap((frame) => frame.choices ?? [])
       .map((choice) => choice.delta ?? {});
     expect(deltas.length).toBeGreaterThan(0);
@@ -1720,7 +1975,10 @@ describe('fixture: deep research flow — phase events, report deltas, sources',
 
     const phases = res.raw
       .filter((frame) => frame.startsWith('event: alia.research_progress'))
-      .map((frame) => (JSON.parse(frame.slice(frame.indexOf('data: ') + 6).trim()) as { phase: string }).phase);
+      .map(
+        (frame) =>
+          (JSON.parse(frame.slice(frame.indexOf('data: ') + 6).trim()) as { phase: string }).phase,
+      );
 
     // A floor, so an empty phase list cannot pass as "the phases are fine".
     expect(phases.length).toBeGreaterThanOrEqual(6);
@@ -1755,8 +2013,17 @@ describe('fixture: deep research flow — phase events, report deltas, sources',
     await run(researchReq(), res);
 
     const final = JSON.parse(
-      res.raw.filter((f) => f.startsWith('event: alia.research_progress')).at(-1)?.split('data: ')[1].trim() ?? '{}',
-    ) as { phase: string; sources?: Array<{ id: number; url: string }>; totalSearches?: number; subQuestions?: string[] };
+      res.raw
+        .filter((f) => f.startsWith('event: alia.research_progress'))
+        .at(-1)
+        ?.split('data: ')[1]
+        .trim() ?? '{}',
+    ) as {
+      phase: string;
+      sources?: Array<{ id: number; url: string }>;
+      totalSearches?: number;
+      subQuestions?: string[];
+    };
     expect(final.phase).toBe('complete');
     expect(final.sources).toEqual([{ id: 1, url: 'https://example.test/a', title: 'A' }]);
     expect(final.subQuestions).toEqual(['sub one', 'sub two']);
@@ -1778,7 +2045,9 @@ describe('fixture: deep research flow — phase events, report deltas, sources',
     // then `:82`), the opposite of the provider loop, which saves first. Both
     // are recorded because a port that unifies them changes when a reconnecting
     // client can read its own history.
-    expect(H.timeline.indexOf('sse:[DONE]')).toBeLessThan(H.timeline.findIndex((e) => e.startsWith('persist:conversation')));
+    expect(H.timeline.indexOf('sse:[DONE]')).toBeLessThan(
+      H.timeline.findIndex((e) => e.startsWith('persist:conversation')),
+    );
     expect(H.timeline).toContain('credits:finalize');
     expect(H.timeline).toContain('persist:titleAsync');
   });
@@ -1799,7 +2068,10 @@ describe('fixture: deep research flow — phase events, report deltas, sources',
     // The research still ran to completion and still emitted `complete`.
     const phases = res.raw
       .filter((frame) => frame.startsWith('event: alia.research_progress'))
-      .map((frame) => (JSON.parse(frame.slice(frame.indexOf('data: ') + 6).trim()) as { phase: string }).phase);
+      .map(
+        (frame) =>
+          (JSON.parse(frame.slice(frame.indexOf('data: ') + 6).trim()) as { phase: string }).phase,
+      );
     expect(phases).toContain('complete');
 
     // And the control that gives the claim teeth: when the socket IS already
@@ -1884,9 +2156,12 @@ function toolNamesSeenByModel(): string[] {
 function namedEvent(res: RecordingRes, name: string): Record<string, unknown> {
   const frame = res.raw.find((entry) => entry.startsWith(`event: ${name}\n`));
   expect(frame, `expected a ${name} frame`).toBeDefined();
-  return JSON.parse(String(frame).slice(String(frame).indexOf('data: ') + 6).trim()) as Record<string, unknown>;
+  return JSON.parse(
+    String(frame)
+      .slice(String(frame).indexOf('data: ') + 6)
+      .trim(),
+  ) as Record<string, unknown>;
 }
-
 
 // ===========================================================================
 // A model served by the person's OWN machine
@@ -1972,7 +2247,12 @@ describe('fixture: a turn served by the user own device', () => {
     const res = recordingRes();
     await run(
       recordingReq({
-        body: { messages: [{ role: 'user', content: 'go' }], model: LOCAL_MODEL, stream: true, agentMode: true },
+        body: {
+          messages: [{ role: 'user', content: 'go' }],
+          model: LOCAL_MODEL,
+          stream: true,
+          agentMode: true,
+        },
       }),
       res,
     );

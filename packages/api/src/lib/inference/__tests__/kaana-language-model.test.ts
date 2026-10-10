@@ -18,7 +18,10 @@ vi.mock('../oxy-inference.js', () => ({
         servingProvider: 'operator-that-must-not-leak',
         output: [{ role: 'assistant', content: [{ type: 'text', text: 'hola' }] }],
         finishReason: 'stop',
-        usage: [{ unit: 'input_tokens', quantity: 2 }, { unit: 'output_tokens', quantity: 1 }],
+        usage: [
+          { unit: 'input_tokens', quantity: 2 },
+          { unit: 'output_tokens', quantity: 1 },
+        ],
       };
     },
     stream: (request: Record<string, unknown>, options: Record<string, unknown>) => {
@@ -68,9 +71,7 @@ describe('Kaana AI SDK adapter through Oxy', () => {
       surface: 'chat',
       onInferenceRequest,
     });
-    const parts = await drain(
-      (await model.doStream({ prompt } as never)).stream,
-    );
+    const parts = await drain((await model.doStream({ prompt } as never)).stream);
     expect(parts.find((part) => part.type === 'error')?.error).toBe(failure);
     expect(onInferenceRequest).not.toHaveBeenCalled();
   });
@@ -82,28 +83,41 @@ describe('Kaana AI SDK adapter through Oxy', () => {
     ['no_route_available', false, undefined, 'PROVIDER_UNAVAILABLE', undefined],
     ['provider_timeout', true, undefined, 'TIMEOUT', undefined],
     ['quota_exceeded', false, undefined, 'QUOTA_EXCEEDED', undefined],
-  ] as const)('preserves %s through the stream and product classification', async (code, retryable, retryAfterMs, productCode, retryAfter) => {
-    mocks.events.push({
-      type: 'error', requestId: 'req-failed',
-      error: { code, message: 'Upstream refused the request.', retryable, ...(retryAfterMs === undefined ? {} : { retryAfterMs }) },
-    });
-    const model = kaanaLanguageModel({
-      target: { kind: 'model', model: 'acme/chat-1' },
-      modelId: 'acme/chat-1', surface: 'chat',
-    });
-    const { stream } = await model.doStream({ prompt } as never);
-    const parts = await drain(stream);
-    const failure = parts.find(part => part.type === 'error')?.error;
-    expect(failure).toBeInstanceOf(OxyInferenceError);
-    expect(failure).toMatchObject({ code, retryable, requestId: 'req-failed' });
-    const productError = toAliaError(failure);
-    expect(productError).toMatchObject({ code: productCode, retryable });
-    expect(productError.retryAfter).toBe(retryAfter);
-    expect(productError.httpStatus).toBeGreaterThanOrEqual(400);
-    expect(productError.userMessage).not.toContain('Upstream');
-    expect(parts.filter(part => part.type === 'error')).toHaveLength(1);
-    expect(parts.at(-1)).toMatchObject({ type: 'finish', finishReason: { unified: 'error', raw: code } });
-  });
+  ] as const)(
+    'preserves %s through the stream and product classification',
+    async (code, retryable, retryAfterMs, productCode, retryAfter) => {
+      mocks.events.push({
+        type: 'error',
+        requestId: 'req-failed',
+        error: {
+          code,
+          message: 'Upstream refused the request.',
+          retryable,
+          ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+        },
+      });
+      const model = kaanaLanguageModel({
+        target: { kind: 'model', model: 'acme/chat-1' },
+        modelId: 'acme/chat-1',
+        surface: 'chat',
+      });
+      const { stream } = await model.doStream({ prompt } as never);
+      const parts = await drain(stream);
+      const failure = parts.find((part) => part.type === 'error')?.error;
+      expect(failure).toBeInstanceOf(OxyInferenceError);
+      expect(failure).toMatchObject({ code, retryable, requestId: 'req-failed' });
+      const productError = toAliaError(failure);
+      expect(productError).toMatchObject({ code: productCode, retryable });
+      expect(productError.retryAfter).toBe(retryAfter);
+      expect(productError.httpStatus).toBeGreaterThanOrEqual(400);
+      expect(productError.userMessage).not.toContain('Upstream');
+      expect(parts.filter((part) => part.type === 'error')).toHaveLength(1);
+      expect(parts.at(-1)).toMatchObject({
+        type: 'finish',
+        finishReason: { unified: 'error', raw: code },
+      });
+    },
+  );
 
   it('sends the exact catalogue model and delegated user to Oxy', async () => {
     const model = kaanaLanguageModel({
@@ -221,7 +235,9 @@ describe('Kaana AI SDK adapter through Oxy', () => {
     });
     const result = await model.doGenerate({ prompt } as never);
 
-    expect(result.providerMetadata).toEqual({ kaana: { resolvedModelReference: 'openai/gpt-5-mini@2026-08-18' } });
+    expect(result.providerMetadata).toEqual({
+      kaana: { resolvedModelReference: 'openai/gpt-5-mini@2026-08-18' },
+    });
     expect(result.response?.modelId).toBe('openai/gpt-5-mini@2026-08-18');
     expect(JSON.stringify(result)).not.toContain('operator-that-must-not-leak');
   });
@@ -246,7 +262,10 @@ describe('Kaana AI SDK adapter through Oxy', () => {
     const parts = await drain((await model.doStream({ prompt } as never)).stream);
 
     const metadata = parts.find((part) => part.type === 'response-metadata');
-    expect(metadata).toMatchObject({ id: 'req-2', modelId: 'anthropic/claude-sonnet-4@2026-08-18' });
+    expect(metadata).toMatchObject({
+      id: 'req-2',
+      modelId: 'anthropic/claude-sonnet-4@2026-08-18',
+    });
     const finish = parts.at(-1);
     expect(finish?.type).toBe('finish');
     expect(finish?.providerMetadata).toEqual({

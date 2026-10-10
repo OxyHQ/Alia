@@ -133,8 +133,9 @@ describe('a settings patch can CLEAR a field, which `undefined` no longer does',
       autoReplyAgentId: 'agent-1',
       autoReply: true,
     });
-    expect((await findConnectedAccountForUser(db, account.id, 'cau-settings'))?.autoReplyAgentId)
-      .toBe('agent-1');
+    expect(
+      (await findConnectedAccountForUser(db, account.id, 'cau-settings'))?.autoReplyAgentId,
+    ).toBe('agent-1');
 
     const cleared = await updateConnectedAccountSettings(db, account.id, 'cau-settings', {
       autoReplyAgentId: null,
@@ -170,7 +171,7 @@ describe('a settings patch can CLEAR a field, which `undefined` no longer does',
     expect(same?.id).toBe(account.id);
   });
 
-  it('will not patch another user\'s account', async () => {
+  it("will not patch another user's account", async () => {
     const account = await pending('cau-owner');
     expect(
       await updateConnectedAccountSettings(db, account.id, 'cau-intruder', { autoReply: true }),
@@ -228,7 +229,7 @@ describe('the readers are scoped as the routes need', () => {
     expect(await findConnectedAccountForChannel(db, user, 'whatsapp')).toBeNull();
   });
 
-  it('deletes only the caller\'s own account, and cleans up an orphan by id', async () => {
+  it("deletes only the caller's own account, and cleans up an orphan by id", async () => {
     const account = await pending('cau-del');
     expect(await deleteConnectedAccountForUser(db, account.id, 'cau-someone-else')).toBeNull();
     expect(await findConnectedAccountForUser(db, account.id, 'cau-del')).not.toBeNull();

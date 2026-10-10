@@ -19,7 +19,12 @@ export interface AutomationAction {
 
 export type AutomationTrigger =
   | { type: 'manual' }
-  | { type: 'event'; appId: string | null; eventType: string | null; resource?: AutomationResource | null }
+  | {
+      type: 'event';
+      appId: string | null;
+      eventType: string | null;
+      resource?: AutomationResource | null;
+    }
   | { type: 'schedule'; cron: string | null; timezone: string | null };
 
 /** Who is responsible for a task: Alia by default, or one or more of the person's agents. */
@@ -182,14 +187,21 @@ function cronDayList(field: string): number[] | null {
 export function cronLabel(cron: string, t: Translate): string {
   const fields = cron.trim().split(/\s+/);
   if (fields.length !== 5) return cron;
-  const [minute, hour, dayOfMonth, month, dayOfWeek] = fields as [string, string, string, string, string];
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = fields as [
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
   if (dayOfMonth !== '*' || month !== '*') return cron;
 
   const interval = minute.match(/^\*\/(\d+)$/);
   if (interval && hour === '*' && dayOfWeek === '*') {
     const minutes = Number(interval[1]);
     if (minutes === 60) return t('automations.cron.everyHour');
-    if (minutes > 60 && minutes % 60 === 0) return t('automations.cron.everyHours', { count: minutes / 60 });
+    if (minutes > 60 && minutes % 60 === 0)
+      return t('automations.cron.everyHours', { count: minutes / 60 });
     return t('automations.cron.everyMinutes', { count: minutes });
   }
 
@@ -203,7 +215,8 @@ export function cronLabel(cron: string, t: Translate): string {
   if (days.length === 5 && days.every((day, index) => day === index + 1)) {
     return t('automations.cron.weekdaysAt', { time });
   }
-  if (days.length === 2 && days[0] === 0 && days[1] === 6) return t('automations.cron.weekendsAt', { time });
+  if (days.length === 2 && days[0] === 0 && days[1] === 6)
+    return t('automations.cron.weekendsAt', { time });
   const names = days.map((day) => t(`automations.cron.dayPlural.${day}`));
   return t('automations.cron.daysAt', { days: names.join(', '), time });
 }

@@ -16,16 +16,18 @@ export async function readWebPage(url: string) {
   try {
     const resolution = await clarityClient().indexing.resolve({ urls: [url], waitMs: 8_000 });
     const item = resolution.data[0];
-    const document = item?.document
-      ?? (item?.status === 'indexed' || item?.status === 'extracted'
+    const document =
+      item?.document ??
+      (item?.status === 'indexed' || item?.status === 'extracted'
         ? await clarityClient().documents.byUrl(url)
         : undefined);
 
     if (!document) {
       return {
-        error: item?.status === 'queued' && item.operationId
-          ? `Clarity is still indexing this page (operation ${item.operationId})`
-          : 'Clarity could not fetch this page',
+        error:
+          item?.status === 'queued' && item.operationId
+            ? `Clarity is still indexing this page (operation ${item.operationId})`
+            : 'Clarity could not fetch this page',
       };
     }
 
@@ -33,7 +35,8 @@ export async function readWebPage(url: string) {
     return {
       documentId: document.id,
       title: document.title || document.canonicalUrl,
-      content: content.length > MAX_CONTENT_CHARS ? `${content.slice(0, MAX_CONTENT_CHARS)}...` : content,
+      content:
+        content.length > MAX_CONTENT_CHARS ? `${content.slice(0, MAX_CONTENT_CHARS)}...` : content,
       url: document.canonicalUrl,
       length: content.length,
       authors: document.authors,
@@ -49,12 +52,17 @@ export async function readWebPage(url: string) {
 }
 
 export const webScraperTool = tool({
-  description: 'Read the indexed main content and citation metadata for a public web page. Clarity performs safe fetching and extraction. Pages that only render with JavaScript or need interaction may not be readable.',
+  description:
+    'Read the indexed main content and citation metadata for a public web page. Clarity performs safe fetching and extraction. Pages that only render with JavaScript or need interaction may not be readable.',
   inputSchema: z.object({
     url: z.string().url().describe('The public URL to read'),
-    extractLinks: z.boolean().optional().default(false).describe(
-      'Retained in the tool input contract. Clarity owns crawl discovery; document reads do not expose raw outgoing-link graphs.',
-    ),
+    extractLinks: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe(
+        'Retained in the tool input contract. Clarity owns crawl discovery; document reads do not expose raw outgoing-link graphs.',
+      ),
   }),
   execute: async ({ url }) => readWebPage(url),
 });

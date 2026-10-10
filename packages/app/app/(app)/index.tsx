@@ -39,9 +39,7 @@ const ChatPage = () => {
    * signs the user in while its exit is still playing, and letting
    * `isAuthenticated` flip the gate mid-animation would tear it off the screen.
    */
-  const [introState, setIntroState] = useState<'idle' | 'showing' | 'done'>(
-    'idle',
-  );
+  const [introState, setIntroState] = useState<'idle' | 'showing' | 'done'>('idle');
   if (introState === 'idle' && isAuthResolved && !isAuthenticated) {
     setIntroState('showing');
   }
@@ -122,30 +120,30 @@ const ChatPage = () => {
 
   /** The chat, or the welcome inside the same container while it shows. */
   const chat = (intro?: WelcomeIntroSlots) => (
-      <ChatPageContent
-        intro={intro}
-        onVoiceStart={handleVoiceStart}
-        // No `conversationId`, deliberately: this is the new-chat screen,
-        // and its absence is what `ChatPageContent` reads to decide which
-        // mounted instance's draft is the new chat's. The drawer keeps
-        // every visited chat alive, so naming an id here would hand this
-        // screen's draft to a persisted conversation.
-        messages={messages}
-        isLoading={isLoading}
-        conversationLoading={conversationLoading}
-        onSubmit={handleSubmit}
-        onStop={stopGeneration}
-        onEditMessage={editMessage}
-        onRegenerateMessage={regenerateMessage}
-        turnOptionsOf={turnOptionsOf}
-        onApprovePlan={approvePlan}
-        onRejectPlan={rejectPlan}
-        suggestedNewConversation={suggestedNewConversation}
-        onAcceptNewConversation={handleAcceptNewConversation}
-        onDismissNewConversation={dismissSuggestedNewConversation}
-        failedTurn={failedTurn}
-        onRetryTurn={retryFailedTurn}
-      />
+    <ChatPageContent
+      intro={intro}
+      onVoiceStart={handleVoiceStart}
+      // No `conversationId`, deliberately: this is the new-chat screen,
+      // and its absence is what `ChatPageContent` reads to decide which
+      // mounted instance's draft is the new chat's. The drawer keeps
+      // every visited chat alive, so naming an id here would hand this
+      // screen's draft to a persisted conversation.
+      messages={messages}
+      isLoading={isLoading}
+      conversationLoading={conversationLoading}
+      onSubmit={handleSubmit}
+      onStop={stopGeneration}
+      onEditMessage={editMessage}
+      onRegenerateMessage={regenerateMessage}
+      turnOptionsOf={turnOptionsOf}
+      onApprovePlan={approvePlan}
+      onRejectPlan={rejectPlan}
+      suggestedNewConversation={suggestedNewConversation}
+      onAcceptNewConversation={handleAcceptNewConversation}
+      onDismissNewConversation={dismissSuggestedNewConversation}
+      failedTurn={failedTurn}
+      onRetryTurn={retryFailedTurn}
+    />
   );
 
   return (
@@ -153,27 +151,14 @@ const ChatPage = () => {
       <>
         <Head>
           <title>Alia \ Oxy</title>
-          <meta
-            name="description"
-            content={t('landing.metaDescription')}
-          />
+          <meta name="description" content={t('landing.metaDescription')} />
           <link rel="canonical" href="https://alia.onl/" />
           <meta property="og:title" content="Alia \ Oxy" />
-          <meta
-            property="og:description"
-            content={t('landing.metaDescription')}
-          />
-          <meta
-            property="og:image"
-            content="https://alia.onl/og-image-default.png"
-          />
+          <meta property="og:description" content={t('landing.metaDescription')} />
+          <meta property="og:image" content="https://alia.onl/og-image-default.png" />
         </Head>
         {introState === 'showing' ? (
-          <WelcomeIntro
-            onDismissed={handleIntroDismissed}
-          >
-            {(intro) => chat(intro)}
-          </WelcomeIntro>
+          <WelcomeIntro onDismissed={handleIntroDismissed}>{(intro) => chat(intro)}</WelcomeIntro>
         ) : (
           chat()
         )}

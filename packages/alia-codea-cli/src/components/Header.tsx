@@ -18,7 +18,7 @@ function shortenPath(p: string): string {
 }
 
 const MODE_COLORS: Record<ApprovalMode, string> = {
-  'suggest': 'yellow',
+  suggest: 'yellow',
   'auto-edit': 'cyan',
   'full-auto': 'green',
 };

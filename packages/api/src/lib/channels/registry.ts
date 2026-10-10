@@ -4,7 +4,7 @@ const channels: ChannelPlugin[] = [];
 const outboundCache = new Map<ChannelId, ChannelOutboundAdapter>();
 
 export function registerChannel(plugin: ChannelPlugin): void {
-  const existing = channels.findIndex(c => c.id === plugin.id);
+  const existing = channels.findIndex((c) => c.id === plugin.id);
   if (existing !== -1) {
     channels[existing] = plugin;
   } else {
@@ -14,7 +14,7 @@ export function registerChannel(plugin: ChannelPlugin): void {
 }
 
 export function getChannel(id: ChannelId): ChannelPlugin | undefined {
-  return channels.find(c => c.id === id);
+  return channels.find((c) => c.id === id);
 }
 
 export function listChannels(): ChannelPlugin[] {
@@ -22,7 +22,7 @@ export function listChannels(): ChannelPlugin[] {
 }
 
 export function getConfiguredChannels(): ChannelPlugin[] {
-  return channels.filter(c => c.config.isConfigured());
+  return channels.filter((c) => c.config.isConfigured());
 }
 
 export function getCachedOutbound(id: ChannelId): ChannelOutboundAdapter | undefined {

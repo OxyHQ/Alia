@@ -141,9 +141,7 @@ function localOnlyReason(reportedType: string): string {
  * not the durable record. Nothing here is conditional on a third party's state;
  * only on whether this application knows how to describe the object at all.
  */
-export async function createReport(
-  input: CreateReportInput,
-): Promise<CreateReportResult> {
+export async function createReport(input: CreateReportInput): Promise<CreateReportResult> {
   const reporter = requireIdentifier(input.reporter, 'reporter');
   const reportedId = requireIdentifier(input.reportedId, 'reportedId');
   const reportedTypeValue = requireIdentifier(input.reportedType, 'reportedType');

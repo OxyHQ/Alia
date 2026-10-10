@@ -9,7 +9,6 @@
  * - SSE-compatible error serialization
  */
 
-
 // ============== FAILOVER REASON ==============
 
 /**
@@ -97,8 +96,7 @@ const DEFAULT_HTTP_STATUS: Record<AliaErrorCode, number> = {
 // upstream string — which is why they are constants rather than templates.
 
 const DEFAULT_USER_MESSAGES: Record<AliaErrorCode, string> = {
-  [AliaErrorCode.RATE_LIMITED]:
-    'Too many requests. Please wait a moment and try again.',
+  [AliaErrorCode.RATE_LIMITED]: 'Too many requests. Please wait a moment and try again.',
   [AliaErrorCode.QUOTA_EXCEEDED]:
     'Service quota exceeded. Please try again later or contact support.',
   [AliaErrorCode.PROVIDER_UNAVAILABLE]:
@@ -113,10 +111,8 @@ const DEFAULT_USER_MESSAGES: Record<AliaErrorCode, string> = {
     "You don't have enough credits for this request. Please add more credits.",
   [AliaErrorCode.AUTH_FAILED]:
     'Authentication failed. Please check your credentials and try again.',
-  [AliaErrorCode.TIMEOUT]:
-    'Request timed out. Please try again with a shorter message.',
-  [AliaErrorCode.INVALID_REQUEST]:
-    'Invalid request. Please check your input and try again.',
+  [AliaErrorCode.TIMEOUT]: 'Request timed out. Please try again with a shorter message.',
+  [AliaErrorCode.INVALID_REQUEST]: 'Invalid request. Please check your input and try again.',
   [AliaErrorCode.CONTENT_FILTERED]:
     'Your request was filtered by our safety system. Please revise your message.',
 };

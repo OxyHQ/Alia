@@ -130,8 +130,7 @@ export function useReadAloud(blocked: boolean) {
   );
 
   const stateOf = useCallback(
-    (messageId: string): ReadAloudState =>
-      activeMessageId === messageId ? playbackState : 'idle',
+    (messageId: string): ReadAloudState => (activeMessageId === messageId ? playbackState : 'idle'),
     [activeMessageId, playbackState],
   );
 

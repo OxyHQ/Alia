@@ -69,9 +69,12 @@ export class BrowserSession {
     const results = response.data;
     if (results.length === 0) return 'No search results found.';
 
-    return results.map((r, i) =>
-      `${i + 1}. ${r.title || r.canonicalUrl}\n   ${r.canonicalUrl}\n   ${r.snippet || r.description || ''}`
-    ).join('\n\n');
+    return results
+      .map(
+        (r, i) =>
+          `${i + 1}. ${r.title || r.canonicalUrl}\n   ${r.canonicalUrl}\n   ${r.snippet || r.description || ''}`,
+      )
+      .join('\n\n');
   }
 
   /** Read a URL through Clarity and make it the current page. */

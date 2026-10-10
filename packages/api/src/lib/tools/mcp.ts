@@ -54,7 +54,8 @@ export async function buildMcpTools(
 
   const cacheKey = JSON.stringify({
     oxyUserId,
-    selection: selectedServerIds === undefined ? { kind: 'all' } : { ids: [...selectedServerIds].sort() },
+    selection:
+      selectedServerIds === undefined ? { kind: 'all' } : { ids: [...selectedServerIds].sort() },
   });
   const cached = cache.get(cacheKey);
   if (cached) return cached;
@@ -64,11 +65,7 @@ export async function buildMcpTools(
   try {
     // Server-side MCP tools (running in integrations service)
     if (INTEGRATIONS_URL && INTEGRATIONS_SECRET) {
-      const servers = await listRunnableMcpServersForUser(
-        getDb(),
-        oxyUserId,
-        selectedServerIds,
-      );
+      const servers = await listRunnableMcpServersForUser(getDb(), oxyUserId, selectedServerIds);
 
       for (const server of servers) {
         if (!server.tools.length) continue;
@@ -82,11 +79,7 @@ export async function buildMcpTools(
             continue;
           }
 
-          tools[toolName] = createServerTool(
-            server.displayName,
-            mcpTool,
-            serverId,
-          );
+          tools[toolName] = createServerTool(server.displayName, mcpTool, serverId);
         }
       }
     }
@@ -109,12 +102,7 @@ export async function buildMcpTools(
         continue;
       }
 
-      tools[toolName] = createLocalTool(
-        serverName,
-        mcpTool,
-        oxyUserId,
-        serverId,
-      );
+      tools[toolName] = createLocalTool(serverName, mcpTool, oxyUserId, serverId);
     }
 
     cache.set(cacheKey, tools);
@@ -135,11 +123,7 @@ function sanitizeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9]/g, '_');
 }
 
-function createServerTool(
-  displayName: string,
-  mcpTool: McpServerTool,
-  serverId: string,
-) {
+function createServerTool(displayName: string, mcpTool: McpServerTool, serverId: string) {
   let inputSchema;
   try {
     inputSchema = jsonSchemaToZod(mcpTool.inputSchema as Record<string, any>);

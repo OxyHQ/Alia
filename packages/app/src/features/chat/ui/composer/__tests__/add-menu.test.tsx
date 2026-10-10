@@ -84,7 +84,10 @@ vi.mock('@/shared/ui/image', async () => {
 });
 vi.mock('@/shared/ui/action-key-icon', async () => {
   const ReactModule = await import('react');
-  return { ActionKeyIcon: (props: Record<string, unknown>) => ReactModule.createElement('ActionKeyIcon', props) };
+  return {
+    ActionKeyIcon: (props: Record<string, unknown>) =>
+      ReactModule.createElement('ActionKeyIcon', props),
+  };
 });
 
 import { useComposerAddMenu, type ComposerAddMenuOptions } from '../add-menu';
@@ -148,7 +151,9 @@ function row(groups: readonly ComposerPanelAddMenuGroup[], id: string) {
 
 describe('every switch says which way it is', () => {
   it('ticks a capability that is on and holds the space for one that is not', () => {
-    const on = run(base({ webSearch: true, modes: { ghost: true, agent: false, deepResearch: false } }));
+    const on = run(
+      base({ webSearch: true, modes: { ghost: true, agent: false, deepResearch: false } }),
+    );
     expect(row(on.groups, 'cap:web-search').checked).toBe(true);
     expect(row(on.groups, 'cap:ghost').checked).toBe(true);
     // `false`, NOT undefined: the difference is a tick column the row keeps
@@ -211,7 +216,9 @@ describe('the groups appear on their own terms', () => {
     const skillsOnly = run(
       base({
         turnSelection: {
-          skills: [{ id: 's1', name: 'research', label: 'Research', description: '', selected: false }],
+          skills: [
+            { id: 's1', name: 'research', label: 'Research', description: '', selected: false },
+          ],
           connectors: [],
         },
       }),
@@ -223,7 +230,9 @@ describe('the groups appear on their own terms', () => {
       base({
         turnSelection: {
           skills: [],
-          connectors: [{ id: 'c1', label: 'Calendar', icon: undefined, toolCount: 1, selected: false }],
+          connectors: [
+            { id: 'c1', label: 'Calendar', icon: undefined, toolCount: 1, selected: false },
+          ],
         },
       }),
     );
@@ -256,8 +265,12 @@ describe('the groups appear on their own terms', () => {
     const menu = run(
       base({
         turnSelection: {
-          skills: [{ id: 's1', name: 'canvas', label: 'Canvas skill', description: '', selected: false }],
-          connectors: [{ id: 'canvas', label: 'Canvas app', icon: undefined, toolCount: 1, selected: false }],
+          skills: [
+            { id: 's1', name: 'canvas', label: 'Canvas skill', description: '', selected: false },
+          ],
+          connectors: [
+            { id: 'canvas', label: 'Canvas app', icon: undefined, toolCount: 1, selected: false },
+          ],
         },
       }),
     );
@@ -363,6 +376,8 @@ describe('the file picker passes the same gate as a drop', () => {
 
     expect(toasts.error).toHaveBeenCalledWith('composer.fileEmpty');
     expect(options.addAttachment).toHaveBeenCalledTimes(1);
-    expect(options.addAttachment).toHaveBeenCalledWith(expect.objectContaining({ name: 'notes.txt' }));
+    expect(options.addAttachment).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'notes.txt' }),
+    );
   });
 });

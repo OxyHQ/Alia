@@ -69,7 +69,7 @@ function generateSitemapXML(urls: SitemapURL[]): string {
     <lastmod>${lastmod}</lastmod>
     <changefreq>${changefreq}</changefreq>
     <priority>${priority}</priority>
-  </url>`
+  </url>`,
     )
     .join('');
 

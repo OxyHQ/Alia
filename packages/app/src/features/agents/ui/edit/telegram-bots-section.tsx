@@ -3,27 +3,16 @@ import { useTranslation } from '@/shared/i18n/use-translation';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { Dialog } from '@oxy.so/bloom/dialog';
-import {
-  RiAddLine,
-  RiDeleteBinLine,
-  RiSendPlaneLine,
-} from '@oxy.so/bloom/icons';
+import { RiAddLine, RiDeleteBinLine, RiSendPlaneLine } from '@oxy.so/bloom/icons';
 import { Label } from '@oxy.so/bloom/label';
-import {
-  SettingsListGroup,
-  SettingsListItem,
-} from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Switch } from '@oxy.so/bloom/switch';
 import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
 import { Fragment } from 'react';
 import { View } from 'react-native';
 
 /** The Telegram bots bound to the agent, each with who pays for its turns. */
-export function TelegramBotsSection({
-  telegram,
-}: {
-  telegram: AgentTelegramBots;
-}) {
+export function TelegramBotsSection({ telegram }: { telegram: AgentTelegramBots }) {
   const { t } = useTranslation();
   const { bots } = telegram;
 
@@ -85,14 +74,9 @@ export function TelegramBotsSection({
 }
 
 /** The token prompt that binds a new Telegram bot to the agent. */
-export function ConnectTelegramBotDialog({
-  telegram,
-}: {
-  telegram: AgentTelegramBots;
-}) {
+export function ConnectTelegramBotDialog({ telegram }: { telegram: AgentTelegramBots }) {
   const { t } = useTranslation();
-  const { dialogOpen, setDialogOpen, token, setToken, connecting, connect } =
-    telegram;
+  const { dialogOpen, setDialogOpen, token, setToken, connecting, connect } = telegram;
 
   return (
     <Dialog

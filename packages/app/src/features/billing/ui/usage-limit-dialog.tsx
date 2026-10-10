@@ -80,9 +80,10 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
   // Description
   let description: string;
   if (isWindow) {
-    description = countdown > 0
-      ? t('usageLimit.windowDescription', { time: formatCountdown(countdown) })
-      : t('usageLimit.windowFreed');
+    description =
+      countdown > 0
+        ? t('usageLimit.windowDescription', { time: formatCountdown(countdown) })
+        : t('usageLimit.windowFreed');
   } else if (isModelAccess) {
     description = t('usageLimit.modelLockedDesc');
   } else if (isCredits) {
@@ -90,9 +91,10 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
   } else if (showUpgrade) {
     description = t('usageLimit.limitReachedDescription');
   } else {
-    description = countdown > 0
-      ? t('usageLimit.slowDownDescription', { time: formatCountdown(countdown) })
-      : t('usageLimit.slowDownGeneric');
+    description =
+      countdown > 0
+        ? t('usageLimit.slowDownDescription', { time: formatCountdown(countdown) })
+        : t('usageLimit.slowDownGeneric');
   }
 
   // Every former footer button was a plain button, so the whole branch becomes
@@ -107,12 +109,18 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
   const actions: DialogAction[] = isWindow
     ? [upgrade, countdown > 0 ? waiting : { label: t('usageLimit.tryAgain'), color: 'cancel' }]
     : isModelAccess
-    ? [upgrade, { label: t('usageLimit.gotIt'), color: 'cancel' }]
-    : isCredits
-      ? [upgrade, { label: t('usageLimit.buyCredits'), color: 'cancel', onPress: handleBuyCredits }]
-      : showUpgrade
-        ? [upgrade, countdown > 0 ? waiting : { label: t('usageLimit.tryAgain'), color: 'cancel' }]
-        : [countdown > 0 ? waiting : { label: t('usageLimit.gotIt'), color: 'cancel' }];
+      ? [upgrade, { label: t('usageLimit.gotIt'), color: 'cancel' }]
+      : isCredits
+        ? [
+            upgrade,
+            { label: t('usageLimit.buyCredits'), color: 'cancel', onPress: handleBuyCredits },
+          ]
+        : showUpgrade
+          ? [
+              upgrade,
+              countdown > 0 ? waiting : { label: t('usageLimit.tryAgain'), color: 'cancel' },
+            ]
+          : [countdown > 0 ? waiting : { label: t('usageLimit.gotIt'), color: 'cancel' }];
 
   // What stands between the person and the next reply: the plan, the credits,
   // the plan's limit, or only a moment's wait.

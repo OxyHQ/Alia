@@ -177,9 +177,10 @@ async function firstFreeUsername(
 }
 
 export async function createBotAccount(input: CreateBotAccountInput): Promise<AccountNode> {
-  let username = input.checkAvailability === undefined
-    ? input.username
-    : await firstFreeUsername(input.username, input.checkAvailability);
+  let username =
+    input.checkAvailability === undefined
+      ? input.username
+      : await firstFreeUsername(input.username, input.checkAvailability);
 
   for (let attempt = 0; attempt < USERNAME_ATTEMPTS; attempt++) {
     // Labelled HERE, on the way out, because the retry below rewrites the name
@@ -192,7 +193,9 @@ export async function createBotAccount(input: CreateBotAccountInput): Promise<Ac
         username: candidate,
         name: { displayName: input.displayName },
         ...(input.bio !== undefined && { bio: input.bio }),
-        ...(input.accountCategories !== undefined && { accountCategories: input.accountCategories }),
+        ...(input.accountCategories !== undefined && {
+          accountCategories: input.accountCategories,
+        }),
         ...(input.private !== undefined && { isPrivateAccount: input.private }),
       });
     } catch (error: unknown) {

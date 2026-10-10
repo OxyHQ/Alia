@@ -38,7 +38,10 @@ interface ToolResult {
   result: string;
 }
 
-export async function executeTool(name: string, args: Record<string, unknown>): Promise<ToolResult> {
+export async function executeTool(
+  name: string,
+  args: Record<string, unknown>,
+): Promise<ToolResult> {
   try {
     switch (name) {
       case 'read_file':
@@ -46,13 +49,23 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
       case 'write_file':
         return await writeFile(args.path as string, args.content as string);
       case 'edit_file':
-        return await editFile(args.path as string, args.old_text as string, args.new_text as string);
+        return await editFile(
+          args.path as string,
+          args.old_text as string,
+          args.new_text as string,
+        );
       case 'apply_patch':
         return await applyPatchTool(args.patch as string);
       case 'list_files':
         return await listFiles(args.path as string, args.recursive as boolean);
       case 'search_files':
-        return await searchFiles(args.pattern as string, args.path as string, args.file_pattern as string | undefined, args.context_lines as number, args.max_results as number);
+        return await searchFiles(
+          args.pattern as string,
+          args.path as string,
+          args.file_pattern as string | undefined,
+          args.context_lines as number,
+          args.max_results as number,
+        );
       case 'run_command':
         return await runCommand(args.command as string, args.cwd as string | undefined);
       default:
@@ -125,7 +138,11 @@ async function editFile(filePath: string, oldText: string, newText: string): Pro
   }
 
   if (matchStart >= 0) {
-    const newLines = [...lines.slice(0, matchStart), ...newText.split('\n'), ...lines.slice(matchEnd + 1)];
+    const newLines = [
+      ...lines.slice(0, matchStart),
+      ...newText.split('\n'),
+      ...lines.slice(matchEnd + 1),
+    ];
     await fs.writeFile(absolutePath, newLines.join('\n'), 'utf-8');
     return { success: true, result: `File edited (fuzzy match): ${filePath}` };
   }
@@ -169,7 +186,7 @@ async function listFiles(dirPath: string = '.', recursive: boolean = false): Pro
     return { success: true, result: files.join('\n') };
   } else {
     const entries = await fs.readdir(absolutePath, { withFileTypes: true });
-    const files = entries.map(e => e.name + (e.isDirectory() ? '/' : ''));
+    const files = entries.map((e) => e.name + (e.isDirectory() ? '/' : ''));
     return { success: true, result: files.join('\n') };
   }
 }
@@ -179,18 +196,13 @@ async function searchFiles(
   dirPath: string = '.',
   filePattern?: string,
   contextLines: number = 2,
-  maxResults: number = 50
+  maxResults: number = 50,
 ): Promise<ToolResult> {
   const absolutePath = insideCwdDir(dirPath);
 
   // Try ripgrep first
   try {
-    const rgArgs = [
-      '--json',
-      '-C', String(contextLines),
-      '-m', String(maxResults),
-      '--no-heading',
-    ];
+    const rgArgs = ['--json', '-C', String(contextLines), '-m', String(maxResults), '--no-heading'];
 
     if (filePattern) {
       rgArgs.push('-g', filePattern);
@@ -325,7 +337,7 @@ async function runCommand(command: string, cwd?: string): Promise<ToolResult> {
     const { stdout, stderr } = await execAsync(command, {
       cwd: workingDir,
       maxBuffer: 1024 * 1024,
-      timeout: 60000
+      timeout: 60000,
     });
 
     const output = stdout + (stderr ? `\nStderr:\n${stderr}` : '');

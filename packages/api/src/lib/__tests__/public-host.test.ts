@@ -87,10 +87,19 @@ describe('classifyHost', () => {
 
 describe('normaliseHostname', () => {
   it.each([
-    '127.0.0.1', '169.254.169.254', '0.0.0.0',
-    '[::1]', '::1',
-    'localhost', 'foo.local', 'svc.internal', 'box.lan', 'x.onion',
-    'singlelabel', '', '   ',
+    '127.0.0.1',
+    '169.254.169.254',
+    '0.0.0.0',
+    '[::1]',
+    '::1',
+    'localhost',
+    'foo.local',
+    'svc.internal',
+    'box.lan',
+    'x.onion',
+    'singlelabel',
+    '',
+    '   ',
   ])('refuses %j', (raw) => {
     expect(normaliseHostname(raw)).toBeNull();
   });

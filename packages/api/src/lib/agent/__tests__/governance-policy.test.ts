@@ -101,14 +101,12 @@ vi.mock('../../tools/mcp.js', () => ({
 
 vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child } };
+  return {
+    log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child },
+  };
 });
 
-import {
-  applyRuntimePolicy,
-  buildRuntimeTools,
-  type AgentRuntimeContext,
-} from '../actions.js';
+import { applyRuntimePolicy, buildRuntimeTools, type AgentRuntimeContext } from '../actions.js';
 import { buildMcpTools } from '../../tools/mcp.js';
 import { classifyActionRisk } from '../governance.js';
 import { declareReadOnly } from '../tool-effects.js';
@@ -162,7 +160,11 @@ function actionContext(): AgentRuntimeContext {
 
 const CALL_OPTIONS = { toolCallId: 'tc-ws13', messages: [] } as unknown as ToolCallOptions;
 
-async function run(actions: ToolSet, name: string, input: Record<string, unknown>): Promise<unknown> {
+async function run(
+  actions: ToolSet,
+  name: string,
+  input: Record<string, unknown>,
+): Promise<unknown> {
   const action = actions[name];
   expect(action, `expected the action set to contain ${name}`).toBeDefined();
   expect(action.execute, `expected ${name} to be executable`).toBeDefined();
@@ -194,7 +196,9 @@ describe('the risk classifier answers each level for a distinct reason', () => {
       reversible: false,
       externalImpact: false,
     });
-    expect(classifyActionRisk('mcp_host__run', { command: 'rm -rf /workspace' }).riskLevel).toBe('R3');
+    expect(classifyActionRisk('mcp_host__run', { command: 'rm -rf /workspace' }).riskLevel).toBe(
+      'R3',
+    );
     // The same tool with a harmless payload is NOT R3 — without this the check
     // above would pass for a classifier that returned R3 unconditionally.
     expect(classifyActionRisk('mcp_host__run', { command: 'ls -la' }).riskLevel).not.toBe('R3');
@@ -203,10 +207,16 @@ describe('the risk classifier answers each level for a distinct reason', () => {
   it('reads only command arguments, so prose that names a destructive word is not R3', () => {
     // These were R3 when every string argument was scanned: a file whose
     // content said "format", a search for "delete from".
-    expect(classifyActionRisk('write_file', { path: 'a.md', content: 'npm run format; rm -rf is bad' }).riskLevel).toBe('R1');
+    expect(
+      classifyActionRisk('write_file', { path: 'a.md', content: 'npm run format; rm -rf is bad' })
+        .riskLevel,
+    ).toBe('R1');
     expect(classifyActionRisk('webSearch', { q: 'sql delete from syntax' }).riskLevel).toBe('R0');
     // A search primitive's `query` is text to look up, never a command.
-    expect(classifyActionRisk('browser', { action: 'search', query: 'how to reboot a router' }).riskLevel).toBe('R0');
+    expect(
+      classifyActionRisk('browser', { action: 'search', query: 'how to reboot a router' })
+        .riskLevel,
+    ).toBe('R0');
   });
 
   it('reads an external-impact name as R2 and a reversible write as R1', () => {
@@ -229,8 +239,13 @@ describe('the risk classifier answers each level for a distinct reason', () => {
    * `delegate` call wait 60s for an approval nobody could give and then fail.
    */
   it('classifies the action primitives by what the call does, never R2', () => {
-    expect(classifyActionRisk('browser', { action: 'goto', url: 'https://example.com' }).riskLevel).toBe('R0');
-    expect(classifyActionRisk('delegate', { task: 'x' })).toMatchObject({ riskLevel: 'R1', reversible: false });
+    expect(
+      classifyActionRisk('browser', { action: 'goto', url: 'https://example.com' }).riskLevel,
+    ).toBe('R0');
+    expect(classifyActionRisk('delegate', { task: 'x' })).toMatchObject({
+      riskLevel: 'R1',
+      reversible: false,
+    });
     expect(classifyActionRisk('plan', { action: 'update' }).riskLevel).toBe('R0');
     // Writing into its own conversation and scheduling its own follow-up are
     // budgeted where they are implemented, so they need nobody watching either.
@@ -240,7 +255,9 @@ describe('the risk classifier answers each level for a distinct reason', () => {
   });
 
   it('reads a tool its source declared read-only as R0, and the same name undeclared as R2', () => {
-    expect(classifyActionRisk('oxy_inbox__list_threads', {}, { declaredReadOnly: true }).riskLevel).toBe('R0');
+    expect(
+      classifyActionRisk('oxy_inbox__list_threads', {}, { declaredReadOnly: true }).riskLevel,
+    ).toBe('R0');
     expect(classifyActionRisk('oxy_inbox__list_threads', {}).riskLevel).toBe('R2');
   });
 });
@@ -274,7 +291,9 @@ describe('the governance wrapper enforces the level it classified', () => {
     const result = await run(actions, 'send_message', { command: 'psql -c "DROP DATABASE prod"' });
 
     // The refusal reaches the model as a tool result, so the agent can react.
-    expect(result).toBe('Error: Action blocked by policy — Destructive or irreversible operation blocked by policy');
+    expect(result).toBe(
+      'Error: Action blocked by policy — Destructive or irreversible operation blocked by policy',
+    );
     // The whole point: the tool never saw the command. `exec:send_message` is
     // pushed by the double the wrapper wraps, so its ABSENCE is the measurement.
     expect(H.timeline).toEqual([
@@ -313,7 +332,10 @@ describe('the governance wrapper enforces the level it classified', () => {
     // run gets; the read must not depend on it.
     H.state.approval = 'denied';
     const actions = await policyApplied(actionContext());
-    const result = await run(actions, 'browser', { action: 'search', query: 'how to reboot a router' });
+    const result = await run(actions, 'browser', {
+      action: 'search',
+      query: 'how to reboot a router',
+    });
 
     expect(result).toBe('page text');
     expect(H.timeline).toEqual(['exec:browser(search)']);
@@ -322,14 +344,21 @@ describe('the governance wrapper enforces the level it classified', () => {
   });
 
   it('a background run asks asynchronously instead of waiting, and runs a call approved earlier', async () => {
-    const approvals = { granted: vi.fn(async () => false), request: vi.fn(async () => 'asked the person') };
+    const approvals = {
+      granted: vi.fn(async () => false),
+      request: vi.fn(async () => 'asked the person'),
+    };
     const ctx = { ...actionContext(), approvals } as unknown as AgentRuntimeContext;
     const actions = await policyApplied(ctx);
 
     // Not approved yet: the person is asked, the run is told, nothing runs and
     // nothing waits on the in-process prompt.
     expect(await run(actions, 'send_message', { to: 'a', text: 'hi' })).toBe('asked the person');
-    expect(approvals.request).toHaveBeenCalledWith('send_message', { to: 'a', text: 'hi' }, expect.any(String));
+    expect(approvals.request).toHaveBeenCalledWith(
+      'send_message',
+      { to: 'a', text: 'hi' },
+      expect.any(String),
+    );
     expect(H.state.mcpRuns).toEqual([]);
     expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
 
@@ -438,7 +467,9 @@ describe('every action carries the wrapper, and the exemption is exactly one', (
       if (name === 'plan') continue;
       let last: unknown;
       for (let call = 0; call < 5; call += 1) last = await run(actions, name, probe);
-      expect(String(last), `${name} is not governed`).toContain('Repeated identical tool call stopped');
+      expect(String(last), `${name} is not governed`).toContain(
+        'Repeated identical tool call stopped',
+      );
     }
 
     // `plan` is the single exemption, so the same five calls all reach its own
@@ -446,7 +477,8 @@ describe('every action carries the wrapper, and the exemption is exactly one', (
     // wrapper rather than about an unconditional refusal.
     vi.clearAllMocks();
     let planResult: unknown;
-    for (let call = 0; call < 5; call += 1) planResult = await run(actions, 'plan', { action: 'update', items: ['a'] });
+    for (let call = 0; call < 5; call += 1)
+      planResult = await run(actions, 'plan', { action: 'update', items: ['a'] });
     expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
     expect(planResult).toBe('plan');
   });
@@ -464,7 +496,10 @@ describe('every action carries the wrapper, and the exemption is exactly one', (
      */
     H.state.approval = 'approved';
     const actions = await policyApplied(
-      { ...actionContext(), onHireAgent: async () => 'delegated' } as unknown as AgentRuntimeContext,
+      {
+        ...actionContext(),
+        onHireAgent: async () => 'delegated',
+      } as unknown as AgentRuntimeContext,
       readCapabilityGrants(['browser']),
     );
 

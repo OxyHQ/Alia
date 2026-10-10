@@ -6,24 +6,32 @@ import type { AutomationDispatchTrigger } from './automation-dispatcher.js';
 import type { AutomationStagePlan } from './automation-coordination.js';
 import { sameAutomationResource } from './automation-coordination.js';
 
-const resourceSchema = z.object({
-  appId: z.string(),
-  effectiveAccountId: z.string(),
-  resourceType: z.string(),
-  resourceId: z.string(),
-}).strict();
+const resourceSchema = z
+  .object({
+    appId: z.string(),
+    effectiveAccountId: z.string(),
+    resourceType: z.string(),
+    resourceId: z.string(),
+  })
+  .strict();
 
-const taskInputSchema = z.object({
-  objective: z.string(),
-  trigger: z.record(z.unknown()),
-  inputs: z.record(z.unknown()),
-  actions: z.array(z.object({
-    resource: resourceSchema,
-    tool: z.string(),
-    input: z.record(z.unknown()),
-  }).strict()),
-  receivePreviousResult: z.boolean(),
-}).strict();
+const taskInputSchema = z
+  .object({
+    objective: z.string(),
+    trigger: z.record(z.unknown()),
+    inputs: z.record(z.unknown()),
+    actions: z.array(
+      z
+        .object({
+          resource: resourceSchema,
+          tool: z.string(),
+          input: z.record(z.unknown()),
+        })
+        .strict(),
+    ),
+    receivePreviousResult: z.boolean(),
+  })
+  .strict();
 
 export type AutomationStageTaskInput = z.infer<typeof taskInputSchema>;
 
@@ -62,14 +70,14 @@ function receivesPreviousResult(
   current: StageActions,
 ): boolean {
   if (!previous) return false;
-  const previousReadsDeclaredSource = previous.actions.some((action) => (
-    automation.dataFlow.sources.some((source) => sameAutomationResource(source, action.resource))
-  ));
-  const currentWritesDeclaredDestination = current.actions.some((action) => (
-    automation.dataFlow.destinations.some((destination) => (
-      sameAutomationResource(destination, action.resource)
-    ))
-  ));
+  const previousReadsDeclaredSource = previous.actions.some((action) =>
+    automation.dataFlow.sources.some((source) => sameAutomationResource(source, action.resource)),
+  );
+  const currentWritesDeclaredDestination = current.actions.some((action) =>
+    automation.dataFlow.destinations.some((destination) =>
+      sameAutomationResource(destination, action.resource),
+    ),
+  );
   return previousReadsDeclaredSource && currentWritesDeclaredDestination;
 }
 

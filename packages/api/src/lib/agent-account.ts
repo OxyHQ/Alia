@@ -150,7 +150,11 @@ export function clearAgentAccountVerdicts(): void {
  * mutation must never do is TRUST an entry, which is what `cache: false`
  * governs.
  */
-function remember(key: string, verdict: AgentAccountVerdict, standing: boolean): AgentAccountVerdict {
+function remember(
+  key: string,
+  verdict: AgentAccountVerdict,
+  standing: boolean,
+): AgentAccountVerdict {
   const ttl = verdict.permitted ? POSITIVE_TTL_MS : NEGATIVE_TTL_MS;
   verdicts.set(key, { verdict, standing, expiresAt: Date.now() + ttl });
   return verdict;
@@ -208,7 +212,11 @@ export async function verifyAgentAccount(params: {
     return remember(key, { permitted: false, refusal: 'not_a_bot_account' }, access.hasStanding);
   }
   if (!node.parentAccountId) {
-    return remember(key, { permitted: false, refusal: 'account_has_no_parent' }, access.hasStanding);
+    return remember(
+      key,
+      { permitted: false, refusal: 'account_has_no_parent' },
+      access.hasStanding,
+    );
   }
   if (!access.canActAs) {
     return remember(key, { permitted: false, refusal: 'not_permitted' }, access.hasStanding);

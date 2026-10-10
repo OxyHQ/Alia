@@ -62,7 +62,16 @@ const COPY_PROPS = new Set([
 ]);
 
 /** Object-literal keys that hold copy in the dialog/menu/action shapes. */
-const COPY_KEYS = new Set(['label', 'title', 'description', 'confirmLabel', 'cancelLabel', 'accessibilityLabel', 'placeholder', 'message']);
+const COPY_KEYS = new Set([
+  'label',
+  'title',
+  'description',
+  'confirmLabel',
+  'cancelLabel',
+  'accessibilityLabel',
+  'placeholder',
+  'message',
+]);
 
 /** Strings that are the same in every language. */
 const ALLOWED = new Set([
@@ -137,17 +146,29 @@ function isCopy(text: string | null): text is string {
 }
 
 function findings(file: string): string[] {
-  const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const source = ts.createSourceFile(
+    file,
+    readFileSync(file, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
   const found: string[] = [];
   const report = (node: ts.Node, text: string) => {
     const { line } = source.getLineAndCharacterOfPosition(node.getStart());
-    found.push(`${relative(ROOT, file)}:${line + 1} ${JSON.stringify(text.trim().replace(/\s+/g, ' '))}`);
+    found.push(
+      `${relative(ROOT, file)}:${line + 1} ${JSON.stringify(text.trim().replace(/\s+/g, ' '))}`,
+    );
   };
 
   const visit = (node: ts.Node): void => {
     if (ts.isJsxText(node) && isCopy(node.text)) report(node, node.text);
 
-    if (ts.isJsxExpression(node) && node.expression && (ts.isJsxElement(node.parent) || ts.isJsxFragment(node.parent))) {
+    if (
+      ts.isJsxExpression(node) &&
+      node.expression &&
+      (ts.isJsxElement(node.parent) || ts.isJsxFragment(node.parent))
+    ) {
       const text = literalText(node.expression);
       if (isCopy(text)) report(node, text);
     }
@@ -204,12 +225,18 @@ describe('user-visible copy', () => {
       'const b = <Button accessibilityLabel="Open menu" />;',
       "const c = toast.error('Could not save');",
       "const d = { label: 'Cancel' };",
-      "const e = <Text>{`Show all ${n} steps`}</Text>;",
+      'const e = <Text>{`Show all ${n} steps`}</Text>;',
       'const f = <Text>Alia</Text>;',
-      "const g = <View className=\"flex-row items-center\" testID=\"row\" />;",
+      'const g = <View className="flex-row items-center" testID="row" />;',
       "const h = { label: 'agents.archetype.qa.label' };",
     ].join('\n');
-    const source = ts.createSourceFile(probe, sample, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const source = ts.createSourceFile(
+      probe,
+      sample,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
     const texts: string[] = [];
     const visit = (node: ts.Node): void => {
       if (ts.isJsxText(node) && isCopy(node.text)) texts.push(node.text.trim());
@@ -217,7 +244,13 @@ describe('user-visible copy', () => {
         const text = literalText(node.expression);
         if (isCopy(text)) texts.push(text.trim());
       }
-      if (ts.isJsxAttribute(node) && node.initializer && COPY_PROPS.has(node.name.getText(source)) && ts.isStringLiteral(node.initializer) && isCopy(node.initializer.text)) {
+      if (
+        ts.isJsxAttribute(node) &&
+        node.initializer &&
+        COPY_PROPS.has(node.name.getText(source)) &&
+        ts.isStringLiteral(node.initializer) &&
+        isCopy(node.initializer.text)
+      ) {
         texts.push(node.initializer.text);
       }
       if (ts.isPropertyAssignment(node) && COPY_KEYS.has(node.name.getText(source))) {

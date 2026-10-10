@@ -18,14 +18,23 @@ export function conversationsForHistory(
   conversations: readonly Conversation[],
   projects: readonly { readonly conversationIds: readonly string[] }[],
 ): Conversation[] {
-  return conversations.filter((conversation) =>
-    !conversation.agentId
-    && !projects.some((project) => project.conversationIds.includes(conversation.id))
+  return conversations.filter(
+    (conversation) =>
+      !conversation.agentId &&
+      !projects.some((project) => project.conversationIds.includes(conversation.id)),
   );
 }
 
 /** The primary sidebar rows that are routes, keyed by the first path segment they own. */
-const ROUTE_ITEMS = ['agents', 'library', 'tasks', 'automations', 'skills', 'shows', 'notifications'] as const;
+const ROUTE_ITEMS = [
+  'agents',
+  'library',
+  'tasks',
+  'automations',
+  'skills',
+  'shows',
+  'notifications',
+] as const;
 
 /**
  * The sidebar's selected primary row for a pathname: its first segment, when
@@ -34,7 +43,9 @@ const ROUTE_ITEMS = ['agents', 'library', 'tasks', 'automations', 'skills', 'sho
  */
 export function selectedItemForPath(pathname: string): string | undefined {
   const first = pathname.split('/').filter(Boolean)[0];
-  return first !== undefined && (ROUTE_ITEMS as readonly string[]).includes(first) ? first : undefined;
+  return first !== undefined && (ROUTE_ITEMS as readonly string[]).includes(first)
+    ? first
+    : undefined;
 }
 
 /** History's date buckets, newest first; each is also its `sidebar.*` label key. */
@@ -117,7 +128,9 @@ export function sidebarSections<P extends Filed, F extends Filed>({
     favorites: ownChats.filter((c) => favorite.has(c.id) && !pinned.has(c.id)),
     projects: projects.map((project) => ({
       project,
-      conversations: favoritesFirst(conversations.filter((c) => project.conversationIds.includes(c.id))),
+      conversations: favoritesFirst(
+        conversations.filter((c) => project.conversationIds.includes(c.id)),
+      ),
     })),
     folders: folders.map((folder) => ({
       folder,

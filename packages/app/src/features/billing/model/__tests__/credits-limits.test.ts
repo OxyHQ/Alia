@@ -28,7 +28,15 @@ const subscription = (status: Subscription['status']): Subscription =>
     currentPeriodEnd: '2026-10-01T00:00:00Z',
     cancelAtPeriodEnd: false,
     isComped: false,
-    plan: { planId: 'p', name: 'Pro', product: 'alia', creditsPerMonth: 5_000, price: 2_000, currency: 'usd', billingPeriod: 'monthly' },
+    plan: {
+      planId: 'p',
+      name: 'Pro',
+      product: 'alia',
+      creditsPerMonth: 5_000,
+      price: 2_000,
+      currency: 'usd',
+      billingPeriod: 'monthly',
+    },
     createdAt: '2026-01-01T00:00:00Z',
   }) as Subscription;
 
@@ -62,11 +70,19 @@ describe('credits → AgentLimitsCard props', () => {
   it('clamps the share and draws no limit without an allowance or before credits load', () => {
     expect(agentLimitsProps(credits({ freeCredits: 400 }), null, NOW, t).limits[0].used).toBe(0);
     expect(agentLimitsProps(credits({ freeLimit: 0 }), null, NOW, t).limits).toEqual([]);
-    expect(agentLimitsProps(undefined, undefined, NOW, t)).toEqual({ plan: 'credits.free', limits: [] });
+    expect(agentLimitsProps(undefined, undefined, NOW, t)).toEqual({
+      plan: 'credits.free',
+      limits: [],
+    });
   });
 
   it('never invents a monthly share from the paid balance', () => {
-    const { limits } = agentLimitsProps(credits({ paidCredits: 10 }), subscription('active'), NOW, t);
+    const { limits } = agentLimitsProps(
+      credits({ paidCredits: 10 }),
+      subscription('active'),
+      NOW,
+      t,
+    );
     expect(limits).toHaveLength(1);
   });
 });
@@ -88,9 +104,19 @@ describe('the plan usage window', () => {
   });
 
   it('says when a fresh window starts when nothing is spent, and clamps an overspent one', () => {
-    const fresh = agentLimitsProps(credits({ window: { hours: 5, used: 0, limit: 1000, resetsAt: null } }), null, NOW, t);
+    const fresh = agentLimitsProps(
+      credits({ window: { hours: 5, used: 0, limit: 1000, resetsAt: null } }),
+      null,
+      NOW,
+      t,
+    );
     expect(fresh.limits[0].resets).toBe('chat.bloom.limits.windowFresh{"hours":5}');
-    const over = agentLimitsProps(credits({ window: { hours: 5, used: 1400, limit: 1000, resetsAt: '2026-09-23T12:10:00Z' } }), null, NOW, t);
+    const over = agentLimitsProps(
+      credits({ window: { hours: 5, used: 1400, limit: 1000, resetsAt: '2026-09-23T12:10:00Z' } }),
+      null,
+      NOW,
+      t,
+    );
     expect(over.limits[0].used).toBe(1);
   });
 
@@ -101,11 +127,24 @@ describe('the plan usage window', () => {
 });
 
 it('shows bundle usage beside daily free and individual plan, then falls back at exact expiry', () => {
-  const productAllowance = {source:'oxy_one' as const,planId:'pro',periodStart:new Date(NOW-1000).toISOString(),periodEnd:new Date(NOW+60000).toISOString(),included:10000,consumed:100,reserved:20,remaining:9880};
-  const active=agentLimitsProps(credits({productAllowance}),subscription('active'),NOW,t);
+  const productAllowance = {
+    source: 'oxy_one' as const,
+    planId: 'pro',
+    periodStart: new Date(NOW - 1000).toISOString(),
+    periodEnd: new Date(NOW + 60000).toISOString(),
+    included: 10000,
+    consumed: 100,
+    reserved: 20,
+    remaining: 9880,
+  };
+  const active = agentLimitsProps(credits({ productAllowance }), subscription('active'), NOW, t);
   expect(active.plan).toBe('Oxy One · Pro');
-  expect(active.limits[0]).toMatchObject({label:'Oxy One · credits.credits',used:0.012});
+  expect(active.limits[0]).toMatchObject({ label: 'Oxy One · credits.credits', used: 0.012 });
   expect(active.limits[1].label).toBe('chat.bloom.limits.dailyFree');
-  expect(agentLimitsProps(credits({productAllowance}),subscription('active'),NOW+60000,t).plan).toBe('Pro');
-  expect(agentLimitsProps(credits({productAllowance:null}),null,NOW,t).plan).toBe('credits.free');
+  expect(
+    agentLimitsProps(credits({ productAllowance }), subscription('active'), NOW + 60000, t).plan,
+  ).toBe('Pro');
+  expect(agentLimitsProps(credits({ productAllowance: null }), null, NOW, t).plan).toBe(
+    'credits.free',
+  );
 });

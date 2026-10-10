@@ -37,14 +37,20 @@ import { describe, expect, it } from 'vitest';
 // mysteriously passing `toContain`.
 import { POST_PHASE_GREP_PATTERN } from '@oxy.so/db/migrate';
 
-const workflowPath = fileURLToPath(new URL('../../../../../.github/workflows/deploy-aws.yml', import.meta.url));
+const workflowPath = fileURLToPath(
+  new URL('../../../../../.github/workflows/deploy-aws.yml', import.meta.url),
+);
 const workflow = readFileSync(workflowPath, 'utf8');
 const integrationsWorkflow = readFileSync(
-  fileURLToPath(new URL('../../../../../.github/workflows/deploy-integrations.yml', import.meta.url)),
+  fileURLToPath(
+    new URL('../../../../../.github/workflows/deploy-integrations.yml', import.meta.url),
+  ),
   'utf8',
 );
 const resolver = readFileSync(
-  fileURLToPath(new URL('../../../../../.github/scripts/resolve-ecr-platform-digest.sh', import.meta.url)),
+  fileURLToPath(
+    new URL('../../../../../.github/scripts/resolve-ecr-platform-digest.sh', import.meta.url),
+  ),
   'utf8',
 );
 
@@ -82,9 +88,7 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(environmentStage).toContain(
       '<(echo "${INTEGRATIONS_ENV:-{\\}}") <(echo "$required_env")',
     );
-    expect(workflow).toContain(
-      'TASK_ENV_OVERRIDES_JSON: ${{ steps.kaana.outputs.env_overrides }}',
-    );
+    expect(workflow).toContain('TASK_ENV_OVERRIDES_JSON: ${{ steps.kaana.outputs.env_overrides }}');
   });
 
   it('wires integrations from exact SSM metadata and the Terraform Cloud Map name', () => {
@@ -98,7 +102,9 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(stage).toContain('--no-with-decryption');
     expect(stage).toContain("--query 'Parameter.[Name,Type]'");
     expect(stage).toContain('actual_type" != "SecureString');
-    expect(stage).toContain('arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/INTEGRATIONS_SECRET');
+    expect(stage).toContain(
+      'arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/INTEGRATIONS_SECRET',
+    );
     expect(stage).toContain('http://integrations.alia.internal.oxy.so:3005');
     expect(stage).not.toContain('secrets.INTEGRATIONS_SECRET');
     expect(stage).not.toContain('vars.INTEGRATIONS_URL');
@@ -120,7 +126,7 @@ describe('deploy-aws.yml migration wiring', () => {
     }
   });
 
-   /**
+  /**
    * The API attests its task role — and still keeps the credential, because the
    * two are not interchangeable.
    *
@@ -225,7 +231,9 @@ describe('deploy-aws.yml migration wiring', () => {
 
     expect(resolver).toContain('docker buildx imagetools inspect --raw');
     expect(resolver).toContain('.platform.os == $os and .platform.architecture == $architecture');
-    expect(resolver).toContain('Expected exactly one valid $TARGET_OS/$TARGET_ARCH runtime descriptor');
+    expect(resolver).toContain(
+      'Expected exactly one valid $TARGET_OS/$TARGET_ARCH runtime descriptor',
+    );
     expect(resolver).not.toContain('aws ecs');
     expect(resolver).not.toContain('run-task');
   });
@@ -246,7 +254,7 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(workflow).toContain(POST_PHASE_GREP_PATTERN);
   });
 
-  it('points the post-phase grep at this package\'s migration directory', () => {
+  it("points the post-phase grep at this package's migration directory", () => {
     expect(workflow).toContain('packages/api/drizzle');
   });
 
@@ -274,7 +282,10 @@ describe('deploy-aws.yml migration wiring', () => {
    * commit, so this states the dependency where a reader will see it.
    */
   it('invokes the migrate entrypoint build.ts actually emits', () => {
-    const build = readFileSync(fileURLToPath(new URL('../../../build.ts', import.meta.url)), 'utf8');
+    const build = readFileSync(
+      fileURLToPath(new URL('../../../build.ts', import.meta.url)),
+      'utf8',
+    );
     expect(build).toContain("entryPoints: ['src/db/migrate.ts']");
     expect(build).toContain("outfile: 'dist/db/migrate.js'");
     expect(workflow).toContain('packages/api/dist/db/migrate.js');
@@ -316,7 +327,10 @@ describe('deploy-aws.yml migration wiring', () => {
    * whole change exists to remove.
    */
   it('invokes the seed entrypoint build.ts actually emits, on every release', () => {
-    const build = readFileSync(fileURLToPath(new URL('../../../build.ts', import.meta.url)), 'utf8');
+    const build = readFileSync(
+      fileURLToPath(new URL('../../../build.ts', import.meta.url)),
+      'utf8',
+    );
     expect(build).toContain("entryPoints: ['src/scripts/seed.ts']");
     expect(build).toContain("outfile: 'dist/scripts/seed.js'");
     expect(workflow).toContain('packages/api/dist/scripts/seed.js');
@@ -357,7 +371,10 @@ describe('deploy-aws.yml migration wiring', () => {
  * compared against the constant `@oxy.so/db` exports rather than a retyped copy.
  */
 describe('deploy-aws.yml stall bounds', () => {
-  const script = readFileSync(fileURLToPath(new URL('../../../../../.github/scripts/deploy-ecs-image.sh', import.meta.url)), 'utf8');
+  const script = readFileSync(
+    fileURLToPath(new URL('../../../../../.github/scripts/deploy-ecs-image.sh', import.meta.url)),
+    'utf8',
+  );
 
   /** The `deploy` job's own attributes, i.e. everything before its `steps:`. */
   const jobHeader = workflow.slice(workflow.indexOf('  deploy:'), workflow.indexOf('\n    steps:'));
@@ -410,7 +427,7 @@ describe('deploy-aws.yml stall bounds', () => {
    * the post-deploy reconciliation one-shot, and the rollback that a failure of
    * the last one triggers.
    */
-  it('bounds the job above the deploy script\'s own ceiling', () => {
+  it("bounds the job above the deploy script's own ceiling", () => {
     const declared = script.match(/^MAX_WAIT_SECS="\$\{MAX_WAIT_SECS:-(\d+)\}"$/m);
     expect(declared).not.toBeNull();
     const maxWaitMinutes = Number(declared?.[1]) / 60;
@@ -482,7 +499,9 @@ describe('the deploy removes retired credentials and runtime configuration', () 
 
   it('refuses a variable that is both removed and replaced', () => {
     // A contradiction resolved silently is a contradiction nobody sees.
-    expect(script).toContain('TASK_SECRET_REMOVALS_JSON and TASK_SECRET_OVERRIDES_JSON name the same variable');
+    expect(script).toContain(
+      'TASK_SECRET_REMOVALS_JSON and TASK_SECRET_OVERRIDES_JSON name the same variable',
+    );
   });
 
   it('names every retired plain task binding and wires its filter', () => {
@@ -564,7 +583,12 @@ describe('runtime secrets live in SSM only; no workflow writes one', () => {
 
   it('read every deploy workflow', () => {
     const names = workflows.map((workflow) => workflow.name);
-    for (const name of ['deploy-aws.yml', 'deploy-integrations.yml', 'deploy-computer-host.yml', 'deploy-frontends.yml']) {
+    for (const name of [
+      'deploy-aws.yml',
+      'deploy-integrations.yml',
+      'deploy-computer-host.yml',
+      'deploy-frontends.yml',
+    ]) {
       expect(names).toContain(name);
     }
   });
@@ -584,7 +608,9 @@ describe('runtime secrets live in SSM only; no workflow writes one', () => {
       for (const line of writes) {
         expect(line).toContain('--type String');
         expect(line).not.toContain('SecureString');
-        expect(line).toMatch(/--name "\$SSM_PREFIX\/(HOST|WORKSPACE)_IMAGE" --value "\$(HOST|WORKSPACE)_IMAGE"$/);
+        expect(line).toMatch(
+          /--name "\$SSM_PREFIX\/(HOST|WORKSPACE)_IMAGE" --value "\$(HOST|WORKSPACE)_IMAGE"$/,
+        );
       }
     }
   });

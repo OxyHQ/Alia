@@ -104,7 +104,9 @@ describe('frame boundaries', () => {
   it('does not let an event name leak across a chunk boundary either', () => {
     const reader = createSseFrameReader();
     reader.push(named('alia.title', { title: 'T' }));
-    expect(reader.push('data: {"plain":true}\n\n')).toEqual([{ event: '', data: '{"plain":true}' }]);
+    expect(reader.push('data: {"plain":true}\n\n')).toEqual([
+      { event: '', data: '{"plain":true}' },
+    ]);
   });
 
   it('emits nothing for a frame that has not finished arriving', () => {

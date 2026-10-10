@@ -1,4 +1,7 @@
-import { useDecideAgentApproval, usePendingAgentApprovals } from '@/features/agents/runtime/use-agent-approvals';
+import {
+  useDecideAgentApproval,
+  usePendingAgentApprovals,
+} from '@/features/agents/runtime/use-agent-approvals';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Notification } from '@oxy.so/bloom/notification';
 import { View } from 'react-native';

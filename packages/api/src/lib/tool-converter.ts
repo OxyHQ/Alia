@@ -52,7 +52,7 @@ function sanitizeFunctionName(name: string): string {
  */
 export function convertOpenAIToolsToToolSet(
   openAITools: OpenAITool[],
-  nameMapping?: Map<string, string>
+  nameMapping?: Map<string, string>,
 ): Record<string, any> {
   const toolSet: Record<string, any> = {};
 

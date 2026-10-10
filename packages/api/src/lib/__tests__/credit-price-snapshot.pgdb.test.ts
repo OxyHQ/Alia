@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { createServer } from 'node:http';
-import { OxyInferenceClient, OxyInferenceError, OxyInferenceProtocolError } from '@oxy.so/core/inference';
+import {
+  OxyInferenceClient,
+  OxyInferenceError,
+  OxyInferenceProtocolError,
+} from '@oxy.so/core/inference';
 import { closePostgres, connectPostgres, getDb } from '../../db/index.js';
 import { userCredits } from '../../db/schema/billing.js';
 import {
@@ -27,28 +31,33 @@ const inference = vi.hoisted(() => ({
   events: [] as Record<string, unknown>[],
   calls: 0,
   pauseAfterStart: null as Promise<void> | null,
-  client: null as { stream: OxyInferenceClient['stream']; respond: OxyInferenceClient['respond'] } | null,
+  client: null as {
+    stream: OxyInferenceClient['stream'];
+    respond: OxyInferenceClient['respond'];
+  } | null,
 }));
 vi.mock('../inference/oxy-inference.js', () => ({
-  getOxyInferenceClient: () => inference.client ?? ({
-    respond: async () => ({
-      requestId: `cpb-generated-${++inference.calls}`,
-      model: 'acme/m@revision',
-      output: [{ role: 'assistant', content: [{ type: 'text', text: 'answer' }] }],
-      finishReason: 'stop',
-      usage: [],
-    }),
-    stream: (_request: unknown, options: { signal: AbortSignal }) =>
-      (async function* () {
-        for (const event of inference.events) {
-          yield event;
-          if (event.type === 'start' && inference.pauseAfterStart !== null) {
-            await inference.pauseAfterStart;
-            if (options.signal.aborted) throw new DOMException('fixture cancellation', 'AbortError');
+  getOxyInferenceClient: () =>
+    inference.client ?? {
+      respond: async () => ({
+        requestId: `cpb-generated-${++inference.calls}`,
+        model: 'acme/m@revision',
+        output: [{ role: 'assistant', content: [{ type: 'text', text: 'answer' }] }],
+        finishReason: 'stop',
+        usage: [],
+      }),
+      stream: (_request: unknown, options: { signal: AbortSignal }) =>
+        (async function* () {
+          for (const event of inference.events) {
+            yield event;
+            if (event.type === 'start' && inference.pauseAfterStart !== null) {
+              await inference.pauseAfterStart;
+              if (options.signal.aborted)
+                throw new DOMException('fixture cancellation', 'AbortError');
+            }
           }
-        }
-      })(),
-  }),
+        })(),
+    },
 }));
 const catalogue = vi.hoisted(() => ({ input: '3', output: '15', reads: 0 }));
 vi.mock('../models/catalogue.js', () => ({
@@ -59,7 +68,8 @@ vi.mock('../models/catalogue.js', () => ({
   listCatalogueModels: async () => [],
 }));
 beforeAll(() => {
-  if (connectPostgres(process.env.DATABASE_URL) === null) throw new Error('Fixture database missing');
+  if (connectPostgres(process.env.DATABASE_URL) === null)
+    throw new Error('Fixture database missing');
 });
 afterAll(closePostgres);
 const usage = {
@@ -103,12 +113,7 @@ async function remaining(reservation: CreditReservation) {
 }
 
 describe('durable admission pricing and atomic turn settlement', () => {
-  it.each([
-    'http-pre-start',
-    'protocol-pre-start',
-    'protocol-after-start',
-    'no-id',
-  ] as const)(
+  it.each(['http-pre-start', 'protocol-pre-start', 'protocol-after-start', 'no-id'] as const)(
     'persists trusted %s transport correlation before exposing failure and refunds exactly once',
     async (scenario) => {
       const reservation = await admitted(scenario);
@@ -118,8 +123,7 @@ describe('durable admission pricing and atomic turn settlement', () => {
         httpCalls++;
         expect(request.url).toBe('/v1/responses');
         expect(request.method).toBe('POST');
-        if (requestId !== null)
-          response.setHeader('X-Oxy-Request-Id', requestId);
+        if (requestId !== null) response.setHeader('X-Oxy-Request-Id', requestId);
         if (scenario === 'http-pre-start' || scenario === 'no-id') {
           response.writeHead(503, { 'Content-Type': 'application/json' });
           response.end(
@@ -148,12 +152,9 @@ describe('durable admission pricing and atomic turn settlement', () => {
           );
         }
       });
-      await new Promise<void>((resolve) =>
-        server.listen(0, '127.0.0.1', resolve),
-      );
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
       const address = server.address();
-      if (address === null || typeof address === 'string')
-        throw new Error('Missing fixture port');
+      if (address === null || typeof address === 'string') throw new Error('Missing fixture port');
       inference.client = new OxyInferenceClient({
         baseURL: `http://127.0.0.1:${address.port}`,
         credential: 'fixture-only',
@@ -169,9 +170,7 @@ describe('durable admission pricing and atomic turn settlement', () => {
             recorded.push(request.requestId);
           },
         });
-        const reader = (
-          await model.doStream({ prompt: [] } as never)
-        ).stream.getReader();
+        const reader = (await model.doStream({ prompt: [] } as never)).stream.getReader();
         let errors = 0;
         for (;;) {
           const part = await reader.read();
@@ -179,27 +178,19 @@ describe('durable admission pricing and atomic turn settlement', () => {
           if (part.value.type === 'error') {
             errors++;
             expect(part.value.error).toBeInstanceOf(
-              scenario.startsWith('protocol')
-                ? OxyInferenceProtocolError
-                : OxyInferenceError,
+              scenario.startsWith('protocol') ? OxyInferenceProtocolError : OxyInferenceError,
             );
             // Read the real DB at the instant the failure becomes observable.
             const links = await getDb()
               .select()
               .from(creditOperationRequests)
-              .where(
-                eq(
-                  creditOperationRequests.operationId,
-                  reservation.operationId ?? '',
-                ),
-              );
+              .where(eq(creditOperationRequests.operationId, reservation.operationId ?? ''));
             expect(links.map((link) => link.requestId)).toEqual(
               requestId === null ? [] : [requestId],
             );
             if (scenario === 'protocol-after-start')
               expect(links[0]?.modelReference).toBe('acme/m@revision');
-            else if (requestId !== null)
-              expect(links[0]?.modelReference).toBeNull();
+            else if (requestId !== null) expect(links[0]?.modelReference).toBeNull();
           }
         }
         expect(errors).toBe(1);
@@ -210,27 +201,15 @@ describe('durable admission pricing and atomic turn settlement', () => {
           reservation.userId,
           reservation.operationId ?? '',
         );
-        await Promise.all([
-          refundReservation(restored),
-          refundReservation(reservation),
-        ]);
+        await Promise.all([refundReservation(restored), refundReservation(reservation)]);
         expect(await remaining(reservation)).toBe(100);
         expect((await operation(reservation)).status).toBe('refunded');
         const links = await getDb()
           .select()
           .from(creditOperationRequests)
-          .where(
-            eq(
-              creditOperationRequests.operationId,
-              reservation.operationId ?? '',
-            ),
-          );
-        expect(links.map((link) => link.requestId)).toEqual(
-          requestId === null ? [] : [requestId],
-        );
-        await expect(
-          finalizeCredits(restored, usage, 'acme/m'),
-        ).rejects.toThrow('refunded');
+          .where(eq(creditOperationRequests.operationId, reservation.operationId ?? ''));
+        expect(links.map((link) => link.requestId)).toEqual(requestId === null ? [] : [requestId]);
+        await expect(finalizeCredits(restored, usage, 'acme/m')).rejects.toThrow('refunded');
         expect(await remaining(reservation)).toBe(100);
       } finally {
         inference.client = null;
@@ -244,7 +223,10 @@ describe('durable admission pricing and atomic turn settlement', () => {
   it('rolls back reservation and snapshot insertion when admission metadata insertion fails', async () => {
     const id = 'cpb-admission-rollback';
     await getOrCreateUserCredits(getDb(), id);
-    await getDb().update(userCredits).set({ creditsFree: 100, creditsPaid: 0 }).where(eq(userCredits.id, id));
+    await getDb()
+      .update(userCredits)
+      .set({ creditsFree: 100, creditsPaid: 0 })
+      .where(eq(userCredits.id, id));
     const terms = createCreditPriceBook([
       { id: 'acme/admission-only', pricing: { inputPerMTok: '1.234', outputPerMTok: '9.876' } },
     ]);
@@ -255,9 +237,9 @@ describe('durable admission pricing and atomic turn settlement', () => {
       sql`CREATE TRIGGER cpb_fail_admission BEFORE INSERT ON credit_operations FOR EACH ROW EXECUTE FUNCTION cpb_fail_admission()`,
     );
     try {
-      await expect(reserveCredits(id, 1, { priceBook: terms, requestedModel: 'auto' })).rejects.toMatchObject(
-        { cause: { message: 'injected admission failure' } },
-      );
+      await expect(
+        reserveCredits(id, 1, { priceBook: terms, requestedModel: 'auto' }),
+      ).rejects.toMatchObject({ cause: { message: 'injected admission failure' } });
       expect((await findUserCredits(getDb(), id))?.creditsFree).toBe(100);
       expect(
         await getDb().select().from(creditOperations).where(eq(creditOperations.userId, id)),
@@ -288,7 +270,8 @@ describe('durable admission pricing and atomic turn settlement', () => {
     expect(links).toHaveLength(2);
     expect(
       links.every(
-        (link) => link.requestId.startsWith('cpb-generated-') && link.modelReference === 'acme/m@revision',
+        (link) =>
+          link.requestId.startsWith('cpb-generated-') && link.modelReference === 'acme/m@revision',
       ),
     ).toBe(true);
     await finalizeCredits(reservation, usage, 'acme/m');
@@ -297,7 +280,11 @@ describe('durable admission pricing and atomic turn settlement', () => {
   it('persists the real adapter start ID before an error/cancel and retains it through refund', async () => {
     const reservation = await admitted('stream-adapter');
     inference.events = [
-      { type: 'start', requestId: 'cpb-real-stream-start', resolvedModelReference: 'acme/m@revision' },
+      {
+        type: 'start',
+        requestId: 'cpb-real-stream-start',
+        resolvedModelReference: 'acme/m@revision',
+      },
       { type: 'delta', channel: 'text', text: 'partial' },
       {
         type: 'error',
@@ -347,11 +334,14 @@ describe('durable admission pricing and atomic turn settlement', () => {
       }),
     ).rejects.toMatchObject({ cause: { code: '23505' } });
     expect(await remaining(first)).toBe(98);
-    const restored = await restoreCreditReservationForRequest(first.userId, 'chatcmpl-server-fixture');
-    expect(restored.operationId).toBe(reservation.operationId);
-    await expect(restoreCreditReservationForRequest(other.userId, 'chatcmpl-server-fixture')).rejects.toThrow(
-      'not found',
+    const restored = await restoreCreditReservationForRequest(
+      first.userId,
+      'chatcmpl-server-fixture',
     );
+    expect(restored.operationId).toBe(reservation.operationId);
+    await expect(
+      restoreCreditReservationForRequest(other.userId, 'chatcmpl-server-fixture'),
+    ).rejects.toThrow('not found');
   });
   it('retains a persisted start link when the actual adapter stream is aborted before completion', async () => {
     const reservation = await admitted('abort-adapter');
@@ -404,7 +394,10 @@ describe('durable admission pricing and atomic turn settlement', () => {
     catalogue.reads = 0;
     await closePostgres();
     connectPostgres(process.env.DATABASE_URL);
-    const recovered = await restoreCreditReservation(reservation.userId, reservation.operationId ?? '');
+    const recovered = await restoreCreditReservation(
+      reservation.userId,
+      reservation.operationId ?? '',
+    );
     await recordCreditInferenceRequest(recovered, {
       requestId: 'cpb-oxy-parent-restart',
       modelReference: 'acme/m@revision',
@@ -426,7 +419,10 @@ describe('durable admission pricing and atomic turn settlement', () => {
       .select()
       .from(creditOperationRequests)
       .where(eq(creditOperationRequests.requestId, 'cpb-oxy-parent-restart'));
-    expect(link).toMatchObject({ operationId: reservation.operationId, modelReference: 'acme/m@revision' });
+    expect(link).toMatchObject({
+      operationId: reservation.operationId,
+      modelReference: 'acme/m@revision',
+    });
   });
   it('settles once under concurrent replay and refuses conflicting usage', async () => {
     const reservation = await admitted('race');
@@ -436,9 +432,9 @@ describe('durable admission pricing and atomic turn settlement', () => {
     ]);
     expect(results.map((r) => r.creditsCharged)).toEqual([45, 45]);
     expect(await remaining(reservation)).toBe(55);
-    await expect(finalizeCredits(reservation, { ...usage, completionTokens: 2 }, 'acme/m')).rejects.toThrow(
-      'Conflicting',
-    );
+    await expect(
+      finalizeCredits(reservation, { ...usage, completionTokens: 2 }, 'acme/m'),
+    ).rejects.toThrow('Conflicting');
     expect(await remaining(reservation)).toBe(55);
   });
   it('rolls back the balance when terminal metadata fails, then recovers exactly once', async () => {
@@ -459,7 +455,10 @@ describe('durable admission pricing and atomic turn settlement', () => {
       await getDb().execute(sql`DROP TRIGGER cpb_fail_terminal ON credit_operations`);
       await getDb().execute(sql`DROP FUNCTION cpb_fail_terminal()`);
     }
-    const recovered = await restoreCreditReservation(reservation.userId, reservation.operationId ?? '');
+    const recovered = await restoreCreditReservation(
+      reservation.userId,
+      reservation.operationId ?? '',
+    );
     await finalizeCredits(recovered, usage, 'acme/m');
     await finalizeCredits(recovered, usage, 'acme/m');
     expect(await remaining(reservation)).toBe(55);
@@ -492,7 +491,10 @@ describe('durable admission pricing and atomic turn settlement', () => {
   it('does not refund a settled operation, and distinguishes capped actual debit from the existing requested-charge response', async () => {
     const reservation = await admitted('capped', 10);
     expect((await finalizeCredits(reservation, usage, 'acme/m')).creditsCharged).toBe(45);
-    expect(await operation(reservation)).toMatchObject({ creditsRequested: 45, creditsCharged: 10 });
+    expect(await operation(reservation)).toMatchObject({
+      creditsRequested: 45,
+      creditsCharged: 10,
+    });
     await refundReservation(reservation);
     expect(await remaining(reservation)).toBe(0);
   });
@@ -502,10 +504,13 @@ describe('durable admission pricing and atomic turn settlement', () => {
     await expect(restoreCreditReservation(other.userId, first.operationId ?? '')).rejects.toThrow(
       'not found',
     );
-    await expect(finalizeCredits({ ...first, userId: other.userId }, usage, 'acme/m')).rejects.toThrow(
-      'does not match',
-    );
-    await recordCreditInferenceRequest(first, { requestId: 'cpb-single-oxy', modelReference: null });
+    await expect(
+      finalizeCredits({ ...first, userId: other.userId }, usage, 'acme/m'),
+    ).rejects.toThrow('does not match');
+    await recordCreditInferenceRequest(first, {
+      requestId: 'cpb-single-oxy',
+      modelReference: null,
+    });
     await expect(
       recordCreditInferenceRequest(other, { requestId: 'cpb-single-oxy', modelReference: null }),
     ).rejects.toThrow('does not match');
@@ -519,7 +524,10 @@ describe('durable admission pricing and atomic turn settlement', () => {
         .where(eq(creditOperations.id, reservation.operationId ?? '')),
     ).rejects.toMatchObject({ cause: { message: 'credit operation is retained' } });
     await expect(
-      getDb().update(creditPriceBooks).set({ usdPerCredit: '0.01' }).where(eq(creditPriceBooks.id, id)),
+      getDb()
+        .update(creditPriceBooks)
+        .set({ usdPerCredit: '0.01' })
+        .where(eq(creditPriceBooks.id, id)),
     ).rejects.toMatchObject({ cause: { message: expect.stringContaining('immutable') } });
     await expect(
       getDb()
@@ -548,10 +556,11 @@ describe('durable admission pricing and atomic turn settlement', () => {
   });
 });
 
-
 it('rejects an unknown persisted funding source instead of inventing refund authority', async () => {
   const reservation = await admitted('unknown-funding');
-  await expect(getDb().execute(sql`INSERT INTO credit_operations
+  await expect(
+    getDb().execute(sql`INSERT INTO credit_operations
     (id, user_id, book_id, requested_model, captured_at, status, grant_kind, initial_free_credits, initial_paid_credits, credits_reserved)
-    VALUES ('cpb-illegal-funding', ${reservation.userId}, ${reservation.priceBook?.id ?? ''}, 'auto', now(), 'admitted', 'invented_funding', 0, 0, 1)`)).rejects.toMatchObject({ cause: { code: '23514' } });
+    VALUES ('cpb-illegal-funding', ${reservation.userId}, ${reservation.priceBook?.id ?? ''}, 'auto', now(), 'admitted', 'invented_funding', 0, 0, 1)`),
+  ).rejects.toMatchObject({ cause: { code: '23514' } });
 });

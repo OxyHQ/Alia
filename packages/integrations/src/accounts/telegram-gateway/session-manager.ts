@@ -81,7 +81,9 @@ class SessionManager {
    * Create a brand-new session for a user who wants to link their Telegram.
    * Returns a sessionId and a promise that resolves with the first QR URL.
    */
-  async createSession(oxyUserId: string): Promise<{ sessionId: string; qrPromise: Promise<string> }> {
+  async createSession(
+    oxyUserId: string,
+  ): Promise<{ sessionId: string; qrPromise: Promise<string> }> {
     const sessionId = randomUUID();
 
     await createTelegramSession(getDb(), { sessionId, oxyUserId });
@@ -166,7 +168,7 @@ class SessionManager {
               }
               return true; // retry
             },
-          }
+          },
         );
 
         // If we reach here, login succeeded
@@ -201,10 +203,7 @@ class SessionManager {
         }
       } catch (err: unknown) {
         const errorMsg = errorMessage(err);
-        if (
-          errorMsg.includes('AUTH_KEY_UNREGISTERED') ||
-          errorMsg.includes('SESSION_REVOKED')
-        ) {
+        if (errorMsg.includes('AUTH_KEY_UNREGISTERED') || errorMsg.includes('SESSION_REVOKED')) {
           // Session permanently invalidated
           await markTelegramLoggedOut(getDb(), sessionId);
           this.sessions.delete(sessionId);
@@ -226,7 +225,7 @@ class SessionManager {
   private async onConnected(sessionId: string, client: TelegramClient): Promise<void> {
     this.reconnectAttempts.delete(sessionId);
 
-    const me = await client.getMe() as Api.User;
+    const me = (await client.getMe()) as Api.User;
     const phoneNumber = me.phone || '';
     const displayName = [me.firstName, me.lastName].filter(Boolean).join(' ');
     const sessionString = client.session.save() as unknown as string;
@@ -267,9 +266,7 @@ class SessionManager {
         const sender = await message.getSender();
         if (sender && 'firstName' in sender) {
           const lastName = 'lastName' in sender ? sender.lastName : undefined;
-          senderName = [sender.firstName, lastName]
-            .filter(Boolean)
-            .join(' ');
+          senderName = [sender.firstName, lastName].filter(Boolean).join(' ');
         }
       } catch {
         // Best-effort sender name resolution
@@ -300,7 +297,7 @@ class SessionManager {
           const chat = await message.getChat();
           if (chat) {
             if (chat.className === 'Channel') {
-              chatType = ('megagroup' in chat && chat.megagroup) ? 'group' : 'channel';
+              chatType = 'megagroup' in chat && chat.megagroup ? 'group' : 'channel';
             } else if (chat.className === 'Chat') {
               chatType = 'group';
             }
@@ -329,31 +326,35 @@ class SessionManager {
           return;
         }
 
-        await handleIncomingMessage({
-          platform: 'telegram-gateway',
-          sessionId,
-          oxyUserId,
-          chatId: String(chatId),
-          messageText: text,
-          senderName,
-          sendResponse: (text) => client.sendMessage(chatId, { message: text }).then(() => {}),
-          setTyping: async (typing) => {
-            try {
-              await client.invoke(
-                new Api.messages.SetTyping({
-                  peer: chatId,
-                  action: typing
-                    ? new Api.SendMessageTypingAction()
-                    : new Api.SendMessageCancelAction(),
-                })
-              );
-            } catch {
-              // Typing indicators are best-effort
-            }
+        await handleIncomingMessage(
+          {
+            platform: 'telegram-gateway',
+            sessionId,
+            oxyUserId,
+            chatId: String(chatId),
+            messageText: text,
+            senderName,
+            sendResponse: (text) => client.sendMessage(chatId, { message: text }).then(() => {}),
+            setTyping: async (typing) => {
+              try {
+                await client.invoke(
+                  new Api.messages.SetTyping({
+                    peer: chatId,
+                    action: typing
+                      ? new Api.SendMessageTypingAction()
+                      : new Api.SendMessageCancelAction(),
+                  }),
+                );
+              } catch {
+                // Typing indicators are best-effort
+              }
+            },
+            charLimit: 4096,
+            platformContext:
+              'Accessible via Telegram. Keep responses under 4000 characters when possible.',
           },
-          charLimit: 4096,
-          platformContext: 'Accessible via Telegram. Keep responses under 4000 characters when possible.',
-        }, apiClient);
+          apiClient,
+        );
       } catch (err) {
         logger.error(`Error handling message for ${sessionId}:`, err);
       }
@@ -387,7 +388,7 @@ class SessionManager {
 
       this.reconnectAttempts.delete(sessionId);
       logger.error(
-        `Session ${sessionId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`
+        `Session ${sessionId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`,
       );
       return;
     }
@@ -395,11 +396,11 @@ class SessionManager {
     const delay =
       Math.min(
         SessionManager.BASE_RECONNECT_MS * Math.pow(2, attempts - 1),
-        SessionManager.MAX_RECONNECT_MS
+        SessionManager.MAX_RECONNECT_MS,
       ) + Math.floor(Math.random() * SessionManager.JITTER_MAX_MS);
 
     logger.info(
-      `Session ${sessionId} reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`
+      `Session ${sessionId} reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`,
     );
 
     // Clear any existing reconnect timer
@@ -409,7 +410,7 @@ class SessionManager {
     const timer = setTimeout(() => {
       this.reconnectTimers.delete(sessionId);
       this.startSession(sessionId).catch((err) =>
-        logger.error(`Reconnect failed for ${sessionId}:`, err)
+        logger.error(`Reconnect failed for ${sessionId}:`, err),
       );
     }, delay);
     this.reconnectTimers.set(sessionId, timer);

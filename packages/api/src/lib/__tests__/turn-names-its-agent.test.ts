@@ -94,7 +94,9 @@ let build: (linkedAgent: ReturnType<typeof agent> | null) => Promise<string>;
 beforeEach(() => {
   vi.clearAllMocks();
   build = (linkedAgent) =>
-    SystemPromptBuilder.build({ ...BASE, linkedAgent } as Parameters<typeof SystemPromptBuilder.build>[0]);
+    SystemPromptBuilder.build({ ...BASE, linkedAgent } as Parameters<
+      typeof SystemPromptBuilder.build
+    >[0]);
 });
 
 describe('naming an agent changes the turn', () => {

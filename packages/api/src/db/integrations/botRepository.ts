@@ -445,10 +445,7 @@ export interface UpsertBotUser {
  * name does not blank the stored one. `metadata` MERGES, matching
  * `{ ...botUser.metadata, ...metadata }`, which is `||` on `jsonb`.
  */
-export async function upsertBotUser(
-  db: ApiDatabase,
-  input: UpsertBotUser,
-): Promise<BotUserRow> {
+export async function upsertBotUser(db: ApiDatabase, input: UpsertBotUser): Promise<BotUserRow> {
   const [row] = await db
     .insert(botUsers)
     .values({
@@ -542,10 +539,7 @@ export async function setBotUserAuthToken(
   authToken: string,
   expiry: Date,
 ): Promise<void> {
-  await db
-    .update(botUsers)
-    .set({ authToken, authTokenExpiry: expiry })
-    .where(eq(botUsers.id, id));
+  await db.update(botUsers).set({ authToken, authTokenExpiry: expiry }).where(eq(botUsers.id, id));
 }
 
 /** Point a bot user at a conversation. `null` detaches it. */

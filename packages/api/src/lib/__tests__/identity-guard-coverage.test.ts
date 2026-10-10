@@ -110,7 +110,12 @@ function promptBearingFiles(): string[] {
   return execFileSync('git', ['ls-files', 'src', 'prompts'], { cwd: packageRoot, encoding: 'utf8' })
     .split('\n')
     .filter(Boolean)
-    .filter((f) => !f.includes('__tests__') && !f.endsWith('.test.ts') && existsSync(path.join(packageRoot, f)));
+    .filter(
+      (f) =>
+        !f.includes('__tests__') &&
+        !f.endsWith('.test.ts') &&
+        existsSync(path.join(packageRoot, f)),
+    );
 }
 
 /**
@@ -170,7 +175,7 @@ function claimsIn(file: string): Claim[] {
   );
 }
 
-describe('one owner for the assistant\'s name', () => {
+describe("one owner for the assistant's name", () => {
   const files = promptBearingFiles();
 
   /**
@@ -297,7 +302,7 @@ describe('one owner for the assistant\'s name', () => {
    * that quietly stopped applying to anything would leave the census looking
    * stricter than it is.
    */
-  it('excuses names read from the guard\'s own source, and those exist', () => {
+  it("excuses names read from the guard's own source, and those exist", () => {
     const excused = files
       .filter((f) => f !== THE_OWNER)
       .flatMap(claimsIn)

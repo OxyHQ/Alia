@@ -46,7 +46,11 @@ vi.mock('../../middleware/auth.js', async () => {
   );
   return {
     ...actual,
-    authenticateToken: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+    authenticateToken: (
+      req: express.Request,
+      _res: express.Response,
+      next: express.NextFunction,
+    ) => {
       req.user = { id: USER_ID };
       next();
     },
@@ -55,7 +59,9 @@ vi.mock('../../middleware/auth.js', async () => {
 
 vi.mock('../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child } };
+  return {
+    log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child },
+  };
 });
 
 vi.mock('../../db/index.js', async () => {

@@ -14,8 +14,22 @@ const destination = {
   resourceType: 'social_account',
   resourceId: 'profile-1',
 };
-const readAction = { id: 'read', position: 0, resource: source, tool: 'searchNotes', input: {}, limits: [] };
-const publishAction = { id: 'publish', position: 1, resource: destination, tool: 'publishPost', input: {}, limits: [] };
+const readAction = {
+  id: 'read',
+  position: 0,
+  resource: source,
+  tool: 'searchNotes',
+  input: {},
+  limits: [],
+};
+const publishAction = {
+  id: 'publish',
+  position: 1,
+  resource: destination,
+  tool: 'publishPost',
+  input: {},
+  limits: [],
+};
 
 function automation(destinations = [destination]): AutomationDefinitionRecord {
   return {
@@ -45,39 +59,55 @@ const stages = [
 
 describe('automation stage task data flow', () => {
   it('hands the prior result only to a declared destination stage', () => {
-    const inputs = automationStageTaskInputs(automation(), {
-      kind: 'schedule',
-      id: 'occurrence-1',
-      occurredAt: new Date('2026-09-07T09:00:00.000Z'),
-    }, stages);
+    const inputs = automationStageTaskInputs(
+      automation(),
+      {
+        kind: 'schedule',
+        id: 'occurrence-1',
+        occurredAt: new Date('2026-09-07T09:00:00.000Z'),
+      },
+      stages,
+    );
     const publisherInput = inputs[1];
     if (!publisherInput) throw new Error('Expected publisher stage input');
     expect(publisherInput.receivePreviousResult).toBe(true);
-    expect(renderAutomationStageTask(publisherInput, 'private summary')).toContain('private summary');
+    expect(renderAutomationStageTask(publisherInput, 'private summary')).toContain(
+      'private summary',
+    );
   });
 
   it('withholds the prior result when the destination was not declared', () => {
-    const inputs = automationStageTaskInputs(automation([]), {
-      kind: 'schedule',
-      id: 'occurrence-1',
-      occurredAt: new Date('2026-09-07T09:00:00.000Z'),
-    }, stages);
+    const inputs = automationStageTaskInputs(
+      automation([]),
+      {
+        kind: 'schedule',
+        id: 'occurrence-1',
+        occurredAt: new Date('2026-09-07T09:00:00.000Z'),
+      },
+      stages,
+    );
     const publisherInput = inputs[1];
     if (!publisherInput) throw new Error('Expected publisher stage input');
     expect(publisherInput.receivePreviousResult).toBe(false);
-    expect(renderAutomationStageTask(publisherInput, 'private summary')).not.toContain('private summary');
+    expect(renderAutomationStageTask(publisherInput, 'private summary')).not.toContain(
+      'private summary',
+    );
   });
 
   it('keeps manual request identity in audit storage rather than the agent task', () => {
-    const [input] = automationStageTaskInputs({
-      ...automation(),
-      trigger: { type: 'manual' },
-    }, {
-      kind: 'manual',
-      id: 'manual:automation-1:request-0001',
-      requesterAccountId: 'owner-1',
-      occurredAt: new Date('2026-09-07T09:00:00.000Z'),
-    }, stages);
+    const [input] = automationStageTaskInputs(
+      {
+        ...automation(),
+        trigger: { type: 'manual' },
+      },
+      {
+        kind: 'manual',
+        id: 'manual:automation-1:request-0001',
+        requesterAccountId: 'owner-1',
+        occurredAt: new Date('2026-09-07T09:00:00.000Z'),
+      },
+      stages,
+    );
     if (!input) throw new Error('Expected manual stage input');
 
     expect(input.trigger).toEqual({

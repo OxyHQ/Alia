@@ -43,7 +43,10 @@ export interface VoiceTurn {
 export type VoiceTurnSender = (turn: VoiceTurn) => Promise<void>;
 
 interface LinkedClientFactory {
-  createLinkedClient(config: { baseURL: string }): { client: AuthenticatedResponseClient; dispose(): void };
+  createLinkedClient(config: { baseURL: string }): {
+    client: AuthenticatedResponseClient;
+    dispose(): void;
+  };
 }
 
 export interface AliaVoiceTurnSenderOptions {

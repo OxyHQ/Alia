@@ -192,15 +192,11 @@ export default function SkillsScreen() {
   const install = useInstallSkill();
 
   const installedIds = useMemo(
-    () =>
-      new Set((installed.data ?? []).map((skill: InstalledSkill) => skill._id)),
+    () => new Set((installed.data ?? []).map((skill: InstalledSkill) => skill._id)),
     [installed.data],
   );
 
-  const skills = useMemo(
-    () => catalogue.data?.pages.flat() ?? [],
-    [catalogue.data],
-  );
+  const skills = useMemo(() => catalogue.data?.pages.flat() ?? [], [catalogue.data]);
   // An installed skill lives on the Installed shelf and nowhere else on this
   // screen: the same book twice is twice the covers for no information.
   const official = useMemo(
@@ -216,9 +212,7 @@ export default function SkillsScreen() {
     () =>
       skills.filter(
         (skill) =>
-          !installedIds.has(skill._id) &&
-          skill.source !== 'builtin' &&
-          skill.source !== 'registry',
+          !installedIds.has(skill._id) && skill.source !== 'builtin' && skill.source !== 'registry',
       ),
     [skills, installedIds],
   );
@@ -227,17 +221,10 @@ export default function SkillsScreen() {
     [installed.data, query],
   );
 
-  const openSkill = useCallback(
-    (name: string) => router.push(`/(app)/skills/${name}`),
-    [router],
-  );
-  const installSkill = useCallback(
-    (id: string) => install.mutate(id),
-    [install],
-  );
+  const openSkill = useCallback((name: string) => router.push(`/(app)/skills/${name}`), [router]);
+  const installSkill = useCallback((id: string) => install.mutate(id), [install]);
   const loadMore = useCallback(() => {
-    if (catalogue.hasNextPage && !catalogue.isFetchingNextPage)
-      void catalogue.fetchNextPage();
+    if (catalogue.hasNextPage && !catalogue.isFetchingNextPage) void catalogue.fetchNextPage();
   }, [catalogue]);
 
   const nothingToShow = skills.length === 0 && installedShelf.length === 0;
@@ -274,9 +261,7 @@ export default function SkillsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={
-              catalogue.isFetching &&
-              !catalogue.isLoading &&
-              !catalogue.isFetchingNextPage
+              catalogue.isFetching && !catalogue.isLoading && !catalogue.isFetchingNextPage
             }
             onRefresh={() => {
               void catalogue.refetch();
@@ -307,11 +292,7 @@ export default function SkillsScreen() {
                 contentContainerClassName="gap-[10px] px-4"
               >
                 {Array.from({ length: 4 }).map((_, index) => (
-                  <Skeleton.Box
-                    key={index}
-                    width={BOOK_WIDTH}
-                    height={BOOK_WIDTH * 1.5}
-                  />
+                  <Skeleton.Box key={index} width={BOOK_WIDTH} height={BOOK_WIDTH * 1.5} />
                 ))}
               </ScrollView>
             </View>
@@ -358,9 +339,7 @@ export default function SkillsScreen() {
             {/* An empty catalogue is a real state — a fresh database before the
               registry sync has run — and saying so beats a blank screen. */}
             {nothingToShow && !catalogue.isError ? (
-              <EmptyState
-                title={query ? t('skills.noResults') : t('skills.empty')}
-              />
+              <EmptyState title={query ? t('skills.noResults') : t('skills.empty')} />
             ) : null}
 
             {/* The shelves ask for more as they are scrolled; this is the same

@@ -37,8 +37,21 @@ export type HostVerdict = 'ok' | 'refused' | 'unresolvable';
  * resolver answers for a name a public one does not.
  */
 const RESERVED_SUFFIXES = [
-  'localhost', 'local', 'localdomain', 'internal', 'intranet', 'lan', 'home',
-  'corp', 'private', 'arpa', 'alt', 'onion', 'test', 'example', 'invalid',
+  'localhost',
+  'local',
+  'localdomain',
+  'internal',
+  'intranet',
+  'lan',
+  'home',
+  'corp',
+  'private',
+  'arpa',
+  'alt',
+  'onion',
+  'test',
+  'example',
+  'invalid',
 ];
 
 /**
@@ -106,7 +119,8 @@ export function normaliseHostname(raw: string): string | null {
   const tld = labels[labels.length - 1];
   if (!/^[a-z]{2,}$/.test(tld) && !tld.startsWith('xn--')) return null;
 
-  if (RESERVED_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`))) return null;
+  if (RESERVED_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`)))
+    return null;
 
   return host;
 }
@@ -131,7 +145,10 @@ export async function classifyHost(hostname: string): Promise<HostVerdict> {
 
   const blocked = anyBlocked(addresses);
   if (blocked !== null) {
-    log.general.warn({ hostname, address: blocked }, 'Refused a host resolving to a non-public address');
+    log.general.warn(
+      { hostname, address: blocked },
+      'Refused a host resolving to a non-public address',
+    );
     return 'refused';
   }
   return 'ok';
@@ -163,7 +180,10 @@ export const publicOnlyAgent = new Agent({
         (addresses) => {
           const blocked = anyBlocked(addresses);
           if (blocked !== null) {
-            log.general.warn({ hostname, address: blocked }, 'Refused a connection to a non-public address');
+            log.general.warn(
+              { hostname, address: blocked },
+              'Refused a connection to a non-public address',
+            );
             callback(new NonPublicAddressError(hostname, blocked), '', 4);
             return;
           }

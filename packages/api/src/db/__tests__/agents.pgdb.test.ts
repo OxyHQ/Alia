@@ -57,13 +57,7 @@ afterAll(async () => {
  * — which is indistinguishable from success and is exactly how a census reports
  * a comfortable zero.
  */
-const COLUMNS_OXY_OWNS = [
-  'name',
-  'handle',
-  'avatar',
-  'author_name',
-  'author_verified',
-] as const;
+const COLUMNS_OXY_OWNS = ['name', 'handle', 'avatar', 'author_name', 'author_verified'] as const;
 
 /** Dropped in the same cut, for reasons of their own. See the schema docblock. */
 const COLUMNS_NOTHING_READ = ['is_verified', 'credit_balance', 'last_scheduled_check'] as const;
@@ -178,9 +172,7 @@ describe('agents', () => {
    * resolving `@researcher` to one agent depends on.
    */
   it('refuses two agents on one bot account', async () => {
-    await db
-      .insert(agents)
-      .values(agentValues({ id: 'ag-h1', oxyAccountId: 'oxy-bot-duplicate' }));
+    await db.insert(agents).values(agentValues({ id: 'ag-h1', oxyAccountId: 'oxy-bot-duplicate' }));
 
     const second = db
       .insert(agents)
@@ -306,7 +298,9 @@ describe('agent_skills and agent_knowledge', () => {
      */
     await db.insert(agents).values(agentValues({ id: 'ag-cascade' }));
     await db.insert(skills).values(skillValues({ id: 'sk-doomed' }));
-    await db.insert(agentSkills).values({ id: 'as-doomed', agentId: 'ag-cascade', skillId: 'sk-doomed' });
+    await db
+      .insert(agentSkills)
+      .values({ id: 'as-doomed', agentId: 'ag-cascade', skillId: 'sk-doomed' });
 
     await db.delete(skills).where(eq(skills.id, 'sk-doomed'));
 

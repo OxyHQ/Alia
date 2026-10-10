@@ -109,7 +109,12 @@ import { canvasTool } from './tools/canvas.js';
 import { buildAgentMemoryTool } from './agent/agent-memory-runtime.js';
 import { createGetDeviceInfoTool } from './tools/device-info.js';
 import { createAutomationTool } from './tools/automation-create.js';
-import { budgetTools, type BudgetedToolSet, type PriorToolCall, type ToolRouting } from './tool-budget.js';
+import {
+  budgetTools,
+  type BudgetedToolSet,
+  type PriorToolCall,
+  type ToolRouting,
+} from './tool-budget.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -315,10 +320,19 @@ export interface ForUserResult {
 
 /** The result for a set small enough that nothing is routed. */
 function unrouted(tools: ToolSet, toolNameMapping: Map<string, string>): ForUserResult {
-  return { tools, toolNameMapping, routing: {}, appCatalogPrompt: '', activeToolNames: () => Object.keys(tools) };
+  return {
+    tools,
+    toolNameMapping,
+    routing: {},
+    appCatalogPrompt: '',
+    activeToolNames: () => Object.keys(tools),
+  };
 }
 
-function withBudget(budgeted: BudgetedToolSet, toolNameMapping: Map<string, string>): ForUserResult {
+function withBudget(
+  budgeted: BudgetedToolSet,
+  toolNameMapping: Map<string, string>,
+): ForUserResult {
   return {
     tools: budgeted.tools,
     toolNameMapping,
@@ -398,21 +412,24 @@ export class ToolPipeline {
 
     if (toolScope === 'preauthorized_oxy_automation') {
       if (!agent || !runtime || oxyExecutionAuthorizations === undefined) {
-        throw new Error('Preauthorized Oxy automation scope requires an agent, runtime, and exact authorizations');
+        throw new Error(
+          'Preauthorized Oxy automation scope requires an agent, runtime, and exact authorizations',
+        );
       }
       // Legacy rows without a reconciled bot parent get no Oxy tools. `author`
       // is listing metadata and is never an authority fallback.
-      const oxyServiceTools = agent.ownerOxyAccountId == null
-        ? {}
-        : await buildOxyServiceTools(userId, {
-            requesterAccountId: agent.ownerOxyAccountId,
-            ownerAccountId: agent.ownerOxyAccountId,
-            actor: { type: 'agent', accountId: agent.oxyAccountId },
-            runId: runId ?? requestId,
-            autonomy: oxyAutonomy,
-            executionAuthorizations: oxyExecutionAuthorizations,
-            onStepStatus: onOxyStepStatus,
-          });
+      const oxyServiceTools =
+        agent.ownerOxyAccountId == null
+          ? {}
+          : await buildOxyServiceTools(userId, {
+              requesterAccountId: agent.ownerOxyAccountId,
+              ownerAccountId: agent.ownerOxyAccountId,
+              actor: { type: 'agent', accountId: agent.oxyAccountId },
+              runId: runId ?? requestId,
+              autonomy: oxyAutonomy,
+              executionAuthorizations: oxyExecutionAuthorizations,
+              onStepStatus: onOxyStepStatus,
+            });
       const tools: ToolSet = {
         getCurrentDate: getCurrentDateTool,
         ...buildRuntimeTools(runtime, grants, { withoutDelegation: true, withoutComputer: true }),
@@ -499,7 +516,11 @@ export class ToolPipeline {
          * it, and the same tool under the same name either way.
          */
         if (agent !== undefined && agent !== null) {
-          aliaTools.memory = buildAgentMemoryTool({ oxyUserId: userId, agentId: agent._id, actorOxyAccountId: agent._id });
+          aliaTools.memory = buildAgentMemoryTool({
+            oxyUserId: userId,
+            agentId: agent._id,
+            actorOxyAccountId: agent._id,
+          });
           /**
            * Only for a turn that HAS an agent, because a thread is a (person,
            * agent) pair and there is nothing to search without one. Ordinary
@@ -519,18 +540,19 @@ export class ToolPipeline {
           });
         }
       }
-      if (grants.allows('messaging')) Object.assign(aliaTools, {
-        /**
-         * ONE name. It was `sendTelegram` here and `sendTelegramMessage` on the
-         * other three paths, for the same factory — so a prompt or a skill
-         * naming one silently did nothing on the other. The three-way spelling
-         * wins, and it is the one `lib/agent/tool-router.ts` already maps.
-         */
-        sendTelegramMessage: createSendTelegramTool(userId),
-        getWhatsAppChats: createGetWhatsAppChatsTool(userId),
-        getWhatsAppMessages: createGetWhatsAppMessagesTool(userId),
-        sendWhatsAppMessage: createSendWhatsAppMessageTool(userId),
-      });
+      if (grants.allows('messaging'))
+        Object.assign(aliaTools, {
+          /**
+           * ONE name. It was `sendTelegram` here and `sendTelegramMessage` on the
+           * other three paths, for the same factory — so a prompt or a skill
+           * naming one silently did nothing on the other. The three-way spelling
+           * wins, and it is the one `lib/agent/tool-router.ts` already maps.
+           */
+          sendTelegramMessage: createSendTelegramTool(userId),
+          getWhatsAppChats: createGetWhatsAppChatsTool(userId),
+          getWhatsAppMessages: createGetWhatsAppMessagesTool(userId),
+          sendWhatsAppMessage: createSendWhatsAppMessageTool(userId),
+        });
       if (grants.allows('automation')) {
         if (isDirectSession) {
           aliaTools.createAutomation = createAutomationTool(userId, accessToken);
@@ -561,7 +583,11 @@ export class ToolPipeline {
      */
     if (sseEmitter && isDirectSession) {
       aliaTools.planPreview = createPlanPreviewTool((steps) => {
-        sseEmitter.emit('alia.plan_preview', { eventVersion: 1, planId: `plan-${requestId}`, steps });
+        sseEmitter.emit('alia.plan_preview', {
+          eventVersion: 1,
+          planId: `plan-${requestId}`,
+          steps,
+        });
       });
       /**
        * Built per turn, which is what makes its once-per-turn bound real: the
@@ -637,34 +663,37 @@ export class ToolPipeline {
         }
       : undefined;
     const [mcpTools, integrationTools, oxyServiceTools, ownAgentTools] = await Promise.all([
-          actsForPerson && wants('mcp')
-            ? buildMcpTools(userId, mcpSelection(mcpServerId, grants)).catch(bulkFailure('mcp'))
-            : {},
-          actsForPerson && wants('integration')
-            ? buildIntegrationTools(userId, grants.instances('integration') ?? undefined)
-                .catch(bulkFailure('integration'))
-            : {},
-          !wants('oxy_service') || (!actsForPerson && !agent) || !ownerIsPresent
-            ? {}
-            : buildOxyServiceTools(userId, {
-                requesterAccountId: oxyOwnerAccountId,
-                ownerAccountId: oxyOwnerAccountId,
-                actor: agent
-                  ? { type: 'agent', accountId: agent.oxyAccountId }
-                  : { type: 'alia', ownerAccountId: oxyOwnerAccountId },
-                ...(agentIdentity ? { agentIdentity } : {}),
-                runId: runId ?? requestId,
-                autonomy: oxyAutonomy,
-                userAccessToken: isDirectSession ? accessToken : undefined,
-                executionAuthorizations: oxyExecutionAuthorizations,
-                onStepStatus: onOxyStepStatus,
-              })
-                .catch(bulkFailure('oxy-service')),
-          actsForPerson && wants('agent')
-            ? buildAskAgentTool(userId, ownAgentSelection(grants, agent, userId), agent?._id ?? null)
-                .catch(bulkFailure('agent'))
-            : {},
-        ]);
+      actsForPerson && wants('mcp')
+        ? buildMcpTools(userId, mcpSelection(mcpServerId, grants)).catch(bulkFailure('mcp'))
+        : {},
+      actsForPerson && wants('integration')
+        ? buildIntegrationTools(userId, grants.instances('integration') ?? undefined).catch(
+            bulkFailure('integration'),
+          )
+        : {},
+      !wants('oxy_service') || (!actsForPerson && !agent) || !ownerIsPresent
+        ? {}
+        : buildOxyServiceTools(userId, {
+            requesterAccountId: oxyOwnerAccountId,
+            ownerAccountId: oxyOwnerAccountId,
+            actor: agent
+              ? { type: 'agent', accountId: agent.oxyAccountId }
+              : { type: 'alia', ownerAccountId: oxyOwnerAccountId },
+            ...(agentIdentity ? { agentIdentity } : {}),
+            runId: runId ?? requestId,
+            autonomy: oxyAutonomy,
+            userAccessToken: isDirectSession ? accessToken : undefined,
+            executionAuthorizations: oxyExecutionAuthorizations,
+            onStepStatus: onOxyStepStatus,
+          }).catch(bulkFailure('oxy-service')),
+      actsForPerson && wants('agent')
+        ? buildAskAgentTool(
+            userId,
+            ownAgentSelection(grants, agent, userId),
+            agent?._id ?? null,
+          ).catch(bulkFailure('agent'))
+        : {},
+    ]);
     Object.assign(aliaTools, mcpTools, integrationTools, oxyServiceTools, ownAgentTools);
 
     // Skills: `loadSkill` and `readSkillFile`. Present for API-key callers too: a skill reaches the
@@ -708,7 +737,9 @@ export class ToolPipeline {
      * and is active from the first step.
      */
     const pins = [
-      ...(typeof mcpServerId === 'string' ? Object.keys(mcpTools).map((name) => name.slice(0, name.indexOf('__'))) : []),
+      ...(typeof mcpServerId === 'string'
+        ? Object.keys(mcpTools).map((name) => name.slice(0, name.indexOf('__')))
+        : []),
       ...pickedApps,
     ];
     return withBudget(
@@ -789,7 +820,10 @@ function mcpSelection(
  */
 function bulkFailure(source: string): (err: unknown) => ToolSet {
   return (err: unknown) => {
-    log.general.warn({ err, source }, 'A tool source failed to load; the turn continues without it');
+    log.general.warn(
+      { err, source },
+      'A tool source failed to load; the turn continues without it',
+    );
     return {};
   };
 }

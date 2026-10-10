@@ -1,5 +1,5 @@
-import { tool } from "ai";
-import { z } from "zod";
+import { tool } from 'ai';
+import { z } from 'zod';
 
 export interface DeviceInfo {
   deviceName?: string | null;
@@ -18,8 +18,9 @@ export interface DeviceInfo {
  * Tool to retrieve device information
  * Only includes device data when the AI explicitly requests it
  */
-export const createGetDeviceInfoTool = (deviceInfo: DeviceInfo | null) => tool({
-  description: `Obtiene información sobre el dispositivo del usuario.
+export const createGetDeviceInfoTool = (deviceInfo: DeviceInfo | null) =>
+  tool({
+    description: `Obtiene información sobre el dispositivo del usuario.
 
 CUÁNDO USAR: Úsala cuando el usuario haga preguntas relacionadas con:
 - Su dispositivo móvil o teléfono
@@ -35,53 +36,54 @@ EJEMPLOS de cuándo usar:
 
 NO USAR para preguntas generales que no requieran información del dispositivo.`,
 
-  inputSchema: z.object({}),
+    inputSchema: z.object({}),
 
-  execute: async () => {
-    if (!deviceInfo) {
-      return {
-        success: false,
-        message: "No se pudo obtener información del dispositivo. Esto puede ocurrir si el usuario está usando la versión web de la aplicación."
+    execute: async () => {
+      if (!deviceInfo) {
+        return {
+          success: false,
+          message:
+            'No se pudo obtener información del dispositivo. Esto puede ocurrir si el usuario está usando la versión web de la aplicación.',
+        };
+      }
+
+      // Format device info in a readable way
+      const info: any = {
+        success: true,
+        message: 'Información del dispositivo obtenida exitosamente',
       };
-    }
 
-    // Format device info in a readable way
-    const info: any = {
-      success: true,
-      message: "Información del dispositivo obtenida exitosamente"
-    };
+      if (deviceInfo.deviceName) {
+        info.deviceName = deviceInfo.deviceName;
+      }
 
-    if (deviceInfo.deviceName) {
-      info.deviceName = deviceInfo.deviceName;
-    }
+      if (deviceInfo.manufacturer && deviceInfo.modelName) {
+        info.model = `${deviceInfo.manufacturer} ${deviceInfo.modelName}`;
+      } else if (deviceInfo.modelName) {
+        info.model = deviceInfo.modelName;
+      }
 
-    if (deviceInfo.manufacturer && deviceInfo.modelName) {
-      info.model = `${deviceInfo.manufacturer} ${deviceInfo.modelName}`;
-    } else if (deviceInfo.modelName) {
-      info.model = deviceInfo.modelName;
-    }
+      if (deviceInfo.brand) {
+        info.brand = deviceInfo.brand;
+      }
 
-    if (deviceInfo.brand) {
-      info.brand = deviceInfo.brand;
-    }
+      if (deviceInfo.osName && deviceInfo.osVersion) {
+        info.operatingSystem = `${deviceInfo.osName} ${deviceInfo.osVersion}`;
+      }
 
-    if (deviceInfo.osName && deviceInfo.osVersion) {
-      info.operatingSystem = `${deviceInfo.osName} ${deviceInfo.osVersion}`;
-    }
+      if (deviceInfo.platformOS) {
+        info.platform = deviceInfo.platformOS;
+      }
 
-    if (deviceInfo.platformOS) {
-      info.platform = deviceInfo.platformOS;
-    }
+      if (deviceInfo.totalMemory) {
+        const memoryGB = (deviceInfo.totalMemory / (1024 * 1024 * 1024)).toFixed(2);
+        info.ram = `${memoryGB} GB`;
+      }
 
-    if (deviceInfo.totalMemory) {
-      const memoryGB = (deviceInfo.totalMemory / (1024 * 1024 * 1024)).toFixed(2);
-      info.ram = `${memoryGB} GB`;
-    }
+      if (deviceInfo.deviceYearClass) {
+        info.deviceYear = deviceInfo.deviceYearClass;
+      }
 
-    if (deviceInfo.deviceYearClass) {
-      info.deviceYear = deviceInfo.deviceYearClass;
-    }
-
-    return info;
-  },
-});
+      return info;
+    },
+  });

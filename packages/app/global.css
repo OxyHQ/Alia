@@ -9,7 +9,9 @@
 @source "../alia-chat/src/**/*.{ts,tsx}";
 
 @layer utilities {
-  .squircle { border-radius: 20%; }
+  .squircle {
+    border-radius: 20%;
+  }
 }
 
 /* The page scrolls the DOCUMENT (Bloom's `AiChatShell scroll="document"`).

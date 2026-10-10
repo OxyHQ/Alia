@@ -32,7 +32,9 @@ const proxy = await startEgressProxy({
     refusals += 1;
   },
 });
-console.log(JSON.stringify({ msg: 'egress proxy listening', port: proxy.port, resolvers: servers.length }));
+console.log(
+  JSON.stringify({ msg: 'egress proxy listening', port: proxy.port, resolvers: servers.length }),
+);
 
 // A count, never the destinations: which sites an agent visits is its owner's business.
 const report = setInterval(() => {

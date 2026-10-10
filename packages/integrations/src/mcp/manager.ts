@@ -10,7 +10,10 @@
 
 import { randomUUID } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
+import {
+  StdioClientTransport,
+  getDefaultEnvironment,
+} from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { auth, type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
@@ -89,7 +92,9 @@ export async function startServer(
     session.resources = resources;
     session.status = 'running';
 
-    logger.info(`[${serverId}] Started via ${transport} (${tools.length} tools, ${resources.length} resources)`);
+    logger.info(
+      `[${serverId}] Started via ${transport} (${tools.length} tools, ${resources.length} resources)`,
+    );
     return { tools, resources };
   } catch (err: unknown) {
     session.status = 'error';
@@ -202,7 +207,9 @@ export async function finishOAuth(
     session.resources = resources;
     session.status = 'running';
 
-    logger.info(`[${serverId}] OAuth connected via ${transport} (${tools.length} tools, ${resources.length} resources)`);
+    logger.info(
+      `[${serverId}] OAuth connected via ${transport} (${tools.length} tools, ${resources.length} resources)`,
+    );
     return { tools, resources };
   } catch (err: unknown) {
     session.status = 'error';

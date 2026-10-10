@@ -44,9 +44,20 @@ export function AgentComputer({ agentId }: { agentId: string }) {
   const files = useWorkspaceFiles(agentId, path, Boolean(running));
   const actions = useComputerActions(agentId);
 
-  const busy = actions.input.isPending || actions.control.isPending || actions.navigate.isPending || actions.open.isPending;
-  const report = (error: unknown) => setActionError(t('agents.computer.browser.actionFailed', { reason: errorMessage(error) }));
-  const run = <T,>(mutate: (value: T, options: { onError: (error: unknown) => void; onSuccess: () => void }) => void) =>
+  const busy =
+    actions.input.isPending ||
+    actions.control.isPending ||
+    actions.navigate.isPending ||
+    actions.open.isPending;
+  const report = (error: unknown) =>
+    setActionError(t('agents.computer.browser.actionFailed', { reason: errorMessage(error) }));
+  const run =
+    <T,>(
+      mutate: (
+        value: T,
+        options: { onError: (error: unknown) => void; onSuccess: () => void },
+      ) => void,
+    ) =>
     (value: T) => {
       setActionError(null);
       mutate(value, { onError: report, onSuccess: () => setActionError(null) });

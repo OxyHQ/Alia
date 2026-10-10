@@ -97,7 +97,9 @@ export async function assertFixturesStayOut(productionDir, fixturesDir) {
   const inFixtures = await scan(fixturesDir);
   const missing = FIXTURE_MARKERS.filter((m) => inFixtures.get(m).length === 0);
   if (missing.length > 0) {
-    throw new Error(`fixtures export lacks ${missing.join(', ')} — the production grep would prove nothing`);
+    throw new Error(
+      `fixtures export lacks ${missing.join(', ')} — the production grep would prove nothing`,
+    );
   }
   const inProduction = await scan(productionDir);
   const leaked = FIXTURE_MARKERS.filter((m) => inProduction.get(m).length > 0);

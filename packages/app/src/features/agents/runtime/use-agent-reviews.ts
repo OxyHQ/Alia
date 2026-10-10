@@ -29,9 +29,7 @@ export function useAgentReviews(agentId: string | undefined) {
   return useQuery({
     queryKey: queryKeys.agents.reviews(agentId ?? ''),
     queryFn: async (): Promise<AgentReviews> => {
-      const response = await apiClient.get(
-        API_ROUTES.agents.reviews(agentId ?? ''),
-      );
+      const response = await apiClient.get(API_ROUTES.agents.reviews(agentId ?? ''));
       return {
         reviews: response.data?.reviews || [],
         userReview: response.data?.userReview || null,
@@ -53,10 +51,7 @@ export function useSubmitAgentReview(agentId: string) {
 
   return useMutation({
     mutationFn: async (input: { rating: number; comment: string }) => {
-      const response = await apiClient.post(
-        API_ROUTES.agents.reviews(agentId),
-        input,
-      );
+      const response = await apiClient.post(API_ROUTES.agents.reviews(agentId), input);
       return response.data as {
         review: AgentReview;
         rating: number;
@@ -64,14 +59,12 @@ export function useSubmitAgentReview(agentId: string) {
       };
     },
     onSuccess: ({ review, rating, reviewCount }) => {
-      queryClient.setQueryData<AgentReviews>(
-        queryKeys.agents.reviews(agentId),
-        (previous) => ({ reviews: previous?.reviews ?? [], userReview: review }),
-      );
-      queryClient.setQueryData<Agent>(
-        queryKeys.agents.detail(agentId),
-        (previous) =>
-          previous === undefined ? previous : { ...previous, rating, reviewCount },
+      queryClient.setQueryData<AgentReviews>(queryKeys.agents.reviews(agentId), (previous) => ({
+        reviews: previous?.reviews ?? [],
+        userReview: review,
+      }));
+      queryClient.setQueryData<Agent>(queryKeys.agents.detail(agentId), (previous) =>
+        previous === undefined ? previous : { ...previous, rating, reviewCount },
       );
       // Not awaited: the write is done, and saying so should not wait on a
       // list refresh.
@@ -94,10 +87,10 @@ export function useDeleteAgentReview(agentId: string) {
       await apiClient.delete(API_ROUTES.agents.reviews(agentId));
     },
     onSuccess: () => {
-      queryClient.setQueryData<AgentReviews>(
-        queryKeys.agents.reviews(agentId),
-        (previous) => ({ reviews: previous?.reviews ?? [], userReview: null }),
-      );
+      queryClient.setQueryData<AgentReviews>(queryKeys.agents.reviews(agentId), (previous) => ({
+        reviews: previous?.reviews ?? [],
+        userReview: null,
+      }));
       void Promise.all([
         queryClient.invalidateQueries({
           queryKey: queryKeys.agents.detail(agentId),

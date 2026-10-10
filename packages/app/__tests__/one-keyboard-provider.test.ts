@@ -39,9 +39,10 @@ const packageRoot = (name: string) => dirname(require.resolve(`${name}/package.j
 
 describe('one KeyboardProvider in the app', () => {
   it('Alia mounts none of its own', () => {
-    const offenders = [...sourceFiles(join(APP_ROOT, 'app')), ...sourceFiles(join(APP_ROOT, 'src'))].filter(
-      (file) => /\bKeyboardProvider\b/.test(strip(readFileSync(file, 'utf8'))),
-    );
+    const offenders = [
+      ...sourceFiles(join(APP_ROOT, 'app')),
+      ...sourceFiles(join(APP_ROOT, 'src')),
+    ].filter((file) => /\bKeyboardProvider\b/.test(strip(readFileSync(file, 'utf8'))));
     expect(offenders).toEqual([]);
   });
 
@@ -54,7 +55,10 @@ describe('one KeyboardProvider in the app', () => {
   });
 
   it("Bloom's sheet adds none inside its Modal", () => {
-    const sheet = readFileSync(join(packageRoot('@oxy.so/bloom'), 'src/bottom-sheet/BottomSheet.tsx'), 'utf8');
+    const sheet = readFileSync(
+      join(packageRoot('@oxy.so/bloom'), 'src/bottom-sheet/BottomSheet.tsx'),
+      'utf8',
+    );
     expect(strip(sheet)).not.toMatch(/KeyboardProvider/);
   });
 });

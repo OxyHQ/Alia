@@ -89,7 +89,10 @@ vi.mock('../../chat-core.js', () => ({
 /** The agent's model, priced so the settlement arithmetic below is exact. */
 vi.mock('../../models/catalogue.js', () => ({
   findCatalogueModel: vi.fn(async (id: string) =>
-    id === 'acme/agent-model' ? { id, pricing: { inputPerMTok: '0.5', outputPerMTok: '0.5' } } : null),
+    id === 'acme/agent-model'
+      ? { id, pricing: { inputPerMTok: '0.5', outputPerMTok: '0.5' } }
+      : null,
+  ),
 }));
 
 /** ~10% of turns evolve the agent's soul, with a model call of its own. */
@@ -170,7 +173,10 @@ async function seedAgent(input: {
 async function account(free: number): Promise<string> {
   const id = uniqueId('owner');
   await getOrCreateUserCredits(db, id);
-  await db.update(userCredits).set({ creditsFree: free, creditsPaid: 0 }).where(eq(userCredits.id, id));
+  await db
+    .update(userCredits)
+    .set({ creditsFree: free, creditsPaid: 0 })
+    .where(eq(userCredits.id, id));
   return id;
 }
 
@@ -235,7 +241,7 @@ function answers(text: string, totalTokens = 2_000): void {
 }
 
 describe('which agents a grant resolves to', () => {
-  it('exposes EXACTLY the granted agent, and not the owner\'s others', async () => {
+  it("exposes EXACTLY the granted agent, and not the owner's others", async () => {
     const owner = await account(100);
     const granted = await seedAgent({ author: owner });
     const ungranted = await seedAgent({ author: owner });
@@ -285,7 +291,7 @@ describe('which agents a grant resolves to', () => {
     expect(await schemaAccepts(await askAgentTool(owner, undefined), off.id)).toBe(true);
   });
 
-  it('never resolves to another owner\'s agent, whatever the grant names', async () => {
+  it("never resolves to another owner's agent, whatever the grant names", async () => {
     const owner = await account(100);
     const stranger = await account(100);
     const theirs = await seedAgent({ author: stranger });
@@ -321,7 +327,7 @@ describe('which agents a grant resolves to', () => {
 });
 
 describe('the target agent answers, with its own prompt', () => {
-  it('runs the agent that was named, under that agent\'s instructions', async () => {
+  it("runs the agent that was named, under that agent's instructions", async () => {
     const owner = await account(100);
     const target = await seedAgent({
       author: owner,

@@ -55,7 +55,11 @@ vi.mock('../../middleware/auth.js', async () => {
   );
   return {
     ...actual,
-    authenticateToken: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+    authenticateToken: (
+      req: express.Request,
+      _res: express.Response,
+      next: express.NextFunction,
+    ) => {
       req.user = { id: USER_ID };
       next();
     },
@@ -63,7 +67,8 @@ vi.mock('../../middleware/auth.js', async () => {
 });
 
 vi.mock('../../lib/syra/syra.js', async () => {
-  const actual = await vi.importActual<typeof import('../../lib/syra/syra.js')>('../../lib/syra/syra.js');
+  const actual =
+    await vi.importActual<typeof import('../../lib/syra/syra.js')>('../../lib/syra/syra.js');
   const remove = (what: string) => async (id: string) => {
     sequence.push(`syra:${what}:${id}`);
     if (syraOutcome !== 'ok') throw syraOutcome;
@@ -178,7 +183,10 @@ describe('deleting a series', () => {
     expect(response.status).toBe(502);
     // The 403 asked its second question, the answer was "it is there", and
     // Alia's row survives. Deleting it anyway is the bug this file exists for.
-    expect(sequence).toEqual(['syra:deletePodcast:syra-podcast-1', 'syra:getPodcast:syra-podcast-1']);
+    expect(sequence).toEqual([
+      'syra:deletePodcast:syra-podcast-1',
+      'syra:getPodcast:syra-podcast-1',
+    ]);
   });
 
   it('deletes here when the 403 means the show is already gone from Syra', async () => {
@@ -256,7 +264,10 @@ describe('deleting one episode', () => {
     syraRead = 'present';
 
     expect((await del(`/shows/episodes/${EPISODE_ID}`)).status).toBe(502);
-    expect(sequence).toEqual(['syra:deleteEpisode:syra-episode-1', 'syra:getEpisode:syra-episode-1']);
+    expect(sequence).toEqual([
+      'syra:deleteEpisode:syra-episode-1',
+      'syra:getEpisode:syra-episode-1',
+    ]);
   });
 
   it('deletes here when the 403 means the episode is already gone', async () => {

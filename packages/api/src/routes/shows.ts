@@ -69,10 +69,7 @@ import { buildSeriesCast, FORMAT_DEFAULTS, SHOW_VOICES } from '../lib/show/voice
 import { generateCoverArt } from '../lib/show/cover-art.js';
 import { syraForRequest } from '../lib/syra/syra.js';
 import { SyraApiError } from '@syra.fm/sdk';
-import {
-  refundReservation,
-  finalizeFixedCredits,
-} from '../lib/credits-manager.js';
+import { refundReservation, finalizeFixedCredits } from '../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { log } from '../lib/logger.js';
 import { getSafeErrorMessage } from '../lib/errors/sanitize.js';
@@ -185,7 +182,9 @@ router.get('/preferences', async (req: Request, res: Response) => {
     });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Failed to read show preferences');
-    res.status(500).json({ error: { message: 'Failed to read preferences', type: 'server_error' } });
+    res
+      .status(500)
+      .json({ error: { message: 'Failed to read preferences', type: 'server_error' } });
   }
 });
 
@@ -204,7 +203,9 @@ router.put('/preferences', async (req: Request, res: Response) => {
     });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Failed to save show preferences');
-    res.status(500).json({ error: { message: 'Failed to save preferences', type: 'server_error' } });
+    res
+      .status(500)
+      .json({ error: { message: 'Failed to save preferences', type: 'server_error' } });
   }
 });
 
@@ -252,7 +253,11 @@ async function mintCover(
   };
 
   await getOrCreateUserCredits(userId);
-  const reservation = await reserveUserProductCredits(userId, COVER_ART_CREDITS, req.user?.id === userId ? req.accessToken : undefined);
+  const reservation = await reserveUserProductCredits(
+    userId,
+    COVER_ART_CREDITS,
+    req.user?.id === userId ? req.accessToken : undefined,
+  );
   // Not an error: an account with no credits still gets its series, without art.
   if (!reservation) return noCover('insufficient_credits');
 
@@ -276,7 +281,10 @@ async function mintCover(
     // refund work that really happened. That is the right side to err on: the
     // caller has nothing to show for it either way.
     await refundReservation(reservation).catch((refundErr: unknown) =>
-      log.general.error({ err: refundErr, userId, seriesId }, 'refundReservation failed after a cover error'),
+      log.general.error(
+        { err: refundErr, userId, seriesId },
+        'refundReservation failed after a cover error',
+      ),
     );
     return noCover('cover_failed', err);
   }
@@ -292,20 +300,29 @@ router.post('/series', async (req: Request, res: Response) => {
 
     const parsed = createSeriesSchema.safeParse(req.body);
     if (!parsed.success) {
-      return invalid(res, 'A series needs a title of at least 3 characters and a brief of at least 10');
+      return invalid(
+        res,
+        'A series needs a title of at least 3 characters and a brief of at least 10',
+      );
     }
     const input = parsed.data;
 
     const stored = await findPreferences(getDb(), userId);
     const format: ShowFormat = input.format ?? stored?.defaultFormat ?? 'podcast';
-    const visibility: ShowVisibility =
-      input.visibility ?? stored?.defaultVisibility ?? 'private';
+    const visibility: ShowVisibility = input.visibility ?? stored?.defaultVisibility ?? 'private';
 
     // Minted here, not by the column's default — Syra records it as provenance
     // and its podcast has to exist before the row that would generate one.
     const seriesId = uuidv7();
     const speakers = buildSeriesCast(format, input.voiceIds);
-    const coverImageAssetId = await mintCover(req, userId, seriesId, input.title, input.brief, format);
+    const coverImageAssetId = await mintCover(
+      req,
+      userId,
+      seriesId,
+      input.title,
+      input.brief,
+      format,
+    );
 
     const podcast = await syraForRequest(req).createPodcast({
       title: input.title,
@@ -336,7 +353,10 @@ router.post('/series', async (req: Request, res: Response) => {
   } catch (error: unknown) {
     log.general.error({ err: error, userId: req.user?.id }, 'Failed to create a show series');
     res.status(500).json({
-      error: { message: getSafeErrorMessage(error, 'Failed to create the series'), type: 'server_error' },
+      error: {
+        message: getSafeErrorMessage(error, 'Failed to create the series'),
+        type: 'server_error',
+      },
     });
   }
 });
@@ -405,9 +425,17 @@ router.patch('/series/:id', async (req: Request, res: Response) => {
     const series = await findSeriesForUser(getDb(), id, userId);
     if (!series) return notFound(res, 'Series');
 
-    const cover = input.regenerateCover === true
-      ? await mintCover(req, userId, series.id, input.title ?? series.title, input.brief ?? series.brief, series.format)
-      : null;
+    const cover =
+      input.regenerateCover === true
+        ? await mintCover(
+            req,
+            userId,
+            series.id,
+            input.title ?? series.title,
+            input.brief ?? series.brief,
+            series.format,
+          )
+        : null;
 
     const syra = syraForRequest(req);
     if (
@@ -438,11 +466,13 @@ router.patch('/series/:id', async (req: Request, res: Response) => {
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Failed to update a show series');
     res.status(500).json({
-      error: { message: getSafeErrorMessage(error, 'Failed to update the series'), type: 'server_error' },
+      error: {
+        message: getSafeErrorMessage(error, 'Failed to update the series'),
+        type: 'server_error',
+      },
     });
   }
 });
-
 
 /**
  * Delete something in Syra, and answer whether Alia may now forget its own row.
@@ -568,7 +598,9 @@ router.delete('/series/:id', async (req: Request, res: Response) => {
     res.json({ deleted: true, syraPodcastId, syraPodcastDeleted: syraPodcastId !== null });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Failed to delete a show series');
-    res.status(500).json({ error: { message: 'Failed to delete the series', type: 'server_error' } });
+    res
+      .status(500)
+      .json({ error: { message: 'Failed to delete the series', type: 'server_error' } });
   }
 });
 
@@ -701,7 +733,10 @@ router.post('/series/:id/episodes', async (req: Request, res: Response) => {
   } catch (error: unknown) {
     log.general.error({ err: error, userId: req.user?.id }, 'Failed to create a show episode');
     res.status(500).json({
-      error: { message: getSafeErrorMessage(error, 'Failed to start the episode'), type: 'server_error' },
+      error: {
+        message: getSafeErrorMessage(error, 'Failed to start the episode'),
+        type: 'server_error',
+      },
     });
   }
 });
@@ -720,7 +755,9 @@ router.get('/episodes/:id', async (req: Request, res: Response) => {
     res.json(episode);
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Failed to read a show episode');
-    res.status(500).json({ error: { message: 'Failed to read the episode', type: 'server_error' } });
+    res
+      .status(500)
+      .json({ error: { message: 'Failed to read the episode', type: 'server_error' } });
   }
 });
 
@@ -754,7 +791,8 @@ router.delete('/episodes/:id', async (req: Request, res: Response) => {
       if (!letGo) {
         return res.status(502).json({
           error: {
-            message: 'The episode could not be deleted on Syra, so nothing was deleted here either.',
+            message:
+              'The episode could not be deleted on Syra, so nothing was deleted here either.',
             type: 'upstream_error',
           },
         });
@@ -767,7 +805,9 @@ router.delete('/episodes/:id', async (req: Request, res: Response) => {
     res.json({ deleted: true, syraEpisodeId, syraEpisodeDeleted: syraEpisodeId !== null });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Failed to delete a show episode');
-    res.status(500).json({ error: { message: 'Failed to delete the episode', type: 'server_error' } });
+    res
+      .status(500)
+      .json({ error: { message: 'Failed to delete the episode', type: 'server_error' } });
   }
 });
 

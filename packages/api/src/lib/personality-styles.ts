@@ -13,11 +13,11 @@
 export type PersonalityStyleId = 'alia' | 'brief' | 'chill' | 'sweet' | 'witty' | 'mentor' | 'bold';
 
 export interface PersonalityStyleDimensions {
-  expressiveness: number;    // 1 (concise) → 5 (verbose)
+  expressiveness: number; // 1 (concise) → 5 (verbose)
   emotionalOpenness: number; // 1 (reserved) → 5 (enthusiastic)
-  formality: number;         // 1 (professional) → 5 (casual)
-  directness: number;        // 1 (diplomatic) → 5 (blunt)
-  humor: number;             // 1 (subtle) → 5 (overt)
+  formality: number; // 1 (professional) → 5 (casual)
+  directness: number; // 1 (diplomatic) → 5 (blunt)
+  humor: number; // 1 (subtle) → 5 (overt)
 }
 
 export interface PersonalityStyle {
@@ -132,7 +132,8 @@ You communicate with clever wit and playful intelligence. Your style:
     id: 'mentor',
     name: 'Mentor',
     tagline: 'Thoughtful and guiding',
-    sampleGreeting: "Good question. Let's think through this together — what have you tried so far?",
+    sampleGreeting:
+      "Good question. Let's think through this together — what have you tried so far?",
     dimensions: { expressiveness: 4, emotionalOpenness: 3, formality: 2, directness: 3, humor: 2 },
     promptSupplement: `## PERSONALITY STYLE: Mentor
 

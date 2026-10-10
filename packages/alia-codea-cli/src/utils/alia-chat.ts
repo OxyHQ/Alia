@@ -148,7 +148,12 @@ export type AliaStreamEvent =
    * run it, this process does — so a consumer dispatches on the generic
    * `tool_calls` frame and reads this only for tools the server ran itself.
    */
-  | { readonly type: 'tool_result'; readonly toolCallId: string; readonly name: string; readonly output: unknown }
+  | {
+      readonly type: 'tool_result';
+      readonly toolCallId: string;
+      readonly name: string;
+      readonly output: unknown;
+    }
   /**
    * The stand-in text the server sends instead of an answer. Never rendered as
    * one, never stored as one; `retryable` says whether resending would help.
@@ -312,7 +317,10 @@ export function interpretFrame(frame: SseFrame): AliaStreamEvent[] | null {
  * carry argument text to append. Three consumers used to write this loop
  * inline, twice each.
  */
-export function mergeToolCallDeltas(into: StreamedToolCall[], deltas: readonly ToolCallDelta[]): void {
+export function mergeToolCallDeltas(
+  into: StreamedToolCall[],
+  deltas: readonly ToolCallDelta[],
+): void {
   for (const delta of deltas) {
     const index = delta.index ?? into.length;
     const existing = into[index];
@@ -331,9 +339,12 @@ export function mergeToolCallDeltas(into: StreamedToolCall[], deltas: readonly T
 }
 
 /** The calls that arrived whole: an id and a name. A sparse index is skipped. */
-export function completedToolCalls(calls: readonly (StreamedToolCall | undefined)[]): StreamedToolCall[] {
+export function completedToolCalls(
+  calls: readonly (StreamedToolCall | undefined)[],
+): StreamedToolCall[] {
   return calls.filter(
-    (call): call is StreamedToolCall => call !== undefined && call.id !== '' && call.function.name !== '',
+    (call): call is StreamedToolCall =>
+      call !== undefined && call.id !== '' && call.function.name !== '',
   );
 }
 

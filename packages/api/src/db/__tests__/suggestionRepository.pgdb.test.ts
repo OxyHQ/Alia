@@ -383,8 +383,9 @@ describe('search', () => {
 
     // The positive control, in the same currency: the same word DOES match from
     // its start, so the miss above is about the anchor and not about the word.
-    expect((await searchSuggestions(db, 'xylo', 'global', undefined, 10)).map((h) => h.suggestionId))
-      .toEqual(['q-trigger']);
+    expect(
+      (await searchSuggestions(db, 'xylo', 'global', undefined, 10)).map((h) => h.suggestionId),
+    ).toEqual(['q-trigger']);
   });
 
   it('matches title and text by SUBSTRING, case-insensitively', async () => {
@@ -419,8 +420,9 @@ describe('search', () => {
     });
 
     expect(await searchSuggestions(db, 'summ', 'personal', USER, 10)).toEqual([]);
-    expect((await searchSuggestions(db, 'summ', 'personal', OTHER, 10)).map((h) => h.suggestionId))
-      .toEqual(['q-personal']);
+    expect(
+      (await searchSuggestions(db, 'summ', 'personal', OTHER, 10)).map((h) => h.suggestionId),
+    ).toEqual(['q-personal']);
   });
 
   it('returns exactly the five projected fields the source selected', async () => {
@@ -458,10 +460,7 @@ describe('the seed upsert is idempotent', () => {
       isBuiltIn: true,
     });
 
-    const rows = await db
-      .select()
-      .from(suggestions)
-      .where(eq(suggestions.suggestionId, 's-idem'));
+    const rows = await db.select().from(suggestions).where(eq(suggestions.suggestionId, 's-idem'));
     expect(rows).toHaveLength(1);
     expect(rows[0]?.title).toBe('Second');
   });

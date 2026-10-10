@@ -70,7 +70,8 @@ const claudio = {
   authorName: null,
   tagline: 'Your plant care companion',
   description: 'Watering schedules, light, soil, pests and plant disease diagnosis.',
-  systemPrompt: 'You help people look after their plants: watering, light, soil, pests, and diagnosing plant diseases.',
+  systemPrompt:
+    'You help people look after their plants: watering, light, soil, pests, and diagnosing plant diseases.',
   archetype: 'general',
   archetypeConfig: null,
 } as unknown as HydratedAgent;
@@ -106,10 +107,14 @@ describe('the extractor', () => {
    * a message full of them.
    */
   it('finds the claims that used to contradict the guard', () => {
-    expect(identityClaimsIn(HISTORICAL_RIVAL_CLAIMS.join('\n\n'))).toEqual(['Alia', 'Alia', 'Instant']);
+    expect(identityClaimsIn(HISTORICAL_RIVAL_CLAIMS.join('\n\n'))).toEqual([
+      'Alia',
+      'Alia',
+      'Instant',
+    ]);
   });
 
-  it('does not mistake the guard\'s other sentences for a name', () => {
+  it("does not mistake the guard's other sentences for a name", () => {
     const notClaims = [
       'You ARE an AI: never claim to be human.',
       'You are not a general-purpose assistant.',
@@ -251,7 +256,9 @@ describe('a turn that belongs to nobody — the control', () => {
     const message = await SystemPromptBuilder.build(turn);
 
     expect(message).toContain('You are Alia,');
-    expect(message).toContain('The model powering this conversation is Example Model 2, published by Example Labs');
+    expect(message).toContain(
+      'The model powering this conversation is Example Model 2, published by Example Labs',
+    );
     expect([...new Set(identityClaimsIn(message))]).toEqual(['Alia']);
   });
 });

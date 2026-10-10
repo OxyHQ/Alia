@@ -3,11 +3,7 @@ import { errorMessage } from '../../shared/utils';
 import type { AccountAdapter } from '../types';
 import { sessionManager } from './session-manager';
 import { getDb } from '../../db';
-import {
-  findLatestSignalMessageText,
-  listSignalChats,
-  listSignalMessages,
-} from './repository';
+import { findLatestSignalMessageText, listSignalChats, listSignalMessages } from './repository';
 import { createLogger } from '../../shared/logger';
 
 const logger = createLogger('Signal');
@@ -132,26 +128,29 @@ export class SignalAdapter implements AccountAdapter {
     });
 
     // GET /sessions/:sessionId/chats/:contactId/messages
-    router.get('/sessions/:sessionId/chats/:contactId/messages', async (req: AccountRequest, res: Response) => {
-      const { sessionId, contactId } = req.params;
-      const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+    router.get(
+      '/sessions/:sessionId/chats/:contactId/messages',
+      async (req: AccountRequest, res: Response) => {
+        const { sessionId, contactId } = req.params;
+        const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
 
-      try {
-        const messages = await listSignalMessages(getDb(), sessionId, contactId, limit);
+        try {
+          const messages = await listSignalMessages(getDb(), sessionId, contactId, limit);
 
-        return res.json({
-          messages: messages.map((m) => ({
-            id: m.messageTimestamp,
-            fromMe: m.fromMe,
-            timestamp: m.timestamp,
-            text: m.text,
-            senderName: m.senderName || null,
-          })),
-        });
-      } catch (error: unknown) {
-        return res.status(500).json({ error: errorMessage(error) });
-      }
-    });
+          return res.json({
+            messages: messages.map((m) => ({
+              id: m.messageTimestamp,
+              fromMe: m.fromMe,
+              timestamp: m.timestamp,
+              text: m.text,
+              senderName: m.senderName || null,
+            })),
+          });
+        } catch (error: unknown) {
+          return res.status(500).json({ error: errorMessage(error) });
+        }
+      },
+    );
 
     // POST /sessions/:sessionId/send
     router.post('/sessions/:sessionId/send', async (req: AccountRequest, res: Response) => {

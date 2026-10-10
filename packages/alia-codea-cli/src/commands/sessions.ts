@@ -23,9 +23,11 @@ export async function listSessions(): Promise<void> {
     const title = session.title.slice(0, 40) + (session.title.length > 40 ? '...' : '');
 
     console.log(
-      chalk.cyan(`${index + 1}.`) + ' ' +
-      chalk.white(title) + ' ' +
-      chalk.gray(`(${messageCount} msgs, ${date} ${time})`)
+      chalk.cyan(`${index + 1}.`) +
+        ' ' +
+        chalk.white(title) +
+        ' ' +
+        chalk.gray(`(${messageCount} msgs, ${date} ${time})`),
     );
   });
 
@@ -103,7 +105,9 @@ async function startRestoredSession(session: Session): Promise<void> {
     if (msg.role === 'user') {
       console.log(chalk.cyan('❯ ') + msg.content);
     } else if (msg.role === 'assistant') {
-      console.log(chalk.magenta('✦ ') + msg.content.slice(0, 200) + (msg.content.length > 200 ? '...' : ''));
+      console.log(
+        chalk.magenta('✦ ') + msg.content.slice(0, 200) + (msg.content.length > 200 ? '...' : ''),
+      );
     }
     console.log();
   }

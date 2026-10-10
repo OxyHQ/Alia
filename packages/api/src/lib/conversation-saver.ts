@@ -38,7 +38,10 @@ import { log } from './logger.js';
 
 // Known translations of "TITLE" that LLMs may produce
 const TAG = String.raw`ALIA_TITLE|TITLE|TÍTULO|TITRE|TITOLO|TITEL|ЗАГОЛОВОК`;
-const TITLE_EXTRACT_RE = new RegExp(String.raw`\[(${TAG})\](.*?)\[\/\1\]|<(${TAG})>(.*?)<\/\3>`, 'i');
+const TITLE_EXTRACT_RE = new RegExp(
+  String.raw`\[(${TAG})\](.*?)\[\/\1\]|<(${TAG})>(.*?)<\/\3>`,
+  'i',
+);
 const TITLE_STRIP_RE = new RegExp(String.raw`\[(${TAG})\].*?\[\/\1\]|<(${TAG})>.*?<\/\2>`, 'gi');
 
 /** The shape callers actually pass (a subset of ChatMessage / stored message fields). */
@@ -56,7 +59,7 @@ export function extractConversationTitle(response: string, messages: InputMessag
   if (m) return (m[2] || m[4]).trim();
 
   // Prefer the first user message (most descriptive of conversation topic)
-  const firstUserMsg = messages.find(msg => msg.role === 'user')?.content;
+  const firstUserMsg = messages.find((msg) => msg.role === 'user')?.content;
   if (typeof firstUserMsg === 'string' && firstUserMsg.length > 0) return firstUserMsg.slice(0, 60);
 
   // Fallback: first ~6 words of cleaned response
@@ -136,7 +139,16 @@ const APPEND_SEQ_INDEX = 'messages_oxy_user_conversation_seq_key';
  * a full delete + reinsert so storage always converges on the client's view.
  */
 export async function saveConversation(params: SaveConversationParams): Promise<void> {
-  const { userId, conversationId, messages, assistantResponse, toolInvocations, source, agentId, agentMessages } = params;
+  const {
+    userId,
+    conversationId,
+    messages,
+    assistantResponse,
+    toolInvocations,
+    source,
+    agentId,
+    agentMessages,
+  } = params;
   const assistantMessageId = usableMessageId(params.assistantMessageId);
 
   /**
@@ -148,8 +160,8 @@ export async function saveConversation(params: SaveConversationParams): Promise<
    * client's id, answered 404 for every reply of the session until a reload.
    */
   const clientHistory = messages
-    .filter(m => m != null && m.role && m.content !== undefined)
-    .map(m => {
+    .filter((m) => m != null && m.role && m.content !== undefined)
+    .map((m) => {
       const id = usableMessageId(m.id);
       return {
         role: m.role,
@@ -168,7 +180,9 @@ export async function saveConversation(params: SaveConversationParams): Promise<
       role: am.role,
       content: am.content,
       agentInfo: am.agentInfo,
-      ...(assistantMessageId === undefined ? {} : { id: agentMessageId(assistantMessageId, index) }),
+      ...(assistantMessageId === undefined
+        ? {}
+        : { id: agentMessageId(assistantMessageId, index) }),
     })),
     {
       role: 'assistant',
@@ -176,7 +190,7 @@ export async function saveConversation(params: SaveConversationParams): Promise<
       ...(toolInvocations && toolInvocations.length > 0 && { toolInvocations }),
       ...(assistantMessageId === undefined ? {} : { id: assistantMessageId }),
     },
-  ].filter(msg => msg != null && msg.role && msg.content !== undefined);
+  ].filter((msg) => msg != null && msg.role && msg.content !== undefined);
 
   const title = extractConversationTitle(assistantResponse, messages);
 
@@ -200,7 +214,8 @@ export async function saveConversation(params: SaveConversationParams): Promise<
   const canAppend =
     storedCount === clientHistory.length - 1 &&
     (storedCount === 0 ||
-      (lastStored?.seq === storedCount - 1 && sameMessage(lastStored, clientHistory[storedCount - 1])));
+      (lastStored?.seq === storedCount - 1 &&
+        sameMessage(lastStored, clientHistory[storedCount - 1])));
 
   if (canAppend) {
     const toAppend = [...clientHistory.slice(storedCount), ...turnTail];
@@ -208,7 +223,9 @@ export async function saveConversation(params: SaveConversationParams): Promise<
     try {
       await insertMessages(
         getDb(),
-        toAppend.map((message, i) => buildStoredMessage(message, userId, conversationId, storedCount + i)),
+        toAppend.map((message, i) =>
+          buildStoredMessage(message, userId, conversationId, storedCount + i),
+        ),
       );
       return;
     } catch (err) {
@@ -243,7 +260,9 @@ export async function saveConversation(params: SaveConversationParams): Promise<
  * What a person attached to their stored messages — a vote, a generated clip —
  * by client id, so a rewrite puts it back instead of deleting it with the row.
  */
-function feedbackById(stored: readonly MessageRow[]): Map<string, Pick<NewMessage, 'vote' | 'audioUrl'>> {
+function feedbackById(
+  stored: readonly MessageRow[],
+): Map<string, Pick<NewMessage, 'vote' | 'audioUrl'>> {
   const byId = new Map<string, Pick<NewMessage, 'vote' | 'audioUrl'>>();
   for (const row of stored) {
     if (row.clientMessageId === null || byId.has(row.clientMessageId)) continue;
@@ -264,10 +283,16 @@ function feedbackById(stored: readonly MessageRow[]): Map<string, Pick<NewMessag
  * "Has" is by id when the client echoed the agent's id, else by role and
  * content — the same equality the append fast path uses.
  */
-export function keepAgentOutreach(stored: readonly MessageRow[], client: readonly InputMessage[]): InputMessage[] {
-  const present = (row: MessageRow) => client.some((message) => (
-    (message.id !== undefined && message.id === row.clientMessageId) || sameMessage(row, message)
-  ));
+export function keepAgentOutreach(
+  stored: readonly MessageRow[],
+  client: readonly InputMessage[],
+): InputMessage[] {
+  const present = (row: MessageRow) =>
+    client.some(
+      (message) =>
+        (message.id !== undefined && message.id === row.clientMessageId) ||
+        sameMessage(row, message),
+    );
   const insertAfter = new Map<number, InputMessage[]>();
   for (const [index, row] of stored.entries()) {
     if (!isAgentOutreachMessageId(row.clientMessageId) || present(row)) continue;
@@ -276,7 +301,10 @@ export function keepAgentOutreach(stored: readonly MessageRow[], client: readonl
       const previous = stored[back]!;
       if (isAgentOutreachMessageId(previous.clientMessageId)) continue;
       for (let j = client.length - 1; j >= 0; j--) {
-        if (sameMessage(previous, client[j]!)) { anchor = j; break; }
+        if (sameMessage(previous, client[j]!)) {
+          anchor = j;
+          break;
+        }
       }
     }
     const message = toStoredMessage(row);
@@ -347,13 +375,20 @@ export async function generateTitle(userMessage: string): Promise<string | null>
     const result = await generateText({
       model,
       messages: [
-        { role: 'system', content: 'Generate a concise conversation title (max 6 words) in the same language as the user message. Return ONLY the title, no quotes or trailing punctuation.' },
+        {
+          role: 'system',
+          content:
+            'Generate a concise conversation title (max 6 words) in the same language as the user message. Return ONLY the title, no quotes or trailing punctuation.',
+        },
         { role: 'user', content: userMessage },
       ],
       maxOutputTokens: TITLE_OUTPUT_TOKEN_BUDGET,
     });
 
-    const title = result.text.trim().replace(/^["']|["']$/g, '').replace(/\.+$/, '');
+    const title = result.text
+      .trim()
+      .replace(/^["']|["']$/g, '')
+      .replace(/\.+$/, '');
     if (title.length === 0 || title.length >= 100) {
       log.chat.warn(
         {

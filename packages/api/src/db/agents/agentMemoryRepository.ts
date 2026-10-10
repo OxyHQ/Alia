@@ -4,31 +4,39 @@ import { agentMemoryDocuments, agentMemoryJournal } from '../schema/agent-runtim
 import { hashAgentMemory } from '../../lib/agent/memory-contract.js';
 
 export class AgentMemoryConflictError extends Error {
-  constructor(readonly currentHash: string, readonly currentContent: string) {
+  constructor(
+    readonly currentHash: string,
+    readonly currentContent: string,
+  ) {
     super('Agent memory changed since it was read');
   }
 }
 
 export async function listAgentMemory(db: ApiDatabase, oxyUserId: string, agentId: string) {
-  return db.select({
-    path: agentMemoryDocuments.path,
-    contentHash: agentMemoryDocuments.contentHash,
-    byteLength: agentMemoryDocuments.byteLength,
-    version: agentMemoryDocuments.version,
-    updatedAt: agentMemoryDocuments.updatedAt,
-  }).from(agentMemoryDocuments).where(and(
-    eq(agentMemoryDocuments.oxyUserId, oxyUserId),
-    eq(agentMemoryDocuments.agentId, agentId),
-  )).orderBy(desc(agentMemoryDocuments.updatedAt));
+  return db
+    .select({
+      path: agentMemoryDocuments.path,
+      contentHash: agentMemoryDocuments.contentHash,
+      byteLength: agentMemoryDocuments.byteLength,
+      version: agentMemoryDocuments.version,
+      updatedAt: agentMemoryDocuments.updatedAt,
+    })
+    .from(agentMemoryDocuments)
+    .where(
+      and(eq(agentMemoryDocuments.oxyUserId, oxyUserId), eq(agentMemoryDocuments.agentId, agentId)),
+    )
+    .orderBy(desc(agentMemoryDocuments.updatedAt));
 }
 
 /** Every agent that remembers something about this person, most recently written first. */
 export async function listAgentsRememberingPerson(db: Executor, oxyUserId: string) {
-  return db.select({
-    agentId: agentMemoryDocuments.agentId,
-    files: sql<number>`count(*)::int`,
-    updatedAt: max(agentMemoryDocuments.updatedAt),
-  }).from(agentMemoryDocuments)
+  return db
+    .select({
+      agentId: agentMemoryDocuments.agentId,
+      files: sql<number>`count(*)::int`,
+      updatedAt: max(agentMemoryDocuments.updatedAt),
+    })
+    .from(agentMemoryDocuments)
     .where(eq(agentMemoryDocuments.oxyUserId, oxyUserId))
     .groupBy(agentMemoryDocuments.agentId)
     .orderBy(desc(max(agentMemoryDocuments.updatedAt)));
@@ -43,46 +51,73 @@ export async function listAgentsRememberingPerson(db: Executor, oxyUserId: strin
  * the old text there would be a deletion in the UI and a copy in the database,
  * so a forgotten file's history goes too. Returns how many files went.
  */
-export async function deleteAgentMemory(db: ApiDatabase, input: {
-  oxyUserId: string;
-  agentId: string;
-  path?: string;
-}): Promise<number> {
+export async function deleteAgentMemory(
+  db: ApiDatabase,
+  input: {
+    oxyUserId: string;
+    agentId: string;
+    path?: string;
+  },
+): Promise<number> {
   return db.transaction(async (tx) => {
-    const removed = await tx.delete(agentMemoryDocuments).where(and(
-      eq(agentMemoryDocuments.oxyUserId, input.oxyUserId),
-      eq(agentMemoryDocuments.agentId, input.agentId),
-      ...(input.path === undefined ? [] : [eq(agentMemoryDocuments.path, input.path)]),
-    )).returning({ id: agentMemoryDocuments.id });
+    const removed = await tx
+      .delete(agentMemoryDocuments)
+      .where(
+        and(
+          eq(agentMemoryDocuments.oxyUserId, input.oxyUserId),
+          eq(agentMemoryDocuments.agentId, input.agentId),
+          ...(input.path === undefined ? [] : [eq(agentMemoryDocuments.path, input.path)]),
+        ),
+      )
+      .returning({ id: agentMemoryDocuments.id });
     if (removed.length > 0) {
-      await tx.delete(agentMemoryJournal).where(and(
-        eq(agentMemoryJournal.oxyUserId, input.oxyUserId),
-        eq(agentMemoryJournal.agentId, input.agentId),
-        inArray(agentMemoryJournal.documentId, removed.map((row) => row.id)),
-      ));
+      await tx.delete(agentMemoryJournal).where(
+        and(
+          eq(agentMemoryJournal.oxyUserId, input.oxyUserId),
+          eq(agentMemoryJournal.agentId, input.agentId),
+          inArray(
+            agentMemoryJournal.documentId,
+            removed.map((row) => row.id),
+          ),
+        ),
+      );
     }
     return removed.length;
   });
 }
 
-export async function readAgentMemory(db: Executor, oxyUserId: string, agentId: string, path: string) {
-  const [row] = await db.select().from(agentMemoryDocuments).where(and(
-    eq(agentMemoryDocuments.oxyUserId, oxyUserId),
-    eq(agentMemoryDocuments.agentId, agentId),
-    eq(agentMemoryDocuments.path, path),
-  )).limit(1);
+export async function readAgentMemory(
+  db: Executor,
+  oxyUserId: string,
+  agentId: string,
+  path: string,
+) {
+  const [row] = await db
+    .select()
+    .from(agentMemoryDocuments)
+    .where(
+      and(
+        eq(agentMemoryDocuments.oxyUserId, oxyUserId),
+        eq(agentMemoryDocuments.agentId, agentId),
+        eq(agentMemoryDocuments.path, path),
+      ),
+    )
+    .limit(1);
   return row;
 }
 
-export async function writeAgentMemory(db: ApiDatabase, input: {
-  oxyUserId: string;
-  agentId: string;
-  actorOxyAccountId: string;
-  path: string;
-  content: string;
-  expectedHash: string;
-  origin: 'person' | 'agent' | 'import' | 'rollback';
-}) {
+export async function writeAgentMemory(
+  db: ApiDatabase,
+  input: {
+    oxyUserId: string;
+    agentId: string;
+    actorOxyAccountId: string;
+    path: string;
+    content: string;
+    expectedHash: string;
+    origin: 'person' | 'agent' | 'import' | 'rollback';
+  },
+) {
   return db.transaction(async (tx) => {
     const current = await readAgentMemory(tx, input.oxyUserId, input.agentId, input.path);
     const emptyHash = hashAgentMemory('');
@@ -102,10 +137,16 @@ export async function writeAgentMemory(db: ApiDatabase, input: {
       updatedAt: new Date(),
     };
     const [document] = current
-      ? await tx.update(agentMemoryDocuments).set(values).where(and(
-          eq(agentMemoryDocuments.id, current.id),
-          eq(agentMemoryDocuments.contentHash, input.expectedHash),
-        )).returning()
+      ? await tx
+          .update(agentMemoryDocuments)
+          .set(values)
+          .where(
+            and(
+              eq(agentMemoryDocuments.id, current.id),
+              eq(agentMemoryDocuments.contentHash, input.expectedHash),
+            ),
+          )
+          .returning()
       : await tx.insert(agentMemoryDocuments).values(values).onConflictDoNothing().returning();
     if (!document) {
       const latest = await readAgentMemory(tx, input.oxyUserId, input.agentId, input.path);

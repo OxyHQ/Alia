@@ -1,5 +1,5 @@
-import { View } from "react-native";
-import type { SkillCoverCanvasProps } from "./skill-cover-palette";
+import { View } from 'react-native';
+import type { SkillCoverCanvasProps } from './skill-cover-palette';
 
 /**
  * A skill cover's grid, drawn with plain Views.
@@ -17,7 +17,7 @@ import type { SkillCoverCanvasProps } from "./skill-cover-palette";
  */
 export type SkillCoverStaticGridProps = Pick<
   SkillCoverCanvasProps,
-  "width" | "height" | "cellW" | "cellH" | "grid" | "staticColors" | "isDarkColorScheme"
+  'width' | 'height' | 'cellW' | 'cellH' | 'grid' | 'staticColors' | 'isDarkColorScheme'
 >;
 
 export default function SkillCoverStaticGrid({
@@ -32,12 +32,12 @@ export default function SkillCoverStaticGrid({
   return (
     <View
       style={{
-        position: "absolute",
+        position: 'absolute',
         width,
         height,
-        flexDirection: "row",
-        flexWrap: "wrap",
-        backgroundColor: isDarkColorScheme ? "#08080f" : "#f5f5f7",
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        backgroundColor: isDarkColorScheme ? '#08080f' : '#f5f5f7',
       }}
     >
       {grid.map((cell, i) => (

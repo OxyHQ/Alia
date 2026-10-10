@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import { AccountScopedKey } from "@/shared/state/account-scope";
+import { create } from 'zustand';
+import { AccountScopedKey } from '@/shared/state/account-scope';
 
 interface PinnedStoreState {
   pinnedConversationIds: string[];
@@ -14,7 +14,7 @@ interface PinnedStoreState {
   isPinned: (conversationId: string) => boolean;
 }
 
-const storage = new AccountScopedKey("alia-pinned-conversations");
+const storage = new AccountScopedKey('alia-pinned-conversations');
 
 export const usePinnedStore = create<PinnedStoreState>((set, get) => ({
   pinnedConversationIds: [],
@@ -33,7 +33,7 @@ export const usePinnedStore = create<PinnedStoreState>((set, get) => ({
         set({ pinnedConversationIds: pinned });
       }
     } catch (error) {
-      console.error("Error loading pinned:", error);
+      console.error('Error loading pinned:', error);
     }
   },
 
@@ -52,7 +52,7 @@ export const usePinnedStore = create<PinnedStoreState>((set, get) => ({
       await storage.setItem(JSON.stringify(newPinned));
       if (storage.isCurrent(token)) set({ pinnedConversationIds: newPinned });
     } catch (error) {
-      console.error("Error toggling pin:", error);
+      console.error('Error toggling pin:', error);
     }
   },
 

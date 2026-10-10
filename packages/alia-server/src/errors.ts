@@ -103,10 +103,14 @@ export interface AliaFailureDetail {
 export function failureDetailOf(error: Record<string, unknown>): AliaFailureDetail {
   return {
     ...(typeof error.retryable === 'boolean' ? { retryable: error.retryable } : {}),
-    ...(typeof error.retryAfter === 'number' && Number.isFinite(error.retryAfter) && error.retryAfter >= 0
+    ...(typeof error.retryAfter === 'number' &&
+    Number.isFinite(error.retryAfter) &&
+    error.retryAfter >= 0
       ? { retryAfter: error.retryAfter }
       : {}),
-    ...(typeof error.reference === 'string' && error.reference !== '' && error.reference.length <= 128
+    ...(typeof error.reference === 'string' &&
+    error.reference !== '' &&
+    error.reference.length <= 128
       ? { reference: error.reference }
       : {}),
   };

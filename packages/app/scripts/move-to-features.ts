@@ -81,46 +81,97 @@ const C = 'src/features/chat';
 const RULES: Array<[string, string]> = [
   // shell
   ...[
-    'sidebar.tsx', 'sidebar-menus.tsx', 'command-palette.tsx', 'keyboard-shortcuts-dialog.tsx',
-    'error-boundary.tsx', 'workspace-panel.tsx',
+    'sidebar.tsx',
+    'sidebar-menus.tsx',
+    'command-palette.tsx',
+    'keyboard-shortcuts-dialog.tsx',
+    'error-boundary.tsx',
+    'workspace-panel.tsx',
   ].map((f): [string, string] => [`components/${f}`, `src/shell/${f}`]),
   ['components/app-shell/page-chrome.tsx', 'src/shell/page-chrome.tsx'],
   ['lib/sidebar-history.ts', 'src/shell/sidebar-history.ts'],
   ...[
-    'sidebar-tree.test.tsx', 'app-error-boundary.test.tsx', 'right-panel-divider.test.ts',
+    'sidebar-tree.test.tsx',
+    'app-error-boundary.test.tsx',
+    'right-panel-divider.test.ts',
     'workspace-panel-terminal.test.tsx',
   ].map((f): [string, string] => [`components/__tests__/${f}`, `src/shell/__tests__/${f}`]),
-  ...['conversations-for-history.test.ts', 'sidebar-sections.test.ts', 'sidebar-selection.test.ts'].map(
-    (f): [string, string] => [`lib/__tests__/${f}`, `src/shell/__tests__/${f}`],
-  ),
+  ...[
+    'conversations-for-history.test.ts',
+    'sidebar-sections.test.ts',
+    'sidebar-selection.test.ts',
+  ].map((f): [string, string] => [`lib/__tests__/${f}`, `src/shell/__tests__/${f}`]),
 
   // chat — model
-  ...['attachment-intake', 'context-usage', 'timeline', 'tool-cards', 'turn-selection', 'work-log'].map(
-    (f): [string, string] => [`lib/chat/${f}.ts`, `${C}/model/${f}.ts`],
-  ),
   ...[
-    'chat-message-history', 'message-days', 'message-processor', 'thought-utils', 'thread-history',
-    'tool-registry', 'attachment-utils', 'conversation-export', 'task-utils', 'workspace-panel-kind',
+    'attachment-intake',
+    'context-usage',
+    'timeline',
+    'tool-cards',
+    'turn-selection',
+    'work-log',
+  ].map((f): [string, string] => [`lib/chat/${f}.ts`, `${C}/model/${f}.ts`]),
+  ...[
+    'chat-message-history',
+    'message-days',
+    'message-processor',
+    'thought-utils',
+    'thread-history',
+    'tool-registry',
+    'attachment-utils',
+    'conversation-export',
+    'task-utils',
+    'workspace-panel-kind',
   ].map((f): [string, string] => [`lib/${f}.ts`, `${C}/model/${f}.ts`]),
   ['lib/constants/capability-families.ts', `${C}/model/capability-families.ts`],
   ['types/chat.ts', `${C}/model/chat.ts`],
   ...['attachment-intake', 'timeline', 'tool-cards', 'turn-selection', 'work-log'].map(
-    (f): [string, string] => [`lib/chat/__tests__/${f}.test.ts`, `${C}/model/__tests__/${f}.test.ts`],
+    (f): [string, string] => [
+      `lib/chat/__tests__/${f}.test.ts`,
+      `${C}/model/__tests__/${f}.test.ts`,
+    ],
   ),
   ...[
-    'attachment-utils', 'chat-message-history', 'context-usage', 'conversation-export', 'message-days',
-    'research-sources', 'thought-utils', 'thread-history', 'turn-timings-scale',
-  ].map((f): [string, string] => [`lib/__tests__/${f}.test.ts`, `${C}/model/__tests__/${f}.test.ts`]),
-  ['components/__tests__/workspace-panel-kind.test.ts', `${C}/model/__tests__/workspace-panel-kind.test.ts`],
+    'attachment-utils',
+    'chat-message-history',
+    'context-usage',
+    'conversation-export',
+    'message-days',
+    'research-sources',
+    'thought-utils',
+    'thread-history',
+    'turn-timings-scale',
+  ].map((f): [string, string] => [
+    `lib/__tests__/${f}.test.ts`,
+    `${C}/model/__tests__/${f}.test.ts`,
+  ]),
+  [
+    'components/__tests__/workspace-panel-kind.test.ts',
+    `${C}/model/__tests__/workspace-panel-kind.test.ts`,
+  ],
 
   // chat — runtime
   ...[
-    'sse-frame-reader', 'stream-outcome', 'use-capability-modes', 'use-credit-warnings',
-    'use-local-models-invite', 'use-open-thought', 'use-turn-edit',
+    'sse-frame-reader',
+    'stream-outcome',
+    'use-capability-modes',
+    'use-credit-warnings',
+    'use-local-models-invite',
+    'use-open-thought',
+    'use-turn-edit',
   ].map((f): [string, string] => [`lib/chat/${f}.ts`, `${C}/runtime/${f}.ts`]),
   ...[
-    'streaming-chat', 'chat-conversation', 'conversations', 'thread-history', 'thread-search',
-    'timeline-window', 'suggestions', 'at-bottom', 'catalogue', 'product-modes', 'agent-activity',
+    'streaming-chat',
+    'chat-conversation',
+    'conversations',
+    'thread-history',
+    'thread-search',
+    'timeline-window',
+    'suggestions',
+    'at-bottom',
+    'catalogue',
+    'product-modes',
+    'agent-activity',
     'agent-row-preview',
   ].map((f): [string, string] => [`lib/hooks/use-${f}.ts`, `${C}/runtime/use-${f}.ts`]),
   ...['ui-store', 'global-store', 'composer-draft-store', 'model-store'].map(
@@ -129,47 +180,74 @@ const RULES: Array<[string, string]> = [
   ['lib/conversation-share.ts', `${C}/runtime/conversation-share.ts`],
   ['lib/hooks/use-model-selection.ts', `${C}/runtime/use-model-selection.ts`],
   ['lib/stores/model-store-migration.ts', `${C}/runtime/model-store-migration.ts`],
-  ['lib/stores/__tests__/model-store-migration.test.ts', `${C}/runtime/__tests__/model-store-migration.test.ts`],
+  [
+    'lib/stores/__tests__/model-store-migration.test.ts',
+    `${C}/runtime/__tests__/model-store-migration.test.ts`,
+  ],
   ['lib/hooks/__tests__/use-catalogue.test.ts', `${C}/runtime/__tests__/use-catalogue.test.ts`],
   ['lib/chat/__tests__/', `${C}/runtime/__tests__/`],
   ...[
-    'use-streaming-chat-lifecycle.test.tsx', 'use-streaming-chat-message-ids.test.tsx',
-    'use-streaming-chat-synthetic.test.tsx', 'use-streaming-chat-usage.test.tsx',
+    'use-streaming-chat-lifecycle.test.tsx',
+    'use-streaming-chat-message-ids.test.tsx',
+    'use-streaming-chat-synthetic.test.tsx',
+    'use-streaming-chat-usage.test.tsx',
   ].map((f): [string, string] => [`components/__tests__/${f}`, `${C}/runtime/__tests__/${f}`]),
   ...[
-    'use-chat-conversation-clear.test.tsx', 'use-chat-conversation-regenerate.test.tsx',
-    'use-clear-conversation.test.tsx', 'use-rename-conversation.test.tsx', 'use-product-modes.test.ts',
+    'use-chat-conversation-clear.test.tsx',
+    'use-chat-conversation-regenerate.test.tsx',
+    'use-clear-conversation.test.tsx',
+    'use-rename-conversation.test.tsx',
+    'use-product-modes.test.ts',
     'use-agent-row-preview.test.tsx',
   ].map((f): [string, string] => [`lib/hooks/__tests__/${f}`, `${C}/runtime/__tests__/${f}`]),
-  ...['composer-draft-store.test.tsx', 'agent-session-owner.test.ts', 'right-panel-width.test.ts'].map(
-    (f): [string, string] => [`lib/stores/__tests__/${f}`, `${C}/runtime/__tests__/${f}`],
-  ),
-  ['lib/__tests__/ui-store-thought-scope.test.ts', `${C}/runtime/__tests__/ui-store-thought-scope.test.ts`],
+  ...[
+    'composer-draft-store.test.tsx',
+    'agent-session-owner.test.ts',
+    'right-panel-width.test.ts',
+  ].map((f): [string, string] => [`lib/stores/__tests__/${f}`, `${C}/runtime/__tests__/${f}`]),
+  [
+    'lib/__tests__/ui-store-thought-scope.test.ts',
+    `${C}/runtime/__tests__/ui-store-thought-scope.test.ts`,
+  ],
 
   // chat — ui
   ['components/chat/', `${C}/ui/`],
   ...[
-    'chat-interface', 'chat-page-content', 'conversation-screen', 'new-conversation-offer', 'welcome-intro',
-    'welcome-message', 'thought-panel', 'file-card', 'ambient-field', 'thread-search',
+    'chat-interface',
+    'chat-page-content',
+    'conversation-screen',
+    'new-conversation-offer',
+    'welcome-intro',
+    'welcome-message',
+    'thought-panel',
+    'file-card',
+    'ambient-field',
+    'thread-search',
   ].map((f): [string, string] => [`components/${f}.tsx`, `${C}/ui/${f}.tsx`]),
   ['components/ui/markdown.tsx', `${C}/ui/markdown.tsx`],
   ['components/ui/rich-blocks.tsx', `${C}/ui/rich-blocks.tsx`],
   ['components/canvas/', `${C}/ui/canvas/`],
   ['components/execution/', `${C}/ui/execution/`],
-  ...['agent-panel', 'agent-terminal', 'credits-limits'].map(
-    (f): [string, string] => [`components/${f}.tsx`, `${C}/ui/workspace/${f}.tsx`],
-  ),
-  ...['agent-result-card', 'agent-task-card'].map(
-    (f): [string, string] => [`components/${f}.tsx`, `${C}/ui/cards/${f}.tsx`],
-  ),
+  ...['agent-panel', 'agent-terminal', 'credits-limits'].map((f): [string, string] => [
+    `components/${f}.tsx`,
+    `${C}/ui/workspace/${f}.tsx`,
+  ]),
+  ...['agent-result-card', 'agent-task-card'].map((f): [string, string] => [
+    `components/${f}.tsx`,
+    `${C}/ui/cards/${f}.tsx`,
+  ]),
   // The rest of the component tests are about chat surfaces.
   ['components/__tests__/', `${C}/ui/__tests__/`],
 
   // voice
-  ...['voice-mode', 'voice-room', 'tts', 'speech-to-text'].map(
-    (f): [string, string] => [`lib/hooks/use-${f}.ts`, `src/features/voice/runtime/use-${f}.ts`],
-  ),
-  ['lib/hooks/__tests__/use-voice-mode-disconnect.test.tsx', 'src/features/voice/runtime/__tests__/use-voice-mode-disconnect.test.tsx'],
+  ...['voice-mode', 'voice-room', 'tts', 'speech-to-text'].map((f): [string, string] => [
+    `lib/hooks/use-${f}.ts`,
+    `src/features/voice/runtime/use-${f}.ts`,
+  ]),
+  [
+    'lib/hooks/__tests__/use-voice-mode-disconnect.test.tsx',
+    'src/features/voice/runtime/__tests__/use-voice-mode-disconnect.test.tsx',
+  ],
   ['lib/voice-error-text.ts', 'src/features/voice/model/voice-error-text.ts'],
   ['lib/speech-locale.ts', 'src/features/voice/model/speech-locale.ts'],
   ['components/icons/voice-mode-icon.tsx', 'src/features/voice/ui/voice-mode-icon.tsx'],
@@ -178,19 +256,33 @@ const RULES: Array<[string, string]> = [
   ...['approvals-banner', 'capability-toggles', 'card', 'connector-grants'].map(
     (f): [string, string] => [`components/agent-${f}.tsx`, `src/features/agents/ui/agent-${f}.tsx`],
   ),
-  ['components/__tests__/agent-connector-grants.test.tsx', 'src/features/agents/ui/__tests__/agent-connector-grants.test.tsx'],
+  [
+    'components/__tests__/agent-connector-grants.test.tsx',
+    'src/features/agents/ui/__tests__/agent-connector-grants.test.tsx',
+  ],
   ['components/agents/', 'src/features/agents/ui/'],
   ['components/agent-model-field.tsx', 'src/features/agents/ui/agent-model-field.tsx'],
   ['lib/stores/agent-favorites-store.ts', 'src/features/agents/runtime/agent-favorites-store.ts'],
   ['components/detail/activity-grid.tsx', 'src/features/agents/ui/detail/activity-grid.tsx'],
   ['lib/agents/', 'src/features/agents/model/'],
   ['lib/hooks/agents/', 'src/features/agents/runtime/'],
-  ...['activity-grid', 'agent-approvals', 'agent-bots', 'agents', 'agent-teams', 'agent-threads', 'agent-thread', 'my-agents'].map(
-    (f): [string, string] => [`lib/hooks/use-${f}.ts`, `src/features/agents/runtime/use-${f}.ts`],
-  ),
-  ...['use-agents.test.tsx', 'agents-store-is-gone.test.ts'].map(
-    (f): [string, string] => [`lib/hooks/__tests__/${f}`, `src/features/agents/runtime/__tests__/${f}`],
-  ),
+  ...[
+    'activity-grid',
+    'agent-approvals',
+    'agent-bots',
+    'agents',
+    'agent-teams',
+    'agent-threads',
+    'agent-thread',
+    'my-agents',
+  ].map((f): [string, string] => [
+    `lib/hooks/use-${f}.ts`,
+    `src/features/agents/runtime/use-${f}.ts`,
+  ]),
+  ...['use-agents.test.tsx', 'agents-store-is-gone.test.ts'].map((f): [string, string] => [
+    `lib/hooks/__tests__/${f}`,
+    `src/features/agents/runtime/__tests__/${f}`,
+  ]),
 
   // automations (and tasks)
   ['lib/automations/types.ts', 'src/shared/contracts/automations.ts'],
@@ -213,10 +305,14 @@ const RULES: Array<[string, string]> = [
   ['lib/stores/library-store.ts', 'src/features/library/runtime/library-store.ts'],
 
   // projects
-  ...['projects', 'folders', 'pinned', 'favorites'].map(
-    (f): [string, string] => [`lib/stores/${f}-store.ts`, `src/features/projects/runtime/${f}-store.ts`],
-  ),
-  ['lib/stores/__tests__/account-scoped-collections.test.ts', 'src/features/projects/runtime/__tests__/account-scoped-collections.test.ts'],
+  ...['projects', 'folders', 'pinned', 'favorites'].map((f): [string, string] => [
+    `lib/stores/${f}-store.ts`,
+    `src/features/projects/runtime/${f}-store.ts`,
+  ]),
+  [
+    'lib/stores/__tests__/account-scoped-collections.test.ts',
+    'src/features/projects/runtime/__tests__/account-scoped-collections.test.ts',
+  ],
   ['components/project-edit-dialog.tsx', 'src/features/projects/ui/project-edit-dialog.tsx'],
 
   // shows
@@ -224,41 +320,67 @@ const RULES: Array<[string, string]> = [
   ['lib/stores/show-store.ts', 'src/features/shows/runtime/show-store.ts'],
   ['lib/hooks/use-show-progress.ts', 'src/features/shows/runtime/use-show-progress.ts'],
   ['lib/hooks/use-episode-audio.ts', 'src/features/shows/runtime/use-episode-audio.ts'],
-  ['lib/stores/__tests__/show-store.test.ts', 'src/features/shows/runtime/__tests__/show-store.test.ts'],
+  [
+    'lib/stores/__tests__/show-store.test.ts',
+    'src/features/shows/runtime/__tests__/show-store.test.ts',
+  ],
   ...['use-episode-audio.test.tsx', 'use-episode-audio-player-import.test.tsx'].map(
-    (f): [string, string] => [`lib/hooks/__tests__/${f}`, `src/features/shows/runtime/__tests__/${f}`],
+    (f): [string, string] => [
+      `lib/hooks/__tests__/${f}`,
+      `src/features/shows/runtime/__tests__/${f}`,
+    ],
   ),
   ['lib/utils/show-format.ts', 'src/features/shows/model/show-format.ts'],
-  ['lib/utils/__tests__/show-format.test.ts', 'src/features/shows/model/__tests__/show-format.test.ts'],
+  [
+    'lib/utils/__tests__/show-format.test.ts',
+    'src/features/shows/model/__tests__/show-format.test.ts',
+  ],
 
   // skills
   ['lib/hooks/use-skills.ts', 'src/features/skills/runtime/use-skills.ts'],
   ...[
-    'skill-cover.tsx', 'skill-cover-animated.tsx', 'skill-cover-canvas.tsx', 'skill-cover-canvas.web.tsx',
-    'skill-cover-canvas-skia.tsx', 'skill-cover-palette.ts', 'skill-cover-static.tsx',
+    'skill-cover.tsx',
+    'skill-cover-animated.tsx',
+    'skill-cover-canvas.tsx',
+    'skill-cover-canvas.web.tsx',
+    'skill-cover-canvas-skia.tsx',
+    'skill-cover-palette.ts',
+    'skill-cover-static.tsx',
   ].map((f): [string, string] => [`components/ui/${f}`, `src/features/skills/ui/${f}`]),
-  ['components/__tests__/skill-cover-static.test.tsx', 'src/features/skills/ui/__tests__/skill-cover-static.test.tsx'],
+  [
+    'components/__tests__/skill-cover-static.test.tsx',
+    'src/features/skills/ui/__tests__/skill-cover-static.test.tsx',
+  ],
 
   // connections
-  ...['connected-accounts', 'integrations', 'mcp-servers', 'bots'].map(
-    (f): [string, string] => [`lib/hooks/use-${f}.ts`, `src/features/connections/runtime/use-${f}.ts`],
-  ),
+  ...['connected-accounts', 'integrations', 'mcp-servers', 'bots'].map((f): [string, string] => [
+    `lib/hooks/use-${f}.ts`,
+    `src/features/connections/runtime/use-${f}.ts`,
+  ]),
 
   // local models
-  ...['use-local-runtime.ts', 'use-local-runtimes.ts'].map(
-    (f): [string, string] => [`lib/hooks/${f}`, `src/features/local-models/runtime/${f}`],
-  ),
-  ...['local-runtime-store.ts', 'local-runtime-migration.ts'].map(
-    (f): [string, string] => [`lib/stores/${f}`, `src/features/local-models/runtime/${f}`],
-  ),
-  ['lib/stores/__tests__/local-runtime-migration.test.ts', 'src/features/local-models/runtime/__tests__/local-runtime-migration.test.ts'],
+  ...['use-local-runtime.ts', 'use-local-runtimes.ts'].map((f): [string, string] => [
+    `lib/hooks/${f}`,
+    `src/features/local-models/runtime/${f}`,
+  ]),
+  ...['local-runtime-store.ts', 'local-runtime-migration.ts'].map((f): [string, string] => [
+    `lib/stores/${f}`,
+    `src/features/local-models/runtime/${f}`,
+  ]),
+  [
+    'lib/stores/__tests__/local-runtime-migration.test.ts',
+    'src/features/local-models/runtime/__tests__/local-runtime-migration.test.ts',
+  ],
 
   // billing
   ['lib/hooks/use-billing.ts', 'src/features/billing/runtime/use-billing.ts'],
   ['lib/hooks/use-credits.ts', 'src/features/billing/runtime/use-credits.ts'],
   ['lib/hooks/billing/', 'src/features/billing/runtime/'],
   ['lib/credits-limits.ts', 'src/features/billing/model/credits-limits.ts'],
-  ['lib/__tests__/credits-limits.test.ts', 'src/features/billing/model/__tests__/credits-limits.test.ts'],
+  [
+    'lib/__tests__/credits-limits.test.ts',
+    'src/features/billing/model/__tests__/credits-limits.test.ts',
+  ],
   ['lib/errors/usage-limit-error.ts', 'src/features/billing/model/usage-limit-error.ts'],
   ['components/usage-limit-dialog.tsx', 'src/features/billing/ui/usage-limit-dialog.tsx'],
   ['components/subscribe-shared.tsx', 'src/features/billing/ui/subscribe-shared.tsx'],
@@ -266,23 +388,44 @@ const RULES: Array<[string, string]> = [
   // onboarding
   ['components/auth/', 'src/features/onboarding/ui/'],
   ['lib/hooks/auth/', 'src/features/onboarding/runtime/'],
-  ['lib/hooks/use-organization-invites.ts', 'src/features/onboarding/runtime/use-organization-invites.ts'],
+  [
+    'lib/hooks/use-organization-invites.ts',
+    'src/features/onboarding/runtime/use-organization-invites.ts',
+  ],
   ['lib/hooks/use-referrals.ts', 'src/features/onboarding/runtime/use-referrals.ts'],
   ['components/invite-dialog.tsx', 'src/features/onboarding/ui/invite-dialog.tsx'],
 
   // notifications
   ['lib/hooks/use-notifications.ts', 'src/features/notifications/runtime/use-notifications.ts'],
-  ['lib/hooks/use-notification-setup.ts', 'src/features/notifications/runtime/use-notification-setup.ts'],
+  [
+    'lib/hooks/use-notification-setup.ts',
+    'src/features/notifications/runtime/use-notification-setup.ts',
+  ],
   ['lib/api/notifications-socket.ts', 'src/features/notifications/runtime/notifications-socket.ts'],
-  ['lib/api/__tests__/notifications-socket.test.ts', 'src/features/notifications/runtime/__tests__/notifications-socket.test.ts'],
-  ['lib/hooks/__tests__/use-notification-setup-platform.test.ts', 'src/features/notifications/runtime/__tests__/use-notification-setup-platform.test.ts'],
+  [
+    'lib/api/__tests__/notifications-socket.test.ts',
+    'src/features/notifications/runtime/__tests__/notifications-socket.test.ts',
+  ],
+  [
+    'lib/hooks/__tests__/use-notification-setup-platform.test.ts',
+    'src/features/notifications/runtime/__tests__/use-notification-setup-platform.test.ts',
+  ],
 
   // settings
   ['components/settings/', 'src/features/settings/ui/'],
-  ['components/__tests__/settings-modal-navigation.test.tsx', 'src/features/settings/ui/__tests__/settings-modal-navigation.test.tsx'],
+  [
+    'components/__tests__/settings-modal-navigation.test.tsx',
+    'src/features/settings/ui/__tests__/settings-modal-navigation.test.tsx',
+  ],
   ['lib/personality-styles.ts', 'src/features/settings/model/personality-styles.ts'],
-  ['lib/hooks/use-personality-sample-phrase.ts', 'src/features/settings/runtime/use-personality-sample-phrase.ts'],
-  ['lib/hooks/__tests__/use-personality-sample-phrase.test.tsx', 'src/features/settings/runtime/__tests__/use-personality-sample-phrase.test.tsx'],
+  [
+    'lib/hooks/use-personality-sample-phrase.ts',
+    'src/features/settings/runtime/use-personality-sample-phrase.ts',
+  ],
+  [
+    'lib/hooks/__tests__/use-personality-sample-phrase.test.tsx',
+    'src/features/settings/runtime/__tests__/use-personality-sample-phrase.test.tsx',
+  ],
 
   // shared/api
   ['lib/api/client.ts', 'src/shared/api/client.ts'],
@@ -296,37 +439,53 @@ const RULES: Array<[string, string]> = [
   // shared/i18n
   ['lib/i18n/', 'src/shared/i18n/'],
   ['lib/hooks/use-translation.ts', 'src/shared/i18n/use-translation.ts'],
-  ['lib/hooks/__tests__/use-translation.test.tsx', 'src/shared/i18n/__tests__/use-translation.test.tsx'],
+  [
+    'lib/hooks/__tests__/use-translation.test.tsx',
+    'src/shared/i18n/__tests__/use-translation.test.tsx',
+  ],
   ['lib/stores/i18n-store.ts', 'src/shared/i18n/i18n-store.ts'],
 
   // shared/platform
-  ...['config.ts', 'device-info.ts', 'themePersistence.ts', 'keyboard.tsx', 'keyboard.native.tsx', 'useColorScheme.tsx'].map(
-    (f): [string, string] => [`lib/${f}`, `src/shared/platform/${f}`],
-  ),
+  ...[
+    'config.ts',
+    'device-info.ts',
+    'themePersistence.ts',
+    'keyboard.tsx',
+    'keyboard.native.tsx',
+    'useColorScheme.tsx',
+  ].map((f): [string, string] => [`lib/${f}`, `src/shared/platform/${f}`]),
   ...['is-large-screen', 'image-picker', 'document-picker', 'sound-effects', 'screen-on-show'].map(
     (f): [string, string] => [`lib/hooks/use-${f}.ts`, `src/shared/platform/use-${f}.ts`],
   ),
-  ['lib/hooks/__tests__/use-screen-on-show.test.tsx', 'src/shared/platform/__tests__/use-screen-on-show.test.tsx'],
+  [
+    'lib/hooks/__tests__/use-screen-on-show.test.tsx',
+    'src/shared/platform/__tests__/use-screen-on-show.test.tsx',
+  ],
   ['lib/utils/random-uuid.ts', 'src/shared/platform/random-uuid.ts'],
   ['lib/utils/__tests__/random-uuid.test.ts', 'src/shared/platform/__tests__/random-uuid.test.ts'],
 
   // shared/state, format, contracts, domain
   ['lib/stores/account-scope.ts', 'src/shared/state/account-scope.ts'],
   ['lib/stores/create-collection-store.ts', 'src/shared/state/create-collection-store.ts'],
-  ...['format-file-size', 'relative-time', 'title-tags'].map(
-    (f): [string, string] => [`lib/utils/${f}.ts`, `src/shared/format/${f}.ts`],
-  ),
+  ...['format-file-size', 'relative-time', 'title-tags'].map((f): [string, string] => [
+    `lib/utils/${f}.ts`,
+    `src/shared/format/${f}.ts`,
+  ]),
   ['lib/types/', 'src/shared/contracts/'],
   ['lib/agents/agent-color.ts', 'src/shared/domain/agent-color.ts'],
   ['lib/agents/__tests__/agent-color.test.ts', 'src/shared/domain/__tests__/agent-color.test.ts'],
   ['lib/constants/agent-colors.ts', 'src/shared/domain/agent-colors.ts'],
 
   // shared/ui
-  ...['action-key-icon', 'alia-logo', 'image'].map(
-    (f): [string, string] => [`components/ui/${f}.tsx`, `src/shared/ui/${f}.tsx`],
-  ),
+  ...['action-key-icon', 'alia-logo', 'image'].map((f): [string, string] => [
+    `components/ui/${f}.tsx`,
+    `src/shared/ui/${f}.tsx`,
+  ]),
   ['components/ui/icons/', 'src/shared/ui/icons/'],
-  ['components/__tests__/generated-icons.test.ts', 'src/shared/ui/__tests__/generated-icons.test.ts'],
+  [
+    'components/__tests__/generated-icons.test.ts',
+    'src/shared/ui/__tests__/generated-icons.test.ts',
+  ],
 
   // shared/testing
   ['test/', 'src/shared/testing/'],
@@ -334,9 +493,12 @@ const RULES: Array<[string, string]> = [
   ['components/__tests__/panel-bloom-stubs.tsx', 'src/shared/testing/panel-bloom-stubs.tsx'],
 
   // package-wide tests stay at the package root
-  ...['bloom-boundaries', 'removed-dependencies-stay-removed', 'single-overlay-host', 'native-system-bars'].map(
-    (f): [string, string] => [`lib/__tests__/${f}.test.ts`, `__tests__/${f}.test.ts`],
-  ),
+  ...[
+    'bloom-boundaries',
+    'removed-dependencies-stay-removed',
+    'single-overlay-host',
+    'native-system-bars',
+  ].map((f): [string, string] => [`lib/__tests__/${f}.test.ts`, `__tests__/${f}.test.ts`]),
 ];
 
 function destinationOf(old: string): string | undefined {
@@ -353,7 +515,8 @@ function destinationOf(old: string): string | undefined {
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
-const git = (...a: string[]) => execFileSync('git', a, { cwd: APP, encoding: 'utf8', maxBuffer: 1 << 28 });
+const git = (...a: string[]) =>
+  execFileSync('git', a, { cwd: APP, encoding: 'utf8', maxBuffer: 1 << 28 });
 const toPosix = (p: string) => p.split('\\').join('/');
 const relApp = (abs: string) => toPosix(relative(APP, abs));
 const isFile = (abs: string) => existsSync(abs) && statSync(abs).isFile();
@@ -369,9 +532,14 @@ const bail = () => {
 
 // ── pass 1: map and move ────────────────────────────────────────────────────
 
-const tracked = git('ls-files', '--', ...OLD_DIRS).split('\n').filter(Boolean);
-const untracked = git('ls-files', '-o', '--exclude-standard', '--', ...OLD_DIRS).split('\n').filter(Boolean);
-for (const f of untracked) fail(`untracked file under an old directory (commit or remove it first): ${f}`);
+const tracked = git('ls-files', '--', ...OLD_DIRS)
+  .split('\n')
+  .filter(Boolean);
+const untracked = git('ls-files', '-o', '--exclude-standard', '--', ...OLD_DIRS)
+  .split('\n')
+  .filter(Boolean);
+for (const f of untracked)
+  fail(`untracked file under an old directory (commit or remove it first): ${f}`);
 
 /** old path (relative to the package) → new path. Only what exists now. */
 const MOVES = new Map<string, string>();
@@ -405,8 +573,19 @@ bail();
 const BEFORE = new Set(git('ls-files').split('\n').filter(Boolean));
 const existedBefore = (p: string) => BEFORE.has(p) || (!MOVES.has(p) && isFile(join(APP, p)));
 const TRIES = [
-  '', '.ts', '.tsx', '.web.ts', '.web.tsx', '.native.ts', '.native.tsx', '.js', '.jsx', '.json',
-  '/index.ts', '/index.tsx', '/index.js',
+  '',
+  '.ts',
+  '.tsx',
+  '.web.ts',
+  '.web.tsx',
+  '.native.ts',
+  '.native.tsx',
+  '.js',
+  '.jsx',
+  '.json',
+  '/index.ts',
+  '/index.tsx',
+  '/index.js',
 ];
 
 /** Resolves an absolute old-layout path to `[file relative to APP or absolute, appended tail]`. */
@@ -428,7 +607,12 @@ const newPathOf = (appRel: string) => MOVES.get(appRel) ?? appRel;
  * relative to APP. `strict` = it is a module specifier, so it may be written
  * `@/…` and must resolve. `undefined` = leave it; `null` = unresolvable.
  */
-function rewrite(spec: string, fileOld: string, fileNew: string, strict: boolean): string | undefined | null {
+function rewrite(
+  spec: string,
+  fileOld: string,
+  fileNew: string,
+  strict: boolean,
+): string | undefined | null {
   let abs: string;
   if (spec.startsWith('@/')) {
     const rest = spec.slice(2);
@@ -466,13 +650,18 @@ function rewrite(spec: string, fileOld: string, fileNew: string, strict: boolean
 const VI = new Set(['mock', 'doMock', 'unmock', 'doUnmock', 'importActual', 'importMock']);
 
 function specifierEdits(text: string, fileOld: string, fileNew: string, abs: string) {
-  const kind = abs.endsWith('x') ? ts.ScriptKind.TSX : abs.endsWith('.ts') ? ts.ScriptKind.TS : ts.ScriptKind.JS;
+  const kind = abs.endsWith('x')
+    ? ts.ScriptKind.TSX
+    : abs.endsWith('.ts')
+      ? ts.ScriptKind.TS
+      : ts.ScriptKind.JS;
   const sf = ts.createSourceFile(abs, text, ts.ScriptTarget.Latest, true, kind);
   const edits: Array<{ start: number; end: number; text: string }> = [];
   const consider = (lit: ts.StringLiteralLike, strict: boolean) => {
     const out = rewrite(lit.text, fileOld, fileNew, strict);
     if (out === null) fail(`${relApp(abs)}: cannot resolve '${lit.text}'`);
-    else if (out !== undefined) edits.push({ start: lit.getStart(sf) + 1, end: lit.getEnd() - 1, text: out });
+    else if (out !== undefined)
+      edits.push({ start: lit.getStart(sf) + 1, end: lit.getEnd() - 1, text: out });
   };
   const seen = new Set<ts.Node>();
   const visit = (node: ts.Node) => {
@@ -523,7 +712,15 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const fromArg = args.find((a) => a.startsWith('--from='));
 const PROSE = new Map(MOVES);
 if (fromArg) {
-  const listed = git('ls-tree', '-r', '--name-only', '--full-name', fromArg.slice('--from='.length), '--', ...OLD_DIRS);
+  const listed = git(
+    'ls-tree',
+    '-r',
+    '--name-only',
+    '--full-name',
+    fromArg.slice('--from='.length),
+    '--',
+    ...OLD_DIRS,
+  );
   for (const full of listed.split('\n').filter(Boolean)) {
     const old = toPosix(relative(APP, join(REPO, full)));
     const to = destinationOf(old);
@@ -576,7 +773,12 @@ const outside: Array<[string, string]> = [];
 if (SCOPE.has('repo') || SCOPE.has('docs')) {
   const all = execFileSync('git', ['ls-files'], { cwd: REPO, encoding: 'utf8', maxBuffer: 1 << 28 })
     .split('\n')
-    .filter((f) => f && !f.startsWith('packages/app/') && /\.(ts|tsx|js|mjs|cjs|md|mdx|json|ya?ml|txt)$/.test(f))
+    .filter(
+      (f) =>
+        f &&
+        !f.startsWith('packages/app/') &&
+        /\.(ts|tsx|js|mjs|cjs|md|mdx|json|ya?ml|txt)$/.test(f),
+    )
     .filter((f) => !/(^|\/)(bun\.lock|package-lock\.json)$/.test(f))
     // Dated plans and specs record the tree as it was when they were written.
     .filter((f) => !f.startsWith('docs/superpowers/'));
@@ -591,7 +793,9 @@ if (SCOPE.has('repo') || SCOPE.has('docs')) {
   }
 }
 
-console.log(`${MOVES.size} file(s) to move, ${planned.size} package file(s) and ${outside.length} other file(s) to rewrite.`);
+console.log(
+  `${MOVES.size} file(s) to move, ${planned.size} package file(s) and ${outside.length} other file(s) to rewrite.`,
+);
 if (DRY) {
   for (const [a, b] of MOVES) console.log(`mv\t${a}\t${b}`);
   for (const f of planned.keys()) console.log(`edit\t${f}`);

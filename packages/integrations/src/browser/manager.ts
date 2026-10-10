@@ -21,19 +21,16 @@ async function ensureBrowser(): Promise<Browser> {
   browser = await chromium.launch({
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
     headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-    ],
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
   });
 
   logger.info('Chromium launched');
   return browser;
 }
 
-export async function getOrCreateContext(sessionId: string): Promise<{ context: BrowserContext; page: Page }> {
+export async function getOrCreateContext(
+  sessionId: string,
+): Promise<{ context: BrowserContext; page: Page }> {
   const existing = contexts.get(sessionId);
   if (existing) {
     existing.lastUsed = Date.now();
@@ -56,7 +53,8 @@ export async function getOrCreateContext(sessionId: string): Promise<{ context: 
   const b = await ensureBrowser();
   const context = await b.newContext({
     viewport: { width: 1280, height: 720 },
-    userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    userAgent:
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   });
   const page = await context.newPage();
 

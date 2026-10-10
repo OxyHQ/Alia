@@ -1,6 +1,11 @@
 import type { AutonomyIntent } from '../../domain/retrieval-strategy.js';
 import { classifyIntent, type IntentClassification } from './intents.js';
-import { recallContextForIntent, learnFromRun, saveUserCorrection, type RecallResult } from './context-graph.js';
+import {
+  recallContextForIntent,
+  learnFromRun,
+  saveUserCorrection,
+  type RecallResult,
+} from './context-graph.js';
 import { autonomyFlags } from './flags.js';
 
 export interface AutonomyRuntimeContext {
@@ -9,7 +14,9 @@ export interface AutonomyRuntimeContext {
 }
 
 function extractLatestUserText(messages: Array<{ role: string; content?: unknown }>): string {
-  const latest = [...messages].reverse().find((m) => m.role === 'user' && typeof m.content === 'string');
+  const latest = [...messages]
+    .reverse()
+    .find((m) => m.role === 'user' && typeof m.content === 'string');
   return (latest?.content as string) || '';
 }
 
@@ -34,8 +41,14 @@ function extractCorrection(text: string): string | null {
 export function buildAutonomyPromptFragment(context: AutonomyRuntimeContext): string {
   if (!autonomyFlags.runtimeEnabled) return '';
 
-  const sourceLine = context.recall.rankedSources.slice(0, 4).map((s) => `${s.sourceKey}(${s.score.toFixed(2)})`).join(', ');
-  const rules = context.recall.rules.slice(0, 5).map((r) => `- [${r.type}] ${r.text}`).join('\n');
+  const sourceLine = context.recall.rankedSources
+    .slice(0, 4)
+    .map((s) => `${s.sourceKey}(${s.score.toFixed(2)})`)
+    .join(', ');
+  const rules = context.recall.rules
+    .slice(0, 5)
+    .map((r) => `- [${r.type}] ${r.text}`)
+    .join('\n');
 
   let fragment = '\n\n# AUTONOMY RUNTIME\n';
   fragment += `Intent: ${context.classification.intent} (confidence ${context.classification.confidence.toFixed(2)}).\n`;

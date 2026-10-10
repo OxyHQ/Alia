@@ -58,7 +58,6 @@ async function runSubtask(
   const modelId = resolved.modelId;
 
   try {
-
     const model = getAIModel(resolved, 'agent_run');
 
     // Create an AbortController for timeout
@@ -68,7 +67,9 @@ async function runSubtask(
     try {
       const result = await generateText({
         model,
-        system: systemContext || 'You are a helpful assistant completing a subtask. Be concise and focused.',
+        system:
+          systemContext ||
+          'You are a helpful assistant completing a subtask. Be concise and focused.',
         prompt: task,
         maxOutputTokens: 2048,
         abortSignal: controller.signal,
@@ -92,7 +93,10 @@ async function runSubtask(
       task,
       model: modelId,
       result: null,
-      error: error instanceof Error && error.name === 'AbortError' ? 'Subtask timed out (30s)' : getErrorMessage(error),
+      error:
+        error instanceof Error && error.name === 'AbortError'
+          ? 'Subtask timed out (30s)'
+          : getErrorMessage(error),
       latencyMs: Date.now() - start,
       tokensUsed: 0,
     };
@@ -104,14 +108,29 @@ async function runSubtask(
  * Each invocation can run up to 3 subtasks in parallel.
  */
 export const delegateSubtaskTool = tool({
-  description: 'Delegate subtasks to other AI models for parallel processing. Use when a complex request can be broken into independent parts (e.g., "research X while summarizing Y"). Maximum 3 subtasks per call, 30s timeout each.',
+  description:
+    'Delegate subtasks to other AI models for parallel processing. Use when a complex request can be broken into independent parts (e.g., "research X while summarizing Y"). Maximum 3 subtasks per call, 30s timeout each.',
 
   inputSchema: z.object({
-    subtasks: z.array(z.object({
-      task: z.string().describe('The subtask to complete'),
-      model: z.string().optional().describe('Optional: a `publisher/model` id from the catalogue to run the subtask on. Defaults to a fast, inexpensive model.'),
-      context: z.string().optional().describe('Optional: additional system context for the subtask'),
-    })).min(1).max(MAX_CONCURRENT_SUBTASKS).describe('List of subtasks to run in parallel (max 3)'),
+    subtasks: z
+      .array(
+        z.object({
+          task: z.string().describe('The subtask to complete'),
+          model: z
+            .string()
+            .optional()
+            .describe(
+              'Optional: a `publisher/model` id from the catalogue to run the subtask on. Defaults to a fast, inexpensive model.',
+            ),
+          context: z
+            .string()
+            .optional()
+            .describe('Optional: additional system context for the subtask'),
+        }),
+      )
+      .min(1)
+      .max(MAX_CONCURRENT_SUBTASKS)
+      .describe('List of subtasks to run in parallel (max 3)'),
   }),
 
   execute: async ({ subtasks }) => {
@@ -122,9 +141,7 @@ export const delegateSubtaskTool = tool({
     const start = Date.now();
 
     // Run all subtasks in parallel with Promise.allSettled
-    const promises = tasks.map(t =>
-      runSubtask(t.task, t.model, t.context)
-    );
+    const promises = tasks.map((t) => runSubtask(t.task, t.model, t.context));
 
     const settled = await Promise.allSettled(promises);
 
@@ -143,12 +160,20 @@ export const delegateSubtaskTool = tool({
     });
 
     const totalTokens = results.reduce((sum, r) => sum + r.tokensUsed, 0);
-    const successCount = results.filter(r => r.result !== null).length;
+    const successCount = results.filter((r) => r.result !== null).length;
 
-    log.general.info({ succeeded: successCount, total: results.length, totalTokens, latencyMs: Date.now() - start }, 'Delegate: completed');
+    log.general.info(
+      {
+        succeeded: successCount,
+        total: results.length,
+        totalTokens,
+        latencyMs: Date.now() - start,
+      },
+      'Delegate: completed',
+    );
 
     return {
-      results: results.map(r => ({
+      results: results.map((r) => ({
         task: r.task,
         model: r.model,
         result: r.result,

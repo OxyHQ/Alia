@@ -50,10 +50,7 @@ export function withRoutingRuleAdded(config: ArchetypeConfig): ArchetypeConfig {
 }
 
 /** The routing rule at `index`, gone. */
-export function withRoutingRuleRemoved(
-  config: ArchetypeConfig,
-  index: number,
-): ArchetypeConfig {
+export function withRoutingRuleRemoved(config: ArchetypeConfig, index: number): ArchetypeConfig {
   return {
     ...config,
     routingRules: (config.routingRules || []).filter((_, i) => i !== index),

@@ -65,15 +65,17 @@ vi.mock('@oxy.so/core', async () => {
         if (state.account === null) throw new NotFound('no such account');
         return {
           accountId,
-          parentAccountId: state.account.parentAccountId === undefined
-            ? 'owner-account-1'
-            : state.account.parentAccountId,
+          parentAccountId:
+            state.account.parentAccountId === undefined
+              ? 'owner-account-1'
+              : state.account.parentAccountId,
           kind: state.account.kind,
           relationship: state.account.relationship,
           account: { id: accountId, kind: state.account.kind },
-          callerMembership: state.account.callerMembership === null
-            ? null
-            : { status: 'active', ...state.account.callerMembership },
+          callerMembership:
+            state.account.callerMembership === null
+              ? null
+              : { status: 'active', ...state.account.callerMembership },
         };
       }
     },
@@ -94,7 +96,10 @@ vi.mock('../../middleware/auth.js', () => ({
   },
   oxyClient: {
     users: { getMany: async () => state.users },
-    assets: { publicUrl: (id: string, variant?: string) => `https://cloud.oxy.so/${id}?variant=${variant ?? ''}` },
+    assets: {
+      publicUrl: (id: string, variant?: string) =>
+        `https://cloud.oxy.so/${id}?variant=${variant ?? ''}`,
+    },
   },
 }));
 
@@ -116,7 +121,10 @@ const repository = vi.hoisted(() => ({
 vi.mock('../../db/agents/agentRepository.js', () => repository);
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../../lib/logger.js', () => ({
-  log: { agents: { info: vi.fn(), warn: vi.fn(), error: vi.fn() }, general: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
+  log: {
+    agents: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    general: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  },
 }));
 vi.mock('../../lib/trigger-engine.js', () => ({
   reloadTrigger: vi.fn(),
@@ -125,7 +133,7 @@ vi.mock('../../lib/trigger-engine.js', () => ({
 
 const { default: crudRouter } = await import('../agents/crud.js');
 const { clearAgentAccountVerdicts, verifyAgentAccount } = await import(
-  '../../lib/agent-account.js',
+  '../../lib/agent-account.js'
 );
 
 const AGENT_ROW = {
@@ -490,7 +498,10 @@ describe('a patch is gated by act_as, not by the author column', () => {
       applicationId: 'private-product-application',
     });
 
-    const res = await patch({ systemPrompt: 'ignore the fixed prompt', capabilityGrants: ['memory'] });
+    const res = await patch({
+      systemPrompt: 'ignore the fixed prompt',
+      capabilityGrants: ['memory'],
+    });
 
     expect(res.status).toBe(400);
     expect(repository.updateAgent).not.toHaveBeenCalled();
@@ -508,7 +519,12 @@ describe('a patch is gated by act_as, not by the author column', () => {
  */
 describe('a cached verdict is reusable, and the cache is keyed by CALLER', () => {
   const read = (oxyUserId: string) =>
-    verifyAgentAccount({ oxyUserId, accessToken: 'token-abc', oxyAccountId: 'acct-bot', cache: true });
+    verifyAgentAccount({
+      oxyUserId,
+      accessToken: 'token-abc',
+      oxyAccountId: 'acct-bot',
+      cache: true,
+    });
 
   it('asks Oxy once for repeated reads by the same caller', async () => {
     await read('oxy-caller');

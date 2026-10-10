@@ -5,10 +5,7 @@ import { reportDroppedAttachments } from '@/features/chat/runtime/use-chat-conve
 import { useCreateConversation } from '@/features/chat/runtime/use-conversations';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useStore } from '@/features/chat/runtime/global-store';
-import {
-  SettingsListGroup,
-  SettingsListItem,
-} from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { toast } from '@oxy.so/bloom/toast';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useRouter } from 'expo-router';
@@ -23,14 +20,16 @@ import { ScrollView, View } from 'react-native';
  * starts a conversation that turns the description into a saved task.
  */
 
-
 const SUGGESTIONS = ['brief', 'remind', 'topic', 'review'] as const;
 
 export default function AutomationsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const createConversation = useCreateConversation();
-  const composer = useAliaComposer({ draft: 'surface:automations', locked: createConversation.isPending });
+  const composer = useAliaComposer({
+    draft: 'surface:automations',
+    locked: createConversation.isPending,
+  });
 
   /**
    * Starts the conversation that turns the description into a task. From the

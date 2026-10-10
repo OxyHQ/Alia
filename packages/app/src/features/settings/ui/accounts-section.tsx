@@ -34,12 +34,9 @@ const ACCOUNT_STATUSES: readonly ConnectedAccount['status'][] = [
 
 export function AccountsSection() {
   const { t } = useTranslation();
-  const { accounts, loading, connect, remove } =
-    useConnectedAccounts();
+  const { accounts, loading, connect, remove } = useConnectedAccounts();
   // The platform whose connect is in flight; every connect waits on it.
-  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(
-    null,
-  );
+  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
   const connecting = connectingPlatform !== null;
 
   const handleConnect = async (platformId: string) => {
@@ -87,9 +84,7 @@ export function AccountsSection() {
               {
                 key: 'loading',
                 label: t('common.loading'),
-                control: (
-                  <Skeleton.Box width={202} height={32} borderRadius={10} />
-                ),
+                control: <Skeleton.Box width={202} height={32} borderRadius={10} />,
               },
             ],
           },
@@ -107,10 +102,8 @@ export function AccountsSection() {
           description: t('settings.connections.accounts.description'),
           rows: accounts.length
             ? accounts.map((account) => {
-                const label =
-                  PLATFORM_LABELS[account.platform] ?? account.platform;
-                const identifier =
-                  account.phoneNumber || account.email || account.accountId;
+                const label = PLATFORM_LABELS[account.platform] ?? account.platform;
+                const identifier = account.phoneNumber || account.email || account.accountId;
                 const status = ACCOUNT_STATUSES.includes(account.status)
                   ? t(`settings.connections.accounts.status.${account.status}`)
                   : account.status;
@@ -123,10 +116,9 @@ export function AccountsSection() {
                       size="sm"
                       appearance="outline"
                       tone="neutral"
-                      accessibilityLabel={t(
-                        'settings.connections.disconnectNamed',
-                        { name: label },
-                      )}
+                      accessibilityLabel={t('settings.connections.disconnectNamed', {
+                        name: label,
+                      })}
                       onPress={() => handleDisconnect(account._id)}
                     >
                       {t('settings.connections.disconnect')}

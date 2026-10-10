@@ -102,6 +102,10 @@ export const signalMessages = pgTable(
   },
   (t) => [
     uniqueIndex('signal_messages_session_message_key').on(t.sessionId, t.messageTimestamp),
-    index('signal_messages_session_contact_recent_idx').on(t.sessionId, t.contactId, t.timestamp.desc()),
+    index('signal_messages_session_contact_recent_idx').on(
+      t.sessionId,
+      t.contactId,
+      t.timestamp.desc(),
+    ),
   ],
 );

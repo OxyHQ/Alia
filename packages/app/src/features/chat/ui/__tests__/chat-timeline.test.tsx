@@ -83,7 +83,11 @@ vi.mock('@/features/chat/ui/markdown', async () => {
         'Markdown',
         null,
         blocks.map((block, i) =>
-          ReactModule.createElement(block.startsWith('```') ? 'Code' : 'Paragraph', { key: i }, block),
+          ReactModule.createElement(
+            block.startsWith('```') ? 'Code' : 'Paragraph',
+            { key: i },
+            block,
+          ),
         ),
       );
     },
@@ -94,15 +98,31 @@ const stub = vi.hoisted(() => (name: string) => async () => {
   return ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
     ReactModule.createElement(name, props, children);
 });
-vi.mock('@/features/chat/ui/cards/agent-result-card', async () => ({ AgentResultCard: await stub('AgentResultCard')() }));
-vi.mock('@/features/chat/ui/cards/agent-task-card', async () => ({ AgentTaskCard: await stub('AgentTaskCard')() }));
-vi.mock('@/features/chat/ui/welcome-message', async () => ({ WelcomeMessage: await stub('Welcome')() }));
-vi.mock('@/features/chat/ui/failed-turn-card', async () => ({ FailedTurnCard: await stub('FailedTurnCard')() }));
-vi.mock('@/features/chat/ui/message-block-boundary', async () => ({ MessageBlockBoundary: await stub('Boundary')() }));
-vi.mock('@/features/chat/ui/tool-result-card', async () => ({ ToolResultCard: await stub('ToolCard')() }));
-vi.mock('@/features/chat/ui/new-conversation-offer', async () => ({ NewConversationOffer: await stub('Offer')() }));
+vi.mock('@/features/chat/ui/cards/agent-result-card', async () => ({
+  AgentResultCard: await stub('AgentResultCard')(),
+}));
+vi.mock('@/features/chat/ui/cards/agent-task-card', async () => ({
+  AgentTaskCard: await stub('AgentTaskCard')(),
+}));
+vi.mock('@/features/chat/ui/welcome-message', async () => ({
+  WelcomeMessage: await stub('Welcome')(),
+}));
+vi.mock('@/features/chat/ui/failed-turn-card', async () => ({
+  FailedTurnCard: await stub('FailedTurnCard')(),
+}));
+vi.mock('@/features/chat/ui/message-block-boundary', async () => ({
+  MessageBlockBoundary: await stub('Boundary')(),
+}));
+vi.mock('@/features/chat/ui/tool-result-card', async () => ({
+  ToolResultCard: await stub('ToolCard')(),
+}));
+vi.mock('@/features/chat/ui/new-conversation-offer', async () => ({
+  NewConversationOffer: await stub('Offer')(),
+}));
 vi.mock('@/shared/ui/image', async () => ({ Image: await stub('Image')() }));
-vi.mock('@oxy.so/bloom/agent-progress', async () => ({ AgentProgress: await stub('AgentProgress')() }));
+vi.mock('@oxy.so/bloom/agent-progress', async () => ({
+  AgentProgress: await stub('AgentProgress')(),
+}));
 vi.mock('@oxy.so/bloom/chat-screen', async () => ({ ChatDateHeader: await stub('DayHeader')() }));
 vi.mock('@oxy.so/bloom/divider', async () => ({ Divider: await stub('Divider')() }));
 vi.mock('@oxy.so/bloom/task-list', async () => ({ TaskList: await stub('TaskList')() }));
@@ -201,13 +221,17 @@ const threadRef = { current: null } as Props['threadRef'];
 
 function mount(props: Partial<Props> & Pick<Props, 'messages'>): ReactTestRenderer {
   act(() => {
-    renderer = create(<ChatInterface threadRef={threadRef} activeConversationId="live" {...props} />);
+    renderer = create(
+      <ChatInterface threadRef={threadRef} activeConversationId="live" {...props} />,
+    );
   });
   return renderer as unknown as ReactTestRenderer;
 }
 function update(props: Partial<Props> & Pick<Props, 'messages'>): void {
   act(() => {
-    renderer?.update(<ChatInterface threadRef={threadRef} activeConversationId="live" {...props} />);
+    renderer?.update(
+      <ChatInterface threadRef={threadRef} activeConversationId="live" {...props} />,
+    );
   });
 }
 
@@ -221,7 +245,9 @@ const CODE = '```ts\nconst answer = compute(input);\nconsole.log(answer);\n```';
 function fixture(count: number): Message[] {
   const base = Date.parse('2026-01-01T09:00:00.000Z');
   return Array.from({ length: count }, (_, i): Message => {
-    const createdAt = new Date(base + Math.floor(i / (count / 40)) * 86_400_000 + i * 60_000).toISOString();
+    const createdAt = new Date(
+      base + Math.floor(i / (count / 40)) * 86_400_000 + i * 60_000,
+    ).toISOString();
     if (i % 2 === 0) {
       const text = `Question ${i}: ${'why '.repeat(1 + (i % 11))}`;
       return {
@@ -237,7 +263,10 @@ function fixture(count: number): Message[] {
             : text,
       };
     }
-    const paragraphs = Array.from({ length: 1 + (i % 6) }, (_, p) => `Paragraph ${p} of answer ${i}. ${'word '.repeat(20 + ((i * p) % 60))}`);
+    const paragraphs = Array.from(
+      { length: 1 + (i % 6) },
+      (_, p) => `Paragraph ${p} of answer ${i}. ${'word '.repeat(20 + ((i * p) % 60))}`,
+    );
     if (i % 5 === 0) paragraphs.splice(1, 0, CODE);
     return {
       id: `m${i}`,
@@ -245,7 +274,9 @@ function fixture(count: number): Message[] {
       createdAt,
       content: paragraphs.join('\n\n'),
       toolInvocations:
-        i % 9 === 0 ? [{ toolCallId: `t${i}`, toolName: 'web_search', state: 'result', result: {} }] : undefined,
+        i % 9 === 0
+          ? [{ toolCallId: `t${i}`, toolName: 'web_search', state: 'result', result: {} }]
+          : undefined,
     };
   });
 }
@@ -273,7 +304,14 @@ const all = (r: ReactTestRenderer, name: string): ReactTestInstance[] =>
   r.root.findAll((node) => node.type === name);
 const rows = (r: ReactTestRenderer): ReactTestInstance[] => all(r, 'Row');
 
-type Cost = { count: number; mountMs: number; mountedRows: number; tokenMs: number; markdownPerToken: number; rowsPerToken: number };
+type Cost = {
+  count: number;
+  mountMs: number;
+  mountedRows: number;
+  tokenMs: number;
+  markdownPerToken: number;
+  rowsPerToken: number;
+};
 
 /** Mount the thread, then stream `tokens` tokens into its last answer. */
 function measure(count: number, tokens = 40): Cost {
@@ -332,7 +370,10 @@ describe('the timeline at scale', () => {
 });
 
 /** History rows of a thread: `count` messages spread over `conversations` stretches. */
-function historyFixture(count: number, conversations: number): NonNullable<Props['historyMessages']> {
+function historyFixture(
+  count: number,
+  conversations: number,
+): NonNullable<Props['historyMessages']> {
   return fixture(count).map((m, i) => ({
     ...m,
     id: `h${i}`,
@@ -362,7 +403,11 @@ const scroll = (offset: number, content: number): void => {
 };
 /** The list has laid out: run what was waiting for it, one frame later. */
 async function layout(r: ReactTestRenderer): Promise<void> {
-  act(() => (list(r).props.onLayout as (e: unknown) => void)({ nativeEvent: { layout: { y: 0, height: 1 } } }));
+  act(() =>
+    (list(r).props.onLayout as (e: unknown) => void)({
+      nativeEvent: { layout: { y: 0, height: 1 } },
+    }),
+  );
   await act(async () => new Promise((resolve) => setTimeout(resolve, 5)));
 }
 
@@ -386,7 +431,11 @@ describe('the window', () => {
   it('shows the page of history that lands after it was asked for', () => {
     const history = historyFixture(50, 1);
     const live = fixture(20);
-    const r = mount({ messages: live, historyMessages: history.slice(25), onLoadHistory: () => {} });
+    const r = mount({
+      messages: live,
+      historyMessages: history.slice(25),
+      onLoadHistory: () => {},
+    });
     expect(rows(r)).toHaveLength(40);
     startReached(); // the last five history rows
     startReached(); // nothing left: the history is asked for
@@ -408,7 +457,13 @@ describe('the window', () => {
     messages = [
       ...messages,
       { id: 'q', role: 'user', content: 'more', createdAt: new Date().toISOString() },
-      { id: 'a', role: 'assistant', content: '', createdAt: new Date().toISOString(), isStreaming: true },
+      {
+        id: 'a',
+        role: 'assistant',
+        content: '',
+        createdAt: new Date().toISOString(),
+        isStreaming: true,
+      },
     ];
     update({ messages, isLoading: true });
     expect(rows(r)).toHaveLength(72);
@@ -468,7 +523,8 @@ describe('the rows around the messages', () => {
 
 describe('what animates in', () => {
   const animated = (r: ReactTestRenderer) =>
-    [...all(r, 'User'), ...all(r, 'Assistant')].filter((node) => node.props.animate === true).length;
+    [...all(r, 'User'), ...all(r, 'Assistant')].filter((node) => node.props.animate === true)
+      .length;
 
   it('nothing a conversation opened with, and nothing when its messages load', () => {
     const r = mount({ messages: [], conversationLoading: true });
@@ -479,14 +535,22 @@ describe('what animates in', () => {
 
   it('nothing when the screen switches to another conversation', () => {
     const r = mount({ messages: fixture(10) });
-    update({ messages: fixture(30).map((m) => ({ ...m, id: `other-${m.id}` })), activeConversationId: 'other' });
+    update({
+      messages: fixture(30).map((m) => ({ ...m, id: `other-${m.id}` })),
+      activeConversationId: 'other',
+    });
     expect(animated(r)).toBe(0);
   });
 
   it('the question just sent', () => {
     const messages = fixture(10);
     const r = mount({ messages });
-    update({ messages: [...messages, { id: 'q', role: 'user', content: 'new', createdAt: new Date().toISOString() }] });
+    update({
+      messages: [
+        ...messages,
+        { id: 'q', role: 'user', content: 'new', createdAt: new Date().toISOString() },
+      ],
+    });
     expect(animated(r)).toBe(1);
   });
 });
@@ -561,7 +625,12 @@ describe('returning to a conversation', () => {
   it('goes to the present, not to the old position, on the way back from a jump', async () => {
     const r = mount({ messages: a, activeConversationId: 'a' });
     scroll(1_234, 40_000);
-    update({ messages: [], historyMessages: historyFixture(40, 1), focusCursor: 'k3', activeConversationId: 'a' });
+    update({
+      messages: [],
+      historyMessages: historyFixture(40, 1),
+      focusCursor: 'k3',
+      activeConversationId: 'a',
+    });
     thread.scrollToEnd = [];
     update({ messages: a, activeConversationId: 'a', focusCursor: null });
     await layout(r);

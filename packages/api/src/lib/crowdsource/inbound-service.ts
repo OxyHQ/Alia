@@ -46,9 +46,7 @@ export interface RecordDecisionEventInput {
 }
 
 /** Record a decision-bearing event and queue its application. */
-export async function recordDecisionEvent(
-  input: RecordDecisionEventInput,
-): Promise<void> {
+export async function recordDecisionEvent(input: RecordDecisionEventInput): Promise<void> {
   await getDb().transaction(async (tx) => {
     await markModerationEventQueued(tx, input);
     await enqueueModerationOutboxEvent(tx, {

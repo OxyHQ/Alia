@@ -101,14 +101,20 @@ for (const file of readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f))) {
       continue;
     }
     if (cacheAt > installAt) {
-      failures.push(`${file} / ${name}: cache restore runs AFTER \`bun install\`, so it never warms it`);
+      failures.push(
+        `${file} / ${name}: cache restore runs AFTER \`bun install\`, so it never warms it`,
+      );
     }
     const cachePath = steps[cacheAt].path;
     if (!cachePath.includes(CACHE_PATH)) {
-      failures.push(`${file} / ${name}: caches "${cachePath}", expected a path containing ${CACHE_PATH}`);
+      failures.push(
+        `${file} / ${name}: caches "${cachePath}", expected a path containing ${CACHE_PATH}`,
+      );
     }
     if (cachePath.includes('node_modules')) {
-      failures.push(`${file} / ${name}: caches node_modules, which makes the tree a stale artefact`);
+      failures.push(
+        `${file} / ${name}: caches node_modules, which makes the tree a stale artefact`,
+      );
     }
   }
 }
@@ -116,7 +122,9 @@ for (const file of readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f))) {
 // Floors. Without these a broken reader reports a clean zero, which is exactly
 // what this check would look like if it silently stopped finding anything.
 if (scannedFiles < 2) {
-  console.error(`check-bun-cache-wiring: read only ${scannedFiles} workflow file(s); the path is wrong.`);
+  console.error(
+    `check-bun-cache-wiring: read only ${scannedFiles} workflow file(s); the path is wrong.`,
+  );
   process.exit(1);
 }
 if (installingJobs < 5) {

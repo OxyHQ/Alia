@@ -1,25 +1,25 @@
-import { useCallback, useMemo } from "react";
-import { Platform } from "react-native";
-import { toast } from "@oxy.so/bloom/toast";
-import { Image } from "@/shared/ui/image";
-import { RiCameraLine } from "@oxy.so/bloom/icons/RiCameraLine";
-import { RiImageLine } from "@oxy.so/bloom/icons/RiImageLine";
-import { RiAttachment2 } from "@oxy.so/bloom/icons/RiAttachment2";
-import { RiEarthLine } from "@oxy.so/bloom/icons/RiEarthLine";
-import { RiEyeOffLine } from "@oxy.so/bloom/icons/RiEyeOffLine";
-import { RiPencilLine } from "@oxy.so/bloom/icons/RiPencilLine";
-import { RiBookOpenLine } from "@oxy.so/bloom/icons/RiBookOpenLine";
-import { RiPlugLine } from "@oxy.so/bloom/icons/RiPlugLine";
-import { RiRobot2Line } from "@oxy.so/bloom/icons/RiRobot2Line";
-import { RiSearchLine } from "@oxy.so/bloom/icons/RiSearchLine";
-import type { ComposerPanelAddMenuGroup } from "@oxy.so/bloom/composer-panel";
-import { ActionKeyIcon } from "@/shared/ui/action-key-icon";
-import { useImagePicker, type ImagePickerAsset } from "@/shared/platform/use-image-picker";
-import { useDocumentPicker } from "@/shared/platform/use-document-picker";
-import { useTranslation } from "@/shared/i18n/use-translation";
-import { classifyIntake, MAX_ATTACHMENT_BYTES } from "@/features/chat/model/attachment-intake";
-import type { TurnSelectionOptions } from "@/features/chat/model/turn-selection";
-import type { Attachment } from "./types";
+import { useCallback, useMemo } from 'react';
+import { Platform } from 'react-native';
+import { toast } from '@oxy.so/bloom/toast';
+import { Image } from '@/shared/ui/image';
+import { RiCameraLine } from '@oxy.so/bloom/icons/RiCameraLine';
+import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
+import { RiAttachment2 } from '@oxy.so/bloom/icons/RiAttachment2';
+import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
+import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
+import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
+import { RiBookOpenLine } from '@oxy.so/bloom/icons/RiBookOpenLine';
+import { RiPlugLine } from '@oxy.so/bloom/icons/RiPlugLine';
+import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
+import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
+import type { ComposerPanelAddMenuGroup } from '@oxy.so/bloom/composer-panel';
+import { ActionKeyIcon } from '@/shared/ui/action-key-icon';
+import { useImagePicker, type ImagePickerAsset } from '@/shared/platform/use-image-picker';
+import { useDocumentPicker } from '@/shared/platform/use-document-picker';
+import { useTranslation } from '@/shared/i18n/use-translation';
+import { classifyIntake, MAX_ATTACHMENT_BYTES } from '@/features/chat/model/attachment-intake';
+import type { TurnSelectionOptions } from '@/features/chat/model/turn-selection';
+import type { Attachment } from './types';
 
 /**
  * The plus button's menu, as DATA.
@@ -62,18 +62,18 @@ import type { Attachment } from "./types";
 
 /** The row ids, namespaced so two groups can never collide over one word. */
 const ROW = {
-  camera: "add:camera",
-  photos: "add:photos",
-  files: "add:files",
-  webSearch: "cap:web-search",
-  deepResearch: "cap:deep-research",
-  agent: "cap:agent",
-  ghost: "cap:ghost",
-  canvas: "cap:canvas",
+  camera: 'add:camera',
+  photos: 'add:photos',
+  files: 'add:files',
+  webSearch: 'cap:web-search',
+  deepResearch: 'cap:deep-research',
+  agent: 'cap:agent',
+  ghost: 'cap:ghost',
+  canvas: 'cap:canvas',
 } as const;
 
-const SKILL_PREFIX = "skill:";
-const CONNECTOR_PREFIX = "connector:";
+const SKILL_PREFIX = 'skill:';
+const CONNECTOR_PREFIX = 'connector:';
 
 /**
  * A connector's own mark, at the 24px a Bloom row gives `image`.
@@ -84,9 +84,7 @@ const CONNECTOR_PREFIX = "connector:";
  */
 function ConnectorMark({ icon }: { icon?: string }) {
   if (icon !== undefined && /^https?:\/\//i.test(icon)) {
-    return (
-      <Image source={{ uri: icon }} className="h-6 w-6" contentFit="contain" />
-    );
+    return <Image source={{ uri: icon }} className="h-6 w-6" contentFit="contain" />;
   }
   return <ActionKeyIcon width={24} />;
 }
@@ -112,7 +110,7 @@ export interface ComposerAddMenuOptions {
   canAttach: boolean;
   /** The three persistent capability axes, as they stand. */
   modes: { ghost: boolean; agent: boolean; deepResearch: boolean };
-  toggleMode: (mode: "ghost" | "agent" | "deepResearch") => void;
+  toggleMode: (mode: 'ghost' | 'agent' | 'deepResearch') => void;
   webSearch: boolean;
   onToggleWebSearch: () => void;
   onOpenCanvas: () => void;
@@ -158,19 +156,19 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
     // description) and a second group of 24px rows with a description each.
     built.push(
       {
-        label: t("composer.addGroup"),
+        label: t('composer.addGroup'),
         rows: [
           ...(canAttach
             ? [
-                { id: ROW.camera, label: t("composer.camera"), icon: RiCameraLine },
-                { id: ROW.photos, label: t("composer.photos"), icon: RiImageLine },
-                { id: ROW.files, label: t("composer.files"), icon: RiAttachment2 },
+                { id: ROW.camera, label: t('composer.camera'), icon: RiCameraLine },
+                { id: ROW.photos, label: t('composer.photos'), icon: RiImageLine },
+                { id: ROW.files, label: t('composer.files'), icon: RiAttachment2 },
               ]
             : []),
           {
             id: ROW.webSearch,
-            label: t("modes.searchLabel"),
-            description: t("composer.searchDescription"),
+            label: t('modes.searchLabel'),
+            description: t('composer.searchDescription'),
             icon: RiEarthLine,
             checked: webSearch,
           },
@@ -178,23 +176,23 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
           // level and not a mode.
           {
             id: ROW.deepResearch,
-            label: t("modes.deepResearchLabel"),
-            description: t("composer.deepResearchDescription"),
+            label: t('modes.deepResearchLabel'),
+            description: t('composer.deepResearchDescription'),
             icon: RiSearchLine,
             checked: modes.deepResearch,
           },
         ],
       },
       {
-        label: t("composer.capabilitiesGroup"),
+        label: t('composer.capabilitiesGroup'),
         rows: [
           // Working through a longer task as an agent: a switch for the next
           // turns, at the level the mode pill shows. The plan gate and the
           // toasts stay in `toggleMode`.
           {
             id: ROW.agent,
-            label: t("modes.agentLabel"),
-            description: t("composer.agentDescription"),
+            label: t('modes.agentLabel'),
+            description: t('composer.agentDescription'),
             icon: RiRobot2Line,
             iconSize: 24 as const,
             checked: modes.agent,
@@ -203,8 +201,8 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
             ? [
                 {
                   id: ROW.ghost,
-                  label: t("modes.ghostLabel"),
-                  description: t("composer.ghostDescription"),
+                  label: t('modes.ghostLabel'),
+                  description: t('composer.ghostDescription'),
                   icon: RiEyeOffLine,
                   iconSize: 24 as const,
                   checked: modes.ghost,
@@ -215,8 +213,8 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
           // `checked` at all.
           {
             id: ROW.canvas,
-            label: t("composer.canvas"),
-            description: t("composer.canvasDescription"),
+            label: t('composer.canvas'),
+            description: t('composer.canvasDescription'),
             icon: RiPencilLine,
             iconSize: 24 as const,
           },
@@ -226,7 +224,7 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
 
     if (turnSelection.skills.length > 0) {
       built.push({
-        label: t("skills.composerLabel"),
+        label: t('skills.composerLabel'),
         rows: turnSelection.skills.map((skill) => ({
           id: `${SKILL_PREFIX}${skill.name}`,
           label: skill.label,
@@ -239,11 +237,11 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
 
     if (turnSelection.connectors.length > 0) {
       built.push({
-        label: t("composer.appsGroup"),
+        label: t('composer.appsGroup'),
         rows: turnSelection.connectors.map((connector) => ({
           id: `${CONNECTOR_PREFIX}${connector.id}`,
           label: connector.label,
-          description: t("composer.connectorTools", { count: connector.toolCount }),
+          description: t('composer.connectorTools', { count: connector.toolCount }),
           image:
             connector.icon === undefined ? (
               <RiPlugLine width={24} height={24} />
@@ -264,7 +262,7 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
         addAttachment({
           id: `img-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           uri: asset.uri,
-          type: "image",
+          type: 'image',
           name: asset.name,
           size: asset.size,
           mimeType: asset.mimeType,
@@ -305,22 +303,26 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
               // web is its size the file's own (`File.size`); a native picker
               // may not know it and reports 0, so there only the ceiling
               // applies.
-              const verdict = classifyIntake({ name: doc.name, mimeType: doc.mimeType, size: doc.size });
-              if (!verdict.accepted && (Platform.OS === "web" || verdict.refusal === "too-large")) {
+              const verdict = classifyIntake({
+                name: doc.name,
+                mimeType: doc.mimeType,
+                size: doc.size,
+              });
+              if (!verdict.accepted && (Platform.OS === 'web' || verdict.refusal === 'too-large')) {
                 toast.error(
-                  verdict.refusal === "too-large"
-                    ? t("composer.fileTooLarge", {
+                  verdict.refusal === 'too-large'
+                    ? t('composer.fileTooLarge', {
                         name: doc.name,
                         limit: `${Math.round(MAX_ATTACHMENT_BYTES / (1024 * 1024))} MB`,
                       })
-                    : t("composer.fileEmpty", { name: doc.name }),
+                    : t('composer.fileEmpty', { name: doc.name }),
                 );
                 return;
               }
               addAttachment({
                 id: `doc-${Date.now()}-${Math.random().toString(36).slice(2)}`,
                 uri: doc.uri,
-                type: "document",
+                type: 'document',
                 name: doc.name,
                 size: doc.size,
                 mimeType: doc.mimeType,
@@ -332,13 +334,13 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
           onToggleWebSearch();
           return;
         case ROW.deepResearch:
-          toggleMode("deepResearch");
+          toggleMode('deepResearch');
           return;
         case ROW.agent:
-          toggleMode("agent");
+          toggleMode('agent');
           return;
         case ROW.ghost:
-          toggleMode("ghost");
+          toggleMode('ghost');
           return;
         case ROW.canvas:
           onOpenCanvas();

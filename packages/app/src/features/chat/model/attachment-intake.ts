@@ -30,10 +30,10 @@
  */
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
-export type IntakeKind = "image" | "document";
+export type IntakeKind = 'image' | 'document';
 
 /** Why a file was turned away. Each one has its own sentence to the user. */
-export type IntakeRefusal = "empty" | "too-large";
+export type IntakeRefusal = 'empty' | 'too-large';
 
 export type IntakeVerdict =
   | { accepted: true; kind: IntakeKind }
@@ -54,26 +54,16 @@ export interface IntakeCandidate {
  * Falling back to the name is not a nicety: without it a dropped `.png` is
  * filed as a document, and a document is never inlined into the request at all.
  */
-const IMAGE_EXTENSIONS = [
-  "png",
-  "jpg",
-  "jpeg",
-  "gif",
-  "webp",
-  "bmp",
-  "avif",
-  "heic",
-  "heif",
-];
+const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif', 'heic', 'heif'];
 
 /**
  * Whether a candidate is a picture, by what the browser says first and by its
  * name only when the browser said nothing.
  */
 export function intakeKind(candidate: IntakeCandidate): IntakeKind {
-  if (candidate.mimeType.startsWith("image/")) return "image";
-  const extension = candidate.name.split(".").pop()?.toLowerCase() ?? "";
-  return IMAGE_EXTENSIONS.includes(extension) ? "image" : "document";
+  if (candidate.mimeType.startsWith('image/')) return 'image';
+  const extension = candidate.name.split('.').pop()?.toLowerCase() ?? '';
+  return IMAGE_EXTENSIONS.includes(extension) ? 'image' : 'document';
 }
 
 /**
@@ -86,14 +76,13 @@ export function intakeKind(candidate: IntakeCandidate): IntakeKind {
  * will never have, and whose read completes with nothing in it.
  */
 export function classifyIntake(candidate: IntakeCandidate): IntakeVerdict {
-  if (candidate.size <= 0) return { accepted: false, refusal: "empty" };
-  if (candidate.size > MAX_ATTACHMENT_BYTES)
-    return { accepted: false, refusal: "too-large" };
+  if (candidate.size <= 0) return { accepted: false, refusal: 'empty' };
+  if (candidate.size > MAX_ATTACHMENT_BYTES) return { accepted: false, refusal: 'too-large' };
   return { accepted: true, kind: intakeKind(candidate) };
 }
 
 /** The four things that can happen to the count of drags over the composer. */
-export type DragStep = "enter" | "leave" | "drop" | "reset";
+export type DragStep = 'enter' | 'leave' | 'drop' | 'reset';
 
 /**
  * How many dragged-over elements deep the pointer is.
@@ -113,17 +102,17 @@ export type DragStep = "enter" | "leave" | "drop" | "reset";
  */
 export function nextDragDepth(depth: number, step: DragStep): number {
   switch (step) {
-    case "enter":
+    case 'enter':
       return depth + 1;
-    case "leave":
+    case 'leave':
       // Clamped, because a `dragleave` can arrive without its `dragenter` — a
       // drag that began before the listener was attached, or one whose
       // `dragenter` was swallowed by an element that stopped propagation. A
       // negative depth would then need two full entries before the overlay
       // came back.
       return Math.max(0, depth - 1);
-    case "drop":
-    case "reset":
+    case 'drop':
+    case 'reset':
       return 0;
   }
 }
@@ -137,7 +126,7 @@ export function nextDragDepth(depth: number, step: DragStep): number {
  * across it, and then swallows the drop.
  */
 export function dragCarriesFiles(types: readonly string[] | undefined): boolean {
-  return types !== undefined && types.includes("Files");
+  return types !== undefined && types.includes('Files');
 }
 
 /**

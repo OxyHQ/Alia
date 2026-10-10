@@ -128,7 +128,9 @@ for (const file of readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f))) {
     // A literal `true` cancels main. An expression that does not test the ref
     // cannot be conditional on it.
     if (cancel === 'true') {
-      failures.push(`${file}: cancel-in-progress is literally \`true\`, which cancels runs of main.`);
+      failures.push(
+        `${file}: cancel-in-progress is literally \`true\`, which cancels runs of main.`,
+      );
     } else if (!cancel.includes(MAIN_REF)) {
       failures.push(
         `${file}: cancel-in-progress is \`${cancel}\`, which does not depend on the ref. ` +

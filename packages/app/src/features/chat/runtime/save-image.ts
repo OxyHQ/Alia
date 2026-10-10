@@ -24,7 +24,12 @@ const EXTENSION_BY_MIME: Record<string, string> = {
 
 /** `name` with an image extension, taken from a data URI's type or the URL's path when it has none. */
 export function imageFilename(name: string, uri: string): string {
-  const base = name.trim().replace(/[\\/:*?"<>|\n\r]+/g, ' ').slice(0, 80).trim() || 'image';
+  const base =
+    name
+      .trim()
+      .replace(/[\\/:*?"<>|\n\r]+/g, ' ')
+      .slice(0, 80)
+      .trim() || 'image';
   if (/\.[a-z0-9]{2,4}$/i.test(base)) return base;
   const mime = /^data:([^;,]+)/i.exec(uri)?.[1]?.toLowerCase();
   const fromPath = /\.([a-z0-9]{2,4})(?:$|[?#])/i.exec(uri.startsWith('data:') ? '' : uri)?.[1];

@@ -26,9 +26,8 @@ export async function advanceAutomationRunAfterSession(
     await markAutomationRunForSession(getDb(), completedSession.id, 'failed');
     return { kind: 'terminal', status: 'failed', runId: progress.runId };
   }
-  if (progress.kind !== 'next') return progress.kind === 'none'
-    ? { kind: 'not_automation' }
-    : progress;
+  if (progress.kind !== 'next')
+    return progress.kind === 'none' ? { kind: 'not_automation' } : progress;
   // Every stage is its own session and settles its own hold, as the first one
   // does (`automation-dispatcher.ts`); a later stage used to run unbilled.
   const reservation = await reserveBackgroundProductCredits(progress.ownerAccountId);

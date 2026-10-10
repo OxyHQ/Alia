@@ -38,15 +38,19 @@ describe('classifyError: a dead model is not a dead key', () => {
       typeof body === 'object' && body !== null
         ? (body as { error?: { message?: unknown } }).error?.message
         : undefined;
-    return Object.assign(new Error(typeof upstream === 'string' ? upstream : 'groq request failed'), {
-      statusCode,
-      data: body,
-    });
+    return Object.assign(
+      new Error(typeof upstream === 'string' ? upstream : 'groq request failed'),
+      {
+        statusCode,
+        data: body,
+      },
+    );
   }
 
   const GROQ_DECOMMISSIONED = {
     error: {
-      message: 'The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.',
+      message:
+        'The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.',
       type: 'invalid_request_error',
       code: 'model_not_found',
     },
@@ -78,8 +82,12 @@ describe('classifyError: a dead model is not a dead key', () => {
     // would trade one silent failure for a worse one: a revoked or
     // rate-limited credential kept in service forever.
     expect(classifyError(groqError({ error: { message: 'Invalid API Key' } }, 401))).toBe('auth');
-    expect(classifyError(groqError({ error: { message: 'Rate limit reached' } }, 429))).toBe('rate_limit');
-    expect(classifyError(groqError({ error: { message: 'Insufficient credits' } }, 402))).toBe('billing');
+    expect(classifyError(groqError({ error: { message: 'Rate limit reached' } }, 429))).toBe(
+      'rate_limit',
+    );
+    expect(classifyError(groqError({ error: { message: 'Insufficient credits' } }, 402))).toBe(
+      'billing',
+    );
     expect(classifyError(groqError({ error: { message: 'Internal server error' } }, 500))).toBe(
       'provider_unavailable',
     );
@@ -95,16 +103,22 @@ describe('classifyError: a dead model is not a dead key', () => {
 });
 
 describe('a permission refusal is placed where it came from', () => {
-  const refusal = (status: number) => new OxyInferenceError({
-    code: 'permission_denied', message: 'openrouter does not permit this request on this model',
-    retryable: false, requestId: 'req-perm', status,
-  });
+  const refusal = (status: number) =>
+    new OxyInferenceError({
+      code: 'permission_denied',
+      message: 'openrouter does not permit this request on this model',
+      retryable: false,
+      requestId: 'req-perm',
+      status,
+    });
 
   it('an upstream refusal of this model, inside the stream, is the model being unavailable', () => {
     // Production 2026-09-30: meta/muse-spark-1.3 needs 18+ verification on
     // the platform's OpenRouter account; it was shown as AUTH_FAILED.
     expect(classifyError(refusal(502))).toBe('model_not_found');
-    expect(toAliaError(refusal(502), { provider: 'kaana', model: 'meta/muse-spark-1.3' }).code).toBe(AliaErrorCode.MODEL_UNAVAILABLE);
+    expect(
+      toAliaError(refusal(502), { provider: 'kaana', model: 'meta/muse-spark-1.3' }).code,
+    ).toBe(AliaErrorCode.MODEL_UNAVAILABLE);
   });
 
   it('the edge refusing the caller is still an authorization failure', () => {

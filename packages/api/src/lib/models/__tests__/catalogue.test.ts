@@ -19,7 +19,10 @@ const {
 } = await import('../catalogue.js');
 
 /** An Oxy `GET /v1/models` entry, shaped as `@oxy.so/contracts` publishes it. */
-function oxyEntry(overrides: Record<string, unknown> = {}, capabilities: Record<string, unknown> = {}) {
+function oxyEntry(
+  overrides: Record<string, unknown> = {},
+  capabilities: Record<string, unknown> = {},
+) {
   return {
     schemaVersion: 3,
     modelId: 'acme/chat-1',
@@ -51,7 +54,9 @@ function oxyEntry(overrides: Record<string, unknown> = {}, capabilities: Record<
         { unit: 'output_tokens', amount: '0.0006', per: 1000, currency: 'USD' },
       ],
     },
-    servingProviders: [{ slug: 'some-operator', displayName: 'Some Operator', regions: [], dataPolicy: {} }],
+    servingProviders: [
+      { slug: 'some-operator', displayName: 'Some Operator', regions: [], dataPolicy: {} },
+    ],
     deprecation: { status: 'active' },
     ...overrides,
   };
@@ -84,26 +89,36 @@ describe('normalizeCatalogueEntry', () => {
   });
 
   it('reads reasoningEfforts when Oxy sends them, and offers none when it does not', () => {
-    expect(normalizeCatalogueEntry(oxyEntry({ reasoningEfforts: ['high', 'low', 'max'] }))?.reasoningEfforts)
-      .toEqual(['low', 'high']);
-    expect(normalizeCatalogueEntry(oxyEntry({}, { reasoningEfforts: ['medium'] }))?.reasoningEfforts)
-      .toEqual(['medium']);
+    expect(
+      normalizeCatalogueEntry(oxyEntry({ reasoningEfforts: ['high', 'low', 'max'] }))
+        ?.reasoningEfforts,
+    ).toEqual(['low', 'high']);
+    expect(
+      normalizeCatalogueEntry(oxyEntry({}, { reasoningEfforts: ['medium'] }))?.reasoningEfforts,
+    ).toEqual(['medium']);
     // Oxy refuses a level it does not list, so `reasoning: true` alone offers none.
-    expect(normalizeCatalogueEntry(oxyEntry({}, { reasoning: true }))?.reasoningEfforts)
-      .toEqual([]);
+    expect(normalizeCatalogueEntry(oxyEntry({}, { reasoning: true }))?.reasoningEfforts).toEqual(
+      [],
+    );
   });
 
   it('prefers releasedAt over releasedOn, and null when neither is sent', () => {
-    expect(normalizeCatalogueEntry(oxyEntry({ releasedAt: '2026-02-02' }))?.releasedAt).toBe('2026-02-02');
+    expect(normalizeCatalogueEntry(oxyEntry({ releasedAt: '2026-02-02' }))?.releasedAt).toBe(
+      '2026-02-02',
+    );
     expect(normalizeCatalogueEntry(oxyEntry({ releasedOn: undefined }))?.releasedAt).toBeNull();
   });
 
   it('prices null when a token price is missing', () => {
     expect(normalizeCatalogueEntry(oxyEntry({ pricing: undefined }))?.pricing).toBeNull();
     expect(
-      normalizeCatalogueEntry(oxyEntry({
-        pricing: { unitPrices: [{ unit: 'input_tokens', amount: '1', per: 1_000_000, currency: 'USD' }] },
-      }))?.pricing,
+      normalizeCatalogueEntry(
+        oxyEntry({
+          pricing: {
+            unitPrices: [{ unit: 'input_tokens', amount: '1', per: 1_000_000, currency: 'USD' }],
+          },
+        }),
+      )?.pricing,
     ).toBeNull();
   });
 
@@ -153,7 +168,10 @@ describe('capability filters', () => {
       oxyEntry({ modelId: 'acme/b', displayName: 'first' }),
       oxyEntry({ modelId: 'acme/b', displayName: 'second' }),
     ]);
-    expect(models.map((model) => [model.id, model.name])).toEqual([['acme/b', 'first'], ['zeta/a', 'Chat 1']]);
+    expect(models.map((model) => [model.id, model.name])).toEqual([
+      ['acme/b', 'first'],
+      ['zeta/a', 'Chat 1'],
+    ]);
   });
 });
 

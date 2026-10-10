@@ -58,7 +58,10 @@ let nextCallId = 0;
 /**
  * Initialize the MCP relay WebSocket server on the given HTTP server.
  */
-export function initMcpRelay(server: http.Server, observe?: (socket: WebSocket, headers: http.IncomingHttpHeaders) => void): void {
+export function initMcpRelay(
+  server: http.Server,
+  observe?: (socket: WebSocket, headers: http.IncomingHttpHeaders) => void,
+): void {
   // Share the HTTP server without letting `ws` install its own upgrade
   // listener. With `{ server, path }`, the ws library registers a global
   // `server.on('upgrade')` that 400s every upgrade whose path doesn't match —
@@ -151,10 +154,7 @@ function handleClientMessage(userId: string, msg: RelayMessage): void {
         serverName: serverName || serverId,
         tools,
       });
-      log.general.info(
-        { userId, serverId, toolCount: tools.length },
-        'Local MCP tools registered',
-      );
+      log.general.info({ userId, serverId, toolCount: tools.length }, 'Local MCP tools registered');
       break;
     }
 
@@ -228,9 +228,7 @@ export function callLocalTool(
 
     pendingCalls.set(callId, { resolve, reject, timer });
 
-    client.ws.send(
-      JSON.stringify({ type: 'tool-call', callId, serverId, toolName, args }),
-    );
+    client.ws.send(JSON.stringify({ type: 'tool-call', callId, serverId, toolName, args }));
   });
 }
 
@@ -274,7 +272,9 @@ async function validateToken(token: string | undefined): Promise<string | null> 
   } = { handshake: { auth: { token } } };
 
   let authError: Error | undefined;
-  const authenticate = oxyClient.middleware.socket({ debug: process.env.NODE_ENV !== 'production' });
+  const authenticate = oxyClient.middleware.socket({
+    debug: process.env.NODE_ENV !== 'production',
+  });
   await authenticate(handshake, (err) => {
     authError = err;
   });

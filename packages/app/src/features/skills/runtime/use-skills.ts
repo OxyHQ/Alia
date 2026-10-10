@@ -99,9 +99,15 @@ export const CATALOGUE_PAGE_SIZE = 24;
  * `useSkillCatalogue`'s flat array under the same filters; both still sit
  * under `['skills', 'catalogue']`, which is what an install invalidates.
  */
-export function useSkillCataloguePages(filters: CatalogueFilters = {}, pageSize = CATALOGUE_PAGE_SIZE) {
+export function useSkillCataloguePages(
+  filters: CatalogueFilters = {},
+  pageSize = CATALOGUE_PAGE_SIZE,
+) {
   return useInfiniteQuery({
-    queryKey: queryKeys.skills.catalogue({ ...filters, pageSize: String(pageSize) } as Record<string, string | undefined>),
+    queryKey: queryKeys.skills.catalogue({ ...filters, pageSize: String(pageSize) } as Record<
+      string,
+      string | undefined
+    >),
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<Skill[]> => {
       const response = await apiClient.get(API_ROUTES.skills.catalogue, {
@@ -110,7 +116,9 @@ export function useSkillCataloguePages(filters: CatalogueFilters = {}, pageSize 
       return response.data.skills ?? [];
     },
     getNextPageParam: (lastPage, allPages) =>
-      lastPage.length < pageSize ? undefined : allPages.reduce((count, page) => count + page.length, 0),
+      lastPage.length < pageSize
+        ? undefined
+        : allPages.reduce((count, page) => count + page.length, 0),
   });
 }
 
@@ -144,9 +152,7 @@ export function useSkill(idOrName: string | undefined) {
  * are the same question from the runtime's point of view — which skills does
  * this account's next turn carry.
  */
-function useShelfMutation<TVariables>(
-  mutationFn: (variables: TVariables) => Promise<unknown>,
-) {
+function useShelfMutation<TVariables>(mutationFn: (variables: TVariables) => Promise<unknown>) {
   const client = useQueryClient();
   return useMutation({
     mutationFn,
@@ -189,7 +195,11 @@ export function useImportSkill() {
   return useMutation({
     mutationFn: async (input: ImportSkillInput) => {
       const response = await apiClient.post(API_ROUTES.skills.import, input);
-      return response.data as { commit: string; skills: Skill[]; rejected: { directory: string; reason: string }[] };
+      return response.data as {
+        commit: string;
+        skills: Skill[];
+        rejected: { directory: string; reason: string }[];
+      };
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['skills'] });
@@ -235,7 +245,11 @@ export function useCreateSkillVersion() {
   return useMutation({
     mutationFn: async ({ id, input }: { id: string; input: AuthoredSkillInput }) => {
       const response = await apiClient.post(API_ROUTES.skills.newVersion(id), input);
-      return response.data as { skill: Skill; version: { version: number } | null; unchanged: boolean };
+      return response.data as {
+        skill: Skill;
+        version: { version: number } | null;
+        unchanged: boolean;
+      };
     },
     onSuccess: (_data, variables) => {
       void client.invalidateQueries({ queryKey: queryKeys.skills.detail(variables.id) });

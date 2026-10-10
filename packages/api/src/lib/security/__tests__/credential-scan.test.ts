@@ -78,7 +78,15 @@ function issuedDeveloperKey(): string {
 function git(cwd: string, args: readonly string[]): string {
   return execFileSync(
     'git',
-    ['-c', 'user.name=gate', '-c', 'user.email=gate@example.invalid', '-c', 'commit.gpgsign=false', ...args],
+    [
+      '-c',
+      'user.name=gate',
+      '-c',
+      'user.email=gate@example.invalid',
+      '-c',
+      'commit.gpgsign=false',
+      ...args,
+    ],
     { cwd, encoding: 'utf8' },
   );
 }
@@ -163,7 +171,10 @@ describe('the patterns are checked against something (#139 ws15)', () => {
       const minted = issuedDeveloperKey();
       expect(minted.length).toBe(API_KEY_PREFIX.length + 43);
       const found = scanText(`Authorization: Bearer ${minted}`);
-      expect(found.map((f) => f.pattern), minted.length.toString()).toEqual(['alia_developer_key']);
+      expect(
+        found.map((f) => f.pattern),
+        minted.length.toString(),
+      ).toEqual(['alia_developer_key']);
     }
   });
 
@@ -285,7 +296,9 @@ describe('the history scan finds a planted credential (#139 ws15)', () => {
 
     // The half a diff-based or working-tree scan gets wrong: the file is GONE at
     // HEAD, and the credential is still in every clone.
-    expect(() => execFileSync('git', ['cat-file', '-e', 'HEAD:config.json'], { cwd: planted })).toThrow();
+    expect(() =>
+      execFileSync('git', ['cat-file', '-e', 'HEAD:config.json'], { cwd: planted }),
+    ).toThrow();
   });
 
   it('reports nothing once the planted commit is not in the history', async () => {
@@ -312,10 +325,12 @@ describe('the history scan finds a planted credential (#139 ws15)', () => {
     execFileSync('git', ['clone', '-q', '--depth', '1', `file://${planted}`, shallow], {
       cwd: workspace,
     });
-    expect(execFileSync('git', ['rev-parse', '--is-shallow-repository'], {
-      cwd: shallow,
-      encoding: 'utf8',
-    }).trim()).toBe('true');
+    expect(
+      execFileSync('git', ['rev-parse', '--is-shallow-repository'], {
+        cwd: shallow,
+        encoding: 'utf8',
+      }).trim(),
+    ).toBe('true');
 
     await expect(scanGitHistory(shallow)).rejects.toThrow(/shallow/);
 
@@ -357,7 +372,8 @@ describe("this repository's disclosures are exactly the ledger (#139 ws15)", () 
     for (const entry of KNOWN_DISCLOSURES) {
       expect(entry.key, entry.key).toMatch(/^[a-z0-9_]+:[0-9a-f]{12}$/);
       // A date or an explicit null. A free-text "soon" is the value this refuses.
-      if (entry.rotatedAt !== null) expect(entry.rotatedAt, entry.key).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      if (entry.rotatedAt !== null)
+        expect(entry.rotatedAt, entry.key).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(entry.note.length, entry.key).toBeGreaterThan(20);
       expect(entry.where.length, entry.key).toBeGreaterThan(10);
     }
@@ -412,7 +428,10 @@ describe("this repository's disclosures are exactly the ledger (#139 ws15)", () 
       // `credential-scan.ts` carries the synthetic controls, which are the one
       // legitimate reason a file here matches: they are built by concatenation
       // from two literals, so the source text does not contain the whole value.
-      expect(scanText(text).map((f) => f.prefix), file).toEqual([]);
+      expect(
+        scanText(text).map((f) => f.prefix),
+        file,
+      ).toEqual([]);
     }
     // The control: the same call reports the planted key, so an empty list is
     // absence rather than a scanner that has stopped looking at files.

@@ -108,7 +108,10 @@ export async function setDeliveryStatus(
   notificationId: string,
   deliveryStatus: Record<string, string>,
 ): Promise<void> {
-  await db.update(notifications).set({ deliveryStatus }).where(eq(notifications.id, notificationId));
+  await db
+    .update(notifications)
+    .set({ deliveryStatus })
+    .where(eq(notifications.id, notificationId));
 }
 
 export interface NotificationFilters {
@@ -318,10 +321,7 @@ export async function deactivatePushTokenById(db: ApiDatabase, id: string): Prom
  */
 export async function touchPushTokens(db: ApiDatabase, ids: string[]): Promise<void> {
   if (ids.length === 0) return;
-  await db
-    .update(pushTokens)
-    .set({ lastUsedAt: new Date() })
-    .where(inArray(pushTokens.id, ids));
+  await db.update(pushTokens).set({ lastUsedAt: new Date() }).where(inArray(pushTokens.id, ids));
 }
 
 // ── Web push subscriptions ──────────────────────────────────────────
@@ -396,5 +396,8 @@ export async function deactivateWebPushSubscriptionById(
   db: ApiDatabase,
   id: string,
 ): Promise<void> {
-  await db.update(webPushSubscriptions).set({ active: false }).where(eq(webPushSubscriptions.id, id));
+  await db
+    .update(webPushSubscriptions)
+    .set({ active: false })
+    .where(eq(webPushSubscriptions.id, id));
 }

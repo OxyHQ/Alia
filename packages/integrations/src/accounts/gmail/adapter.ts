@@ -161,24 +161,27 @@ export class GmailAdapter implements AccountAdapter {
     });
 
     // Get messages from a thread (as "messages")
-    router.get('/sessions/:id/chats/:chatId/messages', async (req: AccountRequest, res: Response) => {
-      const session = sessions.get(req.params.id);
-      if (!session) {
-        return res.status(404).json({ error: 'Session not found' });
-      }
+    router.get(
+      '/sessions/:id/chats/:chatId/messages',
+      async (req: AccountRequest, res: Response) => {
+        const session = sessions.get(req.params.id);
+        if (!session) {
+          return res.status(404).json({ error: 'Session not found' });
+        }
 
-      const token = await getValidToken(session);
-      if (!token) {
-        return res.status(401).json({ error: 'Token expired' });
-      }
+        const token = await getValidToken(session);
+        if (!token) {
+          return res.status(401).json({ error: 'Token expired' });
+        }
 
-      try {
-        const messages = await getThreadMessages(token, req.params.chatId);
-        res.json({ messages });
-      } catch (err: unknown) {
-        res.status(500).json({ error: errorMessage(err) });
-      }
-    });
+        try {
+          const messages = await getThreadMessages(token, req.params.chatId);
+          res.json({ messages });
+        } catch (err: unknown) {
+          res.status(500).json({ error: errorMessage(err) });
+        }
+      },
+    );
 
     // Send email
     router.post('/sessions/:id/send', async (req: AccountRequest, res: Response) => {
@@ -199,7 +202,11 @@ export class GmailAdapter implements AccountAdapter {
 
       try {
         const result = await sendEmail(token, session.email, {
-          to, subject, body, inReplyTo, threadId,
+          to,
+          subject,
+          body,
+          inReplyTo,
+          threadId,
         });
         res.json({ success: true, messageId: result.id });
       } catch (err: unknown) {
@@ -299,17 +306,11 @@ async function fetchThreadSummary(
   };
 }
 
-async function getThreadMessages(
-  accessToken: string,
-  threadId: string,
-): Promise<GmailMessage[]> {
-  const response = await fetch(
-    `${GMAIL_API}/users/me/threads/${threadId}?format=full`,
-    {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      signal: AbortSignal.timeout(API_TIMEOUT_MS),
-    },
-  );
+async function getThreadMessages(accessToken: string, threadId: string): Promise<GmailMessage[]> {
+  const response = await fetch(`${GMAIL_API}/users/me/threads/${threadId}?format=full`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(API_TIMEOUT_MS),
+  });
 
   if (!response.ok) {
     throw new Error(`Gmail get thread failed (${response.status})`);
@@ -383,7 +384,11 @@ function decodeBase64Url(data: string): string {
 }
 
 function encodeBase64Url(str: string): string {
-  return Buffer.from(str).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return Buffer.from(str)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }
 
 async function sendEmail(

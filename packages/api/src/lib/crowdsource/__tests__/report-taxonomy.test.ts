@@ -62,9 +62,7 @@ describe('allegationsForCategories', () => {
   });
 
   it('deduplicates categories that share a code', () => {
-    expect(
-      allegationsForCategories([ReportCategory.SPAM, ReportCategory.SPAM]),
-    ).toHaveLength(1);
+    expect(allegationsForCategories([ReportCategory.SPAM, ReportCategory.SPAM])).toHaveLength(1);
   });
 
   /** A report with no allegation is not a report. */

@@ -30,8 +30,12 @@ vi.mock('@oxy.so/bloom/icons/RiSparklingLine', () => ({ RiSparklingLine: () => n
 vi.mock('@oxy.so/bloom/icons/RiStarFill', () => ({ RiStarFill: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiTeamLine', () => ({ RiTeamLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiTimerLine', () => ({ RiTimerLine: () => null }));
-vi.mock('@/features/chat/runtime/use-conversations', () => ({ useConversations: () => ({ data: undefined }) }));
-vi.mock('@/shared/i18n/use-translation', () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
+vi.mock('@/features/chat/runtime/use-conversations', () => ({
+  useConversations: () => ({ data: undefined }),
+}));
+vi.mock('@/shared/i18n/use-translation', () => ({
+  useTranslation: () => ({ t: (k: string) => k }),
+}));
 vi.mock('@/features/chat/runtime/ui-store', () => ({
   useUIStore: (select: (s: { toggleShortcutsDialog: () => void }) => unknown) =>
     select({ toggleShortcutsDialog: () => {} }),
@@ -49,8 +53,16 @@ type Listener = { type: string; fn: (e: KeyboardEvent) => void; capture: boolean
 let windowListeners: Listener[];
 let documentListeners: Listener[];
 const target = (list: Listener[]) => ({
-  addEventListener: (type: string, fn: (e: KeyboardEvent) => void, options?: boolean | { capture?: boolean }) =>
-    list.push({ type, fn, capture: options === true || (typeof options === 'object' && options.capture === true) }),
+  addEventListener: (
+    type: string,
+    fn: (e: KeyboardEvent) => void,
+    options?: boolean | { capture?: boolean },
+  ) =>
+    list.push({
+      type,
+      fn,
+      capture: options === true || (typeof options === 'object' && options.capture === true),
+    }),
   removeEventListener: (type: string, fn: (e: KeyboardEvent) => void) => {
     const i = list.findIndex((l) => l.type === type && l.fn === fn);
     if (i >= 0) list.splice(i, 1);
@@ -62,7 +74,13 @@ const target = (list: Listener[]) => ({
  * field stops it, so nothing that listens by bubbling ever hears it.
  */
 function typeInField(init: Partial<KeyboardEvent>) {
-  const event = { preventDefault: () => {}, metaKey: false, ctrlKey: false, shiftKey: false, ...init } as KeyboardEvent;
+  const event = {
+    preventDefault: () => {},
+    metaKey: false,
+    ctrlKey: false,
+    shiftKey: false,
+    ...init,
+  } as KeyboardEvent;
   for (const l of windowListeners.filter((l) => l.type === 'keydown' && l.capture)) l.fn(event);
 }
 

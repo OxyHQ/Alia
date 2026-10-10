@@ -26,7 +26,8 @@ const router = Router();
 router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
     const [models, featuredIds] = await Promise.all([listChatModels(), getFeaturedModelIds()]);
-    const defaultModelId = models.length === 0 ? null : await getDefaultModelId(req.user?.id ?? null).catch(() => null);
+    const defaultModelId =
+      models.length === 0 ? null : await getDefaultModelId(req.user?.id ?? null).catch(() => null);
     res.json(toCatalogueResponse(models, featuredIds, defaultModelId));
   } catch (e: unknown) {
     log.models.error({ err: e }, 'Error building the catalogue');

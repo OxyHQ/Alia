@@ -33,7 +33,9 @@ const persistedResearch = (sources: Array<{ id: number; url: string; title: stri
 
 describe('normalizeCitationMarkers', () => {
   it('rewrites the fullwidth retrieval form into [n]', () => {
-    expect(normalizeCitationMarkers('React is a library【1†L1-L3】【5†L1-L4】.')).toBe('React is a library[1][5].');
+    expect(normalizeCitationMarkers('React is a library【1†L1-L3】【5†L1-L4】.')).toBe(
+      'React is a library[1][5].',
+    );
   });
 
   it('splits a comma list and keeps adjacent markers', () => {
@@ -61,28 +63,49 @@ describe('extractCitationSources', () => {
     );
     expect(sources).toEqual([
       { id: 1, url: 'https://es.react.dev/', title: 'React', domain: 'es.react.dev' },
-      { id: 2, url: 'https://en.wikipedia.org/wiki/React_(software)', title: 'React (software)', domain: 'en.wikipedia.org' },
+      {
+        id: 2,
+        url: 'https://en.wikipedia.org/wiki/React_(software)',
+        title: 'React (software)',
+        domain: 'en.wikipedia.org',
+      },
     ]);
   });
 
   it('takes the live progress sources before the record is persisted', () => {
-    const sources = extractCitationSources(undefined, [{ id: 1, url: 'https://a.test/x', title: '' }]);
-    expect(sources).toEqual([{ id: 1, url: 'https://a.test/x', title: 'a.test', domain: 'a.test' }]);
+    const sources = extractCitationSources(undefined, [
+      { id: 1, url: 'https://a.test/x', title: '' },
+    ]);
+    expect(sources).toEqual([
+      { id: 1, url: 'https://a.test/x', title: 'a.test', domain: 'a.test' },
+    ]);
   });
 
   it('ignores search tools, unfinished research and malformed entries', () => {
     expect(
       extractCitationSources([
-        { toolCallId: 'c1', toolName: 'webSearch', state: 'result', result: { results: [{ url: 'https://a.test', title: 'A' }] } },
+        {
+          toolCallId: 'c1',
+          toolName: 'webSearch',
+          state: 'result',
+          result: { results: [{ url: 'https://a.test', title: 'A' }] },
+        },
         { toolCallId: 'c2', toolName: 'deepResearch', state: 'call', args: { query: 'q' } },
-        { toolCallId: 'c3', toolName: 'deepResearch', state: 'result', result: { sources: [{ id: 'x', url: 'https://b.test' }, { id: 1 }, null] } },
+        {
+          toolCallId: 'c3',
+          toolName: 'deepResearch',
+          state: 'result',
+          result: { sources: [{ id: 'x', url: 'https://b.test' }, { id: 1 }, null] },
+        },
       ]),
     ).toEqual([]);
   });
 });
 
 describe('linkifyCitations', () => {
-  const sources = extractCitationSources(persistedResearch([{ id: 1, url: 'https://es.react.dev/', title: 'React' }]));
+  const sources = extractCitationSources(
+    persistedResearch([{ id: 1, url: 'https://es.react.dev/', title: 'React' }]),
+  );
 
   it('turns a known marker into a titled link and leaves an unknown one as text', () => {
     expect(linkifyCitations('React is a library [1] used widely [7].', sources)).toBe(
@@ -92,7 +115,9 @@ describe('linkifyCitations', () => {
   });
 
   it('links legacy marker spellings too', () => {
-    expect(linkifyCitations('library【1†L1-L3】.', sources)).toBe('library[1](https://es.react.dev/ "Source 1: React").');
+    expect(linkifyCitations('library【1†L1-L3】.', sources)).toBe(
+      'library[1](https://es.react.dev/ "Source 1: React").',
+    );
   });
 
   it('still normalises when there are no sources to link', () => {
@@ -102,17 +127,24 @@ describe('linkifyCitations', () => {
 
 describe('splitReferences', () => {
   it('splits the link form the API writes now', () => {
-    const text = 'React es una biblioteca [1].\n\n---\n\n## References\n\n[1] [React](https://es.react.dev/)\n\n[2] [React \\[Wikipedia\\]](https://en.wikipedia.org/wiki/React_%28software%29)';
+    const text =
+      'React es una biblioteca [1].\n\n---\n\n## References\n\n[1] [React](https://es.react.dev/)\n\n[2] [React \\[Wikipedia\\]](https://en.wikipedia.org/wiki/React_%28software%29)';
     const { body, references } = splitReferences(text);
     expect(body).toBe('React es una biblioteca [1].');
     expect(references).toEqual([
       { id: 1, title: 'React', url: 'https://es.react.dev/', domain: 'es.react.dev' },
-      { id: 2, title: 'React [Wikipedia]', url: 'https://en.wikipedia.org/wiki/React_%28software%29', domain: 'en.wikipedia.org' },
+      {
+        id: 2,
+        title: 'React [Wikipedia]',
+        url: 'https://en.wikipedia.org/wiki/React_%28software%29',
+        domain: 'en.wikipedia.org',
+      },
     ]);
   });
 
   it('splits the legacy title-over-URL form', () => {
-    const text = 'Body [1].\n\n---\n\n## References\n\n[1] React\n    https://es.react.dev/\n\n[2] Docs\n    https://react.dev/learn';
+    const text =
+      'Body [1].\n\n---\n\n## References\n\n[1] React\n    https://es.react.dev/\n\n[2] Docs\n    https://react.dev/learn';
     const { body, references } = splitReferences(text);
     expect(body).toBe('Body [1].');
     expect(references).toEqual([
@@ -122,12 +154,17 @@ describe('splitReferences', () => {
   });
 
   it('fills a missing URL from the known sources and renders nothing special otherwise', () => {
-    const sources = extractCitationSources(persistedResearch([{ id: 1, url: 'https://es.react.dev/', title: 'React' }]));
+    const sources = extractCitationSources(
+      persistedResearch([{ id: 1, url: 'https://es.react.dev/', title: 'React' }]),
+    );
     expect(splitReferences('Body\n\n## References\n\n[1] React', sources).references).toEqual([
       { id: 1, title: 'React', url: 'https://es.react.dev/', domain: 'es.react.dev' },
     ]);
     // No section: the whole text is the body.
-    expect(splitReferences('Just an answer [1].')).toEqual({ body: 'Just an answer [1].', references: null });
+    expect(splitReferences('Just an answer [1].')).toEqual({
+      body: 'Just an answer [1].',
+      references: null,
+    });
     // A section with nothing parseable is left in the body rather than lost.
     expect(splitReferences('Body\n\n## References\n\nnothing here').references).toBeNull();
   });

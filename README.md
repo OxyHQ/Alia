@@ -232,7 +232,7 @@ bun run web    # or ios, or android
 | Build all | `bun run build` |
 | Build one | `build:app`, `build:api`, `build:canvas`, `build:integrations` |
 | Start one | `start:app`, `start:api`, `start:canvas`, `start:integrations` |
-| Lint | `bun run lint`, `bun run lint:canvas` |
+| Lint / format (Biome) | `bun run lint` (check), `bun run lint:fix`, `bun run format` |
 
 </details>
 

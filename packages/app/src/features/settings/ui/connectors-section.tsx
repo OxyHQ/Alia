@@ -23,7 +23,12 @@ import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@oxy.so/bloom/accordion';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@oxy.so/bloom/accordion';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, View } from 'react-native';
 import { SettingsPreferenceSelect } from './preference-select';
@@ -73,11 +78,7 @@ function isServerConnected(server: InstalledMcpServer | undefined): boolean {
 }
 
 /** "Stopped · 3 tools enabled" — the status only when it is not the usual one. */
-function serverSummary(
-  server: InstalledMcpServer,
-  t: Translate,
-  withUrl = false,
-): string {
+function serverSummary(server: InstalledMcpServer, t: Translate, withUrl = false): string {
   const parts: string[] = [];
   if (withUrl && server.config?.url) parts.push(server.config.url);
   if (server.status !== 'running' && server.status !== 'error') {
@@ -127,12 +128,7 @@ function ConnectorRow({
   return (
     <SettingsRow label={entry.name} description={entry.description}>
       <>
-        <Button
-          size="sm"
-          appearance="outline"
-          tone="neutral"
-          onPress={() => onOpen(entry)}
-        >
+        <Button size="sm" appearance="outline" tone="neutral" onPress={() => onOpen(entry)}>
           {t('settings.connections.viewDetails')}
         </Button>
         {/* Connected is a STATE, so it is a badge — it was a button that was
@@ -152,13 +148,9 @@ function ConnectorRow({
             appearance="outline"
             tone="neutral"
             loading={pending}
-            onPress={() =>
-              entry.requiresOAuth ? onConnect(entry) : onInstall(entry)
-            }
+            onPress={() => (entry.requiresOAuth ? onConnect(entry) : onInstall(entry))}
           >
-            {entry.requiresOAuth
-              ? t('connectors.connect')
-              : t('connectors.install')}
+            {entry.requiresOAuth ? t('connectors.connect') : t('connectors.install')}
           </Button>
         )}
       </>
@@ -223,9 +215,7 @@ export function ConnectorsSection() {
   const [pendingId, setPendingId] = useState<string | null>(null);
 
   // Env-var install dialog (for stdio registry entries that need secrets).
-  const [installTarget, setInstallTarget] = useState<McpRegistryEntry | null>(
-    null,
-  );
+  const [installTarget, setInstallTarget] = useState<McpRegistryEntry | null>(null);
   const [envValues, setEnvValues] = useState<Record<string, string>>({});
   const [installing, setInstalling] = useState(false);
 
@@ -266,11 +256,7 @@ export function ConnectorsSection() {
     }
     // eslint order intentionally follows the existing settings screens: react to
     // the callback param values arriving on this screen.
-  }, [
-    searchParams.mcp_oauth_state,
-    searchParams.mcp_oauth_code,
-    searchParams.error,
-  ]);
+  }, [searchParams.mcp_oauth_state, searchParams.mcp_oauth_code, searchParams.error]);
 
   const installedByRegistry = useMemo(() => {
     const map = new Map<string, InstalledMcpServer>();
@@ -292,16 +278,11 @@ export function ConnectorsSection() {
     const q = search.trim().toLowerCase();
     if (!q) return registry;
     return registry.filter(
-      (e) =>
-        e.name.toLowerCase().includes(q) ||
-        e.description.toLowerCase().includes(q),
+      (e) => e.name.toLowerCase().includes(q) || e.description.toLowerCase().includes(q),
     );
   }, [registry, search]);
 
-  const featured = useMemo(
-    () => filteredRegistry.filter((e) => e.featured),
-    [filteredRegistry],
-  );
+  const featured = useMemo(() => filteredRegistry.filter((e) => e.featured), [filteredRegistry]);
 
   // Personal tab = the user's own custom-added remote connectors.
   const personalServers = useMemo(() => {
@@ -323,9 +304,7 @@ export function ConnectorsSection() {
       list.push(entry);
       map.set(entry.category, list);
     }
-    const known = (CATEGORY_ORDER as readonly string[]).filter((c) =>
-      map.has(c),
-    );
+    const known = (CATEGORY_ORDER as readonly string[]).filter((c) => map.has(c));
     const extras = Array.from(map.keys()).filter(
       (c) => !(CATEGORY_ORDER as readonly string[]).includes(c),
     );
@@ -370,8 +349,7 @@ export function ConnectorsSection() {
     }
   };
 
-  const findServer = (serverId: string) =>
-    installed.find((s) => s._id === serverId);
+  const findServer = (serverId: string) => installed.find((s) => s._id === serverId);
 
   const handleServerAction = (serverId: string, actionId: string) => {
     const server = findServer(serverId);
@@ -389,9 +367,7 @@ export function ConnectorsSection() {
     const server = findServer(serverId);
     if (!server) return;
     if (server.statusMessage) {
-      toast.error(
-        `${server.displayName || server.name}: ${server.statusMessage}`,
-      );
+      toast.error(`${server.displayName || server.name}: ${server.statusMessage}`);
     } else if (server.registryId) {
       openServerDetails(server);
     } else {
@@ -456,9 +432,7 @@ export function ConnectorsSection() {
     try {
       const env = installTarget.requiredEnv.length > 0 ? envValues : undefined;
       await install(installTarget.id, env);
-      toast.success(
-        t('connectors.installedToast', { name: installTarget.name }),
-      );
+      toast.success(t('connectors.installedToast', { name: installTarget.name }));
       setInstallTarget(null);
       setEnvValues({});
     } catch {
@@ -533,15 +507,11 @@ export function ConnectorsSection() {
     <View className="w-full gap-6">
       <SettingsSection
         label={t('connectors.installed')}
-        description={
-          connectedServers.length ? undefined : t('connectors.installedEmpty')
-        }
+        description={connectedServers.length ? undefined : t('connectors.installedEmpty')}
         inset={8}
       >
         <SettingsServerList
-          servers={connectedServers.map((server) =>
-            toSettingsServer(server, t),
-          )}
+          servers={connectedServers.map((server) => toSettingsServer(server, t))}
           {...serverListProps}
         />
       </SettingsSection>
@@ -610,15 +580,11 @@ export function ConnectorsSection() {
       ) : (
         <SettingsSection
           label={t('connectors.tab.personal')}
-          description={
-            personalServers.length ? undefined : t('connectors.personalEmpty')
-          }
+          description={personalServers.length ? undefined : t('connectors.personalEmpty')}
           inset={8}
         >
           <SettingsServerList
-            servers={personalServers.map((server) =>
-              toSettingsServer(server, t, true),
-            )}
+            servers={personalServers.map((server) => toSettingsServer(server, t, true))}
             {...serverListProps}
           />
         </SettingsSection>
@@ -635,9 +601,7 @@ export function ConnectorsSection() {
         actions={[
           { label: t('common.cancel'), color: 'cancel', disabled: installing },
           {
-            label: installing
-              ? t('connectors.installing')
-              : t('connectors.install'),
+            label: installing ? t('connectors.installing') : t('connectors.install'),
             onPress: handleInstallWithEnv,
             disabled: installing,
             // The install is in flight when this runs and the label reports it.
@@ -653,12 +617,9 @@ export function ConnectorsSection() {
                 label={t('connectors.enterValue', { name: envKey })}
                 placeholder={t('connectors.enterValue', { name: envKey })}
                 value={envValues[envKey] || ''}
-                onChangeText={(val) =>
-                  setEnvValues((prev) => ({ ...prev, [envKey]: val }))
-                }
+                onChangeText={(val) => setEnvValues((prev) => ({ ...prev, [envKey]: val }))}
                 secureTextEntry={
-                  envKey.toLowerCase().includes('secret') ||
-                  envKey.toLowerCase().includes('key')
+                  envKey.toLowerCase().includes('secret') || envKey.toLowerCase().includes('key')
                 }
               />
             </View>
@@ -681,12 +642,9 @@ export function ConnectorsSection() {
             disabled: customInstalling,
           },
           {
-            label: customInstalling
-              ? t('connectors.adding')
-              : t('connectors.add'),
+            label: customInstalling ? t('connectors.adding') : t('connectors.add'),
             onPress: handleInstallCustom,
-            disabled:
-              customInstalling || !customName.trim() || !customUrl.trim(),
+            disabled: customInstalling || !customName.trim() || !customUrl.trim(),
             // The install is in flight when this runs and the label reports it.
             shouldCloseOnPress: false,
           },
@@ -725,35 +683,31 @@ export function ConnectorsSection() {
             <AccordionItem value="advanced">
               <AccordionTrigger>{t('connectors.advancedSettings')}</AccordionTrigger>
               <AccordionContent>
-              <View className="gap-3">
-                <View>
-                  <TextFieldLabel>
-                    {t('connectors.headerNameLabel')}
-                  </TextFieldLabel>
-                  <TextFieldInput
-                    label="Authorization"
-                    placeholder="Authorization"
-                    value={customHeaderKey}
-                    onChangeText={setCustomHeaderKey}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
+                <View className="gap-3">
+                  <View>
+                    <TextFieldLabel>{t('connectors.headerNameLabel')}</TextFieldLabel>
+                    <TextFieldInput
+                      label="Authorization"
+                      placeholder="Authorization"
+                      value={customHeaderKey}
+                      onChangeText={setCustomHeaderKey}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                  <View>
+                    <TextFieldLabel>{t('connectors.headerValueLabel')}</TextFieldLabel>
+                    <TextFieldInput
+                      label="Bearer sk-..."
+                      placeholder="Bearer sk-..."
+                      value={customHeaderValue}
+                      onChangeText={setCustomHeaderValue}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      secureTextEntry
+                    />
+                  </View>
                 </View>
-                <View>
-                  <TextFieldLabel>
-                    {t('connectors.headerValueLabel')}
-                  </TextFieldLabel>
-                  <TextFieldInput
-                    label="Bearer sk-..."
-                    placeholder="Bearer sk-..."
-                    value={customHeaderValue}
-                    onChangeText={setCustomHeaderValue}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    secureTextEntry
-                  />
-                </View>
-              </View>
               </AccordionContent>
             </AccordionItem>
           </Accordion>

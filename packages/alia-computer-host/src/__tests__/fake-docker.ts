@@ -22,8 +22,22 @@ export interface FakeContainer {
   };
 }
 
-const ok = (stdout = ''): DockerResult => ({ stdout, stderr: '', exitCode: 0, timedOut: false, interrupted: false, truncated: false });
-const fail = (stderr = 'Error'): DockerResult => ({ stdout: '', stderr, exitCode: 1, timedOut: false, interrupted: false, truncated: false });
+const ok = (stdout = ''): DockerResult => ({
+  stdout,
+  stderr: '',
+  exitCode: 0,
+  timedOut: false,
+  interrupted: false,
+  truncated: false,
+});
+const fail = (stderr = 'Error'): DockerResult => ({
+  stdout: '',
+  stderr,
+  exitCode: 1,
+  timedOut: false,
+  interrupted: false,
+  truncated: false,
+});
 
 function flagValues(args: string[], flag: string): string[] {
   const values: string[] = [];
@@ -50,10 +64,19 @@ function labelFilters(args: string[]): Array<[string, string]> {
 
 export function inspectionFromCreate(args: string[]): FakeContainer['inspection'] {
   const name = flagValues(args, '--name')[0] as string;
-  const labels = Object.fromEntries(flagValues(args, '--label').map((l) => l.split('=') as [string, string]));
-  const tmpfs = Object.fromEntries(flagValues(args, '--tmpfs').map((t) => [t.slice(0, t.indexOf(':')), t.slice(t.indexOf(':') + 1)]));
+  const labels = Object.fromEntries(
+    flagValues(args, '--label').map((l) => l.split('=') as [string, string]),
+  );
+  const tmpfs = Object.fromEntries(
+    flagValues(args, '--tmpfs').map((t) => [
+      t.slice(0, t.indexOf(':')),
+      t.slice(t.indexOf(':') + 1),
+    ]),
+  );
   const mount = flagValues(args, '--mount')[0] ?? '';
-  const mountParts = Object.fromEntries(mount.split(',').map((kv) => kv.split('=') as [string, string]));
+  const mountParts = Object.fromEntries(
+    mount.split(',').map((kv) => kv.split('=') as [string, string]),
+  );
   const entrypointIndex = args.indexOf('--entrypoint');
   const image = args[entrypointIndex + 2] as string;
   const cmd = args.slice(entrypointIndex + 3);
@@ -66,7 +89,12 @@ export function inspectionFromCreate(args: string[]): FakeContainer['inspection'
       Image: image,
       User: flagValues(args, '--user')[0] ?? '',
       Labels: labels,
-      Env: ['PATH=/usr/local/bin:/usr/bin:/bin', 'NODE_VERSION=22', 'YARN_VERSION=1', ...flagValues(args, '--env')],
+      Env: [
+        'PATH=/usr/local/bin:/usr/bin:/bin',
+        'NODE_VERSION=22',
+        'YARN_VERSION=1',
+        ...flagValues(args, '--env'),
+      ],
       Entrypoint: [flagValues(args, '--entrypoint')[0]],
       Cmd: cmd,
       WorkingDir: flagValues(args, '--workdir')[0] ?? '',
@@ -93,18 +121,43 @@ export function inspectionFromCreate(args: string[]): FakeContainer['inspection'
       Tmpfs: tmpfs,
       RestartPolicy: { Name: flagValues(args, '--restart')[0] ?? 'no' },
     },
-    Mounts: mount ? [{ Type: mountParts.type, Name: mountParts.source, Destination: mountParts.target, RW: true }] : [],
-    NetworkSettings: { Networks: { [network]: network === 'none' ? {} : { IPAddress: nextAddress() } } },
+    Mounts: mount
+      ? [
+          {
+            Type: mountParts.type,
+            Name: mountParts.source,
+            Destination: mountParts.target,
+            RW: true,
+          },
+        ]
+      : [],
+    NetworkSettings: {
+      Networks: { [network]: network === 'none' ? {} : { IPAddress: nextAddress() } },
+    },
     State: { Running: false },
   };
 }
 
-export type ExecHandler = (args: string[], options: DockerOptions) => DockerResult | Promise<DockerResult>;
+export type ExecHandler = (
+  args: string[],
+  options: DockerOptions,
+) => DockerResult | Promise<DockerResult>;
 
 export class FakeDocker {
   readonly containers = new Map<string, FakeContainer>();
-  readonly volumes = new Map<string, { Labels: Record<string, string>; Driver: string; Options: Record<string, string> | null }>();
-  readonly networks = new Map<string, { Labels: Record<string, string>; Internal: boolean; Options: Record<string, string>; members: Set<string> }>();
+  readonly volumes = new Map<
+    string,
+    { Labels: Record<string, string>; Driver: string; Options: Record<string, string> | null }
+  >();
+  readonly networks = new Map<
+    string,
+    {
+      Labels: Record<string, string>;
+      Internal: boolean;
+      Options: Record<string, string>;
+      members: Set<string>;
+    }
+  >();
   /** The control API's own container, as `container inspect --format {{.Name}}` names it. */
   selfName = 'alia-computer-host';
   readonly calls: string[][] = [];
@@ -119,16 +172,29 @@ export class FakeDocker {
         const name = nameFilter.slice('name=^/'.length, -1);
         const container = this.containers.get(name);
         if (!container) return ok('');
-        return ok(args.includes('{{.State}}') ? `${container.running ? 'running' : 'exited'}\n` : `id-${name}\n`);
+        return ok(
+          args.includes('{{.State}}')
+            ? `${container.running ? 'running' : 'exited'}\n`
+            : `id-${name}\n`,
+        );
       }
       const filters = labelFilters(args);
       const onlyRunning = args.includes('status=running');
       const matching = [...this.containers.values()].filter((c) => {
         const labels = (c.inspection.Config.Labels ?? {}) as Record<string, string>;
-        return (!onlyRunning || c.running) && filters.every(([key, value]) => labels[key] === value);
+        return (
+          (!onlyRunning || c.running) && filters.every(([key, value]) => labels[key] === value)
+        );
       });
       if (args.includes('{{.Names}}')) return ok(matching.map((c) => `${c.name}\n`).join(''));
-      return ok(matching.map((c) => `${(c.inspection.Config.Labels as Record<string, string>)['onl.alia.computer.actor']}\n`).join(''));
+      return ok(
+        matching
+          .map(
+            (c) =>
+              `${(c.inspection.Config.Labels as Record<string, string>)['onl.alia.computer.actor']}\n`,
+          )
+          .join(''),
+      );
     }
     if (group === 'container' && verb === 'inspect' && args[2] === '--format') {
       return ok(`/${this.selfName}\n`);
@@ -136,7 +202,9 @@ export class FakeDocker {
     if (group === 'container' && verb === 'inspect') {
       const container = this.containers.get(args[2] as string);
       if (!container) return fail();
-      return ok(JSON.stringify([{ ...container.inspection, State: { Running: container.running } }]));
+      return ok(
+        JSON.stringify([{ ...container.inspection, State: { Running: container.running } }]),
+      );
     }
     if (group === 'container' && verb === 'create') {
       const inspection = inspectionFromCreate(args);
@@ -167,8 +235,15 @@ export class FakeDocker {
     }
     if (group === 'network' && verb === 'create') {
       const name = args[args.length - 1] as string;
-      const labels = Object.fromEntries(flagValues(args, '--label').map((l) => l.split('=') as [string, string]));
-      this.networks.set(name, { Labels: labels, Internal: args.includes('--internal'), Options: {}, members: new Set() });
+      const labels = Object.fromEntries(
+        flagValues(args, '--label').map((l) => l.split('=') as [string, string]),
+      );
+      this.networks.set(name, {
+        Labels: labels,
+        Internal: args.includes('--internal'),
+        Options: {},
+        members: new Set(),
+      });
       return ok(name);
     }
     if (group === 'network' && verb === 'connect') {
@@ -190,18 +265,26 @@ export class FakeDocker {
       if (!network) return fail();
       const members = new Set(network.members);
       for (const container of this.containers.values()) {
-        const settings = container.inspection.NetworkSettings as { Networks: Record<string, unknown> };
+        const settings = container.inspection.NetworkSettings as {
+          Networks: Record<string, unknown>;
+        };
         if (container.running && settings.Networks[name]) members.add(container.name);
       }
-      return ok(JSON.stringify([{
-        Name: name,
-        Driver: 'bridge',
-        Internal: network.Internal,
-        EnableIPv6: false,
-        Labels: network.Labels,
-        Options: network.Options,
-        Containers: Object.fromEntries([...members].map((member) => [`id-${member}`, { Name: member }])),
-      }]));
+      return ok(
+        JSON.stringify([
+          {
+            Name: name,
+            Driver: 'bridge',
+            Internal: network.Internal,
+            EnableIPv6: false,
+            Labels: network.Labels,
+            Options: network.Options,
+            Containers: Object.fromEntries(
+              [...members].map((member) => [`id-${member}`, { Name: member }]),
+            ),
+          },
+        ]),
+      );
     }
     if (group === 'volume' && verb === 'ls') {
       const name = (args.find((a) => a.startsWith('name=^')) ?? '').slice('name=^'.length, -1);
@@ -209,7 +292,9 @@ export class FakeDocker {
     }
     if (group === 'volume' && verb === 'create') {
       const name = args[args.length - 1] as string;
-      const labels = Object.fromEntries(flagValues(args, '--label').map((l) => l.split('=') as [string, string]));
+      const labels = Object.fromEntries(
+        flagValues(args, '--label').map((l) => l.split('=') as [string, string]),
+      );
       this.volumes.set(name, { Labels: labels, Driver: 'local', Options: null });
       return ok(name);
     }

@@ -7,9 +7,13 @@ vi.mock('../../src/lib/catalogue', () => ({
 import { createAliaVoiceTurnSender } from '../../src/lib/voice-turn';
 
 function stream(...contents: string[]): Response {
-  const frames = contents.map((content) =>
-    `data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"example/model","choices":[{"index":0,"delta":{"content":${JSON.stringify(content)}},"finish_reason":null}]}\n\n`);
-  frames.push('data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"example/model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n');
+  const frames = contents.map(
+    (content) =>
+      `data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"example/model","choices":[{"index":0,"delta":{"content":${JSON.stringify(content)}},"finish_reason":null}]}\n\n`,
+  );
+  frames.push(
+    'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"example/model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
+  );
   frames.push('data: [DONE]\n\n');
   return new Response(frames.join(''), { headers: { 'content-type': 'text/event-stream' } });
 }
@@ -18,7 +22,10 @@ describe('the default voice turn sender', () => {
   it('is an ordinary chat turn marked as voice, streamed back as the whole answer so far', async () => {
     const request = vi.fn(async () => stream('Hola', ', ¿qué tal?'));
     const dispose = vi.fn();
-    const createLinkedClient = vi.fn(() => ({ client: { requestAuthenticatedResponse: request }, dispose }));
+    const createLinkedClient = vi.fn(() => ({
+      client: { requestAuthenticatedResponse: request },
+      dispose,
+    }));
     const send = createAliaVoiceTurnSender({
       oxyServices: { createLinkedClient },
       apiUrl: 'https://alia.test',
@@ -28,7 +35,10 @@ describe('the default voice turn sender', () => {
     const seen: string[] = [];
     await send({
       text: 'Hola Alia',
-      history: [{ role: 'user', content: 'antes' }, { role: 'assistant', content: 'vale' }],
+      history: [
+        { role: 'user', content: 'antes' },
+        { role: 'assistant', content: 'vale' },
+      ],
       signal: new AbortController().signal,
       onText: (text) => seen.push(text),
     });

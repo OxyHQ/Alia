@@ -136,7 +136,8 @@ export const API_ROUTES = {
     threads: (id: string) => `/agents/${id}/threads`,
     /** Actions a background run asked the person to approve, and their answer. */
     approvals: '/agents/approvals',
-    approvalDecision: (approvalId: string) => `/agents/approvals/${encodeURIComponent(approvalId)}/decision`,
+    approvalDecision: (approvalId: string) =>
+      `/agents/approvals/${encodeURIComponent(approvalId)}/decision`,
     threadById: (threadId: string) => `/agents/threads/${threadId}`,
     goals: (threadId: string) => `/agents/threads/${threadId}/goals`,
     teams: '/agents/teams',
@@ -154,7 +155,8 @@ export const API_ROUTES = {
     /** The agent's computer as the caller sees it — always the caller's own (`routes/agents/computer.ts`). */
     computer: (id: string) => `/agents/${id}/computer`,
     computerStart: (id: string) => `/agents/${id}/computer/start`,
-    computerFiles: (id: string, path: string) => `/agents/${id}/computer/files?path=${encodeURIComponent(path)}`,
+    computerFiles: (id: string, path: string) =>
+      `/agents/${id}/computer/files?path=${encodeURIComponent(path)}`,
     computerReceipts: (id: string) => `/agents/${id}/computer/receipts`,
     computerScreenshot: (id: string) => `/agents/${id}/computer/browser/screenshot`,
     computerBrowserOpen: (id: string) => `/agents/${id}/computer/browser/open`,

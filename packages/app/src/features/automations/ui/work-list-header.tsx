@@ -55,14 +55,10 @@ export function WorkListHeader({
           onValueChange={onTabChange}
         >
           <SegmentedControlItem value="active">
-            <SegmentedControlItemText>
-              {t('tasks.active')}
-            </SegmentedControlItemText>
+            <SegmentedControlItemText>{t('tasks.active')}</SegmentedControlItemText>
           </SegmentedControlItem>
           <SegmentedControlItem value="history">
-            <SegmentedControlItemText>
-              {t('tasks.history')}
-            </SegmentedControlItemText>
+            <SegmentedControlItemText>{t('tasks.history')}</SegmentedControlItemText>
           </SegmentedControlItem>
         </SegmentedControl>
         {/* The badge counts the unified active list, whichever tab is shown. */}
@@ -76,10 +72,7 @@ export function WorkListHeader({
         ) : null}
 
         {/* Type filter: narrows the unified list, never replaces it. */}
-        <ChipRow
-          role="radiogroup"
-          accessibilityLabel={t('pages.tasks.typeFilter')}
-        >
+        <ChipRow role="radiogroup" accessibilityLabel={t('pages.tasks.typeFilter')}>
           {TYPE_FILTERS.map((filter) => (
             <Chip
               key={filter.value}
@@ -101,11 +94,7 @@ export function WorkListHeader({
             <AdmonitionIcon />
             <AdmonitionContent>
               <AdmonitionText>{t('tasks.loadError')}</AdmonitionText>
-              <AdmonitionButton
-                tone="neutral"
-                appearance="subtle"
-                onPress={onRetry}
-              >
+              <AdmonitionButton tone="neutral" appearance="subtle" onPress={onRetry}>
                 {t('tasks.retry')}
               </AdmonitionButton>
             </AdmonitionContent>

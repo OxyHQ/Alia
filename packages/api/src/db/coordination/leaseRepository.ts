@@ -108,11 +108,7 @@ export async function acquireOrRenewLease(
  * The `holder_id` predicate is what stops a shutting-down instance releasing a
  * lease another instance has already taken over.
  */
-export async function releaseLease(
-  db: ApiDatabase,
-  name: string,
-  holderId: string,
-): Promise<void> {
+export async function releaseLease(db: ApiDatabase, name: string, holderId: string): Promise<void> {
   await db
     .update(leases)
     .set({ expiresAt: sql`'epoch'::timestamptz` })

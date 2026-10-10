@@ -18,10 +18,38 @@ interface CreditPackageSeed {
 }
 
 const SEED_PACKAGES: CreditPackageSeed[] = [
-  { packageId: 'credits_1000', name: '1,000 Credits', credits: 1000, price: 500, currency: 'usd', sortOrder: 0 },
-  { packageId: 'credits_5000', name: '5,000 Credits', credits: 5000, price: 2000, currency: 'usd', sortOrder: 1 },
-  { packageId: 'credits_10000', name: '10,000 Credits', credits: 10000, price: 3500, currency: 'usd', sortOrder: 2 },
-  { packageId: 'credits_50000', name: '50,000 Credits', credits: 50000, price: 15000, currency: 'usd', sortOrder: 3 },
+  {
+    packageId: 'credits_1000',
+    name: '1,000 Credits',
+    credits: 1000,
+    price: 500,
+    currency: 'usd',
+    sortOrder: 0,
+  },
+  {
+    packageId: 'credits_5000',
+    name: '5,000 Credits',
+    credits: 5000,
+    price: 2000,
+    currency: 'usd',
+    sortOrder: 1,
+  },
+  {
+    packageId: 'credits_10000',
+    name: '10,000 Credits',
+    credits: 10000,
+    price: 3500,
+    currency: 'usd',
+    sortOrder: 2,
+  },
+  {
+    packageId: 'credits_50000',
+    name: '50,000 Credits',
+    credits: 50000,
+    price: 15000,
+    currency: 'usd',
+    sortOrder: 3,
+  },
 ];
 
 export async function seedCreditPackages(): Promise<{ seeded: number; skipped: number }> {
@@ -54,7 +82,10 @@ export async function seedCreditPackages(): Promise<{ seeded: number; skipped: n
       if (isUniqueViolation(error)) {
         skipped++;
       } else {
-        log.seed.error({ err: error, packageId: pkgData.packageId }, 'Error seeding credit package');
+        log.seed.error(
+          { err: error, packageId: pkgData.packageId },
+          'Error seeding credit package',
+        );
       }
     }
   }

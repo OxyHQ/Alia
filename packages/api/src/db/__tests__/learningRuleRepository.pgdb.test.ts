@@ -1,10 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
-import {
-  createLearningRule,
-  findActiveLearningRules,
-} from '../autonomy/learningRuleRepository';
+import { createLearningRule, findActiveLearningRules } from '../autonomy/learningRuleRepository';
 import { learningRules } from '../schema/agents-support';
 
 /**
@@ -48,7 +45,7 @@ async function rule(
 describe('recalling rules', () => {
   const OWNER = 'lrr-owner';
 
-  it('returns the intent\'s own rules AND the general ones, and nobody else\'s', async () => {
+  it("returns the intent's own rules AND the general ones, and nobody else's", async () => {
     await rule(OWNER, 'for-research', { intent: 'research' });
     await rule(OWNER, 'for-everything', { intent: 'general' });
     await rule(OWNER, 'for-another-intent', { intent: 'meeting_prep' });
@@ -76,10 +73,7 @@ describe('recalling rules', () => {
     const OFF = 'lrr-inactive-owner';
     await rule(OFF, 'live', { intent: 'research' });
     await rule(OFF, 'retired', { intent: 'research' });
-    await db
-      .update(learningRules)
-      .set({ active: false })
-      .where(eq(learningRules.title, 'retired'));
+    await db.update(learningRules).set({ active: false }).where(eq(learningRules.title, 'retired'));
 
     const texts = (await findActiveLearningRules(db, OFF, 'research')).map((r) => r.ruleText);
     expect(texts).toEqual(['rule text for live']);

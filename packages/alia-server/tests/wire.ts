@@ -84,10 +84,12 @@ export function aliaStream(): {
     event: (name, data) => emitter.emit(name, data),
     // The route writes this one itself rather than through the emitter
     // (`routes/v1/chat-completions.ts`), so the fixture writes it the same way.
-    agentTurn: (data) => void res.write(`event: alia.agent_turn\ndata: ${JSON.stringify(data)}\n\n`),
+    agentTurn: (data) =>
+      void res.write(`event: alia.agent_turn\ndata: ${JSON.stringify(data)}\n\n`),
     error: (payload) => sse.writeError(payload),
     done: () => sse.done(),
-    usage: (usage) => void res.write(`data: ${JSON.stringify({ ...makeChunk(REQUEST_ID, MODEL, []), usage })}\n\n`),
+    usage: (usage) =>
+      void res.write(`data: ${JSON.stringify({ ...makeChunk(REQUEST_ID, MODEL, []), usage })}\n\n`),
   };
 }
 

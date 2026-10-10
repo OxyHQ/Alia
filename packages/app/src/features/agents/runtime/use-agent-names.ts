@@ -18,8 +18,7 @@ export function agentLabel(agent: Pick<Agent, '_id' | 'name' | 'handle'>): strin
 export function useAgentNames() {
   const agents = useMyAgents();
   const names = useMemo(
-    () =>
-      new Map((agents.data ?? []).map((agent) => [agent._id, agentLabel(agent)])),
+    () => new Map((agents.data ?? []).map((agent) => [agent._id, agentLabel(agent)])),
     [agents.data],
   );
   const agentName = useCallback(

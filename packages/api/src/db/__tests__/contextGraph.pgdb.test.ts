@@ -31,12 +31,20 @@ afterAll(async () => {
   await closePostgres();
 });
 
-const insertNode = (id: string, nodeKey: string, oxyUserId = 'ctx-user') => db.execute(sql`
+const insertNode = (id: string, nodeKey: string, oxyUserId = 'ctx-user') =>
+  db.execute(sql`
   insert into ${contextNodes} (id, oxy_user_id, node_key, type, label, last_seen_at)
   values (${id}, ${oxyUserId}, ${nodeKey}, 'memory', ${nodeKey}, now())
 `);
 
-const insertEdge = (id: string, from: string, to: string, oxyUserId = 'ctx-user', edgeType = 'related_to') => db.execute(sql`
+const insertEdge = (
+  id: string,
+  from: string,
+  to: string,
+  oxyUserId = 'ctx-user',
+  edgeType = 'related_to',
+) =>
+  db.execute(sql`
   insert into ${contextEdges} (id, oxy_user_id, from_node_id, to_node_id, edge_type, last_seen_at)
   values (${id}, ${oxyUserId}, ${from}, ${to}, ${edgeType}, now())
 `);
@@ -122,7 +130,8 @@ describe('the uniques that make a key a key', () => {
   });
 
   it('refuses a second source for one (user, source_key)', async () => {
-    const insertSource = (id: string) => db.execute(sql`
+    const insertSource = (id: string) =>
+      db.execute(sql`
       insert into ${contextSources} (id, oxy_user_id, source_key, kind, label)
       values (${id}, 'ctx-user', 'calendar', 'calendar', 'Calendar')
     `);

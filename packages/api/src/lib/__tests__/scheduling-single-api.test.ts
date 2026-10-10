@@ -22,7 +22,8 @@ function readSources(): Source[] {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        if (entry.name === 'node_modules' || entry.name === '__tests__' || entry.name === 'dist') continue;
+        if (entry.name === 'node_modules' || entry.name === '__tests__' || entry.name === 'dist')
+          continue;
         walk(full);
         continue;
       }
@@ -31,7 +32,8 @@ function readSources(): Source[] {
       const calls: string[] = [];
       for (const line of fs.readFileSync(full, 'utf8').split('\n')) {
         const trimmed = line.trim();
-        if (trimmed.startsWith('*') || trimmed.startsWith('//') || trimmed.startsWith('/*')) continue;
+        if (trimmed.startsWith('*') || trimmed.startsWith('//') || trimmed.startsWith('/*'))
+          continue;
         for (const match of line.matchAll(/from\s+['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]/g)) {
           const specifier = match[1] ?? match[2];
           if (specifier) specifiers.push(specifier);
@@ -56,15 +58,21 @@ const AUTOMATION_REPOSITORY = 'db/automation/automationDefinitionRepository.js';
 describe('one structured scheduling control plane', () => {
   it('scans the production package and finds exactly one cron owner', () => {
     expect(SOURCES.length).toBeGreaterThan(200);
-    expect(SOURCES.filter((source) => source.specifiers.includes('node-cron')).map((source) => source.file))
-      .toEqual([TRIGGER_ENGINE]);
-    expect(SOURCES.filter((source) => source.calls.includes('cron')).map((source) => source.file))
-      .toEqual([TRIGGER_ENGINE]);
+    expect(
+      SOURCES.filter((source) => source.specifiers.includes('node-cron')).map(
+        (source) => source.file,
+      ),
+    ).toEqual([TRIGGER_ENGINE]);
+    expect(
+      SOURCES.filter((source) => source.calls.includes('cron')).map((source) => source.file),
+    ).toEqual([TRIGGER_ENGINE]);
   });
 
   it('persists new schedules through the normalized automation repository', () => {
     const route = SOURCES.find((source) => source.file === 'routes/automations.ts');
-    expect(route?.specifiers.some((specifier) => specifier.endsWith(AUTOMATION_REPOSITORY))).toBe(true);
+    expect(route?.specifiers.some((specifier) => specifier.endsWith(AUTOMATION_REPOSITORY))).toBe(
+      true,
+    );
     expect(route?.specifiers).not.toContain('node-cron');
     expect(route?.calls).not.toContain('cron');
   });
@@ -72,7 +80,10 @@ describe('one structured scheduling control plane', () => {
   it('has no legacy trigger repository for anything to load', () => {
     expect(fs.existsSync(path.join(SRC, TRIGGER_REPOSITORY.replace(/\.js$/, '.ts')))).toBe(false);
     for (const source of SOURCES) {
-      expect(source.specifiers.some((specifier) => specifier.endsWith(TRIGGER_REPOSITORY)), source.file).toBe(false);
+      expect(
+        source.specifiers.some((specifier) => specifier.endsWith(TRIGGER_REPOSITORY)),
+        source.file,
+      ).toBe(false);
     }
   });
 });

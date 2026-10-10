@@ -67,7 +67,9 @@ if (root === undefined || typeof root !== 'object') {
         continue;
       }
       if (!existsSync(path.join(PACKAGE_ROOT, file))) {
-        problems.push(`exports["."].${condition}.${field} points at ${file}, which does not exist. Run the build.`);
+        problems.push(
+          `exports["."].${condition}.${field} points at ${file}, which does not exist. Run the build.`,
+        );
       }
     }
   }
@@ -75,7 +77,11 @@ if (root === undefined || typeof root !== 'object') {
   // `type: module` makes a bare `.d.ts` an ESM declaration. The CommonJS
   // condition must therefore name the `.d.cts`, or a `node16` consumer is told
   // to `import()` a package it is requiring correctly.
-  if (manifest.type === 'module' && root.require?.types !== undefined && !String(root.require.types).endsWith('.d.cts')) {
+  if (
+    manifest.type === 'module' &&
+    root.require?.types !== undefined &&
+    !String(root.require.types).endsWith('.d.cts')
+  ) {
     problems.push(
       `exports["."].require.types is ${root.require.types}; in a "type": "module" package the ` +
         'CommonJS declaration must be a .d.cts file.',

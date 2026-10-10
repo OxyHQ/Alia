@@ -50,10 +50,7 @@ const CODE_PARAM = 'user_code';
  * `OXY_AUTH_URL` points it at a local `packages/auth` for development — the same
  * variable the Oxy API reads for the same host.
  */
-export function approvalUrl(
-  authorizeCode: string,
-  env: NodeJS.ProcessEnv = process.env,
-): string {
+export function approvalUrl(authorizeCode: string, env: NodeJS.ProcessEnv = process.env): string {
   const url = new URL('/device', env.OXY_AUTH_URL || DEFAULT_AUTH_ORIGIN);
   url.searchParams.set(CODE_PARAM, authorizeCode);
   return url.href;

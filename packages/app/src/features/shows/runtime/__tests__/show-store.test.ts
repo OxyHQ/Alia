@@ -169,12 +169,10 @@ describe('starting an episode', () => {
       },
     });
 
-    await useShowStore
-      .getState()
-      .createEpisode('series-abc', {
-        title: 'The Reckoning',
-        topic: 'hablemos de la fotosíntesis',
-      });
+    await useShowStore.getState().createEpisode('series-abc', {
+      title: 'The Reckoning',
+      topic: 'hablemos de la fotosíntesis',
+    });
 
     // No `notes: undefined` key either — the API distinguishes an absent field
     // from a present empty one.
@@ -210,7 +208,9 @@ describe('starting an episode', () => {
      */
     const [first] = useShowStore.getState().episodesBySeries['series-abc'] ?? [];
     expect(first?.title).toBeNull();
-    expect(first === undefined ? '' : episodeDisplayTitle(first, translator('en'))).toBe('Episode 3');
+    expect(first === undefined ? '' : episodeDisplayTitle(first, translator('en'))).toBe(
+      'Episode 3',
+    );
   });
 
   it('reports a refusal rather than pretending it started', async () => {

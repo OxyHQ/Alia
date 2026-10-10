@@ -1,17 +1,11 @@
-import type {
-  AgentOxyApps,
-  OxyAppLevel,
-} from '@/features/agents/runtime/use-agent-oxy-apps';
+import type { AgentOxyApps, OxyAppLevel } from '@/features/agents/runtime/use-agent-oxy-apps';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import {
   SegmentedControl,
   SegmentedControlItem,
   SegmentedControlItemText,
 } from '@oxy.so/bloom/segmented-control';
-import {
-  SettingsListGroup,
-  SettingsListItem,
-} from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 
 const LEVEL_LABELS: Record<OxyAppLevel, string> = {
   none: 'agents.oxyApps.none',

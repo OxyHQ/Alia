@@ -77,7 +77,7 @@ async function getHealthSnapshot() {
     redis: redisStatus,
     kaana,
     memory: {
-      rss: Math.round(mem.rss / 1024 / 1024),       // MB
+      rss: Math.round(mem.rss / 1024 / 1024), // MB
       heapUsed: Math.round(mem.heapUsed / 1024 / 1024), // MB
       heapTotal: Math.round(mem.heapTotal / 1024 / 1024), // MB
     },
@@ -90,7 +90,7 @@ async function getHealthSnapshot() {
 // Full health check with details
 router.get('/', async (_req, res) => {
   try {
-    const snapshot = await getHealthSnapshot() as { status: string };
+    const snapshot = (await getHealthSnapshot()) as { status: string };
     const statusCode = snapshot.status === 'healthy' ? 200 : 503;
     res.status(statusCode).json(snapshot);
   } catch (error: unknown) {

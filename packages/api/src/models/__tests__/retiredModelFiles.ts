@@ -95,16 +95,56 @@ export interface RetiredModelFile {
  * files. Two conserved totals over two different populations.
  */
 export const RETIRED_MODEL_FILES: readonly RetiredModelFile[] = [
-  { model: 'Plan', file: 'src/internal/providers/models/plan.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
-  { model: 'Feature', file: 'src/internal/providers/models/feature.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
-  { model: 'PlanFeature', file: 'src/internal/providers/models/plan-feature.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
-  { model: 'CreditPackage', file: 'src/internal/providers/models/credit-package.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
-  { model: 'VoiceCallUsage', file: 'src/models/voice-call-usage.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
-  { model: 'Subscription', file: 'src/models/subscription.ts', retiredBy: 'S3 — subscriptions, transactions and credits move to Postgres' },
-  { model: 'Transaction', file: 'src/models/transaction.ts', retiredBy: 'S3 — subscriptions, transactions and credits move to Postgres' },
-  { model: 'UserCredits', file: 'src/models/user-credits.ts', retiredBy: 'S3 — subscriptions, transactions and credits move to Postgres' },
-  { model: 'DeveloperApp', file: 'src/models/developer-app.ts', retiredBy: 'S3 — the developer platform moves to Postgres' },
-  { model: 'DeveloperApiKey', file: 'src/models/developer-api-key.ts', retiredBy: 'S3 — the developer platform moves to Postgres' },
+  {
+    model: 'Plan',
+    file: 'src/internal/providers/models/plan.ts',
+    retiredBy: 'S3 — the pricing catalogue moves to Postgres',
+  },
+  {
+    model: 'Feature',
+    file: 'src/internal/providers/models/feature.ts',
+    retiredBy: 'S3 — the pricing catalogue moves to Postgres',
+  },
+  {
+    model: 'PlanFeature',
+    file: 'src/internal/providers/models/plan-feature.ts',
+    retiredBy: 'S3 — the pricing catalogue moves to Postgres',
+  },
+  {
+    model: 'CreditPackage',
+    file: 'src/internal/providers/models/credit-package.ts',
+    retiredBy: 'S3 — the pricing catalogue moves to Postgres',
+  },
+  {
+    model: 'VoiceCallUsage',
+    file: 'src/models/voice-call-usage.ts',
+    retiredBy: 'S3 — the pricing catalogue moves to Postgres',
+  },
+  {
+    model: 'Subscription',
+    file: 'src/models/subscription.ts',
+    retiredBy: 'S3 — subscriptions, transactions and credits move to Postgres',
+  },
+  {
+    model: 'Transaction',
+    file: 'src/models/transaction.ts',
+    retiredBy: 'S3 — subscriptions, transactions and credits move to Postgres',
+  },
+  {
+    model: 'UserCredits',
+    file: 'src/models/user-credits.ts',
+    retiredBy: 'S3 — subscriptions, transactions and credits move to Postgres',
+  },
+  {
+    model: 'DeveloperApp',
+    file: 'src/models/developer-app.ts',
+    retiredBy: 'S3 — the developer platform moves to Postgres',
+  },
+  {
+    model: 'DeveloperApiKey',
+    file: 'src/models/developer-api-key.ts',
+    retiredBy: 'S3 — the developer platform moves to Postgres',
+  },
   { model: 'Trigger', file: 'src/models/trigger.ts', retiredBy: 'S8 automation — triggers' },
   {
     model: 'TriggerExecution',
@@ -138,13 +178,21 @@ export const RETIRED_MODEL_FILES: readonly RetiredModelFile[] = [
     retiredBy: 'S8 context graph — retrieval_strategies',
   },
   { model: 'Integration', file: 'src/models/integration.ts', retiredBy: 'S4 integrations' },
-  { model: 'ConnectedAccount', file: 'src/models/connected-account.ts', retiredBy: 'S4 integrations' },
+  {
+    model: 'ConnectedAccount',
+    file: 'src/models/connected-account.ts',
+    retiredBy: 'S4 integrations',
+  },
   { model: 'McpServer', file: 'src/models/mcp-server.ts', retiredBy: 'S4 integrations' },
   { model: 'McpOAuthState', file: 'src/models/mcp-oauth-state.ts', retiredBy: 'S4 integrations' },
   { model: 'Bot', file: 'src/models/bot.ts', retiredBy: 'S4 integrations' },
   { model: 'BotUser', file: 'src/models/bot-user.ts', retiredBy: 'S4 integrations' },
   { model: 'OxyService', file: 'src/models/oxy-service.ts', retiredBy: 'S4 integrations' },
-  { model: 'OxyServiceEventLog', file: 'src/models/oxy-service-event-log.ts', retiredBy: 'S4 integrations' },
+  {
+    model: 'OxyServiceEventLog',
+    file: 'src/models/oxy-service-event-log.ts',
+    retiredBy: 'S4 integrations',
+  },
   {
     model: 'Organization',
     file: 'src/models/organization.ts',
@@ -186,7 +234,11 @@ export const RETIRED_MODEL_FILES: readonly RetiredModelFile[] = [
     file: 'src/models/rollback-record.ts',
     retiredBy: 'S9 containers/skills — rollback_records',
   },
-  { model: 'Conversation', file: 'src/models/conversation.ts', retiredBy: 'S9 chat — conversations' },
+  {
+    model: 'Conversation',
+    file: 'src/models/conversation.ts',
+    retiredBy: 'S9 chat — conversations',
+  },
   { model: 'Message', file: 'src/models/message.ts', retiredBy: 'S9 chat — messages' },
   {
     model: 'Agent',

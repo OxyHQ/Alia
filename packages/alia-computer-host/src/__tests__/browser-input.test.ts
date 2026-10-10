@@ -6,7 +6,13 @@ import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { captureDownload, MAX_DOWNLOAD_BYTES, safeFileName, sniffType, type DownloadSource } from '../browser/downloads.js';
+import {
+  captureDownload,
+  MAX_DOWNLOAD_BYTES,
+  safeFileName,
+  sniffType,
+  type DownloadSource,
+} from '../browser/downloads.js';
 import { ALLOWED_KEYS, browserInputSchema, describeInput } from '../browser/input.js';
 
 describe('browser input', () => {
@@ -76,7 +82,9 @@ describe('downloads', () => {
 
   it('recognises documents and images by their bytes', () => {
     expect(sniffType(Buffer.from('%PDF-1.7\n'))).toBe('application/pdf');
-    expect(sniffType(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]))).toBe('image/png');
+    expect(sniffType(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]))).toBe(
+      'image/png',
+    );
     expect(sniffType(Buffer.from([0xff, 0xd8, 0xff, 0xe0]))).toBe('image/jpeg');
     expect(sniffType(Buffer.from('PK\u0003\u0004rest', 'latin1'))).toBe('application/zip');
     expect(sniffType(Buffer.from('name,amount\nana,3\n'))).toBe('text/plain');
@@ -100,13 +108,19 @@ describe('downloads', () => {
   it('captures a PDF', async () => {
     const { value, calls } = source('invoice.pdf', [Buffer.from('%PDF-1.4 body')]);
     const result = await captureDownload({ source: value, directory, limitReached: false });
-    expect(result).toMatchObject({ ok: true, download: { name: 'invoice.pdf', mimeType: 'application/pdf', size: 13 } });
+    expect(result).toMatchObject({
+      ok: true,
+      download: { name: 'invoice.pdf', mimeType: 'application/pdf', size: 13 },
+    });
     expect(calls.delete).toBe(1);
   });
 
   it('cancels and discards a download past the cap', async () => {
     const big = Buffer.alloc(1024 * 1024, 0x41);
-    const chunks = Array.from({ length: Math.ceil(MAX_DOWNLOAD_BYTES / big.length) + 1 }, () => big);
+    const chunks = Array.from(
+      { length: Math.ceil(MAX_DOWNLOAD_BYTES / big.length) + 1 },
+      () => big,
+    );
     const { value, calls } = source('huge.txt', chunks);
     const result = await captureDownload({ source: value, directory, limitReached: false });
     expect(result).toMatchObject({ ok: false, failure: { reason: 'too_large' } });
@@ -116,13 +130,17 @@ describe('downloads', () => {
 
   it('discards an unsupported type and refuses past the per-actor limit', async () => {
     const elf = source('tool', [Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0, 0])]);
-    expect(await captureDownload({ source: elf.value, directory, limitReached: false })).toMatchObject({
+    expect(
+      await captureDownload({ source: elf.value, directory, limitReached: false }),
+    ).toMatchObject({
       ok: false,
       failure: { reason: 'unsupported_type' },
     });
     expect(readdirSync(directory)).toEqual([]);
     const late = source('one-too-many.pdf', [Buffer.from('%PDF-')]);
-    expect(await captureDownload({ source: late.value, directory, limitReached: true })).toMatchObject({
+    expect(
+      await captureDownload({ source: late.value, directory, limitReached: true }),
+    ).toMatchObject({
       ok: false,
       failure: { reason: 'limit' },
     });

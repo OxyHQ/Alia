@@ -26,9 +26,7 @@ import {
  */
 vi.mock('../models/catalogue.js', () => ({
   findCatalogueModel: async (id: string) =>
-    id === 'acme/priced'
-      ? { id, pricing: { inputPerMTok: '1', outputPerMTok: '3' } }
-      : null,
+    id === 'acme/priced' ? { id, pricing: { inputPerMTok: '1', outputPerMTok: '3' } } : null,
 }));
 
 /**
@@ -268,7 +266,11 @@ describe('finalizeCredits', () => {
 
   it('settles a priced model at its real cost, and an unpriced one at the base rate', async () => {
     const reservation = (userId: string): CreditReservation => ({
-      userId, creditsReserved: 5, initialFreeCredits: 40, initialPaidCredits: 60, grantKind: 'free_allowance',
+      userId,
+      creditsReserved: 5,
+      initialFreeCredits: 40,
+      initialPaidCredits: 60,
+      grantKind: 'free_allowance',
     });
 
     // 1,000,000 input × $1/M + 1,000,000 output × $3/M = $4 = 4000 credits.
@@ -415,7 +417,13 @@ describe('safeRefund', () => {
   it('refunds a real reservation', async () => {
     const id = await account('cm-saferefund', 10, 10);
     await safeRefund(
-      { userId: id, creditsReserved: 5, initialFreeCredits: 10, initialPaidCredits: 10, grantKind: 'free_allowance' },
+      {
+        userId: id,
+        creditsReserved: 5,
+        initialFreeCredits: 10,
+        initialPaidCredits: 10,
+        grantKind: 'free_allowance',
+      },
       'test reason',
     );
     expect(await balanceOf(id)).toEqual({ free: 15, paid: 10 });

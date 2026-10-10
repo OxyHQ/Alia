@@ -103,10 +103,12 @@ check('the documented table falling behind fails', {
 
 check('a hand-edited hash that no longer matches the values fails', {
   root: tree('hash-drift', {
-    [CONFIG]: [[
-      'a7c1c787c24159ce70e1664ce60749c6a9d3b06a23ff461559b5c97ca2104547',
-      '0000000000000000000000000000000000000000000000000000000000000000',
-    ]],
+    [CONFIG]: [
+      [
+        'a7c1c787c24159ce70e1664ce60749c6a9d3b06a23ff461559b5c97ca2104547',
+        '0000000000000000000000000000000000000000000000000000000000000000',
+      ],
+    ],
   }),
   status: 1,
   contains: ['nativeProductAgents.test.ts'],
@@ -162,4 +164,6 @@ if (failures > 0) {
   process.exit(1);
 }
 
-console.log('\ncheck-native-product-agent-manifest can still fail: every case behaved as demanded.');
+console.log(
+  '\ncheck-native-product-agent-manifest can still fail: every case behaved as demanded.',
+);

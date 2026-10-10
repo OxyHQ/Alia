@@ -28,7 +28,10 @@ const aiSuggestionSchema = z.object({
   description: z.string().optional().default(''),
   type: z.enum(['welcome', 'autocomplete']).catch('autocomplete'),
   category: z.string().optional().default('general'),
-  language: z.string().regex(/^[a-z]{2}-[A-Z]{2}$/).optional(),
+  language: z
+    .string()
+    .regex(/^[a-z]{2}-[A-Z]{2}$/)
+    .optional(),
   triggerWords: z.array(z.string()).optional().default([]),
   tags: z.array(z.string()).optional().default([]),
   occupations: z.array(z.string()).optional().default([]),
@@ -149,12 +152,15 @@ function cacheSet(key: string, data: any, ttl: number): void {
 }
 
 // Periodic cleanup every 2 min
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of cache) {
-    if (entry.expiresAt < now) cache.delete(key);
-  }
-}, 2 * 60 * 1000).unref?.();
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [key, entry] of cache) {
+      if (entry.expiresAt < now) cache.delete(key);
+    }
+  },
+  2 * 60 * 1000,
+).unref?.();
 
 /**
  * POST /suggestions/list
@@ -213,16 +219,17 @@ router.post('/welcome', optionalAuth, async (req: Request, res: Response) => {
           const userOccupation = memory.context.occupation || '';
 
           // Score by relevance to user profile
-          pool = pool.map(s => {
-            let score = (s.priority || 0) + Math.random() * 3;
-            for (const interest of userInterests) {
-              if (s.tags?.includes(interest) || s.interests?.includes(interest)) score += 5;
-            }
-            if (userOccupation && s.occupations?.includes(userOccupation)) score += 3;
-            return { ...s, _score: score };
-          })
-          .sort((a: any, b: any) => b._score - a._score)
-          .map(({ _score, ...rest }: any) => rest);
+          pool = pool
+            .map((s) => {
+              let score = (s.priority || 0) + Math.random() * 3;
+              for (const interest of userInterests) {
+                if (s.tags?.includes(interest) || s.interests?.includes(interest)) score += 5;
+              }
+              if (userOccupation && s.occupations?.includes(userOccupation)) score += 3;
+              return { ...s, _score: score };
+            })
+            .sort((a: any, b: any) => b._score - a._score)
+            .map(({ _score, ...rest }: any) => rest);
         }
       } catch {
         // Personalization is best-effort
@@ -279,7 +286,11 @@ router.post('/create', authenticateToken, async (req: Request, res: Response) =>
     }
 
     // Generate suggestionId
-    const suggestionId = `user-${title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 40)}-${Date.now().toString(36).slice(-4)}`;
+    const suggestionId = `user-${title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .slice(0, 40)}-${Date.now().toString(36).slice(-4)}`;
 
     const suggestion = await createSuggestion(getDb(), {
       suggestionId,
@@ -345,7 +356,9 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
       occupation ? `job:${occupation}` : '',
       location ? `loc:${location}` : '',
       `tone:${tone}`,
-    ].filter(Boolean).join(' | ');
+    ]
+      .filter(Boolean)
+      .join(' | ');
 
     const prompt = suggestionPrompt({ count, profileParts, language, types });
 
@@ -408,20 +421,20 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
 
     const parsed = aiSuggestionListSchema.safeParse(answer);
     if (!parsed.success) {
-        /**
-         * The thrown value is deliberately NOT logged.
-         *
-         * Both things it could be carry the model's whole answer — a Zod error
-         * quotes what it was given, and the SDK's own parse failure keeps the
-         * text on the error object — and pino's error serializer copies an
-         * error's own properties into the line. That is the leak #182 removed
-         * from this exact call site, and it would come back under a key this
-         * package's content census does not read.
-         *
-         * `responseChars` is what identified the fault instead: a complete
-         * answer for eight suggestions is around 3,400 characters, so a shorter
-         * one that will not parse is an answer that was cut off.
-         */
+      /**
+       * The thrown value is deliberately NOT logged.
+       *
+       * Both things it could be carry the model's whole answer — a Zod error
+       * quotes what it was given, and the SDK's own parse failure keeps the
+       * text on the error object — and pino's error serializer copies an
+       * error's own properties into the line. That is the leak #182 removed
+       * from this exact call site, and it would come back under a key this
+       * package's content census does not read.
+       *
+       * `responseChars` is what identified the fault instead: a complete
+       * answer for eight suggestions is around 3,400 characters, so a shorter
+       * one that will not parse is an answer that was cut off.
+       */
       log.general.error(
         { responseChars: kaanaText.length },
         'Failed to parse AI-generated suggestions',
@@ -574,13 +587,7 @@ router.post('/search', optionalAuth, async (req: Request, res: Response) => {
     const globalCacheKey = `search:${trimmed}:${language}`;
     let globalResults = cacheGet(globalCacheKey) as SuggestionSearchHit[] | null;
     if (!globalResults) {
-      globalResults = await searchSuggestions(
-        getDb(),
-        trimmed,
-        'global',
-        undefined,
-        limitNum * 2,
-      );
+      globalResults = await searchSuggestions(getDb(), trimmed, 'global', undefined, limitNum * 2);
       cacheSet(globalCacheKey, globalResults, SEARCH_CACHE_TTL);
     }
 

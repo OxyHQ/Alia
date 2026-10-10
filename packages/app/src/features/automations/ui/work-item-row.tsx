@@ -6,13 +6,7 @@ import { useAgentActivity } from '@/features/chat/runtime/use-agent-activity';
 import type { TaskSession } from '@/features/automations/runtime/use-tasks';
 
 /** Wrapper that subscribes to real-time activity for a single active task */
-function ActiveTaskCard({
-  task,
-  onPress,
-}: {
-  task: TaskSession;
-  onPress: () => void;
-}) {
+function ActiveTaskCard({ task, onPress }: { task: TaskSession; onPress: () => void }) {
   const activity = useAgentActivity(
     task.status === 'running' ? task._id : null,
     task.agentId?._id ?? null,

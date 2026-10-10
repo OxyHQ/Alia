@@ -101,7 +101,9 @@ describe('the serving chokepoint refuses it, not just the validator', () => {
    */
   it('rejects a reserved identifier before it can resolve to anything', async () => {
     await expect(resolveModel('alia/atlas')).rejects.toBeInstanceOf(ReservedNamespaceError);
-    await expect(resolveModel('alia/atlas@2026-08-01')).rejects.toBeInstanceOf(ReservedNamespaceError);
+    await expect(resolveModel('alia/atlas@2026-08-01')).rejects.toBeInstanceOf(
+      ReservedNamespaceError,
+    );
   });
 
   it('resolves a catalogue model to itself as the Oxy target', async () => {

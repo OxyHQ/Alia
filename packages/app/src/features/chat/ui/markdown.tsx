@@ -16,14 +16,7 @@ import { Text } from '@oxy.so/bloom/typography';
 import * as WebBrowser from 'expo-web-browser';
 import { useMemo } from 'react';
 import { Platform, Pressable, View } from 'react-native';
-import {
-  Banner,
-  CompactList,
-  Comparison,
-  Credibility,
-  RichImage,
-  Timeline,
-} from './rich-blocks';
+import { Banner, CompactList, Comparison, Credibility, RichImage, Timeline } from './rich-blocks';
 /**
  * The body face for `AliaMarkdown`, which cannot inherit one on native.
  *
@@ -46,23 +39,46 @@ export const MARKDOWN_BODY_FONT =
 
 // Cheap pre-check: plain markdown (the overwhelmingly common case) skips the
 // six per-pattern regex scans below with a single pass.
-const SPECIAL_BLOCK_HINT_RE = /\[(?:ALIA_)?(?:COMPACTLIST|BANNER|COMPARISON|TIMELINE|IMAGE|CREDIBILITY)/;
+const SPECIAL_BLOCK_HINT_RE =
+  /\[(?:ALIA_)?(?:COMPACTLIST|BANNER|COMPARISON|TIMELINE|IMAGE|CREDIBILITY)/;
 
 // Parse special blocks from content
-function parseSpecialBlocks(content: string): Array<{ type: 'text' | 'block'; content: string; blockType?: string; data?: any }> {
+function parseSpecialBlocks(
+  content: string,
+): Array<{ type: 'text' | 'block'; content: string; blockType?: string; data?: any }> {
   if (!SPECIAL_BLOCK_HINT_RE.test(content)) {
     return [{ type: 'text', content }];
   }
 
-  const blocks: Array<{ type: 'text' | 'block'; content: string; blockType?: string; data?: any }> = [];
+  const blocks: Array<{ type: 'text' | 'block'; content: string; blockType?: string; data?: any }> =
+    [];
 
   const patterns = [
-    { name: 'COMPACTLIST', regex: /\[(?:ALIA_)?COMPACTLIST title="([^"]+)"\]([\s\S]*?)\[\/(?:ALIA_)?COMPACTLIST\]/g },
-    { name: 'BANNER', regex: /\[(?:ALIA_)?BANNER type="([^"]+)" title="([^"]+)"\]([\s\S]*?)\[\/(?:ALIA_)?BANNER\]/g },
-    { name: 'COMPARISON', regex: /\[(?:ALIA_)?COMPARISON title="([^"]+)"\]([\s\S]*?)\[\/(?:ALIA_)?COMPARISON\]/g },
-    { name: 'TIMELINE', regex: /\[(?:ALIA_)?TIMELINE title="([^"]+)"\]([\s\S]*?)\[\/(?:ALIA_)?TIMELINE\]/g },
-    { name: 'IMAGE', regex: /\[(?:ALIA_)?IMAGE url="([^"]+)"(?:\s+title="([^"]*)")?\s*(?:caption="([^"]*)")?\s*\/\]/g },
-    { name: 'CREDIBILITY', regex: /\[(?:ALIA_)?CREDIBILITY level="(\d+)" source="([^"]+)"\s*\/\]/g },
+    {
+      name: 'COMPACTLIST',
+      regex: /\[(?:ALIA_)?COMPACTLIST title="([^"]+)"\]([\s\S]*?)\[\/(?:ALIA_)?COMPACTLIST\]/g,
+    },
+    {
+      name: 'BANNER',
+      regex: /\[(?:ALIA_)?BANNER type="([^"]+)" title="([^"]+)"\]([\s\S]*?)\[\/(?:ALIA_)?BANNER\]/g,
+    },
+    {
+      name: 'COMPARISON',
+      regex: /\[(?:ALIA_)?COMPARISON title="([^"]+)"\]([\s\S]*?)\[\/(?:ALIA_)?COMPARISON\]/g,
+    },
+    {
+      name: 'TIMELINE',
+      regex: /\[(?:ALIA_)?TIMELINE title="([^"]+)"\]([\s\S]*?)\[\/(?:ALIA_)?TIMELINE\]/g,
+    },
+    {
+      name: 'IMAGE',
+      regex:
+        /\[(?:ALIA_)?IMAGE url="([^"]+)"(?:\s+title="([^"]*)")?\s*(?:caption="([^"]*)")?\s*\/\]/g,
+    },
+    {
+      name: 'CREDIBILITY',
+      regex: /\[(?:ALIA_)?CREDIBILITY level="(\d+)" source="([^"]+)"\s*\/\]/g,
+    },
   ];
 
   let lastIndex = 0;
@@ -250,7 +266,7 @@ function ReferenceList({
   const { t } = useTranslation();
   return (
     <View className="mt-3 gap-1 border-t border-border pt-3" accessibilityRole="list">
-      <Text className="text-xs font-medium text-muted-foreground">{t("thought.references")}</Text>
+      <Text className="text-xs font-medium text-muted-foreground">{t('thought.references')}</Text>
       {entries.map((entry) => {
         const press = () => {
           if (onCitationPress) onCitationPress(entry);
@@ -261,26 +277,36 @@ function ReferenceList({
         // navigation, and the default is then prevented.
         const webAnchor =
           Platform.OS === 'web'
-            ? ({ href: entry.url, hrefAttrs: { target: '_blank', rel: 'noopener noreferrer' } } as object)
+            ? ({
+                href: entry.url,
+                hrefAttrs: { target: '_blank', rel: 'noopener noreferrer' },
+              } as object)
             : {};
         const onPress =
           Platform.OS === 'web'
             ? onCitationPress
-              ? (e: { preventDefault?: () => void }) => { e.preventDefault?.(); press(); }
+              ? (e: { preventDefault?: () => void }) => {
+                  e.preventDefault?.();
+                  press();
+                }
               : undefined
             : press;
         return (
           <Pressable
             key={entry.id}
             accessibilityRole="link"
-            accessibilityLabel={t("thought.sourceLabel", { n: entry.id, title: entry.title })}
+            accessibilityLabel={t('thought.sourceLabel', { n: entry.id, title: entry.title })}
             className="flex-row items-start gap-2 rounded-md py-0.5 active:opacity-70"
             onPress={onPress}
             {...webAnchor}
           >
             <Text className="text-sm text-muted-foreground">[{entry.id}]</Text>
-            <Text className="flex-1 text-sm text-primary underline" numberOfLines={2}>{entry.title}</Text>
-            <Text className="text-xs text-muted-foreground" numberOfLines={1}>{entry.domain}</Text>
+            <Text className="flex-1 text-sm text-primary underline" numberOfLines={2}>
+              {entry.title}
+            </Text>
+            <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+              {entry.domain}
+            </Text>
           </Pressable>
         );
       })}
@@ -337,19 +363,30 @@ export function CustomMarkdown({
   const linked = useMemo(() => linkifyCitations(body, sources), [body, sources]);
   const blocks = useMemo(() => parseSpecialBlocks(linked), [linked]);
 
-  const aliaColors = useMemo(() => ({
-    text: colors.foreground,
-    border: colors.border,
-    muted: colors.muted,
-    mutedForeground: colors.mutedForeground,
-    primary: colors.primary,
-  }), [colors.foreground, colors.border, colors.muted, colors.mutedForeground, colors.primary]);
+  const aliaColors = useMemo(
+    () => ({
+      text: colors.foreground,
+      border: colors.border,
+      muted: colors.muted,
+      mutedForeground: colors.mutedForeground,
+      primary: colors.primary,
+    }),
+    [colors.foreground, colors.border, colors.muted, colors.mutedForeground, colors.primary],
+  );
 
   return (
     <View>
       {blocks.map((block, idx) => {
         if (block.type === 'text') {
-          return <AliaMarkdown key={idx} content={block.content} colors={aliaColors} fontFamily={MARKDOWN_BODY_FONT} renderCodeBlock={renderCodeBlock} />;
+          return (
+            <AliaMarkdown
+              key={idx}
+              content={block.content}
+              colors={aliaColors}
+              fontFamily={MARKDOWN_BODY_FONT}
+              renderCodeBlock={renderCodeBlock}
+            />
+          );
         } else if (block.type === 'block' && block.blockType) {
           return renderBlock(block.blockType, block.data, idx);
         }

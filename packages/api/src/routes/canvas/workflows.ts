@@ -25,14 +25,14 @@ router.get('/', async (req: Request, res: Response) => {
     if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
     const workflows = await listWorkflows(getDb(), req.userId);
 
-    const formattedWorkflows = workflows.map(w => ({
+    const formattedWorkflows = workflows.map((w) => ({
       id: w.workflowId,
       name: w.name,
       description: w.description,
       nodes: w.nodes,
       edges: w.edges,
       createdAt: w.createdAt,
-      updatedAt: w.updatedAt
+      updatedAt: w.updatedAt,
     }));
 
     res.json({ workflows: formattedWorkflows });
@@ -60,8 +60,8 @@ router.get('/:id', async (req: Request, res: Response) => {
         nodes: workflow.nodes,
         edges: workflow.edges,
         createdAt: workflow.createdAt,
-        updatedAt: workflow.updatedAt
-      }
+        updatedAt: workflow.updatedAt,
+      },
     });
   } catch (error) {
     log.canvas.error({ err: error }, 'Error fetching workflow');
@@ -98,8 +98,8 @@ router.post('/', async (req: Request, res: Response) => {
         nodes: workflow.nodes,
         edges: workflow.edges,
         createdAt: workflow.createdAt,
-        updatedAt: workflow.updatedAt
-      }
+        updatedAt: workflow.updatedAt,
+      },
     });
   } catch (error) {
     log.canvas.error({ err: error }, 'Error creating workflow');
@@ -135,8 +135,8 @@ router.put('/:id', async (req: Request, res: Response) => {
         nodes: workflow.nodes,
         edges: workflow.edges,
         createdAt: workflow.createdAt,
-        updatedAt: workflow.updatedAt
-      }
+        updatedAt: workflow.updatedAt,
+      },
     });
   } catch (error) {
     log.canvas.error({ err: error }, 'Error updating workflow');
@@ -170,14 +170,14 @@ router.get('/:id/executions', async (req: Request, res: Response) => {
     if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
     const executions = await listExecutions(getDb(), req.userId, String(req.params.id));
 
-    const formattedExecutions = executions.map(e => ({
+    const formattedExecutions = executions.map((e) => ({
       id: e.executionId,
       workflowId: e.workflowId,
       status: e.status,
       results: e.results,
       finalOutput: e.finalOutput,
       startedAt: e.startedAt,
-      completedAt: e.completedAt
+      completedAt: e.completedAt,
     }));
 
     res.json({ executions: formattedExecutions });

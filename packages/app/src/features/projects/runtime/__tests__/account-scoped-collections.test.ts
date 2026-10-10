@@ -131,10 +131,19 @@ describe('folders across switched accounts', () => {
 
   it('discards a slow load for A that resolves after switching to B', async () => {
     const { folders } = await freshStores();
-    storage.map.set('alia-folders:user-a', JSON.stringify([{
-      id: 'folder-1', name: 'Work', conversationIds: ['conv-1'], isExpanded: true,
-      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
-    }]));
+    storage.map.set(
+      'alia-folders:user-a',
+      JSON.stringify([
+        {
+          id: 'folder-1',
+          name: 'Work',
+          conversationIds: ['conv-1'],
+          isExpanded: true,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ]),
+    );
 
     storage.hold('alia-folders:user-a');
     const slowLoadForA = folders.getState().loadFolders('user-a');
@@ -163,10 +172,16 @@ describe('folders across switched accounts', () => {
 });
 
 describe('the legacy device-global key', () => {
-  const LEGACY = [{
-    id: 'folder-legacy', name: 'Before the upgrade', conversationIds: ['conv-old'], isExpanded: true,
-    createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
-  }];
+  const LEGACY = [
+    {
+      id: 'folder-legacy',
+      name: 'Before the upgrade',
+      conversationIds: ['conv-old'],
+      isExpanded: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
+  ];
 
   it('moves once to the first account that loads, and is deleted', async () => {
     const { folders } = await freshStores();
@@ -241,10 +256,19 @@ describe('projects, favourites and pins', () => {
 
   it('migrate their legacy keys to the first account too', async () => {
     const { projects, favorites, pinned } = await freshStores();
-    storage.map.set('alia-projects', JSON.stringify([{
-      id: 'project-1', name: 'Old', conversationIds: [], isExpanded: true,
-      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
-    }]));
+    storage.map.set(
+      'alia-projects',
+      JSON.stringify([
+        {
+          id: 'project-1',
+          name: 'Old',
+          conversationIds: [],
+          isExpanded: true,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ]),
+    );
     storage.map.set('alia-current-project', 'project-1');
     storage.map.set('alia-favorite-conversations', JSON.stringify(['conv-1']));
     storage.map.set('alia-pinned-conversations', JSON.stringify(['conv-2']));

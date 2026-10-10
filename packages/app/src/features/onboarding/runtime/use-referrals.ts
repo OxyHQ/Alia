@@ -27,7 +27,12 @@ export function useReferralInfo() {
 }
 
 export function useReferralHistory() {
-  return useAuthQuery<ReferralHistory>(queryKeys.referrals.history, '/referrals/history', undefined, { staleTime: 60_000 });
+  return useAuthQuery<ReferralHistory>(
+    queryKeys.referrals.history,
+    '/referrals/history',
+    undefined,
+    { staleTime: 60_000 },
+  );
 }
 
 export function useRedeemInviteCode() {

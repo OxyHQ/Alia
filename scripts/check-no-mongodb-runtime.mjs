@@ -14,9 +14,10 @@ import { fileURLToPath } from 'node:url';
  * the same observation. Same handle, same reason, as `check-static-assets.mjs`.
  */
 const rootFlag = process.argv.indexOf('--root');
-const root = rootFlag === -1
-  ? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-  : path.resolve(process.argv[rootFlag + 1] ?? '.');
+const root =
+  rootFlag === -1
+    ? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+    : path.resolve(process.argv[rootFlag + 1] ?? '.');
 const lockfile = path.join(root, 'bun.lock');
 const failures = [];
 
@@ -76,19 +77,25 @@ for (const relative of manifests) {
   const manifest = JSON.parse(readFileSync(path.join(root, relative), 'utf8'));
   for (const section of ['dependencies', 'optionalDependencies', 'peerDependencies']) {
     for (const dependency of Object.keys(manifest[section] ?? {})) {
-      if (dependency === 'mongodb' || dependency === 'mongoose' || dependency.startsWith('@mongodb-js/')) {
+      if (
+        dependency === 'mongodb' ||
+        dependency === 'mongoose' ||
+        dependency.startsWith('@mongodb-js/')
+      ) {
         failures.push(`${relative}: direct ${section}.${dependency}`);
       }
     }
   }
 }
 
-const runtimeImport = /(?:from\s*|import\s*\(|require\s*\()\s*['"](?:mongodb|mongoose|@mongodb-js\/)/;
-const sources = tracked.filter((file) =>
-  SOURCE.test(file)
-  && !NOT_SOURCE.test(file)
-  && !file.includes('/__tests__/')
-  && !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file),
+const runtimeImport =
+  /(?:from\s*|import\s*\(|require\s*\()\s*['"](?:mongodb|mongoose|@mongodb-js\/)/;
+const sources = tracked.filter(
+  (file) =>
+    SOURCE.test(file) &&
+    !NOT_SOURCE.test(file) &&
+    !file.includes('/__tests__/') &&
+    !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file),
 );
 // The other vacuity floor, additive for the same reason.
 if (sources.length === 0) {
@@ -114,19 +121,22 @@ for (const relative of sources) {
 if (!existsSync(lockfile)) {
   failures.push('bun.lock is absent; the gate cannot see what the install resolves');
 } else {
-  const resolved = readFileSync(lockfile, 'utf8').match(/"(?:mongodb|mongoose|@mongodb-js\/[^"]+)"\s*:/g) ?? [];
+  const resolved =
+    readFileSync(lockfile, 'utf8').match(/"(?:mongodb|mongoose|@mongodb-js\/[^"]+)"\s*:/g) ?? [];
   for (const entry of new Set(resolved)) {
     failures.push(`bun.lock resolves ${entry.replace(/\s*:$/, '')}`);
   }
 }
 
 if (failures.length > 0) {
-  console.error(`Mongo runtime boundary failed:\n${failures.map((failure) => `- ${failure}`).join('\n')}`);
+  console.error(
+    `Mongo runtime boundary failed:\n${failures.map((failure) => `- ${failure}`).join('\n')}`,
+  );
   process.exit(1);
 }
 
 console.log(
-  'Mongo runtime boundary passed: '
-    + `${String(manifests.length)} workspace manifests and ${String(sources.length)} source files `
-    + 'carry no direct dependency or import, and bun.lock resolves no Mongo package.',
+  'Mongo runtime boundary passed: ' +
+    `${String(manifests.length)} workspace manifests and ${String(sources.length)} source files ` +
+    'carry no direct dependency or import, and bun.lock resolves no Mongo package.',
 );

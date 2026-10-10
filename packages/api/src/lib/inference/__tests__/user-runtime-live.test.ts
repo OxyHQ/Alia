@@ -27,11 +27,17 @@ vi.mock('../../../socket.js', () => ({
   getIO: () => ({
     in: () => ({
       fetchSockets: async () => [
-        { id: 'live-socket', data: { localRuntime: { id: RUNTIME_ID, label: 'This machine', models: [MODEL] } } },
+        {
+          id: 'live-socket',
+          data: { localRuntime: { id: RUNTIME_ID, label: 'This machine', models: [MODEL] } },
+        },
       ],
     }),
     to: () => ({
-      emit: (event: string, payload: { runId: string; path: string; method: string; body: string | null }) => {
+      emit: (
+        event: string,
+        payload: { runId: string; path: string; method: string; body: string | null },
+      ) => {
         if (event !== 'user-runtime:request') return;
         void (async () => {
           const { deliverUserRuntimeMessage } = await import('../user-runtime-bridge.js');
@@ -41,13 +47,22 @@ vi.mock('../../../socket.js', () => ({
               headers: { 'Content-Type': 'application/json' },
               body: payload.body ?? undefined,
             });
-            deliverUserRuntimeMessage(OWNER, { runId: payload.runId, kind: 'head', status: response.status });
+            deliverUserRuntimeMessage(OWNER, {
+              runId: payload.runId,
+              kind: 'head',
+              status: response.status,
+            });
             const reader = response.body?.getReader();
             if (reader) {
               for (;;) {
                 const { done, value } = await reader.read();
                 if (done) break;
-                if (value) deliverUserRuntimeMessage(OWNER, { runId: payload.runId, kind: 'chunk', data: value });
+                if (value)
+                  deliverUserRuntimeMessage(OWNER, {
+                    runId: payload.runId,
+                    kind: 'chunk',
+                    data: value,
+                  });
               }
             }
             deliverUserRuntimeMessage(OWNER, { runId: payload.runId, kind: 'end' });

@@ -26,7 +26,10 @@ import { runTextToolFallback } from '../text-tool-fallback.js';
 function createMockRes() {
   const written: string[] = [];
   return {
-    write: vi.fn((data: string) => { written.push(data); return true; }),
+    write: vi.fn((data: string) => {
+      written.push(data);
+      return true;
+    }),
     _written: written,
   };
 }
@@ -48,7 +51,13 @@ interface FallbackArgs {
   res: ReturnType<typeof createMockRes>;
 }
 
-function runFallback({ assistantResponse, toolInvocations, execute, toolName = 'testTool', res }: FallbackArgs) {
+function runFallback({
+  assistantResponse,
+  toolInvocations,
+  execute,
+  toolName = 'testTool',
+  res,
+}: FallbackArgs) {
   const tools = { [toolName]: { execute } } as unknown as ToolSet;
   return runTextToolFallback({
     assistantResponse,
@@ -89,7 +98,12 @@ describe('runTextToolFallback', () => {
 
     // Invocation recorded with the tool output
     expect(toolInvocations).toHaveLength(1);
-    expect(toolInvocations[0]).toMatchObject({ toolName: 'testTool', state: 'result', args: { foo: 'bar' }, result: 'tool-output' });
+    expect(toolInvocations[0]).toMatchObject({
+      toolName: 'testTool',
+      state: 'result',
+      args: { foo: 'bar' },
+      result: 'tool-output',
+    });
 
     // Follow-up completion drives the returned assistant text (tool markup stripped)
     expect(mockStreamText).toHaveBeenCalledTimes(1);
@@ -116,7 +130,11 @@ describe('runTextToolFallback', () => {
     expect(execute).toHaveBeenCalledTimes(1);
     expect(execute).toHaveBeenCalledWith({ x: 1 });
     expect(toolInvocations).toHaveLength(1);
-    expect(toolInvocations[0]).toMatchObject({ toolName: 'testTool', state: 'result', result: 'json-tool-output' });
+    expect(toolInvocations[0]).toMatchObject({
+      toolName: 'testTool',
+      state: 'result',
+      result: 'json-tool-output',
+    });
 
     // Format-2 clears the raw JSON from the assistant text after execution
     expect(result.assistantResponse).toBe('');

@@ -22,9 +22,7 @@ import type { AgentState } from '@alia.onl/sdk/voice';
  * array on native.
  */
 function blurStyle(radius: number): ViewStyle {
-  return Platform.OS === 'web'
-    ? { filter: `blur(${radius}px)` }
-    : { filter: [{ blur: radius }] };
+  return Platform.OS === 'web' ? { filter: `blur(${radius}px)` } : { filter: [{ blur: radius }] };
 }
 
 /** The blobs enter over 2.4s. */
@@ -236,9 +234,17 @@ function Flourish({
       cancelAnimation(pulse);
       return;
     }
-    const lap = withRepeat(withTiming(1, { duration: config.fdur, easing: Easing.linear }), -1, false);
+    const lap = withRepeat(
+      withTiming(1, { duration: config.fdur, easing: Easing.linear }),
+      -1,
+      false,
+    );
     const beat = (to: number) =>
-      withRepeat(withTiming(to, { duration: PULSE_DURATION, easing: Easing.inOut(Easing.sin) }), -1, true);
+      withRepeat(
+        withTiming(to, { duration: PULSE_DURATION, easing: Easing.inOut(Easing.sin) }),
+        -1,
+        true,
+      );
     if (!loopsStarted.current) {
       loopsStarted.current = true;
       phase.value = withDelay(entrance ? config.delay + ENTER_DURATION : 0, lap);
@@ -253,7 +259,10 @@ function Flourish({
       lap,
     );
     pulse.value = withSequence(
-      withTiming(1, { duration: (1 - pulse.value) * PULSE_DURATION, easing: Easing.inOut(Easing.sin) }),
+      withTiming(1, {
+        duration: (1 - pulse.value) * PULSE_DURATION,
+        easing: Easing.inOut(Easing.sin),
+      }),
       beat(0),
     );
   }, [running, phase, pulse, entrance, config.delay, config.fdur]);

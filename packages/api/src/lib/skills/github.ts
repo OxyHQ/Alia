@@ -23,7 +23,12 @@
  * import failure.
  */
 
-import { type RawFile, type SkillBundle, buildSkillBundle, splitSkillDirectories } from './bundle.js';
+import {
+  type RawFile,
+  type SkillBundle,
+  buildSkillBundle,
+  splitSkillDirectories,
+} from './bundle.js';
 import { readTarGzArchive } from './archive.js';
 import { log } from '../logger.js';
 
@@ -108,8 +113,10 @@ async function request(url: string, accept?: string): Promise<Response> {
     log.general.warn({ url, status: response.status, attempt }, 'GitHub request failed, retrying');
     await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
   }
-  if (lastStatus === 404) throw new SkillImportError('the repository, branch or path does not exist, or is private');
-  if (lastStatus === 403 || lastStatus === 429) throw new SkillImportError('GitHub is rate limiting this import; try again shortly');
+  if (lastStatus === 404)
+    throw new SkillImportError('the repository, branch or path does not exist, or is private');
+  if (lastStatus === 403 || lastStatus === 429)
+    throw new SkillImportError('GitHub is rate limiting this import; try again shortly');
   throw new SkillImportError(`GitHub answered ${lastStatus} for ${url}`);
 }
 
@@ -121,7 +128,8 @@ export async function resolveCommit(source: GitHubSource): Promise<string> {
     'application/vnd.github.sha',
   );
   const sha = (await response.text()).trim();
-  if (!/^[0-9a-f]{40}$/.test(sha)) throw new SkillImportError(`GitHub returned "${sha}" instead of a commit sha`);
+  if (!/^[0-9a-f]{40}$/.test(sha))
+    throw new SkillImportError(`GitHub returned "${sha}" instead of a commit sha`);
   return sha;
 }
 
@@ -133,8 +141,13 @@ export async function resolveCommit(source: GitHubSource): Promise<string> {
  * here — otherwise every path in the bundle would carry a prefix that changes on
  * every commit, and a `path` filter written by a person would never match.
  */
-export async function fetchRepositoryFiles(source: GitHubSource, commit: string): Promise<RawFile[]> {
-  const response = await request(`https://codeload.github.com/${source.owner}/${source.repo}/tar.gz/${commit}`);
+export async function fetchRepositoryFiles(
+  source: GitHubSource,
+  commit: string,
+): Promise<RawFile[]> {
+  const response = await request(
+    `https://codeload.github.com/${source.owner}/${source.repo}/tar.gz/${commit}`,
+  );
   const declared = Number(response.headers.get('content-length') ?? 0);
   if (declared > MAX_ARCHIVE_BYTES) {
     throw new SkillImportError(`the repository archive is larger than ${MAX_ARCHIVE_BYTES} bytes`);

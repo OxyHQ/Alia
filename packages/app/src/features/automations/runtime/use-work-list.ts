@@ -30,11 +30,7 @@ export function useWorkList() {
   const [refreshing, setRefreshing] = useState(false);
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([
-      activeTasks.refetch(),
-      taskHistory.refetch(),
-      overview.refetch(),
-    ]);
+    await Promise.all([activeTasks.refetch(), taskHistory.refetch(), overview.refetch()]);
     setRefreshing(false);
   }, [activeTasks, taskHistory, overview]);
 
@@ -65,25 +61,13 @@ export function useWorkList() {
             tab,
             typeFilter,
           }),
-    [
-      tab,
-      typeFilter,
-      activeItems,
-      activeSessions,
-      historySessions,
-      automations,
-      runs,
-    ],
+    [tab, typeFilter, activeItems, activeSessions, historySessions, automations, runs],
   );
 
   const sourceLoading =
-    activeTasks.isLoading ||
-    overview.isLoading ||
-    (tab === 'history' && taskHistory.isLoading);
+    activeTasks.isLoading || overview.isLoading || (tab === 'history' && taskHistory.isLoading);
   const isError =
-    activeTasks.isError ||
-    overview.isError ||
-    (tab === 'history' && taskHistory.isError);
+    activeTasks.isError || overview.isError || (tab === 'history' && taskHistory.isError);
   const hasMoreHistory =
     tab === 'history' &&
     taskHistory.data !== undefined &&

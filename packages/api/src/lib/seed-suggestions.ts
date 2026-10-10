@@ -228,7 +228,7 @@ const SUGGESTIONS_DICT: Record<string, { texts: string[]; category: string; tags
       'Explain the theory of relativity in simple terms',
       'Explain how machine learning algorithms work',
       'Explain the difference between HTTP and HTTPS',
-      'Explain blockchain technology like I\'m five',
+      "Explain blockchain technology like I'm five",
     ],
     category: 'learning',
     tags: ['education', 'explanation'],
@@ -276,7 +276,7 @@ const SUGGESTIONS_DICT: Record<string, { texts: string[]; category: string; tags
   give: {
     texts: [
       'Give me 5 ideas for a weekend project',
-      'Give me a summary of today\'s tech news',
+      "Give me a summary of today's tech news",
       'Give me tips for better sleep',
       'Give me a recipe using only pantry staples',
     ],
@@ -305,7 +305,7 @@ const SUGGESTIONS_DICT: Record<string, { texts: string[]; category: string; tags
   },
   show: {
     texts: [
-      'Show me how to solve a Rubik\'s cube',
+      "Show me how to solve a Rubik's cube",
       'Show me the steps to start a blog',
       'Show me a simple recipe for pasta',
       'Show me interesting facts about history',
@@ -441,10 +441,7 @@ for (const [triggerWord, data] of Object.entries(SUGGESTIONS_DICT)) {
   }
 }
 
-const ALL_SEED_SUGGESTIONS = [
-  ...WELCOME_SUGGESTIONS,
-  ...AUTOCOMPLETE_SUGGESTIONS,
-];
+const ALL_SEED_SUGGESTIONS = [...WELCOME_SUGGESTIONS, ...AUTOCOMPLETE_SUGGESTIONS];
 
 export async function seedSuggestions(): Promise<void> {
   try {

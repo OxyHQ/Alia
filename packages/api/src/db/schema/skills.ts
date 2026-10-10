@@ -51,7 +51,17 @@
  * not store a file at all.
  */
 
-import { boolean, check, foreignKey, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  foreignKey,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
@@ -279,6 +289,9 @@ export const skillInstalls = pgTable(
     }).onDelete('cascade'),
     uniqueIndex('skill_installs_user_skill_key').on(t.oxyUserId, t.skillId),
     index('skill_installs_user_enabled_idx').on(t.oxyUserId, t.enabled),
-    check('skill_installs_pinned_version_check', sql`${t.pinnedVersion} is null or ${t.pinnedVersion} >= 1`),
+    check(
+      'skill_installs_pinned_version_check',
+      sql`${t.pinnedVersion} is null or ${t.pinnedVersion} >= 1`,
+    ),
   ],
 );

@@ -15,7 +15,9 @@ import { resolveS3Credentials } from '../s3.js';
  */
 describe('the S3 credential', () => {
   it('is the environment pair when the environment has one', () => {
-    expect(resolveS3Credentials({ AWS_ACCESS_KEY_ID: 'AKIA...', AWS_SECRET_ACCESS_KEY: 'secret' })).toEqual({
+    expect(
+      resolveS3Credentials({ AWS_ACCESS_KEY_ID: 'AKIA...', AWS_SECRET_ACCESS_KEY: 'secret' }),
+    ).toEqual({
       accessKeyId: 'AKIA...',
       secretAccessKey: 'secret',
     });
@@ -35,6 +37,8 @@ describe('the S3 credential', () => {
     // absent; a misconfigured one can leave them empty. Both must reach the
     // provider chain, and the old `|| ''` sent the second straight to a failed
     // signature.
-    expect(resolveS3Credentials({ AWS_ACCESS_KEY_ID: '', AWS_SECRET_ACCESS_KEY: '' })).toBeUndefined();
+    expect(
+      resolveS3Credentials({ AWS_ACCESS_KEY_ID: '', AWS_SECRET_ACCESS_KEY: '' }),
+    ).toBeUndefined();
   });
 });

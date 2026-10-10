@@ -13,7 +13,9 @@ export interface StreamOutputEvidence {
  * close leaves an empty assistant bubble that looks successfully completed.
  */
 export function hasUsableStreamOutput(evidence: StreamOutputEvidence): boolean {
-  return evidence.realOutputChars > 0 ||
+  return (
+    evidence.realOutputChars > 0 ||
     evidence.agentOutputChars > 0 ||
-    evidence.durableArtifactCount > 0;
+    evidence.durableArtifactCount > 0
+  );
 }

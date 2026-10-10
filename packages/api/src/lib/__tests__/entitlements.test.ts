@@ -49,7 +49,12 @@ const H = vi.hoisted(() => ({
   subscriptions: [] as Array<ReturnType<typeof subscription>>,
   subscriptionReads: 0,
   plans: [] as Array<{ planId: string }>,
-  planFeatures: [] as Array<{ planId: string; featureId: string; enabled?: boolean; limitValue?: number | null }>,
+  planFeatures: [] as Array<{
+    planId: string;
+    featureId: string;
+    enabled?: boolean;
+    limitValue?: number | null;
+  }>,
 }));
 
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
@@ -63,7 +68,9 @@ vi.mock('../../db/billing/subscriptionRepository.js', () => ({
 
 vi.mock('../gateway-client.js', () => ({
   getPlans: vi.fn(async () => H.plans),
-  getPlanFeatures: vi.fn(async (planId: string) => H.planFeatures.filter((f) => f.planId === planId)),
+  getPlanFeatures: vi.fn(async (planId: string) =>
+    H.planFeatures.filter((f) => f.planId === planId),
+  ),
 }));
 
 import { getUserEntitlements, invalidateEntitlementsCache } from '../plan-access.js';
@@ -241,7 +248,10 @@ describe('the entitlement read model publishes the Oxy contract shape (#139 ws12
       .filter((entry) => entry !== '');
     expect(live.length).toBeGreaterThan(0);
     for (const status of live) {
-      expect(PRODUCT_PLAN_STATUSES as readonly string[], `${status} has no contract spelling`).toContain(status);
+      expect(
+        PRODUCT_PLAN_STATUSES as readonly string[],
+        `${status} has no contract spelling`,
+      ).toContain(status);
     }
     // The floor: the tuple being compared against is not empty, so the loop is
     // not passing by having nothing to check.
@@ -307,7 +317,9 @@ describe('entitlements are derived from live subscriptions (#139 ws6)', () => {
     expect(repository).toMatch(
       /inArray\(subscriptions\.status, \[\.\.\.LIVE_SUBSCRIPTION_STATUSES\]\)/,
     );
-    expect(repository).toMatch(/export async function findActiveSubscriptions\([\s\S]{0,300}?liveFor\(oxyUserId\)/);
+    expect(repository).toMatch(
+      /export async function findActiveSubscriptions\([\s\S]{0,300}?liveFor\(oxyUserId\)/,
+    );
     // And `plan-access.ts` really does ask for the live-only reader.
     expect(code('lib/plan-access.ts')).toContain('findActiveSubscriptions');
   });
@@ -404,7 +416,11 @@ describe('the entitlement cache is cleared by the writes that invalidate it (#13
   }> = [
     { label: 'cancel-at-period-end', marker: 'cancelAtPeriodEnd: true', invalidates: false },
     { label: 'plan-change', marker: 'planId: targetPlan.planId', invalidates: true },
-    { label: 'stripe-subscription-upserted', marker: 'oxyUserId: userCredits.id', invalidates: true },
+    {
+      label: 'stripe-subscription-upserted',
+      marker: 'oxyUserId: userCredits.id',
+      invalidates: true,
+    },
     { label: 'stripe-subscription-deleted', marker: "status: 'canceled'", invalidates: true },
     { label: 'invoice-payment-failed', marker: "status: 'past_due'", invalidates: false },
   ];
@@ -415,7 +431,9 @@ describe('the entitlement cache is cleared by the writes that invalidate it (#13
     expect(billing).toContain("router.post('/subscription/cancel'");
     expect(billing.length).toBeGreaterThan(10_000);
 
-    const sites = [...billing.matchAll(/(?:update|upsert)SubscriptionByStripeId\(/g)].map((m) => m.index);
+    const sites = [...billing.matchAll(/(?:update|upsert)SubscriptionByStripeId\(/g)].map(
+      (m) => m.index,
+    );
     expect(sites.length).toBe(SUBSCRIPTION_WRITES.length);
 
     for (const [index, site] of sites.entries()) {
@@ -437,7 +455,9 @@ describe('the entitlement cache is cleared by the writes that invalidate it (#13
     // text of this repository's prose must not count either.
     const billing = code('routes/billing.ts');
     expect(billing).toContain('invalidateEntitlementsCache(userId);');
-    expect(readFileSync(path.join(API_SRC, 'lib/seed-comped-accounts.ts'), 'utf8')).toContain('plan-access.ts');
+    expect(readFileSync(path.join(API_SRC, 'lib/seed-comped-accounts.ts'), 'utf8')).toContain(
+      'plan-access.ts',
+    );
     expect(code('lib/seed-comped-accounts.ts')).not.toContain('plan-access.ts');
   });
 });
@@ -463,7 +483,9 @@ describe('the product runtime still runs the check (#139 ws6)', () => {
     // `/alia/chat` (`routes/__tests__/unified-product-runtime.test.ts`).
     const route = code('routes/v1/chat-completions.ts');
     expect(route).toContain('export const handleChatCompletions');
-    expect(route).toMatch(/const ctx = await buildChatRequestContext\(req, res, sse, globalTimer, requestId\);/);
+    expect(route).toMatch(
+      /const ctx = await buildChatRequestContext\(req, res, sse, globalTimer, requestId\);/,
+    );
     expect(route).toMatch(/if \(!ctx\) return;/);
   });
 });

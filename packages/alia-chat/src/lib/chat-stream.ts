@@ -86,10 +86,14 @@ export function readAliaChatFailure(body: unknown): AliaChatFailure {
   return {
     ...(typeof detail.code === 'string' && detail.code !== '' ? { code: detail.code } : {}),
     ...(typeof detail.retryable === 'boolean' ? { retryable: detail.retryable } : {}),
-    ...(typeof detail.retryAfter === 'number' && Number.isFinite(detail.retryAfter) && detail.retryAfter >= 0
+    ...(typeof detail.retryAfter === 'number' &&
+    Number.isFinite(detail.retryAfter) &&
+    detail.retryAfter >= 0
       ? { retryAfter: detail.retryAfter }
       : {}),
-    ...(typeof detail.reference === 'string' && detail.reference !== '' ? { reference: detail.reference } : {}),
+    ...(typeof detail.reference === 'string' && detail.reference !== ''
+      ? { reference: detail.reference }
+      : {}),
   };
 }
 
@@ -159,7 +163,11 @@ function parsePlanSteps(value: unknown): PlanStep[] {
 
   return value.map((entry, index) => {
     const step = asObject(entry, `alia.plan_preview steps[${index}]`);
-    assertOnlyKeys(step, ['action', 'description', 'toolName'], `alia.plan_preview steps[${index}]`);
+    assertOnlyKeys(
+      step,
+      ['action', 'description', 'toolName'],
+      `alia.plan_preview steps[${index}]`,
+    );
     return {
       action: asString(step.action, `alia.plan_preview steps[${index}].action`),
       description: asString(step.description, `alia.plan_preview steps[${index}].description`),
@@ -276,7 +284,8 @@ function validateIgnoredNamedEvent(eventName: string, payload: JsonObject): void
       const scopes = new Set(['same_model_revision', 'same_model', 'cross_model']);
       const reason = asString(payload.reason, `${eventName} reason`);
       const scope = asString(payload.scope, `${eventName} scope`);
-      if (!reasons.has(reason) || !scopes.has(scope)) fail(`${eventName} has an unsupported route switch.`);
+      if (!reasons.has(reason) || !scopes.has(scope))
+        fail(`${eventName} has an unsupported route switch.`);
       asString(payload.occurredAt, `${eventName} occurredAt`);
       return;
     }
@@ -378,7 +387,10 @@ function parseOpenAIFrame(payload: unknown): ParsedOpenAIFrame {
     asString(error.message, 'OpenAI stream error message');
     // The server's prose is not carried: the code and retryability are what a
     // caller acts on, and the caller words it in its own language.
-    throw new AliaChatStreamError('Alia ended the stream with an error.', readAliaChatFailure(body));
+    throw new AliaChatStreamError(
+      'Alia ended the stream with an error.',
+      readAliaChatFailure(body),
+    );
   }
   assertOnlyKeys(
     body,
@@ -430,10 +442,16 @@ function parseOpenAIFrame(payload: unknown): ParsedOpenAIFrame {
       fail(`choices[${index}].delta.role must be assistant.`);
     }
     if (delta.content !== undefined) {
-      events.push({ kind: 'content', content: asString(delta.content, `choices[${index}].delta.content`, true) });
+      events.push({
+        kind: 'content',
+        content: asString(delta.content, `choices[${index}].delta.content`, true),
+      });
     }
     if (delta.reasoning !== undefined) {
-      events.push({ kind: 'reasoning', content: asString(delta.reasoning, `choices[${index}].delta.reasoning`) });
+      events.push({
+        kind: 'reasoning',
+        content: asString(delta.reasoning, `choices[${index}].delta.reasoning`),
+      });
     }
     if (delta.tool_calls !== undefined) events.push(...parseToolCalls(delta.tool_calls));
 

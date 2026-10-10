@@ -1,7 +1,10 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SpeechRecognitionHandlers, SpeechRecognitionOptions } from '../../src/lib/speech-recognition-types';
+import type {
+  SpeechRecognitionHandlers,
+  SpeechRecognitionOptions,
+} from '../../src/lib/speech-recognition-types';
 import type { VoiceTurn, VoiceTurnSender } from '../../src/lib/voice-turn';
 
 /**
@@ -33,14 +36,19 @@ const fx = vi.hoisted(() => ({
 }));
 
 vi.mock('@oxy.so/services/ui/client', () => ({
-  useOxy: () => ({ oxyServices: { session: { accessToken: 'session-token' }, createLinkedClient: vi.fn() } }),
+  useOxy: () => ({
+    oxyServices: { session: { accessToken: 'session-token' }, createLinkedClient: vi.fn() },
+  }),
 }));
 
 vi.mock('../../src/lib/speech-recognition', () => ({
   isSpeechRecognitionAvailable: () => fx.available,
   requestSpeechRecognitionPermission: async () => fx.refusal,
   chooseSpeechRecognizer: async (lang: string) => ({ lang, silent: false }),
-  startSpeechRecognition: (options: SpeechRecognitionOptions, handlers: SpeechRecognitionHandlers) => {
+  startSpeechRecognition: (
+    options: SpeechRecognitionOptions,
+    handlers: SpeechRecognitionHandlers,
+  ) => {
     const session: FakeSession = {
       options,
       handlers,
@@ -62,14 +70,19 @@ function end(session: FakeSession): void {
 }
 
 vi.mock('../../src/lib/speech-synthesis', () => ({
-  requestSpeechClip: vi.fn(async (request: { input: string; voice: string; model: string; signal: AbortSignal }) => {
-    fx.clips.push(request);
-    return `clip:${request.input}`;
-  }),
-  playSpeechClip: vi.fn((uri: string, options: { signal: AbortSignal }) => new Promise<void>((resolve) => {
-    fx.playbacks.push({ uri, signal: options.signal, finish: resolve });
-    options.signal.addEventListener('abort', () => resolve(), { once: true });
-  })),
+  requestSpeechClip: vi.fn(
+    async (request: { input: string; voice: string; model: string; signal: AbortSignal }) => {
+      fx.clips.push(request);
+      return `clip:${request.input}`;
+    },
+  ),
+  playSpeechClip: vi.fn(
+    (uri: string, options: { signal: AbortSignal }) =>
+      new Promise<void>((resolve) => {
+        fx.playbacks.push({ uri, signal: options.signal, finish: resolve });
+        options.signal.addEventListener('abort', () => resolve(), { once: true });
+      }),
+  ),
 }));
 
 import { useVoiceRoom } from '../../src/hooks/useVoiceRoom';
@@ -89,9 +102,10 @@ let renderer: TestRenderer.ReactTestRenderer | undefined;
 /** A sender the test answers by hand, recording every turn it was given. */
 function controllableSender() {
   const turns: Array<VoiceTurn & { resolve(): void; reject(error: Error): void }> = [];
-  const send: VoiceTurnSender = (turn) => new Promise<void>((resolve, reject) => {
-    turns.push({ ...turn, resolve, reject });
-  });
+  const send: VoiceTurnSender = (turn) =>
+    new Promise<void>((resolve, reject) => {
+      turns.push({ ...turn, resolve, reject });
+    });
   return { send, turns };
 }
 
@@ -143,7 +157,12 @@ describe('the on-device voice loop', () => {
 
   it('listens, sends the utterance through the chat sender, and speaks the answer sentence by sentence in the product voice', async () => {
     const sender = controllableSender();
-    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS, voicePreference: 'male', lang: 'es-ES' });
+    await mount({
+      sendTurn: sender.send,
+      endOfUtteranceMs: END_OF_UTTERANCE_MS,
+      voicePreference: 'male',
+      lang: 'es-ES',
+    });
 
     await act(async () => latest.connect());
     expect(latest.roomState).toBe('connected');
@@ -152,7 +171,9 @@ describe('the on-device voice loop', () => {
 
     await say('¿Qué tiempo hace');
     await say('¿Qué tiempo hace en Madrid?');
-    expect(latest.messages).toMatchObject([{ role: 'user', content: '¿Qué tiempo hace en Madrid?', isStreaming: true }]);
+    expect(latest.messages).toMatchObject([
+      { role: 'user', content: '¿Qué tiempo hace en Madrid?', isStreaming: true },
+    ]);
 
     await settle(PAST_END_OF_UTTERANCE_MS); // silence → end of utterance → stop → final
     expect(fx.sessions[0]?.stop).toHaveBeenCalledTimes(1);
@@ -174,11 +195,18 @@ describe('the on-device voice loop', () => {
       sender.turns[0]!.resolve();
     });
     await settle();
-    expect(latest.messages.at(-1)).toMatchObject({ role: 'assistant', content: 'Hace sol. Mañana lloverá.', isStreaming: false });
+    expect(latest.messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      content: 'Hace sol. Mañana lloverá.',
+      isStreaming: false,
+    });
 
     await act(async () => fx.playbacks[0]!.finish());
     await settle();
-    expect(fx.playbacks.map((playback) => playback.uri)).toEqual(['clip:Hace sol.', 'clip:Mañana lloverá.']);
+    expect(fx.playbacks.map((playback) => playback.uri)).toEqual([
+      'clip:Hace sol.',
+      'clip:Mañana lloverá.',
+    ]);
     await act(async () => fx.playbacks[1]!.finish());
     await settle();
     expect(latest.agentState).toBe('listening');
@@ -213,7 +241,11 @@ describe('the on-device voice loop', () => {
     expect(playback.signal.aborted).toBe(true);
     expect(sender.turns[0]!.signal.aborted).toBe(true);
     expect(latest.agentState).toBe('listening');
-    expect(latest.messages.at(-1)).toMatchObject({ role: 'user', content: 'espera para', isStreaming: true });
+    expect(latest.messages.at(-1)).toMatchObject({
+      role: 'user',
+      content: 'espera para',
+      isStreaming: true,
+    });
     expect(latest.messages.at(-2)).toMatchObject({ role: 'assistant', isStreaming: false });
 
     await settle(PAST_END_OF_UTTERANCE_MS);

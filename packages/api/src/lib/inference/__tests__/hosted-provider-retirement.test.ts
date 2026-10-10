@@ -61,7 +61,9 @@ describe('Alia hosted provider runtime retirement', () => {
     const journal = JSON.parse(
       readFileSync(path.join(REPO_ROOT, 'packages/api/drizzle/meta/_journal.json'), 'utf8'),
     ) as { entries: Array<{ tag: string }> };
-    expect(journal.entries.map((entry) => entry.tag)).toContain('0061_remove_alia_provider_credentials');
+    expect(journal.entries.map((entry) => entry.tag)).toContain(
+      '0061_remove_alia_provider_credentials',
+    );
 
     const schema = readdirSync(path.join(API_SRC, 'db/schema'))
       .filter((file) => file.endsWith('.ts'))
@@ -175,7 +177,9 @@ describe('Alia hosted provider runtime retirement', () => {
   it('keeps local user compute as a keyless, explicit separate boundary', () => {
     const bridge = readFileSync(path.join(API_SRC, 'lib/inference/user-runtime-bridge.ts'), 'utf8');
     expect(bridge).toContain('Only `content-type` is forwarded');
-    const emittedRequest = bridge.match(/emit\('user-runtime:request', \{([\s\S]*?)\n {4}\}\);/)?.[1];
+    const emittedRequest = bridge.match(
+      /emit\('user-runtime:request', \{([\s\S]*?)\n {4}\}\);/,
+    )?.[1];
     expect(emittedRequest).toBeDefined();
     expect(emittedRequest).not.toMatch(/headers\s*:/);
     expect(bridge).not.toMatch(/process\.env\.[A-Z0-9_]*API_KEY/);

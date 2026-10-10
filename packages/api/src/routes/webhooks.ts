@@ -26,7 +26,12 @@ import { findAgentById } from '../db/agents/agentRepository.js';
 import { upsertConversation } from '../db/chat/conversationRepository.js';
 import { insertMessages, listRecentTurns } from '../db/chat/messageRepository.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
-import { finalizeCredits, safeRefund, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
+import {
+  finalizeCredits,
+  safeRefund,
+  type CreditReservation,
+  type CreditUsage,
+} from '../lib/credits-manager.js';
 import { reserveAgentTurn } from '../lib/agent/turn-funding.js';
 import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js';
 import { log } from '../lib/logger.js';
@@ -79,7 +84,11 @@ export function getDeduplicationKey(
   return `${channelType}:${scope ? `${scope}:` : ''}${message.platformUserId}:${contentHash}`;
 }
 
-function isDuplicate(channelType: ChannelId, message: ChannelInboundMessage, scope?: string): boolean {
+function isDuplicate(
+  channelType: ChannelId,
+  message: ChannelInboundMessage,
+  scope?: string,
+): boolean {
   const key = getDeduplicationKey(channelType, message, scope);
   if (processedWebhookMessages.has(key)) return true;
   processedWebhookMessages.add(key);
@@ -144,7 +153,7 @@ function generateAuthToken(): string {
 export async function processChannelMessage(
   channelType: ChannelId,
   botUser: BotUserRow,
-  message: ChannelInboundMessage
+  message: ChannelInboundMessage,
 ): Promise<void> {
   const db = getDb();
   /**
@@ -176,7 +185,7 @@ export async function processChannelMessage(
         channelType,
         message.chatId,
         `Hi! To use Alia, please link your account first:\n${authUrl}\n\nThis link expires in 15 minutes.`,
-        { replyToId: message.replyToId, threadId: message.threadId }
+        { replyToId: message.replyToId, threadId: message.threadId },
       );
       return;
     }
@@ -193,10 +202,15 @@ export async function processChannelMessage(
       resolved = await resolveStoredModel(botUser.preferredModel);
     } catch (error: unknown) {
       log.channels.warn({ err: error }, 'No model available for a bot message');
-      await sendChannelMessage(channelType, message.chatId, 'Sorry, no AI models are available right now.', {
-        replyToId: message.replyToId,
-        threadId: message.threadId,
-      });
+      await sendChannelMessage(
+        channelType,
+        message.chatId,
+        'Sorry, no AI models are available right now.',
+        {
+          replyToId: message.replyToId,
+          threadId: message.threadId,
+        },
+      );
       return;
     }
     const modelId = resolved.modelId;
@@ -211,7 +225,7 @@ export async function processChannelMessage(
         channelType,
         message.chatId,
         `You've run out of credits. Add more at ${appUrl} to continue using Alia.`,
-        { replyToId: message.replyToId, threadId: message.threadId }
+        { replyToId: message.replyToId, threadId: message.threadId },
       );
       return;
     }
@@ -233,7 +247,7 @@ export async function processChannelMessage(
      */
     let messages: Array<{ role: string; content: string }> = [];
     try {
-      messages = [...await listRecentTurns(db, botUser.oxyUserId, conversationId, 20)];
+      messages = [...(await listRecentTurns(db, botUser.oxyUserId, conversationId, 20))];
     } catch (error: unknown) {
       log.webhook.error({ err: error, channelType }, 'Failed to load conversation history');
     }
@@ -262,7 +276,7 @@ export async function processChannelMessage(
     const result = await generateText({
       model,
       system: systemPrompt,
-      messages: messages.map(m => ({
+      messages: messages.map((m) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
       })),
@@ -280,7 +294,11 @@ export async function processChannelMessage(
     };
 
     try {
-      await finalizeCredits(creditReservation, tokenUsage, servedModelId(modelId, servedReferenceOf(result)));
+      await finalizeCredits(
+        creditReservation,
+        tokenUsage,
+        servedModelId(modelId, servedReferenceOf(result)),
+      );
       // Only once the charge returned. A finalize that threw leaves the
       // reservation unsettled, and therefore refunded by the `finally`.
       creditsSettled = true;
@@ -318,18 +336,37 @@ export async function processChannelMessage(
        * exists, and a model call sits between them.
        */
       await insertMessages(db, [
-        { conversationId, oxyUserId: botUser.oxyUserId, role: 'user', content: message.text, createdAt: userMessageAt },
-        { conversationId, oxyUserId: botUser.oxyUserId, role: 'assistant', content: fullResponse, createdAt: new Date() },
+        {
+          conversationId,
+          oxyUserId: botUser.oxyUserId,
+          role: 'user',
+          content: message.text,
+          createdAt: userMessageAt,
+        },
+        {
+          conversationId,
+          oxyUserId: botUser.oxyUserId,
+          role: 'assistant',
+          content: fullResponse,
+          createdAt: new Date(),
+        },
       ]);
     }
   } catch (error: unknown) {
     log.webhook.error({ err: error, channelType }, 'Chat processing error');
     try {
-      await sendChannelMessage(channelType, message.chatId, 'Sorry, an error occurred. Please try again.', {
-        replyToId: message.replyToId,
-        threadId: message.threadId,
-      });
-    } catch { /* ignore send errors */ }
+      await sendChannelMessage(
+        channelType,
+        message.chatId,
+        'Sorry, an error occurred. Please try again.',
+        {
+          replyToId: message.replyToId,
+          threadId: message.threadId,
+        },
+      );
+    } catch {
+      /* ignore send errors */
+    }
   } finally {
     // The one place this handler's reservation is released.
     if (creditReservation && !creditsSettled) {
@@ -386,11 +423,15 @@ export async function processAgentBotMessage(
     const found = bot.agentId ? await findAgentById(getDb(), bot.agentId) : null;
     const agent = found === null ? null : await attachAgentIdentity(found);
 
-    const resolved = agent === null
-      ? null
-      : await resolveStoredModel(agent.modelId).catch(() => null);
+    const resolved =
+      agent === null ? null : await resolveStoredModel(agent.modelId).catch(() => null);
     if (agent === null || resolved === null) {
-      await sendChannelMessage(channelType, message.chatId, 'Sorry, no AI models are available right now.', outboundOpts);
+      await sendChannelMessage(
+        channelType,
+        message.chatId,
+        'Sorry, no AI models are available right now.',
+        outboundOpts,
+      );
       return;
     }
 
@@ -421,9 +462,10 @@ export async function processAgentBotMessage(
       const appUrl = process.env.APP_URL || process.env.WEB_URL || 'https://alia.onl';
       // Two different messages, for the reason the refusal type gives: one is a
       // permission the owner can GRANT, the other credit somebody must BUY.
-      const text = funding.reason === 'owner_fallback_not_authorised'
-        ? `This assistant is not available yet (its owner has not allowed it to use their credits). More at ${appUrl}.`
-        : `This assistant is temporarily unavailable (its owner is out of credits). More at ${appUrl}.`;
+      const text =
+        funding.reason === 'owner_fallback_not_authorised'
+          ? `This assistant is not available yet (its owner has not allowed it to use their credits). More at ${appUrl}.`
+          : `This assistant is temporarily unavailable (its owner is out of credits). More at ${appUrl}.`;
       await sendChannelMessage(channelType, message.chatId, text, outboundOpts);
       return;
     }
@@ -439,9 +481,12 @@ export async function processAgentBotMessage(
     // Load recent history (owned by the bot owner, keyed by conversation id).
     let messages: Array<{ role: string; content: string }> = [];
     try {
-      messages = [...await listRecentTurns(db, ownerUserId, conversationId, 20)];
+      messages = [...(await listRecentTurns(db, ownerUserId, conversationId, 20))];
     } catch (error: unknown) {
-      log.webhook.error({ err: error, channelType }, 'Failed to load agent-bot conversation history');
+      log.webhook.error(
+        { err: error, channelType },
+        'Failed to load agent-bot conversation history',
+      );
     }
 
     // Stamped when it ARRIVED, for the reason the write below gives.
@@ -480,9 +525,13 @@ export async function processAgentBotMessage(
      * linked Oxy account, gets the owner's personal tools (memory, triggers,
      * connectors, Oxy apps); a stranger talks to the agent itself.
      */
-    const speakerAccountId = botUser.isLinked ? botUser.oxyUserId ?? null : null;
+    const speakerAccountId = botUser.isLinked ? (botUser.oxyUserId ?? null) : null;
     const speakerIsOwner = speakerAccountId === ownerUserId;
-    const { tools, routing: toolRouting, appCatalogPrompt } = await ToolPipeline.forUser({
+    const {
+      tools,
+      routing: toolRouting,
+      appCatalogPrompt,
+    } = await ToolPipeline.forUser({
       userId: ownerUserId,
       // A bot turn has no browser session and no bearer of its own: it runs on
       // the OWNER's credits, through the token-less server paths.
@@ -499,7 +548,7 @@ export async function processAgentBotMessage(
     const result = await generateText({
       model,
       system: systemPrompt + appCatalogPrompt,
-      messages: messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+      messages: messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
       tools,
       // Bounds each request to the per-request tool budget (`lib/tool-budget.ts`).
       ...toolRouting,
@@ -516,7 +565,11 @@ export async function processAgentBotMessage(
       totalTokens: (result.usage?.inputTokens || 0) + (result.usage?.outputTokens || 0),
     };
     try {
-      await finalizeCredits(creditReservation, tokenUsage, servedModelId(modelId, servedReferenceOf(result)));
+      await finalizeCredits(
+        creditReservation,
+        tokenUsage,
+        servedModelId(modelId, servedReferenceOf(result)),
+      );
       creditsSettled = true;
     } catch (error: unknown) {
       log.webhook.error({ err: error, channelType }, 'Error finalizing agent-bot credits');
@@ -537,15 +590,34 @@ export async function processAgentBotMessage(
 
       // Distinct timestamps, for the reason the system-bot path spells out.
       await insertMessages(db, [
-        { conversationId, oxyUserId: ownerUserId, role: 'user', content: message.text, createdAt: userMessageAt },
-        { conversationId, oxyUserId: ownerUserId, role: 'assistant', content: fullResponse, createdAt: new Date() },
+        {
+          conversationId,
+          oxyUserId: ownerUserId,
+          role: 'user',
+          content: message.text,
+          createdAt: userMessageAt,
+        },
+        {
+          conversationId,
+          oxyUserId: ownerUserId,
+          role: 'assistant',
+          content: fullResponse,
+          createdAt: new Date(),
+        },
       ]);
     }
   } catch (error: unknown) {
     log.webhook.error({ err: error, channelType }, 'Agent-bot processing error');
     try {
-      await sendChannelMessage(channelType, message.chatId, 'Sorry, an error occurred. Please try again.', outboundOpts);
-    } catch { /* ignore send errors */ }
+      await sendChannelMessage(
+        channelType,
+        message.chatId,
+        'Sorry, an error occurred. Please try again.',
+        outboundOpts,
+      );
+    } catch {
+      /* ignore send errors */
+    }
   } finally {
     // The one place this handler's reservation is released.
     if (creditReservation && !creditsSettled) {
@@ -602,11 +674,7 @@ router.post('/:type', async (req, res) => {
       // is plaintext and indexed rather than `encryptedText`: a randomized IV
       // would make this match nothing and every inbound update would answer 200
       // having done nothing.
-      const userBot = await findActiveUserBotByWebhookSecret(
-        getDb(),
-        perBotSecret,
-        channelType,
-      );
+      const userBot = await findActiveUserBotByWebhookSecret(getDb(), perBotSecret, channelType);
 
       if (userBot && userBot.userId) {
         const message = channel.webhook.parseMessage(req.body);
@@ -617,14 +685,20 @@ router.post('/:type', async (req, res) => {
         // Scope dedup by the receiving bot so the same Telegram user texting two
         // different bots the same thing is not collapsed to one.
         if (isDuplicate(channelType, message, userBot.id)) {
-          log.webhook.info({ channelType, platformUserId: message.platformUserId }, 'Duplicate per-bot message skipped');
+          log.webhook.info(
+            { channelType, platformUserId: message.platformUserId },
+            'Duplicate per-bot message skipped',
+          );
           return res.sendStatus(200);
         }
 
         // Drop (silently, no credit spend) when a single sender floods the bot,
         // so a stranger can't rapidly burn the owner's credits.
         if (isBotUserRateLimited(userBot.id, message.platformUserId)) {
-          log.webhook.info({ channelType, platformUserId: message.platformUserId }, 'Per-bot message rate-limited');
+          log.webhook.info(
+            { channelType, platformUserId: message.platformUserId },
+            'Per-bot message rate-limited',
+          );
           return res.sendStatus(200);
         }
 
@@ -680,7 +754,10 @@ router.post('/:type', async (req, res) => {
 
   // Deduplicate: skip if this message was already processed recently
   if (isDuplicate(channelType, message)) {
-    log.webhook.info({ channelType, platformUserId: message.platformUserId }, 'Duplicate message skipped');
+    log.webhook.info(
+      { channelType, platformUserId: message.platformUserId },
+      'Duplicate message skipped',
+    );
     return res.sendStatus(200);
   }
 
@@ -688,12 +765,15 @@ router.post('/:type', async (req, res) => {
   // what an operator actually needs to tell an empty webhook from a real one.
   // `username` is out for the same reason `text` is — the platform user id is
   // the opaque handle every other line in this file correlates on.
-  log.webhook.info({
-    channelType,
-    from: message.platformUserId,
-    chatId: message.chatId,
-    textLength: message.text.length,
-  }, 'Inbound message');
+  log.webhook.info(
+    {
+      channelType,
+      from: message.platformUserId,
+      chatId: message.chatId,
+      textLength: message.text.length,
+    },
+    'Inbound message',
+  );
 
   try {
     // Find the system bot for this channel type. Scoped to `userId: { $exists: false }`

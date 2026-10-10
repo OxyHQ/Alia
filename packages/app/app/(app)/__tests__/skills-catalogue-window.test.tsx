@@ -1,10 +1,5 @@
 import React from 'react';
-import {
-  act,
-  create,
-  type ReactTestInstance,
-  type ReactTestRenderer,
-} from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -76,10 +71,7 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     Platform: {
@@ -141,35 +133,24 @@ vi.mock('@shopify/flash-list', async () => {
 vi.mock('expo-linear-gradient', async () => {
   const ReactModule = await import('react');
   return {
-    LinearGradient: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    LinearGradient: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('LinearGradient', props, children),
   };
 });
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
-  const text = ({
-    children,
-    ...props
-  }: React.PropsWithChildren<Record<string, unknown>>) =>
+  const text = ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
     ReactModule.createElement('Text', props, children);
   return { Text: text, Muted: text };
 });
 vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
   return {
-    Button: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Button: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(
         'Button',
         props,
-        typeof children === 'string'
-          ? ReactModule.createElement('Text', null, children)
-          : children,
+        typeof children === 'string' ? ReactModule.createElement('Text', null, children) : children,
       ),
   };
 });
@@ -177,8 +158,7 @@ vi.mock('@oxy.so/bloom/button', async () => {
 vi.mock('@oxy.so/bloom/search', async () => {
   const ReactModule = await import('react');
   return {
-    Search: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Input', props),
+    Search: (props: Record<string, unknown>) => ReactModule.createElement('Input', props),
   };
 });
 // An empty or failed catalogue is Bloom's `EmptyState`: its title as text, its
@@ -200,9 +180,7 @@ vi.mock('@oxy.so/bloom/empty-state', async () => {
         'EmptyState',
         null,
         title ? ReactModule.createElement('Text', null, title) : null,
-        description
-          ? ReactModule.createElement('Text', null, description)
-          : null,
+        description ? ReactModule.createElement('Text', null, description) : null,
         action
           ? ReactModule.createElement(
               'Button',
@@ -272,9 +250,7 @@ function skill(index: number, source: 'builtin' | 'github') {
 }
 
 /** A hundred records: fifty official, fifty community. */
-const CATALOGUE = Array.from({ length: 100 }, (_, i) =>
-  skill(i, i < 50 ? 'builtin' : 'github'),
-);
+const CATALOGUE = Array.from({ length: 100 }, (_, i) => skill(i, i < 50 ? 'builtin' : 'github'));
 /** Ten of them installed — five from each half — so a naive screen shows them twice. */
 const INSTALLED = [0, 1, 2, 3, 4, 50, 51, 52, 53, 54].map((i) => ({
   ...CATALOGUE[i]!,
@@ -325,15 +301,11 @@ function shelves(root: ReactTestInstance): ReactTestInstance[] {
 }
 
 function mountedCovers(root: ReactTestInstance): ReactTestInstance[] {
-  return root.findAll(
-    (node) => isHost(node, 'View') && node.props.accessibilityRole === 'image',
-  );
+  return root.findAll((node) => isHost(node, 'View') && node.props.accessibilityRole === 'image');
 }
 
 function textsOf(root: ReactTestInstance): unknown[] {
-  return root
-    .findAll((node) => isHost(node, 'Text'))
-    .map((node) => node.props.children);
+  return root.findAll((node) => isHost(node, 'Text')).map((node) => node.props.children);
 }
 
 beforeEach(() => {
@@ -370,9 +342,7 @@ describe('the Skills catalogue with 100 records and 10 installed duplicates', ()
     expect(ids(official).filter((id) => INSTALLED_IDS.has(id))).toEqual([]);
     expect(ids(community).filter((id) => INSTALLED_IDS.has(id))).toEqual([]);
     // Nothing was lost in the dedupe: 100 records, each on exactly one shelf.
-    expect(
-      ids(installedShelf).length + ids(official).length + ids(community).length,
-    ).toBe(100);
+    expect(ids(installedShelf).length + ids(official).length + ids(community).length).toBe(100);
   });
 
   it('mounts only a viewport window of covers per shelf, and no canvas', () => {
@@ -383,9 +353,7 @@ describe('the Skills catalogue with 100 records and 10 installed duplicates', ()
     );
 
     // Every shelf asked for a draw distance, so the list can window at all.
-    expect(
-      lists.every((list) => typeof list.props.drawDistance === 'number'),
-    ).toBe(true);
+    expect(lists.every((list) => typeof list.props.drawDistance === 'number')).toBe(true);
 
     const covers = mountedCovers(root);
     expect(covers.length).toBeGreaterThan(0);
@@ -393,16 +361,12 @@ describe('the Skills catalogue with 100 records and 10 installed duplicates', ()
     expect(covers.length).toBeLessThan(110);
 
     // No book is on screen twice.
-    const labels = covers.map(
-      (cover) => cover.props.accessibilityLabel as string,
-    );
+    const labels = covers.map((cover) => cover.props.accessibilityLabel as string);
     expect(new Set(labels).size).toBe(labels.length);
 
     expect(
       root.findAll(
-        (node) =>
-          typeof node.type === 'string' &&
-          /^(Canvas|Rect|Group|Shadow)$/.test(node.type),
+        (node) => typeof node.type === 'string' && /^(Canvas|Rect|Group|Shadow)$/.test(node.type),
       ),
     ).toHaveLength(0);
     expect(root.findAll((node) => isHost(node, 'BlurView'))).toHaveLength(0);
@@ -432,9 +396,7 @@ describe('the Skills catalogue with 100 records and 10 installed duplicates', ()
     // The Installed shelf obeys the same search, so an installed skill that
     // matches is found on its own shelf rather than hidden by the dedupe.
     const installedShelf = shelves(root)[0]!;
-    const installedIds = (installedShelf.props.data as { _id: string }[]).map(
-      (entry) => entry._id,
-    );
+    const installedIds = (installedShelf.props.data as { _id: string }[]).map((entry) => entry._id);
     expect(installedIds).toEqual(['id-0', 'id-50']);
 
     // Clearing answers at once — an empty box is not a search.
@@ -446,9 +408,7 @@ describe('the Skills catalogue with 100 records and 10 installed duplicates', ()
 
   it('says a failed load failed, and retries on request', () => {
     const refetch = vi.fn();
-    hooks.catalogue.mockReturnValue(
-      catalogueResult({ data: undefined, isError: true, refetch }),
-    );
+    hooks.catalogue.mockReturnValue(catalogueResult({ data: undefined, isError: true, refetch }));
     hooks.installed.mockReturnValue({ data: [], refetch: vi.fn() });
     const { root } = renderScreen();
 
@@ -459,10 +419,8 @@ describe('the Skills catalogue with 100 records and 10 installed duplicates', ()
     const retry = root.find(
       (node) =>
         isHost(node, 'Button') &&
-        node.findAll(
-          (child) =>
-            isHost(child, 'Text') && child.props.children === 'common.tryAgain',
-        ).length > 0,
+        node.findAll((child) => isHost(child, 'Text') && child.props.children === 'common.tryAgain')
+          .length > 0,
     );
     act(() => {
       (retry.props.onPress as () => void)();
@@ -472,18 +430,14 @@ describe('the Skills catalogue with 100 records and 10 installed duplicates', ()
 
   it('offers the next page when there is one', () => {
     const fetchNextPage = vi.fn();
-    hooks.catalogue.mockReturnValue(
-      catalogueResult({ hasNextPage: true, fetchNextPage }),
-    );
+    hooks.catalogue.mockReturnValue(catalogueResult({ hasNextPage: true, fetchNextPage }));
     const { root } = renderScreen();
 
     const more = root.find(
       (node) =>
         isHost(node, 'Button') &&
-        node.findAll(
-          (child) =>
-            isHost(child, 'Text') && child.props.children === 'skills.loadMore',
-        ).length > 0,
+        node.findAll((child) => isHost(child, 'Text') && child.props.children === 'skills.loadMore')
+          .length > 0,
     );
     act(() => {
       (more.props.onPress as () => void)();

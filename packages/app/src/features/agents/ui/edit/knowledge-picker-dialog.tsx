@@ -1,8 +1,5 @@
 import type { LinkedFile } from '@/features/agents/runtime/use-agent-autosave';
-import {
-  linkedFileFrom,
-  unlinkedFiles,
-} from '@/features/agents/runtime/use-agent-editor-options';
+import { linkedFileFrom, unlinkedFiles } from '@/features/agents/runtime/use-agent-editor-options';
 import { useIsLargeScreen } from '@/shared/platform/use-is-large-screen';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import type { LibraryFile } from '@/features/library/runtime/library-store';

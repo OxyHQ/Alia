@@ -31,11 +31,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@oxy.so/bloom/dropdown-menu';
-import {
-  RiDeleteBinLine,
-  RiMore2Line,
-  RiSettings3Line,
-} from '@oxy.so/bloom/icons';
+import { RiDeleteBinLine, RiMore2Line, RiSettings3Line } from '@oxy.so/bloom/icons';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
@@ -59,8 +55,7 @@ export function AgentEditor({ agent }: { agent: Agent }) {
 
   const { draft, editDraft } = useAgentDraftAutosave(agent);
   const { identity, editIdentity } = useAgentIdentityAutosave(agent);
-  const { isPublished, togglePublished, deleteWithConfirm } =
-    useAgentEditorActions(agent);
+  const { isPublished, togglePublished, deleteWithConfirm } = useAgentEditorActions(agent);
 
   const attachableSkills = useAttachableSkills().data ?? NO_SKILLS;
   const connectors = useGrantableConnectors(agent._id).data ?? NO_CONNECTORS;
@@ -95,9 +90,7 @@ export function AgentEditor({ agent }: { agent: Agent }) {
             headerBackVisible: true,
             headerRight: () => (
               <>
-                <ButtonGroup
-                  accessibilityLabel={t('pages.agents.agentActions')}
-                >
+                <ButtonGroup accessibilityLabel={t('pages.agents.agentActions')}>
                   {!isLargeScreen && (
                     <ButtonGroupItem
                       iconOnly
@@ -161,7 +154,10 @@ export function AgentEditor({ agent }: { agent: Agent }) {
           <AgentIdentityFields identity={identity} onEdit={editIdentity} />
 
           {/* The power level the agent answers at; `auto` until one is picked. */}
-          <AgentModelField value={draft.modelId} onChange={(next) => editDraft({ modelId: next })} />
+          <AgentModelField
+            value={draft.modelId}
+            onChange={(next) => editDraft({ modelId: next })}
+          />
 
           {/* System prompt / instructions: the page-sized writing surface. */}
           <Textarea

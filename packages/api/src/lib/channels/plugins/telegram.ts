@@ -1,5 +1,10 @@
 import crypto from 'crypto';
-import type { ChannelPlugin, OutboundContext, OutboundResult, ChannelInboundMessage } from '../types.js';
+import type {
+  ChannelPlugin,
+  OutboundContext,
+  OutboundResult,
+  ChannelInboundMessage,
+} from '../types.js';
 import type { Request } from 'express';
 import { markdownToTelegramHtml, stripMarkdown } from '../telegram-format.js';
 import { log } from '../../logger.js';
@@ -24,8 +29,7 @@ export const telegramPlugin: ChannelPlugin = {
   },
 
   config: {
-    isConfigured: () =>
-      !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_BOT_SECRET),
+    isConfigured: () => !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_BOT_SECRET),
     getBotSecret: () => process.env.TELEGRAM_BOT_SECRET,
     getEnvPrefix: () => 'TELEGRAM',
   },
@@ -60,7 +64,7 @@ export const telegramPlugin: ChannelPlugin = {
         });
 
         if (res.ok) {
-          const data = await res.json() as TelegramSendResponse;
+          const data = (await res.json()) as TelegramSendResponse;
           return { channel: 'telegram', ok: true, messageId: String(data.result?.message_id) };
         }
 
@@ -80,12 +84,16 @@ export const telegramPlugin: ChannelPlugin = {
           });
 
           if (fallbackRes.ok) {
-            const data = await fallbackRes.json() as TelegramSendResponse;
+            const data = (await fallbackRes.json()) as TelegramSendResponse;
             return { channel: 'telegram', ok: true, messageId: String(data.result?.message_id) };
           }
 
           const fallbackBody = await fallbackRes.text();
-          return { channel: 'telegram', ok: false, error: `Telegram API ${fallbackRes.status}: ${fallbackBody}` };
+          return {
+            channel: 'telegram',
+            ok: false,
+            error: `Telegram API ${fallbackRes.status}: ${fallbackBody}`,
+          };
         }
 
         return { channel: 'telegram', ok: false, error: `Telegram API ${res.status}: ${body}` };
@@ -120,10 +128,7 @@ export const telegramPlugin: ChannelPlugin = {
       if (!headerToken) return false;
 
       try {
-        return crypto.timingSafeEqual(
-          Buffer.from(headerToken),
-          Buffer.from(secret),
-        );
+        return crypto.timingSafeEqual(Buffer.from(headerToken), Buffer.from(secret));
       } catch {
         return false;
       }
@@ -136,9 +141,8 @@ export const telegramPlugin: ChannelPlugin = {
       // Ignore bot messages
       if (msg.from.is_bot) return null;
 
-      const displayName = [msg.from.first_name, msg.from.last_name]
-        .filter(Boolean)
-        .join(' ') || undefined;
+      const displayName =
+        [msg.from.first_name, msg.from.last_name].filter(Boolean).join(' ') || undefined;
 
       return {
         platformUserId: String(msg.from.id),

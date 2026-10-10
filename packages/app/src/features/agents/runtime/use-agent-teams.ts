@@ -15,7 +15,8 @@ export function useAgentTeams() {
   const { isAuthenticated } = useOxy();
   return useQuery({
     queryKey: ['agent-teams'],
-    queryFn: async () => (await apiClient.get<{ teams: AgentTeam[] }>(API_ROUTES.agents.teams)).data.teams,
+    queryFn: async () =>
+      (await apiClient.get<{ teams: AgentTeam[] }>(API_ROUTES.agents.teams)).data.teams,
     enabled: isAuthenticated,
   });
 }

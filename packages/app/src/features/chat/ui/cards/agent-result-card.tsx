@@ -1,6 +1,11 @@
 import type { AgentActivityState, PlanItem } from '@/features/chat/runtime/use-agent-activity';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@oxy.so/bloom/accordion';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@oxy.so/bloom/accordion';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Card, CardBody, CardHeader } from '@oxy.so/bloom/card';
@@ -42,14 +47,7 @@ const PLAN_ICON = {
 
 function PlanItemRow({ item }: { item: PlanItem }) {
   const Icon = PLAN_ICON[item.status as keyof typeof PLAN_ICON] ?? RiCloseCircleLine;
-  return (
-    <Item
-      density="compact"
-      role="listitem"
-      leading={<Icon size="sm" />}
-      title={item.text}
-    />
-  );
+  return <Item density="compact" role="listitem" leading={<Icon size="sm" />} title={item.text} />;
 }
 
 export const AgentResultCard = React.memo(function AgentResultCard({
@@ -67,7 +65,9 @@ export const AgentResultCard = React.memo(function AgentResultCard({
   const stats = [
     formatRunDuration(startedAt, now),
     t('chat.agentRun.steps', { count: String(eventCount) }),
-    plan ? t('chat.agentRun.planItems', { done: String(plan.completed), total: String(plan.total) }) : null,
+    plan
+      ? t('chat.agentRun.planItems', { done: String(plan.completed), total: String(plan.total) })
+      : null,
     activity.creditsCharged != null
       ? t('chat.agentRun.credits', { count: String(activity.creditsCharged) })
       : null,
@@ -80,7 +80,13 @@ export const AgentResultCard = React.memo(function AgentResultCard({
           <Badge
             variant="subtle"
             color={isSuccess ? 'success' : hasError ? 'error' : 'default'}
-            content={t(isSuccess ? 'chat.agentRun.completed' : hasError ? 'chat.agentRun.failed' : 'chat.agentRun.unknown')}
+            content={t(
+              isSuccess
+                ? 'chat.agentRun.completed'
+                : hasError
+                  ? 'chat.agentRun.failed'
+                  : 'chat.agentRun.unknown',
+            )}
           />
           <View className="min-w-0 flex-1">
             <Text variant="headline-semibold">

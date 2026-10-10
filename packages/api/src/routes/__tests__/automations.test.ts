@@ -28,7 +28,11 @@ const database = { transaction: vi.fn(async (callback) => callback(database)) };
 
 vi.mock('../../db/index.js', () => ({ getDb: () => database }));
 vi.mock('../../middleware/auth.js', () => ({
-  authenticateToken: (request: express.Request, _response: express.Response, next: express.NextFunction) => {
+  authenticateToken: (
+    request: express.Request,
+    _response: express.Response,
+    next: express.NextFunction,
+  ) => {
     request.user = { id: 'owner-1' };
     request.accessToken = state.token;
     next();
@@ -59,9 +63,11 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
 }));
 vi.mock('../../db/automation/aliaTaskAuthorityRepository.js', () => ({
   // The agent path's rows and Alia's are listed and retired together.
-  listActiveTaskAuthorityIds: vi.fn(async (db: unknown, automationId: string) => (
-    ((await state.listActive(db, automationId)) ?? []) as Array<{ oxyAuthorizationId: string }>
-  ).map((authorization) => authorization.oxyAuthorizationId)),
+  listActiveTaskAuthorityIds: vi.fn(async (db: unknown, automationId: string) =>
+    (
+      ((await state.listActive(db, automationId)) ?? []) as Array<{ oxyAuthorizationId: string }>
+    ).map((authorization) => authorization.oxyAuthorizationId),
+  ),
   markTaskAuthorityRevoked: state.markRevoked,
   replaceAliaTaskAuthorizations: state.replaceAlia,
 }));
@@ -99,23 +105,33 @@ function send(
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   return new Promise((resolve, reject) => {
     const json = body === undefined ? '' : JSON.stringify(body);
-    const request = httpRequest({
-      host: '127.0.0.1',
-      port,
-      path,
-      method,
-      headers: {
-        ...headers,
-        ...(json ? { 'content-type': 'application/json', 'content-length': String(Buffer.byteLength(json)) } : {}),
+    const request = httpRequest(
+      {
+        host: '127.0.0.1',
+        port,
+        path,
+        method,
+        headers: {
+          ...headers,
+          ...(json
+            ? {
+                'content-type': 'application/json',
+                'content-length': String(Buffer.byteLength(json)),
+              }
+            : {}),
+        },
       },
-    }, (response) => {
-      const chunks: Buffer[] = [];
-      response.on('data', (chunk: Buffer) => chunks.push(chunk));
-      response.on('end', () => resolve({
-        status: response.statusCode ?? 0,
-        body: JSON.parse(Buffer.concat(chunks).toString()) as Record<string, unknown>,
-      }));
-    });
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () =>
+          resolve({
+            status: response.statusCode ?? 0,
+            body: JSON.parse(Buffer.concat(chunks).toString()) as Record<string, unknown>,
+          }),
+        );
+      },
+    );
     request.on('error', reject);
     request.end(json);
   });
@@ -169,9 +185,12 @@ beforeAll(async () => {
   port = address.port;
 });
 
-afterAll(async () => new Promise<void>((resolve, reject) => (
-  server.close((error) => error ? reject(error) : resolve())
-)));
+afterAll(
+  async () =>
+    new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    ),
+);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -180,12 +199,21 @@ beforeEach(() => {
     id: input.id,
     ownerAccountId: input.ownerAccountId,
     objective: input.objective,
-    trigger: input.triggerKind === 'event'
-      ? { type: 'event', appId: input.eventAppId, eventType: input.eventType, resource: input.eventResource }
-      : { type: input.triggerKind },
+    trigger:
+      input.triggerKind === 'event'
+        ? {
+            type: 'event',
+            appId: input.eventAppId,
+            eventType: input.eventType,
+            resource: input.eventResource,
+          }
+        : { type: input.triggerKind },
     actorSelection: { mode: input.actorMode, agentId: input.fixedAgentId },
     executionMode: input.executionMode,
-    actions: input.actions.map((action: Record<string, unknown>, position: number) => ({ ...action, position })),
+    actions: input.actions.map((action: Record<string, unknown>, position: number) => ({
+      ...action,
+      position,
+    })),
     inputs: input.inputs,
     resources: input.resources,
     dataFlow: input.dataFlow,
@@ -202,32 +230,43 @@ beforeEach(() => {
   state.markRevoked.mockResolvedValue(undefined);
   state.reload.mockResolvedValue(undefined);
   state.scheduleError.mockReturnValue(null);
-  state.oxyMap.mockResolvedValue([{
-    resource,
-    maximumAutonomy: 'autonomous',
-    limits: [],
-    toolNames: ['replyToEmail'],
-  }]);
+  state.oxyMap.mockResolvedValue([
+    {
+      resource,
+      maximumAutonomy: 'autonomous',
+      limits: [],
+      toolNames: ['replyToEmail'],
+    },
+  ]);
   state.setEnabled.mockImplementation(async (_db, id, _owner, enabled) => ({ id, enabled }));
   state.list.mockResolvedValue([]);
-  state.update.mockImplementation(async (_db, input) => storedAutomation({
-    id: input.id,
-    objective: input.objective,
-    trigger: input.triggerKind === 'schedule'
-      ? { type: 'schedule', cron: input.scheduleCron, timezone: input.scheduleTimezone }
-      : input.triggerKind === 'event'
-        ? { type: 'event', appId: input.eventAppId, eventType: input.eventType, resource: input.eventResource }
-        : { type: 'manual' },
-    actorSelection: input.actorMode === 'fixed'
-      ? { mode: 'fixed', agentId: input.fixedAgentId }
-      : { mode: 'automatic', eligibleAgentIds: input.eligibleAgentIds },
-    resources: input.resources,
-    dataFlow: input.dataFlow,
-    maximumAutonomy: input.maximumAutonomy,
-    limits: input.limits,
-    enabled: input.enabled,
-    updatedAt: new Date('2026-09-01T10:02:00.000Z'),
-  }));
+  state.update.mockImplementation(async (_db, input) =>
+    storedAutomation({
+      id: input.id,
+      objective: input.objective,
+      trigger:
+        input.triggerKind === 'schedule'
+          ? { type: 'schedule', cron: input.scheduleCron, timezone: input.scheduleTimezone }
+          : input.triggerKind === 'event'
+            ? {
+                type: 'event',
+                appId: input.eventAppId,
+                eventType: input.eventType,
+                resource: input.eventResource,
+              }
+            : { type: 'manual' },
+      actorSelection:
+        input.actorMode === 'fixed'
+          ? { mode: 'fixed', agentId: input.fixedAgentId }
+          : { mode: 'automatic', eligibleAgentIds: input.eligibleAgentIds },
+      resources: input.resources,
+      dataFlow: input.dataFlow,
+      maximumAutonomy: input.maximumAutonomy,
+      limits: input.limits,
+      enabled: input.enabled,
+      updatedAt: new Date('2026-09-01T10:02:00.000Z'),
+    }),
+  );
 });
 
 describe('structured automation control plane', () => {
@@ -235,14 +274,19 @@ describe('structured automation control plane', () => {
     const response = await send('POST', '/automations', payload);
     expect(response.status).toBe(201);
     expect(state.provision).not.toHaveBeenCalled();
-    expect(state.create).toHaveBeenCalledWith(database, expect.objectContaining({
-      executionMode: 'observe',
-      actions: [expect.objectContaining({ tool: 'replyToEmail' })],
-    }));
-    expect(response.body.receipt).toEqual(expect.objectContaining({
-      executionMode: 'observe',
-      actions: [expect.objectContaining({ tool: 'replyToEmail' })],
-    }));
+    expect(state.create).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        executionMode: 'observe',
+        actions: [expect.objectContaining({ tool: 'replyToEmail' })],
+      }),
+    );
+    expect(response.body.receipt).toEqual(
+      expect.objectContaining({
+        executionMode: 'observe',
+        actions: [expect.objectContaining({ tool: 'replyToEmail' })],
+      }),
+    );
   });
 
   it('requires a live user session before execution authority is created', async () => {
@@ -273,17 +317,15 @@ describe('structured automation control plane', () => {
     expect(response.status).toBe(201);
     expect(state.oxyMap).not.toHaveBeenCalled();
     expect(state.provision).not.toHaveBeenCalled();
-    expect(state.create).toHaveBeenCalledWith(database, expect.objectContaining({
-      actions: [],
-      resources: [],
-      enabled: false,
-    }));
-    expect(state.setEnabled).toHaveBeenCalledWith(
+    expect(state.create).toHaveBeenCalledWith(
       database,
-      expect.any(String),
-      'owner-1',
-      true,
+      expect.objectContaining({
+        actions: [],
+        resources: [],
+        enabled: false,
+      }),
     );
+    expect(state.setEnabled).toHaveBeenCalledWith(database, expect.any(String), 'owner-1', true);
   });
 
   it('rejects an invalid schedule before persisting the definition', async () => {
@@ -298,25 +340,31 @@ describe('structured automation control plane', () => {
   });
 
   it('persists only opaque authorization references for execute mode', async () => {
-    state.provision.mockImplementationOnce(async (input) => [{
-      automationActionId: input.pairs[0].action.id,
-      agentId: 'agent-1',
-      actorAccountId: 'bot-agent-1',
-      oxyAuthorizationId: 'authorization-1',
-      expiresAt: new Date(Date.now() + 60_000),
-    }]);
+    state.provision.mockImplementationOnce(async (input) => [
+      {
+        automationActionId: input.pairs[0].action.id,
+        agentId: 'agent-1',
+        actorAccountId: 'bot-agent-1',
+        oxyAuthorizationId: 'authorization-1',
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    ]);
     const response = await send('POST', '/automations', { ...payload, executionMode: 'execute' });
     expect(response.status).toBe(201);
-    expect(state.provision).toHaveBeenCalledWith(expect.objectContaining({
-      accessToken: 'user-token',
-      ownerAccountId: 'owner-1',
-      maximumAutonomy: 'autonomous',
-    }));
+    expect(state.provision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessToken: 'user-token',
+        ownerAccountId: 'owner-1',
+        maximumAutonomy: 'autonomous',
+      }),
+    );
     const persisted = state.create.mock.calls[0]?.[1];
     expect(persisted.enabled).toBe(false);
-    expect(state.upsert).toHaveBeenCalledWith(database, [expect.objectContaining({
-      oxyAuthorizationId: 'authorization-1',
-    })]);
+    expect(state.upsert).toHaveBeenCalledWith(database, [
+      expect.objectContaining({
+        oxyAuthorizationId: 'authorization-1',
+      }),
+    ]);
     expect(state.setEnabled).toHaveBeenCalledWith(database, persisted.id, 'owner-1', true);
     expect(state.reload).toHaveBeenCalledWith(persisted.id);
     expect(JSON.stringify(persisted)).not.toContain('user-token');
@@ -331,10 +379,12 @@ describe('structured automation control plane', () => {
     });
 
     expect(response.status).toBe(201);
-    expect(state.oxyMap).toHaveBeenCalledWith(expect.objectContaining({
-      ownerAccountId: 'owner-1',
-      autonomy: 'execute_on_request',
-    }));
+    expect(state.oxyMap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerAccountId: 'owner-1',
+        autonomy: 'execute_on_request',
+      }),
+    );
   });
 
   it('rejects active background execution below autonomous policy', async () => {
@@ -365,11 +415,13 @@ describe('structured automation control plane', () => {
   });
 
   it('does not reactivate an execute definition with an incompatible policy', async () => {
-    state.find.mockResolvedValue(storedAutomation({
-      trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'Europe/Madrid' },
-      maximumAutonomy: 'draft',
-      enabled: false,
-    }));
+    state.find.mockResolvedValue(
+      storedAutomation({
+        trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'Europe/Madrid' },
+        maximumAutonomy: 'draft',
+        enabled: false,
+      }),
+    );
 
     const response = await send('PATCH', '/automations/automation-1', { enabled: true });
 
@@ -396,39 +448,46 @@ describe('structured automation control plane', () => {
     const response = await send('PATCH', '/automations/automation-1', update);
 
     expect(response.status).toBe(200);
-    expect(state.update).toHaveBeenCalledWith(database, expect.objectContaining({
-      objective: update.objective,
-      triggerKind: 'schedule',
-      actorMode: 'automatic',
-      eligibleAgentIds: ['agent-2', 'agent-1'],
-      resources: [resource, noted],
-      dataFlow: update.dataFlow,
-      maximumAutonomy: 'autonomous',
-      limits: update.limits,
-      enabled: true,
-      authorizations: [],
-    }));
-    expect(response.body.receipt).toEqual(expect.objectContaining({
-      objective: update.objective,
-      trigger: update.trigger,
-      actors: update.actorSelection,
-      resources: update.resources,
-      dataFlow: update.dataFlow,
-      limits: update.limits,
-      enabled: true,
-    }));
+    expect(state.update).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        objective: update.objective,
+        triggerKind: 'schedule',
+        actorMode: 'automatic',
+        eligibleAgentIds: ['agent-2', 'agent-1'],
+        resources: [resource, noted],
+        dataFlow: update.dataFlow,
+        maximumAutonomy: 'autonomous',
+        limits: update.limits,
+        enabled: true,
+        authorizations: [],
+      }),
+    );
+    expect(response.body.receipt).toEqual(
+      expect.objectContaining({
+        objective: update.objective,
+        trigger: update.trigger,
+        actors: update.actorSelection,
+        resources: update.resources,
+        dataFlow: update.dataFlow,
+        limits: update.limits,
+        enabled: true,
+      }),
+    );
   });
 
   it('rotates exact Oxy authority before re-enabling an edited execute definition', async () => {
     state.find.mockResolvedValue(storedAutomation());
     state.listActive.mockResolvedValue([{ oxyAuthorizationId: 'authorization-old' }]);
-    state.provision.mockResolvedValue([{
-      automationActionId: 'action-1',
-      agentId: 'agent-1',
-      actorAccountId: 'bot-agent-1',
-      oxyAuthorizationId: 'authorization-new',
-      expiresAt: new Date('2027-09-01T10:00:00.000Z'),
-    }]);
+    state.provision.mockResolvedValue([
+      {
+        automationActionId: 'action-1',
+        agentId: 'agent-1',
+        actorAccountId: 'bot-agent-1',
+        oxyAuthorizationId: 'authorization-new',
+        expiresAt: new Date('2027-09-01T10:00:00.000Z'),
+      },
+    ]);
     state.revoke.mockResolvedValue({ revoked: ['authorization-old'], failed: [] });
 
     const response = await send('PATCH', '/automations/automation-1', {
@@ -436,10 +495,12 @@ describe('structured automation control plane', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(state.provision).toHaveBeenCalledWith(expect.objectContaining({
-      automationId: 'automation-1',
-      accessToken: 'user-token',
-    }));
+    expect(state.provision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        automationId: 'automation-1',
+        accessToken: 'user-token',
+      }),
+    );
     expect(state.setEnabled).toHaveBeenCalledWith(
       database,
       'automation-1',
@@ -449,10 +510,13 @@ describe('structured automation control plane', () => {
     );
     expect(state.revoke).toHaveBeenCalledWith('user-token', ['authorization-old']);
     expect(state.markRevoked).toHaveBeenCalledWith(database, ['authorization-old']);
-    expect(state.update).toHaveBeenCalledWith(database, expect.objectContaining({
-      authorizations: [expect.objectContaining({ oxyAuthorizationId: 'authorization-new' })],
-      enabled: true,
-    }));
+    expect(state.update).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        authorizations: [expect.objectContaining({ oxyAuthorizationId: 'authorization-new' })],
+        enabled: true,
+      }),
+    );
     expect(response.body.revocation).toEqual({ revoked: 1, failed: 0 });
   });
 
@@ -460,34 +524,47 @@ describe('structured automation control plane', () => {
     state.find.mockResolvedValue(storedAutomation());
     state.listActive.mockResolvedValue([{ oxyAuthorizationId: 'authorization-old' }]);
     state.revoke.mockResolvedValue({ revoked: ['authorization-old'], failed: [] });
-    state.provision.mockImplementationOnce(async (input) => [{
-      automationActionId: input.pairs[0].action.id,
-      agentId: input.pairs[0].agent.agentId,
-      actorAccountId: input.pairs[0].agent.actorAccountId,
-      oxyAuthorizationId: 'authorization-agent-2',
-      expiresAt: new Date('2027-09-01T10:00:00.000Z'),
-    }]);
+    state.provision.mockImplementationOnce(async (input) => [
+      {
+        automationActionId: input.pairs[0].action.id,
+        agentId: input.pairs[0].agent.agentId,
+        actorAccountId: input.pairs[0].agent.actorAccountId,
+        oxyAuthorizationId: 'authorization-agent-2',
+        expiresAt: new Date('2027-09-01T10:00:00.000Z'),
+      },
+    ]);
 
     const response = await send('PATCH', '/automations/automation-1', {
       actorSelection: { mode: 'fixed', agentId: 'agent-2' },
     });
 
     expect(response.status).toBe(200);
-    expect(state.oxyMap).toHaveBeenCalledWith(expect.objectContaining({
-      actor: { type: 'agent', accountId: 'bot-agent-2' },
-    }));
-    expect(state.provision).toHaveBeenCalledWith(expect.objectContaining({
-      pairs: [expect.objectContaining({
-        agent: expect.objectContaining({ agentId: 'agent-2', actorAccountId: 'bot-agent-2' }),
-      })],
-    }));
-    expect(state.update).toHaveBeenCalledWith(database, expect.objectContaining({
-      fixedAgentId: 'agent-2',
-      authorizations: [expect.objectContaining({
-        agentId: 'agent-2',
-        oxyAuthorizationId: 'authorization-agent-2',
-      })],
-    }));
+    expect(state.oxyMap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: { type: 'agent', accountId: 'bot-agent-2' },
+      }),
+    );
+    expect(state.provision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pairs: [
+          expect.objectContaining({
+            agent: expect.objectContaining({ agentId: 'agent-2', actorAccountId: 'bot-agent-2' }),
+          }),
+        ],
+      }),
+    );
+    expect(state.update).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        fixedAgentId: 'agent-2',
+        authorizations: [
+          expect.objectContaining({
+            agentId: 'agent-2',
+            oxyAuthorizationId: 'authorization-agent-2',
+          }),
+        ],
+      }),
+    );
   });
 
   it('rejects duplicate global limits before rotating authority', async () => {
@@ -530,12 +607,9 @@ describe('structured automation control plane', () => {
       trigger: { type: 'manual' },
     });
 
-    const response = await send(
-      'POST',
-      '/automations/automation-1/run',
-      undefined,
-      { 'idempotency-key': 'request-0001' },
-    );
+    const response = await send('POST', '/automations/automation-1/run', undefined, {
+      'idempotency-key': 'request-0001',
+    });
 
     expect(response.status).toBe(202);
     expect(response.body.run).toEqual({ status: 'queued', sessionId: 'session-1' });
@@ -570,55 +644,80 @@ describe('Alia as the default responsible actor', () => {
     dataFlow: { sources: [], destinations: [] },
     maximumAutonomy: 'autonomous',
   };
-  const inboxRoot = { appId: 'inbox', effectiveAccountId: 'owner-1', resourceType: 'email_account', resourceId: 'owner-1' };
-  const reads = [{ resource: inboxRoot, tool: 'listEmails' }, { resource: inboxRoot, tool: 'getEmail' }];
+  const inboxRoot = {
+    appId: 'inbox',
+    effectiveAccountId: 'owner-1',
+    resourceType: 'email_account',
+    resourceId: 'owner-1',
+  };
+  const reads = [
+    { resource: inboxRoot, tool: 'listEmails' },
+    { resource: inboxRoot, tool: 'getEmail' },
+  ];
   const expiresAt = new Date('2027-10-01T00:00:00.000Z');
 
   beforeEach(() => {
     state.readTools.mockResolvedValue(reads);
     state.replaceAlia.mockResolvedValue(undefined);
-    state.provisionAlia.mockImplementation(async (input: {
-      actions: Array<{ id: string; resource: unknown; tool: string }>;
-      reads: Array<{ resource: unknown; tool: string }>;
-    }) => ({
-      provisioned: [
-        ...input.actions.map((action) => ({
-          automationActionId: action.id, resource: action.resource, tool: action.tool,
-          oxyAuthorizationId: `oxy-${action.tool}`, expiresAt,
-        })),
-        ...input.reads.map((read) => ({
-          automationActionId: null, resource: read.resource, tool: read.tool,
-          oxyAuthorizationId: `oxy-${read.tool}`, expiresAt,
-        })),
-      ],
-      refusedReads: 0,
-    }));
+    state.provisionAlia.mockImplementation(
+      async (input: {
+        actions: Array<{ id: string; resource: unknown; tool: string }>;
+        reads: Array<{ resource: unknown; tool: string }>;
+      }) => ({
+        provisioned: [
+          ...input.actions.map((action) => ({
+            automationActionId: action.id,
+            resource: action.resource,
+            tool: action.tool,
+            oxyAuthorizationId: `oxy-${action.tool}`,
+            expiresAt,
+          })),
+          ...input.reads.map((read) => ({
+            automationActionId: null,
+            resource: read.resource,
+            tool: read.tool,
+            oxyAuthorizationId: `oxy-${read.tool}`,
+            expiresAt,
+          })),
+        ],
+        refusedReads: 0,
+      }),
+    );
   });
 
-  it('makes Alia responsible when no actor is named and gives her standing reads of the owner\'s apps', async () => {
+  it("makes Alia responsible when no actor is named and gives her standing reads of the owner's apps", async () => {
     const response = await send('POST', '/automations', assistantTask);
 
     expect(response.status).toBe(201);
-    expect(state.create).toHaveBeenCalledWith(database, expect.objectContaining({
-      actorMode: 'alia',
-      fixedAgentId: undefined,
-      eligibleAgentIds: [],
-      actions: [],
-      // Inert until her authority is durable.
-      enabled: false,
-    }));
+    expect(state.create).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        actorMode: 'alia',
+        fixedAgentId: undefined,
+        eligibleAgentIds: [],
+        actions: [],
+        // Inert until her authority is durable.
+        enabled: false,
+      }),
+    );
     expect(state.oxyMap).not.toHaveBeenCalled();
     expect(state.provision).not.toHaveBeenCalled();
     expect(state.readTools).toHaveBeenCalledWith('owner-1');
-    expect(state.provisionAlia).toHaveBeenCalledWith(expect.objectContaining({
-      accessToken: 'user-token',
-      ownerAccountId: 'owner-1',
-      maximumAutonomy: 'autonomous',
-      actions: [],
-      reads,
-    }));
+    expect(state.provisionAlia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessToken: 'user-token',
+        ownerAccountId: 'owner-1',
+        maximumAutonomy: 'autonomous',
+        actions: [],
+        reads,
+      }),
+    );
     expect(state.replaceAlia).toHaveBeenCalledWith(database, expect.any(String), [
-      expect.objectContaining({ automationActionId: null, tool: 'listEmails', oxyAuthorizationId: 'oxy-listEmails' }),
+      expect.objectContaining({
+        automationActionId: null,
+        tool: 'listEmails',
+        oxyAuthorizationId: 'oxy-listEmails',
+      }),
       expect.objectContaining({ automationActionId: null, tool: 'getEmail' }),
     ]);
     expect(state.setEnabled).toHaveBeenCalledWith(database, expect.any(String), 'owner-1', true);
@@ -634,10 +733,16 @@ describe('Alia as the default responsible actor', () => {
   });
 
   it('accepts Alia named explicitly', async () => {
-    const response = await send('POST', '/automations', { ...assistantTask, actorSelection: { mode: 'alia' } });
+    const response = await send('POST', '/automations', {
+      ...assistantTask,
+      actorSelection: { mode: 'alia' },
+    });
 
     expect(response.status).toBe(201);
-    expect(state.create).toHaveBeenCalledWith(database, expect.objectContaining({ actorMode: 'alia' }));
+    expect(state.create).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({ actorMode: 'alia' }),
+    );
   });
 
   it('authorizes Alia herself for the exact connected actions a task declares', async () => {
@@ -647,12 +752,20 @@ describe('Alia as the default responsible actor', () => {
     expect(response.status).toBe(201);
     expect(state.oxyMap).not.toHaveBeenCalled();
     expect(state.provision).not.toHaveBeenCalled();
-    expect(state.provisionAlia).toHaveBeenCalledWith(expect.objectContaining({
-      actions: [expect.objectContaining({ id: expect.any(String), resource, tool: 'replyToEmail' })],
-    }));
-    expect(state.replaceAlia).toHaveBeenCalledWith(database, expect.any(String), expect.arrayContaining([
-      expect.objectContaining({ tool: 'replyToEmail', automationActionId: expect.any(String) }),
-    ]));
+    expect(state.provisionAlia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actions: [
+          expect.objectContaining({ id: expect.any(String), resource, tool: 'replyToEmail' }),
+        ],
+      }),
+    );
+    expect(state.replaceAlia).toHaveBeenCalledWith(
+      database,
+      expect.any(String),
+      expect.arrayContaining([
+        expect.objectContaining({ tool: 'replyToEmail', automationActionId: expect.any(String) }),
+      ]),
+    );
   });
 
   it('keeps the task inert when Oxy refuses a declared action', async () => {
@@ -661,10 +774,12 @@ describe('Alia as the default responsible actor', () => {
     const response = await send('POST', '/automations', { ...connected, executionMode: 'execute' });
 
     expect(response.status).toBe(403);
-    expect(response.body).toEqual(expect.objectContaining({
-      error: 'automation_execution_authority_refused',
-      stopped: true,
-    }));
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        error: 'automation_execution_authority_refused',
+        stopped: true,
+      }),
+    );
     expect(state.replaceAlia).not.toHaveBeenCalled();
     expect(state.setEnabled).not.toHaveBeenCalled();
   });
@@ -678,13 +793,19 @@ describe('Alia as the default responsible actor', () => {
 
     expect(response.status).toBe(201);
     expect(state.readTools).not.toHaveBeenCalled();
-    expect(state.provisionAlia).toHaveBeenCalledWith(expect.objectContaining({ reads: [], actions: [] }));
+    expect(state.provisionAlia).toHaveBeenCalledWith(
+      expect.objectContaining({ reads: [], actions: [] }),
+    );
   });
 
   it.each([
     [{ watch: { query: 'x', url: 'https://example.com' } }, undefined, 'invalid_watch'],
     [{ watch: { url: 'https://example.com', condition: 'contains' } }, undefined, 'invalid_watch'],
-    [{ watch: { query: 'Meta announces' } }, { mode: 'fixed', agentId: 'agent-1' }, 'watch_requires_alia'],
+    [
+      { watch: { query: 'Meta announces' } },
+      { mode: 'fixed', agentId: 'agent-1' },
+      'watch_requires_alia',
+    ],
   ])('refuses a malformed watch %#', async (inputs, actorSelection, error) => {
     const response = await send('POST', '/automations', {
       ...assistantTask,
@@ -704,10 +825,13 @@ describe('Alia as the default responsible actor', () => {
     });
 
     expect(response.status).toBe(201);
-    expect(state.create).toHaveBeenCalledWith(database, expect.objectContaining({
-      actorMode: 'fixed',
-      fixedAgentId: 'agent-1',
-    }));
+    expect(state.create).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        actorMode: 'fixed',
+        fixedAgentId: 'agent-1',
+      }),
+    );
   });
 
   it('still refuses an automatic agent pool for an assistant task', async () => {
@@ -731,30 +855,42 @@ describe('Alia as the default responsible actor', () => {
     });
     state.find.mockResolvedValueOnce(existing);
     state.setEnabled.mockImplementationOnce(async () => existing);
-    state.update.mockImplementationOnce(async (_db, input) => storedAutomation({
-      ...existing,
-      actorSelection: { mode: input.actorMode },
-    }));
+    state.update.mockImplementationOnce(async (_db, input) =>
+      storedAutomation({
+        ...existing,
+        actorSelection: { mode: input.actorMode },
+      }),
+    );
 
-    const response = await send('PATCH', '/automations/automation-1', { actorSelection: { mode: 'alia' } });
+    const response = await send('PATCH', '/automations/automation-1', {
+      actorSelection: { mode: 'alia' },
+    });
 
     expect(response.status).toBe(200);
-    expect(state.provisionAlia).toHaveBeenCalledWith(expect.objectContaining({ automationId: 'automation-1', reads }));
-    expect(state.update).toHaveBeenCalledWith(database, expect.objectContaining({
-      actorMode: 'alia',
-      fixedAgentId: undefined,
-      eligibleAgentIds: [],
-      authorizations: [],
-      aliaAuthorizations: [
-        expect.objectContaining({ tool: 'listEmails' }),
-        expect.objectContaining({ tool: 'getEmail' }),
-      ],
-    }));
+    expect(state.provisionAlia).toHaveBeenCalledWith(
+      expect.objectContaining({ automationId: 'automation-1', reads }),
+    );
+    expect(state.update).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        actorMode: 'alia',
+        fixedAgentId: undefined,
+        eligibleAgentIds: [],
+        authorizations: [],
+        aliaAuthorizations: [
+          expect.objectContaining({ tool: 'listEmails' }),
+          expect.objectContaining({ tool: 'getEmail' }),
+        ],
+      }),
+    );
   });
 
-  it('revokes Alia\'s standing authority with the task when it is stopped', async () => {
+  it("revokes Alia's standing authority with the task when it is stopped", async () => {
     state.find.mockResolvedValueOnce(storedAutomation({ actorSelection: { mode: 'alia' } }));
-    state.listActive.mockResolvedValueOnce([{ oxyAuthorizationId: 'oxy-listEmails' }, { oxyAuthorizationId: 'oxy-getEmail' }]);
+    state.listActive.mockResolvedValueOnce([
+      { oxyAuthorizationId: 'oxy-listEmails' },
+      { oxyAuthorizationId: 'oxy-getEmail' },
+    ]);
     state.revoke.mockResolvedValueOnce({ revoked: ['oxy-listEmails', 'oxy-getEmail'], failed: [] });
 
     const response = await send('DELETE', '/automations/automation-1');

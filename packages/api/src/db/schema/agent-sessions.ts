@@ -230,16 +230,11 @@ export const agentSessions = pgTable(
     index('agent_sessions_chat_lease_expiry_idx')
       .on(t.chatLeaseExpiresAt)
       .where(sql`${t.chatLeaseExpiresAt} is not null`),
-    index('agent_sessions_agent_status_created_idx').on(
-      t.agentId,
-      t.status,
-      t.createdAt.desc(),
-    ),
+    index('agent_sessions_agent_status_created_idx').on(t.agentId, t.status, t.createdAt.desc()),
     index('agent_sessions_parent_session_id_idx')
       .on(t.parentSessionId)
       .where(sql`${t.parentSessionId} is not null`),
-    uniqueIndex('agent_sessions_automation_run_stage_key')
-      .on(t.automationRunId, t.automationStage),
+    uniqueIndex('agent_sessions_automation_run_stage_key').on(t.automationRunId, t.automationStage),
     checkOneOf('agent_sessions_status_check', t.status, AGENT_SESSION_STATUSES),
     /**
      * The plan is set and cleared as a unit by every writer, so both columns are
@@ -300,4 +295,3 @@ export const agentReviews = pgTable(
     check('agent_reviews_rating_range_check', sql`${t.rating} >= 1 and ${t.rating} <= 5`),
   ],
 );
-

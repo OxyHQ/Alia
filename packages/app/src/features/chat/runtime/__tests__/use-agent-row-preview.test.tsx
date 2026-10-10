@@ -68,7 +68,12 @@ function mount(seed?: Agent[]) {
           last = now;
         }
       });
-      return { stop: () => { unsubscribe(); return writes; } };
+      return {
+        stop: () => {
+          unsubscribe();
+          return writes;
+        },
+      };
     },
     client,
   };

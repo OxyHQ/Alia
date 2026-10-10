@@ -185,7 +185,7 @@ const UNIQUES_AT_FREEZE: readonly RetiredUnique[] = [
     table: 'moderation_enforcements',
     constraint: 'moderation_enforcements_decision_revision_action_key',
     mongooseKey: ['decisionId', 'decisionRevision', 'action'],
-    note: 'The enforcement idempotency key. `revision` is IN the key so a correction\'s `restore` is a different action from the removal it supersedes.',
+    note: "The enforcement idempotency key. `revision` is IN the key so a correction's `restore` is a different action from the removal it supersedes.",
   },
   {
     model: 'PushToken',
@@ -657,7 +657,8 @@ const UNIQUES_REMOVED_WITH_CAPABILITY: readonly UniqueRemovedWithCapability[] = 
     table: 'canvas_sessions',
     constraint: 'canvas_sessions_oxy_user_conversation_id_key',
     removedBy: '0070_clean_cut_dormant_tables',
-    reason: 'The table never had a writer; its read and delete paths were removed and the table dropped.',
+    reason:
+      'The table never had a writer; its read and delete paths were removed and the table dropped.',
   },
   {
     model: 'ContainerTemplate',
@@ -840,9 +841,9 @@ function uniqueKeysIn(source: string): string[][] {
      * report as "that model declares no uniqueness" rather than as a parse
      * failure. Silent, and in the permissive direction.
      */
-    const fields = [...keyObject[1].matchAll(/(?:'([^']+)'|"([^"]+)"|([A-Za-z_$][\w$.]*))\s*:\s*-?1/g)].map(
-      (m) => m[1] ?? m[2] ?? m[3],
-    );
+    const fields = [
+      ...keyObject[1].matchAll(/(?:'([^']+)'|"([^"]+)"|([A-Za-z_$][\w$.]*))\s*:\s*-?1/g),
+    ].map((m) => m[1] ?? m[2] ?? m[3]);
     if (fields.length > 0) keys.push(fields);
   }
 
@@ -997,9 +998,13 @@ describe('the walk itself found something', () => {
 
   it('detects BOTH Mongoose spellings, not just the one it happens to meet first', () => {
     const compound = uniqueKeysIn(`s.index({ a: 1, b: 1 }, { unique: true });`);
-    const fieldLevel = uniqueKeysIn(`const s = new Schema({ email: { type: String, unique: true } });`);
+    const fieldLevel = uniqueKeysIn(
+      `const s = new Schema({ email: { type: String, unique: true } });`,
+    );
     const commented = uniqueKeysIn(`// x.index({ a: 1 }, { unique: true });\n/* unique: true */`);
-    const quoted = uniqueKeysIn(`s.index({ 'metadata.dedup': 1 }, { unique: true, sparse: true });`);
+    const quoted = uniqueKeysIn(
+      `s.index({ 'metadata.dedup': 1 }, { unique: true, sparse: true });`,
+    );
 
     expect(compound, 'the schema.index shape is not detected').toEqual([['a', 'b']]);
     expect(fieldLevel, 'the field-level shape is not detected').toEqual([['email']]);
@@ -1083,7 +1088,9 @@ describe('every uniqueness Mongoose enforced exists in PostgreSQL', () => {
 
   it('has every constraint the RETIRED models required, on the named table', async () => {
     const present = new Set((await databaseUniques()).map((r) => `${r.table}.${r.name}`));
-    const superseded = new Set(UNIQUES_SUPERSEDED.map((r) => `${r.model}|${r.wasTable}|${r.wasConstraint}`));
+    const superseded = new Set(
+      UNIQUES_SUPERSEDED.map((r) => `${r.model}|${r.wasTable}|${r.wasConstraint}`),
+    );
     const removedWithCapability = new Set(
       UNIQUES_REMOVED_WITH_CAPABILITY.map((r) => `${r.model}|${r.table}|${r.constraint}`),
     );
@@ -1103,8 +1110,12 @@ describe('every uniqueness Mongoose enforced exists in PostgreSQL', () => {
 
   it('has the replacement for every superseded constraint, on the named table', async () => {
     const present = new Set((await databaseUniques()).map((r) => `${r.table}.${r.name}`));
-    const missing = UNIQUES_SUPERSEDED.filter((r) => !present.has(`${r.nowTable}.${r.nowConstraint}`)).map(
-      (r) => `${r.model} -> ${r.nowTable}.${r.nowConstraint} ` + `(replaced ${r.wasTable}.${r.wasConstraint})`,
+    const missing = UNIQUES_SUPERSEDED.filter(
+      (r) => !present.has(`${r.nowTable}.${r.nowConstraint}`),
+    ).map(
+      (r) =>
+        `${r.model} -> ${r.nowTable}.${r.nowConstraint} ` +
+        `(replaced ${r.wasTable}.${r.wasConstraint})`,
     );
 
     expect(
@@ -1117,14 +1128,18 @@ describe('every uniqueness Mongoose enforced exists in PostgreSQL', () => {
 
     // And the one it replaced is really gone: a row here whose OLD constraint
     // still exists is a supersession that never happened.
-    const stillThere = UNIQUES_SUPERSEDED.filter((r) => present.has(`${r.wasTable}.${r.wasConstraint}`));
+    const stillThere = UNIQUES_SUPERSEDED.filter((r) =>
+      present.has(`${r.wasTable}.${r.wasConstraint}`),
+    );
     expect(stillThere).toEqual([]);
   });
 
   it('keeps any uniquenesses removed in a later retirement absent and historically backed', async () => {
     const present = new Set((await databaseUniques()).map((r) => `${r.table}.${r.name}`));
     const historical = new Set(
-      [...UNIQUES_AT_FREEZE, ...UNIQUES_RETIRED_SINCE].map((r) => `${r.model}|${r.table}|${r.constraint}`),
+      [...UNIQUES_AT_FREEZE, ...UNIQUES_RETIRED_SINCE].map(
+        (r) => `${r.model}|${r.table}|${r.constraint}`,
+      ),
     );
 
     const unbacked = UNIQUES_REMOVED_WITH_CAPABILITY.filter(
@@ -1136,9 +1151,9 @@ describe('every uniqueness Mongoose enforced exists in PostgreSQL', () => {
         'historical row proves the uniqueness ever existed.',
     ).toEqual([]);
 
-    const resurrected = UNIQUES_REMOVED_WITH_CAPABILITY.filter((r) => present.has(`${r.table}.${r.constraint}`)).map(
-      (r) => `${r.model} -> ${r.table}.${r.constraint} (${r.removedBy})`,
-    );
+    const resurrected = UNIQUES_REMOVED_WITH_CAPABILITY.filter((r) =>
+      present.has(`${r.table}.${r.constraint}`),
+    ).map((r) => `${r.model} -> ${r.table}.${r.constraint} (${r.removedBy})`);
     expect(
       resurrected,
       `${resurrected.join('; ')} returned after its whole capability left Alia. ` +
@@ -1166,9 +1181,9 @@ describe('every uniqueness Mongoose enforced exists in PostgreSQL', () => {
         'Two services enforcing one uniqueness disagree the first time one of them is down.',
     ).toEqual([]);
 
-    const unreplaced = UNIQUES_DEPARTED.filter((r) => !present.has(`${r.table}.${r.replacedBy}`)).map(
-      (r) => `${r.model} -> ${r.table}.${r.replacedBy} (${r.nowEnforcedBy})`,
-    );
+    const unreplaced = UNIQUES_DEPARTED.filter(
+      (r) => !present.has(`${r.table}.${r.replacedBy}`),
+    ).map((r) => `${r.model} -> ${r.table}.${r.replacedBy} (${r.nowEnforcedBy})`);
     expect(
       unreplaced,
       `${unreplaced.join('; ')} — the constraint that replaced a departed one is missing, ` +
@@ -1181,7 +1196,11 @@ describe('every uniqueness Mongoose enforced exists in PostgreSQL', () => {
    * walk — can see, because there is no `unique: true` to find.
    */
   it('keeps natural-key primary keys free of a generated default', async () => {
-    const rows = await db.execute<{ table_name: string; column_name: string; has_default: boolean }>(sql`
+    const rows = await db.execute<{
+      table_name: string;
+      column_name: string;
+      has_default: boolean;
+    }>(sql`
       select c.relname as table_name, a.attname as column_name,
              a.atthasdef as has_default
       from pg_attribute a
@@ -1189,7 +1208,9 @@ describe('every uniqueness Mongoose enforced exists in PostgreSQL', () => {
       join pg_namespace n on n.oid = c.relnamespace
       where n.nspname = 'public' and a.attnum > 0 and not a.attisdropped
     `);
-    const byKey = new Map([...rows].map((r) => [`${r.table_name}.${r.column_name}`, r.has_default]));
+    const byKey = new Map(
+      [...rows].map((r) => [`${r.table_name}.${r.column_name}`, r.has_default]),
+    );
 
     const defaulted = NATURAL_KEY_PRIMARY_KEYS.filter(
       (k) => byKey.get(`${k.table}.${k.column}`) === true,
@@ -1205,9 +1226,9 @@ describe('every uniqueness Mongoose enforced exists in PostgreSQL', () => {
     ).toEqual([]);
 
     // The measurement is only meaningful if these columns were actually read.
-    const unseen = NATURAL_KEY_PRIMARY_KEYS.filter(
-      (k) => !byKey.has(`${k.table}.${k.column}`),
-    ).map((k) => `${k.table}.${k.column}`);
+    const unseen = NATURAL_KEY_PRIMARY_KEYS.filter((k) => !byKey.has(`${k.table}.${k.column}`)).map(
+      (k) => `${k.table}.${k.column}`,
+    );
     expect(unseen, `${unseen.join(', ')} was not found in pg_attribute at all`).toEqual([]);
   });
 });

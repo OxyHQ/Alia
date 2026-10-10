@@ -103,9 +103,7 @@ export const PROVIDER_CREDENTIAL_ENV: readonly string[] = [
  *
  * Kaana is the only hosted inference route, so this refusal is unconditional.
  */
-export function directProviderModeFailure(
-  env: NodeJS.ProcessEnv = process.env,
-): string | null {
+export function directProviderModeFailure(env: NodeJS.ProcessEnv = process.env): string | null {
   const offenders: string[] = [];
   if ((env[GATEWAY_URL_ENV] ?? '').trim().length > 0) offenders.push(GATEWAY_URL_ENV);
   for (const variable of PROVIDER_CREDENTIAL_ENV) {
@@ -113,8 +111,8 @@ export function directProviderModeFailure(
   }
   for (const [variable, value] of Object.entries(env)) {
     if (
-      (value ?? '').trim().length > 0
-      && LEGACY_DIRECT_INFERENCE_ENV_PREFIXES.some((prefix) => variable.startsWith(prefix))
+      (value ?? '').trim().length > 0 &&
+      LEGACY_DIRECT_INFERENCE_ENV_PREFIXES.some((prefix) => variable.startsWith(prefix))
     ) {
       offenders.push(variable);
     }

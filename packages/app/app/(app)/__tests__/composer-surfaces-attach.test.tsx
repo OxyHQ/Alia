@@ -17,7 +17,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const draft = vi.hoisted(() => ({
   text: 'every morning, summarise this',
   attachments: [
-    { id: 'p1', uri: 'data:image/png;base64,AA', type: 'image', name: 'chart.png', size: 2, mimeType: 'image/png' },
+    {
+      id: 'p1',
+      uri: 'data:image/png;base64,AA',
+      type: 'image',
+      name: 'chart.png',
+      size: 2,
+      mimeType: 'image/png',
+    },
   ],
   turnOptions: { mcpServerId: 'mcp-1', skillNames: ['brief'] },
   clearDraft: vi.fn(),
@@ -56,11 +63,16 @@ vi.mock('@/features/chat/ui/composer/composer', () => ({
 }));
 vi.mock('@/features/chat/model/attachment-utils', () => ({
   buildMessageContent: vi.fn(async (text: string) => ({
-    content: [{ type: 'text', text }, { type: 'image_url', image_url: { url: 'data:image/png;base64,AA' } }],
+    content: [
+      { type: 'text', text },
+      { type: 'image_url', image_url: { url: 'data:image/png;base64,AA' } },
+    ],
     dropped: [],
   })),
 }));
-vi.mock('@/features/chat/runtime/use-chat-conversation', () => ({ reportDroppedAttachments: vi.fn() }));
+vi.mock('@/features/chat/runtime/use-chat-conversation', () => ({
+  reportDroppedAttachments: vi.fn(),
+}));
 vi.mock('@/features/chat/runtime/use-conversations', () => ({
   useCreateConversation: () => ({ mutateAsync, isPending: false }),
 }));
@@ -72,7 +84,9 @@ vi.mock('@/features/chat/runtime/global-store', () => ({
     }),
   },
 }));
-vi.mock('@/shared/i18n/use-translation', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock('@/shared/i18n/use-translation', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn() } }));
 vi.mock('@oxy.so/bloom/typography', () => ({ Text: () => null, Muted: () => null }));

@@ -51,7 +51,10 @@ export type AgentOutreachKind = 'result' | 'check_in';
 
 export type AgentOutreachOutcome =
   | { readonly posted: true; readonly conversationId: string; readonly messageId: string }
-  | { readonly posted: false; readonly reason: 'agent_not_found' | 'daily_limit' | 'unanswered' | 'empty' };
+  | {
+      readonly posted: false;
+      readonly reason: 'agent_not_found' | 'daily_limit' | 'unanswered' | 'empty';
+    };
 
 export interface AgentOutreachInput {
   readonly oxyUserId: string;
@@ -70,7 +73,10 @@ export interface AgentOutreachInput {
 const SEQ_INDEX = 'messages_oxy_user_conversation_seq_key';
 
 /** Whether this agent may check in with this person now — {@link checkInRefusal}, before anything is spent. */
-export async function agentCheckInRefusal(oxyUserId: string, agentId: string): Promise<CheckInRefusal | null> {
+export async function agentCheckInRefusal(
+  oxyUserId: string,
+  agentId: string,
+): Promise<CheckInRefusal | null> {
   const conversation = await findActiveThreadConversation(getDb(), oxyUserId, agentId);
   return checkInRefusal({
     oxyUserId,
@@ -88,14 +94,15 @@ export async function postAgentMessage(input: AgentOutreachInput): Promise<Agent
   const agent = await attachAgentIdentity(found);
   const name = agentPromptName(agent);
 
-  const conversation = (await findActiveThreadConversation(getDb(), input.oxyUserId, agent._id))
-    ?? await createConversation(getDb(), {
+  const conversation =
+    (await findActiveThreadConversation(getDb(), input.oxyUserId, agent._id)) ??
+    (await createConversation(getDb(), {
       oxyUserId: input.oxyUserId,
       conversationId: randomUUID(),
       title: name,
       source: 'app',
       agentId: agent._id,
-    });
+    }));
 
   if (input.kind === 'check_in') {
     const refusal = await checkInRefusal({
@@ -115,16 +122,18 @@ export async function postAgentMessage(input: AgentOutreachInput): Promise<Agent
     const last = await findLastMessage(getDb(), input.oxyUserId, conversation.conversationId);
     const seq = last?.seq == null ? 0 : last.seq + 1;
     try {
-      await insertMessages(getDb(), [{
-        conversationId: conversation.conversationId,
-        oxyUserId: input.oxyUserId,
-        clientMessageId: messageId,
-        role: 'assistant',
-        content,
-        agentInfo,
-        seq,
-        createdAt: new Date(),
-      }]);
+      await insertMessages(getDb(), [
+        {
+          conversationId: conversation.conversationId,
+          oxyUserId: input.oxyUserId,
+          clientMessageId: messageId,
+          role: 'assistant',
+          content,
+          agentInfo,
+          seq,
+          createdAt: new Date(),
+        },
+      ]);
       break;
     } catch (err: unknown) {
       if (attempt >= 3 || !isUniqueViolation(err, SEQ_INDEX)) throw err;
@@ -139,12 +148,14 @@ export async function postAgentMessage(input: AgentOutreachInput): Promise<Agent
   });
 
   // Live, for a client that has this conversation open.
-  getIO()?.to(`user:${input.oxyUserId}`).emit('conversation:message', {
-    conversationId: conversation.conversationId,
-    agentId: agent._id,
-    agentHandle: agent.handle,
-    message: { id: messageId, role: 'assistant', content, agentInfo, createdAt: new Date() },
-  });
+  getIO()
+    ?.to(`user:${input.oxyUserId}`)
+    .emit('conversation:message', {
+      conversationId: conversation.conversationId,
+      agentId: agent._id,
+      agentHandle: agent.handle,
+      message: { id: messageId, role: 'assistant', content, agentInfo, createdAt: new Date() },
+    });
 
   await sendNotification({
     userId: input.oxyUserId,
@@ -153,7 +164,9 @@ export async function postAgentMessage(input: AgentOutreachInput): Promise<Agent
     body: (input.notificationBody ?? content).slice(0, 500),
     conversationId: conversation.conversationId,
     data: { agentId: agent._id, ...(agent.handle ? { agentHandle: agent.handle } : {}), messageId },
-  }).catch((err: unknown) => log.agents.warn({ err, agentId: agent._id }, 'Could not notify about an agent message'));
+  }).catch((err: unknown) =>
+    log.agents.warn({ err, agentId: agent._id }, 'Could not notify about an agent message'),
+  );
 
   return { posted: true, conversationId: conversation.conversationId, messageId };
 }

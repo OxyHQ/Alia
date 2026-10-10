@@ -40,9 +40,9 @@ describe('reportStateForDecision', () => {
   describe('local status', () => {
     it('closes on a final or corrected decision', () => {
       for (const decisionStatus of ['final', 'corrected']) {
-        expect(
-          reportStateForDecision({ outcome: 'violation', decisionStatus }).localStatus,
-        ).toBe('closed');
+        expect(reportStateForDecision({ outcome: 'violation', decisionStatus }).localStatus).toBe(
+          'closed',
+        );
       }
     });
 
@@ -54,9 +54,9 @@ describe('reportStateForDecision', () => {
      */
     it('leaves the report open on provisional and superseded', () => {
       for (const decisionStatus of ['provisional', 'superseded']) {
-        expect(
-          reportStateForDecision({ outcome: 'violation', decisionStatus }).localStatus,
-        ).toBe('submitted');
+        expect(reportStateForDecision({ outcome: 'violation', decisionStatus }).localStatus).toBe(
+          'submitted',
+        );
       }
     });
 

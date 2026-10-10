@@ -41,18 +41,33 @@ vi.mock('expo/fetch', () => ({
   },
 }));
 
-vi.mock('expo-haptics', () => ({ impactAsync: async () => {}, ImpactFeedbackStyle: { Light: 'light' } }));
-vi.mock('@oxy.so/services', () => ({ useOxy: () => ({ oxyServices: { session: { accessToken: 'token' } } }) }));
+vi.mock('expo-haptics', () => ({
+  impactAsync: async () => {},
+  ImpactFeedbackStyle: { Light: 'light' },
+}));
+vi.mock('@oxy.so/services', () => ({
+  useOxy: () => ({ oxyServices: { session: { accessToken: 'token' } } }),
+}));
 vi.mock('@/shared/platform/device-info', () => ({ collectDeviceInfo: async () => ({}) }));
-vi.mock('@/features/chat/runtime/use-agent-row-preview', () => ({ useAgentRowPreview: () => () => {} }));
+vi.mock('@/features/chat/runtime/use-agent-row-preview', () => ({
+  useAgentRowPreview: () => () => {},
+}));
 vi.mock('@/features/memory/runtime/use-user-data', () => ({ USER_MEMORY_QUERY_KEY: ['memory'] }));
 vi.mock('@/features/chat/runtime/model-store', () => ({
   useModelStore: { getState: () => ({ webSearch: true, setSelectedModel: () => {} }) },
 }));
 vi.mock('@/features/chat/runtime/ui-store', () => ({
-  useUIStore: { getState: () => ({ addCanvasArtifact: () => {}, setRightPanel: () => {}, openAgentPanel: () => {} }) },
+  useUIStore: {
+    getState: () => ({
+      addCanvasArtifact: () => {},
+      setRightPanel: () => {},
+      openAgentPanel: () => {},
+    }),
+  },
 }));
-vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
+vi.mock('@oxy.so/bloom/toast', () => ({
+  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
+}));
 vi.mock('@/shared/i18n', () => ({ default: { t: (k: string) => k } }));
 
 import { useStreamingChat } from '@/features/chat/runtime/use-streaming-chat';
@@ -101,14 +116,31 @@ describe('the ids a turn is sent and stored under', () => {
   it('sends every message under its on-screen id, and names the reply it is drawing', async () => {
     harness.responses.push(
       [contentFrame('first answer'), stopFrame, done],
-      [agentFrame('scout', 'from scout'), agentFrame('sage', 'from sage'), contentFrame('second answer'), stopFrame, done],
+      [
+        agentFrame('scout', 'from scout'),
+        agentFrame('sage', 'from sage'),
+        contentFrame('second answer'),
+        stopFrame,
+        done,
+      ],
     );
     await mount();
-    await act(async () => { await api.append({ role: 'user', content: 'one' }); });
-    await act(async () => { await api.append({ role: 'user', content: 'two' }); });
+    await act(async () => {
+      await api.append({ role: 'user', content: 'one' });
+    });
+    await act(async () => {
+      await api.append({ role: 'user', content: 'two' });
+    });
 
     const [question1, reply1, question2, scout, sage, reply2] = api.messages;
-    expect(api.messages.map((m) => m.content)).toEqual(['one', 'first answer', 'two', 'from scout', 'from sage', 'second answer']);
+    expect(api.messages.map((m) => m.content)).toEqual([
+      'one',
+      'first answer',
+      'two',
+      'from scout',
+      'from sage',
+      'second answer',
+    ]);
 
     expect(harness.requests[0]).toMatchObject({
       messages: [{ id: question1.id, role: 'user', content: 'one' }],
@@ -128,9 +160,16 @@ describe('the ids a turn is sent and stored under', () => {
   });
 
   it('holds the turn unsaved until it completes, and then the server has it', async () => {
-    harness.responses.push([agentFrame('scout', 'from scout'), contentFrame('answer'), stopFrame, done]);
+    harness.responses.push([
+      agentFrame('scout', 'from scout'),
+      contentFrame('answer'),
+      stopFrame,
+      done,
+    ]);
     await mount();
-    await act(async () => { await api.append({ role: 'user', content: 'hi' }); });
+    await act(async () => {
+      await api.append({ role: 'user', content: 'hi' });
+    });
 
     expect(api.messages.map((m) => [m.content, m.unsaved])).toEqual([
       ['hi', undefined],
@@ -147,7 +186,9 @@ describe('the ids a turn is sent and stored under', () => {
       done,
     ]);
     await mount();
-    await act(async () => { await api.append({ role: 'user', content: 'hi' }); });
+    await act(async () => {
+      await api.append({ role: 'user', content: 'hi' });
+    });
 
     expect(api.messages.map((m) => [m.content, m.turnOutcome, m.unsaved])).toEqual([
       ['hi', undefined, true],

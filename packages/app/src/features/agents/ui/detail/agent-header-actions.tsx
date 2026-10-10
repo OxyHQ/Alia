@@ -51,17 +51,13 @@ export function AgentHeaderActions({
 
   return (
     <ButtonGroup accessibilityLabel={t('pages.agents.agentActions')}>
-      {isOwner ? (
-        <ButtonGroupItem onPress={onEdit}>{t('agents.edit')}</ButtonGroupItem>
-      ) : null}
+      {isOwner ? <ButtonGroupItem onPress={onEdit}>{t('agents.edit')}</ButtonGroupItem> : null}
       {canChat ? <ButtonGroupItem onPress={onChat}>{t('agents.chat')}</ButtonGroupItem> : null}
       {hasComputer && onComputer ? (
         <ButtonGroupItem onPress={onComputer}>{t('agents.computer.open')}</ButtonGroupItem>
       ) : null}
       <ButtonGroupItem onPress={onStartTask}>
-        {price != null
-          ? t('agents.startTaskPriced', { count: price })
-          : t('agents.startTask')}
+        {price != null ? t('agents.startTaskPriced', { count: price }) : t('agents.startTask')}
       </ButtonGroupItem>
       <ButtonGroupItem
         iconOnly

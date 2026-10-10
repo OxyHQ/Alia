@@ -45,7 +45,16 @@ vi.mock('@oxy.so/bloom/button', async () => hosts('Button'));
 vi.mock('@oxy.so/bloom/checkbox', async () => hosts('Checkbox'));
 vi.mock('@oxy.so/bloom/field', async () => hosts('Field'));
 vi.mock('@oxy.so/bloom/select', async () =>
-  hosts('Select', 'SelectContent', 'SelectIcon', 'SelectItem', 'SelectItemIndicator', 'SelectItemText', 'SelectTrigger', 'SelectValue'),
+  hosts(
+    'Select',
+    'SelectContent',
+    'SelectIcon',
+    'SelectItem',
+    'SelectItemIndicator',
+    'SelectItemText',
+    'SelectTrigger',
+    'SelectValue',
+  ),
 );
 vi.mock('@oxy.so/bloom/text-field', async () => hosts('TextFieldInput'));
 vi.mock('@oxy.so/bloom/avatar', async () => hosts('Avatar'));
@@ -130,9 +139,11 @@ describe('the agent header', () => {
     expect(items.every((item) => typeof item.props.onPress === 'function')).toBe(true);
   });
 
-  it("offers no Chat on a private agent this person cannot talk to", () => {
+  it('offers no Chat on a private agent this person cannot talk to', () => {
     const root = render(<AgentHeaderActions {...props} isOwner={false} canChat={false} />);
-    const labels = all(root, 'ButtonGroupItem').map((item) => item.props.accessibilityLabel ?? texts(item).join(''));
+    const labels = all(root, 'ButtonGroupItem').map(
+      (item) => item.props.accessibilityLabel ?? texts(item).join(''),
+    );
     expect(labels).toEqual(['Start task · 12 credits', 'Share']);
   });
 
@@ -210,7 +221,15 @@ describe('an agent’s kind-specific settings', () => {
     const root = render(
       <ArchetypeConfigSection
         archetype="task_router"
-        config={{ routingRules: [{ condition: 'billing', priority: 'high', assignTo: { type: 'team', id: 't1', name: 'Finance' } }] }}
+        config={{
+          routingRules: [
+            {
+              condition: 'billing',
+              priority: 'high',
+              assignTo: { type: 'team', id: 't1', name: 'Finance' },
+            },
+          ],
+        }}
         onChange={vi.fn()}
       />,
     );
@@ -219,6 +238,9 @@ describe('an agent’s kind-specific settings', () => {
     expect(words).toContain('Routing rules');
     expect(words).not.toMatch(/Escalation/);
     // The two inputs left are the rule's condition and its target.
-    expect(all(root, 'TextFieldInput').map((input) => input.props.value)).toEqual(['billing', 'Finance']);
+    expect(all(root, 'TextFieldInput').map((input) => input.props.value)).toEqual([
+      'billing',
+      'Finance',
+    ]);
   });
 });

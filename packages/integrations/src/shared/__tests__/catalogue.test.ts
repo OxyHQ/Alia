@@ -20,7 +20,10 @@ describe('parseCatalogue', () => {
     expect(catalogue.defaultModelId).toBe('acme/rocket-1');
     expect(catalogue.featuredIds).toEqual(['acme/rocket-1', 'globex/sage']);
     expect(catalogue.models.map((model) => model.id)).toEqual([
-      'acme/rocket-1', 'acme/rocket-1-mini', 'globex/sage', 'initech/tps',
+      'acme/rocket-1',
+      'acme/rocket-1-mini',
+      'globex/sage',
+      'initech/tps',
     ]);
     const first = catalogue.models[0];
     expect(first?.publisher).toEqual({ id: 'acme', name: 'Acme' });
@@ -57,7 +60,15 @@ describe('parseCatalogue', () => {
 describe('storedChoice', () => {
   it('keeps a publisher/model id and reads every retired identifier as unset', () => {
     expect(storedChoice(' acme/rocket-1 ')).toBe('acme/rocket-1');
-    for (const retired of [undefined, null, '', 'mode:' + 'auto', 'route:' + 'instant', 'profile:' + 'chat', 'alia-' + 'lite']) {
+    for (const retired of [
+      undefined,
+      null,
+      '',
+      'mode:' + 'auto',
+      'route:' + 'instant',
+      'profile:' + 'chat',
+      'alia-' + 'lite',
+    ]) {
       expect(storedChoice(retired)).toBeNull();
     }
   });
@@ -84,13 +95,17 @@ describe('resolveRequestModel', () => {
 describe('listing and search', () => {
   it('lists featured first, in featuredIds order', () => {
     expect(modelsForListing(catalogue).map((model) => model.id)).toEqual([
-      'acme/rocket-1', 'globex/sage', 'acme/rocket-1-mini', 'initech/tps',
+      'acme/rocket-1',
+      'globex/sage',
+      'acme/rocket-1-mini',
+      'initech/tps',
     ]);
   });
 
   it('matches id, name and publisher case-insensitively, exact id first', () => {
     expect(searchModels(catalogue, 'ROCKET').map((model) => model.id)).toEqual([
-      'acme/rocket-1', 'acme/rocket-1-mini',
+      'acme/rocket-1',
+      'acme/rocket-1-mini',
     ]);
     expect(searchModels(catalogue, 'acme/rocket-1-mini').map((model) => model.id)).toEqual([
       'acme/rocket-1-mini',
@@ -125,7 +140,10 @@ describe('resolveModelCommand', () => {
     expect(one.kind === 'select' && one.model.id).toBe('globex/sage');
     const several = resolveModelCommand('acme', catalogue);
     expect(several.kind).toBe('matches');
-    expect(resolveModelCommand('nothing-like-it', catalogue)).toEqual({ kind: 'none', query: 'nothing-like-it' });
+    expect(resolveModelCommand('nothing-like-it', catalogue)).toEqual({
+      kind: 'none',
+      query: 'nothing-like-it',
+    });
   });
 });
 

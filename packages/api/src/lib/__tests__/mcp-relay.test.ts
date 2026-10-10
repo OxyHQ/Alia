@@ -85,7 +85,9 @@ let port: number;
 const openSockets: WebSocket[] = [];
 
 /** Connect, send the `auth` message, and resolve with the relay's first reply. */
-async function authenticate(token: string): Promise<{ socket: WebSocket; reply: { type?: string } }> {
+async function authenticate(
+  token: string,
+): Promise<{ socket: WebSocket; reply: { type?: string } }> {
   const socket = new WebSocket(`ws://127.0.0.1:${port}/ws/mcp`);
   openSockets.push(socket);
 

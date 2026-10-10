@@ -98,7 +98,10 @@ export async function getPlans(filter?: PlanFilter): Promise<PlanData[]> {
 export async function getCreditPackages(active?: boolean): Promise<CreditPackageData[]> {
   const { getDb } = await import('../db/index.js');
   const { selectCreditPackages } = await import('../db/billing/creditPackageRepository.js');
-  return selectCreditPackages(getDb(), active === undefined ? {} : { isActive: active }) as unknown as CreditPackageData[];
+  return selectCreditPackages(
+    getDb(),
+    active === undefined ? {} : { isActive: active },
+  ) as unknown as CreditPackageData[];
 }
 
 /**
@@ -124,7 +127,11 @@ export async function getPlanFeatures(planId?: string): Promise<PlanFeatureData[
  */
 export async function updatePlan(
   planId: string,
-  updates: { stripeProductId?: string; stripeMonthlyPriceId?: string; stripeAnnualPriceId?: string },
+  updates: {
+    stripeProductId?: string;
+    stripeMonthlyPriceId?: string;
+    stripeAnnualPriceId?: string;
+  },
 ): Promise<PlanData | null> {
   const { getDb } = await import('../db/index.js');
   const { updatePlanByPlanId } = await import('../db/billing/planRepository.js');

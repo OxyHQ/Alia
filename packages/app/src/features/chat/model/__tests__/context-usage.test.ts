@@ -14,7 +14,16 @@ const event = {
   memory: 300,
   skills: 0,
   messages: 8_000,
-  mcpServers: [{ server: 'github', tokens: 1_200, tools: [{ name: 'list_issues', tokens: 700 }, { name: 'create_issue', tokens: 500 }] }],
+  mcpServers: [
+    {
+      server: 'github',
+      tokens: 1_200,
+      tools: [
+        { name: 'list_issues', tokens: 700 },
+        { name: 'create_issue', tokens: 500 },
+      ],
+    },
+  ],
 };
 
 describe('the context window, from the alia.context event to the card', () => {
@@ -32,7 +41,14 @@ describe('the context window, from the alia.context event to the card', () => {
 
   it('lists each MCP server with its tools in the breakdown', () => {
     expect(contextCardProps(parseContextUsage(event), t)?.groups).toEqual([
-      { label: 'github', tokens: 1_200, items: [{ label: 'list_issues', tokens: 700 }, { label: 'create_issue', tokens: 500 }] },
+      {
+        label: 'github',
+        tokens: 1_200,
+        items: [
+          { label: 'list_issues', tokens: 700 },
+          { label: 'create_issue', tokens: 500 },
+        ],
+      },
     ]);
   });
 

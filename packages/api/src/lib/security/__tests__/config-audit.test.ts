@@ -12,7 +12,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * tables were dropped.
  */
 
-
 /** Captured `log.info` payloads, one array shared by the fake child logger. */
 const emitted: { payload: Record<string, unknown>; message: string }[] = [];
 

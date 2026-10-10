@@ -16,7 +16,13 @@ interface PlanPreviewCardProps {
   rejected?: boolean;
 }
 
-export function PlanPreviewCard({ steps, onApprove, onReject, approved, rejected }: PlanPreviewCardProps) {
+export function PlanPreviewCard({
+  steps,
+  onApprove,
+  onReject,
+  approved,
+  rejected,
+}: PlanPreviewCardProps) {
   if (approved) {
     return (
       <View className="flex-row items-center gap-1.5 py-1">

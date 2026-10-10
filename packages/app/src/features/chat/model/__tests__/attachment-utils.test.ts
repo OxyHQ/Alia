@@ -28,7 +28,9 @@ const env = vi.hoisted(() => ({ os: 'web' as 'web' | 'ios' }));
 
 vi.mock('react-native', () => ({
   Platform: {
-    get OS() { return env.os; },
+    get OS() {
+      return env.os;
+    },
     select: (o: Record<string, unknown>) => (env.os === 'web' ? o.web : o.native) ?? o.default,
   },
 }));
@@ -57,7 +59,10 @@ function attachment(over: Partial<Attachment> & { id: string }): Attachment {
 
 /** Stands in for the browser reading a `blob:` URL back into bytes. */
 function stubObjectUrlRead(dataUrl: string) {
-  vi.stubGlobal('fetch', vi.fn(async () => ({ blob: async () => ({ type: 'image/png' }) })));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({ blob: async () => ({ type: 'image/png' }) })),
+  );
   class StubReader {
     result: string | null = null;
     onload: (() => void) | null = null;
@@ -113,7 +118,12 @@ describe('web object URLs', () => {
   });
 
   it('reports one that cannot be read instead of vanishing', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('gone'); }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('gone');
+      }),
+    );
 
     const built = await buildMessageContent('hi', [
       attachment({ id: 'picked.png', uri: 'blob:http://localhost/abc-123' }),

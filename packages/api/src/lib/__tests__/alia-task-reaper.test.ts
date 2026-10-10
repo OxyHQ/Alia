@@ -27,15 +27,29 @@ vi.mock('../logger.js', () => {
 
 import { ALIA_RUN_PICKUP_GRACE_MS, reapAbandonedAliaRuns } from '../alia-task-reaper.js';
 
-const HOLD = { userId: 'owner-1', creditsReserved: 10, initialFreeCredits: 5, initialPaidCredits: 0, grantKind: 'free' };
+const HOLD = {
+  userId: 'owner-1',
+  creditsReserved: 10,
+  initialFreeCredits: 5,
+  initialPaidCredits: 0,
+  grantKind: 'free',
+};
 const NOW = new Date('2026-10-01T10:00:00.000Z');
 
 beforeEach(() => {
   vi.clearAllMocks();
   state.list.mockResolvedValue(['run-1']);
-  state.fail.mockResolvedValue({ id: 'run-1', automationId: 'automation-1', requesterAccountId: 'owner-1', creditReservation: HOLD });
+  state.fail.mockResolvedValue({
+    id: 'run-1',
+    automationId: 'automation-1',
+    requesterAccountId: 'owner-1',
+    creditReservation: HOLD,
+  });
   state.findDefinition.mockResolvedValue({
-    id: 'automation-1', ownerAccountId: 'owner-1', objective: 'Morning summary', conversationId: 'conversation-1',
+    id: 'automation-1',
+    ownerAccountId: 'owner-1',
+    objective: 'Morning summary',
+    conversationId: 'conversation-1',
   });
   state.post.mockResolvedValue({ posted: true });
   state.refund.mockResolvedValue(undefined);
@@ -50,9 +64,13 @@ describe('the Alia run reaper', () => {
     expect(state.list).toHaveBeenCalledWith(database, NOW, plannedBefore);
     expect(state.fail).toHaveBeenCalledWith(database, 'run-1', NOW, plannedBefore);
     expect(state.refund).toHaveBeenCalledWith(HOLD, 'Alia task run abandoned');
-    expect(state.post).toHaveBeenCalledWith(expect.objectContaining({
-      oxyUserId: 'owner-1', automationId: 'automation-1', conversationId: 'conversation-1',
-    }));
+    expect(state.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        oxyUserId: 'owner-1',
+        automationId: 'automation-1',
+        conversationId: 'conversation-1',
+      }),
+    );
   });
 
   it('does nothing for a run another task or its worker closed first', async () => {
@@ -68,10 +86,12 @@ describe('the Alia run reaper', () => {
 
     await reapAbandonedAliaRuns(NOW);
     expect(state.refund).toHaveBeenCalled();
-    expect(state.notify).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 'owner-1',
-      data: expect.objectContaining({ runId: 'run-1', status: 'failed' }),
-    }));
+    expect(state.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'owner-1',
+        data: expect.objectContaining({ runId: 'run-1', status: 'failed' }),
+      }),
+    );
   });
 
   it('keeps sweeping when one run cannot be reaped', async () => {

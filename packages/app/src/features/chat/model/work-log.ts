@@ -99,7 +99,13 @@ function source(url: string, title?: string, faviconUrl?: string): WebSearchSour
   const domain = domainOf(url);
   const brand = brandOf(domain);
   const favicon = faviconUrl ?? resolveFaviconUrl(url);
-  return { title: title ?? domain, domain, href: url, ...(brand ? { brand } : {}), ...(favicon ? { faviconUrl: favicon } : {}) };
+  return {
+    title: title ?? domain,
+    domain,
+    href: url,
+    ...(brand ? { brand } : {}),
+    ...(favicon ? { faviconUrl: favicon } : {}),
+  };
 }
 
 function uniqueSources(list: WebSearchSource[]): WebSearchSource[] {
@@ -152,7 +158,15 @@ function webStep(inv: ToolInvocation, live: LiveResearch | undefined, t: Transla
     const sources = uniqueSources(
       results.flatMap((r) => {
         const url = str((r as { url?: unknown })?.url);
-        return url ? [source(url, str((r as { title?: unknown }).title), str((r as { faviconUrl?: unknown }).faviconUrl))] : [];
+        return url
+          ? [
+              source(
+                url,
+                str((r as { title?: unknown }).title),
+                str((r as { faviconUrl?: unknown }).faviconUrl),
+              ),
+            ]
+          : [];
       }),
     );
     const count = typeof inv.result?.count === 'number' ? inv.result.count : results.length;
@@ -184,7 +198,9 @@ function webStep(inv: ToolInvocation, live: LiveResearch | undefined, t: Transla
       label: t('chat.bloom.visited'),
       query: url ? domainOf(url) : undefined,
       icon: RiGlobalLine,
-      ...(ok && url && inv.state === 'result' ? { sources: [source(url, str(inv.result?.title))] } : {}),
+      ...(ok && url && inv.state === 'result'
+        ? { sources: [source(url, str(inv.result?.title))] }
+        : {}),
     },
   };
 }
@@ -241,7 +257,19 @@ export function webSearchLog(
 }
 
 /** Argument keys worth a chip, in the order they are shown. */
-const CHIP_KEYS = ['filename', 'path', 'file', 'command', 'url', 'query', 'name', 'title', 'subject', 'to', 'handle'];
+const CHIP_KEYS = [
+  'filename',
+  'path',
+  'file',
+  'command',
+  'url',
+  'query',
+  'name',
+  'title',
+  'subject',
+  'to',
+  'handle',
+];
 const CHIP_MAX = 60;
 
 function argChips(args: Record<string, unknown> | undefined): TaskListChip[] {
@@ -292,7 +320,11 @@ export function taskListLog(
 
       if (inv.toolName === 'generateFile') {
         const name = str(inv.result?.filename) ?? str(inv.args?.filename);
-        if (name) steps.push({ label: t(status === 'done' ? 'chat.bloom.createdFile' : 'chat.bloom.writingFile'), chips: [{ label: name }] });
+        if (name)
+          steps.push({
+            label: t(status === 'done' ? 'chat.bloom.createdFile' : 'chat.bloom.writingFile'),
+            chips: [{ label: name }],
+          });
       } else {
         const chips = argChips(inv.args);
         if (chips.length > 0) steps.push({ label: t('chat.bloom.taskInput'), chips });

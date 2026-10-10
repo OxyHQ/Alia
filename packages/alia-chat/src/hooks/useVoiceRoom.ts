@@ -37,8 +37,15 @@ import {
   requestSpeechRecognitionPermission,
   startSpeechRecognition,
 } from '../lib/speech-recognition';
-import type { SpeechRecognitionFailure, SpeechRecognitionSession } from '../lib/speech-recognition-types';
-import { speechFailureCode, VOICE_ERROR_MESSAGES, type VoiceErrorCode } from '../lib/speech-messages';
+import type {
+  SpeechRecognitionFailure,
+  SpeechRecognitionSession,
+} from '../lib/speech-recognition-types';
+import {
+  speechFailureCode,
+  VOICE_ERROR_MESSAGES,
+  type VoiceErrorCode,
+} from '../lib/speech-messages';
 import { defaultSpeechLanguage } from '../lib/speech-language';
 import { playSpeechClip, requestSpeechClip, type ProductVoice } from '../lib/speech-synthesis';
 import { VoiceLevelChannel, type VoiceLevelSource } from '../lib/voice-levels';
@@ -146,7 +153,9 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
    * the code's English copy, except for `turn-failed`, which carries what the
    * turn sender threw.
    */
-  const [callFailure, setCallFailure] = useState<{ code: VoiceErrorCode; message: string } | null>(null);
+  const [callFailure, setCallFailure] = useState<{ code: VoiceErrorCode; message: string } | null>(
+    null,
+  );
   /** A turn that failed without ending the call: no answer, or no audio for it. */
   const [turnErrorCode, setTurnErrorCode] = useState<VoiceErrorCode | null>(null);
   const [messages, setMessagesState] = useState<VoiceMessage[]>([]);
@@ -218,9 +227,14 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     return `${sessionPrefixRef.current}-${msgIdRef.current}`;
   };
 
-  const patchMessage = useCallback((id: string, patch: Partial<VoiceMessage>) => {
-    updateMessages((previous) => previous.map((message) => (message.id === id ? { ...message, ...patch } : message)));
-  }, [updateMessages]);
+  const patchMessage = useCallback(
+    (id: string, patch: Partial<VoiceMessage>) => {
+      updateMessages((previous) =>
+        previous.map((message) => (message.id === id ? { ...message, ...patch } : message)),
+      );
+    },
+    [updateMessages],
+  );
 
   const getToken = useCallback((): string | null => {
     const { accessToken } = configRef.current;
@@ -237,26 +251,32 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
 
   // ============== TEARDOWN ==============
 
-  const endTurn = useCallback((turn: ActiveTurn) => {
-    turn.controller.abort();
-    turn.closed = true;
-    turn.wake?.();
-    if (turnRef.current === turn) turnRef.current = null;
-    const message = messagesRef.current.find((candidate) => candidate.id === turn.assistantId);
-    if (message?.isStreaming) {
-      if (message.content.trim() === '') {
-        updateMessages((previous) => previous.filter((candidate) => candidate.id !== turn.assistantId));
-      } else {
-        patchMessage(turn.assistantId, { isStreaming: false });
+  const endTurn = useCallback(
+    (turn: ActiveTurn) => {
+      turn.controller.abort();
+      turn.closed = true;
+      turn.wake?.();
+      if (turnRef.current === turn) turnRef.current = null;
+      const message = messagesRef.current.find((candidate) => candidate.id === turn.assistantId);
+      if (message?.isStreaming) {
+        if (message.content.trim() === '') {
+          updateMessages((previous) =>
+            previous.filter((candidate) => candidate.id !== turn.assistantId),
+          );
+        } else {
+          patchMessage(turn.assistantId, { isStreaming: false });
+        }
       }
-    }
-    levels.setPlayback(0);
-  }, [levels, patchMessage, updateMessages]);
+      levels.setPlayback(0);
+    },
+    [levels, patchMessage, updateMessages],
+  );
 
   const discardDraft = useCallback(() => {
     const draftId = draftIdRef.current;
     draftIdRef.current = null;
-    if (draftId !== null) updateMessages((previous) => previous.filter((message) => message.id !== draftId));
+    if (draftId !== null)
+      updateMessages((previous) => previous.filter((message) => message.id !== draftId));
   }, [updateMessages]);
 
   /** Stop everything; the caller decides what state the room is left in. */
@@ -272,64 +292,79 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     levels.reset();
   }, [endTurn, levels]);
 
-  const fail = useCallback((code: VoiceErrorCode, message: string = VOICE_ERROR_MESSAGES[code]) => {
-    teardown();
-    discardDraft();
-    if (!mountedRef.current) return;
-    setCallFailure({ code, message });
-    setRoomState('error');
-    setAgentStateValue('idle');
-    setCurrentSpeaker(null);
-  }, [discardDraft, teardown]);
+  const fail = useCallback(
+    (code: VoiceErrorCode, message: string = VOICE_ERROR_MESSAGES[code]) => {
+      teardown();
+      discardDraft();
+      if (!mountedRef.current) return;
+      setCallFailure({ code, message });
+      setRoomState('error');
+      setAgentStateValue('idle');
+      setCurrentSpeaker(null);
+    },
+    [discardDraft, teardown],
+  );
 
   // ============== SPEAKING ==============
 
-  const synthesize = useCallback((turn: ActiveTurn, text: string): Promise<string | null> => {
-    const token = getToken();
-    if (token === null) {
-      turn.synthesisFailed = true;
-      return Promise.resolve(null);
-    }
-    const { apiUrl: url, speechModel: model, voicePref: voice } = configRef.current;
-    return requestSpeechClip({ apiUrl: url, token, model, input: text, voice, signal: turn.controller.signal })
-      .catch((caught: unknown) => {
+  const synthesize = useCallback(
+    (turn: ActiveTurn, text: string): Promise<string | null> => {
+      const token = getToken();
+      if (token === null) {
+        turn.synthesisFailed = true;
+        return Promise.resolve(null);
+      }
+      const { apiUrl: url, speechModel: model, voicePref: voice } = configRef.current;
+      return requestSpeechClip({
+        apiUrl: url,
+        token,
+        model,
+        input: text,
+        voice,
+        signal: turn.controller.signal,
+      }).catch((caught: unknown) => {
         if (!turn.controller.signal.aborted) {
           console.error('[useVoiceRoom] Speech synthesis failed:', caught);
           turn.synthesisFailed = true;
         }
         return null;
       });
-  }, [getToken]);
+    },
+    [getToken],
+  );
 
   /** Play the turn's clips in order as they arrive, fetching one ahead. */
-  const playTurn = useCallback(async (turn: ActiveTurn): Promise<void> => {
-    const signal = turn.controller.signal;
-    for (let index = 0; ; index += 1) {
-      while (index >= turn.clips.length && !turn.closed) {
-        await new Promise<void>((resolve) => {
-          turn.wake = resolve;
-        });
-        turn.wake = null;
-      }
-      if (signal.aborted || index >= turn.clips.length) return;
-      const item = turn.clips[index];
-      item.clip ??= synthesize(turn, item.text);
-      const next = turn.clips[index + 1];
-      if (next !== undefined) next.clip ??= synthesize(turn, next.text);
+  const playTurn = useCallback(
+    async (turn: ActiveTurn): Promise<void> => {
+      const signal = turn.controller.signal;
+      for (let index = 0; ; index += 1) {
+        while (index >= turn.clips.length && !turn.closed) {
+          await new Promise<void>((resolve) => {
+            turn.wake = resolve;
+          });
+          turn.wake = null;
+        }
+        if (signal.aborted || index >= turn.clips.length) return;
+        const item = turn.clips[index];
+        item.clip ??= synthesize(turn, item.text);
+        const next = turn.clips[index + 1];
+        if (next !== undefined) next.clip ??= synthesize(turn, next.text);
 
-      const uri = await item.clip;
-      if (signal.aborted) return;
-      if (uri === null) continue;
-      turn.speaking = `${turn.speaking} ${item.text}`;
-      setAgent('speaking');
-      try {
-        await playSpeechClip(uri, { signal, onLevel: (level) => levels.setPlayback(level) });
-      } catch (caught: unknown) {
-        console.error('[useVoiceRoom] Playback failed:', caught);
-        turn.synthesisFailed = true;
+        const uri = await item.clip;
+        if (signal.aborted) return;
+        if (uri === null) continue;
+        turn.speaking = `${turn.speaking} ${item.text}`;
+        setAgent('speaking');
+        try {
+          await playSpeechClip(uri, { signal, onLevel: (level) => levels.setPlayback(level) });
+        } catch (caught: unknown) {
+          console.error('[useVoiceRoom] Playback failed:', caught);
+          turn.synthesisFailed = true;
+        }
       }
-    }
-  }, [levels, setAgent, synthesize]);
+    },
+    [levels, setAgent, synthesize],
+  );
 
   const queueChunks = useCallback((turn: ActiveTurn, final: boolean) => {
     const pending = turn.text.slice(turn.consumed);
@@ -362,20 +397,23 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     }, COMMIT_TIMEOUT_MS);
   }, []);
 
-  const showDraft = useCallback((transcript: string) => {
-    const draftId = draftIdRef.current;
-    if (draftId !== null) {
-      patchMessage(draftId, { content: transcript });
-      return;
-    }
-    const id = nextId();
-    draftIdRef.current = id;
-    updateMessages((previous) => [
-      ...previous,
-      { id, role: 'user', content: transcript, timestamp: Date.now(), isStreaming: true },
-    ]);
-    if (mountedRef.current) setCurrentSpeaker('user');
-  }, [patchMessage, updateMessages]);
+  const showDraft = useCallback(
+    (transcript: string) => {
+      const draftId = draftIdRef.current;
+      if (draftId !== null) {
+        patchMessage(draftId, { content: transcript });
+        return;
+      }
+      const id = nextId();
+      draftIdRef.current = id;
+      updateMessages((previous) => [
+        ...previous,
+        { id, role: 'user', content: transcript, timestamp: Date.now(), isStreaming: true },
+      ]);
+      if (mountedRef.current) setCurrentSpeaker('user');
+    },
+    [patchMessage, updateMessages],
+  );
 
   const startListening = useCallback(() => {
     if (phaseRef.current === 'off' || mutedRef.current || sessionRef.current !== null) return;
@@ -436,7 +474,11 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
           }
 
           // An utterance in progress when the engine ended is still an utterance.
-          if ((committing || draftIdRef.current !== null) && heard !== '' && turnRef.current === null) {
+          if (
+            (committing || draftIdRef.current !== null) &&
+            heard !== '' &&
+            turnRef.current === null
+          ) {
             rapidEndsRef.current = 0;
             runTurnRef.current(heard);
             return;
@@ -460,99 +502,109 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
 
   // ============== THINKING ==============
 
-  const runTurn = useCallback((text: string) => {
-    // Settle the person's words as a message of their own.
-    const draftId = draftIdRef.current;
-    draftIdRef.current = null;
-    if (draftId !== null) {
-      patchMessage(draftId, { content: text, isStreaming: false });
-    } else {
+  const runTurn = useCallback(
+    (text: string) => {
+      // Settle the person's words as a message of their own.
+      const draftId = draftIdRef.current;
+      draftIdRef.current = null;
+      if (draftId !== null) {
+        patchMessage(draftId, { content: text, isStreaming: false });
+      } else {
+        updateMessages((previous) => [
+          ...previous,
+          { id: nextId(), role: 'user', content: text, timestamp: Date.now(), isStreaming: false },
+        ]);
+      }
+
+      const history: VoiceTurnMessage[] = messagesRef.current
+        .filter((message) => message.content.trim() !== '' && message.id !== draftId)
+        .map((message) => ({ role: message.role, content: message.content }))
+        // The turn itself is `text`, not history.
+        .slice(0, draftId === null ? -1 : undefined);
+
+      const assistantId = nextId();
       updateMessages((previous) => [
         ...previous,
-        { id: nextId(), role: 'user', content: text, timestamp: Date.now(), isStreaming: false },
+        {
+          id: assistantId,
+          role: 'assistant',
+          speaker: 'primary',
+          content: '',
+          timestamp: Date.now(),
+          isStreaming: true,
+        },
       ]);
-    }
 
-    const history: VoiceTurnMessage[] = messagesRef.current
-      .filter((message) => message.content.trim() !== '' && message.id !== draftId)
-      .map((message) => ({ role: message.role, content: message.content }))
-      // The turn itself is `text`, not history.
-      .slice(0, draftId === null ? -1 : undefined);
+      const turn: ActiveTurn = {
+        controller: new AbortController(),
+        assistantId,
+        consumed: 0,
+        chunkCount: 0,
+        text: '',
+        speaking: '',
+        clips: [],
+        closed: false,
+        wake: null,
+        synthesisFailed: false,
+      };
+      turnRef.current = turn;
+      setAgent('thinking');
+      if (mountedRef.current) setTurnErrorCode(null);
 
-    const assistantId = nextId();
-    updateMessages((previous) => [
-      ...previous,
-      { id: assistantId, role: 'assistant', speaker: 'primary', content: '', timestamp: Date.now(), isStreaming: true },
-    ]);
-
-    const turn: ActiveTurn = {
-      controller: new AbortController(),
-      assistantId,
-      consumed: 0,
-      chunkCount: 0,
-      text: '',
-      speaking: '',
-      clips: [],
-      closed: false,
-      wake: null,
-      synthesisFailed: false,
-    };
-    turnRef.current = turn;
-    setAgent('thinking');
-    if (mountedRef.current) setTurnErrorCode(null);
-
-    // The microphone stays open through thinking and speaking, for barge-in.
-    startListeningRef.current();
-
-    const playing = playTurn(turn);
-    const signal = turn.controller.signal;
-
-    void (async () => {
-      let lastText = '';
-      try {
-        await configRef.current.sendTurn({
-          text,
-          history,
-          signal,
-          onText: (answerSoFar) => {
-            if (signal.aborted) return;
-            lastText = answerSoFar;
-            turn.text = stripTitleTagsPartial(answerSoFar, { trim: false });
-            patchMessage(assistantId, { content: turn.text.trim() });
-            queueChunks(turn, false);
-          },
-        });
-      } catch (caught: unknown) {
-        if (signal.aborted) return;
-        console.error('[useVoiceRoom] Turn failed:', caught);
-        fail('turn-failed', errorMessage(caught, VOICE_ERROR_MESSAGES['turn-failed']));
-        return;
-      }
-      if (signal.aborted) return;
-
-      turn.text = stripTitleTags(lastText, { trim: false });
-      patchMessage(assistantId, { content: turn.text.trim(), isStreaming: false });
-      queueChunks(turn, true);
-      turn.closed = true;
-      turn.wake?.();
-      await playing;
-      if (signal.aborted || turnRef.current !== turn) return;
-
-      turnRef.current = null;
-      levels.setPlayback(0);
-      // The session that listened through the answer has heard the answer; a
-      // fresh one starts the next utterance clean.
-      sessionRef.current?.abort();
-      if (turn.text.trim() === '') {
-        updateMessages((previous) => previous.filter((message) => message.id !== assistantId));
-        if (mountedRef.current) setTurnErrorCode('no-answer');
-      } else if (turn.synthesisFailed) {
-        if (mountedRef.current) setTurnErrorCode('not-played');
-      }
-      setAgent('listening');
+      // The microphone stays open through thinking and speaking, for barge-in.
       startListeningRef.current();
-    })();
-  }, [fail, levels, patchMessage, playTurn, queueChunks, setAgent, updateMessages]);
+
+      const playing = playTurn(turn);
+      const signal = turn.controller.signal;
+
+      void (async () => {
+        let lastText = '';
+        try {
+          await configRef.current.sendTurn({
+            text,
+            history,
+            signal,
+            onText: (answerSoFar) => {
+              if (signal.aborted) return;
+              lastText = answerSoFar;
+              turn.text = stripTitleTagsPartial(answerSoFar, { trim: false });
+              patchMessage(assistantId, { content: turn.text.trim() });
+              queueChunks(turn, false);
+            },
+          });
+        } catch (caught: unknown) {
+          if (signal.aborted) return;
+          console.error('[useVoiceRoom] Turn failed:', caught);
+          fail('turn-failed', errorMessage(caught, VOICE_ERROR_MESSAGES['turn-failed']));
+          return;
+        }
+        if (signal.aborted) return;
+
+        turn.text = stripTitleTags(lastText, { trim: false });
+        patchMessage(assistantId, { content: turn.text.trim(), isStreaming: false });
+        queueChunks(turn, true);
+        turn.closed = true;
+        turn.wake?.();
+        await playing;
+        if (signal.aborted || turnRef.current !== turn) return;
+
+        turnRef.current = null;
+        levels.setPlayback(0);
+        // The session that listened through the answer has heard the answer; a
+        // fresh one starts the next utterance clean.
+        sessionRef.current?.abort();
+        if (turn.text.trim() === '') {
+          updateMessages((previous) => previous.filter((message) => message.id !== assistantId));
+          if (mountedRef.current) setTurnErrorCode('no-answer');
+        } else if (turn.synthesisFailed) {
+          if (mountedRef.current) setTurnErrorCode('not-played');
+        }
+        setAgent('listening');
+        startListeningRef.current();
+      })();
+    },
+    [fail, levels, patchMessage, playTurn, queueChunks, setAgent, updateMessages],
+  );
   runTurnRef.current = runTurn;
 
   // ============== CONNECT ==============
@@ -564,12 +616,18 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     setRoomState('connecting');
 
     if (!isSpeechRecognitionAvailable()) {
-      setCallFailure({ code: 'voice-unavailable', message: VOICE_ERROR_MESSAGES['voice-unavailable'] });
+      setCallFailure({
+        code: 'voice-unavailable',
+        message: VOICE_ERROR_MESSAGES['voice-unavailable'],
+      });
       setRoomState('error');
       return;
     }
     if (getToken() === null) {
-      setCallFailure({ code: 'not-authenticated', message: VOICE_ERROR_MESSAGES['not-authenticated'] });
+      setCallFailure({
+        code: 'not-authenticated',
+        message: VOICE_ERROR_MESSAGES['not-authenticated'],
+      });
       setRoomState('error');
       return;
     }

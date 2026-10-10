@@ -49,7 +49,8 @@ function sources(): string[] {
   const found: string[] = [];
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name.startsWith('.')) continue;
+      if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name.startsWith('.'))
+        continue;
       const path = join(dir, entry.name);
       if (entry.isDirectory()) {
         walk(path);
@@ -83,17 +84,18 @@ const ALL = imports();
 
 describe('Bloom is consumed through its public subpaths', () => {
   it('reaches no compiled or source file inside the package', () => {
-    const deep = ALL.filter(({ specifier }) =>
-      /^@oxy\.so\/bloom\/(lib|src)\b/.test(specifier));
+    const deep = ALL.filter(({ specifier }) => /^@oxy\.so\/bloom\/(lib|src)\b/.test(specifier));
 
     expect(deep).toEqual([]);
   });
 
-  it('never reaches the library\'s own repository', () => {
+  it("never reaches the library's own repository", () => {
     // A relative path climbing out of this package, or any specifier naming the
     // Bloom checkout. Either compiles only where that checkout exists.
-    const sibling = ALL.filter(({ specifier }) =>
-      /(^|[\\/])Bloom[\\/]/.test(specifier) || /\.\.[\\/]\.\.[\\/]\.\.[\\/]Bloom/.test(specifier));
+    const sibling = ALL.filter(
+      ({ specifier }) =>
+        /(^|[\\/])Bloom[\\/]/.test(specifier) || /\.\.[\\/]\.\.[\\/]\.\.[\\/]Bloom/.test(specifier),
+    );
 
     expect(sibling).toEqual([]);
   });
@@ -101,7 +103,10 @@ describe('Bloom is consumed through its public subpaths', () => {
   it('imports only subpaths the package actually exports', () => {
     const declared = Object.keys(
       JSON.parse(
-        readFileSync(join(APP, '..', '..', 'node_modules', '@oxy.so', 'bloom', 'package.json'), 'utf8'),
+        readFileSync(
+          join(APP, '..', '..', 'node_modules', '@oxy.so', 'bloom', 'package.json'),
+          'utf8',
+        ),
       ).exports,
     ).map((key) => key.replace(/^\.\/?/, ''));
 
@@ -115,19 +120,30 @@ describe('Bloom is consumed through its public subpaths', () => {
      */
     const patterns = declared
       .filter((key) => key.includes('*'))
-      .map((key) => new RegExp(`^${key.split('*').map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`));
+      .map(
+        (key) =>
+          new RegExp(
+            `^${key
+              .split('*')
+              .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+              .join('.*')}$`,
+          ),
+      );
 
-    const unknown = ALL
-      .filter(({ specifier }) => specifier === '@oxy.so/bloom' || specifier.startsWith('@oxy.so/bloom/'))
+    const unknown = ALL.filter(
+      ({ specifier }) => specifier === '@oxy.so/bloom' || specifier.startsWith('@oxy.so/bloom/'),
+    )
       .map(({ file, specifier }) => ({
         file,
         specifier,
         subpath: specifier.replace(/^@oxy\.so\/bloom\/?/, ''),
       }))
-      .filter(({ subpath }) =>
-        subpath !== ''
-        && !literal.has(subpath)
-        && !patterns.some((pattern) => pattern.test(subpath)));
+      .filter(
+        ({ subpath }) =>
+          subpath !== '' &&
+          !literal.has(subpath) &&
+          !patterns.some((pattern) => pattern.test(subpath)),
+      );
 
     expect(unknown).toEqual([]);
   });

@@ -74,7 +74,9 @@ export async function seedSkills(): Promise<void> {
     throw new Error(`No built-in skills directory found. Looked in: ${CANDIDATE_ROOTS.join(', ')}`);
   }
 
-  const directories = (await readdir(root, { withFileTypes: true })).filter((entry) => entry.isDirectory());
+  const directories = (await readdir(root, { withFileTypes: true })).filter((entry) =>
+    entry.isDirectory(),
+  );
   let created = 0;
   let updated = 0;
   let unchanged = 0;

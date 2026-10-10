@@ -59,7 +59,7 @@ export function MessageBlockBoundary({
   return (
     <ErrorBoundary
       onError={(error) => {
-        console.error("A message block failed to render:", error);
+        console.error('A message block failed to render:', error);
         onError?.(error);
       }}
       // Bloom's compact empty state — the panel rung, a glyph and one line —

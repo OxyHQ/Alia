@@ -61,7 +61,11 @@ export function formatPrice(value: number, currency: string, locale: string): st
   if (!isCurrencyCode(currency)) {
     return `${value.toLocaleString(locale, options)} ${currency.toUpperCase()}`;
   }
-  return value.toLocaleString(locale, { ...options, style: 'currency', currency: currency.toUpperCase() });
+  return value.toLocaleString(locale, {
+    ...options,
+    style: 'currency',
+    currency: currency.toUpperCase(),
+  });
 }
 
 /**
@@ -84,7 +88,13 @@ const SCALES = [
   { at: 1e3, key: 'thousand' },
 ] as const;
 
-function formatCompact(value: number, namespace: string, locale: string, t: Translate, fallback: string): string {
+function formatCompact(
+  value: number,
+  namespace: string,
+  locale: string,
+  t: Translate,
+  fallback: string,
+): string {
   const scale = SCALES.find((s) => Math.abs(value) >= s.at);
   if (!scale) return fallback;
   return t(`${namespace}.scale.${scale.key}`, {
@@ -105,7 +115,9 @@ function toPoints(series: readonly PricePoint[], intraday: boolean, locale: stri
   return series.map(([at, value]) => ({
     label: new Date(at).toLocaleString(
       locale,
-      intraday ? { hour: 'numeric', minute: '2-digit' } : { day: 'numeric', month: 'short', year: 'numeric' },
+      intraday
+        ? { hour: 'numeric', minute: '2-digit' }
+        : { day: 'numeric', month: 'short', year: 'numeric' },
     ),
     value,
   }));
@@ -289,7 +301,11 @@ export function faircoinChart(
   // few samples is said out loud, so neither reads as a period nobody asked about.
   const missing = FAIRCOIN_RANGES.filter((id) => series[id] === undefined);
   if (missing.length > 0) {
-    notes.push(t('faircoin.unavailable', { ranges: missing.map((id) => t(`faircoin.range.${id}`)).join(', ') }));
+    notes.push(
+      t('faircoin.unavailable', {
+        ranges: missing.map((id) => t(`faircoin.range.${id}`)).join(', '),
+      }),
+    );
   }
   if (ranges.length === 0 && missing.length < FAIRCOIN_RANGES.length) {
     const anySample = FAIRCOIN_RANGES.some((id) => (series[id]?.length ?? 0) === 1);

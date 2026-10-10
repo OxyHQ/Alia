@@ -30,12 +30,23 @@ const H = vi.hoisted(() => ({
    * script one step without scripting the others. Unmatched calls answer
    * `fallbackText`; a step whose scripted value is an Error throws it.
    */
-  script: [] as Array<{ when: (system: string) => boolean; answer: string | Error | (() => string | Error) }>,
+  script: [] as Array<{
+    when: (system: string) => boolean;
+    answer: string | Error | (() => string | Error);
+  }>,
   fallbackText: '["about the subject one","about the subject two"]',
   /** What every web search returns. */
   searchResults: [
-    { url: 'https://react.dev/', title: 'React', snippet: 'The library for web and native user interfaces' },
-    { url: 'https://en.wikipedia.org/wiki/React_(software)', title: 'React (software)', snippet: 'React is a free and open-source front-end JavaScript library' },
+    {
+      url: 'https://react.dev/',
+      title: 'React',
+      snippet: 'The library for web and native user interfaces',
+    },
+    {
+      url: 'https://en.wikipedia.org/wiki/React_(software)',
+      title: 'React (software)',
+      snippet: 'React is a free and open-source front-end JavaScript library',
+    },
   ] as Array<{ url: string; title: string; snippet: string }>,
 }));
 
@@ -88,7 +99,10 @@ describe('runDeepResearch — synthesis failure', () => {
       { when: isDecomposition, answer: '["what React is","what React is used for"]' },
       // Findings extraction answers with prose that carries the old separator's
       // ingredients, so a report built from them is recognisable.
-      { when: (s) => s.includes('Extract key findings'), answer: 'FINDING-ALPHA [1]. FINDING-BETA [2].' },
+      {
+        when: (s) => s.includes('Extract key findings'),
+        answer: 'FINDING-ALPHA [1]. FINDING-BETA [2].',
+      },
       { when: isSynthesis, answer: new Error('upstream refused the write-up') },
     );
 
@@ -134,7 +148,11 @@ describe('runDeepResearch — synthesis failure', () => {
       },
     );
 
-    const result = await runDeepResearch('what is React', [], { userId: 'u1', onProgress: progress(), maxIterations: 2 });
+    const result = await runDeepResearch('what is React', [], {
+      userId: 'u1',
+      onProgress: progress(),
+      maxIterations: 2,
+    });
 
     expect(synthesisCalls).toBe(2);
     expect(result.status).toBe('complete');
@@ -145,17 +163,17 @@ describe('runDeepResearch — synthesis failure', () => {
 
 describe('runDeepResearch — output contract', () => {
   it('hands the synthesis model a two-sentence contract and returns its answer unchanged', async () => {
-    const answer = 'React es una biblioteca de JavaScript para construir interfaces de usuario [1]. La mantiene Meta y una comunidad de desarrolladores [1].';
+    const answer =
+      'React es una biblioteca de JavaScript para construir interfaces de usuario [1]. La mantiene Meta y una comunidad de desarrolladores [1].';
     H.script.push(
       { when: isDecomposition, answer: '["qué es React","para qué se usa React"]' },
       { when: isSynthesis, answer },
     );
 
-    const result = await runDeepResearch(
-      'resume en dos frases qué es React con una fuente',
-      [],
-      { userId: 'u1', onProgress: progress() },
-    );
+    const result = await runDeepResearch('resume en dos frases qué es React con una fuente', [], {
+      userId: 'u1',
+      onProgress: progress(),
+    });
 
     const synthesis = H.calls.filter((c) => isSynthesis(c.system));
     expect(synthesis.length).toBeGreaterThan(0);
@@ -165,7 +183,12 @@ describe('runDeepResearch — output contract', () => {
     expect(system).toContain('Cite exactly 1 source');
     expect(system).toMatch(/Do NOT add headings/);
     expect(system).not.toContain('800-1500 words');
-    expect(result.outputContract).toMatchObject({ shape: 'sentences', count: 2, sourceCount: 1, wantsSources: true });
+    expect(result.outputContract).toMatchObject({
+      shape: 'sentences',
+      count: 2,
+      sourceCount: 1,
+      wantsSources: true,
+    });
 
     // The report is the model's text plus the references, and nothing else:
     // no "Research complete", no angle headings, no findings.
@@ -185,15 +208,28 @@ describe('runDeepResearch — output contract', () => {
 
   it('keeps the long-form report contract when nothing was requested', async () => {
     H.script.push({ when: isSynthesis, answer: 'A long report [1].' });
-    await runDeepResearch('compare the two approaches', [], { userId: 'u1', onProgress: progress(), maxIterations: 0 });
+    await runDeepResearch('compare the two approaches', [], {
+      userId: 'u1',
+      onProgress: progress(),
+      maxIterations: 0,
+    });
     const synthesis = H.calls.find((c) => isSynthesis(c.system));
     expect(synthesis?.system).toContain('800-1500 words');
   });
 
   it('normalises upstream marker forms and drops numbers that have no source', async () => {
-    H.script.push({ when: isSynthesis, answer: 'React is a library【1†L1-L3】 maintained by Meta [1, 2] and widely used [9].' });
-    const result = await runDeepResearch('what is React', [], { userId: 'u1', onProgress: progress(), maxIterations: 0 });
-    expect(result.report).toContain('React is a library[1] maintained by Meta [1][2] and widely used.');
+    H.script.push({
+      when: isSynthesis,
+      answer: 'React is a library【1†L1-L3】 maintained by Meta [1, 2] and widely used [9].',
+    });
+    const result = await runDeepResearch('what is React', [], {
+      userId: 'u1',
+      onProgress: progress(),
+      maxIterations: 0,
+    });
+    expect(result.report).toContain(
+      'React is a library[1] maintained by Meta [1][2] and widely used.',
+    );
     expect(result.report).not.toContain('【');
     expect(result.report).not.toContain('[9]');
   });
@@ -214,13 +250,15 @@ describe('runDeepResearch — decomposition', () => {
     H.script.push({ when: isSynthesis, answer: 'ok [1]' });
 
     const onProgress = progress();
-    const result = await runDeepResearch(
-      'resume en dos frases qué es React con una fuente',
-      [],
-      { userId: 'u1', onProgress },
-    );
+    const result = await runDeepResearch('resume en dos frases qué es React con una fuente', [], {
+      userId: 'u1',
+      onProgress,
+    });
 
-    expect(result.subQuestions).toEqual(['What is React and who maintains it?', 'What is React used for?']);
+    expect(result.subQuestions).toEqual([
+      'What is React and who maintains it?',
+      'What is React used for?',
+    ]);
     for (const q of result.subQuestions) {
       expect(q).not.toMatch(/summar|citation|resumir/i);
     }
@@ -228,13 +266,19 @@ describe('runDeepResearch — decomposition', () => {
     // The decomposer was asked about the SUBJECT, with the format stripped.
     const decomposition = H.calls.find((c) => isDecomposition(c.system));
     expect(decomposition?.prompt).toContain('Subject: React');
-    expect(decomposition?.system).toMatch(/Never produce a sub-question about how to write, summarize/);
+    expect(decomposition?.system).toMatch(
+      /Never produce a sub-question about how to write, summarize/,
+    );
   });
 
   it('falls back to the subject, not the formatting request, when the decomposer fails', async () => {
     H.script.push({ when: isDecomposition, answer: new Error('no planner') });
     H.script.push({ when: isSynthesis, answer: 'ok [1]' });
-    const result = await runDeepResearch('summarize in two sentences what React is with a source', [], { userId: 'u1', onProgress: progress() });
+    const result = await runDeepResearch(
+      'summarize in two sentences what React is with a source',
+      [],
+      { userId: 'u1', onProgress: progress() },
+    );
     expect(result.subQuestions[0]).toBe('what React is');
     for (const q of result.subQuestions) {
       expect(q).not.toMatch(/summarize|two sentences|with a source/i);

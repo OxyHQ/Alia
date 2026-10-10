@@ -40,13 +40,12 @@ const INTENT_RULES: Array<{ intent: AutonomyIntent; patterns: RegExp[]; reason: 
 ];
 
 function normalizeText(input: string): string {
-  return input
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
+  return input.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-export function classifyIntent(messages: Array<{ role: string; content?: unknown }>): IntentClassification {
+export function classifyIntent(
+  messages: Array<{ role: string; content?: unknown }>,
+): IntentClassification {
   const latestUserMessage = [...messages]
     .reverse()
     .find((m) => m.role === 'user' && typeof m.content === 'string');

@@ -5,7 +5,10 @@ import type { AliaColors } from '../theme';
 
 // Hardcoded fallback colors for standalone SDK usage (when no color override is passed).
 // The main app always passes resolved colors via the `colors` prop.
-const FALLBACK_LIGHT: Pick<AliaColors, 'text' | 'muted' | 'border' | 'primary' | 'mutedForeground'> = {
+const FALLBACK_LIGHT: Pick<
+  AliaColors,
+  'text' | 'muted' | 'border' | 'primary' | 'mutedForeground'
+> = {
   text: '#11181C',
   muted: '#F4F4F5',
   border: '#E5E5EA',
@@ -33,27 +36,35 @@ function createRules(colors: AliaColors, renderCodeBlock?: RenderCodeBlock) {
    * dependency, so it cannot name one itself; without the prop the library's
    * default `fence` / `code_block` rendering, styled below, stays.
    */
-  const codeRules = renderCodeBlock === undefined
-    ? {}
-    : {
-        fence: (node: ASTNode) => (
-          <View key={node.key} style={{ marginVertical: 8 }}>
-            {renderCodeBlock(node.content.replace(/\n$/, ''), codeLanguage(node))}
-          </View>
-        ),
-        code_block: (node: ASTNode) => (
-          <View key={node.key} style={{ marginVertical: 8 }}>
-            {renderCodeBlock(node.content.replace(/\n$/, ''), undefined)}
-          </View>
-        ),
-      };
+  const codeRules =
+    renderCodeBlock === undefined
+      ? {}
+      : {
+          fence: (node: ASTNode) => (
+            <View key={node.key} style={{ marginVertical: 8 }}>
+              {renderCodeBlock(node.content.replace(/\n$/, ''), codeLanguage(node))}
+            </View>
+          ),
+          code_block: (node: ASTNode) => (
+            <View key={node.key} style={{ marginVertical: 8 }}>
+              {renderCodeBlock(node.content.replace(/\n$/, ''), undefined)}
+            </View>
+          ),
+        };
 
   return {
     ...codeRules,
     heading1: (node: ASTNode, children: ReactNode[]) => (
       <Text
         key={node.key}
-        style={{ marginBottom: 8, marginTop: 12, fontSize: 18, fontWeight: '600', lineHeight: 24, color: textColor }}
+        style={{
+          marginBottom: 8,
+          marginTop: 12,
+          fontSize: 18,
+          fontWeight: '600',
+          lineHeight: 24,
+          color: textColor,
+        }}
       >
         {children}
       </Text>
@@ -61,7 +72,13 @@ function createRules(colors: AliaColors, renderCodeBlock?: RenderCodeBlock) {
     heading2: (node: ASTNode, children: ReactNode[]) => (
       <Text
         key={node.key}
-        style={{ marginBottom: 8, marginTop: 12, ...HEADING_TEXT, fontWeight: '600', color: textColor }}
+        style={{
+          marginBottom: 8,
+          marginTop: 12,
+          ...HEADING_TEXT,
+          fontWeight: '600',
+          color: textColor,
+        }}
       >
         {children}
       </Text>
@@ -69,7 +86,13 @@ function createRules(colors: AliaColors, renderCodeBlock?: RenderCodeBlock) {
     heading3: (node: ASTNode, children: ReactNode[]) => (
       <Text
         key={node.key}
-        style={{ marginBottom: 6, marginTop: 8, ...HEADING_TEXT, fontWeight: '600', color: textColor }}
+        style={{
+          marginBottom: 6,
+          marginTop: 8,
+          ...HEADING_TEXT,
+          fontWeight: '600',
+          color: textColor,
+        }}
       >
         {children}
       </Text>
@@ -77,7 +100,13 @@ function createRules(colors: AliaColors, renderCodeBlock?: RenderCodeBlock) {
     heading4: (node: ASTNode, children: ReactNode[]) => (
       <Text
         key={node.key}
-        style={{ marginBottom: 6, marginTop: 8, ...HEADING_TEXT, fontWeight: '500', color: textColor }}
+        style={{
+          marginBottom: 6,
+          marginTop: 8,
+          ...HEADING_TEXT,
+          fontWeight: '500',
+          color: textColor,
+        }}
       >
         {children}
       </Text>
@@ -85,7 +114,13 @@ function createRules(colors: AliaColors, renderCodeBlock?: RenderCodeBlock) {
     heading5: (node: ASTNode, children: ReactNode[]) => (
       <Text
         key={node.key}
-        style={{ marginBottom: 4, marginTop: 8, ...HEADING_TEXT, fontWeight: '500', color: textColor }}
+        style={{
+          marginBottom: 4,
+          marginTop: 8,
+          ...HEADING_TEXT,
+          fontWeight: '500',
+          color: textColor,
+        }}
       >
         {children}
       </Text>
@@ -93,7 +128,13 @@ function createRules(colors: AliaColors, renderCodeBlock?: RenderCodeBlock) {
     heading6: (node: ASTNode, children: ReactNode[]) => (
       <Text
         key={node.key}
-        style={{ marginBottom: 4, marginTop: 8, ...HEADING_TEXT, fontWeight: '500', color: textColor }}
+        style={{
+          marginBottom: 4,
+          marginTop: 8,
+          ...HEADING_TEXT,
+          fontWeight: '500',
+          color: textColor,
+        }}
       >
         {children}
       </Text>
@@ -138,19 +179,27 @@ function createRules(colors: AliaColors, renderCodeBlock?: RenderCodeBlock) {
 
       return (
         <View key={node.key} style={{ flexDirection: 'row', paddingVertical: 2, paddingLeft: 16 }}>
-          <Text style={{ marginRight: 8, minWidth: 14, ...BODY_TEXT, color: mutedForeground }}>{bullet}</Text>
+          <Text style={{ marginRight: 8, minWidth: 14, ...BODY_TEXT, color: mutedForeground }}>
+            {bullet}
+          </Text>
           <Text style={{ flex: 1, ...BODY_TEXT, color: textColor }}>{children}</Text>
         </View>
       );
     },
     ordered_list: (node: ASTNode, children: ReactNode[]) => (
-      <View key={node.key} style={{ marginVertical: 8 }}>{children}</View>
+      <View key={node.key} style={{ marginVertical: 8 }}>
+        {children}
+      </View>
     ),
     unordered_list: (node: ASTNode, children: ReactNode[]) => (
-      <View key={node.key} style={{ marginVertical: 8 }}>{children}</View>
+      <View key={node.key} style={{ marginVertical: 8 }}>
+        {children}
+      </View>
     ),
     strong: (node: ASTNode, children: ReactNode[]) => (
-      <Text key={node.key} style={{ fontWeight: '600', ...BODY_TEXT, color: textColor }}>{children}</Text>
+      <Text key={node.key} style={{ fontWeight: '600', ...BODY_TEXT, color: textColor }}>
+        {children}
+      </Text>
     ),
     link: (node: ASTNode, children: ReactNode[]) => (
       <Text
@@ -164,7 +213,9 @@ function createRules(colors: AliaColors, renderCodeBlock?: RenderCodeBlock) {
       </Text>
     ),
     paragraph: (node: ASTNode, children: ReactNode[]) => (
-      <Text key={node.key} style={{ marginBottom: 8, ...BODY_TEXT, color: textColor }}>{children}</Text>
+      <Text key={node.key} style={{ marginBottom: 8, ...BODY_TEXT, color: textColor }}>
+        {children}
+      </Text>
     ),
     blockquote: (node: ASTNode, children: ReactNode[]) => (
       <View
@@ -194,7 +245,11 @@ function createRules(colors: AliaColors, renderCodeBlock?: RenderCodeBlock) {
       />
     ),
     body: (node: ASTNode, children: ReactNode[]) => {
-      return <View key={node.key} style={{ marginBottom: -8 }}>{children}</View>;
+      return (
+        <View key={node.key} style={{ marginBottom: -8 }}>
+          {children}
+        </View>
+      );
     },
   };
 }
@@ -255,7 +310,13 @@ function createStyles(colors: AliaColors, fontFamily: string | undefined) {
       borderRadius: 6,
       padding: 12,
     },
-    table: { borderWidth: 1, borderColor: border, borderRadius: 12, marginVertical: 8, overflow: 'hidden' as const },
+    table: {
+      borderWidth: 1,
+      borderColor: border,
+      borderRadius: 12,
+      marginVertical: 8,
+      overflow: 'hidden' as const,
+    },
     thead: { backgroundColor: muted },
     th: { flex: 1, padding: 8, fontWeight: '600' as const, ...BODY_TEXT, color: textColor },
     td: { flex: 1, padding: 8, ...BODY_TEXT, color: textColor },
@@ -412,13 +473,31 @@ function ParsedMarkdown({ content, rules, styles }: MarkdownBlockProps) {
 
 const MarkdownBlock = React.memo(ParsedMarkdown);
 
-export function AliaMarkdown({ content, colors: colorOverrides, fontFamily, renderCodeBlock }: AliaMarkdownProps) {
+export function AliaMarkdown({
+  content,
+  colors: colorOverrides,
+  fontFamily,
+  renderCodeBlock,
+}: AliaMarkdownProps) {
   const scheme = useColorScheme();
   const fallback = scheme === 'dark' ? FALLBACK_DARK : FALLBACK_LIGHT;
   const colors = { ...fallback, ...colorOverrides } as AliaColors;
 
-  const customRules = useMemo(() => createRules(colors, renderCodeBlock), [colors.text, colors.muted, colors.border, colors.primary, colors.mutedForeground, renderCodeBlock]);
-  const markdownStyles = useMemo(() => createStyles(colors, fontFamily), [colors.text, colors.muted, colors.border, colors.primary, colors.mutedForeground, fontFamily]);
+  const customRules = useMemo(
+    () => createRules(colors, renderCodeBlock),
+    [
+      colors.text,
+      colors.muted,
+      colors.border,
+      colors.primary,
+      colors.mutedForeground,
+      renderCodeBlock,
+    ],
+  );
+  const markdownStyles = useMemo(
+    () => createStyles(colors, fontFamily),
+    [colors.text, colors.muted, colors.border, colors.primary, colors.mutedForeground, fontFamily],
+  );
   const blocks = useMemo(() => splitMarkdownBlocks(content), [content]);
 
   if (blocks.length === 1) {

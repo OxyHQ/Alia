@@ -1,7 +1,4 @@
-import {
-  ShellPageHeader,
-  type PageHeaderOptions,
-} from '@/shell/page-chrome';
+import { ShellPageHeader, type PageHeaderOptions } from '@/shell/page-chrome';
 import { CommandPalette } from '@/shell/command-palette';
 import { AppErrorBoundary } from '@/shell/error-boundary';
 import { restoreOpenerFocus } from '@/features/chat/ui/execution/focus-return';
@@ -138,8 +135,7 @@ export default function AppLayout() {
     if (isChatRoute(route.name)) return children;
     const section = route.name.split('/')[0];
     const title =
-      options.title ??
-      (PAGE_TITLES[section] ? i18n.t(PAGE_TITLES[section]) : undefined);
+      options.title ?? (PAGE_TITLES[section] ? i18n.t(PAGE_TITLES[section]) : undefined);
     const onBack = options.headerBackVisible
       ? () => {
           // Straight into a detail page there is nothing behind it; its
@@ -194,10 +190,7 @@ export default function AppLayout() {
         </Navigator>
       ) : (
         <Stack screenOptions={screenOptions} screenLayout={screenLayout}>
-          <Stack.Screen
-            name="c/[id]/index"
-            options={{ title: i18n.t('nav.chat') }}
-          />
+          <Stack.Screen name="c/[id]/index" options={{ title: i18n.t('nav.chat') }} />
         </Stack>
       )}
     </AiChatShell>

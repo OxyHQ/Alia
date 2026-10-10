@@ -1,5 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -45,7 +53,9 @@ const journal = (): JournalEntry[] =>
   JSON.parse(readFileSync(path.join(DRIZZLE, 'meta', '_journal.json'), 'utf8')).entries;
 
 const migrationFiles = (): string[] =>
-  readdirSync(DRIZZLE).filter((f) => f.endsWith('.sql')).sort();
+  readdirSync(DRIZZLE)
+    .filter((f) => f.endsWith('.sql'))
+    .sort();
 
 /** `-- oxy:deploy-phase=pre|post`, on a line of its own, as `migrate.ts` reads it. */
 const PHASE = /^-- oxy:deploy-phase=(pre|post)$/gm;
@@ -79,7 +89,10 @@ describe('every migration declares the half of the rollout it belongs to', () =>
     // same result as a matcher that matches nothing.
     expect(phaseMarkers('-- oxy:deploy-phase=post\nDROP TABLE "x";')).toEqual(['post']);
     expect(phaseMarkers('DROP TABLE "x";')).toEqual([]);
-    expect(phaseMarkers('-- oxy:deploy-phase=pre\n-- oxy:deploy-phase=post\n')).toEqual(['pre', 'post']);
+    expect(phaseMarkers('-- oxy:deploy-phase=pre\n-- oxy:deploy-phase=post\n')).toEqual([
+      'pre',
+      'post',
+    ]);
     // Not a marker: the prefix has to own the whole line.
     expect(phaseMarkers('  -- oxy:deploy-phase=post')).toEqual([]);
   });
@@ -93,11 +106,13 @@ describe('the agent routing-profile backfill is an explicit production mapping',
     );
     const statements = source
       .split('--> statement-breakpoint')
-      .map((statement) => statement
-        .split('\n')
-        .filter((line) => !line.startsWith('--'))
-        .join('\n')
-        .trim())
+      .map((statement) =>
+        statement
+          .split('\n')
+          .filter((line) => !line.startsWith('--'))
+          .join('\n')
+          .trim(),
+      )
       .filter((statement) => statement.startsWith('UPDATE '));
 
     expect(statements).toEqual([
@@ -146,8 +161,12 @@ describe('the journal is a strictly ordered, complete record', () => {
   });
 
   it('names a file for every entry, and an entry for every file', () => {
-    const tags = journal().map((e) => e.tag).sort();
-    const files = migrationFiles().map((f) => f.replace(/\.sql$/, '')).sort();
+    const tags = journal()
+      .map((e) => e.tag)
+      .sort();
+    const files = migrationFiles()
+      .map((f) => f.replace(/\.sql$/, ''))
+      .sort();
     // Both directions: an entry with no file is unrunnable, and a file with no
     // entry never runs. The second is how a migration goes missing while the
     // folder still looks full.
@@ -190,7 +209,10 @@ describe('the schema and the migrations agree', () => {
    * still exit 0. A gate reading `$?` would call that a pass.
    */
   function emittedBy(prepare?: (dir: string) => void): string[] {
-    const dir = path.join(CACHE, `drizzle-probe-${process.pid}-${Math.random().toString(36).slice(2)}`);
+    const dir = path.join(
+      CACHE,
+      `drizzle-probe-${process.pid}-${Math.random().toString(36).slice(2)}`,
+    );
     try {
       mkdirSync(dir, { recursive: true });
       cpSync(DRIZZLE, dir, { recursive: true });

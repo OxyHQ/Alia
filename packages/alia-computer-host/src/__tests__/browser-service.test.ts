@@ -30,7 +30,13 @@ const config: HostConfig = {
   idleMs: 10 * 60_000,
   workspaceQuotaBytes: 1024 * 1024 * 1024,
   maxCommandSeconds: 300,
-  browser: { enabled: true, maxContexts: 3, idleMs: 600_000, selfContainer: 'self-id', denyCidrs: [] },
+  browser: {
+    enabled: true,
+    maxContexts: 3,
+    idleMs: 600_000,
+    selfContainer: 'self-id',
+    denyCidrs: [],
+  },
   production: false,
 };
 
@@ -54,20 +60,41 @@ class FakeWorker {
     const method = init?.method ?? 'GET';
     this.calls.push(`${method} ${url.pathname}`);
     const json = (status: number, body: unknown) =>
-      new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-    if (url.pathname === '/health') return this.healthy ? json(200, { data: { ok: true } }) : json(503, {});
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      });
+    if (url.pathname === '/health')
+      return this.healthy ? json(200, { data: { ok: true } }) : json(503, {});
     this.token = String((init?.headers as Record<string, string>)?.authorization ?? '');
     if (url.pathname === '/overview') {
-      return json(200, { data: { contexts: [...this.sessions.values()].filter((s) => s.open).length } });
+      return json(200, {
+        data: { contexts: [...this.sessions.values()].filter((s) => s.open).length },
+      });
     }
     const match = /^\/actors\/([0-9a-f]{24})(?:\/([a-z]+)(?:\/(.+))?)?$/.exec(url.pathname);
     if (!match) return json(404, { error: { code: 'not_found', message: 'no' } });
-    const [, key, action, id] = match as unknown as [string, string, string | undefined, string | undefined];
-    const session = this.sessions.get(key) ?? { open: false, url: '', controller: 'agent', pendingDownloads: 0 };
+    const [, key, action, id] = match as unknown as [
+      string,
+      string,
+      string | undefined,
+      string | undefined,
+    ];
+    const session = this.sessions.get(key) ?? {
+      open: false,
+      url: '',
+      controller: 'agent',
+      pendingDownloads: 0,
+    };
     const body = init?.body ? JSON.parse(String(init.body)) : {};
     const status = () => ({
-      open: session.open, url: session.url, title: 'T', controller: session.controller, pages: session.open ? 1 : 0,
-      pendingDownloads: (this.downloads.get(key) ?? []).length, lastActiveAt: null,
+      open: session.open,
+      url: session.url,
+      title: 'T',
+      controller: session.controller,
+      pages: session.open ? 1 : 0,
+      pendingDownloads: (this.downloads.get(key) ?? []).length,
+      lastActiveAt: null,
     });
     if (!action) return json(200, { data: status() });
     if (action === 'open') {
@@ -77,11 +104,15 @@ class FakeWorker {
       return json(200, { data: status() });
     }
     if (!session.open && action !== 'downloads' && action !== 'close') {
-      return json(409, { error: { code: 'browser_closed', message: 'The browser is not open; open it first.' } });
+      return json(409, {
+        error: { code: 'browser_closed', message: 'The browser is not open; open it first.' },
+      });
     }
     if (action === 'navigate' || action === 'input') {
       if (body.by === 'agent' && session.controller === 'owner') {
-        return json(409, { error: { code: 'owner_in_control', message: 'The person has taken control.' } });
+        return json(409, {
+          error: { code: 'owner_in_control', message: 'The person has taken control.' },
+        });
       }
       if (body.by === 'owner') session.controller = 'owner';
       if (action === 'navigate') session.url = body.url;
@@ -95,12 +126,25 @@ class FakeWorker {
       session.open = false;
       return json(200, { data: status() });
     }
-    if (action === 'read') return json(200, { data: { url: session.url, title: 'T', text: 'hello', truncated: false, elements: [] } });
-    if (action === 'screenshot') return new Response(Buffer.from([0xff, 0xd8, 0xff]), { headers: { 'content-type': 'image/jpeg' } });
-    if (action === 'downloads' && !id) return json(200, { data: { downloads: this.downloads.get(key) ?? [], failures: [] } });
-    if (action === 'downloads' && id && method === 'GET') return new Response(Buffer.from('%PDF-1.7'), { headers: { 'content-type': 'application/octet-stream' } });
+    if (action === 'read')
+      return json(200, {
+        data: { url: session.url, title: 'T', text: 'hello', truncated: false, elements: [] },
+      });
+    if (action === 'screenshot')
+      return new Response(Buffer.from([0xff, 0xd8, 0xff]), {
+        headers: { 'content-type': 'image/jpeg' },
+      });
+    if (action === 'downloads' && !id)
+      return json(200, { data: { downloads: this.downloads.get(key) ?? [], failures: [] } });
+    if (action === 'downloads' && id && method === 'GET')
+      return new Response(Buffer.from('%PDF-1.7'), {
+        headers: { 'content-type': 'application/octet-stream' },
+      });
     if (action === 'downloads' && id && method === 'DELETE') {
-      this.downloads.set(key, (this.downloads.get(key) ?? []).filter((d) => d.id !== id));
+      this.downloads.set(
+        key,
+        (this.downloads.get(key) ?? []).filter((d) => d.id !== id),
+      );
       return json(200, { data: { ok: true } });
     }
     return json(404, { error: { code: 'not_found', message: 'no' } });
@@ -174,16 +218,24 @@ describe('the stack', () => {
     const egressContainer = docker.containers.get(identity.egress);
     expect(browserContainer?.running && egressContainer?.running).toBe(true);
     expect(browserContainer?.inspection.HostConfig.Runtime).toBe('runsc');
-    expect(Object.keys((browserContainer?.inspection.NetworkSettings as { Networks: object }).Networks)).toEqual([identity.network]);
+    expect(
+      Object.keys((browserContainer?.inspection.NetworkSettings as { Networks: object }).Networks),
+    ).toEqual([identity.network]);
     // The browser is pointed at the proxy's internal address, and the token
     // it was given is the one the control API presents.
     const env = browserContainer?.inspection.Config.Env as string[];
-    const proxyAddress = ((egressContainer?.inspection.NetworkSettings as { Networks: Record<string, { IPAddress: string }> }).Networks[identity.network])!.IPAddress;
+    const proxyAddress = (
+      egressContainer?.inspection.NetworkSettings as {
+        Networks: Record<string, { IPAddress: string }>;
+      }
+    ).Networks[identity.network]!.IPAddress;
     expect(env).toContain(`ALIA_BROWSER_PROXY=http://${proxyAddress}:3128`);
     const token = env.find((e) => e.startsWith('ALIA_BROWSER_TOKEN='))!.split('=')[1];
     expect(worker.token).toBe(`Bearer ${token}`);
     // The egress container never sees the token.
-    expect((egressContainer?.inspection.Config.Env as string[]).some((e) => e.includes(token!))).toBe(false);
+    expect(
+      (egressContainer?.inspection.Config.Env as string[]).some((e) => e.includes(token!)),
+    ).toBe(false);
   });
 
   it('refuses to use a browser container somebody changed behind its back', async () => {
@@ -193,8 +245,13 @@ describe('the stack', () => {
     });
     stack.suspect(); // as if the ten-second trust window had passed
     const before = worker.calls.length;
-    await expect(browser.screenshot(ACTOR)).rejects.toMatchObject({ code: 'isolation_mismatch', status: 409 });
-    await expect(browser.input(ACTOR, { type: 'click', x: 1, y: 1 }, 'agent')).rejects.toMatchObject({ code: 'isolation_mismatch' });
+    await expect(browser.screenshot(ACTOR)).rejects.toMatchObject({
+      code: 'isolation_mismatch',
+      status: 409,
+    });
+    await expect(
+      browser.input(ACTOR, { type: 'click', x: 1, y: 1 }, 'agent'),
+    ).rejects.toMatchObject({ code: 'isolation_mismatch' });
     expect(worker.calls.length).toBe(before);
     await stack.stop();
     // A fresh start rebuilds it: the tampered one is removed, never entered.
@@ -222,7 +279,10 @@ describe('the memory budget', () => {
     build(3);
     await computers.start('agent:x:user:1');
     await computers.start('agent:y:user:1');
-    await expect(browser.open(ACTOR, undefined, 'agent')).rejects.toMatchObject({ code: 'capacity', status: 503 });
+    await expect(browser.open(ACTOR, undefined, 'agent')).rejects.toMatchObject({
+      code: 'capacity',
+      status: 503,
+    });
     await computers.stop('agent:y:user:1');
     await browser.open(ACTOR, undefined, 'agent');
     // 1 computer + 2 browser slots = 3: the next computer is refused.
@@ -241,7 +301,9 @@ describe('receipts', () => {
   it('records who did what and where, never what was typed or the full address', async () => {
     await browser.open(ACTOR, 'https://bank.example/login?session=SECRET', 'agent');
     await browser.input(ACTOR, { type: 'type', text: 'hunter2' }, 'owner');
-    await expect(browser.input(ACTOR, { type: 'key', key: 'Enter' }, 'agent')).rejects.toMatchObject({ code: 'owner_in_control' });
+    await expect(
+      browser.input(ACTOR, { type: 'key', key: 'Enter' }, 'agent'),
+    ).rejects.toMatchObject({ code: 'owner_in_control' });
     await browser.control(ACTOR, 'agent');
     const actions = await browser.actions(ACTOR, 10);
     expect(actions.map((a) => [a.action, a.by, a.status])).toEqual([
@@ -256,7 +318,7 @@ describe('receipts', () => {
     expect(actions[3]!.origin).toBe('https://bank.example');
   });
 
-  it('keeps each actor\'s browser apart', async () => {
+  it("keeps each actor's browser apart", async () => {
     await browser.open(ACTOR, 'https://a.example/', 'agent');
     expect(await browser.status('agent:a1:user:u2')).toMatchObject({ state: 'closed' });
     expect(await browser.actions('agent:a1:user:u2', 10)).toEqual([]);
@@ -276,10 +338,23 @@ describe('downloads', () => {
     };
     await browser.open(ACTOR, 'https://example.com/', 'agent');
     const hash = [...worker.sessions.keys()][0]!;
-    worker.downloads.set(hash, [{ id: '6f1c7a52-0000-4000-8000-000000000001', name: 'factura.pdf', size: 8, mimeType: 'application/pdf' }]);
+    worker.downloads.set(hash, [
+      {
+        id: '6f1c7a52-0000-4000-8000-000000000001',
+        name: 'factura.pdf',
+        size: 8,
+        mimeType: 'application/pdf',
+      },
+    ]);
     const result = await browser.input(ACTOR, { type: 'click', x: 10, y: 10 }, 'agent');
-    expect(result.downloads).toEqual([{ path: '/workspace/downloads/factura.pdf', bytes: 8, mimeType: 'application/pdf' }]);
-    expect(writes[0]).toMatchObject({ operation: 'write_bytes', path: '/workspace/downloads/factura.pdf', data: Buffer.from('%PDF-1.7').toString('base64') });
+    expect(result.downloads).toEqual([
+      { path: '/workspace/downloads/factura.pdf', bytes: 8, mimeType: 'application/pdf' },
+    ]);
+    expect(writes[0]).toMatchObject({
+      operation: 'write_bytes',
+      path: '/workspace/downloads/factura.pdf',
+      data: Buffer.from('%PDF-1.7').toString('base64'),
+    });
     expect(worker.downloads.get(hash)).toEqual([]);
     expect((await computers.status(ACTOR)).state).toBe('running');
   });

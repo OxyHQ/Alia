@@ -79,10 +79,7 @@ export function AgentConnectorGrants({
                 <SettingsListItem
                   key={connector.grant}
                   icon={
-                    <Icon
-                      width={18}
-                      fill={granted ? colors.foreground : colors.mutedForeground}
-                    />
+                    <Icon width={18} fill={granted ? colors.foreground : colors.mutedForeground} />
                   }
                   title={connector.label}
                   description={connector.detail}

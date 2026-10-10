@@ -25,7 +25,10 @@ import { threadHistory, type ThreadPage } from '@/features/chat/model/thread-his
 /** How many messages a page carries. The server clamps its own maximum. */
 const PAGE_SIZE = 50;
 
-export function useThreadHistory(handle: string | undefined, activeConversationId: string | undefined) {
+export function useThreadHistory(
+  handle: string | undefined,
+  activeConversationId: string | undefined,
+) {
   const query = useInfiniteQuery({
     queryKey: queryKeys.agents.threadMessages(handle ?? ''),
     queryFn: async ({ pageParam }): Promise<ThreadPage> => {

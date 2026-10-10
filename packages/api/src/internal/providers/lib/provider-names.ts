@@ -28,4 +28,4 @@ export const PROVIDER_NAMES = [
   'elevenlabs',
 ] as const;
 
-export type ProviderName = typeof PROVIDER_NAMES[number];
+export type ProviderName = (typeof PROVIDER_NAMES)[number];

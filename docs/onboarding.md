@@ -256,7 +256,8 @@ bun install                              # Install all workspace dependencies
 bun run dev                              # Start all packages in dev mode
 bun run dev:api                          # API only (Express + hot reload)
 bun run dev:app                          # Expo app only (web + tunnel)
-bun run --filter @alia/api lint          # Lint the API
+bun run lint                             # Biome: format check + lint, whole repo
+bun run format                           # Biome: format the whole repo
 bun run --filter @alia/api typecheck     # Typecheck the API
 bun run --filter @alia/api test          # API tests (vitest; needs no database)
 bun run --filter @alia/api test:pg       # API tests against a real Postgres

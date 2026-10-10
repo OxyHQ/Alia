@@ -81,12 +81,16 @@ if (appJob === null) {
     failures.push(`${WORKFLOW} / deploy-app: no step runs \`bunx wrangler@4 deploy\`.`);
   }
   if (!/working-directory:\s*packages\/app\b/.test(appText)) {
-    failures.push(`${WORKFLOW} / deploy-app: nothing runs in packages/app, so wrangler.toml is not read.`);
+    failures.push(
+      `${WORKFLOW} / deploy-app: nothing runs in packages/app, so wrangler.toml is not read.`,
+    );
   }
   for (const secret of ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID']) {
     const bound = new RegExp(`^\\s*${secret}:\\s*\\$\\{\\{\\s*secrets\\.${secret}\\s*\\}\\}`, 'm');
     if (!bound.test(appText)) {
-      failures.push(`${WORKFLOW} / deploy-app: no \`env:\` binds ${secret}, so wrangler has no credentials.`);
+      failures.push(
+        `${WORKFLOW} / deploy-app: no \`env:\` binds ${secret}, so wrangler has no credentials.`,
+      );
     }
   }
 }
@@ -94,11 +98,15 @@ if (appJob === null) {
 const deployJob = jobBlock(workflowText, 'deploy-canvas');
 // A rename must fail here rather than make every assertion below vacuous.
 if (deployJob === null) {
-  console.error(`check-canvas-deploy-wiring: ${WORKFLOW} has no \`deploy-canvas\` job. If it was renamed, rename it here too.`);
+  console.error(
+    `check-canvas-deploy-wiring: ${WORKFLOW} has no \`deploy-canvas\` job. If it was renamed, rename it here too.`,
+  );
   process.exit(1);
 }
 if (deployJob.length < 10) {
-  console.error(`check-canvas-deploy-wiring: read only ${deployJob.length} lines of the deploy-canvas job; the reader is broken.`);
+  console.error(
+    `check-canvas-deploy-wiring: read only ${deployJob.length} lines of the deploy-canvas job; the reader is broken.`,
+  );
   process.exit(1);
 }
 const deployText = deployJob.join('\n');
@@ -112,10 +120,14 @@ if (/uses:\s*cloudflare\/wrangler-action/.test(deployText)) {
 // A line that IS `bun run deploy`, so it matches both `run: bun run deploy`
 // and the same command inside a `run: |` block.
 if (!/(?:^|\s)bun run deploy[ \t]*$/m.test(deployText)) {
-  failures.push(`${WORKFLOW} / deploy-canvas: no step runs \`bun run deploy\`, the script that invokes the declared wrangler.`);
+  failures.push(
+    `${WORKFLOW} / deploy-canvas: no step runs \`bun run deploy\`, the script that invokes the declared wrangler.`,
+  );
 }
 if (!new RegExp(`working-directory:\\s*${PACKAGE_DIR}\\b`).test(deployText)) {
-  failures.push(`${WORKFLOW} / deploy-canvas: nothing runs in ${PACKAGE_DIR}, so wrangler.toml is not read.`);
+  failures.push(
+    `${WORKFLOW} / deploy-canvas: nothing runs in ${PACKAGE_DIR}, so wrangler.toml is not read.`,
+  );
 }
 // wrangler takes its credentials from the environment, not from arguments, so
 // the step that runs it has to put them there. Documented under Wrangler's
@@ -126,7 +138,9 @@ if (!new RegExp(`working-directory:\\s*${PACKAGE_DIR}\\b`).test(deployText)) {
 for (const secret of ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID']) {
   const bound = new RegExp(`^\\s*${secret}:\\s*\\$\\{\\{\\s*secrets\\.${secret}\\s*\\}\\}`, 'm');
   if (!bound.test(deployText)) {
-    failures.push(`${WORKFLOW} / deploy-canvas: no \`env:\` binds ${secret}, so wrangler has no credentials.`);
+    failures.push(
+      `${WORKFLOW} / deploy-canvas: no \`env:\` binds ${secret}, so wrangler has no credentials.`,
+    );
   }
 }
 
@@ -139,20 +153,28 @@ if (!manifest.devDependencies?.wrangler) {
   );
 }
 if (scripts.deploy !== 'wrangler deploy') {
-  failures.push(`${MANIFEST}: \`deploy\` is ${JSON.stringify(scripts.deploy)}, expected "wrangler deploy".`);
+  failures.push(
+    `${MANIFEST}: \`deploy\` is ${JSON.stringify(scripts.deploy)}, expected "wrangler deploy".`,
+  );
 }
 if (scripts['deploy:dry'] !== 'wrangler deploy --dry-run') {
-  failures.push(`${MANIFEST}: \`deploy:dry\` is ${JSON.stringify(scripts['deploy:dry'])}, expected "wrangler deploy --dry-run".`);
+  failures.push(
+    `${MANIFEST}: \`deploy:dry\` is ${JSON.stringify(scripts['deploy:dry'])}, expected "wrangler deploy --dry-run".`,
+  );
 }
 
 // The pre-merge half. Without it the deploy path is exercised only post-merge,
 // in a job that skips itself on most pushes — which is how this broke.
 if (!/bun run [^\n]*\bdeploy:dry\b/.test(readFileSync(CI, 'utf8'))) {
-  failures.push(`${CI}: nothing runs \`bun run deploy:dry\`, so no pull request exercises the Canvas deploy.`);
+  failures.push(
+    `${CI}: nothing runs \`bun run deploy:dry\`, so no pull request exercises the Canvas deploy.`,
+  );
 }
 
 if (failures.length > 0) {
-  console.error('check-canvas-deploy-wiring: the Canvas Worker deploy is not wired to a declared wrangler.\n');
+  console.error(
+    'check-canvas-deploy-wiring: the Canvas Worker deploy is not wired to a declared wrangler.\n',
+  );
   for (const failure of failures) console.error(`  ${failure}`);
   console.error(
     '\nThe deploy runs `bun run deploy` in packages/alia-canvas, against the wrangler that\n' +

@@ -70,8 +70,18 @@ describe('one review per account per agent', () => {
     const agentId = await seedAgent();
     const reviewer = `oxy-r-${suffix()}`;
 
-    const first = await upsertAgentReview(db, { agentId, oxyUserId: reviewer, rating: 2, comment: 'meh' });
-    const second = await upsertAgentReview(db, { agentId, oxyUserId: reviewer, rating: 5, comment: 'better' });
+    const first = await upsertAgentReview(db, {
+      agentId,
+      oxyUserId: reviewer,
+      rating: 2,
+      comment: 'meh',
+    });
+    const second = await upsertAgentReview(db, {
+      agentId,
+      oxyUserId: reviewer,
+      rating: 5,
+      comment: 'better',
+    });
 
     expect(second._id).toBe(first._id);
     expect(second.rating).toBe(5);
@@ -89,9 +99,19 @@ describe('one review per account per agent', () => {
   it('moves updated_at when the review is replaced', async () => {
     const agentId = await seedAgent();
     const reviewer = `oxy-r-${suffix()}`;
-    const first = await upsertAgentReview(db, { agentId, oxyUserId: reviewer, rating: 2, comment: 'a' });
+    const first = await upsertAgentReview(db, {
+      agentId,
+      oxyUserId: reviewer,
+      rating: 2,
+      comment: 'a',
+    });
     await new Promise((resolve) => setTimeout(resolve, 5));
-    const second = await upsertAgentReview(db, { agentId, oxyUserId: reviewer, rating: 3, comment: 'b' });
+    const second = await upsertAgentReview(db, {
+      agentId,
+      oxyUserId: reviewer,
+      rating: 3,
+      comment: 'b',
+    });
 
     expect(second.updatedAt.getTime()).toBeGreaterThan(first.updatedAt.getTime());
     expect(second.createdAt.getTime()).toBe(first.createdAt.getTime());
@@ -99,8 +119,18 @@ describe('one review per account per agent', () => {
 
   it('lets two different accounts each review the same agent', async () => {
     const agentId = await seedAgent();
-    await upsertAgentReview(db, { agentId, oxyUserId: `oxy-a-${suffix()}`, rating: 4, comment: '' });
-    await upsertAgentReview(db, { agentId, oxyUserId: `oxy-b-${suffix()}`, rating: 2, comment: '' });
+    await upsertAgentReview(db, {
+      agentId,
+      oxyUserId: `oxy-a-${suffix()}`,
+      rating: 4,
+      comment: '',
+    });
+    await upsertAgentReview(db, {
+      agentId,
+      oxyUserId: `oxy-b-${suffix()}`,
+      rating: 2,
+      comment: '',
+    });
 
     const { total } = await listVisibleAgentReviews(db, agentId, { limit: 10, offset: 0 });
     expect(total).toBe(2);

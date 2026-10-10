@@ -42,14 +42,7 @@ router.get('/export', authenticateToken, async (req: Request, res: Response) => 
   try {
     if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
 
-    const {
-      agentId,
-      from,
-      to,
-      type,
-      format = 'json',
-      limit = '1000',
-    } = req.query;
+    const { agentId, from, to, type, format = 'json', limit = '1000' } = req.query;
 
     // Find sessions belonging to this user
     const sessions = await listAgentSessionsForAudit(getDb(), req.user.id, {
@@ -71,7 +64,7 @@ router.get('/export', authenticateToken, async (req: Request, res: Response) => 
     });
 
     // Enrich with session info
-    const enriched = entries.map(entry => {
+    const enriched = entries.map((entry) => {
       const session = sessionMap.get(entry.sessionId);
       return {
         id: entry._id,
@@ -90,21 +83,37 @@ router.get('/export', authenticateToken, async (req: Request, res: Response) => 
 
     if (format === 'csv') {
       // Generate CSV
-      const headers = ['id', 'sessionId', 'agentId', 'task', 'seq', 'timestamp', 'type', 'toolName', 'durationMs', 'content'] as const;
+      const headers = [
+        'id',
+        'sessionId',
+        'agentId',
+        'task',
+        'seq',
+        'timestamp',
+        'type',
+        'toolName',
+        'durationMs',
+        'content',
+      ] as const;
       const csvRows = [
         headers.join(','),
-        ...enriched.map(e =>
-          headers.map(h => {
-            const val = e[h];
-            if (val == null) return '';
-            const str = String(val).replace(/"/g, '""');
-            return `"${str}"`;
-          }).join(',')
+        ...enriched.map((e) =>
+          headers
+            .map((h) => {
+              const val = e[h];
+              if (val == null) return '';
+              const str = String(val).replace(/"/g, '""');
+              return `"${str}"`;
+            })
+            .join(','),
         ),
       ];
 
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="alia-audit-${new Date().toISOString().split('T')[0]}.csv"`);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="alia-audit-${new Date().toISOString().split('T')[0]}.csv"`,
+      );
       return res.send(csvRows.join('\n'));
     }
 
@@ -138,12 +147,12 @@ router.get('/summary', authenticateToken, async (req: Request, res: Response) =>
       sessions.map((s) => s._id),
     );
 
-    const typeMap = Object.fromEntries(typeCounts.map(t => [t.type, t.count]));
+    const typeMap = Object.fromEntries(typeCounts.map((t) => [t.type, t.count]));
 
     res.json({
       totalSessions: sessions.length,
-      completedSessions: sessions.filter(s => s.status === 'completed').length,
-      failedSessions: sessions.filter(s => s.status === 'failed').length,
+      completedSessions: sessions.filter((s) => s.status === 'completed').length,
+      failedSessions: sessions.filter((s) => s.status === 'failed').length,
       totalSteps: sessions.reduce((sum, s) => sum + s.stats.totalSteps, 0),
       totalTokens: sessions.reduce((sum, s) => sum + s.stats.totalTokens, 0),
       eventsByType: typeMap,
@@ -181,11 +190,11 @@ router.get('/threats', authenticateToken, async (req: Request, res: Response) =>
     // Look up agent names. Two hops, one round trip each: the rows first, then
     // ONE batched Oxy call for every bot account the page names, because the
     // name an audit line shows is the account's.
-    const agentIds = [...new Set(sessions.map(s => s.agentId))];
+    const agentIds = [...new Set(sessions.map((s) => s.agentId))];
     const agents = await attachAgentIdentities(await findAgentsByIds(getDb(), agentIds));
-    const agentMap = new Map(agents.map(a => [a._id, a]));
+    const agentMap = new Map(agents.map((a) => [a._id, a]));
 
-    const threats = entries.map(entry => {
+    const threats = entries.map((entry) => {
       const session = sessionMap.get(entry.sessionId);
       const agent = session ? agentMap.get(session.agentId) : undefined;
       const isBlocked = entry.content.includes('BLOCKED');

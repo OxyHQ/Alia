@@ -130,7 +130,7 @@ export async function buildAskAgentTool(
   return {
     askAgent: tool({
       description:
-        'Ask one of the user\'s own agents a question and get its answer back. ' +
+        "Ask one of the user's own agents a question and get its answer back. " +
         'The agent answers with its own instructions and its own capabilities, and it ' +
         'cannot see this conversation — so include every detail it needs in `message`. ' +
         'Use this to consult a specialist the user already has, NOT to hire one from the ' +
@@ -138,7 +138,9 @@ export async function buildAskAgentTool(
         reachable.map((agent) => `- ${agent._id} — ${agent.name}: ${agent.tagline}`).join('\n'),
 
       inputSchema: z.object({
-        agentId: z.enum([first, ...rest]).describe('The id of the agent to ask, from the list above'),
+        agentId: z
+          .enum([first, ...rest])
+          .describe('The id of the agent to ask, from the list above'),
         message: z
           .string()
           .describe('The question or task, with all the context the agent needs to answer it'),
@@ -185,7 +187,11 @@ export async function buildAskAgentTool(
         }
 
         const agent = await attachAgentIdentity(found);
-        const outcome = await runAgentTurn({ agent, task: message, payerOxyUserId: ownerOxyUserId });
+        const outcome = await runAgentTurn({
+          agent,
+          task: message,
+          payerOxyUserId: ownerOxyUserId,
+        });
 
         return {
           agentId,

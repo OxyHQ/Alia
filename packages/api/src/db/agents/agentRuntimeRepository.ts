@@ -10,150 +10,211 @@ import { agentSessions } from '../schema/agent-sessions.js';
 
 export type AgentThreadRow = typeof agentThreads.$inferSelect;
 
-export async function createAgentThread(db: ApiDatabase, input: {
-  oxyUserId: string;
-  agentId: string;
-  title: string;
-  /** The thread's `publisher/model`; null runs the owner's default. */
-  modelId?: string | null;
-  approvalMode?: 'ask' | 'supervised_auto';
-  executionTarget?: 'sandbox' | 'cowork';
-  coworkDeviceId?: string;
-  openedByAgentId?: string;
-}): Promise<AgentThreadRow> {
+export async function createAgentThread(
+  db: ApiDatabase,
+  input: {
+    oxyUserId: string;
+    agentId: string;
+    title: string;
+    /** The thread's `publisher/model`; null runs the owner's default. */
+    modelId?: string | null;
+    approvalMode?: 'ask' | 'supervised_auto';
+    executionTarget?: 'sandbox' | 'cowork';
+    coworkDeviceId?: string;
+    openedByAgentId?: string;
+  },
+): Promise<AgentThreadRow> {
   const executionTarget = input.executionTarget ?? 'sandbox';
-  const [row] = await db.insert(agentThreads).values({
-    oxyUserId: input.oxyUserId,
-    agentId: input.agentId,
-    title: input.title,
-    modelId: input.modelId ?? null,
-    approvalMode: input.approvalMode ?? 'ask',
-    executionTarget,
-    coworkDeviceId: executionTarget === 'cowork' ? input.coworkDeviceId : null,
-    openedByAgentId: input.openedByAgentId ?? null,
-  }).returning();
+  const [row] = await db
+    .insert(agentThreads)
+    .values({
+      oxyUserId: input.oxyUserId,
+      agentId: input.agentId,
+      title: input.title,
+      modelId: input.modelId ?? null,
+      approvalMode: input.approvalMode ?? 'ask',
+      executionTarget,
+      coworkDeviceId: executionTarget === 'cowork' ? input.coworkDeviceId : null,
+      openedByAgentId: input.openedByAgentId ?? null,
+    })
+    .returning();
   if (!row) throw new Error('agent thread insert returned no row');
   return row;
 }
 
 export async function listAgentThreads(db: ApiDatabase, oxyUserId: string, agentId: string) {
-  return db.select().from(agentThreads).where(and(
-    eq(agentThreads.oxyUserId, oxyUserId),
-    eq(agentThreads.agentId, agentId),
-  )).orderBy(desc(agentThreads.updatedAt));
+  return db
+    .select()
+    .from(agentThreads)
+    .where(and(eq(agentThreads.oxyUserId, oxyUserId), eq(agentThreads.agentId, agentId)))
+    .orderBy(desc(agentThreads.updatedAt));
 }
 
 export async function findAgentThread(db: ApiDatabase, oxyUserId: string, threadId: string) {
-  const [row] = await db.select().from(agentThreads).where(and(
-    eq(agentThreads.id, threadId),
-    eq(agentThreads.oxyUserId, oxyUserId),
-  )).limit(1);
+  const [row] = await db
+    .select()
+    .from(agentThreads)
+    .where(and(eq(agentThreads.id, threadId), eq(agentThreads.oxyUserId, oxyUserId)))
+    .limit(1);
   return row;
 }
 
-export async function updateAgentThread(db: ApiDatabase, oxyUserId: string, threadId: string, patch: {
-  title?: string;
-  status?: 'open' | 'closed';
-  approvalMode?: 'ask' | 'supervised_auto';
-  executionTarget?: 'sandbox' | 'cowork';
-  coworkDeviceId?: string | null;
-}) {
-  const [row] = await db.update(agentThreads).set({ ...patch, updatedAt: new Date() }).where(and(
-    eq(agentThreads.id, threadId),
-    eq(agentThreads.oxyUserId, oxyUserId),
-  )).returning();
+export async function updateAgentThread(
+  db: ApiDatabase,
+  oxyUserId: string,
+  threadId: string,
+  patch: {
+    title?: string;
+    status?: 'open' | 'closed';
+    approvalMode?: 'ask' | 'supervised_auto';
+    executionTarget?: 'sandbox' | 'cowork';
+    coworkDeviceId?: string | null;
+  },
+) {
+  const [row] = await db
+    .update(agentThreads)
+    .set({ ...patch, updatedAt: new Date() })
+    .where(and(eq(agentThreads.id, threadId), eq(agentThreads.oxyUserId, oxyUserId)))
+    .returning();
   return row;
 }
 
-export async function createAgentGoal(db: ApiDatabase, input: {
-  threadId: string;
-  oxyUserId: string;
-  agentId: string;
-  objective: string;
-  criteria: AgentGoalCriterion[];
-  verificationPlan: string;
-  idempotencyKey: string;
-  priceCredits: number;
-}) {
-  const [row] = await db.insert(agentGoals).values(input).onConflictDoNothing({
-    target: [agentGoals.oxyUserId, agentGoals.idempotencyKey],
-  }).returning();
+export async function createAgentGoal(
+  db: ApiDatabase,
+  input: {
+    threadId: string;
+    oxyUserId: string;
+    agentId: string;
+    objective: string;
+    criteria: AgentGoalCriterion[];
+    verificationPlan: string;
+    idempotencyKey: string;
+    priceCredits: number;
+  },
+) {
+  const [row] = await db
+    .insert(agentGoals)
+    .values(input)
+    .onConflictDoNothing({
+      target: [agentGoals.oxyUserId, agentGoals.idempotencyKey],
+    })
+    .returning();
   if (row) return { goal: row, created: true as const };
-  const [existing] = await db.select().from(agentGoals).where(and(
-    eq(agentGoals.oxyUserId, input.oxyUserId),
-    eq(agentGoals.idempotencyKey, input.idempotencyKey),
-  )).limit(1);
+  const [existing] = await db
+    .select()
+    .from(agentGoals)
+    .where(
+      and(
+        eq(agentGoals.oxyUserId, input.oxyUserId),
+        eq(agentGoals.idempotencyKey, input.idempotencyKey),
+      ),
+    )
+    .limit(1);
   if (!existing) throw new Error('agent goal idempotency lookup returned no row');
   return { goal: existing, created: false as const };
 }
 
 export async function findPendingApproval(db: ApiDatabase, oxyUserId: string, approvalId: string) {
-  const [row] = await db.select().from(agentApprovalRequests).where(and(
-    eq(agentApprovalRequests.id, approvalId),
-    eq(agentApprovalRequests.oxyUserId, oxyUserId),
-    eq(agentApprovalRequests.status, 'pending'),
-  )).limit(1);
+  const [row] = await db
+    .select()
+    .from(agentApprovalRequests)
+    .where(
+      and(
+        eq(agentApprovalRequests.id, approvalId),
+        eq(agentApprovalRequests.oxyUserId, oxyUserId),
+        eq(agentApprovalRequests.status, 'pending'),
+      ),
+    )
+    .limit(1);
   return row;
 }
 
 export type AgentApprovalRow = typeof agentApprovalRequests.$inferSelect;
 
-export async function createAgentApprovalRequest(db: ApiDatabase, input: {
-  id: string;
-  turnId: string;
-  threadId: string | null;
-  oxyUserId: string;
-  agentId: string;
-  toolName: string;
-  riskLevel: string;
-  actionHash: string;
-  resource?: string;
-  summary: string;
-  details: Record<string, unknown>;
-  expiresAt: Date;
-}): Promise<AgentApprovalRow> {
-  const [inserted] = await db.insert(agentApprovalRequests).values(input).onConflictDoNothing({
-    target: [agentApprovalRequests.turnId, agentApprovalRequests.actionHash],
-  }).returning();
+export async function createAgentApprovalRequest(
+  db: ApiDatabase,
+  input: {
+    id: string;
+    turnId: string;
+    threadId: string | null;
+    oxyUserId: string;
+    agentId: string;
+    toolName: string;
+    riskLevel: string;
+    actionHash: string;
+    resource?: string;
+    summary: string;
+    details: Record<string, unknown>;
+    expiresAt: Date;
+  },
+): Promise<AgentApprovalRow> {
+  const [inserted] = await db
+    .insert(agentApprovalRequests)
+    .values(input)
+    .onConflictDoNothing({
+      target: [agentApprovalRequests.turnId, agentApprovalRequests.actionHash],
+    })
+    .returning();
   if (inserted) return inserted;
-  const [existing] = await db.select().from(agentApprovalRequests).where(and(
-    eq(agentApprovalRequests.turnId, input.turnId),
-    eq(agentApprovalRequests.actionHash, input.actionHash),
-  )).limit(1);
+  const [existing] = await db
+    .select()
+    .from(agentApprovalRequests)
+    .where(
+      and(
+        eq(agentApprovalRequests.turnId, input.turnId),
+        eq(agentApprovalRequests.actionHash, input.actionHash),
+      ),
+    )
+    .limit(1);
   if (!existing) throw new Error('approval request conflict did not identify a row');
   return existing;
 }
 
 export async function findAgentApproval(db: ApiDatabase, approvalId: string) {
-  const [row] = await db.select().from(agentApprovalRequests)
-    .where(eq(agentApprovalRequests.id, approvalId)).limit(1);
+  const [row] = await db
+    .select()
+    .from(agentApprovalRequests)
+    .where(eq(agentApprovalRequests.id, approvalId))
+    .limit(1);
   return row;
 }
 
-export async function decideAgentApproval(db: ApiDatabase, input: {
-  approvalId: string;
-  oxyUserId: string;
-  approved: boolean;
-}): Promise<AgentApprovalRow | undefined> {
+export async function decideAgentApproval(
+  db: ApiDatabase,
+  input: {
+    approvalId: string;
+    oxyUserId: string;
+    approved: boolean;
+  },
+): Promise<AgentApprovalRow | undefined> {
   const now = new Date();
-  const [row] = await db.update(agentApprovalRequests).set({
-    status: input.approved ? 'approved' : 'denied',
-    decidedByOxyUserId: input.oxyUserId,
-    decidedAt: now,
-    updatedAt: now,
-  }).where(and(
-    eq(agentApprovalRequests.id, input.approvalId),
-    eq(agentApprovalRequests.oxyUserId, input.oxyUserId),
-    eq(agentApprovalRequests.status, 'pending'),
-  )).returning();
+  const [row] = await db
+    .update(agentApprovalRequests)
+    .set({
+      status: input.approved ? 'approved' : 'denied',
+      decidedByOxyUserId: input.oxyUserId,
+      decidedAt: now,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(agentApprovalRequests.id, input.approvalId),
+        eq(agentApprovalRequests.oxyUserId, input.oxyUserId),
+        eq(agentApprovalRequests.status, 'pending'),
+      ),
+    )
+    .returning();
   return row;
 }
 
 export async function expireAgentApprovals(db: ApiDatabase, now = new Date()): Promise<string[]> {
-  const rows = await db.update(agentApprovalRequests).set({ status: 'expired', updatedAt: now }).where(and(
-    eq(agentApprovalRequests.status, 'pending'),
-    lt(agentApprovalRequests.expiresAt, now),
-  )).returning({ id: agentApprovalRequests.id });
+  const rows = await db
+    .update(agentApprovalRequests)
+    .set({ status: 'expired', updatedAt: now })
+    .where(
+      and(eq(agentApprovalRequests.status, 'pending'), lt(agentApprovalRequests.expiresAt, now)),
+    )
+    .returning({ id: agentApprovalRequests.id });
   return rows.map((row) => row.id);
 }
 
@@ -175,26 +236,38 @@ export async function withAgentAdmission<T>(
 ): Promise<{ admitted: true; value: T } | { admitted: false }> {
   const { agentId, oxyUserId } = admission;
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`alia-agent:${agentId}:${oxyUserId}`}))`);
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext(${`alia-agent:${agentId}:${oxyUserId}`}))`,
+    );
     // Reclaim only synchronous chat work whose explicit ownership lease has
     // expired. A generic `lastActivityAt` cutoff would be a guess and could
     // terminate legitimate autonomous work; NULL leases are deliberately not
     // eligible here.
-    await tx.update(agentSessions).set({
-      status: 'failed',
-      result: 'The chat request owning this turn ended before settlement',
-      statsCompletedAt: new Date(),
-    }).where(and(
-      eq(agentSessions.agentId, agentId),
-      eq(agentSessions.oxyUserId, oxyUserId),
-      eq(agentSessions.status, 'running'),
-      lt(agentSessions.chatLeaseExpiresAt, new Date()),
-    ));
-    const [counted] = await tx.select({ count: sql<number>`count(*)::int` }).from(agentSessions).where(and(
-      eq(agentSessions.agentId, agentId),
-      eq(agentSessions.oxyUserId, oxyUserId),
-      inArray(agentSessions.status, ['queued', 'running']),
-    ));
+    await tx
+      .update(agentSessions)
+      .set({
+        status: 'failed',
+        result: 'The chat request owning this turn ended before settlement',
+        statsCompletedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(agentSessions.agentId, agentId),
+          eq(agentSessions.oxyUserId, oxyUserId),
+          eq(agentSessions.status, 'running'),
+          lt(agentSessions.chatLeaseExpiresAt, new Date()),
+        ),
+      );
+    const [counted] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(agentSessions)
+      .where(
+        and(
+          eq(agentSessions.agentId, agentId),
+          eq(agentSessions.oxyUserId, oxyUserId),
+          inArray(agentSessions.status, ['queued', 'running']),
+        ),
+      );
     if ((counted?.count ?? 0) >= maxConcurrentThreads) return { admitted: false as const };
     // The active row must be created on this transaction handle. Using the
     // root pool here can wait forever for a second connection under load and
@@ -203,42 +276,69 @@ export async function withAgentAdmission<T>(
   });
 }
 
-export async function recordAgentGoalRun(db: ApiDatabase, input: {
-  goalId: string;
-  oxyUserId: string;
-  status: 'candidate' | 'blocked' | 'cancelled';
-  turnsUsed: number;
-  tokensUsed: number;
-}) {
+export async function recordAgentGoalRun(
+  db: ApiDatabase,
+  input: {
+    goalId: string;
+    oxyUserId: string;
+    status: 'candidate' | 'blocked' | 'cancelled';
+    turnsUsed: number;
+    tokensUsed: number;
+  },
+) {
   const now = new Date();
-  const [row] = await db.update(agentGoals).set({
-    status: input.status,
-    turnsUsed: input.turnsUsed,
-    tokensUsed: input.tokensUsed,
-    noProgressTurns: input.status === 'candidate' ? 0 : 1,
-    completedAt: null,
-    updatedAt: now,
-  }).where(and(eq(agentGoals.id, input.goalId), eq(agentGoals.oxyUserId, input.oxyUserId))).returning();
+  const [row] = await db
+    .update(agentGoals)
+    .set({
+      status: input.status,
+      turnsUsed: input.turnsUsed,
+      tokensUsed: input.tokensUsed,
+      noProgressTurns: input.status === 'candidate' ? 0 : 1,
+      completedAt: null,
+      updatedAt: now,
+    })
+    .where(and(eq(agentGoals.id, input.goalId), eq(agentGoals.oxyUserId, input.oxyUserId)))
+    .returning();
   return row;
 }
 
-export async function verifyAgentGoal(db: ApiDatabase, input: {
-  goalId: string;
-  oxyUserId: string;
-  threadId: string;
-  evidence: Array<{ criterionId: string; evidence: string }>;
-}) {
+export async function verifyAgentGoal(
+  db: ApiDatabase,
+  input: {
+    goalId: string;
+    oxyUserId: string;
+    threadId: string;
+    evidence: Array<{ criterionId: string; evidence: string }>;
+  },
+) {
   return db.transaction(async (tx) => {
-    const [goal] = await tx.select().from(agentGoals).where(and(
-      eq(agentGoals.id, input.goalId), eq(agentGoals.oxyUserId, input.oxyUserId), eq(agentGoals.threadId, input.threadId),
-    )).limit(1);
+    const [goal] = await tx
+      .select()
+      .from(agentGoals)
+      .where(
+        and(
+          eq(agentGoals.id, input.goalId),
+          eq(agentGoals.oxyUserId, input.oxyUserId),
+          eq(agentGoals.threadId, input.threadId),
+        ),
+      )
+      .limit(1);
     if (!goal || goal.status !== 'candidate') return undefined;
-    const evidence = new Map(input.evidence.map((item) => [item.criterionId, item.evidence.trim()]));
+    const evidence = new Map(
+      input.evidence.map((item) => [item.criterionId, item.evidence.trim()]),
+    );
     if (goal.criteria.some((criterion) => !evidence.get(criterion.id))) return undefined;
-    const criteria = goal.criteria.map((criterion) => ({ ...criterion, met: true, evidence: evidence.get(criterion.id)! }));
+    const criteria = goal.criteria.map((criterion) => ({
+      ...criterion,
+      met: true,
+      evidence: evidence.get(criterion.id)!,
+    }));
     const now = new Date();
-    const [updated] = await tx.update(agentGoals).set({ status: 'completed', criteria, completedAt: now, updatedAt: now })
-      .where(and(eq(agentGoals.id, goal.id), eq(agentGoals.status, 'candidate'))).returning();
+    const [updated] = await tx
+      .update(agentGoals)
+      .set({ status: 'completed', criteria, completedAt: now, updatedAt: now })
+      .where(and(eq(agentGoals.id, goal.id), eq(agentGoals.status, 'candidate')))
+      .returning();
     return updated;
   });
 }
@@ -248,36 +348,56 @@ export async function verifyAgentGoal(db: ApiDatabase, input: {
  * this person — what lets a background run perform what it asked for earlier.
  * Matched on the action hash, so a different action is not covered.
  */
-export async function findGrantedApproval(db: ApiDatabase, input: {
-  oxyUserId: string;
-  agentId: string;
-  actionHash: string;
-  decidedAfter: Date;
-}): Promise<AgentApprovalRow | undefined> {
-  const [row] = await db.select().from(agentApprovalRequests).where(and(
-    eq(agentApprovalRequests.oxyUserId, input.oxyUserId),
-    eq(agentApprovalRequests.agentId, input.agentId),
-    eq(agentApprovalRequests.actionHash, input.actionHash),
-    eq(agentApprovalRequests.status, 'approved'),
-    gt(agentApprovalRequests.decidedAt, input.decidedAfter),
-  )).orderBy(desc(agentApprovalRequests.decidedAt)).limit(1);
+export async function findGrantedApproval(
+  db: ApiDatabase,
+  input: {
+    oxyUserId: string;
+    agentId: string;
+    actionHash: string;
+    decidedAfter: Date;
+  },
+): Promise<AgentApprovalRow | undefined> {
+  const [row] = await db
+    .select()
+    .from(agentApprovalRequests)
+    .where(
+      and(
+        eq(agentApprovalRequests.oxyUserId, input.oxyUserId),
+        eq(agentApprovalRequests.agentId, input.agentId),
+        eq(agentApprovalRequests.actionHash, input.actionHash),
+        eq(agentApprovalRequests.status, 'approved'),
+        gt(agentApprovalRequests.decidedAt, input.decidedAfter),
+      ),
+    )
+    .orderBy(desc(agentApprovalRequests.decidedAt))
+    .limit(1);
   return row;
 }
 
 /** Spend a granted approval. `false` means another run already used it. */
 export async function markApprovalExecuted(db: ApiDatabase, approvalId: string): Promise<boolean> {
-  const updated = await db.update(agentApprovalRequests)
+  const updated = await db
+    .update(agentApprovalRequests)
     .set({ status: 'executed', updatedAt: new Date() })
-    .where(and(eq(agentApprovalRequests.id, approvalId), eq(agentApprovalRequests.status, 'approved')))
+    .where(
+      and(eq(agentApprovalRequests.id, approvalId), eq(agentApprovalRequests.status, 'approved')),
+    )
     .returning({ id: agentApprovalRequests.id });
   return updated.length > 0;
 }
 
 /** A person's approvals still waiting on them, newest first. */
 export async function listPendingApprovals(db: ApiDatabase, oxyUserId: string, now = new Date()) {
-  return db.select().from(agentApprovalRequests).where(and(
-    eq(agentApprovalRequests.oxyUserId, oxyUserId),
-    eq(agentApprovalRequests.status, 'pending'),
-    gt(agentApprovalRequests.expiresAt, now),
-  )).orderBy(desc(agentApprovalRequests.createdAt)).limit(100);
+  return db
+    .select()
+    .from(agentApprovalRequests)
+    .where(
+      and(
+        eq(agentApprovalRequests.oxyUserId, oxyUserId),
+        eq(agentApprovalRequests.status, 'pending'),
+        gt(agentApprovalRequests.expiresAt, now),
+      ),
+    )
+    .orderBy(desc(agentApprovalRequests.createdAt))
+    .limit(100);
 }

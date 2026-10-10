@@ -206,7 +206,15 @@ export async function runDeepResearch(
     sourcesFound: sourceTracker.count(),
   });
 
-  let report = await synthesize(query, contract, subQuestions, allFindings, sourceTracker, userId, modelId);
+  let report = await synthesize(
+    query,
+    contract,
+    subQuestions,
+    allFindings,
+    sourceTracker,
+    userId,
+    modelId,
+  );
 
   // ── Phase 4: Follow-up iterations (identify gaps + targeted search) ──
   //
@@ -234,7 +242,10 @@ export async function runDeepResearch(
       totalSearches++;
       try {
         if (!webSearchTool.execute) throw new Error('webSearchTool has no executor');
-        const searchResult = await webSearchTool.execute({ query: gap }, { messages: [], toolCallId: `followup-${totalSearches}`, abortSignal: signal });
+        const searchResult = await webSearchTool.execute(
+          { query: gap },
+          { messages: [], toolCallId: `followup-${totalSearches}`, abortSignal: signal },
+        );
         if ('results' in searchResult && searchResult.results) {
           for (const result of searchResult.results.slice(0, 3)) {
             sourceTracker.add(result.url, result.title, result.snippet, gap);
@@ -250,7 +261,15 @@ export async function runDeepResearch(
     // does not make it less of one — and stops iterating.
     const gapFindings = await extractFindings(gaps.join('; '), sourceTracker.getAll(), userId);
     allFindings.push(gapFindings);
-    const revised = await synthesize(query, contract, subQuestions, allFindings, sourceTracker, userId, modelId);
+    const revised = await synthesize(
+      query,
+      contract,
+      subQuestions,
+      allFindings,
+      sourceTracker,
+      userId,
+      modelId,
+    );
     if (revised === null) break;
     report = revised;
   }
@@ -286,7 +305,10 @@ export async function runDeepResearch(
 
   // Markers are normalised against the tracker, so a number the model made up
   // never reaches the reader as a dangling `[9]`.
-  const body = normalizeCitationMarkers(report, sources.map((s) => s.id)).trim();
+  const body = normalizeCitationMarkers(
+    report,
+    sources.map((s) => s.id),
+  ).trim();
   const finalReport = body + sourceTracker.formatReferences();
 
   onProgress({
@@ -318,7 +340,9 @@ function formatPartialReport(sourceTracker: SourceTracker): string {
   if (all.length === 0) {
     return `**Research incomplete.** ${PARTIAL_REPORT_NOTE}\n\nNo usable sources were found.`;
   }
-  const listed = all.slice(0, PARTIAL_NOTE_SOURCES).map((s) => `- [${s.id}] ${formatSourceLink(s)}`);
+  const listed = all
+    .slice(0, PARTIAL_NOTE_SOURCES)
+    .map((s) => `- [${s.id}] ${formatSourceLink(s)}`);
   const rest = all.length - listed.length;
   const more = rest > 0 ? `\n- …and ${rest} more source${rest === 1 ? '' : 's'}` : '';
   return `**Research incomplete.** ${PARTIAL_REPORT_NOTE}\n\n${listed.join('\n')}${more}`;
@@ -331,7 +355,9 @@ function summarizeFindings(findings: string[]): string {
     .filter((f) => f.length > 0)
     .join('\n')
     .replace(/\n{2,}/g, '\n');
-  return joined.length > FINDINGS_SUMMARY_CHARS ? `${joined.slice(0, FINDINGS_SUMMARY_CHARS - 1)}…` : joined;
+  return joined.length > FINDINGS_SUMMARY_CHARS
+    ? `${joined.slice(0, FINDINGS_SUMMARY_CHARS - 1)}…`
+    : joined;
 }
 
 async function decomposeQuery(
@@ -348,17 +374,18 @@ async function decomposeQuery(
     const model = getAIModel(resolved, 'deep_research');
 
     const contextSummary = messages
-      .filter(m => m.role === 'user')
+      .filter((m) => m.role === 'user')
       .slice(-3)
-      .map(m => m.content)
+      .map((m) => m.content)
       .join('\n');
 
     // The subject is what gets decomposed. The original request is shown only
     // when it differs, and labelled as context, so its "two sentences" and
     // "with a source" do not become research angles of their own.
-    const requestNote = contract.subject !== query.trim()
-      ? `Original request (context only — its length, format and citation instructions are handled elsewhere and must NOT become sub-questions):\n${query}\n\n`
-      : '';
+    const requestNote =
+      contract.subject !== query.trim()
+        ? `Original request (context only — its length, format and citation instructions are handled elsewhere and must NOT become sub-questions):\n${query}\n\n`
+        : '';
 
     const { text } = await generateText({
       model,
@@ -376,7 +403,10 @@ Return ONLY a JSON array of strings, nothing else.`,
         .map((q) => q.trim());
       const onTopic = questions.filter((q) => !isMetaSubQuestion(q));
       if (onTopic.length < questions.length) {
-        log.general.info({ dropped: questions.length - onTopic.length }, 'Research: dropped meta sub-questions about format');
+        log.general.info(
+          { dropped: questions.length - onTopic.length },
+          'Research: dropped meta sub-questions about format',
+        );
       }
       if (onTopic.length > 0) return onTopic.slice(0, limit);
     }
@@ -424,12 +454,13 @@ async function extractFindings(
 
     const sourcesText = sources
       .slice(-15) // Most recent sources
-      .map(s => `[${s.id}] ${s.title}\n${s.excerpt}`)
+      .map((s) => `[${s.id}] ${s.title}\n${s.excerpt}`)
       .join('\n\n');
 
     const { text } = await generateText({
       model,
-      system: 'You are a research analyst. Extract key findings from the provided search results relevant to the question. Use inline citations like [1], [2] referencing the source numbers. Be factual and concise.',
+      system:
+        'You are a research analyst. Extract key findings from the provided search results relevant to the question. Use inline citations like [1], [2] referencing the source numbers. Be factual and concise.',
       prompt: `Question: ${question}\n\nSearch Results:\n${sourcesText}\n\nExtract the key findings with citations:`,
       maxOutputTokens: 1500,
     });
@@ -477,9 +508,10 @@ async function synthesize(
       .map((s) => `[${s.id}] ${s.title} — ${s.url}`)
       .join('\n');
 
-    const task = contract.shape === 'report'
-      ? 'Synthesize these findings into a comprehensive research report:'
-      : 'Answer the original query from these findings, in exactly the requested shape:';
+    const task =
+      contract.shape === 'report'
+        ? 'Synthesize these findings into a comprehensive research report:'
+        : 'Answer the original query from these findings, in exactly the requested shape:';
 
     const { text } = await generateText({
       model,
@@ -506,7 +538,8 @@ async function identifyGaps(
 
     const { text } = await generateText({
       model,
-      system: 'You identify gaps in research reports. Given a query and current report, identify 1-3 specific search queries that would fill important gaps. Return ONLY a JSON array of search query strings. Return an empty array [] if the report is sufficiently comprehensive.',
+      system:
+        'You identify gaps in research reports. Given a query and current report, identify 1-3 specific search queries that would fill important gaps. Return ONLY a JSON array of search query strings. Return an empty array [] if the report is sufficiently comprehensive.',
       prompt: `Original query: ${originalQuery}\n\nCurrent report (excerpt):\n${currentReport.slice(0, 2000)}\n\nWhat gaps remain? Return JSON array of follow-up search queries:`,
       maxOutputTokens: 300,
     });
