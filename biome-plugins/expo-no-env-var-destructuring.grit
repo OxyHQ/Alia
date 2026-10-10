@@ -1,9 +1,22 @@
 // Port of eslint-plugin-expo `no-env-var-destructuring`. Metro only inlines
 // `process.env.EXPO_PUBLIC_*` member reads; a variable destructured from
 // `process.env` is never inlined and is `undefined` in the shipped bundle.
+//
+// Matched on Biome's syntax nodes rather than a `{ $props } = process.env`
+// snippet, because the snippet parses as a declarator and so never reaches the
+// assignment form `({ A } = process.env)`. One declarator pattern covers
+// `const`, `let` and `var`; the assignment pattern covers the rest.
 language js
 
-`$pattern = process.env` where {
-  $pattern <: JsObjectBindingPattern(),
-  register_diagnostic(span=$pattern, message="Unexpected destructuring. Cannot destructure variables from process.env: Expo only inlines `process.env.EXPO_PUBLIC_*` member reads.", severity="error")
+or {
+  JsVariableDeclarator(id=$id, initializer=$init) where {
+    $id <: JsObjectBindingPattern(),
+    $init <: JsInitializerClause(expression=`process.env`),
+    register_diagnostic(span=$id, message="Unexpected destructuring. Cannot destructure variables from process.env: Expo only inlines `process.env.EXPO_PUBLIC_*` member reads.", severity="error")
+  },
+  JsAssignmentExpression(left=$left, right=$right) where {
+    $left <: JsObjectAssignmentPattern(),
+    $right <: `process.env`,
+    register_diagnostic(span=$left, message="Unexpected destructuring. Cannot destructure variables from process.env, by declaration or by assignment: Expo only inlines `process.env.EXPO_PUBLIC_*` member reads.", severity="error")
+  }
 }
