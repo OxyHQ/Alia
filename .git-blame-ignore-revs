@@ -1,2 +1,5 @@
 # Biome adoption: repository-wide reformat (style: format with Biome)
 bf3f119bcd51a5c8c7e119ac27e06e21f1670c51
+
+# Formatting the ten files the source-reading tests used to pin
+9f45583a29549d2db436ab1f85d1ebcac661ec2d
