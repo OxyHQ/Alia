@@ -48,10 +48,8 @@ import { checkOneOf } from './columns';
  *
  * **Neither `folder_id` nor `agent_id` gets a foreign key, for different
  * reasons.** `folder_id` was declared `ref: 'Folder'` and **no `Folder` model
- * ever existed in this service** — it was the one non-`User` dangling ref
- * `models/__tests__/retiredModelFiles.test.ts` had to name, and it left with
- * the Mongoose model, so the column is a bare id pointing at nothing this schema
- * could target. `agent_id` names a real model whose table is a later batch; it
+ * ever existed in this service**, so the column is a bare id pointing at
+ * nothing this schema could target. `agent_id` names a real model whose table is a later batch; it
  * gets one when `agents` lands, if a deletion answer exists then.
  */
 export const conversations = pgTable(
@@ -125,15 +123,15 @@ export const conversations = pgTable(
  *
  * ## `client_message_id` is the AI SDK's id, and it collides with `id`
  *
- * Mongoose stores BOTH `_id` and a separate `id` field carrying the id the AI
- * SDK assigned on the client. `id` here is the primary key holding Mongo's
- * `_id`, per this schema's rule, so the client's needs its own name.
+ * A message carries BOTH its own row id and the id the AI SDK assigned on the
+ * client. `id` here is the primary key, per this schema's rule, so the client's
+ * needs its own name.
  *
  * It is not decoration: `routes/v1/audio.ts` looks a message up by
  * `(conversation_id, oxy_user_id, client_message_id)` to attach a generated
- * audio URL. Mongo had no index covering it and neither does this — the
+ * audio URL. No index covers it — the
  * `(oxy_user_id, conversation_id, …)` unique below is a prefix of that
- * predicate, so the lookup is served and then filtered, exactly as before. A
+ * predicate, so the lookup is served and then filtered. A
  * dedicated index is a performance decision with numbers attached, and this port
  * is not the place to guess at one.
  *
@@ -151,7 +149,7 @@ export const conversations = pgTable(
  *
  * ## `content` and `tool_invocations` are `jsonb`; `agent_info` is COLUMNS
  *
- * `content` is Mongoose `Mixed` and genuinely polymorphic — a plain string or an
+ * `content` is genuinely polymorphic — a plain string or an
  * ordered parts array whose shape is the AI SDK's, not this service's. That is
  * the `jsonb` test exactly: the format belongs to somebody else.
  *
@@ -175,7 +173,7 @@ export const messages = pgTable(
     conversationId: text().notNull(),
     /** An Oxy account. No foreign key: Oxy owns identity. */
     oxyUserId: text().notNull(),
-    /** Mongoose calls this `id`. See the table comment. */
+    /** The AI SDK's client-side message id (`id` on the wire). See the table comment. */
     clientMessageId: text(),
     role: text({ enum: MESSAGE_ROLES as unknown as [string, ...string[]] }).notNull(),
     content: jsonb().notNull(),
@@ -200,18 +198,12 @@ export const messages = pgTable(
      * position — `lib/__tests__/conversation-saver.pgdb.test.ts` produces it.
      *
      * **The `WHERE seq IS NOT NULL` predicate does NO correctness work here, and
-     * is kept anyway.** Mongo needed it: `partialFilterExpression` existed
-     * because legacy seq-less messages would otherwise all collide on
-     * `(user, conversation, null)`. Postgres already treats NULLs as distinct,
-     * so a plain unique admits them just as well. The predicate stays because it
+     * is kept anyway.** Legacy seq-less messages would collide on
+     * `(user, conversation, null)` only if NULLs were equal; Postgres already
+     * treats NULLs as distinct, so a plain unique admits them just as well. The predicate stays because it
      * documents that legacy rows are expected and keeps the index off them —
      * **no size measurement was taken**, so read that as intent rather than as a
-     * figure.
-     *
-     * One honest difference from the source, in the permissive direction: Mongo's
-     * `$exists: true` includes a present-but-NULL `seq`, so Mongo enforced
-     * uniqueness across explicit nulls where BOTH Postgres spellings permit
-     * them. The field has no default, so absent rather than null is the shape
+     * figure. The field has no default, so absent rather than null is the shape
      * that actually occurs.
      */
     uniqueIndex('messages_oxy_user_conversation_seq_key')

@@ -15,11 +15,9 @@ import { decrypt, encrypt } from '../../lib/crypto-utils.js';
  * `text` that cannot be stored in the clear.
  *
  * The OAuth access and refresh tokens on `integrations` and `connected_accounts`
- * were encrypted in Mongo by FIELD-LEVEL `set: encrypt, get: decrypt` — so
- * encryption was true by CONSTRUCTION on every write, whatever the call site.
- * drizzle has no getter/setter, and porting those columns as plain `text` would
- * quietly demote that guarantee to "wherever whoever writes the repository
- * remembers". Nothing would fail, no test would go red, and the symptom would be
+ * must be encrypted on EVERY write, whatever the call site. drizzle has no
+ * getter/setter, and declaring those columns as plain `text` would quietly
+ * demote that guarantee to "wherever whoever writes the repository remembers". Nothing would fail, no test would go red, and the symptom would be
  * third-party OAuth tokens sitting in plaintext until a dump leaked.
  *
  * A `customType` is the only one of the available shapes where "a plaintext
@@ -29,31 +27,28 @@ import { decrypt, encrypt } from '../../lib/crypto-utils.js';
  *
  * Three things to know before using it:
  *
- *  - **A raw `db.execute(sql\`insert …\`)` bypasses it**, exactly as a raw Mongo
- *    driver write bypassed the Mongoose setter. Parity, not a new hole — and the
- *    backfill DEPENDS on it; see below.
+ *  - **A raw `db.execute(sql\`insert …\`)` bypasses it.** That is what lets a
+ *    copy move CIPHERTEXT verbatim; see below.
  *  - **`fromDriver` throws on a value that is not well-formed ciphertext**,
  *    which is a fail-closed read rather than a silent plaintext leak.
  *
- * ## The backfill copies CIPHERTEXT VERBATIM, and must bypass this codec
+ * ## A copy moves CIPHERTEXT VERBATIM, and must bypass this codec
  *
- * Because the algorithm, the format and the key are unchanged from Mongo, the
- * stored value is portable as-is. So the backfill reads through the RAW driver
- * (never Mongoose, whose getters decrypt) and writes the same bytes through a
- * raw statement. Nothing is decrypted, nothing is re-encrypted, **no plaintext
+ * The stored value is portable as-is under the same key. So a copy reads the
+ * raw column and writes the same bytes through a raw statement. Nothing is decrypted, nothing is re-encrypted, **no plaintext
  * exists in flight at any point**, and the verification is a byte-for-byte
  * comparison rather than a round trip.
  *
  * The failure mode to design against is the mirror of that: handing ciphertext
  * to this codec produces ciphertext-OF-ciphertext, which looks like a successful
- * copy and fails at the first read. So the backfill must write the raw column,
+ * copy and fails at the first read. So a copy must write the raw column,
  * and must ASSERT what it wrote still matches `iv:authTag:ciphertext` — cheap,
  * and the only thing between "copied" and "copied correctly".
  *
- * One cost of the verbatim copy, stated because it is not obvious: a Mongo value
+ * One cost of the verbatim copy, stated because it is not obvious: a source value
  * that is NOT well-formed ciphertext (written before encryption existed, or by a
  * raw write) copies through happily and fails at READ time instead of during the
- * backfill. That same shape assertion is what pulls the failure back to the
+ * copy. That same shape assertion is what pulls the failure back to the
  * controlled moment.
  *
  * ## `pgcrypto` was considered and REJECTED — do not revisit it as an obvious win

@@ -23,7 +23,7 @@
  *
  * `plan_features` is a junction table and carries both, to `plans.plan_id` and
  * `features.feature_id` — business keys rather than surrogate ids, because that
- * is what Mongo stored and what every reader passes. Both targets are declared
+ * is what every reader passes. Both targets are declared
  * `unique()` rather than `uniqueIndex()`: drizzle-kit emits every FK statement
  * BEFORE every `CREATE UNIQUE INDEX`, so a foreign key pointing at a unique
  * index generates cleanly and fails at apply time with `42830`.
@@ -81,7 +81,7 @@ export const plans = pgTable(
     monthlyPrice: bigint({ mode: 'number' }).notNull().default(0),
     annualPrice: bigint({ mode: 'number' }).notNull().default(0),
     /**
-     * No CHECK. The Mongoose field is a bare `String` defaulting to `'usd'` with
+     * No CHECK. The field is a bare string defaulting to `'usd'` with
      * no enum, and the value is passed straight to Stripe, which owns the
      * currency vocabulary. The `auth_health_metrics.method` rule, twice over.
      */
@@ -146,8 +146,7 @@ export const features = pgTable(
 /**
  * Which features a plan grants, and on what terms.
  *
- * A junction table in Mongo too, so this is the one table in the batch whose
- * shape does not change. Both foreign keys CASCADE: a mapping is meaningless
+ * A plain junction table. Both foreign keys CASCADE: a mapping is meaningless
  * without either side, and leaving it behind would let a re-created plan or
  * feature silently inherit a withdrawn plan's entitlements.
  *
@@ -207,7 +206,7 @@ export const creditPackages = pgTable(
   (t) => [
     uniqueIndex('credit_packages_package_id_key').on(t.packageId),
     index('credit_packages_active_sort_order_idx').on(t.isActive, t.sortOrder),
-    // Mongoose min, preserved: a package granting no credits is not a package,
+    // A package granting no credits is not a package,
     // and a negative price would be a refund wearing a product's name.
     check('credit_packages_credits_check', sql`${t.credits} >= 1`),
     check('credit_packages_price_check', sql`${t.price} >= 0`),
@@ -217,10 +216,10 @@ export const creditPackages = pgTable(
 /**
  * A customer's live subscription, mirrored from Stripe.
  *
- * ## `status` has NO CHECK, and the reason is not the Mongoose doubt
+ * ## `status` has NO CHECK, because Stripe owns the vocabulary
  *
- * The seven values Mongoose lists are Stripe's subscription statuses as of when
- * the model was written. Stripe also has `paused`, which is absent from that
+ * The seven values the tuple lists are Stripe's subscription statuses as of when
+ * it was written. Stripe also has `paused`, which is absent from that
  * list — so a CHECK rendered from it would reject a webhook the first time a
  * customer pauses, in the billing path, for a value Stripe considers ordinary.
  * The vocabulary belongs to Stripe, which is the same test that reserves `jsonb`
@@ -229,15 +228,14 @@ export const creditPackages = pgTable(
  *
  * ## `plan_snapshot_*` is what was SOLD, not a copy of the catalogue
  *
- * Mongo nested a whole `plan` object beside the top-level `planId`, which is why
+ * A whole `plan` snapshot sits beside the top-level `planId`, which is why
  * `planId` and `billingPeriod` appear twice. The nested one is a SNAPSHOT taken
  * when the subscription was created: it is what the customer agreed to and must
  * not move when an admin edits the plan. `plan_id` is the live pointer and
  * carries no foreign key, per the file comment.
  *
- * The three `required: true` snapshot fields are `notNull` here. A `required`
- * added to a Mongoose schema binds only writes made after it, so the backfill
- * must audit for older rows lacking a snapshot — and if it finds any, relaxing
+ * The three snapshot fields are `notNull`. A NOT NULL added later binds only
+ * writes made after it, so audit for older rows lacking a snapshot — and if it finds any, relaxing
  * this is a one-line change while the schema is still inert, where tightening it
  * later would be a `post` migration against live billing data.
  */
@@ -298,7 +296,7 @@ export const subscriptions = pgTable(
 /**
  * A payment, a refund, or a credit grant.
  *
- * ## `dedup_key` is the double-credit guard, and it was invisible in Mongo
+ * ## `dedup_key` is the double-credit guard
  *
  * `routes/billing.ts` credits a subscription renewal by writing a transaction
  * FIRST as a lock, keyed `<stripeSubscriptionId>_<periodStart>`, and treats the
@@ -319,9 +317,8 @@ export const subscriptions = pgTable(
  *
  * ## Sparse-unique translates to a plain unique, and that is not a weakening
  *
- * Mongo's `sparse: true` on `stripe_payment_intent_id` exempted documents
- * MISSING the field but still indexed a stored `null`, so a second explicit null
- * was an `E11000`. Postgres treats nulls as distinct in a unique index by
+ * A sparse unique exempts documents MISSING the field but still indexes a stored
+ * `null`, so a second explicit null would collide. Postgres treats nulls as distinct in a unique index by
  * default, so the plain `unique` here permits many nulls — strictly more
  * permissive than the source, and correct: a transaction with no payment intent
  * is not a duplicate of another one.
@@ -374,8 +371,7 @@ export const transactions = pgTable(
  * One account's credit balance.
  *
  * **`id` is an OXY ACCOUNT ID and has no default**, which is the one place in
- * this schema where `generatedId()` would be actively wrong. Mongo declared
- * `_id: { type: String }` and wrote the Oxy user id into it, so this table is
+ * this schema where `generatedId()` would be actively wrong: this table is
  * keyed by the account rather than by a row identity. A uuid v7 default would
  * quietly mint a row that no lookup could ever find, and the failure would look
  * like a missing balance rather than a bad insert.
@@ -383,7 +379,7 @@ export const transactions = pgTable(
  * The `credits` sub-document becomes `credits_*` columns, per the `routing_logs`
  * precedent.
  *
- * **No non-negativity CHECK, deliberately.** Mongoose declared no `min` on any
+ * **No non-negativity CHECK, deliberately.** No `min` was ever declared on any
  * of these, and `addCredits` accepts a negative amount, so production may hold a
  * negative balance today. A CHECK would fail on the first write to such a row —
  * in the deduction path. The backfill audits the actual range; adding the
@@ -409,7 +405,7 @@ export const userCredits = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    /** Partial, the equivalent of Mongo's `sparse: true`. */
+    /** Partial: only rows that have a Stripe customer. */
     index('user_credits_stripe_customer_id_idx')
       .on(t.stripeCustomerId)
       .where(sql`${t.stripeCustomerId} is not null`),

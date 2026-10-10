@@ -9,9 +9,8 @@
  *
  * ## Why one `INSERT … ON CONFLICT DO UPDATE … WHERE`
  *
- * Mongo did it with an aggregation-pipeline upsert filtered on
- * `holderId == me OR expiresAt < $$NOW`, evaluated server-side. The Postgres
- * equivalent is not "select then update": that is two statements, needs a
+ * The claim is `holderId == me OR expiresAt < now()`, evaluated server-side. It
+ * is not "select then update": that is two statements, needs a
  * transaction to be atomic, and still has to decide what to do when the row does
  * not exist yet. `ON CONFLICT` handles the first-boot insert and the steady-state
  * renewal with the same statement, and the `WHERE` on `DO UPDATE` is what makes a

@@ -4,8 +4,7 @@
  * Every assertion here is enforced by Postgres, not by application code: a CHECK
  * constraint, a unique index, an `ON DELETE CASCADE`, an `ON CONFLICT` upsert.
  * A mocked `insert` accepts any statement, including one the server rejects
- * outright — which is exactly the class of defect a Mongo→Postgres port
- * introduces, so these run against a real server on purpose.
+ * outright, so these run against a real server on purpose.
  *
  * The database is the throwaway one `vitest.pg.globalSetup.ts` created and
  * migrated through the REAL `src/db/migrate.ts` entrypoint.
@@ -110,8 +109,8 @@ describe('closed value sets are enforced by the database', () => {
 describe('a session owns its chats and messages', () => {
   it('CASCADES to chats and messages on delete', async () => {
     /**
-     * Mongo could not express this: deleting a session there orphaned every
-     * chat and message that referenced it, and nothing ever collected them.
+     * Without it, deleting a session would orphan every chat and message that
+     * referenced it, and nothing would ever collect them.
      */
     await db.insert(whatsappSessions).values({ sessionId: 'wa-cascade', oxyUserId: 'user-2' });
     await db.insert(whatsappChats).values({
@@ -229,7 +228,7 @@ describe('credentials survive a round trip unchanged', () => {
 describe('the MCP OAuth upsert converges', () => {
   it('creates once and returns the same row on a repeat', async () => {
     /**
-     * Replaces `getOrCreateConnectorAuth`'s Mongo upsert. Two concurrent OAuth
+     * `getOrCreateConnectorAuth`. Two concurrent OAuth
      * callbacks for one (user, server) must converge on a single row rather
      * than racing two half-finished authorizations.
      */

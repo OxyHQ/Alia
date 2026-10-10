@@ -544,10 +544,8 @@ From `docs/migration/ownership-matrix.json`, filtered to `kind: "table"` and wor
 | `transactions` | 12 | oxy | `0003_closed_black_queen.sql` | 0 | 0 |
 | `user_credits` | 12 | alia | `0003_closed_black_queen.sql` | 0 | 0 |
 
-**No Mongo collection is in scope.** 17 Mongoose models survive in `packages/api/src/models/`
-(agents, conversations, messages, organizations, skills and friends) and four more in
-`packages/integrations/src/`, and none of them backs any of the 21 tables above. The routing
-catalogue, developer identity and billing domains are Postgres-only.
+**Every table above is Postgres-only.** The routing catalogue, developer identity and billing
+domains have no second store.
 
 ### The fresh-schema column is a measurement, and it has a positive control
 
@@ -713,8 +711,8 @@ stop being true. Re-run the command; do not cite this section.
 ### Two things the counts alone will not answer
 
 - **After a port, the ABSENCE of a table stops being a signal.** Every inference in this inventory is
-  therefore a row count, never "the table isn't there". Both halves of every dual-store domain were
-  checked by listing the Mongoose models, not by assuming.
+  therefore a row count, never "the table isn't there". Every domain was checked by listing its
+  tables, not by assuming.
 - **`chat_analytics` and `cost_entries` are the two instruments the alias removal gate depends on**
   (`compatibility-window.md`, removal gate (a).1), and neither appears in
   `packages/api/src/db/expiryTargets.ts`, so nothing sweeps them today. `api_key_usage` IS swept at

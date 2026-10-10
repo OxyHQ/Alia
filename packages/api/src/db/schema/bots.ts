@@ -3,12 +3,11 @@
  *
  * ## Two secrets on one table, and only ONE of them may be encrypted
  *
- * `bots.bot_token` and `bots.webhook_secret` are both credentials and both were
- * `select: false` in Mongoose. They get opposite treatment, and the difference is
+ * `bots.bot_token` and `bots.webhook_secret` are both credentials. They get
+ * opposite treatment, and the difference is
  * not a judgement call:
  *
- *  - **`bot_token` is `encryptedText`.** It was `set: encrypt, get: decrypt` in
- *    Mongo, it is only ever read to call the platform, and nothing looks a row up
+ *  - **`bot_token` is `encryptedText`.** It is only ever read to call the platform, and nothing looks a row up
  *    by it. This is the codec's second customer after `integrations`.
  *  - **`webhook_secret` stays PLAINTEXT and indexed.** `routes/webhooks.ts` does
  *    `Bot.findOne({ webhookSecret: perBotSecret, … })` on every inbound update —
@@ -22,14 +21,11 @@
  * If that lookup ever has to go, the replacement is a deterministic keyed digest
  * stored beside the secret — not encryption of the secret itself.
  *
- * ## `select: false` has no Postgres counterpart
+ * ## There is no projection default
  *
- * Mongoose omitted both columns from every query that did not ask for them, which
- * is why the one caller that needs them says `.select('+botToken +webhookSecret')`.
- * drizzle has no projection default: a bare `select()` returns them. Name
- * columns, and leave these out of every projection but the call that must use
- * them. It is the setter rule's
- * sibling: a Mongoose default that held by construction and now holds only by
+ * drizzle has no projection default: a bare `select()` returns both secrets.
+ * Name columns, and leave these out of every projection but the call that must
+ * use them. It is the setter rule's sibling: a guarantee that holds only by
  * discipline.
  */
 
@@ -110,7 +106,7 @@ export const bots = pgTable(
   },
   (t) => [
     uniqueIndex('bots_platform_bot_id_key').on(t.platform, t.botId),
-    // The inbound-webhook lookup. Partial, the equivalent of Mongo's `sparse`.
+    // The inbound-webhook lookup. Partial: only bots with a webhook secret.
     index('bots_webhook_secret_idx').on(t.webhookSecret).where(sql`${t.webhookSecret} is not null`),
     index('bots_user_id_idx').on(t.userId).where(sql`${t.userId} is not null`),
     checkOneOf('bots_status_check', t.status, BOT_STATUSES),
@@ -122,13 +118,11 @@ export const bots = pgTable(
  *
  * `auth_token` is a short-lived linking credential and is PLAINTEXT for the same
  * structural reason as `bots.webhook_secret`: the redemption path looks a row up
- * by it, paired with its expiry. It was NOT `select: false` in Mongoose, so this
- * port adds no projection guarantee it did not have — but it is still a
- * credential and belongs out of every response.
+ * by it, paired with its expiry. It is still a credential and belongs out of
+ * every response.
  *
  * There is deliberately no expiry SWEEP for it. `auth_token_expiry` bounds
- * whether the token WORKS, and Mongo declared no TTL index here, so adding one
- * would delete rows the source kept — a `bot_users` row outlives its auth token
+ * whether the token WORKS, not the row's life — a `bot_users` row outlives its auth token
  * and carries the link itself.
  */
 export const botUsers = pgTable(

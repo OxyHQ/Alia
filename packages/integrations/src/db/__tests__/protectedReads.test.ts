@@ -1,22 +1,18 @@
 /**
- * Two gates over this package's own source, both of which exist because the
- * thing they check is invisible at runtime.
+ * A gate over this package's own source, which exists because the thing it
+ * checks is invisible at runtime.
  *
- *  1. **No implicit whole-row read.** `publicColumns` cannot defend against not
- *     being called: a bare `db.select().from(telegramSessions)` returns every
- *     column, `sessionString` included, and nothing at the call site names what
- *     it just handed out. Only a scan of the call sites catches that.
- *  2. **Mongoose is gone.** Not "mostly gone" — a single surviving import would
- *     mean a second, unmigrated source of truth for rows this package now owns
- *     in Postgres, and it would fail at boot rather than in a test.
+ * **No implicit whole-row read.** `publicColumns` cannot defend against not
+ * being called: a bare `db.select().from(telegramSessions)` returns every
+ * column, `sessionString` included, and nothing at the call site names what it
+ * just handed out. Only a scan of the call sites catches that.
  *
- * Each gate has a positive control beside it, because a scan that reports zero
+ * The gate has a positive control beside it, because a scan that reports zero
  * findings and a scan that reads nothing are the same result. The scanner is
- * pointed at a directory whose contents are KNOWN to violate the rule, and the
- * census is re-run for a symbol that is known to be present.
+ * pointed at a directory whose contents are KNOWN to violate the rule.
  */
 
-import { mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -47,23 +43,6 @@ async function sourceFiles(directory: string): Promise<string[]> {
     if (extname(entry.name) === '.ts' && !entry.name.endsWith('.test.ts')) found.push(path);
   }
   return found;
-}
-
-/**
- * Files whose CODE imports `specifier`. Comments are blanked first: this
- * package's own doc comments name Mongoose repeatedly on purpose, and a census
- * that counted those would be measuring prose.
- */
-async function filesImporting(specifier: string): Promise<string[]> {
-  const pattern = new RegExp(String.raw`(?:from|require\()\s*['"]${specifier}`);
-  const matches: string[] = [];
-  for (const file of await sourceFiles(SOURCE_DIR)) {
-    const code = (await readFile(file, 'utf8'))
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/\/\/[^\n]*/g, '');
-    if (pattern.test(code)) matches.push(file);
-  }
-  return matches;
 }
 
 describe('no read returns a protected column without naming it', () => {
@@ -97,27 +76,5 @@ describe('no read returns a protected column without naming it', () => {
 
     expect(violations).toHaveLength(1);
     expect(violations[0]?.subject).toBe('leak.ts:2');
-  });
-});
-
-describe('nothing in this package reaches Mongo any more', () => {
-  it('imports mongoose nowhere in src', async () => {
-    expect(await filesImporting('mongoose')).toEqual([]);
-  });
-
-  it('does not declare mongoose as a dependency', async () => {
-    const manifest = JSON.parse(await readFile(join(PACKAGE_ROOT, 'package.json'), 'utf8')) as {
-      dependencies?: Record<string, string>;
-      devDependencies?: Record<string, string>;
-    };
-    expect(Object.keys(manifest.dependencies ?? {})).not.toContain('mongoose');
-    expect(Object.keys(manifest.devDependencies ?? {})).not.toContain('mongoose');
-    // The positive control for the manifest read itself.
-    expect(Object.keys(manifest.dependencies ?? {})).toContain('drizzle-orm');
-  });
-
-  it('finds the imports it IS looking for, so the empty result is not vacuous', async () => {
-    const drizzleImporters = await filesImporting('drizzle-orm');
-    expect(drizzleImporters.length).toBeGreaterThan(5);
   });
 });

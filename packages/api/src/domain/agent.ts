@@ -1,10 +1,9 @@
 /**
  * Closed value sets for `agent`.
  *
- * These live OUTSIDE `models/` because the drizzle schema renders its CHECK
+ * These live in `domain/` because the drizzle schema renders its CHECK
  * constraints from these exact tuples — so the Postgres schema depends on them
- * at runtime, and deleting the Mongoose model would break the schema itself.
- * The model imports them from here like any other consumer.
+ * at runtime, and this module must stay a leaf that imports nothing.
  */
 
 export const AGENT_ARCHETYPES = ['general', 'qa', 'task_router', 'status_update'] as const;
@@ -46,9 +45,7 @@ export type AgentAccess = (typeof AGENT_ACCESS)[number];
  *
  * The narrowing lives here, beside the archetype vocabulary that selects it, and
  * NOT in the schema as a `$type<…>()`: a `$type` would tell `tsc` the stored
- * value has this shape, which is exactly the claim nothing enforces. Three
- * readers used to share the Mongoose interface `IArchetypeConfig` and got the
- * same false guarantee from it.
+ * value has this shape, which is exactly the claim nothing enforces.
  */
 export interface ArchetypeAssignee {
   type?: string;

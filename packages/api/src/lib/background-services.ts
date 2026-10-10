@@ -8,9 +8,8 @@
  * there can only be guarded by a source-text census — and a census is exactly
  * what could not tell that this function had **never run in production**.
  *
- * It sat behind `connectDB().then(...)`. `MONGODB_URI` left the task definition
- * when Mongo was decommissioned, so the retry loop backed off forever and the
- * trigger engine, the moderation-outbox dispatcher and both queues never
+ * It sat behind `connectDB().then(...)` on a connection that never resolved, so
+ * the retry loop backed off forever and the trigger engine, the moderation-outbox dispatcher and both queues never
  * started once. Every assertion anyone had was about the
  * TEXT of that code, and the text was correct throughout.
  *
@@ -26,10 +25,8 @@
  * `listen` is reached, so the Postgres pool is connected by the time this runs.
  * Everything below either reads Postgres or is self-gating on its own
  * dependency: `REDIS_URL` for the two queues and `CROWDSOURCE_ENABLED` for the
- * dispatcher. None of them
- * reads Mongo — `db/__tests__/
- * bootWiring.test.ts` walks the import graph from `src/index.ts` and asserts
- * that, rather than leaving it as a claim in this comment.
+ * dispatcher. `db/__tests__/bootWiring.test.ts` asserts that nothing gates the
+ * call in `src/index.ts`.
  *
  * ## What is deliberately NOT here
  *

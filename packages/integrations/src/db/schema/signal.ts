@@ -87,8 +87,8 @@ export const signalMessages = pgTable(
       .references(() => signalSessions.sessionId, { onDelete: 'cascade' }),
     contactId: text().notNull(),
     /**
-     * signal-cli's identifier for the message. Named `messageTimestamp` in the
-     * Mongoose model and typed `String` there — it is Signal's send-timestamp
+     * signal-cli's identifier for the message, named `messageTimestamp` and
+     * typed as a string — it is Signal's send-timestamp
      * used AS an id, so it stays `text` and is NOT the sortable `timestamp`
      * column below. Renaming it would break the adapter's own vocabulary.
      */

@@ -96,11 +96,10 @@ describe('the OAuth tokens never reach a response, which is a CHANGE', () => {
     expect(connected._id).toBe(connected.id);
   });
 
-  it('refuses a HALF-WRITTEN OAuth group, which Mongo could not express', async () => {
+  it('refuses a HALF-WRITTEN OAuth group', async () => {
     /**
-     * The sub-document's `required` applied only when the sub-document itself
-     * was present, so a refresh token with no access token was storable. The
-     * CHECK makes the group atomic — asserted by constraint NAME, so a different
+     * A refresh token with no access token is not a state any writer means to
+     * produce. The CHECK makes the group atomic — asserted by constraint NAME, so a different
      * failure cannot pass as this one.
      */
     const account = await pending('cau-halfoauth', 'gmail');
@@ -123,8 +122,7 @@ describe('the OAuth tokens never reach a response, which is a CHANGE', () => {
 describe('a settings patch can CLEAR a field, which `undefined` no longer does', () => {
   it('clears the auto-reply agent when the client sends null', async () => {
     /**
-     * The source assigned `undefined`, which UNSET the field in Mongo. In
-     * drizzle `.set({ x: undefined })` is a silent no-op, so the agent would
+     * In drizzle `.set({ x: undefined })` is a silent no-op, so the agent would
      * have stayed bound while the UI showed it cleared — the plausible wrong
      * answer, with nothing raised.
      */

@@ -1,8 +1,8 @@
 /**
  * Columns that must never leave the process in a response.
  *
- * Mongoose's `select: false` does not survive the port — `db.select().from(t)`
- * returns EVERY column, so the first naive rewrite of a query is the first time
+ * There is no projection default — `db.select().from(t)` returns EVERY
+ * column, so a naive query is the first time
  * a Telegram session string or a Baileys credential can be serialized into an
  * HTTP response nobody audited.
  *

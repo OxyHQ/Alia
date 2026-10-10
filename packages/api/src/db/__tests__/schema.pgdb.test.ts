@@ -33,7 +33,7 @@ afterAll(async () => {
   await closePostgres();
 });
 
-describe('leader election: the CAS Mongo did with an aggregation pipeline', () => {
+describe('leader election: one compare-and-set statement', () => {
   /**
    * Acquire-or-renew as ONE statement. Claim if the row does not exist, or is
    * already mine, or the existing claim has expired — evaluated against the

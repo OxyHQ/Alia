@@ -59,9 +59,7 @@ const mockConsumeState = vi.mocked(consumeOAuthState);
 // env vars set above.
 const SERVICE = 'google-calendar';
 /**
- * Two distinct user ids. They were 24-hex ObjectId strings because the route
- * wrapped `req.userId` in `new mongoose.Types.ObjectId(...)`; `oxy_user_id` is
- * `text` now and they need only differ.
+ * Two distinct user ids. `oxy_user_id` is `text`, so they need only differ.
  */
 const USER_A = '507f1f77bcf86cd799439011';
 const USER_B = '507f1f77bcf86cd799439012';

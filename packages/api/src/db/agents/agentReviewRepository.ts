@@ -52,10 +52,8 @@ export interface AgentRatingStats {
 /**
  * Reviews the public listing shows, which are the ones the rating counts.
  *
- * `= false`, where Mongo said `$ne: true`. The two are the same set only because
- * the column is `notNull` with a default: in Mongo a review written before the
- * field existed had no value at all and `$ne: true` matched it, and here that
- * row cannot exist. Stated because `<> true` would ALSO have been written and is
+ * `= false`, not `<> true`. The two are the same set only because the column is
+ * `notNull` with a default, so a review with no value at all cannot exist. Stated because `<> true` would ALSO have been written and is
  * NULL — therefore not TRUE, therefore excluded — for a nullable column.
  */
 const VISIBLE_REVIEW = eq(agentReviews.hiddenByModeration, false);
@@ -152,8 +150,7 @@ export async function upsertAgentReview(
  * Delete one account's own review. Returns the review it removed, or null.
  *
  * The row comes back because the caller recomputes the rating for the agent the
- * review actually belonged to rather than for whatever the URL claimed — the
- * same reason the Mongo version read `result.agentId`.
+ * review actually belonged to rather than for whatever the URL claimed.
  */
 export async function deleteOwnAgentReview(
   db: Executor,

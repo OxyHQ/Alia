@@ -7,10 +7,9 @@ import { connectedAccounts, integrations, oauthStates } from '../schema/integrat
 /**
  * The encrypted OAuth columns, against a REAL server.
  *
- * This is the file that matters most in the orgs/dev batch. In Mongo these
- * columns were protected by field-level `set: encrypt, get: decrypt`, so
- * encryption was true by CONSTRUCTION; drizzle has no getter/setter, and the
- * failure mode of porting them wrong is SILENT — the application keeps working
+ * This is the file that matters most in the orgs/dev batch. drizzle has no
+ * getter/setter, and the failure mode of declaring these columns wrong is
+ * SILENT — the application keeps working
  * and third-party OAuth tokens sit in plaintext until a dump leaks.
  *
  * So the assertion cannot be "a round trip returns what I wrote": that passes
@@ -148,8 +147,7 @@ describe('a connected account carries its OAuth group whole or not at all', () =
   });
 
   it('refuses a refresh token with no access token', async () => {
-    // Mongo could not state this: the sub-document's `required` applied only when
-    // the sub-document was present at all, so a half-written group was storable.
+    // A half-written group is not a state any writer means to produce.
     const insert = db.execute(sql`
       insert into ${connectedAccounts} (id, oxy_user_id, platform, account_id, oauth_refresh_token)
       values ('ca-half', 'oxy-user-1', 'whatsapp', 'acct-2', 'ciphertext-here')
@@ -165,8 +163,7 @@ describe('a connected account carries its OAuth group whole or not at all', () =
 
 describe('the integrations OAuth state is keyed by the token itself', () => {
   it('refuses a state row with no id, because there is no default to invent one', async () => {
-    // Mongo declared `_id: String` and wrote the random state into it. A
-    // `generatedId()` default would mint a row the callback could never find —
+    // The id IS the random state. A `generatedId()` default would mint a row the callback could never find —
     // the `user_credits` mistake, one domain over.
     const insert = db.execute(sql`
       insert into ${oauthStates} (service, user_id, expires_at)

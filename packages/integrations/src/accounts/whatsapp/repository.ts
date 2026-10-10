@@ -4,16 +4,14 @@
  * Replaces `models.ts`. The session manager and the adapter call these; neither
  * builds a query itself, so the decisions below are made once.
  *
- * ## Four things a naive rewrite of the Mongo original loses
+ * ## Four things a naive query loses
  *
- * 1. **Descending sorts put a missing value LAST.** In BSON ordering `null` is
- *    below every number, so `sort({ conversationTimestamp: -1 })` pushed a chat
- *    that has never carried a message to the BOTTOM. Postgres orders `DESC`
+ * 1. **Descending sorts put a missing value LAST.** A chat that has never
+ *    carried a message belongs at the BOTTOM. Postgres orders `DESC`
  *    `NULLS FIRST`, which would float exactly those chats to the TOP of a
  *    50-row page and evict real ones, so the sort is spelled `desc nulls last`.
- * 2. **`find()` with no sort returned natural (insertion) order.** Postgres
- *    guarantees nothing without an `ORDER BY`, so the list queries state
- *    `created_at` ascending — the order those endpoints de-facto returned.
+ * 2. **There is no natural (insertion) order.** Postgres guarantees nothing
+ *    without an `ORDER BY`, so the list queries state `created_at` ascending.
  * 3. **`updated_at` is NOT named in any conflict clause, on purpose.** drizzle's
  *    `buildUpdateSet` includes every column carrying an `$onUpdate` whether or
  *    not the caller's `set` mentions it, and an explicit value would WIN over
@@ -51,7 +49,7 @@ import { conflictKey } from '../conflictKey';
 const PUBLIC_SESSION = publicColumns(whatsappSessions, PROTECTED_COLUMNS);
 
 /**
- * The subset the session-list endpoints returned under Mongoose's `.select()`.
+ * The subset the session-list endpoints return.
  * Its own projection rather than a reuse of `PUBLIC_SESSION`: the two answer
  * different questions, and this one is the shape of the list response.
  */
@@ -234,7 +232,7 @@ export async function readWhatsAppAuthState(
 
 /**
  * The signal key map, keyed by Baileys' own type-and-id string. Read fresh on
- * every `get`, exactly as the Mongo store did — Baileys' cache sits in front.
+ * every `get` — Baileys' cache sits in front.
  */
 export async function readWhatsAppAuthKeys(
   db: IntegrationsDatabase,
@@ -263,8 +261,7 @@ export async function saveWhatsAppAuthState(
 /**
  * Merge some signal keys in and drop others, in ONE statement.
  *
- * The Mongo original wrote dotted paths under `authKeys` in `$set` and
- * `$unset`, so a key containing a `.` would silently have created a nested
+ * A dotted-path write would turn a key containing a `.` into a nested
  * object. `||` and `- text[]` take the key as an opaque string, so no key name
  * can be reinterpreted as a path.
  *
@@ -290,9 +287,9 @@ export async function writeWhatsAppAuthKeys(
 
 /**
  * The fields a chat sync may carry. `undefined` means "this event said nothing
- * about it" — Baileys' `chats.update` reports only what changed, and the Mongo
- * original built its `$set` from exactly the present keys, leaving the rest
- * untouched on an existing row and at the column default on a new one.
+ * about it" — Baileys' `chats.update` reports only what changed, so only the
+ * present keys are written, leaving the rest untouched on an existing row and
+ * at the column default on a new one.
  */
 export interface WhatsAppChatUpsert {
   readonly sessionId: string;

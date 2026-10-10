@@ -6,10 +6,8 @@
  *
  * `integrations.oauth_access_token` / `oauth_refresh_token` and the same pair on
  * `connected_accounts` are `encryptedText` — see `columns.ts` for what that is
- * and, more importantly, for the two ways a backfill can get it wrong. In Mongo
- * these were `set: encrypt, get: decrypt` field-level setters, so encryption held
- * by construction; `encryptedText` is what keeps that structural rather than
- * remembered.
+ * and why encryption is structural rather than remembered: `encryptedText`
+ * encrypts on every write drizzle builds.
  *
  * Two columns here are NOT encrypted and hold secrets anyway:
  * `mcp_servers.config_headers` and `config_env` are arbitrary maps a user
@@ -53,8 +51,7 @@ export type McpServerStatus = (typeof MCP_SERVER_STATUSES)[number];
 /**
  * An element of `mcp_servers.tools` / `.resources`.
  *
- * Declared here rather than on the Mongoose model because the column owns its
- * element shape, and because these outlive the model: `tools[].inputSchema` is
+ * Declared here because the column owns its element shape: `tools[].inputSchema` is
  * JSON Schema the MCP server itself supplies, a format this service does not own
  * and cannot narrow further than `Record<string, unknown>`.
  */
@@ -125,9 +122,7 @@ export const integrations = pgTable(
  * Unlike `integrations`, the OAuth group is OPTIONAL as a whole — most connected
  * accounts are session-based and carry none. `connected_accounts_oauth_pair_check`
  * is what stops a half-written group: a token without its scope, or a scope
- * without its token, is not a state any writer means to produce, and Mongo could
- * not express it because the sub-document's `required` applied only when the
- * sub-document itself was present.
+ * without its token, is not a state any writer means to produce.
  *
  * `allowed_skill_ids` is a `text[]` of `skills` rows with no foreign key —
  * Postgres cannot constrain array MEMBERS, and that table is batch 8 regardless.
@@ -242,9 +237,7 @@ export const mcpServers = pgTable(
   (t) => [
     index('mcp_servers_oxy_user_id_idx').on(t.oxyUserId),
     /**
-     * `McpServerSchema.index({ oxyUserId: 1, name: 1 }, { unique: true })`, and
-     * the ONE index of this slice's twenty-six that the schema batch did not
-     * port. It is not decoration.
+     * One installed connector per name per user. It is not decoration.
      *
      * `POST /mcp/install` is idempotent for registry connectors — the Connect
      * flow calls it to ensure the connector exists before starting OAuth, and a
@@ -253,7 +246,7 @@ export const mcpServers = pgTable(
      * Without it the insert simply succeeds, so every Connect attempt installs
      * another copy of the same connector under the same user, silently: no
      * error, no 409, a growing list of duplicates and an OAuth flow attached to
-     * whichever row was found last. Loud in Mongo, quiet here.
+     * whichever row was found last.
      */
     uniqueIndex('mcp_servers_oxy_user_name_key').on(t.oxyUserId, t.name),
     checkOneOf('mcp_servers_source_check', t.source, MCP_SERVER_SOURCES),
@@ -266,12 +259,10 @@ export const mcpServers = pgTable(
 /**
  * How long an abandoned MCP OAuth handshake survives.
  *
- * It lived on the Mongoose model, and its two consumers — `db/expiryTargets.ts`
- * for the sweep's retention and `routes/mcp.ts` for the liveness check the
- * callback makes — imported it from there. That is a co-located CONSTANT in a
- * module the port deletes, so it moves to the column it describes rather than
- * being carried along with a model that is going away. One number, two readers,
- * and the sweep and the check cannot now disagree.
+ * It lives beside the column it describes, and its two consumers —
+ * `db/expiryTargets.ts` for the sweep's retention and `routes/mcp.ts` for the
+ * liveness check the callback makes — import it from here. One number, two
+ * readers, and the sweep and the check cannot disagree.
  */
 export const MCP_OAUTH_STATE_TTL_SECONDS = 10 * 60;
 
@@ -304,22 +295,13 @@ export const mcpOauthStates = pgTable(
 );
 
 /**
- * The integrations OAuth `state`, and the one model in this batch declared
- * INLINE in a route file (`routes/integrations-oauth.ts`) rather than under a
- * model directory.
- *
- * That placement is why it is worth naming here: a model census scoped to
- * `src/models/` and `src/internal/providers/models/` does not see it, and it
- * carries a TTL — so it would have been ported without a sweep entry and the
- * table would have grown forever. The coverage gate reads registered Mongoose
- * models rather than source paths, which is what makes it immune to this.
+ * The integrations OAuth `state`, used by `routes/integrations-oauth.ts`.
  *
  * TTL: `expireAfterSeconds: 0` on `expires_at` — the column IS the deadline, so
  * retention is ZERO. Contrast `organization_invites`, whose deadline column
  * carries a 30-day retention; the two look alike and are not.
  *
- * The PRIMARY KEY is the state token itself (Mongo declared `_id: String` and
- * wrote the random token into it), so `generatedId()` would be wrong here for
+ * The PRIMARY KEY is the state token itself, so `generatedId()` would be wrong here for
  * the same reason it is wrong on `user_credits`: a minted default would produce
  * a row the callback could never find.
  */

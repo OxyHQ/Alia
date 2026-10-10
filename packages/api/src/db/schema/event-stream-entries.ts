@@ -31,9 +31,8 @@ import { agentSessions } from './agent-sessions';
 /**
  * One event in a session's stream.
  *
- * This collection exists because the embedded `AgentSession.eventStream` array
- * hit Mongo's 16MB document limit on long sessions — the model's own header
- * says so. Both are still live (see `agent-sessions.ts`); this is the one whose
+ * This table exists so a long session's events are rows rather than one
+ * unbounded embedded `AgentSession.eventStream` value. Both are still live (see `agent-sessions.ts`); this is the one whose
  * elements have identity anything exercises, which is why it is a table and the
  * embedded copy is `jsonb`.
  *
@@ -41,7 +40,7 @@ import { agentSessions } from './agent-sessions';
  *
  * `lib/agent/event-stream.ts:89` writes `Date.now()` — epoch MILLISECONDS,
  * around 1.76e12, which is 800 times past the `integer` maximum. It is a plain
- * `Number` in Mongoose with nothing naming the unit, so the column type is the
+ * `number` in TypeScript with nothing naming the unit, so the column type is the
  * only place that fact is recorded. Note the read trap that comes with it:
  * `mode: 'number'` is applied by drizzle's result mapper, so a raw `db.execute`
  * hands this back as a STRING while `tsc` types it a number.
@@ -49,8 +48,8 @@ import { agentSessions } from './agent-sessions';
  * `seq` stays `integer` — it counts events within one session, and a session
  * bounded by `config_max_steps` cannot approach 2^31.
  *
- * There is deliberately no `created_at`/`updated_at`: Mongoose sets
- * `timestamps: false` and `timestamp` is the clock. Adding them would invent a
+ * There is deliberately no `created_at`/`updated_at`: `timestamp` is the
+ * clock. Adding them would invent a
  * second answer to when an event happened.
  */
 export const eventStreamEntries = pgTable(
@@ -75,7 +74,7 @@ export const eventStreamEntries = pgTable(
       columns: [t.sessionId],
       foreignColumns: [agentSessions.id],
     }).onDelete('cascade'),
-    // Mongoose declares this unique: one entry per (session, seq).
+    // One entry per (session, seq).
     uniqueIndex('event_stream_entries_session_seq_key').on(t.sessionId, t.seq),
     // The compaction query: non-archived entries for a session, in order.
     index('event_stream_entries_session_archived_seq_idx').on(t.sessionId, t.archived, t.seq),
