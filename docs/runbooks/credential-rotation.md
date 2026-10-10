@@ -79,8 +79,10 @@ rotated with the producer and verifier in agreement.
 
 The API and integrations service use the same AES-256-GCM key and wire format.
 Rotating only one process makes existing encrypted OAuth, connector, bot and
-show-ingest values unreadable. Drain work, re-encrypt existing rows through an
-explicit migration, then deploy both processes with the new key.
+show-ingest values unreadable. Both bind the one SSM parameter
+`/oxy/alia/TOKEN_ENCRYPTION_KEY`, which is the only copy (no GitHub secret). Drain
+work, re-encrypt existing rows through an explicit migration, write the new key
+with `aws ssm put-parameter --overwrite`, then roll both services.
 
 ## Verification
 
