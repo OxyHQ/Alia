@@ -1,11 +1,8 @@
 /**
  * The event log of an agent session.
  *
- * In this slice because `event_stream_entries.session_id` is a foreign key to
- * `agent_sessions.id` and Mongo declared the same field `ObjectId, ref:
- * 'AgentSession'`. A ported session's id is a uuid v7, which Mongoose refuses to
- * cast — so the moment sessions move, every event write throws. There is no
- * ordering in which these two can land separately.
+ * Beside the session repository because `event_stream_entries.session_id` is a
+ * foreign key to `agent_sessions.id`.
  *
  * ## `timestamp` is epoch MILLISECONDS in a `bigint`, and it is a READ trap
  *
@@ -17,9 +14,9 @@
  *
  * ## The flush is `ON CONFLICT DO NOTHING`, not a caught duplicate
  *
- * `EventStream.flush()` caught Mongo's E11000 and treated it as "already
- * persisted", which is right for a resumed session re-emitting seqs it already
- * wrote. Ported as a catch it would answer "already done" to a dropped
+ * `EventStream.flush()` treats a duplicate as "already persisted", which is
+ * right for a resumed session re-emitting seqs it already wrote. Written as a
+ * catch it would answer "already done" to a dropped
  * connection too, because Postgres cannot tell the two apart inside a `catch`.
  * `ON CONFLICT (session_id, seq) DO NOTHING` states the intent and lets every
  * other failure propagate to the retry path that exists for it.
@@ -235,8 +232,7 @@ export async function countEventStreamEntriesByType(
 /**
  * The threat log: `threat_detected` entries, plus system messages that SAY so.
  *
- * The second half was a Mongo `$regex: /THREAT/` on `content`, which is a
- * case-SENSITIVE substring test — `like '%THREAT%'`, not `ilike`. Using `ilike`
+ * The second half is a case-SENSITIVE substring test on `content` — `like '%THREAT%'`, not `ilike`. Using `ilike`
  * here would widen the log to any message mentioning "threat" in prose, which is
  * a different set and a noisier one, so the case sensitivity is deliberate and
  * matches what the writer emits (`SECRET DETECTED`/`THREAT` are upper-cased at

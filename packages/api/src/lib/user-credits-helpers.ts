@@ -5,10 +5,9 @@
  * with the statement that applies them, so the upsert and its defaults cannot
  * drift apart.
  *
- * **The returned value is a ROW, not a Mongoose document.** It has no
- * `addCredits`, no `refreshCreditsIfNeeded` and no `save()`: each of those was a
- * database write wearing a method's clothes, and each is now a named function in
- * the repository. Callers reading `credits.free` read `creditsFree`.
+ * **The returned value is a ROW.** It has no `addCredits`, no
+ * `refreshCreditsIfNeeded` and no `save()`: each database write is a named
+ * function in the repository. Callers reading `credits.free` read `creditsFree`.
  */
 
 import { getDb } from '../db/index.js';

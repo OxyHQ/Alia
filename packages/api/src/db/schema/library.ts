@@ -6,7 +6,7 @@
  * reached only through `routes/library.ts`, and nothing else in the service
  * reads it.
  *
- * No TTL index in Mongoose, so no entry in `db/expiryTargets.ts`. Uploaded
+ * No retention rule, so no entry in `db/expiryTargets.ts`. Uploaded
  * files are user content and must NOT acquire one by analogy with the
  * short-lived tables elsewhere in this schema.
  */
@@ -19,20 +19,13 @@ import { checkOneOf } from './columns';
 /**
  * One uploaded file.
  *
- * ## `owner_oxy_user_id` is the Oxy account, and Mongoose spells it `owner`
+ * ## `owner_oxy_user_id` is the Oxy account, and the API spells it `owner`
  *
- * This is the one column in the batch whose name a mapping cannot be DERIVED
- * from. Every other table in this schema names the account `oxy_user_id`;
- * `LibraryFile` calls the same thing `owner`, and it is declared
- * `ref: 'User'` — a model this service does not register, per
- * `models/__tests__/retiredModelFiles.test.ts`. A backfill that pairs
- * columns by name would silently leave this one NULL and every file would
- * become unreachable while the copy reported success.
- *
- * So the column states what it holds and the backfill maps `owner` onto it
- * EXPLICITLY. That is the same rule CONVENTIONS.md already applies to
- * collection names — an arbitrary name is not evidence of anything, and a
- * derivation over one is a check that cannot fail.
+ * Every other table in this schema names the account `oxy_user_id`;
+ * `LibraryFile` calls the same thing `owner` on the wire. The column states
+ * what it holds, and the repository maps `owner` onto it EXPLICITLY — a mapping
+ * that pairs fields by name would silently leave this one NULL and every file
+ * would become unreachable.
  *
  * No foreign key: Oxy owns identity. See `lib/oxy-user-hydration.ts`.
  *
@@ -70,7 +63,7 @@ export const libraryFiles = pgTable(
   'library_files',
   {
     id: generatedId(),
-    /** Mongoose calls this `owner`. An Oxy account; no foreign key. */
+    /** `owner` on the wire. An Oxy account; no foreign key. */
     ownerOxyUserId: text().notNull(),
     name: text().notNull(),
     url: text().notNull(),

@@ -24,9 +24,8 @@ afterAll(async () => {
 });
 
 describe('workflow run history', () => {
-  it('does NOT sweep workflow executions, because Mongo declared no TTL for them', async () => {
-    // Adding one by analogy with a short-lived table would delete history the
-    // source kept.
+  it('does NOT sweep workflow executions, because they have no retention rule', async () => {
+    // Adding one by analogy with a short-lived table would delete run history.
     await db.insert(workflows).values({
       id: 'wf-1',
       oxyUserId: 'oxy-user-1',

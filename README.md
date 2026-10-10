@@ -128,21 +128,16 @@ PostgreSQL through drizzle is the primary store: 80 tables under
 [`packages/api/src/db/schema/`](packages/api/src/db/schema/), and the API exits at boot if
 it cannot connect. Readiness (`GET /health/ready`) issues a real statement against it.
 
-It is the only store. `@alia/api` opens no MongoDB connection, registers no Mongoose
-model and declares no Mongo driver dependency — the last domains (conversations and
-messages, agents and their sessions, teams and reviews, organizations, containers,
-skills, learning rules, rollback records, canvas sessions and event-stream entries)
-landed in PostgreSQL with the port tracked on
-[#139](https://github.com/OxyHQ/Alia/issues/139) and merged in
-[#465](https://github.com/OxyHQ/Alia/pull/465).
-`packages/api/src/db/__tests__/bootWiring.test.ts` walks the real boot graph and the
-whole tracked source tree, and fails on any Mongo driver import or direct dependency.
+It is the only store: conversations and messages, agents and their sessions, teams and
+reviews, organizations, containers, skills, learning rules, rollback records, canvas
+sessions and event-stream entries all live in PostgreSQL.
+`packages/api/src/db/__tests__/bootWiring.test.ts` pins the boot wiring: the boot guards run
+before the socket opens, and the expiry sweeper and background services start unconditionally.
 
 `@alia/integrations` is on PostgreSQL too, under its own schema and its own migration
 ledger: the WhatsApp, Telegram and Signal gateways plus the MCP connector OAuth records.
-It declares no `mongoose` dependency at all, and
 [`packages/integrations/src/db/__tests__/protectedReads.test.ts`](packages/integrations/src/db/__tests__/protectedReads.test.ts)
-holds that to zero. Its OAuth secrets are encrypted by the provider rather than by the
+pins how its protected columns are read. Its OAuth secrets are encrypted by the provider rather than by the
 column — plain `text` holding `iv:authTag:ciphertext` under the same
 `TOKEN_ENCRYPTION_KEY` the API uses — because that is the format they were already
 stored in and both processes have to keep agreeing on it.
@@ -199,7 +194,7 @@ for shared UI. See [`docs/oxyhq-auth.md`](docs/oxyhq-auth.md).
 
 The bun version is pinned in `packageManager` and CI installs that exact version. You also
 need a PostgreSQL instance — the API exits at boot without one. Nothing else is required:
-`@alia/api` needs no MongoDB, and Redis is optional.
+Redis is optional.
 
 ```bash
 bun install

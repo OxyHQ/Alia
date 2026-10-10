@@ -7,8 +7,7 @@
  * the redeemer's `referredBy`. The "have you already redeemed?" guard was
  * therefore a read-then-write whose write lands after the money moves: two
  * concurrent redemptions by one account both see no `referredBy`, both proceed,
- * and both pay out. Mongo had no constraint that could stop it — a `$push` into
- * a sub-document array cannot be made unique.
+ * and both pay out. A push into an array column cannot be made unique.
  *
  * `UNIQUE(referred_user_id)` on `referral_redemptions` makes it structural. But
  * the constraint alone does not fix the bug: keeping the original order would
@@ -25,11 +24,9 @@
  *
  * ## The credit grant is not in this transaction
  *
- * It could not be while `user_credits` was Mongoose — a Mongo session cannot
- * enlist a Postgres write — and that is why `redeemReferral` returns an outcome
- * and leaves the money to the caller instead of taking a callback. `user_credits`
- * is now a Postgres table (`db/schema/billing.ts`), so the split is a CHOICE
- * rather than a constraint, and folding the grant into this transaction is a
+ * `redeemReferral` returns an outcome and leaves the money to the caller instead
+ * of taking a callback. `user_credits` is a Postgres table
+ * (`db/schema/billing.ts`), so the split is a CHOICE rather than a constraint, and folding the grant into this transaction is a
  * behaviour change somebody should make deliberately rather than notice here.
  * Until then the failure mode is unchanged: a recorded redemption whose credit
  * grant failed — visible, bounded, and not a double payout.

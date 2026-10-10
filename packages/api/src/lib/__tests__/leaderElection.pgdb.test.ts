@@ -14,10 +14,7 @@ import { leases } from '../../db/schema/leases';
  *
  * ## Why this is no longer a mocked test
  *
- * It used to hand-roll an in-memory `leases` collection reproducing Mongo's
- * `$$NOW` semantics — necessarily, since those semantics were the thing under
- * test. Rewriting that mock against Postgres would mean restating this port's
- * own `ON CONFLICT … WHERE` in TypeScript and then testing the restatement: a
+ * A mock would mean restating the real `ON CONFLICT … WHERE` in TypeScript and then testing the restatement: a
  * mutation dropping the `setWhere` from the real statement would leave a mock
  * that still elects one leader. The database is the only thing that can answer
  * whether two instances racing produce one winner.

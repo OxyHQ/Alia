@@ -7,9 +7,9 @@
  * `lib/agent/governance.ts` inserts a row for every R1 action taken while
  * `AUTONOMY_ROLLBACK_ENABLED` is on — which it is by default — and nothing in
  * the package ever selects one. There is no rollback endpoint, no sweeper and no
- * expiry job; `db/expiryTargets.ts` has no entry for this table because Mongoose
- * declared `expiresAt` `required, index: true` and NOT `expireAfterSeconds`, so
- * the rows accumulated there too.
+ * expiry job; `db/expiryTargets.ts` has no entry for this table because
+ * `expiresAt` bounds the rollback window, not the row's life, so the rows
+ * accumulate.
  *
  * So this file has exactly one function. A `findOpenRollbacks` written now
  * against a shape nothing exercises would be the least reviewed query in the

@@ -1,9 +1,8 @@
 /**
  * The Telegram repository against a real Postgres.
  *
- * The distinctive risk here is the unread counter. Mongo expressed it as
- * `$inc: { unreadCount: 1 }` alongside `$setOnInsert`, which starts a new chat
- * at 1 and ADVANCES an existing one. The obvious `excluded.unread_count`
+ * The distinctive risk here is the unread counter, which starts a new chat at 1
+ * and ADVANCES an existing one. The obvious `excluded.unread_count`
  * translation is the rejected row's `1`, so every subsequent message would
  * reset the badge to one instead of counting — a wrong number, never an error.
  *

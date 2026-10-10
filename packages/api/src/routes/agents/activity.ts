@@ -82,11 +82,10 @@ router.get('/:id/activity-grid', optionalAuth, async (req: Request, res: Respons
     startDate.setDate(startDate.getDate() - weeks * 7);
 
     /**
-     * The two halves now come from different stores, and they must agree on what
-     * a "day" is. `$dateToString` with no timezone renders UTC, so the Postgres
-     * side renders UTC explicitly — `to_char` on a `timestamptz` would otherwise
-     * follow the session's `TimeZone` and bucket the same instant into a
-     * different day from the Mongo half, which reads as a plausible heatmap.
+     * The two halves come from different queries, and they must agree on what a
+     * "day" is. Both render UTC explicitly — `to_char` on a `timestamptz` would
+     * otherwise follow the session's `TimeZone` and bucket the same instant into
+     * different days, which reads as a plausible heatmap.
      */
     const [sessionResult, conversationResult] = await Promise.all([
       countAgentSessionsByDay(getDb(), agent._id, startDate),

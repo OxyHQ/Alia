@@ -8,16 +8,15 @@
  * ## An OMITTED patch key is not written — and drizzle, not this file, is why
  *
  * `learnFromRun` sets exactly one of `lastSuccessAt` / `lastErrorAt` per run
- * and left the other `undefined`. Mongo drops an `undefined` from a `$set`, so
- * the stored value survived; the schema comment warns that the same statement
- * in Postgres would write NULL and erase the opposite timestamp.
+ * and leaves the other `undefined`. The stored value must survive; the schema
+ * comment warns that writing NULL would erase the opposite timestamp.
  *
  * It does not, and that was MEASURED rather than assumed: drizzle omits an
  * `undefined` value from the `do update set` entirely. Compiling
  * `set: { lastErrorAt: undefined }` emits `do update set "last_success_at" =
  * $7, "updated_at" = $8` with `last_error_at` named nowhere, while the same
  * statement with `null` emits `"last_error_at" = $8` — so the builder already
- * has Mongo's semantics, and a guard spreading each key in only when defined
+ * skips an undefined key, and a guard spreading each key in only when defined
  * SURVIVES a mutation deleting it, because no input makes the two disagree.
  * The honest reading of that survivor is dead code, so there is no such guard.
  *
@@ -25,17 +24,15 @@
  * none accepts `null`, so "leave it alone" is the only thing a caller can
  * express and an explicit NULL cannot be written by accident.
  *
- * ## `$setOnInsert` is expressed by OMISSION from the conflict clause
+ * ## Insert-only fields are expressed by OMISSION from the conflict clause
  *
- * `kind`, `label` and `type` are insert-only in the source. They appear in the
- * `values` and NOT in `onConflictDoUpdate.set`, which is exactly Mongo's
- * `$setOnInsert`. Adding them to the conflict clause would silently start
+ * `kind`, `label` and `type` are insert-only. They appear in the `values` and
+ * NOT in `onConflictDoUpdate.set`. Adding them to the conflict clause would silently start
  * relabelling existing rows.
  *
- * ## `$inc` on an upsert increments from the INSERTED value
+ * ## An increment on an upsert starts from the INSERTED value
  *
- * Mongo applies `$inc` when the upsert inserts, so a first run stores the delta
- * itself. That is reproduced by putting the delta in `values` and
+ * A first run stores the delta itself. That is done by putting the delta in `values` and
  * `existing + delta` in the conflict clause.
  */
 
@@ -219,11 +216,9 @@ export interface NewRetrievalStrategy {
 /**
  * Create a strategy unless one with the same `(user, intent, name)` exists.
  *
- * `ensureIntentStrategy` reads first and creates on a miss, which leaves a race
- * the source resolved by throwing: a concurrent creator made Mongoose's
- * `create` fail with E11000, uncaught, rejecting the whole recall. `do nothing`
- * makes the loser a no-op instead. That is a BEHAVIOUR CHANGE, in the direction
- * the guard was reaching for — recorded here rather than absorbed silently.
+ * `ensureIntentStrategy` reads first and creates on a miss, which leaves a race:
+ * a concurrent creator would hit the unique, uncaught, rejecting the whole
+ * recall. `do nothing` makes the loser a no-op instead.
  */
 export async function createStrategyIfAbsent(
   db: ApiDatabase,

@@ -15,8 +15,7 @@
  *    credits; and
  *  - a second store that grows without bound. `db/schema/context-graph.ts`
  *    records that the autonomy graph already mints a node per chat turn and
- *    that **nothing reaps them** — a problem ported from Mongo, not introduced
- *    — so message embeddings would make that two unbounded stores with the
+ *    that **nothing reaps them** — so message embeddings would make that two unbounded stores with the
  *    retention question still unanswered.
  *
  * A `tsvector` index adds no store: it indexes a column that already exists.

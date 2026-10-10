@@ -14,7 +14,7 @@ is [`docs/index.mdx`](../../docs/index.mdx).
 - Governance by risk level (`R0` read, `R1` reversible write + rollback record, `R2` approval required, `R3` blocked).
 - Real models from Oxy's catalogue: a power level (`auto` … `ultra`) or `<publisher>/<model>`;
   the serving operator and deployment ids stay off the product surface (`docs/model-abstraction.mdx`).
-- PostgreSQL through drizzle as the only store — no MongoDB connection is opened and no Mongoose model is registered.
+- PostgreSQL through drizzle as the only store.
 
 ## Runtime Flow
 
@@ -114,7 +114,7 @@ Key groups:
 
 - Server and CORS (`PORT`, `WEB_URL`, `API_BASE_URL`)
 - PostgreSQL (`DATABASE_URL`) — the one variable the process cannot start without
-- PostgreSQL is the only database; there is no Mongo connection string or driver dependency
+- PostgreSQL is the only database
 - Identity and internal auth (`OXY_API_URL`, `TOKEN_ENCRYPTION_KEY`, and —
   locally only — `OXY_SERVICE_API_KEY` / `OXY_SERVICE_API_SECRET`; a deployed
   task attests its ECS role instead and carries neither, oxy ADR 0026)

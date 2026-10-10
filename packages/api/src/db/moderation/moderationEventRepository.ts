@@ -3,8 +3,8 @@
  *
  * ## The claim is an INSERT whose RESULT is the answer
  *
- * Mongo inserted the row and read a duplicate-key error as "somebody else has
- * this event". That shape does not port: in Postgres a failed statement aborts
+ * Reading a duplicate-key error as "somebody else has this event" does not
+ * work: in Postgres a failed statement aborts
  * the whole transaction (`25P02`), and — worse for a claim — catching an error to
  * mean "duplicate" cannot tell a duplicate from a dropped connection or an
  * exhausted pool. Answering "already processed" to either would retire a decision

@@ -340,7 +340,7 @@ Used to scale resource budgets per subtask:
 - Logs error but continues
 
 ### Timeout
-- Executor session marked as "cancelled" in MongoDB
+- Executor session marked as "cancelled" in PostgreSQL
 - Session runner detects cancellation and stops
 
 ### Depth Limit

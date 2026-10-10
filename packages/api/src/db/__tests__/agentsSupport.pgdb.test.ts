@@ -69,7 +69,7 @@ describe('learning_rules', () => {
     /**
      * The self-defending fixture. `priority` reads like a 0..100 and `hit_count`
      * like a non-negative, so both invite an obvious CHECK on the way past —
-     * and Mongoose declares no `min`/`max` on either, so production may already
+     * and no `min`/`max` was ever declared on either, so production may already
      * hold anything. CONVENTIONS.md's third class: where the source constrained
      * nothing, neither does this schema. Adding either constraint turns this
      * red instead of failing on somebody's row.
@@ -145,11 +145,9 @@ describe('rollback_records', () => {
 
   it('is NOT swept, however long ago expires_at passed', async () => {
     /**
-     * The one that would cost real data. Mongoose declares `expiresAt` as
-     * `required, index: true` and NOT `expireAfterSeconds` — it bounds the
-     * rollback WINDOW, not the row's life — so `db/expiryTargets.ts` gets no
-     * entry for this table and these records accumulate exactly as they do in
-     * Mongo. A registry entry added on the strength of the column's name would
+     * The one that would cost real data. `expires_at` bounds the rollback
+     * WINDOW, not the row's life — so `db/expiryTargets.ts` gets no entry for
+     * this table and these records accumulate. A registry entry added on the strength of the column's name would
      * delete a destructive-action audit trail silently.
      *
      * In a transaction because vitest runs FILES in parallel against ONE

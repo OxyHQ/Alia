@@ -297,8 +297,8 @@ describe('expiry is a READ filter, not a sweep', () => {
   });
 
   it('leaves the expired ROW in place — nothing sweeps this table', async () => {
-    // `suggestions` is deliberately NOT an expiry target: Mongo declared no TTL
-    // on it. So an expired row must still exist, merely be invisible.
+    // `suggestions` is deliberately NOT an expiry target: `expires_at` is a
+    // publication deadline, not a retention rule. So an expired row must still exist, merely be invisible.
     await seedWithExpiry('s-past-2', new Date(Date.now() - 60_000));
     const [row] = await db
       .select()
