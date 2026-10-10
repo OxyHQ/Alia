@@ -136,10 +136,13 @@ describe('every connection gets Nagle disabled, /v1 included (#139 ws19)', () =>
       await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
       const { port } = server.address() as AddressInfo;
       await new Promise<void>((resolve, reject) => {
-        const request = http.get({ hostname: '127.0.0.1', port, path: '/v1/chat/completions' }, (res) => {
-          res.resume();
-          res.on('end', resolve);
-        });
+        const request = http.get(
+          { hostname: '127.0.0.1', port, path: '/v1/chat/completions' },
+          (res) => {
+            res.resume();
+            res.on('end', resolve);
+          },
+        );
         request.on('error', reject);
       });
       await new Promise<void>((resolve) => server.close(() => resolve()));

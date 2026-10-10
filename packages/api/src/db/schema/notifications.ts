@@ -34,7 +34,16 @@
  * however much of its first 90 days happened to remain.
  */
 
-import { boolean, check, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkArrayWithin, checkOneOf } from './columns';
@@ -52,7 +61,14 @@ export const NOTIFICATION_TYPES = [
 ] as const;
 export type NotificationTypeValue = (typeof NOTIFICATION_TYPES)[number];
 
-export const NOTIFICATION_CHANNELS = ['push', 'telegram', 'discord', 'whatsapp', 'slack', 'in_app'] as const;
+export const NOTIFICATION_CHANNELS = [
+  'push',
+  'telegram',
+  'discord',
+  'whatsapp',
+  'slack',
+  'in_app',
+] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 export const NOTIFICATION_STATUSES = ['pending', 'sent', 'read', 'dismissed'] as const;
 export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];
@@ -128,7 +144,11 @@ export const notifications = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    index('notifications_oxy_user_status_created_idx').on(t.oxyUserId, t.status, t.createdAt.desc()),
+    index('notifications_oxy_user_status_created_idx').on(
+      t.oxyUserId,
+      t.status,
+      t.createdAt.desc(),
+    ),
     /**
      * The unread-count index, partial exactly as Mongo declared it. This one IS
      * a faithful copy of a `partialFilterExpression` — unlike the TTL, a partial

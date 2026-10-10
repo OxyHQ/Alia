@@ -27,7 +27,9 @@ vi.mock('../../public-host.js', async () => ({
   ...(await vi.importActual<typeof import('../../public-host.js')>('../../public-host.js')),
   classifyHost: vi.fn(async () => 'ok'),
 }));
-vi.mock('../../logger.js', () => ({ log: { agents: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } } }));
+vi.mock('../../logger.js', () => ({
+  log: { agents: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } },
+}));
 
 const { BROWSER_ACTIONS, BrowserSession } = await import('../browser-session.js');
 
@@ -70,7 +72,9 @@ describe('the Clarity-only browser', () => {
   });
 
   it('refuses a private address before Clarity is asked anything', async () => {
-    const result = await new BrowserSession().execute('goto', { url: 'http://169.254.169.254/latest/meta-data' });
+    const result = await new BrowserSession().execute('goto', {
+      url: 'http://169.254.169.254/latest/meta-data',
+    });
 
     expect(result).toMatch(/^Error: URL blocked/);
     expect(clarity.resolve).not.toHaveBeenCalled();
@@ -93,7 +97,9 @@ describe('the Clarity-only browser', () => {
     const source = readFileSync(path.resolve(__dirname, '../browser-session.ts'), 'utf8');
     expect(source).not.toMatch(/from '@browserbasehq\/stagehand'|from 'playwright'/);
 
-    const manifest = JSON.parse(readFileSync(path.resolve(__dirname, '../../../../package.json'), 'utf8')) as {
+    const manifest = JSON.parse(
+      readFileSync(path.resolve(__dirname, '../../../../package.json'), 'utf8'),
+    ) as {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
     };

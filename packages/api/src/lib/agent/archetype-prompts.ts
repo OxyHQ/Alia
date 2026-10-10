@@ -110,15 +110,18 @@ function buildQAPrompt(agent: HydratedAgent, config: ArchetypeConfig): string {
   const sources: string[] = [];
 
   if (agent.knowledge?.length) {
-    sources.push('- Search your **knowledge base files** first — they are your primary source of truth.');
+    sources.push(
+      '- Search your **knowledge base files** first — they are your primary source of truth.',
+    );
   }
 
-  const citationInstructions = config.citeSources !== false
-    ? `\n## Source Citation
+  const citationInstructions =
+    config.citeSources !== false
+      ? `\n## Source Citation
 - Cite sources inline using [Source: tool_name — item_title] notation.
 - At the end of your answer, list all sources referenced.
 - If multiple sources agree, mention the strongest one.`
-    : '';
+      : '';
 
   return `You are **${agentPromptName(agent)}**, a Q&A knowledge agent.
 
@@ -212,11 +215,12 @@ Use a clear, scannable format:
 4. **Action Items** — What needs attention or follow-up
 5. **Outlook** — Brief note on what's coming next`;
 
-  const formatNote = config.reportFormat === 'html'
-    ? '\n\nFormat the report as clean HTML suitable for email.'
-    : config.reportFormat === 'plain'
-      ? '\n\nFormat the report as plain text without markdown.'
-      : '\n\nFormat the report in clean, readable markdown.';
+  const formatNote =
+    config.reportFormat === 'html'
+      ? '\n\nFormat the report as clean HTML suitable for email.'
+      : config.reportFormat === 'plain'
+        ? '\n\nFormat the report as plain text without markdown.'
+        : '\n\nFormat the report in clean, readable markdown.';
 
   const comparisonNote = config.compareWithPrevious
     ? '\n\n## Comparison\nYou will receive the previous report in context. Highlight what changed since the last report — new items, resolved items, trends, and deltas.'

@@ -80,7 +80,9 @@ describe('what a streamed token can change', () => {
 
   it('notices a new row, a restamp and a change of speaker', () => {
     expect(sameTimelineShape(base, [...base, { ...base[1], id: 'c' }])).toBe(false);
-    expect(sameTimelineShape(base, [base[0], { ...base[1], createdAt: '2026-01-02T00:00:00Z' }])).toBe(false);
+    expect(
+      sameTimelineShape(base, [base[0], { ...base[1], createdAt: '2026-01-02T00:00:00Z' }]),
+    ).toBe(false);
     expect(
       sameTimelineShape(base, [
         base[0],

@@ -58,7 +58,14 @@ function clamp01(value: number): number {
   return value;
 }
 
-function rankSources(input: Array<{ sourceKey: string; freshnessScore: number; precisionScore: number; costScore: number }>): RankedSource[] {
+function rankSources(
+  input: Array<{
+    sourceKey: string;
+    freshnessScore: number;
+    precisionScore: number;
+    costScore: number;
+  }>,
+): RankedSource[] {
   return input
     .map((s) => {
       const freshness = clamp01(s.freshnessScore || 0.5);
@@ -77,7 +84,12 @@ function rankSources(input: Array<{ sourceKey: string; freshnessScore: number; p
     .sort((a, b) => b.score - a.score);
 }
 
-async function ensureSources(oxyUserId: string, intent: AutonomyIntent): Promise<Array<{ sourceKey: string; freshnessScore: number; precisionScore: number; costScore: number }>> {
+async function ensureSources(
+  oxyUserId: string,
+  intent: AutonomyIntent,
+): Promise<
+  Array<{ sourceKey: string; freshnessScore: number; precisionScore: number; costScore: number }>
+> {
   const defaultSources = DEFAULT_SOURCE_PATHS[intent] || DEFAULT_SOURCE_PATHS.general;
 
   const existing = await findSourceScores(getDb(), oxyUserId, defaultSources);
@@ -147,13 +159,15 @@ export async function recallContextForIntent(params: {
   confidence: number;
 }): Promise<RecallResult> {
   if (!autonomyFlags.contextGraphEnabled) {
-    const defaults = (DEFAULT_SOURCE_PATHS[params.intent] || DEFAULT_SOURCE_PATHS.general).map((sourceKey) => ({
-      sourceKey,
-      score: 0.5,
-      freshnessScore: 0.5,
-      precisionScore: 0.5,
-      costScore: 0.5,
-    }));
+    const defaults = (DEFAULT_SOURCE_PATHS[params.intent] || DEFAULT_SOURCE_PATHS.general).map(
+      (sourceKey) => ({
+        sourceKey,
+        score: 0.5,
+        freshnessScore: 0.5,
+        precisionScore: 0.5,
+        costScore: 0.5,
+      }),
+    );
     return {
       intent: params.intent,
       confidence: params.confidence,
@@ -173,7 +187,12 @@ export async function recallContextForIntent(params: {
   return {
     intent: params.intent,
     confidence: params.confidence,
-    rules: ruleRows.map((r) => ({ id: r.id, priority: r.priority, text: r.ruleText, type: r.ruleType })),
+    rules: ruleRows.map((r) => ({
+      id: r.id,
+      priority: r.priority,
+      text: r.ruleText,
+      type: r.ruleType,
+    })),
     rankedSources,
   };
 }
@@ -196,20 +215,22 @@ export async function learnFromRun(params: {
   // other as `undefined`, which Mongo drops from a `$set`; passing it here would
   // write NULL and erase the opposite timestamp on every run, so the key is
   // omitted instead. The repository has no way to express an explicit NULL.
-  await Promise.all(params.usedSources.map((sourceKey) =>
-    recordSourceRun(getDb(), {
-      oxyUserId,
-      sourceKey,
-      kind: sourceKindFor(sourceKey),
-      label: sourceKey,
-      successfulReadsDelta: params.success ? 1 : 0,
-      failedReadsDelta: params.success ? 0 : 1,
-      ...(params.success ? { lastSuccessAt: now } : { lastErrorAt: now }),
-      avgLatencyMs: Math.max(0, params.latencyMs),
-      freshnessScore: params.success ? 0.9 : 0.4,
-      precisionScore: params.success ? 0.85 : 0.45,
-    })
-  ));
+  await Promise.all(
+    params.usedSources.map((sourceKey) =>
+      recordSourceRun(getDb(), {
+        oxyUserId,
+        sourceKey,
+        kind: sourceKindFor(sourceKey),
+        label: sourceKey,
+        successfulReadsDelta: params.success ? 1 : 0,
+        failedReadsDelta: params.success ? 0 : 1,
+        ...(params.success ? { lastSuccessAt: now } : { lastErrorAt: now }),
+        avgLatencyMs: Math.max(0, params.latencyMs),
+        freshnessScore: params.success ? 0.9 : 0.4,
+        precisionScore: params.success ? 0.85 : 0.45,
+      }),
+    ),
+  );
 
   await recordStrategyRun(getDb(), {
     oxyUserId,

@@ -90,8 +90,12 @@ vi.mock('@/features/chat/runtime/use-conversations', () => ({
   useDeleteConversation: () => ({ mutateAsync: vi.fn() }),
   useRenameConversation: () => ({ mutate: vi.fn() }),
 }));
-vi.mock('@/features/agents/runtime/use-my-agents', () => ({ useMyAgents: () => ({ data: state.agents }) }));
-vi.mock('@/features/notifications/runtime/use-notifications', () => ({ useUnreadCount: () => ({ data: undefined }) }));
+vi.mock('@/features/agents/runtime/use-my-agents', () => ({
+  useMyAgents: () => ({ data: state.agents }),
+}));
+vi.mock('@/features/notifications/runtime/use-notifications', () => ({
+  useUnreadCount: () => ({ data: undefined }),
+}));
 
 // Glyphs are only handed to Bloom, never drawn here.
 vi.mock('@oxy.so/bloom/icons/RiAddFill', () => ({ RiAddFill: () => null }));
@@ -127,7 +131,11 @@ vi.mock('@oxy.so/bloom/sidebar', () => ({
       ...(props.tree?.folders ?? []).flatMap((folder: any) => [
         React.createElement('Folder', { key: folder.key, folderKey: folder.key }, folder.actions),
         ...folder.items.map((item: any) =>
-          React.createElement('Row', { key: `${folder.key}/${item.key}`, rowKey: item.key }, item.actions),
+          React.createElement(
+            'Row',
+            { key: `${folder.key}/${item.key}`, rowKey: item.key },
+            item.actions,
+          ),
         ),
       ]),
     );
@@ -176,7 +184,10 @@ vi.mock('@oxy.so/bloom/dialog', async () => {
 });
 vi.mock('@oxy.so/bloom/text-field', async () => {
   const ReactModule = await import('react');
-  return { TextFieldInput: (props: Record<string, unknown>) => ReactModule.createElement('TextField', props) };
+  return {
+    TextFieldInput: (props: Record<string, unknown>) =>
+      ReactModule.createElement('TextField', props),
+  };
 });
 vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
@@ -193,7 +204,8 @@ vi.mock('@oxy.so/bloom/skeleton', async () => {
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({ children }: React.PropsWithChildren) => ReactModule.createElement('Text', null, children),
+    Text: ({ children }: React.PropsWithChildren) =>
+      ReactModule.createElement('Text', null, children),
   };
 });
 
@@ -328,7 +340,10 @@ describe('the sidebar tree', () => {
         .props.onValueChange(folder!.id);
     });
     await settle();
-    expect(folderItems()).toEqual({ [`folder:${folder!.id}`]: ['alpha'], 'history:today': ['beta'] });
+    expect(folderItems()).toEqual({
+      [`folder:${folder!.id}`]: ['alpha'],
+      'history:today': ['beta'],
+    });
   });
 
   it('marks the chat being answered, and shows ghost rows while history loads', async () => {
@@ -370,12 +385,16 @@ describe('the sidebar tree', () => {
     expect(keys).not.toContain('terms');
     // A row without a glyph name draws "…" in the account menu, and a name the
     // menu's subset icon font does not carry draws "?".
-    const services = dirname(createRequire(import.meta.url).resolve('@oxy.so/services/package.json'));
+    const services = dirname(
+      createRequire(import.meta.url).resolve('@oxy.so/services/package.json'),
+    );
     const glyphs = readFileSync(join(services, 'src/ui/icons/subsetGlyphMaps.ts'), 'utf8');
     const shipped = new Set(
-      [...glyphs.slice(glyphs.indexOf('materialCommunityIconsGlyphMap')).matchAll(/"([a-z0-9-]+)":/g)].map(
-        (match) => match[1],
-      ),
+      [
+        ...glyphs
+          .slice(glyphs.indexOf('materialCommunityIconsGlyphMap'))
+          .matchAll(/"([a-z0-9-]+)":/g),
+      ].map((match) => match[1]),
     );
     expect(shipped.size).toBeGreaterThan(50);
     for (const item of items) expect(shipped.has(item.icon ?? '')).toBe(true);

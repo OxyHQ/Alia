@@ -44,8 +44,7 @@ import { POST_PHASE_GREP_PATTERN } from '@oxy.so/db/migrate';
 // `src/db/__tests__/protectedReads.test.ts` resolves the same way.
 const REPOSITORY_ROOT = join(__dirname, '..', '..', '..', '..', '..');
 
-const repositoryFile = (path: string): string =>
-  readFileSync(join(REPOSITORY_ROOT, path), 'utf8');
+const repositoryFile = (path: string): string => readFileSync(join(REPOSITORY_ROOT, path), 'utf8');
 
 const workflow = repositoryFile('.github/workflows/deploy-integrations.yml');
 const dockerfile = repositoryFile('packages/integrations/Dockerfile');
@@ -64,7 +63,7 @@ describe('deploy-integrations.yml', () => {
     expect(workflow).toContain('bash .github/scripts/deploy-ecs-image.sh');
   });
 
-  it('builds this package\'s Dockerfile, not the API\'s', () => {
+  it("builds this package's Dockerfile, not the API's", () => {
     expect(workflow).toContain('DOCKERFILE: packages/integrations/Dockerfile');
   });
 
@@ -87,7 +86,7 @@ describe('deploy-integrations.yml', () => {
    * rather than corrupting anything, which is a good failure but a confusing
    * one to diagnose from `expected "alia" but reaches "alia_integrations"`.
    */
-  it('names this package\'s migrator rather than inheriting the default', () => {
+  it("names this package's migrator rather than inheriting the default", () => {
     expect(workflow).toContain('MIGRATION_ENTRYPOINT: packages/integrations/dist/db/migrate.js');
   });
 
@@ -96,7 +95,7 @@ describe('deploy-integrations.yml', () => {
     expect(workflow).toContain(POST_PHASE_GREP_PATTERN);
   });
 
-  it('points the post-phase grep at this package\'s migration directory', () => {
+  it("points the post-phase grep at this package's migration directory", () => {
     expect(workflow).toContain('packages/integrations/drizzle');
   });
 

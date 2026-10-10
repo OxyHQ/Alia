@@ -15,23 +15,15 @@ import { cleanTitle } from '../episode-title';
 
 describe('cleaning a proposed title', () => {
   it('keeps a title that is already one', () => {
-    expect(cleanTitle('The trouble with photosynthesis')).toBe(
-      'The trouble with photosynthesis',
-    );
+    expect(cleanTitle('The trouble with photosynthesis')).toBe('The trouble with photosynthesis');
   });
 
   it('strips the quotes models wrap titles in', () => {
-    expect(cleanTitle('"The trouble with photosynthesis"')).toBe(
-      'The trouble with photosynthesis',
-    );
-    expect(cleanTitle("'The trouble with photosynthesis'")).toBe(
-      'The trouble with photosynthesis',
-    );
+    expect(cleanTitle('"The trouble with photosynthesis"')).toBe('The trouble with photosynthesis');
+    expect(cleanTitle("'The trouble with photosynthesis'")).toBe('The trouble with photosynthesis');
     // Curly quotes, which a model producing prose reaches for more often than
     // straight ones and which a naive `replace(/"/g)` misses entirely.
-    expect(cleanTitle('“The trouble with photosynthesis”')).toBe(
-      'The trouble with photosynthesis',
-    );
+    expect(cleanTitle('“The trouble with photosynthesis”')).toBe('The trouble with photosynthesis');
     expect(cleanTitle('«La fotosíntesis, explicada»')).toBe('La fotosíntesis, explicada');
   });
 

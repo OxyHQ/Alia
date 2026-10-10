@@ -38,7 +38,11 @@ vi.mock('@oxy.so/bloom/ai-chat', async () => {
   return {
     // The second tab's content drawn as a child, as Bloom does when it is selected.
     AiChatCodePanel: (props: Record<string, unknown>) =>
-      ReactModule.createElement('CodePanel', props, props.tab === 'browser' ? (props.browser as React.ReactNode) : null),
+      ReactModule.createElement(
+        'CodePanel',
+        props,
+        props.tab === 'browser' ? (props.browser as React.ReactNode) : null,
+      ),
     AiChatGalleryPanel: host('GalleryPanel'),
   };
 });
@@ -151,7 +155,8 @@ describe('the agent terminal in the code panel', () => {
   it('switches between the terminal and the canvas preview, and the toggle closes the panel', async () => {
     useUIStore.getState().openAgentTerminal('agent-7', '/c/one');
     const r = await render();
-    const terminalAction = () => (panel(r).props.actions as { key: string; onPress: () => void }[])[0];
+    const terminalAction = () =>
+      (panel(r).props.actions as { key: string; onPress: () => void }[])[0];
     await act(async () => terminalAction().onPress());
     expect(useUIStore.getState().codePanelView).toBe('preview');
     expect(panel(r).props.labels.browser).toBe('panel.preview');

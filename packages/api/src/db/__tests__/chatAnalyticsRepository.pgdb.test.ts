@@ -225,7 +225,12 @@ describe('insertChatAnalytics', () => {
     await seed({ oxyUserId, model: 'acme/m', totalTokens: 3 });
 
     const [byModel] = await aggregateUsageByModel(db, oxyUserId, SINCE());
-    expect(Object.keys(byModel ?? {}).sort()).toEqual(['_id', 'avgLatency', 'count', 'totalTokens']);
+    expect(Object.keys(byModel ?? {}).sort()).toEqual([
+      '_id',
+      'avgLatency',
+      'count',
+      'totalTokens',
+    ]);
     expect(byModel?._id).toBe('acme/m');
   });
 
@@ -266,8 +271,18 @@ describe('insertChatAnalytics', () => {
 describe('aggregateUsageByModel', () => {
   it('groups under the model the turn ran on, not what was asked for', async () => {
     const oxyUserId = 'ca-model-grouping';
-    await seed({ oxyUserId, model: 'acme/served', requestedModelId: 'acme/served', totalTokens: 10 });
-    await seed({ oxyUserId, model: 'acme/served', requestedModelId: 'acme/other', totalTokens: 20 });
+    await seed({
+      oxyUserId,
+      model: 'acme/served',
+      requestedModelId: 'acme/served',
+      totalTokens: 10,
+    });
+    await seed({
+      oxyUserId,
+      model: 'acme/served',
+      requestedModelId: 'acme/other',
+      totalTokens: 20,
+    });
 
     const rows = await aggregateUsageByModel(db, oxyUserId, SINCE());
     expect(rows).toHaveLength(1);

@@ -49,27 +49,43 @@ export function WorkspaceFiles({
   return (
     <View className="gap-2" testID="files">
       <View className="flex-row items-center justify-between gap-2">
-        <Text variant="body-medium" numberOfLines={1}>{path}</Text>
+        <Text variant="body-medium" numberOfLines={1}>
+          {path}
+        </Text>
         {parent ? (
-          <Button size="sm" tone="neutral" appearance="plain" leadingIcon={RiArrowUpLine} onPress={() => onOpenDirectory(parent)}>
+          <Button
+            size="sm"
+            tone="neutral"
+            appearance="plain"
+            leadingIcon={RiArrowUpLine}
+            onPress={() => onOpenDirectory(parent)}
+          >
             {t('agents.computer.files.up')}
           </Button>
         ) : null}
       </View>
       {loading && !listing ? <Loading variant="spinner" /> : null}
-      {listing && listing.entries.length === 0 ? <Muted>{t('agents.computer.files.empty')}</Muted> : null}
+      {listing && listing.entries.length === 0 ? (
+        <Muted>{t('agents.computer.files.empty')}</Muted>
+      ) : null}
       {listing?.entries.map((entry) => {
         const directory = entry.type === 'directory';
         const Icon = directory ? RiFolderLine : RiFileTextLine;
         const row = (
           <View className="flex-row items-center gap-2 py-1.5">
             <Icon size="sm" />
-            <Text variant="body-regular" numberOfLines={1} style={{ flex: 1 }}>{entry.name}</Text>
+            <Text variant="body-regular" numberOfLines={1} style={{ flex: 1 }}>
+              {entry.name}
+            </Text>
             {entry.type === 'file' ? <Muted>{formatBytes(entry.size)}</Muted> : null}
           </View>
         );
         return directory ? (
-          <Pressable key={entry.path} accessibilityRole="button" onPress={() => onOpenDirectory(entry.path)}>
+          <Pressable
+            key={entry.path}
+            accessibilityRole="button"
+            onPress={() => onOpenDirectory(entry.path)}
+          >
             {row}
           </Pressable>
         ) : (

@@ -1,24 +1,24 @@
-import * as React from "react"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
-import { useAuth } from "@/contexts/AuthContext"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { SparklesIcon, MinusSignIcon, Cancel01Icon } from "@hugeicons/core-free-icons"
+import * as React from 'react';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { useAuth } from '@/contexts/AuthContext';
+import { HugeiconsIcon } from '@hugeicons/react';
+import { SparklesIcon, MinusSignIcon, Cancel01Icon } from '@hugeicons/core-free-icons';
 
 export function SignIn() {
-  const { signIn } = useAuth()
-  const [isSigningIn, setIsSigningIn] = React.useState(false)
+  const { signIn } = useAuth();
+  const [isSigningIn, setIsSigningIn] = React.useState(false);
 
   const handleSignIn = async () => {
-    setIsSigningIn(true)
+    setIsSigningIn(true);
     try {
-      await signIn()
+      await signIn();
     } catch (error) {
-      console.error("Sign in failed:", error)
+      console.error('Sign in failed:', error);
     } finally {
-      setIsSigningIn(false)
+      setIsSigningIn(false);
     }
-  }
+  };
 
   return (
     <div className="flex flex-col h-screen w-screen bg-background">
@@ -37,10 +37,20 @@ export function SignIn() {
 
         {/* Window Controls */}
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="size-8" onClick={() => window.api?.minimize()}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            onClick={() => window.api?.minimize()}
+          >
             <HugeiconsIcon icon={MinusSignIcon} strokeWidth={2} className="size-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="size-8 hover:bg-destructive hover:text-destructive-foreground" onClick={() => window.api?.close()}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 hover:bg-destructive hover:text-destructive-foreground"
+            onClick={() => window.api?.close()}
+          >
             <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-4" />
           </Button>
         </div>
@@ -54,21 +64,14 @@ export function SignIn() {
           </div>
 
           <div className="space-y-2">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Welcome to Alia Cowork
-            </h1>
+            <h1 className="text-2xl font-semibold tracking-tight">Welcome to Alia Cowork</h1>
             <p className="text-sm text-muted-foreground">
               Connect your Alia account to start using AI-powered automation on your computer
             </p>
           </div>
 
-          <Button
-            size="lg"
-            className="w-full mt-4"
-            onClick={handleSignIn}
-            disabled={isSigningIn}
-          >
-            {isSigningIn ? "Opening browser..." : "Connect to Alia"}
+          <Button size="lg" className="w-full mt-4" onClick={handleSignIn} disabled={isSigningIn}>
+            {isSigningIn ? 'Opening browser...' : 'Connect to Alia'}
           </Button>
 
           <p className="text-xs text-muted-foreground mt-2">
@@ -77,5 +80,5 @@ export function SignIn() {
         </div>
       </div>
     </div>
-  )
+  );
 }

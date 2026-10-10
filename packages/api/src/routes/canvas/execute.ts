@@ -1,10 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { generateText } from 'ai';
-import {
-  completeExecution,
-  createExecution,
-} from '../../db/automation/workflowRepository.js';
+import { completeExecution, createExecution } from '../../db/automation/workflowRepository.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { resolveStoredModel, getAIModel } from '../../lib/chat-core.js';
 import { getDb } from '../../db/index.js';
@@ -18,8 +15,6 @@ import type { Request, Response } from 'express';
 import { kaanaCapabilityUnavailable } from '../../lib/inference/hosted-capability-error.js';
 import { log } from '../../lib/logger.js';
 import { getSafeErrorMessage } from '../../lib/errors/sanitize.js';
-
-
 
 interface GitHubContentResponse {
   content: string;
@@ -91,7 +86,7 @@ router.post('/', async (req: Request, res: Response) => {
         executionId,
         status: 'completed',
         results,
-        finalOutput
+        finalOutput,
       });
     } catch (error) {
       // `results` is deliberately not written: the source left whatever the run
@@ -107,7 +102,7 @@ router.post('/', async (req: Request, res: Response) => {
   } catch (error) {
     log.canvas.error({ err: error }, 'Error executing workflow');
     res.status(500).json({
-      error: getSafeErrorMessage(error, 'Failed to execute workflow')
+      error: getSafeErrorMessage(error, 'Failed to execute workflow'),
     });
   }
 });
@@ -117,7 +112,7 @@ async function executeWorkflow(
   nodes: WorkflowNode[],
   edges: WorkflowEdge[],
   userId: string,
-  executionId: string
+  executionId: string,
 ): Promise<{ results: any[]; finalOutput: string }> {
   const results: any[] = [];
   const nodeOutputs = new Map<string, any>();
@@ -161,7 +156,7 @@ async function executeWorkflow(
 
   // Execute nodes in order
   for (const nodeId of executionOrder) {
-    const node = nodes.find(n => n.id === nodeId);
+    const node = nodes.find((n) => n.id === nodeId);
     if (!node) continue;
 
     try {
@@ -185,7 +180,7 @@ async function executeWorkflow(
         nodeType: node.type,
         output,
         error: undefined,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       const io = getIO();
@@ -195,7 +190,7 @@ async function executeWorkflow(
           nodeId: node.id,
           nodeType: node.type,
           status: 'completed',
-          output
+          output,
         });
       }
     } catch (error) {
@@ -205,18 +200,18 @@ async function executeWorkflow(
         nodeType: node.type,
         output: null,
         error: errorMessage,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
       throw new Error(`Node ${node.id} (${node.type}) failed: ${errorMessage}`, { cause: error });
     }
   }
 
   // Find output nodes
-  const outputNodes = nodes.filter(n => n.type === 'output');
+  const outputNodes = nodes.filter((n) => n.type === 'output');
   let finalOutput: string;
 
   if (outputNodes.length > 0) {
-    const outputs = outputNodes.map(n => nodeOutputs.get(n.id)).filter(Boolean);
+    const outputs = outputNodes.map((n) => nodeOutputs.get(n.id)).filter(Boolean);
     finalOutput = outputs.join('\n\n');
   } else {
     // Use the last node's output as final output
@@ -245,7 +240,7 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
       const result = await generateText({
         model,
         prompt: builtPrompt,
-        system: node.data.systemPrompt
+        system: node.data.systemPrompt,
       });
       return result.text;
     }
@@ -277,8 +272,8 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
         apiUrl = `https://api.github.com/repos/${owner}/${repo}/readme`;
       }
       const headers: Record<string, string> = {
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Alia-Workflow-Engine'
+        Accept: 'application/vnd.github.v3+json',
+        'User-Agent': 'Alia-Workflow-Engine',
       };
       if (node.data.token) {
         headers['Authorization'] = `Bearer ${node.data.token}`;
@@ -287,7 +282,7 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
       if (!ghResponse.ok) {
         throw new Error(`GitHub API error: ${ghResponse.status} ${ghResponse.statusText}`);
       }
-      const ghData = await ghResponse.json() as GitHubContentResponse;
+      const ghData = (await ghResponse.json()) as GitHubContentResponse;
       const content = Buffer.from(ghData.content, 'base64').toString('utf-8');
       return content;
     }

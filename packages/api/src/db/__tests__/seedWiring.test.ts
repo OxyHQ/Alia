@@ -67,9 +67,11 @@ function seederFiles(): string[] {
 /** Exported zero-argument seeders, by name. */
 function tableSeeders(): string[] {
   return seederFiles().flatMap((file) =>
-    [...readFileSync(path.join(PACKAGE_ROOT, file), 'utf8').matchAll(
-      /export async function (seed[A-Za-z]+)\(\)/g,
-    )].map((match) => match[1]),
+    [
+      ...readFileSync(path.join(PACKAGE_ROOT, file), 'utf8').matchAll(
+        /export async function (seed[A-Za-z]+)\(\)/g,
+      ),
+    ].map((match) => match[1]),
   );
 }
 
@@ -146,7 +148,10 @@ describe('every table seeder reaches the entrypoint that runs', () => {
      * schema declares none of them; and neither the catalogue repositories nor
      * the deleted seeder module has come back under its name.
      */
-    const seedersBlock = seedScript.slice(seedScript.indexOf('const SEEDERS'), seedScript.indexOf('];', seedScript.indexOf('const SEEDERS')));
+    const seedersBlock = seedScript.slice(
+      seedScript.indexOf('const SEEDERS'),
+      seedScript.indexOf('];', seedScript.indexOf('const SEEDERS')),
+    );
     const seededTables = [...seedersBlock.matchAll(/name:\s*'([a-z_]+)'/g)].map((m) => m[1]);
     // Vacuity floor on the slice: the array still names real tables.
     expect(seededTables).toContain('plans');
@@ -154,11 +159,17 @@ describe('every table seeder reaches the entrypoint that runs', () => {
     const declaredTables = readdirSync(schemaDir)
       .filter((file) => file.endsWith('.ts'))
       .flatMap((file) =>
-        [...readFileSync(path.join(schemaDir, file), 'utf8').matchAll(/pgTable\(\s*'([a-z_]+)'/g)].map((m) => m[1]),
+        [
+          ...readFileSync(path.join(schemaDir, file), 'utf8').matchAll(/pgTable\(\s*'([a-z_]+)'/g),
+        ].map((m) => m[1]),
       );
     // Vacuity floor on the census: it reads real declarations.
     expect(declaredTables).toContain('plans');
-    for (const table of ['model_configs', 'routing_profiles', 'routing_profile_provider_mappings']) {
+    for (const table of [
+      'model_configs',
+      'routing_profiles',
+      'routing_profile_provider_mappings',
+    ]) {
       expect(seededTables).not.toContain(table);
       expect(declaredTables).not.toContain(table);
     }

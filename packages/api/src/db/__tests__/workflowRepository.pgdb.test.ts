@@ -204,7 +204,7 @@ describe('a run', () => {
         oxyUserId: 'wfr-check',
         workflowId: 'wfr-check-1',
         executionId: 'wfr-check-exec-1',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- probing the CHECK
+        // biome-ignore lint/suspicious/noExplicitAny: probing the CHECK
         status: 'cancelled' as any,
         startedAt: new Date(),
       }),

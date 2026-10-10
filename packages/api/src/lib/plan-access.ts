@@ -53,7 +53,10 @@ import {
   type ProductEntitlement,
 } from '@oxy.so/contracts';
 import { getDb } from '../db/index.js';
-import { findActiveSubscriptions, type SubscriptionRow } from '../db/billing/subscriptionRepository.js';
+import {
+  findActiveSubscriptions,
+  type SubscriptionRow,
+} from '../db/billing/subscriptionRepository.js';
 import { getPlanFeatures, type PlanFeatureData } from './gateway-client.js';
 import { TTLCache } from './ttl-cache.js';
 
@@ -149,35 +152,33 @@ export async function getUserEntitlements(userId: string): Promise<Entitlements>
 
   const subscriptions = await findActiveSubscriptions(getDb(), userId);
 
-  const planIds = subscriptions
-    .map(s => s.planSnapshotPlanId)
-    .filter(Boolean) as string[];
+  const planIds = subscriptions.map((s) => s.planSnapshotPlanId).filter(Boolean) as string[];
   if (planIds.length === 0) planIds.push('free');
 
   // Fetch all plans and filter client-side (providers API returns all plans)
-  const allPlanFeatures = await Promise.all(planIds.map(id => getPlanFeatures(id))).then(results => results.flat());
-  const planFeatures = allPlanFeatures.filter(pf => pf.enabled !== false);
+  const allPlanFeatures = await Promise.all(planIds.map((id) => getPlanFeatures(id))).then(
+    (results) => results.flat(),
+  );
+  const planFeatures = allPlanFeatures.filter((pf) => pf.enabled !== false);
 
   const features: Record<string, boolean | number> = {};
   for (const pf of planFeatures) {
     if (pf.limitValue != null) {
-      features[pf.featureId] = Math.max(
-        (features[pf.featureId] as number) || 0,
-        pf.limitValue,
-      );
+      features[pf.featureId] = Math.max((features[pf.featureId] as number) || 0, pf.limitValue);
     } else {
       features[pf.featureId] = true;
     }
   }
 
-  const highestPlan = planIds.includes('free') && planIds.length === 1
-    ? 'free'
-    : planIds.find(id => id !== 'free') || 'free';
+  const highestPlan =
+    planIds.includes('free') && planIds.length === 1
+      ? 'free'
+      : planIds.find((id) => id !== 'free') || 'free';
 
   const allowances = allowancesFrom(planFeatures);
   // The subscription the `planId` above names, so the two cannot disagree. An
   // account on the free floor holds none, and the contract's plan is then null.
-  const held = subscriptions.find(s => s.planSnapshotPlanId === highestPlan);
+  const held = subscriptions.find((s) => s.planSnapshotPlanId === highestPlan);
 
   const result: Entitlements = {
     features,

@@ -55,21 +55,16 @@ describe('per-turn MCP selection', () => {
     const tools = await buildMcpTools('user-selected', ['server-hosted']);
 
     expect(Object.keys(tools)).toEqual(['mcp_hosted_app__search']);
-    expect(listRunnableMcpServersForUser).toHaveBeenCalledWith(
-      { marker: 'db' },
-      'user-selected',
-      ['server-hosted'],
-    );
+    expect(listRunnableMcpServersForUser).toHaveBeenCalledWith({ marker: 'db' }, 'user-selected', [
+      'server-hosted',
+    ]);
     expect(getLocalTools).not.toHaveBeenCalled();
   });
 
   it('keeps omitted selection as the legacy hosted-plus-local path', async () => {
     const tools = await buildMcpTools('user-legacy');
 
-    expect(Object.keys(tools)).toEqual([
-      'mcp_hosted_app__search',
-      'mcp_local_app__open',
-    ]);
+    expect(Object.keys(tools)).toEqual(['mcp_hosted_app__search', 'mcp_local_app__open']);
     expect(listRunnableMcpServersForUser).toHaveBeenCalledWith(
       { marker: 'db' },
       'user-legacy',

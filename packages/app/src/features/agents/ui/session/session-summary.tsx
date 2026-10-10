@@ -30,8 +30,7 @@ export function SessionSummary({
   entries: readonly EventEntry[];
 }) {
   const { t } = useTranslation();
-  const { threats: threatCount, errors: errorCount } =
-    sessionAlertCounts(entries);
+  const { threats: threatCount, errors: errorCount } = sessionAlertCounts(entries);
 
   return (
     <>

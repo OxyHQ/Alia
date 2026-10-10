@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 
 describe('OpenMausBot port provenance', () => {
   it('pins every reused source outside enterprise with a sha256', () => {
-    const manifest = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../../../../openmausbot-port.json'), 'utf8')) as {
+    const manifest = JSON.parse(
+      readFileSync(resolve(import.meta.dirname, '../../../../../../openmausbot-port.json'), 'utf8'),
+    ) as {
       commit: string;
       ports: Array<{ source: string; sourceSha256: string; destination: string }>;
     };

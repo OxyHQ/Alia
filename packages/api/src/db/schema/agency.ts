@@ -1,7 +1,16 @@
 /** Structured autonomy: durable definitions, runs, steps and normalized events. */
 
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
 import type { CreditFundingSource } from '../../domain/credit-funding.js';
@@ -15,10 +24,36 @@ export const AUTOMATION_TRIGGER_KINDS = ['manual', 'event', 'schedule'] as const
 export const AUTOMATION_ACTOR_MODES = ['alia', 'fixed', 'automatic'] as const;
 export type AutomationActorMode = (typeof AUTOMATION_ACTOR_MODES)[number];
 export const AUTOMATION_EXECUTION_MODES = ['observe', 'execute'] as const;
-export const AUTOMATION_AUTONOMY_LEVELS = ['read_only', 'draft', 'execute_on_request', 'autonomous'] as const;
-export const AUTOMATION_RUN_STATUSES = ['planned', 'running', 'observed', 'succeeded', 'failed', 'cancelled'] as const;
-export const AUTOMATION_STEP_STATUSES = ['planned', 'running', 'observed', 'succeeded', 'failed', 'denied', 'cancelled'] as const;
-export const AUTOMATION_EVENT_STATUSES = ['received', 'matched', 'duplicate', 'processed', 'failed'] as const;
+export const AUTOMATION_AUTONOMY_LEVELS = [
+  'read_only',
+  'draft',
+  'execute_on_request',
+  'autonomous',
+] as const;
+export const AUTOMATION_RUN_STATUSES = [
+  'planned',
+  'running',
+  'observed',
+  'succeeded',
+  'failed',
+  'cancelled',
+] as const;
+export const AUTOMATION_STEP_STATUSES = [
+  'planned',
+  'running',
+  'observed',
+  'succeeded',
+  'failed',
+  'denied',
+  'cancelled',
+] as const;
+export const AUTOMATION_EVENT_STATUSES = [
+  'received',
+  'matched',
+  'duplicate',
+  'processed',
+  'failed',
+] as const;
 
 export interface AutomationResourceRef {
   appId: string;
@@ -49,7 +84,9 @@ export const automationDefinitions = pgTable(
     id: generatedId(),
     ownerAccountId: text().notNull(),
     objective: text().notNull(),
-    triggerKind: text({ enum: AUTOMATION_TRIGGER_KINDS as unknown as [string, ...string[]] }).notNull(),
+    triggerKind: text({
+      enum: AUTOMATION_TRIGGER_KINDS as unknown as [string, ...string[]],
+    }).notNull(),
     eventAppId: text(),
     eventType: text(),
     eventResource: jsonb().$type<AutomationResourceRef>(),
@@ -67,7 +104,10 @@ export const automationDefinitions = pgTable(
       .default('observe'),
     inputs: jsonb().$type<Record<string, unknown>>().notNull().default({}),
     resources: jsonb().$type<AutomationResourceRef[]>().notNull().default([]),
-    dataFlow: jsonb().$type<AutomationDataFlow>().notNull().default({ sources: [], destinations: [] }),
+    dataFlow: jsonb()
+      .$type<AutomationDataFlow>()
+      .notNull()
+      .default({ sources: [], destinations: [] }),
     maximumAutonomy: text({ enum: AUTOMATION_AUTONOMY_LEVELS as unknown as [string, ...string[]] })
       .$type<(typeof AUTOMATION_AUTONOMY_LEVELS)[number]>()
       .notNull(),
@@ -80,10 +120,22 @@ export const automationDefinitions = pgTable(
     index('automation_definitions_owner_idx').on(table.ownerAccountId),
     index('automation_definitions_event_idx').on(table.eventAppId, table.eventType),
     index('automation_definitions_schedule_idx').on(table.triggerKind, table.enabled),
-    checkOneOf('automation_definitions_trigger_kind_check', table.triggerKind, AUTOMATION_TRIGGER_KINDS),
+    checkOneOf(
+      'automation_definitions_trigger_kind_check',
+      table.triggerKind,
+      AUTOMATION_TRIGGER_KINDS,
+    ),
     checkOneOf('automation_definitions_actor_mode_check', table.actorMode, AUTOMATION_ACTOR_MODES),
-    checkOneOf('automation_definitions_execution_mode_check', table.executionMode, AUTOMATION_EXECUTION_MODES),
-    checkOneOf('automation_definitions_autonomy_check', table.maximumAutonomy, AUTOMATION_AUTONOMY_LEVELS),
+    checkOneOf(
+      'automation_definitions_execution_mode_check',
+      table.executionMode,
+      AUTOMATION_EXECUTION_MODES,
+    ),
+    checkOneOf(
+      'automation_definitions_autonomy_check',
+      table.maximumAutonomy,
+      AUTOMATION_AUTONOMY_LEVELS,
+    ),
   ],
 );
 
@@ -97,8 +149,15 @@ export const automationActorAssignments = pgTable(
     createdAt: createdAt(),
   },
   (table) => [
-    uniqueIndex('automation_actor_assignments_automation_agent_key').on(table.automationId, table.agentId),
-    index('automation_actor_assignments_priority_idx').on(table.automationId, table.priority, table.agentId),
+    uniqueIndex('automation_actor_assignments_automation_agent_key').on(
+      table.automationId,
+      table.agentId,
+    ),
+    index('automation_actor_assignments_priority_idx').on(
+      table.automationId,
+      table.priority,
+      table.agentId,
+    ),
   ],
 );
 
@@ -107,7 +166,9 @@ export const automationActions = pgTable(
   'automation_actions',
   {
     id: generatedId(),
-    automationId: text().notNull().references(() => automationDefinitions.id, { onDelete: 'cascade' }),
+    automationId: text()
+      .notNull()
+      .references(() => automationDefinitions.id, { onDelete: 'cascade' }),
     position: integer().notNull(),
     resourceAppId: text().notNull(),
     effectiveAccountId: text().notNull(),
@@ -120,7 +181,10 @@ export const automationActions = pgTable(
     updatedAt: updatedAt(),
   },
   (table) => [
-    uniqueIndex('automation_actions_automation_position_key').on(table.automationId, table.position),
+    uniqueIndex('automation_actions_automation_position_key').on(
+      table.automationId,
+      table.position,
+    ),
     uniqueIndex('automation_actions_exact_tool_key').on(
       table.automationId,
       table.resourceAppId,
@@ -153,7 +217,9 @@ export const automationActionAuthorizations = pgTable(
   'automation_action_authorizations',
   {
     id: generatedId(),
-    automationActionId: text().notNull().references(() => automationActions.id, { onDelete: 'cascade' }),
+    automationActionId: text()
+      .notNull()
+      .references(() => automationActions.id, { onDelete: 'cascade' }),
     agentId: text().notNull(),
     actorAccountId: text().notNull(),
     oxyAuthorizationId: text().notNull(),
@@ -163,11 +229,16 @@ export const automationActionAuthorizations = pgTable(
     updatedAt: updatedAt(),
   },
   (table) => [
-    uniqueIndex('automation_action_authorizations_action_agent_key')
-      .on(table.automationActionId, table.agentId),
+    uniqueIndex('automation_action_authorizations_action_agent_key').on(
+      table.automationActionId,
+      table.agentId,
+    ),
     uniqueIndex('automation_action_authorizations_oxy_key').on(table.oxyAuthorizationId),
-    index('automation_action_authorizations_agent_live_idx')
-      .on(table.agentId, table.expiresAt, table.revokedAt),
+    index('automation_action_authorizations_agent_live_idx').on(
+      table.agentId,
+      table.expiresAt,
+      table.revokedAt,
+    ),
   ],
 );
 
@@ -193,7 +264,9 @@ export const aliaTaskAuthorizations = pgTable(
   'alia_task_authorizations',
   {
     id: generatedId(),
-    automationId: text().notNull().references(() => automationDefinitions.id, { onDelete: 'cascade' }),
+    automationId: text()
+      .notNull()
+      .references(() => automationDefinitions.id, { onDelete: 'cascade' }),
     /** Set for a declared connected action; NULL for a standing read. */
     automationActionId: text().references(() => automationActions.id, { onDelete: 'cascade' }),
     resourceAppId: text().notNull(),
@@ -217,7 +290,11 @@ export const aliaTaskAuthorizations = pgTable(
       table.tool,
     ),
     uniqueIndex('alia_task_authorizations_oxy_key').on(table.oxyAuthorizationId),
-    index('alia_task_authorizations_live_idx').on(table.automationId, table.expiresAt, table.revokedAt),
+    index('alia_task_authorizations_live_idx').on(
+      table.automationId,
+      table.expiresAt,
+      table.revokedAt,
+    ),
   ],
 );
 
@@ -229,7 +306,9 @@ export const aliaTaskAuthorizations = pgTable(
 export const automationWatchStates = pgTable(
   'automation_watch_states',
   {
-    automationId: text().primaryKey().references(() => automationDefinitions.id, { onDelete: 'cascade' }),
+    automationId: text()
+      .primaryKey()
+      .references(() => automationDefinitions.id, { onDelete: 'cascade' }),
     /** sha256 of the normalised observation; NULL before the first good tick. */
     lastHash: text(),
     /** Query watches: the result URLs last seen, to tell a new item from a reshuffle. */
@@ -258,7 +337,9 @@ export const automationRuns = pgTable(
     id: generatedId(),
     automationId: text().notNull(),
     requesterAccountId: text().notNull(),
-    selectedActorType: text({ enum: ['alia', 'agent'] as unknown as [string, ...string[]] }).notNull(),
+    selectedActorType: text({
+      enum: ['alia', 'agent'] as unknown as [string, ...string[]],
+    }).notNull(),
     selectedAgentId: text(),
     triggerEventId: text(),
     idempotencyKey: text().notNull(),
@@ -281,7 +362,9 @@ export const automationRuns = pgTable(
     uniqueIndex('automation_runs_idempotency_key').on(table.idempotencyKey),
     index('automation_runs_alia_open_idx')
       .on(table.status, table.leaseExpiresAt, table.startedAt)
-      .where(sql`${table.selectedActorType} = 'alia' and ${table.status} in ('planned', 'running')`),
+      .where(
+        sql`${table.selectedActorType} = 'alia' and ${table.status} in ('planned', 'running')`,
+      ),
     index('automation_runs_automation_started_idx').on(table.automationId, table.startedAt.desc()),
     index('automation_runs_requester_idx').on(table.requesterAccountId, table.startedAt.desc()),
     checkOneOf('automation_runs_status_check', table.status, AUTOMATION_RUN_STATUSES),
@@ -338,7 +421,12 @@ export const automationEvents = pgTable(
   },
   (table) => [
     uniqueIndex('automation_events_app_event_key').on(table.appId, table.eventId),
-    index('automation_events_match_idx').on(table.appId, table.accountId, table.eventType, table.status),
+    index('automation_events_match_idx').on(
+      table.appId,
+      table.accountId,
+      table.eventType,
+      table.status,
+    ),
     checkOneOf('automation_events_status_check', table.status, AUTOMATION_EVENT_STATUSES),
   ],
 );

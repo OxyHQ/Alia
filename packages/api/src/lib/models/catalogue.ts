@@ -66,11 +66,15 @@ function text(value: unknown): string | null {
 }
 
 function positiveInt(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : null;
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? Math.floor(value)
+    : null;
 }
 
 function stringList(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }
 
 /**
@@ -117,7 +121,9 @@ function pricingOf(raw: unknown): ModelPricing | null {
   const inputPerMTok = perMillion('input_tokens');
   const outputPerMTok = perMillion('output_tokens');
   const priceVersionId = text(pricing.priceVersionId);
-  return inputPerMTok === null || outputPerMTok === null ? null : { inputPerMTok, outputPerMTok, ...(priceVersionId === null ? {} : { priceVersionId }) };
+  return inputPerMTok === null || outputPerMTok === null
+    ? null
+    : { inputPerMTok, outputPerMTok, ...(priceVersionId === null ? {} : { priceVersionId }) };
 }
 
 /**
@@ -128,7 +134,10 @@ function pricingOf(raw: unknown): ModelPricing | null {
  * offered: Oxy refuses any other with a 400, so an entry that lists none (or an
  * older Oxy that omits the field) offers no effort control at all.
  */
-function reasoningEffortsOf(entry: Record<string, unknown>, capabilities: Record<string, unknown> | null): ReasoningEffort[] {
+function reasoningEffortsOf(
+  entry: Record<string, unknown>,
+  capabilities: Record<string, unknown> | null,
+): ReasoningEffort[] {
   const declared = Array.isArray(entry.reasoningEfforts)
     ? entry.reasoningEfforts
     : Array.isArray(capabilities?.reasoningEfforts)
@@ -154,7 +163,8 @@ export function normalizeCatalogueEntry(raw: unknown): CatalogueModel | null {
   if (deprecation?.status === 'retired') return null;
 
   const publisherRecord = record(entry.publisher);
-  const publisherId = text(publisherRecord?.slug) ?? text(entry.publisher) ?? id.slice(0, id.indexOf('/'));
+  const publisherId =
+    text(publisherRecord?.slug) ?? text(entry.publisher) ?? id.slice(0, id.indexOf('/'));
   const publisherName = text(publisherRecord?.displayName) ?? publisherId;
   const capabilities = record(entry.capabilities);
 
@@ -176,9 +186,9 @@ export function normalizeCatalogueEntry(raw: unknown): CatalogueModel | null {
 
 /** Text in, text out, and tools: what Alia's chat (a tool loop) can run on. */
 export function isChatUsable(model: CatalogueModel): boolean {
-  return model.inputModalities.includes('text')
-    && model.outputModalities.includes('text')
-    && model.tools;
+  return (
+    model.inputModalities.includes('text') && model.outputModalities.includes('text') && model.tools
+  );
 }
 
 const PRE_RELEASE = /(?:^|[^a-z])(?:preview|exp|experimental|beta|alpha)(?:[^a-z]|$)/i;
@@ -225,7 +235,8 @@ let inflight: Promise<CatalogueModel[]> | null = null;
 
 async function fetchCatalogue(): Promise<CatalogueModel[]> {
   const client = getOxyInferenceClient();
-  if (client === null) throw new CatalogueUnavailableError('Oxy inference is not configured for this deployment');
+  if (client === null)
+    throw new CatalogueUnavailableError('Oxy inference is not configured for this deployment');
   const entries = await client.listModels({ signal: AbortSignal.timeout(15_000) });
   return normalizeCatalogue(entries as unknown[]);
 }
@@ -257,7 +268,9 @@ export async function listCatalogueModels(now: number = Date.now()): Promise<Cat
       return cached.models;
     }
     if (error instanceof CatalogueUnavailableError) throw error;
-    throw new CatalogueUnavailableError('The model catalogue could not be loaded', { cause: error });
+    throw new CatalogueUnavailableError('The model catalogue could not be loaded', {
+      cause: error,
+    });
   }
 }
 

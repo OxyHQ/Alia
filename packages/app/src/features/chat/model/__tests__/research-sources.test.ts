@@ -16,7 +16,9 @@ import { describe, expect, it, vi } from 'vitest';
  */
 vi.mock('@alia.onl/sdk', () => ({ getToolLabel: (toolName: string) => toolName }));
 
-const { buildSteps, extractSources, mergeSources, researchSourcesToSources } = await import('@/features/chat/model/thought-utils');
+const { buildSteps, extractSources, mergeSources, researchSourcesToSources } = await import(
+  '@/features/chat/model/thought-utils'
+);
 type ToolInvocation = NonNullable<Parameters<typeof extractSources>[0]>[number];
 
 const persistedResearch: ToolInvocation = {
@@ -40,7 +42,12 @@ describe('extractSources — persisted deepResearch invocation', () => {
   it('yields one source per distinct URL, with the host standing in for a missing title', () => {
     expect(extractSources([persistedResearch])).toEqual([
       { title: 'React', url: 'https://es.react.dev/', snippet: '', domain: 'es.react.dev' },
-      { title: 'en.wikipedia.org', url: 'https://en.wikipedia.org/wiki/React_(software)', snippet: '', domain: 'en.wikipedia.org' },
+      {
+        title: 'en.wikipedia.org',
+        url: 'https://en.wikipedia.org/wiki/React_(software)',
+        snippet: '',
+        domain: 'en.wikipedia.org',
+      },
     ]);
   });
 
@@ -58,14 +65,21 @@ describe('extractSources — persisted deepResearch invocation', () => {
   });
 
   it('yields nothing for research that has not finished, or that saved no sources', () => {
-    expect(extractSources([{ ...persistedResearch, state: 'call', result: undefined }])).toEqual([]);
-    expect(extractSources([{ ...persistedResearch, result: { status: 'partial', sources: [] } }])).toEqual([]);
+    expect(extractSources([{ ...persistedResearch, state: 'call', result: undefined }])).toEqual(
+      [],
+    );
+    expect(
+      extractSources([{ ...persistedResearch, result: { status: 'partial', sources: [] } }]),
+    ).toEqual([]);
   });
 });
 
 describe('buildSteps — research step', () => {
   it('carries the research sources on the step so the Steps tab shows them', () => {
-    const steps = buildSteps({ content: 'answer', toolInvocations: [persistedResearch] }, 'completed');
+    const steps = buildSteps(
+      { content: 'answer', toolInvocations: [persistedResearch] },
+      'completed',
+    );
     expect(steps.map((s) => s.type)).toEqual(['tool', 'done']);
     expect(steps[0].toolName).toBe('deepResearch');
     expect(steps[0].sources?.map((s) => s.domain)).toEqual(['es.react.dev', 'en.wikipedia.org']);

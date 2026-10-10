@@ -35,11 +35,14 @@ interface LocalServer {
   process: ChildProcess;
   tools: McpTool[];
   nextId: number;
-  pending: Map<number, {
-    resolve: (value: unknown) => void;
-    reject: (reason: unknown) => void;
-    timer: NodeJS.Timeout;
-  }>;
+  pending: Map<
+    number,
+    {
+      resolve: (value: unknown) => void;
+      reject: (reason: unknown) => void;
+      timer: NodeJS.Timeout;
+    }
+  >;
   buffer: string;
 }
 
@@ -185,7 +188,11 @@ export class McpLocalClient implements vscode.Disposable {
     }
   }
 
-  private sendRpc(server: LocalServer, method: string, params?: Record<string, unknown>): Promise<unknown> {
+  private sendRpc(
+    server: LocalServer,
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<unknown> {
     return new Promise((resolve, reject) => {
       const id = ++server.nextId;
       const timer = setTimeout(() => {

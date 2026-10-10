@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Monitor } from "lucide-react";
+import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Monitor } from 'lucide-react';
 
 export function DesktopOnlyGuard({ children }: { children: React.ReactNode }) {
   const [isDesktop, setIsDesktop] = useState(true);
@@ -11,9 +11,9 @@ export function DesktopOnlyGuard({ children }: { children: React.ReactNode }) {
     };
 
     checkScreenSize();
-    window.addEventListener("resize", checkScreenSize);
+    window.addEventListener('resize', checkScreenSize);
 
-    return () => window.removeEventListener("resize", checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
   if (!isDesktop) {
@@ -36,16 +36,14 @@ export function DesktopOnlyGuard({ children }: { children: React.ReactNode }) {
 
           <Button
             onClick={() => {
-              window.location.href = "/";
+              window.location.href = '/';
             }}
             size="lg"
           >
             Go to Main App
           </Button>
 
-          <p className="text-xs text-muted-foreground">
-            Powered by Oxy
-          </p>
+          <p className="text-xs text-muted-foreground">Powered by Oxy</p>
         </div>
       </div>
     );

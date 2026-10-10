@@ -49,13 +49,7 @@ import { Platform, ScrollView, View } from 'react-native';
 /** One array for "nothing selected", so the memos below hold across renders. */
 const NO_MESSAGES: Message[] = [];
 
-function TabToggle({
-  value,
-  onChange,
-}: {
-  value: ThoughtTab;
-  onChange: (t: ThoughtTab) => void;
-}) {
+function TabToggle({ value, onChange }: { value: ThoughtTab; onChange: (t: ThoughtTab) => void }) {
   const { t } = useTranslation();
   const tabs: { key: ThoughtTab; label: string }[] = [
     { key: 'steps', label: t('thought.steps') },
@@ -64,11 +58,7 @@ function TabToggle({
   ];
 
   return (
-    <Tabs
-      variant="pill"
-      value={value}
-      onValueChange={(next) => onChange(next as ThoughtTab)}
-    >
+    <Tabs variant="pill" value={value} onValueChange={(next) => onChange(next as ThoughtTab)}>
       {tabs.map((tab) => (
         <TabsTrigger key={tab.key} value={tab.key} label={tab.label} />
       ))}
@@ -132,13 +122,7 @@ function PhaseRow({ step, isActive }: { step: PhaseStep; isActive: boolean }) {
  * — so a finished tool after it cannot hide that it is still going, and a
  * call that never returned in a turn that is over sits still and says so.
  */
-function StepsTab({
-  steps,
-  lifecycle,
-}: {
-  steps: ThoughtStep[];
-  lifecycle: TurnLifecycle;
-}) {
+function StepsTab({ steps, lifecycle }: { steps: ThoughtStep[]; lifecycle: TurnLifecycle }) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const reduce = useAgentLogMotion();
@@ -161,8 +145,16 @@ function StepsTab({
           const isLastRow = index === rows.length - 1;
           if (step.type !== 'tool') {
             return (
-              <AgentLogRow key={`${step.type}-${index}`} first={first} last={isLastRow} reduce={reduce}>
-                <PhaseRow step={{ ...step, type: step.type }} isActive={live && isLastRow && tail === null} />
+              <AgentLogRow
+                key={`${step.type}-${index}`}
+                first={first}
+                last={isLastRow}
+                reduce={reduce}
+              >
+                <PhaseRow
+                  step={{ ...step, type: step.type }}
+                  isActive={live && isLastRow && tail === null}
+                />
               </AgentLogRow>
             );
           }
@@ -177,7 +169,11 @@ function StepsTab({
                 title={step.toolName === undefined ? step.label : toolLabel(step.toolName, t)}
                 status={status}
                 icon={
-                  <ToolIcon width={14} height={14} fill={status === 'error' ? colors.error : colors.text} />
+                  <ToolIcon
+                    width={14}
+                    height={14}
+                    fill={status === 'error' ? colors.error : colors.text}
+                  />
                 }
                 input={inv === undefined ? '' : toolCallText(inv.args)}
                 output={inv === undefined ? '' : toolCallText(inv.result)}
@@ -190,7 +186,10 @@ function StepsTab({
         })}
       </View>
       {tail === null ? null : (
-        <AgentLogWorkingRow label={t(STEP_LABEL_KEYS[tail.type as PhaseStep['type']])} reduce={reduce} />
+        <AgentLogWorkingRow
+          label={t(STEP_LABEL_KEYS[tail.type as PhaseStep['type']])}
+          reduce={reduce}
+        />
       )}
     </View>
   );
@@ -208,10 +207,17 @@ function ActivityTab({ entries }: { entries: AuditEntry[] }) {
   return (
     <View role="list">
       {entries.map((entry, index) => (
-        <AgentLogRow key={entry.id} first={index === 0} last={index === entries.length - 1} reduce={reduce}>
+        <AgentLogRow
+          key={entry.id}
+          first={index === 0}
+          last={index === entries.length - 1}
+          reduce={reduce}
+        >
           <View className="py-1">
             <View className="flex-row items-center gap-1.5">
-              {entry.status === 'interrupted' ? <RiForbidLine size="xs" fill={colors.textSecondary} /> : null}
+              {entry.status === 'interrupted' ? (
+                <RiForbidLine size="xs" fill={colors.textSecondary} />
+              ) : null}
               <Text variant="body-regular" numberOfLines={1}>
                 {entry.status === 'in_progress' ? (
                   <AgentLogShimmerText>{auditText(entry.label, t)}</AgentLogShimmerText>
@@ -299,9 +305,7 @@ export function ThoughtPanel() {
 
   const lifecycle = useMemo<TurnLifecycle>(() => {
     if (!message) return 'completed';
-    const lastAssistant = [...messages]
-      .reverse()
-      .find((m) => m.role === 'assistant');
+    const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
     return turnLifecycle(message, {
       isLoading: scope?.isLoading ?? false,
       isLastAssistant: lastAssistant?.id === message.id,
@@ -341,8 +345,7 @@ export function ThoughtPanel() {
    */
   const openOutput = useCallback(
     (output: OutputFile): boolean => {
-      if (!canvasArtifacts.some((artifact) => artifact.id === output.id))
-        return false;
+      if (!canvasArtifacts.some((artifact) => artifact.id === output.id)) return false;
       setRightPanel('canvas');
       return true;
     },
@@ -411,7 +414,11 @@ export function ThoughtPanel() {
         )}
       </View>
 
-      <ScrollView className="flex-1 px-4" contentContainerClassName="pb-4" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1 px-4"
+        contentContainerClassName="pb-4"
+        showsVerticalScrollIndicator={false}
+      >
         {content}
       </ScrollView>
     </View>

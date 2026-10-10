@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { Image, Pressable, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
+import {
+  Image,
+  Pressable,
+  View,
+  type GestureResponderEvent,
+  type LayoutChangeEvent,
+} from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { Chip } from '@oxy.so/bloom/chip';
 import { RiArrowDownLine } from '@oxy.so/bloom/icons/RiArrowDownLine';
@@ -71,7 +77,10 @@ export function BrowserLiveView({
   };
 
   const press = (event: GestureResponderEvent) => {
-    const point = viewportPoint({ x: event.nativeEvent.locationX, y: event.nativeEvent.locationY }, drawn);
+    const point = viewportPoint(
+      { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY },
+      drawn,
+    );
     if (point && !busy) onInput({ type: 'click', ...point });
   };
 
@@ -99,11 +108,20 @@ export function BrowserLiveView({
               keyboardType="url"
             />
           </View>
-          <Button tone="accent" leadingIcon={RiGlobalLine} disabled={busy} onPress={() => (address.trim() ? submitAddress() : onOpen())}>
+          <Button
+            tone="accent"
+            leadingIcon={RiGlobalLine}
+            disabled={busy}
+            onPress={() => (address.trim() ? submitAddress() : onOpen())}
+          >
             {t('agents.computer.browser.openButton')}
           </Button>
         </View>
-        {error ? <Text variant="body-regular" testID="browser-error">{error}</Text> : null}
+        {error ? (
+          <Text variant="body-regular" testID="browser-error">
+            {error}
+          </Text>
+        ) : null}
       </View>
     );
   }
@@ -111,13 +129,28 @@ export function BrowserLiveView({
   return (
     <View className="gap-3" testID="browser-live">
       <View className="flex-row flex-wrap items-center justify-between gap-2">
-        <Chip size="large">{owner ? t('agents.computer.browser.youInControl') : t('agents.computer.browser.agentInControl')}</Chip>
+        <Chip size="large">
+          {owner
+            ? t('agents.computer.browser.youInControl')
+            : t('agents.computer.browser.agentInControl')}
+        </Chip>
         {owner ? (
-          <Button tone="accent" disabled={busy} onPress={() => onControl('agent')} testID="hand-back">
+          <Button
+            tone="accent"
+            disabled={busy}
+            onPress={() => onControl('agent')}
+            testID="hand-back"
+          >
             {t('agents.computer.browser.handBack')}
           </Button>
         ) : (
-          <Button tone="neutral" appearance="outline" disabled={busy} onPress={() => onControl('owner')} testID="take-control">
+          <Button
+            tone="neutral"
+            appearance="outline"
+            disabled={busy}
+            onPress={() => onControl('owner')}
+            testID="take-control"
+          >
             {t('agents.computer.browser.takeControl')}
           </Button>
         )}
@@ -137,7 +170,12 @@ export function BrowserLiveView({
             keyboardType="url"
           />
         </View>
-        <Button tone="neutral" appearance="outline" disabled={busy || !address.trim()} onPress={submitAddress}>
+        <Button
+          tone="neutral"
+          appearance="outline"
+          disabled={busy || !address.trim()}
+          onPress={submitAddress}
+        >
           {t('agents.computer.browser.go')}
         </Button>
       </View>
@@ -149,7 +187,11 @@ export function BrowserLiveView({
         onLayout={(event: LayoutChangeEvent) => setDrawn(event.nativeEvent.layout)}
         disabled={busy || !screenshot}
         testID="browser-screen"
-        style={{ width: '100%', aspectRatio: BROWSER_VIEWPORT.width / BROWSER_VIEWPORT.height, opacity: busy ? 0.6 : 1 }}
+        style={{
+          width: '100%',
+          aspectRatio: BROWSER_VIEWPORT.width / BROWSER_VIEWPORT.height,
+          opacity: busy ? 0.6 : 1,
+        }}
         className="overflow-hidden rounded-xl bg-surface-subtle"
       >
         {screenshot ? (
@@ -165,7 +207,11 @@ export function BrowserLiveView({
         )}
       </Pressable>
       {screenshotFailed ? <Muted>{t('agents.computer.browser.disconnected')}</Muted> : null}
-      {error ? <Text variant="body-regular" testID="browser-error">{error}</Text> : null}
+      {error ? (
+        <Text variant="body-regular" testID="browser-error">
+          {error}
+        </Text>
+      ) : null}
 
       <View className="flex-row items-end gap-2">
         <View className="flex-1">
@@ -187,14 +233,35 @@ export function BrowserLiveView({
 
       <View className="flex-row flex-wrap gap-2">
         {LIVE_VIEW_KEYS.map((key) => (
-          <Button key={key} size="sm" tone="neutral" appearance="outline" disabled={busy} onPress={() => onInput({ type: 'key', key })}>
+          <Button
+            key={key}
+            size="sm"
+            tone="neutral"
+            appearance="outline"
+            disabled={busy}
+            onPress={() => onInput({ type: 'key', key })}
+          >
             {t(`agents.computer.browser.keys.${key}`)}
           </Button>
         ))}
-        <Button size="sm" tone="neutral" appearance="outline" leadingIcon={RiArrowUpLine} disabled={busy} onPress={() => onInput({ type: 'scroll', deltaY: -600 })}>
+        <Button
+          size="sm"
+          tone="neutral"
+          appearance="outline"
+          leadingIcon={RiArrowUpLine}
+          disabled={busy}
+          onPress={() => onInput({ type: 'scroll', deltaY: -600 })}
+        >
           {t('agents.computer.browser.scrollUp')}
         </Button>
-        <Button size="sm" tone="neutral" appearance="outline" leadingIcon={RiArrowDownLine} disabled={busy} onPress={() => onInput({ type: 'scroll', deltaY: 600 })}>
+        <Button
+          size="sm"
+          tone="neutral"
+          appearance="outline"
+          leadingIcon={RiArrowDownLine}
+          disabled={busy}
+          onPress={() => onInput({ type: 'scroll', deltaY: 600 })}
+        >
           {t('agents.computer.browser.scrollDown')}
         </Button>
       </View>

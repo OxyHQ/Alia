@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { citedIds, normalizeCitationMarkers } from '../citations.js';
-import { describeOutputContract, isMetaSubQuestion, parseOutputContract } from '../output-contract.js';
+import {
+  describeOutputContract,
+  isMetaSubQuestion,
+  parseOutputContract,
+} from '../output-contract.js';
 import { SourceTracker, formatSourceLink } from '../source-tracker.js';
 
 /**
@@ -24,25 +28,47 @@ describe('parseOutputContract', () => {
   });
 
   it('reads English counts, words, paragraphs and bullets', () => {
-    expect(parseOutputContract('Summarize what React is in two sentences with a source')).toMatchObject({
-      shape: 'sentences', count: 2, sourceCount: 1, subject: 'what React is',
+    expect(
+      parseOutputContract('Summarize what React is in two sentences with a source'),
+    ).toMatchObject({
+      shape: 'sentences',
+      count: 2,
+      sourceCount: 1,
+      subject: 'what React is',
     });
-    expect(parseOutputContract('explain GraphQL in one paragraph')).toMatchObject({ shape: 'paragraphs', count: 1, subject: 'GraphQL' });
-    expect(parseOutputContract('describe Rust ownership in under 100 words')).toMatchObject({ shape: 'words', count: 100 });
-    expect(parseOutputContract('give me a bullet list of the pros of Postgres')).toMatchObject({ shape: 'bullets' });
-    expect(parseOutputContract('3 bullet points on why the sky is blue, with sources')).toMatchObject({ shape: 'bullets', count: 3, wantsSources: true });
+    expect(parseOutputContract('explain GraphQL in one paragraph')).toMatchObject({
+      shape: 'paragraphs',
+      count: 1,
+      subject: 'GraphQL',
+    });
+    expect(parseOutputContract('describe Rust ownership in under 100 words')).toMatchObject({
+      shape: 'words',
+      count: 100,
+    });
+    expect(parseOutputContract('give me a bullet list of the pros of Postgres')).toMatchObject({
+      shape: 'bullets',
+    });
+    expect(
+      parseOutputContract('3 bullet points on why the sky is blue, with sources'),
+    ).toMatchObject({ shape: 'bullets', count: 3, wantsSources: true });
     expect(parseOutputContract('briefly, what is a monad')).toMatchObject({ shape: 'brief' });
   });
 
   it('reads an explicitly named language', () => {
-    expect(parseOutputContract('explain React in English in two sentences').language).toBe('English');
+    expect(parseOutputContract('explain React in English in two sentences').language).toBe(
+      'English',
+    );
     expect(parseOutputContract('resume qué es React en inglés').language).toBe('English');
     expect(parseOutputContract('what is React').language).toBeUndefined();
   });
 
   it('is the report default when nothing is asked, with the request as the subject', () => {
     const c = parseOutputContract('compare the two approaches');
-    expect(c).toEqual({ shape: 'report', wantsSources: false, subject: 'compare the two approaches' });
+    expect(c).toEqual({
+      shape: 'report',
+      wantsSources: false,
+      subject: 'compare the two approaches',
+    });
   });
 
   it('does not read an article as a count', () => {
@@ -68,7 +94,9 @@ describe('describeOutputContract', () => {
   });
 
   it('states the exact shape, the language and no scaffolding for a short answer', () => {
-    const text = describeOutputContract(parseOutputContract('resume en dos frases qué es React con una fuente'));
+    const text = describeOutputContract(
+      parseOutputContract('resume en dos frases qué es React con una fuente'),
+    );
     expect(text).toContain('EXACTLY 2 sentences');
     expect(text).toContain('same language as the original query');
     expect(text).toContain('Cite exactly 1 source');
@@ -106,7 +134,9 @@ describe('isMetaSubQuestion', () => {
 
 describe('normalizeCitationMarkers', () => {
   it('rewrites the fullwidth retrieval form into [n]', () => {
-    expect(normalizeCitationMarkers('React is a library【1†L1-L3】【5†L1-L4】.')).toBe('React is a library[1][5].');
+    expect(normalizeCitationMarkers('React is a library【1†L1-L3】【5†L1-L4】.')).toBe(
+      'React is a library[1][5].',
+    );
     expect(normalizeCitationMarkers('see【7】 and [2†source]')).toBe('see[7] and [2]');
   });
 
@@ -115,7 +145,9 @@ describe('normalizeCitationMarkers', () => {
   });
 
   it('drops markers whose number has no source, only when the sources are known', () => {
-    expect(normalizeCitationMarkers('true [1], made up [9], and [2].', [1, 2])).toBe('true [1], made up, and [2].');
+    expect(normalizeCitationMarkers('true [1], made up [9], and [2].', [1, 2])).toBe(
+      'true [1], made up, and [2].',
+    );
     // Without the list there is nothing to drop against.
     expect(normalizeCitationMarkers('made up [9]')).toBe('made up [9]');
   });
@@ -134,14 +166,21 @@ describe('SourceTracker.formatReferences', () => {
   it('emits each reference as a Markdown link, numbered', () => {
     const tracker = new SourceTracker();
     tracker.add('https://es.react.dev/', 'React', 'excerpt', 'q');
-    tracker.add('https://en.wikipedia.org/wiki/React_(software)', 'React (software) [Wikipedia]', 'excerpt', 'q');
+    tracker.add(
+      'https://en.wikipedia.org/wiki/React_(software)',
+      'React (software) [Wikipedia]',
+      'excerpt',
+      'q',
+    );
     tracker.add('https://example.test/no-title', '', 'excerpt', 'q');
 
     const refs = tracker.formatReferences();
     expect(refs).toContain('## References');
     expect(refs).toContain('[1] [React](https://es.react.dev/)');
     // Brackets in a title and parentheses in a URL would break the link.
-    expect(refs).toContain('[2] [React (software) \\[Wikipedia\\]](https://en.wikipedia.org/wiki/React_%28software%29)');
+    expect(refs).toContain(
+      '[2] [React (software) \\[Wikipedia\\]](https://en.wikipedia.org/wiki/React_%28software%29)',
+    );
     // An empty title falls back to the host rather than an empty link.
     expect(refs).toContain('[3] [example.test](https://example.test/no-title)');
     // No plain-text URL line remains.
@@ -150,6 +189,8 @@ describe('SourceTracker.formatReferences', () => {
 
   it('is empty with no sources', () => {
     expect(new SourceTracker().formatReferences()).toBe('');
-    expect(formatSourceLink({ url: 'https://a.test/x', title: ' spaced   title ' })).toBe('[spaced title](https://a.test/x)');
+    expect(formatSourceLink({ url: 'https://a.test/x', title: ' spaced   title ' })).toBe(
+      '[spaced title](https://a.test/x)',
+    );
   });
 });

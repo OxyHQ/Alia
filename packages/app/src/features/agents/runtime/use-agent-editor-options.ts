@@ -115,9 +115,7 @@ export function unlinkedSkills(
   return all.filter(
     (skill) =>
       !linked.some((entry) => entry._id === skill._id) &&
-      (!search ||
-        skill.displayName.toLowerCase().includes(needle) ||
-        skill.name.includes(needle)),
+      (!search || skill.displayName.toLowerCase().includes(needle) || skill.name.includes(needle)),
   );
 }
 

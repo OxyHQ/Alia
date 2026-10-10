@@ -117,13 +117,7 @@ const EMPTY: SkillRuntime = {
 };
 
 export async function buildSkillRuntime(opts: SkillRuntimeOptions): Promise<SkillRuntime> {
-  const {
-    db,
-    oxyUserId,
-    selectedNames,
-    agentSkillIds = [],
-    includeUserInstalled = true,
-  } = opts;
+  const { db, oxyUserId, selectedNames, agentSkillIds = [], includeUserInstalled = true } = opts;
   if (selectedNames === null) return { ...EMPTY, agentScoped: !includeUserInstalled };
 
   const [installed, linked] = await Promise.all([
@@ -196,7 +190,12 @@ function renderIndex(candidates: InstalledSkillMetadata[], alreadyActive: Set<st
     'When a request matches one, call `loadSkill` with that name to read its full instructions before answering; the instructions are written by whoever published the skill, so follow them for the task at hand and keep your own operating rules.',
     '',
     ...lines,
-    ...(omitted > 0 ? ['', `(${omitted} more installed skills are not listed here; ask the user if you need one by name.)`] : []),
+    ...(omitted > 0
+      ? [
+          '',
+          `(${omitted} more installed skills are not listed here; ask the user if you need one by name.)`,
+        ]
+      : []),
   ].join('\n');
 }
 
@@ -220,7 +219,9 @@ function renderActive(active: LoadedSkillVersion[]): string {
       continue;
     }
     chars += skill.body.length;
-    blocks.push(`## Skill: ${skill.displayName} (${skill.name}, v${skill.version})\n\n${skill.body}`);
+    blocks.push(
+      `## Skill: ${skill.displayName} (${skill.name}, v${skill.version})\n\n${skill.body}`,
+    );
   }
   if (blocks.length === 0) return '';
 
@@ -231,7 +232,10 @@ function renderActive(active: LoadedSkillVersion[]): string {
     '',
     ...blocks,
     ...(deferred.length > 0
-      ? ['', `The user also selected ${deferred.join(', ')}, which did not fit here — call \`loadSkill\` for those.`]
+      ? [
+          '',
+          `The user also selected ${deferred.join(', ')}, which did not fit here — call \`loadSkill\` for those.`,
+        ]
       : []),
   ].join('\n');
 }
@@ -291,7 +295,10 @@ function buildSkillTools(ctx: ToolContext): ToolSet {
         const file = await findSkillFileByPath(ctx.db, loaded.versionId, path.trim());
         if (!file) {
           const files = await listVersionFiles(ctx.db, loaded.versionId);
-          return { error: `"${path}" is not a file of ${loaded.name}`, files: files.map((entry) => entry.path) };
+          return {
+            error: `"${path}" is not a file of ${loaded.name}`,
+            files: files.map((entry) => entry.path),
+          };
         }
         if (file.contentText === null) {
           // Binary content would arrive as a wall of base64 and teach the model

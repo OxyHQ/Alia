@@ -56,6 +56,6 @@ export const SKILL_REGISTRY: readonly SkillRegistrySource[] = [
     path: 'examples',
     publisher: 'Agent Skills',
     tags: ['examples', 'official'],
-    why: 'The specification repository\'s own examples, which are what the format is defined by.',
+    why: "The specification repository's own examples, which are what the format is defined by.",
   },
 ];

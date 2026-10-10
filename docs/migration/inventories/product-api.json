@@ -54,9 +54,7 @@
       "summary": "Unauthenticated version banner returning {message:'AI Platform API v1', version:'1.0.0'}.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-router-mount"
-      ],
+      "dependsOn": ["v1-router-mount"],
       "removalGate": "No gate; harmless. Keep as the discovery root.",
       "evidence": "packages/api/src/routes/v1.ts:20-25"
     },
@@ -68,9 +66,7 @@
       "summary": "PUBLIC (mounted before authenticateTokenOrApiKey). Lists Alia-branded models with live availability; supports ?category= and ?chat=true. Returns OpenAI-ish {object:'list',data:[...]} plus Alia extensions (is_available, is_legacy, required_plan, pricing.credit_multiplier).",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "alia-models-registry"
-      ],
+      "dependsOn": ["alia-models-registry"],
       "removalGate": "Cannot be removed or reshaped until model-selector.tsx, chatProvider.ts, cowork chat.ts+Console.tsx, canvas lib/models.ts and integrations api-client.ts all migrate. Note it is UNAUTHENTICATED - external scrapers may depend on it.",
       "evidence": "packages/api/src/routes/v1.ts:28; packages/api/src/routes/v1/models.ts:52"
     },
@@ -82,9 +78,7 @@
       "summary": "PUBLIC. Single model descriptor; 404 with OpenAI-shaped {error:{code:'model_not_found'}} for unknown ids. Note it hardcodes isAvailable:true/isLegacy:false, unlike the list route.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "alia-models-registry"
-      ],
+      "dependsOn": ["alia-models-registry"],
       "removalGate": "No in-repo caller found; still public and documented in packages/api/README.md:40 and docs/api-reference.md:52. Requires a deprecation window, not a delete.",
       "evidence": "packages/api/src/routes/v1/models.ts:103-131"
     },
@@ -108,9 +102,7 @@
       "summary": "Tombstone. Previously handed a caller a raw provider name + provider model id + PROVIDER API KEY. Now returns 410 with a message pointing at /v1/chat/completions.",
       "proposedOwner": "delete",
       "targetPath": "delete",
-      "dependsOn": [
-        "integrations-model-resolver-dead-client"
-      ],
+      "dependsOn": ["integrations-model-resolver-dead-client"],
       "removalGate": "Delete the tombstone only after packages/integrations/src/shared/model-resolver.ts is deleted AND access logs show zero hits for one full billing period. The 410 body is itself the public deprecation notice - removing it turns a clear error into a 404.",
       "evidence": "packages/api/src/routes/v1.ts:109-114"
     },
@@ -122,9 +114,7 @@
       "summary": "Tombstone for client-reported token usage. Usage is now metered server-side inside the chat runtime.",
       "proposedOwner": "delete",
       "targetPath": "delete",
-      "dependsOn": [
-        "integrations-model-resolver-dead-client"
-      ],
+      "dependsOn": ["integrations-model-resolver-dead-client"],
       "removalGate": "Same as v1-resolve-model-410. Additionally: confirm no billing reconciliation job still expects client-side usage rows before deleting.",
       "evidence": "packages/api/src/routes/v1.ts:120-125"
     },
@@ -136,10 +126,7 @@
       "summary": "THE product API. OpenAI-compatible request/response with Alia-only extensions on BOTH sides: request accepts conversationId, thinkingMode, agentMode, deepResearch, skillId, stream_options.include_usage; response adds alia_usage, alia_meta, system_fingerprint:'fp_alia' and named SSE events. Seven packages call it.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "alia-models-registry",
-        "sse-named-event-contract"
-      ],
+      "dependsOn": ["alia-models-registry", "sse-named-event-contract"],
       "removalGate": "Not removed: permanent product API (ADR 0010). What is removed is the alia_sk_* credential path, on its own gate (docs/migration/compatibility-window.md section (c)). The endpoint stays as the Alia-facing product API whatever moves to Kaana behind it - the OpenAI shape, the alia_* extensions and the named SSE events are the public contract and must be reproduced byte-compatibly on the far side. || RESOLVED 2026-09-10 by ADR 0010, which amends ADR 0004 section 3 (\"a bounded-window compatibility surface, then it sunsets\") and supersedes ADR 0006. Credentials for this route are Oxy application credentials issued in Oxy Console; the Oxy-issued application-key auth path is not built yet (ADR 0010 section 2).",
       "evidence": "packages/api/src/routes/v1.ts:127; packages/api/src/routes/v1/chat-completions.ts:29,334"
     },
@@ -151,9 +138,7 @@
       "summary": "Returns a JSON status banner with endpoint:'/v1/chat/completions'. Non-standard: OpenAI 405s this method.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post"
-      ],
+      "dependsOn": ["v1-chat-completions-post"],
       "removalGate": "No in-repo caller; likely used by uptime monitors. Check monitoring config before removing.",
       "evidence": "packages/api/src/routes/v1/chat-completions.ts:340-345"
     },
@@ -165,9 +150,7 @@
       "summary": "OpenAI Responses API shim for Vercel AI SDK compatibility. Rewrites req.originalUrl to '/v1/chat/completions' and forwards to the same handler. ZERO in-repo callers - it exists purely for external clients.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post"
-      ],
+      "dependsOn": ["v1-chat-completions-post"],
       "removalGate": "HIGHEST-RISK unknown. No repo evidence of any consumer, so a source-only review will conclude 'safe to delete' and be wrong if any external integrator uses the AI SDK's responses transport. Gate on access logs, never on grep.",
       "evidence": "packages/api/src/routes/v1.ts:130; packages/api/src/routes/v1/responses.ts:13,77"
     },
@@ -191,9 +174,7 @@
       "summary": "Speech-to-text. This IS inference (calls callProviderAPI through gateway-client), wrapped in an Alia-branded product route.",
       "proposedOwner": "kaana",
       "targetPath": "kaana:speech-to-text (Alia keeps the /v1/voice/transcribe facade)",
-      "dependsOn": [
-        "gateway-client-seam"
-      ],
+      "dependsOn": ["gateway-client-seam"],
       "removalGate": "Consumed by the published SDK (useSpeechToText.ts:164) and by integrations (api-client.ts:241). The PATH must survive; only the provider call underneath may move.",
       "evidence": "packages/api/src/routes/v1/voice.ts:267; packages/api/src/routes/v1/voice.ts:3-4"
     },
@@ -205,9 +186,7 @@
       "summary": "Text-to-speech, OpenAI-compatible path. Fails over across TTS providers via lib/synthesize-speech.ts. Advertised in the root endpoint list.",
       "proposedOwner": "kaana",
       "targetPath": "kaana:tts (Alia keeps the /v1/audio/speech facade)",
-      "dependsOn": [
-        "gateway-client-seam"
-      ],
+      "dependsOn": ["gateway-client-seam"],
       "removalGate": "Consumed by the published SDK (useTTS.ts:198, sending model:'route:voice'). Path is frozen by the SDK's published major.",
       "evidence": "packages/api/src/routes/v1/audio.ts:35; packages/api/src/index.ts:294"
     },
@@ -219,9 +198,7 @@
       "summary": "Async audio-generation job submit; returns immediately, completion arrives over the Socket.IO event 'audio:job-update' with GET /v1/audio/jobs/:jobId as the polling fallback.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "socket-audio-job-update"
-      ],
+      "dependsOn": ["socket-audio-job-update"],
       "removalGate": "packages/app/lib/hooks/use-audio-gen.ts:234 depends on the submit+socket+poll triangle. All three must move together or none.",
       "evidence": "packages/api/src/routes/v1/audio.ts:166"
     },
@@ -233,9 +210,7 @@
       "summary": "Polling fallback for the audio job above.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-audio-generate"
-      ],
+      "dependsOn": ["v1-audio-generate"],
       "removalGate": "Removing this leaves the app with socket-only delivery and no recovery path when the socket drops. Keep while use-audio-gen.ts:177 exists.",
       "evidence": "packages/api/src/routes/v1/audio.ts:336"
     },
@@ -247,9 +222,7 @@
       "summary": "OpenAI-compatible image generation. Pure inference behind an Alia route; calls getModelMappingsForTier + callProviderAPI directly.",
       "proposedOwner": "kaana",
       "targetPath": "kaana:image-generation (Alia keeps the /v1/images/generations facade)",
-      "dependsOn": [
-        "gateway-client-seam"
-      ],
+      "dependsOn": ["gateway-client-seam"],
       "removalGate": "Declared in the app route registry (routes.ts:152) but that entry is DEAD (no reference). Two INTERNAL callers use the same provider endpoint string and would break if the mapping moves: routes/agents-avatar.ts:146 and routes/canvas/execute.ts:263.",
       "evidence": "packages/api/src/routes/v1/images.ts:20; packages/api/src/routes/v1/images.ts:2"
     },
@@ -273,9 +246,7 @@
       "summary": "Kicks off podcast/show generation; progress streams over the Socket.IO event 'show:progress'.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "socket-show-progress"
-      ],
+      "dependsOn": ["socket-show-progress"],
       "removalGate": "packages/app/src/features/shows/runtime/show-store.ts:120 plus the show:progress listener in use-show-progress.ts:73. Move together.",
       "evidence": "packages/api/src/routes/v1/shows.ts:41"
     },
@@ -323,9 +294,7 @@
       "summary": "Alias of POST /v1/chat/completions - literally the same handleChatCompletions function, behind the RESTRICTED internal CORS allowlist rather than /v1's wildcard. It carried optionalAuth instead of authenticateTokenOrApiKey until #139 ws6, which meant an anonymous POST reached inference with no credit reservation; the two surfaces now share one session model and every remaining difference is enumerated in packages/api/src/routes/__tests__/v1-compatibility-surface.test.ts.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post"
-      ],
+      "dependsOn": ["v1-chat-completions-post"],
       "removalGate": "ZERO live in-repo callers (see alia-chat-app-route-constant). But it is documented as public in README.md:56, packages/api/README.md:36, docs/api-reference.md:80, docs/chat-runtime.mdx:9, docs/index.mdx:13 and CHANGELOG.md:9. Gate removal on access logs AND on removing all six doc mentions - a doc that promises a 404 is worse than the route.",
       "evidence": "packages/api/src/index.ts:227; packages/api/src/routes/chat.ts:8"
     },
@@ -337,9 +306,7 @@
       "summary": "Status banner: {status:'Online', service:'Alia AI Chat', endpoint:'/alia/chat', runtime:'autonomy-v1'}. The literal string 'autonomy-v1' is a de-facto public runtime version marker.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "alia-chat-post"
-      ],
+      "dependsOn": ["alia-chat-post"],
       "removalGate": "Retire with alia-chat-post. Check uptime monitors for the 'autonomy-v1' string first.",
       "evidence": "packages/api/src/routes/chat.ts:10-17"
     },
@@ -351,9 +318,7 @@
       "summary": "Only /alia/chat gets socket.setTimeout(0); /v1 gets X-Accel-Buffering but NOT the no-timeout socket treatment. So the two 'identical' aliases have different long-stream behaviour under a slow provider.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "alia-chat-post"
-      ],
+      "dependsOn": ["alia-chat-post"],
       "removalGate": "If /alia/chat is retired, port setNoDelay/setTimeout(0) to the /v1 middleware first or long streams on /v1 regress.",
       "evidence": "packages/api/src/index.ts:207-218 vs packages/api/src/index.ts:133-136"
     },
@@ -365,9 +330,7 @@
       "summary": "Codea-specific tombstone, API-key authenticated, same 410 body as the /v1 one.",
       "proposedOwner": "delete",
       "targetPath": "delete",
-      "dependsOn": [
-        "v1-resolve-model-410"
-      ],
+      "dependsOn": ["v1-resolve-model-410"],
       "removalGate": "packages/alia-codea/README.md:17 already states clients no longer call it. Gate on access logs; a stale published VS Code extension version may still.",
       "evidence": "packages/api/src/routes/codea.ts:235"
     },
@@ -379,9 +342,7 @@
       "summary": "Codea-specific usage-reporting tombstone.",
       "proposedOwner": "delete",
       "targetPath": "delete",
-      "dependsOn": [
-        "v1-report-usage-410"
-      ],
+      "dependsOn": ["v1-report-usage-410"],
       "removalGate": "Same as codea-resolve-model-410.",
       "evidence": "packages/api/src/routes/codea.ts:246"
     },
@@ -405,9 +366,7 @@
       "summary": "A 12-sub-router admin surface guarded by authenticateService that IS NEVER MOUNTED. No file outside packages/api/src/internal/providers/ imports it, and no '/internal/gateway' path is registered anywhere. The only thing app.use('/internal', ...) serves is POST /internal/trigger.",
       "proposedOwner": "delete",
       "targetPath": "delete",
-      "dependsOn": [
-        "gateway-admin-dead-client"
-      ],
+      "dependsOn": ["gateway-admin-dead-client"],
       "removalGate": "Nothing serves these paths today, so removal breaks no live traffic. Before deleting, confirm the sub-router HANDLERS are not imported individually elsewhere (index.ts is unimported; the individual routes/*.ts files were not each checked).",
       "evidence": "packages/api/src/internal/providers/index.ts:29-40; packages/api/src/routes/internal.ts:123 (only route); packages/api/src/index.ts:257"
     },
@@ -431,10 +390,7 @@
       "summary": "generateAPIUrl('/v1/chat/completions') passed into useStreamingChat, which is the single richest SSE consumer in the repo (9 named event cases).",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post",
-        "sse-named-event-contract"
-      ],
+      "dependsOn": ["v1-chat-completions-post", "sse-named-event-contract"],
       "removalGate": "Ships in the mobile binary; OTA-updatable but old native builds persist. Contract changes need a version window.",
       "evidence": "packages/app/src/features/chat/runtime/use-chat-conversation.ts:44; packages/app/src/features/chat/runtime/use-streaming-chat.ts:367-600"
     },
@@ -446,9 +402,7 @@
       "summary": "Second, independent app call site to /v1/chat/completions via expoFetch, easy to miss when auditing the chat path.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post"
-      ],
+      "dependsOn": ["v1-chat-completions-post"],
       "removalGate": "Move with app-chat-consumer.",
       "evidence": "packages/app/src/features/settings/runtime/use-personality-sample-phrase.ts:68"
     },
@@ -460,10 +414,7 @@
       "summary": "PUBLISHED npm package, shipped as RAW SOURCE. Calls /v1/chat/completions, defaults model:'route:auto', and handles only 4 of the 8 named SSE events plus 2 LEGACY in-data type-based events.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post",
-        "sse-legacy-tool-call-in-data"
-      ],
+      "dependsOn": ["v1-chat-completions-post", "sse-legacy-tool-call-in-data"],
       "removalGate": "HIGHEST external blast radius: this is on npm, so its consumers are outside the repo entirely. Any wire change is a semver-major of @alia.onl/sdk and strands every unmigrated installer.",
       "evidence": "packages/alia-chat/src/hooks/useAliaChat.ts:217,46,282-352"
     },
@@ -475,10 +426,7 @@
       "summary": "POSTs /v1/audio/speech with a hardcoded model:'route:voice'.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-audio-speech",
-        "model-id-route:voice"
-      ],
+      "dependsOn": ["v1-audio-speech", "model-id-route:voice"],
       "removalGate": "Retiring or renaming route:voice breaks a published package. Keep the id resolvable.",
       "evidence": "packages/alia-chat/src/hooks/useTTS.ts:198,205"
     },
@@ -490,10 +438,7 @@
       "summary": "POSTs /v1/voice/token with model:'route:voice' to join a LiveKit room.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-voice-token",
-        "model-id-route:voice"
-      ],
+      "dependsOn": ["v1-voice-token", "model-id-route:voice"],
       "removalGate": "Published package. Same gate as sdk-tts-consumer.",
       "evidence": "packages/alia-chat/src/hooks/useVoiceRoom.ts:325,332"
     },
@@ -505,9 +450,7 @@
       "summary": "POSTs /v1/voice/transcribe.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-voice-transcribe"
-      ],
+      "dependsOn": ["v1-voice-transcribe"],
       "removalGate": "Published package.",
       "evidence": "packages/alia-chat/src/hooks/useSpeechToText.ts:164"
     },
@@ -519,10 +462,7 @@
       "summary": "Raw fetch to /v1/chat/completions; model defaults to 'route:code' from VS Code settings.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post",
-        "model-id-route:code"
-      ],
+      "dependsOn": ["v1-chat-completions-post", "model-id-route:code"],
       "removalGate": "Marketplace-published; users run pinned old versions indefinitely. Wire changes need server-side back-compat, not a client release.",
       "evidence": "packages/alia-codea/src/chatParticipant.ts:177,30"
     },
@@ -534,10 +474,7 @@
       "summary": "Second raw fetch to /v1/chat/completions, model default 'route:code'. Latency-sensitive path.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post",
-        "model-id-route:code"
-      ],
+      "dependsOn": ["v1-chat-completions-post", "model-id-route:code"],
       "removalGate": "Same as codea-chat-participant-consumer.",
       "evidence": "packages/alia-codea/src/inlineCompletionProvider.ts:93,23"
     },
@@ -549,11 +486,7 @@
       "summary": "Streams POST /alia/chat through src/aliaChat.ts (streamAliaChat); the OpenAI SDK client is gone. aliaChat.ts still reads the alia_meta.synthetic flag defensively, although the server no longer emits it.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post",
-        "v1-models-list",
-        "response-ext-alia-meta"
-      ],
+      "dependsOn": ["v1-chat-completions-post", "v1-models-list", "response-ext-alia-meta"],
       "removalGate": "None: Alia's own surface on Alia's permanent product API (ADR 0010). The defensive alia_meta.synthetic branch can go once no older server can answer it.",
       "evidence": "packages/alia-codea/src/chatProvider.ts:12,757; packages/alia-codea/src/aliaChat.ts:15,33"
     },
@@ -565,10 +498,7 @@
       "summary": "new OpenAI({ baseURL: `${baseUrl}/v1` }), default base https://api.alia.onl, model default 'route:code'. Consumes only OpenAI-standard delta.content and delta.tool_calls - it ignores every named alia.* SSE event.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post",
-        "model-id-route:code"
-      ],
+      "dependsOn": ["v1-chat-completions-post", "model-id-route:code"],
       "removalGate": "npm-published CLI. Because it ignores named events, it is the client most likely to break on a change to the DEFAULT data: frame, and least likely to notice event additions.",
       "evidence": "packages/alia-codea-cli/src/utils/api.ts:132-137,155-160; packages/alia-codea-cli/src/utils/config.ts:25"
     },
@@ -580,12 +510,7 @@
       "summary": "fetch `POST ${baseUrl}/alia/chat` through `src/main/alia-chat.ts` (SSE frame reader ported from the app) with model default 'route:cowork'. Reads the named events (`alia.reasoning` -> chat:thinking) and, defensively, `alia_meta.synthetic` (a busy stand-in is an error, never an answer; the server no longer emits it); 401 re-mints the Oxy device session once. The former non-standard `delta.reasoning` read is gone. Also GETs /v1/me and /v1/models?category=coding and /memory.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post",
-        "v1-me",
-        "v1-models-list",
-        "model-id-route:cowork"
-      ],
+      "dependsOn": ["v1-chat-completions-post", "v1-me", "v1-models-list", "model-id-route:cowork"],
       "removalGate": "None: this is Alia's own surface on Alia's permanent product API (ADR 0010). The wire it reads is the named-event contract in packages/api/src/lib/chat-events.ts, pinned by src/main/__tests__/alia-chat.test.ts.",
       "evidence": "packages/alia-cowork/src/main/alia-chat.ts; packages/alia-cowork/src/main/chat.ts; packages/alia-cowork/src/main/config.ts:39"
     },
@@ -597,10 +522,7 @@
       "summary": "Browser fetch to `${config.apiUrl}/v1/chat/completions`. This is the only /v1 call in the whole console app and it depends on the wildcard CORS.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post",
-        "v1-router-mount"
-      ],
+      "dependsOn": ["v1-chat-completions-post", "v1-router-mount"],
       "removalGate": "Breaks the moment /v1 loses origin:'*' CORS, because console.alia.onl is a different origin from api.alia.onl.",
       "evidence": "packages/alia-console/src/routes/_layout/playground.tsx:141"
     },
@@ -612,11 +534,7 @@
       "summary": "Two separate fetches to `${this.baseURL}/v1/chat/completions` (streaming and non-streaming), each defaulting to model 'route:instant'. Also GETs /v1/models and POSTs /v1/voice/transcribe. Serves Telegram, Discord, WhatsApp, browser and terminal channels.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post",
-        "v1-models-list",
-        "v1-voice-transcribe"
-      ],
+      "dependsOn": ["v1-chat-completions-post", "v1-models-list", "v1-voice-transcribe"],
       "removalGate": "Server-to-server and deployed independently, so it can lag the API. Two call sites means a one-site fix leaves the other broken.",
       "evidence": "packages/integrations/src/shared/api-client.ts:198,260,159,241,207,269"
     },
@@ -628,10 +546,7 @@
       "summary": "fetch(`${API_URL}/v1/models`) with a hardcoded fallback list whose first entry is route:instant. Workflow nodes default to model 'route:instant'.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-models-list",
-        "model-id-route:instant"
-      ],
+      "dependsOn": ["v1-models-list", "model-id-route:instant"],
       "removalGate": "Saved workflows persist the model id in node data, so retiring route:instant invalidates stored user workflows, not just UI defaults.",
       "evidence": "packages/alia-canvas/src/lib/models.ts:26,9; packages/alia-canvas/src/components/workflow/workflow-editor.tsx:43,72,79"
     },
@@ -643,9 +558,7 @@
       "summary": "fetch(`${config.apiUrl}/v1/models?chat=true`) with a hardcoded offline fallback of route:auto and an entitlement allow-list default of ['route:instant','route:auto','route:audio'].",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-models-list"
-      ],
+      "dependsOn": ["v1-models-list"],
       "removalGate": "The ?chat=true filter is served by the chatVisible flag on the model record. Removing that flag silently empties the app's model picker.",
       "evidence": "packages/app/components/model-selector.tsx:114,104,132; packages/api/src/routes/v1/models.ts:55,62"
     },
@@ -657,9 +570,7 @@
       "summary": "fetch(\"https://api.alia.onl/v1/models\") with the PRODUCTION URL HARDCODED - no env override. Also prints a hardcoded 'Model: route:code' although Cowork's actual default is route:cowork.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-models-list"
-      ],
+      "dependsOn": ["v1-models-list"],
       "removalGate": "The hardcoded host means this call cannot be pointed at a staging API to rehearse a /v1/models change.",
       "evidence": "packages/alia-cowork/renderer/src/components/Console.tsx:27,124"
     },
@@ -671,9 +582,7 @@
       "summary": "The app's route registry declares /alia/chat, but NOTHING references API_ROUTES.chat anywhere in packages/app - the app actually calls /v1/chat/completions. The same is true of API_ROUTES.v1.chatCompletions, .models, .audioSpeech, .audioGenerate and .imagesGenerations: declared, never referenced. Only API_ROUTES.v1.shows.* is live.",
       "proposedOwner": "delete",
       "targetPath": "delete",
-      "dependsOn": [
-        "alia-chat-post"
-      ],
+      "dependsOn": ["alia-chat-post"],
       "removalGate": "Safe to delete the dead constants now. The important consequence: /alia/chat has ZERO live in-repo callers, so any 'who uses it' answer must come from access logs.",
       "evidence": "packages/app/src/shared/api/routes.ts:53,148-152 vs packages/app/src/features/chat/runtime/use-chat-conversation.ts:44"
     },
@@ -685,10 +594,7 @@
       "summary": "Live shipped code that POSTs /v1/resolve-model (line 25) and /v1/report-usage (line 71) - both of which return 410. It expects a response containing `providerKey` (a RAW PROVIDER API KEY) and constructs @ai-sdk/openai|google|anthropic clients directly against 9 named providers. It has ZERO importers inside packages/integrations.",
       "proposedOwner": "delete",
       "targetPath": "delete",
-      "dependsOn": [
-        "v1-resolve-model-410",
-        "v1-report-usage-410"
-      ],
+      "dependsOn": ["v1-resolve-model-410", "v1-report-usage-410"],
       "removalGate": "Delete outright. It is the last in-repo artefact of the provider-key-handout model and it names OpenAI/Anthropic/Google/Groq/Together/Cerebras/Mistral/DeepSeek/OpenRouter in shipped source, which is exactly what the model-abstraction rule forbids. No caller to migrate.",
       "evidence": "packages/integrations/src/shared/model-resolver.ts:25,71,86-107"
     },
@@ -700,9 +606,7 @@
       "summary": "A whole Vite admin app issuing ~15 requests to /v1/providers/health, /v1/keys/*, /v1/models/* under base VITE_GATEWAY_API_URL (default http://localhost:4150/internal/gateway) plus a WebSocket at /internal/gateway/ws. None of those paths is served: the providers module is unmounted, there is no packages/api/src/internal/gateway directory, and the only ws path is /ws/mcp.",
       "proposedOwner": "delete",
       "targetPath": "delete",
-      "dependsOn": [
-        "internal-providers-unmounted"
-      ],
+      "dependsOn": ["internal-providers-unmounted"],
       "removalGate": "Delete the package together with internal-providers-unmounted. Its README (line 7) and REALTIME.md (line 78) assert the endpoint exists - a reader will believe the panel works. Fix or delete the docs in the same commit.",
       "evidence": "packages/alia-gateway-admin/src/lib/api/client.ts:84-211; packages/alia-gateway-admin/src/lib/websocket/client.ts:34; packages/alia-gateway-admin/README.md:7"
     },
@@ -714,9 +618,7 @@
       "summary": "The app puts agentId in the /v1/chat/completions request body. No file in packages/api/src reads body.agentId (positive control: body.skillId has 5 readers). The server derives the agent from conversationId -> conversation.agentId instead.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post"
-      ],
+      "dependsOn": ["v1-chat-completions-post"],
       "removalGate": "Decide before the port: either honour body.agentId server-side or delete it client-side. Porting the request contract as-is carries a field that looks load-bearing and is not - the next person to 'fix' agent selection will set it and see nothing happen.",
       "evidence": "packages/app/src/features/chat/runtime/use-streaming-chat.ts:250; packages/api/src/lib/chat/request-context.ts:103-107,185-187"
     },
@@ -740,9 +642,7 @@
       "summary": "Reasoning tokens / summary blocks. Emitted at two sites (incremental at :164, flushed trailing block at :182).",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "sse-named-event-contract"
-      ],
+      "dependsOn": ["sse-named-event-contract"],
       "removalGate": "Consumed by the app (use-streaming-chat.ts:393) AND the published SDK (useAliaChat.ts:283). SDK consumption makes it external.",
       "evidence": "packages/api/src/lib/chat/stream-runner.ts:164,182"
     },
@@ -754,9 +654,7 @@
       "summary": "Tool execution result payload. Emitted from the normal stream loop (stream-runner.ts:234) AND from the text-based tool-call fallback (text-tool-fallback.ts:67) - two producers, one name.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "sse-named-event-contract"
-      ],
+      "dependsOn": ["sse-named-event-contract"],
       "removalGate": "Consumed by app (use-streaming-chat.ts:402) and SDK (useAliaChat.ts:292). Both producers must move together or the fallback path silently stops reporting tools.",
       "evidence": "packages/api/src/lib/chat/stream-runner.ts:234; packages/api/src/lib/chat/text-tool-fallback.ts:67"
     },
@@ -768,9 +666,7 @@
       "summary": "Unpacks a delegateToAgent tool result into a sub-agent message event. Emitted and consumed, but absent from AliaChatEventName, from packages/api/README.md and from docs/api-reference.md's 'SSE Event Contract' section.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "sse-named-event-contract"
-      ],
+      "dependsOn": ["sse-named-event-contract"],
       "removalGate": "Consumed by the app at use-streaming-chat.ts:453. Because it is in no type and no doc, any contract derived from the type or the doc will DROP it - the app's agent cards then silently stop rendering.",
       "evidence": "packages/api/src/lib/chat/stream-runner.ts:37,258; packages/app/src/features/chat/runtime/use-streaming-chat.ts:453"
     },
@@ -782,9 +678,7 @@
       "summary": "Conversation title update carrying {eventVersion, title, conversationId}.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "sse-named-event-contract"
-      ],
+      "dependsOn": ["sse-named-event-contract"],
       "removalGate": "App-only consumer, and it drives React Query cache writes (queryKeys.conversations.detail) - dropping it leaves stale titles rather than an error.",
       "evidence": "packages/api/src/lib/chat/provider-loop.ts:276; packages/app/src/features/chat/runtime/use-streaming-chat.ts:475-490"
     },
@@ -796,9 +690,7 @@
       "summary": "Announces creation of an autonomous agent session from a chat turn; the app uses it to open the agent panel.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "sse-named-event-contract"
-      ],
+      "dependsOn": ["sse-named-event-contract"],
       "removalGate": "App-only (use-streaming-chat.ts:590 -> openAgentPanel). Pairs with the Socket.IO room agent-session:<id>.",
       "evidence": "packages/api/src/routes/v1/chat-completions.ts:164; packages/app/src/features/chat/runtime/use-streaming-chat.ts:590-593"
     },
@@ -810,9 +702,7 @@
       "summary": "Deep-research progress, emitted at two sites in the deep-research handler (only reachable when body.deepResearch is set).",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "sse-named-event-contract"
-      ],
+      "dependsOn": ["sse-named-event-contract"],
       "removalGate": "Consumed by app (use-streaming-chat.ts:501) and SDK (useAliaChat.ts:300). SDK consumption makes it external.",
       "evidence": "packages/api/src/lib/chat-modes/deep-research-handler.ts:47,67"
     },
@@ -824,9 +714,7 @@
       "summary": "Emitted INDIRECTLY through sseEmitter.emit(), not a literal `event:` write - which is why a naive `grep 'event: alia.'` census misses it entirely.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "sse-named-event-contract"
-      ],
+      "dependsOn": ["sse-named-event-contract"],
       "removalGate": "Consumed by app (use-streaming-chat.ts:523) and SDK (useAliaChat.ts:314). The declared PlanPreviewEvent interface has intent+confidence fields the emitter does not send (it sends only planId+steps) - reconcile before porting.",
       "evidence": "packages/api/src/lib/tool-pipeline.ts:125; packages/api/src/lib/sse-emitter.ts:22-24; packages/api/src/lib/chat-events.ts:14-20"
     },
@@ -838,10 +726,7 @@
       "summary": "Emitted via sseEmitter when the switchModel tool or the fallback engine changes model mid-stream. Carries {model, modelName} - Alia ids only, by design.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "sse-named-event-contract",
-        "alia-models-registry"
-      ],
+      "dependsOn": ["sse-named-event-contract", "alia-models-registry"],
       "removalGate": "App-only consumer (use-streaming-chat.ts:583). This is the ONE event that would leak provider identity if the payload were ever populated from the resolved provider model instead of the alias.",
       "evidence": "packages/api/src/lib/tool-pipeline.ts:122; docs/model-abstraction.mdx:93,96"
     },
@@ -853,9 +738,7 @@
       "summary": "The default (unnamed) SSE frames carrying standard OpenAI deltas, with system_fingerprint:'fp_alia'. This is what the three OpenAI-SDK clients (Codea webview, Codea CLI, Cowork) consume EXCLUSIVELY - they ignore every named event.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post"
-      ],
+      "dependsOn": ["v1-chat-completions-post"],
       "removalGate": "Strictest constraint in the whole contract: an OpenAI SDK parser must be able to read the default frames while ignoring interleaved named events. Verify with a real openai-node client, not a hand-rolled parser.",
       "evidence": "packages/api/src/lib/streaming-helpers.ts:158; packages/api/src/lib/chat/stream-runner.ts:195"
     },
@@ -867,9 +750,7 @@
       "summary": "Terminal data: frame carrying OpenAI usage plus the Alia extension alia_usage {system_prompt_tokens, billable_tokens, credits_charged, credits_remaining, credit_warning}.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "response-ext-alia-usage"
-      ],
+      "dependsOn": ["response-ext-alia-usage"],
       "removalGate": "The app reads parsed.alia_usage with a fallback to parsed.usage and surfaces credit_warning in the UI. Credits are a billing surface - this must stay in Alia even if inference moves.",
       "evidence": "packages/api/src/lib/chat/provider-loop.ts:296-314; packages/app/src/features/chat/runtime/use-streaming-chat.ts:666-677"
     },
@@ -881,9 +762,7 @@
       "summary": "Terminator and liveness framing. Note TWO different comment spellings are written ('keep-alive' at :36 and 'keepalive' at :72); errors are sent as a data: frame followed by [DONE], never as an HTTP status once the stream has opened.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "sse-openai-chunk-frame"
-      ],
+      "dependsOn": ["sse-openai-chunk-frame"],
       "removalGate": "Every client's loop terminates on [DONE]. The error-then-DONE convention means a client that only checks HTTP status will report success on a failed generation - preserve it or fix it deliberately, not accidentally.",
       "evidence": "packages/api/src/lib/chat/sse-writer.ts:36,59-60,72,85"
     },
@@ -895,9 +774,7 @@
       "summary": "The published SDK still parses a pre-named-event format where the event kind lives in a `type` field INSIDE an unnamed data: frame. No API code emits this shape today (grep for 'alia.tool_call' in packages/api/src finds only unrelated metric names alia_tool_calls_total).",
       "proposedOwner": "delete",
       "targetPath": "delete",
-      "dependsOn": [
-        "sdk-chat-consumer"
-      ],
+      "dependsOn": ["sdk-chat-consumer"],
       "removalGate": "Client-side dead code, safe to delete in the next SDK major. Its existence is EVIDENCE that the stream format has already broken once - treat it as the precedent for how a format change strands published consumers.",
       "evidence": "packages/alia-chat/src/hooks/useAliaChat.ts:337-338,350"
     },
@@ -921,9 +798,7 @@
       "summary": "Same as above: socket-only, documented as SSE, with a dead SSE branch in the app. Payload {eventVersion, requestId, decision: approved|denied|timeout}.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "socket-alia-approval-request"
-      ],
+      "dependsOn": ["socket-alia-approval-request"],
       "removalGate": "Same gate.",
       "evidence": "packages/api/src/socket.ts:231; docs/api-reference.md:114; packages/app/src/features/chat/runtime/use-streaming-chat.ts:565 (dead branch); packages/app/src/features/chat/runtime/use-agent-activity.ts:389 (live listener)"
     },
@@ -947,9 +822,7 @@
       "summary": "Async completion signal for POST /v1/audio/generate.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-audio-generate"
-      ],
+      "dependsOn": ["v1-audio-generate"],
       "removalGate": "packages/app/lib/hooks/use-audio-gen.ts:165. Has a polling fallback, so it degrades rather than breaks.",
       "evidence": "packages/app/lib/hooks/use-audio-gen.ts:150,165"
     },
@@ -961,9 +834,7 @@
       "summary": "Progress for POST /v1/shows/generate, emitted to room user:<userId>. No polling fallback.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-shows-generate"
-      ],
+      "dependsOn": ["v1-shows-generate"],
       "removalGate": "packages/app/src/features/shows/runtime/use-show-progress.ts:73. Without a fallback, losing this leaves a show stuck in-progress in the UI forever.",
       "evidence": "packages/api/src/lib/show/show-pipeline.ts:63"
     },
@@ -987,9 +858,7 @@
       "summary": "docs/model-abstraction.mdx:26-27 and docs/index.mdx:153 present route:auto-tts and route:auto-image as public model ids. Neither exists in ALIA_MODELS; a request for either gets 404 model_not_found from GET /v1/models/:modelId and falls back to the default in chat. Conversely both files' tables OMIT route:thinking, which IS real, is sold on paid plans (seed-plans.ts:35) and is the app's escalation target.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "alia-models-registry"
-      ],
+      "dependsOn": ["alia-models-registry"],
       "removalGate": "Fix the docs before any client is told to trust them. Add a generated-from-ALIA_MODELS check so the published table cannot drift again.",
       "evidence": "docs/model-abstraction.mdx:26,27; docs/index.mdx:153; packages/api/src/internal/providers/lib/alia-models.ts:9 (AliaTier) vs :61 (ALIA_MODELS)"
     },
@@ -1001,9 +870,7 @@
       "summary": "A full duplicate of AliaTier, ModelCategory, PricingTier, ModelCapabilities and AliaModel, described in its own comment as 'the canonical superset across all Alia surfaces'. NO package in the repo depends on @alia/shared-types.",
       "proposedOwner": "delete",
       "targetPath": "delete",
-      "dependsOn": [
-        "alia-models-registry"
-      ],
+      "dependsOn": ["alia-models-registry"],
       "removalGate": "Delete, or make it the real source and have the API import it. Leaving two 'canonical' registries where one has no consumers guarantees the port updates the wrong one.",
       "evidence": "packages/shared-types/src/models.ts:14-34; no '@alia/shared-types' dependency in any packages/*/package.json"
     },
@@ -1015,9 +882,7 @@
       "summary": "agents.allowedModels defaults to ['route:auto','route:pro-standard'] at the SQL level, so the two ids are frozen into drizzle/0013_exotic_domino.sql and 8 meta snapshots. Also oxy-service-events.ts:78 hardcodes allowedModels ['route:auto','route:thinking'].",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "alia-models-registry"
-      ],
+      "dependsOn": ["alia-models-registry"],
       "removalGate": "Renaming or retiring route:auto / route:pro-standard requires a data migration over existing agent rows, not just a code change. Migration history cannot be edited.",
       "evidence": "packages/api/src/db/schema/agents.ts:129; packages/api/src/routes/oxy-service-events.ts:78; packages/api/drizzle/0013_exotic_domino.sql"
     },
@@ -1029,10 +894,7 @@
       "summary": "`/model pro` becomes `route:auto-${args[0]}` (line 146) and the status bar renders model.replace('route:auto-','') (line 256). The CLI therefore assumes the id namespace is permanently shaped 'route:auto-<suffix>'.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "alia-models-registry",
-        "codea-cli-consumer"
-      ],
+      "dependsOn": ["alia-models-registry", "codea-cli-consumer"],
       "removalGate": "Any new id not matching route:auto-<x> (e.g. route:instant, or a future alia-v2) is unreachable from the CLI's /model command and renders wrong in its status bar. Fix before adding ids outside the pattern.",
       "evidence": "packages/alia-codea-cli/src/app.tsx:146,256"
     },
@@ -1044,9 +906,7 @@
       "summary": "Default for every messaging channel (telegram adapter:212, discord adapter:248 + commands:122,156, chat-handler:108, api-client:207,269), for all Canvas workflow nodes, and in the app's entitlement fallback list.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "alia-models-registry"
-      ],
+      "dependsOn": ["alia-models-registry"],
       "removalGate": "Retiring route:instant silently breaks every bot channel AND invalidates the model field of saved Canvas workflows. Highest fan-out of any single id.",
       "evidence": "packages/integrations/src/shared/api-client.ts:207,269; packages/alia-canvas/src/components/workflow/workflow-editor.tsx:43,72,79"
     },
@@ -1058,9 +918,7 @@
       "summary": "Declared as the default of a published VS Code SETTING (package.json:162), plus chatParticipant.ts:30, inlineCompletionProvider.ts:23, chatProvider.ts:592, CLI config.ts:25 and index.ts (3 CLI option defaults), and the webview model list.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "alia-models-registry"
-      ],
+      "dependsOn": ["alia-models-registry"],
       "removalGate": "A VS Code setting default persists in users' settings.json after an extension update - retiring this id breaks users who ever opened the setting, even after they upgrade.",
       "evidence": "packages/alia-codea/package.json:162; packages/alia-codea-cli/src/index.ts:49,62,77"
     },
@@ -1072,9 +930,7 @@
       "summary": "Set as an electron-store DEFAULT (chat.ts:30) and in the renderer model list. Console.tsx:124 nonetheless prints 'Model: route:code', so the app displays an id it does not use.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "alia-models-registry"
-      ],
+      "dependsOn": ["alia-models-registry"],
       "removalGate": "electron-store persists the value on disk, so retiring the id breaks existing installs until the user clears settings.",
       "evidence": "packages/alia-cowork/src/main/chat.ts:30; packages/alia-cowork/renderer/src/components/Chat.tsx:116,162; packages/alia-cowork/renderer/src/components/Console.tsx:124"
     },
@@ -1086,10 +942,7 @@
       "summary": "Sent as model on both /v1/audio/speech (useTTS.ts:205) and /v1/voice/token (useVoiceRoom.ts:332). Not configurable by the SDK consumer.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "alia-models-registry",
-        "sdk-chat-consumer"
-      ],
+      "dependsOn": ["alia-models-registry", "sdk-chat-consumer"],
       "removalGate": "Baked into an npm package, so every already-installed copy sends it forever. This id can never be un-resolvable.",
       "evidence": "packages/alia-chat/src/hooks/useTTS.ts:205; packages/alia-chat/src/hooks/useVoiceRoom.ts:332"
     },
@@ -1113,9 +966,7 @@
       "summary": "No longer emitted. It flagged a synthetic fallback answer (global 80s timeout or last-resort); that path is gone and a failed turn is now always a typed error (failTurn in routes/v1/chat-completions.ts; docs/chat-runtime.mdx 'Persistence and failure'). buildChatCompletion still accepts an optional aliaMeta, but no caller passes one.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "response-ext-alia-usage"
-      ],
+      "dependsOn": ["response-ext-alia-usage"],
       "removalGate": "Server side: none left to remove beyond the unused aliaMeta option. Clients (Codea's aliaChat.ts/chatParticipant.ts/inlineCompletionProvider.ts, Cowork's alia-chat.ts, @alia.onl/server) still read alia_meta.synthetic defensively so an older server cannot slip a stand-in in as an answer; drop those branches once no older server can answer them.",
       "evidence": "packages/api/src/lib/chat/response-shapes.ts:38,70 (optional, no caller); packages/alia-codea/src/chatParticipant.ts:176-244; packages/alia-codea/src/inlineCompletionProvider.ts:164; packages/alia-cowork/src/main/alia-chat.ts:289"
     },
@@ -1139,9 +990,7 @@
       "summary": "The canonical public model table. Currently wrong in both directions (see phantom-model-ids-in-docs) and also documents the 410 tombstones at :130-133.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "phantom-model-ids-in-docs"
-      ],
+      "dependsOn": ["phantom-model-ids-in-docs"],
       "removalGate": "Must be corrected before, not after, any id change. It is the page an integrator reads to pick a model.",
       "evidence": "docs/model-abstraction.mdx:17-30,93,96,130-133"
     },
@@ -1153,10 +1002,7 @@
       "summary": "Landing page. Names both chat endpoints as aliases (:13), lists public + category model ids including the two phantoms (:152-153), carries a fetch code sample against /v1/chat/completions (:91), and describes approvals over Socket.IO (:143,146).",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "phantom-model-ids-in-docs",
-        "alia-chat-post"
-      ],
+      "dependsOn": ["phantom-model-ids-in-docs", "alia-chat-post"],
       "removalGate": "Highest-traffic public page; update in the same commit as any endpoint or id retirement.",
       "evidence": "docs/index.mdx:13,25,91,143,146,152,153"
     },
@@ -1168,11 +1014,7 @@
       "summary": "Publishes 9 SSE events with JSON schemas. Two of the nine (approval_request, approval_result) are Socket.IO-only, and the one that IS SSE-only-and-undocumented (alia.agent) is missing. Also documents POST /alia/chat (:80) and the four 410 endpoints (:256-259).",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "sse-named-event-contract",
-        "socket-alia-approval-request",
-        "sse-alia-agent"
-      ],
+      "dependsOn": ["sse-named-event-contract", "socket-alia-approval-request", "sse-alia-agent"],
       "removalGate": "This document is the external contract of record. Reconcile it against the 8 emitted SSE names + the socket set BEFORE porting anything that reads it as a spec.",
       "evidence": "docs/api-reference.md:57,80,84-141,256-259"
     },
@@ -1184,9 +1026,7 @@
       "currentPath": "docs/chat-runtime.mdx",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "doc-api-reference"
-      ],
+      "dependsOn": ["doc-api-reference"],
       "removalGate": "Same reconciliation gate as doc-api-reference.",
       "evidence": "docs/chat-runtime.mdx:9,59,73,90,111,140-143,148"
     },
@@ -1198,9 +1038,7 @@
       "summary": "curl + JS samples against /v1/chat/completions, an endpoint list (:288) and an API-key SCOPE table mapping /v1/chat/completions -> chat:write (:295). The scope table is the only place the endpoint->scope mapping is published.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post"
-      ],
+      "dependsOn": ["v1-chat-completions-post"],
       "removalGate": "Any route move changes the scope mapping. Update the scope table with it, or issued API keys silently lose access.",
       "evidence": "docs/developers-portal.md:248,270,288,295"
     },
@@ -1212,9 +1050,7 @@
       "summary": "Architecture diagrams naming POST /v1/chat/completions (SSE) at :15 and :107, approvals over Socket.IO at :55, and a public model table at :163 listing 5 ids (correctly including route:thinking, unlike model-abstraction.mdx).",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "phantom-model-ids-in-docs"
-      ],
+      "dependsOn": ["phantom-model-ids-in-docs"],
       "removalGate": "Three docs now publish three DIFFERENT model lists. Consolidate to one generated table before shipping any id change.",
       "evidence": "docs/onboarding.md:15,55,107,163"
     },
@@ -1226,9 +1062,7 @@
       "summary": "Six numbered smoke checks that ARE the de-facto release gate: chat stream on /v1/chat/completions, alia.plan_preview emitted, approval flow emits alia.approval_request/result, and the four 410s.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "doc-api-reference"
-      ],
+      "dependsOn": ["doc-api-reference"],
       "removalGate": "Update this list in the same commit as any route retirement, or the release gate asserts endpoints that no longer exist and will be 'fixed' by deleting the check.",
       "evidence": "docs/deployment.md:83,84,87,88"
     },
@@ -1240,9 +1074,7 @@
       "summary": "Both publish the approval event pair and proactive-intelligence.md lists 5 event names at :75-83 (plan_preview, approval_request, approval_result, research_progress, model_switch) - a FOURTH, different event list.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "doc-api-reference"
-      ],
+      "dependsOn": ["doc-api-reference"],
       "removalGate": "Consolidate the four event lists (chat-events.ts, api-reference.md, chat-runtime.mdx, proactive-intelligence.md) to one source before porting.",
       "evidence": "docs/agents.md:52; docs/proactive-intelligence.md:58,75-83"
     },
@@ -1254,10 +1086,7 @@
       "summary": "The PUBLIC portal at console.alia.onl: models.tsx (8 matches, a HARDCODED table of only 4 ids - missing 9 real ones), examples.tsx (7), sdks.tsx (7), chat-completions.tsx (4), quickstart.tsx (2), authentication.tsx (1), playground.tsx (1). Every code sample hardcodes https://api.alia.onl/v1/chat/completions.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "v1-chat-completions-post",
-        "alia-models-registry"
-      ],
+      "dependsOn": ["v1-chat-completions-post", "alia-models-registry"],
       "removalGate": "These pages are React components, not markdown, so a docs-only sweep of docs/** MISSES all 31 mentions. Include packages/alia-console/src/routes/_layout/ in every docs audit.",
       "evidence": "packages/alia-console/src/routes/_layout/documentation/models.tsx:13,23,33,43,171,178,185,186; .../examples.tsx:30,79,89; .../documentation/sdks.tsx:169"
     },
@@ -1269,9 +1098,7 @@
       "summary": "packages/api/README.md lists the routes (:36-40) and the event names (:70-78); packages/app/README.md:16-24 and packages/alia-cowork/README.md:9,16-20 each republish the event list; packages/alia-codea/README.md:14,17 names the endpoint and claims the removed endpoints are unused; root README.md:56 states the alias relationship.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "doc-api-reference"
-      ],
+      "dependsOn": ["doc-api-reference"],
       "removalGate": "Five READMEs independently restate the same event list. They are the most likely to be forgotten in a rename - sweep them by name, not by directory.",
       "evidence": "packages/api/README.md:36-40,70-78; packages/app/README.md:16-24; packages/alia-cowork/README.md:9,16-20; packages/alia-codea/README.md:14,17; README.md:56"
     },
@@ -1283,10 +1110,7 @@
       "summary": "Asserts 'The providers module lives inside the main API at packages/api/src/internal/gateway/' (:7) and documents ws://localhost:4150/internal/gateway/ws (REALTIME.md:78). Neither the directory nor either endpoint exists.",
       "proposedOwner": "delete",
       "targetPath": "delete",
-      "dependsOn": [
-        "gateway-admin-dead-client",
-        "internal-providers-unmounted"
-      ],
+      "dependsOn": ["gateway-admin-dead-client", "internal-providers-unmounted"],
       "removalGate": "Delete with the package. Until then it is an instruction that cannot be followed, which is worse than a wrong statement - a reader will spend real time looking for internal/gateway.",
       "evidence": "packages/alia-gateway-admin/README.md:7,113,122,146; packages/alia-gateway-admin/REALTIME.md:78,255"
     },
@@ -1310,9 +1134,7 @@
       "summary": "seed-plans.ts (19 matches) defines which ids each PAID PLAN grants - route:pro-standard, route:thinking, route:pro, route:voice-pro on Pro; seed-model-configs.ts (2). Tests pin ids in 11 files, heaviest in routes/v1/__tests__/chat-completions-timeout.test.ts (14).",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "alia-models-registry"
-      ],
+      "dependsOn": ["alia-models-registry"],
       "removalGate": "seed-plans.ts is a BILLING artefact: an id retired here silently removes entitlement from paying customers. Treat it as production data, not seed fixtures.",
       "evidence": "packages/api/src/lib/seed-plans.ts:35,137,153; packages/api/src/routes/v1/__tests__/chat-completions-timeout.test.ts:188"
     }

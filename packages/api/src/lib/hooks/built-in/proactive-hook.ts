@@ -81,7 +81,7 @@ registerHook({
     // Only analyze substantive conversations (not one-liners)
     const userMessages = ctx.messages
       .filter((m: any) => m.role === 'user')
-      .map((m: any) => typeof m.content === 'string' ? m.content : '')
+      .map((m: any) => (typeof m.content === 'string' ? m.content : ''))
       .filter((text: string) => text.length > 20);
 
     if (userMessages.length === 0) return;
@@ -127,7 +127,10 @@ registerHook({
       if (classification.category === 'none' || !classification.title) return;
 
       const suggestionDescription = classification.description || classification.title;
-      if (looksLikeAssistantVoice(classification.title) || looksLikeAssistantVoice(suggestionDescription)) {
+      if (
+        looksLikeAssistantVoice(classification.title) ||
+        looksLikeAssistantVoice(suggestionDescription)
+      ) {
         log.chat.warn(
           // The classification is model output about the user's conversation.
           { userId: ctx.userId },

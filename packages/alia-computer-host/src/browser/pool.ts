@@ -97,7 +97,13 @@ export interface PoolOptions {
 }
 
 const CLOSED_STATUS: SessionStatus = {
-  open: false, url: '', title: '', controller: 'agent', pages: 0, pendingDownloads: 0, lastActiveAt: null,
+  open: false,
+  url: '',
+  title: '',
+  controller: 'agent',
+  pages: 0,
+  pendingDownloads: 0,
+  lastActiveAt: null,
 };
 
 export function assertActorKey(actor: string): string {
@@ -166,7 +172,11 @@ export class BrowserPool {
         return browser;
       })
       .catch(() => {
-        throw new PoolError('browser_unavailable', 'The browser could not start. Try again shortly.', 503);
+        throw new PoolError(
+          'browser_unavailable',
+          'The browser could not start. Try again shortly.',
+          503,
+        );
       })
       .finally(() => {
         this.launching = null;
@@ -181,13 +191,15 @@ export class BrowserPool {
   private page(session: Session): Page {
     const pages = session.context.pages().filter((page) => !page.isClosed());
     const page = pages[pages.length - 1];
-    if (!page) throw new PoolError('browser_closed', 'The browser page was closed; open it again.', 409);
+    if (!page)
+      throw new PoolError('browser_closed', 'The browser page was closed; open it again.', 409);
     return page;
   }
 
   private active(actor: string): Session {
     const session = this.sessions.get(actor);
-    if (!session) throw new PoolError('browser_closed', 'The browser is not open; open it first.', 409);
+    if (!session)
+      throw new PoolError('browser_closed', 'The browser is not open; open it first.', 409);
     session.lastActive = this.now();
     return session;
   }
@@ -211,7 +223,12 @@ export class BrowserPool {
   private async describe(session: Session): Promise<SessionStatus> {
     const pages = session.context.pages().filter((page) => !page.isClosed());
     const page = pages[pages.length - 1];
-    const title = page ? await page.title().then((value) => value.slice(0, 300), () => '') : '';
+    const title = page
+      ? await page.title().then(
+          (value) => value.slice(0, 300),
+          () => '',
+        )
+      : '';
     return {
       open: true,
       url: page?.url() ?? '',
@@ -248,7 +265,8 @@ export class BrowserPool {
         state = await session.context.storageState();
         body = JSON.stringify(state);
       }
-      if (Buffer.byteLength(body) > MAX_STATE_BYTES) body = JSON.stringify({ cookies: state.cookies, origins: [] });
+      if (Buffer.byteLength(body) > MAX_STATE_BYTES)
+        body = JSON.stringify({ cookies: state.cookies, origins: [] });
       const directory = join(this.options.profilesDir, session.actor);
       await mkdir(directory, { recursive: true, mode: 0o700 });
       const path = this.statePath(session.actor);
@@ -375,16 +393,25 @@ export class BrowserPool {
     const target = checkedUrl(url);
     const page = this.page(session);
     try {
-      const response = await page.goto(target.href, { waitUntil: 'domcontentloaded', timeout: NAVIGATION_TIMEOUT_MS });
+      const response = await page.goto(target.href, {
+        waitUntil: 'domcontentloaded',
+        timeout: NAVIGATION_TIMEOUT_MS,
+      });
       // Plain HTTP to a refused address comes back as the proxy's own page.
       if (response?.headers()[REFUSAL_HEADER] === 'refused') {
         void page.goto('about:blank').catch(() => undefined);
-        throw new PoolError('blocked_url', 'Only public HTTP(S) destinations on ports 80 and 443 are allowed.', 400);
+        throw new PoolError(
+          'blocked_url',
+          'Only public HTTP(S) destinations on ports 80 and 443 are allowed.',
+          400,
+        );
       }
     } catch (error) {
       if (error instanceof PoolError) throw error;
       // A link that is a file aborts the navigation and starts a download.
-      if (!(error instanceof Error && /Download is starting|net::ERR_ABORTED/.test(error.message))) {
+      if (
+        !(error instanceof Error && /Download is starting|net::ERR_ABORTED/.test(error.message))
+      ) {
         throw new PoolError(
           'navigation_failed',
           'The page could not be loaded. It may be unreachable, slow, or on a blocked address.',
@@ -407,7 +434,12 @@ export class BrowserPool {
   private assertLanded(session: Session) {
     const page = this.page(session);
     const landed = page.url();
-    if (landed === 'about:blank' || landed.startsWith('data:') || landed.startsWith('chrome-error:')) return;
+    if (
+      landed === 'about:blank' ||
+      landed.startsWith('data:') ||
+      landed.startsWith('chrome-error:')
+    )
+      return;
     try {
       allowedUrl(landed);
     } catch (error) {
@@ -433,7 +465,8 @@ export class BrowserPool {
     assertActorKey(actor);
     if (url !== undefined) checkedUrl(url);
     return this.serial(actor, async () => {
-      if (this.closed) throw new PoolError('browser_stopping', 'The browser is shutting down.', 503);
+      if (this.closed)
+        throw new PoolError('browser_stopping', 'The browser is shutting down.', 503);
       let session = this.sessions.get(actor);
       if (!session) session = await this.createSession(actor);
       session.lastActive = this.now();
@@ -481,7 +514,11 @@ export class BrowserPool {
         return await this.page(session).screenshot({ type: 'jpeg', quality: 60, timeout: 10_000 });
       } catch (error) {
         if (error instanceof PoolError) throw error;
-        throw new PoolError('screenshot_failed', 'The screen could not be captured right now.', 502);
+        throw new PoolError(
+          'screenshot_failed',
+          'The screen could not be captured right now.',
+          502,
+        );
       }
     });
   }
@@ -507,7 +544,9 @@ export class BrowserPool {
           break;
       }
       // A click or Enter often navigates; give it a moment to commit.
-      await this.page(session).waitForLoadState('domcontentloaded', { timeout: SETTLE_TIMEOUT_MS }).catch(() => undefined);
+      await this.page(session)
+        .waitForLoadState('domcontentloaded', { timeout: SETTLE_TIMEOUT_MS })
+        .catch(() => undefined);
       this.assertLanded(session);
       await this.settleDownloads(session);
       await this.maybeSave(session);
@@ -535,7 +574,9 @@ export class BrowserPool {
     });
   }
 
-  async downloads(actor: string): Promise<{ downloads: Omit<PendingDownload, 'path'>[]; failures: DownloadFailure[] }> {
+  async downloads(
+    actor: string,
+  ): Promise<{ downloads: Omit<PendingDownload, 'path'>[]; failures: DownloadFailure[] }> {
     assertActorKey(actor);
     return this.serial(actor, async () => {
       const session = this.sessions.get(actor);
@@ -548,7 +589,10 @@ export class BrowserPool {
     });
   }
 
-  async download(actor: string, id: string): Promise<{ meta: Omit<PendingDownload, 'path'>; bytes: Buffer }> {
+  async download(
+    actor: string,
+    id: string,
+  ): Promise<{ meta: Omit<PendingDownload, 'path'>; bytes: Buffer }> {
     assertActorKey(actor);
     const found = this.sessions.get(actor)?.downloads.get(id);
     if (!found) throw new PoolError('download_not_found', 'No such download.', 404);
@@ -580,7 +624,10 @@ export class BrowserPool {
   async sweep(): Promise<number> {
     let closed = 0;
     for (const session of [...this.sessions.values()]) {
-      if (session.controller === 'owner' && this.now() - session.ownerActiveAt >= this.options.ownerControlMs) {
+      if (
+        session.controller === 'owner' &&
+        this.now() - session.ownerActiveAt >= this.options.ownerControlMs
+      ) {
         session.controller = 'agent';
       }
       if (this.now() - session.lastActive >= this.options.idleMs) {
@@ -599,7 +646,9 @@ export class BrowserPool {
 
   async shutdown(): Promise<void> {
     this.closed = true;
-    await Promise.allSettled([...this.sessions.keys()].map((actor) => this.serial(actor, () => this.closeSession(actor))));
+    await Promise.allSettled(
+      [...this.sessions.keys()].map((actor) => this.serial(actor, () => this.closeSession(actor))),
+    );
     await this.browser?.close().catch(() => undefined);
     this.browser = null;
   }

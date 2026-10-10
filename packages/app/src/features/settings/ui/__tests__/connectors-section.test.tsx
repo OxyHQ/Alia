@@ -20,7 +20,12 @@ const mocks = vi.hoisted(() => ({
     startOAuth: vi.fn(),
     completeOAuth: vi.fn(),
   },
-  settings: { open: vi.fn(), close: vi.fn(), afterClose: vi.fn(), params: {} as Record<string, string> },
+  settings: {
+    open: vi.fn(),
+    close: vi.fn(),
+    afterClose: vi.fn(),
+    params: {} as Record<string, string>,
+  },
   confirm: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn() },
   openURL: vi.fn(),
@@ -32,7 +37,8 @@ vi.mock('react-native', async () => {
     Linking: { openURL: mocks.openURL },
     Platform: { OS: 'ios' },
     StyleSheet: { create: <T,>(s: T) => s },
-    View: ({ children }: React.PropsWithChildren) => ReactModule.createElement('View', null, children),
+    View: ({ children }: React.PropsWithChildren) =>
+      ReactModule.createElement('View', null, children),
   };
 });
 vi.mock('@/shared/i18n/use-translation', () => ({
@@ -41,7 +47,9 @@ vi.mock('@/shared/i18n/use-translation', () => ({
       params ? `${key} ${JSON.stringify(params)}` : key,
   }),
 }));
-vi.mock('@/features/connections/runtime/use-mcp-servers', () => ({ useMcpServers: () => mocks.hook }));
+vi.mock('@/features/connections/runtime/use-mcp-servers', () => ({
+  useMcpServers: () => mocks.hook,
+}));
 vi.mock('@/shared/api/error-utils', () => ({ errorStatus: () => undefined }));
 vi.mock('../settings-context', () => ({ useAliaSettings: () => mocks.settings }));
 vi.mock('../preference-select', () => ({ SettingsPreferenceSelect: () => null }));
@@ -49,7 +57,10 @@ vi.mock('@oxy.so/bloom/toast', () => ({ toast: mocks.toast }));
 vi.mock('@oxy.so/bloom/surfaces', () => ({ confirm: mocks.confirm }));
 vi.mock('@oxy.so/bloom/dialog', () => ({ Dialog: () => null }));
 vi.mock('@oxy.so/bloom/search', () => ({ Search: () => null }));
-vi.mock('@oxy.so/bloom/text-field', () => ({ TextFieldInput: () => null, TextFieldLabel: () => null }));
+vi.mock('@oxy.so/bloom/text-field', () => ({
+  TextFieldInput: () => null,
+  TextFieldLabel: () => null,
+}));
 vi.mock('@oxy.so/bloom/accordion', () => ({
   Accordion: () => null,
   AccordionItem: () => null,
@@ -78,7 +89,8 @@ vi.mock('@oxy.so/bloom/badge', async () => {
 });
 vi.mock('@oxy.so/bloom/settings-modal', async () => {
   const ReactModule = await import('react');
-  const host = (name: string) =>
+  const host =
+    (name: string) =>
     ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
@@ -132,7 +144,8 @@ afterEach(() => {
   renderer = null;
 });
 
-const serverList = (r: ReactTestRenderer) => r.root.findAllByType('SettingsServerList' as never)[0]!;
+const serverList = (r: ReactTestRenderer) =>
+  r.root.findAllByType('SettingsServerList' as never)[0]!;
 
 describe('ConnectorsSection', () => {
   it('shows a skeleton row while loading', () => {
@@ -149,9 +162,17 @@ describe('ConnectorsSection', () => {
       { ...github, _id: 's3', registryId: 'linear', status: 'installed' },
     ];
     const r = mount();
-    const servers = serverList(r).props.servers as { id: string; status: string; tools: string[]; summary: string }[];
+    const servers = serverList(r).props.servers as {
+      id: string;
+      status: string;
+      tools: string[];
+      summary: string;
+    }[];
     expect(servers.map((s) => s.id)).toEqual(['s1', 's2']);
-    expect(servers[0]).toMatchObject({ status: 'connected', tools: ['create_issue', 'list_repos'] });
+    expect(servers[0]).toMatchObject({
+      status: 'connected',
+      tools: ['create_issue', 'list_repos'],
+    });
     expect(servers[0]!.summary).toBe('settings.connections.toolCount {"count":2}');
     expect(servers[1]!.status).toBe('error');
   });
@@ -183,7 +204,15 @@ describe('ConnectorsSection', () => {
 
   it('connects a registry entry through OAuth from its row', async () => {
     mocks.hook.registry = [
-      { id: 'linear', name: 'Linear', description: 'Issues', requiredEnv: [], requiresOAuth: true, featured: true, category: 'productivity' },
+      {
+        id: 'linear',
+        name: 'Linear',
+        description: 'Issues',
+        requiredEnv: [],
+        requiresOAuth: true,
+        featured: true,
+        category: 'productivity',
+      },
     ];
     mocks.hook.install.mockResolvedValue({ _id: 'new' });
     mocks.hook.startOAuth.mockResolvedValue('https://auth.example/linear');
@@ -200,7 +229,15 @@ describe('ConnectorsSection', () => {
 
   it('says a connected entry is connected with a badge, not a button that cannot be pressed', () => {
     mocks.hook.registry = [
-      { id: 'github', name: 'GitHub', description: 'Code', requiredEnv: [], requiresOAuth: true, featured: true, category: 'development' },
+      {
+        id: 'github',
+        name: 'GitHub',
+        description: 'Code',
+        requiredEnv: [],
+        requiresOAuth: true,
+        featured: true,
+        category: 'development',
+      },
     ];
     mocks.hook.installed = [github];
     const r = mount();

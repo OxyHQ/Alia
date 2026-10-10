@@ -221,8 +221,14 @@ describe('a refresh keeps what the provider did not send', () => {
 describe('the readers are scoped exactly as the source was', () => {
   it('gives the tool builder only ENABLED, ACTIVE services', async () => {
     const user = 'intu-services';
-    const ok = await createIntegration(db, newIntegration({ oxyUserId: user, service: 'google-calendar' }));
-    const revoked = await createIntegration(db, newIntegration({ oxyUserId: user, service: 'google-drive' }));
+    const ok = await createIntegration(
+      db,
+      newIntegration({ oxyUserId: user, service: 'google-calendar' }),
+    );
+    const revoked = await createIntegration(
+      db,
+      newIntegration({ oxyUserId: user, service: 'google-drive' }),
+    );
     await setIntegrationStatus(db, revoked.id, 'revoked');
 
     expect(await listConnectedServices(db, user)).toEqual(['google-calendar']);
@@ -231,7 +237,7 @@ describe('the readers are scoped exactly as the source was', () => {
     expect(ok.status).toBe('active');
   });
 
-  it('will not reach another account\'s integration by id', async () => {
+  it("will not reach another account's integration by id", async () => {
     const created = await createIntegration(db, newIntegration({ oxyUserId: 'intu-owner' }));
 
     expect(await findIntegrationForUser(db, created.id, 'intu-intruder')).toBeNull();
@@ -253,7 +259,9 @@ describe('the readers are scoped exactly as the source was', () => {
 
     await touchIntegrationLastUsed(db, 'intu-touch', 'google-calendar');
 
-    expect((await findIntegrationForUser(db, mine.id, 'intu-touch'))?.lastUsedAt).toBeInstanceOf(Date);
+    expect((await findIntegrationForUser(db, mine.id, 'intu-touch'))?.lastUsedAt).toBeInstanceOf(
+      Date,
+    );
     expect((await findIntegrationForUser(db, other.id, 'intu-touch'))?.lastUsedAt).toBeNull();
   });
 
@@ -286,7 +294,9 @@ describe('the OAuth state is the primary key, and single-use', () => {
     });
 
     const beforeDeadline = new Date(Date.now() + OAUTH_STATE_TTL_MS - 5_000);
-    expect(await findLiveOAuthState(db, 'int-state-2', 'google-calendar', beforeDeadline)).not.toBeNull();
+    expect(
+      await findLiveOAuthState(db, 'int-state-2', 'google-calendar', beforeDeadline),
+    ).not.toBeNull();
 
     const pastDeadline = new Date(Date.now() + OAUTH_STATE_TTL_MS + 5_000);
     expect(await findLiveOAuthState(db, 'int-state-2', 'google-calendar', pastDeadline)).toBeNull();

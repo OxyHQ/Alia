@@ -15,14 +15,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const platform = vi.hoisted(() => ({ OS: 'web' as 'web' | 'ios' }));
-vi.mock('react-native', async () => (await import('@/shared/testing/native-module-stubs')).reactNativeModule(platform));
-vi.mock('react-native-reanimated', async () => (await import('@/shared/testing/native-module-stubs')).reanimatedModule());
-vi.mock('react-native-svg', async () => (await import('@/shared/testing/native-module-stubs')).svgModule());
-vi.mock('react-native-gesture-handler', async () => (await import('@/shared/testing/native-module-stubs')).gestureHandlerModule());
-vi.mock('react-native-screens', async () => (await import('@/shared/testing/native-module-stubs')).screensModule());
-vi.mock('react-native-safe-area-context', async () => (await import('@/shared/testing/native-module-stubs')).safeAreaModule());
+vi.mock('react-native', async () =>
+  (await import('@/shared/testing/native-module-stubs')).reactNativeModule(platform),
+);
+vi.mock('react-native-reanimated', async () =>
+  (await import('@/shared/testing/native-module-stubs')).reanimatedModule(),
+);
+vi.mock('react-native-svg', async () =>
+  (await import('@/shared/testing/native-module-stubs')).svgModule(),
+);
+vi.mock('react-native-gesture-handler', async () =>
+  (await import('@/shared/testing/native-module-stubs')).gestureHandlerModule(),
+);
+vi.mock('react-native-screens', async () =>
+  (await import('@/shared/testing/native-module-stubs')).screensModule(),
+);
+vi.mock('react-native-safe-area-context', async () =>
+  (await import('@/shared/testing/native-module-stubs')).safeAreaModule(),
+);
 // Bloom's sheet (the long-press menu on a phone) sits on a blur.
-vi.mock('expo-blur', async () => (await import('@/shared/testing/native-module-stubs')).blurModule());
+vi.mock('expo-blur', async () =>
+  (await import('@/shared/testing/native-module-stubs')).blurModule(),
+);
 
 /** The thread's scroll view is the one Bloom piece not under test here. */
 vi.mock('@oxy.so/bloom/ai-chat', async (importOriginal) => {
@@ -45,7 +59,13 @@ const audio = vi.hoisted(() => ({
   listeners: new Set<() => void>(),
   readAloud: [] as unknown[][],
   stops: 0,
-  set(change: Partial<{ activeMessageId: string | null; playbackState: string; isRecording: boolean }>) {
+  set(
+    change: Partial<{
+      activeMessageId: string | null;
+      playbackState: string;
+      isRecording: boolean;
+    }>,
+  ) {
     Object.assign(audio, change);
     for (const listener of audio.listeners) listener();
   },
@@ -122,16 +142,34 @@ const stub = vi.hoisted(() => (name: string) => async () => {
     ReactModule.createElement(name, props, children);
 });
 vi.mock('@/features/chat/ui/markdown', async () => ({ CustomMarkdown: await stub('Markdown')() }));
-vi.mock('@/features/chat/ui/cards/agent-result-card', async () => ({ AgentResultCard: await stub('AgentResultCard')() }));
-vi.mock('@/features/chat/ui/cards/agent-task-card', async () => ({ AgentTaskCard: await stub('AgentTaskCard')() }));
-vi.mock('@/features/chat/ui/welcome-message', async () => ({ WelcomeMessage: await stub('Welcome')() }));
-vi.mock('@/features/chat/ui/failed-turn-card', async () => ({ FailedTurnCard: await stub('FailedTurnCard')() }));
-vi.mock('@/features/chat/ui/message-block-boundary', async () => ({ MessageBlockBoundary: await stub('Boundary')() }));
-vi.mock('@/features/chat/ui/tool-result-card', async () => ({ ToolResultCard: await stub('ToolCard')() }));
-vi.mock('@/features/chat/ui/turn-status-line', async () => ({ TurnStatusLine: await stub('StatusLine')() }));
-vi.mock('@/features/chat/ui/new-conversation-offer', async () => ({ NewConversationOffer: await stub('Offer')() }));
+vi.mock('@/features/chat/ui/cards/agent-result-card', async () => ({
+  AgentResultCard: await stub('AgentResultCard')(),
+}));
+vi.mock('@/features/chat/ui/cards/agent-task-card', async () => ({
+  AgentTaskCard: await stub('AgentTaskCard')(),
+}));
+vi.mock('@/features/chat/ui/welcome-message', async () => ({
+  WelcomeMessage: await stub('Welcome')(),
+}));
+vi.mock('@/features/chat/ui/failed-turn-card', async () => ({
+  FailedTurnCard: await stub('FailedTurnCard')(),
+}));
+vi.mock('@/features/chat/ui/message-block-boundary', async () => ({
+  MessageBlockBoundary: await stub('Boundary')(),
+}));
+vi.mock('@/features/chat/ui/tool-result-card', async () => ({
+  ToolResultCard: await stub('ToolCard')(),
+}));
+vi.mock('@/features/chat/ui/turn-status-line', async () => ({
+  TurnStatusLine: await stub('StatusLine')(),
+}));
+vi.mock('@/features/chat/ui/new-conversation-offer', async () => ({
+  NewConversationOffer: await stub('Offer')(),
+}));
 vi.mock('@/shared/ui/image', async () => ({ Image: await stub('Image')() }));
-vi.mock('@oxy.so/bloom/agent-progress', async () => ({ AgentProgress: await stub('AgentProgress')() }));
+vi.mock('@oxy.so/bloom/agent-progress', async () => ({
+  AgentProgress: await stub('AgentProgress')(),
+}));
 vi.mock('@oxy.so/bloom/chat-screen', async () => ({ ChatDateHeader: await stub('DayHeader')() }));
 vi.mock('@oxy.so/bloom/divider', async () => ({ Divider: await stub('Divider')() }));
 vi.mock('@oxy.so/bloom/task-list', async () => ({ TaskList: await stub('TaskList')() }));
@@ -184,7 +222,8 @@ vi.mock('@/features/chat/runtime/use-streaming-chat', () => ({
     error: null,
     clearError: () => {},
     setMessages: (next: unknown) => {
-      chat.setTo = typeof next === 'function' ? (next as (p: unknown) => unknown)(chat.messages) : next;
+      chat.setTo =
+        typeof next === 'function' ? (next as (p: unknown) => unknown)(chat.messages) : next;
     },
     stop: () => {},
     approvePlan: () => {},
@@ -224,10 +263,15 @@ vi.mock('@/features/chat/runtime/use-conversations', () => ({
 vi.mock('@/features/chat/model/attachment-utils', () => ({
   buildMessageContent: async (text: string) => ({ content: text, dropped: [] }),
 }));
-vi.mock('@/shared/api/generate-api-url', () => ({ generateAPIUrl: () => 'http://test.invalid/chat' }));
+vi.mock('@/shared/api/generate-api-url', () => ({
+  generateAPIUrl: () => 'http://test.invalid/chat',
+}));
 vi.mock('@/shared/i18n', () => ({ default: { t: (k: string) => k } }));
 vi.mock('@/features/notifications/runtime/notifications-socket', () => ({
-  acquireNotificationsSocket: () => ({ socket: { on: () => {}, off: () => {} }, release: () => {} }),
+  acquireNotificationsSocket: () => ({
+    socket: { on: () => {}, off: () => {} },
+    release: () => {},
+  }),
 }));
 
 const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
@@ -248,7 +292,9 @@ const THREAD = [
 ];
 
 const harness = vi.hoisted(() => ({
-  edit: null as null | ReturnType<typeof import('@/features/chat/runtime/use-turn-edit').useTurnEdit>,
+  edit: null as null | ReturnType<
+    typeof import('@/features/chat/runtime/use-turn-edit').useTurnEdit
+  >,
 }));
 
 function Harness({ callActive = false }: { callActive?: boolean }) {
@@ -317,9 +363,7 @@ const isHost = (node: ReactTestInstance, name: string) => (node.type as unknown)
 
 /** Bloom's action buttons, by the label it gives them. */
 const buttons = (r: ReactTestRenderer, label: string): ReactTestInstance[] =>
-  r.root.findAll(
-    (node) => isHost(node, 'Pressable') && node.props.accessibilityLabel === label,
-  );
+  r.root.findAll((node) => isHost(node, 'Pressable') && node.props.accessibilityLabel === label);
 /** Copy on the last reply: the questions' copy buttons come first in each pair. */
 const replyCopy = (r: ReactTestRenderer) => buttons(r, 'chat.copy')[3];
 async function press(button: ReactTestInstance) {
@@ -338,7 +382,10 @@ describe('a reply', () => {
     await press(regenerate[0]);
 
     expect(chat.appended).toEqual([
-      { message: { role: 'user', content: 'second question' }, options: { mcpServerId: 'gmail', skillNames: ['digest'] } },
+      {
+        message: { role: 'user', content: 'second question' },
+        options: { mcpServerId: 'gmail', skillNames: ['digest'] },
+      },
     ]);
     // Cut back to before the question it replays.
     expect(chat.setTo).toEqual(THREAD.slice(0, 2));
@@ -530,12 +577,19 @@ describe('on a phone', () => {
       (node) =>
         isHost(node, 'View') &&
         typeof node.props.onTouchStart === 'function' &&
-        (node.props.accessibilityActions as { name: string }[] | undefined)?.some((a) => a.name === 'longpress') ===
-          true,
+        (node.props.accessibilityActions as { name: string }[] | undefined)?.some(
+          (a) => a.name === 'longpress',
+        ) === true,
     );
   const menuRows = (r: ReactTestRenderer) =>
     r.root.findAll((node) => isHost(node, 'Pressable') && node.props.role === 'menuitem');
-  const REPLY_ACTIONS = ['chat.readAloud', 'chat.copy', 'chat.regenerate', 'chat.like', 'chat.dislike'];
+  const REPLY_ACTIONS = [
+    'chat.readAloud',
+    'chat.copy',
+    'chat.regenerate',
+    'chat.like',
+    'chat.dislike',
+  ];
 
   afterEach(() => {
     vi.useRealTimers();
@@ -593,7 +647,9 @@ describe('on a phone', () => {
     const r = await mount();
     const reply = turnTriggers(r)[3];
 
-    await act(async () => reply.props.onAccessibilityAction({ nativeEvent: { actionName: 'longpress' } }));
+    await act(async () =>
+      reply.props.onAccessibilityAction({ nativeEvent: { actionName: 'longpress' } }),
+    );
 
     expect(menuRows(r).map((row) => row.props.accessibilityLabel)).toEqual(REPLY_ACTIONS);
   });

@@ -12,18 +12,18 @@ describe('local runtime persisted-state migration', () => {
     expect(persisted).toHaveProperty('enabled', false);
   });
 
-  it.each([
-    { enabled: true, label: 'Studio' },
-    { label: 'Studio' },
-  ])('asks once when v1 stored no opt-out: %o', (persisted) => {
-    const migrated = migrateLocalRuntimeState(persisted);
+  it.each([{ enabled: true, label: 'Studio' }, { label: 'Studio' }])(
+    'asks once when v1 stored no opt-out: %o',
+    (persisted) => {
+      const migrated = migrateLocalRuntimeState(persisted);
 
-    expect(migrated).toEqual({
-      consent: 'unasked',
-      label: 'Studio',
-    });
-    expect(migrated).not.toHaveProperty('enabled');
-  });
+      expect(migrated).toEqual({
+        consent: 'unasked',
+        label: 'Studio',
+      });
+      expect(migrated).not.toHaveProperty('enabled');
+    },
+  );
 
   it('fails closed to an unasked state for malformed persisted data', () => {
     expect(migrateLocalRuntimeState(null)).toEqual({ consent: 'unasked' });

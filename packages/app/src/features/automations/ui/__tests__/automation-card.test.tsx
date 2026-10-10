@@ -1,10 +1,5 @@
 import React from 'react';
-import {
-  act,
-  create,
-  type ReactTestInstance,
-  type ReactTestRenderer,
-} from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -18,10 +13,7 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     Platform: {
@@ -34,23 +26,16 @@ vi.mock('react-native', async () => {
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Text', props, children),
-    Muted: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Muted: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Text', props, children),
   };
 });
 vi.mock('@oxy.so/bloom/switch', async () => {
   const ReactModule = await import('react');
   return {
-    Switch: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Switch', props),
+    Switch: (props: Record<string, unknown>) => ReactModule.createElement('Switch', props),
   };
 });
 /**
@@ -61,10 +46,7 @@ vi.mock('@oxy.so/bloom/card', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     Card: host('Card'),
@@ -76,21 +58,8 @@ vi.mock('@oxy.so/bloom/card', async () => {
 vi.mock('@oxy.so/bloom/item', async () => {
   const ReactModule = await import('react');
   return {
-    Item: ({
-      leading,
-      title,
-      subtitle,
-      trailing,
-      children,
-    }: Record<string, React.ReactNode>) =>
-      ReactModule.createElement(
-        'Item',
-        null,
-        leading,
-        children ?? title,
-        subtitle,
-        trailing,
-      ),
+    Item: ({ leading, title, subtitle, trailing, children }: Record<string, React.ReactNode>) =>
+      ReactModule.createElement('Item', null, leading, children ?? title, subtitle, trailing),
   };
 });
 vi.mock('@oxy.so/bloom/badge', async () => {
@@ -103,10 +72,7 @@ vi.mock('@oxy.so/bloom/badge', async () => {
 vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
   return {
-    Button: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Button: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       // Bloom's Button draws its label as text.
       ReactModule.createElement('Button', props, ReactModule.createElement('Text', null, children)),
   };
@@ -122,8 +88,7 @@ vi.mock('@oxy.so/bloom/icons/RiUserLine', () => ({ RiUserLine: () => null }));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const { AutomationCard } = await import('../automation-card');
-type AutomationDefinition =
-  import('@/shared/contracts/automations').AutomationDefinition;
+type AutomationDefinition = import('@/shared/contracts/automations').AutomationDefinition;
 
 const PROMPT = 'Review PR comments every hour and share next steps';
 
@@ -188,13 +153,15 @@ describe('AutomationCard heading', () => {
     const shown = texts(root);
     expect(shown[0]).toBe(PROMPT);
     expect(shown.filter((text) => text === PROMPT)).toHaveLength(1);
-    expect(labels(root)).toEqual(expect.arrayContaining([
-      `Automation ${PROMPT}`,
-      `Pause ${PROMPT}`,
-      `Run ${PROMPT}`,
-      `Stop ${PROMPT}`,
-      `View history for ${PROMPT}`,
-    ]));
+    expect(labels(root)).toEqual(
+      expect.arrayContaining([
+        `Automation ${PROMPT}`,
+        `Pause ${PROMPT}`,
+        `Run ${PROMPT}`,
+        `Stop ${PROMPT}`,
+        `View history for ${PROMPT}`,
+      ]),
+    );
   });
 
   it('offers to stop and revoke, and shows no legacy pill', () => {

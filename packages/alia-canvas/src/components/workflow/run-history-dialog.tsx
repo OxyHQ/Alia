@@ -1,13 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import type { WorkflowExecution } from "@/lib/workflow-types";
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import type { WorkflowExecution } from '@/lib/workflow-types';
 
 interface RunHistoryDialogProps {
   isOpen: boolean;
@@ -23,11 +23,11 @@ export function RunHistoryDialog({
   onSelectRun,
 }: RunHistoryDialogProps) {
   const { data: executions = [], isLoading: loading } = useQuery({
-    queryKey: ["canvas", "executions", workflowId],
+    queryKey: ['canvas', 'executions', workflowId],
     enabled: isOpen && Boolean(workflowId),
     queryFn: async (): Promise<WorkflowExecution[]> => {
       if (!workflowId) return [];
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4150";
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4150';
       const response = await fetch(`${API_URL}/api/workflows/${workflowId}/executions`);
       if (!response.ok) {
         throw new Error(`Failed to load execution history: HTTP ${response.status}`);
@@ -42,9 +42,7 @@ export function RunHistoryDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Run History</DialogTitle>
-          <DialogDescription>
-            View previous workflow executions
-          </DialogDescription>
+          <DialogDescription>View previous workflow executions</DialogDescription>
         </DialogHeader>
         <div className="space-y-2 max-h-96 overflow-y-auto">
           {loading ? (
@@ -68,11 +66,11 @@ export function RunHistoryDialog({
                 <div className="flex items-center justify-between mb-2">
                   <div
                     className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                      execution.status === "completed"
-                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
-                        : execution.status === "failed"
-                          ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100"
-                          : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
+                      execution.status === 'completed'
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
+                        : execution.status === 'failed'
+                          ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
+                          : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'
                     }`}
                   >
                     {execution.status}

@@ -42,7 +42,11 @@ import {
 } from '../../domain/agent.js';
 import { log } from '../../lib/logger.js';
 import { z } from 'zod';
-import { formatCapabilityGrant, isCapabilityGrant, withoutRetiredGrants } from '../../domain/capability-grants.js';
+import {
+  formatCapabilityGrant,
+  isCapabilityGrant,
+  withoutRetiredGrants,
+} from '../../domain/capability-grants.js';
 import {
   listMcpServersForUser,
   type McpServerRow,
@@ -89,7 +93,12 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       offset: (pageNum - 1) * limitNum,
     });
 
-    res.json({ agents: await attachAgentIdentities(agents.map(withoutInternalAgentBindings)), total, page: pageNum, limit: limitNum });
+    res.json({
+      agents: await attachAgentIdentities(agents.map(withoutInternalAgentBindings)),
+      total,
+      page: pageNum,
+      limit: limitNum,
+    });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing agents');
     res.status(500).json({ error: 'Failed to list agents' });
@@ -185,8 +194,12 @@ router.get('/capability-connectors', authenticateToken, async (req: Request, res
   const excludeAgentId = typeof req.query.agent === 'string' ? req.query.agent : undefined;
   const [mcp, integration, ownAgents] = await Promise.all([
     listMcpServersForUser(getDb(), oxyUserId).catch(connectorFailure<McpServerRow>('mcp')),
-    listIntegrationsForUser(getDb(), oxyUserId).catch(connectorFailure<IntegrationSafeRow>('integration')),
-    grantableAgentRows(oxyUserId, excludeAgentId).catch(connectorFailure<GrantableConnectorRow>('agent')),
+    listIntegrationsForUser(getDb(), oxyUserId).catch(
+      connectorFailure<IntegrationSafeRow>('integration'),
+    ),
+    grantableAgentRows(oxyUserId, excludeAgentId).catch(
+      connectorFailure<GrantableConnectorRow>('agent'),
+    ),
   ]);
 
   res.json({
@@ -298,15 +311,18 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    const mayEdit = req.user?.id === undefined || req.accessToken === undefined
-      ? false
-      : (await verifyAgentAccount({
-          oxyUserId: req.user.id,
-          accessToken: req.accessToken,
-          oxyAccountId: found.oxyAccountId,
-          // A READ. The write paths pass `false`; see `lib/agent-account.ts`.
-          cache: true,
-        })).permitted;
+    const mayEdit =
+      req.user?.id === undefined || req.accessToken === undefined
+        ? false
+        : (
+            await verifyAgentAccount({
+              oxyUserId: req.user.id,
+              accessToken: req.accessToken,
+              oxyAccountId: found.oxyAccountId,
+              // A READ. The write paths pass `false`; see `lib/agent-account.ts`.
+              cache: true,
+            })
+          ).permitted;
 
     // A draft is not in the catalogue and not addressable by a stranger.
     if (!found.isPublished && !mayEdit) {
@@ -314,7 +330,11 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
     }
 
     const agent = await withChildLists(found);
-    res.json({ agent: await attachAgentIdentity(withoutInternalAgentBindings(mayEdit ? agent : withoutSystemPrompt(agent))) });
+    res.json({
+      agent: await attachAgentIdentity(
+        withoutInternalAgentBindings(mayEdit ? agent : withoutSystemPrompt(agent)),
+      ),
+    });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting agent');
     res.status(500).json({ error: 'Failed to get agent' });
@@ -329,7 +349,9 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
  * accepts is a value the column accepts, and adding an archetype cannot leave
  * the wire schema behind.
  */
-const archetypeSchema = z.enum(AGENT_ARCHETYPES as unknown as [AgentArchetype, ...AgentArchetype[]]);
+const archetypeSchema = z.enum(
+  AGENT_ARCHETYPES as unknown as [AgentArchetype, ...AgentArchetype[]],
+);
 const statusSchema = z.enum(AGENT_STATUSES as unknown as [AgentStatus, ...AgentStatus[]]);
 const accessSchema = z.enum(AGENT_ACCESS as unknown as [AgentAccess, ...AgentAccess[]]);
 
@@ -386,7 +408,9 @@ const capabilityGrantsSchema = z
  * into a 400 with the field errors attached.
  */
 /** A 400 body when `modelId` names neither a power level nor a catalogue model, else null. */
-async function refuseUnknownModel(modelId: string | null | undefined): Promise<Record<string, unknown> | null> {
+async function refuseUnknownModel(
+  modelId: string | null | undefined,
+): Promise<Record<string, unknown> | null> {
   if (typeof modelId !== 'string') return null;
   try {
     await resolveModel(modelId);
@@ -538,14 +562,12 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
     if (!loaded.ok) return answerRefusal(res, loaded.refusal);
 
     if (
-      typeof loaded.agent.applicationId === 'string'
-      && (
-        data.systemPrompt !== undefined
-        || data.capabilityGrants !== undefined
-        || data.access !== undefined
-        || data.isPublished !== undefined
-        || data.status !== undefined
-      )
+      typeof loaded.agent.applicationId === 'string' &&
+      (data.systemPrompt !== undefined ||
+        data.capabilityGrants !== undefined ||
+        data.access !== undefined ||
+        data.isPublished !== undefined ||
+        data.status !== undefined)
     ) {
       return res.status(400).json({ error: 'Product-agent policy is managed internally' });
     }

@@ -20,10 +20,7 @@ import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
 import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
 import { RiPlayLine } from '@oxy.so/bloom/icons/RiPlayLine';
 import { Loading } from '@oxy.so/bloom/loading';
-import {
-  SettingsListGroup,
-  SettingsListItem,
-} from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Switch } from '@oxy.so/bloom/switch';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Muted, Text } from '@oxy.so/bloom/typography';
@@ -106,9 +103,7 @@ export default function SkillDetailScreen() {
                     iconOnly
                     leadingIcon={RiPencilLine}
                     accessibilityLabel={t('common.edit')}
-                    onPress={() =>
-                      router.push(`/(app)/skills/edit/${skill._id}`)
-                    }
+                    onPress={() => router.push(`/(app)/skills/edit/${skill._id}`)}
                   />
                 </ButtonGroup>
               )
@@ -161,9 +156,7 @@ export default function SkillDetailScreen() {
                 disabled={install.isPending}
                 onPress={() => install.mutate(skill._id)}
               >
-                {install.isPending
-                  ? t('skills.installing')
-                  : t('skills.install')}
+                {install.isPending ? t('skills.installing') : t('skills.install')}
               </Button>
             )}
           </View>
@@ -238,9 +231,7 @@ export default function SkillDetailScreen() {
         <View className="gap-2">
           <Text variant="headline-semibold">{t('skills.instructions')}</Text>
           {skill.publisher ? (
-            <Muted>
-              {t('skills.untrusted', { publisher: skill.publisher })}
-            </Muted>
+            <Muted>{t('skills.untrusted', { publisher: skill.publisher })}</Muted>
           ) : null}
           {version ? <CustomMarkdown content={version.body} /> : null}
         </View>
@@ -269,14 +260,10 @@ export default function SkillDetailScreen() {
         {skill.sourceUrl ? (
           <SettingsListGroup>
             <SettingsListItem
-              icon={
-                <RiExternalLinkLine width={18} height={18} fill={colors.icon} />
-              }
+              icon={<RiExternalLinkLine width={18} height={18} fill={colors.icon} />}
               title={t('skills.viewSource')}
               description={`${skill.sourceRepo ?? ''}${
-                version?.sourceCommit
-                  ? ` · ${version.sourceCommit.slice(0, 7)}`
-                  : ''
+                version?.sourceCommit ? ` · ${version.sourceCommit.slice(0, 7)}` : ''
               }`}
               accessibilityRole="link"
               onPress={() => void Linking.openURL(skill.sourceUrl!)}

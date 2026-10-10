@@ -40,10 +40,7 @@ export default function ForgotPasswordScreen() {
       router.back();
     } catch (error: unknown) {
       console.error('Reset password error:', error);
-      const errorMessage = getErrorMessage(
-        error,
-        t('forgotPassword.failedToSend'),
-      );
+      const errorMessage = getErrorMessage(error, t('forgotPassword.failedToSend'));
       setError(errorMessage);
 
       toast.error(errorMessage);

@@ -159,17 +159,34 @@ export async function aggregateModelTurnsSince(
   const rows = await db
     .select({ modelId: chatAnalytics.model, turns: rowCount })
     .from(chatAnalytics)
-    .where(and(gte(chatAnalytics.createdAt, since), isNotNull(chatAnalytics.model), isNull(chatAnalytics.errorClass)))
+    .where(
+      and(
+        gte(chatAnalytics.createdAt, since),
+        isNotNull(chatAnalytics.model),
+        isNull(chatAnalytics.errorClass),
+      ),
+    )
     .groupBy(chatAnalytics.model);
-  return rows.flatMap((row) => (row.modelId === null ? [] : [{ modelId: row.modelId, turns: Number(row.turns) }]));
+  return rows.flatMap((row) =>
+    row.modelId === null ? [] : [{ modelId: row.modelId, turns: Number(row.turns) }],
+  );
 }
 
 /** The model of a person's most recent successful turn, or `null`. */
-export async function findLastUsedModel(db: ApiDatabase, oxyUserId: string): Promise<string | null> {
+export async function findLastUsedModel(
+  db: ApiDatabase,
+  oxyUserId: string,
+): Promise<string | null> {
   const [row] = await db
     .select({ model: chatAnalytics.model })
     .from(chatAnalytics)
-    .where(and(eq(chatAnalytics.oxyUserId, oxyUserId), isNotNull(chatAnalytics.model), isNull(chatAnalytics.errorClass)))
+    .where(
+      and(
+        eq(chatAnalytics.oxyUserId, oxyUserId),
+        isNotNull(chatAnalytics.model),
+        isNull(chatAnalytics.errorClass),
+      ),
+    )
     .orderBy(desc(chatAnalytics.createdAt))
     .limit(1);
   return row?.model ?? null;

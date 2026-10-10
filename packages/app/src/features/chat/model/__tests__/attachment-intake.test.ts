@@ -55,9 +55,7 @@ describe('what the composer will take', () => {
     expect(intakeKind({ name: 'holiday.PNG', mimeType: '', size: 10 })).toBe('image');
     expect(intakeKind({ name: 'notes.pdf', mimeType: '', size: 10 })).toBe('document');
     // And the browser's answer still wins where it has one.
-    expect(intakeKind({ name: 'no-extension', mimeType: 'image/webp', size: 10 })).toBe(
-      'image',
-    );
+    expect(intakeKind({ name: 'no-extension', mimeType: 'image/webp', size: 10 })).toBe('image');
   });
 });
 

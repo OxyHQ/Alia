@@ -15,10 +15,7 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     View: host('View'),
@@ -31,33 +28,64 @@ vi.mock('react-native', async () => {
   };
 });
 
-
-
 vi.mock('@oxy.so/bloom/loading', async () => {
   const ReactModule = await import('react');
   return {
-    Loading: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Loading', props),
+    Loading: (props: Record<string, unknown>) => ReactModule.createElement('Loading', props),
   };
 });
-vi.mock('@oxy.so/bloom/agent-log', async () => (await import('@/shared/testing/panel-bloom-stubs')).agentLogModule());
-vi.mock('@oxy.so/bloom/accordion', async () => (await import('@/shared/testing/panel-bloom-stubs')).accordionModule());
-vi.mock('@oxy.so/bloom/item', async () => (await import('@/shared/testing/panel-bloom-stubs')).itemModule());
-vi.mock('@oxy.so/bloom/empty-state', async () => (await import('@/shared/testing/panel-bloom-stubs')).emptyStateModule());
-vi.mock('@oxy.so/bloom/typography', async () => (await import('@/shared/testing/panel-bloom-stubs')).typographyModule());
-vi.mock('@oxy.so/bloom/theme', async () => (await import('@/shared/testing/panel-bloom-stubs')).themeModule());
-vi.mock('@oxy.so/bloom/chip', async () => ({ Chip: (await import('@/shared/testing/panel-bloom-stubs')).host('Chip') }));
-vi.mock('@oxy.so/bloom/code', async () => ({ CodeBlock: (await import('@/shared/testing/panel-bloom-stubs')).host('CodeBlock') }));
+vi.mock('@oxy.so/bloom/agent-log', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).agentLogModule(),
+);
+vi.mock('@oxy.so/bloom/accordion', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).accordionModule(),
+);
+vi.mock('@oxy.so/bloom/item', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).itemModule(),
+);
+vi.mock('@oxy.so/bloom/empty-state', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).emptyStateModule(),
+);
+vi.mock('@oxy.so/bloom/typography', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).typographyModule(),
+);
+vi.mock('@oxy.so/bloom/theme', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).themeModule(),
+);
+vi.mock('@oxy.so/bloom/chip', async () => ({
+  Chip: (await import('@/shared/testing/panel-bloom-stubs')).host('Chip'),
+}));
+vi.mock('@oxy.so/bloom/code', async () => ({
+  CodeBlock: (await import('@/shared/testing/panel-bloom-stubs')).host('CodeBlock'),
+}));
 vi.mock('expo-clipboard', () => ({ setStringAsync: async () => true }));
-vi.mock('@oxy.so/bloom/icons/RiArrowDownSLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiArrowDownSLine'));
-vi.mock('@oxy.so/bloom/icons/RiArrowRightSLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiArrowRightSLine'));
-vi.mock('@oxy.so/bloom/icons/RiCheckboxCircleLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiCheckboxCircleLine'));
-vi.mock('@oxy.so/bloom/icons/RiCloseCircleLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiCloseCircleLine'));
-vi.mock('@oxy.so/bloom/icons/RiCloseLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiCloseLine'));
-vi.mock('@oxy.so/bloom/icons/RiFileTextLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiFileTextLine'));
-vi.mock('@oxy.so/bloom/icons/RiForbidLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiForbidLine'));
-vi.mock('@oxy.so/bloom/icons/RiGlobalLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiGlobalLine'));
-vi.mock('@oxy.so/bloom/icons/RiTimeLine', async () => (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiTimeLine'));
+vi.mock('@oxy.so/bloom/icons/RiArrowDownSLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiArrowDownSLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiArrowRightSLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiArrowRightSLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiCheckboxCircleLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiCheckboxCircleLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiCloseCircleLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiCloseCircleLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiCloseLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiCloseLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiFileTextLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiFileTextLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiForbidLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiForbidLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiGlobalLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiGlobalLine'),
+);
+vi.mock('@oxy.so/bloom/icons/RiTimeLine', async () =>
+  (await import('@/shared/testing/panel-bloom-stubs')).iconModule('RiTimeLine'),
+);
 vi.mock('expo-web-browser', () => ({ openBrowserAsync: async () => {} }));
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -78,10 +106,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
-import {
-  rememberOpener,
-  restoreOpenerFocus,
-} from '@/features/chat/ui/execution/focus-return';
+import { rememberOpener, restoreOpenerFocus } from '@/features/chat/ui/execution/focus-return';
 import { ThoughtPanel } from '@/features/chat/ui/thought-panel';
 import { useUIStore, type ThoughtScope } from '@/features/chat/runtime/ui-store';
 
@@ -146,9 +171,7 @@ describe('closing the panel', () => {
     });
 
     const close = renderer!.root.findAll(
-      (node) =>
-        node.type === HOST_PRESSABLE &&
-        node.props.accessibilityLabel === 'common.close',
+      (node) => node.type === HOST_PRESSABLE && node.props.accessibilityLabel === 'common.close',
     );
     expect(close).toHaveLength(1);
     act(() => {
@@ -195,22 +218,14 @@ describe('the panel is navigable by keyboard', () => {
     const tabs = renderer!.root.find((node) => String(node.type) === 'Tabs');
     expect(tabs.props.value).toBe('steps');
     expect(tabs.props.variant).toBe('pill');
-    const triggers = renderer!.root.findAll(
-      (node) => String(node.type) === 'TabsTrigger',
-    );
-    expect(triggers.map((tab) => tab.props.value)).toEqual([
-      'steps',
-      'sources',
-      'activity',
-    ]);
+    const triggers = renderer!.root.findAll((node) => String(node.type) === 'TabsTrigger');
+    expect(triggers.map((tab) => tab.props.value)).toEqual(['steps', 'sources', 'activity']);
     expect(triggers.map((tab) => tab.props.children)).toEqual([
       'thought.steps',
       'thought.sources',
       'thought.activity',
     ]);
-    const controls = renderer!.root.findAll(
-      (node) => node.type === HOST_PRESSABLE,
-    );
+    const controls = renderer!.root.findAll((node) => node.type === HOST_PRESSABLE);
     expect(
       controls.every(
         (node) =>
@@ -220,9 +235,7 @@ describe('the panel is navigable by keyboard', () => {
     ).toBe(true);
     // The tool row is expandable and says so. It is named by the app's own
     // words for the tool — here the key, since `t` is the identity.
-    const row = controls.find(
-      (node) => node.props.accessibilityLabel === 'thought.tool.webSearch',
-    );
+    const row = controls.find((node) => node.props.accessibilityLabel === 'thought.tool.webSearch');
     expect(row?.props.accessibilityState).toMatchObject({ expanded: false });
   });
 });
@@ -240,9 +253,7 @@ vi.mock('@oxy.so/bloom/button', async () => {
 vi.mock('@oxy.so/bloom/tabs', async () => {
   const R = await import('react');
   return {
-    Tabs: ({ children, ...props }: any) =>
-      R.createElement('Tabs', props, children),
-    TabsTrigger: ({ label, ...props }: any) =>
-      R.createElement('TabsTrigger', props, label),
+    Tabs: ({ children, ...props }: any) => R.createElement('Tabs', props, children),
+    TabsTrigger: ({ label, ...props }: any) => R.createElement('TabsTrigger', props, label),
   };
 });

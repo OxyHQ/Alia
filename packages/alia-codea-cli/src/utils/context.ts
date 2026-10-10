@@ -119,7 +119,9 @@ export async function getCodebaseContext(): Promise<string> {
 
     if (pkg.dependencies) {
       const deps = Object.keys(pkg.dependencies).slice(0, 10);
-      contextParts.push(`Dependencies: ${deps.join(', ')}${Object.keys(pkg.dependencies).length > 10 ? '...' : ''}`);
+      contextParts.push(
+        `Dependencies: ${deps.join(', ')}${Object.keys(pkg.dependencies).length > 10 ? '...' : ''}`,
+      );
     }
   } catch {
     // No package.json
@@ -143,7 +145,7 @@ export async function getCodebaseContext(): Promise<string> {
   try {
     const files = await getRelevantFiles(cwd);
     if (files.length > 0) {
-      contextParts.push(`\nKey files:\n${files.map(f => `- ${f}`).join('\n')}`);
+      contextParts.push(`\nKey files:\n${files.map((f) => `- ${f}`).join('\n')}`);
     }
   } catch {
     // Can't read directory
@@ -175,7 +177,11 @@ async function getRelevantFiles(dir: string, maxFiles: number = 20): Promise<str
           await walk(fullPath, depth + 1);
         } else {
           const ext = path.extname(entry.name);
-          if (relevantExtensions.includes(ext) || entry.name === 'README.md' || entry.name === 'package.json') {
+          if (
+            relevantExtensions.includes(ext) ||
+            entry.name === 'README.md' ||
+            entry.name === 'package.json'
+          ) {
             relevantFiles.push(relativePath);
           }
         }

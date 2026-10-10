@@ -203,9 +203,23 @@ export interface InsertValues {
 }
 
 export type Operation =
-  | { readonly kind: 'insert'; readonly agentId: string; readonly product: NativeProductAgent['product']; readonly values: InsertValues }
-  | { readonly kind: 'update'; readonly agentId: string; readonly product: NativeProductAgent['product']; readonly changes: readonly FieldChange[] }
-  | { readonly kind: 'unchanged'; readonly agentId: string; readonly product: NativeProductAgent['product'] };
+  | {
+      readonly kind: 'insert';
+      readonly agentId: string;
+      readonly product: NativeProductAgent['product'];
+      readonly values: InsertValues;
+    }
+  | {
+      readonly kind: 'update';
+      readonly agentId: string;
+      readonly product: NativeProductAgent['product'];
+      readonly changes: readonly FieldChange[];
+    }
+  | {
+      readonly kind: 'unchanged';
+      readonly agentId: string;
+      readonly product: NativeProductAgent['product'];
+    };
 
 export interface BootstrapPlan {
   readonly manifestSha256: string;
@@ -237,7 +251,10 @@ function refusal(
  * Every refusal for one agent is collected rather than the first thrown, so a
  * dry run tells an operator everything that is wrong with a row in one read.
  */
-function planOne(observation: NativeAgentObservation): { operation: Operation | null; refusals: Refusal[] } {
+function planOne(observation: NativeAgentObservation): {
+  operation: Operation | null;
+  refusals: Refusal[];
+} {
   const { agent, byId, byOxyAccountId } = observation;
   const seed = NATIVE_PRODUCT_AGENT_SEEDS[agent.product];
   const refusals: Refusal[] = [];
@@ -310,12 +327,17 @@ function planOne(observation: NativeAgentObservation): { operation: Operation | 
 
   const changes: FieldChange[] = [];
   if (byId.ownerOxyAccountId !== agent.ownerOxyAccountId) {
-    changes.push({ field: 'ownerOxyAccountId', from: byId.ownerOxyAccountId, to: agent.ownerOxyAccountId });
+    changes.push({
+      field: 'ownerOxyAccountId',
+      from: byId.ownerOxyAccountId,
+      to: agent.ownerOxyAccountId,
+    });
   }
   if (byId.applicationId !== agent.applicationId) {
     changes.push({ field: 'applicationId', from: byId.applicationId, to: agent.applicationId });
   }
-  if (byId.access !== 'private') changes.push({ field: 'access', from: byId.access, to: 'private' });
+  if (byId.access !== 'private')
+    changes.push({ field: 'access', from: byId.access, to: 'private' });
   if (byId.status !== 'active') changes.push({ field: 'status', from: byId.status, to: 'active' });
   if (byId.isPublished) changes.push({ field: 'isPublished', from: true, to: false });
   /**
@@ -334,7 +356,10 @@ function planOne(observation: NativeAgentObservation): { operation: Operation | 
   }
 
   if (changes.length === 0) {
-    return { operation: { kind: 'unchanged', agentId: agent.id, product: agent.product }, refusals };
+    return {
+      operation: { kind: 'unchanged', agentId: agent.id, product: agent.product },
+      refusals,
+    };
   }
   return {
     operation: { kind: 'update', agentId: agent.id, product: agent.product, changes },
@@ -358,7 +383,8 @@ export function planWidensReach(operation: Operation): boolean {
   for (const change of operation.changes) {
     if (change.field === 'access' && change.to !== 'private') return true;
     if (change.field === 'isPublished' && change.to !== false) return true;
-    if (change.field === 'applicationId' && (change.to === null || change.from !== null)) return true;
+    if (change.field === 'applicationId' && (change.to === null || change.from !== null))
+      return true;
     if (change.field === 'capabilityGrants') {
       const published = findNativeProductAgent(operation.agentId)?.capabilityGrants;
       // An id with no manifest entry cannot be granted anything at all.
@@ -374,7 +400,9 @@ export function planNativeProductAgentBootstrap(
 ): PlanResult {
   const operations: Operation[] = [];
   const refusals: Refusal[] = [];
-  for (const observation of [...observations].sort((a, b) => a.agent.id.localeCompare(b.agent.id))) {
+  for (const observation of [...observations].sort((a, b) =>
+    a.agent.id.localeCompare(b.agent.id),
+  )) {
     const result = planOne(observation);
     refusals.push(...result.refusals);
     if (result.operation !== null) operations.push(result.operation);

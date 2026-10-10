@@ -80,7 +80,10 @@ export class FakePage extends Emitter {
 export class FakeContext extends Emitter {
   readonly pageList: FakePage[] = [];
   closed = false;
-  state: { cookies: { name: string; value: string }[]; origins: unknown[] } = { cookies: [], origins: [] };
+  state: { cookies: { name: string; value: string }[]; origins: unknown[] } = {
+    cookies: [],
+    origins: [],
+  };
   storageStateCalls = 0;
 
   constructor(readonly options: Record<string, unknown>) {

@@ -57,7 +57,9 @@ export const creditOperations = pgTable(
   {
     id: generatedId(),
     userId: text().notNull(),
-    productAllocationId: text().references(() => productCreditAllocations.id, { onDelete: 'restrict' }),
+    productAllocationId: text().references(() => productCreditAllocations.id, {
+      onDelete: 'restrict',
+    }),
     bookId: text()
       .notNull()
       .references(() => creditPriceBooks.id, { onDelete: 'restrict' }),
@@ -86,7 +88,10 @@ export const creditOperations = pgTable(
       'credit_operations_funding_check',
       sql`${t.grantKind} IN ('free_allowance', 'paid_balance', 'product_allowance') AND ${t.initialFreeCredits} >= 0 AND ${t.initialPaidCredits} >= 0`,
     ),
-    check('credit_operation_product_source', sql`(${t.grantKind} = 'product_allowance' AND ${t.productAllocationId} IS NOT NULL) OR (${t.grantKind} <> 'product_allowance' AND ${t.productAllocationId} IS NULL)`),
+    check(
+      'credit_operation_product_source',
+      sql`(${t.grantKind} = 'product_allowance' AND ${t.productAllocationId} IS NOT NULL) OR (${t.grantKind} <> 'product_allowance' AND ${t.productAllocationId} IS NULL)`,
+    ),
     check(
       'credit_operations_terminal_check',
       sql`(${t.status} = 'admitted' AND ${t.settledAt} IS NULL AND ${t.creditsRequested} IS NULL AND ${t.creditsCharged} IS NULL) OR (${t.status} IN ('settled', 'refunded') AND ${t.settledAt} IS NOT NULL AND ${t.creditsRequested} IS NOT NULL AND ${t.creditsCharged} IS NOT NULL)`,

@@ -12,10 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "onl.alia.app",
       "infoPlist": {
-        "UIBackgroundModes": [
-          "audio",
-          "remote-notification"
-        ]
+        "UIBackgroundModes": ["audio", "remote-notification"]
       }
     },
     "android": {

@@ -27,7 +27,9 @@ export function useRememberingAgents() {
   return useQuery({
     queryKey: queryKeys.agents.remembering,
     queryFn: async (): Promise<RememberingAgent[]> => {
-      const response = await apiClient.get<{ agents: RememberingAgent[] }>(API_ROUTES.memory.agents);
+      const response = await apiClient.get<{ agents: RememberingAgent[] }>(
+        API_ROUTES.memory.agents,
+      );
       return response.data.agents ?? [];
     },
     enabled: isAuthenticated,
@@ -56,7 +58,9 @@ export function useAgentMemoryFiles(agentId: string) {
     queryKey: queryKeys.agents.memory(agentId),
     queryFn: async (): Promise<AgentMemoryFile[] | null> => {
       try {
-        const response = await apiClient.get<{ documents: AgentMemoryFile[] }>(API_ROUTES.agents.memory(agentId));
+        const response = await apiClient.get<{ documents: AgentMemoryFile[] }>(
+          API_ROUTES.agents.memory(agentId),
+        );
         return response.data.documents ?? [];
       } catch (error) {
         if (errorStatus(error) === 404) return null;
@@ -85,10 +89,11 @@ export function useAgentMemoryDocument(agentId: string, path: string | null) {
 /** Saving (with the hash it was read at) and forgetting one file or everything. */
 export function useAgentMemoryMutations(agentId: string) {
   const queryClient = useQueryClient();
-  const invalidate = () => Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.agents.memory(agentId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.agents.remembering }),
-  ]);
+  const invalidate = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.memory(agentId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.remembering }),
+    ]);
 
   const save = useMutation({
     mutationFn: async (input: { path: string; content: string; expectedHash: string }) => {
@@ -100,7 +105,9 @@ export function useAgentMemoryMutations(agentId: string) {
   const forget = useMutation({
     /** `path` omitted forgets everything this agent remembers about the caller. */
     mutationFn: async (path?: string) => {
-      await apiClient.delete(API_ROUTES.agents.memory(agentId), { params: path === undefined ? {} : { path } });
+      await apiClient.delete(API_ROUTES.agents.memory(agentId), {
+        params: path === undefined ? {} : { path },
+      });
     },
     onSuccess: invalidate,
   });

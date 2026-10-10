@@ -130,9 +130,7 @@ export class TelegramBotAdapter implements BotAdapter {
     const telegramId = ctx.from?.id.toString();
     const messageText: string | undefined =
       options?.textOverride ??
-      ('message' in ctx && ctx.message && 'text' in ctx.message
-        ? ctx.message.text
-        : undefined);
+      ('message' in ctx && ctx.message && 'text' in ctx.message ? ctx.message.text : undefined);
 
     if (!telegramId || (!messageText && !options?.imageUrl)) return;
 
@@ -205,16 +203,12 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       let lastUpdateTime = Date.now();
       let currentMessage: Message.TextMessage | null = null;
 
-      const stream = apiClient.chatCompletionStream(
-        botUser.oxyUserId.toString(),
-        apiMessages,
-        {
-          // Unset, or no longer in the catalogue, means the request names no
-          // model and the server's default applies. See `shared/catalogue.ts`.
-          model: await apiClient.requestModel(botUser.preferredModel),
-          conversationId,
-        },
-      );
+      const stream = apiClient.chatCompletionStream(botUser.oxyUserId.toString(), apiMessages, {
+        // Unset, or no longer in the catalogue, means the request names no
+        // model and the server's default applies. See `shared/catalogue.ts`.
+        model: await apiClient.requestModel(botUser.preferredModel),
+        conversationId,
+      });
 
       // Process streaming chunks
       for await (const chunk of stream) {
@@ -236,7 +230,12 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
         else if (now - lastUpdateTime > 700) {
           if (currentMessage) {
             await ctx.telegram
-              .editMessageText(ctx.chat!.id, currentMessage.message_id, undefined, stripMarkdown(fullResponse) + '...')
+              .editMessageText(
+                ctx.chat!.id,
+                currentMessage.message_id,
+                undefined,
+                stripMarkdown(fullResponse) + '...',
+              )
               .catch(() => {});
           }
           lastUpdateTime = now;
@@ -262,7 +261,10 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       fullResponse = fullResponse.replace(/\[(?:ALIA_)?REACT:[^\]]+\]\s*/g, '');
       fullResponse = fullResponse.replace(/\[(?:ALIA_)?TITLE\][^\]]*\[\/(?:ALIA_)?TITLE\]\s*/g, '');
       fullResponse = fullResponse.replace(/\[(?:ALIA_)?TGIMAGE[^\]]*\]\s*/g, '');
-      fullResponse = fullResponse.replace(/\[(?:ALIA_)?TGLINKS[^\]]*\][\s\S]*?\[\/(?:ALIA_)?TGLINKS\]\s*/g, '');
+      fullResponse = fullResponse.replace(
+        /\[(?:ALIA_)?TGLINKS[^\]]*\][\s\S]*?\[\/(?:ALIA_)?TGLINKS\]\s*/g,
+        '',
+      );
       fullResponse = fullResponse.replace(/\[(?:ALIA_)?TGDOC[^\]]*\]\s*/g, '');
       fullResponse = fullResponse.trim();
 
@@ -272,7 +274,11 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
         try {
           if (currentMessage) {
             await ctx.telegram.editMessageText(
-              ctx.chat!.id, currentMessage.message_id, undefined, htmlText, { parse_mode: 'HTML' },
+              ctx.chat!.id,
+              currentMessage.message_id,
+              undefined,
+              htmlText,
+              { parse_mode: 'HTML' },
             );
           } else {
             await ctx.reply(htmlText, { parse_mode: 'HTML' });
@@ -298,8 +304,8 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
         const appUrl = process.env.APP_URL || 'https://alia.onl';
         await ctx.reply(
           `💳 <b>Out of Credits</b>\n\n` +
-          `You've run out of credits. Add more to continue using Alia.\n\n` +
-          `<a href="${appUrl}">Open Alia to add credits</a>`,
+            `You've run out of credits. Add more to continue using Alia.\n\n` +
+            `<a href="${appUrl}">Open Alia to add credits</a>`,
           { parse_mode: 'HTML', link_preview_options: { is_disabled: true } },
         );
       } else if (errorStatus(error) === 401 || errorMessage(error).includes('401')) {
@@ -307,9 +313,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
           '🔒 <b>Session Expired</b>\n\nYour authentication session has expired.\nPlease logout and sign in again.',
           {
             parse_mode: 'HTML',
-            ...Markup.inlineKeyboard([
-              [Markup.button.callback('🔐 Sign In Again', 'start')],
-            ]),
+            ...Markup.inlineKeyboard([[Markup.button.callback('🔐 Sign In Again', 'start')]]),
           },
         );
       } else {
@@ -364,12 +368,14 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
 
       // Telegram Bot API file download limit is 20MB
       if (fileObj.file_size && fileObj.file_size > 20 * 1024 * 1024) {
-        await ctx.reply('This audio file is too large (max 20MB). Please send a shorter recording.');
+        await ctx.reply(
+          'This audio file is too large (max 20MB). Please send a shorter recording.',
+        );
         return;
       }
 
       const base64Audio = await this.downloadTelegramFile(ctx, fileObj.file_id);
-      const mimeType = voice ? 'audio/ogg' : (audio?.mime_type || 'audio/mpeg');
+      const mimeType = voice ? 'audio/ogg' : audio?.mime_type || 'audio/mpeg';
 
       const transcribedText = await apiClient.transcribe(
         botUser.oxyUserId.toString(),
@@ -378,7 +384,9 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       );
 
       if (!transcribedText?.trim()) {
-        await ctx.reply("I couldn't understand the audio. Could you try again or type your message?");
+        await ctx.reply(
+          "I couldn't understand the audio. Could you try again or type your message?",
+        );
         return;
       }
 
@@ -388,11 +396,15 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
 
       if (errorStatus(error) === 402 || errorCode(error) === 'INSUFFICIENT_CREDITS') {
         const appUrl = process.env.APP_URL || 'https://alia.onl';
-        await ctx.reply(
-          `You've run out of credits. Add more to continue using Alia.\n\n${appUrl}`,
-        ).catch(() => {});
+        await ctx
+          .reply(`You've run out of credits. Add more to continue using Alia.\n\n${appUrl}`)
+          .catch(() => {});
       } else {
-        await ctx.reply('Sorry, I had trouble processing that audio. Please try again or type your message.').catch(() => {});
+        await ctx
+          .reply(
+            'Sorry, I had trouble processing that audio. Please try again or type your message.',
+          )
+          .catch(() => {});
       }
     }
   }
@@ -435,7 +447,9 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       await this.handleChatMessage(ctx, { textOverride: caption, imageUrl: dataUrl });
     } catch (error: unknown) {
       logger.error('Photo message error:', error);
-      await ctx.reply('Sorry, I had trouble processing that image. Please try again.').catch(() => {});
+      await ctx
+        .reply('Sorry, I had trouble processing that image. Please try again.')
+        .catch(() => {});
     }
   }
 
@@ -444,7 +458,9 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
   // -----------------------------------------------------------------------
   private async processTelegramComponents(ctx: Context, response: string) {
     // Images [ALIA_TGIMAGE url="..." caption="..."]
-    const imageMatches = response.matchAll(/\[(?:ALIA_)?TGIMAGE\s+url="([^"]+)"(?:\s+caption="([^"]*)")?\]/g);
+    const imageMatches = response.matchAll(
+      /\[(?:ALIA_)?TGIMAGE\s+url="([^"]+)"(?:\s+caption="([^"]*)")?\]/g,
+    );
     for (const match of imageMatches) {
       const [, url, caption] = match;
       try {
@@ -455,7 +471,9 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
     }
 
     // Documents [ALIA_TGDOC url="..." filename="..." caption="..."]
-    const docMatches = response.matchAll(/\[(?:ALIA_)?TGDOC\s+url="([^"]+)"(?:\s+filename="([^"]*)")?(?:\s+caption="([^"]*)")?\]/g);
+    const docMatches = response.matchAll(
+      /\[(?:ALIA_)?TGDOC\s+url="([^"]+)"(?:\s+filename="([^"]*)")?(?:\s+caption="([^"]*)")?\]/g,
+    );
     for (const match of docMatches) {
       const [, url, filename, caption] = match;
       try {
@@ -469,7 +487,9 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
     }
 
     // Link buttons [ALIA_TGLINKS title="..."]...[/ALIA_TGLINKS]
-    const linksMatch = response.match(/\[(?:ALIA_)?TGLINKS(?:\s+title="([^"]*)")?\]([\s\S]*?)\[\/(?:ALIA_)?TGLINKS\]/);
+    const linksMatch = response.match(
+      /\[(?:ALIA_)?TGLINKS(?:\s+title="([^"]*)")?\]([\s\S]*?)\[\/(?:ALIA_)?TGLINKS\]/,
+    );
     if (linksMatch) {
       const [, title, linksContent] = linksMatch;
       try {

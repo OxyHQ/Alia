@@ -52,16 +52,16 @@ export class TodoManager {
     // Mark completed items (1-based indices)
     if (completedItems) {
       for (const idx of completedItems) {
-        const item = this.items.find(i => i.id === idx);
+        const item = this.items.find((i) => i.id === idx);
         if (item) item.status = 'completed';
       }
     }
 
     // Auto-mark first pending item as in_progress
-    const firstPending = this.items.find(i => i.status === 'pending');
+    const firstPending = this.items.find((i) => i.status === 'pending');
     if (firstPending) {
       // Only if no item is already in_progress
-      const hasInProgress = this.items.some(i => i.status === 'in_progress');
+      const hasInProgress = this.items.some((i) => i.status === 'in_progress');
       if (!hasInProgress) {
         firstPending.status = 'in_progress';
       }
@@ -86,7 +86,7 @@ export class TodoManager {
 
   /** Mark an item as completed by id */
   markDone(id: number): boolean {
-    const item = this.items.find(i => i.id === id);
+    const item = this.items.find((i) => i.id === id);
     if (!item) return false;
     item.status = 'completed';
     return true;
@@ -101,32 +101,30 @@ export class TodoManager {
   toJSON(): TodoList {
     return {
       objective: this.objective,
-      items: this.items.map(i => ({ ...i })),
+      items: this.items.map((i) => ({ ...i })),
     };
   }
 
   /** Load from persisted data */
   loadFromPersisted(data: TodoList): void {
     this.objective = data.objective || '';
-    this.items = (data.items || []).map(i => ({
+    this.items = (data.items || []).map((i) => ({
       id: i.id,
       text: i.text || '',
       status: i.status || 'pending',
     }));
-    this.nextId = this.items.length > 0
-      ? Math.max(...this.items.map(i => i.id)) + 1
-      : 1;
+    this.nextId = this.items.length > 0 ? Math.max(...this.items.map((i) => i.id)) + 1 : 1;
   }
 
   /** Check if there are any pending items */
   hasPending(): boolean {
-    return this.items.some(i => i.status === 'pending' || i.status === 'in_progress');
+    return this.items.some((i) => i.status === 'pending' || i.status === 'in_progress');
   }
 
   /** Progress summary: "3/7 completed" */
   progressSummary(): string {
     const total = this.items.length;
-    const completed = this.items.filter(i => i.status === 'completed').length;
+    const completed = this.items.filter((i) => i.status === 'completed').length;
     return `${completed}/${total} completed`;
   }
 
@@ -158,9 +156,13 @@ export class TodoManager {
 
 function statusToCheckbox(status: TodoStatus): string {
   switch (status) {
-    case 'completed':   return '- [x]';
-    case 'in_progress': return '- [~]';
-    case 'blocked':     return '- [!]';
-    case 'pending':     return '- [ ]';
+    case 'completed':
+      return '- [x]';
+    case 'in_progress':
+      return '- [~]';
+    case 'blocked':
+      return '- [!]';
+    case 'pending':
+      return '- [ ]';
   }
 }

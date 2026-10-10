@@ -16,13 +16,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const platform = vi.hoisted(() => ({ OS: 'web' as 'web' | 'ios' | 'android' }));
-vi.mock('react-native', async () => (await import('@/shared/testing/native-module-stubs')).reactNativeModule(platform));
-vi.mock('react-native-reanimated', async () => (await import('@/shared/testing/native-module-stubs')).reanimatedModule());
-vi.mock('react-native-svg', async () => (await import('@/shared/testing/native-module-stubs')).svgModule());
-vi.mock('react-native-gesture-handler', async () => (await import('@/shared/testing/native-module-stubs')).gestureHandlerModule());
-vi.mock('react-native-screens', async () => (await import('@/shared/testing/native-module-stubs')).screensModule());
-vi.mock('react-native-safe-area-context', async () => (await import('@/shared/testing/native-module-stubs')).safeAreaModule());
-vi.mock('expo-blur', async () => (await import('@/shared/testing/native-module-stubs')).blurModule());
+vi.mock('react-native', async () =>
+  (await import('@/shared/testing/native-module-stubs')).reactNativeModule(platform),
+);
+vi.mock('react-native-reanimated', async () =>
+  (await import('@/shared/testing/native-module-stubs')).reanimatedModule(),
+);
+vi.mock('react-native-svg', async () =>
+  (await import('@/shared/testing/native-module-stubs')).svgModule(),
+);
+vi.mock('react-native-gesture-handler', async () =>
+  (await import('@/shared/testing/native-module-stubs')).gestureHandlerModule(),
+);
+vi.mock('react-native-screens', async () =>
+  (await import('@/shared/testing/native-module-stubs')).screensModule(),
+);
+vi.mock('react-native-safe-area-context', async () =>
+  (await import('@/shared/testing/native-module-stubs')).safeAreaModule(),
+);
+vi.mock('expo-blur', async () =>
+  (await import('@/shared/testing/native-module-stubs')).blurModule(),
+);
 
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
@@ -51,7 +65,10 @@ vi.mock('@/features/chat/runtime/save-image', async (importOriginal) => ({
 }));
 
 const surfaces = vi.hoisted(() => ({
-  alerts: [] as { title: string; buttons: { text: string; style?: string; onPress?: () => void }[] }[],
+  alerts: [] as {
+    title: string;
+    buttons: { text: string; style?: string; onPress?: () => void }[];
+  }[],
   confirmAnswer: true,
   confirms: [] as { title: string }[],
 }));
@@ -130,10 +147,12 @@ function texts(r: ReactTestRenderer): string[] {
   return out;
 }
 
-const pressables = (r: ReactTestRenderer) => r.root.findAll((n) => (n.type as unknown) === 'Pressable');
+const pressables = (r: ReactTestRenderer) =>
+  r.root.findAll((n) => (n.type as unknown) === 'Pressable');
 const labelled = (r: ReactTestRenderer, label: string) =>
   pressables(r).filter((n) => n.props.accessibilityLabel === label);
-const labels = (r: ReactTestRenderer) => pressables(r).map((n) => n.props.accessibilityLabel as string | undefined);
+const labels = (r: ReactTestRenderer) =>
+  pressables(r).map((n) => n.props.accessibilityLabel as string | undefined);
 
 function expectEveryControlActs(r: ReactTestRenderer) {
   for (const node of pressables(r)) {
@@ -165,7 +184,13 @@ afterEach(async () => {
 });
 
 describe('the code panel', () => {
-  const code = { id: 'f1', type: 'code' as const, title: 'app.ts', content: { language: 'ts', code: 'a\nb' }, timestamp: 1 };
+  const code = {
+    id: 'f1',
+    type: 'code' as const,
+    title: 'app.ts',
+    content: { language: 'ts', code: 'a\nb' },
+    timestamp: 1,
+  };
 
   it('draws no undo, no deletions and no Browser tab for a code canvas', async () => {
     useUIStore.setState({ canvasArtifacts: [code] });
@@ -193,7 +218,15 @@ describe('the code panel', () => {
 
   it('offers the preview tab for a canvas it can preview', async () => {
     useUIStore.setState({
-      canvasArtifacts: [{ id: 'm1', type: 'markdown', title: 'notes.md', content: { content: '# Hi' }, timestamp: 1 }],
+      canvasArtifacts: [
+        {
+          id: 'm1',
+          type: 'markdown',
+          title: 'notes.md',
+          content: { content: '# Hi' },
+          timestamp: 1,
+        },
+      ],
       codePanelView: 'preview',
     });
     const r = await render();
@@ -267,14 +300,22 @@ describe('the gallery panel', () => {
     expect(buttons.map((b) => b.text)).toEqual(['panel.open', 'common.delete', 'common.cancel']);
 
     await act(async () => buttons[1]!.onPress!());
-    expect(surfaces.confirms).toEqual([expect.objectContaining({ title: 'panel.deleteImage:beach.png' })]);
+    expect(surfaces.confirms).toEqual([
+      expect.objectContaining({ title: 'panel.deleteImage:beach.png' }),
+    ]);
     expect(library.deleted).toEqual(['lib-1']);
   });
 
   it('draws no more menu when some image has nothing to put in it', async () => {
     useUIStore.setState({
       canvasArtifacts: [
-        { id: 'gen-1', type: 'image', title: 'A fox', content: 'data:image/png;base64,AAAA', timestamp: 1 },
+        {
+          id: 'gen-1',
+          type: 'image',
+          title: 'A fox',
+          content: 'data:image/png;base64,AAAA',
+          timestamp: 1,
+        },
       ],
     });
     const r = await renderGallery();

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo } from 'react';
 import {
   ReactFlow,
   Background,
@@ -9,16 +9,10 @@ import {
   type Edge,
   type NodeTypes,
   type OnNodesChange,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
-import type { WorkflowNode } from "@/lib/workflow-types";
-import {
-  GitHubNode,
-  AITextNode,
-  OutputNode,
-  TextInputNode,
-  MergeNode,
-} from "./nodes";
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import type { WorkflowNode } from '@/lib/workflow-types';
+import { GitHubNode, AITextNode, OutputNode, TextInputNode, MergeNode } from './nodes';
 
 interface WorkflowCanvasProps {
   nodes: WorkflowNode[];
@@ -46,7 +40,7 @@ export function WorkflowCanvas({
       condition: MergeNode, // Reuse MergeNode for now
       memory: MergeNode, // Reuse MergeNode for now
     }),
-    []
+    [],
   );
 
   return (
@@ -60,7 +54,7 @@ export function WorkflowCanvas({
         nodeTypes={nodeTypes}
         fitView
         defaultEdgeOptions={{
-          type: "smoothstep",
+          type: 'smoothstep',
           animated: true,
           style: { strokeWidth: 2 },
         }}

@@ -53,12 +53,16 @@ async function readJson(request: IncomingMessage): Promise<unknown> {
 }
 
 export function createWorkerServer(options: { pool: BrowserPool; token: string }) {
-  if (options.token.length < 32) throw new Error('ALIA_BROWSER_TOKEN must be at least 32 characters');
+  if (options.token.length < 32)
+    throw new Error('ALIA_BROWSER_TOKEN must be at least 32 characters');
   const expected = createHash('sha256').update(`Bearer ${options.token}`).digest();
   const { pool } = options;
 
   const send = (response: ServerResponse, status: number, body: unknown) => {
-    response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+    response.writeHead(status, {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+    });
     response.end(JSON.stringify(body));
   };
 
@@ -66,17 +70,28 @@ export function createWorkerServer(options: { pool: BrowserPool; token: string }
     void (async () => {
       const path = new URL(request.url ?? '/', 'http://worker').pathname;
       const method = request.method ?? 'GET';
-      if (method === 'GET' && path === '/health') return send(response, 200, { data: { ok: true } });
+      if (method === 'GET' && path === '/health')
+        return send(response, 200, { data: { ok: true } });
 
-      const presented = createHash('sha256').update(request.headers.authorization ?? '').digest();
+      const presented = createHash('sha256')
+        .update(request.headers.authorization ?? '')
+        .digest();
       if (!timingSafeEqual(presented, expected)) {
-        return send(response, 401, { error: { code: 'unauthenticated', message: 'Worker token required' } });
+        return send(response, 401, {
+          error: { code: 'unauthenticated', message: 'Worker token required' },
+        });
       }
-      if (method === 'GET' && path === '/overview') return send(response, 200, { data: pool.overview() });
+      if (method === 'GET' && path === '/overview')
+        return send(response, 200, { data: pool.overview() });
 
       const match = /^\/actors\/([0-9a-f]{24})(?:\/([a-z]+)(?:\/([0-9a-f-]{36}))?)?$/.exec(path);
       if (!match) throw new PoolError('not_found', 'No such route', 404);
-      const [, key, action, id] = match as unknown as [string, string, string | undefined, string | undefined];
+      const [, key, action, id] = match as unknown as [
+        string,
+        string,
+        string | undefined,
+        string | undefined,
+      ];
 
       if (!action && method === 'GET') return send(response, 200, { data: await pool.status(key) });
       if (action === 'open' && method === 'POST') {
@@ -87,10 +102,15 @@ export function createWorkerServer(options: { pool: BrowserPool; token: string }
         const body = navigateSchema.parse(await readJson(request));
         return send(response, 200, { data: await pool.navigate(key, body.url, body.by) });
       }
-      if (action === 'read' && method === 'GET') return send(response, 200, { data: await pool.read(key) });
+      if (action === 'read' && method === 'GET')
+        return send(response, 200, { data: await pool.read(key) });
       if (action === 'screenshot' && method === 'GET') {
         const bytes = await pool.screenshot(key);
-        response.writeHead(200, { 'content-type': 'image/jpeg', 'content-length': bytes.length, 'cache-control': 'no-store' });
+        response.writeHead(200, {
+          'content-type': 'image/jpeg',
+          'content-length': bytes.length,
+          'cache-control': 'no-store',
+        });
         response.end(bytes);
         return;
       }
@@ -102,8 +122,10 @@ export function createWorkerServer(options: { pool: BrowserPool; token: string }
         const body = controlSchema.parse(await readJson(request));
         return send(response, 200, { data: await pool.control(key, body.controller) });
       }
-      if (action === 'close' && method === 'POST') return send(response, 200, { data: await pool.close(key) });
-      if (action === 'downloads' && !id && method === 'GET') return send(response, 200, { data: await pool.downloads(key) });
+      if (action === 'close' && method === 'POST')
+        return send(response, 200, { data: await pool.close(key) });
+      if (action === 'downloads' && !id && method === 'GET')
+        return send(response, 200, { data: await pool.downloads(key) });
       if (action === 'downloads' && id && method === 'GET') {
         const { meta, bytes } = await pool.download(key, id);
         response.writeHead(200, {
@@ -125,14 +147,26 @@ export function createWorkerServer(options: { pool: BrowserPool; token: string }
         response.destroy();
         return;
       }
-      if (error instanceof PoolError) return send(response, error.status, { error: { code: error.code, message: error.message } });
+      if (error instanceof PoolError)
+        return send(response, error.status, {
+          error: { code: error.code, message: error.message },
+        });
       if (error instanceof BlockedDestination) {
-        return send(response, error.code === 'dns_unavailable' ? 502 : 400, { error: { code: error.code, message: error.message } });
+        return send(response, error.code === 'dns_unavailable' ? 502 : 400, {
+          error: { code: error.code, message: error.message },
+        });
       }
       if (error instanceof z.ZodError) {
-        return send(response, 400, { error: { code: 'invalid_request', message: error.issues[0]?.message ?? 'Invalid request' } });
+        return send(response, 400, {
+          error: {
+            code: 'invalid_request',
+            message: error.issues[0]?.message ?? 'Invalid request',
+          },
+        });
       }
-      send(response, 500, { error: { code: 'worker_failed', message: 'The browser operation failed.' } });
+      send(response, 500, {
+        error: { code: 'worker_failed', message: 'The browser operation failed.' },
+      });
     });
   });
   server.requestTimeout = 60_000;

@@ -218,11 +218,8 @@ describe('a patch MERGES config per key, as the sub-document assignment did', ()
     expect(patched?.id).toBe(row.id);
   });
 
-  it('refuses to patch another user\'s connector', async () => {
-    const row = await installMcpServer(
-      db,
-      newServer({ oxyUserId: 'mcpu-owner', name: 'mine' }),
-    );
+  it("refuses to patch another user's connector", async () => {
+    const row = await installMcpServer(db, newServer({ oxyUserId: 'mcpu-owner', name: 'mine' }));
     if (!row) throw new Error('install returned null');
 
     expect(await updateMcpServer(db, row.id, 'mcpu-intruder', { enabled: false })).toBeNull();
@@ -293,7 +290,9 @@ describe('the chat tool builder sees only what it can dispatch to', () => {
 
     // A named selection is an additional allow-list, never a way around the
     // ownership/runtime predicates above.
-    expect((await listRunnableMcpServersForUser(db, user, [good.id])).map((s) => s.id)).toEqual([good.id]);
+    expect((await listRunnableMcpServersForUser(db, user, [good.id])).map((s) => s.id)).toEqual([
+      good.id,
+    ]);
     expect(await listRunnableMcpServersForUser(db, user, [stopped.id])).toEqual([]);
     expect(await listRunnableMcpServersForUser(db, 'mcpu-someone-else', [good.id])).toEqual([]);
     // An EMPTY selection means none, not all — the distinction an `inArray`
@@ -317,11 +316,8 @@ describe('an id of any shape simply fails to match', () => {
     expect(await deleteMcpServerForUser(db, 'not-an-object-id', 'mcpu-1')).toBeNull();
   });
 
-  it('deletes only the caller\'s own connector', async () => {
-    const row = await installMcpServer(
-      db,
-      newServer({ oxyUserId: 'mcpu-del', name: 'delete-me' }),
-    );
+  it("deletes only the caller's own connector", async () => {
+    const row = await installMcpServer(db, newServer({ oxyUserId: 'mcpu-del', name: 'delete-me' }));
     if (!row) throw new Error('install returned null');
 
     expect(await deleteMcpServerForUser(db, row.id, 'mcpu-someone-else')).toBeNull();

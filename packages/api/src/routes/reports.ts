@@ -30,7 +30,13 @@ interface ValidationFailure {
 }
 
 type Validated =
-  | { ok: true; reportedType: ReportedType; reportedId: string; categories: ReportCategory[]; details?: string }
+  | {
+      ok: true;
+      reportedType: ReportedType;
+      reportedId: string;
+      categories: ReportCategory[];
+      details?: string;
+    }
   | { ok: false; failure: ValidationFailure };
 
 /**

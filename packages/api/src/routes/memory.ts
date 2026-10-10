@@ -53,14 +53,14 @@ router.get('/stats', async (req, res) => {
         totalMemories: 0,
         types: {},
         hasPreferences: false,
-        hasContext: false
+        hasContext: false,
       });
       return;
     }
 
     // Group memories by type
     const types: Record<string, number> = {};
-    memory.memories.forEach(m => {
+    memory.memories.forEach((m) => {
       types[m.type] = (types[m.type] || 0) + 1;
     });
 
@@ -68,7 +68,7 @@ router.get('/stats', async (req, res) => {
       totalMemories: memory.memories.length,
       types,
       hasPreferences: Object.keys(memory.preferences || {}).length > 0,
-      hasContext: Object.keys(memory.context || {}).length > 0
+      hasContext: Object.keys(memory.context || {}).length > 0,
     });
   } catch (error: unknown) {
     log.memory.error({ err: error }, 'Error fetching memory stats');
@@ -88,21 +88,26 @@ router.get('/agents', async (req, res) => {
   try {
     const userId = req.user!.id;
     const remembering = await listAgentsRememberingPerson(getDb(), userId);
-    const records = await findAgentsByIds(getDb(), remembering.map((row) => row.agentId));
+    const records = await findAgentsByIds(
+      getDb(),
+      remembering.map((row) => row.agentId),
+    );
     const hydrated = await attachAgentIdentities(records);
     const byId = new Map(hydrated.map((agent) => [agent._id, agent]));
     res.json({
       agents: remembering.flatMap((row) => {
         const agent = byId.get(row.agentId);
         if (!agent) return [];
-        return [{
-          agentId: agent._id,
-          name: agent.name,
-          handle: agent.handle,
-          color: agent.color,
-          files: row.files,
-          updatedAt: row.updatedAt,
-        }];
+        return [
+          {
+            agentId: agent._id,
+            name: agent.name,
+            handle: agent.handle,
+            color: agent.color,
+            files: row.files,
+            updatedAt: row.updatedAt,
+          },
+        ];
       }),
     });
   } catch (error: unknown) {
@@ -185,7 +190,7 @@ router.put('/settings', async (req, res) => {
     if (!validation.success) {
       res.status(400).json({
         error: 'Invalid settings data',
-        details: validation.error.issues
+        details: validation.error.issues,
       });
       return;
     }
@@ -219,7 +224,7 @@ router.post('/add', async (req, res) => {
     if (!validation.success) {
       res.status(400).json({
         error: 'Invalid memory data',
-        details: validation.error.issues
+        details: validation.error.issues,
       });
       return;
     }
@@ -254,7 +259,7 @@ router.post('/add', async (req, res) => {
           current: userMemory.memories.length,
           suggestion: subscription?.planSnapshotName
             ? 'Upgrade to Business plan for unlimited memories'
-            : 'Upgrade to Pro or Business plan for more memories'
+            : 'Upgrade to Pro or Business plan for more memories',
         });
         return;
       }
@@ -300,12 +305,12 @@ router.get('/semantic-search', async (req, res) => {
     // Text search fallback
     const queryLower = q.toLowerCase();
     const textResults = memory.memories
-      .map(m => {
+      .map((m) => {
         const titleScore = m.title.toLowerCase().includes(queryLower) ? 0.8 : 0;
         const summaryScore = m.summary.toLowerCase().includes(queryLower) ? 0.6 : 0;
         return { memoryKey: m.title, score: Math.max(titleScore, summaryScore) };
       })
-      .filter(r => r.score > 0);
+      .filter((r) => r.score > 0);
 
     // Hybrid scoring: 0.7 * vector + 0.3 * text
     const scoreMap = new Map<string, number>();
@@ -321,10 +326,19 @@ router.get('/semantic-search', async (req, res) => {
       .sort((a, b) => b[1] - a[1])
       .slice(0, topK);
 
-    const results = sorted.map(([title, score]) => {
-      const mem = memory.memories.find(m => m.title === title);
-      return mem ? { title: mem.title, summary: mem.summary, type: mem.type, score: Math.round(score * 1000) / 1000 } : null;
-    }).filter(Boolean);
+    const results = sorted
+      .map(([title, score]) => {
+        const mem = memory.memories.find((m) => m.title === title);
+        return mem
+          ? {
+              title: mem.title,
+              summary: mem.summary,
+              type: mem.type,
+              score: Math.round(score * 1000) / 1000,
+            }
+          : null;
+      })
+      .filter(Boolean);
 
     res.json({
       results,
@@ -349,7 +363,7 @@ router.put('/:memoryId', async (req, res) => {
     if (!validation.success) {
       res.status(400).json({
         error: 'Invalid memory data',
-        details: validation.error.issues
+        details: validation.error.issues,
       });
       return;
     }
@@ -439,15 +453,14 @@ router.get('/search', async (req, res) => {
     // Text search across title and summary
     if (q && typeof q === 'string') {
       const query = q.toLowerCase();
-      filtered = filtered.filter(m =>
-        m.title.toLowerCase().includes(query) ||
-        m.summary.toLowerCase().includes(query)
+      filtered = filtered.filter(
+        (m) => m.title.toLowerCase().includes(query) || m.summary.toLowerCase().includes(query),
       );
     }
 
     // Type filter
     if (type && typeof type === 'string') {
-      filtered = filtered.filter(m => m.type === type);
+      filtered = filtered.filter((m) => m.type === type);
     }
 
     // Sort
@@ -468,7 +481,7 @@ router.get('/search', async (req, res) => {
       memories: paginated,
       total,
       limit: limitNum,
-      offset: offsetNum
+      offset: offsetNum,
     });
   } catch (error: unknown) {
     log.memory.error({ err: error }, 'Search error');
@@ -535,20 +548,23 @@ router.get('/export/preview', async (req, res) => {
       return;
     }
 
-    const types = new Set(memory.memories.map(m => m.type));
+    const types = new Set(memory.memories.map((m) => m.type));
 
     // Rough size estimates
     const jsonStr = JSON.stringify(memory);
-    const csvSize = memory.memories.reduce((acc, m) =>
-      acc + m.title.length + m.summary.length + 50, 0
+    const csvSize = memory.memories.reduce(
+      (acc, m) => acc + m.title.length + m.summary.length + 50,
+      0,
     );
 
-    const oldestMemory = memory.memories.reduce((oldest: Date | null, m) =>
-      !oldest || m.createdAt < oldest ? m.createdAt : oldest, null as Date | null
+    const oldestMemory = memory.memories.reduce(
+      (oldest: Date | null, m) => (!oldest || m.createdAt < oldest ? m.createdAt : oldest),
+      null as Date | null,
     );
 
-    const newestMemory = memory.memories.reduce((newest: Date | null, m) =>
-      !newest || m.updatedAt > newest ? m.updatedAt : newest, null as Date | null
+    const newestMemory = memory.memories.reduce(
+      (newest: Date | null, m) => (!newest || m.updatedAt > newest ? m.updatedAt : newest),
+      null as Date | null,
     );
 
     res.json({
@@ -585,7 +601,7 @@ router.get('/export/json', async (req, res) => {
     const exportData = {
       version: '2.0',
       exportedAt: new Date().toISOString(),
-      memories: memory.memories.map(m => ({
+      memories: memory.memories.map((m) => ({
         title: m.title,
         summary: m.summary,
         type: m.type,
@@ -634,7 +650,7 @@ router.get('/export/csv', async (req, res) => {
 
     // Generate CSV
     const headers = ['Title', 'Summary', 'Type', 'Created At', 'Updated At'];
-    const rows = memory.memories.map(m => [
+    const rows = memory.memories.map((m) => [
       escapeCSV(m.title),
       escapeCSV(m.summary),
       escapeCSV(m.type),
@@ -642,10 +658,7 @@ router.get('/export/csv', async (req, res) => {
       m.updatedAt.toISOString(),
     ]);
 
-    const csv = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
+    const csv = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
 
     // Set headers for download
     res.setHeader('Content-Type', 'text/csv');
@@ -671,10 +684,10 @@ router.post('/import/validate', async (req, res) => {
     if (!validation.success) {
       res.status(400).json({
         valid: false,
-        errors: validation.error.issues.map(issue => ({
+        errors: validation.error.issues.map((issue) => ({
           path: issue.path.join('.'),
           message: issue.message,
-        }))
+        })),
       });
       return;
     }
@@ -693,8 +706,8 @@ router.post('/import/validate', async (req, res) => {
       totalToImport: importData.memories.length,
       duplicateTitles: 0,
       newTitles: 0,
-      types: new Set(importData.memories.map(m => m.type)),
-      estimatedFinalTotal: (memory?.memories.length || 0),
+      types: new Set(importData.memories.map((m) => m.type)),
+      estimatedFinalTotal: memory?.memories.length || 0,
       memoryLimit,
       isUnlimited: memoryLimit === -1,
     };
@@ -706,9 +719,13 @@ router.post('/import/validate', async (req, res) => {
        * here would promise the user N new memories and then store fewer, with
        * the difference silently absorbed as updates.
        */
-      const existingTitles = new Set(memory.memories.map(m => normalizeMemoryTitle(m.title)));
-      analysis.duplicateTitles = importData.memories.filter(m => existingTitles.has(normalizeMemoryTitle(m.title))).length;
-      analysis.newTitles = importData.memories.filter(m => !existingTitles.has(normalizeMemoryTitle(m.title))).length;
+      const existingTitles = new Set(memory.memories.map((m) => normalizeMemoryTitle(m.title)));
+      analysis.duplicateTitles = importData.memories.filter((m) =>
+        existingTitles.has(normalizeMemoryTitle(m.title)),
+      ).length;
+      analysis.newTitles = importData.memories.filter(
+        (m) => !existingTitles.has(normalizeMemoryTitle(m.title)),
+      ).length;
       analysis.estimatedFinalTotal = memory.memories.length + analysis.newTitles;
     } else {
       analysis.newTitles = importData.memories.length;
@@ -719,9 +736,11 @@ router.post('/import/validate', async (req, res) => {
     if (memoryLimit !== -1 && analysis.estimatedFinalTotal > memoryLimit) {
       res.json({
         valid: false,
-        errors: [{
-          message: `Import would exceed memory limit (${analysis.estimatedFinalTotal} > ${memoryLimit})`,
-        }],
+        errors: [
+          {
+            message: `Import would exceed memory limit (${analysis.estimatedFinalTotal} > ${memoryLimit})`,
+          },
+        ],
         analysis: {
           ...analysis,
           types: Array.from(analysis.types),
@@ -737,7 +756,6 @@ router.post('/import/validate', async (req, res) => {
         types: Array.from(analysis.types),
       },
     });
-
   } catch (error: unknown) {
     log.memory.error({ err: error }, 'Validation error');
     res.status(500).json({ error: 'Validation failed' });
@@ -758,7 +776,7 @@ router.post('/import', async (req, res) => {
     if (!strategyValidation.success) {
       res.status(400).json({
         error: 'Invalid merge strategy',
-        details: strategyValidation.error.issues
+        details: strategyValidation.error.issues,
       });
       return;
     }
@@ -768,7 +786,7 @@ router.post('/import', async (req, res) => {
     if (!validation.success) {
       res.status(400).json({
         error: 'Invalid import data format',
-        details: validation.error.issues
+        details: validation.error.issues,
       });
       return;
     }
@@ -782,7 +800,7 @@ router.post('/import', async (req, res) => {
       res.status(400).json({
         error: 'Import data too large',
         maxSize: MAX_IMPORT_SIZE,
-        actualSize: estimatedSize
+        actualSize: estimatedSize,
       });
       return;
     }
@@ -803,12 +821,12 @@ router.post('/import', async (req, res) => {
     };
 
     const db = getDb();
-    const incoming: NewMemoryEntry[] = importData.memories.map(m => ({
+    const incoming: NewMemoryEntry[] = importData.memories.map((m) => ({
       title: m.title,
       summary: m.summary,
       type: m.type,
     }));
-    const stored = new Set(memory.memories.map(m => normalizeMemoryTitle(m.title)));
+    const stored = new Set(memory.memories.map((m) => normalizeMemoryTitle(m.title)));
 
     /**
      * The limit is checked BEFORE writing, on the projected total.
@@ -819,16 +837,17 @@ router.post('/import', async (req, res) => {
      * on a projection rather than on the result. Every strategy's final count is
      * computable up front because the fold decides what is new.
      */
-    const uniqueIncoming = new Set(incoming.map(m => normalizeMemoryTitle(m.title)));
-    const projectedTotal = strategy === 'replace'
-      ? uniqueIncoming.size
-      : memory.memories.length + [...uniqueIncoming].filter(t => !stored.has(t)).length;
+    const uniqueIncoming = new Set(incoming.map((m) => normalizeMemoryTitle(m.title)));
+    const projectedTotal =
+      strategy === 'replace'
+        ? uniqueIncoming.size
+        : memory.memories.length + [...uniqueIncoming].filter((t) => !stored.has(t)).length;
 
     if (memoryLimit !== -1 && projectedTotal > memoryLimit) {
       res.status(400).json({
         error: 'Memory limit exceeded',
         limit: memoryLimit,
-        current: projectedTotal
+        current: projectedTotal,
       });
       return;
     }
@@ -841,7 +860,6 @@ router.post('/import', async (req, res) => {
 
       if (importData.preferences) await replacePreferences(db, memory._id, importData.preferences);
       if (importData.context) await replaceContext(db, memory._id, importData.context);
-
     } else if (strategy === 'merge') {
       // Update existing, add new — the upsert does both, so the counters are
       // decided by what was already stored rather than by the write's outcome.
@@ -853,9 +871,8 @@ router.post('/import', async (req, res) => {
 
       if (importData.preferences) await mergePreferences(db, memory._id, importData.preferences);
       if (importData.context) await mergeContext(db, memory._id, importData.context);
-
     } else if (strategy === 'skip-duplicates') {
-      const fresh = incoming.filter(e => !stored.has(normalizeMemoryTitle(e.title)));
+      const fresh = incoming.filter((e) => !stored.has(normalizeMemoryTitle(e.title)));
       stats.skipped = incoming.length - fresh.length;
       stats.imported = await addEntries(db, memory._id, fresh);
     }
@@ -865,7 +882,6 @@ router.post('/import', async (req, res) => {
       stats,
       totalMemories: await countEntries(db, memory._id),
     });
-
   } catch (error: unknown) {
     log.memory.error({ err: error }, 'Import error');
     res.status(500).json({ error: 'Failed to import memories' });
@@ -902,7 +918,9 @@ router.post('/import/from-text', async (req, res) => {
 
     const resolved = await resolveUtilityModel().catch(() => null);
     if (!resolved) {
-      res.status(503).json({ error: 'AI service is temporarily unavailable. Please try again in a moment.' });
+      res
+        .status(503)
+        .json({ error: 'AI service is temporarily unavailable. Please try again in a moment.' });
       return;
     }
 

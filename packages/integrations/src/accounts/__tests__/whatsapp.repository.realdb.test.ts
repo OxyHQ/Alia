@@ -55,7 +55,9 @@ async function newSession(sessionId: string, oxyUserId = OWNER): Promise<string>
   return sessionId;
 }
 
-function message(overrides: Partial<WhatsAppMessageInsert> & { sessionId: string; messageId: string }): WhatsAppMessageInsert {
+function message(
+  overrides: Partial<WhatsAppMessageInsert> & { sessionId: string; messageId: string },
+): WhatsAppMessageInsert {
   return {
     oxyUserId: OWNER,
     jid: '1@s.whatsapp.net',
@@ -86,8 +88,18 @@ describe('a chat list orders by recency with never-used chats LAST', () => {
      * evict real ones — with no error anywhere.
      */
     const sessionId = await newSession('wa-order');
-    await upsertWhatsAppChat(db, { sessionId, oxyUserId: OWNER, jid: 'old@s', conversationTimestamp: 100 });
-    await upsertWhatsAppChat(db, { sessionId, oxyUserId: OWNER, jid: 'new@s', conversationTimestamp: 900 });
+    await upsertWhatsAppChat(db, {
+      sessionId,
+      oxyUserId: OWNER,
+      jid: 'old@s',
+      conversationTimestamp: 100,
+    });
+    await upsertWhatsAppChat(db, {
+      sessionId,
+      oxyUserId: OWNER,
+      jid: 'new@s',
+      conversationTimestamp: 900,
+    });
     // A chat whose only update carried a name, exactly as `chats.update` does.
     await upsertWhatsAppChat(db, { sessionId, oxyUserId: OWNER, jid: 'never@s', name: 'Never' });
 
@@ -99,9 +111,24 @@ describe('a chat list orders by recency with never-used chats LAST', () => {
 
   it('honours the limit, keeping the most recent', async () => {
     const sessionId = await newSession('wa-limit');
-    await upsertWhatsAppChat(db, { sessionId, oxyUserId: OWNER, jid: 'a@s', conversationTimestamp: 1 });
-    await upsertWhatsAppChat(db, { sessionId, oxyUserId: OWNER, jid: 'b@s', conversationTimestamp: 2 });
-    await upsertWhatsAppChat(db, { sessionId, oxyUserId: OWNER, jid: 'c@s', conversationTimestamp: 3 });
+    await upsertWhatsAppChat(db, {
+      sessionId,
+      oxyUserId: OWNER,
+      jid: 'a@s',
+      conversationTimestamp: 1,
+    });
+    await upsertWhatsAppChat(db, {
+      sessionId,
+      oxyUserId: OWNER,
+      jid: 'b@s',
+      conversationTimestamp: 2,
+    });
+    await upsertWhatsAppChat(db, {
+      sessionId,
+      oxyUserId: OWNER,
+      jid: 'c@s',
+      conversationTimestamp: 3,
+    });
 
     const chats = await listWhatsAppChats(db, sessionId, 2);
     expect(chats.map((c) => c.jid)).toEqual(['c@s', 'b@s']);
@@ -190,9 +217,30 @@ describe('a batch survives its own duplicates', () => {
      */
     const sessionId = await newSession('wa-batch-chats');
     await upsertWhatsAppChats(db, [
-      { sessionId, oxyUserId: OWNER, jid: 'dup@s', name: 'First', unreadCount: 1, conversationTimestamp: 10 },
-      { sessionId, oxyUserId: OWNER, jid: 'other@s', name: 'Other', unreadCount: 0, conversationTimestamp: 20 },
-      { sessionId, oxyUserId: OWNER, jid: 'dup@s', name: 'Second', unreadCount: 4, conversationTimestamp: 30 },
+      {
+        sessionId,
+        oxyUserId: OWNER,
+        jid: 'dup@s',
+        name: 'First',
+        unreadCount: 1,
+        conversationTimestamp: 10,
+      },
+      {
+        sessionId,
+        oxyUserId: OWNER,
+        jid: 'other@s',
+        name: 'Other',
+        unreadCount: 0,
+        conversationTimestamp: 20,
+      },
+      {
+        sessionId,
+        oxyUserId: OWNER,
+        jid: 'dup@s',
+        name: 'Second',
+        unreadCount: 4,
+        conversationTimestamp: 30,
+      },
     ]);
 
     const chats = await listWhatsAppChats(db, sessionId, 50);
@@ -207,7 +255,14 @@ describe('a batch survives its own duplicates', () => {
     // branch would write nothing and this would still read 'Second'.
     const sessionId = 'wa-batch-chats';
     await upsertWhatsAppChats(db, [
-      { sessionId, oxyUserId: OWNER, jid: 'dup@s', name: 'Third', unreadCount: 9, conversationTimestamp: 40 },
+      {
+        sessionId,
+        oxyUserId: OWNER,
+        jid: 'dup@s',
+        name: 'Third',
+        unreadCount: 9,
+        conversationTimestamp: 40,
+      },
     ]);
 
     const chats = await listWhatsAppChats(db, sessionId, 50);
@@ -304,8 +359,18 @@ describe('a message list is newest first', () => {
 
   it('deletes a chat without touching another', async () => {
     const sessionId = await newSession('wa-chat-delete');
-    await upsertWhatsAppChat(db, { sessionId, oxyUserId: OWNER, jid: 'gone@s', conversationTimestamp: 1 });
-    await upsertWhatsAppChat(db, { sessionId, oxyUserId: OWNER, jid: 'stays@s', conversationTimestamp: 2 });
+    await upsertWhatsAppChat(db, {
+      sessionId,
+      oxyUserId: OWNER,
+      jid: 'gone@s',
+      conversationTimestamp: 1,
+    });
+    await upsertWhatsAppChat(db, {
+      sessionId,
+      oxyUserId: OWNER,
+      jid: 'stays@s',
+      conversationTimestamp: 2,
+    });
 
     await deleteWhatsAppChat(db, sessionId, 'gone@s');
     expect((await listWhatsAppChats(db, sessionId, 50)).map((c) => c.jid)).toEqual(['stays@s']);
@@ -336,7 +401,10 @@ describe('the Baileys key map is merged per key, never replaced', () => {
      * would have created a nested object nothing could read back.
      */
     const sessionId = await newSession('wa-dotted');
-    await writeWhatsAppAuthKeys(db, sessionId, { set: { 'session-1.2': { k: 'flat' } }, remove: [] });
+    await writeWhatsAppAuthKeys(db, sessionId, {
+      set: { 'session-1.2': { k: 'flat' } },
+      remove: [],
+    });
     expect(await readWhatsAppAuthKeys(db, sessionId)).toEqual({ 'session-1.2': { k: 'flat' } });
   });
 
@@ -459,7 +527,12 @@ describe('restore picks up exactly the sessions a restart should reconnect', () 
 describe('a chat cannot outlive the session it belongs to', () => {
   it('cascades on delete', async () => {
     const sessionId = await newSession('wa-cascade-repo');
-    await upsertWhatsAppChat(db, { sessionId, oxyUserId: OWNER, jid: 'c@s', conversationTimestamp: 1 });
+    await upsertWhatsAppChat(db, {
+      sessionId,
+      oxyUserId: OWNER,
+      jid: 'c@s',
+      conversationTimestamp: 1,
+    });
     await insertWhatsAppMessages(db, [message({ sessionId, messageId: 'cm1' })]);
 
     await db.delete(whatsappSessions).where(eq(whatsappSessions.sessionId, sessionId));

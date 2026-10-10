@@ -172,90 +172,98 @@ export function clampRightPanelWidth(width: number): number {
 export const useUIStore = create<UIState>()(
   persist(
     (set, get) => ({
-  sidebarOpen: true,
-  rightPanel: null,
-  contextUsage: {},
-  lastContextUsage: null,
-  setContextUsage: (conversationId, usage) =>
-    set((state) => ({
-      lastContextUsage: usage,
-      contextUsage: conversationId === null ? state.contextUsage : { ...state.contextUsage, [conversationId]: usage },
-    })),
-  thoughtMessageId: null,
-  thoughtTab: "steps",
-  thoughtScope: null,
-  shortcutsDialogOpen: false,
-  canvasArtifacts: [],
-  activeAgentSessionId: null,
-  activeAgentId: null,
-  activeAgentConversationId: null,
-  agentTerminal: null,
-  codePanelView: 'changes',
-  rightPanelWidth: RIGHT_PANEL_DEFAULT_WIDTH,
+      sidebarOpen: true,
+      rightPanel: null,
+      contextUsage: {},
+      lastContextUsage: null,
+      setContextUsage: (conversationId, usage) =>
+        set((state) => ({
+          lastContextUsage: usage,
+          contextUsage:
+            conversationId === null
+              ? state.contextUsage
+              : { ...state.contextUsage, [conversationId]: usage },
+        })),
+      thoughtMessageId: null,
+      thoughtTab: 'steps',
+      thoughtScope: null,
+      shortcutsDialogOpen: false,
+      canvasArtifacts: [],
+      activeAgentSessionId: null,
+      activeAgentId: null,
+      activeAgentConversationId: null,
+      agentTerminal: null,
+      codePanelView: 'changes',
+      rightPanelWidth: RIGHT_PANEL_DEFAULT_WIDTH,
 
-  toggleSidebar: () =>
-    set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+      toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 
-  setSidebarOpen: (open) =>
-    set({ sidebarOpen: open }),
+      setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
-  setRightPanel: (panel) =>
-    set({
-      rightPanel: panel,
-      ...(panel === null && { thoughtMessageId: null, thoughtScope: null, codePanelView: 'changes' as const }),
+      setRightPanel: (panel) =>
+        set({
+          rightPanel: panel,
+          ...(panel === null && {
+            thoughtMessageId: null,
+            thoughtScope: null,
+            codePanelView: 'changes' as const,
+          }),
+        }),
+
+      toggleRightPanel: (panel) =>
+        set((state) => ({
+          rightPanel: state.rightPanel === panel ? null : panel,
+          ...(state.rightPanel === panel && { thoughtMessageId: null, thoughtScope: null }),
+        })),
+
+      openThoughtPanel: (messageId, scope, tab = 'steps') =>
+        set({
+          rightPanel: 'thought',
+          thoughtMessageId: messageId,
+          thoughtScope: scope,
+          thoughtTab: tab,
+        }),
+
+      setThoughtTab: (tab) => set({ thoughtTab: tab }),
+
+      syncThoughtScope: (scope) => {
+        const current = get().thoughtScope;
+        if (current === null || current.conversationId !== scope.conversationId) return;
+        if (
+          current.messages === scope.messages &&
+          current.status === scope.status &&
+          current.isLoading === scope.isLoading &&
+          current.failedTurn === scope.failedTurn
+        )
+          return;
+        set({ thoughtScope: scope });
+      },
+
+      openAgentPanel: (sessionId, agentId, conversationId = null) =>
+        set({
+          rightPanel: 'agent',
+          activeAgentSessionId: sessionId,
+          activeAgentId: agentId,
+          activeAgentConversationId: conversationId,
+        }),
+
+      openAgentTerminal: (agentId, route) =>
+        set({ rightPanel: 'canvas', agentTerminal: { agentId, route }, codePanelView: 'terminal' }),
+
+      setCodePanelView: (view) => set({ codePanelView: view }),
+
+      setShortcutsDialogOpen: (open) => set({ shortcutsDialogOpen: open }),
+
+      toggleShortcutsDialog: () =>
+        set((state) => ({ shortcutsDialogOpen: !state.shortcutsDialogOpen })),
+
+      addCanvasArtifact: (artifact) =>
+        set((state) => ({ canvasArtifacts: [...state.canvasArtifacts, artifact] })),
+
+      clearCanvasArtifacts: () => set({ canvasArtifacts: [] }),
+
+      setRightPanelWidth: (width) => set({ rightPanelWidth: clampRightPanelWidth(width) }),
     }),
-
-  toggleRightPanel: (panel) =>
-    set((state) => ({
-      rightPanel: state.rightPanel === panel ? null : panel,
-      ...(state.rightPanel === panel && { thoughtMessageId: null, thoughtScope: null }),
-    })),
-
-  openThoughtPanel: (messageId, scope, tab = 'steps') =>
-    set({ rightPanel: 'thought', thoughtMessageId: messageId, thoughtScope: scope, thoughtTab: tab }),
-
-  setThoughtTab: (tab) => set({ thoughtTab: tab }),
-
-  syncThoughtScope: (scope) => {
-    const current = get().thoughtScope;
-    if (current === null || current.conversationId !== scope.conversationId) return;
-    if (
-      current.messages === scope.messages &&
-      current.status === scope.status &&
-      current.isLoading === scope.isLoading &&
-      current.failedTurn === scope.failedTurn
-    ) return;
-    set({ thoughtScope: scope });
-  },
-
-  openAgentPanel: (sessionId, agentId, conversationId = null) =>
-    set({
-      rightPanel: 'agent',
-      activeAgentSessionId: sessionId,
-      activeAgentId: agentId,
-      activeAgentConversationId: conversationId,
-    }),
-
-  openAgentTerminal: (agentId, route) =>
-    set({ rightPanel: 'canvas', agentTerminal: { agentId, route }, codePanelView: 'terminal' }),
-
-  setCodePanelView: (view) => set({ codePanelView: view }),
-
-  setShortcutsDialogOpen: (open) =>
-    set({ shortcutsDialogOpen: open }),
-
-  toggleShortcutsDialog: () =>
-    set((state) => ({ shortcutsDialogOpen: !state.shortcutsDialogOpen })),
-
-  addCanvasArtifact: (artifact) =>
-    set((state) => ({ canvasArtifacts: [...state.canvasArtifacts, artifact] })),
-
-  clearCanvasArtifacts: () =>
-    set({ canvasArtifacts: [] }),
-
-  setRightPanelWidth: (width) =>
-    set({ rightPanelWidth: clampRightPanelWidth(width) }),
-}),
     {
       name: 'alia-ui',
       storage: createJSONStorage(() => AsyncStorage),

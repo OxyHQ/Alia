@@ -18,7 +18,16 @@ import { FIXED_FAMILY_TOOLS } from '../../../domain/capability-grants.js';
 
 vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { v1: child, chat: child, general: child, agents: child, credits: child, providers: child } };
+  return {
+    log: {
+      v1: child,
+      chat: child,
+      general: child,
+      agents: child,
+      credits: child,
+      providers: child,
+    },
+  };
 });
 vi.mock('../../observability/index.js', () => ({ recordEvent: vi.fn() }));
 vi.mock('../../chat-core.js', () => ({ reportModelUsage: vi.fn() }));
@@ -27,10 +36,26 @@ const { runChunks } = await import('./stream-harness.js');
 
 describe('a tool error reaches the person only when a tool actually failed', () => {
   it('sends neither the call nor its error when the SDK refused it before running it', async () => {
-    const reason = "Model tried to call unavailable tool 'createAgent'. Available tools: getCurrentDate, webSearch.";
+    const reason =
+      "Model tried to call unavailable tool 'createAgent'. Available tools: getCurrentDate, webSearch.";
     const { assistantResponse, toolInvocations, toolCallCount, written } = await runChunks([
-      { type: 'tool-call', toolCallId: 'call-1', toolName: 'createAgent', input: {}, dynamic: true, invalid: true, error: new Error(reason) },
-      { type: 'tool-error', toolCallId: 'call-1', toolName: 'createAgent', input: {}, dynamic: true, error: reason },
+      {
+        type: 'tool-call',
+        toolCallId: 'call-1',
+        toolName: 'createAgent',
+        input: {},
+        dynamic: true,
+        invalid: true,
+        error: new Error(reason),
+      },
+      {
+        type: 'tool-error',
+        toolCallId: 'call-1',
+        toolName: 'createAgent',
+        input: {},
+        dynamic: true,
+        error: reason,
+      },
     ]);
 
     expect(assistantResponse).toBe('');
@@ -39,10 +64,16 @@ describe('a tool error reaches the person only when a tool actually failed', () 
     expect(written.join('')).not.toContain('createAgent');
   });
 
-  it('tells the person, in the tool\'s own words, when a tool ran and failed', async () => {
+  it("tells the person, in the tool's own words, when a tool ran and failed", async () => {
     const { assistantResponse } = await runChunks([
       { type: 'tool-call', toolCallId: 'call-1', toolName: 'webScraper', input: {} },
-      { type: 'tool-error', toolCallId: 'call-1', toolName: 'webScraper', input: {}, error: new Error('page not reachable') },
+      {
+        type: 'tool-error',
+        toolCallId: 'call-1',
+        toolName: 'webScraper',
+        input: {},
+        error: new Error('page not reachable'),
+      },
     ]);
 
     expect(assistantResponse).toBe('\n\nTool error (webScraper): page not reachable');
@@ -61,7 +92,9 @@ describe('no prompt file offers a tool that a grant decides', () => {
       .filter((file) => file.endsWith('.md'))
       .flatMap((file) => {
         const text = readFileSync(new URL(file, dir), 'utf8');
-        return gated.filter((tool) => text.includes(`\`${tool}\``)).map((tool) => `${file}: ${tool}`);
+        return gated
+          .filter((tool) => text.includes(`\`${tool}\``))
+          .map((tool) => `${file}: ${tool}`);
       });
 
     expect(named).toEqual([]);

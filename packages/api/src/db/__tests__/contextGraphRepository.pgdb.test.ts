@@ -48,9 +48,7 @@ const readSource = async (oxyUserId: string, sourceKey: string) => {
   const [row] = await db
     .select()
     .from(contextSources)
-    .where(
-      and(eq(contextSources.oxyUserId, oxyUserId), eq(contextSources.sourceKey, sourceKey)),
-    );
+    .where(and(eq(contextSources.oxyUserId, oxyUserId), eq(contextSources.sourceKey, sourceKey)));
   return row;
 };
 
@@ -281,10 +279,7 @@ describe('nodes and the edge between them', () => {
       weight: 0.9,
     });
 
-    const edges = await db
-      .select()
-      .from(contextEdges)
-      .where(eq(contextEdges.oxyUserId, user));
+    const edges = await db.select().from(contextEdges).where(eq(contextEdges.oxyUserId, user));
     expect(edges).toHaveLength(1);
     expect(edges[0]?.weight).toBe(0.9);
 

@@ -1,7 +1,4 @@
-import {
-  isThreatEntry,
-  type EventEntry,
-} from '@/features/agents/runtime/use-session-activity';
+import { isThreatEntry, type EventEntry } from '@/features/agents/runtime/use-session-activity';
 import type { AccentTone } from '@oxy.so/bloom/theme';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Card, CardBody } from '@oxy.so/bloom/card';
@@ -96,10 +93,7 @@ export function SessionEventCard({ entry }: { entry: EventEntry }) {
               content={entry.type.replace(/_/g, ' ')}
             />
             {entry.metadata?.toolName && (
-              <Muted
-                numberOfLines={1}
-                className="shrink text-sm text-muted-foreground"
-              >
+              <Muted numberOfLines={1} className="shrink text-sm text-muted-foreground">
                 {entry.metadata.toolName}
               </Muted>
             )}
@@ -108,11 +102,7 @@ export function SessionEventCard({ entry }: { entry: EventEntry }) {
               <Muted>{formatDuration(entry.metadata.durationMs)}</Muted>
             )}
             <Muted>{formatTimestamp(entry.timestamp)}</Muted>
-            {expanded ? (
-              <RiArrowUpSLine size="sm" />
-            ) : (
-              <RiArrowDownSLine size="sm" />
-            )}
+            {expanded ? <RiArrowUpSLine size="sm" /> : <RiArrowDownSLine size="sm" />}
           </View>
 
           <Text variant="body-regular" numberOfLines={expanded ? undefined : 2}>

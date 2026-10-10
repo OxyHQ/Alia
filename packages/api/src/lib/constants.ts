@@ -8,10 +8,12 @@
 // ── Error Detection Patterns ──
 
 /** Matches billing/payment/quota errors from any provider */
-export const BILLING_RE = /insufficient balance|payment required|insufficient credits|credit balance|plans & billing|billing.?hard.?limit|exceeded.*quota|quota.*exceeded/i;
+export const BILLING_RE =
+  /insufficient balance|payment required|insufficient credits|credit balance|plans & billing|billing.?hard.?limit|exceeded.*quota|quota.*exceeded/i;
 
 /** Matches authentication/authorization errors from any provider */
-export const AUTH_RE = /invalid.?api.?key|incorrect api key|api key.{0,10}not valid|invalid token|authentication|unauthorized|forbidden|access denied|expired|token has expired/i;
+export const AUTH_RE =
+  /invalid.?api.?key|incorrect api key|api key.{0,10}not valid|invalid token|authentication|unauthorized|forbidden|access denied|expired|token has expired/i;
 
 // ── Agent Configuration ──
 

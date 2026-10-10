@@ -61,10 +61,13 @@ export async function verifyResults(
   const model = getAIModel(resolved, 'agent_run');
 
   const resultsSummary = executorResults
-    .map((r, i) => `### Subtask ${i + 1}: ${r.subtask}\n**Status:** ${r.success ? 'Success' : 'Failed'}\n**Result:** ${r.result.slice(0, 1000)}`)
+    .map(
+      (r, i) =>
+        `### Subtask ${i + 1}: ${r.subtask}\n**Status:** ${r.success ? 'Success' : 'Failed'}\n**Result:** ${r.result.slice(0, 1000)}`,
+    )
     .join('\n\n');
 
-  const failedCount = executorResults.filter(r => !r.success).length;
+  const failedCount = executorResults.filter((r) => !r.success).length;
 
   try {
     const result = await generateObject({
@@ -90,7 +93,11 @@ A score of ${minScore}+ means "passed". Be fair but thorough.`,
     verification.passed = verification.score >= minScore;
 
     log.agents.info(
-      { passed: verification.passed, score: verification.score, issues: verification.issues.length },
+      {
+        passed: verification.passed,
+        score: verification.score,
+        issues: verification.issues.length,
+      },
       'Verifier: completed verification',
     );
 
@@ -98,7 +105,7 @@ A score of ${minScore}+ means "passed". Be fair but thorough.`,
   } catch (err: unknown) {
     log.agents.error({ err }, 'Verifier: failed');
     // On verification failure, pass if majority of executors succeeded
-    const successRate = executorResults.filter(r => r.success).length / executorResults.length;
+    const successRate = executorResults.filter((r) => r.success).length / executorResults.length;
     return {
       passed: successRate >= 0.5,
       score: Math.round(successRate * 10),

@@ -46,7 +46,9 @@ const SubtaskSchema = z.object({
 const ExecutionPlanSchema = z.object({
   analysis: z.string().describe('Brief analysis of the task and its requirements'),
   subtasks: z.array(SubtaskSchema).min(1).max(20),
-  parallelGroups: z.array(z.array(z.number())).describe('Groups of subtask IDs that can run concurrently'),
+  parallelGroups: z
+    .array(z.array(z.number()))
+    .describe('Groups of subtask IDs that can run concurrently'),
   strategy: z.string().describe('Overall execution strategy'),
 });
 

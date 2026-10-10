@@ -47,12 +47,14 @@ vi.mock('../../db/billing/subscriptionRepository.js', () => ({
     H.rows.set(values.stripeSubscriptionId as string, values);
     return values;
   }),
-  updateSubscriptionByStripeId: vi.fn(async (_db: unknown, id: string, values: Record<string, unknown>) => {
-    H.updates.push({ id, values });
-    const row = H.rows.get(id);
-    if (row) H.rows.set(id, { ...row, ...values });
-    return row ?? null;
-  }),
+  updateSubscriptionByStripeId: vi.fn(
+    async (_db: unknown, id: string, values: Record<string, unknown>) => {
+      H.updates.push({ id, values });
+      const row = H.rows.get(id);
+      if (row) H.rows.set(id, { ...row, ...values });
+      return row ?? null;
+    },
+  ),
 }));
 
 vi.mock('../gateway-client.js', () => ({ getPlans: vi.fn(async () => H.plans) }));
@@ -96,7 +98,7 @@ vi.mock('../logger.js', () => ({
 
 vi.mock('@oxy.so/core', () => ({
   OxyServices: class {
-      users = { byUsername: (...args: any[]) => (this as any).getProfileByUsername(...args) };
+    users = { byUsername: (...args: any[]) => (this as any).getProfileByUsername(...args) };
     async getProfileByUsername(username: string) {
       H.lookups.push(username);
       return H.profile(username);
@@ -258,7 +260,12 @@ describe('running it again', () => {
   it('writes nothing when the grant is already in place', async () => {
     await seedCompedAccounts();
     H.upserts = [];
-    expect(await seedCompedAccounts()).toEqual({ granted: 0, unchanged: 2, credited: 0, withdrawn: 0 });
+    expect(await seedCompedAccounts()).toEqual({
+      granted: 0,
+      unchanged: 2,
+      credited: 0,
+      withdrawn: 0,
+    });
     expect(H.upserts).toEqual([]);
   });
 
@@ -269,7 +276,12 @@ describe('running it again', () => {
     const id = `comp_${OXY_ID}_alia`;
     H.rows.set(id, { ...H.rows.get(id), cancelAtPeriodEnd: true });
     H.upserts = [];
-    expect(await seedCompedAccounts()).toEqual({ granted: 1, unchanged: 1, credited: 0, withdrawn: 0 });
+    expect(await seedCompedAccounts()).toEqual({
+      granted: 1,
+      unchanged: 1,
+      credited: 0,
+      withdrawn: 0,
+    });
     expect(H.upserts.map((u) => u.stripeSubscriptionId)).toEqual([id]);
   });
 });
@@ -343,7 +355,9 @@ describe('a comp follows the offer', () => {
 
     retireCodea();
     const result = await seedCompedAccounts();
-    expect(H.updates).toEqual([{ id: codeaComp, values: { status: 'canceled', cancelAtPeriodEnd: false } }]);
+    expect(H.updates).toEqual([
+      { id: codeaComp, values: { status: 'canceled', cancelAtPeriodEnd: false } },
+    ]);
     expect(result.withdrawn).toBe(1);
     // The product still offered keeps its comp.
     expect(H.rows.get(`comp_${OXY_ID}_alia`)?.status).toBe('active');
@@ -353,7 +367,10 @@ describe('a comp follows the offer', () => {
     retireCodea();
     // No Codea comp exists: nothing to withdraw.
     expect((await seedCompedAccounts()).withdrawn).toBe(0);
-    H.rows.set(`comp_${OXY_ID}_codea`, { stripeSubscriptionId: `comp_${OXY_ID}_codea`, status: 'canceled' });
+    H.rows.set(`comp_${OXY_ID}_codea`, {
+      stripeSubscriptionId: `comp_${OXY_ID}_codea`,
+      status: 'canceled',
+    });
     expect((await seedCompedAccounts()).withdrawn).toBe(0);
     expect(H.updates).toEqual([]);
   });

@@ -74,12 +74,7 @@ const VISIBILITY: Record<ShowVisibility, { label: string; icon: BadgeIcon }> = {
  * every locale. The row's `role` is an open string, so anything else is shown
  * as the API sent it.
  */
-const SPEAKER_ROLES: ReadonlySet<string> = new Set([
-  'host',
-  'co-host',
-  'guest',
-  'narrator',
-]);
+const SPEAKER_ROLES: ReadonlySet<string> = new Set(['host', 'co-host', 'guest', 'narrator']);
 
 export default function SeriesDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -88,9 +83,7 @@ export default function SeriesDetailScreen() {
   const { colors } = useTheme();
   const { t } = useTranslation();
 
-  const series = useShowStore((s) =>
-    s.series.find((entry) => entry.id === seriesId),
-  );
+  const series = useShowStore((s) => s.series.find((entry) => entry.id === seriesId));
   const episodes = useSeriesEpisodes(seriesId);
   const fetchOneSeries = useShowStore((s) => s.fetchOneSeries);
   const createEpisode = useShowStore((s) => s.createEpisode);
@@ -160,9 +153,7 @@ export default function SeriesDetailScreen() {
 
       const removed = await deleteEpisode(seriesId, episodeId);
       if (!removed) {
-        toast.error(
-          useShowStore.getState().error ?? t('shows.deleteEpisode.failed'),
-        );
+        toast.error(useShowStore.getState().error ?? t('shows.deleteEpisode.failed'));
         return;
       }
       toast.success(t('shows.deleteEpisode.done'));
@@ -196,9 +187,7 @@ export default function SeriesDetailScreen() {
 
     const removed = await deleteSeries(seriesId);
     if (!removed) {
-      toast.error(
-        useShowStore.getState().error ?? t('shows.deleteShow.failed'),
-      );
+      toast.error(useShowStore.getState().error ?? t('shows.deleteShow.failed'));
       return;
     }
     toast.success(t('shows.deleteShow.done'));
@@ -218,8 +207,7 @@ export default function SeriesDetailScreen() {
   );
 
   const hosts = useMemo(
-    () =>
-      series ? series.speakers.map((speaker) => speaker.name).join(', ') : '',
+    () => (series ? series.speakers.map((speaker) => speaker.name).join(', ') : ''),
     [series],
   );
 
@@ -328,9 +316,7 @@ export default function SeriesDetailScreen() {
       </View>
 
       <View className="items-start gap-1">
-        <Muted
-          numberOfLines={descriptionExpanded || !isClampable ? undefined : 3}
-        >
+        <Muted numberOfLines={descriptionExpanded || !isClampable ? undefined : 3}>
           {description}
         </Muted>
         {isClampable ? (
@@ -361,9 +347,7 @@ export default function SeriesDetailScreen() {
               }
               title={speaker.name}
               subtitle={`${
-                SPEAKER_ROLES.has(speaker.role)
-                  ? t(`shows.role.${speaker.role}`)
-                  : speaker.role
+                SPEAKER_ROLES.has(speaker.role) ? t(`shows.role.${speaker.role}`) : speaker.role
               } · ${speaker.voiceName}`}
               subtitleStyle={{ textTransform: 'capitalize' }}
             />
@@ -384,9 +368,7 @@ export default function SeriesDetailScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{ title: series.title, headerBackVisible: true }}
-      />
+      <Stack.Screen options={{ title: series.title, headerBackVisible: true }} />
       <FlatList
         className="flex-1"
         data={episodes}

@@ -92,7 +92,9 @@ interface MemoryToolResult {
   type?: MemoryType;
 }
 
-function makeMemoryDoc(overrides: Partial<Pick<MemoryDoc, 'memories' | 'settings'>> = {}): MemoryDoc {
+function makeMemoryDoc(
+  overrides: Partial<Pick<MemoryDoc, 'memories' | 'settings'>> = {},
+): MemoryDoc {
   return {
     _id: 'profile-1',
     memories: overrides.memories ?? [],
@@ -104,7 +106,14 @@ function makeMemoryDoc(overrides: Partial<Pick<MemoryDoc, 'memories' | 'settings
 let nextEntryId = 0;
 function entry(title: string, summary = 'old', type: MemoryType = 'topic'): MemoryEntry {
   nextEntryId += 1;
-  return { _id: `entry-${nextEntryId}`, title, summary, type, createdAt: new Date(), updatedAt: new Date() };
+  return {
+    _id: `entry-${nextEntryId}`,
+    title,
+    summary,
+    type,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
 }
 
 /**
@@ -117,10 +126,13 @@ function entry(title: string, summary = 'old', type: MemoryType = 'topic'): Memo
  * against a tool that had stopped folding.
  */
 function useDoc(doc: MemoryDoc): void {
-  mockGetOrCreate.mockResolvedValue(doc as unknown as Awaited<ReturnType<typeof getOrCreateUserMemory>>);
+  mockGetOrCreate.mockResolvedValue(
+    doc as unknown as Awaited<ReturnType<typeof getOrCreateUserMemory>>,
+  );
 
   vi.mocked(findEntryByTitle).mockImplementation(async (_db, _profileId, title) =>
-    doc.memories.find((m) => fold(m.title) === fold(title)));
+    doc.memories.find((m) => fold(m.title) === fold(title)),
+  );
 
   vi.mocked(saveEntryByTitle).mockImplementation(async (_db, _profileId, incoming) => {
     doc.save();
@@ -155,7 +167,11 @@ interface Executable<TArgs> {
   execute?: (args: TArgs, options: ToolCallOptions) => unknown;
 }
 
-async function run<TArgs>(instance: Executable<TArgs>, args: TArgs, toolCallId: string): Promise<MemoryToolResult> {
+async function run<TArgs>(
+  instance: Executable<TArgs>,
+  args: TArgs,
+  toolCallId: string,
+): Promise<MemoryToolResult> {
   const { execute } = instance;
   if (!execute) throw new Error('tool is missing its executor');
   return (await execute(args, { toolCallId, messages: [] } as ToolCallOptions)) as MemoryToolResult;
@@ -173,12 +189,16 @@ describe('saveUserMemoryTool', () => {
     const result = await run(
       saveUserMemoryTool('user-1'),
       { title: 'Food', summary: 'Loves strawberries', type: 'topic', initiatedBy: 'assistant' },
-      't1'
+      't1',
     );
 
     expect(result.success).toBe(true);
     expect(doc.memories).toHaveLength(1);
-    expect(doc.memories[0]).toMatchObject({ title: 'Food', summary: 'Loves strawberries', type: 'topic' });
+    expect(doc.memories[0]).toMatchObject({
+      title: 'Food',
+      summary: 'Loves strawberries',
+      type: 'topic',
+    });
     expect(doc.save).toHaveBeenCalled();
   });
 
@@ -189,7 +209,7 @@ describe('saveUserMemoryTool', () => {
     const result = await run(
       saveUserMemoryTool('user-1'),
       { title: 'Food', summary: 'Loves strawberries', type: 'topic', initiatedBy: 'assistant' },
-      't2'
+      't2',
     );
 
     expect(result.success).toBe(false);
@@ -205,7 +225,7 @@ describe('saveUserMemoryTool', () => {
     const result = await run(
       saveUserMemoryTool('user-1'),
       { title: 'Food', summary: 'Loves strawberries', type: 'topic', initiatedBy: 'user' },
-      't3'
+      't3',
     );
 
     expect(result.success).toBe(true);
@@ -220,7 +240,7 @@ describe('saveUserMemoryTool', () => {
     const result = await run(
       saveUserMemoryTool('user-1', { initiatedBy: 'user' }),
       { title: 'Food', summary: 'Loves strawberries', type: 'topic', initiatedBy: 'assistant' },
-      't4'
+      't4',
     );
 
     expect(result.success).toBe(true);
@@ -234,7 +254,7 @@ describe('saveUserMemoryTool', () => {
     const result = await run(
       saveUserMemoryTool('user-1'),
       { title: 'food', summary: 'Loves strawberries now', type: 'topic', initiatedBy: 'assistant' },
-      't5'
+      't5',
     );
 
     expect(result.success).toBe(true);
@@ -255,7 +275,7 @@ describe('updateUserMemoryTool', () => {
     const result = await run(
       updateUserMemoryTool('user-1'),
       { currentTitle: 'Food', title: 'Favourite food' },
-      'u1'
+      'u1',
     );
 
     expect(result.success).toBe(true);
@@ -272,11 +292,15 @@ describe('updateUserMemoryTool', () => {
     const result = await run(
       updateUserMemoryTool('user-1'),
       { currentTitle: 'food', summary: 'Allergic to nuts', type: 'profile' },
-      'u2'
+      'u2',
     );
 
     expect(result.success).toBe(true);
-    expect(doc.memories[0]).toMatchObject({ title: 'Food', summary: 'Allergic to nuts', type: 'profile' });
+    expect(doc.memories[0]).toMatchObject({
+      title: 'Food',
+      summary: 'Allergic to nuts',
+      type: 'profile',
+    });
   });
 
   it('refuses when no memory carries that title', async () => {
@@ -286,7 +310,7 @@ describe('updateUserMemoryTool', () => {
     const result = await run(
       updateUserMemoryTool('user-1'),
       { currentTitle: 'Sport', summary: 'Runs daily' },
-      'u3'
+      'u3',
     );
 
     expect(result.success).toBe(false);
@@ -301,7 +325,7 @@ describe('updateUserMemoryTool', () => {
     const result = await run(
       updateUserMemoryTool('user-1'),
       { currentTitle: 'Food', title: 'sport' },
-      'u4'
+      'u4',
     );
 
     expect(result.success).toBe(false);
@@ -330,7 +354,7 @@ describe('updateUserMemoryTool', () => {
     const result = await run(
       updateUserMemoryTool('user-1'),
       { currentTitle: 'Food', summary: 'Loves ramen' },
-      'u6'
+      'u6',
     );
 
     expect(result.success).toBe(true);

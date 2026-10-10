@@ -1,41 +1,47 @@
-import React, { useState, useEffect } from "react";
-import { View, Text } from "react-native";
+import React, { useState, useEffect } from 'react';
+import { View, Text } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   withRepeat,
   withTiming,
   withSequence,
-} from "react-native-reanimated";
-import { IdentityMark } from "./IdentityMark";
+} from 'react-native-reanimated';
+import { IdentityMark } from './IdentityMark';
 
 const thinkingPhrases = [
-  "Thinking...",
-  "Crafting...",
-  "Pondering...",
-  "Computing...",
-  "Processing...",
-  "Analyzing...",
-  "Reasoning...",
-  "Cooking...",
-  "Brewing...",
-  "Conjuring...",
+  'Thinking...',
+  'Crafting...',
+  'Pondering...',
+  'Computing...',
+  'Processing...',
+  'Analyzing...',
+  'Reasoning...',
+  'Cooking...',
+  'Brewing...',
+  'Conjuring...',
 ];
 
 const workingPhrases = [
-  "Working...",
-  "Executing...",
-  "Running...",
-  "Building...",
-  "Creating...",
-  "Doing the thing...",
+  'Working...',
+  'Executing...',
+  'Running...',
+  'Building...',
+  'Creating...',
+  'Doing the thing...',
 ];
 
-export function ThinkingIndicator({ isWorking = false, statusText, color }: { isWorking?: boolean; statusText?: string; color?: string }) {
+export function ThinkingIndicator({
+  isWorking = false,
+  statusText,
+  color,
+}: {
+  isWorking?: boolean;
+  statusText?: string;
+  color?: string;
+}) {
   const phrases = isWorking ? workingPhrases : thinkingPhrases;
-  const [phraseIndex, setPhraseIndex] = useState(() =>
-    Math.floor(Math.random() * phrases.length)
-  );
-  const [displayText, setDisplayText] = useState("");
+  const [phraseIndex, setPhraseIndex] = useState(() => Math.floor(Math.random() * phrases.length));
+  const [displayText, setDisplayText] = useState('');
   const [isTyping, setIsTyping] = useState(true);
 
   // Reset phraseIndex when isWorking changes (arrays have different lengths)
@@ -46,11 +52,8 @@ export function ThinkingIndicator({ isWorking = false, statusText, color }: { is
   // Pulsing cursor animation (effect-free, declarative)
   const cursorStyle = useAnimatedStyle(() => ({
     opacity: withRepeat(
-      withSequence(
-        withTiming(0.2, { duration: 400 }),
-        withTiming(1, { duration: 400 })
-      ),
-      -1
+      withSequence(withTiming(0.2, { duration: 400 }), withTiming(1, { duration: 400 })),
+      -1,
     ),
   }));
 
@@ -60,7 +63,7 @@ export function ThinkingIndicator({ isWorking = false, statusText, color }: { is
     const phrase = phrases[phraseIndex % phrases.length];
     let charIndex = 0;
     setIsTyping(true);
-    setDisplayText("");
+    setDisplayText('');
 
     const typeInterval = setInterval(() => {
       if (charIndex < phrase.length) {

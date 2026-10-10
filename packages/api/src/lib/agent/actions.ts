@@ -67,12 +67,19 @@ import { classifyActionRisk, createRollbackRecord } from './governance.js';
 import { isDeclaredReadOnly } from './tool-effects.js';
 import { autonomyFlags } from '../autonomy/flags.js';
 import { getDb } from '../../db/index.js';
-import { updateAgentSession, type AgentSessionRecord } from '../../db/agents/agentSessionRepository.js';
+import {
+  updateAgentSession,
+  type AgentSessionRecord,
+} from '../../db/agents/agentSessionRepository.js';
 import type { EventStream } from './event-stream.js';
 import type { DeferredApprovals } from './deferred-approvals.js';
 import { buildAgentMemoryTool } from './agent-memory-runtime.js';
 import { RepeatDetector, repeatedToolCallKey } from './repeat-detector.js';
-import { agentActorId, getComputerClient, type ComputerClient } from '../computer/computer-client.js';
+import {
+  agentActorId,
+  getComputerClient,
+  type ComputerClient,
+} from '../computer/computer-client.js';
 import { buildComputerTools } from '../computer/computer-tools.js';
 
 export interface AgentRuntimeContext {
@@ -136,11 +143,7 @@ export function buildRuntimeTools(
     withoutComputer?: boolean;
   } = {},
 ): ToolSet {
-  const {
-    session, onComplete, onHireAgent,
-    todoManager, browserSession,
-    eventStream,
-  } = ctx;
+  const { session, onComplete, onHireAgent, todoManager, browserSession, eventStream } = ctx;
 
   const actions: ToolSet = {};
 
@@ -150,47 +153,56 @@ export function buildRuntimeTools(
   // screenshot/click/type/scroll/back actions that needed one are gone rather
   // than offered and failing. See `browser-session.ts`.
 
-  if (grants.allows('browser')) actions.browser = tool({
-    description: 'Research the web. Actions: search (search the web for a query), goto (read the main text of a public URL and make it the current page), get_text (read the current page again). Pages are read as extracted text; there is no clicking, typing or screenshots.',
-    inputSchema: z.object({
-      action: z.enum(BROWSER_ACTIONS),
-      url: z.string().optional().describe('URL for goto action'),
-      query: z.string().optional().describe('Search query (search action)'),
-    }),
-    execute: async ({ action, url, query }) => {
-      const result = await browserSession.execute(action, { url, query });
+  if (grants.allows('browser'))
+    actions.browser = tool({
+      description:
+        'Research the web. Actions: search (search the web for a query), goto (read the main text of a public URL and make it the current page), get_text (read the current page again). Pages are read as extracted text; there is no clicking, typing or screenshots.',
+      inputSchema: z.object({
+        action: z.enum(BROWSER_ACTIONS),
+        url: z.string().optional().describe('URL for goto action'),
+        query: z.string().optional().describe('Search query (search action)'),
+      }),
+      execute: async ({ action, url, query }) => {
+        const result = await browserSession.execute(action, { url, query });
 
-      // Track sources from browser navigation and content extraction
-      if (eventStream && (action === 'goto' || action === 'get_text') && url) {
-        try {
-          const parsedUrl = new URL(url);
-          const domain = parsedUrl.hostname;
-          const title = typeof result === 'string' ? result.split('\n')[0]?.slice(0, 100) : '';
-          const snippet = typeof result === 'string' ? result.slice(0, 200) : '';
-          eventStream.append('source_found', snippet, {
-            toolName: 'browser',
-            url,
-            title,
-            domain,
-          });
-        } catch {
-          // URL parsing failed — skip source tracking
+        // Track sources from browser navigation and content extraction
+        if (eventStream && (action === 'goto' || action === 'get_text') && url) {
+          try {
+            const parsedUrl = new URL(url);
+            const domain = parsedUrl.hostname;
+            const title = typeof result === 'string' ? result.split('\n')[0]?.slice(0, 100) : '';
+            const snippet = typeof result === 'string' ? result.slice(0, 200) : '';
+            eventStream.append('source_found', snippet, {
+              toolName: 'browser',
+              url,
+              title,
+              domain,
+            });
+          } catch {
+            // URL parsing failed — skip source tracking
+          }
         }
-      }
 
-      return result;
-    },
-  });
+        return result;
+      },
+    });
 
   // ── plan — Todo management + completion ──
 
   actions.plan = tool({
-    description: 'Manage your task plan or signal completion. Use "update" to create/modify your checklist. Use "complete" when you are done with the task. Create a plan for multi-step tasks.',
+    description:
+      'Manage your task plan or signal completion. Use "update" to create/modify your checklist. Use "complete" when you are done with the task. Create a plan for multi-step tasks.',
     inputSchema: z.object({
       action: z.enum(['update', 'complete']),
       objective: z.string().optional().describe('Overall objective of the task (update action)'),
-      items: z.array(z.string()).optional().describe('List of task steps as strings (update action)'),
-      completed_items: z.array(z.number()).optional().describe('1-based indices of completed items (update action)'),
+      items: z
+        .array(z.string())
+        .optional()
+        .describe('List of task steps as strings (update action)'),
+      completed_items: z
+        .array(z.number())
+        .optional()
+        .describe('1-based indices of completed items (update action)'),
       result: z.string().optional().describe('Final result summary (complete action)'),
     }),
     execute: async ({ action, objective, items, completed_items, result }) => {
@@ -234,7 +246,8 @@ export function buildRuntimeTools(
 
   if (!options.withoutDelegation && onHireAgent && grants.allows('delegation')) {
     actions.delegate = tool({
-      description: 'Hire a specialist agent for a subtask. The agent works autonomously and returns the result. Use for tasks outside your expertise or to parallelize work.',
+      description:
+        'Hire a specialist agent for a subtask. The agent works autonomously and returns the result. Use for tasks outside your expertise or to parallelize work.',
       inputSchema: z.object({
         agent: z.string().describe('Agent handle (e.g. @researcher, @coder)'),
         task: z.string().describe('Task description for the hired agent'),
@@ -258,11 +271,14 @@ export function buildRuntimeTools(
 
   const computer = ctx.computer === undefined ? getComputerClient() : ctx.computer;
   if (!options.withoutComputer && computer && grants.allows('computer')) {
-    Object.assign(actions, buildComputerTools({
-      client: computer,
-      actorId: agentActorId(session.agentId, session.oxyUserId),
-      scope: session._id,
-    }));
+    Object.assign(
+      actions,
+      buildComputerTools({
+        client: computer,
+        actorId: agentActorId(session.agentId, session.oxyUserId),
+        scope: session._id,
+      }),
+    );
   }
 
   // ── continueInBackground — work longer than a chat turn ──
@@ -270,9 +286,13 @@ export function buildRuntimeTools(
   if (ctx.continueInBackground) {
     const continueInBackground = ctx.continueInBackground;
     actions.continueInBackground = tool({
-      description: 'Hand work that needs more than a quick answer — many searches, a long analysis, anything that will take minutes — to a background run of yourself. It keeps working after this reply ends and posts its result in this conversation. Write the task so your background self can do it without this chat: goal, what you know so far, what to deliver.',
+      description:
+        'Hand work that needs more than a quick answer — many searches, a long analysis, anything that will take minutes — to a background run of yourself. It keeps working after this reply ends and posts its result in this conversation. Write the task so your background self can do it without this chat: goal, what you know so far, what to deliver.',
       inputSchema: z.object({
-        task: z.string().min(1).describe('The complete, self-contained task for the background run'),
+        task: z
+          .string()
+          .min(1)
+          .describe('The complete, self-contained task for the background run'),
       }),
       execute: async ({ task }) => {
         try {
@@ -303,9 +323,13 @@ export function buildRuntimeTools(
   if (ctx.outreach) {
     const { messageUser, scheduleFollowUp } = ctx.outreach;
     actions.sendMessageToUser = tool({
-      description: 'Write a message to the person in your conversation with them; they get a notification. Use it only for something they would want to know now: a finding, a change, a question you need answered. Do not use it for progress chatter. Limited to a few per day, and it stops if they have not answered your last messages.',
+      description:
+        'Write a message to the person in your conversation with them; they get a notification. Use it only for something they would want to know now: a finding, a change, a question you need answered. Do not use it for progress chatter. Limited to a few per day, and it stops if they have not answered your last messages.',
       inputSchema: z.object({
-        message: z.string().min(1).describe('The message, written to the person, in their language'),
+        message: z
+          .string()
+          .min(1)
+          .describe('The message, written to the person, in their language'),
       }),
       execute: async ({ message }) => {
         try {
@@ -316,9 +340,14 @@ export function buildRuntimeTools(
       },
     });
     actions.scheduleFollowUp = tool({
-      description: 'Schedule yourself to come back to this later — to check something again, or to follow up at a time the person asked for. At that time you run again with your note; if you find something worth saying you tell them with sendMessageToUser. At most a few pending at once.',
+      description:
+        'Schedule yourself to come back to this later — to check something again, or to follow up at a time the person asked for. At that time you run again with your note; if you find something worth saying you tell them with sendMessageToUser. At most a few pending at once.',
       inputSchema: z.object({
-        at: z.string().describe('When, as an ISO 8601 date-time with timezone offset, e.g. 2026-09-25T09:00:00+02:00'),
+        at: z
+          .string()
+          .describe(
+            'When, as an ISO 8601 date-time with timezone offset, e.g. 2026-09-25T09:00:00+02:00',
+          ),
         note: z.string().min(1).describe('What to do then, written for your future self'),
       }),
       execute: async ({ at, note }) => {
@@ -373,7 +402,8 @@ export async function applyRuntimePolicy(
     if (value && typeof value === 'object') {
       return `{${Object.entries(value as Record<string, unknown>)
         .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, item]) => `${JSON.stringify(key)}:${stableArgs(item)}`).join(',')}}`;
+        .map(([key, item]) => `${JSON.stringify(key)}:${stableArgs(item)}`)
+        .join(',')}}`;
     }
     return JSON.stringify(value);
   };
@@ -419,10 +449,16 @@ export async function applyRuntimePolicy(
       if (repeatKey) {
         const repeated = repeatDetector.record(session._id, repeatKey);
         if (repeated.warning) {
-          eventStream?.append('system_message', `REPEATED TOOL WARNING: ${name} called ${repeated.count} times with identical arguments.`);
+          eventStream?.append(
+            'system_message',
+            `REPEATED TOOL WARNING: ${name} called ${repeated.count} times with identical arguments.`,
+          );
         }
         if (repeated.stop) {
-          eventStream?.append('error', `REPEATED TOOL STOP: ${name} called ${repeated.count} times with identical arguments.`);
+          eventStream?.append(
+            'error',
+            `REPEATED TOOL STOP: ${name} called ${repeated.count} times with identical arguments.`,
+          );
           return `Error: Repeated identical tool call stopped after ${repeated.count} attempts. Inspect the previous result and choose a different action.`;
         }
       }
@@ -435,13 +471,18 @@ export async function applyRuntimePolicy(
 
       if (risk.riskLevel === 'R3') {
         eventStream?.append('system_message', `POLICY BLOCKED [R3]: ${risk.reason}`);
-        log.agents.warn({ toolName: name, risk: risk.riskLevel, reason: risk.reason, sessionId: session._id }, 'Agent action blocked by governance policy');
+        log.agents.warn(
+          { toolName: name, risk: risk.riskLevel, reason: risk.reason, sessionId: session._id },
+          'Agent action blocked by governance policy',
+        );
         return `Error: Action blocked by policy — ${risk.reason}`;
       }
 
       const earlyThreat = analyzeThreat(name, inputArgs);
-      const needsApproval = !earlyThreat.shouldBlock && autonomyFlags.approvalsEnabled
-        && (risk.riskLevel === 'R2' || earlyThreat.shouldApprove);
+      const needsApproval =
+        !earlyThreat.shouldBlock &&
+        autonomyFlags.approvalsEnabled &&
+        (risk.riskLevel === 'R2' || earlyThreat.shouldApprove);
       // Nobody is watching a background run: ask the person asynchronously and
       // let the run carry on, unless they already approved exactly this call.
       if (needsApproval && ctx.approvals) {
@@ -452,17 +493,19 @@ export async function applyRuntimePolicy(
         eventStream?.append('system_message', `APPROVED EARLIER: ${name}`);
       } else if (risk.riskLevel === 'R2' && autonomyFlags.approvalsEnabled) {
         const syntheticThreat: ThreatResult = {
-          threats: [{
-            pattern: {
-              id: `risk-${risk.riskLevel.toLowerCase()}`,
-              category: 'prompt_injection',
-              severity: 'critical',
-              description: risk.reason,
-              pattern: /.*/,
-              tools: [name],
+          threats: [
+            {
+              pattern: {
+                id: `risk-${risk.riskLevel.toLowerCase()}`,
+                category: 'prompt_injection',
+                severity: 'critical',
+                description: risk.reason,
+                pattern: /.*/,
+                tools: [name],
+              },
+              match: name,
             },
-            match: name,
-          }],
+          ],
           maxSeverity: 'critical',
           shouldBlock: false,
           shouldApprove: true,
@@ -488,7 +531,10 @@ export async function applyRuntimePolicy(
       if (threat.shouldBlock) {
         const summary = formatThreatSummary(threat);
         eventStream?.append('system_message', `THREAT BLOCKED: ${summary}`);
-        log.agents.warn({ toolName: name, threat: summary, sessionId: session._id }, 'Agent action blocked by threat detector');
+        log.agents.warn(
+          { toolName: name, threat: summary, sessionId: session._id },
+          'Agent action blocked by threat detector',
+        );
         return `Error: Action blocked by security policy — ${threat.threats[0]?.pattern.description || 'security violation'}`;
       }
 
@@ -505,12 +551,21 @@ export async function applyRuntimePolicy(
           });
 
           if (approval !== 'approved') {
-            eventStream?.append('system_message', `THREAT APPROVAL ${approval.toUpperCase()}: ${summary}`);
+            eventStream?.append(
+              'system_message',
+              `THREAT APPROVAL ${approval.toUpperCase()}: ${summary}`,
+            );
             return `Error: Action denied (${approval}) — ${threat.threats[0]?.pattern.description || 'security policy'}`;
           }
         } else {
-          eventStream?.append('system_message', `THREAT WARNING: ${summary}. Action allowed but flagged.`);
-          log.agents.info({ toolName: name, threat: summary, sessionId: session._id }, 'Agent action flagged by threat detector');
+          eventStream?.append(
+            'system_message',
+            `THREAT WARNING: ${summary}. Action allowed but flagged.`,
+          );
+          log.agents.info(
+            { toolName: name, threat: summary, sessionId: session._id },
+            'Agent action flagged by threat detector',
+          );
         }
       }
 
@@ -527,7 +582,9 @@ export async function applyRuntimePolicy(
           afterState: { resultPreview: typeof result === 'string' ? result.slice(0, 600) : result },
           diff: typeof result === 'string' ? result.slice(0, 1000) : undefined,
           rollbackAction: { hint: 'Re-run tool with inverse arguments if available' },
-        }).catch((err: unknown) => log.agents.warn({ err, toolName: name }, 'Failed to record rollback window'));
+        }).catch((err: unknown) =>
+          log.agents.warn({ err, toolName: name }, 'Failed to record rollback window'),
+        );
 
         eventStream?.append('system_message', `ROLLBACK WINDOW OPEN [R1]: ${name}`);
       }

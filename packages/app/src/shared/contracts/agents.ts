@@ -28,7 +28,13 @@ export interface ArchetypeConfig {
   reportTemplate?: string;
   reportFormat?: 'markdown' | 'html' | 'plain';
   deliveryChannels?: string[];
-  schedule?: { type: 'daily' | 'interval' | 'cron'; time?: string; days?: string[]; intervalMinutes?: number; cron?: string };
+  schedule?: {
+    type: 'daily' | 'interval' | 'cron';
+    time?: string;
+    days?: string[];
+    intervalMinutes?: number;
+    cron?: string;
+  };
   compareWithPrevious?: boolean;
 }
 
@@ -84,7 +90,13 @@ export interface Agent {
    * itself is the API's.
    */
   capabilityGrants: string[];
-  skills: Array<{ _id: string; name: string; displayName: string; icon: string | null; color: string | null }>;
+  skills: Array<{
+    _id: string;
+    name: string;
+    displayName: string;
+    icon: string | null;
+    color: string | null;
+  }>;
   /**
    * The newest line of THIS person's thread with the agent, and when it landed.
    *
@@ -130,7 +142,18 @@ export interface Agent {
  * shape a type is for.
  */
 export type AgentUpdate = Partial<
-  Omit<Agent, 'skills' | 'knowledge' | 'name' | 'handle' | 'avatar' | 'oxyAccountId' | 'ownerOxyAccountId' | 'applicationId' | '_id'>
+  Omit<
+    Agent,
+    | 'skills'
+    | 'knowledge'
+    | 'name'
+    | 'handle'
+    | 'avatar'
+    | 'oxyAccountId'
+    | 'ownerOxyAccountId'
+    | 'applicationId'
+    | '_id'
+  >
 > & {
   skills?: string[];
   knowledge?: string[];

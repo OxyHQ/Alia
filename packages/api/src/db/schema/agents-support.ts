@@ -133,12 +133,7 @@ export const rollbackRecords = pgTable(
     index('rollback_records_tool_name_idx').on(t.toolName),
     index('rollback_records_status_idx').on(t.status),
     index('rollback_records_expires_at_idx').on(t.expiresAt),
-    index('rollback_records_lookup_idx').on(
-      t.oxyUserId,
-      t.sessionId,
-      t.status,
-      t.createdAt.desc(),
-    ),
+    index('rollback_records_lookup_idx').on(t.oxyUserId, t.sessionId, t.status, t.createdAt.desc()),
     checkOneOf('rollback_records_risk_level_check', t.riskLevel, ROLLBACK_RISK_LEVELS),
     checkOneOf('rollback_records_status_check', t.status, ROLLBACK_STATUSES),
   ],

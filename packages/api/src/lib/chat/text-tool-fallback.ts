@@ -31,7 +31,7 @@ export interface TextToolFallbackParams {
   /** The truncated tool set the model had access to. */
   tools: ToolSet;
   convertedMessages: ModelMessage[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK config is dynamically extended; strict SDK param types don't support this pattern
+  // biome-ignore lint/suspicious/noExplicitAny: AI SDK config is dynamically extended; strict SDK param types don't support this pattern
   baseConfig: any;
   res: Response;
   requestId: string;
@@ -41,8 +41,19 @@ export interface TextToolFallbackParams {
 
 const TEXT_TOOL_CALL_RE = /<function\((\w+)\)>\s*<?\s*(\{[\s\S]*?\})\s*>?\s*<\/function>/g;
 
-export async function runTextToolFallback(params: TextToolFallbackParams): Promise<{ assistantResponse: string }> {
-  const { toolInvocations, tools, convertedMessages, baseConfig, res, requestId, modelId, resolved } = params;
+export async function runTextToolFallback(
+  params: TextToolFallbackParams,
+): Promise<{ assistantResponse: string }> {
+  const {
+    toolInvocations,
+    tools,
+    convertedMessages,
+    baseConfig,
+    res,
+    requestId,
+    modelId,
+    resolved,
+  } = params;
   let assistantResponse = params.assistantResponse;
 
   let textToolCallIdx = 0;
@@ -56,29 +67,61 @@ export async function runTextToolFallback(params: TextToolFallbackParams): Promi
     const toolCallId = `text-fallback-${Date.now()}-${textToolCallIdx++}-${toolName}`;
 
     // Emit tool-call event to client
-    res.write(`data: ${JSON.stringify(makeChunk(requestId, modelId, [{
-      index: 0,
-      delta: { tool_calls: [{ index: 0, id: toolCallId, type: 'function', function: { name: toolName, arguments: JSON.stringify(args) } }] },
-      finish_reason: null,
-    }]))}\n\n`);
+    res.write(
+      `data: ${JSON.stringify(
+        makeChunk(requestId, modelId, [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: toolCallId,
+                  type: 'function',
+                  function: { name: toolName, arguments: JSON.stringify(args) },
+                },
+              ],
+            },
+            finish_reason: null,
+          },
+        ]),
+      )}\n\n`,
+    );
 
     try {
       const toolOutput = await (toolFn.execute as (...args: unknown[]) => unknown)(args);
 
-      res.write(`event: alia.tool_result\ndata: ${JSON.stringify({
-        eventVersion: 1,
-        tool_call_id: toolCallId,
-        name: toolName,
-        output: toolOutput,
-      })}\n\n`);
+      res.write(
+        `event: alia.tool_result\ndata: ${JSON.stringify({
+          eventVersion: 1,
+          tool_call_id: toolCallId,
+          name: toolName,
+          output: toolOutput,
+        })}\n\n`,
+      );
 
-      const invocation = { toolCallId, toolName, state: 'result' as const, args, result: toolOutput };
+      const invocation = {
+        toolCallId,
+        toolName,
+        state: 'result' as const,
+        args,
+        result: toolOutput,
+      };
       toolInvocations.push(invocation);
 
       // Follow-up LLM call so the model generates a natural response
       try {
-        const followUpMessages: ModelMessage[] = [...convertedMessages, ...toolRoundTrip(invocation)];
-        const followUpResult = streamText({ ...baseConfig, messages: followUpMessages, tools: undefined, stopWhen: undefined, onFinish: undefined });
+        const followUpMessages: ModelMessage[] = [
+          ...convertedMessages,
+          ...toolRoundTrip(invocation),
+        ];
+        const followUpResult = streamText({
+          ...baseConfig,
+          messages: followUpMessages,
+          tools: undefined,
+          stopWhen: undefined,
+          onFinish: undefined,
+        });
 
         for await (const followUpChunk of followUpResult.fullStream) {
           if (followUpChunk.type === 'text-delta' && followUpChunk.text) {
@@ -102,10 +145,22 @@ export async function runTextToolFallback(params: TextToolFallbackParams): Promi
     // Format 1: <function(name)>{json}</function>
     const textToolMatches = [...assistantResponse.matchAll(TEXT_TOOL_CALL_RE)];
     if (textToolMatches.length > 0) {
-      log.v1.warn({ matchCount: textToolMatches.length, format: 'xml', provider: resolved.provider, modelId: resolved.modelId }, 'Detected text-based tool calls — executing fallback');
+      log.v1.warn(
+        {
+          matchCount: textToolMatches.length,
+          format: 'xml',
+          provider: resolved.provider,
+          modelId: resolved.modelId,
+        },
+        'Detected text-based tool calls — executing fallback',
+      );
       for (const match of textToolMatches) {
         let args: unknown;
-        try { args = JSON.parse(match[2]); } catch { continue; }
+        try {
+          args = JSON.parse(match[2]);
+        } catch {
+          continue;
+        }
         await executeTextToolCall(match[1], args);
       }
       assistantResponse = assistantResponse.replace(TEXT_TOOL_CALL_RE, '').trim();
@@ -116,11 +171,21 @@ export async function runTextToolFallback(params: TextToolFallbackParams): Promi
       try {
         const parsed = JSON.parse(assistantResponse.trim());
         if (parsed?.type === 'function' && typeof parsed.name === 'string' && parsed.parameters) {
-          log.v1.warn({ format: 'openai-json', toolName: parsed.name, provider: resolved.provider, modelId: resolved.modelId }, 'Detected JSON tool call in text response — executing fallback');
+          log.v1.warn(
+            {
+              format: 'openai-json',
+              toolName: parsed.name,
+              provider: resolved.provider,
+              modelId: resolved.modelId,
+            },
+            'Detected JSON tool call in text response — executing fallback',
+          );
           await executeTextToolCall(parsed.name, parsed.parameters);
           assistantResponse = '';
         }
-      } catch { /* not JSON — no action needed */ }
+      } catch {
+        /* not JSON — no action needed */
+      }
     }
   }
 

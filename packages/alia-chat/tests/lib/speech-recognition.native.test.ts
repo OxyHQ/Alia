@@ -8,7 +8,8 @@ const native = vi.hoisted(() => {
   return {
     listeners,
     emit(name: string, event: unknown): void {
-      for (const listener of listeners.get(name) ?? []) (listener as (event: unknown) => void)(event);
+      for (const listener of listeners.get(name) ?? [])
+        (listener as (event: unknown) => void)(event);
     },
     module: {
       isRecognitionAvailable: vi.fn(() => true),
@@ -16,10 +17,12 @@ const native = vi.hoisted(() => {
       start: vi.fn(),
       getDefaultRecognitionService: vi.fn(() => ({ packageName: '' })),
       getSpeechRecognitionServices: vi.fn((): string[] => []),
-      getSupportedLocales: vi.fn(async (_options: { androidRecognitionServicePackage?: string }) => ({
-        locales: [] as string[],
-        installedLocales: [] as string[],
-      })),
+      getSupportedLocales: vi.fn(
+        async (_options: { androidRecognitionServicePackage?: string }) => ({
+          locales: [] as string[],
+          installedLocales: [] as string[],
+        }),
+      ),
       stop: vi.fn(),
       abort: vi.fn(),
       addListener: vi.fn((name: string, listener: Listener) => {
@@ -70,14 +73,16 @@ describe('on-device recognition on iOS and Android', () => {
 
   it('starts continuous, interim, punctuated recognition in the given language, with echo cancellation on request', () => {
     startSpeechRecognition({ lang: 'es-MX', echoCancellation: true }, handlers());
-    expect(native.module.start).toHaveBeenCalledWith(expect.objectContaining({
-      lang: 'es-MX',
-      continuous: true,
-      interimResults: true,
-      addsPunctuation: true,
-      iosVoiceProcessingEnabled: true,
-      volumeChangeEventOptions: { enabled: true, intervalMillis: 100 },
-    }));
+    expect(native.module.start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lang: 'es-MX',
+        continuous: true,
+        interimResults: true,
+        addsPunctuation: true,
+        iosVoiceProcessingEnabled: true,
+        volumeChangeEventOptions: { enabled: true, intervalMillis: 100 },
+      }),
+    );
   });
 
   it('reports the whole utterance, joining the segments Android finalizes one by one', () => {
@@ -85,7 +90,10 @@ describe('on-device recognition on iOS and Android', () => {
     startSpeechRecognition({ lang: 'en-US' }, events);
     native.emit('result', { isFinal: true, results: [{ transcript: 'Hello there' }] });
     native.emit('result', { isFinal: false, results: [{ transcript: 'how are' }] });
-    expect(events.onResult).toHaveBeenLastCalledWith({ transcript: 'Hello there how are', isFinal: false });
+    expect(events.onResult).toHaveBeenLastCalledWith({
+      transcript: 'Hello there how are',
+      isFinal: false,
+    });
   });
 
   it('maps the native volume scale onto 0..1', () => {
@@ -110,8 +118,14 @@ describe('on-device recognition on iOS and Android', () => {
   });
 
   it('asks for permission once and reports a refusal', async () => {
-    native.module.requestPermissionsAsync.mockResolvedValueOnce({ granted: false, status: 'denied' });
-    await expect(requestSpeechRecognitionPermission()).resolves.toEqual({ code: 'not-allowed', detail: 'denied' });
+    native.module.requestPermissionsAsync.mockResolvedValueOnce({
+      granted: false,
+      status: 'denied',
+    });
+    await expect(requestSpeechRecognitionPermission()).resolves.toEqual({
+      code: 'not-allowed',
+      detail: 'denied',
+    });
     await expect(requestSpeechRecognitionPermission()).resolves.toBeNull();
   });
 
@@ -137,14 +151,21 @@ describe('on-device recognition on iOS and Android', () => {
  */
 describe('choosing the recognizer for a language', () => {
   const offer = (by: Record<string, string[]>) =>
-    native.module.getSupportedLocales.mockImplementation(async ({ androidRecognitionServicePackage = '' }) => ({
-      locales: by[androidRecognitionServicePackage] ?? [],
-      installedLocales: [],
-    }));
+    native.module.getSupportedLocales.mockImplementation(
+      async ({ androidRecognitionServicePackage = '' }) => ({
+        locales: by[androidRecognitionServicePackage] ?? [],
+        installedLocales: [],
+      }),
+    );
 
   beforeEach(() => {
-    native.module.getDefaultRecognitionService.mockReturnValue({ packageName: 'com.google.android.as' });
-    native.module.getSpeechRecognitionServices.mockReturnValue(['com.google.android.as', 'com.google.android.tts']);
+    native.module.getDefaultRecognitionService.mockReturnValue({
+      packageName: 'com.google.android.as',
+    });
+    native.module.getSpeechRecognitionServices.mockReturnValue([
+      'com.google.android.as',
+      'com.google.android.tts',
+    ]);
   });
 
   it('takes the default service when it knows the language, under its own spelling', async () => {
@@ -172,7 +193,9 @@ describe('choosing the recognizer for a language', () => {
 
   it('says the language is not supported when services answered and none has it', async () => {
     offer({ 'com.google.android.as': ['en-US'] });
-    await expect(chooseSpeechRecognizer('ja-JP')).resolves.toEqual({ failure: { code: 'language-not-supported' } });
+    await expect(chooseSpeechRecognizer('ja-JP')).resolves.toEqual({
+      failure: { code: 'language-not-supported' },
+    });
   });
 
   it('tries the default as before, marked silent, when every service names no language', async () => {
@@ -183,6 +206,9 @@ describe('choosing the recognizer for a language', () => {
   it('is not silent where there is no service to ask (iOS)', async () => {
     native.module.getDefaultRecognitionService.mockReturnValue({ packageName: '' });
     native.module.getSpeechRecognitionServices.mockReturnValue([]);
-    await expect(chooseSpeechRecognizer('en-US')).resolves.toEqual({ lang: 'en-US', silent: false });
+    await expect(chooseSpeechRecognizer('en-US')).resolves.toEqual({
+      lang: 'en-US',
+      silent: false,
+    });
   });
 });

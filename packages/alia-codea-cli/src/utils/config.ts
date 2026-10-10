@@ -62,7 +62,7 @@ export function configuredModel(): string {
 
 export function saveSession(session: Session): void {
   const sessions = config.get('sessions') || [];
-  const existingIndex = sessions.findIndex(s => s.id === session.id);
+  const existingIndex = sessions.findIndex((s) => s.id === session.id);
 
   if (existingIndex >= 0) {
     sessions[existingIndex] = session;
@@ -80,7 +80,7 @@ export function saveSession(session: Session): void {
 
 export function getSession(id: string): Session | undefined {
   const sessions = config.get('sessions') || [];
-  return sessions.find(s => s.id === id);
+  return sessions.find((s) => s.id === id);
 }
 
 export function getSessions(): Session[] {

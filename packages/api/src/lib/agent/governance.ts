@@ -65,16 +65,25 @@ const DESTRUCTIVE_TOKENS = [
 const COMMAND_ARGUMENTS = ['command', 'cmd', 'script', 'sql', 'query', 'statement'];
 
 function hasDestructivePayload(args: Record<string, unknown>): boolean {
-  const values = COMMAND_ARGUMENTS
-    .map((key) => args[key])
+  const values = COMMAND_ARGUMENTS.map((key) => args[key])
     .filter((value): value is string => typeof value === 'string')
     .join('\n');
 
   return DESTRUCTIVE_TOKENS.some((pattern) => pattern.test(values));
 }
 
-const R0 = (reason: string): ActionRisk => ({ riskLevel: 'R0', reason, reversible: false, externalImpact: false });
-const R1 = (reason: string, reversible: boolean): ActionRisk => ({ riskLevel: 'R1', reason, reversible, externalImpact: false });
+const R0 = (reason: string): ActionRisk => ({
+  riskLevel: 'R0',
+  reason,
+  reversible: false,
+  externalImpact: false,
+});
+const R1 = (reason: string, reversible: boolean): ActionRisk => ({
+  riskLevel: 'R1',
+  reason,
+  reversible,
+  externalImpact: false,
+});
 
 /**
  * The runtime primitives, classified by what the CALL does rather than by name.
@@ -99,18 +108,23 @@ function classifyPrimitive(
       return R1('Delegation runs another Alia agent under this session budget', false);
     case 'memory': {
       const action = typeof args.action === 'string' ? args.action : '';
-      if (action === 'read' || action === 'list') return R0('Reading the agent\'s own memory is autonomous');
+      if (action === 'read' || action === 'list')
+        return R0("Reading the agent's own memory is autonomous");
       // Forgetting purges the file and its journal on the person's request,
       // so it is R1 without a rollback: there is deliberately nothing to restore.
-      if (action === 'forget') return R1('Forgetting part of the agent\'s own memory, as the person asked', false);
-      return R1('Writing the agent\'s own memory, journaled and reversible', true);
+      if (action === 'forget')
+        return R1("Forgetting part of the agent's own memory, as the person asked", false);
+      return R1("Writing the agent's own memory, journaled and reversible", true);
     }
     case 'continueInBackground':
       return R1('Starts a held, admitted background run of the same agent for this person', false);
     case 'sendMessageToUser':
-      return R1('Writes into the agent\'s own conversation with the person, under the outreach budget', false);
+      return R1(
+        "Writes into the agent's own conversation with the person, under the outreach budget",
+        false,
+      );
     case 'scheduleFollowUp':
-      return R1('Schedules the agent\'s own one-off follow-up, under the pending limit', false);
+      return R1("Schedules the agent's own one-off follow-up, under the pending limit", false);
     // The agent's own computer: a gVisor container with no network, so what a
     // call does stays inside the agent's sandbox. Reading is autonomous; a
     // change is R1 but offers no rollback (nothing snapshots the old content,
@@ -119,12 +133,12 @@ function classifyPrimitive(
     case 'computer_status':
     case 'list_computer_files':
     case 'read_computer_file':
-      return R0('Reading the agent\'s own sandboxed computer is autonomous');
+      return R0("Reading the agent's own sandboxed computer is autonomous");
     case 'computer_start':
     case 'computer_stop':
-      return R1('Starts or stops the agent\'s own sandboxed computer', false);
+      return R1("Starts or stops the agent's own sandboxed computer", false);
     case 'write_computer_file':
-      return R1('Writes a file inside the agent\'s own networkless sandbox', false);
+      return R1("Writes a file inside the agent's own networkless sandbox", false);
     case 'run_computer_command':
       return args.background === true
         ? {
@@ -133,7 +147,7 @@ function classifyPrimitive(
             reversible: false,
             externalImpact: false,
           }
-        : R1('Runs a bounded command inside the agent\'s own networkless sandbox', false);
+        : R1("Runs a bounded command inside the agent's own networkless sandbox", false);
     // The agent's own browser (`lib/computer/browser-tools.ts`). Looking is
     // autonomous. Opening, clicking, scrolling and closing act on the open web
     // under the agent's own profile but submit nothing on their own. Typing and
@@ -143,14 +157,17 @@ function classifyPrimitive(
     case 'browser_read':
     case 'browser_screenshot':
     case 'browser_scroll':
-      return R0('Looking at the agent\'s own browser is autonomous');
+      return R0("Looking at the agent's own browser is autonomous");
     case 'browser_open':
     case 'browser_click':
     case 'browser_close':
-      return R1('Navigates the agent\'s own browser; nothing is typed or submitted', false);
+      return R1("Navigates the agent's own browser; nothing is typed or submitted", false);
     case 'browser_type':
       return attended
-        ? R1('Types into a page in the agent\'s own browser while the person is in the conversation', false)
+        ? R1(
+            "Types into a page in the agent's own browser while the person is in the conversation",
+            false,
+          )
         : {
             riskLevel: 'R2',
             reason: 'Typing into a web form in the background, where nobody sees what is sent',
@@ -165,7 +182,7 @@ function classifyPrimitive(
             reversible: false,
             externalImpact: true,
           }
-        : R1('Presses a key in the agent\'s own browser', false);
+        : R1("Presses a key in the agent's own browser", false);
     default:
       return null;
   }

@@ -58,7 +58,8 @@ export function safeFileName(raw: string): string {
  * kilobytes are valid UTF-8 with no NUL: CSV, JSON, Markdown, iCalendar.
  */
 export function sniffType(head: Buffer): string | null {
-  const starts = (signature: number[], offset = 0) => signature.every((byte, i) => head[offset + i] === byte);
+  const starts = (signature: number[], offset = 0) =>
+    signature.every((byte, i) => head[offset + i] === byte);
   if (starts([0x25, 0x50, 0x44, 0x46, 0x2d])) return 'application/pdf';
   if (starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'image/png';
   if (starts([0xff, 0xd8, 0xff])) return 'image/jpeg';
@@ -88,7 +89,9 @@ function trimPartialUtf8(buffer: Buffer): Buffer {
   return buffer.subarray(0, end);
 }
 
-export type CaptureResult = { ok: true; download: PendingDownload } | { ok: false; failure: DownloadFailure };
+export type CaptureResult =
+  | { ok: true; download: PendingDownload }
+  | { ok: false; failure: DownloadFailure };
 
 export async function captureDownload(options: {
   source: DownloadSource;

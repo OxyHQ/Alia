@@ -1,6 +1,11 @@
 import { useTranslation } from '@/shared/i18n/use-translation';
 import type { OutputFile, Source } from '@/features/chat/model/thought-utils';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@oxy.so/bloom/accordion';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@oxy.so/bloom/accordion';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
@@ -34,7 +39,12 @@ export interface FilesAndSourcesProps {
 
 const ALL_OPEN = ['outputs', 'sources'];
 
-export function FilesAndSources({ outputs, sources, onOpenOutput, onOpenSource }: FilesAndSourcesProps) {
+export function FilesAndSources({
+  outputs,
+  sources,
+  onOpenOutput,
+  onOpenSource,
+}: FilesAndSourcesProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const [open, setOpen] = useState<string[]>(ALL_OPEN);
@@ -43,7 +53,9 @@ export function FilesAndSources({ outputs, sources, onOpenOutput, onOpenSource }
     <Accordion
       type="multiple"
       value={open}
-      onValueChange={(next) => setOpen(Array.isArray(next) ? next : next === undefined ? [] : [next])}
+      onValueChange={(next) =>
+        setOpen(Array.isArray(next) ? next : next === undefined ? [] : [next])
+      }
     >
       <AccordionItem value="outputs">
         <AccordionTrigger>{t('thought.outputs')}</AccordionTrigger>
@@ -64,7 +76,9 @@ export function FilesAndSources({ outputs, sources, onOpenOutput, onOpenSource }
                   density="compact"
                   leading={<RiFileTextLine size="md" fill={colors.textSecondary} />}
                   title={output.name}
-                  accessibilityLabel={openable ? t('thought.openOutput', { name: output.name }) : output.name}
+                  accessibilityLabel={
+                    openable ? t('thought.openOutput', { name: output.name }) : output.name
+                  }
                   onPress={openable ? () => onOpenOutput(output) : undefined}
                 />
               );

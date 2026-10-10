@@ -21,8 +21,10 @@ import { SystemPromptBuilder } from '../system-prompt-builder.js';
  * that no skill can move it.
  */
 
-const INDEX = '\n\n## Skills\n- pdf-processing: Extracts text from PDFs. Use when the user mentions PDFs.';
-const ACTIVE = '# ACTIVE SKILLS\n\n## Skill: PDF Processing (pdf-processing, v1)\n\nUse pdfplumber.';
+const INDEX =
+  '\n\n## Skills\n- pdf-processing: Extracts text from PDFs. Use when the user mentions PDFs.';
+const ACTIVE =
+  '# ACTIVE SKILLS\n\n## Skill: PDF Processing (pdf-processing, v1)\n\nUse pdfplumber.';
 
 async function build(skills: { index: string; active: string } | null): Promise<string> {
   return SystemPromptBuilder.build({

@@ -39,7 +39,7 @@ export async function sendChannelMessage(
   channelId: ChannelId,
   to: string,
   text: string,
-  opts?: Omit<OutboundContext, 'to' | 'text'>
+  opts?: Omit<OutboundContext, 'to' | 'text'>,
 ): Promise<OutboundResult[]> {
   const channel = getChannel(channelId);
   if (!channel) {

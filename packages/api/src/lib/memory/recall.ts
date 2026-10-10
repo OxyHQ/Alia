@@ -29,7 +29,7 @@ export interface RecalledMemory {
 export async function recallRelevantMemories(
   oxyUserId: string,
   userMessage: string,
-  topK: number = 7
+  topK: number = 7,
 ): Promise<RecalledMemory[]> {
   const memory = await findUserMemory(getDb(), oxyUserId);
   if (!memory?.memories.length) return [];
@@ -37,7 +37,7 @@ export async function recallRelevantMemories(
 
   // If few memories, return all (no point in searching)
   if (memory.memories.length <= topK) {
-    return memory.memories.map(m => ({
+    return memory.memories.map((m) => ({
       title: m.title,
       summary: m.summary,
       type: m.type,
@@ -61,7 +61,7 @@ export async function recallRelevantMemories(
     .toLowerCase()
     // Punctuation is not part of a word: "strawberries?" must match "strawberries".
     .split(/[^\p{L}\p{N}]+/u)
-    .filter(t => t.length > 2);
+    .filter((t) => t.length > 2);
 
   const keywordScores = new Map<string, number>();
   const avgDocLen = 50; // approximate average memory length in chars
@@ -71,7 +71,9 @@ export async function recallRelevantMemories(
     const docs = memory.memories.map((mem) => `${mem.title} ${mem.summary}`.toLowerCase());
     // Document frequency: how many memories mention the term. It was the number
     // of terms in the QUERY, which made every term equally rare.
-    const documentFrequency = new Map(terms.map((term) => [term, docs.filter((doc) => doc.includes(term)).length]));
+    const documentFrequency = new Map(
+      terms.map((term) => [term, docs.filter((doc) => doc.includes(term)).length]),
+    );
     for (const [index, mem] of memory.memories.entries()) {
       const doc = docs[index]!;
       let rawScore = 0;
@@ -104,7 +106,7 @@ export async function recallRelevantMemories(
 
   // If neither search produced results, fall back to most recent memories
   if (fused.size === 0) {
-    return memory.memories.slice(-topK).map(m => ({
+    return memory.memories.slice(-topK).map((m) => ({
       title: m.title,
       summary: m.summary,
       type: m.type,
@@ -117,7 +119,7 @@ export async function recallRelevantMemories(
     .sort((a, b) => b[1] - a[1])
     .slice(0, topK)
     .map(([title, score]) => {
-      const mem = memory.memories.find(m => m.title === title);
+      const mem = memory.memories.find((m) => m.title === title);
       return mem ? { title: mem.title, summary: mem.summary, type: mem.type, score } : null;
     })
     .filter(Boolean) as RecalledMemory[];

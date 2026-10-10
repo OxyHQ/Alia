@@ -139,7 +139,16 @@ function sources(rand: () => number, count: number) {
 
 /** The kinds of assistant turn the thread cycles through. */
 type TurnKind = 'prose' | 'code' | 'search' | 'research' | 'weather' | 'market';
-const KINDS: TurnKind[] = ['prose', 'code', 'search', 'prose', 'research', 'weather', 'code', 'market'];
+const KINDS: TurnKind[] = [
+  'prose',
+  'code',
+  'search',
+  'prose',
+  'research',
+  'weather',
+  'code',
+  'market',
+];
 
 function assistantTurn(rand: () => number, turn: number, id: string, createdAt: string): Message {
   const kind = KINDS[turn % KINDS.length];

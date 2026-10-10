@@ -69,7 +69,11 @@ vi.mock('../logger.js', () => ({
 import { closePostgres, connectPostgres, type ApiDatabase } from '../../db/index.js';
 import { conversations, messages } from '../../db/schema/chat.js';
 import { saveConversation } from '../conversation-saver.js';
-import { findMessageAudioUrl, setMessageAudioUrl, voteMessage } from '../../db/chat/messageRepository.js';
+import {
+  findMessageAudioUrl,
+  setMessageAudioUrl,
+  voteMessage,
+} from '../../db/chat/messageRepository.js';
 
 let db: ApiDatabase;
 
@@ -377,12 +381,25 @@ describe('saveConversation keeps the client’s message ids', () => {
       assistantResponse: 'the final answer',
       assistantMessageId: 'a-1',
       agentMessages: [
-        { role: 'assistant', content: 'first', agentInfo: { id: 'x', name: 'X', color: null, handle: 'x' } },
-        { role: 'assistant', content: 'second', agentInfo: { id: 'y', name: 'Y', color: null, handle: 'y' } },
+        {
+          role: 'assistant',
+          content: 'first',
+          agentInfo: { id: 'x', name: 'X', color: null, handle: 'x' },
+        },
+        {
+          role: 'assistant',
+          content: 'second',
+          agentInfo: { id: 'y', name: 'Y', color: null, handle: 'y' },
+        },
       ],
     });
 
-    expect((await stored()).map((row) => row.clientMessageId)).toEqual(['u-1', 'a-1-agent-0', 'a-1-agent-1', 'a-1']);
+    expect((await stored()).map((row) => row.clientMessageId)).toEqual([
+      'u-1',
+      'a-1-agent-0',
+      'a-1-agent-1',
+      'a-1',
+    ]);
   });
 
   it('keeps the echoed ids through an append, including ones the server named', async () => {
@@ -405,7 +422,12 @@ describe('saveConversation keeps the client’s message ids', () => {
       assistantMessageId: 'a-2',
     });
 
-    expect((await stored()).map((row) => row.clientMessageId)).toEqual(['msg-0', 'msg-1', 'u-2', 'a-2']);
+    expect((await stored()).map((row) => row.clientMessageId)).toEqual([
+      'msg-0',
+      'msg-1',
+      'u-2',
+      'a-2',
+    ]);
   });
 
   it('keeps a vote and a clip across the rewrite an edit forces', async () => {
@@ -520,7 +542,9 @@ describe('a message an agent wrote on its own survives the client that has not s
     await saveConversation({
       userId: USER,
       conversationId: CONV,
-      messages: THREE_TURNS.map((m) => (m.content === 'U2' ? { role: 'user', content: 'Great, buy it' } : m)),
+      messages: THREE_TURNS.map((m) =>
+        m.content === 'U2' ? { role: 'user', content: 'Great, buy it' } : m,
+      ),
       assistantResponse: 'Done',
     });
 
@@ -557,7 +581,12 @@ describe('a message an agent wrote on its own survives the client that has not s
     });
 
     const rows = await stored();
-    expect(rows.map((row) => row.content)).toEqual(['U1', 'A1', 'The price dropped', 'Great', 'Done']);
+    expect(rows.map((row) => row.content)).toEqual([
+      'U1',
+      'A1',
+      'The price dropped',
+      'Great',
+      'Done',
+    ]);
   });
 });
-

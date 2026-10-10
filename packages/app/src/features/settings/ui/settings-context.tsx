@@ -5,9 +5,7 @@ export interface AliaSettingsActions {
   afterClose: (action: () => void) => void;
   params: Record<string, string>;
 }
-export const AliaSettingsContext = createContext<AliaSettingsActions | null>(
-  null,
-);
+export const AliaSettingsContext = createContext<AliaSettingsActions | null>(null);
 export function useAliaSettings() {
   const value = useContext(AliaSettingsContext);
   if (!value) throw new Error('AliaSettingsProvider is required');

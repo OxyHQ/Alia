@@ -6,11 +6,7 @@ import {
 import { Item } from '@oxy.so/bloom/item';
 import { Text } from '@oxy.so/bloom/typography';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  type NativeSyntheticEvent,
-  type TextInputKeyPressEventData,
-} from 'react-native';
+import { View, type NativeSyntheticEvent, type TextInputKeyPressEventData } from 'react-native';
 
 /**
  * Suggestions over the composer, as Alia had them: on a fresh conversation the

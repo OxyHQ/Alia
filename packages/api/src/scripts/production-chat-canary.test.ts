@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import {
-  PRODUCTION_CANARY_CASES,
-  summarize,
-} from './production-chat-canary.js';
+import { PRODUCTION_CANARY_CASES, summarize } from './production-chat-canary.js';
 
 describe('production chat canary safe projection', () => {
   it('has the exact default, research, tool, refusal and recovery matrix without duplicate labels', () => {
@@ -20,12 +17,8 @@ describe('production chat canary safe projection', () => {
       'controlled-refusal',
       'recovery',
     ]);
-    expect(
-      new Set(PRODUCTION_CANARY_CASES.map(({ label }) => label)).size,
-    ).toBe(11);
-    const search = PRODUCTION_CANARY_CASES.find(
-      ({ label }) => label === 'search-tool',
-    );
+    expect(new Set(PRODUCTION_CANARY_CASES.map(({ label }) => label)).size).toBe(11);
+    const search = PRODUCTION_CANARY_CASES.find(({ label }) => label === 'search-tool');
     expect(search).toMatchObject({ expectTool: true });
     expect(search?.tools?.[0]).toMatchObject({
       type: 'function',
@@ -34,10 +27,8 @@ describe('production chat canary safe projection', () => {
   });
 
   it('requires exact, non-empty webSearch evidence', () => {
-    const emptyCalls =
-      'data: {"choices":[{"delta":{"tool_calls":[]}}]}\n\ndata: [DONE]\n\n';
-    const toolishEvent =
-      'event: alia.toolish\ndata: {"name":"webSearch"}\n\ndata: [DONE]\n\n';
+    const emptyCalls = 'data: {"choices":[{"delta":{"tool_calls":[]}}]}\n\ndata: [DONE]\n\n';
+    const toolishEvent = 'event: alia.toolish\ndata: {"name":"webSearch"}\n\ndata: [DONE]\n\n';
     const wrongTool =
       'data: {"choices":[{"delta":{"tool_calls":[{"id":"call-1","function":{"name":"webSearch"}}]}}]}\n\nevent: alia.tool_result\ndata: {"tool_call_id":"call-1","name":"otherTool","output":{"results":[{"title":"Source","url":"https://example.org"}],"count":1}}\n\ndata: [DONE]\n\n';
     const requestedOnly =
@@ -47,20 +38,10 @@ describe('production chat canary safe projection', () => {
     const executedSearch =
       'data: {"choices":[{"delta":{"tool_calls":[{"id":"call-1","function":{"name":"webSearch"}}]}}]}\n\nevent: alia.tool_result\ndata: {"tool_call_id":"call-1","name":"webSearch","output":{"results":[{"title":"Source","url":"https://example.org/source","snippet":"Evidence"}],"count":1}}\n\ndata: [DONE]\n\n';
 
-    for (const payload of [
-      emptyCalls,
-      toolishEvent,
-      wrongTool,
-      requestedOnly,
-      unmatchedResult,
-    ]) {
-      expect(
-        summarize({ label: 'search', marker: '' }, 200, payload).toolEvent,
-      ).toBe(false);
+    for (const payload of [emptyCalls, toolishEvent, wrongTool, requestedOnly, unmatchedResult]) {
+      expect(summarize({ label: 'search', marker: '' }, 200, payload).toolEvent).toBe(false);
     }
-    expect(
-      summarize({ label: 'search', marker: '' }, 200, executedSearch).toolEvent,
-    ).toBe(true);
+    expect(summarize({ label: 'search', marker: '' }, 200, executedSearch).toolEvent).toBe(true);
   });
 
   it.each([
@@ -76,43 +57,32 @@ describe('production chat canary safe projection', () => {
       results: [{ title: 'Source', url: 'https://example.org' }],
       count: 1,
     },
-  ])(
-    'rejects an unsuccessful search even when the answer matches: %j',
-    (output) => {
-      const payload = [
-        'data: ' +
-          JSON.stringify({
-            choices: [
-              {
-                delta: {
-                  tool_calls: [
-                    { id: 'call-1', function: { name: 'webSearch' } },
-                  ],
-                },
+  ])('rejects an unsuccessful search even when the answer matches: %j', (output) => {
+    const payload = [
+      'data: ' +
+        JSON.stringify({
+          choices: [
+            {
+              delta: {
+                tool_calls: [{ id: 'call-1', function: { name: 'webSearch' } }],
               },
-            ],
-          }),
-        'event: alia.tool_result\ndata: ' +
-          JSON.stringify({ tool_call_id: 'call-1', name: 'webSearch', output }),
-        'data: ' +
-          JSON.stringify({ choices: [{ delta: { content: 'CANARY_OK' } }] }),
-        'data: [DONE]',
-      ].join('\n\n');
-      expect(
-        summarize({ label: 'search', marker: 'CANARY_OK' }, 200, payload),
-      ).toMatchObject({
-        done: true,
-        markerMatched: true,
-        toolEvent: false,
-      });
-    },
-  );
+            },
+          ],
+        }),
+      'event: alia.tool_result\ndata: ' +
+        JSON.stringify({ tool_call_id: 'call-1', name: 'webSearch', output }),
+      'data: ' + JSON.stringify({ choices: [{ delta: { content: 'CANARY_OK' } }] }),
+      'data: [DONE]',
+    ].join('\n\n');
+    expect(summarize({ label: 'search', marker: 'CANARY_OK' }, 200, payload)).toMatchObject({
+      done: true,
+      markerMatched: true,
+      toolEvent: false,
+    });
+  });
 
   it('enters the real HTTP auth router and has a bounded process lifetime', () => {
-    const source = readFileSync(
-      new URL('./production-chat-canary.ts', import.meta.url),
-      'utf8',
-    );
+    const source = readFileSync(new URL('./production-chat-canary.ts', import.meta.url), 'utf8');
     expect(source).toContain('http://127.0.0.1:3001/alia/chat');
     expect(source).toContain('authorization: `Bearer ${token}`');
     expect(source).toContain("'x-oxy-user-id': qaUserId");
@@ -134,16 +104,14 @@ describe('production chat canary safe projection', () => {
       toolEvent: false,
       statusCode: 200,
     });
-    expect(
-      JSON.stringify(summarize({ label: 'auto', marker: 'ok' }, 200, payload)),
-    ).not.toContain('must-not-leak');
+    expect(JSON.stringify(summarize({ label: 'auto', marker: 'ok' }, 200, payload))).not.toContain(
+      'must-not-leak',
+    );
   });
 
   it('retains the classified safe failure', () => {
     const payload = `data: {"alia_meta":{"synthetic":true,"retryable":true,"error":{"code":"RATE_LIMITED","reference":"chatcmpl-ref"}},"choices":[{"delta":{"content":"busy"}}]}\n\ndata: [DONE]\n\n`;
-    expect(
-      summarize({ label: 'recovery', marker: 'busy' }, 200, payload),
-    ).toMatchObject({
+    expect(summarize({ label: 'recovery', marker: 'busy' }, 200, payload)).toMatchObject({
       reference: 'chatcmpl-ref',
       code: 'RATE_LIMITED',
       retryable: true,
@@ -154,9 +122,7 @@ describe('production chat canary safe projection', () => {
 
   it('retains a failed turn sent as a typed error frame', () => {
     const payload = `: keep-alive\n\ndata: {"error":{"message":"Service temporarily unavailable. Please try again in a moment.","type":"server_error","param":null,"code":"PROVIDER_UNAVAILABLE","retryable":true,"reference":"chatcmpl-ref"}}\n\ndata: [DONE]\n\n`;
-    expect(
-      summarize({ label: 'default-1', marker: 'ok' }, 200, payload),
-    ).toMatchObject({
+    expect(summarize({ label: 'default-1', marker: 'ok' }, 200, payload)).toMatchObject({
       reference: 'chatcmpl-ref',
       code: 'PROVIDER_UNAVAILABLE',
       retryable: true,
@@ -173,9 +139,7 @@ describe('production chat canary safe projection', () => {
         reference: `chatcmpl-${'x'.repeat(200)}`,
       },
     });
-    expect(
-      summarize({ label: 'refusal', marker: '' }, 400, payload),
-    ).toMatchObject({
+    expect(summarize({ label: 'refusal', marker: '' }, 400, payload)).toMatchObject({
       reference: null,
       code: 'REQUEST_REFUSED',
       answerPresent: false,

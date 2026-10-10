@@ -207,7 +207,6 @@ describe('the installed policy reaches the recorder', () => {
     expect(providerEgressDecision(OXY_INFERENCE_HOST, POLICY_ENV)).toBe('allow');
     expect(providerEgressDecision(PROVIDER_HOST, POLICY_ENV)).toBe('refuse');
   });
-
 });
 
 describe('there is one interceptor, and the entrypoint arms it', () => {

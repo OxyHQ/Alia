@@ -61,8 +61,8 @@ export function isAbortError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const name = 'name' in err ? String((err as Error).name) : '';
   if (name === 'AbortError') return true;
-  const message = 'message' in err && typeof (err as Error).message === 'string'
-    ? (err as Error).message : '';
+  const message =
+    'message' in err && typeof (err as Error).message === 'string' ? (err as Error).message : '';
   if (message === 'This operation was aborted') return true;
   return false;
 }

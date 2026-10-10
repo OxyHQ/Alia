@@ -40,7 +40,11 @@ export class NoModelAvailableError extends Error {
   }
 }
 
-let usageCache: { readonly usage: ModelUsage[]; readonly featured: string[]; readonly at: number } | null = null;
+let usageCache: {
+  readonly usage: ModelUsage[];
+  readonly featured: string[];
+  readonly at: number;
+} | null = null;
 
 async function readUsage(): Promise<ModelUsage[]> {
   try {
@@ -93,7 +97,12 @@ export async function getDefaultModelId(oxyUserId: string | null | undefined): P
     usageAndFeatured(),
     oxyUserId ? lastUsedModelOf(oxyUserId) : Promise.resolve(null),
   ]);
-  const id = selectDefaultModelId({ models, featuredIds: featured, usage, lastUsedModelId: lastUsed });
+  const id = selectDefaultModelId({
+    models,
+    featuredIds: featured,
+    usage,
+    lastUsedModelId: lastUsed,
+  });
   if (id === null) throw new NoModelAvailableError('chat');
   return id;
 }

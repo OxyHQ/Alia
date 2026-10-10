@@ -4,18 +4,12 @@ import {
 } from '@/features/automations/model/edit';
 import { cronLabel } from '@/shared/contracts/automations';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import type {
-  AutomationDefinition,
-  AutomationUpdateInput,
-} from '@/shared/contracts/automations';
+import type { AutomationDefinition, AutomationUpdateInput } from '@/shared/contracts/automations';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { Chip, ChipRow } from '@oxy.so/bloom/chip';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { Field } from '@oxy.so/bloom/field';
-import {
-  SettingsListGroup,
-  SettingsListItem,
-} from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Switch } from '@oxy.so/bloom/switch';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -45,9 +39,7 @@ const DAYS = [0, 1, 2, 3, 4, 5, 6].map((value) => ({
 }));
 
 function parseSchedule(cron: string): { time: string; days: number[] } {
-  const [minute = '0', hour = '9', , , dayField = '*'] = cron
-    .trim()
-    .split(/\s+/);
+  const [minute = '0', hour = '9', , , dayField = '*'] = cron.trim().split(/\s+/);
   const validTime = /^\d{1,2}$/.test(hour) && /^\d{1,2}$/.test(minute);
   const days =
     dayField === '*'
@@ -57,9 +49,7 @@ function parseSchedule(cron: string): { time: string; days: number[] } {
           .map(Number)
           .filter((day) => day >= 0 && day <= 6);
   return {
-    time: validTime
-      ? `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`
-      : '09:00',
+    time: validTime ? `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}` : '09:00',
     days: days.length > 0 ? [...new Set(days)] : [1],
   };
 }
@@ -70,8 +60,7 @@ function scheduleCron(time: string, days: readonly number[]): string | null {
   const hour = Number(match[1]);
   const minute = Number(match[2]);
   if (hour > 23 || minute > 59 || days.length === 0) return null;
-  const dayField =
-    days.length === 7 ? '*' : [...days].sort((a, b) => a - b).join(',');
+  const dayField = days.length === 7 ? '*' : [...days].sort((a, b) => a - b).join(',');
   return `${minute} ${hour} * * ${dayField}`;
 }
 
@@ -94,15 +83,11 @@ export function AutomationEditor({
   const [time, setTime] = useState(initialSchedule.time);
   const [days, setDays] = useState<number[]>(initialSchedule.days);
   const [timezone, setTimezone] = useState(
-    automation.trigger.type === 'schedule'
-      ? (automation.trigger.timezone ?? 'UTC')
-      : 'UTC',
+    automation.trigger.type === 'schedule' ? (automation.trigger.timezone ?? 'UTC') : 'UTC',
   );
   // '' is Alia, the default actor; an id is one of the person's agents.
   const initialAgentId =
-    automation.actorSelection.mode === 'fixed'
-      ? (automation.actorSelection.agentId ?? '')
-      : '';
+    automation.actorSelection.mode === 'fixed' ? (automation.actorSelection.agentId ?? '') : '';
   const [agentId, setAgentId] = useState(initialAgentId);
   const [enabled, setEnabled] = useState(automation.enabled);
   const [confirmClose, setConfirmClose] = useState(false);
@@ -112,9 +97,7 @@ export function AutomationEditor({
     instructions !== initial.instructions ||
     time !== initialSchedule.time ||
     timezone !==
-      (automation.trigger.type === 'schedule'
-        ? (automation.trigger.timezone ?? 'UTC')
-        : 'UTC') ||
+      (automation.trigger.type === 'schedule' ? (automation.trigger.timezone ?? 'UTC') : 'UTC') ||
     days.join(',') !== initialSchedule.days.join(',') ||
     enabled !== automation.enabled ||
     agentId !== initialAgentId;
@@ -176,10 +159,7 @@ export function AutomationEditor({
           },
         ]}
       >
-        <ScrollView
-          className="max-h-[80vh]"
-          contentContainerClassName="gap-5 pb-3"
-        >
+        <ScrollView className="max-h-[80vh]" contentContainerClassName="gap-5 pb-3">
           <SettingsListGroup>
             <SettingsListItem
               title={t('automations.editor.status')}
@@ -221,10 +201,7 @@ export function AutomationEditor({
             label={t('automations.editor.repeat')}
             description={
               automation.trigger.type === 'schedule'
-                ? cronLabel(
-                    scheduleCron(time, days) ?? automation.trigger.cron ?? '',
-                    t,
-                  )
+                ? cronLabel(scheduleCron(time, days) ?? automation.trigger.cron ?? '', t)
                 : t('automations.editor.weekly')
             }
             multiple
@@ -284,11 +261,7 @@ export function AutomationEditor({
             multiple
           >
             <ChipRow>
-              <Chip
-                role="radio"
-                selected={agentId === ''}
-                onPress={() => setAgentId('')}
-              >
+              <Chip role="radio" selected={agentId === ''} onPress={() => setAgentId('')}>
                 {t('automations.actor.alia')}
               </Chip>
               {agents.map((agent) => (
@@ -305,9 +278,7 @@ export function AutomationEditor({
           </Field>
 
           {automation.actions.length > 0 ? (
-            <Admonition type="info">
-              {t('automations.editor.connectedWork')}
-            </Admonition>
+            <Admonition type="info">{t('automations.editor.connectedWork')}</Admonition>
           ) : null}
         </ScrollView>
       </Dialog>

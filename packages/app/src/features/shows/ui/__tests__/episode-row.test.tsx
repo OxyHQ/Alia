@@ -18,13 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const audio = vi.hoisted(() => ({
   state: 'idle' as 'idle' | 'loading' | 'playing' | 'paused' | 'unplayable',
-  problem: null as
-    | null
-    | 'signed-out'
-    | 'forbidden'
-    | 'missing'
-    | 'unavailable'
-    | 'unreachable',
+  problem: null as null | 'signed-out' | 'forbidden' | 'missing' | 'unavailable' | 'unreachable',
   toggle: vi.fn(),
 }));
 
@@ -32,10 +26,7 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
 
   return {
@@ -85,10 +76,7 @@ vi.mock('@oxy.so/bloom/button', async () => {
 vi.mock('@oxy.so/bloom/item', async () => {
   const ReactModule = await import('react');
   return {
-    Item: ({
-      children,
-      trailing,
-    }: React.PropsWithChildren<{ trailing?: React.ReactNode }>) =>
+    Item: ({ children, trailing }: React.PropsWithChildren<{ trailing?: React.ReactNode }>) =>
       ReactModule.createElement('Item', null, children, trailing),
   };
 });
@@ -116,18 +104,14 @@ vi.mock('@oxy.so/bloom/loading', async () => {
 vi.mock('@oxy.so/bloom/stat-bar', async () => {
   const ReactModule = await import('react');
   return {
-    Meter: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Meter', props),
+    Meter: (props: Record<string, unknown>) => ReactModule.createElement('Meter', props),
   };
 });
 
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Text', props, children),
   };
 });
@@ -209,9 +193,7 @@ function lines(root: Root): string[] {
     .map((node) =>
       React.Children.toArray(node.props.children as React.ReactNode)
         .map((child) =>
-          typeof child === 'string' || typeof child === 'number'
-            ? String(child)
-            : '',
+          typeof child === 'string' || typeof child === 'number' ? String(child) : '',
         )
         .join(''),
     )
@@ -277,9 +259,7 @@ describe('EpisodeRow', () => {
       const root = renderRow(BASE);
       const rendered = lines(root);
 
-      expect(rendered).toContain(
-        'Episode 3 · Today · Syra has no recording for this',
-      );
+      expect(rendered).toContain('Episode 3 · Today · Syra has no recording for this');
       // The words that would misdescribe a finished episode. Syra parks a private
       // episode at `processing` for good; Alia must not repeat that here.
       expect(rendered.join(' ')).not.toMatch(/processing|failed|broken/i);
@@ -309,9 +289,7 @@ describe('EpisodeRow', () => {
       const root = renderRow(BASE);
 
       expect(lines(root)).toContain('Episode 3 · Today · 12 min');
-      expect(lines(root).join(' ')).not.toMatch(
-        /Sign in|reach Syra|no recording|wouldn/,
-      );
+      expect(lines(root).join(' ')).not.toMatch(/Sign in|reach Syra|no recording|wouldn/);
     });
   });
 
@@ -493,8 +471,7 @@ describe('EpisodeRow', () => {
   it('keeps the remove action reachable, and named for what it destroys', () => {
     const root = renderRow(BASE);
     const remove = nodes(root, 'Button').find(
-      (node) =>
-        node.props.accessibilityLabel === `Delete ${BASE.title} everywhere`,
+      (node) => node.props.accessibilityLabel === `Delete ${BASE.title} everywhere`,
     );
 
     // The qualifier is part of the contract, not decoration. It said `from

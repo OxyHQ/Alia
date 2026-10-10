@@ -32,13 +32,39 @@ type InviteTab = 'share' | 'redeem' | 'history';
 
 /** Where the invite link can be posted, and the URL that posts it there. */
 const SHARE_TARGETS: readonly { name: string; url: (link: string, text: string) => string }[] = [
-  { name: 'X', url: (link, text) => `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(link)}` },
-  { name: 'LinkedIn', url: (link) => `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(link)}` },
-  { name: 'WhatsApp', url: (link, text) => `https://wa.me/?text=${encodeURIComponent(`${text}\n${link}`)}` },
-  { name: 'Telegram', url: (link, text) => `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}` },
-  { name: 'Facebook', url: (link) => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}` },
-  { name: 'Reddit', url: (link, text) => `https://reddit.com/submit?url=${encodeURIComponent(link)}&title=${encodeURIComponent(text)}` },
-  { name: 'Pinterest', url: (link, text) => `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(link)}&description=${encodeURIComponent(text)}` },
+  {
+    name: 'X',
+    url: (link, text) =>
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(link)}`,
+  },
+  {
+    name: 'LinkedIn',
+    url: (link) =>
+      `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(link)}`,
+  },
+  {
+    name: 'WhatsApp',
+    url: (link, text) => `https://wa.me/?text=${encodeURIComponent(`${text}\n${link}`)}`,
+  },
+  {
+    name: 'Telegram',
+    url: (link, text) =>
+      `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`,
+  },
+  {
+    name: 'Facebook',
+    url: (link) => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}`,
+  },
+  {
+    name: 'Reddit',
+    url: (link, text) =>
+      `https://reddit.com/submit?url=${encodeURIComponent(link)}&title=${encodeURIComponent(text)}`,
+  },
+  {
+    name: 'Pinterest',
+    url: (link, text) =>
+      `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(link)}&description=${encodeURIComponent(text)}`,
+  },
 ];
 
 interface InviteDialogProps {
@@ -67,7 +93,12 @@ export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
         <View className="items-center">
           <IconCircle icon={RiHandHeartLine} size="lg" />
         </View>
-        <SegmentedControl type="tabs" label={t('dialogs.invite.title')} value={tab} onValueChange={setTab}>
+        <SegmentedControl
+          type="tabs"
+          label={t('dialogs.invite.title')}
+          value={tab}
+          onValueChange={setTab}
+        >
           <SegmentedControlItem value="share">
             <SegmentedControlItemText>{t('dialogs.invite.tabShare')}</SegmentedControlItemText>
           </SegmentedControlItem>
@@ -109,7 +140,14 @@ function ShareTab() {
           selectTextOnFocus
         />
         <InputGroupAddon noPadding>
-          <Button size="sm" appearance="subtle" tone="neutral" leadingIcon={RiFileCopyLine} onPress={copy} disabled={!inviteUrl}>
+          <Button
+            size="sm"
+            appearance="subtle"
+            tone="neutral"
+            leadingIcon={RiFileCopyLine}
+            onPress={copy}
+            disabled={!inviteUrl}
+          >
             {t(copied ? 'dialogs.invite.copied' : 'dialogs.invite.copy')}
           </Button>
         </InputGroupAddon>
@@ -197,7 +235,13 @@ function HistoryTab() {
 
   if (isLoading) return <Loading />;
   if (!data?.referrals?.length) {
-    return <EmptyState variant="compact" icon={RiUserHeartLine} title={t('dialogs.invite.noReferrals')} />;
+    return (
+      <EmptyState
+        variant="compact"
+        icon={RiUserHeartLine}
+        title={t('dialogs.invite.noReferrals')}
+      />
+    );
   }
   return (
     <SettingsListGroup>

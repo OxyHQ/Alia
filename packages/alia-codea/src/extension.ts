@@ -27,7 +27,11 @@ export function activate(context: vscode.ExtensionContext) {
   // Secondary sidebar support (VS Code >= 1.66)
   const [major, minor] = vscode.version.split('.').map(Number);
   const hasSecondarySidebar = major > 1 || (major === 1 && minor >= 66);
-  vscode.commands.executeCommand('setContext', 'codea:doesNotSupportSecondarySidebar', !hasSecondarySidebar);
+  vscode.commands.executeCommand(
+    'setContext',
+    'codea:doesNotSupportSecondarySidebar',
+    !hasSecondarySidebar,
+  );
 
   // Webview chat provider
   const chatProvider = new CodeaChatViewProvider(context.extensionUri, context, authProvider);
@@ -55,13 +59,19 @@ export function activate(context: vscode.ExtensionContext) {
     }),
 
     vscode.commands.registerCommand('codea.newConversation', () => chatProvider.newConversation()),
-    vscode.commands.registerCommand('codea.clearConversation', () => chatProvider.clearConversation()),
+    vscode.commands.registerCommand('codea.clearConversation', () =>
+      chatProvider.clearConversation(),
+    ),
     vscode.commands.registerCommand('codea.toggleStatusMenu', () => {
       vscode.commands.executeCommand('codea.openChat');
     }),
 
     vscode.commands.registerCommand('codea.openWalkthrough', () => {
-      vscode.commands.executeCommand('workbench.action.openWalkthrough', 'oxy.alia-codea#codea-walkthrough', false);
+      vscode.commands.executeCommand(
+        'workbench.action.openWalkthrough',
+        'oxy.alia-codea#codea-walkthrough',
+        false,
+      );
     }),
 
     vscode.commands.registerCommand('codea.signIn', async () => {
@@ -82,23 +92,39 @@ export function activate(context: vscode.ExtensionContext) {
       if (success) {
         vscode.window.showInformationMessage('Token refreshed successfully.');
       } else {
-        const action = await vscode.window.showWarningMessage('Token refresh failed. Please sign in again.', 'Sign In');
-        if (action === 'Sign In') { vscode.commands.executeCommand('codea.signIn'); }
+        const action = await vscode.window.showWarningMessage(
+          'Token refresh failed. Please sign in again.',
+          'Sign In',
+        );
+        if (action === 'Sign In') {
+          vscode.commands.executeCommand('codea.signIn');
+        }
       }
     }),
 
     vscode.commands.registerCommand('codea.git.generateCommitMessage', async () => {
       const gitExtension = vscode.extensions.getExtension('vscode.git')?.exports;
-      if (!gitExtension) { vscode.window.showErrorMessage('Git extension not available'); return; }
+      if (!gitExtension) {
+        vscode.window.showErrorMessage('Git extension not available');
+        return;
+      }
 
       const repo = gitExtension.getAPI(1).repositories[0];
-      if (!repo) { vscode.window.showErrorMessage('No Git repository found'); return; }
+      if (!repo) {
+        vscode.window.showErrorMessage('No Git repository found');
+        return;
+      }
 
       const diff = await repo.diff(true);
-      if (!diff) { vscode.window.showWarningMessage('No staged changes to generate commit message for'); return; }
+      if (!diff) {
+        vscode.window.showWarningMessage('No staged changes to generate commit message for');
+        return;
+      }
 
       vscode.commands.executeCommand('codea.openChat');
-      vscode.window.showInformationMessage('Generate a commit message for your staged changes in the chat');
+      vscode.window.showInformationMessage(
+        'Generate a commit message for your staged changes in the chat',
+      );
     }),
 
     vscode.commands.registerCommand('codea.git.resolveMergeConflicts', () => {

@@ -46,26 +46,88 @@ export interface ThreatPattern {
  * visible in the event stream.
  */
 const NETWORK_ABUSE: ThreatPattern[] = [
-  { id: 'na-001', category: 'network_abuse', pattern: /169\.254\.169\.254/i, severity: 'block', description: 'Cloud metadata endpoint access', tools: ['browser'] },
-  { id: 'na-002', category: 'network_abuse', pattern: /metadata\.google\.internal/i, severity: 'block', description: 'GCP metadata endpoint', tools: ['browser'] },
+  {
+    id: 'na-001',
+    category: 'network_abuse',
+    pattern: /169\.254\.169\.254/i,
+    severity: 'block',
+    description: 'Cloud metadata endpoint access',
+    tools: ['browser'],
+  },
+  {
+    id: 'na-002',
+    category: 'network_abuse',
+    pattern: /metadata\.google\.internal/i,
+    severity: 'block',
+    description: 'GCP metadata endpoint',
+    tools: ['browser'],
+  },
 ];
 
 // ── PII Exposure ──
 
 const PII_EXPOSURE: ThreatPattern[] = [
-  { id: 'pi-001', category: 'pii_exposure', pattern: /\b\d{3}-\d{2}-\d{4}\b/i, severity: 'warning', description: 'Social Security Number pattern' },
-  { id: 'pi-002', category: 'pii_exposure', pattern: /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/i, severity: 'warning', description: 'Credit card number pattern' },
-  { id: 'pi-003', category: 'pii_exposure', pattern: /\b[A-Z]{2}\d{2}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{0,2}\b/i, severity: 'info', description: 'IBAN pattern' },
+  {
+    id: 'pi-001',
+    category: 'pii_exposure',
+    pattern: /\b\d{3}-\d{2}-\d{4}\b/i,
+    severity: 'warning',
+    description: 'Social Security Number pattern',
+  },
+  {
+    id: 'pi-002',
+    category: 'pii_exposure',
+    pattern: /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/i,
+    severity: 'warning',
+    description: 'Credit card number pattern',
+  },
+  {
+    id: 'pi-003',
+    category: 'pii_exposure',
+    pattern: /\b[A-Z]{2}\d{2}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{0,2}\b/i,
+    severity: 'info',
+    description: 'IBAN pattern',
+  },
 ];
 
 // ── Prompt Injection ──
 
 const PROMPT_INJECTION: ThreatPattern[] = [
-  { id: 'pj-001', category: 'prompt_injection', pattern: /ignore\s+(all\s+)?previous\s+instructions/i, severity: 'warning', description: 'Prompt injection: ignore previous instructions' },
-  { id: 'pj-002', category: 'prompt_injection', pattern: /you\s+are\s+now\s+(?:a|an|the)\s+/i, severity: 'info', description: 'Prompt injection: role override attempt' },
-  { id: 'pj-003', category: 'prompt_injection', pattern: /system\s*:\s*you\s+are\b/i, severity: 'warning', description: 'Prompt injection: system prompt override' },
-  { id: 'pj-004', category: 'prompt_injection', pattern: /\[INST\]|\[\/INST\]|<\|im_start\|>|<\|system\|>/i, severity: 'warning', description: 'Prompt injection: special tokens' },
-  { id: 'pj-005', category: 'prompt_injection', pattern: /\bDAN\b.*\bjailbreak\b/i, severity: 'critical', description: 'Prompt injection: DAN jailbreak' },
+  {
+    id: 'pj-001',
+    category: 'prompt_injection',
+    pattern: /ignore\s+(all\s+)?previous\s+instructions/i,
+    severity: 'warning',
+    description: 'Prompt injection: ignore previous instructions',
+  },
+  {
+    id: 'pj-002',
+    category: 'prompt_injection',
+    pattern: /you\s+are\s+now\s+(?:a|an|the)\s+/i,
+    severity: 'info',
+    description: 'Prompt injection: role override attempt',
+  },
+  {
+    id: 'pj-003',
+    category: 'prompt_injection',
+    pattern: /system\s*:\s*you\s+are\b/i,
+    severity: 'warning',
+    description: 'Prompt injection: system prompt override',
+  },
+  {
+    id: 'pj-004',
+    category: 'prompt_injection',
+    pattern: /\[INST\]|\[\/INST\]|<\|im_start\|>|<\|system\|>/i,
+    severity: 'warning',
+    description: 'Prompt injection: special tokens',
+  },
+  {
+    id: 'pj-005',
+    category: 'prompt_injection',
+    pattern: /\bDAN\b.*\bjailbreak\b/i,
+    severity: 'critical',
+    description: 'Prompt injection: DAN jailbreak',
+  },
 ];
 
 /**

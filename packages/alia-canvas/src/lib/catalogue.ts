@@ -74,7 +74,8 @@ export function isModelId(value: unknown): value is string {
 export function parseCatalogue(payload: unknown): Catalogue {
   const body = asObject(payload);
   const data = body === null ? null : body.data;
-  if (body === null || !Array.isArray(data)) throw new Error('The model catalogue response could not be read.');
+  if (body === null || !Array.isArray(data))
+    throw new Error('The model catalogue response could not be read.');
 
   const models: CatalogueModel[] = [];
   for (const value of data) {
@@ -144,7 +145,8 @@ export function groupModels(catalogue: Catalogue): ModelGroup[] {
   const sorted = [...publishers.entries()].sort(([, a], [, b]) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
   );
-  for (const [id, group] of sorted) groups.push({ label: group.name, key: id, models: group.models });
+  for (const [id, group] of sorted)
+    groups.push({ label: group.name, key: id, models: group.models });
   return groups;
 }
 

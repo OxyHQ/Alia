@@ -40,19 +40,22 @@ vi.mock('@/features/chat/runtime/use-streaming-chat', () => ({
     error: null,
     clearError: vi.fn(),
     setMessages: vi.fn((next: unknown) => {
-      const resolved = typeof next === 'function'
-        ? (next as (p: unknown) => unknown)(chat.messages)
-        : next;
+      const resolved =
+        typeof next === 'function' ? (next as (p: unknown) => unknown)(chat.messages) : next;
       chat.sequence.push(`setMessages:${JSON.stringify(resolved)}`);
     }),
-    stop: vi.fn(() => { chat.sequence.push('stop'); }),
+    stop: vi.fn(() => {
+      chat.sequence.push('stop');
+    }),
     approvePlan: vi.fn(),
     rejectPlan: vi.fn(),
     suggestedNewConversation: null,
     dismissSuggestedNewConversation: vi.fn(),
     failedTurn: null,
     retryFailedTurn: vi.fn(),
-    clearFailedTurn: vi.fn(() => { chat.sequence.push('clearFailedTurn'); }),
+    clearFailedTurn: vi.fn(() => {
+      chat.sequence.push('clearFailedTurn');
+    }),
   }),
 }));
 
@@ -66,10 +69,9 @@ vi.mock('@/features/chat/runtime/global-store', () => {
     clearPendingInitialMessage: vi.fn(),
     setPendingInitialMessage: vi.fn(),
   };
-  const useStore = Object.assign(
-    (selector: (s: typeof state) => unknown) => selector(state),
-    { getState: () => state },
-  );
+  const useStore = Object.assign((selector: (s: typeof state) => unknown) => selector(state), {
+    getState: () => state,
+  });
   return { useStore };
 });
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
@@ -91,8 +93,12 @@ vi.mock('@oxy.so/bloom/toast', () => ({ toast }));
 // Platform modules the hook imports for its SEND path. None takes part in a
 // clear; they are here because importing them pulls React Native's Flow
 // source into the runner.
-vi.mock('@/features/chat/model/attachment-utils', () => ({ buildMessageContent: (text: string) => text }));
-vi.mock('@/shared/api/generate-api-url', () => ({ generateAPIUrl: () => 'http://test.invalid/chat' }));
+vi.mock('@/features/chat/model/attachment-utils', () => ({
+  buildMessageContent: (text: string) => text,
+}));
+vi.mock('@/shared/api/generate-api-url', () => ({
+  generateAPIUrl: () => 'http://test.invalid/chat',
+}));
 vi.mock('@/shared/i18n', () => ({ default: { t: (k: string) => k } }));
 // The live agent-message listener opens the shared socket; nothing here emits on it.
 vi.mock('@/features/notifications/runtime/notifications-socket', () => ({
@@ -141,7 +147,9 @@ describe('clearConversation', () => {
     await mount();
 
     let outcome: boolean | undefined;
-    await act(async () => { outcome = await api.clearConversation(); });
+    await act(async () => {
+      outcome = await api.clearConversation();
+    });
 
     expect(outcome).toBe(true);
     // The request first; the local reset only after it resolved. The reverse
@@ -157,7 +165,9 @@ describe('clearConversation', () => {
     await mount();
 
     let outcome: boolean | undefined;
-    await act(async () => { outcome = await api.clearConversation(); });
+    await act(async () => {
+      outcome = await api.clearConversation();
+    });
 
     expect(outcome).toBe(false);
     // Nothing local moved: no reset, no failed-turn clear. The one state this
@@ -171,7 +181,9 @@ describe('clearConversation', () => {
     chat.isLoading = true;
     await mount();
 
-    await act(async () => { await api.clearConversation(); });
+    await act(async () => {
+      await api.clearConversation();
+    });
 
     // The abort comes first, so the thread being emptied is one nothing is
     // still writing into; then the same order as an idle clear.
@@ -181,7 +193,9 @@ describe('clearConversation', () => {
   it('does not stop anything when nothing is streaming', async () => {
     await mount();
 
-    await act(async () => { await api.clearConversation(); });
+    await act(async () => {
+      await api.clearConversation();
+    });
 
     expect(chat.sequence).not.toContain('stop');
   });
@@ -190,7 +204,9 @@ describe('clearConversation', () => {
     await mount(null);
 
     let outcome: boolean | undefined;
-    await act(async () => { outcome = await api.clearConversation(); });
+    await act(async () => {
+      outcome = await api.clearConversation();
+    });
 
     // Nothing is persisted for a thread without an id, so the screen's own
     // list is all there is to empty.

@@ -90,7 +90,10 @@ export function buildConversationMarkdown({
   assistantName = DEFAULT_ASSISTANT,
   userLabel = DEFAULT_USER,
 }: ConversationExportOptions): string {
-  const sections: string[] = [`# ${title.trim() || DEFAULT_ASSISTANT}`, `_Exported ${localDate(exportedAt)}_`];
+  const sections: string[] = [
+    `# ${title.trim() || DEFAULT_ASSISTANT}`,
+    `_Exported ${localDate(exportedAt)}_`,
+  ];
 
   for (const message of messages) {
     if (message.role !== 'user' && message.role !== 'assistant') continue;

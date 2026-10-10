@@ -296,7 +296,10 @@ export async function findAgentOxyAccountId(db: Executor, id: string): Promise<s
  * whom an agent tells (`lib/proactive/email-outreach.ts`), so the switches a
  * person sees are exactly the agents that would write to them.
  */
-export async function listAgentsOwnedBy(db: Executor, ownerOxyAccountId: string): Promise<AgentRecord[]> {
+export async function listAgentsOwnedBy(
+  db: Executor,
+  ownerOxyAccountId: string,
+): Promise<AgentRecord[]> {
   const rows = await db
     .select()
     .from(agents)
@@ -372,11 +375,7 @@ export async function listAgentsByAuthor(
     .from(agents)
     .leftJoin(thread, eq(thread.agentId, agents.id))
     .where(eq(agents.authorOxyUserId, ownerOxyUserId))
-    .orderBy(
-      sql`${thread.lastMessageAt} desc nulls last`,
-      desc(agents.createdAt),
-      desc(agents.id),
-    );
+    .orderBy(sql`${thread.lastMessageAt} desc nulls last`, desc(agents.createdAt), desc(agents.id));
   return rows.map(toAgentRecord);
 }
 
@@ -808,7 +807,9 @@ export async function replaceAgentKnowledge(
   if (libraryFileIds.length === 0) return;
   await tx
     .insert(agentKnowledge)
-    .values(libraryFileIds.map((libraryFileId, position) => ({ agentId, libraryFileId, position })));
+    .values(
+      libraryFileIds.map((libraryFileId, position) => ({ agentId, libraryFileId, position })),
+    );
 }
 
 /* ------------------------------ writes ------------------------------ */
@@ -849,10 +850,7 @@ export interface CreateAgentInput {
  * the caller can already see.
  *
  */
-export async function createAgent(
-  db: ApiDatabase,
-  input: CreateAgentInput,
-): Promise<AgentRecord> {
+export async function createAgent(db: ApiDatabase, input: CreateAgentInput): Promise<AgentRecord> {
   return db.transaction(async (tx) => {
     const [row] = await tx
       .insert(agents)
@@ -1076,10 +1074,7 @@ export async function bumpAgentSoulInteractions(
   id: string,
   interactionCount: number,
 ): Promise<void> {
-  await db
-    .update(agents)
-    .set({ soulInteractionCount: interactionCount })
-    .where(eq(agents.id, id));
+  await db.update(agents).set({ soulInteractionCount: interactionCount }).where(eq(agents.id, id));
 }
 
 /**
@@ -1151,7 +1146,11 @@ export async function evolveAgentSoul(
   };
   if (updates.currentFocus !== undefined) patch.soulCurrentFocus = updates.currentFocus;
   if (updates.newExpertise !== undefined && updates.newExpertise.length > 0) {
-    patch.soulExpertise = addToSetCapped(agents.soulExpertise, updates.newExpertise, caps.expertise);
+    patch.soulExpertise = addToSetCapped(
+      agents.soulExpertise,
+      updates.newExpertise,
+      caps.expertise,
+    );
   }
   if (updates.newVibe !== undefined && updates.newVibe.length > 0) {
     patch.soulVibe = addToSetCapped(agents.soulVibe, updates.newVibe, caps.vibe);

@@ -62,7 +62,12 @@ function trackedSources(prefix: string): string[] {
 }
 
 const parse = (file: string): ts.SourceFile =>
-  ts.createSourceFile(file, readFileSync(path.join(REPO_ROOT, file), 'utf8'), ts.ScriptTarget.Latest, true);
+  ts.createSourceFile(
+    file,
+    readFileSync(path.join(REPO_ROOT, file), 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+  );
 
 /** Every identifier and string literal in a file. Comments are trivia and absent. */
 function symbols(sf: ts.SourceFile): Set<string> {
@@ -120,18 +125,17 @@ function namedImports(sf: ts.SourceFile): NamedImport[] {
         ) {
           const arg = d.initializer.expression.arguments[0];
           if (arg && ts.isStringLiteralLike(arg)) {
-            const names =
-              ts.isObjectBindingPattern(d.name)
-                ? d.name.elements
-                    .map((e) =>
-                      e.propertyName && ts.isIdentifier(e.propertyName)
-                        ? e.propertyName.text
-                        : ts.isIdentifier(e.name)
-                          ? e.name.text
-                          : '',
-                    )
-                    .filter((x) => x !== '')
-                : [];
+            const names = ts.isObjectBindingPattern(d.name)
+              ? d.name.elements
+                  .map((e) =>
+                    e.propertyName && ts.isIdentifier(e.propertyName)
+                      ? e.propertyName.text
+                      : ts.isIdentifier(e.name)
+                        ? e.name.text
+                        : '',
+                  )
+                  .filter((x) => x !== '')
+              : [];
             out.push({ spec: arg.text, names });
           }
         }
@@ -147,7 +151,11 @@ function namedImports(sf: ts.SourceFile): NamedImport[] {
 function moduleSpecifiers(sf: ts.SourceFile): string[] {
   const out: string[] = [];
   const visit = (n: ts.Node): void => {
-    if ((ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) && n.moduleSpecifier && ts.isStringLiteral(n.moduleSpecifier)) {
+    if (
+      (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) &&
+      n.moduleSpecifier &&
+      ts.isStringLiteral(n.moduleSpecifier)
+    ) {
       out.push(n.moduleSpecifier.text);
     }
     if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword) {
@@ -163,7 +171,9 @@ function moduleSpecifiers(sf: ts.SourceFile): string[] {
 /** A relative specifier as a repo-relative `.ts` path, or `null` for a package. */
 function resolveSpec(fromFile: string, spec: string): string | null {
   if (!spec.startsWith('.')) return null;
-  const base = path.resolve(path.dirname(path.join(REPO_ROOT, fromFile)), spec).replace(/\.js$/, '');
+  const base = path
+    .resolve(path.dirname(path.join(REPO_ROOT, fromFile)), spec)
+    .replace(/\.js$/, '');
   for (const candidate of [`${base}.ts`, `${base}/index.ts`]) {
     if (existsSync(candidate)) return path.relative(REPO_ROOT, candidate);
   }
@@ -198,29 +208,33 @@ function moduleClosure(entry: string): Set<string> {
  * and a multi-line import MUST.
  */
 describe('the scanner recognises every form these gates rely on', () => {
-  const probe = (text: string) => ts.createSourceFile('probe.ts', text, ts.ScriptTarget.Latest, true);
+  const probe = (text: string) =>
+    ts.createSourceFile('probe.ts', text, ts.ScriptTarget.Latest, true);
 
   it('does not see an identifier that occurs only in a comment', () => {
     // The control that decides whether the cost censuses mean anything:
     // `db/schema/billing.ts` documents `cost_entries.cost_usd` in prose, and a
     // grep reports it as a reader of the column.
-    expect(symbols(probe('// costUsd and spentUsd\n/** costUsd */\nconst a = 1;'))).not.toContain('costUsd');
+    expect(symbols(probe('// costUsd and spentUsd\n/** costUsd */\nconst a = 1;'))).not.toContain(
+      'costUsd',
+    );
     expect(symbols(probe('const costUsd = 1;'))).toContain('costUsd');
   });
 
   it('sees a multi-line named import, an alias, and an awaited dynamic one', () => {
-    expect(namedImports(probe("import {\n  addCredits,\n  zeroCredits,\n} from './r.js';"))[0].names).toEqual([
-      'addCredits',
-      'zeroCredits',
-    ]);
+    expect(
+      namedImports(probe("import {\n  addCredits,\n  zeroCredits,\n} from './r.js';"))[0].names,
+    ).toEqual(['addCredits', 'zeroCredits']);
     // The alias resolves to the EXPORTED name, not the local one.
-    expect(namedImports(probe("import { seedPlanFeatures as x } from './r.js';"))[0].names).toEqual([
-      'seedPlanFeatures',
-    ]);
-    expect(namedImports(probe("const { insertTransaction } = await import('./r.js');"))[0]).toEqual({
-      spec: './r.js',
-      names: ['insertTransaction'],
-    });
+    expect(namedImports(probe("import { seedPlanFeatures as x } from './r.js';"))[0].names).toEqual(
+      ['seedPlanFeatures'],
+    );
+    expect(namedImports(probe("const { insertTransaction } = await import('./r.js');"))[0]).toEqual(
+      {
+        spec: './r.js',
+        names: ['insertTransaction'],
+      },
+    );
   });
 
   it('follows a dynamic import when walking a closure, not only a static one', () => {
@@ -238,7 +252,10 @@ describe('the scanner recognises every form these gates rely on', () => {
     expect(tracked).not.toContain(SELF);
     // The exclusion removes exactly one file, so it cannot quietly grow into a
     // place to hide things.
-    const unfiltered = execFileSync('git', ['ls-files', '--', API_SRC], { cwd: REPO_ROOT, encoding: 'utf8' })
+    const unfiltered = execFileSync('git', ['ls-files', '--', API_SRC], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    })
       .split('\n')
       .filter((f) => f.endsWith('.ts') && existsSync(path.join(REPO_ROOT, f)));
     expect(unfiltered.length - tracked.length).toBe(1);
@@ -313,7 +330,9 @@ describe('the customer charge and the upstream cost share no reader (#139 ws12)'
     trackedSources(API_SRC)
       .filter((f) => !isTestFile(f))
       .filter((f) =>
-        moduleSpecifiers(parse(f)).some((spec) => CHARGE_REPOSITORIES.some((r) => spec.includes(r))),
+        moduleSpecifiers(parse(f)).some((spec) =>
+          CHARGE_REPOSITORIES.some((r) => spec.includes(r)),
+        ),
       )
       .sort();
 
@@ -508,7 +527,10 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
     readonly reachable: boolean;
   }
   interface Audit {
-    readonly tables: ReadonlyArray<{ readonly table: string; readonly writers: readonly AuditWriter[] }>;
+    readonly tables: ReadonlyArray<{
+      readonly table: string;
+      readonly writers: readonly AuditWriter[];
+    }>;
     readonly balanceSurfaces: { readonly modules: readonly string[] };
   }
 
@@ -546,7 +568,11 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
               ['insert', 'update', 'delete'].includes(m.expression.name.text)
             ) {
               const arg = m.arguments[0];
-              if (arg && ts.isIdentifier(arg) && (BILLING_TABLES as readonly string[]).includes(arg.text)) {
+              if (
+                arg &&
+                ts.isIdentifier(arg) &&
+                (BILLING_TABLES as readonly string[]).includes(arg.text)
+              ) {
                 writes = true;
               }
             }
@@ -616,7 +642,9 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
     const derived = derivedCallers(new Set(audited.map((w) => w.fn)));
 
     for (const writer of audited) {
-      expect([...writer.callers].sort(), `${writer.fn}'s callers moved`).toEqual(derived.get(writer.fn));
+      expect([...writer.callers].sort(), `${writer.fn}'s callers moved`).toEqual(
+        derived.get(writer.fn),
+      );
       // `reachable` is the audit's own summary of the same fact, so it cannot
       // drift from the list beside it.
       expect(writer.reachable, `${writer.fn}'s reachability`).toBe(writer.callers.length > 0);
@@ -651,7 +679,8 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
       .filter((f) => !isTestFile(f) && f !== `${API_SRC}/lib/user-credits-helpers.ts`)
       .filter((f) =>
         namedImports(parse(f)).some(
-          (i) => i.spec.includes('user-credits-helpers') && i.names.some((n) => HELPERS.includes(n)),
+          (i) =>
+            i.spec.includes('user-credits-helpers') && i.names.some((n) => HELPERS.includes(n)),
         ),
       )
       .map((f) => path.relative(API_SRC, f))
@@ -696,7 +725,11 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
  */
 describe('a cost record says which balance funded it (#139 ws12)', () => {
   it('the funding source is closed and only the admitted Alia credit operation persists it', () => {
-    expect([...CREDIT_FUNDING_SOURCES]).toEqual(['free_allowance', 'paid_balance', 'product_allowance']);
+    expect([...CREDIT_FUNDING_SOURCES]).toEqual([
+      'free_allowance',
+      'paid_balance',
+      'product_allowance',
+    ]);
 
     // I10 restates the historical zero-table gate for the one durable
     // product-credit operation, with its CHECK rendered from the same tuple.
@@ -704,24 +737,43 @@ describe('a cost record says which balance funded it (#139 ws12)', () => {
       .filter((f) => !isTestFile(f))
       .filter((f) => symbols(parse(f)).has('CREDIT_FUNDING_SOURCES'))
       .sort();
-    expect(persisting, 'funding persistence must remain limited to the admitted Alia operation').toEqual([
-      `${API_SRC}/db/schema/credit-operations.ts`,
-    ]);
+    expect(
+      persisting,
+      'funding persistence must remain limited to the admitted Alia operation',
+    ).toEqual([`${API_SRC}/db/schema/credit-operations.ts`]);
     const schema = parse(`${API_SRC}/db/schema/credit-operations.ts`);
     let checked = false;
     const visit = (node: ts.Node): void => {
-      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'checkOneOf') {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === 'checkOneOf'
+      ) {
         const [name, column, vocabulary] = node.arguments;
-        if (name && ts.isStringLiteral(name) && name.text === 'credit_operations_grant_kind_check'
-          && column && ts.isPropertyAccessExpression(column) && column.name.text === 'grantKind'
-          && vocabulary && ts.isIdentifier(vocabulary) && vocabulary.text === 'CREDIT_FUNDING_SOURCES') checked = true;
+        if (
+          name &&
+          ts.isStringLiteral(name) &&
+          name.text === 'credit_operations_grant_kind_check' &&
+          column &&
+          ts.isPropertyAccessExpression(column) &&
+          column.name.text === 'grantKind' &&
+          vocabulary &&
+          ts.isIdentifier(vocabulary) &&
+          vocabulary.text === 'CREDIT_FUNDING_SOURCES'
+        )
+          checked = true;
       }
       ts.forEachChild(node, visit);
     };
     visit(schema);
-    expect(checked, 'the operation must constrain funding using the existing shared vocabulary').toBe(true);
+    expect(
+      checked,
+      'the operation must constrain funding using the existing shared vocabulary',
+    ).toBe(true);
     // The positive control: the same scan finds the tuple where it IS declared.
-    expect(symbols(parse(`${API_SRC}/domain/credit-funding.ts`))).toContain('CREDIT_FUNDING_SOURCES');
+    expect(symbols(parse(`${API_SRC}/domain/credit-funding.ts`))).toContain(
+      'CREDIT_FUNDING_SOURCES',
+    );
   });
 
   it('the reservation carries it, decided from the balance the spend returned', () => {

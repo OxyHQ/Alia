@@ -1,6 +1,9 @@
-import { InviteDialog } from "@/features/onboarding/ui/invite-dialog";
-import { ProjectEditDialog, type ProjectEditValues } from "@/features/projects/ui/project-edit-dialog";
-import { useAliaSettings } from "@/features/settings/ui/settings-context";
+import { InviteDialog } from '@/features/onboarding/ui/invite-dialog';
+import {
+  ProjectEditDialog,
+  type ProjectEditValues,
+} from '@/features/projects/ui/project-edit-dialog';
+import { useAliaSettings } from '@/features/settings/ui/settings-context';
 import {
   ConversationActions,
   FolderActions,
@@ -10,70 +13,70 @@ import {
   ProjectActions,
   RenameConversationDialog,
   StreamingIndicator,
-} from "@/shell/sidebar-menus";
-import { agentDisplayName, agentHandle } from "@/features/agents/model/identity";
-import { formatRelativeTime } from "@/shared/format/relative-time";
-import { queryKeys } from "@/shared/api/query-keys";
+} from '@/shell/sidebar-menus';
+import { agentDisplayName, agentHandle } from '@/features/agents/model/identity';
+import { formatRelativeTime } from '@/shared/format/relative-time';
+import { queryKeys } from '@/shared/api/query-keys';
 import {
   prefetchConversation,
   useConversations,
   useDeleteConversation,
   useRenameConversation,
   type Conversation,
-} from "@/features/chat/runtime/use-conversations";
-import { useMyAgents } from "@/features/agents/runtime/use-my-agents";
-import { useUnreadCount } from "@/features/notifications/runtime/use-notifications";
-import { useTranslation } from "@/shared/i18n/use-translation";
-import { selectedItemForPath, sidebarSections } from "@/shell/sidebar-history";
-import { useFavoritesStore } from "@/features/projects/runtime/favorites-store";
-import { useFoldersStore, type Folder } from "@/features/projects/runtime/folders-store";
-import { useStore } from "@/features/chat/runtime/global-store";
-import { usePinnedStore } from "@/features/projects/runtime/pinned-store";
-import { useProjectsStore, type Project } from "@/features/projects/runtime/projects-store";
-import { IdentityMark } from "@alia.onl/sdk";
-import { useAiChatShell } from "@oxy.so/bloom/ai-chat";
-import { RiAddFill } from "@oxy.so/bloom/icons/RiAddFill";
-import { RiBookOpenLine } from "@oxy.so/bloom/icons/RiBookOpenLine";
-import { RiCustomerServiceLine } from "@oxy.so/bloom/icons/RiCustomerServiceLine";
-import { RiFileTextLine } from "@oxy.so/bloom/icons/RiFileTextLine";
-import { RiGiftLine } from "@oxy.so/bloom/icons/RiGiftLine";
-import { RiListCheck3 } from "@oxy.so/bloom/icons/RiListCheck3";
-import { RiMicLine } from "@oxy.so/bloom/icons/RiMicLine";
-import { RiNotification3Line } from "@oxy.so/bloom/icons/RiNotification3Line";
-import { RiRobot2Line } from "@oxy.so/bloom/icons/RiRobot2Line";
-import { RiSettings4Line } from "@oxy.so/bloom/icons/RiSettings4Line";
-import { RiShieldLine } from "@oxy.so/bloom/icons/RiShieldLine";
-import { RiSmartphoneLine } from "@oxy.so/bloom/icons/RiSmartphoneLine";
-import { RiSparklingLine } from "@oxy.so/bloom/icons/RiSparklingLine";
-import { RiTimeLine } from "@oxy.so/bloom/icons/RiTimeLine";
+} from '@/features/chat/runtime/use-conversations';
+import { useMyAgents } from '@/features/agents/runtime/use-my-agents';
+import { useUnreadCount } from '@/features/notifications/runtime/use-notifications';
+import { useTranslation } from '@/shared/i18n/use-translation';
+import { selectedItemForPath, sidebarSections } from '@/shell/sidebar-history';
+import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
+import { useFoldersStore, type Folder } from '@/features/projects/runtime/folders-store';
+import { useStore } from '@/features/chat/runtime/global-store';
+import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
+import { useProjectsStore, type Project } from '@/features/projects/runtime/projects-store';
+import { IdentityMark } from '@alia.onl/sdk';
+import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
+import { RiAddFill } from '@oxy.so/bloom/icons/RiAddFill';
+import { RiBookOpenLine } from '@oxy.so/bloom/icons/RiBookOpenLine';
+import { RiCustomerServiceLine } from '@oxy.so/bloom/icons/RiCustomerServiceLine';
+import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
+import { RiGiftLine } from '@oxy.so/bloom/icons/RiGiftLine';
+import { RiListCheck3 } from '@oxy.so/bloom/icons/RiListCheck3';
+import { RiMicLine } from '@oxy.so/bloom/icons/RiMicLine';
+import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
+import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
+import { RiSettings4Line } from '@oxy.so/bloom/icons/RiSettings4Line';
+import { RiShieldLine } from '@oxy.so/bloom/icons/RiShieldLine';
+import { RiSmartphoneLine } from '@oxy.so/bloom/icons/RiSmartphoneLine';
+import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
+import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import {
   Sidebar as BloomSidebar,
   type SidebarNavItem,
   type SidebarTree,
   type SidebarTreeFolder,
   type SidebarTreeItem,
-} from "@oxy.so/bloom/sidebar";
-import * as Skeleton from "@oxy.so/bloom/skeleton";
-import { confirm } from "@oxy.so/bloom/surfaces";
-import { Text } from "@oxy.so/bloom/typography";
-import { ProfileButton, useAuth, useOxy } from "@oxy.so/services";
-import { useQueryClient } from "@tanstack/react-query";
-import { usePathname, useRouter } from "expo-router";
-import React from "react";
+} from '@oxy.so/bloom/sidebar';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { confirm } from '@oxy.so/bloom/surfaces';
+import { Text } from '@oxy.so/bloom/typography';
+import { ProfileButton, useAuth, useOxy } from '@oxy.so/services';
+import { useQueryClient } from '@tanstack/react-query';
+import { usePathname, useRouter } from 'expo-router';
+import React from 'react';
 import {
   Linking,
   Platform,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
-} from "react-native";
+} from 'react-native';
 
-const SUPPORT_URL = "https://oxy.so/help";
-const PRIVACY_URL = "https://oxy.so/legal/privacy";
-const TERMS_URL = "https://oxy.so/legal/terms";
+const SUPPORT_URL = 'https://oxy.so/help';
+const PRIVACY_URL = 'https://oxy.so/legal/privacy';
+const TERMS_URL = 'https://oxy.so/legal/terms';
 
 /** Tree keys of agent rows: `agent:<handle>`. Chat rows are keyed by conversation id. */
-const AGENT_KEY = "agent:";
+const AGENT_KEY = 'agent:';
 
 /**
  * Alia's sidebar is Bloom's AI Chat template sidebar, prop for prop: account,
@@ -92,11 +95,7 @@ export const Sidebar = React.memo(function Sidebar({ mobile }: AliaSidebarProps)
   const { props, dialogs } = useSidebarProps();
   return (
     <>
-      {mobile ? (
-        <BloomSidebar {...props} mobile surface="plain" />
-      ) : (
-        <BloomSidebar {...props} />
-      )}
+      {mobile ? <BloomSidebar {...props} mobile surface="plain" /> : <BloomSidebar {...props} />}
       {dialogs}
     </>
   );
@@ -111,14 +110,8 @@ function useSidebarProps() {
   const { t } = useTranslation();
   const chatId = useStore((state) => state.chatId);
   const streamingChatId = useStore((state) => state.streamingChatId);
-  const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isFetchNextPageError,
-    isLoading,
-  } = useConversations();
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError, isLoading } =
+    useConversations();
   const { data: myAgents } = useMyAgents();
   const { isAuthenticated, showBottomSheet } = useOxy();
   const { signIn } = useAuth();
@@ -154,7 +147,7 @@ function useSidebarProps() {
   const [editingProject, setEditingProject] = React.useState<Project | null>(null);
   const [folderDialog, setFolderDialog] = React.useState<{ folder?: Folder } | null>(null);
   const [inviteOpen, setInviteOpen] = React.useState(false);
-  const [searchQuery, setSearchQuery] = React.useState("");
+  const [searchQuery, setSearchQuery] = React.useState('');
 
   const closeNav = shell?.closeNav;
   const go = React.useCallback(
@@ -232,11 +225,11 @@ function useSidebarProps() {
   const askDeleteConversation = React.useCallback(
     async (conv: Conversation) => {
       const ok = await confirm({
-        title: t("sidebar.deleteChatTitle"),
-        description: t("sidebar.deleteChatDescription", {
-          title: conv.title || t("sidebar.newConversation"),
+        title: t('sidebar.deleteChatTitle'),
+        description: t('sidebar.deleteChatDescription', {
+          title: conv.title || t('sidebar.newConversation'),
         }),
-        confirmLabel: t("common.delete"),
+        confirmLabel: t('common.delete'),
         destructive: true,
       });
       if (!ok) return;
@@ -254,7 +247,7 @@ function useSidebarProps() {
         await toggleFavorite(conv.id);
       }
       // Deleting the open chat leaves nothing to show; start a new one.
-      if (chatId?.id === conv.id) router.replace("/(app)");
+      if (chatId?.id === conv.id) router.replace('/(app)');
     },
     [t, deleteConversation, fileConversation, togglePin, toggleFavorite, chatId, router],
   );
@@ -262,9 +255,9 @@ function useSidebarProps() {
   const askDeleteProject = React.useCallback(
     async (project: Project) => {
       const ok = await confirm({
-        title: t("sidebar.deleteProjectTitle"),
-        description: t("sidebar.deleteProjectDescription", { name: project.name }),
-        confirmLabel: t("common.delete"),
+        title: t('sidebar.deleteProjectTitle'),
+        description: t('sidebar.deleteProjectDescription', { name: project.name }),
+        confirmLabel: t('common.delete'),
         destructive: true,
       });
       if (ok) await deleteProject(project.id);
@@ -275,9 +268,9 @@ function useSidebarProps() {
   const askDeleteFolder = React.useCallback(
     async (folder: Folder) => {
       const ok = await confirm({
-        title: t("sidebar.deleteFolderTitle"),
-        description: t("sidebar.deleteFolderDescription", { name: folder.name }),
-        confirmLabel: t("common.delete"),
+        title: t('sidebar.deleteFolderTitle'),
+        description: t('sidebar.deleteFolderDescription', { name: folder.name }),
+        confirmLabel: t('common.delete'),
         destructive: true,
       });
       if (ok) await deleteFolder(folder.id);
@@ -285,10 +278,7 @@ function useSidebarProps() {
     [t, deleteFolder],
   );
 
-  const renameFolder = React.useCallback(
-    (folder: Folder) => setFolderDialog({ folder }),
-    [],
-  );
+  const renameFolder = React.useCallback((folder: Folder) => setFolderDialog({ folder }), []);
 
   const saveFolder = React.useCallback(
     (name: string, folder: Folder | undefined) => {
@@ -303,7 +293,7 @@ function useSidebarProps() {
       // An agent is opened by its handle; one Oxy did not resolve has no address.
       if (!handle) return;
       closeNav?.();
-      router.push({ pathname: "/(app)/[username]", params: { username: `@${handle}` } });
+      router.push({ pathname: '/(app)/[username]', params: { username: `@${handle}` } });
     },
     [router, closeNav],
   );
@@ -347,19 +337,19 @@ function useSidebarProps() {
       ) : null;
       return {
         key: conv.id,
-        label: conv.title || t("sidebar.newConversation"),
+        label: conv.title || t('sidebar.newConversation'),
         meta: shortTime(conv.updatedAt),
         onPrefetch: () => prefetchConversation(queryClient, conv.id),
         actions:
           streaming && menu ? (
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <StreamingIndicator />
               {menu}
             </View>
           ) : streaming ? (
             <StreamingIndicator />
           ) : (
-            menu ?? undefined
+            (menu ?? undefined)
           ),
       };
     },
@@ -395,10 +385,10 @@ function useSidebarProps() {
       ...(agents.length
         ? [
             {
-              key: "agents",
-              label: t("sidebar.agents"),
+              key: 'agents',
+              label: t('sidebar.agents'),
               defaultOpen: true,
-              actions: <NewAgentAction onPress={() => go("/(app)/agents/create")} />,
+              actions: <NewAgentAction onPress={() => go('/(app)/agents/create')} />,
               items: agents.map((agent) => ({
                 key: `${AGENT_KEY}${agentHandle(agent)}`,
                 label: agentDisplayName(agent),
@@ -407,8 +397,8 @@ function useSidebarProps() {
             },
           ]
         : []),
-      ...shortcut("pinned", t("sidebar.pinned"), sections.pinned),
-      ...shortcut("favorites", t("sidebar.favorites"), sections.favorites),
+      ...shortcut('pinned', t('sidebar.pinned'), sections.pinned),
+      ...shortcut('favorites', t('sidebar.favorites'), sections.favorites),
       ...sections.projects.map(({ project, conversations: rows }) => ({
         key: `project:${project.id}`,
         label: project.name,
@@ -443,7 +433,7 @@ function useSidebarProps() {
     // Signed in, the tree stands even while empty: it holds "new project/folder".
     if (!treeFolders.length && !isAuthenticated) return undefined;
     return {
-      label: t("sidebar.chats"),
+      label: t('sidebar.chats'),
       folders: treeFolders,
       actions: isAuthenticated ? (
         <NewCollectionAction
@@ -473,28 +463,53 @@ function useSidebarProps() {
 
   const items: SidebarNavItem[] = [
     {
-      key: "new-chat",
-      label: t("sidebar.newChat"),
+      key: 'new-chat',
+      label: t('sidebar.newChat'),
       icon: RiAddFill,
       onPress: () => {
         closeNav?.();
-        router.replace("/(app)");
+        router.replace('/(app)');
       },
     },
-    { key: "agents", label: t("sidebar.agents"), icon: RiRobot2Line, onPress: () => go("/(app)/agents") },
-    { key: "library", label: t("sidebar.library"), icon: RiBookOpenLine, onPress: () => go("/(app)/library") },
-    { key: "tasks", label: t("sidebar.tasks"), icon: RiListCheck3, onPress: () => go("/(app)/tasks") },
-    { key: "automations", label: t("sidebar.automations"), icon: RiTimeLine, onPress: () => go("/(app)/automations") },
-    { key: "skills", label: t("sidebar.skills"), icon: RiSparklingLine, onPress: () => go("/(app)/skills") },
-    { key: "shows", label: t("sidebar.shows"), icon: RiMicLine, onPress: () => go("/(app)/shows") },
+    {
+      key: 'agents',
+      label: t('sidebar.agents'),
+      icon: RiRobot2Line,
+      onPress: () => go('/(app)/agents'),
+    },
+    {
+      key: 'library',
+      label: t('sidebar.library'),
+      icon: RiBookOpenLine,
+      onPress: () => go('/(app)/library'),
+    },
+    {
+      key: 'tasks',
+      label: t('sidebar.tasks'),
+      icon: RiListCheck3,
+      onPress: () => go('/(app)/tasks'),
+    },
+    {
+      key: 'automations',
+      label: t('sidebar.automations'),
+      icon: RiTimeLine,
+      onPress: () => go('/(app)/automations'),
+    },
+    {
+      key: 'skills',
+      label: t('sidebar.skills'),
+      icon: RiSparklingLine,
+      onPress: () => go('/(app)/skills'),
+    },
+    { key: 'shows', label: t('sidebar.shows'), icon: RiMicLine, onPress: () => go('/(app)/shows') },
     ...(isAuthenticated
       ? [
           {
-            key: "notifications",
-            label: t("sidebar.notifications"),
+            key: 'notifications',
+            label: t('sidebar.notifications'),
             icon: RiNotification3Line,
             badge: unread?.count ? unread.count : undefined,
-            onPress: () => go("/(app)/notifications"),
+            onPress: () => go('/(app)/notifications'),
           },
         ]
       : []),
@@ -517,7 +532,7 @@ function useSidebarProps() {
   const links: Array<{
     key: string;
     label: string;
-    icon: SidebarNavItem["icon"];
+    icon: SidebarNavItem['icon'];
     accountIcon?: string;
     inAccountMenu?: false;
     onPress: () => void;
@@ -525,10 +540,10 @@ function useSidebarProps() {
     ...(isAuthenticated
       ? [
           {
-            key: "invite",
-            label: t("sidebar.inviteFriends"),
+            key: 'invite',
+            label: t('sidebar.inviteFriends'),
             icon: RiGiftLine,
-            accountIcon: "gift-outline",
+            accountIcon: 'gift-outline',
             onPress: () => {
               closeNav?.();
               setInviteOpen(true);
@@ -536,30 +551,30 @@ function useSidebarProps() {
           },
         ]
       : []),
-    ...(Platform.OS === "web"
+    ...(Platform.OS === 'web'
       ? [
           {
-            key: "download",
-            label: t("sidebar.getTheApp"),
+            key: 'download',
+            label: t('sidebar.getTheApp'),
             icon: RiSmartphoneLine,
-            accountIcon: "download-outline",
-            onPress: () => go("/(biglayout)/download"),
+            accountIcon: 'download-outline',
+            onPress: () => go('/(biglayout)/download'),
           },
         ]
       : []),
     {
-      key: "support",
-      label: t("sidebar.support"),
+      key: 'support',
+      label: t('sidebar.support'),
       icon: RiCustomerServiceLine,
       // `headset` left the account menu's icon subset with @oxy.so/services 8.
-      accountIcon: "help-circle-outline",
+      accountIcon: 'help-circle-outline',
       onPress: () => {
         void Linking.openURL(SUPPORT_URL);
       },
     },
     {
-      key: "privacy",
-      label: t("sidebar.privacyPolicy"),
+      key: 'privacy',
+      label: t('sidebar.privacyPolicy'),
       icon: RiShieldLine,
       inAccountMenu: false,
       onPress: () => {
@@ -567,8 +582,8 @@ function useSidebarProps() {
       },
     },
     {
-      key: "terms",
-      label: t("sidebar.termsOfService"),
+      key: 'terms',
+      label: t('sidebar.termsOfService'),
       icon: RiFileTextLine,
       inAccountMenu: false,
       onPress: () => {
@@ -580,8 +595,8 @@ function useSidebarProps() {
   const secondaryItems: SidebarNavItem[] = [
     ...(isAuthenticated ? [] : links),
     {
-      key: "settings",
-      label: t("nav.settings"),
+      key: 'settings',
+      label: t('nav.settings'),
       icon: RiSettings4Line,
       onPress: () => {
         closeNav?.();
@@ -597,7 +612,7 @@ function useSidebarProps() {
     <ProfileButton
       expanded={!collapsed}
       placement="up"
-      onNavigateManage={() => showBottomSheet?.("ManageAccount")}
+      onNavigateManage={() => showBottomSheet?.('ManageAccount')}
       onAddAccount={() => {
         signIn().catch(() => {});
       }}
@@ -605,14 +620,19 @@ function useSidebarProps() {
         isAuthenticated
           ? [
               {
-                key: "upgrade",
-                label: t("sidebar.upgradeToPro"),
-                icon: "star",
-                onPress: () => go("/(biglayout)/subscribe"),
+                key: 'upgrade',
+                label: t('sidebar.upgradeToPro'),
+                icon: 'star',
+                onPress: () => go('/(biglayout)/subscribe'),
               },
               ...links
                 .filter((link) => link.inAccountMenu !== false)
-                .map(({ key, label, accountIcon, onPress }) => ({ key, label, icon: accountIcon, onPress })),
+                .map(({ key, label, accountIcon, onPress }) => ({
+                  key,
+                  label,
+                  icon: accountIcon,
+                  onPress,
+                })),
             ]
           : undefined
       }
@@ -647,17 +667,17 @@ function useSidebarProps() {
     <HistorySkeleton />
   ) : isFetchingNextPage ? (
     <Text variant="caption-1-regular" style={{ paddingHorizontal: 8 }}>
-      {t("sidebar.loadingConversations")}
+      {t('sidebar.loadingConversations')}
     </Text>
   ) : undefined;
 
   const props = {
     logo: {
       icon: <IdentityMark size={26} />,
-      wordmark: "Alia",
+      wordmark: 'Alia',
       onPress: () => {
         closeNav?.();
-        router.replace("/(app)");
+        router.replace('/(app)');
       },
     },
     items,
@@ -667,9 +687,9 @@ function useSidebarProps() {
     content,
     searchQuery,
     onSearchQueryChange: setSearchQuery,
-    searchLabel: t("sidebar.searchChats"),
-    searchPlaceholder: t("sidebar.searchChatsPlaceholder"),
-    noResultsLabel: t("common.noResults"),
+    searchLabel: t('sidebar.searchChats'),
+    searchPlaceholder: t('sidebar.searchChatsPlaceholder'),
+    noResultsLabel: t('common.noResults'),
     selectedTreeItem: selectedTreeItemForPath(pathname) ?? chatId?.id,
     onTreeItemPress: (item: { key: string }) =>
       item.key.startsWith(AGENT_KEY)
@@ -725,7 +745,7 @@ function HistorySkeleton() {
 /** The template's time chip: `now`, `34m`, `2h`, `1d`, `3w`. */
 function shortTime(date: Date): string {
   const minutes = Math.floor((Date.now() - date.getTime()) / 60000);
-  if (minutes < 1) return "now";
+  if (minutes < 1) return 'now';
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h`;

@@ -77,9 +77,10 @@ export function readAliaMeta(chunk: unknown): AliaMeta {
     retryable?: unknown;
     error?: unknown;
   };
-  const failure = error !== null && typeof error === 'object'
-    ? error as { code?: unknown; reference?: unknown; retryAfter?: unknown }
-    : null;
+  const failure =
+    error !== null && typeof error === 'object'
+      ? (error as { code?: unknown; reference?: unknown; retryAfter?: unknown })
+      : null;
   return {
     synthetic: synthetic === true,
     retryable: retryable !== false,
@@ -97,7 +98,10 @@ export function readAliaMeta(chunk: unknown): AliaMeta {
  * Empty when the server sent neither.
  */
 export function failureDetail(failure: { code?: string; reference?: string }): string | undefined {
-  const detail = [failure.code, failure.reference === undefined ? undefined : `Ref ${failure.reference}`]
+  const detail = [
+    failure.code,
+    failure.reference === undefined ? undefined : `Ref ${failure.reference}`,
+  ]
     .filter((value): value is string => typeof value === 'string' && value !== '')
     .join(' · ');
   return detail === '' ? undefined : detail;

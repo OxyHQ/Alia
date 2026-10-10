@@ -158,9 +158,11 @@ describe('the Postgres schema does not depend on the Mongoose models', () => {
     const offenders = trackedSources('src/models')
       .concat(trackedSources('src/internal/providers/models'))
       .flatMap(({ file, text }) =>
-        [...text.matchAll(/(?:^|\n)\s*export\s+(?:type\s+)?(?:\{[^}]*\}|\*)\s+from\s+['"]([^'"]+)['"]/g)].map(
-          (m) => `${file} re-exports from '${m[1]}'`,
-        ),
+        [
+          ...text.matchAll(
+            /(?:^|\n)\s*export\s+(?:type\s+)?(?:\{[^}]*\}|\*)\s+from\s+['"]([^'"]+)['"]/g,
+          ),
+        ].map((m) => `${file} re-exports from '${m[1]}'`),
       );
     expect(offenders).toEqual([]);
   });

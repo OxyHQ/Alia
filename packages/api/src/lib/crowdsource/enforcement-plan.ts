@@ -55,39 +55,38 @@ export interface PlannedEnforcementAction {
 }
 
 /** What a recommended action becomes in Alia. */
-const RECOMMENDATION_TO_ACTION: Readonly<
-  Record<RecommendedAction, ModerationEnforcementAction>
-> = Object.freeze({
-  remove: 'restrict',
-  remove_or_restrict: 'restrict',
-  hide: 'restrict',
+const RECOMMENDATION_TO_ACTION: Readonly<Record<RecommendedAction, ModerationEnforcementAction>> =
+  Object.freeze({
+    remove: 'restrict',
+    remove_or_restrict: 'restrict',
+    hide: 'restrict',
 
-  reduce_distribution: 'demote',
+    reduce_distribution: 'demote',
 
-  allow: 'none',
-  no_action: 'none',
-  no_global_effect: 'none',
-  restore: 'restore',
+    allow: 'none',
+    no_action: 'none',
+    no_global_effect: 'none',
+    restore: 'restore',
 
-  // Alia can display no warning of any kind. Recorded for a human rather than
-  // silently downgraded to the nearest effect it does have.
-  label: 'manual_review',
-  allow_with_label: 'manual_review',
-  age_gate: 'manual_review',
+    // Alia can display no warning of any kind. Recorded for a human rather than
+    // silently downgraded to the nearest effect it does have.
+    label: 'manual_review',
+    allow_with_label: 'manual_review',
+    age_gate: 'manual_review',
 
-  // Alia holds none of the levers these ask for. Recorded, queued for a human.
-  suspend_user: 'manual_review',
-  freeze_transaction: 'manual_review',
-  request_changes: 'manual_review',
-  request_more_context: 'manual_review',
-  hold: 'manual_review',
-  local_manual_review: 'manual_review',
-  keep_restricted_temporarily: 'manual_review',
-  escalate: 'manual_review',
-  specialist_queue: 'manual_review',
-  legal_queue: 'manual_review',
-  safety_queue: 'manual_review',
-});
+    // Alia holds none of the levers these ask for. Recorded, queued for a human.
+    suspend_user: 'manual_review',
+    freeze_transaction: 'manual_review',
+    request_changes: 'manual_review',
+    request_more_context: 'manual_review',
+    hold: 'manual_review',
+    local_manual_review: 'manual_review',
+    keep_restricted_temporarily: 'manual_review',
+    escalate: 'manual_review',
+    specialist_queue: 'manual_review',
+    legal_queue: 'manual_review',
+    safety_queue: 'manual_review',
+  });
 
 /**
  * The action a violation gets when the decision recommended nothing.
@@ -99,13 +98,12 @@ const RECOMMENDATION_TO_ACTION: Readonly<
  * driven by a webhook is not that. The difference between them is a policy decision
  * with legal weight, and a mapping table is the wrong place to make it.
  */
-const SEVERITY_FALLBACK: Readonly<Record<Severity, ModerationEnforcementAction>> =
-  Object.freeze({
-    critical: 'manual_review',
-    high: 'restrict',
-    medium: 'demote',
-    low: 'manual_review',
-  });
+const SEVERITY_FALLBACK: Readonly<Record<Severity, ModerationEnforcementAction>> = Object.freeze({
+  critical: 'manual_review',
+  high: 'restrict',
+  medium: 'demote',
+  low: 'manual_review',
+});
 
 const SEVERITY_ORDER: readonly Severity[] = ['low', 'medium', 'high', 'critical'];
 
@@ -146,10 +144,7 @@ function withRestoreForNoViolation(
 ): readonly PlannedEnforcementAction[] {
   if (decision.outcome !== 'no_violation') return planned;
   if (planned.some((entry) => entry.action === 'restore')) return planned;
-  return [
-    ...planned,
-    { action: 'restore', reason: 'No violation: undo any earlier enforcement' },
-  ];
+  return [...planned, { action: 'restore', reason: 'No violation: undo any earlier enforcement' }];
 }
 
 /**
@@ -162,9 +157,7 @@ function withRestoreForNoViolation(
  * it is a note for a human, and dropping it because something else was also done
  * is how a `suspend_user` recommendation gets lost.
  */
-function collapse(
-  actions: readonly PlannedEnforcementAction[],
-): PlannedEnforcementAction[] {
+function collapse(actions: readonly PlannedEnforcementAction[]): PlannedEnforcementAction[] {
   const byAction = new Map<ModerationEnforcementAction, PlannedEnforcementAction>();
   for (const planned of actions) {
     if (!byAction.has(planned.action)) byAction.set(planned.action, planned);

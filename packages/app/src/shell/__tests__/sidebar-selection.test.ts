@@ -22,7 +22,10 @@ describe('selectedItemForPath', () => {
     expect(selectedItemForPath(path)).toBe(key);
   });
 
-  it.each(['/', '/c/abc', '/settings/general', '/nate', '/agentsx'])('%s selects no row', (path) => {
-    expect(selectedItemForPath(path)).toBeUndefined();
-  });
+  it.each(['/', '/c/abc', '/settings/general', '/nate', '/agentsx'])(
+    '%s selects no row',
+    (path) => {
+      expect(selectedItemForPath(path)).toBeUndefined();
+    },
+  );
 });

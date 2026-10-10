@@ -1,4 +1,11 @@
-import { Table, TableBody, TableCell, TableColumn, TableHeader, TableRow } from '@oxy.so/bloom/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableColumn,
+  TableHeader,
+  TableRow,
+} from '@oxy.so/bloom/table';
 
 interface TableData {
   headers: string[];

@@ -4,7 +4,8 @@ import { z } from 'zod';
 
 import { measureContext } from '../context-breakdown.js';
 
-const plain = (description: string) => tool({ description, inputSchema: z.object({ query: z.string() }) });
+const plain = (description: string) =>
+  tool({ description, inputSchema: z.object({ query: z.string() }) });
 
 describe('what a turn puts in the context window', () => {
   it('splits the system prompt into its memory, its skills and the rest', () => {
@@ -29,15 +30,23 @@ describe('what a turn puts in the context window', () => {
         webSearch: plain('Search the web'),
         mcp_github__list_issues: plain('List issues'),
         mcp_github__create_issue: plain('Create an issue'),
-        mcp_linear__search: tool({ description: 'Search Linear', inputSchema: jsonSchema({ type: 'object', properties: {} }) }),
+        mcp_linear__search: tool({
+          description: 'Search Linear',
+          inputSchema: jsonSchema({ type: 'object', properties: {} }),
+        }),
       },
       messages: [],
       maxContextTokens: null,
     });
     expect(breakdown.tools).toBeGreaterThan(0);
     expect(breakdown.mcpServers.map((server) => server.server)).toEqual(['github', 'linear']);
-    expect(breakdown.mcpServers[0].tools.map((entry) => entry.name)).toEqual(['list_issues', 'create_issue']);
-    expect(breakdown.mcp).toBe(breakdown.mcpServers.reduce((sum, server) => sum + server.tokens, 0));
+    expect(breakdown.mcpServers[0].tools.map((entry) => entry.name)).toEqual([
+      'list_issues',
+      'create_issue',
+    ]);
+    expect(breakdown.mcp).toBe(
+      breakdown.mcpServers.reduce((sum, server) => sum + server.tokens, 0),
+    );
   });
 
   it('counts the history — tool calls included — but not a system message the prompt replaces', () => {
@@ -47,7 +56,13 @@ describe('what a turn puts in the context window', () => {
       messages: [
         { role: 'system', content: 'x'.repeat(4000) },
         { role: 'user', content: 'x'.repeat(40) },
-        { role: 'assistant', content: '', toolInvocations: [{ toolCallId: '1', toolName: 'webSearch', state: 'result', result: 'y'.repeat(400) }] },
+        {
+          role: 'assistant',
+          content: '',
+          toolInvocations: [
+            { toolCallId: '1', toolName: 'webSearch', state: 'result', result: 'y'.repeat(400) },
+          ],
+        },
       ],
       maxContextTokens: null,
     });

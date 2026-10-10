@@ -1,21 +1,21 @@
-import { useState } from "react";
-import { useAuth } from "@oxy.so/services";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from 'react';
+import { useAuth } from '@oxy.so/services';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export function LoginForm() {
   const { signIn } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   const handleSignIn = async () => {
-    setError("");
+    setError('');
     setIsLoading(true);
 
     try {
       await signIn();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign in failed");
+      setError(err instanceof Error ? err.message : 'Sign in failed');
     } finally {
       setIsLoading(false);
     }
@@ -26,9 +26,7 @@ export function LoginForm() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Welcome to Alia Canvas</CardTitle>
-          <CardDescription>
-            Sign in with your Oxy account to access Canvas
-          </CardDescription>
+          <CardDescription>Sign in with your Oxy account to access Canvas</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {error && (
@@ -36,12 +34,8 @@ export function LoginForm() {
               {error}
             </div>
           )}
-          <Button
-            onClick={handleSignIn}
-            className="w-full"
-            disabled={isLoading}
-          >
-            {isLoading ? "Signing in..." : "Sign In with Oxy"}
+          <Button onClick={handleSignIn} className="w-full" disabled={isLoading}>
+            {isLoading ? 'Signing in...' : 'Sign In with Oxy'}
           </Button>
         </CardContent>
       </Card>

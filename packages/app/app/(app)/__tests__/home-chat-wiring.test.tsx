@@ -156,7 +156,9 @@ vi.mock('@/features/chat/runtime/use-conversations', () => ({
 }));
 
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
-vi.mock('@/shared/i18n/use-translation', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock('@/shared/i18n/use-translation', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 vi.mock('@oxy.so/bloom/content-panel', async () => {
   const ReactModule = await import('react');
   return {
@@ -250,7 +252,9 @@ describe('the new-chat screen wires the whole conversation', () => {
     chat.suggestedNewConversation = 'this is getting long';
     const props = await mount();
 
-    await act(async () => { (props.onAcceptNewConversation as () => void)(); });
+    await act(async () => {
+      (props.onAcceptNewConversation as () => void)();
+    });
 
     expect(chat.dismissSuggestedNewConversation).toHaveBeenCalledTimes(1);
     expect(chat.clearConversation).toHaveBeenCalledTimes(1);

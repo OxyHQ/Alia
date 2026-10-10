@@ -12,7 +12,7 @@ export class AliaChatParticipant {
 
   constructor(
     context: vscode.ExtensionContext,
-    private readonly authProvider: AliaAuthenticationProvider
+    private readonly authProvider: AliaAuthenticationProvider,
   ) {
     this.loadConfig();
 
@@ -56,17 +56,17 @@ export class AliaChatParticipant {
           request: vscode.ChatRequest,
           context: vscode.ChatContext,
           stream: vscode.ChatResponseStream,
-          token: vscode.CancellationToken
+          token: vscode.CancellationToken,
         ) => {
           return this.handleChatRequest(request, context, stream, token);
-        }
+        },
       );
 
       // Set participant metadata
       this.participant.iconPath = vscode.Uri.joinPath(
         context.extensionUri,
         'resources',
-        'codea-logo.png'
+        'codea-logo.png',
       );
 
       context.subscriptions.push(this.participant);
@@ -81,12 +81,13 @@ export class AliaChatParticipant {
     request: vscode.ChatRequest,
     context: vscode.ChatContext,
     stream: vscode.ChatResponseStream,
-    token: vscode.CancellationToken
+    token: vscode.CancellationToken,
   ): Promise<vscode.ChatResult | void> {
-
     const accessToken = await this.authProvider.getAccessToken();
     if (!accessToken) {
-      stream.markdown('**Sign-in Required**\n\nPlease sign in using the `Codea: Sign In` command (Ctrl+Shift+P).');
+      stream.markdown(
+        '**Sign-in Required**\n\nPlease sign in using the `Codea: Sign In` command (Ctrl+Shift+P).',
+      );
       return { metadata: { error: 'Not authenticated' } };
     }
 
@@ -110,13 +111,14 @@ export class AliaChatParticipant {
 
   private buildMessages(
     request: vscode.ChatRequest,
-    context: vscode.ChatContext
+    context: vscode.ChatContext,
   ): OpenAI.Chat.ChatCompletionMessageParam[] {
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
         role: 'system',
-        content: 'You are Codea, an expert coding assistant powered by Alia. You help developers write, understand, and improve their code. Provide clear, concise, and helpful responses. Format code using markdown code blocks.'
-      }
+        content:
+          'You are Codea, an expert coding assistant powered by Alia. You help developers write, understand, and improve their code. Provide clear, concise, and helpful responses. Format code using markdown code blocks.',
+      },
     ];
 
     // Add conversation history
@@ -124,12 +126,12 @@ export class AliaChatParticipant {
       if (turn instanceof vscode.ChatRequestTurn) {
         messages.push({
           role: 'user',
-          content: turn.prompt
+          content: turn.prompt,
         });
       } else if (turn instanceof vscode.ChatResponseTurn) {
         // Get the response text
         const responseText = turn.response
-          .map(part => {
+          .map((part) => {
             if (part instanceof vscode.ChatResponseMarkdownPart) {
               return part.value.value;
             }
@@ -140,7 +142,7 @@ export class AliaChatParticipant {
         if (responseText) {
           messages.push({
             role: 'assistant',
-            content: responseText
+            content: responseText,
           });
         }
       }
@@ -161,7 +163,7 @@ export class AliaChatParticipant {
 
     messages.push({
       role: 'user',
-      content: userMessage
+      content: userMessage,
     });
 
     return messages;
@@ -181,7 +183,7 @@ export class AliaChatParticipant {
     messages: OpenAI.Chat.ChatCompletionMessageParam[],
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken,
-    accessToken: string
+    accessToken: string,
   ): Promise<void> {
     const config = vscode.workspace.getConfiguration('codea');
     const maxTokens = config.get('maxTokens', 4096);
@@ -199,7 +201,9 @@ export class AliaChatParticipant {
      */
     const controller = new AbortController();
     if (token.isCancellationRequested) controller.abort();
-    const cancellation = token.onCancellationRequested(() => { controller.abort(); });
+    const cancellation = token.onCancellationRequested(() => {
+      controller.abort();
+    });
 
     const model = await resolveModelId(this.apiBaseUrl, this.model, accessToken);
     const attempt = (bearerToken: string) =>
@@ -263,13 +267,14 @@ export class AliaChatParticipant {
           synthetic.retryable
             ? 'Alia could not finish that answer. Please send your message again.'
             : 'Alia could not answer that request.',
-          { retryable: synthetic.retryable }
+          { retryable: synthetic.retryable },
         );
       }
     } catch (error: unknown) {
       // A cancelled turn is not an error to report: the abort above rejects
       // the fetch with `AbortError`, and the person already stopped it.
-      if (token.isCancellationRequested || (error instanceof Error && error.name === 'AbortError')) return;
+      if (token.isCancellationRequested || (error instanceof Error && error.name === 'AbortError'))
+        return;
       throw error;
     } finally {
       // The listener is on VS Code's token, which outlives this request.

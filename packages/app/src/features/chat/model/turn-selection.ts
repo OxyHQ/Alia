@@ -62,10 +62,10 @@ export interface TurnSelectionOptions {
  */
 export function isRunnableConnector(server: InstalledMcpServer): boolean {
   return (
-    server.enabled
-    && server.status === 'running'
-    && server.runtime === 'server'
-    && server.tools.length > 0
+    server.enabled &&
+    server.status === 'running' &&
+    server.runtime === 'server' &&
+    server.tools.length > 0
   );
 }
 
@@ -95,32 +95,24 @@ export function buildTurnSelection(input: {
         description: skill.description,
         selected: selectedSkills.has(skill.name),
       })),
-    connectors: input.installedConnectors
-      .filter(isRunnableConnector)
-      .map((server) => ({
-        id: server._id,
-        label: server.displayName,
-        icon: server.icon,
-        toolCount: server.tools.length,
-        selected: input.selectedConnectorId === server._id,
-      })),
+    connectors: input.installedConnectors.filter(isRunnableConnector).map((server) => ({
+      id: server._id,
+      label: server.displayName,
+      icon: server.icon,
+      toolCount: server.tools.length,
+      selected: input.selectedConnectorId === server._id,
+    })),
   };
 }
 
 /** Add or remove a skill from the turn, by the name the request carries. */
-export function toggleSkillName(
-  current: readonly string[],
-  name: string,
-): string[] {
+export function toggleSkillName(current: readonly string[], name: string): string[] {
   return current.includes(name)
     ? current.filter((existing) => existing !== name)
     : [...current, name];
 }
 
 /** Choose a connector for the turn, or unchoose the one already chosen. */
-export function toggleConnectorId(
-  current: string | null,
-  id: string,
-): string | null {
+export function toggleConnectorId(current: string | null, id: string): string | null {
   return current === id ? null : id;
 }

@@ -12,10 +12,20 @@ import { USER_RUNTIME_PROVIDER, userRuntimeFetch } from './inference/user-runtim
 import { kaanaLanguageModel } from './inference/kaana-language-model.js';
 import type { AliaInferenceSurface } from './inference/product-seam.js';
 import { assertUnreservedModelIdentifier } from './reserved-namespace.js';
-import { isChatUsable, listCatalogueModels, type CatalogueModel, type ReasoningEffort } from './models/catalogue.js';
+import {
+  isChatUsable,
+  listCatalogueModels,
+  type CatalogueModel,
+  type ReasoningEffort,
+} from './models/catalogue.js';
 import { ModelNotFoundError } from './models/errors.js';
 import { getUtilityModelId } from './models/selection.js';
-import { DEFAULT_POWER_LEVEL, isPowerLevel, type OxyInferenceTarget, type PowerLevel } from './models/power-levels.js';
+import {
+  DEFAULT_POWER_LEVEL,
+  isPowerLevel,
+  type OxyInferenceTarget,
+  type PowerLevel,
+} from './models/power-levels.js';
 import type { KeyConfig } from './gateway-client.js';
 
 export type { KeyConfig };
@@ -109,7 +119,9 @@ export async function resolveUtilityModel(): Promise<ResolvedModel> {
  * A stored preference (an agent's, a thread's, a bot's) — a power level or a
  * model — or the default when it is unset or no longer offered.
  */
-export async function resolveStoredModel(modelId: string | null | undefined): Promise<ResolvedModel> {
+export async function resolveStoredModel(
+  modelId: string | null | undefined,
+): Promise<ResolvedModel> {
   if (modelId) {
     try {
       return await resolveModel(modelId);
@@ -153,7 +165,9 @@ export function getAIModel(
   }
   return kaanaLanguageModel({
     target,
-    ...(options.onInferenceRequest === undefined ? {} : { onInferenceRequest: options.onInferenceRequest }),
+    ...(options.onInferenceRequest === undefined
+      ? {}
+      : { onInferenceRequest: options.onInferenceRequest }),
     modelId: resolved.modelId,
     surface,
     ...(oxyUserId === undefined ? {} : { oxyUserId }),

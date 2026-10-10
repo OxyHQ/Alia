@@ -51,8 +51,10 @@ async function agentForMemory(req: Request, res: Response) {
     cache: false,
   });
   if (!loaded.ok) {
-    res.status(loaded.refusal === 'agent_not_found' ? 404 : refusalStatus(loaded.refusal))
-      .json({ error: loaded.refusal === 'agent_not_found' ? 'Agent not found' : refusalMessage(loaded.refusal) });
+    res.status(loaded.refusal === 'agent_not_found' ? 404 : refusalStatus(loaded.refusal)).json({
+      error:
+        loaded.refusal === 'agent_not_found' ? 'Agent not found' : refusalMessage(loaded.refusal),
+    });
     return null;
   }
   return loaded.agent;
@@ -63,11 +65,18 @@ router.get('/:id/memory', authenticateToken, async (req: Request, res: Response)
     const agent = await agentForMemory(req, res);
     if (!agent || !req.user?.id) return;
     const path = typeof req.query.path === 'string' ? req.query.path : undefined;
-    if (!path) return res.json({ documents: await listAgentMemory(getDb(), req.user.id, agent._id) });
+    if (!path)
+      return res.json({ documents: await listAgentMemory(getDb(), req.user.id, agent._id) });
     parseAgentMemoryPath(path);
     const document = await readAgentMemory(getDb(), req.user.id, agent._id, path);
     const content = document?.content ?? '';
-    res.json({ path, content, hash: document?.contentHash ?? hashAgentMemory(''), exists: Boolean(document), prompt: agentMemoryPromptSlice(content) });
+    res.json({
+      path,
+      content,
+      hash: document?.contentHash ?? hashAgentMemory(''),
+      exists: Boolean(document),
+      prompt: agentMemoryPromptSlice(content),
+    });
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid memory path' });
   }
@@ -98,9 +107,15 @@ router.put('/:id/memory', authenticateToken, async (req: Request, res: Response)
     res.json({ document, redactedSecrets: safe.matches.map((match) => match.type) });
   } catch (error) {
     if (error instanceof AgentMemoryConflictError) {
-      return res.status(409).json({ error: error.message, currentHash: error.currentHash, currentContent: error.currentContent });
+      return res.status(409).json({
+        error: error.message,
+        currentHash: error.currentHash,
+        currentContent: error.currentContent,
+      });
     }
-    res.status(400).json({ error: error instanceof Error ? error.message : 'Failed to write memory' });
+    res
+      .status(400)
+      .json({ error: error instanceof Error ? error.message : 'Failed to write memory' });
   }
 });
 
@@ -117,7 +132,11 @@ router.delete('/:id/memory', authenticateToken, async (req: Request, res: Respon
     if (!agent || !req.user?.id) return;
     const path = typeof req.query.path === 'string' ? req.query.path : undefined;
     if (path !== undefined) parseAgentMemoryPath(path);
-    const removed = await deleteAgentMemory(getDb(), { oxyUserId: req.user.id, agentId: agent._id, ...(path === undefined ? {} : { path }) });
+    const removed = await deleteAgentMemory(getDb(), {
+      oxyUserId: req.user.id,
+      agentId: agent._id,
+      ...(path === undefined ? {} : { path }),
+    });
     res.json({ removed });
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid memory path' });

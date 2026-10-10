@@ -7,14 +7,7 @@
  * `header` render prop that receives the live mark state.
  */
 
-import React, {
-  Suspense,
-  useState,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from 'react';
+import React, { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
@@ -28,12 +21,7 @@ import { AliaWelcomeMessage, type WelcomeSuggestion } from './AliaWelcomeMessage
 import { PromptInput } from './ui/prompt-input/prompt-input';
 import { Button } from './ui/button';
 import type { IdentityMarkState } from './IdentityMark';
-import type {
-  ChatMessage,
-  VoiceMessage,
-  VoiceSessionComponent,
-  VoiceSessionState,
-} from '../types';
+import type { ChatMessage, VoiceMessage, VoiceSessionComponent, VoiceSessionState } from '../types';
 import type { Completion } from './ui/prompt-input/context';
 
 export interface AliaChatContentProps {
@@ -62,7 +50,11 @@ export interface AliaChatContentProps {
   /** Override markdown renderer (app passes CustomMarkdown) */
   renderMarkdown?: (content: string) => React.ReactNode;
   /** Header bar render prop — receives live mark state, message presence, and the clear handler. */
-  header?: (state: { markState: IdentityMarkState; hasMessages: boolean; clear: () => void }) => React.ReactNode;
+  header?: (state: {
+    markState: IdentityMarkState;
+    hasMessages: boolean;
+    clear: () => void;
+  }) => React.ReactNode;
   /** Theme primary color hex — forwarded to the ambient wave overlay palette. */
   primaryColor?: string;
   /** Dark-mode flag — forwarded to the ambient wave overlay. */
@@ -223,11 +215,7 @@ export function AliaChatContent({
   const voiceActivateButton = useMemo(
     () =>
       VoiceSession ? (
-        <Button
-          size="icon"
-          onPress={activateVoice}
-          className="h-8 w-8 rounded-full"
-        >
+        <Button size="icon" onPress={activateVoice} className="h-8 w-8 rounded-full">
           <Volume2 size={16} color="white" />
         </Button>
       ) : undefined,
@@ -270,11 +258,7 @@ export function AliaChatContent({
       {VoiceSession && isVoiceActive ? (
         /* Suspense so the session may be handed to us as a React.lazy import. */
         <Suspense fallback={null}>
-          <VoiceSession
-            apiUrl={apiUrl}
-            onStateChange={setVoiceState}
-            onEnd={deactivateVoice}
-          />
+          <VoiceSession apiUrl={apiUrl} onStateChange={setVoiceState} onEnd={deactivateVoice} />
         </Suspense>
       ) : (
         <View style={styles.inputContainer}>

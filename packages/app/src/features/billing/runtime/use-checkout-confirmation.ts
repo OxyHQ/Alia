@@ -43,8 +43,7 @@ export function useCheckoutConfirmation({
     if (!enabled || confirmed.current) return;
     if (
       polledSubscription &&
-      (polledSubscription.status === 'active' ||
-        polledSubscription.status === 'trialing')
+      (polledSubscription.status === 'active' || polledSubscription.status === 'trialing')
     ) {
       confirm();
     }

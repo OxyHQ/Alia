@@ -32,7 +32,10 @@ async function ensureStripeProduct(getStripe: StripeFn, plan: PlanData): Promise
     log.credits.warn({ err, planId: plan.planId }, 'Failed to persist stripeProductId');
   }
 
-  log.credits.info({ planId: plan.planId, stripeProductId: product.id }, 'Auto-created Stripe product');
+  log.credits.info(
+    { planId: plan.planId, stripeProductId: product.id },
+    'Auto-created Stripe product',
+  );
   return product.id;
 }
 
@@ -77,6 +80,9 @@ export async function ensureStripePriceId(
     log.credits.warn({ err, planId: plan.planId }, 'Failed to persist stripe price ID');
   }
 
-  log.credits.info({ planId: plan.planId, billingPeriod, stripePriceId: price.id }, 'Auto-created Stripe price');
+  log.credits.info(
+    { planId: plan.planId, billingPeriod, stripePriceId: price.id },
+    'Auto-created Stripe price',
+  );
   return price.id;
 }

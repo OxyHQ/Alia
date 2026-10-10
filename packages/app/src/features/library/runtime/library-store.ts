@@ -1,10 +1,10 @@
-import { create } from "zustand";
-import { Platform } from "react-native";
-import apiClient from "@/shared/api/client";
-import { API_ROUTES } from "@/shared/api/routes";
-import { currentAccountEpoch, isCurrentAccountEpoch } from "@/shared/state/account-epoch";
+import { create } from 'zustand';
+import { Platform } from 'react-native';
+import apiClient from '@/shared/api/client';
+import { API_ROUTES } from '@/shared/api/routes';
+import { currentAccountEpoch, isCurrentAccountEpoch } from '@/shared/state/account-epoch';
 
-export type FileCategory = "documents" | "images" | "other";
+export type FileCategory = 'documents' | 'images' | 'other';
 
 export interface LibraryFile {
   _id: string;
@@ -22,7 +22,12 @@ interface LibraryStoreState {
   files: LibraryFile[];
   loading: boolean;
   loadFiles: (category?: FileCategory) => Promise<void>;
-  addFile: (file: { name: string; uri: string; type: string; size: number }) => Promise<LibraryFile | null>;
+  addFile: (file: {
+    name: string;
+    uri: string;
+    type: string;
+    size: number;
+  }) => Promise<LibraryFile | null>;
   deleteFile: (id: string) => Promise<void>;
   getFilesByCategory: (category: FileCategory) => LibraryFile[];
   searchFiles: (query: string) => LibraryFile[];
@@ -49,7 +54,7 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
       }));
       set({ files, loading: false });
     } catch (error) {
-      console.error("Error loading library files:", error);
+      console.error('Error loading library files:', error);
       set({ loading: false });
     }
   },
@@ -58,14 +63,14 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
     try {
       const formData = new FormData();
 
-      if (Platform.OS === "web") {
+      if (Platform.OS === 'web') {
         const response = await fetch(fileData.uri);
         const blob = await response.blob();
-        formData.append("file", blob, fileData.name);
+        formData.append('file', blob, fileData.name);
       } else {
         // React Native's FormData accepts a `{ uri, name, type }` file part at
         // runtime, but the DOM `FormData` lib types only model `string | Blob`.
-        formData.append("file", {
+        formData.append('file', {
           uri: fileData.uri,
           name: fileData.name,
           type: fileData.type,
@@ -73,7 +78,7 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
       }
 
       const res = await apiClient.post(API_ROUTES.library.upload, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
       const file: LibraryFile = {
@@ -85,7 +90,7 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
       set((state) => ({ files: [file, ...state.files] }));
       return file;
     } catch (error) {
-      console.error("Error uploading file:", error);
+      console.error('Error uploading file:', error);
       throw error;
     }
   },
@@ -97,7 +102,7 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
         files: state.files.filter((file) => file._id !== id),
       }));
     } catch (error) {
-      console.error("Error deleting file:", error);
+      console.error('Error deleting file:', error);
       throw error;
     }
   },
@@ -111,7 +116,7 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
     return get().files.filter(
       (file) =>
         file.name.toLowerCase().includes(lowerQuery) ||
-        file.type.toLowerCase().includes(lowerQuery)
+        file.type.toLowerCase().includes(lowerQuery),
     );
   },
 }));

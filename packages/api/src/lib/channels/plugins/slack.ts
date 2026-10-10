@@ -1,5 +1,10 @@
 import crypto from 'crypto';
-import type { ChannelPlugin, OutboundContext, OutboundResult, ChannelInboundMessage } from '../types.js';
+import type {
+  ChannelPlugin,
+  OutboundContext,
+  OutboundResult,
+  ChannelInboundMessage,
+} from '../types.js';
 import type { Request } from 'express';
 import { getErrorMessage } from '../../errors/index.js';
 
@@ -24,8 +29,7 @@ export const slackPlugin: ChannelPlugin = {
   },
 
   config: {
-    isConfigured: () =>
-      !!(process.env.SLACK_BOT_TOKEN && process.env.SLACK_SIGNING_SECRET),
+    isConfigured: () => !!(process.env.SLACK_BOT_TOKEN && process.env.SLACK_SIGNING_SECRET),
     getBotSecret: () => process.env.SLACK_BOT_SECRET,
     getEnvPrefix: () => 'SLACK',
   },
@@ -52,13 +56,13 @@ export const slackPlugin: ChannelPlugin = {
         const res = await fetch('https://slack.com/api/chat.postMessage', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(payload),
         });
 
-        const data = await res.json() as SlackPostMessageResponse;
+        const data = (await res.json()) as SlackPostMessageResponse;
 
         if (!data.ok) {
           return { channel: 'slack', ok: false, error: `Slack API: ${data.error}` };
@@ -82,8 +86,9 @@ export const slackPlugin: ChannelPlugin = {
 
     looksLikeTarget(raw: string): boolean {
       const trimmed = raw.trim();
-      return /^[CU][A-Z0-9]{8,}$/.test(trimmed) ||
-        /^<[@#][CU][A-Z0-9]{8,}(?:\|[^>]*)?>$/.test(trimmed);
+      return (
+        /^[CU][A-Z0-9]{8,}$/.test(trimmed) || /^<[@#][CU][A-Z0-9]{8,}(?:\|[^>]*)?>$/.test(trimmed)
+      );
     },
   },
 
@@ -101,19 +106,12 @@ export const slackPlugin: ChannelPlugin = {
       if (parseInt(timestamp, 10) < fiveMinutesAgo) return false;
 
       try {
-        const rawBody = typeof req.body === 'string'
-          ? req.body
-          : JSON.stringify(req.body);
+        const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
         const sigBasestring = `v0:${timestamp}:${rawBody}`;
-        const expected = 'v0=' + crypto
-          .createHmac('sha256', signingSecret)
-          .update(sigBasestring)
-          .digest('hex');
+        const expected =
+          'v0=' + crypto.createHmac('sha256', signingSecret).update(sigBasestring).digest('hex');
 
-        return crypto.timingSafeEqual(
-          Buffer.from(signature),
-          Buffer.from(expected)
-        );
+        return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
       } catch {
         return false;
       }

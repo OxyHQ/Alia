@@ -28,9 +28,7 @@ describe('subject registry', () => {
   it('uses the standard commerce.review type for a review rather than a custom one', () => {
     // A private vocabulary is for nouns the taxonomy has no name for. A person's
     // public opinion about somebody else's published thing already has one.
-    expect(subjectProviderFor(ReportedType.AGENT_REVIEW)?.subjectType).toBe(
-      'commerce.review',
-    );
+    expect(subjectProviderFor(ReportedType.AGENT_REVIEW)?.subjectType).toBe('commerce.review');
   });
 
   it('namespaces the two Alia-specific nouns', () => {

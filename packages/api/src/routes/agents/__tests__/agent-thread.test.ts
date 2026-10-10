@@ -69,9 +69,10 @@ vi.mock('@oxy.so/core', async () => {
           kind: state.account.kind,
           relationship: state.account.relationship,
           account: { id: accountId, kind: state.account.kind },
-          callerMembership: state.account.callerMembership === null
-            ? null
-            : { status: 'active', ...state.account.callerMembership },
+          callerMembership:
+            state.account.callerMembership === null
+              ? null
+              : { status: 'active', ...state.account.callerMembership },
         };
       }
     },
@@ -92,10 +93,15 @@ vi.mock('../../../middleware/auth.js', () => ({
   // mount ORDER rather than restating it.
   optionalAuth: signIn,
   authenticateTokenOrApiKey: signIn,
-  oxyClient: { users: { getMany: async () => state.users, byUsername: async () => {
-      if (state.profile === null) throw new NotFound('no such username');
-      return state.profile;
-    } } },
+  oxyClient: {
+    users: {
+      getMany: async () => state.users,
+      byUsername: async () => {
+        if (state.profile === null) throw new NotFound('no such username');
+        return state.profile;
+      },
+    },
+  },
 }));
 
 const repository = vi.hoisted(() => ({
@@ -182,7 +188,9 @@ beforeEach(() => {
   threads.createConversation.mockResolvedValue({ conversationId: 'conv-new' });
 });
 
-async function thread(username = 'pepe'): Promise<{ status: number; body: Record<string, unknown> }> {
+async function thread(
+  username = 'pepe',
+): Promise<{ status: number; body: Record<string, unknown> }> {
   const res = await fetch(`${baseUrl}/agents/thread/${username}`);
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
@@ -278,9 +286,7 @@ describe('the route is reachable, and resolves the pair', () => {
       relationship: 'owner',
       callerMembership: { permissions: ['account:act_as'] },
     };
-    state.users = [
-      { id: 'acct-bot', username: 'activity', name: { displayName: 'Activity' } },
-    ];
+    state.users = [{ id: 'acct-bot', username: 'activity', name: { displayName: 'Activity' } }];
 
     const res = await thread('activity');
 

@@ -15,8 +15,12 @@ describe('missing conversation recovery', () => {
     expect(conversations).toMatch(
       /if \(status === 404\) \{\s*await removeStoredConversation\(id\);\s*throw new ConversationNotFoundError\(id\);\s*\}/,
     );
-    expect(conversations).toMatch(/if \(status === 401\) \{\s*const stored = await offlineConversations\.getItem/);
-    expect(conversations).not.toMatch(/status === 401 \|\| (?:errorStatus\(error\)|status) === 404/);
+    expect(conversations).toMatch(
+      /if \(status === 401\) \{\s*const stored = await offlineConversations\.getItem/,
+    );
+    expect(conversations).not.toMatch(
+      /status === 401 \|\| (?:errorStatus\(error\)|status) === 404/,
+    );
   });
 
   it('leaves an invalid conversation URL and refreshes the visible list', () => {

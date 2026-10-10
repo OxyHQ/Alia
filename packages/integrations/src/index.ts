@@ -84,11 +84,17 @@ async function loadAdapters(): Promise<void> {
 
 const ADAPTER_INIT_TIMEOUT_MS = 30_000;
 
-async function initAdapterWithTimeout(adapter: { name: string; initialize(): Promise<void> }): Promise<void> {
+async function initAdapterWithTimeout(adapter: {
+  name: string;
+  initialize(): Promise<void>;
+}): Promise<void> {
   await Promise.race([
     adapter.initialize(),
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Timed out after ${ADAPTER_INIT_TIMEOUT_MS / 1000}s`)), ADAPTER_INIT_TIMEOUT_MS),
+      setTimeout(
+        () => reject(new Error(`Timed out after ${ADAPTER_INIT_TIMEOUT_MS / 1000}s`)),
+        ADAPTER_INIT_TIMEOUT_MS,
+      ),
     ),
   ]);
 }
@@ -132,7 +138,11 @@ async function main() {
   const { verifySecret } = await import('@oxy.so/core/server');
 
   // Auth middleware
-  const requireSecret = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
+  const requireSecret = (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ): void => {
     const secret = req.headers['x-gateway-secret'] as string;
     if (!secret || !verifySecret(secret, INTEGRATIONS_SECRET)) {
       res.status(401).json({ error: 'Invalid gateway secret' });
@@ -148,7 +158,11 @@ async function main() {
    * here so the in-memory session Map can never be addressed across users even
    * if the gateway secret leaks or a path is forged.
    */
-  const requireSessionOwner = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
+  const requireSessionOwner = (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ): void => {
     const ownerUserId = req.headers['x-oxy-user-id'] as string | undefined;
     if (!ownerUserId || !/^[a-f0-9]{24}$/i.test(ownerUserId)) {
       res.status(401).json({ error: 'User context required' });
@@ -229,7 +243,13 @@ async function main() {
 
     activity?.observeWebSocket(ws, {
       activityType: 'communication',
-      getPeer: () => ({ service: 'alia', region: typeof request.headers['x-oxy-source-region'] === 'string' ? request.headers['x-oxy-source-region'] : undefined }),
+      getPeer: () => ({
+        service: 'alia',
+        region:
+          typeof request.headers['x-oxy-source-region'] === 'string'
+            ? request.headers['x-oxy-source-region']
+            : undefined,
+      }),
     });
     const ownerUserId = verdict.userId;
     ws.on('message', (data) => {

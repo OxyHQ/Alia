@@ -60,8 +60,10 @@ function fenced(body: string): string {
 
 function failure(error: unknown): string {
   if (error instanceof ComputerHostError) {
-    if (error.code === 'capacity') return 'Error: every computer slot is in use right now. Try again in a few minutes.';
-    if (error.code === 'busy') return 'Error: your computer is busy with another operation. Wait for it and try again.';
+    if (error.code === 'capacity')
+      return 'Error: every computer slot is in use right now. Try again in a few minutes.';
+    if (error.code === 'busy')
+      return 'Error: your computer is busy with another operation. Wait for it and try again.';
     if (error.code === 'host_waking' || error.code === 'host_stopping') {
       return 'Your computer is starting — it sleeps when nobody uses it, to save cost. Try the same call again in about a minute; nothing was run.';
     }
@@ -81,7 +83,11 @@ function failure(error: unknown): string {
  * has to remember across a ten-minute gap; an explicit `computer_start` is
  * still offered for when it wants to.
  */
-async function withRunning<T>(client: ComputerClient, actorId: string, work: () => Promise<T>): Promise<T> {
+async function withRunning<T>(
+  client: ComputerClient,
+  actorId: string,
+  work: () => Promise<T>,
+): Promise<T> {
   try {
     return await work();
   } catch (error) {
@@ -174,8 +180,14 @@ export function buildComputerTools(options: {
         UNTRUSTED_NOTE,
       inputSchema: z.object({
         command: z.string().min(1).max(16_000).describe('The bash command'),
-        cwd: pathSchema.optional().describe('Working directory inside /workspace (default /workspace)'),
-        operationId: z.string().min(1).max(64).describe('A short id unique to this command, e.g. "install-deps-1"'),
+        cwd: pathSchema
+          .optional()
+          .describe('Working directory inside /workspace (default /workspace)'),
+        operationId: z
+          .string()
+          .min(1)
+          .max(64)
+          .describe('A short id unique to this command, e.g. "install-deps-1"'),
         timeoutSeconds: z.number().int().min(1).max(300).optional(),
         background: z.boolean().optional(),
       }),
@@ -188,7 +200,9 @@ export function buildComputerTools(options: {
             ...(timeoutSeconds === undefined ? {} : { timeoutSeconds }),
             ...(background === undefined ? {} : { background }),
           };
-          return describeReceipt(await withRunning(client, actorId, () => client.run(actorId, input)));
+          return describeReceipt(
+            await withRunning(client, actorId, () => client.run(actorId, input)),
+          );
         } catch (error) {
           return failure(error);
         }
@@ -200,9 +214,12 @@ export function buildComputerTools(options: {
       inputSchema: z.object({ path: pathSchema.optional() }),
       execute: async ({ path }) => {
         try {
-          const listing = await withRunning(client, actorId, () => client.list(actorId, path ?? '/workspace'));
-          const lines = listing.entries.map((entry) =>
-            `${entry.type === 'directory' ? 'dir ' : entry.type === 'file' ? 'file' : entry.type} ${entry.path}${entry.type === 'file' ? ` (${entry.size} B)` : ''}`,
+          const listing = await withRunning(client, actorId, () =>
+            client.list(actorId, path ?? '/workspace'),
+          );
+          const lines = listing.entries.map(
+            (entry) =>
+              `${entry.type === 'directory' ? 'dir ' : entry.type === 'file' ? 'file' : entry.type} ${entry.path}${entry.type === 'file' ? ` (${entry.size} B)` : ''}`,
           );
           if (listing.truncated) lines.push('(listing truncated at 1000 entries)');
           return fenced(lines.length ? lines.join('\n') : `${listing.path} is empty`);
@@ -230,7 +247,10 @@ export function buildComputerTools(options: {
         "Write a UTF-8 text file (up to 256 KB) in your computer's /workspace, replacing it if it exists. Missing parent directories are created.",
       inputSchema: z.object({
         path: pathSchema,
-        text: z.string().max(256 * 1024).describe('The full new contents of the file'),
+        text: z
+          .string()
+          .max(256 * 1024)
+          .describe('The full new contents of the file'),
       }),
       execute: async ({ path, text }) => {
         try {

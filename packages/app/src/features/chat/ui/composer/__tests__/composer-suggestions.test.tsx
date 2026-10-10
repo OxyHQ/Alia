@@ -68,7 +68,8 @@ function key(name: string) {
       event.defaultPrevented = true;
     },
   };
-  return event as typeof event & Parameters<ReturnType<typeof useComposerSuggestions>['onKeyPress']>[0];
+  return event as typeof event &
+    Parameters<ReturnType<typeof useComposerSuggestions>['onKeyPress']>[0];
 }
 
 describe('composerCompletions', () => {
@@ -78,7 +79,9 @@ describe('composerCompletions', () => {
 
   it('switches to the matches from two characters, with the typed range', () => {
     const rows = composerCompletions('lis', WELCOME, [suggestion('m1', 'Trip to Lisbon')]);
-    expect(rows).toEqual([{ suggestion: suggestion('m1', 'Trip to Lisbon'), matchStart: 8, matchEnd: 11 }]);
+    expect(rows).toEqual([
+      { suggestion: suggestion('m1', 'Trip to Lisbon'), matchStart: 8, matchEnd: 11 },
+    ]);
   });
 
   it('drops repeated texts and stops at six rows', () => {
@@ -162,7 +165,9 @@ describe('ComposerSuggestions', () => {
     const r = renderer as ReactTestRenderer;
     const [item] = all(r, 'Item');
     expect(item.props.highlighted).toBe(true);
-    const highlight = all(r, 'Text').find((node) => node.props.className === 'font-medium text-primary');
+    const highlight = all(r, 'Text').find(
+      (node) => node.props.className === 'font-medium text-primary',
+    );
     expect(highlight?.props.children).toBe('Lis');
     act(() => item.props.onPress());
     expect(onPick).toHaveBeenCalledWith(rows[0].suggestion);

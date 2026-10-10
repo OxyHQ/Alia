@@ -93,17 +93,19 @@ const THREAD = {
 };
 
 vi.mock('../../../db/agents/agentRuntimeRepository.js', () => ({
-  findAgentThread: vi.fn(async (_db: unknown, oxyUserId: string) => (
-    oxyUserId === state.userId ? { ...THREAD, oxyUserId } : undefined
-  )),
+  findAgentThread: vi.fn(async (_db: unknown, oxyUserId: string) =>
+    oxyUserId === state.userId ? { ...THREAD, oxyUserId } : undefined,
+  ),
   createAgentGoal: vi.fn(async (_db: unknown, input: Record<string, unknown>) => ({
     goal: { id: 'goal-1', status: 'active', ...input },
     created: true,
   })),
-  withAgentAdmission: vi.fn(async (_db: unknown, _admission: unknown, _max: number, callback: () => Promise<unknown>) => ({
-    admitted: true,
-    value: await callback(),
-  })),
+  withAgentAdmission: vi.fn(
+    async (_db: unknown, _admission: unknown, _max: number, callback: () => Promise<unknown>) => ({
+      admitted: true,
+      value: await callback(),
+    }),
+  ),
   createAgentThread: vi.fn(),
   listAgentThreads: vi.fn(async () => []),
   updateAgentThread: vi.fn(),
@@ -142,7 +144,8 @@ vi.mock('../../../db/agents/agentRepository.js', async () => {
  */
 vi.mock('../../../db/index.js', () => {
   const chain: Record<string, unknown> = {};
-  for (const method of ['update', 'set', 'where', 'select', 'from', 'limit']) chain[method] = () => chain;
+  for (const method of ['update', 'set', 'where', 'select', 'from', 'limit'])
+    chain[method] = () => chain;
   (chain as { then: unknown }).then = (resolve: (value: unknown[]) => unknown) => resolve([]);
   return { getDb: () => chain };
 });
@@ -299,11 +302,16 @@ describe('hiring a PUBLIC agent', () => {
     const res = await hire();
 
     expect(res.status).toBe(202);
-    expect(session.start).toHaveBeenCalledWith(expect.objectContaining({
-      threadId: 'thread-1',
-      goalId: 'goal-1',
-    }));
-    expect(vi.mocked(withAgentAdmission).mock.calls[0]?.[1]).toEqual({ agentId: 'agent-1', oxyUserId: state.userId });
+    expect(session.start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: 'thread-1',
+        goalId: 'goal-1',
+      }),
+    );
+    expect(vi.mocked(withAgentAdmission).mock.calls[0]?.[1]).toEqual({
+      agentId: 'agent-1',
+      oxyUserId: state.userId,
+    });
   });
 
   it('is still refused when the agent is not active', async () => {

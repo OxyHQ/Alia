@@ -31,19 +31,23 @@ export class AgentTurnCoordinator {
     const conversation = input.conversationId
       ? await findConversation(getDb(), input.oxyUserId, input.conversationId)
       : undefined;
-    const admission = await withAgentAdmission(getDb(), { agentId: input.agent._id, oxyUserId: input.oxyUserId }, input.agent.maxConcurrentThreads, (tx) =>
-      createAgentSession(tx, {
-        agentId: input.agent._id,
-        oxyUserId: input.oxyUserId,
-        task: input.task.slice(0, 2000) || 'Continue the agent thread',
-        status: 'running',
-        // The route has an 80-second hard deadline. This explicit two-minute
-        // lease covers that request with margin and is the proof admission uses
-        // after a process/socket dies; autonomous sessions have no chat lease.
-        chatLeaseExpiresAt: new Date(Date.now() + 120_000),
-        threadId: conversation?.agentThreadId ?? undefined,
-        conversationId: input.conversationId,
-      }),
+    const admission = await withAgentAdmission(
+      getDb(),
+      { agentId: input.agent._id, oxyUserId: input.oxyUserId },
+      input.agent.maxConcurrentThreads,
+      (tx) =>
+        createAgentSession(tx, {
+          agentId: input.agent._id,
+          oxyUserId: input.oxyUserId,
+          task: input.task.slice(0, 2000) || 'Continue the agent thread',
+          status: 'running',
+          // The route has an 80-second hard deadline. This explicit two-minute
+          // lease covers that request with margin and is the proof admission uses
+          // after a process/socket dies; autonomous sessions have no chat lease.
+          chatLeaseExpiresAt: new Date(Date.now() + 120_000),
+          threadId: conversation?.agentThreadId ?? undefined,
+          conversationId: input.conversationId,
+        }),
     );
     if (!admission.admitted) throw new Error('Agent concurrency limit reached');
     const session = admission.value;
@@ -61,7 +65,9 @@ export class AgentTurnCoordinator {
       todoManager,
       browserSession,
       eventStream,
-      onComplete: (result) => { completedResult = result; },
+      onComplete: (result) => {
+        completedResult = result;
+      },
       /**
        * A chat turn has 80 seconds. Work that needs longer is handed to a
        * durable background run of the same agent, which resumes across
@@ -72,15 +78,17 @@ export class AgentTurnCoordinator {
           getDb(),
           { agentId: input.agent._id, oxyUserId: input.oxyUserId },
           input.agent.maxConcurrentThreads,
-          () => startAgentSession({
-            agent: input.agent,
-            userId: input.oxyUserId,
-            task: task.slice(0, 2000),
-            origin: 'delegation',
-            ...(conversation?.agentThreadId ? { threadId: conversation.agentThreadId } : {}),
-          }),
+          () =>
+            startAgentSession({
+              agent: input.agent,
+              userId: input.oxyUserId,
+              task: task.slice(0, 2000),
+              origin: 'delegation',
+              ...(conversation?.agentThreadId ? { threadId: conversation.agentThreadId } : {}),
+            }),
         );
-        if (!admission.admitted) return 'Not started: you already have as much work running for this person as you may. Tell them, and do what you can now.';
+        if (!admission.admitted)
+          return 'Not started: you already have as much work running for this person as you may. Tell them, and do what you can now.';
         const handoff = admission.value;
         if (!handoff.ok) {
           return handoff.reason === 'insufficient_credits'
@@ -118,8 +126,10 @@ export class AgentTurnCoordinator {
     return {
       id: session._id,
       runtime,
-      complete: async (result = completedResult ?? 'Completed in the agent thread') => settle('completed', result),
-      fail: async (error) => settle('failed', error instanceof Error ? error.message : String(error)),
+      complete: async (result = completedResult ?? 'Completed in the agent thread') =>
+        settle('completed', result),
+      fail: async (error) =>
+        settle('failed', error instanceof Error ? error.message : String(error)),
     };
   }
 }

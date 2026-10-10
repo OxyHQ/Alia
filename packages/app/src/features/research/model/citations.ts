@@ -45,7 +45,10 @@ export function normalizeCitationMarkers(text: string, knownIds?: Iterable<numbe
     .replace(FULLWIDTH_MARKER_RE, '[$1]')
     .replace(ASCII_DAGGER_MARKER_RE, '[$1]')
     .replace(COMMA_LIST_RE, (_m, list: string) =>
-      list.split(',').map((n) => `[${n.trim()}]`).join(''),
+      list
+        .split(',')
+        .map((n) => `[${n.trim()}]`)
+        .join(''),
     );
 
   if (known && known.size > 0) {
@@ -90,7 +93,10 @@ export function extractCitationSources(
     const id = typeof raw.id === 'number' ? raw.id : Number(raw.id);
     const url = typeof raw.url === 'string' ? raw.url : '';
     if (!Number.isInteger(id) || id < 1 || url.length === 0 || byId.has(id)) return;
-    const title = typeof raw.title === 'string' && raw.title.trim().length > 0 ? raw.title.trim() : domainOf(url);
+    const title =
+      typeof raw.title === 'string' && raw.title.trim().length > 0
+        ? raw.title.trim()
+        : domainOf(url);
     byId.set(id, { id, url, title, domain: domainOf(url) });
   };
 
@@ -147,7 +153,8 @@ export interface ReferenceEntry {
  * rule; the app-side heading is matched loosely so an older answer, or one
  * written in Spanish by the model itself, splits the same way.
  */
-const REFERENCES_HEADING_RE = /(?:^|\n)(?:---\s*\n+)?#{1,3}\s*(?:References|Referencias|Sources|Fuentes)\s*:?\s*(?:\n|$)/i;
+const REFERENCES_HEADING_RE =
+  /(?:^|\n)(?:---\s*\n+)?#{1,3}\s*(?:References|Referencias|Sources|Fuentes)\s*:?\s*(?:\n|$)/i;
 
 /** `[n] [Title](url)` (new) or `[n] Title` + a URL line (legacy). */
 const REFERENCE_LINE_RE = /^\s*\[(\d{1,3})\]\s*(.*)$/;
@@ -185,7 +192,13 @@ export function splitReferences(
     let title = link ? link[1] : rest.replace(URL_RE, '').replace(/\s+/g, ' ').trim();
     if (!url && known) url = known.url;
     if (!title) title = known?.title ?? (url ? domainOf(url) : '');
-    if (url) entries.push({ id: current.id, title: title.replace(/\\([[\]])/g, '$1'), url, domain: domainOf(url) });
+    if (url)
+      entries.push({
+        id: current.id,
+        title: title.replace(/\\([[\]])/g, '$1'),
+        url,
+        domain: domainOf(url),
+      });
     current = null;
   };
 

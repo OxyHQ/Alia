@@ -36,7 +36,16 @@ export type MessageVote = (typeof MESSAGE_VOTES)[number];
  * widens the constraint to match. This is a validator that never ran becoming a
  * constraint that does, resolved by making the constraint true.
  */
-export const CONVERSATION_SOURCES = ['app', 'telegram', 'api', 'web', 'discord', 'whatsapp', 'slack', 'signal'] as const;
+export const CONVERSATION_SOURCES = [
+  'app',
+  'telegram',
+  'api',
+  'web',
+  'discord',
+  'whatsapp',
+  'slack',
+  'signal',
+] as const;
 export type ConversationSource = (typeof CONVERSATION_SOURCES)[number];
 
 /**

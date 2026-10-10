@@ -105,7 +105,11 @@ describe('AliaServerClient — the request', () => {
 
     const error = await client.stream(turn).catch((reason: unknown) => reason);
     expect(error).toBeInstanceOf(AliaRequestError);
-    expect(error).toMatchObject({ name: 'AliaRequestError', status: 403, code: 'SERVICE_ACTING_AS_UNAUTHORIZED' });
+    expect(error).toMatchObject({
+      name: 'AliaRequestError',
+      status: 403,
+      code: 'SERVICE_ACTING_AS_UNAUTHORIZED',
+    });
     expect(JSON.stringify(error)).not.toContain('private upstream detail');
     expect(String((error as Error).message)).not.toContain('private upstream detail');
   });
@@ -222,7 +226,11 @@ describe('AliaServerClient — the stream the API actually writes', () => {
 
   it('turns an in-stream error payload into an error event carrying the server code', async () => {
     const wire = aliaStream();
-    wire.error({ message: 'The agent is unavailable.', type: 'server_error', code: 'agent_unavailable' });
+    wire.error({
+      message: 'The agent is unavailable.',
+      type: 'server_error',
+      code: 'agent_unavailable',
+    });
     const { client } = clientFor(sseResponse(wire.wire()));
 
     expect(await collect(await client.stream(turn))).toEqual([
@@ -321,10 +329,14 @@ describe('AliaServerClient — the stream the API actually writes', () => {
   it('names the shape of a chunk it cannot read, and never its content', async () => {
     const secret = 'the person asked about 12 Privet Drive';
     const { client } = clientFor(
-      sseResponse(`data: ${JSON.stringify({ id: 'x', prompt: secret, choices: 'nope' })}\n\ndata: [DONE]\n\n`),
+      sseResponse(
+        `data: ${JSON.stringify({ id: 'x', prompt: secret, choices: 'nope' })}\n\ndata: [DONE]\n\n`,
+      ),
     );
 
-    const error = (await collect(await client.stream(turn)).catch((reason: unknown) => reason)) as AliaStreamError;
+    const error = (await collect(await client.stream(turn)).catch(
+      (reason: unknown) => reason,
+    )) as AliaStreamError;
     expect(error).toBeInstanceOf(AliaStreamError);
     expect(error.failure).toBe('unexpected_chunk');
     expect(error.shape).toEqual({ keys: ['id', 'prompt', 'choices'], choices: 'string' });

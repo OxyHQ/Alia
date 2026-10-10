@@ -9,7 +9,6 @@ import Animated, {
   cancelAnimation,
 } from 'react-native-reanimated';
 
-
 // Context
 type ReasoningContextType = {
   isStreaming: boolean;
@@ -43,7 +42,12 @@ interface ReasoningContentProps {
 }
 
 // Reasoning wrapper — manages open/close state with auto-open during streaming
-export function Reasoning({ isStreaming = false, defaultOpen = true, duration: externalDuration, children }: ReasoningProps) {
+export function Reasoning({
+  isStreaming = false,
+  defaultOpen = true,
+  duration: externalDuration,
+  children,
+}: ReasoningProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [duration, setDuration] = useState<number | undefined>(externalDuration);
   const startTimeRef = useRef<number | null>(null);
@@ -59,16 +63,23 @@ export function Reasoning({ isStreaming = false, defaultOpen = true, duration: e
         }
       }, 1000);
     } else {
-      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
       if (startTimeRef.current !== null) {
         const t = setTimeout(() => setIsOpen(false), 500);
         return () => clearTimeout(t);
       }
     }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, [isStreaming]);
 
-  useEffect(() => { if (externalDuration !== undefined) setDuration(externalDuration); }, [externalDuration]);
+  useEffect(() => {
+    if (externalDuration !== undefined) setDuration(externalDuration);
+  }, [externalDuration]);
 
   return (
     <ReasoningContext.Provider value={{ isStreaming, isOpen, setIsOpen, duration }}>
@@ -84,7 +95,11 @@ export function ReasoningTrigger({ onPress }: ReasoningTriggerProps) {
 
   useEffect(() => {
     if (isStreaming) {
-      pulseOpacity.value = withRepeat(withSequence(withTiming(0.4, { duration: 800 }), withTiming(1, { duration: 800 })), -1, false);
+      pulseOpacity.value = withRepeat(
+        withSequence(withTiming(0.4, { duration: 800 }), withTiming(1, { duration: 800 })),
+        -1,
+        false,
+      );
     } else {
       cancelAnimation(pulseOpacity);
       pulseOpacity.value = 1;
@@ -94,8 +109,12 @@ export function ReasoningTrigger({ onPress }: ReasoningTriggerProps) {
   const pulseStyle = useAnimatedStyle(() => ({ opacity: pulseOpacity.value }));
 
   const message = isStreaming
-    ? (duration ? `Thinking for ${duration}s...` : 'Thinking...')
-    : (duration ? `Thought for ${duration} seconds` : 'Reasoning');
+    ? duration
+      ? `Thinking for ${duration}s...`
+      : 'Thinking...'
+    : duration
+      ? `Thought for ${duration} seconds`
+      : 'Reasoning';
 
   const handlePress = onPress || (() => setIsOpen(!isOpen));
 
@@ -105,7 +124,9 @@ export function ReasoningTrigger({ onPress }: ReasoningTriggerProps) {
         <Text style={{ color: '#a855f7', fontSize: 14 }}>{'\u2726'}</Text>
       </Animated.View>
       <Text style={[styles.triggerText, { color: '#a855f7' }]}>{message}</Text>
-      <Text style={{ color: '#a855f7', fontSize: 14 }}>{onPress ? '\u203A' : (isOpen ? '\u25BE' : '\u25B8')}</Text>
+      <Text style={{ color: '#a855f7', fontSize: 14 }}>
+        {onPress ? '\u203A' : isOpen ? '\u25BE' : '\u25B8'}
+      </Text>
     </Pressable>
   );
 }
@@ -120,7 +141,9 @@ export function ReasoningContent({ children }: ReasoningContentProps) {
   const { AliaMarkdown } = require('./Markdown');
 
   return (
-    <View style={[styles.contentWrapper, { backgroundColor: '#a855f710', borderColor: '#a855f730' }]}>
+    <View
+      style={[styles.contentWrapper, { backgroundColor: '#a855f710', borderColor: '#a855f730' }]}
+    >
       <View style={{ opacity: isStreaming ? 0.8 : 1 }}>
         <AliaMarkdown content={children} />
       </View>

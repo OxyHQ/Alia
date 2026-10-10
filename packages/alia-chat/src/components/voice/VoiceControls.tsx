@@ -77,7 +77,11 @@ export function VoiceControls({
   return (
     <View style={styles.container}>
       {statusText ? (
-        <Text className="text-lg font-medium mb-4 text-foreground" accessibilityLiveRegion="polite" aria-live="polite">
+        <Text
+          className="text-lg font-medium mb-4 text-foreground"
+          accessibilityLiveRegion="polite"
+          aria-live="polite"
+        >
           {statusText}
         </Text>
       ) : null}
@@ -94,11 +98,7 @@ export function VoiceControls({
               className={isMuted ? undefined : 'bg-muted'}
               style={[styles.button, isMuted ? { backgroundColor: '#ef4444' } : undefined]}
             >
-              {isMuted ? (
-                <MicOff size={24} color="white" />
-              ) : (
-                <Mic size={24} color="white" />
-              )}
+              {isMuted ? <MicOff size={24} color="white" /> : <Mic size={24} color="white" />}
             </Pressable>
             <Text className="text-xs text-muted-foreground">
               {isMuted ? labels.unmute : labels.mute}

@@ -16,12 +16,16 @@ const OXY_API_URL = (process.env.OXY_API_URL || 'https://api.oxy.so').replace(/\
 const AUTHORITY_TIMEOUT_MS = 15_000;
 const SERVICE_IDENTITY_KEY = 'alia';
 
-const serviceIdentityResponseSchema = z.object({
-  service: z.object({
-    applicationId: z.string().min(1),
-    credentialId: z.string().min(1),
-  }).passthrough(),
-}).passthrough();
+const serviceIdentityResponseSchema = z
+  .object({
+    service: z
+      .object({
+        applicationId: z.string().min(1),
+        credentialId: z.string().min(1),
+      })
+      .passthrough(),
+  })
+  .passthrough();
 
 const serviceIdentityCache = new TTLCache<{ applicationId: string; credentialId: string }>({
   ttlMs: 60_000,
@@ -58,7 +62,9 @@ async function serviceRequest(path: string): Promise<unknown> {
     signal: AbortSignal.timeout(AUTHORITY_TIMEOUT_MS),
   });
   if (!response.ok) {
-    throw new Error(`Oxy service authority error (${response.status}): ${(await response.text()).slice(0, 240)}`);
+    throw new Error(
+      `Oxy service authority error (${response.status}): ${(await response.text()).slice(0, 240)}`,
+    );
   }
   return response.json();
 }
@@ -85,26 +91,43 @@ export async function createOxyExecutionAuthorization(
     ownerAccountId: input.ownerAccountId,
     coordinatorApplicationId: coordinator.applicationId,
     coordinatorCredentialId: coordinator.credentialId,
-    actor: input.actor, resource: input.resource, tool: input.tool,
-    limits: input.limits, expiresAt: input.expiresAt.toISOString(),
+    actor: input.actor,
+    resource: input.resource,
+    tool: input.tool,
+    limits: input.limits,
+    expiresAt: input.expiresAt.toISOString(),
   };
   if (input.kind === 'automation') {
     if (!input.automationId || input.runId !== undefined || input.stepId !== undefined) {
       throw new Error('Automation authority requires an automation identity, not a run');
     }
-    return (await client.agency.createExecutionAuthorization({
-      ...terms, kind: 'automation', automationId: input.automationId,
-      maximumAutonomy: input.maximumAutonomy,
-    }, { requesterToken: input.accessToken })).id;
+    return (
+      await client.agency.createExecutionAuthorization(
+        {
+          ...terms,
+          kind: 'automation',
+          automationId: input.automationId,
+          maximumAutonomy: input.maximumAutonomy,
+        },
+        { requesterToken: input.accessToken },
+      )
+    ).id;
   }
   if (!input.runId || input.automationId !== undefined || input.maximumAutonomy === 'autonomous') {
     throw new Error('Direct authority requires a live requester and named run');
   }
-  return (await client.agency.createExecutionAuthorization({
-    ...terms, kind: 'direct_request', runId: input.runId,
-    ...(input.stepId ? { stepId: input.stepId } : {}),
-    maximumAutonomy: input.maximumAutonomy,
-  }, { requesterToken: input.accessToken })).id;
+  return (
+    await client.agency.createExecutionAuthorization(
+      {
+        ...terms,
+        kind: 'direct_request',
+        runId: input.runId,
+        ...(input.stepId ? { stepId: input.stepId } : {}),
+        maximumAutonomy: input.maximumAutonomy,
+      },
+      { requesterToken: input.accessToken },
+    )
+  ).id;
 }
 
 /** Canonical requester-authenticated retirement; no local HTTP fallback. */
@@ -115,16 +138,20 @@ export async function revokeOxyExecutionAuthorization(
   const client = oxyServiceClient();
   if (!client) throw new Error('Requester authority is unavailable');
   try {
-    await client.agency.revokeExecutionAuthorization(authorizationId, { requesterToken: accessToken });
+    await client.agency.revokeExecutionAuthorization(authorizationId, {
+      requesterToken: accessToken,
+    });
   } catch (error) {
     // Preserve the domain's idempotent absent-row retirement contract.
     if (getErrorStatus(error) !== 404) throw error;
   }
 }
 
-const agentRunAuthorizationResponseSchema = z.object({
-  authorization: z.object({ id: z.string().min(1) }).passthrough(),
-}).passthrough();
+const agentRunAuthorizationResponseSchema = z
+  .object({
+    authorization: z.object({ id: z.string().min(1) }).passthrough(),
+  })
+  .passthrough();
 
 export interface CreateOxyAgentRunAuthorizationInput {
   /** The agent's bot account: the actor. */
@@ -170,7 +197,9 @@ export async function createOxyAgentRunAuthorization(
     signal: AbortSignal.timeout(AUTHORITY_TIMEOUT_MS),
   });
   if (!response.ok) {
-    throw new Error(`Oxy agent-run authority error (${response.status}): ${(await response.text()).slice(0, 240)}`);
+    throw new Error(
+      `Oxy agent-run authority error (${response.status}): ${(await response.text()).slice(0, 240)}`,
+    );
   }
   return agentRunAuthorizationResponseSchema.parse(await response.json()).authorization.id;
 }

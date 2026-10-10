@@ -146,7 +146,11 @@ export class ComputerService {
 
   private async tracked<T>(work: () => Promise<T>): Promise<T> {
     if (this.drainingUntil > this.now()) {
-      throw new HostError('The computer host is shutting down to save cost; it will start again on the next request', 503, 'host_stopping');
+      throw new HostError(
+        'The computer host is shutting down to save cost; it will start again on the next request',
+        503,
+        'host_stopping',
+      );
     }
     this.inFlight += 1;
     this.epoch += 1;
@@ -208,9 +212,13 @@ export class ComputerService {
 
   private async checked(args: string[], timeoutMs = CONTROL_TIMEOUT_MS): Promise<string> {
     const result = await this.options.docker(args, { timeoutMs });
-    if (result.timedOut) throw new HostError('Docker did not respond in time', 503, 'docker_timeout');
+    if (result.timedOut)
+      throw new HostError('Docker did not respond in time', 503, 'docker_timeout');
     if (result.interrupted || result.exitCode !== 0 || result.truncated) {
-      this.options.log.warn({ op: args.slice(0, 2).join(' '), exitCode: result.exitCode }, 'docker operation failed');
+      this.options.log.warn(
+        { op: args.slice(0, 2).join(' '), exitCode: result.exitCode },
+        'docker operation failed',
+      );
       throw new HostError('Docker operation failed', 503, 'docker_failed');
     }
     return result.stdout;
@@ -223,7 +231,15 @@ export class ComputerService {
    */
   private async inspect(identity: ComputerIdentity): Promise<Inspection | undefined> {
     const found = (
-      await this.checked(['container', 'ls', '--all', '--filter', `name=^/${identity.container}$`, '--format', '{{.ID}}'])
+      await this.checked([
+        'container',
+        'ls',
+        '--all',
+        '--filter',
+        `name=^/${identity.container}$`,
+        '--format',
+        '{{.ID}}',
+      ])
     ).trim();
     if (!found) return undefined;
     let raw: unknown;
@@ -233,9 +249,17 @@ export class ComputerService {
       if (error instanceof HostError) throw error;
       raw = null;
     }
-    const { inspection, violations } = isolationViolations(raw, identity, this.config.image, this.config.runtime);
+    const { inspection, violations } = isolationViolations(
+      raw,
+      identity,
+      this.config.image,
+      this.config.runtime,
+    );
     if (!inspection || violations.length > 0) {
-      this.options.log.error({ actor: identity.actorHash, violations }, 'refusing to attach to a container that is not to spec');
+      this.options.log.error(
+        { actor: identity.actorHash, violations },
+        'refusing to attach to a container that is not to spec',
+      );
       throw new HostError(
         'The computer does not match its isolation contract; refusing to use it',
         409,
@@ -256,8 +280,15 @@ export class ComputerService {
     }
     const violations = volumeViolations(raw, identity);
     if (violations.length > 0) {
-      this.options.log.error({ actor: identity.actorHash, violations }, 'refusing a workspace volume that is not to spec');
-      throw new HostError('The workspace volume does not match its isolation contract', 409, 'isolation_mismatch');
+      this.options.log.error(
+        { actor: identity.actorHash, violations },
+        'refusing a workspace volume that is not to spec',
+      );
+      throw new HostError(
+        'The workspace volume does not match its isolation contract',
+        409,
+        'isolation_mismatch',
+      );
     }
   }
 
@@ -268,12 +299,18 @@ export class ComputerService {
 
   private async runningContainers(): Promise<string[]> {
     const out = await this.checked([
-      'container', 'ls',
+      'container',
+      'ls',
       ...managedFilter(this.config.deploymentId),
-      '--filter', 'status=running',
-      '--format', '{{.Label "onl.alia.computer.actor"}}',
+      '--filter',
+      'status=running',
+      '--format',
+      '{{.Label "onl.alia.computer.actor"}}',
     ]);
-    return out.split('\n').map((line) => line.trim()).filter(Boolean);
+    return out
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
   }
 
   // ── Leases ──
@@ -285,7 +322,12 @@ export class ComputerService {
     work: (lease: Lease) => Promise<T>,
   ): Promise<T> {
     const lease = await this.options.store.acquireLease(identity.actorHash, kind, ttlMs);
-    if (!lease) throw new HostError('The computer is busy with another operation; try again shortly', 409, 'busy');
+    if (!lease)
+      throw new HostError(
+        'The computer is busy with another operation; try again shortly',
+        409,
+        'busy',
+      );
     try {
       return await work(lease);
     } finally {
@@ -319,34 +361,56 @@ export class ComputerService {
 
   async start(actorId: string): Promise<ComputerStatus> {
     const identity = this.identity(actorId);
-    await this.tracked(() => this.exclusive(identity, 'operation', OPERATION_LEASE_MS, async () => {
-      // A container left behind STOPPED — the instance itself was stopped or
-      // interrupted under it — is removed rather than restarted: the next one
-      // is created fresh from today's image on the same volume, which is the
-      // whole ephemeral-container contract.
-      const state = (
-        await this.checked(['container', 'ls', '--all', '--filter', `name=^/${identity.container}$`, '--format', '{{.State}}'])
-      ).trim();
-      if (state && state !== 'running') await this.checked(['container', 'rm', '--force', identity.container]);
-      const existing = await this.inspect(identity);
-      if (existing?.State.Running) return;
-      const running = await this.runningContainers();
-      const reserved = this.options.reservedSlots ? await this.options.reservedSlots() : 0;
-      if (running.length + reserved >= this.config.maxRunning) {
-        throw new HostError('Every computer slot on this host is in use; try again in a few minutes', 503, 'capacity');
-      }
-      const volume = (
-        await this.checked(['volume', 'ls', '--filter', `name=^${identity.volume}$`, '--format', '{{.Name}}'])
-      ).trim();
-      if (!volume) await this.checked(volumeCreateArgs(identity));
-      await this.verifyVolume(identity);
-      await this.checked(createArgs(identity, this.config.image, this.config.runtime));
-      // Inspect what Docker actually built before starting it: a daemon that
-      // silently dropped a flag is caught here rather than after code ran.
-      await this.inspect(identity);
-      await this.checked(['container', 'start', identity.container]);
-      this.options.log.info({ actor: identity.actorHash }, 'computer started');
-    }));
+    await this.tracked(() =>
+      this.exclusive(identity, 'operation', OPERATION_LEASE_MS, async () => {
+        // A container left behind STOPPED — the instance itself was stopped or
+        // interrupted under it — is removed rather than restarted: the next one
+        // is created fresh from today's image on the same volume, which is the
+        // whole ephemeral-container contract.
+        const state = (
+          await this.checked([
+            'container',
+            'ls',
+            '--all',
+            '--filter',
+            `name=^/${identity.container}$`,
+            '--format',
+            '{{.State}}',
+          ])
+        ).trim();
+        if (state && state !== 'running')
+          await this.checked(['container', 'rm', '--force', identity.container]);
+        const existing = await this.inspect(identity);
+        if (existing?.State.Running) return;
+        const running = await this.runningContainers();
+        const reserved = this.options.reservedSlots ? await this.options.reservedSlots() : 0;
+        if (running.length + reserved >= this.config.maxRunning) {
+          throw new HostError(
+            'Every computer slot on this host is in use; try again in a few minutes',
+            503,
+            'capacity',
+          );
+        }
+        const volume = (
+          await this.checked([
+            'volume',
+            'ls',
+            '--filter',
+            `name=^${identity.volume}$`,
+            '--format',
+            '{{.Name}}',
+          ])
+        ).trim();
+        if (!volume) await this.checked(volumeCreateArgs(identity));
+        await this.verifyVolume(identity);
+        await this.checked(createArgs(identity, this.config.image, this.config.runtime));
+        // Inspect what Docker actually built before starting it: a daemon that
+        // silently dropped a flag is caught here rather than after code ran.
+        await this.inspect(identity);
+        await this.checked(['container', 'start', identity.container]);
+        this.options.log.info({ actor: identity.actorHash }, 'computer started');
+      }),
+    );
     await this.options.store.touch(identity.actorHash);
     return this.status(actorId);
   }
@@ -363,13 +427,17 @@ export class ComputerService {
     return this.status(actorId);
   }
 
-  private async stopByHash(identity: Pick<ComputerIdentity, 'actorHash' | 'container'>, reason: 'requested' | 'idle'): Promise<void> {
+  private async stopByHash(
+    identity: Pick<ComputerIdentity, 'actorHash' | 'container'>,
+    reason: 'requested' | 'idle',
+  ): Promise<void> {
     const store = this.options.store;
     const held = await store.getLease(identity.actorHash);
     let token: string;
     if (!held) {
       const lease = await store.acquireLease(identity.actorHash, 'operation', OPERATION_LEASE_MS);
-      if (!lease) throw new HostError('The computer is busy; try stopping again shortly', 409, 'busy');
+      if (!lease)
+        throw new HostError('The computer is busy; try stopping again shortly', 409, 'busy');
       token = lease.token;
     } else if (reason === 'requested' && held.operation === 'command' && !held.stopping) {
       // Only a person or agent asking may cut a command short. A command still
@@ -391,7 +459,15 @@ export class ComputerService {
           : 'Stopped on request. Inspect the workspace before repeating this command.',
       );
       const exists = (
-        await this.checked(['container', 'ls', '--all', '--filter', `name=^/${identity.container}$`, '--format', '{{.ID}}'])
+        await this.checked([
+          'container',
+          'ls',
+          '--all',
+          '--filter',
+          `name=^/${identity.container}$`,
+          '--format',
+          '{{.ID}}',
+        ])
       ).trim();
       if (exists) {
         await this.checked(['container', 'stop', '--time', '2', identity.container], 30_000);
@@ -439,10 +515,15 @@ export class ComputerService {
     const identity = this.identity(actorId);
     const store = this.options.store;
     if (!OPERATION_ID.test(request.operationId)) {
-      throw new HostError('operationId must be 1-128 letters, digits, dots, colons, dashes or underscores', 400, 'invalid_operation_id');
+      throw new HostError(
+        'operationId must be 1-128 letters, digits, dots, colons, dashes or underscores',
+        400,
+        'invalid_operation_id',
+      );
     }
     const command = request.command.trim();
-    if (!command || command.length > 16_000) throw new HostError('The command must be 1-16000 characters', 400, 'invalid_command');
+    if (!command || command.length > 16_000)
+      throw new HostError('The command must be 1-16000 characters', 400, 'invalid_command');
     const cwd = workspacePath(request.cwd ?? WORKSPACE);
     const background = request.background === true;
     const timeoutSeconds = Math.min(
@@ -452,8 +533,16 @@ export class ComputerService {
 
     const previous = await this.receipt(actorId, request.operationId);
     if (previous) {
-      if (previous.command !== command || previous.cwd !== cwd || previous.background !== background) {
-        throw new HostError('This operationId already belongs to a different command', 409, 'operation_conflict');
+      if (
+        previous.command !== command ||
+        previous.cwd !== cwd ||
+        previous.background !== background
+      ) {
+        throw new HostError(
+          'This operationId already belongs to a different command',
+          409,
+          'operation_conflict',
+        );
       }
       return previous;
     }
@@ -488,7 +577,11 @@ export class ComputerService {
       if (!active || active.token !== lease.token || active.stopping) {
         return (
           (await store.finishReceipt(identity.actorHash, request.operationId, {
-            status: 'interrupted', exitCode: null, stdout: '', stderr: 'Stopped before execution.', truncated: false,
+            status: 'interrupted',
+            exitCode: null,
+            stdout: '',
+            stderr: 'Stopped before execution.',
+            truncated: false,
           })) ?? receipt
         );
       }
@@ -499,14 +592,33 @@ export class ComputerService {
       try {
         result = await this.options.docker(
           [
-            'exec', '--user', CONTAINER_USER, '--workdir', cwd, container,
-            '/usr/bin/timeout', '--signal=TERM', '--kill-after=2s', `${timeoutSeconds}s`,
-            '/bin/bash', '--noprofile', '--norc', '-c', command,
+            'exec',
+            '--user',
+            CONTAINER_USER,
+            '--workdir',
+            cwd,
+            container,
+            '/usr/bin/timeout',
+            '--signal=TERM',
+            '--kill-after=2s',
+            `${timeoutSeconds}s`,
+            '/bin/bash',
+            '--noprofile',
+            '--norc',
+            '-c',
+            command,
           ],
           { timeoutMs: (timeoutSeconds + 5) * 1000, maxOutputBytes: DEFAULT_OUTPUT_LIMIT },
         );
       } catch {
-        result = { stdout: '', stderr: 'Docker execution was interrupted.', exitCode: null, timedOut: false, interrupted: true, truncated: false };
+        result = {
+          stdout: '',
+          stderr: 'Docker execution was interrupted.',
+          exitCode: null,
+          timedOut: false,
+          interrupted: true,
+          truncated: false,
+        };
       }
 
       // A Docker client that lost its exec cannot cancel it reliably, so the
@@ -527,17 +639,30 @@ export class ComputerService {
       const timedOut = result.timedOut || result.exitCode === 124;
       this.usage.delete(identity.actorHash);
       const finished = await store.finishReceipt(identity.actorHash, request.operationId, {
-        status: result.interrupted ? 'interrupted' : timedOut ? 'timed_out' : result.exitCode === 0 ? 'succeeded' : 'failed',
+        status: result.interrupted
+          ? 'interrupted'
+          : timedOut
+            ? 'timed_out'
+            : result.exitCode === 0
+              ? 'succeeded'
+              : 'failed',
         exitCode: result.exitCode,
         stdout: result.stdout,
         stderr: result.stderr,
         truncated: result.truncated,
       });
       this.options.log.info(
-        { actor: identity.actorHash, operationId: request.operationId, status: finished?.status ?? 'interrupted', commandBytes: command.length },
+        {
+          actor: identity.actorHash,
+          operationId: request.operationId,
+          status: finished?.status ?? 'interrupted',
+          commandBytes: command.length,
+        },
         'command finished',
       );
-      return finished ?? (await store.getReceipt(identity.actorHash, request.operationId)) ?? receipt;
+      return (
+        finished ?? (await store.getReceipt(identity.actorHash, request.operationId)) ?? receipt
+      );
     });
   }
 
@@ -547,25 +672,49 @@ export class ComputerService {
    * own lifetime (the idle stop). The command is passed as `$1`, never spliced
    * into the wrapper script.
    */
-  private async startBackground(identity: ComputerIdentity, container: string, receipt: CommandReceipt): Promise<CommandReceipt> {
+  private async startBackground(
+    identity: ComputerIdentity,
+    container: string,
+    receipt: CommandReceipt,
+  ): Promise<CommandReceipt> {
     const log = `${JOBS_DIRECTORY}/${createHash('sha256').update(receipt.operationId).digest('hex').slice(0, 16)}.log`;
     const wrapper = `mkdir -p '${JOBS_DIRECTORY}' && exec nohup /bin/bash --noprofile --norc -c "$1" >"$2" 2>&1 </dev/null`;
     const result = await this.options.docker(
       [
-        'exec', '-d', '--user', CONTAINER_USER, '--workdir', receipt.cwd, container,
-        '/bin/bash', '--noprofile', '--norc', '-c', wrapper, 'alia-job', receipt.command, log,
+        'exec',
+        '-d',
+        '--user',
+        CONTAINER_USER,
+        '--workdir',
+        receipt.cwd,
+        container,
+        '/bin/bash',
+        '--noprofile',
+        '--norc',
+        '-c',
+        wrapper,
+        'alia-job',
+        receipt.command,
+        log,
       ],
       { timeoutMs: CONTROL_TIMEOUT_MS },
     );
     const ok = result.exitCode === 0 && !result.timedOut && !result.interrupted;
-    const finished = await this.options.store.finishReceipt(identity.actorHash, receipt.operationId, {
-      status: ok ? 'started' : 'failed',
-      exitCode: ok ? null : result.exitCode,
-      stdout: ok ? `Started in the background. Output is written to ${log}` : '',
-      stderr: ok ? '' : 'The background command could not be started.',
-      truncated: false,
-    });
-    this.options.log.info({ actor: identity.actorHash, operationId: receipt.operationId, started: ok }, 'background command');
+    const finished = await this.options.store.finishReceipt(
+      identity.actorHash,
+      receipt.operationId,
+      {
+        status: ok ? 'started' : 'failed',
+        exitCode: ok ? null : result.exitCode,
+        stdout: ok ? `Started in the background. Output is written to ${log}` : '',
+        stderr: ok ? '' : 'The background command could not be started.',
+        truncated: false,
+      },
+    );
+    this.options.log.info(
+      { actor: identity.actorHash, operationId: receipt.operationId, started: ok },
+      'background command',
+    );
     return finished ?? receipt;
   }
 
@@ -582,12 +731,26 @@ export class ComputerService {
 
   // ── Files ──
 
-  private async assertUnderQuota(identity: ComputerIdentity, container: string, adding: number): Promise<void> {
+  private async assertUnderQuota(
+    identity: ComputerIdentity,
+    container: string,
+    adding: number,
+  ): Promise<void> {
     const cached = this.usage.get(identity.actorHash);
     let bytes = cached && this.now() - cached.at < USAGE_CACHE_MS ? cached.bytes : null;
     if (bytes === null) {
       const result = await this.options.docker(
-        ['exec', '--user', CONTAINER_USER, container, '/usr/bin/timeout', '20s', '/usr/bin/du', '-sb', WORKSPACE],
+        [
+          'exec',
+          '--user',
+          CONTAINER_USER,
+          container,
+          '/usr/bin/timeout',
+          '20s',
+          '/usr/bin/du',
+          '-sb',
+          WORKSPACE,
+        ],
         { timeoutMs: 25_000, maxOutputBytes: 4096 },
       );
       const parsed = Number.parseInt(result.stdout.split(/\s/)[0] ?? '', 10);
@@ -604,11 +767,23 @@ export class ComputerService {
     }
   }
 
-  private file<T>(actorId: string, operation: FileOperation, rawPath: string, text?: string, bytes?: Buffer): Promise<T> {
+  private file<T>(
+    actorId: string,
+    operation: FileOperation,
+    rawPath: string,
+    text?: string,
+    bytes?: Buffer,
+  ): Promise<T> {
     return this.tracked(() => this.fileOperation<T>(actorId, operation, rawPath, text, bytes));
   }
 
-  private async fileOperation<T>(actorId: string, operation: FileOperation, rawPath: string, text?: string, bytes?: Buffer): Promise<T> {
+  private async fileOperation<T>(
+    actorId: string,
+    operation: FileOperation,
+    rawPath: string,
+    text?: string,
+    bytes?: Buffer,
+  ): Promise<T> {
     const identity = this.identity(actorId);
     const path = workspacePath(rawPath);
     if (text !== undefined && Buffer.byteLength(text) > FILE_TEXT_LIMIT) {
@@ -617,7 +792,7 @@ export class ComputerService {
     if (bytes !== undefined && bytes.length > DOWNLOAD_BYTES_LIMIT) {
       throw new HostError('Downloads must be 20 MB or smaller', 413, 'file_too_large');
     }
-    const adding = text !== undefined ? Buffer.byteLength(text) : bytes?.length ?? 0;
+    const adding = text !== undefined ? Buffer.byteLength(text) : (bytes?.length ?? 0);
     await this.options.store.touch(identity.actorHash);
     return this.exclusive(identity, 'operation', OPERATION_LEASE_MS, async () => {
       const container = await this.running(identity);
@@ -625,30 +800,55 @@ export class ComputerService {
         await this.assertUnderQuota(identity, container, adding);
       }
       const seconds = operation === 'write_bytes' ? 30 : 8;
-      const request = bytes === undefined ? { operation, path, text } : { operation, path, data: bytes.toString('base64') };
+      const request =
+        bytes === undefined
+          ? { operation, path, text }
+          : { operation, path, data: bytes.toString('base64') };
       const result = await this.options.docker(
         [
-          'exec', '-i', '--user', CONTAINER_USER, container,
-          '/usr/bin/timeout', '--kill-after=1s', `${seconds}s`, '/usr/bin/python3', '-I', '/opt/alia/files.py',
+          'exec',
+          '-i',
+          '--user',
+          CONTAINER_USER,
+          container,
+          '/usr/bin/timeout',
+          '--kill-after=1s',
+          `${seconds}s`,
+          '/usr/bin/python3',
+          '-I',
+          '/opt/alia/files.py',
         ],
-        { timeoutMs: (seconds + 2) * 1000, input: JSON.stringify(request), maxOutputBytes: 2 * 1024 * 1024 },
+        {
+          timeoutMs: (seconds + 2) * 1000,
+          input: JSON.stringify(request),
+          maxOutputBytes: 2 * 1024 * 1024,
+        },
       );
       if (result.exitCode !== 0 || result.timedOut || result.interrupted || result.truncated) {
         // files.py's own messages describe the caller's path and nothing else.
         const reason = result.stderr.split('\n').find(Boolean)?.slice(0, 300) ?? 'unknown error';
         throw new HostError(`The file operation failed: ${reason}`, 422, 'file_failed');
       }
-      if (operation === 'write' || operation === 'write_bytes') this.usage.delete(identity.actorHash);
+      if (operation === 'write' || operation === 'write_bytes')
+        this.usage.delete(identity.actorHash);
       try {
         return JSON.parse(result.stdout) as T;
       } catch {
-        throw new HostError('The computer returned an unreadable file response', 502, 'file_unreadable');
+        throw new HostError(
+          'The computer returned an unreadable file response',
+          502,
+          'file_unreadable',
+        );
       }
     });
   }
 
   list(actorId: string, path = WORKSPACE) {
-    return this.file<{ path: string; entries: DirectoryEntry[]; truncated: boolean }>(actorId, 'list', path);
+    return this.file<{ path: string; entries: DirectoryEntry[]; truncated: boolean }>(
+      actorId,
+      'list',
+      path,
+    );
   }
 
   read(actorId: string, path: string) {
@@ -665,7 +865,13 @@ export class ComputerService {
 
   /** A browser download, into the workspace under a name that replaces nothing. */
   writeDownload(actorId: string, path: string, bytes: Buffer) {
-    return this.file<{ path: string; bytes: number }>(actorId, 'write_bytes', path, undefined, bytes);
+    return this.file<{ path: string; bytes: number }>(
+      actorId,
+      'write_bytes',
+      path,
+      undefined,
+      bytes,
+    );
   }
 
   /** The actor's most recent command receipts, newest first (for its owner's view). */

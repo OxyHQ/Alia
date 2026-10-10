@@ -307,8 +307,13 @@ jobs:
       - name: Verify Oxy dependency health
         run: bun run doctor:oxy
 
-      - name: Lint API
-        run: bun run --filter @alia/api lint
+      # One Biome pass over the whole repository: formatting, the recommended
+      # lint preset, and the guards ported from the per-package ESLint configs
+      # it replaced (`biome.json` overrides; the Expo `process.env` rules are
+      # GritQL plugins under `biome-plugins/`). `biome ci` never writes, and
+      # fails on any formatting drift or lint error anywhere in the tree.
+      - name: Lint and format check (Biome)
+        run: bunx biome ci .
 
       - name: Typecheck API
         run: bun run --filter @alia/api typecheck
@@ -430,9 +435,7 @@ jobs:
       # suite; Docker is faked, files.py runs under the runner's python3. The
       # typecheck is picked up by `typecheck-workspaces.ts`.
       - name: Test computer host
-        run: |
-          bun run --filter @alia/computer-host lint
-          bun run --filter @alia/computer-host test
+        run: bun run --filter @alia/computer-host test
 
       # `alia-canvas` had a `tsc -b` and a wrangler dry-run between them and
       # nothing else. Its first subject is `lib/product-modes.ts`, which decides
@@ -442,14 +445,6 @@ jobs:
       # the editor existed.
       - name: Test Canvas
         run: bun run --filter alia-canvas test
-
-      # Two packages carry an `eslint.config.js` and a `lint` script that no
-      # job ran, so the configuration was as good as absent. `@alia/api`'s lint
-      # runs in `Lint & Test`; these are the rest of them.
-      - name: Lint the frontends
-        run: |
-          bun run --filter alia-canvas lint
-          bun run --filter @alia-codea/cli lint
 
       # `@alia/app` has had a `test` script and, until now, no job calling it —
       # the same suite-that-cannot-fail as the two above. The effort selector is

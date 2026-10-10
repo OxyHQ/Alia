@@ -187,8 +187,17 @@ import router from '../suggestions.js';
 
 /** The last middleware on the route is the handler; the first is the auth. */
 function generateHandler() {
-  const layer = (router as unknown as { stack: Array<{ route?: { path: string; methods: Record<string, boolean>; stack: Array<{ handle: unknown }> } }> })
-    .stack.find((l) => l.route?.path === '/generate' && l.route.methods.post);
+  const layer = (
+    router as unknown as {
+      stack: Array<{
+        route?: {
+          path: string;
+          methods: Record<string, boolean>;
+          stack: Array<{ handle: unknown }>;
+        };
+      }>;
+    }
+  ).stack.find((l) => l.route?.path === '/generate' && l.route.methods.post);
   if (!layer?.route) throw new Error('POST /generate is not mounted');
   const stack = layer.route.stack;
   return stack[stack.length - 1].handle as (req: unknown, res: unknown) => Promise<void>;
@@ -203,8 +212,14 @@ interface MockRes {
 
 function makeRes(): MockRes {
   const res = { statusCode: 200, body: undefined as unknown } as MockRes;
-  res.status = (code: number) => { res.statusCode = code; return res; };
-  res.json = (body: unknown) => { res.body = body; return res; };
+  res.status = (code: number) => {
+    res.statusCode = code;
+    return res;
+  };
+  res.json = (body: unknown) => {
+    res.body = body;
+    return res;
+  };
   return res;
 }
 
@@ -246,7 +261,11 @@ describe('the answer the model is asked for', () => {
     H.kaanaAnswer = COMPLETE_ANSWER;
     await generate();
 
-    const format = H.kaanaRequest?.responseFormat as { type: string; name: string; schema: Record<string, unknown> };
+    const format = H.kaanaRequest?.responseFormat as {
+      type: string;
+      name: string;
+      schema: Record<string, unknown>;
+    };
     expect(format?.type).toBe('json_schema');
     expect(format?.name.length).toBeGreaterThan(0);
     // The schema is the one the answer is validated against, so it has to name
@@ -312,7 +331,6 @@ describe('a complete answer', () => {
       oxyUserId: 'user-1',
     });
   });
-
 });
 
 describe('an answer that was cut off', () => {

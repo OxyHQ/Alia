@@ -37,7 +37,8 @@ describe('parseSkillDocument', () => {
   });
 
   describe('name', () => {
-    const withName = (name: string) => `---\nname: ${name}\ndescription: A skill. Use when testing.\n---\nbody`;
+    const withName = (name: string) =>
+      `---\nname: ${name}\ndescription: A skill. Use when testing.\n---\nbody`;
 
     it.each([
       ['PDF-Processing', 'uppercase'],
@@ -72,12 +73,16 @@ describe('parseSkillDocument', () => {
 
   describe('description', () => {
     it('refuses an empty description', () => {
-      expect(() => parseSkillDocument('---\nname: a\ndescription: "  "\n---\nbody')).toThrow(/description/);
+      expect(() => parseSkillDocument('---\nname: a\ndescription: "  "\n---\nbody')).toThrow(
+        /description/,
+      );
     });
 
     it('refuses a description over 1024 characters', () => {
       const long = 'x'.repeat(1025);
-      expect(() => parseSkillDocument(`---\nname: a\ndescription: ${long}\n---\nbody`)).toThrow(/longer than 1024/);
+      expect(() => parseSkillDocument(`---\nname: a\ndescription: ${long}\n---\nbody`)).toThrow(
+        /longer than 1024/,
+      );
     });
 
     it('refuses XML tags, which would reach the system prompt', () => {
@@ -105,7 +110,9 @@ describe('parseSkillDocument', () => {
     it('refuses a compatibility string over 500 characters', () => {
       const long = 'x'.repeat(501);
       expect(() =>
-        parseSkillDocument(`---\nname: a\ndescription: A skill. Use when testing.\ncompatibility: ${long}\n---\nbody`),
+        parseSkillDocument(
+          `---\nname: a\ndescription: A skill. Use when testing.\ncompatibility: ${long}\n---\nbody`,
+        ),
       ).toThrow(/compatibility/);
     });
 
@@ -119,7 +126,9 @@ describe('parseSkillDocument', () => {
 
     it('refuses a nested metadata value', () => {
       expect(() =>
-        parseSkillDocument('---\nname: a\ndescription: A skill. Use when testing.\nmetadata:\n  x:\n    y: z\n---\nbody'),
+        parseSkillDocument(
+          '---\nname: a\ndescription: A skill. Use when testing.\nmetadata:\n  x:\n    y: z\n---\nbody',
+        ),
       ).toThrow(/metadata.x/);
     });
   });

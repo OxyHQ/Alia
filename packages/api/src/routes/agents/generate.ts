@@ -90,7 +90,10 @@ Do not include any text outside the JSON object.`,
       // The whole model output, at `error`, on a path a malformed generation
       // reaches every time (#139 ws19). Its length separates "the model said
       // nothing" from "the model said something that is not JSON".
-      log.agents.error({ responseChars: responseText.length }, 'Failed to parse AI-generated agent config');
+      log.agents.error(
+        { responseChars: responseText.length },
+        'Failed to parse AI-generated agent config',
+      );
       return res.status(500).json({ error: 'Failed to generate agent configuration' });
     }
 
@@ -140,7 +143,8 @@ Do not include any text outside the JSON object.`,
     // `null` when the name shapes into nothing the schema accepts — a
     // two-letter agent, or a name of pure punctuation. The fallback is the
     // caller's call, and here there is nobody to ask.
-    const suggestedUsername = suggestAgentUsername(parsed.name || 'agent') ?? fallbackAgentUsername();
+    const suggestedUsername =
+      suggestAgentUsername(parsed.name || 'agent') ?? fallbackAgentUsername();
     res.json({
       name: parsed.name || 'New Agent',
       suggestedUsername,
@@ -164,7 +168,14 @@ Do not include any text outside the JSON object.`,
       // Alia's own axis — the kind of agent, not the subject of the account.
       // Free text in the column and the owner may later type anything, so the
       // six here are what this route OFFERS, not what the schema allows.
-      category: ['Assistant', 'Creative', 'Developer', 'Research', 'Business', 'Education'].includes(parsed.category)
+      category: [
+        'Assistant',
+        'Creative',
+        'Developer',
+        'Research',
+        'Business',
+        'Education',
+      ].includes(parsed.category)
         ? parsed.category
         : 'Assistant',
       tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 10) : [],

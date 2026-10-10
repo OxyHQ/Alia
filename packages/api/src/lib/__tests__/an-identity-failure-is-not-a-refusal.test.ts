@@ -58,9 +58,10 @@ vi.mock('@oxy.so/core', async () => {
           kind: 'bot',
           relationship: oxy.mode === 'grants' ? 'owner' : 'none',
           account: { id: accountId, kind: 'bot' },
-          callerMembership: oxy.mode === 'grants'
-            ? { status: 'active', role: 'owner', permissions: ['account:act_as'] }
-            : null,
+          callerMembership:
+            oxy.mode === 'grants'
+              ? { status: 'active', role: 'owner', permissions: ['account:act_as'] }
+              : null,
         };
       }
     },
@@ -69,17 +70,23 @@ vi.mock('@oxy.so/core', async () => {
 
 /** Private and active: its owner may use it, and Oxy is what says who that is. */
 const CLAUDIO = {
-  _id: 'agent-1', id: 'agent-1', oxyAccountId: 'oxy-bot-1',
-  access: 'private', status: 'active', isPublished: true,
+  _id: 'agent-1',
+  id: 'agent-1',
+  oxyAccountId: 'oxy-bot-1',
+  access: 'private',
+  status: 'active',
+  isPublished: true,
   tagline: 'Your plant care companion',
   description: 'Watering, light, soil, pests.',
   systemPrompt: 'You look after plants.',
-  archetype: 'general', archetypeConfig: null, capabilityGrants: [],
+  archetype: 'general',
+  archetypeConfig: null,
+  capabilityGrants: [],
   author: 'user-1',
 };
 
 vi.mock('../../db/agents/agentRepository.js', () => ({
-  findAgentById: async () => oxy.agentPresent ? CLAUDIO : null,
+  findAgentById: async () => (oxy.agentPresent ? CLAUDIO : null),
   findAgentByOxyAccountId: async () => CLAUDIO,
   findHireableAgentByOxyAccountId: async () => CLAUDIO,
 }));
@@ -120,7 +127,8 @@ describe('the fixture can tell the three cases apart', () => {
     clearAgentAccountVerdicts();
     oxy.mode = 'denies';
     expect(await loadTurnAgent({} as never, CALLER)).toEqual({
-      kind: 'unavailable', reason: 'out_of_reach',
+      kind: 'unavailable',
+      reason: 'out_of_reach',
     });
 
     clearAgentAccountVerdicts();
@@ -154,7 +162,10 @@ describe('Oxy could not be asked', () => {
     oxy.mode = 'unreachable';
 
     const verdict = await verifyAgentAccount({
-      oxyUserId: 'user-1', accessToken: 'bearer-abc', oxyAccountId: 'oxy-bot-1', cache: false,
+      oxyUserId: 'user-1',
+      accessToken: 'bearer-abc',
+      oxyAccountId: 'oxy-bot-1',
+      cache: false,
     });
 
     expect(verdict).toEqual({ permitted: false, refusal: 'identity_unavailable' });
@@ -179,7 +190,8 @@ describe('a genuine refusal is fail-closed', () => {
   it('stays typed and cannot turn into ordinary Alia', async () => {
     oxy.mode = 'denies';
     expect(await loadTurnAgent({} as never, CALLER)).toEqual({
-      kind: 'unavailable', reason: 'out_of_reach',
+      kind: 'unavailable',
+      reason: 'out_of_reach',
     });
   });
 
@@ -188,7 +200,8 @@ describe('a genuine refusal is fail-closed', () => {
     // cacheable. It must not be mistaken for a transport failure.
     oxy.mode = 'not_found';
     expect(await loadTurnAgent({} as never, CALLER)).toEqual({
-      kind: 'unavailable', reason: 'out_of_reach',
+      kind: 'unavailable',
+      reason: 'out_of_reach',
     });
   });
 
@@ -204,7 +217,8 @@ describe('a genuine refusal is fail-closed', () => {
     oxy.agentPresent = false;
 
     expect(await loadTurnAgent({} as never, CALLER)).toEqual({
-      kind: 'unavailable', reason: 'not_found',
+      kind: 'unavailable',
+      reason: 'not_found',
     });
     expect(oxy.calls).toBe(0);
   });
@@ -253,14 +267,18 @@ describe('an application-bound product agent', () => {
   });
 
   it('is reachable only to the exact credential-derived service application', async () => {
-    expect(await canReachAgent(productAgent, {
-      ...CALLER,
-      applicationId: 'homiio-app-id',
-    })).toBe('reachable');
-    expect(await canReachAgent(productAgent, {
-      ...CALLER,
-      applicationId: 'mention-app-id',
-    })).toBe('out_of_reach');
+    expect(
+      await canReachAgent(productAgent, {
+        ...CALLER,
+        applicationId: 'homiio-app-id',
+      }),
+    ).toBe('reachable');
+    expect(
+      await canReachAgent(productAgent, {
+        ...CALLER,
+        applicationId: 'mention-app-id',
+      }),
+    ).toBe('out_of_reach');
     expect(oxy.calls).toBe(0);
   });
 });

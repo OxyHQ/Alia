@@ -34,23 +34,52 @@ export const WATCH_PAUSE_AFTER_FAILURES = 5;
 const EXCERPT_CHARS = 4_000;
 const MAX_NEW_RESULTS = 8;
 
-export const watchConfigSchema = z.object({
-  url: z.string().url().max(2_048).optional()
-    .describe('A public page to watch. Exactly one of url or query.'),
-  query: z.string().trim().min(2).max(300).optional()
-    .describe('A web search to watch for new results, e.g. "Meta announcement". Exactly one of url or query.'),
-  condition: z.enum(['change', 'contains']).default('change')
-    .describe('change: something new appears; contains: value appears'),
-  value: z.string().trim().min(1).max(200).optional()
-    .describe('Required for contains: the text to look for (case-insensitive)'),
-}).strict().superRefine((config, context) => {
-  if ((config.url === undefined) === (config.query === undefined)) {
-    context.addIssue({ code: 'custom', path: ['url'], message: 'A watch needs exactly one of url or query' });
-  }
-  if (config.condition === 'contains' && config.value === undefined) {
-    context.addIssue({ code: 'custom', path: ['value'], message: 'A contains watch needs a value' });
-  }
-});
+export const watchConfigSchema = z
+  .object({
+    url: z
+      .string()
+      .url()
+      .max(2_048)
+      .optional()
+      .describe('A public page to watch. Exactly one of url or query.'),
+    query: z
+      .string()
+      .trim()
+      .min(2)
+      .max(300)
+      .optional()
+      .describe(
+        'A web search to watch for new results, e.g. "Meta announcement". Exactly one of url or query.',
+      ),
+    condition: z
+      .enum(['change', 'contains'])
+      .default('change')
+      .describe('change: something new appears; contains: value appears'),
+    value: z
+      .string()
+      .trim()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe('Required for contains: the text to look for (case-insensitive)'),
+  })
+  .strict()
+  .superRefine((config, context) => {
+    if ((config.url === undefined) === (config.query === undefined)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['url'],
+        message: 'A watch needs exactly one of url or query',
+      });
+    }
+    if (config.condition === 'contains' && config.value === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['value'],
+        message: 'A contains watch needs a value',
+      });
+    }
+  });
 
 export type WatchConfig = z.infer<typeof watchConfigSchema>;
 
@@ -110,7 +139,9 @@ export async function observeWatchSource(
     const response = await sources.searchWeb(config.query);
     if (response.error) throw new WatchSourceError(`search failed: ${response.error}`);
     const items = [...new Set(response.results.map((result) => result.url))].sort();
-    const text = normalizeWatchText(response.results.map((result) => `${result.title} ${result.snippet}`).join('\n'));
+    const text = normalizeWatchText(
+      response.results.map((result) => `${result.title} ${result.snippet}`).join('\n'),
+    );
     // Hashed on the URLs alone: snippets churn without anything being new.
     return { hash: sha256(items.join('\n')), items, text, results: response.results };
   }
@@ -144,17 +175,18 @@ export function decideWatch(
 ): WatchDecision {
   const baseline = !previous?.lastHash;
   const seen = new Set(previous?.lastItems ?? []);
-  const newItems = baseline || config.query === undefined
-    ? []
-    : observation.items.filter((item) => !seen.has(item));
-  const changed = !baseline && (config.query !== undefined
-    ? newItems.length > 0
-    : observation.hash !== previous?.lastHash);
-  const matched = config.condition === 'contains' && config.value !== undefined
-    && observation.text.toLowerCase().includes(config.value.toLowerCase());
-  const fire = config.condition === 'contains'
-    ? matched && !(previous?.matched ?? false)
-    : changed;
+  const newItems =
+    baseline || config.query === undefined
+      ? []
+      : observation.items.filter((item) => !seen.has(item));
+  const changed =
+    !baseline &&
+    (config.query !== undefined ? newItems.length > 0 : observation.hash !== previous?.lastHash);
+  const matched =
+    config.condition === 'contains' &&
+    config.value !== undefined &&
+    observation.text.toLowerCase().includes(config.value.toLowerCase());
+  const fire = config.condition === 'contains' ? matched && !(previous?.matched ?? false) : changed;
   return { fire, changed, matched, newItems };
 }
 

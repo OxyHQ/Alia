@@ -15,7 +15,10 @@ import { SystemPromptBuilder } from '../system-prompt-builder.js';
 const VOICE_PROFILE_MARKER = '# RESPONSE PROFILE — Voice';
 const GENERAL_PROFILE_MARKER = '# RESPONSE PROFILE — V1';
 
-async function build(options: { surface?: 'chat' | 'codea' | 'cowork'; responseMode?: 'voice' | null }): Promise<string> {
+async function build(options: {
+  surface?: 'chat' | 'codea' | 'cowork';
+  responseMode?: 'voice' | null;
+}): Promise<string> {
   return SystemPromptBuilder.build({ isDirectUserSession: false, ...options });
 }
 

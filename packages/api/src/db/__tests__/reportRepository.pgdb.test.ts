@@ -81,7 +81,7 @@ const EVENT = {
 beforeAll(async () => {
   database = await setUpTestDatabase();
   const connected = connectPostgres(database.databaseUrl);
-  if (!connected) throw new Error('could not connect to this file\'s throwaway database');
+  if (!connected) throw new Error("could not connect to this file's throwaway database");
   db = connected;
 }, 120_000);
 
@@ -306,9 +306,7 @@ describe('applying a decision, with the revision guard', () => {
     await createReport(db, REPORT, EVENT);
     await applyDecisionToReport(REPORT.id, decision);
 
-    expect(
-      await applyDecisionToReport(REPORT.id, { ...decision, decisionRevision: 3 }),
-    ).toBe(true);
+    expect(await applyDecisionToReport(REPORT.id, { ...decision, decisionRevision: 3 })).toBe(true);
     expect((await findReportById(REPORT.id))?.decisionRevision).toBe(3);
   });
 

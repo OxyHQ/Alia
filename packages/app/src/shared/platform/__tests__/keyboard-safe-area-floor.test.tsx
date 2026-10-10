@@ -39,7 +39,8 @@ function heightAt(progress: number): unknown {
   act(() => {
     renderer = create(<KeyboardSafeAreaFloor inset={63} />);
   });
-  const height = (renderer.root.findByType('AnimatedView' as any).props.style as { height: number }).height;
+  const height = (renderer.root.findByType('AnimatedView' as any).props.style as { height: number })
+    .height;
   act(() => renderer.unmount());
   return height;
 }

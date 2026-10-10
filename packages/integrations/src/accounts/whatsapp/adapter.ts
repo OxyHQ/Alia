@@ -148,7 +148,9 @@ export class WhatsAppAdapter implements AccountAdapter {
         });
       } catch (error: unknown) {
         logger.error('Disconnect error:', error);
-        return res.status(500).json({ error: errorMessage(error) || 'Failed to disconnect session' });
+        return res
+          .status(500)
+          .json({ error: errorMessage(error) || 'Failed to disconnect session' });
       }
     });
 
@@ -164,7 +166,9 @@ export class WhatsAppAdapter implements AccountAdapter {
         return res.json({ sessions });
       } catch (error: unknown) {
         logger.error('User sessions error:', error);
-        return res.status(500).json({ error: errorMessage(error) || 'Failed to get user sessions' });
+        return res
+          .status(500)
+          .json({ error: errorMessage(error) || 'Failed to get user sessions' });
       }
     });
 
@@ -204,7 +208,7 @@ export class WhatsAppAdapter implements AccountAdapter {
               lastMessageTimestamp: c.conversationTimestamp || null,
               lastMessagePreview: lastText?.slice(0, 100) || '',
             };
-          })
+          }),
         );
 
         return res.json({ chats });
@@ -219,27 +223,30 @@ export class WhatsAppAdapter implements AccountAdapter {
      * Returns recent messages from a specific chat.
      * Query: ?limit=20 (default 20, max 50)
      */
-    router.get('/sessions/:sessionId/chats/:jid/messages', async (req: AccountRequest, res: Response) => {
-      const { sessionId, jid } = req.params;
-      const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+    router.get(
+      '/sessions/:sessionId/chats/:jid/messages',
+      async (req: AccountRequest, res: Response) => {
+        const { sessionId, jid } = req.params;
+        const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
 
-      try {
-        const messages = await listWhatsAppMessages(getDb(), sessionId, jid, limit);
+        try {
+          const messages = await listWhatsAppMessages(getDb(), sessionId, jid, limit);
 
-        return res.json({
-          messages: messages.map((m) => ({
-            id: m.messageId,
-            fromMe: m.fromMe,
-            timestamp: m.timestamp,
-            text: m.text,
-            pushName: m.pushName || null,
-          })),
-        });
-      } catch (error: unknown) {
-        logger.error('Messages error:', error);
-        return res.status(500).json({ error: errorMessage(error) || 'Failed to get messages' });
-      }
-    });
+          return res.json({
+            messages: messages.map((m) => ({
+              id: m.messageId,
+              fromMe: m.fromMe,
+              timestamp: m.timestamp,
+              text: m.text,
+              pushName: m.pushName || null,
+            })),
+          });
+        } catch (error: unknown) {
+          logger.error('Messages error:', error);
+          return res.status(500).json({ error: errorMessage(error) || 'Failed to get messages' });
+        }
+      },
+    );
 
     /**
      * POST /sessions/:sessionId/send

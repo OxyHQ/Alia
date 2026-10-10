@@ -55,7 +55,7 @@ router.get('/registry', authenticateToken, (_req, res) => {
 
 // Get MCP server details from registry
 router.get('/registry/:id', authenticateToken, (req, res) => {
-  const server = MCP_REGISTRY.find(s => s.id === req.params.id);
+  const server = MCP_REGISTRY.find((s) => s.id === req.params.id);
   if (!server) {
     return res.status(404).json({ error: 'Server not found in registry' });
   }
@@ -72,72 +72,76 @@ router.get('/registry/:id', authenticateToken, (req, res) => {
 
 // Begin the interactive OAuth flow — proxies to integrations, returns the
 // authorization URL the client should open.
-router.post('/:id/oauth/start', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
-  try {
-    const db = getDb();
-    const server = await findMcpServerForUser(db, req.params.id, req.userId!);
+router.post(
+  '/:id/oauth/start',
+  authenticateToken,
+  async (req: express.Request<{ id: string }>, res) => {
+    try {
+      const db = getDb();
+      const server = await findMcpServerForUser(db, req.params.id, req.userId!);
 
-    if (!server) {
-      return res.status(404).json({ error: 'Server not found' });
+      if (!server) {
+        return res.status(404).json({ error: 'Server not found' });
+      }
+
+      if (server.runtime === 'local') {
+        return res.status(400).json({ error: 'Local MCP servers are managed by the client app' });
+      }
+
+      if (server.transport !== 'sse' && server.transport !== 'streamable-http') {
+        return res.status(400).json({ error: 'OAuth is only supported for remote MCP connectors' });
+      }
+
+      if (!INTEGRATIONS_URL || !INTEGRATIONS_SECRET) {
+        return res.status(503).json({ error: 'Integrations service not configured' });
+      }
+
+      const state = crypto.randomBytes(32).toString('hex');
+      await createMcpOAuthState(db, {
+        state,
+        oxyUserId: req.userId!,
+        serverId: server.id,
+      });
+
+      const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
+      const callbackUrl = `${apiBaseUrl}/mcp/oauth/callback`;
+
+      const response = await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server.id}/oauth/start`, {
+        method: 'POST',
+        headers: {
+          'X-Gateway-Secret': INTEGRATIONS_SECRET,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          oxyUserId: req.userId,
+          config: toMcpServerConfig(server),
+          transport: server.transport,
+          stateToken: state,
+          callbackUrl,
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+
+      const data = (await response.json()) as McpServiceReply;
+
+      if (!response.ok) {
+        // The state row is short-lived (TTL), so a failed start self-cleans.
+        await deleteMcpOAuthStateByToken(db, state);
+        return res.status(response.status).json({ error: data.error || 'Failed to start OAuth' });
+      }
+
+      if (!data.authorizationUrl || typeof data.authorizationUrl !== 'string') {
+        await deleteMcpOAuthStateByToken(db, state);
+        return res.status(502).json({ error: 'OAuth authorization URL was not returned' });
+      }
+
+      res.json({ authorizationUrl: data.authorizationUrl });
+    } catch (error: unknown) {
+      log.general.error({ err: error }, 'Start MCP OAuth error');
+      res.status(500).json({ error: 'Internal server error' });
     }
-
-    if (server.runtime === 'local') {
-      return res.status(400).json({ error: 'Local MCP servers are managed by the client app' });
-    }
-
-    if (server.transport !== 'sse' && server.transport !== 'streamable-http') {
-      return res.status(400).json({ error: 'OAuth is only supported for remote MCP connectors' });
-    }
-
-    if (!INTEGRATIONS_URL || !INTEGRATIONS_SECRET) {
-      return res.status(503).json({ error: 'Integrations service not configured' });
-    }
-
-    const state = crypto.randomBytes(32).toString('hex');
-    await createMcpOAuthState(db, {
-      state,
-      oxyUserId: req.userId!,
-      serverId: server.id,
-    });
-
-    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
-    const callbackUrl = `${apiBaseUrl}/mcp/oauth/callback`;
-
-    const response = await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server.id}/oauth/start`, {
-      method: 'POST',
-      headers: {
-        'X-Gateway-Secret': INTEGRATIONS_SECRET,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        oxyUserId: req.userId,
-        config: toMcpServerConfig(server),
-        transport: server.transport,
-        stateToken: state,
-        callbackUrl,
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
-
-    const data = (await response.json()) as McpServiceReply;
-
-    if (!response.ok) {
-      // The state row is short-lived (TTL), so a failed start self-cleans.
-      await deleteMcpOAuthStateByToken(db, state);
-      return res.status(response.status).json({ error: data.error || 'Failed to start OAuth' });
-    }
-
-    if (!data.authorizationUrl || typeof data.authorizationUrl !== 'string') {
-      await deleteMcpOAuthStateByToken(db, state);
-      return res.status(502).json({ error: 'OAuth authorization URL was not returned' });
-    }
-
-    res.json({ authorizationUrl: data.authorizationUrl });
-  } catch (error: unknown) {
-    log.general.error({ err: error }, 'Start MCP OAuth error');
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+  },
+);
 
 // Public OAuth callback — the Authorization Server redirects the browser here.
 // It does NOT finalize the link: identity from the `state` alone is NOT
@@ -273,7 +277,8 @@ router.get('/installed', authenticateToken, async (req, res) => {
 router.post('/install', authenticateToken, async (req, res) => {
   try {
     const db = getDb();
-    const { registryId, name, displayName, description, icon, transport, runtime, config, env } = req.body;
+    const { registryId, name, displayName, description, icon, transport, runtime, config, env } =
+      req.body;
 
     let serverConfig: {
       name?: string;
@@ -287,7 +292,7 @@ router.post('/install', authenticateToken, async (req, res) => {
 
     // If installing from registry, use registry defaults
     if (registryId) {
-      const registryEntry = MCP_REGISTRY.find(s => s.id === registryId);
+      const registryEntry = MCP_REGISTRY.find((s) => s.id === registryId);
       if (!registryEntry) {
         return res.status(404).json({ error: 'Server not found in registry' });
       }
@@ -364,7 +369,12 @@ router.delete('/:id', authenticateToken, async (req: express.Request<{ id: strin
     }
 
     // Stop in integrations if running
-    if (server.status === 'running' && server.runtime === 'server' && INTEGRATIONS_URL && INTEGRATIONS_SECRET) {
+    if (
+      server.status === 'running' &&
+      server.runtime === 'server' &&
+      INTEGRATIONS_URL &&
+      INTEGRATIONS_SECRET
+    ) {
       try {
         await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server.id}/stop`, {
           method: 'POST',

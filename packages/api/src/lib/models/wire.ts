@@ -44,7 +44,10 @@ export interface CatalogueResponseWire {
   readonly featuredIds: readonly string[];
 }
 
-export function toCatalogueEntry(model: CatalogueModel, featured: ReadonlySet<string>): CatalogueEntryWire {
+export function toCatalogueEntry(
+  model: CatalogueModel,
+  featured: ReadonlySet<string>,
+): CatalogueEntryWire {
   return {
     id: model.id,
     object: 'model',
@@ -79,8 +82,13 @@ export function toCatalogueResponse(
   const sorted = [...models].sort((a, b) => {
     const ra = rank.get(a.id);
     const rb = rank.get(b.id);
-    if (ra !== undefined || rb !== undefined) return (ra ?? Number.MAX_SAFE_INTEGER) - (rb ?? Number.MAX_SAFE_INTEGER);
-    return a.publisher.name.localeCompare(b.publisher.name) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+    if (ra !== undefined || rb !== undefined)
+      return (ra ?? Number.MAX_SAFE_INTEGER) - (rb ?? Number.MAX_SAFE_INTEGER);
+    return (
+      a.publisher.name.localeCompare(b.publisher.name) ||
+      a.name.localeCompare(b.name) ||
+      a.id.localeCompare(b.id)
+    );
   });
   return {
     object: 'list',

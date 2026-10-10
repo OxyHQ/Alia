@@ -39,14 +39,11 @@ describe('fixtureConversation', () => {
 
   it('carries what the thread has to draw: code, images, sources and cards', () => {
     const { messages } = fixtureConversation('a-1000');
-    const text = (m: (typeof messages)[number]) =>
-      typeof m.content === 'string' ? m.content : '';
+    const text = (m: (typeof messages)[number]) => (typeof m.content === 'string' ? m.content : '');
     const calls = messages.flatMap((m) => m.toolInvocations ?? []);
 
     expect(messages.filter((m) => text(m).includes('```')).length).toBeGreaterThan(100);
-    expect(messages.filter((m) => imagesOf(m.content).length > 0).length).toBeGreaterThan(
-      50,
-    );
+    expect(messages.filter((m) => imagesOf(m.content).length > 0).length).toBeGreaterThan(50);
     expect(calls.filter((c) => WEB_TOOLS.has(c.toolName)).length).toBeGreaterThan(100);
     expect(calls.filter((c) => cardOf(c) !== null).map((c) => cardOf(c)?.type)).toEqual(
       expect.arrayContaining(['weather', 'market']),
@@ -73,7 +70,10 @@ describe('the fixtures stay out of the product', () => {
         if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
         const path = join(dir, entry.name);
         if (entry.isDirectory()) walk(path);
-        else if (/\.[tj]sx?$/.test(entry.name) && /(@\/|\.\.?\/)fixtures\//.test(readFileSync(path, 'utf8'))) {
+        else if (
+          /\.[tj]sx?$/.test(entry.name) &&
+          /(@\/|\.\.?\/)fixtures\//.test(readFileSync(path, 'utf8'))
+        ) {
           offenders.push(path);
         }
       }

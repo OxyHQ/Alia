@@ -80,9 +80,14 @@ describe('a hunk body is consumed by its declared counts', () => {
   it('reads an added `++ ` line as content, not as a file header', async () => {
     await seed('notes.md', 'alpha\n');
 
-    const patch = ['--- a/notes.md', '+++ b/notes.md', '@@ -1,1 +1,2 @@', ' alpha', '+++ beta', ''].join(
-      '\n',
-    );
+    const patch = [
+      '--- a/notes.md',
+      '+++ b/notes.md',
+      '@@ -1,1 +1,2 @@',
+      ' alpha',
+      '+++ beta',
+      '',
+    ].join('\n');
 
     expect(parsePatch(patch)).toHaveLength(1);
     await applyPatch(patch, base);
@@ -149,13 +154,7 @@ describe('a path out of the patch cannot escape the base directory', () => {
     // No `a/` or `b/` prefix: this is how an absolute path appears in a diff
     // header, and it is the form `path.resolve` used to honour outright.
     const outside = path.join(tmpdir(), `alia-escape-${String(process.pid)}.txt`);
-    const patch = [
-      `--- ${outside}`,
-      `+++ ${outside}`,
-      '@@ -0,0 +1,1 @@',
-      '+owned',
-      '',
-    ].join('\n');
+    const patch = [`--- ${outside}`, `+++ ${outside}`, '@@ -0,0 +1,1 @@', '+owned', ''].join('\n');
 
     const result = await applyPatch(patch, base);
     expect(result.success).toBe(false);
@@ -209,7 +208,10 @@ describe('a hunk that could apply in two places applies in neither', () => {
   });
 
   it('still applies a hunk whose line number drifted, when it is unambiguous', async () => {
-    await seed('drift.ts', ['// a new banner line', 'const value = 1;', 'export {};', ''].join('\n'));
+    await seed(
+      'drift.ts',
+      ['// a new banner line', 'const value = 1;', 'export {};', ''].join('\n'),
+    );
 
     const patch = [
       '--- a/drift.ts',

@@ -14,6 +14,8 @@ import i18n from '@/shared/i18n';
 export function speechLocale(): string {
   const tag = i18n.locale || 'en-US';
   if (tag.includes('-')) return tag;
-  const regional = getLocales().find((locale) => locale.languageCode === tag && locale.languageTag.includes('-'));
+  const regional = getLocales().find(
+    (locale) => locale.languageCode === tag && locale.languageTag.includes('-'),
+  );
   return regional?.languageTag ?? tag;
 }

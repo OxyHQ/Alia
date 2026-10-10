@@ -65,7 +65,9 @@ afterAll(async () => {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY_MS);
 
-function aSubscription(over: Partial<SubscriptionInsert> & { stripeSubscriptionId: string; oxyUserId: string }): SubscriptionInsert {
+function aSubscription(
+  over: Partial<SubscriptionInsert> & { stripeSubscriptionId: string; oxyUserId: string },
+): SubscriptionInsert {
   return {
     stripeCustomerId: `cus_${over.oxyUserId}`,
     stripePriceId: 'price_test',
@@ -209,18 +211,32 @@ describe('transactions', () => {
   });
 
   it('filters the admin list by status and type together', async () => {
-    await insertTransaction(db, { oxyUserId: 'br-admin', type: 'credit_purchase', amount: 1, credits: 1, status: 'pending' });
-    await insertTransaction(db, { oxyUserId: 'br-admin', type: 'refund', amount: 2, credits: 2, status: 'completed' });
+    await insertTransaction(db, {
+      oxyUserId: 'br-admin',
+      type: 'credit_purchase',
+      amount: 1,
+      credits: 1,
+      status: 'pending',
+    });
+    await insertTransaction(db, {
+      oxyUserId: 'br-admin',
+      type: 'refund',
+      amount: 2,
+      credits: 2,
+      status: 'completed',
+    });
 
-    const pending = (await selectTransactions(db, { status: 'pending' }, { limit: 100, offset: 0 }))
-      .filter((t) => t.oxyUserId === 'br-admin');
+    const pending = (
+      await selectTransactions(db, { status: 'pending' }, { limit: 100, offset: 0 })
+    ).filter((t) => t.oxyUserId === 'br-admin');
     expect(pending).toHaveLength(1);
     expect(pending[0]?.type).toBe('credit_purchase');
 
     // Both conditions must AND rather than one replacing the other.
     expect(await countSubscriptions(db, {})).toBeGreaterThanOrEqual(0);
-    const none = (await selectTransactions(db, { status: 'pending', type: 'refund' }, { limit: 100, offset: 0 }))
-      .filter((t) => t.oxyUserId === 'br-admin');
+    const none = (
+      await selectTransactions(db, { status: 'pending', type: 'refund' }, { limit: 100, offset: 0 })
+    ).filter((t) => t.oxyUserId === 'br-admin');
     expect(none).toHaveLength(0);
   });
 });
@@ -228,10 +244,18 @@ describe('transactions', () => {
 describe('subscriptions', () => {
   it('upserts on the Stripe id rather than adding a second row', async () => {
     const id = 'sub_br_upsert';
-    await upsertSubscriptionByStripeId(db, aSubscription({ stripeSubscriptionId: id, oxyUserId: 'br-upsert', status: 'trialing' }));
+    await upsertSubscriptionByStripeId(
+      db,
+      aSubscription({ stripeSubscriptionId: id, oxyUserId: 'br-upsert', status: 'trialing' }),
+    );
     const updated = await upsertSubscriptionByStripeId(
       db,
-      aSubscription({ stripeSubscriptionId: id, oxyUserId: 'br-upsert', status: 'active', planSnapshotName: 'Renamed' }),
+      aSubscription({
+        stripeSubscriptionId: id,
+        oxyUserId: 'br-upsert',
+        status: 'active',
+        planSnapshotName: 'Renamed',
+      }),
     );
     expect(updated.status).toBe('active');
     expect(updated.planSnapshotName).toBe('Renamed');
@@ -253,8 +277,26 @@ describe('subscriptions', () => {
      * (Caught by a mutation run in which this case failed for a mutation that
      * could not possibly have affected it.)
      */
-    await upsertSubscriptionByStripeId(db, aSubscription({ stripeSubscriptionId: 'sub_br_old', oxyUserId: 'br-two', planSnapshotName: 'Older', planSnapshotProduct: 'alia', createdAt: daysAgo(5) }));
-    await upsertSubscriptionByStripeId(db, aSubscription({ stripeSubscriptionId: 'sub_br_new', oxyUserId: 'br-two', planSnapshotName: 'Newer', planSnapshotProduct: 'codea', createdAt: daysAgo(1) }));
+    await upsertSubscriptionByStripeId(
+      db,
+      aSubscription({
+        stripeSubscriptionId: 'sub_br_old',
+        oxyUserId: 'br-two',
+        planSnapshotName: 'Older',
+        planSnapshotProduct: 'alia',
+        createdAt: daysAgo(5),
+      }),
+    );
+    await upsertSubscriptionByStripeId(
+      db,
+      aSubscription({
+        stripeSubscriptionId: 'sub_br_new',
+        oxyUserId: 'br-two',
+        planSnapshotName: 'Newer',
+        planSnapshotProduct: 'codea',
+        createdAt: daysAgo(1),
+      }),
+    );
 
     const one = await findActiveSubscription(db, 'br-two');
     expect(one?.planSnapshotName).toBe('Newer');
@@ -272,7 +314,14 @@ describe('subscriptions', () => {
   });
 
   it('EXCLUDES a subscription that is neither active nor trialing', async () => {
-    await upsertSubscriptionByStripeId(db, aSubscription({ stripeSubscriptionId: 'sub_br_dead', oxyUserId: 'br-dead', status: 'canceled' }));
+    await upsertSubscriptionByStripeId(
+      db,
+      aSubscription({
+        stripeSubscriptionId: 'sub_br_dead',
+        oxyUserId: 'br-dead',
+        status: 'canceled',
+      }),
+    );
     expect(await findActiveSubscription(db, 'br-dead')).toBeNull();
 
     // Positive control: the same row becomes visible once it is live again, so
@@ -282,12 +331,18 @@ describe('subscriptions', () => {
   });
 
   it('answers null for an update naming no subscription', async () => {
-    expect(await updateSubscriptionByStripeId(db, 'sub_br_absent', { status: 'canceled' })).toBeNull();
+    expect(
+      await updateSubscriptionByStripeId(db, 'sub_br_absent', { status: 'canceled' }),
+    ).toBeNull();
     expect(await findSubscriptionByStripeId(db, 'sub_br_absent')).toBeNull();
   });
 
   it('filters the admin list by status and snapshot product', async () => {
-    const byProduct = await selectSubscriptions(db, { product: 'codea' }, { limit: 200, offset: 0 });
+    const byProduct = await selectSubscriptions(
+      db,
+      { product: 'codea' },
+      { limit: 200, offset: 0 },
+    );
     expect(byProduct.every((s) => s.planSnapshotProduct === 'codea')).toBe(true);
     expect(byProduct.some((s) => s.stripeSubscriptionId === 'sub_br_new')).toBe(true);
     expect(typeof (await countSubscriptions(db, { status: 'active' }))).toBe('number');
@@ -308,16 +363,28 @@ describe('user credits', () => {
 
   it('spends PAID first when asked to, and FREE first when asked to', async () => {
     await getOrCreateUserCredits(db, 'br-order-paid');
-    await db.update(userCredits).set({ creditsFree: 10, creditsPaid: 10 }).where(eq(userCredits.id, 'br-order-paid'));
+    await db
+      .update(userCredits)
+      .set({ creditsFree: 10, creditsPaid: 10 })
+      .where(eq(userCredits.id, 'br-order-paid'));
     const paidFirst = await spendCreditsPaidFirst(db, 'br-order-paid', 4);
-    expect({ free: paidFirst?.creditsFree, paid: paidFirst?.creditsPaid }).toEqual({ free: 10, paid: 6 });
+    expect({ free: paidFirst?.creditsFree, paid: paidFirst?.creditsPaid }).toEqual({
+      free: 10,
+      paid: 6,
+    });
 
     await getOrCreateUserCredits(db, 'br-order-free');
-    await db.update(userCredits).set({ creditsFree: 10, creditsPaid: 10 }).where(eq(userCredits.id, 'br-order-free'));
+    await db
+      .update(userCredits)
+      .set({ creditsFree: 10, creditsPaid: 10 })
+      .where(eq(userCredits.id, 'br-order-free'));
     const freeFirst = await spendCreditsFreeFirst(db, 'br-order-free', 4);
     // The two orders are genuinely different operations; collapsing them would
     // pass one of these and fail the other.
-    expect({ free: freeFirst?.creditsFree, paid: freeFirst?.creditsPaid }).toEqual({ free: 6, paid: 10 });
+    expect({ free: freeFirst?.creditsFree, paid: freeFirst?.creditsPaid }).toEqual({
+      free: 6,
+      paid: 10,
+    });
   });
 
   it('zeroes both balances', async () => {
@@ -347,7 +414,11 @@ describe('the daily free refresh', () => {
     await getOrCreateUserCredits(db, 'br-refresh-early');
     await db
       .update(userCredits)
-      .set({ creditsFree: 1, creditsFreeLimit: 300, creditsLastRefresh: new Date(Date.now() - 23 * 60 * 60 * 1000) })
+      .set({
+        creditsFree: 1,
+        creditsFreeLimit: 300,
+        creditsLastRefresh: new Date(Date.now() - 23 * 60 * 60 * 1000),
+      })
       .where(eq(userCredits.id, 'br-refresh-early'));
 
     const row = await refreshFreeCreditsIfDue(db, 'br-refresh-early');
@@ -360,7 +431,11 @@ describe('the daily free refresh', () => {
     await getOrCreateUserCredits(db, 'br-refresh-due');
     await db
       .update(userCredits)
-      .set({ creditsFree: 1, creditsFreeLimit: 250, creditsLastRefresh: new Date(Date.now() - 25 * 60 * 60 * 1000) })
+      .set({
+        creditsFree: 1,
+        creditsFreeLimit: 250,
+        creditsLastRefresh: new Date(Date.now() - 25 * 60 * 60 * 1000),
+      })
       .where(eq(userCredits.id, 'br-refresh-due'));
 
     const row = await refreshFreeCreditsIfDue(db, 'br-refresh-due');
@@ -370,7 +445,10 @@ describe('the daily free refresh', () => {
     // Immediately due again? No — `last_refresh` moved to the server's now().
     const again = await refreshFreeCreditsIfDue(db, 'br-refresh-due');
     expect(again?.creditsFree).toBe(250);
-    await db.update(userCredits).set({ creditsFree: 7 }).where(eq(userCredits.id, 'br-refresh-due'));
+    await db
+      .update(userCredits)
+      .set({ creditsFree: 7 })
+      .where(eq(userCredits.id, 'br-refresh-due'));
     expect((await refreshFreeCreditsIfDue(db, 'br-refresh-due'))?.creditsFree).toBe(7);
   });
 
@@ -378,7 +456,11 @@ describe('the daily free refresh', () => {
     await getOrCreateUserCredits(db, 'br-refresh-race');
     await db
       .update(userCredits)
-      .set({ creditsFree: 0, creditsFreeLimit: 300, creditsLastRefresh: new Date(Date.now() - 30 * 60 * 60 * 1000) })
+      .set({
+        creditsFree: 0,
+        creditsFreeLimit: 300,
+        creditsLastRefresh: new Date(Date.now() - 30 * 60 * 60 * 1000),
+      })
       .where(eq(userCredits.id, 'br-refresh-race'));
 
     // The compare-and-set is against the server's `now()` INSIDE the statement,
@@ -402,8 +484,17 @@ describe('the daily free refresh', () => {
 describe('the admin summary reads all three tables', () => {
   it('returns the credits, subscriptions and transactions of one account', async () => {
     await getOrCreateUserCredits(db, 'br-summary');
-    await upsertSubscriptionByStripeId(db, aSubscription({ stripeSubscriptionId: 'sub_br_summary', oxyUserId: 'br-summary' }));
-    await insertTransaction(db, { oxyUserId: 'br-summary', type: 'credit_purchase', amount: 1, credits: 1, status: 'completed' });
+    await upsertSubscriptionByStripeId(
+      db,
+      aSubscription({ stripeSubscriptionId: 'sub_br_summary', oxyUserId: 'br-summary' }),
+    );
+    await insertTransaction(db, {
+      oxyUserId: 'br-summary',
+      type: 'credit_purchase',
+      amount: 1,
+      credits: 1,
+      status: 'completed',
+    });
 
     expect((await findUserCredits(db, 'br-summary'))?.id).toBe('br-summary');
     expect(await selectSubscriptionsForUser(db, 'br-summary')).toHaveLength(1);

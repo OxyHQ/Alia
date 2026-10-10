@@ -1,0 +1,9 @@
+// Port of eslint-plugin-expo `no-env-var-destructuring`. Metro only inlines
+// `process.env.EXPO_PUBLIC_*` member reads; a variable destructured from
+// `process.env` is never inlined and is `undefined` in the shipped bundle.
+language js
+
+`$pattern = process.env` where {
+  $pattern <: JsObjectBindingPattern(),
+  register_diagnostic(span=$pattern, message="Unexpected destructuring. Cannot destructure variables from process.env: Expo only inlines `process.env.EXPO_PUBLIC_*` member reads.", severity="error")
+}

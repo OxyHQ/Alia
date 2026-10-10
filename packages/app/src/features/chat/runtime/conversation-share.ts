@@ -17,7 +17,11 @@ import { File, Paths } from 'expo-file-system';
  * `expo-sharing` is what would let Android share the file rather than its
  * contents.
  */
-export async function deliverMarkdownFile(filename: string, content: string, title: string): Promise<void> {
+export async function deliverMarkdownFile(
+  filename: string,
+  content: string,
+  title: string,
+): Promise<void> {
   if (Platform.OS === 'web') {
     const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -34,9 +38,5 @@ export async function deliverMarkdownFile(filename: string, content: string, tit
 
   const file = new File(Paths.cache, filename);
   file.write(content);
-  await Share.share(
-    Platform.OS === 'ios'
-      ? { url: file.uri, title }
-      : { message: content, title },
-  );
+  await Share.share(Platform.OS === 'ios' ? { url: file.uri, title } : { message: content, title });
 }

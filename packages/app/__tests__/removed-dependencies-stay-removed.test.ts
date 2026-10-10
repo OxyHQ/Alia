@@ -70,7 +70,10 @@ function sources(): string[] {
       const path = join(dir, entry.name);
       if (entry.isDirectory()) {
         walk(path);
-      } else if (/\.(tsx?|jsx?|mjs|cjs)$/.test(entry.name) && path !== fileURLToPath(import.meta.url)) {
+      } else if (
+        /\.(tsx?|jsx?|mjs|cjs)$/.test(entry.name) &&
+        path !== fileURLToPath(import.meta.url)
+      ) {
         found.push(path);
       }
     }
@@ -86,7 +89,9 @@ function sources(): string[] {
  */
 function importsOf(name: string): RegExp {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(?:from|import|require\\(|require\\.resolve\\()\\s*['"]${escaped}(?:/[^'"]*)?['"]`);
+  return new RegExp(
+    `(?:from|import|require\\(|require\\.resolve\\()\\s*['"]${escaped}(?:/[^'"]*)?['"]`,
+  );
 }
 
 describe('the dependencies the audit removed', () => {

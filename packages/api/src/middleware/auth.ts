@@ -16,7 +16,10 @@ import {
 import { log } from '../lib/logger.js';
 import { getConfiguredChannels } from '../lib/channels/registry.js';
 import { oxyServiceClient } from '../lib/oxy-service-client.js';
-import { oxyInferenceEndpointRefusal, resolveOxyDeploymentEnvironment } from '../lib/inference/oxy-inference.js';
+import {
+  oxyInferenceEndpointRefusal,
+  resolveOxyDeploymentEnvironment,
+} from '../lib/inference/oxy-inference.js';
 
 // Initialize Oxy client
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
@@ -26,6 +29,7 @@ export const oxyClient = new OxyServer({
 
 // Extend Express Request for Oxy users and service tokens
 declare global {
+  // biome-ignore lint/style/noNamespace: Express/global type augmentation requires `declare global { namespace Express }`.
   namespace Express {
     interface Request {
       userId?: string;
@@ -248,7 +252,7 @@ let requesterAssertionAuth: ReturnType<typeof createOxyRequesterAssertionAuth> |
 export function authenticateRequesterAssertion(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): void {
   if (req.headers[OXY_REQUESTER_ASSERTION_HEADER] === undefined) {
     next();
@@ -256,7 +260,9 @@ export function authenticateRequesterAssertion(
   }
   const introspector = oxyServiceClient();
   if (!introspector) {
-    log.auth.error('Requester assertion received but Alia has no Oxy service credential to introspect it');
+    log.auth.error(
+      'Requester assertion received but Alia has no Oxy service credential to introspect it',
+    );
     res.status(503).json({
       error: 'REQUESTER_ASSERTION_UNAVAILABLE',
       code: 'introspection_unavailable',
@@ -284,11 +290,7 @@ export function resetRequesterAssertionAuth(): void {
  * Tries bot auth first (Telegram), then Oxy JWT auth
  */
 
-export function optionalAuth(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void {
+export function optionalAuth(req: Request, res: Response, next: NextFunction): void {
   // Check if this is a Telegram bot request
   const telegramBotSecret = req.headers['x-telegram-bot-secret'] as string;
   if (telegramBotSecret) {
@@ -312,7 +314,8 @@ export function optionalAuth(
 export function refuseRetiredAliaKey(res: Response): void {
   res.status(401).json({
     error: 'credential_retired',
-    message: 'Alia API keys (alia_sk_*) have been retired and are no longer accepted. Authenticate with Oxy.',
+    message:
+      'Alia API keys (alia_sk_*) have been retired and are no longer accepted. Authenticate with Oxy.',
   });
 }
 
@@ -322,11 +325,7 @@ export function refuseRetiredAliaKey(res: Response): void {
  * application-key lane lives (ADR 0010 §2). Only an explicitly scoped
  * machine principal can enter the two app-only chat routes; it is never a user.
  */
-export function authenticateTokenOrApiKey(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void {
+export function authenticateTokenOrApiKey(req: Request, res: Response, next: NextFunction): void {
   const presented = req.headers.authorization;
   const rawMachine = presented?.startsWith('Bearer oxy_sk_') === true;
   if (rawMachine) {
@@ -379,9 +378,7 @@ export function authenticateTokenOrApiKey(
   }
 
   const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.substring(7)
-    : null;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
 
   if (!token) {
     res.status(401).json({ error: 'Authentication required' });
@@ -410,7 +407,7 @@ export function authenticateTokenOrApiKey(
 export async function authenticateTelegramBot(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   const startTime = Date.now();
 
@@ -460,7 +457,10 @@ export async function authenticateTelegramBot(
 
     // Log successful auth for audit trail
     const duration = Date.now() - startTime;
-    log.auth.info({ telegramId, oxyUserId: oxyUserId || 'unknown', endpoint: req.path, durationMs: duration }, 'Telegram bot authenticated');
+    log.auth.info(
+      { telegramId, oxyUserId: oxyUserId || 'unknown', endpoint: req.path, durationMs: duration },
+      'Telegram bot authenticated',
+    );
 
     // Set user context if provided - the bot is acting on behalf of this user
     if (oxyUserId) {
@@ -486,7 +486,7 @@ export async function authenticateTelegramBot(
 export async function authenticateChannelBotSecret(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const channelBotSecret = req.headers['x-channel-bot-secret'] as string;
@@ -534,10 +534,7 @@ export async function authenticateChannelBotSecret(
       return;
     }
 
-    log.auth.info(
-      { oxyUserId, endpoint: req.path },
-      'Channel bot authenticated'
-    );
+    log.auth.info({ oxyUserId, endpoint: req.path }, 'Channel bot authenticated');
 
     req.userId = oxyUserId;
     req.user = { id: oxyUserId };

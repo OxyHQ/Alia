@@ -64,7 +64,9 @@ function editableActor(
 }
 
 /** The actor to send: Alia needs nothing, an agent selection is trimmed. */
-function cleanActor(actorSelection: AutomationUpdateActorSelection): AutomationUpdateActorSelection {
+function cleanActor(
+  actorSelection: AutomationUpdateActorSelection,
+): AutomationUpdateActorSelection {
   if (actorSelection.mode === 'alia') return { mode: 'alia' };
   return actorSelection.mode === 'fixed'
     ? { mode: 'fixed', agentId: actorSelection.agentId.trim() }
@@ -74,20 +76,17 @@ function cleanActor(actorSelection: AutomationUpdateActorSelection): AutomationU
       };
 }
 
-function formatAutomationLimitValue(
-  value: string | number | boolean | string[],
-): string {
+function formatAutomationLimitValue(value: string | number | boolean | string[]): string {
   return typeof value === 'string' ? value : JSON.stringify(value);
 }
 
-export function createAutomationEditDraft(
-  automation: AutomationDefinition,
-): AutomationEditDraft {
+export function createAutomationEditDraft(automation: AutomationDefinition): AutomationEditDraft {
   return {
     objective: automation.objective,
-    instructions: typeof automation.inputs?.instructions === 'string'
-      ? automation.inputs.instructions
-      : automation.objective,
+    instructions:
+      typeof automation.inputs?.instructions === 'string'
+        ? automation.inputs.instructions
+        : automation.objective,
     trigger: editableTrigger(automation.trigger),
     actorSelection: editableActor(automation.actorSelection),
     resources: automation.resources.map(copyResource),
@@ -142,31 +141,37 @@ function parseLimitValue(value: string): AutomationUpdateInput['limits'][number]
 export function buildAutomationUpdate(draft: AutomationEditDraft): AutomationEditResult {
   const objective = draft.objective.trim();
   if (!objective) return { ok: false, error: 'automations.edit.objectiveRequired' };
-  if (!draft.instructions.trim()) return { ok: false, error: 'automations.edit.instructionsRequired' };
-  if (draft.trigger.type === 'schedule'
-    && (!draft.trigger.cron.trim() || !draft.trigger.timezone.trim())) {
+  if (!draft.instructions.trim())
+    return { ok: false, error: 'automations.edit.instructionsRequired' };
+  if (
+    draft.trigger.type === 'schedule' &&
+    (!draft.trigger.cron.trim() || !draft.trigger.timezone.trim())
+  ) {
     return { ok: false, error: 'automations.edit.scheduleRequired' };
   }
-  if (draft.trigger.type === 'event'
-    && (!draft.trigger.appId.trim() || !draft.trigger.eventType.trim())) {
+  if (
+    draft.trigger.type === 'event' &&
+    (!draft.trigger.appId.trim() || !draft.trigger.eventType.trim())
+  ) {
     return { ok: false, error: 'automations.edit.eventRequired' };
   }
-  if (draft.trigger.type === 'event' && draft.trigger.resource
-    && !validResource(draft.trigger.resource)) {
+  if (
+    draft.trigger.type === 'event' &&
+    draft.trigger.resource &&
+    !validResource(draft.trigger.resource)
+  ) {
     return { ok: false, error: 'automations.edit.eventResourceIncomplete' };
   }
   if (draft.actorSelection.mode === 'fixed' && !draft.actorSelection.agentId.trim()) {
     return { ok: false, error: 'automations.edit.chooseAgent' };
   }
-  if (draft.actorSelection.mode === 'automatic'
-    && draft.actorSelection.eligibleAgentIds.length === 0) {
+  if (
+    draft.actorSelection.mode === 'automatic' &&
+    draft.actorSelection.eligibleAgentIds.length === 0
+  ) {
     return { ok: false, error: 'automations.edit.chooseEligibleAgent' };
   }
-  const resources = [
-    ...draft.resources,
-    ...draft.dataFlow.sources,
-    ...draft.dataFlow.destinations,
-  ];
+  const resources = [...draft.resources, ...draft.dataFlow.sources, ...draft.dataFlow.destinations];
   if (!resources.every(validResource)) {
     return { ok: false, error: 'automations.edit.resourceIncomplete' };
   }
@@ -176,7 +181,8 @@ export function buildAutomationUpdate(draft: AutomationEditDraft): AutomationEdi
   for (const limit of draft.limits) {
     const key = limit.key.trim();
     if (!key) return { ok: false, error: 'automations.edit.limitKeyRequired' };
-    if (limitKeys.has(key)) return { ok: false, error: 'automations.edit.limitDuplicated', params: { key } };
+    if (limitKeys.has(key))
+      return { ok: false, error: 'automations.edit.limitDuplicated', params: { key } };
     limitKeys.add(key);
     const value = parseLimitValue(limit.value);
     if (value === null) {
@@ -190,20 +196,23 @@ export function buildAutomationUpdate(draft: AutomationEditDraft): AutomationEdi
     value: {
       objective,
       instructions: draft.instructions.trim(),
-      trigger: draft.trigger.type === 'schedule'
-        ? {
-            type: 'schedule',
-            cron: draft.trigger.cron.trim(),
-            timezone: draft.trigger.timezone.trim(),
-          }
-        : draft.trigger.type === 'event'
+      trigger:
+        draft.trigger.type === 'schedule'
           ? {
-              type: 'event',
-              appId: draft.trigger.appId.trim(),
-              eventType: draft.trigger.eventType.trim(),
-              ...(draft.trigger.resource ? { resource: cleanResource(draft.trigger.resource) } : {}),
+              type: 'schedule',
+              cron: draft.trigger.cron.trim(),
+              timezone: draft.trigger.timezone.trim(),
             }
-          : { type: 'manual' },
+          : draft.trigger.type === 'event'
+            ? {
+                type: 'event',
+                appId: draft.trigger.appId.trim(),
+                eventType: draft.trigger.eventType.trim(),
+                ...(draft.trigger.resource
+                  ? { resource: cleanResource(draft.trigger.resource) }
+                  : {}),
+              }
+            : { type: 'manual' },
       actorSelection: cleanActor(draft.actorSelection),
       resources: draft.resources.map(cleanResource),
       dataFlow: {

@@ -1,9 +1,9 @@
-import { create } from "zustand";
-import type { Attachment } from "@/shared/contracts/chat-turn";
+import { create } from 'zustand';
+import type { Attachment } from '@/shared/contracts/chat-turn';
 
 export type ChatIdState = {
   id: string;
-  from: "history" | "newChat" | "sidebar" | "url";
+  from: 'history' | 'newChat' | 'sidebar' | 'url';
 } | null;
 
 /** What a message carries to the model: plain text, or multi-part once images are attached. */
@@ -29,7 +29,9 @@ interface StoreState {
   setBottomChatHeightHandler: (value: boolean) => void;
   bottomChatHeightHandler: boolean;
   chatId: ChatIdState;
-  setChatId: (value: { id: string; from: "history" | "newChat" | "sidebar" | "url" } | null) => void;
+  setChatId: (
+    value: { id: string; from: 'history' | 'newChat' | 'sidebar' | 'url' } | null,
+  ) => void;
   setFocusKeyboard: (value: boolean) => void;
   focusKeyboard: boolean;
 
@@ -54,15 +56,15 @@ export const useStore = create<StoreState>((set) => ({
   scrollY: 0,
   setScrollY: (value: number) => set({ scrollY: value }),
   bottomChatHeightHandler: false,
-  setBottomChatHeightHandler: (value: boolean) =>
-    set({ bottomChatHeightHandler: value }),
+  setBottomChatHeightHandler: (value: boolean) => set({ bottomChatHeightHandler: value }),
   chatId: null,
   setChatId: (value) => set({ chatId: value }),
   focusKeyboard: false,
   setFocusKeyboard: (value: boolean) => set({ focusKeyboard: value }),
 
   pendingInitialMessage: null,
-  setPendingInitialMessage: (message: PendingInitialMessage) => set({ pendingInitialMessage: message }),
+  setPendingInitialMessage: (message: PendingInitialMessage) =>
+    set({ pendingInitialMessage: message }),
   clearPendingInitialMessage: () => set({ pendingInitialMessage: null }),
 
   ghostMode: false,

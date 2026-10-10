@@ -32,45 +32,149 @@ function prefixRedact(prefixLen: number) {
 const SECRET_PATTERNS: SecretPattern[] = [
   // ── AWS ──
   { type: 'aws_access_key', pattern: /\bAKIA[0-9A-Z]{16}\b/g, severity: 'critical' },
-  { type: 'aws_secret_key', pattern: /(?:aws_secret_access_key|aws_secret)\s*[:=]\s*['"]?([A-Za-z0-9/+=]{40})['"]?/gi, severity: 'critical' },
+  {
+    type: 'aws_secret_key',
+    pattern: /(?:aws_secret_access_key|aws_secret)\s*[:=]\s*['"]?([A-Za-z0-9/+=]{40})['"]?/gi,
+    severity: 'critical',
+  },
 
   // ── Stripe ──
-  { type: 'stripe_secret_key', pattern: /\bsk_live_[a-zA-Z0-9]{24,}\b/g, severity: 'critical', redact: prefixRedact(8) },
-  { type: 'stripe_publishable_key', pattern: /\bpk_live_[a-zA-Z0-9]{24,}\b/g, severity: 'warning', redact: prefixRedact(8) },
-  { type: 'stripe_restricted_key', pattern: /\brk_live_[a-zA-Z0-9]{24,}\b/g, severity: 'critical', redact: prefixRedact(8) },
+  {
+    type: 'stripe_secret_key',
+    pattern: /\bsk_live_[a-zA-Z0-9]{24,}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(8),
+  },
+  {
+    type: 'stripe_publishable_key',
+    pattern: /\bpk_live_[a-zA-Z0-9]{24,}\b/g,
+    severity: 'warning',
+    redact: prefixRedact(8),
+  },
+  {
+    type: 'stripe_restricted_key',
+    pattern: /\brk_live_[a-zA-Z0-9]{24,}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(8),
+  },
 
   // ── GitHub ──
-  { type: 'github_pat', pattern: /\bghp_[a-zA-Z0-9]{36}\b/g, severity: 'critical', redact: prefixRedact(4) },
-  { type: 'github_pat_fine', pattern: /\bgithub_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59}\b/g, severity: 'critical', redact: prefixRedact(11) },
-  { type: 'github_oauth', pattern: /\bgho_[a-zA-Z0-9]{36}\b/g, severity: 'critical', redact: prefixRedact(4) },
+  {
+    type: 'github_pat',
+    pattern: /\bghp_[a-zA-Z0-9]{36}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(4),
+  },
+  {
+    type: 'github_pat_fine',
+    pattern: /\bgithub_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(11),
+  },
+  {
+    type: 'github_oauth',
+    pattern: /\bgho_[a-zA-Z0-9]{36}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(4),
+  },
 
   // ── Google ──
-  { type: 'google_api_key', pattern: /\bAIza[0-9A-Za-z_-]{35}\b/g, severity: 'critical', redact: prefixRedact(4) },
+  {
+    type: 'google_api_key',
+    pattern: /\bAIza[0-9A-Za-z_-]{35}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(4),
+  },
 
   // ── OpenAI ──
-  { type: 'openai_api_key', pattern: /\bsk-[a-zA-Z0-9]{20}T3BlbkFJ[a-zA-Z0-9]{20}\b/g, severity: 'critical', redact: prefixRedact(3) },
-  { type: 'openai_api_key_v2', pattern: /\bsk-proj-[a-zA-Z0-9_-]{40,}\b/g, severity: 'critical', redact: prefixRedact(8) },
+  {
+    type: 'openai_api_key',
+    pattern: /\bsk-[a-zA-Z0-9]{20}T3BlbkFJ[a-zA-Z0-9]{20}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(3),
+  },
+  {
+    type: 'openai_api_key_v2',
+    pattern: /\bsk-proj-[a-zA-Z0-9_-]{40,}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(8),
+  },
 
   // ── Anthropic ──
-  { type: 'anthropic_api_key', pattern: /\bsk-ant-[a-zA-Z0-9_-]{40,}\b/g, severity: 'critical', redact: prefixRedact(7) },
+  {
+    type: 'anthropic_api_key',
+    pattern: /\bsk-ant-[a-zA-Z0-9_-]{40,}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(7),
+  },
 
   // ── Additional provider credential formats ──
   //
   // Historical vendor formats remain useful when scanning untrusted text from
   // users, tools and integrations. Alia owns none of these provider credentials
   // at runtime; the patterns are content-safety signatures, not configuration.
-  { type: 'groq_api_key', pattern: /\bgsk_[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(4) },
-  { type: 'xai_api_key', pattern: /\bxai-[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(4) },
-  { type: 'openrouter_api_key', pattern: /\bsk-or-v1-[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(9) },
-  { type: 'replicate_api_key', pattern: /\br8_[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(3) },
-  { type: 'digitalocean_api_key', pattern: /\bdop_v1_[a-f0-9]{32,}\b/g, severity: 'critical', redact: prefixRedact(7) },
-  { type: 'fireworks_api_key', pattern: /\bfw_[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(3) },
-  { type: 'perplexity_api_key', pattern: /\bpplx-[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(5) },
-  { type: 'cerebras_api_key', pattern: /\bcsk-[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(4) },
-  { type: 'cheaperinference_api_key', pattern: /\bir_live_[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(8) },
+  {
+    type: 'groq_api_key',
+    pattern: /\bgsk_[a-zA-Z0-9]{20,}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(4),
+  },
+  {
+    type: 'xai_api_key',
+    pattern: /\bxai-[a-zA-Z0-9]{20,}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(4),
+  },
+  {
+    type: 'openrouter_api_key',
+    pattern: /\bsk-or-v1-[a-zA-Z0-9]{20,}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(9),
+  },
+  {
+    type: 'replicate_api_key',
+    pattern: /\br8_[a-zA-Z0-9]{20,}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(3),
+  },
+  {
+    type: 'digitalocean_api_key',
+    pattern: /\bdop_v1_[a-f0-9]{32,}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(7),
+  },
+  {
+    type: 'fireworks_api_key',
+    pattern: /\bfw_[a-zA-Z0-9]{20,}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(3),
+  },
+  {
+    type: 'perplexity_api_key',
+    pattern: /\bpplx-[a-zA-Z0-9]{20,}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(5),
+  },
+  {
+    type: 'cerebras_api_key',
+    pattern: /\bcsk-[a-zA-Z0-9]{20,}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(4),
+  },
+  {
+    type: 'cheaperinference_api_key',
+    pattern: /\bir_live_[a-zA-Z0-9]{20,}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(8),
+  },
 
   // ── Alia's own developer credential ──
-  { type: 'alia_developer_key', pattern: /\balia_sk_[a-zA-Z0-9_-]{16,}/g, severity: 'critical', redact: prefixRedact(8) },
+  {
+    type: 'alia_developer_key',
+    pattern: /\balia_sk_[a-zA-Z0-9_-]{16,}/g,
+    severity: 'critical',
+    redact: prefixRedact(8),
+  },
 
   // ── A credential a provider echoes back MASKED ──
   //
@@ -78,45 +182,129 @@ const SECRET_PATTERNS: SecretPattern[] = [
   // first characters, a run of asterisks, and its LAST FOUR characters. The
   // tail is the part worth removing, and no prefix pattern reaches it because
   // the middle is not key-shaped any more.
-  { type: 'masked_credential', pattern: /\b[a-zA-Z0-9_-]{2,}\*{4,}[a-zA-Z0-9]{2,}\b/g, severity: 'critical', redact: () => '[REDACTED]' },
+  {
+    type: 'masked_credential',
+    pattern: /\b[a-zA-Z0-9_-]{2,}\*{4,}[a-zA-Z0-9]{2,}\b/g,
+    severity: 'critical',
+    redact: () => '[REDACTED]',
+  },
 
   // ── Slack ──
-  { type: 'slack_token', pattern: /\bxox[bpras]-[0-9]{10,}-[a-zA-Z0-9-]+\b/g, severity: 'critical', redact: prefixRedact(4) },
-  { type: 'slack_webhook', pattern: /https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[a-zA-Z0-9]+/g, severity: 'critical' },
+  {
+    type: 'slack_token',
+    pattern: /\bxox[bpras]-[0-9]{10,}-[a-zA-Z0-9-]+\b/g,
+    severity: 'critical',
+    redact: prefixRedact(4),
+  },
+  {
+    type: 'slack_webhook',
+    pattern: /https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[a-zA-Z0-9]+/g,
+    severity: 'critical',
+  },
 
   // ── Twilio ──
-  { type: 'twilio_api_key', pattern: /\bSK[a-f0-9]{32}\b/g, severity: 'critical', redact: prefixRedact(2) },
+  {
+    type: 'twilio_api_key',
+    pattern: /\bSK[a-f0-9]{32}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(2),
+  },
 
   // ── SendGrid ──
-  { type: 'sendgrid_api_key', pattern: /\bSG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}\b/g, severity: 'critical', redact: prefixRedact(3) },
+  {
+    type: 'sendgrid_api_key',
+    pattern: /\bSG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(3),
+  },
 
   // ── Mailgun ──
-  { type: 'mailgun_api_key', pattern: /\bkey-[a-zA-Z0-9]{32}\b/g, severity: 'critical', redact: prefixRedact(4) },
+  {
+    type: 'mailgun_api_key',
+    pattern: /\bkey-[a-zA-Z0-9]{32}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(4),
+  },
 
   // ── JWT ──
-  { type: 'jwt_token', pattern: /\beyJ[a-zA-Z0-9_-]{10,}\.eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\b/g, severity: 'warning', redact: (m) => m.slice(0, 10) + '****' },
+  {
+    type: 'jwt_token',
+    pattern: /\beyJ[a-zA-Z0-9_-]{10,}\.eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\b/g,
+    severity: 'warning',
+    redact: (m) => m.slice(0, 10) + '****',
+  },
 
   // ── Private Keys ──
-  { type: 'private_key', pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----/g, severity: 'critical', redact: () => '[REDACTED PRIVATE KEY]' },
+  {
+    type: 'private_key',
+    pattern:
+      /-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----/g,
+    severity: 'critical',
+    redact: () => '[REDACTED PRIVATE KEY]',
+  },
 
   // ── Connection Strings ──
-  { type: 'mongodb_uri', pattern: /\bmongodb(?:\+srv)?:\/\/[^\s"'`,)}\]]+/g, severity: 'critical', redact: (m) => m.replace(/:\/\/([^@]+)@/, '://****@') },
-  { type: 'postgres_uri', pattern: /\bpostgres(?:ql)?:\/\/[^\s"'`,)}\]]+/g, severity: 'critical', redact: (m) => m.replace(/:\/\/([^@]+)@/, '://****@') },
-  { type: 'mysql_uri', pattern: /\bmysql:\/\/[^\s"'`,)}\]]+/g, severity: 'critical', redact: (m) => m.replace(/:\/\/([^@]+)@/, '://****@') },
-  { type: 'redis_uri', pattern: /\bredis(?:s)?:\/\/[^\s"'`,)}\]]+/g, severity: 'critical', redact: (m) => m.replace(/:\/\/([^@]+)@/, '://****@') },
+  {
+    type: 'mongodb_uri',
+    pattern: /\bmongodb(?:\+srv)?:\/\/[^\s"'`,)}\]]+/g,
+    severity: 'critical',
+    redact: (m) => m.replace(/:\/\/([^@]+)@/, '://****@'),
+  },
+  {
+    type: 'postgres_uri',
+    pattern: /\bpostgres(?:ql)?:\/\/[^\s"'`,)}\]]+/g,
+    severity: 'critical',
+    redact: (m) => m.replace(/:\/\/([^@]+)@/, '://****@'),
+  },
+  {
+    type: 'mysql_uri',
+    pattern: /\bmysql:\/\/[^\s"'`,)}\]]+/g,
+    severity: 'critical',
+    redact: (m) => m.replace(/:\/\/([^@]+)@/, '://****@'),
+  },
+  {
+    type: 'redis_uri',
+    pattern: /\bredis(?:s)?:\/\/[^\s"'`,)}\]]+/g,
+    severity: 'critical',
+    redact: (m) => m.replace(/:\/\/([^@]+)@/, '://****@'),
+  },
 
   // ── Heroku ──
-  { type: 'heroku_api_key', pattern: /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g, severity: 'info' },
+  {
+    type: 'heroku_api_key',
+    pattern: /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g,
+    severity: 'info',
+  },
 
   // ── Generic Secrets ──
-  { type: 'generic_secret', pattern: /(?:password|passwd|secret|api_key|apikey|access_token|auth_token|private_key)\s*[:=]\s*['"]([^'"]{8,})['"](?!\s*[:=])/gi, severity: 'warning' },
-  { type: 'bearer_token', pattern: /\bBearer\s+[a-zA-Z0-9_.-]{20,}\b/g, severity: 'warning', redact: () => 'Bearer ****' },
+  {
+    type: 'generic_secret',
+    pattern:
+      /(?:password|passwd|secret|api_key|apikey|access_token|auth_token|private_key)\s*[:=]\s*['"]([^'"]{8,})['"](?!\s*[:=])/gi,
+    severity: 'warning',
+  },
+  {
+    type: 'bearer_token',
+    pattern: /\bBearer\s+[a-zA-Z0-9_.-]{20,}\b/g,
+    severity: 'warning',
+    redact: () => 'Bearer ****',
+  },
 
   // ── npm token ──
-  { type: 'npm_token', pattern: /\bnpm_[a-zA-Z0-9]{36}\b/g, severity: 'critical', redact: prefixRedact(4) },
+  {
+    type: 'npm_token',
+    pattern: /\bnpm_[a-zA-Z0-9]{36}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(4),
+  },
 
   // ── PyPI token ──
-  { type: 'pypi_token', pattern: /\bpypi-[a-zA-Z0-9_-]{50,}\b/g, severity: 'critical', redact: prefixRedact(5) },
+  {
+    type: 'pypi_token',
+    pattern: /\bpypi-[a-zA-Z0-9_-]{50,}\b/g,
+    severity: 'critical',
+    redact: prefixRedact(5),
+  },
 
   // ── Any other OpenAI-compatible credential ──
   //
@@ -125,7 +313,12 @@ const SECRET_PATTERNS: SecretPattern[] = [
   // deduplicates by matched VALUE, so the first pattern to claim a span decides
   // how it is censored, and the specific entries above carry the more useful
   // prefixes. `*` is inside the class so a masked echo is still one token.
-  { type: 'openai_compatible_key', pattern: /\bsk-[a-zA-Z0-9_*-]{20,}/g, severity: 'critical', redact: prefixRedact(3) },
+  {
+    type: 'openai_compatible_key',
+    pattern: /\bsk-[a-zA-Z0-9_*-]{20,}/g,
+    severity: 'critical',
+    redact: prefixRedact(3),
+  },
 ];
 
 /**

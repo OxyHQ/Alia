@@ -169,6 +169,7 @@ app.use('/webhooks', createCrowdSourceWebhookRoutes());
 // of this repo can see. That is the trap `crowdsource-webhook.ts` guards
 // against, so keep both the hook and the guard.
 declare global {
+  // biome-ignore lint/style/noNamespace: Express/global type augmentation requires `declare global { namespace Express }`.
   namespace Express {
     interface Request {
       rawBody?: Buffer;

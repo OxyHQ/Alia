@@ -198,10 +198,7 @@ export async function markSignalDisconnected(
  * no disconnection instant, and the reconnect-exhausted branch never recorded
  * one either. Kept as one function because the source had one behaviour.
  */
-export async function markSignalFailed(
-  db: IntegrationsDatabase,
-  sessionId: string,
-): Promise<void> {
+export async function markSignalFailed(db: IntegrationsDatabase, sessionId: string): Promise<void> {
   await db
     .update(signalSessions)
     .set({ status: 'failed' })

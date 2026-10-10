@@ -10,7 +10,11 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import postgres from 'postgres';
 import { MemoryStore, PostgresStore, type CommandReceipt, type ComputerStore } from '../store.js';
 
-const receipt = (actorId: string, operationId: string, over: Partial<CommandReceipt> = {}): CommandReceipt => ({
+const receipt = (
+  actorId: string,
+  operationId: string,
+  over: Partial<CommandReceipt> = {},
+): CommandReceipt => ({
   actorId,
   operationId,
   command: 'echo hi',
@@ -27,7 +31,9 @@ const receipt = (actorId: string, operationId: string, over: Partial<CommandRece
 });
 
 const pgUrl = process.env.TEST_DATABASE_URL;
-const backends: Array<[string, () => Promise<ComputerStore>]> = [['memory', async () => new MemoryStore()]];
+const backends: Array<[string, () => Promise<ComputerStore>]> = [
+  ['memory', async () => new MemoryStore()],
+];
 const opened: ComputerStore[] = [];
 if (pgUrl) {
   backends.push([
@@ -65,7 +71,9 @@ describe.each(backends)('%s store', (_name, open) => {
     });
 
     it('races to exactly one winner', async () => {
-      const results = await Promise.all(Array.from({ length: 8 }, () => store.acquireLease(actor, 'command', 60_000)));
+      const results = await Promise.all(
+        Array.from({ length: 8 }, () => store.acquireLease(actor, 'command', 60_000)),
+      );
       expect(results.filter(Boolean)).toHaveLength(1);
     });
 
@@ -99,7 +107,9 @@ describe.each(backends)('%s store', (_name, open) => {
   describe('receipts', () => {
     it('inserts an operation once', async () => {
       expect(await store.insertReceipt(receipt(actor, 'op-1'))).toBe(true);
-      expect(await store.insertReceipt(receipt(actor, 'op-1', { command: 'rm -rf /workspace' }))).toBe(false);
+      expect(
+        await store.insertReceipt(receipt(actor, 'op-1', { command: 'rm -rf /workspace' })),
+      ).toBe(false);
       expect((await store.getReceipt(actor, 'op-1'))?.command).toBe('echo hi');
     });
 
@@ -107,7 +117,11 @@ describe.each(backends)('%s store', (_name, open) => {
       await store.insertReceipt(receipt(actor, 'op-1'));
       expect(await store.interruptRunning(actor, 'Stopped on request.')).toBe(1);
       const late = await store.finishReceipt(actor, 'op-1', {
-        status: 'succeeded', exitCode: 0, stdout: 'done', stderr: '', truncated: false,
+        status: 'succeeded',
+        exitCode: 0,
+        stdout: 'done',
+        stderr: '',
+        truncated: false,
       });
       expect(late).toBeNull();
       const stored = await store.getReceipt(actor, 'op-1');
@@ -119,9 +133,19 @@ describe.each(backends)('%s store', (_name, open) => {
     it('records the outcome of a finished command', async () => {
       await store.insertReceipt(receipt(actor, 'op-2'));
       const done = await store.finishReceipt(actor, 'op-2', {
-        status: 'failed', exitCode: 2, stdout: 'out', stderr: 'err', truncated: true,
+        status: 'failed',
+        exitCode: 2,
+        stdout: 'out',
+        stderr: 'err',
+        truncated: true,
       });
-      expect(done).toMatchObject({ status: 'failed', exitCode: 2, stdout: 'out', stderr: 'err', truncated: true });
+      expect(done).toMatchObject({
+        status: 'failed',
+        exitCode: 2,
+        stdout: 'out',
+        stderr: 'err',
+        truncated: true,
+      });
     });
 
     it('keeps receipts per actor', async () => {
@@ -130,8 +154,10 @@ describe.each(backends)('%s store', (_name, open) => {
     });
   });
 
-  it('lists an actor\'s receipts newest first, and only that actor\'s', async () => {
-    await store.insertReceipt(receipt(actor, 'old', { startedAt: new Date(Date.now() - 60_000).toISOString() }));
+  it("lists an actor's receipts newest first, and only that actor's", async () => {
+    await store.insertReceipt(
+      receipt(actor, 'old', { startedAt: new Date(Date.now() - 60_000).toISOString() }),
+    );
     await store.insertReceipt(receipt(actor, 'new'));
     await store.insertReceipt(receipt(`${actor}-other`, 'theirs'));
     const listed = await store.listReceipts(actor, 10);
@@ -141,11 +167,38 @@ describe.each(backends)('%s store', (_name, open) => {
 
   it('records browser actions per actor, newest first', async () => {
     const at = (offset: number) => new Date(Date.now() - offset).toISOString();
-    await store.recordBrowserAction({ actorId: actor, action: 'open', by: 'agent', origin: 'https://a.example', detail: '', status: 'ok', at: at(2000) });
-    await store.recordBrowserAction({ actorId: actor, action: 'input', by: 'owner', origin: 'https://a.example', detail: 'type 8 characters', status: 'ok', at: at(1000) });
-    await store.recordBrowserAction({ actorId: `${actor}-other`, action: 'open', by: 'agent', origin: '', detail: '', status: 'ok', at: at(0) });
+    await store.recordBrowserAction({
+      actorId: actor,
+      action: 'open',
+      by: 'agent',
+      origin: 'https://a.example',
+      detail: '',
+      status: 'ok',
+      at: at(2000),
+    });
+    await store.recordBrowserAction({
+      actorId: actor,
+      action: 'input',
+      by: 'owner',
+      origin: 'https://a.example',
+      detail: 'type 8 characters',
+      status: 'ok',
+      at: at(1000),
+    });
+    await store.recordBrowserAction({
+      actorId: `${actor}-other`,
+      action: 'open',
+      by: 'agent',
+      origin: '',
+      detail: '',
+      status: 'ok',
+      at: at(0),
+    });
     const listed = await store.listBrowserActions(actor, 10);
-    expect(listed.map((a) => [a.action, a.by])).toEqual([['input', 'owner'], ['open', 'agent']]);
+    expect(listed.map((a) => [a.action, a.by])).toEqual([
+      ['input', 'owner'],
+      ['open', 'agent'],
+    ]);
   });
 
   it('remembers activity', async () => {

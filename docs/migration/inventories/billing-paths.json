@@ -48,9 +48,7 @@
           "fn": "seedPlan",
           "module": "db/billing/planRepository.ts",
           "classification": "CATALOGUE",
-          "callers": [
-            "lib/seed-plans.ts"
-          ],
+          "callers": ["lib/seed-plans.ts"],
           "reachable": true,
           "entrypoint": "boot seed, called from src/index.ts startBackgroundServices. ON CONFLICT DO NOTHING for the whole row. `plans.model_ids` and its runtime writer `setPlanModelIds` were removed by ADR 0012: every plan can use every model, and plans differ only in credits."
         },
@@ -58,9 +56,7 @@
           "fn": "updatePlanByPlanId",
           "module": "db/billing/planRepository.ts",
           "classification": "CATALOGUE",
-          "callers": [
-            "lib/gateway-client.ts"
-          ],
+          "callers": ["lib/gateway-client.ts"],
           "reachable": true,
           "entrypoint": "lib/stripe-prices.ts ensureStripePriceId, reached from POST /billing/checkout/subscription and POST /billing/subscription/change-plan. Persists an auto-created Stripe product/price id onto the plan; writes no amount."
         }
@@ -96,9 +92,7 @@
           "fn": "seedFeature",
           "module": "db/billing/featureRepository.ts",
           "classification": "CATALOGUE",
-          "callers": [
-            "internal/providers/lib/seed-features.ts"
-          ],
+          "callers": ["internal/providers/lib/seed-features.ts"],
           "reachable": true,
           "entrypoint": "boot seed."
         }
@@ -134,9 +128,7 @@
           "fn": "seedPlanFeatures",
           "module": "db/billing/planFeatureRepository.ts",
           "classification": "CATALOGUE",
-          "callers": [
-            "internal/providers/lib/seed-features.ts"
-          ],
+          "callers": ["internal/providers/lib/seed-features.ts"],
           "reachable": true,
           "entrypoint": "boot seed, imported there as insertSeedPlanFeatures. NOT the same function as seed-features.ts's own exported seedPlanFeatures, which seed-model-configs.ts calls \u2014 see method.residual."
         }
@@ -151,9 +143,7 @@
           "fn": "seedCreditPackage",
           "module": "db/billing/creditPackageRepository.ts",
           "classification": "CATALOGUE",
-          "callers": [
-            "internal/providers/lib/seed-credit-packages.ts"
-          ],
+          "callers": ["internal/providers/lib/seed-credit-packages.ts"],
           "reachable": true,
           "entrypoint": "boot seed."
         }
@@ -168,10 +158,7 @@
           "fn": "upsertSubscriptionByStripeId",
           "module": "db/billing/subscriptionRepository.ts",
           "classification": "FINANCIAL",
-          "callers": [
-            "lib/seed-comped-accounts.ts",
-            "routes/billing.ts"
-          ],
+          "callers": ["lib/seed-comped-accounts.ts", "routes/billing.ts"],
           "reachable": true,
           "entrypoint": "POST /billing/webhook \u2014 customer.subscription.created/updated, checkout.session.completed (subscription mode) and invoice.payment_succeeded, all funnelling through handleSubscriptionUpdate. Also the comp grant at the DEPLOY boundary: scripts/seed.ts runs lib/seed-comped-accounts.ts on every release, which resolves the comped username through Oxy and writes a synthetic comp_<userId>_<product> row so that account holds the most expensive plan of each product. It is a PLAN grant that moves no money \u2014 plan_snapshot_price is 0 and no transaction is written \u2014 and the comp_ prefix is what lets routes/billing.ts refuse to hand the id to Stripe."
         },
@@ -179,10 +166,7 @@
           "fn": "updateSubscriptionByStripeId",
           "module": "db/billing/subscriptionRepository.ts",
           "classification": "FINANCIAL",
-          "callers": [
-            "lib/seed-comped-accounts.ts",
-            "routes/billing.ts"
-          ],
+          "callers": ["lib/seed-comped-accounts.ts", "routes/billing.ts"],
           "reachable": true,
           "entrypoint": "POST /billing/subscription/cancel, POST /billing/subscription/change-plan, and the webhook's customer.subscription.deleted and invoice.payment_failed. Four of the five subscription write sites entitlements.test.ts accounts for. Also the comp withdrawal at the DEPLOY boundary: lib/seed-comped-accounts.ts cancels a comp_<userId>_<product> row whose product no longer has an active paid plan \u2014 only the comp's own id, never a Stripe subscription, and it moves no money."
         }
@@ -197,10 +181,7 @@
           "fn": "insertTransaction",
           "module": "db/billing/transactionRepository.ts",
           "classification": "FINANCIAL",
-          "callers": [
-            "lib/seed-comped-accounts.ts",
-            "routes/billing.ts"
-          ],
+          "callers": ["lib/seed-comped-accounts.ts", "routes/billing.ts"],
           "reachable": true,
           "entrypoint": "POST /billing/webhook \u2014 a credit purchase (checkout.session.completed) and a subscription renewal (handleSubscriptionUpdate). The renewal writes the transaction FIRST as a lock, on the dedup_key generated column, and only then adds credits. Plus the comp grant at the deploy boundary: lib/seed-comped-accounts.ts gives a comped account its plan's monthly credits through the same dedup-keyed lock a Stripe renewal uses, with amount 0 because no money moved."
         }
@@ -215,9 +196,7 @@
           "fn": "getOrCreateUserCredits",
           "module": "db/billing/userCreditsRepository.ts",
           "classification": "ENTITLEMENT",
-          "callers": [
-            "lib/user-credits-helpers.ts"
-          ],
+          "callers": ["lib/user-credits-helpers.ts"],
           "reachable": true,
           "entrypoint": "One direct caller, and twelve surfaces behind it \u2014 see balanceSurfaces. Mints the row with the default free allowance; touches no paid balance."
         },
@@ -225,9 +204,7 @@
           "fn": "refreshFreeCreditsIfDue",
           "module": "db/billing/userCreditsRepository.ts",
           "classification": "ENTITLEMENT",
-          "callers": [
-            "lib/user-credits-helpers.ts"
-          ],
+          "callers": ["lib/user-credits-helpers.ts"],
           "reachable": true,
           "entrypoint": "getRefreshedUserCredits, the balance-display path. A compare-and-set that tops credits_free back to credits_free_limit once a day."
         },
@@ -235,9 +212,7 @@
           "fn": "spendCreditsFreeFirst",
           "module": "db/billing/userCreditsRepository.ts",
           "classification": "ENTITLEMENT",
-          "callers": [
-            "lib/credits-manager.ts"
-          ],
+          "callers": ["lib/credits-manager.ts"],
           "reachable": true,
           "entrypoint": "reserveCredits and the under-reserved branch of _adjustReservation \u2014 every chat, image, audio, voice, show and agent turn. Consumes the allowance free-first, which is why a request is funded by the free bucket wherever it can be."
         },
@@ -253,9 +228,7 @@
           "fn": "zeroCredits",
           "module": "db/billing/userCreditsRepository.ts",
           "classification": "ENTITLEMENT",
-          "callers": [
-            "lib/credits-manager.ts"
-          ],
+          "callers": ["lib/credits-manager.ts"],
           "reachable": true,
           "entrypoint": "_adjustReservation, when the true cost exceeded the whole remaining balance. Floors the account at zero rather than going negative."
         },
@@ -276,9 +249,7 @@
           "fn": "setStripeCustomerId",
           "module": "db/billing/userCreditsRepository.ts",
           "classification": "FINANCIAL",
-          "callers": [
-            "routes/billing.ts"
-          ],
+          "callers": ["routes/billing.ts"],
           "reachable": true,
           "entrypoint": "getOrCreateStripeCustomer and the webhook's customer-id backfill. Pure processor linkage."
         }

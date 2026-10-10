@@ -128,14 +128,16 @@ export const KNOWN_DISCLOSURES: readonly KnownDisclosure[] = [
   {
     key: 'google_api_key:dc53650a7c03',
     classification: 'firebase_client_config',
-    where: 'apps/app/google-services.json, added in 413ffa3f and removed in 042baefd, both 2026-03-11',
+    where:
+      'apps/app/google-services.json, added in 413ffa3f and removed in 042baefd, both 2026-03-11',
     rotatedAt: null,
     note: 'Firebase Android client key; ships in every APK by design. Restrict it in the Cloud console rather than rotating it.',
   },
   {
     key: 'openai_project_key:a4f3b2153f32',
     classification: 'synthetic_fixture',
-    where: 'packages/api/src/lib/__tests__/sanitize.test.ts and lib/routing/__tests__/routing-policy.test.ts',
+    where:
+      'packages/api/src/lib/__tests__/sanitize.test.ts and lib/routing/__tests__/routing-policy.test.ts',
     rotatedAt: null,
     note: 'The `sk-proj-` literal those two gates feed to redactUnsafeDetail; without it neither assertion can fail.',
   },

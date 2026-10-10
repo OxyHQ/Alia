@@ -93,8 +93,9 @@ describe('useAliaChat request lifecycle', () => {
     latest = null;
     hookOptions = undefined;
     mocks.resolveModelId.mockClear();
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
-      .IS_REACT_ACT_ENVIRONMENT = true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
   afterEach(() => {
@@ -113,7 +114,10 @@ describe('useAliaChat request lifecycle', () => {
 
     expect(session.createLinkedClient).toHaveBeenCalledWith({ baseURL: 'https://api.alia.onl' });
     const config = session.request.mock.calls[0]?.[0];
-    expect(config?.headers).toEqual({ Accept: 'text/event-stream', 'Content-Type': 'application/json' });
+    expect(config?.headers).toEqual({
+      Accept: 'text/event-stream',
+      'Content-Type': 'application/json',
+    });
     expect(config?.headers).not.toHaveProperty('Authorization');
     expect(config?.url).toBe('/v1/chat/completions');
     expect(current().messages.map((message) => [message.role, message.content])).toEqual([
@@ -146,7 +150,9 @@ describe('useAliaChat request lifecycle', () => {
       (config) =>
         new Promise<Response>((_resolve, reject) => {
           requestSignals.push(config.signal);
-          config.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+          config.signal.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError')),
+          );
         }),
     );
     const renderer = await renderHarness();
@@ -162,7 +168,9 @@ describe('useAliaChat request lifecycle', () => {
   });
 
   it('does not wait for a cold catalogue request after unmounting', async () => {
-    mocks.resolveModelId.mockImplementationOnce(() => new Promise<string | undefined>(() => undefined));
+    mocks.resolveModelId.mockImplementationOnce(
+      () => new Promise<string | undefined>(() => undefined),
+    );
     const session = createSession(async () => successfulResponse());
     const renderer = await renderHarness();
 
@@ -184,7 +192,9 @@ describe('useAliaChat request lifecycle', () => {
       calls += 1;
       if (calls === 2) return Promise.resolve(successfulResponse('Segunda respuesta'));
       return new Promise<Response>((_resolve, reject) => {
-        config.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+        config.signal.addEventListener('abort', () =>
+          reject(new DOMException('Aborted', 'AbortError')),
+        );
       });
     });
     const renderer = await renderHarness();
@@ -201,9 +211,9 @@ describe('useAliaChat request lifecycle', () => {
 
     expect(signals[0]?.aborted).toBe(true);
     expect(signals[1]?.aborted).toBe(false);
-    const secondBody = JSON.parse(
-      session.request.mock.calls[1]?.[0].body ?? '{}',
-    ) as { messages?: Array<{ role?: string; content?: string }> };
+    const secondBody = JSON.parse(session.request.mock.calls[1]?.[0].body ?? '{}') as {
+      messages?: Array<{ role?: string; content?: string }>;
+    };
     expect(secondBody.messages).toEqual([
       { role: 'user', content: 'Primera' },
       { role: 'user', content: 'Segunda' },
@@ -224,7 +234,9 @@ describe('useAliaChat request lifecycle', () => {
       (config) =>
         new Promise<Response>((_resolve, reject) => {
           signals.push(config.signal);
-          config.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+          config.signal.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError')),
+          );
         }),
     );
     const renderer = await renderHarness();

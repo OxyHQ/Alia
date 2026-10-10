@@ -1,11 +1,11 @@
-import React from "react";
-import Plus from "lucide-react-native/icons/plus";
-import { cn } from "../../../lib/utils";
-import { Button } from "../button";
-import * as DropdownMenu from "../dropdown-menu";
-import { useImagePicker } from "../../../hooks/useImagePicker";
-import { useDocumentPicker } from "../../../hooks/useDocumentPicker";
-import { usePromptInput } from "./context";
+import React from 'react';
+import Plus from 'lucide-react-native/icons/plus';
+import { cn } from '../../../lib/utils';
+import { Button } from '../button';
+import * as DropdownMenu from '../dropdown-menu';
+import { useImagePicker } from '../../../hooks/useImagePicker';
+import { useDocumentPicker } from '../../../hooks/useDocumentPicker';
+import { usePromptInput } from './context';
 
 export type PromptInputAddMenuProps = {
   className?: string;
@@ -25,7 +25,7 @@ export function PromptInputAddMenu({ className, iconSize = 16 }: PromptInputAddM
           addAttachment({
             id: `img-${Date.now()}-${Math.random().toString(36).slice(2)}`,
             uri: asset.uri,
-            type: "image",
+            type: 'image',
             name: asset.name,
             size: asset.size,
             mimeType: asset.mimeType,
@@ -33,7 +33,7 @@ export function PromptInputAddMenu({ className, iconSize = 16 }: PromptInputAddM
         });
       }
     } catch (err) {
-      console.error("Error picking images:", err);
+      console.error('Error picking images:', err);
     }
   };
 
@@ -45,7 +45,7 @@ export function PromptInputAddMenu({ className, iconSize = 16 }: PromptInputAddM
           addAttachment({
             id: `doc-${Date.now()}-${Math.random().toString(36).slice(2)}`,
             uri: doc.uri,
-            type: "document",
+            type: 'document',
             name: doc.name,
             size: doc.size,
             mimeType: doc.mimeType,
@@ -53,7 +53,7 @@ export function PromptInputAddMenu({ className, iconSize = 16 }: PromptInputAddM
         });
       }
     } catch (err) {
-      console.error("Error picking documents:", err);
+      console.error('Error picking documents:', err);
     }
   };
 
@@ -63,18 +63,18 @@ export function PromptInputAddMenu({ className, iconSize = 16 }: PromptInputAddM
         <Button
           variant="outline"
           size="icon"
-          className={cn("h-8 w-8 rounded-full border-0", className)}
+          className={cn('h-8 w-8 rounded-full border-0', className)}
         >
           <Plus size={iconSize} className="text-muted-foreground" />
         </Button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Content side="top" align="start">
         <DropdownMenu.Item key="photos" onSelect={handleAddPhotos}>
-          <DropdownMenu.ItemIcon ios={{ name: "photo" }} />
+          <DropdownMenu.ItemIcon ios={{ name: 'photo' }} />
           <DropdownMenu.ItemTitle>Add photos</DropdownMenu.ItemTitle>
         </DropdownMenu.Item>
         <DropdownMenu.Item key="document" onSelect={handleAddDocument}>
-          <DropdownMenu.ItemIcon ios={{ name: "doc" }} />
+          <DropdownMenu.ItemIcon ios={{ name: 'doc' }} />
           <DropdownMenu.ItemTitle>Add document</DropdownMenu.ItemTitle>
         </DropdownMenu.Item>
       </DropdownMenu.Content>

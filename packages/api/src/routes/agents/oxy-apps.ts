@@ -34,8 +34,10 @@ async function ownedAgent(req: Request, res: Response) {
     cache: false,
   });
   if (!loaded.ok) {
-    res.status(loaded.refusal === 'agent_not_found' ? 404 : refusalStatus(loaded.refusal))
-      .json({ error: loaded.refusal === 'agent_not_found' ? 'Agent not found' : refusalMessage(loaded.refusal) });
+    res.status(loaded.refusal === 'agent_not_found' ? 404 : refusalStatus(loaded.refusal)).json({
+      error:
+        loaded.refusal === 'agent_not_found' ? 'Agent not found' : refusalMessage(loaded.refusal),
+    });
     return null;
   }
   if (typeof loaded.agent.applicationId === 'string') {
@@ -43,7 +45,10 @@ async function ownedAgent(req: Request, res: Response) {
     return null;
   }
   if (loaded.agent.ownerOxyAccountId !== req.user.id) {
-    res.status(403).json({ error: 'owner_only', message: 'Only the agent\'s owner can choose what of their data it may use' });
+    res.status(403).json({
+      error: 'owner_only',
+      message: "Only the agent's owner can choose what of their data it may use",
+    });
     return null;
   }
   return { agent: loaded.agent, accessToken: req.accessToken };
@@ -54,7 +59,7 @@ function answer(res: Response, error: unknown) {
     return res.status(error.status).json({ error: error.code, message: error.message });
   }
   log.agents.error({ err: error }, 'Agent Oxy app permissions failed');
-  return res.status(500).json({ error: 'Failed to load the agent\'s Oxy app permissions' });
+  return res.status(500).json({ error: "Failed to load the agent's Oxy app permissions" });
 }
 
 router.get('/:id/oxy-apps', authenticateToken, async (req: Request, res: Response) => {
@@ -75,7 +80,14 @@ router.put('/:id/oxy-apps/:appId', authenticateToken, async (req: Request, res: 
     if (!parsed.success) return res.status(400).json({ error: 'invalid_level' });
     const owned = await ownedAgent(req, res);
     if (!owned) return;
-    res.json({ app: await setAgentOxyAppLevel(owned.agent, owned.accessToken, String(req.params.appId), parsed.data.level) });
+    res.json({
+      app: await setAgentOxyAppLevel(
+        owned.agent,
+        owned.accessToken,
+        String(req.params.appId),
+        parsed.data.level,
+      ),
+    });
   } catch (error: unknown) {
     answer(res, error);
   }

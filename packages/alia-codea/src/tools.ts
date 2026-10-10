@@ -15,26 +15,29 @@ export const fileTools = [
     type: 'function',
     function: {
       name: 'read_file',
-      description: 'Read the contents of a file. Use this to examine code, configuration files, or any text file in the workspace.',
+      description:
+        'Read the contents of a file. Use this to examine code, configuration files, or any text file in the workspace.',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: 'The path to the file to read, relative to the workspace root'
+            description: 'The path to the file to read, relative to the workspace root',
           },
           start_line: {
             type: 'number',
-            description: 'Optional starting line number (1-indexed). If not specified, reads from the beginning.'
+            description:
+              'Optional starting line number (1-indexed). If not specified, reads from the beginning.',
           },
           end_line: {
             type: 'number',
-            description: 'Optional ending line number (1-indexed). If not specified, reads to the end.'
-          }
+            description:
+              'Optional ending line number (1-indexed). If not specified, reads to the end.',
+          },
         },
-        required: ['path']
-      }
-    }
+        required: ['path'],
+      },
+    },
   },
   {
     type: 'function',
@@ -46,41 +49,43 @@ export const fileTools = [
         properties: {
           path: {
             type: 'string',
-            description: 'The path to the file to write, relative to the workspace root'
+            description: 'The path to the file to write, relative to the workspace root',
           },
           content: {
             type: 'string',
-            description: 'The complete content to write to the file'
-          }
+            description: 'The complete content to write to the file',
+          },
         },
-        required: ['path', 'content']
-      }
-    }
+        required: ['path', 'content'],
+      },
+    },
   },
   {
     type: 'function',
     function: {
       name: 'edit_file',
-      description: 'Make targeted edits to a file by replacing specific text. Use this for small, precise changes.',
+      description:
+        'Make targeted edits to a file by replacing specific text. Use this for small, precise changes.',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: 'The path to the file to edit, relative to the workspace root'
+            description: 'The path to the file to edit, relative to the workspace root',
           },
           old_text: {
             type: 'string',
-            description: 'The exact text to find and replace (must match exactly including whitespace)'
+            description:
+              'The exact text to find and replace (must match exactly including whitespace)',
           },
           new_text: {
             type: 'string',
-            description: 'The new text to replace it with'
-          }
+            description: 'The new text to replace it with',
+          },
         },
-        required: ['path', 'old_text', 'new_text']
-      }
-    }
+        required: ['path', 'old_text', 'new_text'],
+      },
+    },
   },
   {
     type: 'function',
@@ -92,36 +97,38 @@ export const fileTools = [
         properties: {
           path: {
             type: 'string',
-            description: 'The path to the file to delete, relative to the workspace root'
-          }
+            description: 'The path to the file to delete, relative to the workspace root',
+          },
         },
-        required: ['path']
-      }
-    }
+        required: ['path'],
+      },
+    },
   },
   {
     type: 'function',
     function: {
       name: 'list_files',
-      description: 'List files and directories in a given path. If no path provided, lists workspace root. Use this to explore the project structure.',
+      description:
+        'List files and directories in a given path. If no path provided, lists workspace root. Use this to explore the project structure.',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: 'The directory path to list, relative to the workspace root. Use "." for root. If not provided, lists workspace root.'
+            description:
+              'The directory path to list, relative to the workspace root. Use "." for root. If not provided, lists workspace root.',
           },
           recursive: {
             type: 'boolean',
-            description: 'If true, list files recursively. Default is false.'
+            description: 'If true, list files recursively. Default is false.',
           },
           pattern: {
             type: 'string',
-            description: 'Optional glob pattern to filter files (e.g., "**/*.ts")'
-          }
-        }
-      }
-    }
+            description: 'Optional glob pattern to filter files (e.g., "**/*.ts")',
+          },
+        },
+      },
+    },
   },
   {
     type: 'function',
@@ -133,85 +140,91 @@ export const fileTools = [
         properties: {
           query: {
             type: 'string',
-            description: 'The text or regex pattern to search for'
+            description: 'The text or regex pattern to search for',
           },
           path: {
             type: 'string',
-            description: 'Optional directory to search in, relative to workspace root. Defaults to entire workspace.'
+            description:
+              'Optional directory to search in, relative to workspace root. Defaults to entire workspace.',
           },
           include: {
             type: 'string',
-            description: 'Optional glob pattern to include files (e.g., "**/*.ts")'
+            description: 'Optional glob pattern to include files (e.g., "**/*.ts")',
           },
           exclude: {
             type: 'string',
-            description: 'Optional glob pattern to exclude files'
-          }
+            description: 'Optional glob pattern to exclude files',
+          },
         },
-        required: ['query']
-      }
-    }
+        required: ['query'],
+      },
+    },
   },
   {
     type: 'function',
     function: {
       name: 'run_command',
-      description: 'Execute a shell command in the workspace. Use for running tests, builds, git commands, etc.',
+      description:
+        'Execute a shell command in the workspace. Use for running tests, builds, git commands, etc.',
       parameters: {
         type: 'object',
         properties: {
           command: {
             type: 'string',
-            description: 'The shell command to execute'
+            description: 'The shell command to execute',
           },
           cwd: {
             type: 'string',
-            description: 'Optional working directory, relative to workspace root'
-          }
+            description: 'Optional working directory, relative to workspace root',
+          },
         },
-        required: ['command']
-      }
-    }
+        required: ['command'],
+      },
+    },
   },
   {
     type: 'function',
     function: {
       name: 'open_file',
-      description: 'Open a file in the VS Code editor and show it to the user. Use this when the user asks to "open", "show", or "display" a file. This is different from read_file - this actually opens the file in a tab.',
+      description:
+        'Open a file in the VS Code editor and show it to the user. Use this when the user asks to "open", "show", or "display" a file. This is different from read_file - this actually opens the file in a tab.',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: 'The path to the file to open, relative to the workspace root (e.g., "README.md", "src/index.ts")'
+            description:
+              'The path to the file to open, relative to the workspace root (e.g., "README.md", "src/index.ts")',
           },
           line: {
             type: 'number',
-            description: 'Optional line number to scroll to (1-indexed)'
-          }
+            description: 'Optional line number to scroll to (1-indexed)',
+          },
         },
-        required: ['path']
-      }
-    }
+        required: ['path'],
+      },
+    },
   },
   {
     type: 'function',
     function: {
       name: 'set_mode',
-      description: 'Change the assistant operating mode. Use when user requests a mode change like "switch to edit mode" or "go yolo".',
+      description:
+        'Change the assistant operating mode. Use when user requests a mode change like "switch to edit mode" or "go yolo".',
       parameters: {
         type: 'object',
         properties: {
           mode: {
             type: 'string',
             enum: ['ask', 'edit', 'plan', 'yolo'],
-            description: 'The mode to switch to. ask=confirm destructive ops, edit=make changes directly, plan=outline then execute, yolo=full autonomous'
-          }
+            description:
+              'The mode to switch to. ask=confirm destructive ops, edit=make changes directly, plan=outline then execute, yolo=full autonomous',
+          },
         },
-        required: ['mode']
-      }
-    }
-  }
+        required: ['mode'],
+      },
+    },
+  },
 ];
 
 // Tool execution functions
@@ -250,11 +263,16 @@ export class ToolExecutor {
     return filePath;
   }
 
-  async execute(toolName: string, args: Record<string, unknown>): Promise<{ success: boolean; result: string }> {
+  async execute(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<{ success: boolean; result: string }> {
     try {
       switch (toolName) {
         case 'read_file':
-          return await this.readFile(args as { path: string; start_line?: number; end_line?: number });
+          return await this.readFile(
+            args as { path: string; start_line?: number; end_line?: number },
+          );
         case 'write_file':
           return await this.writeFile(args as { path: string; content: string });
         case 'edit_file':
@@ -262,9 +280,13 @@ export class ToolExecutor {
         case 'delete_file':
           return await this.deleteFile(args as { path: string });
         case 'list_files':
-          return await this.listFiles(args as { path: string; recursive?: boolean; pattern?: string });
+          return await this.listFiles(
+            args as { path: string; recursive?: boolean; pattern?: string },
+          );
         case 'search_files':
-          return await this.searchFiles(args as { query: string; path?: string; include?: string; exclude?: string });
+          return await this.searchFiles(
+            args as { query: string; path?: string; include?: string; exclude?: string },
+          );
         case 'run_command':
           return await this.runCommand(args as { command: string; cwd?: string });
         case 'open_file':
@@ -277,7 +299,11 @@ export class ToolExecutor {
     }
   }
 
-  private async readFile(args: { path: string; start_line?: number; end_line?: number }): Promise<{ success: boolean; result: string }> {
+  private async readFile(args: {
+    path: string;
+    start_line?: number;
+    end_line?: number;
+  }): Promise<{ success: boolean; result: string }> {
     try {
       const fileUri = this.resolveUri(args.path);
       const contentBytes = await vscode.workspace.fs.readFile(fileUri);
@@ -290,7 +316,7 @@ export class ToolExecutor {
         const selectedLines = lines.slice(start, end);
         return {
           success: true,
-          result: selectedLines.map((line, i) => `${start + i + 1}: ${line}`).join('\n')
+          result: selectedLines.map((line, i) => `${start + i + 1}: ${line}`).join('\n'),
         };
       }
 
@@ -305,7 +331,10 @@ export class ToolExecutor {
     }
   }
 
-  private async writeFile(args: { path: string; content: string }): Promise<{ success: boolean; result: string }> {
+  private async writeFile(args: {
+    path: string;
+    content: string;
+  }): Promise<{ success: boolean; result: string }> {
     const fileUri = this.resolveUri(args.path);
     const contentBytes = new TextEncoder().encode(args.content);
 
@@ -319,14 +348,21 @@ export class ToolExecutor {
     return { success: true, result: `Successfully wrote to ${args.path}` };
   }
 
-  private async editFile(args: { path: string; old_text: string; new_text: string }): Promise<{ success: boolean; result: string }> {
+  private async editFile(args: {
+    path: string;
+    old_text: string;
+    new_text: string;
+  }): Promise<{ success: boolean; result: string }> {
     try {
       const fileUri = this.resolveUri(args.path);
       const contentBytes = await vscode.workspace.fs.readFile(fileUri);
       const content = new TextDecoder().decode(contentBytes);
 
       if (!content.includes(args.old_text)) {
-        return { success: false, result: `Could not find the specified text in ${args.path}. Make sure the text matches exactly including whitespace.` };
+        return {
+          success: false,
+          result: `Could not find the specified text in ${args.path}. Make sure the text matches exactly including whitespace.`,
+        };
       }
 
       const newContent = content.replace(args.old_text, args.new_text);
@@ -358,7 +394,11 @@ export class ToolExecutor {
     }
   }
 
-  private async listFiles(args: { path: string; recursive?: boolean; pattern?: string }): Promise<{ success: boolean; result: string }> {
+  private async listFiles(args: {
+    path: string;
+    recursive?: boolean;
+    pattern?: string;
+  }): Promise<{ success: boolean; result: string }> {
     try {
       const dirUri = this.resolveUri(args.path);
 
@@ -366,7 +406,7 @@ export class ToolExecutor {
         // Use VS Code's findFiles for glob patterns
         const pattern = new vscode.RelativePattern(dirUri, args.pattern);
         const files = await vscode.workspace.findFiles(pattern, '**/node_modules/**', 1000);
-        const relativePaths = files.map(f => this.getRelativePath(f));
+        const relativePaths = files.map((f) => this.getRelativePath(f));
         return { success: true, result: relativePaths.join('\n') || 'No files found' };
       }
 
@@ -382,7 +422,7 @@ export class ToolExecutor {
             results.push(`📁 ${itemPath}/`);
             if (args.recursive) {
               const subDir = vscode.Uri.joinPath(dir, name);
-              results.push(...await listDir(subDir, itemPath));
+              results.push(...(await listDir(subDir, itemPath)));
             }
           } else {
             results.push(`📄 ${itemPath}`);
@@ -401,7 +441,12 @@ export class ToolExecutor {
     }
   }
 
-  private async searchFiles(args: { query: string; path?: string; include?: string; exclude?: string }): Promise<{ success: boolean; result: string }> {
+  private async searchFiles(args: {
+    query: string;
+    path?: string;
+    include?: string;
+    exclude?: string;
+  }): Promise<{ success: boolean; result: string }> {
     const searchUri = args.path ? this.resolveUri(args.path) : this.workspaceRootUri;
     if (!searchUri) {
       return { success: false, result: 'No workspace folder open' };
@@ -438,16 +483,20 @@ export class ToolExecutor {
 
     return {
       success: true,
-      result: results.length > 0 ? results.join('\n') : 'No matches found'
+      result: results.length > 0 ? results.join('\n') : 'No matches found',
     };
   }
 
-  private async runCommand(args: { command: string; cwd?: string }): Promise<{ success: boolean; result: string }> {
+  private async runCommand(args: {
+    command: string;
+    cwd?: string;
+  }): Promise<{ success: boolean; result: string }> {
     // Check if we're in a browser environment (no child_process available)
     if (typeof process === 'undefined' || !process.versions?.node) {
       return {
         success: false,
-        result: 'Shell commands are not available in web environment. This feature requires the desktop version of VS Code.'
+        result:
+          'Shell commands are not available in web environment. This feature requires the desktop version of VS Code.',
       };
     }
 
@@ -458,21 +507,28 @@ export class ToolExecutor {
       // Dynamic require to avoid bundling issues in browser
       const cp = require('child_process');
 
-      cp.exec(args.command, { cwd, timeout: 30000, maxBuffer: 1024 * 1024 }, (error: Error | null, stdout: string, stderr: string) => {
-        if (error) {
-          resolve({
-            success: false,
-            result: `Command failed: ${error.message}\n${stderr || ''}`
-          });
-        } else {
-          const output = stdout || stderr || 'Command completed with no output';
-          resolve({ success: true, result: output });
-        }
-      });
+      cp.exec(
+        args.command,
+        { cwd, timeout: 30000, maxBuffer: 1024 * 1024 },
+        (error: Error | null, stdout: string, stderr: string) => {
+          if (error) {
+            resolve({
+              success: false,
+              result: `Command failed: ${error.message}\n${stderr || ''}`,
+            });
+          } else {
+            const output = stdout || stderr || 'Command completed with no output';
+            resolve({ success: true, result: output });
+          }
+        },
+      );
     });
   }
 
-  private async openFile(args: { path: string; line?: number }): Promise<{ success: boolean; result: string }> {
+  private async openFile(args: {
+    path: string;
+    line?: number;
+  }): Promise<{ success: boolean; result: string }> {
     try {
       const fileUri = this.resolveUri(args.path);
 
@@ -495,10 +551,16 @@ export class ToolExecutor {
         const lineIndex = args.line - 1;
         const position = new vscode.Position(lineIndex, 0);
         editor.selection = new vscode.Selection(position, position);
-        editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+        editor.revealRange(
+          new vscode.Range(position, position),
+          vscode.TextEditorRevealType.InCenter,
+        );
       }
 
-      return { success: true, result: `Opened ${args.path}${args.line ? ` at line ${args.line}` : ''}` };
+      return {
+        success: true,
+        result: `Opened ${args.path}${args.line ? ` at line ${args.line}` : ''}`,
+      };
     } catch (error: unknown) {
       return { success: false, result: `Error opening file: ${errorMessage(error)}` };
     }
@@ -519,7 +581,7 @@ export class ToolExecutor {
       context.openFile = {
         path: this.getRelativePath(doc.uri),
         content: doc.getText(),
-        language: doc.languageId
+        language: doc.languageId,
       };
 
       const selection = editor.selection;
@@ -527,16 +589,16 @@ export class ToolExecutor {
         context.selection = {
           text: doc.getText(selection),
           startLine: selection.start.line + 1,
-          endLine: selection.end.line + 1
+          endLine: selection.end.line + 1,
         };
       }
     }
 
     // Get list of open files
-    const openTabs = vscode.window.tabGroups.all.flatMap(g => g.tabs);
+    const openTabs = vscode.window.tabGroups.all.flatMap((g) => g.tabs);
     context.openTabs = openTabs
-      .filter(tab => tab.input instanceof vscode.TabInputText)
-      .map(tab => {
+      .filter((tab) => tab.input instanceof vscode.TabInputText)
+      .map((tab) => {
         const input = tab.input as vscode.TabInputText;
         return this.getRelativePath(input.uri);
       })
@@ -555,8 +617,27 @@ export class ToolExecutor {
     }
 
     const lines: string[] = [];
-    const ignoreDirs = new Set(['node_modules', '.git', 'dist', 'build', '.next', '__pycache__', 'venv', '.venv', 'coverage', '.nyc_output']);
-    const ignoreFiles = new Set(['.DS_Store', 'Thumbs.db', '.gitignore', '.env', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']);
+    const ignoreDirs = new Set([
+      'node_modules',
+      '.git',
+      'dist',
+      'build',
+      '.next',
+      '__pycache__',
+      'venv',
+      '.venv',
+      'coverage',
+      '.nyc_output',
+    ]);
+    const ignoreFiles = new Set([
+      '.DS_Store',
+      'Thumbs.db',
+      '.gitignore',
+      '.env',
+      'package-lock.json',
+      'yarn.lock',
+      'pnpm-lock.yaml',
+    ]);
 
     try {
       const topLevel = await vscode.workspace.fs.readDirectory(this.workspaceRootUri);

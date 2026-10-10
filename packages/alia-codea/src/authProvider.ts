@@ -1,7 +1,12 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import { OxyServices } from '@oxy.so/core';
-import { createNativeAuthStateStore, installAuthRefreshHandler, startTokenRefreshScheduler, type AuthStateStore } from '@oxy.so/core/session';
+import {
+  createNativeAuthStateStore,
+  installAuthRefreshHandler,
+  startTokenRefreshScheduler,
+  type AuthStateStore,
+} from '@oxy.so/core/session';
 import { jwtDecode } from 'jwt-decode';
 import { errorMessage } from './errors';
 
@@ -108,15 +113,17 @@ export class AliaAuthenticationProvider
     // VS Code may fold query params into uri.path (e.g. "/auth-callback?windowId=2"),
     // so we split manually and merge both sources of query parameters.
     const pathOnly = uri.path.split('?')[0];
-    const embeddedQuery = uri.path.includes('?')
-      ? uri.path.slice(uri.path.indexOf('?') + 1)
-      : '';
+    const embeddedQuery = uri.path.includes('?') ? uri.path.slice(uri.path.indexOf('?') + 1) : '';
 
-    if (pathOnly !== CALLBACK_PATH) { return; }
+    if (pathOnly !== CALLBACK_PATH) {
+      return;
+    }
 
     const params = new URLSearchParams(uri.query);
     for (const [k, v] of new URLSearchParams(embeddedQuery)) {
-      if (!params.has(k)) { params.set(k, v); }
+      if (!params.has(k)) {
+        params.set(k, v);
+      }
     }
 
     const code = params.get('code');
@@ -173,14 +180,26 @@ export class AliaAuthenticationProvider
       const expiresAt = result.expiresAt;
 
       try {
-        const payload = jwtDecode<{ userId?: string; sub?: string; id?: string; username?: string; sessionId?: string }>(token);
+        const payload = jwtDecode<{
+          userId?: string;
+          sub?: string;
+          id?: string;
+          username?: string;
+          sessionId?: string;
+        }>(token);
         userId = payload.userId || payload.sub || payload.id || userId;
         username = payload.username || username;
-        if (payload.sessionId) { resolvedSessionId = payload.sessionId; }
-      } catch { /* token is not a decodable JWT */ }
+        if (payload.sessionId) {
+          resolvedSessionId = payload.sessionId;
+        }
+      } catch {
+        /* token is not a decodable JWT */
+      }
 
       const displayName = (await this.resolveDisplayName()) || username || 'Oxy User';
-      if (!userId) { userId = `user-${Date.now()}`; }
+      if (!userId) {
+        userId = `user-${Date.now()}`;
+      }
 
       /**
        * Two stores, and they hold different things on purpose.
@@ -289,7 +308,9 @@ export class AliaAuthenticationProvider
     this.installRefresh();
 
     const persisted = await this.readPersistedSession();
-    if (!persisted) { return; }
+    if (!persisted) {
+      return;
+    }
 
     this._oxyServices.session.setAccessToken(persisted.accessToken);
 
@@ -323,13 +344,17 @@ export class AliaAuthenticationProvider
 
   private async refreshSessionDisplayName(userId: string): Promise<void> {
     const displayName = await this.resolveDisplayName();
-    if (!displayName) { return; }
+    if (!displayName) {
+      return;
+    }
 
-    const existing = this._sessions.find(s => s.account.id === userId);
-    if (!existing || existing.account.label === displayName) { return; }
+    const existing = this._sessions.find((s) => s.account.id === userId);
+    if (!existing || existing.account.label === displayName) {
+      return;
+    }
 
     const updated = this.buildSession(existing.id, existing.accessToken, userId, displayName);
-    this._sessions = this._sessions.map(s => (s.id === existing.id ? updated : s));
+    this._sessions = this._sessions.map((s) => (s.id === existing.id ? updated : s));
     this._sessionChangeEmitter.fire({ added: [], removed: [], changed: [updated] });
 
     // Persist the freshened name so the next cold start restores it directly.
@@ -396,8 +421,8 @@ export class AliaAuthenticationProvider
     await this.clearPersistedSession();
     this._oxyServices.session.clear();
 
-    const removed = this._sessions.filter(s => s.id === sessionId);
-    this._sessions = this._sessions.filter(s => s.id !== sessionId);
+    const removed = this._sessions.filter((s) => s.id === sessionId);
+    this._sessions = this._sessions.filter((s) => s.id !== sessionId);
 
     if (removed.length > 0) {
       this._sessionChangeEmitter.fire({ added: [], removed, changed: [] });
@@ -413,21 +438,26 @@ export class AliaAuthenticationProvider
   // --- Private helpers ---
 
   private buildSession(
-    id: string, token: string, userId: string, label: string,
+    id: string,
+    token: string,
+    userId: string,
+    label: string,
   ): vscode.AuthenticationSession {
     return { id, accessToken: token, account: { id: userId, label }, scopes: [] };
   }
 
   private isPlantedTokenFresh(fallbackExpiresAt: string): boolean {
-    if (!this._oxyServices.session.accessToken) { return false; }
+    if (!this._oxyServices.session.accessToken) {
+      return false;
+    }
 
     // Prefer the JWT `exp` claim; fall back to the persisted ISO expiry for
     // opaque tokens that carry no decodable expiry.
     const expSeconds = this._oxyServices.session.accessTokenExpiry;
-    const expiresAtMs = expSeconds != null
-      ? expSeconds * 1000
-      : Date.parse(fallbackExpiresAt);
-    if (Number.isNaN(expiresAtMs)) { return true; }
+    const expiresAtMs = expSeconds != null ? expSeconds * 1000 : Date.parse(fallbackExpiresAt);
+    if (Number.isNaN(expiresAtMs)) {
+      return true;
+    }
 
     return expiresAtMs > Date.now() + REFRESH_BUFFER_MS;
   }
@@ -438,15 +468,21 @@ export class AliaAuthenticationProvider
 
   private async readPersistedSession(): Promise<PersistedSession | null> {
     const raw = await this._secrets.get(SESSION_STORAGE_KEY);
-    if (!raw) { return null; }
+    if (!raw) {
+      return null;
+    }
     try {
       // `JSON.parse` yields null/primitives for a corrupt or literal `'null'`
       // slot — reading `.accessToken` off those would throw. Reject anything
       // that is not a populated object.
       const parsed = JSON.parse(raw) as unknown;
-      if (typeof parsed !== 'object' || parsed === null) { return null; }
+      if (typeof parsed !== 'object' || parsed === null) {
+        return null;
+      }
       const session = parsed as PersistedSession;
-      if (!session.accessToken || !session.userId) { return null; }
+      if (!session.accessToken || !session.userId) {
+        return null;
+      }
       return session;
     } catch {
       return null;
@@ -497,7 +533,9 @@ export class AliaAuthenticationProvider
   }
 
   private clearPendingAuth(): void {
-    if (this._pendingAuthTimeout) { clearTimeout(this._pendingAuthTimeout); }
+    if (this._pendingAuthTimeout) {
+      clearTimeout(this._pendingAuthTimeout);
+    }
     this._pendingAuthState = null;
     this._pendingAuthResolve = null;
     this._pendingAuthReject = null;

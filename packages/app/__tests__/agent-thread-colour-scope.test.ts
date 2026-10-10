@@ -85,8 +85,8 @@ describe('the agent thread’s colour scope', () => {
     expect(broken).not.toBe(SOURCE);
 
     const brokenOpening = scopeAndChild(broken);
-    const sound = brokenOpening.includes('asChild')
-      && /className="[^"]*\bflex-1\b/.test(brokenOpening);
+    const sound =
+      brokenOpening.includes('asChild') && /className="[^"]*\bflex-1\b/.test(brokenOpening);
 
     expect(sound).toBe(false);
   });

@@ -12,7 +12,10 @@ import { emitApprovalRequest, emitApprovalResult } from '../../socket.js';
 import { getDb } from '../../db/index.js';
 import { agentSessions } from '../../db/schema/agent-sessions.js';
 import { agentApprovalRequests } from '../../db/schema/agent-runtime.js';
-import { createAgentApprovalRequest, findAgentApproval } from '../../db/agents/agentRuntimeRepository.js';
+import {
+  createAgentApprovalRequest,
+  findAgentApproval,
+} from '../../db/agents/agentRuntimeRepository.js';
 import { log } from '../logger.js';
 import type { ThreatResult } from './threat-detector.js';
 
@@ -58,10 +61,14 @@ export async function requestApproval(opts: {
   let durable = false;
 
   try {
-    const [session] = await getDb().select({
-      threadId: agentSessions.threadId,
-      oxyUserId: agentSessions.oxyUserId,
-    }).from(agentSessions).where(eq(agentSessions.id, sessionId)).limit(1);
+    const [session] = await getDb()
+      .select({
+        threadId: agentSessions.threadId,
+        oxyUserId: agentSessions.oxyUserId,
+      })
+      .from(agentSessions)
+      .where(eq(agentSessions.id, sessionId))
+      .limit(1);
     if (session?.threadId) {
       await createAgentApprovalRequest(getDb(), {
         id: requestId,
@@ -71,7 +78,10 @@ export async function requestApproval(opts: {
         agentId,
         toolName,
         riskLevel: threat.maxSeverity === 'critical' ? 'R2' : 'R1',
-        actionHash: crypto.createHash('sha256').update(JSON.stringify({ patternKey, args })).digest('hex'),
+        actionHash: crypto
+          .createHash('sha256')
+          .update(JSON.stringify({ patternKey, args }))
+          .digest('hex'),
         summary: description || `${toolName} requires approval`,
         details: sanitizeArgsForDisplay(args),
         expiresAt,
@@ -96,27 +106,39 @@ export async function requestApproval(opts: {
   });
 
   return new Promise<ApprovalDecision>((resolve) => {
-    const poll = durable ? setInterval(() => {
-      void findAgentApproval(getDb(), requestId).then((row) => {
-        if (!row || row.status === 'pending') return;
-        const pending = pendingApprovals.get(requestId);
-        if (!pending) return;
-        clearTimeout(pending.timer);
-        pendingApprovals.delete(requestId);
-        const decision: ApprovalDecision = row.status === 'approved' ? 'approved'
-          : row.status === 'expired' ? 'timeout' : 'denied';
-        emitApprovalResult(sessionId, { eventVersion: 1, requestId, decision });
-        pending.resolve(decision);
-      }).catch((error) => log.agents.warn({ err: error, requestId }, 'Approval poll failed'));
-    }, 500) : undefined;
+    const poll = durable
+      ? setInterval(() => {
+          void findAgentApproval(getDb(), requestId)
+            .then((row) => {
+              if (!row || row.status === 'pending') return;
+              const pending = pendingApprovals.get(requestId);
+              if (!pending) return;
+              clearTimeout(pending.timer);
+              pendingApprovals.delete(requestId);
+              const decision: ApprovalDecision =
+                row.status === 'approved'
+                  ? 'approved'
+                  : row.status === 'expired'
+                    ? 'timeout'
+                    : 'denied';
+              emitApprovalResult(sessionId, { eventVersion: 1, requestId, decision });
+              pending.resolve(decision);
+            })
+            .catch((error) => log.agents.warn({ err: error, requestId }, 'Approval poll failed'));
+        }, 500)
+      : undefined;
     poll?.unref?.();
     const timer = setTimeout(() => {
       pendingApprovals.delete(requestId);
       if (poll) clearInterval(poll);
       if (durable) {
-        void getDb().update(agentApprovalRequests).set({ status: 'expired', updatedAt: new Date() })
+        void getDb()
+          .update(agentApprovalRequests)
+          .set({ status: 'expired', updatedAt: new Date() })
           .where(eq(agentApprovalRequests.id, requestId))
-          .catch((error) => log.agents.warn({ err: error, requestId }, 'Approval expiry persistence failed'));
+          .catch((error) =>
+            log.agents.warn({ err: error, requestId }, 'Approval expiry persistence failed'),
+          );
       }
       emitApprovalResult(sessionId, {
         eventVersion: 1,
@@ -200,7 +222,10 @@ export function cancelPendingApprovals(sessionId: string): void {
 }
 
 function buildPatternKey(toolName: string, threat: ThreatResult): string {
-  const categories = threat.threats.map((t) => t.pattern.id).sort().join(',');
+  const categories = threat.threats
+    .map((t) => t.pattern.id)
+    .sort()
+    .join(',');
   return `${toolName}:${categories}`;
 }
 

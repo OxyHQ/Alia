@@ -23,29 +23,52 @@ const harness = vi.hoisted(() => ({
 vi.mock('expo/fetch', () => ({
   fetch: async (_url: string, init: { signal?: AbortSignal }) => {
     const body = new ReadableStream<Uint8Array>({
-      start(controller) { harness.controller = controller; },
-      cancel() { harness.cancelled = true; },
+      start(controller) {
+        harness.controller = controller;
+      },
+      cancel() {
+        harness.cancelled = true;
+      },
     });
     // A real fetch rejects with AbortError when its signal fires; so does this.
     init.signal?.addEventListener('abort', () => {
-      try { harness.controller?.error(Object.assign(new Error('aborted'), { name: 'AbortError' })); } catch { /* already closed */ }
+      try {
+        harness.controller?.error(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+      } catch {
+        /* already closed */
+      }
     });
     return { ok: true, status: 200, body };
   },
 }));
 
-vi.mock('expo-haptics', () => ({ impactAsync: async () => {}, ImpactFeedbackStyle: { Light: 'light' } }));
-vi.mock('@oxy.so/services', () => ({ useOxy: () => ({ oxyServices: { session: { accessToken: 'token' } } }) }));
+vi.mock('expo-haptics', () => ({
+  impactAsync: async () => {},
+  ImpactFeedbackStyle: { Light: 'light' },
+}));
+vi.mock('@oxy.so/services', () => ({
+  useOxy: () => ({ oxyServices: { session: { accessToken: 'token' } } }),
+}));
 vi.mock('@/shared/platform/device-info', () => ({ collectDeviceInfo: async () => ({}) }));
-vi.mock('@/features/chat/runtime/use-agent-row-preview', () => ({ useAgentRowPreview: () => () => {} }));
+vi.mock('@/features/chat/runtime/use-agent-row-preview', () => ({
+  useAgentRowPreview: () => () => {},
+}));
 vi.mock('@/features/memory/runtime/use-user-data', () => ({ USER_MEMORY_QUERY_KEY: ['memory'] }));
 vi.mock('@/features/chat/runtime/model-store', () => ({
   useModelStore: { getState: () => ({ webSearch: true, setSelectedModel: () => {} }) },
 }));
 vi.mock('@/features/chat/runtime/ui-store', () => ({
-  useUIStore: { getState: () => ({ addCanvasArtifact: () => {}, setRightPanel: () => {}, openAgentPanel: () => {} }) },
+  useUIStore: {
+    getState: () => ({
+      addCanvasArtifact: () => {},
+      setRightPanel: () => {},
+      openAgentPanel: () => {},
+    }),
+  },
 }));
-vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
+vi.mock('@oxy.so/bloom/toast', () => ({
+  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
+}));
 vi.mock('@/shared/i18n', () => ({ default: { t: (k: string) => k } }));
 
 import { useStreamingChat } from '@/features/chat/runtime/use-streaming-chat';
@@ -103,8 +126,12 @@ async function begin(): Promise<{ outcome: Promise<string> }> {
   let outcome!: Promise<string>;
   // A SYNC act: it commits the send's first updates without waiting on the
   // promise the callback merely assigns.
-  act(() => { outcome = api.append({ role: 'user', content: 'hello?' }); });
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+  act(() => {
+    outcome = api.append({ role: 'user', content: 'hello?' });
+  });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
   return { outcome };
 }
 
@@ -139,7 +166,11 @@ describe('the assistant message’s lifecycle stamp', () => {
 
     await close();
     expect(await outcome).toBe('sent');
-    expect(reply()).toMatchObject({ content: 'The answer', isStreaming: false, turnOutcome: 'completed' });
+    expect(reply()).toMatchObject({
+      content: 'The answer',
+      isStreaming: false,
+      turnOutcome: 'completed',
+    });
     expect(api.isLoading).toBe(false);
   });
 
@@ -148,10 +179,17 @@ describe('the assistant message’s lifecycle stamp', () => {
     const { outcome } = await begin();
     await deliver(contentFrame('Half of'));
 
-    await act(async () => { api.stop(); await new Promise((resolve) => setTimeout(resolve, 80)); });
+    await act(async () => {
+      api.stop();
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
 
     expect(await outcome).toBe('aborted');
-    expect(reply()).toMatchObject({ content: 'Half of', isStreaming: false, turnOutcome: 'cancelled' });
+    expect(reply()).toMatchObject({
+      content: 'Half of',
+      isStreaming: false,
+      turnOutcome: 'cancelled',
+    });
     expect(api.isLoading).toBe(false);
   });
 
@@ -163,7 +201,11 @@ describe('the assistant message’s lifecycle stamp', () => {
     await close();
 
     expect(await outcome).toBe('sent');
-    expect(reply()).toMatchObject({ content: 'Real output', isStreaming: false, turnOutcome: 'failed' });
+    expect(reply()).toMatchObject({
+      content: 'Real output',
+      isStreaming: false,
+      turnOutcome: 'failed',
+    });
     expect(api.failedTurn).toMatchObject({ anchorMessageId: reply().id, partial: true });
   });
 });

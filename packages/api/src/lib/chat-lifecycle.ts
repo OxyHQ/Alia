@@ -1,5 +1,9 @@
 import type { Request } from 'express';
-import { saveConversation, generateConversationTitle, generateTitle } from './conversation-saver.js';
+import {
+  saveConversation,
+  generateConversationTitle,
+  generateTitle,
+} from './conversation-saver.js';
 import { finalizeCredits, type CreditReservation, type CreditUsage } from './credits-manager.js';
 import { servedModelId } from './models/power-levels.js';
 import { detectCreditAnomaly, type CreditWarning } from './credit-anomaly.js';
@@ -81,7 +85,13 @@ export interface TurnObservation {
  */
 export function turnProducedOutput(
   assistantResponse: string,
-  toolInvocations?: Array<{ toolCallId: string; toolName: string; state: 'call' | 'result'; args?: unknown; result?: unknown }>,
+  toolInvocations?: Array<{
+    toolCallId: string;
+    toolName: string;
+    state: 'call' | 'result';
+    args?: unknown;
+    result?: unknown;
+  }>,
 ): boolean {
   return Boolean(assistantResponse) || (toolInvocations?.length ?? 0) > 0;
 }
@@ -89,8 +99,18 @@ export function turnProducedOutput(
 export async function saveConversationResult(
   ctx: LifecycleContext,
   assistantResponse: string,
-  toolInvocations?: Array<{ toolCallId: string; toolName: string; state: 'call' | 'result'; args?: unknown; result?: unknown }>,
-  agentMessages?: Array<{ role: 'assistant'; content: string; agentInfo: { id: string; name: string; color: string | null; handle: string } }>,
+  toolInvocations?: Array<{
+    toolCallId: string;
+    toolName: string;
+    state: 'call' | 'result';
+    args?: unknown;
+    result?: unknown;
+  }>,
+  agentMessages?: Array<{
+    role: 'assistant';
+    content: string;
+    agentInfo: { id: string; name: string; color: string | null; handle: string };
+  }>,
 ): Promise<void> {
   const { userId, conversationId, assistantMessageId, messages } = ctx;
   if (!conversationId || !userId || !turnProducedOutput(assistantResponse, toolInvocations)) return;
@@ -115,16 +135,23 @@ export async function saveConversationResult(
  * Generate a conversation title (non-streaming path).
  * Fire-and-forget — errors are logged but not thrown.
  */
-export function generateTitleAsync(userId: string, conversationId: string, messages: ChatMessage[]): void {
+export function generateTitleAsync(
+  userId: string,
+  conversationId: string,
+  messages: ChatMessage[],
+): void {
   const firstUserMsgRaw = messages.find((m: ChatMessage) => m.role === 'user')?.content;
-  const firstUserMsg = typeof firstUserMsgRaw === 'string'
-    ? firstUserMsgRaw
-    : Array.isArray(firstUserMsgRaw)
-      ? (firstUserMsgRaw.find((p: { type: string; text?: string }) => p.type === 'text')?.text ?? '')
-      : '';
+  const firstUserMsg =
+    typeof firstUserMsgRaw === 'string'
+      ? firstUserMsgRaw
+      : Array.isArray(firstUserMsgRaw)
+        ? (firstUserMsgRaw.find((p: { type: string; text?: string }) => p.type === 'text')?.text ??
+          '')
+        : '';
   if (firstUserMsg) {
-    generateConversationTitle(userId, conversationId, firstUserMsg)
-      .catch(err => log.v1.error({ err }, 'Background title generation failed'));
+    generateConversationTitle(userId, conversationId, firstUserMsg).catch((err) =>
+      log.v1.error({ err }, 'Background title generation failed'),
+    );
   }
 }
 
@@ -149,11 +176,13 @@ export async function startParallelTitleGeneration(
   if (existing && hasMessages) return null;
 
   const firstUserMsgRaw = messages.find((m: ChatMessage) => m.role === 'user')?.content;
-  const firstUserMsg = typeof firstUserMsgRaw === 'string'
-    ? firstUserMsgRaw
-    : Array.isArray(firstUserMsgRaw)
-      ? (firstUserMsgRaw.find((p: { type: string; text?: string }) => p.type === 'text')?.text ?? '')
-      : '';
+  const firstUserMsg =
+    typeof firstUserMsgRaw === 'string'
+      ? firstUserMsgRaw
+      : Array.isArray(firstUserMsgRaw)
+        ? (firstUserMsgRaw.find((p: { type: string; text?: string }) => p.type === 'text')?.text ??
+          '')
+        : '';
   if (!firstUserMsg) {
     // A turn whose only content part is an attachment reaches here. Nothing to
     // title on is a legitimate outcome, but it is indistinguishable from a
@@ -183,7 +212,11 @@ export async function finalizeChatCredits(
    * power-level turn is priced by it — the level itself has no price.
    */
   servedReference: string | null = null,
-): Promise<{ creditsCharged: number; creditsRemaining: number; creditWarning: CreditWarning | null }> {
+): Promise<{
+  creditsCharged: number;
+  creditsRemaining: number;
+  creditWarning: CreditWarning | null;
+}> {
   const { creditReservation, tokenUsage, userId } = ctx;
   const modelId = servedModelId(ctx.modelId, servedReference);
   let creditsCharged = 0;
@@ -203,8 +236,8 @@ export async function finalizeChatCredits(
     creditsRemaining = creditResult.creditsRemaining;
 
     // Record usage with credits info
-    recordUsage(req, 200, tokenUsage.totalTokens, undefined, creditsCharged).catch(err =>
-      log.v1.error({ err }, 'Error recording session usage')
+    recordUsage(req, 200, tokenUsage.totalTokens, undefined, creditsCharged).catch((err) =>
+      log.v1.error({ err }, 'Error recording session usage'),
     );
   } catch (error) {
     log.v1.error({ err: error }, 'Error finalizing credits');
@@ -214,7 +247,9 @@ export async function finalizeChatCredits(
   if (userId) {
     try {
       creditWarning = await detectCreditAnomaly(userId);
-    } catch { /* non-critical anomaly check */ }
+    } catch {
+      /* non-critical anomaly check */
+    }
   }
 
   return { creditsCharged, creditsRemaining, creditWarning };
@@ -240,7 +275,17 @@ export function runPostChatHooks(
   observation: TurnObservation,
   errorClass: string | null,
 ): void {
-  const { userId, messages, modelId, requestedModel, reasoningEffort, tokenUsage, requestStartTime, skillNames, autonomyRuntime } = ctx;
+  const {
+    userId,
+    messages,
+    modelId,
+    requestedModel,
+    reasoningEffort,
+    tokenUsage,
+    requestStartTime,
+    skillNames,
+    autonomyRuntime,
+  } = ctx;
 
   runAfterChatHooks({
     userId,
@@ -261,7 +306,7 @@ export function runPostChatHooks(
     errorClass,
     cancelled: observation.cancelled,
     resolvedModelReference: observation.resolvedModelReference,
-  }).catch(err => log.v1.error({ err }, 'Error in afterChat hooks'));
+  }).catch((err) => log.v1.error({ err }, 'Error in afterChat hooks'));
 
   runAutonomyAfterChat({
     userId,
@@ -269,7 +314,7 @@ export function runPostChatHooks(
     messages,
     assistantResponse,
     latencyMs: Date.now() - requestStartTime,
-  }).catch(err => log.v1.warn({ err }, 'Autonomy after-chat learn failed'));
+  }).catch((err) => log.v1.warn({ err }, 'Autonomy after-chat learn failed'));
 }
 
 /**
@@ -288,5 +333,5 @@ export function notifyDisconnectedClient(
     title: 'Alia has responded',
     body: assistantResponse.slice(0, 200) + (assistantResponse.length > 200 ? '...' : ''),
     conversationId,
-  }).catch(err => log.v1.warn({ err }, 'Failed to send disconnect notification'));
+  }).catch((err) => log.v1.warn({ err }, 'Failed to send disconnect notification'));
 }

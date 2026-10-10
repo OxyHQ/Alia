@@ -48,7 +48,10 @@ export function modelLineOf(reference: string | null | undefined): string | null
  * when it said one, otherwise what was requested. For a power level that is
  * the only way to know the price — the level itself has none.
  */
-export function servedModelId(requested: string, servedReference: string | null | undefined): string {
+export function servedModelId(
+  requested: string,
+  servedReference: string | null | undefined,
+): string {
   return modelLineOf(servedReference) ?? requested;
 }
 

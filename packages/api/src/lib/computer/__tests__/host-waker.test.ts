@@ -66,12 +66,16 @@ describe('HostWaker', () => {
 
   it('gives up at the deadline with host_waking, so the tool can say "it is starting"', async () => {
     const control = instance(['stopped', 'pending']);
-    await expect(waker(control, async () => false, 30_000).wake()).rejects.toMatchObject({ code: 'host_waking' });
+    await expect(waker(control, async () => false, 30_000).wake()).rejects.toMatchObject({
+      code: 'host_waking',
+    });
   });
 
   it('reports Spot capacity as host_capacity_unavailable, without retrying for the whole deadline', async () => {
     const control = instance(['stopped'], { name: 'InsufficientInstanceCapacity' });
-    await expect(waker(control, async () => false).wake()).rejects.toMatchObject({ code: 'host_capacity_unavailable' });
+    await expect(waker(control, async () => false).wake()).rejects.toMatchObject({
+      code: 'host_capacity_unavailable',
+    });
     expect(control.starts).toBe(1);
   });
 
@@ -88,7 +92,9 @@ describe('HostWaker', () => {
   });
 
   it('refuses a terminated instance as host_unavailable', async () => {
-    await expect(waker(instance(['terminated']), async () => true).wake()).rejects.toMatchObject({ code: 'host_unavailable' });
+    await expect(waker(instance(['terminated']), async () => true).wake()).rejects.toMatchObject({
+      code: 'host_unavailable',
+    });
   });
 });
 
@@ -120,7 +126,10 @@ describe('the client and a sleeping host', () => {
     const fetchImpl = vi.fn(async (url: string | URL | Request) => {
       if (String(url).endsWith('/health')) return new Response('{"ok":true}');
       if (draining) {
-        return new Response(JSON.stringify({ error: { code: 'host_stopping', message: 'stopping' } }), { status: 503 });
+        return new Response(
+          JSON.stringify({ error: { code: 'host_stopping', message: 'stopping' } }),
+          { status: 503 },
+        );
       }
       return new Response(JSON.stringify({ data: { state: 'running' } }));
     });
@@ -165,6 +174,8 @@ describe('the client and a sleeping host', () => {
         },
       } as unknown as HostWaker,
     });
-    await expect(client.run('a', { operationId: 'x', command: 'ls' })).rejects.toMatchObject({ code: 'host_capacity_unavailable' });
+    await expect(client.run('a', { operationId: 'x', command: 'ls' })).rejects.toMatchObject({
+      code: 'host_capacity_unavailable',
+    });
   });
 });

@@ -46,13 +46,7 @@ export const OUT_DIR = join(HERE, '..', '..', 'src', 'shared', 'ui', 'icons');
 const KNOWN_TAGS = new Set(['svg', 'symbol', 'g', 'path', 'circle']);
 
 /** The presentation attributes that inherit, so a `<g>` can set them for its children. */
-const INHERITED = [
-  'fill',
-  'stroke',
-  'stroke-width',
-  'stroke-linecap',
-  'stroke-linejoin',
-] as const;
+const INHERITED = ['fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin'] as const;
 
 /** SVG attribute -> the react-native-svg prop that carries it, for the string-valued ones. */
 const STRING_PROPS = [
@@ -88,7 +82,8 @@ function parse(source: string): Element {
   let match: RegExpExecArray | null;
   while ((match = tagPattern.exec(source)) !== null) {
     const between = source.slice(consumed, match.index).trim();
-    if (between.length > 0) throw new Error(`unexpected text in the sheet: ${between.slice(0, 40)}`);
+    if (between.length > 0)
+      throw new Error(`unexpected text in the sheet: ${between.slice(0, 40)}`);
     consumed = match.index + match[0].length;
 
     const [, closing, tag, rawAttrs, selfClosing] = match;
@@ -163,8 +158,10 @@ function jsxFor(leaf: Element, entry: IconEntry): string {
   }
 
   props.push(`fill=${paint(leaf.attrs.fill, entry, 'fill')}`);
-  if (leaf.attrs.stroke !== undefined) props.push(`stroke=${paint(leaf.attrs.stroke, entry, 'stroke')}`);
-  if (leaf.attrs['stroke-width'] !== undefined) props.push(`strokeWidth={${leaf.attrs['stroke-width']}}`);
+  if (leaf.attrs.stroke !== undefined)
+    props.push(`stroke=${paint(leaf.attrs.stroke, entry, 'stroke')}`);
+  if (leaf.attrs['stroke-width'] !== undefined)
+    props.push(`strokeWidth={${leaf.attrs['stroke-width']}}`);
   for (const [svg, rn] of STRING_PROPS) {
     if (leaf.attrs[svg] !== undefined) props.push(`${rn}="${leaf.attrs[svg]}"`);
   }
@@ -182,7 +179,9 @@ function render(entry: IconEntry, symbol: Element): string {
   // would just read as a contradiction.
   const rootFill = symbol.attrs.fill === 'none' ? ' fill="none"' : '';
 
-  const imports = [...new Set(leaves.map((leaf) => (leaf.tag === 'path' ? 'Path' : 'Circle')))].sort();
+  const imports = [
+    ...new Set(leaves.map((leaf) => (leaf.tag === 'path' ? 'Path' : 'Circle'))),
+  ].sort();
   const component = `${entry.name}Icon`;
 
   return `import type { BloomIconComponent } from "@oxy.so/bloom/icons";
@@ -226,7 +225,8 @@ export function generate(): Map<string, string> {
   const symbols = new Map<string, Element>();
   for (const child of svg.children) {
     if (child.tag !== 'symbol') throw new Error(`<${child.tag}> at the sheet's top level`);
-    if (symbols.has(child.attrs.id)) throw new Error(`the sheet declares "${child.attrs.id}" twice`);
+    if (symbols.has(child.attrs.id))
+      throw new Error(`the sheet declares "${child.attrs.id}" twice`);
     symbols.set(child.attrs.id, child);
   }
 

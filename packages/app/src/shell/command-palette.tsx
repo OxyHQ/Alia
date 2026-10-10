@@ -1,23 +1,23 @@
-import * as React from "react";
-import { Platform } from "react-native";
-import { useRouter } from "expo-router";
-import { Command, type CommandItem } from "@oxy.so/bloom/command";
-import { RiBankCardLine } from "@oxy.so/bloom/icons/RiBankCardLine";
-import { RiBookOpenLine } from "@oxy.so/bloom/icons/RiBookOpenLine";
-import { RiBookShelfLine } from "@oxy.so/bloom/icons/RiBookShelfLine";
-import { RiChat3Line } from "@oxy.so/bloom/icons/RiChat3Line";
-import { RiChatNewLine } from "@oxy.so/bloom/icons/RiChatNewLine";
-import { RiNotification3Line } from "@oxy.so/bloom/icons/RiNotification3Line";
-import { RiSearchLine } from "@oxy.so/bloom/icons/RiSearchLine";
-import { RiSettings3Line } from "@oxy.so/bloom/icons/RiSettings3Line";
-import { RiSparklingLine } from "@oxy.so/bloom/icons/RiSparklingLine";
-import { RiStarFill } from "@oxy.so/bloom/icons/RiStarFill";
-import { RiTeamLine } from "@oxy.so/bloom/icons/RiTeamLine";
-import { RiTimerLine } from "@oxy.so/bloom/icons/RiTimerLine";
-import { useConversations } from "@/features/chat/runtime/use-conversations";
-import { useTranslation } from "@/shared/i18n/use-translation";
-import { useUIStore } from "@/features/chat/runtime/ui-store";
-import { useFavoritesStore } from "@/features/projects/runtime/favorites-store";
+import * as React from 'react';
+import { Platform } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Command, type CommandItem } from '@oxy.so/bloom/command';
+import { RiBankCardLine } from '@oxy.so/bloom/icons/RiBankCardLine';
+import { RiBookOpenLine } from '@oxy.so/bloom/icons/RiBookOpenLine';
+import { RiBookShelfLine } from '@oxy.so/bloom/icons/RiBookShelfLine';
+import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
+import { RiChatNewLine } from '@oxy.so/bloom/icons/RiChatNewLine';
+import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
+import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
+import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
+import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
+import { RiStarFill } from '@oxy.so/bloom/icons/RiStarFill';
+import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
+import { RiTimerLine } from '@oxy.so/bloom/icons/RiTimerLine';
+import { useConversations } from '@/features/chat/runtime/use-conversations';
+import { useTranslation } from '@/shared/i18n/use-translation';
+import { useUIStore } from '@/features/chat/runtime/ui-store';
+import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
 
 /** How many conversations the palette offers before the user types anything. */
 const RESTING_CONVERSATIONS = 8;
@@ -26,7 +26,7 @@ const SEARCHABLE_CONVERSATIONS = 100;
 
 export function CommandPalette() {
   const [open, setOpen] = React.useState(false);
-  const [query, setQuery] = React.useState("");
+  const [query, setQuery] = React.useState('');
   const router = useRouter();
   const { t } = useTranslation();
   const { data: conversationsData } = useConversations();
@@ -43,87 +43,84 @@ export function CommandPalette() {
       : all.slice(0, RESTING_CONVERSATIONS);
   }, [conversationsData, query]);
 
-  const runCommand = React.useCallback(
-    (command: () => void) => {
-      setOpen(false);
-      command();
-    },
-    []
-  );
+  const runCommand = React.useCallback((command: () => void) => {
+    setOpen(false);
+    command();
+  }, []);
 
   const items = React.useMemo<CommandItem[]>(() => {
     const actions: CommandItem[] = [
       {
-        id: "new-chat",
-        label: t("dialogs.commandPalette.newChat"),
-        group: t("dialogs.commandPalette.groupActions"),
+        id: 'new-chat',
+        label: t('dialogs.commandPalette.newChat'),
+        group: t('dialogs.commandPalette.groupActions'),
         icon: RiChatNewLine,
-        shortcut: "⌘⇧N",
-        onSelect: () => router.replace("/(app)"),
+        shortcut: '⌘⇧N',
+        onSelect: () => router.replace('/(app)'),
       },
       {
-        id: "search-library",
-        label: t("dialogs.commandPalette.searchLibrary"),
-        group: t("dialogs.commandPalette.groupActions"),
+        id: 'search-library',
+        label: t('dialogs.commandPalette.searchLibrary'),
+        group: t('dialogs.commandPalette.groupActions'),
         icon: RiSearchLine,
-        onSelect: () => router.push("/(app)/library"),
+        onSelect: () => router.push('/(app)/library'),
       },
       {
-        id: "agents",
-        label: t("dialogs.commandPalette.agents"),
-        group: t("dialogs.commandPalette.groupNavigate"),
+        id: 'agents',
+        label: t('dialogs.commandPalette.agents'),
+        group: t('dialogs.commandPalette.groupNavigate'),
         icon: RiTeamLine,
-        onSelect: () => router.push("/(app)/agents"),
+        onSelect: () => router.push('/(app)/agents'),
       },
       {
-        id: "library",
-        label: t("dialogs.commandPalette.library"),
-        group: t("dialogs.commandPalette.groupNavigate"),
+        id: 'library',
+        label: t('dialogs.commandPalette.library'),
+        group: t('dialogs.commandPalette.groupNavigate'),
         icon: RiBookShelfLine,
-        onSelect: () => router.push("/(app)/library"),
+        onSelect: () => router.push('/(app)/library'),
       },
       {
-        id: "automations",
-        label: t("dialogs.commandPalette.automations"),
-        group: t("dialogs.commandPalette.groupNavigate"),
+        id: 'automations',
+        label: t('dialogs.commandPalette.automations'),
+        group: t('dialogs.commandPalette.groupNavigate'),
         icon: RiTimerLine,
-        onSelect: () => router.push("/(app)/automations"),
+        onSelect: () => router.push('/(app)/automations'),
       },
       {
-        id: "skills",
-        label: t("dialogs.commandPalette.skills"),
-        group: t("dialogs.commandPalette.groupNavigate"),
+        id: 'skills',
+        label: t('dialogs.commandPalette.skills'),
+        group: t('dialogs.commandPalette.groupNavigate'),
         icon: RiBookOpenLine,
-        onSelect: () => router.push("/(app)/skills"),
+        onSelect: () => router.push('/(app)/skills'),
       },
       {
-        id: "settings",
-        label: t("dialogs.commandPalette.settings"),
-        group: t("dialogs.commandPalette.groupSettings"),
+        id: 'settings',
+        label: t('dialogs.commandPalette.settings'),
+        group: t('dialogs.commandPalette.groupSettings'),
         icon: RiSettings3Line,
-        shortcut: "⌘,",
-        onSelect: () => router.push("/(app)/settings"),
+        shortcut: '⌘,',
+        onSelect: () => router.push('/(app)/settings'),
       },
       {
-        id: "billing",
-        label: t("dialogs.commandPalette.billing"),
-        group: t("dialogs.commandPalette.groupSettings"),
+        id: 'billing',
+        label: t('dialogs.commandPalette.billing'),
+        group: t('dialogs.commandPalette.groupSettings'),
         icon: RiBankCardLine,
-        onSelect: () => router.push("/(app)/settings/usage"),
+        onSelect: () => router.push('/(app)/settings/usage'),
       },
       {
-        id: "notifications",
-        label: t("dialogs.commandPalette.notifications"),
-        group: t("dialogs.commandPalette.groupSettings"),
+        id: 'notifications',
+        label: t('dialogs.commandPalette.notifications'),
+        group: t('dialogs.commandPalette.groupSettings'),
         icon: RiNotification3Line,
-        onSelect: () => router.push("/(app)/notifications"),
+        onSelect: () => router.push('/(app)/notifications'),
       },
       {
-        id: "subscribe",
-        label: t("dialogs.commandPalette.upgrade"),
-        group: t("dialogs.commandPalette.groupSettings"),
+        id: 'subscribe',
+        label: t('dialogs.commandPalette.upgrade'),
+        group: t('dialogs.commandPalette.groupSettings'),
         icon: RiSparklingLine,
-        onSelect: () => router.push("/(biglayout)/subscribe"),
+        onSelect: () => router.push('/(biglayout)/subscribe'),
       },
     ];
 
@@ -149,12 +146,12 @@ export function CommandPalette() {
 
     const group = t(
       query.trim()
-        ? "dialogs.commandPalette.groupConversations"
-        : "dialogs.commandPalette.groupRecentConversations",
+        ? 'dialogs.commandPalette.groupConversations'
+        : 'dialogs.commandPalette.groupRecentConversations',
     );
     const recents: CommandItem[] = favouritesFirst.map((conv) => ({
       id: conv.id,
-      label: conv.title ?? "",
+      label: conv.title ?? '',
       group,
       icon: favoriteIds.includes(conv.id) ? RiStarFill : RiChat3Line,
       onSelect: () => router.push(`/(app)/c/${conv.id}`),
@@ -164,29 +161,29 @@ export function CommandPalette() {
   }, [conversations, favoriteIds, query, router, t]);
 
   React.useEffect(() => {
-    if (Platform.OS !== "web") return;
+    if (Platform.OS !== 'web') return;
     const handleKeyDown = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey;
 
-      if (e.key === "k" && meta) {
+      if (e.key === 'k' && meta) {
         e.preventDefault();
         setOpen((prev) => !prev);
         return;
       }
 
-      if (e.key === "," && meta) {
+      if (e.key === ',' && meta) {
         e.preventDefault();
-        runCommand(() => router.push("/(app)/settings"));
+        runCommand(() => router.push('/(app)/settings'));
         return;
       }
 
-      if (e.key === "N" && meta && e.shiftKey) {
+      if (e.key === 'N' && meta && e.shiftKey) {
         e.preventDefault();
-        runCommand(() => router.replace("/(app)"));
+        runCommand(() => router.replace('/(app)'));
         return;
       }
 
-      if (e.key === "/" && meta) {
+      if (e.key === '/' && meta) {
         e.preventDefault();
         setOpen(false);
         toggleShortcutsDialog();
@@ -197,11 +194,11 @@ export function CommandPalette() {
     // every keydown from bubbling, so a listener on the document never heard
     // a shortcut typed in the composer (or in the palette's own field) — the
     // one place a person's hands already are.
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [runCommand, router, toggleShortcutsDialog]);
 
-  if (Platform.OS !== "web") return null;
+  if (Platform.OS !== 'web') return null;
 
   return (
     <Command
@@ -210,8 +207,8 @@ export function CommandPalette() {
       items={items}
       query={query}
       onQueryChange={setQuery}
-      placeholder={t("dialogs.commandPalette.placeholder")}
-      emptyText={t("dialogs.commandPalette.empty")}
+      placeholder={t('dialogs.commandPalette.placeholder')}
+      emptyText={t('dialogs.commandPalette.empty')}
     />
   );
 }

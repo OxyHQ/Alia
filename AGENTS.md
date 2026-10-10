@@ -11,14 +11,18 @@ decisiones vinculantes. Aquí solo van reglas que rompen en silencio.
 
 ```bash
 bun install
-bun run --filter @alia/api typecheck && bun run --filter @alia/api lint && bun run --filter @alia/api test
+bun run lint                           # Biome (formato + lint) de todo el repo; CI: `bunx biome ci .`
+bun run --filter @alia/api typecheck && bun run --filter @alia/api test
 bun run --filter @alia/app typecheck && bun run --filter @alia/app test
 bun run --filter @alia.onl/sdk typecheck && bun run --filter @alia.onl/sdk test
 bun run --filter @alia/api test:pg     # suite con Postgres real; necesita TEST_DATABASE_URL
 ```
 
-Nunca `bun test` a pelo: los paquetes usan vitest. `bun.lock` va en el mismo
-commit que el `package.json` que lo cambia.
+Biome sustituye a ESLint/Prettier (`biome.json` en la raíz). Las guardas de
+Expo sobre `process.env` (sin destructurar ni acceso dinámico: Metro solo
+inlinea `process.env.EXPO_PUBLIC_*` estático) son plugins GritQL en
+`biome-plugins/`. Nunca `bun test` a pelo: los paquetes usan vitest.
+`bun.lock` va en el mismo commit que el `package.json` que lo cambia.
 
 ## Reglas
 

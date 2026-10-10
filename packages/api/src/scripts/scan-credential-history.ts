@@ -79,7 +79,9 @@ function report(result: CredentialScanResult): number {
   }
 
   if (unledgered.length > 0) {
-    process.stdout.write('UNLEDGERED — a credential is in the history and nobody has recorded it:\n');
+    process.stdout.write(
+      'UNLEDGERED — a credential is in the history and nobody has recorded it:\n',
+    );
     for (const finding of unledgered) process.stdout.write(`  ${describe(finding)}\n`);
     process.stdout.write(
       '\nRotate the credential at its provider FIRST. Rewriting history does not\n' +

@@ -24,7 +24,21 @@ export interface PlanProgress {
 }
 
 export interface AgentActivityEvent {
-  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete' | 'screenshot' | 'plan_progress' | 'file_change' | 'source_found' | 'threat' | 'approval_request' | 'approval_result';
+  type:
+    | 'system'
+    | 'thinking'
+    | 'response'
+    | 'tool_call'
+    | 'tool_result'
+    | 'error'
+    | 'complete'
+    | 'screenshot'
+    | 'plan_progress'
+    | 'file_change'
+    | 'source_found'
+    | 'threat'
+    | 'approval_request'
+    | 'approval_result';
   content: string;
   timestamp: number;
   sessionId: string;
@@ -132,9 +146,12 @@ type PersistedAgentEvent = {
 
 function mapPersistedEventType(type: string): AgentActivityEvent['type'] {
   switch (type) {
-    case 'action': return 'tool_call';
-    case 'observation': return 'tool_result';
-    case 'threat_detected': return 'threat';
+    case 'action':
+      return 'tool_call';
+    case 'observation':
+      return 'tool_result';
+    case 'threat_detected':
+      return 'threat';
     case 'user_message':
     case 'system_message':
     case 'plan_update':
@@ -169,12 +186,15 @@ function eventFromPersisted(entry: PersistedAgentEvent, sessionId: string): Agen
  * @param sessionId - The agent session ID to subscribe to (null to disable)
  * @param agentId - Optional agent ID for backward-compat subscription
  */
-export function useAgentActivity(sessionId: string | null, agentId?: string | null): UseAgentActivityResult {
+export function useAgentActivity(
+  sessionId: string | null,
+  agentId?: string | null,
+): UseAgentActivityResult {
   const [state, setState] = useState<AgentActivityState>(INITIAL_STATE);
   const socketRef = useRef<Socket | null>(null);
 
   const handleEvent = useCallback((event: AgentActivityEvent) => {
-    setState(prev => {
+    setState((prev) => {
       const updated = { ...prev };
       updated.eventCount = prev.eventCount + 1;
       updated.events = [...prev.events.slice(-(MAX_EVENTS - 1)), event];
@@ -223,7 +243,7 @@ export function useAgentActivity(sessionId: string | null, agentId?: string | nu
               timestamp: event.timestamp,
             };
             // Deduplicate by URL
-            if (!prev.sources.some(s => s.url === newSource.url)) {
+            if (!prev.sources.some((s) => s.url === newSource.url)) {
               updated.sources = [...prev.sources, newSource];
             }
           }
@@ -268,37 +288,45 @@ export function useAgentActivity(sessionId: string | null, agentId?: string | nu
     setState(INITIAL_STATE);
     let cancelled = false;
 
-    apiClient.get(`/agents/sessions/${sessionId}/status`)
+    apiClient
+      .get(`/agents/sessions/${sessionId}/status`)
       .then((res) => {
         if (cancelled) return;
 
         const recentEvents = Array.isArray(res.data?.recentEvents)
-          ? res.data.recentEvents as PersistedAgentEvent[]
+          ? (res.data.recentEvents as PersistedAgentEvent[])
           : [];
         const sessionPlan = res.data?.session?.plan;
         const sessionStatus = res.data?.session?.status;
         const creditsCharged = res.data?.session?.stats?.creditsCharged;
 
-        setState(prev => {
+        setState((prev) => {
           const hydratedEvents = recentEvents
             .map((entry) => eventFromPersisted(entry, sessionId))
             .slice(-MAX_EVENTS);
           const planItems = Array.isArray(sessionPlan?.items) ? sessionPlan.items : [];
-          const completed = planItems.filter((item: PlanItem) => item.status === 'completed').length;
+          const completed = planItems.filter(
+            (item: PlanItem) => item.status === 'completed',
+          ).length;
 
           return {
             ...prev,
             events: hydratedEvents,
             eventCount: hydratedEvents.length,
             startedAt: hydratedEvents[0]?.timestamp || prev.startedAt,
-            plan: planItems.length > 0
-              ? { items: planItems, completed, total: planItems.length }
-              : prev.plan,
+            plan:
+              planItems.length > 0
+                ? { items: planItems, completed, total: planItems.length }
+                : prev.plan,
             isComplete: sessionStatus === 'completed' || sessionStatus === 'cancelled',
             hasError: sessionStatus === 'failed',
-            lastError: sessionStatus === 'failed' ? res.data?.session?.result || prev.lastError : prev.lastError,
+            lastError:
+              sessionStatus === 'failed'
+                ? res.data?.session?.result || prev.lastError
+                : prev.lastError,
             latestResponse: res.data?.session?.result || prev.latestResponse,
-            creditsCharged: typeof creditsCharged === 'number' ? creditsCharged : prev.creditsCharged,
+            creditsCharged:
+              typeof creditsCharged === 'number' ? creditsCharged : prev.creditsCharged,
           };
         });
       })
@@ -373,22 +401,25 @@ export function useAgentActivity(sessionId: string | null, agentId?: string | nu
     };
   }, [sessionId, agentId, handleEvent]);
 
-  const respondApproval = useCallback((requestId: string, approved: boolean, alwaysAllow = false) => {
-    if (!sessionId || !socketRef.current) return;
-    socketRef.current.emit('agent-approval-response', {
-      requestId,
-      sessionId,
-      approved,
-      alwaysAllow,
-    });
+  const respondApproval = useCallback(
+    (requestId: string, approved: boolean, alwaysAllow = false) => {
+      if (!sessionId || !socketRef.current) return;
+      socketRef.current.emit('agent-approval-response', {
+        requestId,
+        sessionId,
+        approved,
+        alwaysAllow,
+      });
 
-    // Optimistic local update while server confirms.
-    setState(prev => ({
-      ...prev,
-      approvalRequest: null,
-      approvalResult: { requestId, decision: approved ? 'approved' : 'denied' },
-    }));
-  }, [sessionId]);
+      // Optimistic local update while server confirms.
+      setState((prev) => ({
+        ...prev,
+        approvalRequest: null,
+        approvalResult: { requestId, decision: approved ? 'approved' : 'denied' },
+      }));
+    },
+    [sessionId],
+  );
 
   return {
     ...state,

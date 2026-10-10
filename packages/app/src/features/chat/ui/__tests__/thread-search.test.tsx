@@ -1,10 +1,5 @@
 import React from 'react';
-import {
-  act,
-  create,
-  type ReactTestInstance,
-  type ReactTestRenderer,
-} from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -26,10 +21,7 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     View: host('View'),
@@ -43,10 +35,7 @@ vi.mock('@oxy.so/bloom/icons/RiCloseLine', () => ({ RiCloseLine: () => null }));
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
-    Muted: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Muted: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Text', props, children),
   };
 });
@@ -54,8 +43,7 @@ vi.mock('@oxy.so/bloom/typography', async () => {
 vi.mock('@oxy.so/bloom/search', async () => {
   const ReactModule = await import('react');
   return {
-    Search: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Input', props),
+    Search: (props: Record<string, unknown>) => ReactModule.createElement('Input', props),
   };
 });
 
@@ -89,10 +77,7 @@ vi.mock('@oxy.so/bloom/card', async () => {
 vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
   return {
-    Button: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Button: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Button', props, children),
   };
 });
@@ -182,9 +167,7 @@ describe('searching a thread', () => {
   it('asks nothing until something is typed', () => {
     // An empty field is an invitation, not a search that found nothing — and
     // "everything" is not a result.
-    const r = render(
-      <ThreadSearch handle="pepe" onJump={vi.fn()} onClose={vi.fn()} />,
-    );
+    const r = render(<ThreadSearch handle="pepe" onJump={vi.fn()} onClose={vi.fn()} />);
 
     expect(state.askedWith).toEqual(['']);
     expect(texts(r)).toContain('chat.searchThreadHint');
@@ -192,9 +175,7 @@ describe('searching a thread', () => {
   });
 
   it('draws a row per hit once there is a query', () => {
-    const r = render(
-      <ThreadSearch handle="pepe" onJump={vi.fn()} onClose={vi.fn()} />,
-    );
+    const r = render(<ThreadSearch handle="pepe" onJump={vi.fn()} onClose={vi.fn()} />);
     type(r, 'migration');
 
     expect(state.askedWith).toContain('migration');
@@ -204,9 +185,7 @@ describe('searching a thread', () => {
 
   it('hands back the whole hit, cursor included, which is what can be jumped to', () => {
     const onJump = vi.fn();
-    const r = render(
-      <ThreadSearch handle="pepe" onJump={onJump} onClose={vi.fn()} />,
-    );
+    const r = render(<ThreadSearch handle="pepe" onJump={onJump} onClose={vi.fn()} />);
     type(r, 'migration');
     act(() => results(r)[0].props.onPress());
 
@@ -221,9 +200,7 @@ describe('searching a thread', () => {
     // written by the server. A row that leans on it — to key, to jump — has
     // nothing to lean on for those.
     const onJump = vi.fn();
-    const r = render(
-      <ThreadSearch handle="pepe" onJump={onJump} onClose={vi.fn()} />,
-    );
+    const r = render(<ThreadSearch handle="pepe" onJump={onJump} onClose={vi.fn()} />);
     type(r, 'migration');
     act(() => results(r)[1].props.onPress());
 
@@ -233,9 +210,7 @@ describe('searching a thread', () => {
 
   it('says a search found nothing, which is not the same as not having searched', () => {
     state.hits = [];
-    const r = render(
-      <ThreadSearch handle="pepe" onJump={vi.fn()} onClose={vi.fn()} />,
-    );
+    const r = render(<ThreadSearch handle="pepe" onJump={vi.fn()} onClose={vi.fn()} />);
     type(r, 'nothing like this was ever said');
 
     expect(texts(r)).toContain('chat.searchThreadEmpty');

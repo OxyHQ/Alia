@@ -48,7 +48,7 @@ vi.mock('../../db/automation/automationWatchRepository.js', () => ({
   recordAutomationWatchObservation: state.watchRecord,
 }));
 vi.mock('../alia-watch.js', async (importOriginal) => ({
-  ...await importOriginal<typeof import('../alia-watch.js')>(),
+  ...(await importOriginal<typeof import('../alia-watch.js')>()),
   observeWatchSource: state.watchObserve,
 }));
 vi.mock('../../db/agents/agentRepository.js', () => ({ findAgentById: state.findAgent }));
@@ -60,8 +60,13 @@ vi.mock('../tools/oxy-services.js', () => ({ getOxyAgentCapabilityMap: state.oxy
 vi.mock('../task-queue.js', () => ({ enqueueAgentSession: state.enqueue }));
 vi.mock('../alia-task-queue.js', () => ({ enqueueAliaTask: state.enqueueAlia }));
 vi.mock('../notification-service.js', () => ({ sendNotification: state.notify }));
-vi.mock('../credits-manager.js', () => ({ reserveCredits: state.reserve, safeRefund: state.refund }));
-vi.mock('../user-credits-helpers.js', () => ({ getOrCreateUserCredits: vi.fn(async () => undefined) }));
+vi.mock('../credits-manager.js', () => ({
+  reserveCredits: state.reserve,
+  safeRefund: state.refund,
+}));
+vi.mock('../user-credits-helpers.js', () => ({
+  getOrCreateUserCredits: vi.fn(async () => undefined),
+}));
 vi.mock('../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return { log: { triggers: child } };
@@ -169,14 +174,25 @@ describe('normalized automation dispatch', () => {
       agentId: 'agent-a',
       actorAccountId: 'bot-agent-a',
       assignments: [
-        { resource: inbox, maximumAutonomy: 'autonomous' as const, limits: [], toolNames: ['searchNotes'] },
-        { resource: mention, maximumAutonomy: 'autonomous' as const, limits: [], toolNames: ['publishPost'] },
+        {
+          resource: inbox,
+          maximumAutonomy: 'autonomous' as const,
+          limits: [],
+          toolNames: ['searchNotes'],
+        },
+        {
+          resource: mention,
+          maximumAutonomy: 'autonomous' as const,
+          limits: [],
+          toolNames: ['publishPost'],
+        },
       ],
     };
     expect(candidateCoversResources(candidate, [inbox])).toBe(true);
     expect(candidateCoversAction(candidate, publishAction)).toBe(true);
-    expect(planAutomationStages({ candidates: [candidate], sourceResources: [inbox], actions }))
-      .toEqual([expect.objectContaining({ agentId: 'agent-a', actions })]);
+    expect(
+      planAutomationStages({ candidates: [candidate], sourceResources: [inbox], actions }),
+    ).toEqual([expect.objectContaining({ agentId: 'agent-a', actions })]);
   });
 
   it('records observation with the deterministic actor plan and creates no session', async () => {
@@ -184,11 +200,13 @@ describe('normalized automation dispatch', () => {
       status: 'observed',
     });
     expect(state.findAgent).toHaveBeenCalledTimes(2);
-    expect(state.observe).toHaveBeenCalledWith(expect.objectContaining({
-      automationId: 'automation-1',
-      triggerEventId: scheduleTrigger.id,
-      stages: [expect.objectContaining({ selectedAgentId: 'agent-a' })],
-    }));
+    expect(state.observe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        automationId: 'automation-1',
+        triggerEventId: scheduleTrigger.id,
+        stages: [expect.objectContaining({ selectedAgentId: 'agent-a' })],
+      }),
+    );
     expect(state.createSession).not.toHaveBeenCalled();
     expect(state.enqueue).not.toHaveBeenCalled();
   });
@@ -198,10 +216,9 @@ describe('normalized automation dispatch', () => {
       { resource: inbox, maximumAutonomy: 'draft', limits: [], toolNames: ['searchNotes'] },
       { resource: mention, maximumAutonomy: 'draft', limits: [], toolNames: ['publishPost'] },
     ]);
-    await expect(dispatchStructuredAutomation(
-      automation({ maximumAutonomy: 'draft' }),
-      scheduleTrigger,
-    )).resolves.toEqual({ status: 'observed' });
+    await expect(
+      dispatchStructuredAutomation(automation({ maximumAutonomy: 'draft' }), scheduleTrigger),
+    ).resolves.toEqual({ status: 'observed' });
     expect(state.oxyMap).toHaveBeenCalledWith(expect.objectContaining({ autonomy: 'draft' }));
     expect(state.observe).toHaveBeenCalled();
   });
@@ -261,46 +278,57 @@ describe('normalized automation dispatch', () => {
     state.activeAuthorizations.mockResolvedValueOnce([
       { automationActionId: 'action-1', agentId: 'agent-b' },
     ]);
-    await expect(dispatchStructuredAutomation(
-      automation({ executionMode: 'execute' }),
-      scheduleTrigger,
-    )).resolves.toEqual({ status: 'queued', runId: expect.any(String), sessionId: 'session-1' });
+    await expect(
+      dispatchStructuredAutomation(automation({ executionMode: 'execute' }), scheduleTrigger),
+    ).resolves.toEqual({ status: 'queued', runId: expect.any(String), sessionId: 'session-1' });
 
-    expect(state.createRun).toHaveBeenCalledWith(expect.objectContaining({
-      db: database,
-      automationId: 'automation-1',
-      stages: [expect.objectContaining({ selectedAgentId: 'agent-b' })],
-    }));
-    expect(state.createSession).toHaveBeenCalledWith(database, expect.objectContaining({
-      agentId: 'agent-b',
-      oxyUserId: 'owner-1',
-      automationStage: 0,
-      task: expect.stringContaining('"type":"schedule"'),
-    }));
+    expect(state.createRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        db: database,
+        automationId: 'automation-1',
+        stages: [expect.objectContaining({ selectedAgentId: 'agent-b' })],
+      }),
+    );
+    expect(state.createSession).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        agentId: 'agent-b',
+        oxyUserId: 'owner-1',
+        automationStage: 0,
+        task: expect.stringContaining('"type":"schedule"'),
+      }),
+    );
     expect(state.enqueue).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'session-1' }));
   });
 
   it('queues an assistant-only scheduled task without fabricating Oxy authority', async () => {
-    await expect(dispatchStructuredAutomation(
-      automation({
-        actorSelection: { mode: 'fixed', agentId: 'agent-a' },
-        executionMode: 'execute',
-        actions: [],
-        resources: [],
-        dataFlow: { sources: [], destinations: [] },
-        inputs: { instructions: 'Remind me to call Alex' },
-      }),
-      scheduleTrigger,
-    )).resolves.toEqual({ status: 'queued', runId: expect.any(String), sessionId: 'session-1' });
+    await expect(
+      dispatchStructuredAutomation(
+        automation({
+          actorSelection: { mode: 'fixed', agentId: 'agent-a' },
+          executionMode: 'execute',
+          actions: [],
+          resources: [],
+          dataFlow: { sources: [], destinations: [] },
+          inputs: { instructions: 'Remind me to call Alex' },
+        }),
+        scheduleTrigger,
+      ),
+    ).resolves.toEqual({ status: 'queued', runId: expect.any(String), sessionId: 'session-1' });
 
     expect(state.oxyMap).not.toHaveBeenCalled();
     expect(state.activeAuthorizations).not.toHaveBeenCalled();
-    expect(state.createRun).toHaveBeenCalledWith(expect.objectContaining({
-      stages: [expect.objectContaining({ actions: [] })],
-    }));
-    expect(state.createSession).toHaveBeenCalledWith(database, expect.objectContaining({
-      task: expect.stringContaining('has no connected-app effects'),
-    }));
+    expect(state.createRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stages: [expect.objectContaining({ actions: [] })],
+      }),
+    );
+    expect(state.createSession).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        task: expect.stringContaining('has no connected-app effects'),
+      }),
+    );
   });
 
   it('disables a one-off task in the same transaction that claims its run', async () => {
@@ -322,37 +350,58 @@ describe('normalized automation dispatch', () => {
 
   it('runs an execute-on-request definition only for its owner and audits the requester', async () => {
     state.oxyMap.mockResolvedValueOnce([
-      { resource: inbox, maximumAutonomy: 'execute_on_request', limits: [], toolNames: ['searchNotes'] },
-      { resource: mention, maximumAutonomy: 'execute_on_request', limits: [], toolNames: ['publishPost'] },
+      {
+        resource: inbox,
+        maximumAutonomy: 'execute_on_request',
+        limits: [],
+        toolNames: ['searchNotes'],
+      },
+      {
+        resource: mention,
+        maximumAutonomy: 'execute_on_request',
+        limits: [],
+        toolNames: ['publishPost'],
+      },
     ]);
 
-    await expect(dispatchStructuredAutomation(
-      automation({
-        executionMode: 'execute',
-        maximumAutonomy: 'execute_on_request',
-        trigger: { type: 'manual' },
-      }),
-      manualTrigger,
-    )).resolves.toEqual({ status: 'queued', runId: expect.any(String), sessionId: 'session-1' });
+    await expect(
+      dispatchStructuredAutomation(
+        automation({
+          executionMode: 'execute',
+          maximumAutonomy: 'execute_on_request',
+          trigger: { type: 'manual' },
+        }),
+        manualTrigger,
+      ),
+    ).resolves.toEqual({ status: 'queued', runId: expect.any(String), sessionId: 'session-1' });
 
-    expect(state.oxyMap).toHaveBeenCalledWith(expect.objectContaining({
-      ownerAccountId: 'owner-1',
-      autonomy: 'execute_on_request',
-    }));
-    expect(state.createRun).toHaveBeenCalledWith(expect.objectContaining({
-      requesterAccountId: 'owner-1',
-      triggerEventId: manualTrigger.id,
-    }));
-    expect(state.createSession).toHaveBeenCalledWith(database, expect.objectContaining({
-      task: expect.stringContaining('"type":"manual"'),
-    }));
+    expect(state.oxyMap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerAccountId: 'owner-1',
+        autonomy: 'execute_on_request',
+      }),
+    );
+    expect(state.createRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requesterAccountId: 'owner-1',
+        triggerEventId: manualTrigger.id,
+      }),
+    );
+    expect(state.createSession).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        task: expect.stringContaining('"type":"manual"'),
+      }),
+    );
   });
 
   it('does not execute a non-autonomous definition from a schedule', async () => {
-    await expect(dispatchStructuredAutomation(
-      automation({ executionMode: 'execute', maximumAutonomy: 'execute_on_request' }),
-      scheduleTrigger,
-    )).resolves.toEqual({
+    await expect(
+      dispatchStructuredAutomation(
+        automation({ executionMode: 'execute', maximumAutonomy: 'execute_on_request' }),
+        scheduleTrigger,
+      ),
+    ).resolves.toEqual({
       status: 'denied',
       reason: 'background_execution_requires_autonomous_policy',
     });
@@ -362,14 +411,16 @@ describe('normalized automation dispatch', () => {
   });
 
   it('does not treat a manual request as approval for a draft definition', async () => {
-    await expect(dispatchStructuredAutomation(
-      automation({
-        executionMode: 'execute',
-        maximumAutonomy: 'draft',
-        trigger: { type: 'manual' },
-      }),
-      manualTrigger,
-    )).resolves.toEqual({
+    await expect(
+      dispatchStructuredAutomation(
+        automation({
+          executionMode: 'execute',
+          maximumAutonomy: 'draft',
+          trigger: { type: 'manual' },
+        }),
+        manualTrigger,
+      ),
+    ).resolves.toEqual({
       status: 'denied',
       reason: 'manual_execution_requires_request_autonomy',
     });
@@ -379,10 +430,12 @@ describe('normalized automation dispatch', () => {
   });
 
   it('rejects a manual requester that does not own the definition', async () => {
-    await expect(dispatchStructuredAutomation(automation(), {
-      ...manualTrigger,
-      requesterAccountId: 'other-owner',
-    })).resolves.toEqual({ status: 'denied', reason: 'manual_requester_not_owner' });
+    await expect(
+      dispatchStructuredAutomation(automation(), {
+        ...manualTrigger,
+        requesterAccountId: 'other-owner',
+      }),
+    ).resolves.toEqual({ status: 'denied', reason: 'manual_requester_not_owner' });
 
     expect(state.findAgent).not.toHaveBeenCalled();
     expect(state.createRun).not.toHaveBeenCalled();
@@ -403,30 +456,58 @@ describe('normalized automation dispatch', () => {
       { ...publishAction, id: 'read-action', resource: inbox, tool: 'searchNotes', input: {} },
       { ...publishAction, id: 'publish-action' },
     ];
-    state.oxyMap.mockImplementation(async (context) => context.actor.accountId === 'bot-agent-a'
-      ? [{ resource: inbox, maximumAutonomy: 'autonomous', limits: [], toolNames: ['searchNotes'] }]
-      : [{ resource: mention, maximumAutonomy: 'autonomous', limits: [], toolNames: ['publishPost'] }]);
+    state.oxyMap.mockImplementation(async (context) =>
+      context.actor.accountId === 'bot-agent-a'
+        ? [
+            {
+              resource: inbox,
+              maximumAutonomy: 'autonomous',
+              limits: [],
+              toolNames: ['searchNotes'],
+            },
+          ]
+        : [
+            {
+              resource: mention,
+              maximumAutonomy: 'autonomous',
+              limits: [],
+              toolNames: ['publishPost'],
+            },
+          ],
+    );
     state.activeAuthorizations.mockResolvedValue([
       { automationActionId: 'read-action', agentId: 'agent-a' },
       { automationActionId: 'publish-action', agentId: 'agent-b' },
     ]);
 
-    await dispatchStructuredAutomation(automation({ executionMode: 'execute', actions: splitActions }), scheduleTrigger);
+    await dispatchStructuredAutomation(
+      automation({ executionMode: 'execute', actions: splitActions }),
+      scheduleTrigger,
+    );
 
-    expect(state.createRun).toHaveBeenCalledWith(expect.objectContaining({
-      stages: [
-        expect.objectContaining({ stage: 0, selectedAgentId: 'agent-a', actions: [splitActions[0]] }),
-        expect.objectContaining({ stage: 1, selectedAgentId: 'agent-b', actions: [splitActions[1]] }),
-      ],
-    }));
+    expect(state.createRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stages: [
+          expect.objectContaining({
+            stage: 0,
+            selectedAgentId: 'agent-a',
+            actions: [splitActions[0]],
+          }),
+          expect.objectContaining({
+            stage: 1,
+            selectedAgentId: 'agent-b',
+            actions: [splitActions[1]],
+          }),
+        ],
+      }),
+    );
   });
 
   it('creates no session when another worker already claimed the occurrence', async () => {
     state.createRun.mockResolvedValueOnce(false);
-    await expect(dispatchStructuredAutomation(
-      automation({ executionMode: 'execute' }),
-      scheduleTrigger,
-    )).resolves.toEqual({ status: 'duplicate' });
+    await expect(
+      dispatchStructuredAutomation(automation({ executionMode: 'execute' }), scheduleTrigger),
+    ).resolves.toEqual({ status: 'duplicate' });
     expect(state.createSession).not.toHaveBeenCalled();
     expect(state.enqueue).not.toHaveBeenCalled();
     // The hold taken before the claim is given back: nothing will settle it.
@@ -437,16 +518,20 @@ describe('normalized automation dispatch', () => {
     await dispatchStructuredAutomation(automation({ executionMode: 'execute' }), scheduleTrigger);
 
     expect(state.reserve).toHaveBeenCalledWith('owner-1');
-    expect(state.createSession).toHaveBeenCalledWith(database, expect.objectContaining({
-      creditReservation: RESERVATION,
-    }));
+    expect(state.createSession).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        creditReservation: RESERVATION,
+      }),
+    );
   });
 
   it('does not run, and says why, when the owner cannot cover the hold', async () => {
     state.reserve.mockResolvedValueOnce(null);
 
-    await expect(dispatchStructuredAutomation(automation({ executionMode: 'execute' }), scheduleTrigger))
-      .resolves.toEqual({ status: 'denied', reason: 'insufficient_credits' });
+    await expect(
+      dispatchStructuredAutomation(automation({ executionMode: 'execute' }), scheduleTrigger),
+    ).resolves.toEqual({ status: 'denied', reason: 'insufficient_credits' });
     expect(state.createRun).not.toHaveBeenCalled();
     expect(state.createSession).not.toHaveBeenCalled();
     expect(state.notify).toHaveBeenCalled();
@@ -454,16 +539,17 @@ describe('normalized automation dispatch', () => {
 });
 
 describe('a task Alia is responsible for', () => {
-  const aliaTask = (overrides: Record<string, unknown> = {}) => automation({
-    objective: 'Track the latest releases from Meta',
-    actorSelection: { mode: 'alia' },
-    executionMode: 'execute',
-    actions: [],
-    resources: [],
-    dataFlow: { sources: [], destinations: [] },
-    inputs: { instructions: 'Tell me when Meta announces something new' },
-    ...overrides,
-  });
+  const aliaTask = (overrides: Record<string, unknown> = {}) =>
+    automation({
+      objective: 'Track the latest releases from Meta',
+      actorSelection: { mode: 'alia' },
+      executionMode: 'execute',
+      actions: [],
+      resources: [],
+      dataFlow: { sources: [], destinations: [] },
+      inputs: { instructions: 'Tell me when Meta announces something new' },
+      ...overrides,
+    });
 
   it('claims the run with Alia as its actor and queues an Alia job, not an agent session', async () => {
     const result = await dispatchStructuredAutomation(aliaTask(), scheduleTrigger);
@@ -471,20 +557,26 @@ describe('a task Alia is responsible for', () => {
     expect(result).toEqual({ status: 'queued', runId: expect.any(String) });
     const runId = (result as { runId: string }).runId;
     expect(state.findAgent).not.toHaveBeenCalled();
-    expect(state.createRun).toHaveBeenCalledWith(expect.objectContaining({
-      db: database,
-      runId,
-      automationId: 'automation-1',
-      requesterAccountId: 'owner-1',
-      triggerEventId: scheduleTrigger.id,
-      actorType: 'alia',
-      stages: [expect.objectContaining({
-        selectedAgentId: null,
-        selectedActorAccountId: 'owner-1',
-        actions: [],
-        taskInput: expect.objectContaining({ objective: 'Track the latest releases from Meta' }),
-      })],
-    }));
+    expect(state.createRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        db: database,
+        runId,
+        automationId: 'automation-1',
+        requesterAccountId: 'owner-1',
+        triggerEventId: scheduleTrigger.id,
+        actorType: 'alia',
+        stages: [
+          expect.objectContaining({
+            selectedAgentId: null,
+            selectedActorAccountId: 'owner-1',
+            actions: [],
+            taskInput: expect.objectContaining({
+              objective: 'Track the latest releases from Meta',
+            }),
+          }),
+        ],
+      }),
+    );
     expect(state.enqueueAlia).toHaveBeenCalledWith({
       runId,
       automationId: 'automation-1',
@@ -496,19 +588,25 @@ describe('a task Alia is responsible for', () => {
   });
 
   it('records an observed run under Alia without holding credits', async () => {
-    await expect(dispatchStructuredAutomation(aliaTask({ executionMode: 'observe' }), scheduleTrigger))
-      .resolves.toEqual({ status: 'observed' });
+    await expect(
+      dispatchStructuredAutomation(aliaTask({ executionMode: 'observe' }), scheduleTrigger),
+    ).resolves.toEqual({ status: 'observed' });
 
-    expect(state.observe).toHaveBeenCalledWith(expect.objectContaining({
-      actorType: 'alia',
-      stages: [expect.objectContaining({ selectedAgentId: null })],
-    }));
+    expect(state.observe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorType: 'alia',
+        stages: [expect.objectContaining({ selectedAgentId: null })],
+      }),
+    );
     expect(state.reserve).not.toHaveBeenCalled();
     expect(state.enqueueAlia).not.toHaveBeenCalled();
   });
 
   it('disables a one-off Alia task in the transaction that claims its run', async () => {
-    await dispatchStructuredAutomation(aliaTask({ inputs: { instructions: 'Remind me', runOnce: true } }), scheduleTrigger);
+    await dispatchStructuredAutomation(
+      aliaTask({ inputs: { instructions: 'Remind me', runOnce: true } }),
+      scheduleTrigger,
+    );
 
     expect(state.disable).toHaveBeenCalledWith(database, 'automation-1', 'owner-1', false);
     expect(state.enqueueAlia).toHaveBeenCalled();
@@ -517,7 +615,9 @@ describe('a task Alia is responsible for', () => {
   it('gives the hold back and queues nothing for a duplicate occurrence', async () => {
     state.createRun.mockResolvedValueOnce(false);
 
-    await expect(dispatchStructuredAutomation(aliaTask(), scheduleTrigger)).resolves.toEqual({ status: 'duplicate' });
+    await expect(dispatchStructuredAutomation(aliaTask(), scheduleTrigger)).resolves.toEqual({
+      status: 'duplicate',
+    });
     expect(state.refund).toHaveBeenCalledWith(RESERVATION, 'duplicate automation run');
     expect(state.enqueueAlia).not.toHaveBeenCalled();
   });
@@ -525,7 +625,9 @@ describe('a task Alia is responsible for', () => {
   it('fails the run and refunds when the job cannot be queued', async () => {
     state.enqueueAlia.mockRejectedValueOnce(new Error('redis down'));
 
-    await expect(dispatchStructuredAutomation(aliaTask(), scheduleTrigger)).rejects.toThrow('redis down');
+    await expect(dispatchStructuredAutomation(aliaTask(), scheduleTrigger)).rejects.toThrow(
+      'redis down',
+    );
     expect(state.markAliaRun).toHaveBeenCalledWith(database, expect.any(String), 'failed');
     expect(state.refund).toHaveBeenCalledWith(RESERVATION, 'automation run could not be queued');
   });
@@ -538,20 +640,28 @@ describe('a task Alia is responsible for', () => {
 
     const result = await dispatchStructuredAutomation(aliaTask({ actions }), scheduleTrigger);
     expect(result).toEqual({ status: 'queued', runId: expect.any(String) });
-    expect(state.createRun).toHaveBeenCalledWith(expect.objectContaining({
-      actorType: 'alia',
-      creditReservation: RESERVATION,
-      stages: [expect.objectContaining({
-        selectedAgentId: null,
-        actions: [expect.objectContaining({ id: 'action-1', tool: 'publishPost' })],
-      })],
-    }));
+    expect(state.createRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorType: 'alia',
+        creditReservation: RESERVATION,
+        stages: [
+          expect.objectContaining({
+            selectedAgentId: null,
+            actions: [expect.objectContaining({ id: 'action-1', tool: 'publishPost' })],
+          }),
+        ],
+      }),
+    );
   });
 
   it('runs nothing when a declared action lost its authority', async () => {
-    state.aliaAuthorizations.mockResolvedValueOnce([{ automationActionId: null, oxyAuthorizationId: 'oxy-read' }]);
+    state.aliaAuthorizations.mockResolvedValueOnce([
+      { automationActionId: null, oxyAuthorizationId: 'oxy-read' },
+    ]);
 
-    await expect(dispatchStructuredAutomation(aliaTask({ actions }), scheduleTrigger)).resolves.toEqual({
+    await expect(
+      dispatchStructuredAutomation(aliaTask({ actions }), scheduleTrigger),
+    ).resolves.toEqual({
       status: 'denied',
       reason: 'alia_action_authority_missing',
     });
@@ -562,15 +672,16 @@ describe('a task Alia is responsible for', () => {
 });
 
 describe('a watch task', () => {
-  const watchTask = (watch: Record<string, unknown> = { query: 'Meta announcement' }) => automation({
-    objective: 'Tell me when Meta announces something new',
-    actorSelection: { mode: 'alia' },
-    executionMode: 'execute',
-    actions: [],
-    resources: [],
-    dataFlow: { sources: [], destinations: [] },
-    inputs: { watch },
-  });
+  const watchTask = (watch: Record<string, unknown> = { query: 'Meta announcement' }) =>
+    automation({
+      objective: 'Tell me when Meta announces something new',
+      actorSelection: { mode: 'alia' },
+      executionMode: 'execute',
+      actions: [],
+      resources: [],
+      dataFlow: { sources: [], destinations: [] },
+      inputs: { watch },
+    });
   const observation = (items: string[], text = 'Meta news') => ({
     hash: `hash-${items.join(',')}`,
     items,
@@ -579,7 +690,12 @@ describe('a watch task', () => {
   });
 
   beforeEach(() => {
-    state.watchState.mockResolvedValue({ lastHash: 'hash-a', lastItems: ['a'], matched: false, nextCheckAt: null });
+    state.watchState.mockResolvedValue({
+      lastHash: 'hash-a',
+      lastItems: ['a'],
+      matched: false,
+      nextCheckAt: null,
+    });
     state.watchFailure.mockResolvedValue(1);
     state.watchPause.mockResolvedValue(true);
     state.watchRecord.mockResolvedValue(undefined);
@@ -588,19 +704,28 @@ describe('a watch task', () => {
   it('a tick that sees nothing new costs nothing and starts no run', async () => {
     state.watchObserve.mockResolvedValueOnce(observation(['a']));
 
-    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger)).resolves.toEqual({ status: 'unchanged' });
+    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger)).resolves.toEqual({
+      status: 'unchanged',
+    });
     expect(state.reserve).not.toHaveBeenCalled();
     expect(state.createRun).not.toHaveBeenCalled();
-    expect(state.watchRecord).toHaveBeenCalledWith(database, expect.objectContaining({
-      automationId: 'automation-1', hash: 'hash-a', changed: false,
-    }));
+    expect(state.watchRecord).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        automationId: 'automation-1',
+        hash: 'hash-a',
+        changed: false,
+      }),
+    );
   });
 
   it('the first good tick is a baseline, not news', async () => {
     state.watchState.mockResolvedValueOnce(null);
     state.watchObserve.mockResolvedValueOnce(observation(['a', 'b']));
 
-    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger)).resolves.toEqual({ status: 'unchanged' });
+    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger)).resolves.toEqual({
+      status: 'unchanged',
+    });
     expect(state.reserve).not.toHaveBeenCalled();
   });
 
@@ -610,27 +735,36 @@ describe('a watch task', () => {
     const result = await dispatchStructuredAutomation(watchTask(), scheduleTrigger);
     expect(result).toEqual({ status: 'queued', runId: expect.any(String) });
     expect(state.reserve).toHaveBeenCalledTimes(1);
-    expect(state.createRun).toHaveBeenCalledWith(expect.objectContaining({
-      triggerEventId: 'watch:automation-1:hash-a,b',
-      stages: [expect.objectContaining({
-        taskInput: expect.objectContaining({
-          trigger: expect.objectContaining({
-            watch: expect.objectContaining({
-              source: { query: 'Meta announcement' },
-              newResults: [expect.objectContaining({ url: 'b' })],
+    expect(state.createRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        triggerEventId: 'watch:automation-1:hash-a,b',
+        stages: [
+          expect.objectContaining({
+            taskInput: expect.objectContaining({
+              trigger: expect.objectContaining({
+                watch: expect.objectContaining({
+                  source: { query: 'Meta announcement' },
+                  newResults: [expect.objectContaining({ url: 'b' })],
+                }),
+              }),
             }),
           }),
-        }),
-      })],
-    }));
-    expect(state.watchRecord).toHaveBeenCalledWith(database, expect.objectContaining({ hash: 'hash-a,b', changed: true }));
+        ],
+      }),
+    );
+    expect(state.watchRecord).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({ hash: 'hash-a,b', changed: true }),
+    );
   });
 
   it('a duplicate observation is recorded but runs nothing twice', async () => {
     state.watchObserve.mockResolvedValueOnce(observation(['a', 'b']));
     state.createRun.mockResolvedValueOnce(false);
 
-    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger)).resolves.toEqual({ status: 'duplicate' });
+    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger)).resolves.toEqual({
+      status: 'duplicate',
+    });
     expect(state.enqueueAlia).not.toHaveBeenCalled();
     expect(state.watchRecord).toHaveBeenCalled();
   });
@@ -639,34 +773,50 @@ describe('a watch task', () => {
     state.watchObserve.mockResolvedValueOnce(observation(['a', 'b']));
     state.reserve.mockResolvedValueOnce(null);
 
-    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger))
-      .resolves.toEqual({ status: 'denied', reason: 'insufficient_credits' });
+    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger)).resolves.toEqual({
+      status: 'denied',
+      reason: 'insufficient_credits',
+    });
     expect(state.watchRecord).not.toHaveBeenCalled();
   });
 
   it('fires a contains watch on the rising edge only', async () => {
     state.watchState.mockResolvedValueOnce(null);
     state.watchObserve.mockResolvedValueOnce(observation([], 'Now available: Llama 5'));
-    await expect(dispatchStructuredAutomation(
-      watchTask({ url: 'https://example.com/news', condition: 'contains', value: 'llama 5' }),
-      scheduleTrigger,
-    )).resolves.toEqual({ status: 'queued', runId: expect.any(String) });
+    await expect(
+      dispatchStructuredAutomation(
+        watchTask({ url: 'https://example.com/news', condition: 'contains', value: 'llama 5' }),
+        scheduleTrigger,
+      ),
+    ).resolves.toEqual({ status: 'queued', runId: expect.any(String) });
 
-    state.watchState.mockResolvedValueOnce({ lastHash: 'x', lastItems: [], matched: true, nextCheckAt: null });
+    state.watchState.mockResolvedValueOnce({
+      lastHash: 'x',
+      lastItems: [],
+      matched: true,
+      nextCheckAt: null,
+    });
     state.watchObserve.mockResolvedValueOnce(observation([], 'Now available: Llama 5 and more'));
-    await expect(dispatchStructuredAutomation(
-      watchTask({ url: 'https://example.com/news', condition: 'contains', value: 'llama 5' }),
-      scheduleTrigger,
-    )).resolves.toEqual({ status: 'unchanged' });
+    await expect(
+      dispatchStructuredAutomation(
+        watchTask({ url: 'https://example.com/news', condition: 'contains', value: 'llama 5' }),
+        scheduleTrigger,
+      ),
+    ).resolves.toEqual({ status: 'unchanged' });
   });
 
   it('skips the tick while backing off after a failure', async () => {
     state.watchState.mockResolvedValueOnce({
-      lastHash: 'hash-a', lastItems: ['a'], matched: false, nextCheckAt: new Date(Date.now() + 60_000),
+      lastHash: 'hash-a',
+      lastItems: ['a'],
+      matched: false,
+      nextCheckAt: new Date(Date.now() + 60_000),
     });
 
-    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger))
-      .resolves.toEqual({ status: 'denied', reason: 'watch_backing_off' });
+    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger)).resolves.toEqual({
+      status: 'denied',
+      reason: 'watch_backing_off',
+    });
     expect(state.watchObserve).not.toHaveBeenCalled();
   });
 
@@ -674,8 +824,10 @@ describe('a watch task', () => {
     state.watchObserve.mockRejectedValueOnce(new Error('clarity down'));
     state.watchFailure.mockResolvedValueOnce(2);
 
-    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger))
-      .resolves.toEqual({ status: 'denied', reason: 'watch_source_failed' });
+    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger)).resolves.toEqual({
+      status: 'denied',
+      reason: 'watch_source_failed',
+    });
     expect(state.watchPause).not.toHaveBeenCalled();
     expect(state.notify).not.toHaveBeenCalled();
   });
@@ -685,10 +837,14 @@ describe('a watch task', () => {
     state.watchFailure.mockResolvedValue(5);
     state.watchPause.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
 
-    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger))
-      .resolves.toEqual({ status: 'denied', reason: 'watch_paused' });
-    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger))
-      .resolves.toEqual({ status: 'denied', reason: 'watch_source_failed' });
+    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger)).resolves.toEqual({
+      status: 'denied',
+      reason: 'watch_paused',
+    });
+    await expect(dispatchStructuredAutomation(watchTask(), scheduleTrigger)).resolves.toEqual({
+      status: 'denied',
+      reason: 'watch_source_failed',
+    });
     expect(state.watchPause).toHaveBeenCalledWith(database, 'automation-1', 5, expect.any(Date));
     expect(state.notify).toHaveBeenCalledTimes(1);
     state.watchObserve.mockReset();

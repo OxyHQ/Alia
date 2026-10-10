@@ -38,11 +38,25 @@ import type {
 // Declared here rather than taken from lib.dom: TypeScript's DOM library does
 // not ship the prefixed constructor, and the unprefixed one is not everywhere.
 
-interface WebSpeechAlternative { readonly transcript: string }
-interface WebSpeechResult { readonly isFinal: boolean; readonly length: number; readonly [index: number]: WebSpeechAlternative }
-interface WebSpeechResultList { readonly length: number; readonly [index: number]: WebSpeechResult }
-interface WebSpeechResultEvent { readonly results: WebSpeechResultList }
-interface WebSpeechErrorEvent { readonly error: string; readonly message?: string }
+interface WebSpeechAlternative {
+  readonly transcript: string;
+}
+interface WebSpeechResult {
+  readonly isFinal: boolean;
+  readonly length: number;
+  readonly [index: number]: WebSpeechAlternative;
+}
+interface WebSpeechResultList {
+  readonly length: number;
+  readonly [index: number]: WebSpeechResult;
+}
+interface WebSpeechResultEvent {
+  readonly results: WebSpeechResultList;
+}
+interface WebSpeechErrorEvent {
+  readonly error: string;
+  readonly message?: string;
+}
 
 interface WebSpeechRecognition {
   lang: string;
@@ -95,7 +109,12 @@ export async function requestSpeechRecognitionPermission(): Promise<SpeechRecogn
 
 function domErrorName(error: unknown): string {
   // A DOMException is not always `instanceof Error`, so read `.name` off the object.
-  if (typeof error === 'object' && error !== null && 'name' in error && typeof error.name === 'string') {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'name' in error &&
+    typeof error.name === 'string'
+  ) {
     return error.name;
   }
   return '';
@@ -149,7 +168,8 @@ const LEVEL_INTERVAL_MS = 100;
 
 /** An analyser on the microphone, polled on a clock. Returns its teardown. */
 function meterStream(stream: MediaStream, onLevel: (level: number) => void): () => void {
-  const AudioContextCtor = (globalThis as unknown as { AudioContext?: typeof AudioContext }).AudioContext;
+  const AudioContextCtor = (globalThis as unknown as { AudioContext?: typeof AudioContext })
+    .AudioContext;
   if (AudioContextCtor === undefined) return () => undefined;
   let context: AudioContext;
   try {

@@ -112,12 +112,7 @@ function waitWithAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> 
  * handler during its recorded compatibility window.
  */
 export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn {
-  const {
-    apiUrl = API_URL,
-    model,
-    clientContext,
-    accessToken: accessTokenProp,
-  } = options;
+  const { apiUrl = API_URL, model, clientContext, accessToken: accessTokenProp } = options;
   const requestUrl = '/v1/chat/completions';
 
   const { oxyServices } = useOxy();
@@ -351,8 +346,7 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
             updateAssistant(pending.assistantId, (last) => ({
               researchProgress: {
                 ...event.progress,
-                subQuestions:
-                  event.progress.subQuestions ?? last.researchProgress?.subQuestions,
+                subQuestions: event.progress.subQuestions ?? last.researchProgress?.subQuestions,
               },
             }));
             return;

@@ -88,7 +88,10 @@ export async function usageWindow(
   subject: { oxyUserId: string; authType: ApiKeyUsageAuthType },
   since: Date,
 ): Promise<UsageWindow> {
-  const who = and(eq(apiKeyUsage.oxyUserId, subject.oxyUserId), eq(apiKeyUsage.authType, subject.authType));
+  const who = and(
+    eq(apiKeyUsage.oxyUserId, subject.oxyUserId),
+    eq(apiKeyUsage.authType, subject.authType),
+  );
 
   const [row] = await db
     .select({

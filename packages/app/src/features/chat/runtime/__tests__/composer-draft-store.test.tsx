@@ -71,7 +71,9 @@ describe('one draft per composer', () => {
     });
 
     // A failed send in c1 hands its draft back — to c1, not to the new chat.
-    act(() => store().restore(store().address('c1'), { text: 'retry me', attachments: [picture('p1')] }));
+    act(() =>
+      store().restore(store().address('c1'), { text: 'retry me', attachments: [picture('p1')] }),
+    );
 
     expect(seen.c1).toMatchObject({ text: 'retry me', attachments: [{ id: 'p1' }] });
     expect(seen.new).toMatchObject({ text: '', attachments: [] });
@@ -103,7 +105,12 @@ describe('one draft per composer', () => {
     const address = store().address('c1');
     store().addAttachment(address, picture('later'));
 
-    store().restore(address, { text: 'sent', attachments: [picture('sent')], mcpServerId: 'm1', skillNames: ['s'] });
+    store().restore(address, {
+      text: 'sent',
+      attachments: [picture('sent')],
+      mcpServerId: 'm1',
+      skillNames: ['s'],
+    });
 
     expect(draftOf('c1')).toEqual({
       text: 'sent',
@@ -118,13 +125,26 @@ describe('one draft per composer', () => {
     store().setText(address, 'half a thought');
     store().updateTurn(address, () => ({ mcpServerId: 'm0', skillNames: [] }));
 
-    store().startEdit(address, { messageId: 'u1', text: 'first', mcpServerId: 'm1', skillNames: ['a'] });
+    store().startEdit(address, {
+      messageId: 'u1',
+      text: 'first',
+      mcpServerId: 'm1',
+      skillNames: ['a'],
+    });
     // A second edit before the first is sent keeps the ORIGINAL draft aside.
-    store().startEdit(address, { messageId: 'u2', text: 'second', mcpServerId: null, skillNames: [] });
+    store().startEdit(address, {
+      messageId: 'u2',
+      text: 'second',
+      mcpServerId: null,
+      skillNames: [],
+    });
     expect(draftOf('c1')).toMatchObject({
       text: 'second',
       mcpServerId: null,
-      editing: { messageId: 'u2', before: { text: 'half a thought', mcpServerId: 'm0', skillNames: [] } },
+      editing: {
+        messageId: 'u2',
+        before: { text: 'half a thought', mcpServerId: 'm0', skillNames: [] },
+      },
     });
 
     store().cancelEdit(address);
@@ -138,7 +158,12 @@ describe('one draft per composer', () => {
 
   it('drops an edit with the draft, when the draft is cleared for its send', () => {
     const address = store().address('c1');
-    store().startEdit(address, { messageId: 'u1', text: 'first', mcpServerId: null, skillNames: [] });
+    store().startEdit(address, {
+      messageId: 'u1',
+      text: 'first',
+      mcpServerId: null,
+      skillNames: [],
+    });
     store().clear(address);
     expect(draftOf('c1')).toBeUndefined();
   });
@@ -179,7 +204,10 @@ describe('one account’s drafts', () => {
 
     store().bindAccount('A');
 
-    expect(draftOf(null)).toMatchObject({ text: 'typed before signing in', attachments: [{ id: 'p1' }] });
+    expect(draftOf(null)).toMatchObject({
+      text: 'typed before signing in',
+      attachments: [{ id: 'p1' }],
+    });
     expect(revoked).toEqual([]);
   });
 

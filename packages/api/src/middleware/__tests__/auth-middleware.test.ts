@@ -20,18 +20,18 @@ vi.mock('@oxy.so/core', () => {
   const passThroughMiddleware = (_req: Request, _res: Response, next: NextFunction) => next();
 
   class MockOxyServices {
-      middleware = { service: (...args: any[]) => (this as any).serviceAuth(...args) };
-    auth() { return vi.fn(passThroughMiddleware); }
-    serviceAuth() { return vi.fn(passThroughMiddleware); }
+    middleware = { service: (...args: any[]) => (this as any).serviceAuth(...args) };
+    auth() {
+      return vi.fn(passThroughMiddleware);
+    }
+    serviceAuth() {
+      return vi.fn(passThroughMiddleware);
+    }
   }
   return { OxyServices: MockOxyServices };
 });
 
-import {
-  authenticateTelegramBot,
-  authenticateTokenOrApiKey,
-  optionalAuth,
-} from '../auth.js';
+import { authenticateTelegramBot, authenticateTokenOrApiKey, optionalAuth } from '../auth.js';
 
 type MockFn = ReturnType<typeof vi.fn>;
 
@@ -191,7 +191,9 @@ describe('auth middleware', () => {
       // The SDK mock passes everything through, so reaching it would call next.
       expect(next).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'credential_retired' }));
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'credential_retired' }),
+      );
       expect(req.user).toBeUndefined();
     });
 

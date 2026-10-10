@@ -89,11 +89,21 @@ vi.mock('@oxy.so/bloom/settings-modal', async () => {
         sections.map((section) =>
           ReactModule.createElement(
             'Section',
-            { key: section.key, testID: section.key, label: section.label, description: section.description },
+            {
+              key: section.key,
+              testID: section.key,
+              label: section.label,
+              description: section.description,
+            },
             section.rows.map((row) =>
               ReactModule.createElement(
                 'Row',
-                { key: row.key, testID: `${section.key}:${row.key}`, label: row.label, description: row.description },
+                {
+                  key: row.key,
+                  testID: `${section.key}:${row.key}`,
+                  label: row.label,
+                  description: row.description,
+                },
                 row.control,
               ),
             ),
@@ -148,12 +158,20 @@ describe('AccountsSection', () => {
     act(() => r.unmount());
 
     mocks.accounts.accounts = [
-      { _id: 'a1', platform: 'whatsapp', accountId: 'x', phoneNumber: '+34 600', status: 'connected' },
+      {
+        _id: 'a1',
+        platform: 'whatsapp',
+        accountId: 'x',
+        phoneNumber: '+34 600',
+        status: 'connected',
+      },
     ];
     r = mount(<AccountsSection />);
     const account = row(r, 'accounts:a1');
     expect(account.props.label).toBe('WhatsApp');
-    expect(account.props.description).toBe('+34 600 · settings.connections.accounts.status.connected');
+    expect(account.props.description).toBe(
+      '+34 600 · settings.connections.accounts.status.connected',
+    );
   });
 
   it('connects a platform from its row', async () => {
@@ -169,7 +187,9 @@ describe('AccountsSection', () => {
   });
 
   it('removes an account only after the confirm', async () => {
-    mocks.accounts.accounts = [{ _id: 'a1', platform: 'gmail', accountId: 'me@x', status: 'connected' }];
+    mocks.accounts.accounts = [
+      { _id: 'a1', platform: 'gmail', accountId: 'me@x', status: 'connected' },
+    ];
     mocks.accounts.remove.mockResolvedValue(undefined);
     const r = mount(<AccountsSection />);
 
@@ -184,7 +204,9 @@ describe('AccountsSection', () => {
       await button(r, 'accounts:a1').props.onPress();
     });
     expect(mocks.accounts.remove).toHaveBeenCalledWith('a1');
-    expect(mocks.toast.success).toHaveBeenCalledWith('settings.connections.accounts.disconnectedToast');
+    expect(mocks.toast.success).toHaveBeenCalledWith(
+      'settings.connections.accounts.disconnectedToast',
+    );
   });
 });
 
@@ -231,7 +253,13 @@ describe('IntegrationsSection', () => {
       { service: 'notion', name: 'Notion', description: 'Docs' },
     ];
     mocks.integrations.connected = [
-      { _id: 'i1', service: 'github', displayName: 'GitHub', accountName: 'nate', status: 'active' },
+      {
+        _id: 'i1',
+        service: 'github',
+        displayName: 'GitHub',
+        accountName: 'nate',
+        status: 'active',
+      },
     ];
     mocks.integrations.getOAuthUrl.mockResolvedValue('https://auth.example/notion');
     const r = mount(<IntegrationsSection />);

@@ -1,5 +1,10 @@
 import crypto from 'crypto';
-import type { ChannelPlugin, OutboundContext, OutboundResult, ChannelInboundMessage } from '../types.js';
+import type {
+  ChannelPlugin,
+  OutboundContext,
+  OutboundResult,
+  ChannelInboundMessage,
+} from '../types.js';
 import type { Request } from 'express';
 import { getErrorMessage } from '../../errors/index.js';
 
@@ -23,9 +28,11 @@ export const whatsappPlugin: ChannelPlugin = {
 
   config: {
     isConfigured: () =>
-      !!(process.env.WHATSAPP_PHONE_NUMBER_ID &&
+      !!(
+        process.env.WHATSAPP_PHONE_NUMBER_ID &&
         process.env.WHATSAPP_ACCESS_TOKEN &&
-        process.env.WHATSAPP_VERIFY_TOKEN),
+        process.env.WHATSAPP_VERIFY_TOKEN
+      ),
     getBotSecret: () => process.env.WHATSAPP_BOT_SECRET,
     getEnvPrefix: () => 'WHATSAPP',
   },
@@ -42,33 +49,30 @@ export const whatsappPlugin: ChannelPlugin = {
       }
 
       try {
-        const res = await fetch(
-          `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              messaging_product: 'whatsapp',
-              recipient_type: 'individual',
-              to: ctx.to,
-              type: 'text',
-              text: { body: ctx.text },
-              ...(ctx.replyToId && {
-                context: { message_id: ctx.replyToId },
-              }),
+        const res = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: ctx.to,
+            type: 'text',
+            text: { body: ctx.text },
+            ...(ctx.replyToId && {
+              context: { message_id: ctx.replyToId },
             }),
-          }
-        );
+          }),
+        });
 
         if (!res.ok) {
           const body = await res.text();
           return { channel: 'whatsapp', ok: false, error: `WhatsApp API ${res.status}: ${body}` };
         }
 
-        const data = await res.json() as WhatsAppSendResponse;
+        const data = (await res.json()) as WhatsAppSendResponse;
         const messageId = data.messages?.[0]?.id;
         return { channel: 'whatsapp', ok: true, messageId };
       } catch (err: unknown) {
@@ -87,8 +91,7 @@ export const whatsappPlugin: ChannelPlugin = {
 
     looksLikeTarget(raw: string): boolean {
       const trimmed = raw.trim().replace(/^\+/, '');
-      return /^\d{7,15}$/.test(trimmed) ||
-        /^\d+@(g|s)\.whatsapp\.net$/.test(trimmed);
+      return /^\d{7,15}$/.test(trimmed) || /^\d+@(g|s)\.whatsapp\.net$/.test(trimmed);
     },
   },
 
@@ -101,18 +104,11 @@ export const whatsappPlugin: ChannelPlugin = {
       if (!signature) return false;
 
       try {
-        const rawBody = typeof req.body === 'string'
-          ? req.body
-          : JSON.stringify(req.body);
-        const expected = 'sha256=' + crypto
-          .createHmac('sha256', appSecret)
-          .update(rawBody)
-          .digest('hex');
+        const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+        const expected =
+          'sha256=' + crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex');
 
-        return crypto.timingSafeEqual(
-          Buffer.from(signature),
-          Buffer.from(expected)
-        );
+        return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
       } catch {
         return false;
       }

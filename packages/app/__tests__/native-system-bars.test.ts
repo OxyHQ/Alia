@@ -35,7 +35,9 @@ describe('the system bars on a device', () => {
 
   it('puts the whole shell below the status bar once, and no page adds it again', () => {
     const shell = read('app/(app)/_layout.tsx');
-    expect(shell).toMatch(/<View style=\{\{ flex: 1, paddingTop: insets\.top \}\}>\{shell\}<\/View>/);
+    expect(shell).toMatch(
+      /<View style=\{\{ flex: 1, paddingTop: insets\.top \}\}>\{shell\}<\/View>/,
+    );
     // A page padding itself as well would sit a status bar lower than the chat.
     expect(shell).not.toMatch(/contentStyle:[^}]*paddingTop/);
   });

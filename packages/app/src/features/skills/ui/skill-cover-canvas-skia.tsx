@@ -1,14 +1,7 @@
-import {
-  Canvas,
-  Group,
-  Rect,
-  RoundedRect,
-  Shadow,
-  useClock,
-} from "@shopify/react-native-skia";
-import { useDerivedValue } from "react-native-reanimated";
-import { computeCellColor } from "./skill-cover-palette";
-import type { Cell, HSL, SkillCoverCanvasProps } from "./skill-cover-palette";
+import { Canvas, Group, Rect, RoundedRect, Shadow, useClock } from '@shopify/react-native-skia';
+import { useDerivedValue } from 'react-native-reanimated';
+import { computeCellColor } from './skill-cover-palette';
+import type { Cell, HSL, SkillCoverCanvasProps } from './skill-cover-palette';
 
 const SCALE_PULSE_SPEED = 0.0008;
 const SCALE_PULSE_AMOUNT = 0.03;
@@ -102,9 +95,15 @@ export default function SkillCoverCanvas({
   });
 
   return (
-    <Canvas style={{ width, height, position: "absolute" }}>
+    <Canvas style={{ width, height, position: 'absolute' }}>
       {/* Background */}
-      <Rect x={0} y={0} width={width} height={height} color={isDarkColorScheme ? "#08080f" : "#f5f5f7"} />
+      <Rect
+        x={0}
+        y={0}
+        width={width}
+        height={height}
+        color={isDarkColorScheme ? '#08080f' : '#f5f5f7'}
+      />
 
       {/* Scale-pulsing grid — per-cell glow (matches canvas shadowBlur) */}
       <Group transform={scaleTransform}>
@@ -147,12 +146,7 @@ export default function SkillCoverCanvas({
         strokeWidth={1.5}
         color={glowColor}
       >
-        <Shadow
-          dx={0}
-          dy={0}
-          blur={width * GLOW_RADIUS_RATIO}
-          color={glowColor}
-        />
+        <Shadow dx={0} dy={0} blur={width * GLOW_RADIUS_RATIO} color={glowColor} />
       </RoundedRect>
     </Canvas>
   );

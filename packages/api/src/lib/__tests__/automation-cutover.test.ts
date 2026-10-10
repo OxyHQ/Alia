@@ -8,7 +8,8 @@ function productionSources(directory: string): string[] {
   const result: string[] = [];
   const visit = (current: string): void => {
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      if (entry.name === '__tests__' || entry.name === 'node_modules' || entry.name === 'dist') continue;
+      if (entry.name === '__tests__' || entry.name === 'node_modules' || entry.name === 'dist')
+        continue;
       const full = path.join(current, entry.name);
       if (entry.isDirectory()) {
         visit(full);
@@ -28,13 +29,17 @@ function read(file: string): string {
 describe('structured automation cutover', () => {
   it('keeps the app on the typed automation API without useTools', () => {
     const files = productionSources(path.join(REPOSITORY_ROOT, 'packages/app'));
-    const offenders = files.filter((file) => {
-      const source = fs.readFileSync(file, 'utf8');
-      return /\/triggers\b/.test(source) || /\buseTools\b/.test(source);
-    }).map((file) => path.relative(REPOSITORY_ROOT, file));
+    const offenders = files
+      .filter((file) => {
+        const source = fs.readFileSync(file, 'utf8');
+        return /\/triggers\b/.test(source) || /\buseTools\b/.test(source);
+      })
+      .map((file) => path.relative(REPOSITORY_ROOT, file));
     expect(offenders).toEqual([]);
     // The app edits, runs and stops automations; the chat's tool creates them.
-    expect(read('packages/app/src/features/automations/runtime/use-automations.ts')).toContain('API_ROUTES.automations.update');
+    expect(read('packages/app/src/features/automations/runtime/use-automations.ts')).toContain(
+      'API_ROUTES.automations.update',
+    );
   });
 
   it('keeps scheduler, dispatcher and agent updates off the legacy runtime', () => {
@@ -49,7 +54,8 @@ describe('structured automation cutover', () => {
       expect(source, file).not.toMatch(/\buseTools\b/);
       expect(source, file).not.toContain('triggerRepository');
     }
-    expect(read('packages/api/src/lib/trigger-engine.ts'))
-      .toContain('listSchedulableAutomationDefinitions');
+    expect(read('packages/api/src/lib/trigger-engine.ts')).toContain(
+      'listSchedulableAutomationDefinitions',
+    );
   });
 });

@@ -39,14 +39,19 @@ export async function revokeAutomationAuthorizations(
 ): Promise<{ revoked: string[]; failed: string[] }> {
   const uniqueIds = [...new Set(authorizationIds)];
   const results = await Promise.allSettled(
-    uniqueIds.map((authorizationId) => revokeOxyExecutionAuthorization(accessToken, authorizationId)),
+    uniqueIds.map((authorizationId) =>
+      revokeOxyExecutionAuthorization(accessToken, authorizationId),
+    ),
   );
-  return results.reduce<{ revoked: string[]; failed: string[] }>((summary, result, index) => {
-    const authorizationId = uniqueIds[index];
-    if (!authorizationId) return summary;
-    summary[result.status === 'fulfilled' ? 'revoked' : 'failed'].push(authorizationId);
-    return summary;
-  }, { revoked: [], failed: [] });
+  return results.reduce<{ revoked: string[]; failed: string[] }>(
+    (summary, result, index) => {
+      const authorizationId = uniqueIds[index];
+      if (!authorizationId) return summary;
+      summary[result.status === 'fulfilled' ? 'revoked' : 'failed'].push(authorizationId);
+      return summary;
+    },
+    { revoked: [], failed: [] },
+  );
 }
 
 interface AuthorityRequest<T> {
@@ -72,21 +77,25 @@ async function createAuthorizations<T>(input: {
   const results: Array<PromiseSettledResult<{ meta: T; oxyAuthorizationId: string }>> = [];
   for (let index = 0; index < input.requests.length; index += PROVISION_CONCURRENCY) {
     const batch = input.requests.slice(index, index + PROVISION_CONCURRENCY);
-    results.push(...await Promise.allSettled(batch.map(async (request) => ({
-      meta: request.meta,
-      oxyAuthorizationId: await createOxyExecutionAuthorization({
-        accessToken: input.accessToken,
-        kind: 'automation',
-        ownerAccountId: input.ownerAccountId,
-        actor: request.actor,
-        resource: request.resource,
-        tool: request.tool,
-        automationId: input.automationId,
-        maximumAutonomy: request.maximumAutonomy,
-        limits: request.limits.map((limit) => ({ tool: request.tool, ...limit })),
-        expiresAt: input.expiresAt,
-      }),
-    }))));
+    results.push(
+      ...(await Promise.allSettled(
+        batch.map(async (request) => ({
+          meta: request.meta,
+          oxyAuthorizationId: await createOxyExecutionAuthorization({
+            accessToken: input.accessToken,
+            kind: 'automation',
+            ownerAccountId: input.ownerAccountId,
+            actor: request.actor,
+            resource: request.resource,
+            tool: request.tool,
+            automationId: input.automationId,
+            maximumAutonomy: request.maximumAutonomy,
+            limits: request.limits.map((limit) => ({ tool: request.tool, ...limit })),
+            expiresAt: input.expiresAt,
+          }),
+        })),
+      )),
+    );
   }
   return results;
 }
@@ -117,14 +126,22 @@ export async function provisionAutomationAuthorizations(input: {
       meta: { agent, action },
     })),
   });
-  const provisioned = results.flatMap((result) => result.status === 'fulfilled' ? [{
-    automationActionId: result.value.meta.action.id,
-    agentId: result.value.meta.agent.agentId,
-    actorAccountId: result.value.meta.agent.actorAccountId,
-    oxyAuthorizationId: result.value.oxyAuthorizationId,
-    expiresAt,
-  }] : []);
-  const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+  const provisioned = results.flatMap((result) =>
+    result.status === 'fulfilled'
+      ? [
+          {
+            automationActionId: result.value.meta.action.id,
+            agentId: result.value.meta.agent.agentId,
+            actorAccountId: result.value.meta.agent.actorAccountId,
+            oxyAuthorizationId: result.value.oxyAuthorizationId,
+            expiresAt,
+          },
+        ]
+      : [],
+  );
+  const failed = results.find(
+    (result): result is PromiseRejectedResult => result.status === 'rejected',
+  );
   if (!failed) return provisioned;
 
   await revokeAutomationAuthorizations(
@@ -167,9 +184,13 @@ export async function provisionAliaTaskAuthorizations(input: {
 }): Promise<{ provisioned: ProvisionedAliaTaskAuthorization[]; refusedReads: number }> {
   const expiresAt = new Date(Date.now() + AUTOMATION_AUTHORIZATION_LIFETIME_MS);
   const actor: ActorRef = { type: 'alia', ownerAccountId: input.ownerAccountId };
-  const actionKeys = new Set(input.actions.map((action) => authorityKey(action.resource, action.tool)));
+  const actionKeys = new Set(
+    input.actions.map((action) => authorityKey(action.resource, action.tool)),
+  );
   // A read the task also declares as an action is covered by the action.
-  const reads = input.reads.filter((read) => !actionKeys.has(authorityKey(read.resource, read.tool)));
+  const reads = input.reads.filter(
+    (read) => !actionKeys.has(authorityKey(read.resource, read.tool)),
+  );
   const results = await createAuthorizations({
     accessToken: input.accessToken,
     ownerAccountId: input.ownerAccountId,
@@ -182,7 +203,11 @@ export async function provisionAliaTaskAuthorizations(input: {
         tool: action.tool,
         maximumAutonomy: input.maximumAutonomy,
         limits: action.limits,
-        meta: { automationActionId: action.id as string | null, resource: action.resource, tool: action.tool },
+        meta: {
+          automationActionId: action.id as string | null,
+          resource: action.resource,
+          tool: action.tool,
+        },
       })),
       ...reads.map((read) => ({
         actor,
@@ -190,16 +215,27 @@ export async function provisionAliaTaskAuthorizations(input: {
         tool: read.tool,
         maximumAutonomy: 'read_only' as const,
         limits: [],
-        meta: { automationActionId: null as string | null, resource: read.resource, tool: read.tool },
+        meta: {
+          automationActionId: null as string | null,
+          resource: read.resource,
+          tool: read.tool,
+        },
       })),
     ],
   });
-  const provisioned = results.flatMap((result) => result.status === 'fulfilled' ? [{
-    ...result.value.meta,
-    oxyAuthorizationId: result.value.oxyAuthorizationId,
-    expiresAt,
-  }] : []);
-  const failedAction = results.slice(0, input.actions.length)
+  const provisioned = results.flatMap((result) =>
+    result.status === 'fulfilled'
+      ? [
+          {
+            ...result.value.meta,
+            oxyAuthorizationId: result.value.oxyAuthorizationId,
+            expiresAt,
+          },
+        ]
+      : [],
+  );
+  const failedAction = results
+    .slice(0, input.actions.length)
     .find((result): result is PromiseRejectedResult => result.status === 'rejected');
   if (failedAction) {
     await revokeAutomationAuthorizations(
@@ -210,10 +246,18 @@ export async function provisionAliaTaskAuthorizations(input: {
   }
   return {
     provisioned,
-    refusedReads: results.slice(input.actions.length).filter((result) => result.status === 'rejected').length,
+    refusedReads: results
+      .slice(input.actions.length)
+      .filter((result) => result.status === 'rejected').length,
   };
 }
 
 function authorityKey(resource: ResourceRef, tool: string): string {
-  return JSON.stringify([resource.appId, resource.effectiveAccountId, resource.resourceType, resource.resourceId, tool]);
+  return JSON.stringify([
+    resource.appId,
+    resource.effectiveAccountId,
+    resource.resourceType,
+    resource.resourceId,
+    tool,
+  ]);
 }

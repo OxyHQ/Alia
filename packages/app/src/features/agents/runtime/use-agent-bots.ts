@@ -77,7 +77,9 @@ export function useAgentBots(agentId: string | undefined) {
         await apiClient.patch(`/bots/${botId}`, { ownerPaysAgentTurns });
       } catch (err) {
         setBots((prev) =>
-          prev.map((b) => (b._id === botId ? { ...b, ownerPaysAgentTurns: !ownerPaysAgentTurns } : b)),
+          prev.map((b) =>
+            b._id === botId ? { ...b, ownerPaysAgentTurns: !ownerPaysAgentTurns } : b,
+          ),
         );
         throw err;
       }

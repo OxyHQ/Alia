@@ -60,11 +60,7 @@ import { agentRemitPrompt } from '../agent/archetype-prompts.js';
 import { buildIdentityGuard } from '../identity-guard.js';
 import { resolveStoredModel, getAIModel } from '../chat-core.js';
 import { evolveAgentSoul } from '../agent/soul.js';
-import {
-  finalizeCredits,
-  refundReservation,
-  type CreditReservation,
-} from '../credits-manager.js';
+import { finalizeCredits, refundReservation, type CreditReservation } from '../credits-manager.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { servedModelId, servedReferenceOf } from '../models/power-levels.js';
@@ -150,7 +146,11 @@ export async function runAgentTurn(input: {
    * this call, which runs long after both modules are loaded.
    */
   const { ToolPipeline } = await import('../tool-pipeline.js');
-  const { tools: agentTools, routing: toolRouting, appCatalogPrompt } = await ToolPipeline.forUser({
+  const {
+    tools: agentTools,
+    routing: toolRouting,
+    appCatalogPrompt,
+  } = await ToolPipeline.forUser({
     // The agent's OWN account: this turn is the agent's, not a person's.
     userId: agent.oxyAccountId,
     isDirectSession: false,
@@ -168,9 +168,13 @@ export async function runAgentTurn(input: {
    * Reserved before the call and after everything that can refuse without
    * spending, so a turn that was never going to run does not touch a balance.
    */
-  const reservation: CreditReservation | null = await reserveBackgroundProductCredits(payerOxyUserId);
+  const reservation: CreditReservation | null =
+    await reserveBackgroundProductCredits(payerOxyUserId);
   if (!reservation) {
-    log.credits.info({ agentId: agent._id, payerOxyUserId }, 'Nested agent turn refused: no credits');
+    log.credits.info(
+      { agentId: agent._id, payerOxyUserId },
+      'Nested agent turn refused: no credits',
+    );
     return failed('Not enough credits to run that agent');
   }
 

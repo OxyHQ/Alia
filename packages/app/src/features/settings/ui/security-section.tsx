@@ -69,12 +69,9 @@ export function SecuritySection() {
     if (memory?.preferences) {
       const sp = memory.preferences.securityPreferences;
       if (sp) {
-        if (typeof sp.requireApproval === 'boolean')
-          setRequireApproval(sp.requireApproval);
-        if (typeof sp.approvalTimeout === 'number')
-          setApprovalTimeout(sp.approvalTimeout);
-        if (typeof sp.autoDenyOnTimeout === 'boolean')
-          setAutoDenyOnTimeout(sp.autoDenyOnTimeout);
+        if (typeof sp.requireApproval === 'boolean') setRequireApproval(sp.requireApproval);
+        if (typeof sp.approvalTimeout === 'number') setApprovalTimeout(sp.approvalTimeout);
+        if (typeof sp.autoDenyOnTimeout === 'boolean') setAutoDenyOnTimeout(sp.autoDenyOnTimeout);
       }
     }
   }, [memory]);
@@ -153,8 +150,7 @@ export function SecuritySection() {
 
       const res = await apiClient.get(API_ROUTES.audit.export, { params });
 
-      const content =
-        exportFormat === 'json' ? JSON.stringify(res.data, null, 2) : res.data;
+      const content = exportFormat === 'json' ? JSON.stringify(res.data, null, 2) : res.data;
 
       if (Platform.OS === 'web') {
         const blob = new Blob([content], {
@@ -284,14 +280,11 @@ export function SecuritySection() {
                   {
                     key: 'summary',
                     label: t('settings.account.security.auditSummary'),
-                    description: t(
-                      'settings.account.security.auditSummaryDetail',
-                      {
-                        sessions: summary.totalSessions,
-                        steps: summary.totalSteps,
-                        threats: summary.threatDetections,
-                      },
-                    ),
+                    description: t('settings.account.security.auditSummaryDetail', {
+                      sessions: summary.totalSessions,
+                      steps: summary.totalSteps,
+                      threats: summary.threatDetections,
+                    }),
                   },
                 ]
               : []),

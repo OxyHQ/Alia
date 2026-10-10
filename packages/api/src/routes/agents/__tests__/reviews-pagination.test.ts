@@ -35,17 +35,21 @@ vi.mock('../../../db/agents/agentRepository.js', () => ({
 }));
 
 vi.mock('../../../db/agents/agentReviewRepository.js', () => ({
-  listVisibleAgentReviews: vi.fn(async (_db: unknown, _agentId: string, window: { limit: unknown; offset: unknown }) => {
-    state.windows.push({ limit: window.limit, offset: window.offset });
-    return { reviews: [], total: 0 };
-  }),
+  listVisibleAgentReviews: vi.fn(
+    async (_db: unknown, _agentId: string, window: { limit: unknown; offset: unknown }) => {
+      state.windows.push({ limit: window.limit, offset: window.offset });
+      return { reviews: [], total: 0 };
+    },
+  ),
   deleteOwnAgentReview: vi.fn(),
   findOwnAgentReview: vi.fn(),
   recalculateAgentRating: vi.fn(),
   upsertAgentReview: vi.fn(),
 }));
 
-vi.mock('../../../lib/oxy-user-hydration.js', () => ({ hydrateOxyUsers: vi.fn(async () => new Map()) }));
+vi.mock('../../../lib/oxy-user-hydration.js', () => ({
+  hydrateOxyUsers: vi.fn(async () => new Map()),
+}));
 
 vi.mock('../../../middleware/auth.js', () => ({
   optionalAuth: (_req: unknown, _res: unknown, next: () => void) => next(),

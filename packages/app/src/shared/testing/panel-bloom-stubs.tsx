@@ -25,7 +25,17 @@ export const host =
 export const iconModule = (name: string) => ({ [name]: host(name) });
 
 export const itemModule = () => ({
-  Item: ({ title, subtitle, leading, trailing, onPress, accessibilityLabel, expanded, children, ...rest }: Props) =>
+  Item: ({
+    title,
+    subtitle,
+    leading,
+    trailing,
+    onPress,
+    accessibilityLabel,
+    expanded,
+    children,
+    ...rest
+  }: Props) =>
     React.createElement(
       onPress === undefined ? 'View' : 'Pressable',
       {
@@ -37,22 +47,39 @@ export const itemModule = () => ({
         onPress,
       },
       leading as React.ReactNode,
-      title === undefined ? null : React.createElement('Text', { numberOfLines: 1 }, title as React.ReactNode),
-      subtitle === undefined ? null : React.createElement('Text', { numberOfLines: 2 }, subtitle as React.ReactNode),
+      title === undefined
+        ? null
+        : React.createElement('Text', { numberOfLines: 1 }, title as React.ReactNode),
+      subtitle === undefined
+        ? null
+        : React.createElement('Text', { numberOfLines: 2 }, subtitle as React.ReactNode),
       children as React.ReactNode,
       trailing as React.ReactNode,
     ),
 });
 
-const AccordionCtx = createContext<{ open: string[]; toggle: (v: string) => void }>({ open: [], toggle: () => {} });
+const AccordionCtx = createContext<{ open: string[]; toggle: (v: string) => void }>({
+  open: [],
+  toggle: () => {},
+});
 const ItemCtx = createContext('');
 
 export const accordionModule = () => ({
   Accordion: ({ value, onValueChange, children }: Props) => {
-    const open = Array.isArray(value) ? (value as string[]) : typeof value === 'string' ? [value] : [];
+    const open = Array.isArray(value)
+      ? (value as string[])
+      : typeof value === 'string'
+        ? [value]
+        : [];
     const toggle = (v: string) =>
-      (onValueChange as (next: string[]) => void)(open.includes(v) ? open.filter((x) => x !== v) : [...open, v]);
-    return React.createElement(AccordionCtx.Provider, { value: { open, toggle } }, children as React.ReactNode);
+      (onValueChange as (next: string[]) => void)(
+        open.includes(v) ? open.filter((x) => x !== v) : [...open, v],
+      );
+    return React.createElement(
+      AccordionCtx.Provider,
+      { value: { open, toggle } },
+      children as React.ReactNode,
+    );
   },
   AccordionItem: ({ value, children }: Props) =>
     React.createElement(ItemCtx.Provider, { value: value as string }, children as React.ReactNode),
@@ -75,7 +102,9 @@ export const accordionModule = () => ({
   AccordionContent: ({ children }: Props) => {
     const { open } = useContext(AccordionCtx);
     const value = useContext(ItemCtx);
-    return open.includes(value) ? React.createElement('AccordionContent', null, children as React.ReactNode) : null;
+    return open.includes(value)
+      ? React.createElement('AccordionContent', null, children as React.ReactNode)
+      : null;
   },
 });
 
@@ -93,7 +122,8 @@ export const emptyStateModule = () => ({
 export const agentLogModule = () => ({
   AgentLogRow: host('AgentLogRow'),
   AgentLogShimmerText: host('AgentLogShimmerText'),
-  AgentLogWorkingRow: ({ label, ...rest }: Props) => React.createElement('AgentLogWorkingRow', rest, label as string),
+  AgentLogWorkingRow: ({ label, ...rest }: Props) =>
+    React.createElement('AgentLogWorkingRow', rest, label as string),
   useAgentLogMotion: () => true,
 });
 

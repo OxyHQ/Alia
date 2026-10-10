@@ -66,11 +66,11 @@ export function useComposerDropTarget({
   latest.current = { enabled, onFiles };
 
   React.useEffect(() => {
-    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     const element = document.getElementById(elementId);
     if (element === null) return;
 
-    const step = (kind: "enter" | "leave" | "drop") => {
+    const step = (kind: 'enter' | 'leave' | 'drop') => {
       depth.current = nextDragDepth(depth.current, kind);
       setIsOver(depth.current > 0);
     };
@@ -78,7 +78,7 @@ export function useComposerDropTarget({
     const onDragEnter = (event: globalThis.DragEvent) => {
       if (!dragCarriesFiles(event.dataTransfer?.types)) return;
       event.preventDefault();
-      step("enter");
+      step('enter');
     };
 
     const onDragOver = (event: globalThis.DragEvent) => {
@@ -89,12 +89,12 @@ export function useComposerDropTarget({
       // hand-written drop zone appears to work and then does nothing.
       event.preventDefault();
       if (event.dataTransfer !== null)
-        event.dataTransfer.dropEffect = latest.current.enabled ? "copy" : "none";
+        event.dataTransfer.dropEffect = latest.current.enabled ? 'copy' : 'none';
     };
 
     const onDragLeave = (event: globalThis.DragEvent) => {
       if (!dragCarriesFiles(event.dataTransfer?.types)) return;
-      step("leave");
+      step('leave');
     };
 
     const onDrop = (event: globalThis.DragEvent) => {
@@ -102,21 +102,21 @@ export function useComposerDropTarget({
       event.preventDefault();
       // Reset rather than decrement: no `dragleave` follows a drop, so a
       // decrement leaves the count at one and the overlay stuck over the bar.
-      step("drop");
+      step('drop');
       if (!latest.current.enabled) return;
       const files = Array.from(event.dataTransfer?.files ?? []);
       if (files.length > 0) latest.current.onFiles(files);
     };
 
-    element.addEventListener("dragenter", onDragEnter);
-    element.addEventListener("dragover", onDragOver);
-    element.addEventListener("dragleave", onDragLeave);
-    element.addEventListener("drop", onDrop);
+    element.addEventListener('dragenter', onDragEnter);
+    element.addEventListener('dragover', onDragOver);
+    element.addEventListener('dragleave', onDragLeave);
+    element.addEventListener('drop', onDrop);
     return () => {
-      element.removeEventListener("dragenter", onDragEnter);
-      element.removeEventListener("dragover", onDragOver);
-      element.removeEventListener("dragleave", onDragLeave);
-      element.removeEventListener("drop", onDrop);
+      element.removeEventListener('dragenter', onDragEnter);
+      element.removeEventListener('dragover', onDragOver);
+      element.removeEventListener('dragleave', onDragLeave);
+      element.removeEventListener('drop', onDrop);
       // A drag that was over the bar when it was torn down would otherwise
       // leave the count — and the overlay — set for the next mount.
       depth.current = 0;
@@ -140,13 +140,7 @@ export function useComposerDropTarget({
  * drag is not a gesture a screen-reader user performs, the composer is shared
  * with people who do both.
  */
-export function ComposerDropOverlay({
-  visible,
-  enabled,
-}: {
-  visible: boolean;
-  enabled: boolean;
-}) {
+export function ComposerDropOverlay({ visible, enabled }: { visible: boolean; enabled: boolean }) {
   const { t } = useTranslation();
   if (!visible) return null;
   return (
@@ -158,7 +152,7 @@ export function ComposerDropOverlay({
       className="absolute inset-0 z-20 items-center justify-center rounded-[26px] border-2 border-dashed border-primary bg-background/90"
     >
       <Text className="text-sm font-medium text-foreground">
-        {t(enabled ? "composer.dropHint" : "composer.dropUnavailable")}
+        {t(enabled ? 'composer.dropHint' : 'composer.dropUnavailable')}
       </Text>
     </View>
   );
@@ -197,14 +191,14 @@ export function useComposerPasteTarget({
   elementId,
   enabled,
   onFiles,
-}: Omit<ComposerDropTargetOptions, "rebindKey">): void {
+}: Omit<ComposerDropTargetOptions, 'rebindKey'>): void {
   // Held in a ref for the same reason the drop target holds its own: a
   // listener swapped out mid-gesture is a gesture with no handler.
   const latest = React.useRef({ enabled, onFiles });
   latest.current = { enabled, onFiles };
 
   React.useEffect(() => {
-    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
 
     const onPaste = (event: globalThis.ClipboardEvent) => {
       // Resolved per EVENT rather than once per mount, which is also why this
@@ -219,7 +213,7 @@ export function useComposerPasteTarget({
       if (items === undefined) return;
       const files: File[] = [];
       for (const item of Array.from(items)) {
-        if (item.kind !== "file") continue;
+        if (item.kind !== 'file') continue;
         const file = item.getAsFile();
         if (file !== null) files.push(file);
       }
@@ -235,7 +229,7 @@ export function useComposerPasteTarget({
       latest.current.onFiles(files);
     };
 
-    document.addEventListener("paste", onPaste);
-    return () => document.removeEventListener("paste", onPaste);
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
   }, [elementId]);
 }

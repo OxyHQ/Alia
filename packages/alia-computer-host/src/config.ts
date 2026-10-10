@@ -74,14 +74,19 @@ function positiveInteger(name: string, raw: string | undefined, fallback: number
  */
 function selfContainer(env: NodeJS.ProcessEnv): string {
   const value = env.ALIA_COMPUTER_SELF_CONTAINER || env.HOSTNAME || 'alia-computer-host';
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(value)) throw new Error('ALIA_COMPUTER_SELF_CONTAINER is invalid');
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(value))
+    throw new Error('ALIA_COMPUTER_SELF_CONTAINER is invalid');
   return value;
 }
 
 function denyCidrs(raw: string | undefined): string[] {
-  const list = (raw ?? '').split(',').map((value) => value.trim()).filter(Boolean);
+  const list = (raw ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
   for (const cidr of list) {
-    if (!/^\d{1,3}(\.\d{1,3}){3}\/\d{1,2}$/.test(cidr)) throw new Error(`ALIA_COMPUTER_BROWSER_DENY_CIDRS: ${cidr} is not an IPv4 CIDR`);
+    if (!/^\d{1,3}(\.\d{1,3}){3}\/\d{1,2}$/.test(cidr))
+      throw new Error(`ALIA_COMPUTER_BROWSER_DENY_CIDRS: ${cidr} is not an IPv4 CIDR`);
   }
   return list;
 }
@@ -90,7 +95,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): HostConfig {
   const production = env.NODE_ENV === 'production';
 
   const image = env.ALIA_COMPUTER_IMAGE ?? '';
-  if (!IMAGE_REFERENCE.test(image)) throw new Error('ALIA_COMPUTER_IMAGE is missing or not an image reference');
+  if (!IMAGE_REFERENCE.test(image))
+    throw new Error('ALIA_COMPUTER_IMAGE is missing or not an image reference');
   if (production && !image.includes('@sha256:')) {
     throw new Error('ALIA_COMPUTER_IMAGE must be pinned by digest in production');
   }
@@ -105,23 +111,30 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): HostConfig {
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean);
-  if (allowedRoleArns.length === 0) throw new Error('ALIA_COMPUTER_ALLOWED_ROLE_ARNS names no caller');
+  if (allowedRoleArns.length === 0)
+    throw new Error('ALIA_COMPUTER_ALLOWED_ROLE_ARNS names no caller');
   for (const arn of allowedRoleArns) {
     // An assumed-role ARN names one task, and the next task would be refused.
     // The canonical role ARN is what a binding names (oxy-infra runbook 44).
-    if (!ROLE_ARN.test(arn)) throw new Error(`ALIA_COMPUTER_ALLOWED_ROLE_ARNS: ${arn} is not a canonical IAM role ARN`);
+    if (!ROLE_ARN.test(arn))
+      throw new Error(`ALIA_COMPUTER_ALLOWED_ROLE_ARNS: ${arn} is not a canonical IAM role ARN`);
   }
 
   const databaseUrl = env.DATABASE_URL || undefined;
   if (production && !databaseUrl) throw new Error('DATABASE_URL is required in production');
 
   const deploymentId = env.ALIA_COMPUTER_DEPLOYMENT_ID ?? 'local';
-  if (!/^[a-z0-9-]{1,32}$/.test(deploymentId)) throw new Error('ALIA_COMPUTER_DEPLOYMENT_ID is invalid');
+  if (!/^[a-z0-9-]{1,32}$/.test(deploymentId))
+    throw new Error('ALIA_COMPUTER_DEPLOYMENT_ID is invalid');
 
   return {
     port: positiveInteger('PORT', env.PORT, 8080),
     opsPort: positiveInteger('OPS_PORT', env.OPS_PORT, 8081),
-    idleStopMs: positiveInteger('ALIA_COMPUTER_HOST_IDLE_STOP_MS', env.ALIA_COMPUTER_HOST_IDLE_STOP_MS, 30 * 60_000),
+    idleStopMs: positiveInteger(
+      'ALIA_COMPUTER_HOST_IDLE_STOP_MS',
+      env.ALIA_COMPUTER_HOST_IDLE_STOP_MS,
+      30 * 60_000,
+    ),
     image,
     runtime,
     deploymentId,
@@ -134,11 +147,26 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): HostConfig {
       env.ALIA_COMPUTER_WORKSPACE_QUOTA_BYTES,
       1024 * 1024 * 1024,
     ),
-    maxCommandSeconds: positiveInteger('ALIA_COMPUTER_MAX_COMMAND_SECONDS', env.ALIA_COMPUTER_MAX_COMMAND_SECONDS, 300),
+    maxCommandSeconds: positiveInteger(
+      'ALIA_COMPUTER_MAX_COMMAND_SECONDS',
+      env.ALIA_COMPUTER_MAX_COMMAND_SECONDS,
+      300,
+    ),
     browser: {
       enabled: env.ALIA_COMPUTER_BROWSER !== 'off',
-      maxContexts: Math.min(positiveInteger('ALIA_COMPUTER_BROWSER_MAX_CONTEXTS', env.ALIA_COMPUTER_BROWSER_MAX_CONTEXTS, 3), 6),
-      idleMs: positiveInteger('ALIA_COMPUTER_BROWSER_IDLE_MS', env.ALIA_COMPUTER_BROWSER_IDLE_MS, 10 * 60_000),
+      maxContexts: Math.min(
+        positiveInteger(
+          'ALIA_COMPUTER_BROWSER_MAX_CONTEXTS',
+          env.ALIA_COMPUTER_BROWSER_MAX_CONTEXTS,
+          3,
+        ),
+        6,
+      ),
+      idleMs: positiveInteger(
+        'ALIA_COMPUTER_BROWSER_IDLE_MS',
+        env.ALIA_COMPUTER_BROWSER_IDLE_MS,
+        10 * 60_000,
+      ),
       selfContainer: selfContainer(env),
       denyCidrs: denyCidrs(env.ALIA_COMPUTER_BROWSER_DENY_CIDRS),
     },

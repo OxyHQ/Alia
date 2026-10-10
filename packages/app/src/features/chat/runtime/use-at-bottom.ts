@@ -1,7 +1,7 @@
-import { useCallback, useRef, useState } from "react";
-import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
+import { useCallback, useRef, useState } from 'react';
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 
-import { AT_BOTTOM_THRESHOLD } from "@/features/chat/ui/chat-interface";
+import { AT_BOTTOM_THRESHOLD } from '@/features/chat/ui/chat-interface';
 
 /**
  * Whether the reader is at the end of the thread, for the jump-to-present

@@ -114,7 +114,8 @@ export function canAuthenticateAsOxyService(env: NodeJS.ProcessEnv = process.env
 /** A short-lived token for Alia's own Oxy identity. */
 export async function oxyServiceToken(): Promise<string> {
   const oxy = oxyServiceClient();
-  if (!oxy) throw new Error('Alia has no Oxy service identity: no credential pair and nothing to attest');
+  if (!oxy)
+    throw new Error('Alia has no Oxy service identity: no credential pair and nothing to attest');
   return oxy.serviceToken();
 }
 

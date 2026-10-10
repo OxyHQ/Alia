@@ -27,7 +27,9 @@ class FakeRecognition {
 
   /** Deliver results the way the browser does: a list of segments with alternatives. */
   hear(...segments: Array<[string, boolean]>): void {
-    const results = segments.map(([transcript, isFinal]) => Object.assign([{ transcript }], { isFinal }));
+    const results = segments.map(([transcript, isFinal]) =>
+      Object.assign([{ transcript }], { isFinal }),
+    );
     this.onresult?.({ results });
   }
 }
@@ -61,7 +63,10 @@ describe('dictation recognized on the device', () => {
     media.getUserMedia.mockResolvedValue({ getTracks: () => [{ stop: vi.fn() }] });
     vi.stubGlobal('navigator', { language: 'en-US', mediaDevices: media });
     vi.stubGlobal('webkitSpeechRecognition', FakeRecognition);
-    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('dictation must not call the network'))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new Error('dictation must not call the network'))),
+    );
   });
 
   afterEach(async () => {
@@ -161,7 +166,9 @@ describe('dictation recognized on the device', () => {
   });
 
   it('reports a refused microphone and stays idle', async () => {
-    media.getUserMedia.mockRejectedValue(Object.assign(new Error('denied'), { name: 'NotAllowedError' }));
+    media.getUserMedia.mockRejectedValue(
+      Object.assign(new Error('denied'), { name: 'NotAllowedError' }),
+    );
     await mount();
     await act(async () => {
       await latest.startRecording();

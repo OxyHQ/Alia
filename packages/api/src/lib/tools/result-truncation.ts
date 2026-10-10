@@ -26,7 +26,10 @@ export function truncateToolResult(result: string, maxChars: number = DEFAULT_MA
   const lastNewline = slice.lastIndexOf('\n');
   const cutPoint = lastNewline > maxChars * 0.5 ? lastNewline : maxChars;
 
-  log.general.info({ original: result.length, truncated: cutPoint, omitted }, 'Tool result truncated');
+  log.general.info(
+    { original: result.length, truncated: cutPoint, omitted },
+    'Tool result truncated',
+  );
 
   return result.slice(0, cutPoint) + `\n\n[truncated — ${omitted} chars omitted]`;
 }
@@ -50,12 +53,15 @@ export function getToolResultBudget(contextTokens: number): number {
  */
 function truncateObjectStrings(obj: any, maxChars: number): any {
   if (typeof obj === 'string') return truncateToolResult(obj, maxChars);
-  if (Array.isArray(obj)) return obj.map(item => truncateObjectStrings(item, maxChars));
+  if (Array.isArray(obj)) return obj.map((item) => truncateObjectStrings(item, maxChars));
   if (obj && typeof obj === 'object') {
     const result: any = {};
     for (const [key, value] of Object.entries(obj)) {
       // Truncate known content-heavy fields
-      if (typeof value === 'string' && (key === 'content' || key === 'text' || key === 'output' || key === 'result')) {
+      if (
+        typeof value === 'string' &&
+        (key === 'content' || key === 'text' || key === 'output' || key === 'result')
+      ) {
         result[key] = truncateToolResult(value, maxChars);
       } else {
         result[key] = value;
@@ -70,7 +76,10 @@ function truncateObjectStrings(obj: any, maxChars: number): any {
  * Wrap all tools in a ToolSet with automatic result truncation.
  * Intercepts each tool's execute function to truncate string-heavy results.
  */
-export function wrapToolsWithTruncation(tools: ToolSet, maxChars: number = DEFAULT_MAX_CHARS): ToolSet {
+export function wrapToolsWithTruncation(
+  tools: ToolSet,
+  maxChars: number = DEFAULT_MAX_CHARS,
+): ToolSet {
   const wrapped: ToolSet = {};
 
   for (const [name, tool] of Object.entries(tools)) {

@@ -41,7 +41,7 @@ export function useTranslation() {
    * changing what those three lines render. Not under a fix for a write loop.
    */
   const t = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: translation params are untyped interpolation values
     (key: string, params?: Record<string, any>) => i18n.t(key, params),
     // The identity has to change when the language does, and only then.
     [locale],

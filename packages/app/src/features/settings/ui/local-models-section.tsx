@@ -55,10 +55,8 @@ export function LocalModelsSection() {
    * only renders the classification. An unrecognised error keeps its own
    * message rather than being forced into one of the buckets.
    */
-  const failure =
-    probe.error instanceof LocalRuntimeProbeError ? probe.error : null;
-  const unknownFailure =
-    probe.error instanceof Error && failure === null ? probe.error : null;
+  const failure = probe.error instanceof LocalRuntimeProbeError ? probe.error : null;
+  const unknownFailure = probe.error instanceof Error && failure === null ? probe.error : null;
   const failureText =
     failure === null
       ? null
@@ -85,9 +83,7 @@ export function LocalModelsSection() {
                 <Switch
                   accessibilityLabel={t('settings.localModels.enable')}
                   checked={consent === 'granted'}
-                  onCheckedChange={(on) =>
-                    setConsent(on ? 'granted' : 'declined')
-                  }
+                  onCheckedChange={(on) => setConsent(on ? 'granted' : 'declined')}
                 />
               ),
             },
@@ -138,9 +134,7 @@ export function LocalModelsSection() {
                         disabled={probe.isFetching}
                         loading={probe.isFetching}
                         onPress={() => {
-                          setEndpoint(
-                            draftEndpoint.trim() || DEFAULT_LOCAL_ENDPOINT,
-                          );
+                          setEndpoint(draftEndpoint.trim() || DEFAULT_LOCAL_ENDPOINT);
                           void probe.refetch();
                         }}
                       >
@@ -195,9 +189,7 @@ export function LocalModelsSection() {
                   key: model,
                   label: model,
                   control: (
-                    <SettingsValueField muted>
-                      {t('settings.localModels.free')}
-                    </SettingsValueField>
+                    <SettingsValueField muted>{t('settings.localModels.free')}</SettingsValueField>
                   ),
                 })),
               },

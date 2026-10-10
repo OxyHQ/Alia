@@ -55,7 +55,10 @@ export function FormRenderer({ data, onSubmit }: FormRendererProps) {
         ) : (
           <Field key={i} label={field.label}>
             {field.type === 'select' ? (
-              <Select value={formValues[field.name]} onValueChange={(v) => updateValue(field.name, v)}>
+              <Select
+                value={formValues[field.name]}
+                onValueChange={(v) => updateValue(field.name, v)}
+              >
                 <SelectTrigger label={field.label}>
                   <SelectValue placeholder={t('panels.form.select')} />
                   <SelectIcon />

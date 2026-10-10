@@ -7,11 +7,7 @@ import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { toast } from '@oxy.so/bloom/toast';
 import { Linking } from 'react-native';
 
-const BOT_STATUSES: readonly SystemBot['status'][] = [
-  'active',
-  'inactive',
-  'error',
-];
+const BOT_STATUSES: readonly SystemBot['status'][] = ['active', 'inactive', 'error'];
 
 export function BotsSection() {
   const { t } = useTranslation();
@@ -37,9 +33,7 @@ export function BotsSection() {
       if (canOpen) {
         await Linking.openURL(url);
       } else {
-        toast.error(
-          t('settings.connections.bots.cannotOpen', { platform: bot.platform }),
-        );
+        toast.error(t('settings.connections.bots.cannotOpen', { platform: bot.platform }));
       }
     } catch (err) {
       console.error('Failed to open link URL:', err);
@@ -85,9 +79,7 @@ export function BotsSection() {
               {
                 key: 'loading',
                 label: t('common.loading'),
-                control: (
-                  <Skeleton.Box width={202} height={32} borderRadius={10} />
-                ),
+                control: <Skeleton.Box width={202} height={32} borderRadius={10} />,
               },
             ],
           },

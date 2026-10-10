@@ -65,9 +65,11 @@ describe('parseGitHubSource', () => {
   });
 
   it('reduces a link to the SKILL.md itself to its directory', () => {
-    expect(parseGitHubSource('https://github.com/o/r/blob/main/skills/pdf/SKILL.md')).toMatchObject({
-      path: 'skills/pdf',
-    });
+    expect(parseGitHubSource('https://github.com/o/r/blob/main/skills/pdf/SKILL.md')).toMatchObject(
+      {
+        path: 'skills/pdf',
+      },
+    );
   });
 
   it('refuses a host that is not github.com', () => {
@@ -93,7 +95,10 @@ describe('importSkillsFromGitHub', () => {
     const result = await importSkillsFromGitHub('anthropics/skills');
 
     expect(result.commit).toBe(COMMIT);
-    expect(result.skills.map((s) => s.bundle.document.frontmatter.name).sort()).toEqual(['pdf', 'xlsx']);
+    expect(result.skills.map((s) => s.bundle.document.frontmatter.name).sort()).toEqual([
+      'pdf',
+      'xlsx',
+    ]);
     // The `{repo}-{sha}/` wrapper is an artefact of the download, not a path.
     const pdf = result.skills.find((s) => s.directory === 'skills/pdf')!;
     expect(pdf.bundle.files.map((f) => f.path)).toEqual(['references/FORMS.md']);
@@ -110,7 +115,9 @@ describe('importSkillsFromGitHub', () => {
     const result = await importSkillsFromGitHub('anthropics/skills');
 
     expect(result.skills.map((s) => s.bundle.document.frontmatter.name)).toEqual(['good']);
-    expect(result.rejected).toEqual([{ directory: 'skills/broken', reason: expect.stringMatching(/description/) }]);
+    expect(result.rejected).toEqual([
+      { directory: 'skills/broken', reason: expect.stringMatching(/description/) },
+    ]);
   });
 
   it('imports only the directory a tree link named', async () => {
@@ -121,7 +128,9 @@ describe('importSkillsFromGitHub', () => {
       }),
     );
 
-    const result = await importSkillsFromGitHub('https://github.com/anthropics/skills/tree/main/skills/pdf');
+    const result = await importSkillsFromGitHub(
+      'https://github.com/anthropics/skills/tree/main/skills/pdf',
+    );
 
     expect(result.skills.map((s) => s.bundle.document.frontmatter.name)).toEqual(['pdf']);
   });
@@ -133,7 +142,9 @@ describe('importSkillsFromGitHub', () => {
 
   it('reports a missing repository as itself', async () => {
     vi.stubGlobal('fetch', async () => new Response('nope', { status: 404 }));
-    await expect(importSkillsFromGitHub('anthropics/skills')).rejects.toThrow(/does not exist, or is private/);
+    await expect(importSkillsFromGitHub('anthropics/skills')).rejects.toThrow(
+      /does not exist, or is private/,
+    );
   });
 });
 

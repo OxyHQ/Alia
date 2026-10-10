@@ -1,22 +1,22 @@
-import { HugeiconsIcon } from "@hugeicons/react"
-import { Moon02Icon, Sun03Icon, ComputerIcon } from "@hugeicons/core-free-icons"
-import { useAuth } from "@/contexts/AuthContext"
-import { useTheme } from "@/contexts/ThemeContext"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
+import { HugeiconsIcon } from '@hugeicons/react';
+import { Moon02Icon, Sun03Icon, ComputerIcon } from '@hugeicons/core-free-icons';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 
 export function Settings() {
-  const { user, signOut } = useAuth()
-  const { theme, setTheme, effectiveTheme } = useTheme()
+  const { user, signOut } = useAuth();
+  const { theme, setTheme, effectiveTheme } = useTheme();
 
   const themeOptions = [
-    { value: "light" as const, label: "Light", icon: Sun03Icon },
-    { value: "dark" as const, label: "Dark", icon: Moon02Icon },
-    { value: "system" as const, label: "System", icon: ComputerIcon },
-  ]
+    { value: 'light' as const, label: 'Light', icon: Sun03Icon },
+    { value: 'dark' as const, label: 'Dark', icon: Moon02Icon },
+    { value: 'system' as const, label: 'System', icon: ComputerIcon },
+  ];
 
   return (
     <div className="flex-1 overflow-auto min-h-0">
@@ -36,9 +36,7 @@ export function Settings() {
           <Card>
             <CardHeader>
               <CardTitle>Appearance</CardTitle>
-              <CardDescription>
-                Customize how Alia Cowork looks on your device
-              </CardDescription>
+              <CardDescription>Customize how Alia Cowork looks on your device</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -47,7 +45,7 @@ export function Settings() {
                   {themeOptions.map((option) => (
                     <Button
                       key={option.value}
-                      variant={theme === option.value ? "default" : "outline"}
+                      variant={theme === option.value ? 'default' : 'outline'}
                       className="flex-1 gap-2"
                       onClick={() => setTheme(option.value)}
                     >
@@ -57,8 +55,8 @@ export function Settings() {
                   ))}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Current: {effectiveTheme === "dark" ? "Dark" : "Light"}
-                  {theme === "system" && " (System)"}
+                  Current: {effectiveTheme === 'dark' ? 'Dark' : 'Light'}
+                  {theme === 'system' && ' (System)'}
                 </p>
               </div>
             </CardContent>
@@ -69,23 +67,19 @@ export function Settings() {
             <Card>
               <CardHeader>
                 <CardTitle>Account</CardTitle>
-                <CardDescription>
-                  Manage your Alia account settings
-                </CardDescription>
+                <CardDescription>Manage your Alia account settings</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label>Email</Label>
                   <div className="text-sm text-muted-foreground">
-                    {user.email || "Not available"}
+                    {user.email || 'Not available'}
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label>User ID</Label>
-                  <div className="text-sm text-muted-foreground font-mono">
-                    {user.id}
-                  </div>
+                  <div className="text-sm text-muted-foreground font-mono">{user.id}</div>
                 </div>
 
                 <Separator />
@@ -106,9 +100,7 @@ export function Settings() {
           <Card>
             <CardHeader>
               <CardTitle>About</CardTitle>
-              <CardDescription>
-                Application information
-              </CardDescription>
+              <CardDescription>Application information</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
@@ -129,9 +121,7 @@ export function Settings() {
 
               <div className="space-y-2">
                 <Label>Platform</Label>
-                <div className="text-sm text-muted-foreground capitalize">
-                  {navigator.platform}
-                </div>
+                <div className="text-sm text-muted-foreground capitalize">{navigator.platform}</div>
               </div>
 
               <Separator />
@@ -149,5 +139,5 @@ export function Settings() {
         </div>
       </div>
     </div>
-  )
+  );
 }

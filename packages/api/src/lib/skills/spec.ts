@@ -81,7 +81,14 @@ export class SkillSpecError extends Error {
 /** The spec forbids XML tags in `name` and `description`; both are injected into a system prompt. */
 const XML_TAG = /<\/?[a-zA-Z][^>]*>/;
 
-const KNOWN_KEYS = new Set(['name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools']);
+const KNOWN_KEYS = new Set([
+  'name',
+  'description',
+  'license',
+  'compatibility',
+  'metadata',
+  'allowed-tools',
+]);
 
 /** A leading BOM is tolerated: a Windows editor writes one and the file is still a skill. */
 const FRONTMATTER = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n([\s\S]*))?$/;
@@ -107,12 +114,19 @@ export function parseSkillDocument(source: string, opts: ParseOptions = {}): Par
   const name = readName(raw.name, opts, warnings);
   const description = readDescription(raw.description);
   const license = readOptionalString(raw.license, 'license', 500);
-  const compatibility = readOptionalString(raw.compatibility, 'compatibility', SKILL_COMPATIBILITY_MAX_LENGTH);
+  const compatibility = readOptionalString(
+    raw.compatibility,
+    'compatibility',
+    SKILL_COMPATIBILITY_MAX_LENGTH,
+  );
   const metadata = readMetadata(raw.metadata, warnings);
   const allowedTools = readAllowedTools(raw['allowed-tools']);
 
   for (const key of Object.keys(raw)) {
-    if (!KNOWN_KEYS.has(key)) warnings.push(`frontmatter key "${key}" is outside the Agent Skills spec and is stored but never acted on`);
+    if (!KNOWN_KEYS.has(key))
+      warnings.push(
+        `frontmatter key "${key}" is outside the Agent Skills spec and is stored but never acted on`,
+      );
   }
 
   return {
@@ -139,14 +153,17 @@ function readName(value: unknown, opts: ParseOptions, warnings: string[]): strin
   }
   if (opts.authored) {
     const reserved = SKILL_RESERVED_WORDS.find((word) => name.includes(word));
-    if (reserved) throw new SkillSpecError(`"name" may not contain the reserved word "${reserved}"`, 'name');
+    if (reserved)
+      throw new SkillSpecError(`"name" may not contain the reserved word "${reserved}"`, 'name');
   }
   if (opts.directoryName !== undefined && opts.directoryName !== name) {
     // The spec makes this a hard rule. It is a warning on import because a
     // mismatch is common in the wild and costs nothing here: the directory
     // decides where the bundle's files live, and `name` decides what the model
     // says — the import stores both, so nothing is ambiguous.
-    warnings.push(`frontmatter "name" (${name}) does not match its directory (${opts.directoryName})`);
+    warnings.push(
+      `frontmatter "name" (${name}) does not match its directory (${opts.directoryName})`,
+    );
   }
   return name;
 }
@@ -191,7 +208,10 @@ function readOptionalString(value: unknown, field: string, maxLength: number): s
 function readMetadata(value: unknown, warnings: string[]): Record<string, string> {
   if (value === undefined || value === null) return {};
   if (typeof value !== 'object' || Array.isArray(value)) {
-    throw new SkillSpecError('"metadata" must be a mapping of string keys to string values', 'metadata');
+    throw new SkillSpecError(
+      '"metadata" must be a mapping of string keys to string values',
+      'metadata',
+    );
   }
   const metadata: Record<string, string> = {};
   for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
@@ -219,10 +239,15 @@ function readMetadata(value: unknown, warnings: string[]): Record<string, string
 function readAllowedTools(value: unknown): string[] {
   if (value === undefined || value === null) return [];
   if (Array.isArray(value)) {
-    return value.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '').map((entry) => entry.trim());
+    return value
+      .filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '')
+      .map((entry) => entry.trim());
   }
   if (typeof value !== 'string') {
-    throw new SkillSpecError('"allowed-tools" must be a string or a list of strings', 'allowed-tools');
+    throw new SkillSpecError(
+      '"allowed-tools" must be a string or a list of strings',
+      'allowed-tools',
+    );
   }
   return value.split(/[\s,]+/).filter((entry) => entry !== '');
 }
@@ -235,14 +260,21 @@ function readAllowedTools(value: unknown): string[] {
  * construction rather than by intention.
  */
 export function serializeSkillDocument(frontmatter: SkillFrontmatter, body: string): string {
-  const lines = ['---', `name: ${frontmatter.name}`, `description: ${yamlScalar(frontmatter.description)}`];
+  const lines = [
+    '---',
+    `name: ${frontmatter.name}`,
+    `description: ${yamlScalar(frontmatter.description)}`,
+  ];
   if (frontmatter.license) lines.push(`license: ${yamlScalar(frontmatter.license)}`);
-  if (frontmatter.compatibility) lines.push(`compatibility: ${yamlScalar(frontmatter.compatibility)}`);
-  if (frontmatter.allowedTools.length > 0) lines.push(`allowed-tools: ${frontmatter.allowedTools.join(' ')}`);
+  if (frontmatter.compatibility)
+    lines.push(`compatibility: ${yamlScalar(frontmatter.compatibility)}`);
+  if (frontmatter.allowedTools.length > 0)
+    lines.push(`allowed-tools: ${frontmatter.allowedTools.join(' ')}`);
   const metadataKeys = Object.keys(frontmatter.metadata);
   if (metadataKeys.length > 0) {
     lines.push('metadata:');
-    for (const key of metadataKeys) lines.push(`  ${key}: ${yamlScalar(frontmatter.metadata[key])}`);
+    for (const key of metadataKeys)
+      lines.push(`  ${key}: ${yamlScalar(frontmatter.metadata[key])}`);
   }
   lines.push('---', '', body.trim(), '');
   return lines.join('\n');

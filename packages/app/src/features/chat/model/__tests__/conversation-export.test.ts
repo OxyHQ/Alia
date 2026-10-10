@@ -15,7 +15,11 @@ import { describe, expect, it, vi } from 'vitest';
 // exporter uses — never touches it.
 vi.mock('@alia.onl/sdk', () => ({ getToolLabel: (n: string) => n }));
 
-import { buildConversationMarkdown, exportFilename, localDate } from '@/features/chat/model/conversation-export';
+import {
+  buildConversationMarkdown,
+  exportFilename,
+  localDate,
+} from '@/features/chat/model/conversation-export';
 import type { Message } from '@/features/chat/runtime/use-conversations';
 
 /** Noon on 10 September 2026, local time, so the date never straddles midnight in UTC. */
@@ -181,7 +185,9 @@ describe('buildConversationMarkdown', () => {
 
 describe('exportFilename', () => {
   it('slugs the title and stamps the date', () => {
-    expect(exportFilename('Reunión con Sarah: plan', EXPORTED_AT)).toBe('reunion-con-sarah-plan-2026-09-10.md');
+    expect(exportFilename('Reunión con Sarah: plan', EXPORTED_AT)).toBe(
+      'reunion-con-sarah-plan-2026-09-10.md',
+    );
   });
 
   it('never yields a nameless file', () => {

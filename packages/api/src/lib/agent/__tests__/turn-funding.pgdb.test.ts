@@ -27,7 +27,16 @@ import postgres from 'postgres';
 
 vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { credits: child, agents: child, general: child, chat: child, v1: child, providers: child } };
+  return {
+    log: {
+      credits: child,
+      agents: child,
+      general: child,
+      chat: child,
+      v1: child,
+      providers: child,
+    },
+  };
 });
 vi.mock('../../chat-core.js', () => ({
   getRoutingProfile: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
@@ -63,7 +72,10 @@ let seq = 0;
 async function account(free: number, paid = 0): Promise<string> {
   const id = `${SUITE}-${seq++}`;
   await getOrCreateUserCredits(db, id);
-  await db.update(userCredits).set({ creditsFree: free, creditsPaid: paid }).where(eq(userCredits.id, id));
+  await db
+    .update(userCredits)
+    .set({ creditsFree: free, creditsPaid: paid })
+    .where(eq(userCredits.id, id));
   return id;
 }
 
@@ -240,12 +252,21 @@ describe('the payer is decided ONCE, and the settlement follows it', () => {
     const agentAccountId = await account(50);
     const ownerUserId = await account(100);
 
-    const funding = await reserveAgentTurn({ agentAccountId, ownerUserId, ownerFallbackAllowed: true, amount: 10 });
+    const funding = await reserveAgentTurn({
+      agentAccountId,
+      ownerUserId,
+      ownerFallbackAllowed: true,
+      amount: 10,
+    });
     if (!funding.ok) throw new Error('the agent balance covers 10');
     expect(funding.reservation.userId).toBe(agentAccountId);
 
     // Reserved 10, actually used 2000 tokens = 2 credits → 8 back to the AGENT.
-    await finalizeCredits(funding.reservation, { promptTokens: 1000, completionTokens: 1000, totalTokens: 2000 });
+    await finalizeCredits(funding.reservation, {
+      promptTokens: 1000,
+      completionTokens: 1000,
+      totalTokens: 2000,
+    });
 
     expect(await balanceOf(agentAccountId)).toEqual({ free: 48, paid: 0 });
     expect(await balanceOf(ownerUserId)).toEqual({ free: 100, paid: 0 });
@@ -255,11 +276,20 @@ describe('the payer is decided ONCE, and the settlement follows it', () => {
     const agentAccountId = await account(3);
     const ownerUserId = await account(100);
 
-    const funding = await reserveAgentTurn({ agentAccountId, ownerUserId, ownerFallbackAllowed: true, amount: 10 });
+    const funding = await reserveAgentTurn({
+      agentAccountId,
+      ownerUserId,
+      ownerFallbackAllowed: true,
+      amount: 10,
+    });
     if (!funding.ok) throw new Error('the owner balance covers 10');
     expect(funding.reservation.userId).toBe(ownerUserId);
 
-    await finalizeCredits(funding.reservation, { promptTokens: 1000, completionTokens: 1000, totalTokens: 2000 });
+    await finalizeCredits(funding.reservation, {
+      promptTokens: 1000,
+      completionTokens: 1000,
+      totalTokens: 2000,
+    });
 
     expect(await balanceOf(ownerUserId)).toEqual({ free: 98, paid: 0 });
     expect(await balanceOf(agentAccountId)).toEqual({ free: 3, paid: 0 });
@@ -269,7 +299,12 @@ describe('the payer is decided ONCE, and the settlement follows it', () => {
     const agentAccountId = await account(50);
     const ownerUserId = await account(100);
 
-    const funding = await reserveAgentTurn({ agentAccountId, ownerUserId, ownerFallbackAllowed: true, amount: 10 });
+    const funding = await reserveAgentTurn({
+      agentAccountId,
+      ownerUserId,
+      ownerFallbackAllowed: true,
+      amount: 10,
+    });
     if (!funding.ok) throw new Error('the agent balance covers 10');
 
     await refundReservation(funding.reservation);
@@ -282,7 +317,12 @@ describe('the payer is decided ONCE, and the settlement follows it', () => {
     const agentAccountId = await account(3);
     const ownerUserId = await account(100);
 
-    const funding = await reserveAgentTurn({ agentAccountId, ownerUserId, ownerFallbackAllowed: true, amount: 10 });
+    const funding = await reserveAgentTurn({
+      agentAccountId,
+      ownerUserId,
+      ownerFallbackAllowed: true,
+      amount: 10,
+    });
     if (!funding.ok) throw new Error('the owner balance covers 10');
 
     await refundReservation(funding.reservation);
@@ -303,7 +343,12 @@ describe('the payer is decided ONCE, and the settlement follows it', () => {
     const agentAccountId = await account(0);
     const ownerUserId = await account(0, 100);
 
-    const funding = await reserveAgentTurn({ agentAccountId, ownerUserId, ownerFallbackAllowed: true, amount: 10 });
+    const funding = await reserveAgentTurn({
+      agentAccountId,
+      ownerUserId,
+      ownerFallbackAllowed: true,
+      amount: 10,
+    });
     if (!funding.ok) throw new Error('the owner paid balance covers 10');
     expect(funding.reservation.grantKind).toBe('paid_balance');
 

@@ -28,14 +28,16 @@ const automation: AutomationDefinition = {
   },
   actorSelection: { mode: 'fixed', agentId: 'agent-1' },
   executionMode: 'execute',
-  actions: [{
-    id: 'action-1',
-    position: 0,
-    resource: mailbox,
-    tool: 'replyToEmail',
-    input: {},
-    limits: [],
-  }],
+  actions: [
+    {
+      id: 'action-1',
+      position: 0,
+      resource: mailbox,
+      tool: 'replyToEmail',
+      input: {},
+      limits: [],
+    },
+  ],
   resources: [mailbox],
   dataFlow: { sources: [mailbox], destinations: [mailbox] },
   maximumAutonomy: 'autonomous',
@@ -52,19 +54,21 @@ describe('automation receipt editor', () => {
   it('creates an isolated draft with every editable field', () => {
     const draft = createAutomationEditDraft(automation);
 
-    expect(draft).toEqual(expect.objectContaining({
-      objective: automation.objective,
-      trigger: automation.trigger,
-      actorSelection: automation.actorSelection,
-      resources: automation.resources,
-      dataFlow: automation.dataFlow,
-      maximumAutonomy: 'autonomous',
-      limits: [
-        { key: 'daily', value: '5' },
-        { key: 'recipients', value: '["customer@example.test"]' },
-      ],
-      enabled: true,
-    }));
+    expect(draft).toEqual(
+      expect.objectContaining({
+        objective: automation.objective,
+        trigger: automation.trigger,
+        actorSelection: automation.actorSelection,
+        resources: automation.resources,
+        dataFlow: automation.dataFlow,
+        maximumAutonomy: 'autonomous',
+        limits: [
+          { key: 'daily', value: '5' },
+          { key: 'recipients', value: '["customer@example.test"]' },
+        ],
+        enabled: true,
+      }),
+    );
     const draftResource = draft.resources[0];
     if (!draftResource) throw new Error('Expected one editable resource');
     draftResource.resourceId = 'changed';
@@ -104,10 +108,12 @@ describe('automation receipt editor', () => {
     expect(draft.actorSelection).toEqual({ mode: 'alia' });
 
     const result = buildAutomationUpdate(draft);
-    expect(result).toEqual(expect.objectContaining({
-      ok: true,
-      value: expect.objectContaining({ actorSelection: { mode: 'alia' } }),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        ok: true,
+        value: expect.objectContaining({ actorSelection: { mode: 'alia' } }),
+      }),
+    );
   });
 
   it('rejects incomplete actor, trigger, resource, and limit inputs before PATCH', () => {
@@ -125,7 +131,9 @@ describe('automation receipt editor', () => {
 
     const badLimit = createAutomationEditDraft(automation);
     badLimit.limits = [{ key: 'recipients', value: '[1,2]' }];
-    expect(message(buildAutomationUpdate(badLimit))).toBe('Limit recipients must be text, a number, a boolean, or a text list');
+    expect(message(buildAutomationUpdate(badLimit))).toBe(
+      'Limit recipients must be text, a number, a boolean, or a text list',
+    );
 
     const duplicateLimit = createAutomationEditDraft(automation);
     duplicateLimit.limits = [

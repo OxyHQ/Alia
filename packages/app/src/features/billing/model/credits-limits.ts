@@ -35,11 +35,24 @@ export function agentLimitsProps(
   t: Translate,
 ): { plan: string; limits: AgentLimitsUsageLimit[] } {
   const bundle = credits?.productAllowance;
-  const activeBundle = bundle && Date.parse(bundle.periodEnd) > now && Date.parse(bundle.periodStart) <= now ? bundle : null;
+  const activeBundle =
+    bundle && Date.parse(bundle.periodEnd) > now && Date.parse(bundle.periodStart) <= now
+      ? bundle
+      : null;
   const individual = subscription?.status === 'active' ? subscription.plan.name : null;
-  const plan = activeBundle ? `Oxy One${individual ? ` · ${individual}` : ''}` : individual ?? t('credits.free');
+  const plan = activeBundle
+    ? `Oxy One${individual ? ` · ${individual}` : ''}`
+    : (individual ?? t('credits.free'));
   const limits: AgentLimitsUsageLimit[] = [];
-  if (activeBundle) limits.push({ label: `Oxy One · ${t('credits.credits')}`, used: Math.min(1, Math.max(0, (activeBundle.consumed + activeBundle.reserved) / activeBundle.included)), resets: resetsIn(Date.parse(activeBundle.periodEnd) - now, t) });
+  if (activeBundle)
+    limits.push({
+      label: `Oxy One · ${t('credits.credits')}`,
+      used: Math.min(
+        1,
+        Math.max(0, (activeBundle.consumed + activeBundle.reserved) / activeBundle.included),
+      ),
+      resets: resetsIn(Date.parse(activeBundle.periodEnd) - now, t),
+    });
   const window = credits?.window;
   if (window && window.limit > 0) {
     const resetsAt = window.resetsAt === null ? Number.NaN : Date.parse(window.resetsAt);

@@ -52,10 +52,7 @@ export async function loadPrompt(promptName: string): Promise<string> {
  * @param modelId - The prompt name under `prompts/` (e.g. 'codea')
  * @param clientContext - Optional additional context from the client application
  */
-export async function buildSystemPrompt(
-  modelId: string,
-  clientContext?: string
-): Promise<string> {
+export async function buildSystemPrompt(modelId: string, clientContext?: string): Promise<string> {
   try {
     // Load model-specific prompt (the core personality)
     const modelPrompt = await loadPrompt(modelId);

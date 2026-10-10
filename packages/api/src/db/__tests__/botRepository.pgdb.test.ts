@@ -55,7 +55,11 @@ function newBot(overrides: Partial<NewBot> = {}): NewBot {
 }
 
 /** A system bot is a row with no owner; nothing in the service creates one any more. */
-async function insertSystemBot(input: { platform: string; botId: string; name: string }): Promise<void> {
+async function insertSystemBot(input: {
+  platform: string;
+  botId: string;
+  name: string;
+}): Promise<void> {
   await db.insert(bots).values({ ...input, status: 'active' });
 }
 
@@ -139,7 +143,7 @@ describe('the three credentials are treated OPPOSITELY, on purpose', () => {
     expect(withToken?.botToken).toBe('PLAINTEXT-BOT-TOKEN');
   });
 
-  it('does NOT project the bot user\'s auth token', async () => {
+  it("does NOT project the bot user's auth token", async () => {
     const bot = await registerBot(db, newBot({ platform: 'br-noauth', botId: 'n1' }));
     if (!bot) throw new Error('registerBot returned null');
     const botUser = await upsertBotUser(db, {
@@ -217,7 +221,7 @@ describe('the system bot and a user-owned bot never select each other', () => {
     expect(await findActiveUserBotByWebhookSecret(db, 'br-scope-secret', 'br-scope')).toBeNull();
   });
 
-  it('shows a user the system bots plus their OWN, and nobody else\'s', async () => {
+  it("shows a user the system bots plus their OWN, and nobody else's", async () => {
     await insertSystemBot({ platform: 'br-vis', botId: 'sys', name: 'System' });
     await registerBot(db, newBot({ platform: 'br-vis', botId: 'mine', userId: 'bru-vis-me' }));
     await registerBot(db, newBot({ platform: 'br-vis', botId: 'theirs', userId: 'bru-vis-them' }));
@@ -263,7 +267,6 @@ describe('a platform identity belongs to exactly one bot', () => {
     expect((await findBotByPlatformIdentity(db, 'br-ident', 'i1'))?.botId).toBe('i1');
     expect(await findBotByPlatformIdentity(db, 'br-ident', 'nope')).toBeNull();
   });
-
 });
 
 describe('the agent binding can be CLEARED', () => {
@@ -400,10 +403,16 @@ describe('a bot user is upserted, not read-then-branched', () => {
     if (!a || !b) throw new Error('registerBot returned null');
 
     const ua = await upsertBotUser(db, {
-      botId: a.id, platform: 'br-two', platformUserId: 'same-person', chatId: 'c1',
+      botId: a.id,
+      platform: 'br-two',
+      platformUserId: 'same-person',
+      chatId: 'c1',
     });
     const ub = await upsertBotUser(db, {
-      botId: b.id, platform: 'br-two', platformUserId: 'same-person', chatId: 'c2',
+      botId: b.id,
+      platform: 'br-two',
+      platformUserId: 'same-person',
+      chatId: 'c2',
     });
 
     expect(ua.id).not.toBe(ub.id);
@@ -421,7 +430,10 @@ describe('a link token is single-use, and unlinking really unlinks', () => {
     const bot = await registerBot(db, newBot({ platform: 'br-link', botId: 'l1' }));
     if (!bot) throw new Error('registerBot returned null');
     const botUser = await upsertBotUser(db, {
-      botId: bot.id, platform: 'br-link', platformUserId: 'br-p1', chatId: 'c1',
+      botId: bot.id,
+      platform: 'br-link',
+      platformUserId: 'br-p1',
+      chatId: 'c1',
     });
     await setBotUserAuthToken(db, botUser.id, 'br-once', new Date(Date.now() + 60_000));
 
@@ -449,7 +461,10 @@ describe('a link token is single-use, and unlinking really unlinks', () => {
     const bot = await registerBot(db, newBot({ platform: 'br-unlink', botId: 'u1' }));
     if (!bot) throw new Error('registerBot returned null');
     const botUser = await upsertBotUser(db, {
-      botId: bot.id, platform: 'br-unlink', platformUserId: 'br-p1', chatId: 'c1',
+      botId: bot.id,
+      platform: 'br-unlink',
+      platformUserId: 'br-p1',
+      chatId: 'c1',
     });
     await linkBotUser(db, botUser.id, { oxyUserId: 'bru-unlinker' });
     await setBotUserConversation(db, botUser.id, 'conv-1');
@@ -470,7 +485,10 @@ describe('a link token is single-use, and unlinking really unlinks', () => {
     const bot = await registerBot(db, newBot({ platform: 'br-logout', botId: 'g1' }));
     if (!bot) throw new Error('registerBot returned null');
     const botUser = await upsertBotUser(db, {
-      botId: bot.id, platform: 'br-logout', platformUserId: 'br-p1', chatId: 'c1',
+      botId: bot.id,
+      platform: 'br-logout',
+      platformUserId: 'br-p1',
+      chatId: 'c1',
     });
     await linkBotUser(db, botUser.id, { oxyUserId: 'bru-logout' });
 

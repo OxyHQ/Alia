@@ -76,11 +76,12 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
   it('the contract routing target has exactly two members, neither a deployment', () => {
     // Read off the LIVE schema. A copy of the union written here would agree
     // with itself forever, which is the one thing this must not do.
-    expect(routingTargetSchema.safeParse({ kind: 'model', modelReference: 'oxy/atlas' }).success).toBe(
-      true,
-    );
     expect(
-      routingTargetSchema.safeParse({ kind: 'routing_profile_id', routingProfileId: 'profile-id' }).success,
+      routingTargetSchema.safeParse({ kind: 'model', modelReference: 'oxy/atlas' }).success,
+    ).toBe(true);
+    expect(
+      routingTargetSchema.safeParse({ kind: 'routing_profile_id', routingProfileId: 'profile-id' })
+        .success,
     ).toBe(true);
 
     // Every shape an internal deployment could arrive as. All refused.
@@ -88,8 +89,16 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
       { kind: 'deployment', deploymentId: 'dep_internal_1' },
       { kind: 'model', modelReference: 'oxy/atlas', deploymentId: 'dep_internal_1' },
       { kind: 'routing_profile', routingProfile: 'balanced' },
-      { kind: 'routing_profile', routingProfile: 'balanced', availabilityScope: 'platform_internal' },
-      { kind: 'routing_profile_id', routingProfileId: 'profile-id', availabilityScope: 'platform_internal' },
+      {
+        kind: 'routing_profile',
+        routingProfile: 'balanced',
+        availabilityScope: 'platform_internal',
+      },
+      {
+        kind: 'routing_profile_id',
+        routingProfileId: 'profile-id',
+        availabilityScope: 'platform_internal',
+      },
       { kind: 'platform_internal', deploymentId: 'dep_internal_1' },
     ]) {
       expect(routingTargetSchema.safeParse(target).success, JSON.stringify(target)).toBe(false);
@@ -118,15 +127,24 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
       encoding: 'utf8',
     })
       .split('\n')
-      .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/') && existsSync(path.join(REPO_ROOT, file)));
+      .filter(
+        (file) =>
+          file.endsWith('.ts') &&
+          !file.includes('/__tests__/') &&
+          existsSync(path.join(REPO_ROOT, file)),
+      );
 
     const naming = files.filter((file) =>
-      /\bplatform_internal\b|\bavailabilityScope\b/.test(readFileSync(path.join(REPO_ROOT, file), 'utf8')),
+      /\bplatform_internal\b|\bavailabilityScope\b/.test(
+        readFileSync(path.join(REPO_ROOT, file), 'utf8'),
+      ),
     );
     expect(files.length).toBeGreaterThan(300);
     expect(naming).toEqual([]);
     // The control: the predicate fires on the string it is looking for.
-    expect(/\bplatform_internal\b|\bavailabilityScope\b/.test("scope: 'platform_internal'")).toBe(true);
+    expect(/\bplatform_internal\b|\bavailabilityScope\b/.test("scope: 'platform_internal'")).toBe(
+      true,
+    );
   });
 });
 
@@ -140,23 +158,27 @@ vi.mock('../../lib/logger.js', () => ({
 }));
 vi.mock('../../lib/channels/registry.js', () => ({ getConfiguredChannels: vi.fn(() => []) }));
 vi.mock('@oxy.so/core/server', () => ({
-  createOptionalOxyAuth: vi.fn(() => vi.fn((_req: Request, _res: Response, next: NextFunction) => next())),
-  createOxyAuthMiddleware: vi.fn(() => vi.fn((req: Request, _res: Response, next: NextFunction) => {
-    if (req.headers.authorization === 'Bearer verified-service-token') {
-      req.userId = 'delegated-user';
-      req.user = { id: 'delegated-user' };
-      req.serviceApp = {
-        appId: 'alia-caller',
-        appName: 'Alia caller',
-        credentialId: 'credential-1',
-        ownerAccountId: 'account-1',
-        scopes: ['alia:invoke'],
-        environment: 'production',
-        tier: 'internal',
-      };
-    }
-    next();
-  })),
+  createOptionalOxyAuth: vi.fn(() =>
+    vi.fn((_req: Request, _res: Response, next: NextFunction) => next()),
+  ),
+  createOxyAuthMiddleware: vi.fn(() =>
+    vi.fn((req: Request, _res: Response, next: NextFunction) => {
+      if (req.headers.authorization === 'Bearer verified-service-token') {
+        req.userId = 'delegated-user';
+        req.user = { id: 'delegated-user' };
+        req.serviceApp = {
+          appId: 'alia-caller',
+          appName: 'Alia caller',
+          credentialId: 'credential-1',
+          ownerAccountId: 'account-1',
+          scopes: ['alia:invoke'],
+          environment: 'production',
+          tier: 'internal',
+        };
+      }
+      next();
+    }),
+  ),
   // `middleware/auth.ts` builds its `OxyServer` at import; the service lane is
   // a pass-through here because the verified principal comes from the mocked
   // `createOxyAuthMiddleware` above.
@@ -175,7 +197,6 @@ vi.mock('@oxy.so/core/server', () => ({
 }));
 
 const { authenticateTokenOrApiKey } = await import('../../middleware/auth.js');
-
 
 function request(authorization: string): Request {
   return { headers: { authorization }, path: '/v1/chat/completions', method: 'POST' } as Request;

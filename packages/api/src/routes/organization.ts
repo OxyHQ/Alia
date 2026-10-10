@@ -170,7 +170,7 @@ router.post('/invites/:token/accept', async (req: Request, res: Response) => {
 
     log.organization.info(
       { organizationId: result.organization.id, userId },
-      'Invitation accepted'
+      'Invitation accepted',
     );
 
     res.json({
@@ -203,7 +203,7 @@ router.post('/invites/:token/decline', async (req: Request, res: Response) => {
 
     log.organization.info(
       { organizationId: invite.organizationId, userId, inviteId: invite.id },
-      'Invitation declined'
+      'Invitation declined',
     );
 
     res.json({ message: 'Invitation declined' });
@@ -280,7 +280,11 @@ router.get('/:id', async (req: Request, res: Response) => {
 // Create a new organization
 const createOrgSchema = z.object({
   name: z.string().min(1).max(100),
-  slug: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens'),
+  slug: z
+    .string()
+    .min(1)
+    .max(50)
+    .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens'),
   description: z.string().max(500).optional(),
 });
 
@@ -304,7 +308,9 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Organization slug already taken' });
     }
 
-    res.status(201).json({ organization: withAddressableLogo(req, userId, toOrganizationResponse(organization)) });
+    res.status(201).json({
+      organization: withAddressableLogo(req, userId, toOrganizationResponse(organization)),
+    });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
@@ -319,10 +325,12 @@ const updateOrgSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional(),
   image: z.string().optional(),
-  settings: z.object({
-    billingEmail: z.string().email().optional(),
-    apiCallLimit: z.number().optional(),
-  }).optional(),
+  settings: z
+    .object({
+      billingEmail: z.string().email().optional(),
+      apiCallLimit: z.number().optional(),
+    })
+    .optional(),
 });
 
 router.patch('/:id', async (req: Request, res: Response) => {
@@ -344,7 +352,9 @@ router.patch('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Organization not found' });
     }
 
-    res.json({ organization: withAddressableLogo(req, userId, toOrganizationResponse(organization)) });
+    res.json({
+      organization: withAddressableLogo(req, userId, toOrganizationResponse(organization)),
+    });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
@@ -377,7 +387,12 @@ router.post('/:id/image', upload.single('file'), async (req: Request, res: Respo
       await deleteFromS3(existingOrg.image);
     }
 
-    const imageKey = await uploadToS3(file.buffer, file.originalname, `organizations/${id}`, 'logo');
+    const imageKey = await uploadToS3(
+      file.buffer,
+      file.originalname,
+      `organizations/${id}`,
+      'logo',
+    );
 
     const organization = await updateOrganization(getDb(), id, { image: imageKey });
 
@@ -488,7 +503,7 @@ router.post('/:id/members', async (req: Request<{ id: string }>, res: Response) 
 
     log.organization.info(
       { organizationId: id, role, inviteId: invite.id },
-      'Organization invite link created'
+      'Organization invite link created',
     );
 
     res.status(201).json({

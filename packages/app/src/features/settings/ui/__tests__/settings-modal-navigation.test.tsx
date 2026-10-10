@@ -100,10 +100,7 @@ vi.mock('@/features/settings/ui/proactive-section', () => ({
 }));
 
 import { AliaSettingsProvider } from '@/features/settings/ui/alia-settings';
-import {
-  useAliaSettings,
-  type AliaSettingsActions,
-} from '@/features/settings/ui/settings-context';
+import { useAliaSettings, type AliaSettingsActions } from '@/features/settings/ui/settings-context';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let renderer: ReactTestRenderer | undefined;
 let actions: AliaSettingsActions;

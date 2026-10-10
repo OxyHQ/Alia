@@ -15,8 +15,12 @@ vi.mock('../../../db/agents/agentSessionRepository.js', () => ({
   failExhaustedAgentSessionRun: H.failExhausted,
   RUNNER_MAX_ATTEMPTS: 3,
 }));
-vi.mock('../../../db/agents/agentRuntimeRepository.js', () => ({ expireAgentApprovals: vi.fn(async () => []) }));
-vi.mock('../../../db/automation/automationDefinitionRepository.js', () => ({ markAutomationRunForSession: H.markRun }));
+vi.mock('../../../db/agents/agentRuntimeRepository.js', () => ({
+  expireAgentApprovals: vi.fn(async () => []),
+}));
+vi.mock('../../../db/automation/automationDefinitionRepository.js', () => ({
+  markAutomationRunForSession: H.markRun,
+}));
 vi.mock('../../credits-manager.js', () => ({ safeRefund: H.refund }));
 vi.mock('../../notification-service.js', () => ({ sendNotification: H.notify }));
 vi.mock('../../task-queue.js', () => ({ enqueueAgentSession: H.enqueue }));
@@ -37,7 +41,9 @@ beforeEach(() => {
 
 describe('the agent run reaper', () => {
   it('hands a lapsed run back to the queue as a new, attempt-named job', async () => {
-    H.lapsed.mockResolvedValue([{ id: 's1', oxyUserId: 'u', agentId: 'a', attempts: 1, creditReservation: HOLD }]);
+    H.lapsed.mockResolvedValue([
+      { id: 's1', oxyUserId: 'u', agentId: 'a', attempts: 1, creditReservation: HOLD },
+    ]);
 
     await expect(reapAgentRuns()).resolves.toEqual({ resumed: 1, failed: 0 });
     expect(H.enqueue).toHaveBeenCalledWith(
@@ -48,7 +54,9 @@ describe('the agent run reaper', () => {
   });
 
   it('fails, refunds and tells the person about a run that keeps losing its worker', async () => {
-    H.lapsed.mockResolvedValue([{ id: 's2', oxyUserId: 'u', agentId: 'a', attempts: 3, creditReservation: HOLD }]);
+    H.lapsed.mockResolvedValue([
+      { id: 's2', oxyUserId: 'u', agentId: 'a', attempts: 3, creditReservation: HOLD },
+    ]);
     H.failExhausted.mockResolvedValue({ id: 's2', creditReservation: HOLD });
 
     await expect(reapAgentRuns()).resolves.toEqual({ resumed: 0, failed: 1 });
@@ -59,7 +67,9 @@ describe('the agent run reaper', () => {
   });
 
   it('does nothing for an exhausted run another task already settled', async () => {
-    H.lapsed.mockResolvedValue([{ id: 's3', oxyUserId: 'u', agentId: 'a', attempts: 3, creditReservation: HOLD }]);
+    H.lapsed.mockResolvedValue([
+      { id: 's3', oxyUserId: 'u', agentId: 'a', attempts: 3, creditReservation: HOLD },
+    ]);
     H.failExhausted.mockResolvedValue(null);
 
     await expect(reapAgentRuns()).resolves.toEqual({ resumed: 0, failed: 0 });

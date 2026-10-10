@@ -37,9 +37,15 @@ describe('Discord /model', () => {
   });
 
   it('selects, lists matches, resets, and stores nothing without a catalogue', () => {
-    expect(planModelCommand(catalogue, undefined, 'globex/sage')).toMatchObject({ kind: 'store', model: 'globex/sage' });
+    expect(planModelCommand(catalogue, undefined, 'globex/sage')).toMatchObject({
+      kind: 'store',
+      model: 'globex/sage',
+    });
     expect(planModelCommand(catalogue, undefined, 'acme').kind).toBe('reply');
-    expect(planModelCommand(catalogue, 'globex/sage', 'default')).toMatchObject({ kind: 'store', model: null });
+    expect(planModelCommand(catalogue, 'globex/sage', 'default')).toMatchObject({
+      kind: 'store',
+      model: null,
+    });
     expect(planModelCommand(null, undefined, 'globex/sage').kind).toBe('reply');
   });
 });
@@ -50,7 +56,9 @@ describe('Telegram /model', () => {
     if (plan.kind !== 'reply') throw new Error('expected a listing');
     expect(plan.html).toContain('<b>Current model:</b> TPS');
     expect(plan.buttons.map((button) => button.data)).toEqual([
-      'model_acme/rocket-1', 'model_globex/sage', MODEL_RESET_CALLBACK,
+      'model_acme/rocket-1',
+      'model_globex/sage',
+      MODEL_RESET_CALLBACK,
     ]);
   });
 
@@ -59,12 +67,19 @@ describe('Telegram /model', () => {
     if (plan.kind !== 'reply') throw new Error('expected a listing');
     expect(plan.html.length).toBeLessThanOrEqual(4096);
     expect(plan.html).toMatch(/…and \d+ more\./);
-    for (const button of plan.buttons) expect(Buffer.byteLength(button.data)).toBeLessThanOrEqual(64);
+    for (const button of plan.buttons)
+      expect(Buffer.byteLength(button.data)).toBeLessThanOrEqual(64);
   });
 
   it('selects by search, resets, and escapes what the person typed', () => {
-    expect(planTelegramModelCommand(catalogue, undefined, 'Sage')).toMatchObject({ kind: 'store', model: 'globex/sage' });
-    expect(planTelegramModelCommand(catalogue, undefined, 'reset')).toMatchObject({ kind: 'store', model: null });
+    expect(planTelegramModelCommand(catalogue, undefined, 'Sage')).toMatchObject({
+      kind: 'store',
+      model: 'globex/sage',
+    });
+    expect(planTelegramModelCommand(catalogue, undefined, 'reset')).toMatchObject({
+      kind: 'store',
+      model: null,
+    });
     const none = planTelegramModelCommand(catalogue, undefined, '<b>');
     expect(none.html).toContain('&lt;b&gt;');
   });

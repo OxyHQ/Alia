@@ -1,15 +1,15 @@
-import { BloomThemeProvider } from "@oxy.so/bloom/theme"
-import { Chat } from "@/components/Chat"
-import { useVscodeThemeMode } from "@/lib/use-vscode-theme"
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { Chat } from '@/components/Chat';
+import { useVscodeThemeMode } from '@/lib/use-vscode-theme';
 
 export function App() {
-  const mode = useVscodeThemeMode()
+  const mode = useVscodeThemeMode();
 
   return (
     <BloomThemeProvider mode={mode} colorPreset="oxy">
       <Chat />
     </BloomThemeProvider>
-  )
+  );
 }
 
-export default App
+export default App;

@@ -159,7 +159,11 @@ describe('a redemption is claimed before any money moves', () => {
       await redeemReferral(db, { referrerId: ALICE, referredUserId: BOB, creditsAwarded: REWARD }),
     ).toEqual({ outcome: 'claimed' });
     expect(
-      await redeemReferral(db, { referrerId: ALICE, referredUserId: CAROL, creditsAwarded: REWARD }),
+      await redeemReferral(db, {
+        referrerId: ALICE,
+        referredUserId: CAROL,
+        creditsAwarded: REWARD,
+      }),
     ).toEqual({ outcome: 'claimed' });
 
     const alice = await findReferralById(db, ALICE);

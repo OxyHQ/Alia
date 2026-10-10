@@ -1,0 +1,213 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true,
+    "defaultBranch": "main"
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!.worktrees",
+      "!**/dist",
+      "!**/coverage",
+      "!**/.expo",
+      "!**/.next",
+      "!**/drizzle/meta",
+      "!**/*.generated.*",
+      "!docs/audits",
+      "!docs/runbooks/evidence",
+      "!packages/app/tsconfig.json",
+      "!packages/app/scripts/perf/baseline",
+      "!packages/app/scripts/visual/baseline",
+      "!packages/app/scripts/visual/baseline-firefox",
+      "!packages/app/src/shared/ui/icons"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "includes": [
+      "**",
+      "!packages/api/src/db/agents/agentSessionRepository.ts",
+      "!packages/api/src/index.ts",
+      "!packages/api/src/lib/agent/orchestrator.ts",
+      "!packages/api/src/lib/chat/provider-loop.ts",
+      "!packages/api/src/lib/chat/request-context.ts",
+      "!packages/api/src/lib/credits-manager.ts",
+      "!packages/api/src/routes/chat.ts",
+      "!packages/api/src/routes/v1/chat-completions.ts",
+      "!packages/app/index.web.tsx",
+      "!packages/app/src/features/chat/runtime/use-chat-conversation.ts"
+    ],
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "lineEnding": "lf"
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "jsxQuoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always",
+      "bracketSpacing": true
+    }
+  },
+  "json": {
+    "formatter": {
+      "trailingCommas": "none"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "off"
+      }
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "a11y": {
+        "noRedundantRoles": "warn",
+        "noStaticElementInteractions": "warn",
+        "noSvgWithoutTitle": "warn",
+        "useButtonType": "warn",
+        "useFocusableInteractive": "warn",
+        "useKeyWithClickEvents": "warn",
+        "useSemanticElements": "warn"
+      },
+      "complexity": {
+        "noCommaOperator": "warn",
+        "noExtraBooleanCast": "warn",
+        "noImportantStyles": "warn",
+        "noStaticOnlyClass": "warn",
+        "noUselessContinue": "warn",
+        "noUselessEmptyExport": "warn",
+        "noUselessFragments": "warn",
+        "noUselessStringRaw": "warn",
+        "noUselessThisAlias": "warn",
+        "useArrowFunction": "warn",
+        "useIndexOf": "warn",
+        "useLiteralKeys": "warn",
+        "useOptionalChain": "warn",
+        "useRegexLiterals": "warn"
+      },
+      "correctness": {
+        "noChildrenProp": "warn",
+        "noSwitchDeclarations": "warn",
+        "noUnsafeOptionalChaining": "warn",
+        "noUnusedFunctionParameters": "warn",
+        "noUnusedImports": "warn",
+        "noUnusedPrivateClassMembers": "warn",
+        "noUnusedVariables": "warn",
+        "noVoidTypeReturn": "warn",
+        "useExhaustiveDependencies": "warn",
+        "useJsxKeyInIterable": "warn",
+        "useParseIntRadix": "warn"
+      },
+      "nursery": {
+        "noFloatingPromises": "warn"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "warn"
+      },
+      "style": {
+        "noNonNullAssertion": "warn",
+        "useConst": "warn",
+        "useExponentiationOperator": "warn",
+        "useImportType": "warn",
+        "useNodejsImportProtocol": "warn",
+        "useTemplate": "warn"
+      },
+      "suspicious": {
+        "noArrayIndexKey": "warn",
+        "noAssignInExpressions": "warn",
+        "noConfusingLabels": "warn",
+        "noConfusingVoidType": "warn",
+        "noDoubleEquals": "warn",
+        "noExplicitAny": "warn",
+        "noGlobalIsNan": "warn",
+        "noImplicitAnyLet": "warn",
+        "noTemplateCurlyInString": "warn",
+        "noThenProperty": "warn",
+        "useIterableCallbackReturn": "warn"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["packages/app/**"],
+      "plugins": [
+        "./biome-plugins/expo-no-dynamic-env-var.grit",
+        "./biome-plugins/expo-no-env-var-destructuring.grit"
+      ]
+    },
+    {
+      "includes": [
+        "packages/api/src/**",
+        "packages/alia-computer-host/src/**",
+        "packages/alia-codea-cli/src/**",
+        "packages/alia-canvas/**",
+        "packages/alia-codea/webview-ui/**"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": {
+              "level": "error",
+              "options": {
+                "ignoreRestSiblings": true
+              }
+            },
+            "useHookAtTopLevel": "error"
+          },
+          "suspicious": {
+            "noTsIgnore": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/api/src/**", "packages/alia-computer-host/src/**"],
+      "linter": {
+        "rules": {
+          "nursery": {
+            "noFloatingPromises": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/api/src/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noNamespace": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/alia-computer-host/src/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "error"
+          }
+        }
+      }
+    }
+  ]
+}

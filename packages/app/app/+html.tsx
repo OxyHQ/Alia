@@ -28,7 +28,10 @@ export default function Root({ children }: PropsWithChildren) {
         {/* Browsers read Permissions-Policy only as a header, so this line is
             inert — but it must not deny what the app uses: dictation and
             voice calls need the microphone, and the camera attaches photos. */}
-        <meta httpEquiv="Permissions-Policy" content="camera=(self), microphone=(self), geolocation=()" />
+        <meta
+          httpEquiv="Permissions-Policy"
+          content="camera=(self), microphone=(self), geolocation=()"
+        />
 
         {/* Primary Meta Tags */}
         <meta name="title" content="Alia" />

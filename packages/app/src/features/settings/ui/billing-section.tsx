@@ -40,10 +40,8 @@ interface BillingSectionProps {
 export function BillingSection({ success }: BillingSectionProps) {
   const router = useRouter();
   const { data: creditsInfo, isLoading, refetch } = useCredits();
-  const { data: subscription, refetch: refetchSubscription } =
-    useSubscription();
-  const { data: transactionsData, refetch: refetchTransactions } =
-    useTransactions(10, 0);
+  const { data: subscription, refetch: refetchSubscription } = useSubscription();
+  const { data: transactionsData, refetch: refetchTransactions } = useTransactions(10, 0);
   const { data: packages = [] } = useCreditPackages();
   const { data: creditPrice } = useCreditPrice();
   const cancelSubscriptionMutation = useCancelSubscription();
@@ -65,8 +63,7 @@ export function BillingSection({ success }: BillingSectionProps) {
 
     if (
       polledSubscription &&
-      (polledSubscription.status === 'active' ||
-        polledSubscription.status === 'trialing')
+      (polledSubscription.status === 'active' || polledSubscription.status === 'trialing')
     ) {
       toastShown.current = true;
       refetch();
@@ -99,17 +96,13 @@ export function BillingSection({ success }: BillingSectionProps) {
       await cancelSubscriptionMutation.mutateAsync();
       toast.success(t('billing.cancelSubscriptionSuccess'));
     } catch (error: unknown) {
-      toast.error(
-        getErrorMessage(error) || t('billing.failedCancelSubscription'),
-      );
+      toast.error(getErrorMessage(error) || t('billing.failedCancelSubscription'));
     }
   };
 
   const handleManagePayment = async () => {
     try {
-      const url = await createPortalMutation.mutateAsync(
-        Linking.createURL('/settings/usage'),
-      );
+      const url = await createPortalMutation.mutateAsync(Linking.createURL('/settings/usage'));
       if (url) {
         await Linking.openURL(url);
       }
@@ -119,9 +112,7 @@ export function BillingSection({ success }: BillingSectionProps) {
   };
 
   const isSubscribed = subscription && subscription.status === 'active';
-  const freeCredits = creditsInfo
-    ? creditsInfo.freeCredits
-    : 0;
+  const freeCredits = creditsInfo ? creditsInfo.freeCredits : 0;
 
   const handlePurchaseCredits = async (packageId: string) => {
     try {
@@ -199,7 +190,10 @@ export function BillingSection({ success }: BillingSectionProps) {
     : undefined;
 
   const bundle = creditsInfo.productAllowance;
-  const activeBundle = bundle && Date.parse(bundle.periodStart) <= Date.now() && Date.parse(bundle.periodEnd) > Date.now();
+  const activeBundle =
+    bundle &&
+    Date.parse(bundle.periodStart) <= Date.now() &&
+    Date.parse(bundle.periodEnd) > Date.now();
   const plan = isSubscribed
     ? {
         badge: t('settings.account.currentPlan'),
@@ -223,27 +217,30 @@ export function BillingSection({ success }: BillingSectionProps) {
           </Button>
         ),
       }
-    : activeBundle ? {
-        badge: t('settings.account.currentPlan'), title: 'Oxy One',
-        description: `${bundle.included.toLocaleString()} ${t('credits.credits')} · ${t('billing.creditsEvery24h', { count: creditsInfo.dailyRefresh })}`,
-      } : {
-        badge: t('settings.account.currentPlan'),
-        title: `${t('settings.account.billing.freePlan')} ${dollars(0)}${t('credits.perMonth')}`,
-        description:
-          creditsInfo.dailyRefresh > 0
-            ? t('billing.creditsEvery24h', { count: creditsInfo.dailyRefresh })
-            : t('settings.account.billing.freePlanDescription'),
-        action: (
-          <Button
-            size="sm"
-            appearance="outline"
-            tone="neutral"
-            onPress={() => router.push('/(biglayout)/subscribe')}
-          >
-            {t('credits.upgrade')}
-          </Button>
-        ),
-      };
+    : activeBundle
+      ? {
+          badge: t('settings.account.currentPlan'),
+          title: 'Oxy One',
+          description: `${bundle.included.toLocaleString()} ${t('credits.credits')} · ${t('billing.creditsEvery24h', { count: creditsInfo.dailyRefresh })}`,
+        }
+      : {
+          badge: t('settings.account.currentPlan'),
+          title: `${t('settings.account.billing.freePlan')} ${dollars(0)}${t('credits.perMonth')}`,
+          description:
+            creditsInfo.dailyRefresh > 0
+              ? t('billing.creditsEvery24h', { count: creditsInfo.dailyRefresh })
+              : t('settings.account.billing.freePlanDescription'),
+          action: (
+            <Button
+              size="sm"
+              appearance="outline"
+              tone="neutral"
+              onPress={() => router.push('/(biglayout)/subscribe')}
+            >
+              {t('credits.upgrade')}
+            </Button>
+          ),
+        };
 
   const sections: SettingsPageSection[] = [
     {
@@ -275,9 +272,7 @@ export function BillingSection({ success }: BillingSectionProps) {
               {
                 key: 'refresh',
                 label: t('credits.dailyRefresh'),
-                control: (
-                  <SettingsValueField>{`+${creditsInfo.dailyRefresh}`}</SettingsValueField>
-                ),
+                control: <SettingsValueField>{`+${creditsInfo.dailyRefresh}`}</SettingsValueField>,
               },
             ]
           : []),
@@ -287,20 +282,36 @@ export function BillingSection({ success }: BillingSectionProps) {
 
   if (bundle && activeBundle) {
     sections.unshift({
-      key: 'oxy-one', label: 'Oxy One',
+      key: 'oxy-one',
+      label: 'Oxy One',
       description: `${bundle.included.toLocaleString()} ${t('credits.credits')} · ${new Date(bundle.periodEnd).toLocaleDateString()}`,
       rows: [
-        { key: 'allowance', label: t('credits.credits'), control: <SettingsValueField>{`${bundle.remaining.toLocaleString()} / ${bundle.included.toLocaleString()}`}</SettingsValueField> },
-        { key: 'manage', label: t('credits.manageBilling'), control: <Button size="sm" appearance="outline" tone="neutral" onPress={() => Linking.openURL('https://accounts.oxy.so/payments')}>{t('settings.account.manage')}</Button> },
+        {
+          key: 'allowance',
+          label: t('credits.credits'),
+          control: (
+            <SettingsValueField>{`${bundle.remaining.toLocaleString()} / ${bundle.included.toLocaleString()}`}</SettingsValueField>
+          ),
+        },
+        {
+          key: 'manage',
+          label: t('credits.manageBilling'),
+          control: (
+            <Button
+              size="sm"
+              appearance="outline"
+              tone="neutral"
+              onPress={() => Linking.openURL('https://accounts.oxy.so/payments')}
+            >
+              {t('settings.account.manage')}
+            </Button>
+          ),
+        },
       ],
     });
   }
 
-  if (
-    isSubscribed &&
-    !subscription.isComped &&
-    !subscription.cancelAtPeriodEnd
-  ) {
+  if (isSubscribed && !subscription.isComped && !subscription.cancelAtPeriodEnd) {
     sections.push({
       key: 'subscription',
       label: t('settings.account.billing.subscription'),
@@ -376,8 +387,7 @@ export function BillingSection({ success }: BillingSectionProps) {
         {
           key: 'custom-buy',
           label: t('billing.buy'),
-          description:
-            customPriceCents > 0 ? dollars(customPriceCents) : undefined,
+          description: customPriceCents > 0 ? dollars(customPriceCents) : undefined,
           control: (
             <Button
               size="sm"
@@ -387,9 +397,7 @@ export function BillingSection({ success }: BillingSectionProps) {
               disabled={!canBuyCustom || createCustomCheckoutMutation.isPending}
               loading={createCustomCheckoutMutation.isPending}
             >
-              {customPriceCents > 0
-                ? dollars(customPriceCents)
-                : t('billing.buy')}
+              {customPriceCents > 0 ? dollars(customPriceCents) : t('billing.buy')}
             </Button>
           ),
         },

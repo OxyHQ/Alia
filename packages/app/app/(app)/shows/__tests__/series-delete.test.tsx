@@ -1,10 +1,5 @@
 import React from 'react';
-import {
-  act,
-  create,
-  type ReactTestInstance,
-  type ReactTestRenderer,
-} from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -61,10 +56,7 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
 
   type ListProps = {
@@ -127,10 +119,7 @@ vi.mock('@oxy.so/bloom/icons/RiPencilLine', () => ({ RiPencilLine: () => null })
 
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
-  const text = ({
-    children,
-    ...props
-  }: React.PropsWithChildren<Record<string, unknown>>) =>
+  const text = ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
     ReactModule.createElement('Text', props, children);
   return { Text: text, H5: text, Muted: text };
 });
@@ -138,16 +127,14 @@ vi.mock('@oxy.so/bloom/typography', async () => {
 vi.mock('@oxy.so/bloom/badge', async () => {
   const ReactModule = await import('react');
   return {
-    Badge: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Badge', props),
+    Badge: (props: Record<string, unknown>) => ReactModule.createElement('Badge', props),
   };
 });
 
 vi.mock('@oxy.so/bloom/item', async () => {
   const ReactModule = await import('react');
   return {
-    Item: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Item', props),
+    Item: (props: Record<string, unknown>) => ReactModule.createElement('Item', props),
   };
 });
 
@@ -184,10 +171,7 @@ vi.mock('@oxy.so/bloom/empty-state', async () => {
 vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
   return {
-    Button: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Button: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Button', props, children),
   };
 });
@@ -301,11 +285,7 @@ async function renderScreen(episodes: (typeof EPISODE)[] = []) {
  * `type: string` rather than a literal — `node.type` is `ElementType`, and TS
  * calls a comparison against a string LITERAL an unintentional one.
  */
-function byLabel(
-  rendered: ReactTestRenderer,
-  type: string,
-  label: string,
-): ReactTestInstance {
+function byLabel(rendered: ReactTestRenderer, type: string, label: string): ReactTestInstance {
   return rendered.root.find(
     (node) => node.type === type && node.props.accessibilityLabel === label,
   );
@@ -344,9 +324,7 @@ describe('removing a show', () => {
     expect(routerBack).not.toHaveBeenCalled();
 
     const { useShowStore } = await import('@/features/shows/runtime/show-store');
-    expect(useShowStore.getState().series.map((s) => s.id)).toEqual([
-      'series-abc',
-    ]);
+    expect(useShowStore.getState().series.map((s) => s.id)).toEqual(['series-abc']);
   });
 
   it('says it is gone from both, when the request succeeded', async () => {
@@ -361,9 +339,7 @@ describe('removing a show', () => {
     expect(toastError).not.toHaveBeenCalled();
     // The message names both places, because both is what happened. It used to
     // promise the podcast survived on Syra, which stopped being true.
-    expect(toastSuccess).toHaveBeenCalledWith(
-      'Show deleted from Alia and Syra',
-    );
+    expect(toastSuccess).toHaveBeenCalledWith('Show deleted from Alia and Syra');
     expect(routerBack).toHaveBeenCalled();
   });
 
@@ -408,8 +384,8 @@ describe('removing an episode', () => {
 
     expect(toastSuccess).not.toHaveBeenCalled();
     expect(toastError).toHaveBeenCalled();
-    expect(
-      useShowStore.getState().episodesBySeries['series-abc']?.map((e) => e.id),
-    ).toEqual(['episode-xyz']);
+    expect(useShowStore.getState().episodesBySeries['series-abc']?.map((e) => e.id)).toEqual([
+      'episode-xyz',
+    ]);
   });
 });

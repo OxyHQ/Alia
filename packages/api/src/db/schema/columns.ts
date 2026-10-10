@@ -105,8 +105,5 @@ export function checkOneOf(name: string, column: PgColumn, values: readonly stri
  * quietly doing as well.
  */
 export function checkArrayWithin(name: string, column: PgColumn, values: readonly string[]) {
-  return check(
-    name,
-    sql`${column} <@ ARRAY[${sql.raw(inList(values))}]::text[]`,
-  );
+  return check(name, sql`${column} <@ ARRAY[${sql.raw(inList(values))}]::text[]`);
 }

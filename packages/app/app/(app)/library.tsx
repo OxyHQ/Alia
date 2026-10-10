@@ -87,14 +87,11 @@ export default function LibraryScreen() {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (file) =>
-          file.name.toLowerCase().includes(query) ||
-          file.type.toLowerCase().includes(query),
+          file.name.toLowerCase().includes(query) || file.type.toLowerCase().includes(query),
       );
     }
 
-    return filtered.sort(
-      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
-    );
+    return filtered.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }, [files, searchQuery, selectedCategory]);
 
   const handleUploadImage = async () => {
@@ -169,10 +166,7 @@ export default function LibraryScreen() {
           onClearText={() => setSearchQuery('')}
         />
 
-        <ChipRow
-          role="radiogroup"
-          accessibilityLabel={t('pages.library.categories')}
-        >
+        <ChipRow role="radiogroup" accessibilityLabel={t('pages.library.categories')}>
           {categories.map((category) => (
             <Chip
               key={category.label}
@@ -187,9 +181,7 @@ export default function LibraryScreen() {
         </ChipRow>
 
         {isFiltered ? (
-          <Muted>
-            {t('pages.library.resultCount', { count: filteredFiles.length })}
-          </Muted>
+          <Muted>{t('pages.library.resultCount', { count: filteredFiles.length })}</Muted>
         ) : null}
 
         {loading && files.length === 0 ? (
@@ -211,16 +203,7 @@ export default function LibraryScreen() {
         ) : null}
       </View>
     ),
-    [
-      t,
-      searchQuery,
-      selectedCategory,
-      categories,
-      filteredFiles,
-      isFiltered,
-      loading,
-      files,
-    ],
+    [t, searchQuery, selectedCategory, categories, filteredFiles, isFiltered, loading, files],
   );
 
   const listEmpty = useMemo(() => {
@@ -229,11 +212,7 @@ export default function LibraryScreen() {
       <EmptyState
         icon={RiFolderLine}
         title={searchQuery ? t('library.noFilesFound') : t('library.noFiles')}
-        description={
-          searchQuery
-            ? t('common.tryDifferentSearch')
-            : t('library.uploadToStart')
-        }
+        description={searchQuery ? t('common.tryDifferentSearch') : t('library.uploadToStart')}
       />
     );
   }, [loading, t, searchQuery]);
@@ -297,9 +276,7 @@ export default function LibraryScreen() {
         ListEmptyComponent={listEmpty}
         showsVerticalScrollIndicator={false}
         contentContainerClassName="px-4 pb-6 pt-4"
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       />
     </>
   );

@@ -46,7 +46,10 @@ function levelOfRetiredEffort(stored: unknown): PowerLevel | null {
  *    dropped: a level carries its own effort, and there are no models to pin.
  */
 export function migrateModelState(persisted: unknown, version: number): PersistedModelState {
-  const state = (typeof persisted === 'object' && persisted !== null ? persisted : {}) as Record<string, unknown>;
+  const state = (typeof persisted === 'object' && persisted !== null ? persisted : {}) as Record<
+    string,
+    unknown
+  >;
   const webSearch = typeof state.webSearch === 'boolean' ? state.webSearch : true;
 
   if (version >= 4 && (isPowerLevel(state.selectedLevel) || isDeviceModelId(state.selectedLevel))) {

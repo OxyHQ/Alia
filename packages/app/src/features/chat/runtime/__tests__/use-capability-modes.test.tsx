@@ -46,24 +46,44 @@ const env = vi.hoisted(() => ({
 vi.mock('@/features/chat/runtime/global-store', async () => {
   const { useSyncExternalStore } = await import('react');
   const listeners = new Set<() => void>();
-  const notify = () => { listeners.forEach((fn) => fn()); };
+  const notify = () => {
+    listeners.forEach((fn) => fn());
+  };
   const state = {
-    get ghostMode() { return store.ghostMode; },
-    get agentMode() { return store.agentMode; },
-    get deepResearchMode() { return store.deepResearchMode; },
-    setGhostMode: (v: boolean) => { store.ghostMode = v; notify(); },
-    setAgentMode: (v: boolean) => { store.agentMode = v; notify(); },
-    setDeepResearchMode: (v: boolean) => { store.deepResearchMode = v; notify(); },
+    get ghostMode() {
+      return store.ghostMode;
+    },
+    get agentMode() {
+      return store.agentMode;
+    },
+    get deepResearchMode() {
+      return store.deepResearchMode;
+    },
+    setGhostMode: (v: boolean) => {
+      store.ghostMode = v;
+      notify();
+    },
+    setAgentMode: (v: boolean) => {
+      store.agentMode = v;
+      notify();
+    },
+    setDeepResearchMode: (v: boolean) => {
+      store.deepResearchMode = v;
+      notify();
+    },
   };
   const subscribe = (fn: () => void) => {
     listeners.add(fn);
-    return () => { listeners.delete(fn); };
+    return () => {
+      listeners.delete(fn);
+    };
   };
-  const useStore = (selector: (s: typeof state) => unknown) => useSyncExternalStore(
-    subscribe,
-    () => selector(state),
-    () => selector(state),
-  );
+  const useStore = (selector: (s: typeof state) => unknown) =>
+    useSyncExternalStore(
+      subscribe,
+      () => selector(state),
+      () => selector(state),
+    );
   useStore.getState = () => state;
   return { useStore };
 });
@@ -77,18 +97,27 @@ vi.mock('@/shared/i18n/use-translation', () => ({
 }));
 
 vi.mock('expo-router', () => ({
-  useRouter: () => ({ push: (path: string) => { env.pushed.push(path); } }),
+  useRouter: () => ({
+    push: (path: string) => {
+      env.pushed.push(path);
+    },
+  }),
 }));
 
 vi.mock('@oxy.so/bloom/toast', () => ({
   toast: {
-    info: (message: string) => { env.toasts.push(message); },
+    info: (message: string) => {
+      env.toasts.push(message);
+    },
     error: vi.fn(),
     success: vi.fn(),
   },
 }));
 
-import { useCapabilityModes, type CapabilityModes } from '@/features/chat/runtime/use-capability-modes';
+import {
+  useCapabilityModes,
+  type CapabilityModes,
+} from '@/features/chat/runtime/use-capability-modes';
 
 /** A fresh mount of the hook — the act the old `Set` could not survive. */
 function mount() {
@@ -97,7 +126,9 @@ function mount() {
     api = useCapabilityModes();
     return null;
   }
-  act(() => { create(React.createElement(Probe)); });
+  act(() => {
+    create(React.createElement(Probe));
+  });
   return {
     get active() {
       if (!api) throw new Error('hook did not render');
@@ -106,7 +137,9 @@ function mount() {
     toggle(mode: Parameters<CapabilityModes['toggle']>[0]) {
       if (!api) throw new Error('hook did not render');
       const { toggle } = api;
-      act(() => { toggle(mode); });
+      act(() => {
+        toggle(mode);
+      });
     },
   };
 }

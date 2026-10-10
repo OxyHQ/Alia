@@ -151,10 +151,7 @@ export async function addCredits(
 }
 
 /** Set both balances to zero. `null` if there is no such account. */
-export async function zeroCredits(
-  db: Executor,
-  oxyUserId: string,
-): Promise<UserCreditsRow | null> {
+export async function zeroCredits(db: Executor, oxyUserId: string): Promise<UserCreditsRow | null> {
   const [row] = await db
     .update(userCredits)
     .set({ creditsFree: 0, creditsPaid: 0 })

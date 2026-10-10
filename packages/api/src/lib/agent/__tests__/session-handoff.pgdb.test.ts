@@ -33,7 +33,17 @@ import { eq } from 'drizzle-orm';
 
 vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { agents: child, chat: child, general: child, v1: child, triggers: child, credits: child, providers: child } };
+  return {
+    log: {
+      agents: child,
+      chat: child,
+      general: child,
+      v1: child,
+      triggers: child,
+      credits: child,
+      providers: child,
+    },
+  };
 });
 vi.mock('../../chat-core.js', () => ({
   getRoutingProfile: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
@@ -99,7 +109,10 @@ const nextId = () => `${SUITE}-${seq++}`;
 async function account(free: number, paid: number): Promise<string> {
   const id = nextId();
   await getOrCreateUserCredits(db, id);
-  await db.update(userCredits).set({ creditsFree: free, creditsPaid: paid }).where(eq(userCredits.id, id));
+  await db
+    .update(userCredits)
+    .set({ creditsFree: free, creditsPaid: paid })
+    .where(eq(userCredits.id, id));
   return id;
 }
 
@@ -205,7 +218,12 @@ describe('startAgentSession', () => {
     const userId = await account(100, 0);
     const agent = await seedAgent(15);
 
-    const outcome = await startAgentSession({ agent, userId, task: 'do the thing', origin: 'hire' });
+    const outcome = await startAgentSession({
+      agent,
+      userId,
+      task: 'do the thing',
+      origin: 'hire',
+    });
 
     expect(outcome.ok).toBe(true);
     // The reservation is DELIBERATELY still spent: the worker settles it. This
@@ -256,7 +274,12 @@ describe('startAgentSession', () => {
     const userId = await account(3, 0);
     const agent = await seedAgent(15);
 
-    const outcome = await startAgentSession({ agent, userId, task: 'too expensive', origin: 'hire' });
+    const outcome = await startAgentSession({
+      agent,
+      userId,
+      task: 'too expensive',
+      origin: 'hire',
+    });
 
     expect(outcome).toEqual({ ok: false, reason: 'insufficient_credits', creditsNeeded: 15 });
     expect(await balanceOf(userId)).toEqual({ free: 3, paid: 0 });
@@ -268,7 +291,12 @@ describe('startAgentSession', () => {
     const agent = await seedAgent(15);
     vi.mocked(enqueueAgentSession).mockRejectedValueOnce(new Error('redis is gone'));
 
-    const outcome = await startAgentSession({ agent, userId, task: 'never queued', origin: 'hire' });
+    const outcome = await startAgentSession({
+      agent,
+      userId,
+      task: 'never queued',
+      origin: 'hire',
+    });
 
     expect(outcome).toEqual({ ok: false, reason: 'handoff_failed' });
     expect(await balanceOf(userId)).toEqual(before);
@@ -299,7 +327,9 @@ describe('startAgentSession', () => {
     expect(outcome).toEqual({ ok: false, reason: 'handoff_failed' });
     expect(await balanceOf(userId)).toEqual(before);
     // Nothing was written, so there is nothing for the sweep to find either.
-    expect(await db.select().from(agentSessions).where(eq(agentSessions.agentId, agent._id))).toEqual([]);
+    expect(
+      await db.select().from(agentSessions).where(eq(agentSessions.agentId, agent._id)),
+    ).toEqual([]);
   });
 
   /**
@@ -444,7 +474,9 @@ describe('the reclaim sweep and a late worker cannot both settle', () => {
     await backdate(agent._id);
     await reclaimOrphanedAgentSessions();
 
-    expect(await claimAgentSessionRun(db, outcome.sessionId, 'late-worker')).toEqual({ claimed: false });
+    expect(await claimAgentSessionRun(db, outcome.sessionId, 'late-worker')).toEqual({
+      claimed: false,
+    });
   });
 
   it('and the sweep really does write that status', async () => {

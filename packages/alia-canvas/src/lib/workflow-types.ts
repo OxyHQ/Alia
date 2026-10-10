@@ -1,14 +1,14 @@
-import type { Node, Edge } from "@xyflow/react";
+import type { Node, Edge } from '@xyflow/react';
 
 export type WorkflowNodeType =
-  | "aiText"
-  | "aiImage"
-  | "condition"
-  | "memory"
-  | "github"
-  | "output"
-  | "textInput"
-  | "merge";
+  | 'aiText'
+  | 'aiImage'
+  | 'condition'
+  | 'memory'
+  | 'github'
+  | 'output'
+  | 'textInput'
+  | 'merge';
 
 export interface WorkflowNodeData {
   label: string;
@@ -60,7 +60,7 @@ export interface WorkflowNode extends Node {
 export interface WorkflowExecution {
   id: string;
   workflowId: string;
-  status: "running" | "completed" | "failed";
+  status: 'running' | 'completed' | 'failed';
   results: WorkflowExecutionResult[];
   finalOutput: string;
   startedAt: Date;

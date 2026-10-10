@@ -82,7 +82,10 @@ const USER = '6981c9178fcdefaf81988ffb';
 const b64url = (value: string | Uint8Array): string => Buffer.from(value).toString('base64url');
 
 /** A real Ed25519 Oxy service token — the middleware verifies this signature. */
-function serviceToken(claims: Record<string, unknown> = {}, privateKey: KeyObject = KEY.privateKey): string {
+function serviceToken(
+  claims: Record<string, unknown> = {},
+  privateKey: KeyObject = KEY.privateKey,
+): string {
   const now = Math.floor(Date.now() / 1_000);
   const header = { alg: 'EdDSA', typ: 'JWT', kid: KID };
   const payload = {
@@ -111,10 +114,14 @@ function serviceToken(claims: Record<string, unknown> = {}, privateKey: KeyObjec
  * double of it.
  */
 function credentialedVerifier(grant: { authorized: boolean; scopes?: string[] } | 'unreachable') {
-  const oxy = new OxyServer({ baseURL: OXY_BASE_URL, serviceAuth: { apiKey: 'oxy_dk_alia_test', apiSecret: 'alia-secret' } });
+  const oxy = new OxyServer({
+    baseURL: OXY_BASE_URL,
+    serviceAuth: { apiKey: 'oxy_dk_alia_test', apiSecret: 'alia-secret' },
+  });
   const getServiceToken = vi.fn().mockResolvedValue('alia-own-service-token');
   const makeRequest = vi.fn(async (_method: string, path: string) => {
-    if (path !== '/internal/service-acting-as/verify') throw new Error(`unexpected request: ${path}`);
+    if (path !== '/internal/service-acting-as/verify')
+      throw new Error(`unexpected request: ${path}`);
     if (grant === 'unreachable') throw new Error('verify endpoint unreachable');
     return { ...grant, scopes: grant.scopes ?? [], epoch: '1' };
   });
@@ -147,7 +154,9 @@ beforeAll(async () => {
   app.post('/internal/trigger', oxyServiceAuth, (req, res) => {
     res.json({ userId: req.userId ?? null, actingAs: req.serviceActingAs ?? null });
   });
-  await new Promise<void>((resolve) => { server = app.listen(0, '127.0.0.1', () => resolve()); });
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, '127.0.0.1', () => resolve());
+  });
 });
 
 afterAll(async () => {
@@ -170,11 +179,11 @@ async function send(path: string, headers: Record<string, string>) {
     headers: { 'content-type': 'application/json', ...headers },
     body: '{}',
   });
-  return { status: response.status, body: await response.json() as Record<string, unknown> };
+  return { status: response.status, body: (await response.json()) as Record<string, unknown> };
 }
 
 describe('a delegated service request is verified by a credentialed client', () => {
-  it('accepts a valid acting-as grant, and presents ALIA\'s own token to check it', async () => {
+  it("accepts a valid acting-as grant, and presents ALIA's own token to check it", async () => {
     const verifier = credentialedVerifier({ authorized: true, scopes: ['inference:invoke'] });
     serviceClient.current = verifier.oxy;
 
@@ -194,10 +203,18 @@ describe('a delegated service request is verified by a credentialed client', () 
     expect(verifier.makeRequest).toHaveBeenCalledWith(
       'GET',
       '/internal/service-acting-as/verify',
-      { appId: APP, userId: USER, credentialId: 'homiio-credential-id', ownerAccountId: 'homiio-owner-account', environment: 'production' },
+      {
+        appId: APP,
+        userId: USER,
+        credentialId: 'homiio-credential-id',
+        ownerAccountId: 'homiio-owner-account',
+        environment: 'production',
+      },
       expect.objectContaining({
         headers: { Authorization: 'Bearer alia-own-service-token' },
-        cache: false, retry: false, timeout: 5000,
+        cache: false,
+        retry: false,
+        timeout: 5000,
       }),
     );
   });
@@ -233,10 +250,14 @@ describe('a delegated service request is verified by a credentialed client', () 
     serviceClient.current = verifier.oxy;
     const blindGrantCheck = vi.spyOn(oxyClient, 'verifyActingAs');
 
-    expect((await send('/delegated', {
-      authorization: `Bearer ${serviceToken()}`,
-      'x-oxy-user-id': USER,
-    })).status).toBe(200);
+    expect(
+      (
+        await send('/delegated', {
+          authorization: `Bearer ${serviceToken()}`,
+          'x-oxy-user-id': USER,
+        })
+      ).status,
+    ).toBe(200);
 
     // The exact defect: `oxyClient` cannot ask, so anything it is asked to
     // verify is denied. It must not be asked.

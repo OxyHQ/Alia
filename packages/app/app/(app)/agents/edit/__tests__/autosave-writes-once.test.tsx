@@ -91,10 +91,7 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     Platform: {
@@ -117,19 +114,14 @@ vi.mock('react-native', async () => {
 vi.mock('@oxy.so/bloom/textarea', async () => {
   const ReactModule = await import('react');
   return {
-    Textarea: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Textarea', props),
+    Textarea: (props: Record<string, unknown>) => ReactModule.createElement('Textarea', props),
   };
 });
 vi.mock('@oxy.so/bloom/text-field', async () => {
   const ReactModule = await import('react');
   return {
-    TextFieldInput: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Input', props),
-    TextField: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    TextFieldInput: (props: Record<string, unknown>) => ReactModule.createElement('Input', props),
+    TextField: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('TextField', props, children),
     TextFieldIcon: (props: Record<string, unknown>) =>
       ReactModule.createElement('TextFieldIcon', props),
@@ -138,37 +130,27 @@ vi.mock('@oxy.so/bloom/text-field', async () => {
 vi.mock('@oxy.so/bloom/switch', async () => {
   const ReactModule = await import('react');
   return {
-    Switch: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Switch', props),
+    Switch: (props: Record<string, unknown>) => ReactModule.createElement('Switch', props),
   };
 });
 vi.mock('@oxy.so/bloom/label', async () => {
   const ReactModule = await import('react');
   return {
-    Label: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Label: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Label', props, children),
   };
 });
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   // `Muted` is the same text in the secondary tone, so it renders as a Text.
-  const text = ({
-    children,
-    ...props
-  }: React.PropsWithChildren<Record<string, unknown>>) =>
+  const text = ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
     ReactModule.createElement('Text', props, children);
   return { Text: text, Muted: text };
 });
 vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
   return {
-    Button: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Button: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Button', props, children),
   };
 });
@@ -176,10 +158,7 @@ vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     DropdownMenu: host('MenuRoot'),
@@ -191,20 +170,14 @@ vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
 vi.mock('@oxy.so/bloom/dialog', async () => {
   const ReactModule = await import('react');
   return {
-    Dialog: ({
-      open,
-      children,
-    }: React.PropsWithChildren<{ open?: boolean }>) =>
-      open === true
-        ? ReactModule.createElement('Dialog', null, children)
-        : null,
+    Dialog: ({ open, children }: React.PropsWithChildren<{ open?: boolean }>) =>
+      open === true ? ReactModule.createElement('Dialog', null, children) : null,
   };
 });
 vi.mock('@oxy.so/bloom/search', async () => {
   const ReactModule = await import('react');
   return {
-    Search: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Search', props),
+    Search: (props: Record<string, unknown>) => ReactModule.createElement('Search', props),
   };
 });
 vi.mock('@oxy.so/bloom/button', async () => {
@@ -216,26 +189,20 @@ vi.mock('@oxy.so/bloom/button', async () => {
       ReactModule.createElement(
         'Button',
         props,
-        typeof children === 'string'
-          ? ReactModule.createElement('Text', null, children)
-          : children,
+        typeof children === 'string' ? ReactModule.createElement('Text', null, children) : children,
       ),
   };
 });
 vi.mock('@oxy.so/bloom/item', async () => {
   const ReactModule = await import('react');
   return {
-    Item: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Item', props),
+    Item: (props: Record<string, unknown>) => ReactModule.createElement('Item', props),
   };
 });
 vi.mock('@oxy.so/bloom/settings-list', async () => {
   const ReactModule = await import('react');
   return {
-    SettingsListGroup: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    SettingsListGroup: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('SettingsListGroup', props, children),
     SettingsListItem: (props: Record<string, unknown>) =>
       ReactModule.createElement('SettingsListItem', props),
@@ -255,18 +222,14 @@ vi.mock('@alia.onl/sdk', async () => {
 vi.mock('@oxy.so/bloom/badge', async () => {
   const ReactModule = await import('react');
   return {
-    Badge: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Badge', props),
+    Badge: (props: Record<string, unknown>) => ReactModule.createElement('Badge', props),
   };
 });
 vi.mock('@oxy.so/bloom/card', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return { Card: host('Card'), CardBody: host('CardBody') };
 });
@@ -274,36 +237,28 @@ vi.mock('@oxy.so/bloom/chip', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return { Chip: host('Chip'), ChipRow: host('ChipRow') };
 });
 vi.mock('@oxy.so/bloom/divider', async () => {
   const ReactModule = await import('react');
   return {
-    Divider: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Divider', props),
+    Divider: (props: Record<string, unknown>) => ReactModule.createElement('Divider', props),
   };
 });
 vi.mock('@oxy.so/bloom/loading', async () => {
   const ReactModule = await import('react');
   // The label as a Text node, so "what the screen says" reads it like any other.
   return {
-    Loading: ({ text }: { text?: string }) =>
-      ReactModule.createElement('Text', null, text),
+    Loading: ({ text }: { text?: string }) => ReactModule.createElement('Text', null, text),
   };
 });
 vi.mock('@oxy.so/bloom/segmented-control', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     SegmentedControl: host('SegmentedControl'),
@@ -315,10 +270,7 @@ vi.mock('@oxy.so/bloom/tabs', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return { Tabs: host('Tabs'), TabsTrigger: host('TabsTrigger') };
 });
@@ -404,12 +356,9 @@ const { default: EditAgentScreen } = await import('../[id]');
  * the toast an indicator instead of a log.
  */
 function toastId(): string {
-  const options = toastCalls.loading.mock.calls[0]?.[1] as
-    { id?: string } | undefined;
+  const options = toastCalls.loading.mock.calls[0]?.[1] as { id?: string } | undefined;
   if (options?.id === undefined)
-    throw new Error(
-      'the pending toast carries no id, so it cannot be replaced',
-    );
+    throw new Error('the pending toast carries no id, so it cannot be replaced');
   return options.id;
 }
 
@@ -434,9 +383,7 @@ const KNOWLEDGE = [
 ];
 
 /** The agent as `GET /agents/:id` serves it — child lists ATTACHED. */
-function agentFixture(
-  overrides: Record<string, unknown> = {},
-): Record<string, unknown> {
+function agentFixture(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     _id: 'agent-1',
     oxyAccountId: 'acct-bot',
@@ -505,11 +452,7 @@ async function renderEditor(): Promise<{
   let renderer!: ReactTestRenderer;
   await act(async () => {
     renderer = create(
-      React.createElement(
-        QueryClientProvider,
-        { client },
-        React.createElement(EditAgentScreen),
-      ),
+      React.createElement(QueryClientProvider, { client }, React.createElement(EditAgentScreen)),
     );
   });
   // Let the agent query land AND let the screen finish opening: a microtask
@@ -548,20 +491,15 @@ function systemPromptBox(renderer: ReactTestRenderer): {
 } {
   // Bloom's `Textarea`, like the other multiline fields on the screen; the
   // testID is how this one stays findable among them.
-  const boxes = renderer.root.findAllByType(
-    'Textarea' as unknown as React.ComponentType,
-  );
+  const boxes = renderer.root.findAllByType('Textarea' as unknown as React.ComponentType);
   const box = boxes.find((node) => node.props.testID === 'agent-system-prompt');
-  if (box === undefined)
-    throw new Error('the system prompt box is not on the screen');
+  if (box === undefined) throw new Error('the system prompt box is not on the screen');
   return box.props as { onChangeText: (text: string) => void };
 }
 
 /** What the screen sent, as the route would have received it. */
 function patchBodies(): Array<Record<string, unknown>> {
-  return patchRequest.mock.calls.map(
-    (call) => call[1] as Record<string, unknown>,
-  );
+  return patchRequest.mock.calls.map((call) => call[1] as Record<string, unknown>);
 }
 
 beforeEach(() => {
@@ -646,10 +584,9 @@ describe('a burst of typing is one write', () => {
       patchRequest,
       `one keystroke wrote ${patchBodies().length} times: ${JSON.stringify(patchBodies().map((b) => b.skills))}`,
     ).toHaveBeenCalledTimes(1);
-    expect(
-      patchBodies()[0].skills,
-      'the save dropped the agent linked skills',
-    ).toEqual(['skill-1']);
+    expect(patchBodies()[0].skills, 'the save dropped the agent linked skills').toEqual([
+      'skill-1',
+    ]);
     expect(patchBodies()[0].knowledge).toEqual(['file-1']);
 
     await act(async () => {
@@ -760,4 +697,3 @@ describe('one save is one toast', () => {
     });
   });
 });
-

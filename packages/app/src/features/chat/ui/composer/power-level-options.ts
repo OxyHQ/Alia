@@ -1,24 +1,24 @@
-import { useCallback, useMemo } from "react";
-import type { ComposerPanelPermissionOption } from "@oxy.so/bloom/composer-panel";
-import { RiComputerLine } from "@oxy.so/bloom/icons/RiComputerLine";
-import { RiFireLine } from "@oxy.so/bloom/icons/RiFireLine";
-import { RiFlashlightLine } from "@oxy.so/bloom/icons/RiFlashlightLine";
-import { RiLightbulbLine } from "@oxy.so/bloom/icons/RiLightbulbLine";
-import { RiRocket2Line } from "@oxy.so/bloom/icons/RiRocket2Line";
-import { RiSparkling2Line } from "@oxy.so/bloom/icons/RiSparkling2Line";
-import { RiSpeedUpLine } from "@oxy.so/bloom/icons/RiSpeedUpLine";
-import { RiVipCrownLine } from "@oxy.so/bloom/icons/RiVipCrownLine";
-import { useTranslation } from "@/shared/i18n/use-translation";
+import { useCallback, useMemo } from 'react';
+import type { ComposerPanelPermissionOption } from '@oxy.so/bloom/composer-panel';
+import { RiComputerLine } from '@oxy.so/bloom/icons/RiComputerLine';
+import { RiFireLine } from '@oxy.so/bloom/icons/RiFireLine';
+import { RiFlashlightLine } from '@oxy.so/bloom/icons/RiFlashlightLine';
+import { RiLightbulbLine } from '@oxy.so/bloom/icons/RiLightbulbLine';
+import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
+import { RiSparkling2Line } from '@oxy.so/bloom/icons/RiSparkling2Line';
+import { RiSpeedUpLine } from '@oxy.so/bloom/icons/RiSpeedUpLine';
+import { RiVipCrownLine } from '@oxy.so/bloom/icons/RiVipCrownLine';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import {
   POWER_LEVELS,
   resolveModeSelection,
   type ModeSelection,
   type PowerLevel,
-} from "@/features/chat/model/power-levels";
+} from '@/features/chat/model/power-levels';
 import {
   useLocalModelOptions,
   type LocalModelOption,
-} from "@/features/local-models/runtime/use-local-runtimes";
+} from '@/features/local-models/runtime/use-local-runtimes';
 
 /**
  * The power-level selector, in the shape Bloom's composer mode selector takes.
@@ -31,7 +31,7 @@ import {
  * devices follow the levels: that is their machine, not a model Alia offers.
  */
 
-type IconComponent = ComposerPanelPermissionOption["icon"];
+type IconComponent = ComposerPanelPermissionOption['icon'];
 
 /** One glyph per level, rising with the power it stands for. */
 export const POWER_LEVEL_ICONS: Record<PowerLevel, IconComponent> = {
@@ -59,7 +59,7 @@ export function buildPowerLevelOptions(
     ...deviceModels.map((model) => ({
       id: model.id,
       label: model.name,
-      description: t("powerLevels.onDevice", { device: model.deviceLabel }),
+      description: t('powerLevels.onDevice', { device: model.deviceLabel }),
       icon: RiComputerLine,
     })),
   ];

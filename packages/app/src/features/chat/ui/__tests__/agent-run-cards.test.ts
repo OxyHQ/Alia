@@ -25,10 +25,14 @@ for (const mod of [
   const name = mod.startsWith('icons/') ? mod.slice('icons/'.length) : null;
   vi.doMock(`@oxy.so/bloom/${mod}`, () => (name ? { [name]: () => null } : {}));
 }
-vi.mock('@/shared/i18n/use-translation', () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
+vi.mock('@/shared/i18n/use-translation', () => ({
+  useTranslation: () => ({ t: (k: string) => k }),
+}));
 vi.mock('@/features/chat/model/task-utils', () => ({ getToolPillLabel: (name: string) => name }));
 
-const { formatRunElapsed, uniqueStepLabels } = await import('@/features/chat/ui/cards/agent-task-card');
+const { formatRunElapsed, uniqueStepLabels } = await import(
+  '@/features/chat/ui/cards/agent-task-card'
+);
 const { formatRunDuration } = await import('@/features/chat/ui/cards/agent-result-card');
 
 describe('the run clock', () => {

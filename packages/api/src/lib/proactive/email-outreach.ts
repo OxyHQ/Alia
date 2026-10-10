@@ -66,14 +66,24 @@ export const IMPORTANT_EMAIL_CATEGORIES = [
 ] as const;
 
 /** Why an email does not. Also closed, so a refusal is as constrained as an approval. */
-export const ROUTINE_EMAIL_CATEGORIES = ['newsletter', 'promotion', 'automated', 'social', 'receipt', 'spam', 'other'] as const;
+export const ROUTINE_EMAIL_CATEGORIES = [
+  'newsletter',
+  'promotion',
+  'automated',
+  'social',
+  'receipt',
+  'spam',
+  'other',
+] as const;
 
 export type ImportantEmailCategory = (typeof IMPORTANT_EMAIL_CATEGORIES)[number];
 
-const classificationSchema = z.object({
-  verdict: z.enum(['important', 'not_important']),
-  category: z.enum([...IMPORTANT_EMAIL_CATEGORIES, ...ROUTINE_EMAIL_CATEGORIES]),
-}).strict();
+const classificationSchema = z
+  .object({
+    verdict: z.enum(['important', 'not_important']),
+    category: z.enum([...IMPORTANT_EMAIL_CATEGORIES, ...ROUTINE_EMAIL_CATEGORIES]),
+  })
+  .strict();
 
 export type EmailClassification = z.infer<typeof classificationSchema>;
 
@@ -94,9 +104,25 @@ export interface InboxEmailEvent {
 }
 
 export type EmailOutreachOutcome =
-  | { readonly status: 'posted'; readonly category: ImportantEmailCategory; readonly messageId: string }
-  | { readonly status: 'ignored'; readonly reason: 'invalid_event' | 'junk' | 'no_audience' | 'not_an_alia_user' | 'disabled' | 'duplicate' }
-  | { readonly status: 'skipped'; readonly reason: 'daily_limit' | 'unanswered' | 'empty' | 'agent_not_found' }
+  | {
+      readonly status: 'posted';
+      readonly category: ImportantEmailCategory;
+      readonly messageId: string;
+    }
+  | {
+      readonly status: 'ignored';
+      readonly reason:
+        | 'invalid_event'
+        | 'junk'
+        | 'no_audience'
+        | 'not_an_alia_user'
+        | 'disabled'
+        | 'duplicate';
+    }
+  | {
+      readonly status: 'skipped';
+      readonly reason: 'daily_limit' | 'unanswered' | 'empty' | 'agent_not_found';
+    }
   | { readonly status: 'routine'; readonly category: string }
   | { readonly status: 'failed' };
 
@@ -118,15 +144,23 @@ async function resolveAudience(accountId: string): Promise<Audience | null> {
   const agent = await findAgentByOxyAccountId(getDb(), accountId);
   if (agent) {
     // An agent with no owner (a product agent) has nobody to tell.
-    return agent.ownerOxyAccountId ? { oxyUserId: agent.ownerOxyAccountId, agentId: agent._id } : null;
+    return agent.ownerOxyAccountId
+      ? { oxyUserId: agent.ownerOxyAccountId, agentId: agent._id }
+      : null;
   }
   return { oxyUserId: accountId, agentId: null };
 }
 
 /** One line, no control characters, bounded. */
 function oneLine(value: string | undefined, max: number): string {
-  // eslint-disable-next-line no-control-regex
-  return (value ?? '').replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+  return (
+    (value ?? '')
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control characters is the point
+      .replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, max)
+  );
 }
 
 /**
@@ -150,9 +184,13 @@ export function buildEmailClassifierPrompt(input: {
 }): string {
   const audience = input.forAgent
     ? 'The email arrived in the OWN mailbox of an AI agent that works for a person. The agent would tell that person about it. Typical important mail here: a sign-up or verification email, a code or confirmation link for an account the agent created, or a reply to something the agent sent.'
-    : 'The email arrived in a person\'s own Inbox. Their assistant would tell them about it.';
+    : "The email arrived in a person's own Inbox. Their assistant would tell them about it.";
   // JSON-encoded, and `<` escaped, so nothing in a field can close the block.
-  const email = JSON.stringify({ from: input.from, subject: input.subject, snippet: input.snippet }).replace(/</g, '\\u003c');
+  const email = JSON.stringify({
+    from: input.from,
+    subject: input.subject,
+    snippet: input.snippet,
+  }).replace(/</g, '\\u003c');
   return [
     'You decide whether ONE incoming email is worth interrupting somebody with a notification.',
     audience,
@@ -191,11 +229,16 @@ export async function classifyEmail(input: {
       budgetMs: CLASSIFIER_BUDGET_MS,
     });
     if (text === null) return null;
-    const json = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+    const json = text
+      .trim()
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/, '');
     const parsed = classificationSchema.safeParse(JSON.parse(json));
     if (!parsed.success) return null;
     // A verdict and a category from the other list disagree: trust neither.
-    const important = (IMPORTANT_EMAIL_CATEGORIES as readonly string[]).includes(parsed.data.category);
+    const important = (IMPORTANT_EMAIL_CATEGORIES as readonly string[]).includes(
+      parsed.data.category,
+    );
     if ((parsed.data.verdict === 'important') !== important) return null;
     return parsed.data;
   } catch (err: unknown) {
@@ -235,8 +278,12 @@ export function composeEmailOutreach(input: {
   readonly from: string;
   readonly subject: string;
 }): { content: string; title: string; conversationTitle: string; notificationBody: string } {
-  const plainFrom = oneLine(input.from, MAX_SENDER_CHARS) || (input.language === 'es' ? 'remitente desconocido' : 'unknown sender');
-  const plainSubject = oneLine(input.subject, MAX_SUBJECT_CHARS) || (input.language === 'es' ? '(sin asunto)' : '(no subject)');
+  const plainFrom =
+    oneLine(input.from, MAX_SENDER_CHARS) ||
+    (input.language === 'es' ? 'remitente desconocido' : 'unknown sender');
+  const plainSubject =
+    oneLine(input.subject, MAX_SUBJECT_CHARS) ||
+    (input.language === 'es' ? '(sin asunto)' : '(no subject)');
   // Markdown for the chat message; the push body is plain text, unescaped.
   const from = quoteUntrusted(plainFrom, MAX_SENDER_CHARS);
   const subject = quoteUntrusted(plainSubject, MAX_SUBJECT_CHARS);
@@ -246,7 +293,9 @@ export function composeEmailOutreach(input: {
     const opening = input.forAgent
       ? 'Me ha llegado a mi buzón un email que creo que deberías ver.'
       : 'Te ha llegado un email que parece importante.';
-    const close = input.forAgent ? 'Si quieres, lo leo y me encargo.' : 'Ábrelo en Inbox, o pídeme que lo resuma.';
+    const close = input.forAgent
+      ? 'Si quieres, lo leo y me encargo.'
+      : 'Ábrelo en Inbox, o pídeme que lo resuma.';
     return {
       content: `${opening} ${reason}\n\n**De:** ${from}\n**Asunto:** ${subject}\n\n${close}`,
       title: 'Email importante',
@@ -257,7 +306,9 @@ export function composeEmailOutreach(input: {
   const opening = input.forAgent
     ? 'An email arrived in my mailbox that I think you should see.'
     : 'An email that looks important just arrived.';
-  const close = input.forAgent ? 'If you want, I can read it and take care of it.' : 'Open it in Inbox, or ask me to summarise it.';
+  const close = input.forAgent
+    ? 'If you want, I can read it and take care of it.'
+    : 'Open it in Inbox, or ask me to summarise it.';
   return {
     content: `${opening} ${reason}\n\n**From:** ${from}\n**Subject:** ${subject}\n\n${close}`,
     title: 'Important email',
@@ -277,7 +328,8 @@ export async function handleInboxEmailEvent(event: InboxEmailEvent): Promise<Ema
   if (!parsed.success) return { status: 'ignored', reason: 'invalid_event' };
   const data = parsed.data;
   // Oxy files spam in Junk; nobody is told about it.
-  if (data.folder !== undefined && data.folder !== 'inbox') return { status: 'ignored', reason: 'junk' };
+  if (data.folder !== undefined && data.folder !== 'inbox')
+    return { status: 'ignored', reason: 'junk' };
 
   const db = getDb();
   const audience = await resolveAudience(event.accountId);
@@ -298,9 +350,10 @@ export async function handleInboxEmailEvent(event: InboxEmailEvent): Promise<Ema
   if (claim === null) return { status: 'ignored', reason: 'duplicate' };
 
   try {
-    const refusal = audience.agentId === null
-      ? await aliaCheckInRefusal(audience.oxyUserId)
-      : await agentCheckInRefusal(audience.oxyUserId, audience.agentId);
+    const refusal =
+      audience.agentId === null
+        ? await aliaCheckInRefusal(audience.oxyUserId)
+        : await agentCheckInRefusal(audience.oxyUserId, audience.agentId);
     if (refusal) {
       await settleEmailOutreach(db, claim, { verdict: 'skipped', reason: refusal });
       return { status: 'skipped', reason: refusal };
@@ -320,7 +373,10 @@ export async function handleInboxEmailEvent(event: InboxEmailEvent): Promise<Ema
       return { status: 'failed' };
     }
     if (classification.verdict === 'not_important') {
-      await settleEmailOutreach(db, claim, { verdict: 'not_important', reason: classification.category });
+      await settleEmailOutreach(db, claim, {
+        verdict: 'not_important',
+        reason: classification.category,
+      });
       return { status: 'routine', category: classification.category };
     }
     const category = classification.category as ImportantEmailCategory;
@@ -332,31 +388,38 @@ export async function handleInboxEmailEvent(event: InboxEmailEvent): Promise<Ema
       from,
       subject,
     });
-    const posted = audience.agentId === null
-      ? await postAliaCheckIn({
-          oxyUserId: audience.oxyUserId,
-          content: message.content,
-          title: message.title,
-          conversationTitle: message.conversationTitle,
-          notificationBody: message.notificationBody,
-          data: { kind: 'important_email', emailId: data.messageId },
-        })
-      : await postAgentMessage({
-          oxyUserId: audience.oxyUserId,
-          agentId: audience.agentId,
-          kind: 'check_in',
-          content: message.content,
-          notificationBody: message.notificationBody,
-        });
+    const posted =
+      audience.agentId === null
+        ? await postAliaCheckIn({
+            oxyUserId: audience.oxyUserId,
+            content: message.content,
+            title: message.title,
+            conversationTitle: message.conversationTitle,
+            notificationBody: message.notificationBody,
+            data: { kind: 'important_email', emailId: data.messageId },
+          })
+        : await postAgentMessage({
+            oxyUserId: audience.oxyUserId,
+            agentId: audience.agentId,
+            kind: 'check_in',
+            content: message.content,
+            notificationBody: message.notificationBody,
+          });
     if (!posted.posted) {
       await settleEmailOutreach(db, claim, { verdict: 'skipped', reason: posted.reason });
       return { status: 'skipped', reason: posted.reason };
     }
-    await settleEmailOutreach(db, claim, { verdict: 'important', reason: category, postedMessageId: posted.messageId });
+    await settleEmailOutreach(db, claim, {
+      verdict: 'important',
+      reason: category,
+      postedMessageId: posted.messageId,
+    });
     return { status: 'posted', category, messageId: posted.messageId };
   } catch (err: unknown) {
     log.agents.warn({ err, agentId: audience.agentId }, 'Email outreach failed');
-    await settleEmailOutreach(db, claim, { verdict: 'failed', reason: 'error' }).catch(() => undefined);
+    await settleEmailOutreach(db, claim, { verdict: 'failed', reason: 'error' }).catch(
+      () => undefined,
+    );
     return { status: 'failed' };
   }
 }

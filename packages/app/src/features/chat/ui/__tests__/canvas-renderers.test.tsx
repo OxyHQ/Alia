@@ -8,8 +8,12 @@ import { describe, expect, it, vi } from 'vitest';
  * the tool's data shape onto them, with Bloom stubbed at its boundary.
  */
 
-vi.mock('react-native', async () => ({ View: (await import('@/shared/testing/panel-bloom-stubs')).host('View') }));
-vi.mock('@/shared/i18n/use-translation', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock('react-native', async () => ({
+  View: (await import('@/shared/testing/panel-bloom-stubs')).host('View'),
+}));
+vi.mock('@/shared/i18n/use-translation', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 vi.mock('@oxy.so/bloom/chart-cards', async () => {
   const { host } = await import('@/shared/testing/panel-bloom-stubs');
   return { BarListCard: host('BarListCard'), LineChartCard: host('LineChartCard') };
@@ -41,16 +45,32 @@ const only = (r: ReactTestRenderer, name: string) => r.root.find((n) => String(n
 describe('a chart', () => {
   it('draws one line series as a line card, in plain numbers', () => {
     const r = render(
-      <ChartRenderer title="Visits" data={{ chartType: 'line', labels: ['Mon', 'Tue'], datasets: [{ label: 'Visits', values: [3, 5] }] }} />,
+      <ChartRenderer
+        title="Visits"
+        data={{
+          chartType: 'line',
+          labels: ['Mon', 'Tue'],
+          datasets: [{ label: 'Visits', values: [3, 5] }],
+        }}
+      />,
     );
     const card = only(r, 'LineChartCard');
-    expect(card.props.data).toEqual([{ label: 'Mon', value: 3 }, { label: 'Tue', value: 5 }]);
+    expect(card.props.data).toEqual([
+      { label: 'Mon', value: 3 },
+      { label: 'Tue', value: 5 },
+    ]);
     expect(card.props.format(1234)).not.toContain('$');
   });
 
   it('draws a pie as shares of the whole', () => {
     const r = render(
-      <ChartRenderer data={{ chartType: 'pie', labels: ['A', 'B'], datasets: [{ label: 'Split', values: [1, 3] }] }} />,
+      <ChartRenderer
+        data={{
+          chartType: 'pie',
+          labels: ['A', 'B'],
+          datasets: [{ label: 'Split', values: [1, 3] }],
+        }}
+      />,
     );
     const card = only(r, 'BarListCard');
     expect(card.props.metric).toBe('share');
@@ -78,7 +98,18 @@ describe('a chart', () => {
 
 describe('a table', () => {
   it('is Bloom’s table, one column per header and one row per row, scrolling below 100px a column', () => {
-    const r = render(<TableRenderer title="People" data={{ headers: ['Name', 'Role'], rows: [['Ana', 'Dev'], ['Bo', 'PM']] }} />);
+    const r = render(
+      <TableRenderer
+        title="People"
+        data={{
+          headers: ['Name', 'Role'],
+          rows: [
+            ['Ana', 'Dev'],
+            ['Bo', 'PM'],
+          ],
+        }}
+      />,
+    );
     expect(only(r, 'Table').props.minWidth).toBe(200);
     expect(r.root.findAll((n) => String(n.type) === 'TableColumn')).toHaveLength(2);
     expect(r.root.findAll((n) => String(n.type) === 'TableRow')).toHaveLength(2);

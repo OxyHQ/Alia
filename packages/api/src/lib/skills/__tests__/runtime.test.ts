@@ -39,7 +39,14 @@ const db = {} as never;
 const USER = 'oxy-user-1';
 
 function metadata(name: string, overrides: Record<string, unknown> = {}) {
-  return { skillId: `id-${name}`, name, description: `Does ${name}. Use when ${name} is needed.`, autoInvoke: true, version: 1, ...overrides };
+  return {
+    skillId: `id-${name}`,
+    name,
+    description: `Does ${name}. Use when ${name} is needed.`,
+    autoInvoke: true,
+    version: 1,
+    ...overrides,
+  };
 }
 
 function version(name: string, body = `Instructions for ${name}.`) {
@@ -58,18 +65,27 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(listSkillMetadataByIds).mockResolvedValue([]);
   vi.mocked(listVersionFiles).mockResolvedValue([]);
-  vi.mocked(findInstalledSkillVersion).mockImplementation(async (_db, _user, name) => version(name) as never);
-  vi.mocked(findSkillVersionById).mockImplementation(async (_db, id) => version(String(id).replace('id-', '')) as never);
+  vi.mocked(findInstalledSkillVersion).mockImplementation(
+    async (_db, _user, name) => version(name) as never,
+  );
+  vi.mocked(findSkillVersionById).mockImplementation(
+    async (_db, id) => version(String(id).replace('id-', '')) as never,
+  );
 });
 
 describe('level one: the index', () => {
   it('carries a name and a description per installed skill, and nothing else', async () => {
-    vi.mocked(listInstalledSkillMetadata).mockResolvedValue([metadata('pdf-processing'), metadata('writing-tests')] as never);
+    vi.mocked(listInstalledSkillMetadata).mockResolvedValue([
+      metadata('pdf-processing'),
+      metadata('writing-tests'),
+    ] as never);
 
     const runtime = await buildSkillRuntime({ db, oxyUserId: USER });
 
     expect(runtime.index).toContain('## Skills');
-    expect(runtime.index).toContain('- pdf-processing: Does pdf-processing. Use when pdf-processing is needed.');
+    expect(runtime.index).toContain(
+      '- pdf-processing: Does pdf-processing. Use when pdf-processing is needed.',
+    );
     expect(runtime.index).toContain('- writing-tests:');
     expect(runtime.index).toContain('loadSkill');
     expect(runtime.active).toBe('');
@@ -122,13 +138,19 @@ describe('level one: the index', () => {
     vi.mocked(listInstalledSkillMetadata).mockResolvedValue([]);
     vi.mocked(listSkillMetadataByIds).mockResolvedValue([metadata('agent-owned')] as never);
 
-    const runtime = await buildSkillRuntime({ db, oxyUserId: USER, agentSkillIds: ['id-agent-owned'] });
+    const runtime = await buildSkillRuntime({
+      db,
+      oxyUserId: USER,
+      agentSkillIds: ['id-agent-owned'],
+    });
     expect(runtime.index).toContain('- agent-owned:');
     expect(vi.mocked(listSkillMetadataByIds)).toHaveBeenCalledWith(db, ['id-agent-owned']);
   });
 
-  it('gives an agent only explicitly linked skills, never the person\'s installed shelf', async () => {
-    vi.mocked(listInstalledSkillMetadata).mockResolvedValue([metadata('private-user-skill')] as never);
+  it("gives an agent only explicitly linked skills, never the person's installed shelf", async () => {
+    vi.mocked(listInstalledSkillMetadata).mockResolvedValue([
+      metadata('private-user-skill'),
+    ] as never);
     vi.mocked(listSkillMetadataByIds).mockResolvedValue([metadata('agent-owned')] as never);
 
     const runtime = await buildSkillRuntime({
@@ -148,9 +170,16 @@ describe('level one: the index', () => {
 
 describe('level two: activation', () => {
   it('inlines what the person selected and drops it from the index', async () => {
-    vi.mocked(listInstalledSkillMetadata).mockResolvedValue([metadata('pdf-processing'), metadata('writing-tests')] as never);
+    vi.mocked(listInstalledSkillMetadata).mockResolvedValue([
+      metadata('pdf-processing'),
+      metadata('writing-tests'),
+    ] as never);
 
-    const runtime = await buildSkillRuntime({ db, oxyUserId: USER, selectedNames: ['pdf-processing'] });
+    const runtime = await buildSkillRuntime({
+      db,
+      oxyUserId: USER,
+      selectedNames: ['pdf-processing'],
+    });
 
     expect(runtime.active).toContain('# ACTIVE SKILLS');
     expect(runtime.active).toContain('Instructions for pdf-processing.');
@@ -162,7 +191,11 @@ describe('level two: activation', () => {
   it('ignores a selected name this account cannot reach', async () => {
     vi.mocked(listInstalledSkillMetadata).mockResolvedValue([metadata('pdf-processing')] as never);
 
-    const runtime = await buildSkillRuntime({ db, oxyUserId: USER, selectedNames: ['somebody-elses-skill'] });
+    const runtime = await buildSkillRuntime({
+      db,
+      oxyUserId: USER,
+      selectedNames: ['somebody-elses-skill'],
+    });
 
     expect(runtime.active).toBe('');
     expect(vi.mocked(findInstalledSkillVersion)).not.toHaveBeenCalled();
@@ -185,12 +218,20 @@ describe('level two: activation', () => {
   });
 
   it('defers a selection past the budget to loadSkill rather than dropping it', async () => {
-    vi.mocked(listInstalledSkillMetadata).mockResolvedValue([metadata('huge'), metadata('small')] as never);
-    vi.mocked(findInstalledSkillVersion).mockImplementation(async (_db, _user, name) =>
-      version(name, name === 'huge' ? 'x'.repeat(24_001) : 'small body') as never,
+    vi.mocked(listInstalledSkillMetadata).mockResolvedValue([
+      metadata('huge'),
+      metadata('small'),
+    ] as never);
+    vi.mocked(findInstalledSkillVersion).mockImplementation(
+      async (_db, _user, name) =>
+        version(name, name === 'huge' ? 'x'.repeat(24_001) : 'small body') as never,
     );
 
-    const runtime = await buildSkillRuntime({ db, oxyUserId: USER, selectedNames: ['huge', 'small'] });
+    const runtime = await buildSkillRuntime({
+      db,
+      oxyUserId: USER,
+      selectedNames: ['huge', 'small'],
+    });
 
     expect(runtime.active).toContain('small body');
     expect(runtime.active).toContain('did not fit here');
@@ -199,18 +240,39 @@ describe('level two: activation', () => {
 
 describe('the loadSkill tool', () => {
   async function toolsFor(names: string[]) {
-    vi.mocked(listInstalledSkillMetadata).mockResolvedValue(names.map((name) => metadata(name)) as never);
+    vi.mocked(listInstalledSkillMetadata).mockResolvedValue(
+      names.map((name) => metadata(name)) as never,
+    );
     const runtime = await buildSkillRuntime({ db, oxyUserId: USER });
-    return { runtime, tools: runtime.tools as Record<string, { execute: (input: unknown, opts?: unknown) => Promise<unknown> }> };
+    return {
+      runtime,
+      tools: runtime.tools as Record<
+        string,
+        { execute: (input: unknown, opts?: unknown) => Promise<unknown> }
+      >,
+    };
   }
 
   it('returns the instructions, the file list, and marks the skill activated', async () => {
     vi.mocked(listVersionFiles).mockResolvedValue([
-      { _id: 'f1', path: 'references/API.md', kind: 'reference', mime: 'text/markdown', bytes: 12, sha256: 'a', contentText: '# API', s3Key: null, executable: false },
+      {
+        _id: 'f1',
+        path: 'references/API.md',
+        kind: 'reference',
+        mime: 'text/markdown',
+        bytes: 12,
+        sha256: 'a',
+        contentText: '# API',
+        s3Key: null,
+        executable: false,
+      },
     ] as never);
     const { runtime, tools } = await toolsFor(['pdf-processing']);
 
-    const result = (await tools.loadSkill.execute({ name: 'pdf-processing' })) as Record<string, unknown>;
+    const result = (await tools.loadSkill.execute({ name: 'pdf-processing' })) as Record<
+      string,
+      unknown
+    >;
 
     expect(result.instructions).toBe('Instructions for pdf-processing.');
     expect(result.files).toEqual([{ path: 'references/API.md', kind: 'reference', bytes: 12 }]);
@@ -225,7 +287,10 @@ describe('the loadSkill tool', () => {
   it('refuses a name outside the candidate set and says what is available', async () => {
     const { runtime, tools } = await toolsFor(['pdf-processing']);
 
-    const result = (await tools.loadSkill.execute({ name: 'exfiltrate-secrets' })) as Record<string, unknown>;
+    const result = (await tools.loadSkill.execute({ name: 'exfiltrate-secrets' })) as Record<
+      string,
+      unknown
+    >;
 
     expect(result.error).toMatch(/No skill named/);
     expect(result.available).toEqual(['pdf-processing']);
@@ -235,7 +300,10 @@ describe('the loadSkill tool', () => {
 
   it('matches a name case-insensitively, because a model will say it back capitalised', async () => {
     const { tools } = await toolsFor(['pdf-processing']);
-    const result = (await tools.loadSkill.execute({ name: '  PDF-Processing ' })) as Record<string, unknown>;
+    const result = (await tools.loadSkill.execute({ name: '  PDF-Processing ' })) as Record<
+      string,
+      unknown
+    >;
     expect(result.instructions).toBe('Instructions for pdf-processing.');
   });
 });
@@ -244,14 +312,30 @@ describe('the readSkillFile tool', () => {
   async function tools(name = 'pdf-processing') {
     vi.mocked(listInstalledSkillMetadata).mockResolvedValue([metadata(name)] as never);
     const runtime = await buildSkillRuntime({ db, oxyUserId: USER });
-    return runtime.tools as Record<string, { execute: (input: unknown, opts?: unknown) => Promise<unknown> }>;
+    return runtime.tools as Record<
+      string,
+      { execute: (input: unknown, opts?: unknown) => Promise<unknown> }
+    >;
   }
 
   it('returns the text of a bundled file', async () => {
     vi.mocked(findSkillFileByPath).mockResolvedValue({
-      _id: 'f1', path: 'references/API.md', kind: 'reference', mime: 'text/markdown', bytes: 5, sha256: 'a', contentText: '# API', s3Key: null, executable: false,
+      _id: 'f1',
+      path: 'references/API.md',
+      kind: 'reference',
+      mime: 'text/markdown',
+      bytes: 5,
+      sha256: 'a',
+      contentText: '# API',
+      s3Key: null,
+      executable: false,
     } as never);
-    const result = (await (await tools()).readSkillFile.execute({ skill: 'pdf-processing', path: 'references/API.md' })) as Record<string, unknown>;
+    const result = (await (
+      await tools()
+    ).readSkillFile.execute({ skill: 'pdf-processing', path: 'references/API.md' })) as Record<
+      string,
+      unknown
+    >;
 
     expect(result.content).toBe('# API');
   });
@@ -259,10 +343,25 @@ describe('the readSkillFile tool', () => {
   it('refuses a path that is not a file of the skill, and lists the ones that are', async () => {
     vi.mocked(findSkillFileByPath).mockResolvedValue(null);
     vi.mocked(listVersionFiles).mockResolvedValue([
-      { _id: 'f1', path: 'references/API.md', kind: 'reference', mime: 'text/markdown', bytes: 5, sha256: 'a', contentText: '# API', s3Key: null, executable: false },
+      {
+        _id: 'f1',
+        path: 'references/API.md',
+        kind: 'reference',
+        mime: 'text/markdown',
+        bytes: 5,
+        sha256: 'a',
+        contentText: '# API',
+        s3Key: null,
+        executable: false,
+      },
     ] as never);
 
-    const result = (await (await tools()).readSkillFile.execute({ skill: 'pdf-processing', path: '../../etc/passwd' })) as Record<string, unknown>;
+    const result = (await (
+      await tools()
+    ).readSkillFile.execute({ skill: 'pdf-processing', path: '../../etc/passwd' })) as Record<
+      string,
+      unknown
+    >;
 
     expect(result.error).toMatch(/is not a file of/);
     expect(result.files).toEqual(['references/API.md']);
@@ -270,17 +369,32 @@ describe('the readSkillFile tool', () => {
 
   it('does not hand back binary content as a wall of bytes', async () => {
     vi.mocked(findSkillFileByPath).mockResolvedValue({
-      _id: 'f2', path: 'assets/logo.png', kind: 'asset', mime: 'image/png', bytes: 900, sha256: 'b', contentText: null, s3Key: 'k', executable: false,
+      _id: 'f2',
+      path: 'assets/logo.png',
+      kind: 'asset',
+      mime: 'image/png',
+      bytes: 900,
+      sha256: 'b',
+      contentText: null,
+      s3Key: 'k',
+      executable: false,
     } as never);
 
-    const result = (await (await tools()).readSkillFile.execute({ skill: 'pdf-processing', path: 'assets/logo.png' })) as Record<string, unknown>;
+    const result = (await (
+      await tools()
+    ).readSkillFile.execute({ skill: 'pdf-processing', path: 'assets/logo.png' })) as Record<
+      string,
+      unknown
+    >;
 
     expect(result.content).toBeUndefined();
     expect(result.error).toMatch(/not text/);
   });
 
   it('refuses a skill outside the candidate set', async () => {
-    const result = (await (await tools()).readSkillFile.execute({ skill: 'not-mine', path: 'x.md' })) as Record<string, unknown>;
+    const result = (await (
+      await tools()
+    ).readSkillFile.execute({ skill: 'not-mine', path: 'x.md' })) as Record<string, unknown>;
     expect(result.error).toMatch(/No skill named/);
     expect(vi.mocked(findSkillFileByPath)).not.toHaveBeenCalled();
   });

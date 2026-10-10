@@ -21,7 +21,8 @@ const host =
     React.createElement(name, props, children as React.ReactNode);
 
 /** Just the children: a provider or a wrapper with nothing of its own to show. */
-const through = ({ children }: Props) => React.createElement(React.Fragment, null, children as React.ReactNode);
+const through = ({ children }: Props) =>
+  React.createElement(React.Fragment, null, children as React.ReactNode);
 
 const subscription = { remove() {} };
 
@@ -41,19 +42,26 @@ export function reactNativeModule(platform: { OS: string }) {
         'Pressable',
         props,
         typeof children === 'function'
-          ? (children as (state: object) => React.ReactNode)({ pressed: false, hovered: false, focused: false })
+          ? (children as (state: object) => React.ReactNode)({
+              pressed: false,
+              hovered: false,
+              focused: false,
+            })
           : (children as React.ReactNode),
       ),
     Platform: {
       get OS() {
         return platform.OS;
       },
-      select: (options: Record<string, unknown>) => options[platform.OS] ?? options.native ?? options.default,
+      select: (options: Record<string, unknown>) =>
+        options[platform.OS] ?? options.native ?? options.default,
     },
     StyleSheet: {
       create: <T,>(styles: T) => styles,
       flatten: (style: unknown) =>
-        Array.isArray(style) ? Object.assign({}, ...style.flat(Infinity).filter(Boolean)) : (style ?? {}),
+        Array.isArray(style)
+          ? Object.assign({}, ...style.flat(Infinity).filter(Boolean))
+          : (style ?? {}),
       hairlineWidth: 1,
       absoluteFill: {},
       absoluteFillObject: {},
@@ -61,7 +69,11 @@ export function reactNativeModule(platform: { OS: string }) {
     Dimensions: { get: () => ({ width: 1200, height: 800 }), addEventListener: () => subscription },
     useWindowDimensions: () => ({ width: 1200, height: 800, scale: 1, fontScale: 1 }),
     useColorScheme: () => 'light',
-    Appearance: { getColorScheme: () => 'light', setColorScheme: () => {}, addChangeListener: () => subscription },
+    Appearance: {
+      getColorScheme: () => 'light',
+      setColorScheme: () => {},
+      addChangeListener: () => subscription,
+    },
     AccessibilityInfo: {
       isReduceMotionEnabled: async () => true,
       addEventListener: () => subscription,

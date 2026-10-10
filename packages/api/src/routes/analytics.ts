@@ -79,7 +79,11 @@ router.get('/models', async (req: Request, res: Response) => {
 router.get('/credits', async (req: Request, res: Response) => {
   try {
     const days = parseInt(req.query.days as string) || 30;
-    const credits = await aggregateCreditsByDay(getDb(), req.user!.id, startOfWindow(req.query.days));
+    const credits = await aggregateCreditsByDay(
+      getDb(),
+      req.user!.id,
+      startOfWindow(req.query.days),
+    );
 
     res.json({ credits, period: days });
   } catch (error: unknown) {

@@ -135,8 +135,7 @@ export function summarize(
   const inspect = (event: unknown, eventName?: string): void => {
     if (typeof event !== 'object' || event === null) return;
     const record = event as Record<string, unknown>;
-    if (typeof record.id === 'string' && record.id.length <= 128)
-      reference ??= record.id;
+    if (typeof record.id === 'string' && record.id.length <= 128) reference ??= record.id;
     const meta = record.alia_meta;
     if (typeof meta === 'object' && meta !== null) {
       const fields = meta as Record<string, unknown>;
@@ -145,8 +144,7 @@ export function summarize(
       const error = fields.error;
       if (typeof error === 'object' && error !== null) {
         const safe = error as Record<string, unknown>;
-        if (typeof safe.code === 'string' && SAFE_CODES.has(safe.code))
-          code ??= safe.code;
+        if (typeof safe.code === 'string' && SAFE_CODES.has(safe.code)) code ??= safe.code;
         if (typeof safe.reference === 'string' && safe.reference.length <= 128)
           reference ??= safe.reference;
       }
@@ -154,8 +152,7 @@ export function summarize(
     const error = record.error;
     if (typeof error === 'object' && error !== null) {
       const safe = error as Record<string, unknown>;
-      if (typeof safe.code === 'string' && SAFE_CODES.has(safe.code))
-        code ??= safe.code;
+      if (typeof safe.code === 'string' && SAFE_CODES.has(safe.code)) code ??= safe.code;
       else code ??= 'REQUEST_REFUSED';
       // A failed turn (before or after output) carries these in the envelope.
       if (typeof safe.retryable === 'boolean') retryable = safe.retryable;
@@ -164,9 +161,7 @@ export function summarize(
     } else if (typeof error === 'string') code ??= 'REQUEST_REFUSED';
     const choices = record.choices;
     if (Array.isArray(choices)) {
-      const delta = (
-        choices[0] as { delta?: Record<string, unknown> } | undefined
-      )?.delta;
+      const delta = (choices[0] as { delta?: Record<string, unknown> } | undefined)?.delta;
       if (typeof delta?.content === 'string') content += delta.content;
       if (Array.isArray(delta?.tool_calls)) {
         for (const call of delta.tool_calls) {
@@ -300,12 +295,8 @@ async function main(): Promise<void> {
     process.stdout.write(
       `ALIA_PRODUCTION_CANARY ${JSON.stringify({ schemaVersion: 1, conversationId: null, results })}\n`,
     );
-    const ordinary = results.filter(
-      (result) => result.label !== 'controlled-refusal',
-    );
-    const refusal = results.find(
-      (result) => result.label === 'controlled-refusal',
-    );
+    const ordinary = results.filter((result) => result.label !== 'controlled-refusal');
+    const refusal = results.find((result) => result.label === 'controlled-refusal');
     const search = results.find((result) => result.label === 'search-tool');
     const references = ordinary.map((result) => result.reference);
     if (
@@ -341,5 +332,4 @@ async function main(): Promise<void> {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
-  await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
