@@ -59,20 +59,12 @@ export function useSetAgentStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      agentId,
-      status,
-    }: {
-      agentId: string;
-      status: 'active' | 'idle';
-    }) => {
+    mutationFn: async ({ agentId, status }: { agentId: string; status: 'active' | 'idle' }) => {
       await apiClient.patch(API_ROUTES.agents.status(agentId), { status });
     },
     onSuccess: (_, { agentId, status }) => {
-      queryClient.setQueryData<Agent>(
-        queryKeys.agents.detail(agentId),
-        (previous) =>
-          previous === undefined ? previous : { ...previous, status },
+      queryClient.setQueryData<Agent>(queryKeys.agents.detail(agentId), (previous) =>
+        previous === undefined ? previous : { ...previous, status },
       );
     },
   });

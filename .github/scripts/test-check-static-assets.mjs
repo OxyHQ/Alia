@@ -22,7 +22,10 @@ import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-const GATE = resolve(dirname(fileURLToPath(import.meta.url)), '../../scripts/check-static-assets.mjs');
+const GATE = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../scripts/check-static-assets.mjs',
+);
 
 const workspace = mkdtempSync(join(tmpdir(), 'check-static-assets-'));
 process.on('exit', () => rmSync(workspace, { recursive: true, force: true }));
@@ -48,9 +51,11 @@ let failures = 0;
 function check(name, { root, status, contains }) {
   const result = run(root);
   const problems = [];
-  if (result.status !== status) problems.push(`exited ${String(result.status)}, expected ${String(status)}`);
+  if (result.status !== status)
+    problems.push(`exited ${String(result.status)}, expected ${String(status)}`);
   for (const needle of contains) {
-    if (!result.output.includes(needle)) problems.push(`said nothing about ${JSON.stringify(needle)}`);
+    if (!result.output.includes(needle))
+      problems.push(`said nothing about ${JSON.stringify(needle)}`);
   }
   if (problems.length > 0) {
     failures += 1;

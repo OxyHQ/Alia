@@ -26,7 +26,6 @@ import * as Linking from 'expo-linking';
 import { useCallback, useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 
-
 /** Library category -> the storage table's filter key. */
 const KIND_FOR_CATEGORY: Record<FileCategory, string> = {
   documents: 'document',
@@ -52,7 +51,6 @@ function toStoredFile(file: LibraryFile, locale: string): SettingsStoredFile {
   };
 }
 
-
 /** The Library, as Bloom's Storage page, read-only: the file table. */
 export function StorageSection() {
   const { isAuthenticated } = useOxy();
@@ -62,7 +60,6 @@ export function StorageSection() {
   const deleteFile = useLibraryStore((state) => state.deleteFile);
   const { t, locale } = useTranslation();
   const { colors } = useTheme();
-
 
   useEffect(() => {
     if (isAuthenticated) void loadFiles();
@@ -89,7 +86,6 @@ export function StorageSection() {
     ],
     [t],
   );
-
 
   const handleDeleteFile = useCallback(
     async (id: string) => {

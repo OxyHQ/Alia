@@ -80,7 +80,7 @@ export function generatePalette(hash: number, color?: string): [HSL, HSL, HSL] {
   const rng = createRng(hash);
 
   // If a color hex is provided, derive palette from it
-  if (color && color.startsWith("#") && color.length >= 7) {
+  if (color && color.startsWith('#') && color.length >= 7) {
     const [baseHue, baseSat] = hexToHsl(color);
     const sat = Math.max(60, baseSat);
     return [
@@ -141,28 +141,27 @@ export function computeCellColor(
   palette: [HSL, HSL, HSL],
   lightMode = false,
 ): string {
-  "worklet";
+  'worklet';
   const [h, s, l] = palette[cell.colorIndex];
 
-  const pulse =
-    Math.sin(time * PULSE_SPEED + cell.phase) * PULSE_AMPLITUDE;
-  const breatheOffset =
-    Math.sin(time * BREATHE_SPEED) * BREATHE_AMPLITUDE;
+  const pulse = Math.sin(time * PULSE_SPEED + cell.phase) * PULSE_AMPLITUDE;
+  const breatheOffset = Math.sin(time * BREATHE_SPEED) * BREATHE_AMPLITUDE;
   const waveDist = (cell.col + cell.row) / WAVE_LENGTH;
   const wave = Math.sin(time * WAVE_SPEED + waveDist) * WAVE_AMPLITUDE;
-  const sparkleVal =
-    Math.sin(time * SPARKLE_SPEED + cell.sparklePhase);
+  const sparkleVal = Math.sin(time * SPARKLE_SPEED + cell.sparklePhase);
   const sparkle =
     sparkleVal > SPARKLE_THRESHOLD
-      ? ((sparkleVal - SPARKLE_THRESHOLD) / (1 - SPARKLE_THRESHOLD)) *
-        SPARKLE_BOOST
+      ? ((sparkleVal - SPARKLE_THRESHOLD) / (1 - SPARKLE_THRESHOLD)) * SPARKLE_BOOST
       : 0;
 
   // Light mode: boost lightness, soften saturation
   const baseLightness = lightMode ? l + 20 : l;
   const finalLight = Math.min(
     lightMode ? 95 : 90,
-    Math.max(lightMode ? 50 : 20, (baseLightness + pulse + breatheOffset + wave + sparkle) * cell.brightness),
+    Math.max(
+      lightMode ? 50 : 20,
+      (baseLightness + pulse + breatheOffset + wave + sparkle) * cell.brightness,
+    ),
   );
   const finalSat = Math.min(100, lightMode ? s - 10 : s + 5);
 
@@ -179,9 +178,9 @@ export function computeCellColor(
 
   const hex = (v: number) => {
     const h = v.toString(16);
-    return h.length < 2 ? "0" + h : h;
+    return h.length < 2 ? '0' + h : h;
   };
-  return "#" + hex(r) + hex(g) + hex(b);
+  return '#' + hex(r) + hex(g) + hex(b);
 }
 
 // ─── Canvas props (shared by the skia impl and its web fallback) ─────────────

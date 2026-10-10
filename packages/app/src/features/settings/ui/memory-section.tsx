@@ -107,12 +107,10 @@ export function MemorySection() {
   const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
   const [exportStats, setExportStats] = useState<ExportStats | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
-  const [importStrategy, setImportStrategy] = useState<
-    'merge' | 'replace' | 'skip-duplicates'
-  >('merge');
-  const [importPreview, setImportPreview] = useState<ImportPreview | null>(
-    null,
+  const [importStrategy, setImportStrategy] = useState<'merge' | 'replace' | 'skip-duplicates'>(
+    'merge',
   );
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [importing, setImporting] = useState(false);
 
   // Duplicate detection state
@@ -121,11 +119,8 @@ export function MemorySection() {
   const [duplicatesLoading, setDuplicatesLoading] = useState(false);
 
   // Import-from-provider state
-  const [showProviderImportDialog, setShowProviderImportDialog] =
-    useState(false);
-  const [providerImportStep, setProviderImportStep] = useState<
-    'prompt' | 'paste'
-  >('prompt');
+  const [showProviderImportDialog, setShowProviderImportDialog] = useState(false);
+  const [providerImportStep, setProviderImportStep] = useState<'prompt' | 'paste'>('prompt');
   const [providerPastedText, setProviderPastedText] = useState('');
   const [providerImporting, setProviderImporting] = useState(false);
   const [providerImportResult, setProviderImportResult] = useState<
@@ -149,9 +144,7 @@ export function MemorySection() {
     if (!searchQuery.trim()) return memories;
     const query = searchQuery.toLowerCase();
     return memories.filter(
-      (m) =>
-        m.title.toLowerCase().includes(query) ||
-        m.summary.toLowerCase().includes(query),
+      (m) => m.title.toLowerCase().includes(query) || m.summary.toLowerCase().includes(query),
     );
   }, [memories, searchQuery]);
 
@@ -208,10 +201,7 @@ export function MemorySection() {
     }
   };
 
-  const handleToggleSetting = async (
-    key: 'autoSaveEnabled' | 'recallEnabled',
-    value: boolean,
-  ) => {
+  const handleToggleSetting = async (key: 'autoSaveEnabled' | 'recallEnabled', value: boolean) => {
     if (!isAuthenticated || !memory) return;
 
     setUpdatingSettings(true);
@@ -327,9 +317,7 @@ export function MemorySection() {
   };
 
   // Import handlers
-  const handleFileSelect = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -487,9 +475,7 @@ export function MemorySection() {
             ? []
             : [
                 {
-                  label: providerImporting
-                    ? t('memory.importing')
-                    : t('memory.import'),
+                  label: providerImporting ? t('memory.importing') : t('memory.import'),
                   onPress: handleProviderImport,
                   disabled: !providerPastedText.trim() || providerImporting,
                   // The import is in flight when this runs and the label reports it.
@@ -538,10 +524,7 @@ export function MemorySection() {
 
         <SettingsSection label={t(`${K}.manage`)}>
           <SettingsCard>
-            <SettingsRow
-              label={t('memory.newMemory')}
-              description={t(`${K}.newMemoryDescription`)}
-            >
+            <SettingsRow label={t('memory.newMemory')} description={t(`${K}.newMemoryDescription`)}>
               <Button
                 size="sm"
                 appearance="outline"
@@ -614,9 +597,7 @@ export function MemorySection() {
           </SettingsCard>
         </SettingsSection>
 
-        <SettingsSection
-          label={t(`${K}.count`, { count: filteredMemories.length })}
-        >
+        <SettingsSection label={t(`${K}.count`, { count: filteredMemories.length })}>
           <Search
             label={t('memory.searchPlaceholder')}
             value={searchQuery}
@@ -627,10 +608,7 @@ export function MemorySection() {
 
         {memories.length === 0 ? (
           <SettingsCard>
-            <SettingsRow
-              label={t('memory.noMemories')}
-              description={t('memory.shareInfo')}
-            />
+            <SettingsRow label={t('memory.noMemories')} description={t('memory.shareInfo')} />
           </SettingsCard>
         ) : (
           TYPE_SECTIONS.map((section) => {
@@ -640,15 +618,8 @@ export function MemorySection() {
                 <SettingsCard>
                   {rows.length ? (
                     rows.map((row) => (
-                      <SettingsRow
-                        key={row._id}
-                        label={row.title}
-                        description={row.summary}
-                      >
-                        <ButtonGroup
-                          size="sm"
-                          accessibilityLabel={row.title}
-                        >
+                      <SettingsRow key={row._id} label={row.title} description={row.summary}>
+                        <ButtonGroup size="sm" accessibilityLabel={row.title}>
                           <ButtonGroupItem onPress={() => editMemory(row)}>
                             {t('common.edit')}
                           </ButtonGroupItem>
@@ -664,11 +635,7 @@ export function MemorySection() {
                   ) : (
                     <SettingsRow
                       label={t(section.emptyKey)}
-                      description={
-                        searchQuery.trim()
-                          ? t('common.tryDifferentSearch')
-                          : undefined
-                      }
+                      description={searchQuery.trim() ? t('common.tryDifferentSearch') : undefined}
                     />
                   )}
                 </SettingsCard>
@@ -701,9 +668,7 @@ export function MemorySection() {
             <SettingsSection label={t('memory.exportStatistics')}>
               <SettingsCard>
                 <SettingsRow label={t('memory.totalMemories')}>
-                  <SettingsValueField>
-                    {exportStats.totalMemories}
-                  </SettingsValueField>
+                  <SettingsValueField>{exportStats.totalMemories}</SettingsValueField>
                 </SettingsRow>
                 <SettingsRow label={t('memory.types')}>
                   <SettingsValueField>{exportStats.totalTypes}</SettingsValueField>
@@ -721,9 +686,7 @@ export function MemorySection() {
               <SettingsRow
                 label={t('memory.format')}
                 description={
-                  exportFormat === 'json'
-                    ? t('memory.jsonDescription')
-                    : t('memory.csvDescription')
+                  exportFormat === 'json' ? t('memory.jsonDescription') : t('memory.csvDescription')
                 }
               >
                 <SettingsPreferenceSelect
@@ -771,28 +734,20 @@ export function MemorySection() {
             <SettingsSection label={t('memory.preview')}>
               <SettingsCard>
                 <SettingsRow label={t('memory.totalToImport')}>
-                  <SettingsValueField>
-                    {importPreview.totalToImport}
-                  </SettingsValueField>
+                  <SettingsValueField>{importPreview.totalToImport}</SettingsValueField>
                 </SettingsRow>
                 <SettingsRow label={t('memory.newMemoriesCount')}>
                   <SettingsValueField>{importPreview.newTitles}</SettingsValueField>
                 </SettingsRow>
                 <SettingsRow label={t('memory.duplicatesCount')}>
-                  <SettingsValueField>
-                    {importPreview.duplicateTitles}
-                  </SettingsValueField>
+                  <SettingsValueField>{importPreview.duplicateTitles}</SettingsValueField>
                 </SettingsRow>
                 <SettingsRow label={t('memory.finalTotal')}>
-                  <SettingsValueField>
-                    {importPreview.estimatedFinalTotal}
-                  </SettingsValueField>
+                  <SettingsValueField>{importPreview.estimatedFinalTotal}</SettingsValueField>
                 </SettingsRow>
                 {importPreview.memoryLimit !== -1 && (
                   <SettingsRow label={t('memory.memoryLimit')}>
-                    <SettingsValueField>
-                      {importPreview.memoryLimit}
-                    </SettingsValueField>
+                    <SettingsValueField>{importPreview.memoryLimit}</SettingsValueField>
                   </SettingsRow>
                 )}
               </SettingsCard>
@@ -945,11 +900,7 @@ export function MemorySection() {
                     <SettingsRow label={t('memory.providerImportNoneFound')} />
                   ) : (
                     providerImportResult.map((m, i) => (
-                      <SettingsRow
-                        key={i}
-                        label={m.title}
-                        description={m.summary}
-                      />
+                      <SettingsRow key={i} label={m.title} description={m.summary} />
                     ))
                   )}
                 </SettingsCard>

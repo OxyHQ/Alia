@@ -83,7 +83,8 @@ function check(name, { root, status, contains }) {
     problems.push(`exited ${String(result.status)}, expected ${String(status)}`);
   }
   for (const needle of contains) {
-    if (!result.output.includes(needle)) problems.push(`said nothing about ${JSON.stringify(needle)}`);
+    if (!result.output.includes(needle))
+      problems.push(`said nothing about ${JSON.stringify(needle)}`);
   }
   if (problems.length > 0) {
     failures += 1;
@@ -203,7 +204,9 @@ check('a tree with no source files fails rather than passing vacuously', {
 });
 
 if (failures > 0) {
-  console.error(`\ncheck-no-mongodb-runtime is not doing its job: ${String(failures)} case(s) failed.`);
+  console.error(
+    `\ncheck-no-mongodb-runtime is not doing its job: ${String(failures)} case(s) failed.`,
+  );
   process.exit(1);
 }
 

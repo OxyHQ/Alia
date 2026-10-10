@@ -83,7 +83,9 @@ const RUN_STATUSES: ReadonlySet<string> = new Set([
 ]);
 
 export function runStatusLabel(status: string, t: Translate): string {
-  return RUN_STATUSES.has(status) ? t(`automations.runStatus.${status}`) : humanizeIdentifier(status);
+  return RUN_STATUSES.has(status)
+    ? t(`automations.runStatus.${status}`)
+    : humanizeIdentifier(status);
 }
 
 export function policyReason(run: AutomationRun | undefined): string | null {
@@ -95,8 +97,6 @@ function decisionReason(decision: Record<string, unknown> | null | undefined): s
   return typeof reason === 'string' ? humanizeIdentifier(reason) : null;
 }
 
-export function canRunNow(
-  automation: Pick<AutomationDefinition, 'trigger'>,
-): boolean {
+export function canRunNow(automation: Pick<AutomationDefinition, 'trigger'>): boolean {
   return automation.trigger.type !== 'event';
 }

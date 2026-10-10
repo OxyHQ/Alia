@@ -70,7 +70,9 @@ function asCount(value: unknown): number | null {
 }
 
 function asTexts(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }
 
 function parseEntry(value: unknown): CatalogueEntry | null {
@@ -100,7 +102,8 @@ function parseEntry(value: unknown): CatalogueEntry | null {
     reasoningEfforts: REASONING_EFFORTS.filter((effort) =>
       asTexts(raw.reasoningEfforts).includes(effort),
     ),
-    pricing: input !== null && output !== null ? { inputPerMTok: input, outputPerMTok: output } : null,
+    pricing:
+      input !== null && output !== null ? { inputPerMTok: input, outputPerMTok: output } : null,
     releasedAt: asText(raw.releasedAt),
     featured: raw.featured === true,
   };
@@ -159,7 +162,12 @@ export function resolveSelection(
     catalogue?.entries.find((entry) => entry.id === catalogue.defaultModelId) ?? null;
 
   if (requested === undefined) {
-    return { requestedId: undefined, effectiveId: undefined, entry: defaultEntry(), source: 'default' };
+    return {
+      requestedId: undefined,
+      effectiveId: undefined,
+      entry: defaultEntry(),
+      source: 'default',
+    };
   }
   if (catalogue === undefined) {
     return { requestedId: requested, effectiveId: requested, entry: null, source: 'requested' };
@@ -168,7 +176,12 @@ export function resolveSelection(
   if (entry !== undefined) {
     return { requestedId: requested, effectiveId: requested, entry, source: 'requested' };
   }
-  return { requestedId: requested, effectiveId: undefined, entry: defaultEntry(), source: 'replaced' };
+  return {
+    requestedId: requested,
+    effectiveId: undefined,
+    entry: defaultEntry(),
+    source: 'replaced',
+  };
 }
 
 /**

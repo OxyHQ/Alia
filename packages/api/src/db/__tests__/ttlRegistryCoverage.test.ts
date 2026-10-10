@@ -391,9 +391,14 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
       expect(swept.has(ttl.table), `${ttl.table} still has a sweep entry`).toBe(false);
       const sql =
         migrations.get(ttl.droppedBy) ??
-        readFileSync(path.join(__dirname, '..', '..', '..', 'drizzle', `${ttl.droppedBy}.sql`), 'utf8');
+        readFileSync(
+          path.join(__dirname, '..', '..', '..', 'drizzle', `${ttl.droppedBy}.sql`),
+          'utf8',
+        );
       migrations.set(ttl.droppedBy, sql);
-      expect(sql, `${ttl.droppedBy} does not drop ${ttl.table}`).toContain(`DROP TABLE "${ttl.table}";`);
+      expect(sql, `${ttl.droppedBy} does not drop ${ttl.table}`).toContain(
+        `DROP TABLE "${ttl.table}";`,
+      );
     }
   });
 

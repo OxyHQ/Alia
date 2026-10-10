@@ -77,9 +77,7 @@ const CREDITS = 5000;
 
 let db: ApiDatabase;
 
-const webhookLayer = billingRouter.stack.find(
-  (candidate) => candidate.route?.path === '/webhook',
-);
+const webhookLayer = billingRouter.stack.find((candidate) => candidate.route?.path === '/webhook');
 const foundHandler = webhookLayer?.route?.stack.at(-1)?.handle;
 if (!foundHandler) throw new Error('billing router no longer exposes POST /webhook');
 const webhookHandler = foundHandler as (req: never, res: never, next: () => void) => Promise<void>;

@@ -1,8 +1,21 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
-import { constraintNameOf, isCheckViolation, isForeignKeyViolation, isUniqueViolation } from '@oxy.so/db';
+import {
+  constraintNameOf,
+  isCheckViolation,
+  isForeignKeyViolation,
+  isUniqueViolation,
+} from '@oxy.so/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
-import { creditPackages, features, planFeatures, plans, subscriptions, transactions, userCredits } from '../schema/billing';
+import {
+  creditPackages,
+  features,
+  planFeatures,
+  plans,
+  subscriptions,
+  transactions,
+  userCredits,
+} from '../schema/billing';
 
 /**
  * The billing tables, against a REAL server.
@@ -53,7 +66,10 @@ describe('the dedup key is the double-credit guard, and it survived the port', (
    */
   it('derives dedup_key from the metadata a caller actually writes', async () => {
     await db.insert(transactions).values(
-      transactionValues({ id: 'txn-derive', metadata: { dedup: 'sub_123_1700000000', note: 'ignored' } }),
+      transactionValues({
+        id: 'txn-derive',
+        metadata: { dedup: 'sub_123_1700000000', note: 'ignored' },
+      }),
     );
 
     const [row] = await db
@@ -67,13 +83,13 @@ describe('the dedup key is the double-credit guard, and it survived the port', (
   });
 
   it('refuses a second transaction carrying the same dedup key', async () => {
-    await db.insert(transactions).values(
-      transactionValues({ id: 'txn-lock-1', metadata: { dedup: 'sub_456_1700000000' } }),
-    );
+    await db
+      .insert(transactions)
+      .values(transactionValues({ id: 'txn-lock-1', metadata: { dedup: 'sub_456_1700000000' } }));
 
-    const redelivery = db.insert(transactions).values(
-      transactionValues({ id: 'txn-lock-2', metadata: { dedup: 'sub_456_1700000000' } }),
-    );
+    const redelivery = db
+      .insert(transactions)
+      .values(transactionValues({ id: 'txn-lock-2', metadata: { dedup: 'sub_456_1700000000' } }));
 
     await expect(redelivery).rejects.toSatisfy((error: unknown) => {
       expect(isUniqueViolation(error)).toBe(true);
@@ -99,11 +115,21 @@ describe('the dedup key is the double-credit guard, and it survived the port', (
      * plain unique index from a partial `WHERE dedup_key IS NOT NULL` one — the
      * two are equivalent here, and that equivalence is the thing being asserted.
      */
-    await db.insert(transactions).values(transactionValues({ id: 'txn-nodedup-1', metadata: { note: 'a' } }));
-    await db.insert(transactions).values(transactionValues({ id: 'txn-nodedup-2', metadata: { note: 'b' } }));
-    await db.insert(transactions).values(transactionValues({ id: 'txn-nodedup-3', metadata: null }));
-    await db.insert(transactions).values(transactionValues({ id: 'txn-nodedup-4', metadata: { dedup: null } }));
-    await db.insert(transactions).values(transactionValues({ id: 'txn-nodedup-5', metadata: { dedup: null } }));
+    await db
+      .insert(transactions)
+      .values(transactionValues({ id: 'txn-nodedup-1', metadata: { note: 'a' } }));
+    await db
+      .insert(transactions)
+      .values(transactionValues({ id: 'txn-nodedup-2', metadata: { note: 'b' } }));
+    await db
+      .insert(transactions)
+      .values(transactionValues({ id: 'txn-nodedup-3', metadata: null }));
+    await db
+      .insert(transactions)
+      .values(transactionValues({ id: 'txn-nodedup-4', metadata: { dedup: null } }));
+    await db
+      .insert(transactions)
+      .values(transactionValues({ id: 'txn-nodedup-5', metadata: { dedup: null } }));
 
     const rows = await db.execute<{ n: string }>(
       sql`select count(*)::text as n from ${transactions} where id like 'txn-nodedup-%'`,
@@ -150,7 +176,9 @@ describe('money is bigint, and bigint does not arrive as a number by itself', ()
       sql`select max(amount) as max from ${transactions} where id like 'txn-agg-%'`,
     );
     const nextAmount = Number(first[0]?.max) + 1;
-    await db.insert(transactions).values(transactionValues({ id: 'txn-agg-2', amount: nextAmount }));
+    await db
+      .insert(transactions)
+      .values(transactionValues({ id: 'txn-agg-2', amount: nextAmount }));
 
     const second = await db.execute<{ max: string | number }>(
       sql`select max(amount) as max from ${transactions} where id like 'txn-agg-%'`,
@@ -165,13 +193,13 @@ describe('money is bigint, and bigint does not arrive as a number by itself', ()
 
 describe('a payment intent identifies at most one transaction', () => {
   it('refuses a second transaction for the same payment intent', async () => {
-    await db.insert(transactions).values(
-      transactionValues({ id: 'txn-pi-1', stripePaymentIntentId: 'pi_dup' }),
-    );
+    await db
+      .insert(transactions)
+      .values(transactionValues({ id: 'txn-pi-1', stripePaymentIntentId: 'pi_dup' }));
 
-    const second = db.insert(transactions).values(
-      transactionValues({ id: 'txn-pi-2', stripePaymentIntentId: 'pi_dup' }),
-    );
+    const second = db
+      .insert(transactions)
+      .values(transactionValues({ id: 'txn-pi-2', stripePaymentIntentId: 'pi_dup' }));
 
     await expect(second).rejects.toSatisfy((error: unknown) => {
       expect(isUniqueViolation(error)).toBe(true);
@@ -220,7 +248,9 @@ describe('the catalogue junction is a real relation', () => {
   });
 
   it('refuses two mappings of the same plan to the same feature', async () => {
-    await db.insert(planFeatures).values({ id: 'pf-1', planId: 'pro', featureId: 'priority-support' });
+    await db
+      .insert(planFeatures)
+      .values({ id: 'pf-1', planId: 'pro', featureId: 'priority-support' });
 
     const duplicate = db.insert(planFeatures).values({
       id: 'pf-2',
@@ -236,7 +266,9 @@ describe('the catalogue junction is a real relation', () => {
   });
 
   it('takes the mappings with the plan, so a re-created plan inherits nothing', async () => {
-    await db.insert(plans).values({ id: 'plan-doomed', planId: 'doomed', name: 'Doomed', product: 'alia' });
+    await db
+      .insert(plans)
+      .values({ id: 'plan-doomed', planId: 'doomed', name: 'Doomed', product: 'alia' });
     await db
       .insert(planFeatures)
       .values({ id: 'pf-doomed', planId: 'doomed', featureId: 'priority-support' });
@@ -250,7 +282,7 @@ describe('the catalogue junction is a real relation', () => {
   });
 });
 
-describe('closed value sets that ARE this service\'s own are enforced', () => {
+describe("closed value sets that ARE this service's own are enforced", () => {
   it('refuses a transaction type outside the tuple', async () => {
     const insert = db.execute(sql`
       insert into ${transactions} (id, oxy_user_id, type, amount, credits)

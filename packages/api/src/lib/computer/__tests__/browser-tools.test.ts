@@ -15,7 +15,11 @@ import { browserResult, clientDouble } from './client-double.js';
 const callOptions = { toolCallId: 't', messages: [] } as unknown as ToolExecutionOptions;
 const ACTOR = agentActorId('agent-1', 'user-1');
 
-async function call(tools: ReturnType<typeof buildBrowserTools>, name: string, input: Record<string, unknown>) {
+async function call(
+  tools: ReturnType<typeof buildBrowserTools>,
+  name: string,
+  input: Record<string, unknown>,
+) {
   const execute = tools[name]?.execute;
   if (!execute) throw new Error(`${name} has no execute`);
   return (await execute(input as never, callOptions)) as string;
@@ -48,7 +52,7 @@ describe('the browser tools', () => {
     expect(tools.browser_read?.description).toMatch(/untrusted/i);
   });
 
-  it('act on THIS agent\'s browser for THIS person, as the agent', async () => {
+  it("act on THIS agent's browser for THIS person, as the agent", async () => {
     const client = clientDouble();
     const tools = buildBrowserTools({ client, actorId: ACTOR });
     await call(tools, 'browser_open', { url: 'https://example.com/login' });
@@ -57,18 +61,42 @@ describe('the browser tools', () => {
     await call(tools, 'browser_key', { key: 'Enter' });
     await call(tools, 'browser_scroll', { direction: 'up' });
     expect(client.browserOpen).toHaveBeenCalledWith(ACTOR, 'https://example.com/login', 'agent');
-    expect(client.browserInput).toHaveBeenNthCalledWith(1, ACTOR, { type: 'click', x: 10, y: 20 }, 'agent');
-    expect(client.browserInput).toHaveBeenNthCalledWith(2, ACTOR, { type: 'type', text: 'ana@example.com' }, 'agent');
-    expect(client.browserInput).toHaveBeenNthCalledWith(3, ACTOR, { type: 'key', key: 'Enter' }, 'agent');
-    expect(client.browserInput).toHaveBeenNthCalledWith(4, ACTOR, { type: 'scroll', deltaY: -700 }, 'agent');
+    expect(client.browserInput).toHaveBeenNthCalledWith(
+      1,
+      ACTOR,
+      { type: 'click', x: 10, y: 20 },
+      'agent',
+    );
+    expect(client.browserInput).toHaveBeenNthCalledWith(
+      2,
+      ACTOR,
+      { type: 'type', text: 'ana@example.com' },
+      'agent',
+    );
+    expect(client.browserInput).toHaveBeenNthCalledWith(
+      3,
+      ACTOR,
+      { type: 'key', key: 'Enter' },
+      'agent',
+    );
+    expect(client.browserInput).toHaveBeenNthCalledWith(
+      4,
+      ACTOR,
+      { type: 'scroll', deltaY: -700 },
+      'agent',
+    );
   });
 
   it('refuse, in the schema, a key outside the list and a click outside the viewport', () => {
     const tools = buildBrowserTools({ client: clientDouble(), actorId: ACTOR });
-    const keySchema = tools.browser_key?.inputSchema as unknown as { safeParse: (v: unknown) => { success: boolean } };
+    const keySchema = tools.browser_key?.inputSchema as unknown as {
+      safeParse: (v: unknown) => { success: boolean };
+    };
     expect(keySchema.safeParse({ key: 'F12' }).success).toBe(false);
     expect(keySchema.safeParse({ key: 'Control+Shift+I' }).success).toBe(false);
-    const clickSchema = tools.browser_click?.inputSchema as unknown as { safeParse: (v: unknown) => { success: boolean } };
+    const clickSchema = tools.browser_click?.inputSchema as unknown as {
+      safeParse: (v: unknown) => { success: boolean };
+    };
     expect(clickSchema.safeParse({ x: 1280, y: 0 }).success).toBe(false);
   });
 
@@ -79,15 +107,21 @@ describe('the browser tools', () => {
       }),
     });
     const tools = buildBrowserTools({ client, actorId: ACTOR });
-    expect(await call(tools, 'browser_click', { x: 1, y: 1 })).toMatch(/taken control of your browser/);
+    expect(await call(tools, 'browser_click', { x: 1, y: 1 })).toMatch(
+      /taken control of your browser/,
+    );
   });
 
   it('report downloads, and that the person is in control', async () => {
     const client = clientDouble({
-      browserInput: vi.fn(async () => browserResult({
-        controller: 'owner',
-        downloads: [{ path: '/workspace/downloads/factura.pdf', bytes: 1200, mimeType: 'application/pdf' }],
-      })),
+      browserInput: vi.fn(async () =>
+        browserResult({
+          controller: 'owner',
+          downloads: [
+            { path: '/workspace/downloads/factura.pdf', bytes: 1200, mimeType: 'application/pdf' },
+          ],
+        }),
+      ),
     });
     const tools = buildBrowserTools({ client, actorId: ACTOR });
     const result = await call(tools, 'browser_click', { x: 5, y: 5 });
@@ -119,24 +153,37 @@ describe('browser risk', () => {
 
   it('asks before typing or pressing Enter in the background, not with the person in the chat', () => {
     expect(classifyActionRisk('browser_type', { text: 'x' }).riskLevel).toBe('R2');
-    expect(classifyActionRisk('browser_type', { text: 'x' }, { attended: true }).riskLevel).toBe('R1');
+    expect(classifyActionRisk('browser_type', { text: 'x' }, { attended: true }).riskLevel).toBe(
+      'R1',
+    );
     expect(classifyActionRisk('browser_key', { key: 'Enter' }).riskLevel).toBe('R2');
-    expect(classifyActionRisk('browser_key', { key: 'Enter' }, { attended: true }).riskLevel).toBe('R1');
+    expect(classifyActionRisk('browser_key', { key: 'Enter' }, { attended: true }).riskLevel).toBe(
+      'R1',
+    );
     expect(classifyActionRisk('browser_key', { key: 'Tab' }).riskLevel).toBe('R1');
   });
 });
 
-describe('the client\'s browser calls', () => {
+describe("the client's browser calls", () => {
   const mintToken = async () => ({ token: 't', expiresIn: 900 });
 
   it('fetch the screenshot as bytes and send who is acting', async () => {
     const seen: { url: string; body?: string }[] = [];
     const fetchImpl = vi.fn(async (url: string | URL, init?: RequestInit) => {
       seen.push({ url: String(url), body: init?.body as string | undefined });
-      if (String(url).endsWith('/screenshot')) return new Response(Buffer.from([0xff, 0xd8, 0xff]), { headers: { 'content-type': 'image/jpeg' } });
-      return new Response(JSON.stringify({ data: browserResult() }), { headers: { 'content-type': 'application/json' } });
+      if (String(url).endsWith('/screenshot'))
+        return new Response(Buffer.from([0xff, 0xd8, 0xff]), {
+          headers: { 'content-type': 'image/jpeg' },
+        });
+      return new Response(JSON.stringify({ data: browserResult() }), {
+        headers: { 'content-type': 'application/json' },
+      });
     });
-    const client = new HttpComputerClient({ baseUrl: 'http://host', fetch: fetchImpl as unknown as typeof fetch, mintToken });
+    const client = new HttpComputerClient({
+      baseUrl: 'http://host',
+      fetch: fetchImpl as unknown as typeof fetch,
+      mintToken,
+    });
     expect(await client.browserScreenshot(ACTOR)).toEqual(Buffer.from([0xff, 0xd8, 0xff]));
     await client.browserInput(ACTOR, { type: 'click', x: 1, y: 2 }, 'owner');
     expect(seen[1]).toEqual({
@@ -154,7 +201,12 @@ describe('the client\'s browser calls', () => {
       control: { state: async () => 'stopped', start },
       healthy: async () => false,
     } as unknown as ConstructorParameters<typeof HostWaker>[0]);
-    const client = new HttpComputerClient({ baseUrl: 'http://host', fetch: fetchImpl as unknown as typeof fetch, mintToken, waker });
+    const client = new HttpComputerClient({
+      baseUrl: 'http://host',
+      fetch: fetchImpl as unknown as typeof fetch,
+      mintToken,
+      waker,
+    });
     expect((await client.browserStatus(ACTOR)).state).toBe('asleep');
     expect(await client.recentCommands(ACTOR, 5)).toEqual([]);
     expect(await client.browserActions(ACTOR, 5)).toEqual([]);

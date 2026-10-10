@@ -35,7 +35,9 @@ vi.mock('../../middleware/auth.js', () => ({
 
 vi.mock('../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child } };
+  return {
+    log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child },
+  };
 });
 
 import { closePostgres, connectPostgres, type ApiDatabase } from '../../db/index.js';
@@ -194,15 +196,14 @@ describe('a conversation is created, filled, read back and destroyed (#139 ws6)'
 
     const read = await call('get', '/:id', { user: ALICE, params: { id: conversationId } });
     expect(read.status).toBe(200);
-    expect((read.body as { messages: { content: unknown }[] }).messages.map((m) => m.content)).toEqual([
-      'what day is it',
-      'It is Tuesday.',
-    ]);
+    expect(
+      (read.body as { messages: { content: unknown }[] }).messages.map((m) => m.content),
+    ).toEqual(['what day is it', 'It is Tuesday.']);
 
     const listed = await call('get', '/', { user: ALICE });
-    expect((listed.body as { conversations: { id: string }[] }).conversations.map((c) => c.id)).toEqual([
-      conversationId,
-    ]);
+    expect(
+      (listed.body as { conversations: { id: string }[] }).conversations.map((c) => c.id),
+    ).toEqual([conversationId]);
 
     const removed = await call('delete', '/:id', { user: ALICE, params: { id: conversationId } });
     expect(removed.status).toBe(200);
@@ -233,9 +234,9 @@ describe('a conversation is created, filled, read back and destroyed (#139 ws6)'
     await call('post', '/', { user: ALICE, body: { conversationId: 'ordered', messages: sent } });
     const read = await call('get', '/:id', { user: ALICE, params: { id: 'ordered' } });
 
-    expect((read.body as { messages: { content: unknown }[] }).messages.map((m) => m.content)).toEqual(
-      sent.map((m) => m.content),
-    );
+    expect(
+      (read.body as { messages: { content: unknown }[] }).messages.map((m) => m.content),
+    ).toEqual(sent.map((m) => m.content));
     // The floor: ten rows were really written, so the equality is not comparing
     // two empty arrays.
     expect((await storedMessages(ALICE.id)).length).toBe(10);
@@ -250,7 +251,10 @@ describe('a conversation is created, filled, read back and destroyed (#139 ws6)'
   it('a save replaces the stored messages rather than appending to them', async () => {
     // `POST /` is the client's full-history upsert, and the app resends the whole
     // conversation. Appending here would double every message on a retry.
-    const body = (list: Record<string, unknown>[]) => ({ conversationId: 'conv-replace', messages: list });
+    const body = (list: Record<string, unknown>[]) => ({
+      conversationId: 'conv-replace',
+      messages: list,
+    });
     await call('post', '/', { user: ALICE, body: body([{ role: 'user', content: 'first' }]) });
     await call('post', '/', {
       user: ALICE,
@@ -266,11 +270,18 @@ describe('a conversation is created, filled, read back and destroyed (#139 ws6)'
   it('keeps a user rename and does not overwrite it from the next message', async () => {
     await call('post', '/', {
       user: ALICE,
-      body: { conversationId: 'conv-named', title: 'My renamed chat', messages: [{ role: 'user', content: 'hi' }] },
+      body: {
+        conversationId: 'conv-named',
+        title: 'My renamed chat',
+        messages: [{ role: 'user', content: 'hi' }],
+      },
     });
     const after = await call('post', '/', {
       user: ALICE,
-      body: { conversationId: 'conv-named', messages: [{ role: 'user', content: 'a completely different topic' }] },
+      body: {
+        conversationId: 'conv-named',
+        messages: [{ role: 'user', content: 'a completely different topic' }],
+      },
     });
 
     expect((after.body as { title: string }).title).toBe('My renamed chat');
@@ -284,9 +295,15 @@ describe('a conversation is created, filled, read back and destroyed (#139 ws6)'
      */
     await call('post', '/', {
       user: ALICE,
-      body: { conversationId: 'conv-empty', messages: [{ role: 'assistant', content: 'the preview' }] },
+      body: {
+        conversationId: 'conv-empty',
+        messages: [{ role: 'assistant', content: 'the preview' }],
+      },
     });
-    const after = await call('post', '/', { user: ALICE, body: { conversationId: 'conv-empty', messages: [] } });
+    const after = await call('post', '/', {
+      user: ALICE,
+      body: { conversationId: 'conv-empty', messages: [] },
+    });
 
     expect((after.body as { lastMessage: string }).lastMessage).toBe('the preview');
   });
@@ -440,7 +457,15 @@ describe('POST / takes a whitelist, never the body (#139 ws6)', () => {
       user: ALICE,
       body: {
         conversationId: 'conv-parts',
-        messages: [{ role: 'user', content: [{ type: 'text', text: 'look' }, { type: 'image', url: 'x' }] }],
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'look' },
+              { type: 'image', url: 'x' },
+            ],
+          },
+        ],
       },
     });
 
@@ -496,7 +521,10 @@ describe('every stage of the lifecycle is scoped to the owner (#139 ws6)', () =>
 
     expect((await call('get', '/', { user: ALICE })).body).toMatchObject({ hasMore: false });
     expect((await call('get', '/', { user: ALICE })).body).toHaveProperty('conversations.0');
-    expect((await call('get', '/', { user: BOB })).body).toMatchObject({ conversations: [], hasMore: false });
+    expect((await call('get', '/', { user: BOB })).body).toMatchObject({
+      conversations: [],
+      hasMore: false,
+    });
   });
 
   it('does not let a second user delete it', async () => {
@@ -556,7 +584,9 @@ describe('every stage of the lifecycle is scoped to the owner (#139 ws6)', () =>
     const mounted = stack
       .filter((entry) => entry.route)
       .flatMap((entry) =>
-        Object.keys(entry.route?.methods ?? {}).map((method) => [method, entry.route?.path ?? ''] as const),
+        Object.keys(entry.route?.methods ?? {}).map(
+          (method) => [method, entry.route?.path ?? ''] as const,
+        ),
       )
       .sort();
 
@@ -577,7 +607,10 @@ describe('every stage of the lifecycle is scoped to the owner (#139 ws6)', () =>
         params: { id: 'x', messageId: 'y' },
         body: { conversationId: 'x', messages: [], vote: 'up' },
       });
-      expect(anonymous.status, `${method.toUpperCase()} ${routePath} served an anonymous caller`).toBe(401);
+      expect(
+        anonymous.status,
+        `${method.toUpperCase()} ${routePath} served an anonymous caller`,
+      ).toBe(401);
     }
   });
 });

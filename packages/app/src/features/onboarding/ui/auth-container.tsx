@@ -23,9 +23,7 @@ export function AuthContainer({ children }: AuthContainerProps) {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <View className="w-full max-w-[384px] self-center gap-6">
-        {children}
-      </View>
+      <View className="w-full max-w-[384px] self-center gap-6">{children}</View>
     </KeyboardAwareScrollView>
   );
 }

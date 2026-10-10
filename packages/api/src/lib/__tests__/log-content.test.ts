@@ -158,7 +158,14 @@ const CONTENT_KEYS: readonly string[] = [
 ];
 
 /** Identifiers that hold a thrown value. Logging one outside `err` skips #150. */
-const ERROR_IDENTIFIERS: ReadonlySet<string> = new Set(['err', 'error', 'e', 'cause', 'thrown', 'caught']);
+const ERROR_IDENTIFIERS: ReadonlySet<string> = new Set([
+  'err',
+  'error',
+  'e',
+  'cause',
+  'thrown',
+  'caught',
+]);
 
 /* -------------------------------------------------------------------------- */
 /*  The scanner                                                                */
@@ -248,9 +255,18 @@ function collectCalls(file: string, source: ts.SourceFile): LoggerCall[] {
  * measured rather than assumed — see the scope assertion below.
  */
 function trackedSources(): { readonly file: string; readonly source: ts.SourceFile }[] {
-  return execFileSync('git', ['ls-files', '--', PACKAGE_PREFIX], { cwd: REPO_ROOT, encoding: 'utf8' })
+  return execFileSync('git', ['ls-files', '--', PACKAGE_PREFIX], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+  })
     .split('\n')
-    .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/') && file !== SELF && existsSync(path.join(REPO_ROOT, file)))
+    .filter(
+      (file) =>
+        file.endsWith('.ts') &&
+        !file.includes('/__tests__/') &&
+        file !== SELF &&
+        existsSync(path.join(REPO_ROOT, file)),
+    )
     .map((file) => ({
       file,
       source: ts.createSourceFile(
@@ -282,11 +298,15 @@ describe('the census reads what it claims to read', () => {
     expect(collectCalls('p', parse(`log.v1.info({ prompt }, 'x');`))).toHaveLength(1);
     expect(collectCalls('p', parse(`obsLog.warn({ prompt }, 'x');`))).toHaveLength(1);
     expect(collectCalls('p', parse(`logger.error({ prompt }, 'x');`))).toHaveLength(1);
-    expect(collectCalls('p', parse(`log.chat.debug({ prompt: body.messages }, 'x');`))).toHaveLength(1);
+    expect(
+      collectCalls('p', parse(`log.chat.debug({ prompt: body.messages }, 'x');`)),
+    ).toHaveLength(1);
     // The AST sees no comment, so this file's own prose naming `prompt` and
     // `messages` cannot inflate the count. grep is line-based and would.
     expect(collectCalls('p', parse(`// log.v1.info({ prompt }, 'x');\nconst a = 1;`))).toEqual([]);
-    expect(collectCalls('p', parse(`/* log.v1.info({ prompt }, 'x'); */\nconst a = 1;`))).toEqual([]);
+    expect(collectCalls('p', parse(`/* log.v1.info({ prompt }, 'x'); */\nconst a = 1;`))).toEqual(
+      [],
+    );
     // Not a logger: a same-named method on something else must not be counted,
     // or the exemption list fills up with lines that were never log calls.
     expect(collectCalls('p', parse(`emitter.info({ prompt }, 'x');`))).toEqual([]);
@@ -318,11 +338,16 @@ describe('the census reads what it claims to read', () => {
     // 1_250 -> 1_100: the same clean cut as the call floor above took their
     // logged properties with it (1,136 after).
     expect(properties.length).toBeGreaterThan(1_100);
-    expect(sources.map((entry) => entry.file)).toContain(`${PACKAGE_PREFIX}/lib/chat/stream-runner.ts`);
+    expect(sources.map((entry) => entry.file)).toContain(
+      `${PACKAGE_PREFIX}/lib/chat/stream-runner.ts`,
+    );
   });
 
   it('excluded tests only, and the exclusion removed something', () => {
-    const all = execFileSync('git', ['ls-files', '--', PACKAGE_PREFIX], { cwd: REPO_ROOT, encoding: 'utf8' })
+    const all = execFileSync('git', ['ls-files', '--', PACKAGE_PREFIX], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    })
       .split('\n')
       .filter((file) => file.endsWith('.ts') && existsSync(path.join(REPO_ROOT, file)));
     const excluded = all.filter((file) => file.includes('/__tests__/'));
@@ -409,14 +434,20 @@ describe('no logger call carries message content (#139 ws15)', () => {
     // `CONTENT_KEYS` were misspelled or the property reader broke, this fails
     // before the census reports its comfortable zero.
     for (const key of CONTENT_KEYS) {
-      const probe = collectCalls('probe.ts', ts.createSourceFile(
+      const probe = collectCalls(
         'probe.ts',
-        `log.v1.info({ ${key}: somethingSensitive }, 'm');`,
-        ts.ScriptTarget.Latest,
-        true,
-      ));
+        ts.createSourceFile(
+          'probe.ts',
+          `log.v1.info({ ${key}: somethingSensitive }, 'm');`,
+          ts.ScriptTarget.Latest,
+          true,
+        ),
+      );
       const hits = probe.flatMap((call) => call.properties).filter((p) => contentKeys.has(p.key));
-      expect(hits.map((p) => p.key), `${key} is not detectable`).toEqual([key]);
+      expect(
+        hits.map((p) => p.key),
+        `${key} is not detectable`,
+      ).toEqual([key]);
     }
   });
 
@@ -424,7 +455,8 @@ describe('no logger call carries message content (#139 ws15)', () => {
     // Named, not merely covered by the equality above, because these are the
     // ones that were emitting on every request at the default level. If any
     // returns, it fails here with its own name attached.
-    const text = (file: string): string => readFileSync(path.join(REPO_ROOT, PACKAGE_PREFIX, file), 'utf8');
+    const text = (file: string): string =>
+      readFileSync(path.join(REPO_ROOT, PACKAGE_PREFIX, file), 'utf8');
     expect(text('routes/webhooks.ts')).not.toContain('text: message.text.slice');
     expect(text('lib/chat/stream-runner.ts')).not.toContain('chunkType: chunk.type, chunk }');
     // `lib/sse-stream.ts` was named here too, and is gone: it had no importer
@@ -443,14 +475,17 @@ describe('no logger call carries message content (#139 ws15)', () => {
     // equality alone would let one back in under a key the list still does not
     // have. Each pair is an absence plus the floor that proves the file was
     // read.
-    const text = (file: string): string => readFileSync(path.join(REPO_ROOT, PACKAGE_PREFIX, file), 'utf8');
+    const text = (file: string): string =>
+      readFileSync(path.join(REPO_ROOT, PACKAGE_PREFIX, file), 'utf8');
 
     expect(text('lib/chat/stream-runner.ts')).not.toContain('reasoning: content.slice');
     expect(text('lib/chat/stream-runner.ts')).not.toContain('reasoning: reasoningText.slice');
     expect(text('lib/chat/stream-runner.ts')).toContain('Reasoning chunk (provider)');
 
     expect(text('routes/agents/generate.ts')).not.toContain('{ responseText }');
-    expect(text('routes/agents/generate.ts')).toContain('Failed to parse AI-generated agent config');
+    expect(text('routes/agents/generate.ts')).toContain(
+      'Failed to parse AI-generated agent config',
+    );
     expect(text('routes/skills.ts')).not.toContain('{ responseText }');
     // Same absence, new wording: the route drafts a SKILL.md now rather than a
     // JSON blob of invented fields, and logs the failure by its length.
@@ -458,7 +493,6 @@ describe('no logger call carries message content (#139 ws15)', () => {
     expect(text('routes/skills.ts')).toContain('chars: document.length');
     expect(text('routes/suggestions.ts')).not.toContain('{ responseText }');
     expect(text('routes/suggestions.ts')).toContain('Failed to parse AI-generated suggestions');
-
   });
 
   it('no debug-only payload preview survives', () => {
@@ -472,7 +506,9 @@ describe('no logger call carries message content (#139 ws15)', () => {
       .map(({ file }) => file);
     expect(offenders).toEqual([]);
     // The control: the file it lived in is still being read.
-    expect(sources.map((entry) => entry.file)).toContain(`${PACKAGE_PREFIX}/lib/chat/stream-runner.ts`);
+    expect(sources.map((entry) => entry.file)).toContain(
+      `${PACKAGE_PREFIX}/lib/chat/stream-runner.ts`,
+    );
   });
 });
 
@@ -502,11 +538,14 @@ describe('the Alia/Kaana correlation record is one line of identifiers (#139 ws1
   ];
 
   it('logs exactly the four identifiers, and their exact expressions', () => {
-    const emitted = properties.filter((property) => property.file === MODULE).map(triple).sort();
+    const emitted = properties
+      .filter((property) => property.file === MODULE)
+      .map(triple)
+      .sort();
     expect(emitted).toEqual([...CORRELATION_PROPERTIES].sort());
   });
 
-  it('is the module\'s only logger call, so there is one record per turn', () => {
+  it("is the module's only logger call, so there is one record per turn", () => {
     expect(calls.filter((call) => call.file === MODULE)).toHaveLength(1);
   });
 
@@ -520,7 +559,10 @@ describe('the Alia/Kaana correlation record is one line of identifiers (#139 ws1
     // import satisfied the bare-name version of this list, and only the floor
     // below noticed.
     const callers = sources
-      .filter(({ file, source }) => file !== MODULE && source.text.includes('recordInferenceCorrelation('))
+      .filter(
+        ({ file, source }) =>
+          file !== MODULE && source.text.includes('recordInferenceCorrelation('),
+      )
       .map(({ file }) => file);
     expect(callers).toEqual([ENTRYPOINT]);
 
@@ -550,7 +592,9 @@ describe('nothing spreads an unbounded object into a log', () => {
     `${PACKAGE_PREFIX}/lib/observability/log-observer.ts`,
   ];
 
-  const spreaders = [...new Set(calls.filter((call) => call.spreads).map((call) => call.file))].sort();
+  const spreaders = [
+    ...new Set(calls.filter((call) => call.spreads).map((call) => call.file)),
+  ].sort();
 
   it('is exactly the two files whose spread is a closed type', () => {
     expect(spreaders).toEqual([...FROZEN_SPREADERS].sort());
@@ -596,12 +640,15 @@ describe('a thrown value is logged as `err`, so #150 applies to it', () => {
   });
 
   it('the check can fire', () => {
-    const probe = collectCalls('probe.ts', ts.createSourceFile(
+    const probe = collectCalls(
       'probe.ts',
-      `log.v1.warn({ data: err }, 'm');\nlog.v1.warn({ err }, 'm');`,
-      ts.ScriptTarget.Latest,
-      true,
-    ));
+      ts.createSourceFile(
+        'probe.ts',
+        `log.v1.warn({ data: err }, 'm');\nlog.v1.warn({ err }, 'm');`,
+        ts.ScriptTarget.Latest,
+        true,
+      ),
+    );
     const caught = probe
       .flatMap((call) => call.properties)
       .filter((property) => property.key !== 'err' && ERROR_IDENTIFIERS.has(property.value));

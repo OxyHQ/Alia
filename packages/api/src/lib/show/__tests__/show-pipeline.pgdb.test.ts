@@ -60,16 +60,14 @@ vi.mock('../../chat-core.js', () => ({
  * mention episode two.
  */
 const scriptPrompts: { system: string; user: string }[] = [];
-const generateText = vi.fn(
-  async (options: { messages: { role: string; content: string }[] }) => {
-    scriptPrompts.push({
-      system: options.messages.find((message) => message.role === 'system')?.content ?? '',
-      user: options.messages.find((message) => message.role === 'user')?.content ?? '',
-    });
-    if (scriptReply === null) throw new Error('stubbed model refused');
-    return { text: scriptReply };
-  },
-);
+const generateText = vi.fn(async (options: { messages: { role: string; content: string }[] }) => {
+  scriptPrompts.push({
+    system: options.messages.find((message) => message.role === 'system')?.content ?? '',
+    user: options.messages.find((message) => message.role === 'user')?.content ?? '',
+  });
+  if (scriptReply === null) throw new Error('stubbed model refused');
+  return { text: scriptReply };
+});
 // Wrapped rather than passed, so the factory does not capture the binding
 // before this module has finished initialising.
 vi.mock('ai', () => ({
@@ -121,7 +119,9 @@ vi.mock('../../syra/syra.js', () => ({
 }));
 
 vi.mock('../../../socket.js', () => ({ getIO: () => null }));
-vi.mock('../../notification-service.js', () => ({ sendNotification: vi.fn(async () => undefined) }));
+vi.mock('../../notification-service.js', () => ({
+  sendNotification: vi.fn(async () => undefined),
+}));
 /** Set per test; `null` is ffmpeg being unavailable or the bytes unreadable. */
 let measuredDurationMs: number | null = 90_000;
 vi.mock('../show-audio.js', () => ({
@@ -165,7 +165,10 @@ beforeEach(async () => {
 /** An account with an exact opening balance, so an assertion is about the run. */
 async function fund(free: number): Promise<void> {
   await getOrCreateUserCredits(db, OWNER);
-  await db.update(userCredits).set({ creditsFree: free, creditsPaid: 0 }).where(eq(userCredits.id, OWNER));
+  await db
+    .update(userCredits)
+    .set({ creditsFree: free, creditsPaid: 0 })
+    .where(eq(userCredits.id, OWNER));
 }
 
 async function balance(): Promise<number> {
@@ -233,7 +236,10 @@ async function seedPrior(
   seriesId: string,
   episodeNumber: number,
   topic: string,
-  options: { readonly recap?: string; readonly status?: 'completed' | 'failed' | 'generating_audio' } = {},
+  options: {
+    readonly recap?: string;
+    readonly status?: 'completed' | 'failed' | 'generating_audio';
+  } = {},
 ): Promise<void> {
   const episode = await createEpisode(db, {
     userId: OWNER,
@@ -492,7 +498,10 @@ describe('a failure leaves the balance exactly where it was', () => {
   it('when the row has no Syra episode to publish to', async () => {
     await fund(50);
     const episodeId = await queueEpisode();
-    await db.update(showEpisodes).set({ syraEpisodeId: null }).where(eq(showEpisodes.id, episodeId));
+    await db
+      .update(showEpisodes)
+      .set({ syraEpisodeId: null })
+      .where(eq(showEpisodes.id, episodeId));
 
     const before = await balance();
     scriptReply = GOOD_SCRIPT;
@@ -637,7 +646,10 @@ describe('a failure tells Syra its draft is never coming', () => {
   it('and says nothing when the row names no Syra episode', async () => {
     await fund(50);
     const episodeId = await queueEpisode();
-    await db.update(showEpisodes).set({ syraEpisodeId: null }).where(eq(showEpisodes.id, episodeId));
+    await db
+      .update(showEpisodes)
+      .set({ syraEpisodeId: null })
+      .where(eq(showEpisodes.id, episodeId));
     scriptReply = GOOD_SCRIPT;
 
     const { runShowPipeline } = await import('../show-pipeline.js');
@@ -795,7 +807,11 @@ describe('a success charges what the episode actually cost', () => {
 
     // And Syra is told nothing rather than told a guess: it writes the duration
     // it is handed and never revisits it.
-    const call = ingestEpisode.mock.calls[0] as unknown as [unknown, unknown, { duration?: number }];
+    const call = ingestEpisode.mock.calls[0] as unknown as [
+      unknown,
+      unknown,
+      { duration?: number },
+    ];
     expect(call[2].duration).toBeUndefined();
     expect(episode?.durationMs).toBeNull();
   });
@@ -934,7 +950,7 @@ describe('naming an episode after it exists', () => {
    * the script. Without this, "generated from the script" and "the owner's name
    * survives" both pass by accident.
    */
-  it("does not touch a name the owner chose, however the script would have named it", async () => {
+  it('does not touch a name the owner chose, however the script would have named it', async () => {
     await fund(50);
     const episodeId = await queueEpisode('the trouble with photosynthesis', 1, 'The Reckoning');
     scriptReply = scriptWith({ title: 'How leaves eat light' });

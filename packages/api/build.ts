@@ -33,7 +33,7 @@ import { cp } from 'fs/promises';
 const externalizeNodeModules: esbuild.Plugin = {
   name: 'externalize-node-modules',
   setup(build) {
-    build.onResolve({ filter: /^[^./]/ }, args => ({ path: args.path, external: true }));
+    build.onResolve({ filter: /^[^./]/ }, (args) => ({ path: args.path, external: true }));
   },
 };
 

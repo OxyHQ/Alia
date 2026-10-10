@@ -35,7 +35,12 @@ const SOURCE: SkillRegistrySource = {
 
 function bundle(name: string, license: string | null, files: unknown[] = []) {
   return {
-    document: { frontmatter: { name, description: 'd', license }, body: 'b', raw: {}, warnings: [] },
+    document: {
+      frontmatter: { name, description: 'd', license },
+      body: 'b',
+      raw: {},
+      warnings: [],
+    },
     directoryName: name,
     files,
     bytes: 1,
@@ -155,7 +160,9 @@ describe('failure', () => {
 
     const report = await syncSkillRegistry([SOURCE, { ...SOURCE, id: 'second', repo: 'o/r' }]);
 
-    expect(report.failed).toEqual([{ source: 'test-source', reason: 'GitHub is rate limiting this import' }]);
+    expect(report.failed).toEqual([
+      { source: 'test-source', reason: 'GitHub is rate limiting this import' },
+    ]);
     expect(report.created).toBe(1);
   });
 });

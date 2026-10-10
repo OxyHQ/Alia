@@ -248,7 +248,7 @@ function main() {
     console.error('check-model-defaults: the detector does not detect. Refusing to report a pass.');
     process.exit(1);
   }
-  if (identifiersIn('control.tsx', "<Button>route:auto</Button>").length !== 1) {
+  if (identifiersIn('control.tsx', '<Button>route:auto</Button>').length !== 1) {
     console.error('check-model-defaults: the detector cannot see a JSX label.');
     process.exit(1);
   }
@@ -266,7 +266,7 @@ function main() {
     for (const offence of offences) console.error(`  ${offence}`);
     console.error(
       '\nClients read GET /catalogue. With nothing chosen a request carries no `model` and the\n' +
-        'server\'s default answers, so no client names one.',
+        "server's default answers, so no client names one.",
     );
     process.exit(1);
   }

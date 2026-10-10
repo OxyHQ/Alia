@@ -132,26 +132,29 @@ export class TelegramGatewayAdapter implements AccountAdapter {
     });
 
     // GET /sessions/:sessionId/chats/:chatId/messages
-    router.get('/sessions/:sessionId/chats/:chatId/messages', async (req: AccountRequest, res: Response) => {
-      const { sessionId, chatId } = req.params;
-      const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+    router.get(
+      '/sessions/:sessionId/chats/:chatId/messages',
+      async (req: AccountRequest, res: Response) => {
+        const { sessionId, chatId } = req.params;
+        const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
 
-      try {
-        const messages = await listTelegramMessages(getDb(), sessionId, chatId, limit);
+        try {
+          const messages = await listTelegramMessages(getDb(), sessionId, chatId, limit);
 
-        return res.json({
-          messages: messages.map((m) => ({
-            id: m.messageId,
-            fromMe: m.fromMe,
-            timestamp: m.timestamp,
-            text: m.text,
-            senderName: m.senderName || null,
-          })),
-        });
-      } catch (error: unknown) {
-        return res.status(500).json({ error: errorMessage(error) });
-      }
-    });
+          return res.json({
+            messages: messages.map((m) => ({
+              id: m.messageId,
+              fromMe: m.fromMe,
+              timestamp: m.timestamp,
+              text: m.text,
+              senderName: m.senderName || null,
+            })),
+          });
+        } catch (error: unknown) {
+          return res.status(500).json({ error: errorMessage(error) });
+        }
+      },
+    );
 
     // POST /sessions/:sessionId/send
     router.post('/sessions/:sessionId/send', async (req: AccountRequest, res: Response) => {

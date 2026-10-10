@@ -92,10 +92,7 @@ describe('planEnforcement', () => {
 
     it('keeps manual_review alongside a real effect', () => {
       const plan = planEnforcement(withRecommendations(['remove', 'suspend_user']));
-      expect(plan.map((entry) => entry.action).sort()).toEqual([
-        'manual_review',
-        'restrict',
-      ]);
+      expect(plan.map((entry) => entry.action).sort()).toEqual(['manual_review', 'restrict']);
     });
 
     it('drops none when anything else is planned', () => {
@@ -177,9 +174,9 @@ describe('planEnforcement', () => {
     });
 
     it('asks a human on critical rather than removing automatically', () => {
-      expect(
-        planEnforcement(violationWithSeverity('critical')).map((e) => e.action),
-      ).toEqual(['manual_review']);
+      expect(planEnforcement(violationWithSeverity('critical')).map((e) => e.action)).toEqual([
+        'manual_review',
+      ]);
     });
 
     it('asks a human when a violation carries no finding this version understands', () => {
@@ -226,9 +223,7 @@ describe('planEnforcement', () => {
         recommendedActions: [],
         outcome: 'a_future_outcome' as Decision['outcome'],
       };
-      expect(planEnforcement(decision).map((entry) => entry.action)).toEqual([
-        'manual_review',
-      ]);
+      expect(planEnforcement(decision).map((entry) => entry.action)).toEqual(['manual_review']);
     });
   });
 });

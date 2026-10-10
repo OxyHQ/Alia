@@ -1,7 +1,11 @@
 import { asSchema, type Tool } from 'ai';
 
 import type { SystemPromptParts } from '../system-prompt-builder.js';
-import { estimateMessageTokens, estimateTokenCount, estimateTokensForChars } from '../token-counter.js';
+import {
+  estimateMessageTokens,
+  estimateTokenCount,
+  estimateTokensForChars,
+} from '../token-counter.js';
 
 /**
  * What one turn puts in the model's context window, by category — the numbers
@@ -29,7 +33,11 @@ export interface ContextBreakdown {
   /** The conversation so far, including this turn's message. */
   messages: number;
   /** MCP tools by server, for the card's expandable breakdown. */
-  mcpServers: Array<{ server: string; tokens: number; tools: Array<{ name: string; tokens: number }> }>;
+  mcpServers: Array<{
+    server: string;
+    tokens: number;
+    tools: Array<{ name: string; tokens: number }>;
+  }>;
 }
 
 /** An MCP tool is named `mcp_<server>__<tool>` (`lib/tools/mcp.ts`). */
@@ -43,16 +51,27 @@ function toolTokens(name: string, tool: Tool): number {
   } catch {
     // A schema the SDK cannot serialise still costs its name and description.
   }
-  return estimateTokenCount(JSON.stringify({ name, description: tool.description ?? '', parameters }));
+  return estimateTokenCount(
+    JSON.stringify({ name, description: tool.description ?? '', parameters }),
+  );
 }
 
-type HistoryMessage = { role: string; content?: unknown; tool_calls?: unknown; toolInvocations?: unknown };
+type HistoryMessage = {
+  role: string;
+  content?: unknown;
+  tool_calls?: unknown;
+  toolInvocations?: unknown;
+};
 
 /** A message as it occupies the window: its content, and any tool calls and results it carries. */
 function messageTokens(message: HistoryMessage): number {
-  const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content ?? '');
+  const content =
+    typeof message.content === 'string' ? message.content : JSON.stringify(message.content ?? '');
   const tools = message.tool_calls ?? message.toolInvocations;
-  return estimateMessageTokens(message.role, tools === undefined ? content : content + JSON.stringify(tools));
+  return estimateMessageTokens(
+    message.role,
+    tools === undefined ? content : content + JSON.stringify(tools),
+  );
 }
 
 export function measureContext({
@@ -97,7 +116,9 @@ export function measureContext({
     mcp: mcpServers.reduce((sum, server) => sum + server.tokens, 0),
     memory,
     skills,
-    messages: messages.filter((message) => message.role !== 'system').reduce((sum, message) => sum + messageTokens(message), 0),
+    messages: messages
+      .filter((message) => message.role !== 'system')
+      .reduce((sum, message) => sum + messageTokens(message), 0),
     mcpServers,
   };
 }

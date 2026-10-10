@@ -44,11 +44,14 @@ export function getToolPillLabel(toolName: string, t?: Translate): string {
   // Oxy service tools: oxy_serviceName__toolName → "ServiceName"
   if (toolName.startsWith('oxy_')) {
     const parts = toolName.replace('oxy_', '').split('__');
-    return parts[0].replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return parts[0].replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
   // Fallback: camelCase → "Camel Case"
-  return toolName.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim();
+  return toolName
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (c) => c.toUpperCase())
+    .trim();
 }
 
 /**

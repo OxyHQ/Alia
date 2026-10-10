@@ -234,7 +234,10 @@ export class SystemPromptBuilder {
 
     // 4. Recalled memories from hooks
     if (mayReadAliaMemory && recalledMemories?.length) {
-      const recalled = memoryDataBlock('Recalled Memories', memoryFactLines(recalledMemories.slice(0, 12)));
+      const recalled = memoryDataBlock(
+        'Recalled Memories',
+        memoryFactLines(recalledMemories.slice(0, 12)),
+      );
       systemMessage += recalled;
       memoryChars += recalled.length;
     }
@@ -249,7 +252,8 @@ export class SystemPromptBuilder {
 
       // Communication tools hint
       if (mayUseMessaging) {
-        systemMessage += '\n\nYou have `sendTelegramMessage` and WhatsApp tools (`getWhatsAppChats`, `getWhatsAppMessages`, `sendWhatsAppMessage`). Use them when the user asks. For WhatsApp, call getWhatsAppChats first to get chat JIDs.';
+        systemMessage +=
+          '\n\nYou have `sendTelegramMessage` and WhatsApp tools (`getWhatsAppChats`, `getWhatsAppMessages`, `sendWhatsAppMessage`). Use them when the user asks. For WhatsApp, call getWhatsAppChats first to get chat JIDs.';
       }
 
       // Oxy service context (non-blocking). Agent access to Oxy apps is decided
@@ -276,7 +280,8 @@ export class SystemPromptBuilder {
 
       // Agent mode hint
       if (agentMode && mayDelegate) {
-        systemMessage += '\n\nAGENT MODE: You have `searchAgents` and `delegateToAgent` tools. Search for specialist agents, delegate to the best match, and briefly explain why. If no agent fits, handle it yourself.';
+        systemMessage +=
+          '\n\nAGENT MODE: You have `searchAgents` and `delegateToAgent` tools. Search for specialist agents, delegate to the best match, and briefly explain why. If no agent fits, handle it yourself.';
       }
     }
 
@@ -287,7 +292,10 @@ export class SystemPromptBuilder {
       // Without a recall result, the most recent few stand in for it. A person
       // who switched recall off gets neither.
       const recallOff = userMemory.settings?.recallEnabled === false;
-      const knownFacts = recallOff || recalledMemories?.length ? [] : (userMemory.memories ?? []).slice(-KNOWN_FACTS_WITHOUT_RECALL);
+      const knownFacts =
+        recallOff || recalledMemories?.length
+          ? []
+          : (userMemory.memories ?? []).slice(-KNOWN_FACTS_WITHOUT_RECALL);
       const parts: string[] = [];
       if (knownFacts.length > 0) {
         parts.push('### Known Facts:\n' + memoryFactLines(knownFacts));
@@ -337,10 +345,10 @@ export class SystemPromptBuilder {
      * a profile that is not ready yet, so an empty string adds nothing.
      */
     if (
-      mayReadAliaMemory
-      && isDirectUserSession
-      && userMemory
-      && userMemory.settings?.recallEnabled !== false
+      mayReadAliaMemory &&
+      isDirectUserSession &&
+      userMemory &&
+      userMemory.settings?.recallEnabled !== false
     ) {
       const style = formatStyleForPrompt(userMemory.writingStyle ?? null);
       if (style !== '') systemMessage += `\n\n${style}`;

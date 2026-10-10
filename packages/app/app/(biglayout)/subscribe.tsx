@@ -29,10 +29,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 import { errorMessage as getErrorMessage } from '@/shared/api/error-utils';
-function buildTiers(
-  apiPlans: SubscriptionPlan[],
-  t: (key: string) => string,
-): PricingTier[] {
+function buildTiers(apiPlans: SubscriptionPlan[], t: (key: string) => string): PricingTier[] {
   return apiPlans.map((plan, index) => ({
     id: plan.id,
     name: plan.name,
@@ -64,9 +61,12 @@ export default function SubscribeScreen() {
   const [loadingPlanId, setLoadingPlanId] = useState<string>();
   const [isMounted, setIsMounted] = useState(false);
 
-  const { data: apiPlans = [], isLoading: plansLoading, isError: plansError } = useSubscriptionPlans('alia');
-  const { data: subscription, refetch: refetchSubscription } =
-    useSubscription('alia');
+  const {
+    data: apiPlans = [],
+    isLoading: plansLoading,
+    isError: plansError,
+  } = useSubscriptionPlans('alia');
+  const { data: subscription, refetch: refetchSubscription } = useSubscription('alia');
   const checkoutMutation = useCreateSubscriptionCheckout();
   const changePlanMutation = useChangePlan();
   const cancelMutation = useCancelSubscription();
@@ -94,7 +94,13 @@ export default function SubscribeScreen() {
     try {
       const result = await changePlanMutation.mutateAsync({ planId, billingPeriod });
       await refetchSubscription();
-      toast.success(t(result.direction === 'upgrade' ? 'subscribe.upgradeSuccess' : 'subscribe.downgradeSuccess'));
+      toast.success(
+        t(
+          result.direction === 'upgrade'
+            ? 'subscribe.upgradeSuccess'
+            : 'subscribe.downgradeSuccess',
+        ),
+      );
     } catch (error: unknown) {
       toast.error(getErrorMessage(error) || t('subscribe.failedPlanChange'));
     } finally {
@@ -108,10 +114,11 @@ export default function SubscribeScreen() {
       return;
     }
 
-    const targetTier = tiers.find(tier => tier.id === planId);
+    const targetTier = tiers.find((tier) => tier.id === planId);
     if (!targetTier) return;
 
-    const hasActiveSub = subscription && (subscription.status === 'active' || subscription.status === 'trialing');
+    const hasActiveSub =
+      subscription && (subscription.status === 'active' || subscription.status === 'trialing');
 
     // Downgrade to Free = cancel subscription
     if (targetTier.isFree && hasActiveSub) {
@@ -140,7 +147,7 @@ export default function SubscribeScreen() {
 
     // Has active subscription → change plan
     if (hasActiveSub) {
-      const currentTier = tiers.find(tier => tier.id === subscription.plan?.planId);
+      const currentTier = tiers.find((tier) => tier.id === subscription.plan?.planId);
       const isDowngrade = currentTier && targetTier.sortOrder < currentTier.sortOrder;
 
       if (isDowngrade) {
@@ -192,7 +199,11 @@ export default function SubscribeScreen() {
               <Loading size="lg" />
             </View>
           ) : plansError ? (
-            <EmptyState variant="compact" icon={RiErrorWarningLine} title={t('subscribe.loadError')} />
+            <EmptyState
+              variant="compact"
+              icon={RiErrorWarningLine}
+              title={t('subscribe.loadError')}
+            />
           ) : (
             <PlanGrid
               tiers={tiers}

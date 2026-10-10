@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { ShowSpeaker } from '../../../db/schema/shows';
-import { FORMAT_DEFAULTS, LEGACY_VOICE_IDS, SHOW_VOICES, buildSeriesCast, speakingVoices } from '../voice-roster';
+import {
+  FORMAT_DEFAULTS,
+  LEGACY_VOICE_IDS,
+  SHOW_VOICES,
+  buildSeriesCast,
+  speakingVoices,
+} from '../voice-roster';
 import { MAX_SPEECH_INPUT_CHARS, splitForSpeech } from '../audio-text';
 
 /** Exactly the voices Kaana's speech deployment accepts; anything else is refused as `speech.voice`. */
@@ -16,7 +22,9 @@ describe('the show voice roster', () => {
   it('keeps product labels, never upstream voice slugs, as what a listener hears', () => {
     for (const voice of SHOW_VOICES) {
       expect(KAANA_SPEECH_VOICES.has(voice.name.toLowerCase())).toBe(false);
-      expect(`${voice.name} ${voice.description} ${voice.accent}`).not.toMatch(/xai|grok|elevenlabs|kaana/i);
+      expect(`${voice.name} ${voice.description} ${voice.accent}`).not.toMatch(
+        /xai|grok|elevenlabs|kaana/i,
+      );
     }
     // The long-standing default hosts keep their names.
     expect(buildSeriesCast('podcast').map((speaker) => speaker.name)).toEqual(['Marcus', 'Sarah']);
@@ -35,8 +43,14 @@ describe('the show voice roster', () => {
   });
 
   it('honours a requested voice, translating a retired id, and never duplicates', () => {
-    expect(buildSeriesCast('podcast', ['leo', 'eve']).map((s) => s.voiceId)).toEqual(['leo', 'eve']);
-    expect(buildSeriesCast('podcast', ['pNInz6obpgDQGcFmaJgB']).map((s) => s.voiceId)).toEqual(['leo', 'ara']);
+    expect(buildSeriesCast('podcast', ['leo', 'eve']).map((s) => s.voiceId)).toEqual([
+      'leo',
+      'eve',
+    ]);
+    expect(buildSeriesCast('podcast', ['pNInz6obpgDQGcFmaJgB']).map((s) => s.voiceId)).toEqual([
+      'leo',
+      'ara',
+    ]);
     const clash = buildSeriesCast('podcast', ['rex', 'rex']).map((s) => s.voiceId);
     expect(clash[0]).toBe('rex');
     expect(clash[1]).not.toBe('rex');
@@ -45,7 +59,11 @@ describe('the show voice roster', () => {
 });
 
 describe('speakingVoices: a stored cast, spoken in current voices', () => {
-  const speaker = (name: string, voiceId: string, role: ShowSpeaker['role'] = 'host'): ShowSpeaker => ({
+  const speaker = (
+    name: string,
+    voiceId: string,
+    role: ShowSpeaker['role'] = 'host',
+  ): ShowSpeaker => ({
     name,
     voiceId,
     voiceName: name,

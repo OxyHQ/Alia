@@ -72,7 +72,12 @@ export function AgentCapabilityToggles({
             disabled={disabled}
             showChevron={false}
             rightElement={
-              <Switch accessibilityLabel={t(label)} checked={granted} onCheckedChange={() => toggle(id)} disabled={disabled} />
+              <Switch
+                accessibilityLabel={t(label)}
+                checked={granted}
+                onCheckedChange={() => toggle(id)}
+                disabled={disabled}
+              />
             }
           />
         );

@@ -58,7 +58,9 @@ const DEFAULT_PAGE = 20;
  * `seq` is deliberately NOT taken from the body: `replaceMessages` assigns it
  * from the array index, which is what makes the stored order the client's order.
  */
-function messageFromBody(body: unknown): Omit<NewMessage, 'conversationId' | 'oxyUserId' | 'seq'> | null {
+function messageFromBody(
+  body: unknown,
+): Omit<NewMessage, 'conversationId' | 'oxyUserId' | 'seq'> | null {
   if (body === null || typeof body !== 'object') return null;
   const raw = body as Record<string, unknown>;
   const role = raw.role;
@@ -79,7 +81,10 @@ function messageFromBody(body: unknown): Omit<NewMessage, 'conversationId' | 'ox
 type BodyMessage = Omit<NewMessage, 'conversationId' | 'oxyUserId' | 'seq'>;
 
 /** {@link keepAgentOutreach}, over the whitelisted body rows this route stores. */
-function withAgentOutreachKept(stored: readonly MessageRow[], rows: readonly BodyMessage[]): BodyMessage[] {
+function withAgentOutreachKept(
+  stored: readonly MessageRow[],
+  rows: readonly BodyMessage[],
+): BodyMessage[] {
   const original = new Map<object, BodyMessage>();
   const inputs = rows.map((row) => {
     const input = {
@@ -90,12 +95,15 @@ function withAgentOutreachKept(stored: readonly MessageRow[], rows: readonly Bod
     original.set(input, row);
     return input;
   });
-  return keepAgentOutreach(stored, inputs).map((message) => original.get(message) ?? {
-    role: message.role as MessageRole,
-    content: message.content ?? '',
-    ...(message.id ? { clientMessageId: message.id } : {}),
-    ...(message.agentInfo ? { agentInfo: message.agentInfo } : {}),
-  });
+  return keepAgentOutreach(stored, inputs).map(
+    (message) =>
+      original.get(message) ?? {
+        role: message.role as MessageRole,
+        content: message.content ?? '',
+        ...(message.id ? { clientMessageId: message.id } : {}),
+        ...(message.agentInfo ? { agentInfo: message.agentInfo } : {}),
+      },
+  );
 }
 
 /** A body's `content`: a string, or the AI SDK's ordered parts array. */
@@ -105,7 +113,9 @@ function isMessageContent(value: unknown): value is MessageContent {
     Array.isArray(value) &&
     value.every(
       (part) =>
-        part !== null && typeof part === 'object' && typeof (part as { type: unknown }).type === 'string',
+        part !== null &&
+        typeof part === 'object' &&
+        typeof (part as { type: unknown }).type === 'string',
     )
   );
 }
@@ -122,7 +132,10 @@ function toolInvocationsFromBody(value: unknown): { toolInvocations: ToolInvocat
     if (element === null || typeof element !== 'object') return [];
     const raw = element as Record<string, unknown>;
     if (typeof raw.toolCallId !== 'string' || typeof raw.toolName !== 'string') return [];
-    if (typeof raw.state !== 'string' || !(TOOL_INVOCATION_STATES as readonly string[]).includes(raw.state)) {
+    if (
+      typeof raw.state !== 'string' ||
+      !(TOOL_INVOCATION_STATES as readonly string[]).includes(raw.state)
+    ) {
       return [];
     }
     return [
@@ -142,7 +155,11 @@ function toolInvocationsFromBody(value: unknown): { toolInvocations: ToolInvocat
 function agentInfoFromBody(value: unknown): { agentInfo: AgentInfo } | null {
   if (value === null || typeof value !== 'object') return null;
   const raw = value as Record<string, unknown>;
-  if (typeof raw.id !== 'string' || typeof raw.name !== 'string' || typeof raw.handle !== 'string') {
+  if (
+    typeof raw.id !== 'string' ||
+    typeof raw.name !== 'string' ||
+    typeof raw.handle !== 'string'
+  ) {
     return null;
   }
   return {

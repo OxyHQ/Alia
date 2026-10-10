@@ -38,7 +38,12 @@ describe('Chat, on a catalogue card', () => {
 
 describe('Share', () => {
   it('links to the agent on Alia’s own domain', () => {
-    const message = agentShareMessage({ _id: 'a1', name: 'Pepe', handle: 'pepe', tagline: 'Finds flights' });
+    const message = agentShareMessage({
+      _id: 'a1',
+      name: 'Pepe',
+      handle: 'pepe',
+      tagline: 'Finds flights',
+    });
     expect(message).toBe('Pepe — Finds flights\nhttps://alia.onl/agents/a1');
     expect(message).not.toContain('alia.app');
   });

@@ -27,7 +27,9 @@ export function usePendingAgentApprovals(agentId?: string) {
   return useQuery({
     queryKey: agentApprovalsKey,
     queryFn: async () => {
-      const response = await apiClient.get<{ approvals: PendingAgentApproval[] }>(API_ROUTES.agents.approvals);
+      const response = await apiClient.get<{ approvals: PendingAgentApproval[] }>(
+        API_ROUTES.agents.approvals,
+      );
       return response.data.approvals;
     },
     // A new request arrives with the agent's message; this is the backstop.

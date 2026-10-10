@@ -10,7 +10,9 @@ export async function findAutomationWatchState(
   db: Executor,
   automationId: string,
 ): Promise<AutomationWatchState | null> {
-  const [row] = await db.select().from(automationWatchStates)
+  const [row] = await db
+    .select()
+    .from(automationWatchStates)
     .where(eq(automationWatchStates.automationId, automationId))
     .limit(1);
   return row ?? null;
@@ -38,7 +40,8 @@ export async function recordAutomationWatchObservation(
     pausedAt: null,
     ...(input.changed ? { lastChangedAt: input.now } : {}),
   };
-  await db.insert(automationWatchStates)
+  await db
+    .insert(automationWatchStates)
     .values({ automationId: input.automationId, ...values })
     .onConflictDoUpdate({ target: automationWatchStates.automationId, set: values });
 }
@@ -54,7 +57,8 @@ export async function recordAutomationWatchFailure(
   automationId: string,
   now: Date,
 ): Promise<number> {
-  const [row] = await db.insert(automationWatchStates)
+  const [row] = await db
+    .insert(automationWatchStates)
     .values({
       automationId,
       consecutiveFailures: 1,
@@ -70,7 +74,8 @@ export async function recordAutomationWatchFailure(
     })
     .returning({ failures: automationWatchStates.consecutiveFailures });
   const failures = row?.failures ?? 1;
-  await db.update(automationWatchStates)
+  await db
+    .update(automationWatchStates)
     .set({ nextCheckAt: new Date(now.getTime() + watchBackoffMs(failures)) })
     .where(eq(automationWatchStates.automationId, automationId));
   return failures;
@@ -89,15 +94,19 @@ export async function pauseFailingAutomationWatch(
   now: Date,
 ): Promise<boolean> {
   return db.transaction(async (transaction) => {
-    const [paused] = await transaction.update(automationWatchStates)
+    const [paused] = await transaction
+      .update(automationWatchStates)
       .set({ pausedAt: now, consecutiveFailures: 0, nextCheckAt: null })
-      .where(and(
-        eq(automationWatchStates.automationId, automationId),
-        sql`${automationWatchStates.consecutiveFailures} >= ${threshold}`,
-      ))
+      .where(
+        and(
+          eq(automationWatchStates.automationId, automationId),
+          sql`${automationWatchStates.consecutiveFailures} >= ${threshold}`,
+        ),
+      )
       .returning({ automationId: automationWatchStates.automationId });
     if (!paused) return false;
-    await transaction.update(automationDefinitions)
+    await transaction
+      .update(automationDefinitions)
       .set({ enabled: false })
       .where(eq(automationDefinitions.id, automationId));
     return true;

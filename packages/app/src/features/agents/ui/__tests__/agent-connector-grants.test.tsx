@@ -20,7 +20,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
-  const host = (name: string) =>
+  const host =
+    (name: string) =>
     ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return { View: host('View'), Pressable: host('Pressable'), Text: host('Text') };
@@ -29,31 +30,51 @@ vi.mock('react-native', async () => {
 /** The Bloom glyphs the family list imports, as named hosts. */
 vi.mock('@oxy.so/bloom/icons/RiComputerLine', async () => {
   const ReactModule = await import('react');
-  return { RiComputerLine: (props: Record<string, unknown>) => ReactModule.createElement('RiComputerLine', props) };
+  return {
+    RiComputerLine: (props: Record<string, unknown>) =>
+      ReactModule.createElement('RiComputerLine', props),
+  };
 });
 vi.mock('@oxy.so/bloom/icons/RiGlobalLine', async () => {
   const ReactModule = await import('react');
-  return { RiGlobalLine: (props: Record<string, unknown>) => ReactModule.createElement('RiGlobalLine', props) };
+  return {
+    RiGlobalLine: (props: Record<string, unknown>) =>
+      ReactModule.createElement('RiGlobalLine', props),
+  };
 });
 vi.mock('@oxy.so/bloom/icons/RiLightbulbFlashLine', async () => {
   const ReactModule = await import('react');
-  return { RiLightbulbFlashLine: (props: Record<string, unknown>) => ReactModule.createElement('RiLightbulbFlashLine', props) };
+  return {
+    RiLightbulbFlashLine: (props: Record<string, unknown>) =>
+      ReactModule.createElement('RiLightbulbFlashLine', props),
+  };
 });
 vi.mock('@oxy.so/bloom/icons/RiMessage2Line', async () => {
   const ReactModule = await import('react');
-  return { RiMessage2Line: (props: Record<string, unknown>) => ReactModule.createElement('RiMessage2Line', props) };
+  return {
+    RiMessage2Line: (props: Record<string, unknown>) =>
+      ReactModule.createElement('RiMessage2Line', props),
+  };
 });
 vi.mock('@oxy.so/bloom/icons/RiShapesLine', async () => {
   const ReactModule = await import('react');
-  return { RiShapesLine: (props: Record<string, unknown>) => ReactModule.createElement('RiShapesLine', props) };
+  return {
+    RiShapesLine: (props: Record<string, unknown>) =>
+      ReactModule.createElement('RiShapesLine', props),
+  };
 });
 vi.mock('@oxy.so/bloom/icons/RiTeamLine', async () => {
   const ReactModule = await import('react');
-  return { RiTeamLine: (props: Record<string, unknown>) => ReactModule.createElement('RiTeamLine', props) };
+  return {
+    RiTeamLine: (props: Record<string, unknown>) => ReactModule.createElement('RiTeamLine', props),
+  };
 });
 vi.mock('@oxy.so/bloom/icons/RiWindowLine', async () => {
   const ReactModule = await import('react');
-  return { RiWindowLine: (props: Record<string, unknown>) => ReactModule.createElement('RiWindowLine', props) };
+  return {
+    RiWindowLine: (props: Record<string, unknown>) =>
+      ReactModule.createElement('RiWindowLine', props),
+  };
 });
 
 /**
@@ -63,15 +84,21 @@ vi.mock('@oxy.so/bloom/icons/RiWindowLine', async () => {
  */
 vi.mock('@/shared/ui/action-key-icon', async () => {
   const ReactModule = await import('react');
-  return { ActionKeyIcon: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props) };
+  return {
+    ActionKeyIcon: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props),
+  };
 });
 vi.mock('@/shared/ui/icons/agent-robot-icon', async () => {
   const ReactModule = await import('react');
-  return { AgentRobotIcon: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props) };
+  return {
+    AgentRobotIcon: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props),
+  };
 });
 vi.mock('@/shared/ui/icons/clock-icon', async () => {
   const ReactModule = await import('react');
-  return { ClockIcon: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props) };
+  return {
+    ClockIcon: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props),
+  };
 });
 
 vi.mock('@oxy.so/bloom/switch', async () => {
@@ -84,10 +111,7 @@ vi.mock('@oxy.so/bloom/switch', async () => {
 vi.mock('@oxy.so/bloom/settings-list', async () => {
   const ReactModule = await import('react');
   return {
-    SettingsListGroup: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    SettingsListGroup: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Group', props, children),
     /**
      * `rightElement` and `icon` are PROPS holding elements, and the real
@@ -176,7 +200,7 @@ const row = (root: ReactTestRenderer['root'], title: string) => {
   return found;
 };
 
-describe('the two ways to grant an agent its owner\'s other agents', () => {
+describe("the two ways to grant an agent its owner's other agents", () => {
   it('offers the family-wide row and one row per agent, under one heading', () => {
     const { root } = render([]);
 

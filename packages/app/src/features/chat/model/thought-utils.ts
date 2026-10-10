@@ -42,7 +42,13 @@ export interface ThoughtStep {
  *  - `cancelled`: the person stopped it, or a persisted turn shows a tool that
  *    never returned, which is a run that was interrupted before it finished.
  */
-export type TurnLifecycle = 'queued' | 'running' | 'waiting_approval' | 'completed' | 'failed' | 'cancelled';
+export type TurnLifecycle =
+  | 'queued'
+  | 'running'
+  | 'waiting_approval'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
 
 /** The three ways a settled turn can have ended, as stamped on its message. */
 export type TurnOutcome = NonNullable<Message['turnOutcome']>;
@@ -69,7 +75,15 @@ export interface TurnContext {
 /** The fields of a message the lifecycle is read from; a `Message` satisfies it. */
 export type LifecycleMessage = Pick<
   Message,
-  'id' | 'content' | 'thinking' | 'toolInvocations' | 'isStreaming' | 'turnOutcome' | 'pendingApproval' | 'pendingApprovalResult' | 'researchProgress'
+  | 'id'
+  | 'content'
+  | 'thinking'
+  | 'toolInvocations'
+  | 'isStreaming'
+  | 'turnOutcome'
+  | 'pendingApproval'
+  | 'pendingApprovalResult'
+  | 'researchProgress'
 >;
 
 /** A tool that was called and never came back — `call` or `partial-call`. */
@@ -78,7 +92,9 @@ function hasUnresolvedTool(message: Pick<LifecycleMessage, 'toolInvocations'>): 
 }
 
 function hasContent(content: LifecycleMessage['content'] | undefined): boolean {
-  return typeof content === 'string' ? content.length > 0 : Array.isArray(content) && content.length > 0;
+  return typeof content === 'string'
+    ? content.length > 0
+    : Array.isArray(content) && content.length > 0;
 }
 
 /**
@@ -126,7 +142,8 @@ function awaitingApproval(message: LifecycleMessage): boolean {
  *     one that never returned — an interrupted run, not a finished one.
  */
 export function turnLifecycle(message: LifecycleMessage, ctx: TurnContext = {}): TurnLifecycle {
-  if (message.turnOutcome === 'failed' || ctx.failedTurn?.anchorMessageId === message.id) return 'failed';
+  if (message.turnOutcome === 'failed' || ctx.failedTurn?.anchorMessageId === message.id)
+    return 'failed';
   if (message.turnOutcome === 'cancelled') return 'cancelled';
   if (message.turnOutcome === 'completed') return 'completed';
 
@@ -162,7 +179,9 @@ function getDomain(url: string): string {
  */
 function researchInvocationSources(result: { sources?: unknown }): Source[] {
   if (!Array.isArray(result.sources)) return [];
-  return researchSourcesToSources(result.sources as Array<{ id?: unknown; url?: unknown; title?: unknown }>);
+  return researchSourcesToSources(
+    result.sources as Array<{ id?: unknown; url?: unknown; title?: unknown }>,
+  );
 }
 
 /**
@@ -180,7 +199,8 @@ export function researchSourcesToSources(
   for (const s of sources) {
     if (!s || typeof s.url !== 'string' || s.url.length === 0 || seen.has(s.url)) continue;
     seen.add(s.url);
-    const title = typeof s.title === 'string' && s.title.trim().length > 0 ? s.title.trim() : getDomain(s.url);
+    const title =
+      typeof s.title === 'string' && s.title.trim().length > 0 ? s.title.trim() : getDomain(s.url);
     out.push({ title, url: s.url, snippet: '', domain: getDomain(s.url) });
   }
   return out;
@@ -222,7 +242,11 @@ export function extractSources(toolInvocations?: ToolInvocation[]): Source[] {
       continue;
     }
 
-    if ((inv.toolName === 'webSearch' || (inv.toolName === 'browse' && inv.result.action === 'search')) && Array.isArray(inv.result.results)) {
+    if (
+      (inv.toolName === 'webSearch' ||
+        (inv.toolName === 'browse' && inv.result.action === 'search')) &&
+      Array.isArray(inv.result.results)
+    ) {
       for (const r of inv.result.results) {
         if (r.url && !seen.has(r.url)) {
           seen.add(r.url);
@@ -306,7 +330,12 @@ export function buildSteps(
       }
 
       // Attach sources for search tools that have results
-      if ((inv.toolName === 'webSearch' || (inv.toolName === 'browse' && inv.result?.action === 'search')) && inv.state === 'result' && inv.result?.results) {
+      if (
+        (inv.toolName === 'webSearch' ||
+          (inv.toolName === 'browse' && inv.result?.action === 'search')) &&
+        inv.state === 'result' &&
+        inv.result?.results
+      ) {
         step.sources = inv.result.results
           .filter((r: any) => r.url)
           .map((r: any) => ({
@@ -336,7 +365,8 @@ export function buildSteps(
     case 'completed':
       // "Done" under a message that holds nothing at all would be a step
       // about nothing; a finished tool-only turn, though, is done.
-      if (steps.length > 0 || hasContent(message.content)) steps.push({ type: 'done', label: 'Done' });
+      if (steps.length > 0 || hasContent(message.content))
+        steps.push({ type: 'done', label: 'Done' });
       break;
     case 'failed':
       steps.push({ type: 'failed', label: 'Failed' });
@@ -422,7 +452,12 @@ const RESEARCH_PHASES: ReadonlySet<string> = new Set([
  */
 export interface AuditEntry {
   id: string;
-  type: 'tool_call' | 'research_phase' | 'agent_delegation' | 'plan_approved' | 'artifact_generated';
+  type:
+    | 'tool_call'
+    | 'research_phase'
+    | 'agent_delegation'
+    | 'plan_approved'
+    | 'artifact_generated';
   label: AuditText;
   description: AuditText;
   /** `interrupted` is a tool call that never returned in a turn that is over. */
@@ -448,7 +483,9 @@ export function buildAuditTimeline(
 
   for (const msg of messages) {
     if (msg.role !== 'assistant') continue;
-    const live = isLiveLifecycle(turnLifecycle(msg, { ...ctx, isLastAssistant: msg === lastAssistant }));
+    const live = isLiveLifecycle(
+      turnLifecycle(msg, { ...ctx, isLastAssistant: msg === lastAssistant }),
+    );
 
     // Agent delegation
     if (msg.agentInfo) {
@@ -468,7 +505,10 @@ export function buildAuditTimeline(
         id: `plan-${msg.id}`,
         type: 'plan_approved',
         label: { key: 'thought.audit.planApproved' },
-        description: { key: 'thought.audit.planSteps', params: { count: msg.pendingPlan.steps?.length || 0 } },
+        description: {
+          key: 'thought.audit.planSteps',
+          params: { count: msg.pendingPlan.steps?.length || 0 },
+        },
         status: 'complete',
         messageId: msg.id,
       });
@@ -553,10 +593,18 @@ export function buildAuditTimeline(
  */
 export type ToolCallStatus = 'running' | 'done' | 'error' | 'interrupted';
 
-export function toolCallStatus(inv: Pick<ToolInvocation, 'state' | 'result'>, live: boolean): ToolCallStatus {
+export function toolCallStatus(
+  inv: Pick<ToolInvocation, 'state' | 'result'>,
+  live: boolean,
+): ToolCallStatus {
   if (inv.state !== 'result') return live ? 'running' : 'interrupted';
   const result: unknown = inv.result;
-  if (result !== null && typeof result === 'object' && 'error' in result && Boolean((result as { error?: unknown }).error)) {
+  if (
+    result !== null &&
+    typeof result === 'object' &&
+    'error' in result &&
+    Boolean((result as { error?: unknown }).error)
+  ) {
     return 'error';
   }
   return 'done';
@@ -606,19 +654,31 @@ export function extractOutputs(toolInvocations?: ToolInvocation[]): OutputFile[]
   const outputs: OutputFile[] = [];
   for (const inv of toolInvocations) {
     if (inv.state !== 'result' || !inv.result || typeof inv.result !== 'object') continue;
-    const result = inv.result as { filename?: unknown; title?: unknown; artifact?: { title?: unknown } | null };
+    const result = inv.result as {
+      filename?: unknown;
+      title?: unknown;
+      artifact?: { title?: unknown } | null;
+    };
     let name: string | null = null;
     if (inv.toolName === 'generateFile') {
-      name = typeof result.filename === 'string' && result.filename.length > 0
-        ? result.filename
-        : typeof result.title === 'string' && result.title.length > 0 ? result.title : getToolLabel(inv.toolName);
+      name =
+        typeof result.filename === 'string' && result.filename.length > 0
+          ? result.filename
+          : typeof result.title === 'string' && result.title.length > 0
+            ? result.title
+            : getToolLabel(inv.toolName);
     } else if (result.artifact && typeof result.artifact === 'object') {
-      name = typeof result.artifact.title === 'string' && result.artifact.title.length > 0
-        ? result.artifact.title
-        : getToolLabel(inv.toolName);
+      name =
+        typeof result.artifact.title === 'string' && result.artifact.title.length > 0
+          ? result.artifact.title
+          : getToolLabel(inv.toolName);
     }
     if (name === null) continue;
-    outputs.push({ id: inv.toolCallId || `output-${outputs.length}`, name, toolName: inv.toolName });
+    outputs.push({
+      id: inv.toolCallId || `output-${outputs.length}`,
+      name,
+      toolName: inv.toolName,
+    });
   }
   return outputs;
 }
@@ -693,7 +753,9 @@ export function turnTimings(
       timings.set(message.id, {
         startedAt: sendStamp ?? ownStamp,
         endedAt:
-          sendStamp !== null && ownStamp !== null && ownStamp - sendStamp >= MIN_PERSISTED_ELAPSED_MS
+          sendStamp !== null &&
+          ownStamp !== null &&
+          ownStamp - sendStamp >= MIN_PERSISTED_ELAPSED_MS
             ? ownStamp
             : null,
       });
@@ -720,7 +782,9 @@ export function turnTiming(
   const ownStamp = stampToMs(message.createdAt);
   const startedAt = sendStamp ?? ownStamp;
   const endedAt =
-    sendStamp !== null && ownStamp !== null && ownStamp - sendStamp >= MIN_PERSISTED_ELAPSED_MS ? ownStamp : null;
+    sendStamp !== null && ownStamp !== null && ownStamp - sendStamp >= MIN_PERSISTED_ELAPSED_MS
+      ? ownStamp
+      : null;
   return { startedAt, endedAt };
 }
 
@@ -736,7 +800,9 @@ export function formatElapsed(ms: number, long = false): string {
   const seconds = total % 60;
   const unit = (n: number, short: string, one: string, many: string): string =>
     long ? `${n} ${n === 1 ? one : many}` : `${n}${short}`;
-  if (hours > 0) return `${unit(hours, 'h', 'hour', 'hours')} ${unit(minutes, 'm', 'minute', 'minutes')}`;
-  if (minutes > 0) return `${unit(minutes, 'm', 'minute', 'minutes')} ${unit(seconds, 's', 'second', 'seconds')}`;
+  if (hours > 0)
+    return `${unit(hours, 'h', 'hour', 'hours')} ${unit(minutes, 'm', 'minute', 'minutes')}`;
+  if (minutes > 0)
+    return `${unit(minutes, 'm', 'minute', 'minutes')} ${unit(seconds, 's', 'second', 'seconds')}`;
   return unit(seconds, 's', 'second', 'seconds');
 }

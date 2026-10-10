@@ -21,7 +21,10 @@ vi.mock('../../src/lib/speech-recognition', () => ({
   isSpeechRecognitionAvailable: () => true,
   requestSpeechRecognitionPermission: async () => null,
   chooseSpeechRecognizer: async () => fx.choice,
-  startSpeechRecognition: (options: SpeechRecognitionOptions, handlers: SpeechRecognitionHandlers) => {
+  startSpeechRecognition: (
+    options: SpeechRecognitionOptions,
+    handlers: SpeechRecognitionHandlers,
+  ) => {
     fx.started.push({ options, handlers });
     return { stop: vi.fn(), abort: vi.fn() };
   },

@@ -239,11 +239,7 @@ export async function createStrategyIfAbsent(
       sourceSteps: strategy.sourceSteps,
     })
     .onConflictDoNothing({
-      target: [
-        retrievalStrategies.oxyUserId,
-        retrievalStrategies.intent,
-        retrievalStrategies.name,
-      ],
+      target: [retrievalStrategies.oxyUserId, retrievalStrategies.intent, retrievalStrategies.name],
     });
 }
 
@@ -276,10 +272,7 @@ export interface RetrievalStrategyRun {
  *
  * No transaction. The source had none, and the conflict clause is the interlock.
  */
-export async function recordStrategyRun(
-  db: ApiDatabase,
-  run: RetrievalStrategyRun,
-): Promise<void> {
+export async function recordStrategyRun(db: ApiDatabase, run: RetrievalStrategyRun): Promise<void> {
   const updated = await db
     .update(retrievalStrategies)
     .set({
@@ -313,11 +306,7 @@ export async function recordStrategyRun(
       avgLatencyMs: run.avgLatencyMs,
     })
     .onConflictDoUpdate({
-      target: [
-        retrievalStrategies.oxyUserId,
-        retrievalStrategies.intent,
-        retrievalStrategies.name,
-      ],
+      target: [retrievalStrategies.oxyUserId, retrievalStrategies.intent, retrievalStrategies.name],
       set: {
         successCount: sql`${successCount} + ${run.successDelta}`,
         failureCount: sql`${failureCount} + ${run.failureDelta}`,
@@ -378,10 +367,7 @@ export interface ContextEdgeUpsert {
 }
 
 /** Record that a relation between two nodes was seen. */
-export async function upsertContextEdge(
-  db: ApiDatabase,
-  edge: ContextEdgeUpsert,
-): Promise<void> {
+export async function upsertContextEdge(db: ApiDatabase, edge: ContextEdgeUpsert): Promise<void> {
   const patch = { lastSeenAt: edge.lastSeenAt, weight: edge.weight };
   await db
     .insert(contextEdges)

@@ -31,15 +31,21 @@
  * owns the single-flight re-mint, so nothing here implements one either.
  */
 
-import { app, safeStorage, type BrowserWindow } from 'electron'
-import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { app, safeStorage, type BrowserWindow } from 'electron';
+import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { OxyServices } from '@oxy.so/core';
-import { createNativeAuthStateStore, installAuthRefreshHandler, runSessionColdBoot, startTokenRefreshScheduler, type AuthStateStore } from '@oxy.so/core/session';
+import {
+  createNativeAuthStateStore,
+  installAuthRefreshHandler,
+  runSessionColdBoot,
+  startTokenRefreshScheduler,
+  type AuthStateStore,
+} from '@oxy.so/core/session';
 
-import { createLogger } from './logger'
+import { createLogger } from './logger';
 
-const logger = createLogger('Auth')
+const logger = createLogger('Auth');
 
 /**
  * Where the session blob lives.
@@ -49,7 +55,7 @@ const logger = createLogger('Auth')
  * settings, and the device secret is a credential.
  */
 function fileFor(key: string): string {
-  return join(app.getPath('userData'), 'oxy-session', `${key}.bin`)
+  return join(app.getPath('userData'), 'oxy-session', `${key}.bin`);
 }
 
 /**
@@ -63,44 +69,44 @@ function fileFor(key: string): string {
  */
 function encryptionAvailable(): boolean {
   try {
-    return safeStorage.isEncryptionAvailable()
+    return safeStorage.isEncryptionAvailable();
   } catch {
-    return false
+    return false;
   }
 }
 
-const PLAINTEXT_PREFIX = 'plain:'
+const PLAINTEXT_PREFIX = 'plain:';
 
 const fileStorage = {
   async getItem(key: string): Promise<string | null> {
     try {
-      const raw = await readFile(fileFor(key))
-      const text = raw.toString('utf8')
-      if (text.startsWith(PLAINTEXT_PREFIX)) return text.slice(PLAINTEXT_PREFIX.length)
-      return safeStorage.decryptString(raw)
+      const raw = await readFile(fileFor(key));
+      const text = raw.toString('utf8');
+      if (text.startsWith(PLAINTEXT_PREFIX)) return text.slice(PLAINTEXT_PREFIX.length);
+      return safeStorage.decryptString(raw);
     } catch {
       // Unreadable, absent, or written under a keychain this profile can no
       // longer open. All three mean "no durable state", which the cold boot
       // handles by re-minting or reporting signed out.
-      return null
+      return null;
     }
   },
   async setItem(key: string, value: string): Promise<void> {
-    const path = fileFor(key)
-    await mkdir(dirname(path), { recursive: true, mode: 0o700 })
+    const path = fileFor(key);
+    await mkdir(dirname(path), { recursive: true, mode: 0o700 });
     const payload = encryptionAvailable()
       ? safeStorage.encryptString(value)
-      : Buffer.from(PLAINTEXT_PREFIX + value, 'utf8')
-    await writeFile(path, payload, { mode: 0o600 })
+      : Buffer.from(PLAINTEXT_PREFIX + value, 'utf8');
+    await writeFile(path, payload, { mode: 0o600 });
     // `writeFile`'s mode is ignored when the file already exists.
-    await chmod(path, 0o600)
+    await chmod(path, 0o600);
   },
   async removeItem(key: string): Promise<void> {
-    await rm(fileFor(key), { force: true })
-  }
-}
+    await rm(fileFor(key), { force: true });
+  },
+};
 
-const store: AuthStateStore = createNativeAuthStateStore(fileStorage)
+const store: AuthStateStore = createNativeAuthStateStore(fileStorage);
 
 /**
  * The registered Oxy client id for Alia's first-party clients.
@@ -111,9 +117,9 @@ const store: AuthStateStore = createNativeAuthStateStore(fileStorage)
  * code, not the client id being unguessable.
  */
 const OXY_CLIENT_ID =
-  process.env.OXY_CLIENT_ID ?? 'oxy_dk_06488927793f96922ef4f366a9800547b34c6aec025fece3'
+  process.env.OXY_CLIENT_ID ?? 'oxy_dk_06488927793f96922ef4f366a9800547b34c6aec025fece3';
 
-const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL ?? 'https://api.oxy.so' })
+const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL ?? 'https://api.oxy.so' });
 
 /**
  * The bearer for a request to Alia's API, or `null` when signed out.
@@ -126,7 +132,7 @@ const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL ?? 'https://api.o
  * developer key never expired and so never exposed the bug.
  */
 export function currentAccessToken(): string | null {
-  return oxy.session.accessToken
+  return oxy.session.accessToken;
 }
 
 /**
@@ -139,23 +145,23 @@ export function currentAccessToken(): string | null {
  * say so rather than retry.
  */
 export async function refreshAccessToken(): Promise<string | null> {
-  return oxy.http.refreshAccessToken('preflight')
+  return oxy.http.refreshAccessToken('preflight');
 }
 
 export interface AuthState {
-  isAuthenticated: boolean
-  username?: string
+  isAuthenticated: boolean;
+  username?: string;
 }
 
 export class AuthProvider {
-  private mainWindow: BrowserWindow
-  private disposeRefresh: (() => void) | null = null
-  private scheduler: { dispose(): void } | null = null
-  private polling = false
-  private username: string | null = null
+  private mainWindow: BrowserWindow;
+  private disposeRefresh: (() => void) | null = null;
+  private scheduler: { dispose(): void } | null = null;
+  private polling = false;
+  private username: string | null = null;
 
   constructor(mainWindow: BrowserWindow) {
-    this.mainWindow = mainWindow
+    this.mainWindow = mainWindow;
   }
 
   /**
@@ -165,18 +171,18 @@ export class AuthProvider {
    * never leaves two schedulers racing on one token.
    */
   private installRefresh(): void {
-    this.disposeRefresh?.()
-    this.scheduler?.dispose()
-    this.disposeRefresh = installAuthRefreshHandler({ oxy, store })
-    this.scheduler = startTokenRefreshScheduler(oxy)
+    this.disposeRefresh?.();
+    this.scheduler?.dispose();
+    this.disposeRefresh = installAuthRefreshHandler({ oxy, store });
+    this.scheduler = startTokenRefreshScheduler(oxy);
   }
 
   /** Tear down timers so the app can quit without a dangling handle. */
   dispose(): void {
-    this.disposeRefresh?.()
-    this.scheduler?.dispose()
-    this.disposeRefresh = null
-    this.scheduler = null
+    this.disposeRefresh?.();
+    this.scheduler?.dispose();
+    this.disposeRefresh = null;
+    this.scheduler = null;
   }
 
   /**
@@ -192,11 +198,11 @@ export class AuthProvider {
       store,
       platform: { isWeb: false, isNative: false },
       overallDeadlineMs: 15_000,
-      onStepError: (id, error) => logger.debug(`cold boot step ${id} failed`, error)
-    })
-    const restored = outcome.kind === 'session'
-    if (restored) this.installRefresh()
-    return restored
+      onStepError: (id, error) => logger.debug(`cold boot step ${id} failed`, error),
+    });
+    const restored = outcome.kind === 'session';
+    if (restored) this.installRefresh();
+    return restored;
   }
 
   /**
@@ -208,39 +214,39 @@ export class AuthProvider {
    * cannot exfiltrate a credential it was never given.
    */
   async startAuth(): Promise<void> {
-    if (this.polling) return
-    this.polling = true
+    if (this.polling) return;
+    this.polling = true;
 
     try {
-      const handle = await oxy.auth.commons.start({ clientId: OXY_CLIENT_ID })
+      const handle = await oxy.auth.commons.start({ clientId: OXY_CLIENT_ID });
       this.mainWindow.webContents.send('auth:code', {
         code: handle.authorizeCode,
         url: handle.qrPayload,
-        expiresAt: handle.expiresAt
-      })
+        expiresAt: handle.expiresAt,
+      });
 
       for (;;) {
         if (Date.now() >= handle.expiresAt) {
           this.mainWindow.webContents.send('auth:error', {
-            message: 'The sign-in code expired. Try again.'
-          })
-          return
+            message: 'The sign-in code expired. Try again.',
+          });
+          return;
         }
 
-        const status = await oxy.auth.commons.poll(handle.sessionToken)
+        const status = await oxy.auth.commons.poll(handle.sessionToken);
         if (status.status === 'cancelled') {
-          this.mainWindow.webContents.send('auth:error', { message: 'The sign-in was declined.' })
-          return
+          this.mainWindow.webContents.send('auth:error', { message: 'The sign-in was declined.' });
+          return;
         }
         if (status.status === 'expired') {
           this.mainWindow.webContents.send('auth:error', {
-            message: 'The sign-in code expired. Try again.'
-          })
-          return
+            message: 'The sign-in code expired. Try again.',
+          });
+          return;
         }
 
         if (status.authorized) {
-          const claimed = await oxy.auth.claimSession(handle.sessionToken)
+          const claimed = await oxy.auth.claimSession(handle.sessionToken);
           // Persist BEFORE planting the token: advertising a session built on a
           // secret that did not land is what signs people out on restart.
           const durable = await store.save({
@@ -249,32 +255,32 @@ export class AuthProvider {
             deviceId: claimed.deviceId,
             deviceSecret: claimed.deviceSecret,
             accessToken: claimed.accessToken,
-            expiresAt: claimed.expiresAt
-          })
+            expiresAt: claimed.expiresAt,
+          });
           if (!durable) {
             this.mainWindow.webContents.send('auth:error', {
-              message: 'Could not save the session to disk.'
-            })
-            return
+              message: 'Could not save the session to disk.',
+            });
+            return;
           }
-          oxy.session.setAccessToken(claimed.accessToken)
-          this.username = claimed.user.username
-          this.installRefresh()
+          oxy.session.setAccessToken(claimed.accessToken);
+          this.username = claimed.user.username;
+          this.installRefresh();
           this.mainWindow.webContents.send('auth:success', {
-            userInfo: { username: claimed.user.username }
-          })
-          return
+            userInfo: { username: claimed.user.username },
+          });
+          return;
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
     } catch (error: unknown) {
-      logger.error('sign-in failed', error)
+      logger.error('sign-in failed', error);
       this.mainWindow.webContents.send('auth:error', {
-        message: error instanceof Error ? error.message : String(error)
-      })
+        message: error instanceof Error ? error.message : String(error),
+      });
     } finally {
-      this.polling = false
+      this.polling = false;
     }
   }
 
@@ -286,17 +292,17 @@ export class AuthProvider {
    * "sign out" is the part that would matter.
    */
   async signOut(): Promise<void> {
-    this.dispose()
-    const persisted = await store.load()
+    this.dispose();
+    const persisted = await store.load();
     try {
-      if (persisted?.sessionId !== undefined) await oxy.session.logout(persisted.sessionId)
+      if (persisted?.sessionId !== undefined) await oxy.session.logout(persisted.sessionId);
     } catch (error: unknown) {
-      logger.debug('server-side sign-out failed; clearing locally anyway', error)
+      logger.debug('server-side sign-out failed; clearing locally anyway', error);
     }
-    await store.clear()
-    oxy.session.clear()
-    this.username = null
-    this.mainWindow.webContents.send('auth:signedOut')
+    await store.clear();
+    oxy.session.clear();
+    this.username = null;
+    this.mainWindow.webContents.send('auth:signedOut');
   }
 
   /**
@@ -310,12 +316,12 @@ export class AuthProvider {
   getAuthState(): AuthState {
     return {
       isAuthenticated: oxy.session.accessToken !== null,
-      ...(this.username === null ? {} : { username: this.username })
-    }
+      ...(this.username === null ? {} : { username: this.username }),
+    };
   }
 
   /** The bearer for a request to Alia's API, or `null` when signed out. */
   accessToken(): string | null {
-    return oxy.session.accessToken
+    return oxy.session.accessToken;
   }
 }

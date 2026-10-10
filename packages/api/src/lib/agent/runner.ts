@@ -92,22 +92,35 @@ const CONTINUATION_PROMPTS = [
  *
  * `plan` is always listed because it is ungranted: it is how a run ends.
  */
-function actionLines(agent: HydratedAgent, options: { automation: boolean; outreach: boolean }): string {
+function actionLines(
+  agent: HydratedAgent,
+  options: { automation: boolean; outreach: boolean },
+): string {
   const grants = readCapabilityGrants(agent.capabilityGrants);
   const lines: string[] = [];
   if (grants.allows('browser')) {
-    lines.push("**browser** — Research the web: search for a query, read a public URL's main text with goto, and read the current page again with get_text. Pages come back as extracted text; you cannot click, type or take screenshots.");
+    lines.push(
+      "**browser** — Research the web: search for a query, read a public URL's main text with goto, and read the current page again with get_text. Pages come back as extracted text; you cannot click, type or take screenshots.",
+    );
   }
-  lines.push("**plan** — Create and update your task plan, or signal completion. Your plan persists as a checklist. Update it as you make progress. Call plan(action='complete', result='...') when done.");
+  lines.push(
+    "**plan** — Create and update your task plan, or signal completion. Your plan persists as a checklist. Update it as you make progress. Call plan(action='complete', result='...') when done.",
+  );
   if (grants.allows('memory')) {
-    lines.push('**memory** — Your own long-term memory of this person (MEMORY.md, memory/<topic>.md). Read it when you need detail; save what will still matter in a later conversation.');
+    lines.push(
+      '**memory** — Your own long-term memory of this person (MEMORY.md, memory/<topic>.md). Read it when you need detail; save what will still matter in a later conversation.',
+    );
   }
   if (!options.automation && grants.allows('delegation')) {
     lines.push('**delegate** — Hire a specialist agent for a subtask outside your expertise.');
   }
   if (options.outreach) {
-    lines.push('**sendMessageToUser** — Write to the person in your conversation with them; they are notified. Only for something they would want to know now. Your final result is delivered to them anyway, so do not repeat it.');
-    lines.push('**scheduleFollowUp** — Schedule yourself to come back to this at a given time, with a note for your future self.');
+    lines.push(
+      '**sendMessageToUser** — Write to the person in your conversation with them; they are notified. Only for something they would want to know now. Your final result is delivered to them anyway, so do not repeat it.',
+    );
+    lines.push(
+      '**scheduleFollowUp** — Schedule yourself to come back to this at a given time, with a note for your future self.',
+    );
   }
   return `You have ${lines.length} action${lines.length === 1 ? '' : 's'}:\n\n${lines
     .map((line, i) => `${i + 1}. ${line}`)
@@ -137,7 +150,11 @@ function actionLines(agent: HydratedAgent, options: { automation: boolean; outre
  * else entirely and could contradict it in either direction. What the agent
  * can do is the tools it was handed, each with its own description.
  */
-function buildSystemPrompt(agent: HydratedAgent, config: AgentSessionConfig, options: { automation: boolean; outreach: boolean }): string {
+function buildSystemPrompt(
+  agent: HydratedAgent,
+  config: AgentSessionConfig,
+  options: { automation: boolean; outreach: boolean },
+): string {
   return `${agentRemitPrompt(agent)}
 
 ## Actions
@@ -228,7 +245,9 @@ function holdRunLease(sessionId: string, owner: string): RunLease {
       })
       // A failed renewal is not a lost lease: the next one may land, and the
       // lease outlives several missed renewals.
-      .catch((err: unknown) => log.agents.warn({ err, sessionId }, 'Could not renew the run lease'));
+      .catch((err: unknown) =>
+        log.agents.warn({ err, sessionId }, 'Could not renew the run lease'),
+      );
   }, RUNNER_LEASE_RENEW_MS);
   timer.unref?.();
   return lease;
@@ -250,7 +269,10 @@ export async function runAgentSession(sessionId: string): Promise<'ran' | 'skipp
   const owner = `${hostname()}:${process.pid}:${randomUUID()}`;
   const claim = await claimAgentSessionRun(getDb(), sessionId, owner);
   if (!claim.claimed) {
-    log.agents.info({ sessionId }, 'Session is settled or owned by another worker, skipping execution');
+    log.agents.info(
+      { sessionId },
+      'Session is settled or owned by another worker, skipping execution',
+    );
     return 'skipped';
   }
   const lease = holdRunLease(sessionId, owner);
@@ -270,7 +292,10 @@ export async function runAgentSession(sessionId: string): Promise<'ran' | 'skipp
 }
 
 /** The agent's way to write to the person, and to schedule its own next look. */
-function runOutreach(session: AgentSessionRecord, eventStream: EventStream): NonNullable<AgentRuntimeContext['outreach']> {
+function runOutreach(
+  session: AgentSessionRecord,
+  eventStream: EventStream,
+): NonNullable<AgentRuntimeContext['outreach']> {
   return {
     messageUser: async (message) => {
       const outcome = await postAgentMessage({
@@ -280,11 +305,13 @@ function runOutreach(session: AgentSessionRecord, eventStream: EventStream): Non
         content: message,
       });
       if (outcome.posted) {
-        eventStream.append('observation', 'Message delivered to the person.', { toolName: 'sendMessageToUser' });
+        eventStream.append('observation', 'Message delivered to the person.', {
+          toolName: 'sendMessageToUser',
+        });
         return 'Delivered. The person was notified.';
       }
       return outcome.reason === 'daily_limit'
-        ? 'Not sent: you have reached today\'s limit of messages to this person. Put it in your final result instead.'
+        ? "Not sent: you have reached today's limit of messages to this person. Put it in your final result instead."
         : outcome.reason === 'unanswered'
           ? 'Not sent: the person has not answered your last messages. Do not message them again until they reply.'
           : `Not sent (${outcome.reason}).`;
@@ -305,17 +332,25 @@ function runOutreach(session: AgentSessionRecord, eventStream: EventStream): Non
 
 /** A run that has now killed its worker too many times is failed and refunded. */
 async function abandonExhaustedRun(session: AgentSessionRecord): Promise<void> {
-  log.agents.error({ sessionId: session._id, attempts: RUNNER_MAX_ATTEMPTS }, 'Agent run interrupted too many times, stopping it');
+  log.agents.error(
+    { sessionId: session._id, attempts: RUNNER_MAX_ATTEMPTS },
+    'Agent run interrupted too many times, stopping it',
+  );
   await updateAgentSession(getDb(), session._id, {
     status: 'failed',
     result: 'The run was interrupted too many times and was stopped',
     stats: { completedAt: new Date() },
   });
-  if (session.creditReservation) await safeRefund(session.creditReservation, 'run interrupted too many times');
+  if (session.creditReservation)
+    await safeRefund(session.creditReservation, 'run interrupted too many times');
   await markAutomationRunForSession(getDb(), session._id, 'failed');
 }
 
-async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, resuming: boolean): Promise<void> {
+async function driveAgentSession(
+  session: AgentSessionRecord,
+  lease: RunLease,
+  resuming: boolean,
+): Promise<void> {
   const sessionId = session._id;
 
   const found = await findAgentById(getDb(), session.agentId);
@@ -363,7 +398,10 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
 
   if (resuming) {
     // The events and plan were restored above; the task is already in them.
-    eventStream.append('system_message', 'Resumed after an interruption. Continue from the plan and the events so far; do not repeat actions already taken.');
+    eventStream.append(
+      'system_message',
+      'Resumed after an interruption. Continue from the plan and the events so far; do not repeat actions already taken.',
+    );
   } else {
     eventStream.append('system_message', `Task received: ${session.task}`);
     eventStream.append('user_message', session.task);
@@ -379,46 +417,47 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
   };
 
   // Agent-to-agent hiring
-  const onHireAgent = session.depth < MAX_DELEGATION_DEPTH
-    ? async (handle: string, task: string): Promise<string> => {
-        const targetAgent = await findAgentByOxyHandle(getDb(), handle, { hireableOnly: true });
-        if (!targetAgent) throw new Error(`Agent @${handle} not found or not available`);
+  const onHireAgent =
+    session.depth < MAX_DELEGATION_DEPTH
+      ? async (handle: string, task: string): Promise<string> => {
+          const targetAgent = await findAgentByOxyHandle(getDb(), handle, { hireableOnly: true });
+          if (!targetAgent) throw new Error(`Agent @${handle} not found or not available`);
 
-        eventStream.append('action', `Hiring agent @${handle}: ${task.slice(0, 200)}`, {
-          toolName: 'delegate',
-          args: { handle, task: task.slice(0, 200) },
-        });
+          eventStream.append('action', `Hiring agent @${handle}: ${task.slice(0, 200)}`, {
+            toolName: 'delegate',
+            args: { handle, task: task.slice(0, 200) },
+          });
 
-        const childSession = await createAgentSession(getDb(), {
-          agentId: targetAgent._id,
-          oxyUserId: session.oxyUserId,
-          parentSessionId: session._id,
-          task,
-          status: 'queued',
-          depth: session.depth + 1,
-          config: {
-            maxSteps: Math.min(session.config.maxSteps, 20),
-            maxTokens: Math.min(session.config.maxTokens, 50000),
-            maxVMs: 1,
-          },
-        });
+          const childSession = await createAgentSession(getDb(), {
+            agentId: targetAgent._id,
+            oxyUserId: session.oxyUserId,
+            parentSessionId: session._id,
+            task,
+            status: 'queued',
+            depth: session.depth + 1,
+            config: {
+              maxSteps: Math.min(session.config.maxSteps, 20),
+              maxTokens: Math.min(session.config.maxTokens, 50000),
+              maxVMs: 1,
+            },
+          });
 
-        await runAgentSession(childSession._id);
+          await runAgentSession(childSession._id);
 
-        const completed = await findAgentSessionById(getDb(), childSession._id);
-        const result = completed?.result || 'No result returned';
-        // The child session holds no reservation of its own: what it spent is
-        // this session's, billed against this session's reservation and counted
-        // against this session's token budget.
-        totalTokens += completed?.stats?.totalTokens ?? 0;
+          const completed = await findAgentSessionById(getDb(), childSession._id);
+          const result = completed?.result || 'No result returned';
+          // The child session holds no reservation of its own: what it spent is
+          // this session's, billed against this session's reservation and counted
+          // against this session's token budget.
+          totalTokens += completed?.stats?.totalTokens ?? 0;
 
-        eventStream.append('observation', `Agent @${handle} returned: ${result.slice(0, 500)}`, {
-          toolName: 'delegate',
-        });
+          eventStream.append('observation', `Agent @${handle} returned: ${result.slice(0, 500)}`, {
+            toolName: 'delegate',
+          });
 
-        return result;
-      }
-    : undefined;
+          return result;
+        }
+      : undefined;
 
   const oxyAuthorizationRows = await listAutomationExecutionAuthorizationsForRun(
     getDb(),
@@ -426,15 +465,20 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
     agent.id,
     session.automationStage ?? undefined,
   );
-  const oxyExecutionAuthorizations = Object.fromEntries(oxyAuthorizationRows.map((authorization) => [
-    oxyExecutionAuthorizationKey({
-      appId: authorization.resourceAppId,
-      effectiveAccountId: authorization.effectiveAccountId,
-      resourceType: authorization.resourceType,
-      resourceId: authorization.resourceId,
-    }, authorization.tool),
-    { id: authorization.oxyAuthorizationId, stepId: authorization.stepId },
-  ]));
+  const oxyExecutionAuthorizations = Object.fromEntries(
+    oxyAuthorizationRows.map((authorization) => [
+      oxyExecutionAuthorizationKey(
+        {
+          appId: authorization.resourceAppId,
+          effectiveAccountId: authorization.effectiveAccountId,
+          resourceType: authorization.resourceType,
+          resourceId: authorization.resourceId,
+        },
+        authorization.tool,
+      ),
+      { id: authorization.oxyAuthorizationId, stepId: authorization.stepId },
+    ]),
+  );
 
   // Transition: INITIALIZING → PLANNING
   stateMachine.transition('initialized');
@@ -448,7 +492,11 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
    * memory, triggers, MCP, integrations, and the Oxy services this path could
    * never see before — comes from the same place every other surface gets it.
    */
-  const { tools: allActions, routing: toolRouting, appCatalogPrompt } = await ToolPipeline.forUser({
+  const {
+    tools: allActions,
+    routing: toolRouting,
+    appCatalogPrompt,
+  } = await ToolPipeline.forUser({
     userId: session.oxyUserId,
     isDirectSession: false,
     // The run belongs to the account that started the session.
@@ -466,9 +514,7 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
     ...(session.automationRunId
       ? { oxyExecutionAuthorizations }
       : { oxyAgentRunSessionId: session.id }),
-    toolScope: session.automationRunId
-      ? 'preauthorized_oxy_automation'
-      : 'standard',
+    toolScope: session.automationRunId ? 'preauthorized_oxy_automation' : 'standard',
     onOxyStepStatus: async (stepId, status, auditEventId) => {
       try {
         await markAutomationActionStep(getDb(), stepId, status, auditEventId);
@@ -485,10 +531,12 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
       onHireAgent,
       // A child run (delegated, orchestrated) reports to its parent, not to
       // the person, so only a top-level run may write to them.
-      ...(session.parentSessionId ? {} : {
-        outreach: runOutreach(session, eventStream),
-        approvals: deferredApprovalsFor(session),
-      }),
+      ...(session.parentSessionId
+        ? {}
+        : {
+            outreach: runOutreach(session, eventStream),
+            approvals: deferredApprovalsFor(session),
+          }),
       todoManager,
       browserSession,
       eventStream,
@@ -501,7 +549,9 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
   // a model per step, so no single model name is passed here.
   // The agent's OWN name. It used to be told it was Alia, above its own prompt.
   const grantsMemory = readCapabilityGrants(agent.capabilityGrants).allows('memory');
-  const memorySection = grantsMemory ? await agentMemoryPromptSection(session.oxyUserId, agent._id) : '';
+  const memorySection = grantsMemory
+    ? await agentMemoryPromptSection(session.oxyUserId, agent._id)
+    : '';
   const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, { automation: Boolean(session.automationRunId), outreach: !session.parentSessionId })}${memorySection}${agentIdentityPrompt(Object.keys(allActions))}${appCatalogPrompt}`;
 
   // Persisted every step, so a resumed run keeps counting against the SAME
@@ -534,7 +584,10 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
   try {
     // ── Orchestrator mode check ──
     if (!resuming && !session.automationRunId && shouldOrchestrate(session.task, session.depth)) {
-      eventStream.append('system_message', 'Task complexity detected — activating orchestrated execution');
+      eventStream.append(
+        'system_message',
+        'Task complexity detected — activating orchestrated execution',
+      );
 
       const orchResult = await orchestrate({
         task: session.task,
@@ -566,7 +619,12 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
 
     // ── Main execution loop ──
 
-    while (orchestrated === null && !stateMachine.isTerminal() && totalSteps < session.config.maxSteps && totalTokens < session.config.maxTokens) {
+    while (
+      orchestrated === null &&
+      !stateMachine.isTerminal() &&
+      totalSteps < session.config.maxSteps &&
+      totalTokens < session.config.maxTokens
+    ) {
       if (lease.lost) {
         abandoned = true;
         break;
@@ -582,7 +640,10 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
 
       // Global time limit — prevent runaway sessions
       if (Date.now() - sessionStartMs > maxDurationMs) {
-        eventStream.append('system_message', 'Session time limit reached (10 minutes). Returning partial results.');
+        eventStream.append(
+          'system_message',
+          'Session time limit reached (10 minutes). Returning partial results.',
+        );
         taskCompleted = true;
         taskResult = 'Time limit reached. Partial progress:\n' + todoManager.serialize();
         break;
@@ -590,8 +651,9 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
 
       // Emit structured task progress for frontend
       const planData = todoManager.toJSON();
-      const completedItems = planData.items.filter(i => i.status === 'completed').length;
-      eventStream.append('plan_progress',
+      const completedItems = planData.items.filter((i) => i.status === 'completed').length;
+      eventStream.append(
+        'plan_progress',
         `Step ${totalSteps + 1}/${session.config.maxSteps}`,
         undefined,
         {
@@ -627,14 +689,21 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
       }
 
       const modelId = activeResolved.modelId;
-      eventStream.append('thinking', `Step ${totalSteps + 1}: Using model ${modelId} in state ${stateMachine.current()}`);
+      eventStream.append(
+        'thinking',
+        `Step ${totalSteps + 1}: Using model ${modelId} in state ${stateMachine.current()}`,
+      );
 
       const model = getAIModel(activeResolved, 'agent_run');
       const startMs = Date.now();
 
       // Build context (stable prefix + event stream + todo/state tail)
       const messages = buildContextMessages(
-        systemPrompt, eventStream, todoManager, stateMachine, iteration,
+        systemPrompt,
+        eventStream,
+        todoManager,
+        stateMachine,
+        iteration,
       );
 
       try {
@@ -642,14 +711,14 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
         const result = await generateText({
           model,
           messages,
-          tools: allActions,  // ALL actions always registered (KV-cache stability)
+          tools: allActions, // ALL actions always registered (KV-cache stability)
           // What each request SENDS is bounded by the per-request tool budget:
           // an app `useApps` opened in an earlier iteration stays open, because
           // the routing state lives for the whole run (`lib/tool-budget.ts`).
           ...toolRouting,
           temperature: 0.3,
           maxRetries: 0,
-          stopWhen: stepCountIs(1),  // One action per iteration (Manus principle)
+          stopWhen: stepCountIs(1), // One action per iteration (Manus principle)
         });
 
         // Process the single step
@@ -666,7 +735,9 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
                 recentToolNames.push(tc.toolName);
                 if (recentToolNames.length > 5) recentToolNames.shift(); // Keep last 5
                 const toolInput: Record<string, unknown> =
-                  tc.input && typeof tc.input === 'object' ? (tc.input as Record<string, unknown>) : {};
+                  tc.input && typeof tc.input === 'object'
+                    ? (tc.input as Record<string, unknown>)
+                    : {};
                 const argsStr = JSON.stringify(toolInput);
                 eventStream.append('action', `${tc.toolName}(${argsStr.slice(0, 300)})`, {
                   toolName: tc.toolName,
@@ -682,15 +753,19 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
             // Record tool results — with error loop detection
             if (step.toolResults.length > 0) {
               for (const tr of step.toolResults) {
-                const resultStr = typeof tr.output === 'string'
-                  ? tr.output
-                  : (tr.output != null ? JSON.stringify(tr.output) : '');
+                const resultStr =
+                  typeof tr.output === 'string'
+                    ? tr.output
+                    : tr.output != null
+                      ? JSON.stringify(tr.output)
+                      : '';
 
                 // Secret scanning — redact API keys, tokens, passwords before logging
                 const { redacted: safeContent, matches: secretMatches } = redactSecrets(resultStr);
                 if (secretMatches.length > 0) {
-                  eventStream.append('system_message',
-                    `SECRET DETECTED: ${secretMatches.length} secret(s) redacted. Types: ${secretMatches.map(m => m.type).join(', ')}`,
+                  eventStream.append(
+                    'system_message',
+                    `SECRET DETECTED: ${secretMatches.length} secret(s) redacted. Types: ${secretMatches.map((m) => m.type).join(', ')}`,
                   );
                 }
 
@@ -700,7 +775,10 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
                 });
 
                 // ── Error loop detection ──
-                const isToolError = resultStr.startsWith('Error:') || resultStr.startsWith('Browser error:') || resultStr.startsWith('MCP tool error:');
+                const isToolError =
+                  resultStr.startsWith('Error:') ||
+                  resultStr.startsWith('Browser error:') ||
+                  resultStr.startsWith('MCP tool error:');
                 if (isToolError) {
                   consecutiveErrors++;
                   const key = tr.toolName || 'unknown';
@@ -711,19 +789,22 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
 
                   // Inject error loop warning after 2 failures of the same tool
                   if (existing.count >= 2) {
-                    eventStream.append('system_message',
+                    eventStream.append(
+                      'system_message',
                       `CRITICAL: "${key}" has failed ${existing.count} times. Do NOT retry the same approach. ` +
-                      `Try a fundamentally different strategy. Previous errors: ${existing.errors.slice(-2).join('; ')}`
+                        `Try a fundamentally different strategy. Previous errors: ${existing.errors.slice(-2).join('; ')}`,
                     );
                   }
 
                   // Circuit breaker: 5 consecutive errors → force partial completion
                   if (consecutiveErrors >= 5) {
-                    eventStream.append('system_message',
-                      'Too many consecutive errors. Stopping execution and returning partial results.'
+                    eventStream.append(
+                      'system_message',
+                      'Too many consecutive errors. Stopping execution and returning partial results.',
                     );
                     taskCompleted = true;
-                    taskResult = 'Task stopped after 5 consecutive errors. Partial progress:\n' +
+                    taskResult =
+                      'Task stopped after 5 consecutive errors. Partial progress:\n' +
                       todoManager.serialize();
                     break;
                   }
@@ -777,8 +858,10 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
             }
           } else {
             // Nudge the model to continue working instead of talking
-            eventStream.append('system_message',
-              'You generated text but did not call any action. If you are done, call plan(action="complete", result="..."). Otherwise, continue with your next action.');
+            eventStream.append(
+              'system_message',
+              'You generated text but did not call any action. If you are done, call plan(action="complete", result="..."). Otherwise, continue with your next action.',
+            );
           }
         } else if (stateMachine.current() === 'REFLECTING') {
           if (stateMachine.canTransition('continue')) {
@@ -806,7 +889,6 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
 
         iteration++;
         if (taskCompleted) break;
-
       } catch (err: unknown) {
         const errMsg = getErrorMessage(err);
 
@@ -824,7 +906,10 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
     }
 
     if (abandoned) {
-      log.agents.warn({ sessionId }, 'Lost the run lease; leaving the run to the worker that holds it');
+      log.agents.warn(
+        { sessionId },
+        'Lost the run lease; leaving the run to the worker that holds it',
+      );
       return;
     }
 
@@ -865,10 +950,11 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
     let creditsCharged: number | undefined;
     if (session.creditReservation) {
       try {
-        const finalized = await finalizeCredits(
-          session.creditReservation,
-          { totalTokens, promptTokens: 0, completionTokens: 0 },
-        );
+        const finalized = await finalizeCredits(session.creditReservation, {
+          totalTokens,
+          promptTokens: 0,
+          completionTokens: 0,
+        });
         creditsCharged = finalized.creditsCharged;
         eventStream.append('system_message', `Credits charged: ${finalized.creditsCharged}`);
       } catch (creditErr: unknown) {
@@ -901,7 +987,12 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
         await recordAgentGoalRun(getDb(), {
           goalId: session.goalId,
           oxyUserId: userId,
-          status: finalStatus === 'completed' ? 'candidate' : finalStatus === 'cancelled' ? 'cancelled' : 'blocked',
+          status:
+            finalStatus === 'completed'
+              ? 'candidate'
+              : finalStatus === 'cancelled'
+                ? 'cancelled'
+                : 'blocked',
           turnsUsed: totalSteps,
           tokensUsed: totalTokens,
         });
@@ -909,7 +1000,6 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
     } catch (saveErr: unknown) {
       log.agents.warn({ saveErr, sessionId }, 'Failed to save session on completion');
     }
-
   } catch (err: unknown) {
     log.agents.error({ err, sessionId }, 'Agent session failed');
     // A worker that lost the run must not settle it: the new owner will.
@@ -1027,19 +1117,33 @@ function toActivityItem(
 
 function mapEventTypeToActivity(type: string): string {
   switch (type) {
-    case 'user_message':   return 'system';
-    case 'system_message': return 'system';
-    case 'action':         return 'tool_call';
-    case 'observation':    return 'tool_result';
-    case 'error':          return 'error';
-    case 'plan_update':    return 'system';
-    case 'plan_progress':  return 'plan_progress';
-    case 'thinking':       return 'thinking';
-    case 'response':       return 'response';
-    case 'complete':       return 'complete';
-    case 'screenshot':     return 'screenshot';
-    case 'file_change':    return 'file_change';
-    case 'source_found':   return 'source_found';
-    default:               return 'system';
+    case 'user_message':
+      return 'system';
+    case 'system_message':
+      return 'system';
+    case 'action':
+      return 'tool_call';
+    case 'observation':
+      return 'tool_result';
+    case 'error':
+      return 'error';
+    case 'plan_update':
+      return 'system';
+    case 'plan_progress':
+      return 'plan_progress';
+    case 'thinking':
+      return 'thinking';
+    case 'response':
+      return 'response';
+    case 'complete':
+      return 'complete';
+    case 'screenshot':
+      return 'screenshot';
+    case 'file_change':
+      return 'file_change';
+    case 'source_found':
+      return 'source_found';
+    default:
+      return 'system';
   }
 }

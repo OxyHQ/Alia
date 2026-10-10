@@ -239,7 +239,12 @@ describe('a search hit can be jumped to, however far back it lives', () => {
   });
 
   it('finds it across the whole thread, not just the active stretch', async () => {
-    const hits = await searchThread(db, { oxyUserId: user, agentId: agent, query: 'kingfisher', limit: 10 });
+    const hits = await searchThread(db, {
+      oxyUserId: user,
+      agentId: agent,
+      query: 'kingfisher',
+      limit: 10,
+    });
 
     expect(hits).toHaveLength(1);
     expect(hits[0].conversationId).toBe(`${SUITE}-j1`);
@@ -277,9 +282,20 @@ describe('a search hit can be jumped to, however far back it lives', () => {
 
   it('does not find another person’s thread', async () => {
     await stretch(`${SUITE}-jump-other`, agent, `${SUITE}-jo1`, '2026-08-01T10:00:00Z');
-    await say(`${SUITE}-jump-other`, `${SUITE}-jo1`, 0, 'kingfisher is mine', '2026-08-01T10:00:00Z');
+    await say(
+      `${SUITE}-jump-other`,
+      `${SUITE}-jo1`,
+      0,
+      'kingfisher is mine',
+      '2026-08-01T10:00:00Z',
+    );
 
-    const hits = await searchThread(db, { oxyUserId: user, agentId: agent, query: 'kingfisher', limit: 10 });
+    const hits = await searchThread(db, {
+      oxyUserId: user,
+      agentId: agent,
+      query: 'kingfisher',
+      limit: 10,
+    });
 
     expect(hits.map((h) => h.text)).not.toContain('kingfisher is mine');
     expect(hits).toHaveLength(1);
@@ -298,7 +314,13 @@ describe('the cursor is opaque, and refuses what it cannot read', () => {
   it('answers null for anything malformed, rather than throwing', () => {
     // Client input. Each of these is a different way a cursor arrives broken,
     // and every one must be a 400 rather than a 500.
-    for (const bad of ['', 'not-base64!!', Buffer.from('{}').toString('base64url'), Buffer.from('{"at":"nope","id":"x"}').toString('base64url'), Buffer.from('[]').toString('base64url')]) {
+    for (const bad of [
+      '',
+      'not-base64!!',
+      Buffer.from('{}').toString('base64url'),
+      Buffer.from('{"at":"nope","id":"x"}').toString('base64url'),
+      Buffer.from('[]').toString('base64url'),
+    ]) {
       expect(decodeThreadCursor(bad)).toBeNull();
     }
   });
@@ -346,7 +368,13 @@ describe('the last line of each agent thread', () => {
     const user = `${SUITE}-latest`;
     await spokenStretch(user, `${SUITE}-a`, `${SUITE}-l1`, 'older with A', '2026-08-01T10:00:00Z');
     await spokenStretch(user, `${SUITE}-a`, `${SUITE}-l2`, 'newest with A', '2026-08-01T12:00:00Z');
-    await spokenStretch(user, `${SUITE}-b`, `${SUITE}-l3`, 'only line with B', '2026-08-01T11:00:00Z');
+    await spokenStretch(
+      user,
+      `${SUITE}-b`,
+      `${SUITE}-l3`,
+      'only line with B',
+      '2026-08-01T11:00:00Z',
+    );
 
     const rows = await latestMessagePerAgent(db, user, [`${SUITE}-a`, `${SUITE}-b`]);
 

@@ -97,6 +97,10 @@ export const telegramMessages = pgTable(
   },
   (t) => [
     uniqueIndex('telegram_messages_session_message_key').on(t.sessionId, t.messageId),
-    index('telegram_messages_session_chat_recent_idx').on(t.sessionId, t.chatId, t.timestamp.desc()),
+    index('telegram_messages_session_chat_recent_idx').on(
+      t.sessionId,
+      t.chatId,
+      t.timestamp.desc(),
+    ),
   ],
 );

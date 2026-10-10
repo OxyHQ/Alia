@@ -49,7 +49,11 @@ export interface BrowserStackOptions {
   denyCidrs: readonly string[];
   maxContexts: number;
   idleMs: number;
-  log: { info: (obj: object, msg: string) => void; warn: (obj: object, msg: string) => void; error: (obj: object, msg: string) => void };
+  log: {
+    info: (obj: object, msg: string) => void;
+    warn: (obj: object, msg: string) => void;
+    error: (obj: object, msg: string) => void;
+  };
   fetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
 }
@@ -62,7 +66,8 @@ export interface WorkerTarget {
 export class BrowserStack {
   readonly identity: BrowserStackIdentity;
   private target: WorkerTarget | null = null;
-  private expected: { browser: Record<string, string>; egress: Record<string, string> } | null = null;
+  private expected: { browser: Record<string, string>; egress: Record<string, string> } | null =
+    null;
   private verifiedAt = 0;
   private starting: Promise<WorkerTarget> | null = null;
   private readonly fetchImpl: typeof fetch;
@@ -76,9 +81,13 @@ export class BrowserStack {
 
   private async checked(args: string[], timeoutMs = CONTROL_TIMEOUT_MS): Promise<string> {
     const result = await this.options.docker(args, { timeoutMs });
-    if (result.timedOut) throw new HostError('Docker did not respond in time', 503, 'docker_timeout');
+    if (result.timedOut)
+      throw new HostError('Docker did not respond in time', 503, 'docker_timeout');
     if (result.interrupted || result.exitCode !== 0 || result.truncated) {
-      this.options.log.warn({ op: args.slice(0, 2).join(' '), exitCode: result.exitCode }, 'docker operation failed');
+      this.options.log.warn(
+        { op: args.slice(0, 2).join(' '), exitCode: result.exitCode },
+        'docker operation failed',
+      );
       throw new HostError('Docker operation failed', 503, 'docker_failed');
     }
     return result.stdout;
@@ -96,7 +105,15 @@ export class BrowserStack {
   /** Whether the browser container is running (no inspection, for the idle check). */
   async isRunning(): Promise<boolean> {
     const state = (
-      await this.checked(['container', 'ls', '--all', '--filter', `name=^/${this.identity.browser}$`, '--format', '{{.State}}'])
+      await this.checked([
+        'container',
+        'ls',
+        '--all',
+        '--filter',
+        `name=^/${this.identity.browser}$`,
+        '--format',
+        '{{.State}}',
+      ])
     ).trim();
     return state === 'running';
   }
@@ -141,13 +158,29 @@ export class BrowserStack {
   }
 
   private refuse(role: string, violations: string[]): never {
-    this.options.log.error({ role, violations }, 'refusing a browser stack component that is not to spec');
-    throw new HostError('The browser does not match its isolation contract; refusing to use it', 409, 'isolation_mismatch');
+    this.options.log.error(
+      { role, violations },
+      'refusing a browser stack component that is not to spec',
+    );
+    throw new HostError(
+      'The browser does not match its isolation contract; refusing to use it',
+      409,
+      'isolation_mismatch',
+    );
   }
 
   private async ensureNetwork(): Promise<void> {
     const { identity } = this;
-    const exists = (await this.checked(['network', 'ls', '--filter', `name=^${identity.network}$`, '--format', '{{.Name}}'])).trim();
+    const exists = (
+      await this.checked([
+        'network',
+        'ls',
+        '--filter',
+        `name=^${identity.network}$`,
+        '--format',
+        '{{.Name}}',
+      ])
+    ).trim();
     if (!exists) await this.checked(networkCreateArgs(identity));
     await this.verifyNetwork();
     const members = await this.networkMembers();
@@ -161,9 +194,18 @@ export class BrowserStack {
 
   private async resolveSelfName(): Promise<string> {
     if (this.selfName) return this.selfName;
-    const raw = (await this.checked(['container', 'inspect', '--format', '{{.Name}}', this.options.selfContainer])).trim();
+    const raw = (
+      await this.checked([
+        'container',
+        'inspect',
+        '--format',
+        '{{.Name}}',
+        this.options.selfContainer,
+      ])
+    ).trim();
     this.selfName = raw.replace(/^\//, '');
-    if (!this.selfName) throw new HostError('The control API cannot find its own container', 503, 'docker_failed');
+    if (!this.selfName)
+      throw new HostError('The control API cannot find its own container', 503, 'docker_failed');
     return this.selfName;
   }
 
@@ -176,16 +218,30 @@ export class BrowserStack {
   private async verifyNetwork(): Promise<void> {
     const self = await this.resolveSelfName();
     const raw = await this.inspectJson(['network', 'inspect', this.identity.network]);
-    const { violations } = networkViolations(raw, this.identity, [this.identity.browser, this.identity.egress, self]);
+    const { violations } = networkViolations(raw, this.identity, [
+      this.identity.browser,
+      this.identity.egress,
+      self,
+    ]);
     if (violations.length > 0) this.refuse('network', violations);
   }
 
   private async ensureVolume(): Promise<void> {
     const { identity } = this;
-    const exists = (await this.checked(['volume', 'ls', '--filter', `name=^${identity.profilesVolume}$`, '--format', '{{.Name}}'])).trim();
+    const exists = (
+      await this.checked([
+        'volume',
+        'ls',
+        '--filter',
+        `name=^${identity.profilesVolume}$`,
+        '--format',
+        '{{.Name}}',
+      ])
+    ).trim();
     if (!exists) await this.checked(profilesVolumeArgs(identity));
     const raw = await this.inspectJson(['volume', 'inspect', identity.profilesVolume]);
-    const parsed = Array.isArray(raw) && raw.length === 1 ? (raw[0] as Record<string, unknown>) : null;
+    const parsed =
+      Array.isArray(raw) && raw.length === 1 ? (raw[0] as Record<string, unknown>) : null;
     const labels = (parsed?.Labels ?? {}) as Record<string, string>;
     const ok =
       parsed?.Name === identity.profilesVolume &&
@@ -196,11 +252,24 @@ export class BrowserStack {
   }
 
   private async removeIfPresent(name: string): Promise<void> {
-    const found = (await this.checked(['container', 'ls', '--all', '--filter', `name=^/${name}$`, '--format', '{{.ID}}'])).trim();
+    const found = (
+      await this.checked([
+        'container',
+        'ls',
+        '--all',
+        '--filter',
+        `name=^/${name}$`,
+        '--format',
+        '{{.ID}}',
+      ])
+    ).trim();
     if (found) await this.checked(['container', 'rm', '--force', name], 30_000);
   }
 
-  private async verify(role: StackRole, env: Record<string, string>): Promise<{ stale: boolean; raw: unknown }> {
+  private async verify(
+    role: StackRole,
+    env: Record<string, string>,
+  ): Promise<{ stale: boolean; raw: unknown }> {
     const name = role === 'browser' ? this.identity.browser : this.identity.egress;
     const raw = await this.inspectJson(['container', 'inspect', name]);
     const { violations, stale } = stackViolations(raw, {
@@ -229,13 +298,22 @@ export class BrowserStack {
     await this.removeIfPresent(identity.egress);
 
     const egress = egressEnv({ dns: options.dns, denyCidrs: options.denyCidrs });
-    await this.checked(egressCreateArgs(identity, options.image, options.runtime, { dns: options.dns, denyCidrs: options.denyCidrs }));
+    await this.checked(
+      egressCreateArgs(identity, options.image, options.runtime, {
+        dns: options.dns,
+        denyCidrs: options.denyCidrs,
+      }),
+    );
     // gVisor reads its interfaces once, at sandbox start: connect first.
     await this.checked(['network', 'connect', identity.network, identity.egress]);
     await this.verify('egress', egress);
     await this.checked(['container', 'start', identity.egress]);
-    const proxyAddress = addressOn(await this.inspectJson(['container', 'inspect', identity.egress]), identity.network);
-    if (!proxyAddress) throw new HostError('The browser proxy has no address', 503, 'browser_unavailable');
+    const proxyAddress = addressOn(
+      await this.inspectJson(['container', 'inspect', identity.egress]),
+      identity.network,
+    );
+    if (!proxyAddress)
+      throw new HostError('The browser proxy has no address', 503, 'browser_unavailable');
 
     const token = randomBytes(32).toString('hex');
     const env = {
@@ -251,12 +329,15 @@ export class BrowserStack {
     await this.checked(['container', 'start', identity.browser]);
     const { raw } = await this.verify('browser', browserEnv(env));
     const workerAddress = addressOn(raw, identity.network);
-    if (!workerAddress) throw new HostError('The browser has no address', 503, 'browser_unavailable');
+    if (!workerAddress)
+      throw new HostError('The browser has no address', 503, 'browser_unavailable');
     const target = { url: `http://${workerAddress}:${BROWSER_PORT}`, token };
 
     for (let attempt = 0; attempt < HEALTH_ATTEMPTS; attempt += 1) {
       try {
-        const response = await this.fetchImpl(`${target.url}/health`, { signal: AbortSignal.timeout(2_000) });
+        const response = await this.fetchImpl(`${target.url}/health`, {
+          signal: AbortSignal.timeout(2_000),
+        });
         if (response.ok) {
           this.target = target;
           this.verifiedAt = Date.now();
@@ -269,7 +350,11 @@ export class BrowserStack {
       await this.sleep(HEALTH_INTERVAL_MS);
     }
     await this.stop().catch(() => undefined);
-    throw new HostError('The browser did not start. Try again shortly.', 503, 'browser_unavailable');
+    throw new HostError(
+      'The browser did not start. Try again shortly.',
+      503,
+      'browser_unavailable',
+    );
   }
 
   /** Stop both containers (the worker saves every context first) and remove them. */
@@ -279,9 +364,21 @@ export class BrowserStack {
     this.verifiedAt = 0;
     const { identity } = this;
     for (const name of [identity.browser, identity.egress]) {
-      const found = (await this.checked(['container', 'ls', '--all', '--filter', `name=^/${name}$`, '--format', '{{.ID}}'])).trim();
+      const found = (
+        await this.checked([
+          'container',
+          'ls',
+          '--all',
+          '--filter',
+          `name=^/${name}$`,
+          '--format',
+          '{{.ID}}',
+        ])
+      ).trim();
       if (!found) continue;
-      await this.checked(['container', 'stop', '--time', '10', name], 30_000).catch(() => undefined);
+      await this.checked(['container', 'stop', '--time', '10', name], 30_000).catch(
+        () => undefined,
+      );
       await this.checked(['container', 'rm', '--force', name], 30_000);
     }
     this.options.log.info({}, 'browser stack stopped');
@@ -290,7 +387,14 @@ export class BrowserStack {
   /** At boot: whatever an earlier process left is stopped (its worker saves state). */
   async reset(): Promise<void> {
     const names = (
-      await this.checked(['container', 'ls', '--all', ...browserStackFilter(this.identity), '--format', '{{.Names}}'])
+      await this.checked([
+        'container',
+        'ls',
+        '--all',
+        ...browserStackFilter(this.identity),
+        '--format',
+        '{{.Names}}',
+      ])
     )
       .split('\n')
       .map((line) => line.trim())

@@ -59,7 +59,13 @@ const WIDTHS = [
 const SHORT = { width: 390, height: 640 };
 
 function parseArgs(argv) {
-  const args = { out: null, only: null, engine: 'chromium', themes: ['light', 'dark'], widths: null };
+  const args = {
+    out: null,
+    only: null,
+    engine: 'chromium',
+    themes: ['light', 'dark'],
+    widths: null,
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--out') args.out = resolve(argv[(i += 1)]);
@@ -68,15 +74,22 @@ function parseArgs(argv) {
     else if (arg === '--theme') args.themes = [argv[(i += 1)]];
     else if (arg === '--widths') args.widths = argv[(i += 1)].split(',').map(Number);
   }
-  if (!args.out) throw new Error('--out <dir> is required (screenshots are never written into the repo)');
+  if (!args.out)
+    throw new Error('--out <dir> is required (screenshots are never written into the repo)');
   return args;
 }
 
 function run(command, commandArgs, env = {}) {
   return new Promise((done, fail) => {
-    const child = spawn(command, commandArgs, { cwd: APP_ROOT, stdio: 'inherit', env: { ...process.env, ...env } });
+    const child = spawn(command, commandArgs, {
+      cwd: APP_ROOT,
+      stdio: 'inherit',
+      env: { ...process.env, ...env },
+    });
     child.on('error', fail);
-    child.on('exit', (code) => (code === 0 ? done() : fail(new Error(`${command} exited with ${code}`))));
+    child.on('exit', (code) =>
+      code === 0 ? done() : fail(new Error(`${command} exited with ${code}`)),
+    );
   });
 }
 
@@ -96,7 +109,8 @@ function inspect() {
   const vh = window.innerHeight;
   const visible = (el) => {
     const style = getComputedStyle(el);
-    if (style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) === 0) return false;
+    if (style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) === 0)
+      return false;
     const rect = el.getBoundingClientRect();
     return rect.width > 0 && rect.height > 0;
   };
@@ -124,16 +138,20 @@ function inspect() {
   };
 
   const leaves = [...document.querySelectorAll('body *')].filter(
-    (el) => visible(el) && (el.matches('button, a, input, textarea, [role=button], [role=menuitem]') ||
-      [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length > 0)),
+    (el) =>
+      visible(el) &&
+      (el.matches('button, a, input, textarea, [role=button], [role=menuitem]') ||
+        [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length > 0)),
   );
   const offscreen = [];
   for (const el of leaves) {
     const rect = el.getBoundingClientRect();
     const box = shown(el);
     if (box.right <= box.left || box.bottom <= box.top) continue; // clipped away entirely
-    if (rect.right > vw + 1 && box.right > vw + 1) offscreen.push(`${describe(el)} → right ${Math.round(rect.right)} > ${vw}`);
-    else if (rect.left < -1 && box.left < -1) offscreen.push(`${describe(el)} → left ${Math.round(rect.left)}`);
+    if (rect.right > vw + 1 && box.right > vw + 1)
+      offscreen.push(`${describe(el)} → right ${Math.round(rect.right)} > ${vw}`);
+    else if (rect.left < -1 && box.left < -1)
+      offscreen.push(`${describe(el)} → left ${Math.round(rect.left)}`);
   }
 
   // The composer: Bloom's composer holds the one textarea on a chat screen.
@@ -169,7 +187,8 @@ function inspect() {
       const e = el.getBoundingClientRect();
       const box = shown(el);
       if (box.bottom <= box.top) continue;
-      const overlaps = e.left < c.right && e.right > c.left && box.top < c.bottom - 2 && box.bottom > c.top + 2;
+      const overlaps =
+        e.left < c.right && e.right > c.left && box.top < c.bottom - 2 && box.bottom > c.top + 2;
       if (!overlaps) continue;
       // Text genuinely under the card is only a defect if the card is not
       // painted over it on purpose (a scroll edge fade is not "covering").
@@ -211,8 +230,10 @@ function focusInfo() {
 
 // ── Driving ─────────────────────────────────────────────────────────────────
 
-const byLabel = (page, label) => page.locator(`[aria-label="${label}"]`).filter({ visible: true }).first();
-const byText = (page, text) => page.getByText(text, { exact: true }).filter({ visible: true }).first();
+const byLabel = (page, label) =>
+  page.locator(`[aria-label="${label}"]`).filter({ visible: true }).first();
+const byText = (page, text) =>
+  page.getByText(text, { exact: true }).filter({ visible: true }).first();
 
 async function settle(page, ms = 600) {
   await page.waitForTimeout(ms);
@@ -296,7 +317,10 @@ const SCENARIOS = [
         await settle(page);
       }
       // The model picker is offered only where the catalogue answers.
-      const picker = page.locator('button').filter({ hasText: /^Auto$/ }).filter({ visible: true });
+      const picker = page
+        .locator('button')
+        .filter({ hasText: /^Auto$/ })
+        .filter({ visible: true });
       if ((await picker.count()) && (await tryClick(picker.last()))) {
         await settle(page, 1200);
         await shot('model-picker');
@@ -435,7 +459,10 @@ const SCENARIOS = [
         await settle(page, 600);
       }
       // A tool row opens the thought panel.
-      const toolRow = page.getByText(/^Worked for /).filter({ visible: true }).last();
+      const toolRow = page
+        .getByText(/^Worked for /)
+        .filter({ visible: true })
+        .last();
       if (await toolRow.count()) {
         await toolRow.scrollIntoViewIfNeeded().catch(() => {});
         await tryClick(toolRow);
@@ -464,14 +491,20 @@ const SCENARIOS = [
         await tryClick(byText(page, 'Files'));
         const picker = await chooser;
         if (picker) {
-          await picker.setFiles({ name: 'empty.txt', mimeType: 'text/plain', buffer: Buffer.alloc(0) });
+          await picker.setFiles({
+            name: 'empty.txt',
+            mimeType: 'text/plain',
+            buffer: Buffer.alloc(0),
+          });
           await settle(page, 800);
           await shot('attachment-refused');
         } else {
           await page.keyboard.press('Escape');
         }
       }
-      await page.evaluate(() => window.__aliaFixture?.threads?.['qa-24']?.stream({ chunks: 20, intervalMs: 40 }));
+      await page.evaluate(() =>
+        window.__aliaFixture?.threads?.['qa-24']?.stream({ chunks: 20, intervalMs: 40 }),
+      );
       await settle(page, 600);
       await shot('after-stream');
     },
@@ -496,7 +529,9 @@ async function main() {
     for (const scenario of SCENARIOS) {
       if (args.only && !scenario.name.includes(args.only)) continue;
       const sizes = [...WIDTHS, ...(scenario.name === 'chat-empty' ? [SHORT] : [])].filter(
-        (v) => (!scenario.widths || scenario.widths.includes(v.width)) && (!args.widths || args.widths.includes(v.width)),
+        (v) =>
+          (!scenario.widths || scenario.widths.includes(v.width)) &&
+          (!args.widths || args.widths.includes(v.width)),
       );
       for (const size of sizes) {
         for (const theme of args.themes) {
@@ -507,7 +542,9 @@ async function main() {
             locale: 'en-US',
             timezoneId: 'UTC',
           });
-          await context.route(/(clarity|google-analytics|googletagmanager)/, (route) => route.abort());
+          await context.route(/(clarity|google-analytics|googletagmanager)/, (route) =>
+            route.abort(),
+          );
           const page = await context.newPage();
           const errors = [];
           page.on('pageerror', (e) => errors.push(e.message.slice(0, 200)));
@@ -517,23 +554,41 @@ async function main() {
             const file = join(args.out, `${tag}_${name}.png`);
             await page.screenshot({ path: file, animations: 'disabled', caret: 'hide' });
             const checks = await page.evaluate(inspect);
-            report.push({ scenario: scenario.name, shot: name, width: size.width, height: size.height, theme, file, ...checks });
+            report.push({
+              scenario: scenario.name,
+              shot: name,
+              width: size.width,
+              height: size.height,
+              theme,
+              file,
+              ...checks,
+            });
             const flags = [
               checks.overflowX && `overflowX ${checks.scrollWidth}/${checks.clientWidth}`,
               checks.offscreen.length && `offscreen ${checks.offscreen.length}`,
               checks.composerVisible === false && 'composer NOT visible',
               checks.overlapComposer.length && `under composer ${checks.overlapComposer.length}`,
             ].filter(Boolean);
-            console.log(`  ${flags.length ? '✗' : '✓'} ${tag}_${name}${flags.length ? ` — ${flags.join(', ')}` : ''}`);
+            console.log(
+              `  ${flags.length ? '✗' : '✓'} ${tag}_${name}${flags.length ? ` — ${flags.join(', ')}` : ''}`,
+            );
           };
           try {
-            await page.goto(`${servers[scenario.dist].origin}${scenario.url}`, { waitUntil: 'load', timeout: 60_000 });
-            await scenario.run(page, shot, { ...size, theme, note: (n) => Object.assign(notes, n) });
+            await page.goto(`${servers[scenario.dist].origin}${scenario.url}`, {
+              waitUntil: 'load',
+              timeout: 60_000,
+            });
+            await scenario.run(page, shot, {
+              ...size,
+              theme,
+              note: (n) => Object.assign(notes, n),
+            });
           } catch (error) {
             console.log(`  ! ${tag}: ${error.message.split('\n')[0]}`);
             notes.error = error.message.split('\n')[0];
           }
-          if (errors.length || Object.keys(notes).length) report.push({ scenario: scenario.name, tag, errors, ...notes });
+          if (errors.length || Object.keys(notes).length)
+            report.push({ scenario: scenario.name, tag, errors, ...notes });
           await context.close();
         }
       }

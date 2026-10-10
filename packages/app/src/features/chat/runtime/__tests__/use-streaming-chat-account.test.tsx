@@ -26,20 +26,33 @@ vi.mock('expo/fetch', () => ({
     return { ok: true, status: 200, body };
   },
 }));
-vi.mock('expo-haptics', () => ({ impactAsync: async () => {}, ImpactFeedbackStyle: { Light: 'light' } }));
+vi.mock('expo-haptics', () => ({
+  impactAsync: async () => {},
+  ImpactFeedbackStyle: { Light: 'light' },
+}));
 vi.mock('@oxy.so/services', () => ({
   useOxy: () => ({ oxyServices: { session: { accessToken: 'token' } }, user: harness.user }),
 }));
 vi.mock('@/shared/platform/device-info', () => ({ collectDeviceInfo: async () => ({}) }));
-vi.mock('@/features/chat/runtime/use-agent-row-preview', () => ({ useAgentRowPreview: () => () => {} }));
+vi.mock('@/features/chat/runtime/use-agent-row-preview', () => ({
+  useAgentRowPreview: () => () => {},
+}));
 vi.mock('@/features/memory/runtime/use-user-data', () => ({ USER_MEMORY_QUERY_KEY: ['memory'] }));
 vi.mock('@/features/chat/runtime/model-store', () => ({
   useModelStore: { getState: () => ({ webSearch: true, setSelectedModel: () => {} }) },
 }));
 vi.mock('@/features/chat/runtime/ui-store', () => ({
-  useUIStore: { getState: () => ({ addCanvasArtifact: () => {}, setRightPanel: () => {}, openAgentPanel: () => {} }) },
+  useUIStore: {
+    getState: () => ({
+      addCanvasArtifact: () => {},
+      setRightPanel: () => {},
+      openAgentPanel: () => {},
+    }),
+  },
 }));
-vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
+vi.mock('@oxy.so/bloom/toast', () => ({
+  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
+}));
 vi.mock('@/shared/i18n', () => ({ default: { t: (k: string) => k } }));
 
 import { useStreamingChat } from '@/features/chat/runtime/use-streaming-chat';
@@ -74,7 +87,9 @@ describe('the thread on the new-chat screen', () => {
   it('is emptied when its account signs out', async () => {
     harness.user = { id: 'A' };
     await render();
-    await act(async () => { await api.append({ role: 'user', content: 'A’s secret' }); });
+    await act(async () => {
+      await api.append({ role: 'user', content: 'A’s secret' });
+    });
     expect(api.messages.length).toBe(2);
 
     harness.user = null;
@@ -85,7 +100,9 @@ describe('the thread on the new-chat screen', () => {
   it('is emptied when the device switches to another account', async () => {
     harness.user = { id: 'A' };
     await render();
-    await act(async () => { await api.append({ role: 'user', content: 'A’s secret' }); });
+    await act(async () => {
+      await api.append({ role: 'user', content: 'A’s secret' });
+    });
     harness.user = { id: 'B' };
     await render();
     expect(api.messages).toEqual([]);
@@ -94,7 +111,9 @@ describe('the thread on the new-chat screen', () => {
   it('is kept on a first sign-in from signed out', async () => {
     harness.user = null;
     await render();
-    await act(async () => { api.setMessages([{ id: 'g1', role: 'user', content: 'typed as a guest' }]); });
+    await act(async () => {
+      api.setMessages([{ id: 'g1', role: 'user', content: 'typed as a guest' }]);
+    });
     harness.user = { id: 'A' };
     await render();
     expect(api.messages.length).toBe(1);

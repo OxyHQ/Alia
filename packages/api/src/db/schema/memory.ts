@@ -18,7 +18,15 @@
  * These are the user's own memories and are deleted only when they say so.
  */
 
-import { boolean, doublePrecision, index, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  doublePrecision,
+  index,
+  jsonb,
+  pgTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import { MEMORY_RESPONSE_LENGTHS, MEMORY_TYPES } from '../../domain/user-memory.js';
@@ -223,7 +231,5 @@ export const memoryEmbeddings = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [
-    uniqueIndex('memory_embeddings_oxy_user_memory_key_key').on(t.oxyUserId, t.memoryKey),
-  ],
+  (t) => [uniqueIndex('memory_embeddings_oxy_user_memory_key_key').on(t.oxyUserId, t.memoryKey)],
 );

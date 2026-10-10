@@ -30,10 +30,7 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
 
   return {
@@ -59,16 +56,14 @@ vi.mock('@oxy.so/bloom/icons/RiBarChartHorizontalLine', () => ({
 vi.mock('@oxy.so/bloom/item', async () => {
   const ReactModule = await import('react');
   return {
-    Item: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Item', props),
+    Item: (props: Record<string, unknown>) => ReactModule.createElement('Item', props),
   };
 });
 
 vi.mock('@oxy.so/bloom/loading', async () => {
   const ReactModule = await import('react');
   return {
-    Loading: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Loading', props),
+    Loading: (props: Record<string, unknown>) => ReactModule.createElement('Loading', props),
   };
 });
 
@@ -76,22 +71,24 @@ vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   const text =
     (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return { Text: text('Text'), Muted: text('Muted') };
 });
 
 vi.mock('@/features/chat/ui/composer/use-alia-composer', () => ({
-  useAliaComposer: () => ({ props: {}, attachments: [], turnOptions: {}, restoreTurn: () => {}, clearTurn: () => {} }),
+  useAliaComposer: () => ({
+    props: {},
+    attachments: [],
+    turnOptions: {},
+    restoreTurn: () => {},
+    clearTurn: () => {},
+  }),
 }));
 vi.mock('@/features/chat/ui/composer/composer', async () => {
   const ReactModule = await import('react');
   return {
-    Composer: (props: Record<string, unknown>) =>
-      ReactModule.createElement('Composer', props),
+    Composer: (props: Record<string, unknown>) => ReactModule.createElement('Composer', props),
   };
 });
 
@@ -176,9 +173,7 @@ describe('createBotAccount', () => {
       private: true,
     });
 
-    expect(createAccount).toHaveBeenCalledWith(
-      expect.objectContaining({ isPrivateAccount: true }),
-    );
+    expect(createAccount).toHaveBeenCalledWith(expect.objectContaining({ isPrivateAccount: true }));
   });
 
   it('omits the field entirely when the caller said nothing, which is not `false`', async () => {
@@ -275,9 +270,7 @@ describe('createBotAccount', () => {
       .mockResolvedValue(account);
     const checkAvailability = vi
       .fn<(username: string) => Promise<boolean>>()
-      .mockImplementation((username) =>
-        Promise.resolve(username === 'helper2bot'),
-      );
+      .mockImplementation((username) => Promise.resolve(username === 'helper2bot'));
 
     await createBotAccount({
       createAccount,
@@ -311,9 +304,7 @@ describe('createBotAccount', () => {
       .mockResolvedValue(accountNamed('claudio2bot'));
     const checkAvailability = vi
       .fn<(username: string) => Promise<boolean>>()
-      .mockImplementation((username) =>
-        Promise.resolve(username !== 'claudiobot'),
-      );
+      .mockImplementation((username) => Promise.resolve(username !== 'claudiobot'));
 
     await createBotAccount({
       createAccount,
@@ -322,10 +313,7 @@ describe('createBotAccount', () => {
       displayName: 'Claudio',
     });
 
-    expect(checkAvailability.mock.calls.map(([u]) => u)).toEqual([
-      'claudiobot',
-      'claudio2bot',
-    ]);
+    expect(checkAvailability.mock.calls.map(([u]) => u)).toEqual(['claudiobot', 'claudio2bot']);
     expect(createAccount.mock.calls[0][0].username).toBe('claudio2bot');
   });
 
@@ -397,10 +385,7 @@ describe('createBotAccount', () => {
       displayName: 'MyBot',
     });
 
-    expect(createAccount.mock.calls.map(([data]) => data.username)).toEqual([
-      'mybot',
-      'MyBot',
-    ]);
+    expect(createAccount.mock.calls.map(([data]) => data.username)).toEqual(['mybot', 'MyBot']);
   });
 
   it('asks about the handle it will mint, not about the name it was given', async () => {
@@ -475,9 +460,7 @@ describe('the create screen', () => {
           },
         });
       }
-      return Promise.reject(
-        new Error(`the create screen called an unexpected route: ${route}`),
-      );
+      return Promise.reject(new Error(`the create screen called an unexpected route: ${route}`));
     });
     mocks.createAccount.mockResolvedValue(account);
     mocks.createAgent.mockResolvedValue({ _id: 'agent_1' });
@@ -486,8 +469,7 @@ describe('the create screen', () => {
     act(() => {
       created = create(<CreateAgentScreen />);
     });
-    if (created === undefined)
-      throw new Error('the create screen did not render');
+    if (created === undefined) throw new Error('the create screen did not render');
     renderer = created;
     const root = created.root;
 
@@ -520,9 +502,7 @@ describe('the create screen', () => {
   it('mints the account with no avatar, and asks Alia for nothing but the config', async () => {
     await createOneAgent();
 
-    expect(mocks.post.mock.calls.map((call) => call[0])).toEqual([
-      '/agents/generate',
-    ]);
+    expect(mocks.post.mock.calls.map((call) => call[0])).toEqual(['/agents/generate']);
     expect(mocks.createAccount.mock.calls[0]?.[0]).not.toHaveProperty('avatar');
   });
 });
@@ -574,8 +554,7 @@ describe('the handle a created agent gets', () => {
     act(() => {
       created = create(<CreateAgentScreen />);
     });
-    if (created === undefined)
-      throw new Error('the create screen did not render');
+    if (created === undefined) throw new Error('the create screen did not render');
     renderer = created;
     const root = created.root;
 
@@ -588,8 +567,7 @@ describe('the handle a created agent gets', () => {
   }
 
   /** The usernames the screen asked about, in order. */
-  const asked = () =>
-    mocks.checkUsernameAvailability.mock.calls.map((call) => call[0]);
+  const asked = () => mocks.checkUsernameAvailability.mock.calls.map((call) => call[0]);
   /** The username it actually minted with. */
   const minted = () => mocks.createAccount.mock.calls[0]?.[0]?.username;
 

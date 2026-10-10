@@ -7,7 +7,14 @@ import type { ToolInvocation } from '@/shared/contracts/messages';
  * `react-native` does not load under node; the mapping hands them over by
  * identity, which is what these tests compare.
  */
-const ICONS = ['RiBookOpenLine', 'RiFileTextLine', 'RiGlobalLine', 'RiSearchLine', 'RiTerminalBoxLine', 'RiToolsLine'];
+const ICONS = [
+  'RiBookOpenLine',
+  'RiFileTextLine',
+  'RiGlobalLine',
+  'RiSearchLine',
+  'RiTerminalBoxLine',
+  'RiToolsLine',
+];
 for (const name of ICONS) {
   vi.doMock(`@oxy.so/bloom/icons/${name}`, () => ({ [name]: { icon: name } }));
 }
@@ -33,7 +40,12 @@ const search: ToolInvocation = {
   result: {
     count: 3,
     results: [
-      { title: 'The best budget keyboards', url: 'https://www.pcgamer.com/best', snippet: '…', faviconUrl: 'https://clarity.test/favicons/www.pcgamer.com' },
+      {
+        title: 'The best budget keyboards',
+        url: 'https://www.pcgamer.com/best',
+        snippet: '…',
+        faviconUrl: 'https://clarity.test/favicons/www.pcgamer.com',
+      },
       { title: 'Keyboards under $100?', url: 'https://old.reddit.com/r/keyboards/1', snippet: '' },
       { title: 'The best budget keyboards', url: 'https://www.pcgamer.com/best', snippet: 'dupe' },
     ],
@@ -50,8 +62,19 @@ describe('tool calls → WebSearch steps and sources', () => {
         icon: RiSearchLine,
         meta: 'chat.bloom.resultCount{"count":3}',
         sources: [
-          { title: 'The best budget keyboards', domain: 'www.pcgamer.com', href: 'https://www.pcgamer.com/best', faviconUrl: 'https://clarity.test/favicons/www.pcgamer.com' },
-          { title: 'Keyboards under $100?', domain: 'old.reddit.com', href: 'https://old.reddit.com/r/keyboards/1', brand: 'reddit', faviconUrl: 'https://api.clarity.surf/favicons/old.reddit.com' },
+          {
+            title: 'The best budget keyboards',
+            domain: 'www.pcgamer.com',
+            href: 'https://www.pcgamer.com/best',
+            faviconUrl: 'https://clarity.test/favicons/www.pcgamer.com',
+          },
+          {
+            title: 'Keyboards under $100?',
+            domain: 'old.reddit.com',
+            href: 'https://old.reddit.com/r/keyboards/1',
+            brand: 'reddit',
+            faviconUrl: 'https://api.clarity.surf/favicons/old.reddit.com',
+          },
         ],
       },
     ]);
@@ -65,14 +88,25 @@ describe('tool calls → WebSearch steps and sources', () => {
       toolName: 'webScraper',
       state: 'result',
       args: { url: 'https://docs.example.com/guide' },
-      result: { documentId: 'd', title: 'Guide', content: '…', url: 'https://docs.example.com/guide', length: 1 },
+      result: {
+        documentId: 'd',
+        title: 'Guide',
+        content: '…',
+        url: 'https://docs.example.com/guide',
+        length: 1,
+      },
     };
     const browseRead: ToolInvocation = {
       toolCallId: 'b1',
       toolName: 'browse',
       state: 'result',
       args: { action: 'read', url: 'https://github.com/oxy/bloom' },
-      result: { action: 'read', title: 'oxy/bloom', content: '…', url: 'https://github.com/oxy/bloom' },
+      result: {
+        action: 'read',
+        title: 'oxy/bloom',
+        content: '…',
+        url: 'https://github.com/oxy/bloom',
+      },
     };
     const log = webSearchLog([scrape, browseRead], undefined, t);
     expect(log.steps.map((s) => [s.label, s.query, s.icon])).toEqual([
@@ -80,7 +114,13 @@ describe('tool calls → WebSearch steps and sources', () => {
       ['chat.bloom.visited', 'github.com', RiGlobalLine],
     ]);
     expect(log.steps[1].sources).toEqual([
-      { title: 'oxy/bloom', domain: 'github.com', href: 'https://github.com/oxy/bloom', brand: 'github', faviconUrl: 'https://api.clarity.surf/favicons/github.com' },
+      {
+        title: 'oxy/bloom',
+        domain: 'github.com',
+        href: 'https://github.com/oxy/bloom',
+        brand: 'github',
+        faviconUrl: 'https://api.clarity.surf/favicons/github.com',
+      },
     ]);
     expect(log.revealed).toBe(4);
   });
@@ -91,7 +131,11 @@ describe('tool calls → WebSearch steps and sources', () => {
       toolName: 'browse',
       state: 'result',
       args: { action: 'search', query: 'aula f75' },
-      result: { action: 'search', results: [{ title: 'A', url: 'https://a.test/', snippet: '' }], count: 1 },
+      result: {
+        action: 'search',
+        results: [{ title: 'A', url: 'https://a.test/', snippet: '' }],
+        count: 1,
+      },
     };
     const [step] = webSearchLog([browseSearch], undefined, t).steps;
     expect(step.label).toBe('chat.bloom.searchedWeb');
@@ -100,11 +144,25 @@ describe('tool calls → WebSearch steps and sources', () => {
   });
 
   it('shows a running search without a count or sources, and one still streaming its args as not yet revealed', () => {
-    const running: ToolInvocation = { toolCallId: 'r', toolName: 'webSearch', state: 'call', args: { query: 'q2' } };
-    const streaming: ToolInvocation = { toolCallId: 'p', toolName: 'webSearch', state: 'partial-call', args: {} };
+    const running: ToolInvocation = {
+      toolCallId: 'r',
+      toolName: 'webSearch',
+      state: 'call',
+      args: { query: 'q2' },
+    };
+    const streaming: ToolInvocation = {
+      toolCallId: 'p',
+      toolName: 'webSearch',
+      state: 'partial-call',
+      args: {},
+    };
     const log = webSearchLog([search, running, streaming], undefined, t);
     expect(log.steps).toHaveLength(3);
-    expect(log.steps[1]).toEqual({ label: 'chat.bloom.searchedWeb', query: 'q2', icon: RiSearchLine });
+    expect(log.steps[1]).toEqual({
+      label: 'chat.bloom.searchedWeb',
+      query: 'q2',
+      icon: RiSearchLine,
+    });
     // search (2 units) + running (1) — the partial call is known but not revealed.
     expect(log.revealed).toBe(3);
   });
@@ -145,31 +203,71 @@ describe('tool calls → WebSearch steps and sources', () => {
       icon: RiBookOpenLine,
       meta: 'chat.bloom.searchCount{"count":12}',
       sources: [
-        { title: 'First', domain: 'a.test', href: 'https://a.test/1', faviconUrl: 'https://api.clarity.surf/favicons/a.test' },
-        { title: 'Second', domain: 'b.test', href: 'https://b.test/2', faviconUrl: 'https://api.clarity.surf/favicons/b.test' },
+        {
+          title: 'First',
+          domain: 'a.test',
+          href: 'https://a.test/1',
+          faviconUrl: 'https://api.clarity.surf/favicons/a.test',
+        },
+        {
+          title: 'Second',
+          domain: 'b.test',
+          href: 'https://b.test/2',
+          faviconUrl: 'https://api.clarity.surf/favicons/b.test',
+        },
       ],
     });
   });
 
   it('draws live research progress before the answer is saved, and drops it once the invocation exists', () => {
-    const live = { currentQuery: 'battery density 2026', sourcesFound: 4, sources: [{ id: 1, url: 'https://a.test/1', title: 'First' }] };
+    const live = {
+      currentQuery: 'battery density 2026',
+      sourcesFound: 4,
+      sources: [{ id: 1, url: 'https://a.test/1', title: 'First' }],
+    };
     const [step] = webSearchLog([], live, t).steps;
     expect(step).toEqual({
       label: 'chat.bloom.researching',
       query: 'battery density 2026',
       icon: RiBookOpenLine,
       meta: 'chat.bloom.sourceCount{"count":4}',
-      sources: [{ title: 'First', domain: 'a.test', href: 'https://a.test/1', faviconUrl: 'https://api.clarity.surf/favicons/a.test' }],
+      sources: [
+        {
+          title: 'First',
+          domain: 'a.test',
+          href: 'https://a.test/1',
+          faviconUrl: 'https://api.clarity.surf/favicons/a.test',
+        },
+      ],
     });
-    const saved: ToolInvocation = { toolCallId: 'r', toolName: 'deepResearch', state: 'result', args: { query: 'x' }, result: { sources: [] } };
+    const saved: ToolInvocation = {
+      toolCallId: 'r',
+      toolName: 'deepResearch',
+      state: 'result',
+      args: { query: 'x' },
+      result: { sources: [] },
+    };
     const log = webSearchLog([saved], live, t);
     expect(log.steps.map((s) => s.label)).toEqual(['chat.bloom.researched']);
     // The live sources still fill in what the saved invocation lacks.
-    expect(log.steps[0].sources).toEqual([{ title: 'First', domain: 'a.test', href: 'https://a.test/1', faviconUrl: 'https://api.clarity.surf/favicons/a.test' }]);
+    expect(log.steps[0].sources).toEqual([
+      {
+        title: 'First',
+        domain: 'a.test',
+        href: 'https://a.test/1',
+        faviconUrl: 'https://api.clarity.surf/favicons/a.test',
+      },
+    ]);
   });
 
   it('ignores every other tool', () => {
-    const file: ToolInvocation = { toolCallId: 'f', toolName: 'generateFile', state: 'result', args: {}, result: {} };
+    const file: ToolInvocation = {
+      toolCallId: 'f',
+      toolName: 'generateFile',
+      state: 'result',
+      args: {},
+      result: {},
+    };
     expect(webSearchLog([file], undefined, t)).toEqual({ steps: [], revealed: 0 });
     expect(isWebInvocation(file)).toBe(false);
     expect(isWebInvocation(search)).toBe(true);
@@ -183,7 +281,12 @@ describe('tool calls → TaskList tasks', () => {
       toolName: 'generateFile',
       state: 'result',
       args: { filename: 'report.csv', content: 'a,b', format: 'csv' },
-      result: { filename: 'report.csv', format: 'csv', content: 'a,b', message: 'Generated report.csv' },
+      result: {
+        filename: 'report.csv',
+        format: 'csv',
+        content: 'a,b',
+        message: 'Generated report.csv',
+      },
     };
     const log = taskListLog([file], false, t);
     expect(log.tasks).toEqual([
@@ -206,7 +309,12 @@ describe('tool calls → TaskList tasks', () => {
       args: { to: 'ana@example.com', subject: 'Hi', body: 'x'.repeat(500) },
       result: { error: 'SMTP refused' },
     };
-    const cut: ToolInvocation = { toolCallId: 'c', toolName: 'customThing', state: 'call', args: { count: 3 } };
+    const cut: ToolInvocation = {
+      toolCallId: 'c',
+      toolName: 'customThing',
+      state: 'call',
+      args: { count: 3 },
+    };
     const log = taskListLog([failed, cut], false, t);
     expect(log.tasks[0]).toEqual({
       title: 'tasks.tool.pill.sendEmail',
@@ -228,10 +336,24 @@ describe('tool calls → TaskList tasks', () => {
   });
 
   it('leaves web calls to WebSearch and stops revealing at a call still streaming', () => {
-    const memory: ToolInvocation = { toolCallId: 'm', toolName: 'userMemory', state: 'result', args: {}, result: {} };
-    const pending: ToolInvocation = { toolCallId: 'p', toolName: 'shellExec', state: 'partial-call', args: {} };
+    const memory: ToolInvocation = {
+      toolCallId: 'm',
+      toolName: 'userMemory',
+      state: 'result',
+      args: {},
+      result: {},
+    };
+    const pending: ToolInvocation = {
+      toolCallId: 'p',
+      toolName: 'shellExec',
+      state: 'partial-call',
+      args: {},
+    };
     const log = taskListLog([search, memory, pending], true, t);
-    expect(log.tasks.map((task) => task.title)).toEqual(['tasks.tool.done.userMemory', 'tasks.tool.done.shellExec']);
+    expect(log.tasks.map((task) => task.title)).toEqual([
+      'tasks.tool.done.userMemory',
+      'tasks.tool.done.shellExec',
+    ]);
     expect(log.revealed).toBe(1);
   });
 });

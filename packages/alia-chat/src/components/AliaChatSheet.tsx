@@ -73,7 +73,20 @@ export interface AliaChatSheetRef {
 }
 
 export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
-  ({ clientContext, model, apiUrl, welcomeGreeting, welcomeSubtitle, welcomeSuggestions, primaryColor, isDarkMode, voiceSession }, ref) => {
+  (
+    {
+      clientContext,
+      model,
+      apiUrl,
+      welcomeGreeting,
+      welcomeSubtitle,
+      welcomeSuggestions,
+      primaryColor,
+      isDarkMode,
+      voiceSession,
+    },
+    ref,
+  ) => {
     const scheme = useColorScheme();
     const isDark = scheme === 'dark';
     const insets = useSafeAreaInsets();
@@ -158,51 +171,53 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       [],
     );
 
-    useImperativeHandle(
-      ref,
-      () => ({ present: handlePresent, dismiss: handleDismiss }),
-      [handlePresent, handleDismiss],
-    );
+    useImperativeHandle(ref, () => ({ present: handlePresent, dismiss: handleDismiss }), [
+      handlePresent,
+      handleDismiss,
+    ]);
 
     // Pan gesture for swipe-to-dismiss
     const nativeGesture = useMemo(() => Gesture.Native(), []);
 
-    const panGesture = useMemo(() => Gesture.Pan()
-      .simultaneousWithExternalGesture(nativeGesture)
-      .onStart(() => {
-        'worklet';
-        panContext.value = { y: translateY.value };
-        allowPanClose.value = scrollOffsetY.value <= 8;
-      })
-      .onUpdate((event) => {
-        'worklet';
-        if (!allowPanClose.value) return;
-        if (event.translationY > 0 && scrollOffsetY.value > 8) return;
-        const newY = panContext.value.y + event.translationY;
-        translateY.value = Math.max(0, newY);
-      })
-      .onEnd((event) => {
-        'worklet';
-        if (!allowPanClose.value) return;
-        const velocity = event.velocityY;
-        const distance = translateY.value;
-        const closeThreshold = Math.max(140, SCREEN_HEIGHT * 0.25);
-        const shouldClose =
-          velocity > 900 || (distance > closeThreshold && velocity > -300);
+    const panGesture = useMemo(
+      () =>
+        Gesture.Pan()
+          .simultaneousWithExternalGesture(nativeGesture)
+          .onStart(() => {
+            'worklet';
+            panContext.value = { y: translateY.value };
+            allowPanClose.value = scrollOffsetY.value <= 8;
+          })
+          .onUpdate((event) => {
+            'worklet';
+            if (!allowPanClose.value) return;
+            if (event.translationY > 0 && scrollOffsetY.value > 8) return;
+            const newY = panContext.value.y + event.translationY;
+            translateY.value = Math.max(0, newY);
+          })
+          .onEnd((event) => {
+            'worklet';
+            if (!allowPanClose.value) return;
+            const velocity = event.velocityY;
+            const distance = translateY.value;
+            const closeThreshold = Math.max(140, SCREEN_HEIGHT * 0.25);
+            const shouldClose = velocity > 900 || (distance > closeThreshold && velocity > -300);
 
-        if (shouldClose) {
-          runOnJS(stopChat)();
-          translateY.value = withSpring(SCREEN_HEIGHT, {
-            ...SPRING_CONFIG,
-            velocity,
-          });
-          backdropOpacity.value = withTiming(0, { duration: 250 }, (finished) => {
-            if (finished) runOnJS(finishDismiss)();
-          });
-        } else {
-          translateY.value = withSpring(0, { ...SPRING_CONFIG, velocity });
-        }
-      }), [nativeGesture, finishDismiss, stopChat]);
+            if (shouldClose) {
+              runOnJS(stopChat)();
+              translateY.value = withSpring(SCREEN_HEIGHT, {
+                ...SPRING_CONFIG,
+                velocity,
+              });
+              backdropOpacity.value = withTiming(0, { duration: 250 }, (finished) => {
+                if (finished) runOnJS(finishDismiss)();
+              });
+            } else {
+              translateY.value = withSpring(0, { ...SPRING_CONFIG, velocity });
+            }
+          }),
+      [nativeGesture, finishDismiss, stopChat],
+    );
 
     // Animated styles
     const backdropAnimStyle = useAnimatedStyle(() => ({
@@ -240,19 +255,12 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
           <GestureDetector gesture={panGesture}>
             <Animated.View
               className="bg-background"
-              style={[
-                styles.sheet,
-                sheetAnimStyle,
-                sheetMaxHeightStyle,
-              ]}
+              style={[styles.sheet, sheetAnimStyle, sheetMaxHeightStyle]}
             >
               {/* Drag handle */}
               <View style={styles.dragHandle}>
                 <View
-                  style={[
-                    styles.dragHandlePill,
-                    { backgroundColor: isDark ? '#444' : '#C7C7CC' },
-                  ]}
+                  style={[styles.dragHandlePill, { backgroundColor: isDark ? '#444' : '#C7C7CC' }]}
                 />
               </View>
 
@@ -274,16 +282,12 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
                     <View style={styles.header}>
                       <View style={styles.headerLeft}>
                         <IdentityMark size={28} state={markState} spinOnPress />
-                        <Text className="text-lg font-semibold text-foreground">
-                          Alia
-                        </Text>
+                        <Text className="text-lg font-semibold text-foreground">Alia</Text>
                       </View>
                       <View style={styles.headerRight}>
                         {hasMessages && (
                           <TouchableOpacity onPress={clear} style={styles.clearButton}>
-                            <Text className="text-sm text-muted-foreground">
-                              Clear
-                            </Text>
+                            <Text className="text-sm text-muted-foreground">Clear</Text>
                           </TouchableOpacity>
                         )}
                         <TouchableOpacity

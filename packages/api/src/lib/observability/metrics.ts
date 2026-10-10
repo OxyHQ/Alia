@@ -10,7 +10,6 @@
  * Exposes a /metrics endpoint compatible with Prometheus scraping.
  */
 
-
 export interface MetricSample {
   value: number;
   labels: Record<string, string>;
@@ -121,8 +120,10 @@ class MetricsRegistry {
       const count = values.length;
 
       for (const bucket of buckets) {
-        const bucketCount = values.filter(v => v <= bucket).length;
-        lines.push(`${metric.name}_bucket${formatLabels({ ...labels, le: String(bucket) })} ${bucketCount}`);
+        const bucketCount = values.filter((v) => v <= bucket).length;
+        lines.push(
+          `${metric.name}_bucket${formatLabels({ ...labels, le: String(bucket) })} ${bucketCount}`,
+        );
       }
       lines.push(`${metric.name}_bucket${formatLabels({ ...labels, le: '+Inf' })} ${count}`);
       lines.push(`${metric.name}_sum${formatLabels(labels)} ${sum}`);
@@ -133,10 +134,10 @@ class MetricsRegistry {
   }
 
   private findSample(metric: MetricDef, labels: Record<string, string>): MetricSample | undefined {
-    return metric.samples.find(s => {
+    return metric.samples.find((s) => {
       const keys = Object.keys(labels);
       if (keys.length !== Object.keys(s.labels).length) return false;
-      return keys.every(k => s.labels[k] === labels[k]);
+      return keys.every((k) => s.labels[k] === labels[k]);
     });
   }
 }
@@ -153,13 +154,23 @@ const registry = new MetricsRegistry();
 
 // Agent metrics
 registry.register('alia_agent_sessions_total', 'Total agent sessions', 'counter');
-registry.register('alia_agent_session_duration_seconds', 'Agent session duration', 'histogram', [1, 5, 10, 30, 60, 120, 300]);
+registry.register(
+  'alia_agent_session_duration_seconds',
+  'Agent session duration',
+  'histogram',
+  [1, 5, 10, 30, 60, 120, 300],
+);
 registry.register('alia_agent_steps_total', 'Total agent steps taken', 'counter');
 registry.register('alia_agent_tokens_total', 'Total tokens consumed by agents', 'counter');
 
 // Tool metrics
 registry.register('alia_tool_calls_total', 'Total tool calls', 'counter');
-registry.register('alia_tool_call_duration_seconds', 'Tool call duration', 'histogram', [0.1, 0.5, 1, 2, 5, 10, 30]);
+registry.register(
+  'alia_tool_call_duration_seconds',
+  'Tool call duration',
+  'histogram',
+  [0.1, 0.5, 1, 2, 5, 10, 30],
+);
 registry.register('alia_tool_errors_total', 'Total tool call errors', 'counter');
 
 // Context metrics
@@ -168,7 +179,12 @@ registry.register('alia_context_tokens_saved', 'Tokens saved by compaction', 'ga
 
 // Chat metrics
 registry.register('alia_chat_requests_total', 'Total chat API requests', 'counter');
-registry.register('alia_chat_stream_duration_seconds', 'Chat stream duration', 'histogram', [0.5, 1, 2, 5, 10, 30]);
+registry.register(
+  'alia_chat_stream_duration_seconds',
+  'Chat stream duration',
+  'histogram',
+  [0.5, 1, 2, 5, 10, 30],
+);
 
 // ── Convenience Functions ──
 
@@ -176,7 +192,10 @@ export function agentSessionStarted(labels: { agentId?: string; userId?: string 
   registry.inc('alia_agent_sessions_total', labels);
 }
 
-export function agentSessionEnded(durationSec: number, labels: { agentId?: string; status?: string }): void {
+export function agentSessionEnded(
+  durationSec: number,
+  labels: { agentId?: string; status?: string },
+): void {
   registry.observe('alia_agent_session_duration_seconds', labels, durationSec);
 }
 
@@ -184,7 +203,10 @@ export function agentStepTaken(labels: { agentId?: string; modelId?: string }): 
   registry.inc('alia_agent_steps_total', labels);
 }
 
-export function agentTokensUsed(count: number, labels: { agentId?: string; modelId?: string }): void {
+export function agentTokensUsed(
+  count: number,
+  labels: { agentId?: string; modelId?: string },
+): void {
   registry.inc('alia_agent_tokens_total', labels, count);
 }
 
@@ -200,7 +222,10 @@ export function contextCompactionRecorded(tokensSaved: number): void {
   registry.set('alia_context_tokens_saved', {}, tokensSaved);
 }
 
-export function chatRequestRecorded(durationSec: number, labels: { model?: string; platform?: string }): void {
+export function chatRequestRecorded(
+  durationSec: number,
+  labels: { model?: string; platform?: string },
+): void {
   registry.inc('alia_chat_requests_total', labels);
   registry.observe('alia_chat_stream_duration_seconds', labels, durationSec);
 }

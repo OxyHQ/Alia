@@ -133,7 +133,10 @@ afterEach(() => {
 
 describe('a well-configured process runs every guard, in order', () => {
   it('connects, reports, and never terminates', async () => {
-    const { trace, exits, connectAttempts } = await run({ ...HEALTHY_ENV, ...BOOTABLE_OXY_INFERENCE });
+    const { trace, exits, connectAttempts } = await run({
+      ...HEALTHY_ENV,
+      ...BOOTABLE_OXY_INFERENCE,
+    });
 
     expect(exits).toEqual([]);
     expect(connectAttempts).toEqual([HEALTHY_ENV.DATABASE_URL]);
@@ -173,8 +176,9 @@ describe('the database is required, and its absence stops everything after it', 
   it('reports before it terminates, so the reason survives', async () => {
     connectSucceeds = false;
     const { trace } = await run({});
-    expect(trace.indexOf("fatal: DATABASE_URL is required — Postgres is this service's database"))
-      .toBeLessThan(trace.indexOf('exit(1)'));
+    expect(
+      trace.indexOf("fatal: DATABASE_URL is required — Postgres is this service's database"),
+    ).toBeLessThan(trace.indexOf('exit(1)'));
   });
 });
 
@@ -257,7 +261,6 @@ describe('Oxy inference configuration is checked after the database and before t
     expect(trace[0]).toContain('DATABASE_URL is required');
     expect(trace.join('\n')).not.toContain('inference client configuration');
   });
-
 });
 
 describe('direct provider configuration is always refused', () => {
@@ -297,7 +300,6 @@ describe('direct provider configuration is always refused', () => {
     expect(exits).toEqual([1]);
     expect(egressInstalls).toBe(0);
   });
-
 });
 
 /* -------------------------------------------------------------------------- */

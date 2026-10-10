@@ -1,10 +1,10 @@
-import path from "path"
-import tailwindcss from "@tailwindcss/vite"
-import react from "@vitejs/plugin-react"
-import { defineConfig } from "vite"
-import reactNativeWeb from "vite-plugin-react-native-web"
+import path from 'path';
+import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
+import reactNativeWeb from 'vite-plugin-react-native-web';
 
-const emptyModule = path.resolve(__dirname, "./src/empty-module.js")
+const emptyModule = path.resolve(__dirname, './src/empty-module.js');
 
 // Canvas runs on rolldown-vite (`"vite": "npm:rolldown-vite@^7"`) so the
 // `@oxy.so/services` React Native graph bundles through the maintained
@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     conditions: ['style'],
     alias: [
-      { find: "@", replacement: path.resolve(__dirname, "./src") },
+      { find: '@', replacement: path.resolve(__dirname, './src') },
       // Deep native-only internals that monorepo hoisting can pull in
       // transitively and that have no web implementation.
       { find: /^react-native\/Libraries\/.*/, replacement: emptyModule },
@@ -50,4 +50,4 @@ export default defineConfig(({ mode }) => ({
   server: {
     port: 3002,
   },
-}))
+}));

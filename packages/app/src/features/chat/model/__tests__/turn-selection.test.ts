@@ -116,10 +116,7 @@ describe('buildTurnSelection', () => {
         skill({ _id: 's1', name: 'chosen' }),
         skill({ _id: 's2', name: 'not-chosen' }),
       ],
-      installedConnectors: [
-        connector({ _id: 'c1' }),
-        connector({ _id: 'c2' }),
-      ],
+      installedConnectors: [connector({ _id: 'c1' }), connector({ _id: 'c2' })],
       selectedSkillNames: ['chosen'],
       selectedConnectorId: 'c2',
     });

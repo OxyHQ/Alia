@@ -99,10 +99,14 @@ describe('no privilege comes from an unverified token (#139 ws15)', () => {
     // VERIFIES (Ed25519 through Oxy's public JWKS, plus issuer, audience,
     // lifetime, type and scopes) before granting anything; a second, local
     // decoder would have no such obligation.
-    const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', 'packages/api/src'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-    })
+    const files = execFileSync(
+      'git',
+      ['ls-files', '--cached', '--others', '--exclude-standard', '--', 'packages/api/src'],
+      {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+      },
+    )
       .split('\n')
       .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'))
       .filter((file) => existsSync(path.join(REPO_ROOT, file)));
@@ -162,7 +166,9 @@ describe('no privilege comes from an unverified token (#139 ws15)', () => {
     ]) {
       const codeMentions = gitGrepFiles(privateName, ['packages/api/src'])
         .filter((file) => file !== SELF)
-        .filter((file) => code(path.relative(API_SRC, path.join(REPO_ROOT, file))).includes(privateName));
+        .filter((file) =>
+          code(path.relative(API_SRC, path.join(REPO_ROOT, file))).includes(privateName),
+        );
       expect(codeMentions).toEqual([]);
       expect(gitGrepFiles(privateName, ['.github'])).toEqual([]);
     }
@@ -172,7 +178,9 @@ describe('no privilege comes from an unverified token (#139 ws15)', () => {
     expect(
       gitGrepFiles('SERVICE_SECRET', ['packages/api/src'])
         .filter((file) => file !== SELF)
-        .filter((file) => code(path.relative(API_SRC, path.join(REPO_ROOT, file))).includes('SERVICE_SECRET')),
+        .filter((file) =>
+          code(path.relative(API_SRC, path.join(REPO_ROOT, file))).includes('SERVICE_SECRET'),
+        ),
     ).toEqual([]);
     expect(gitGrepFiles('SERVICE_SECRET', ['.github'])).toEqual([]);
   });
@@ -250,10 +258,14 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
    * finding its importers rather than by listing routes from memory.
    */
   const importers = (): string[] => {
-    const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', 'packages/api/src/routes'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-    })
+    const files = execFileSync(
+      'git',
+      ['ls-files', '--cached', '--others', '--exclude-standard', '--', 'packages/api/src/routes'],
+      {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+      },
+    )
       .split('\n')
       .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'))
       .filter((file) => existsSync(path.join(REPO_ROOT, file)));
@@ -356,7 +368,9 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
     // below it the function falls through to a bare `next()`.
     const context = code('lib/chat/request-context.ts');
     expect(context).toContain('const creditAccountId = req.user?.id;');
-    expect(context).toContain('(creditAccountId !== undefined && !req.serviceApp && localRuntime === null) ?');
+    expect(context).toContain(
+      '(creditAccountId !== undefined && !req.serviceApp && localRuntime === null) ?',
+    );
 
     /**
      * The third conjunct is the one addition that could reopen the hole, so it
@@ -365,7 +379,9 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
      * inference for an anonymous caller is that it refuses without a user id.
      * `userRuntimeCanServe` is never consulted for a request that has none.
      */
-    expect(context).toContain('if (owner === undefined || !(await userRuntimeCanServe(owner, localRuntime)))');
+    expect(context).toContain(
+      'if (owner === undefined || !(await userRuntimeCanServe(owner, localRuntime)))',
+    );
 
     const limiter = code('middleware/api-key-rate-limit.ts');
     const lastBranch = limiter.indexOf('if (req.user?.id) {');

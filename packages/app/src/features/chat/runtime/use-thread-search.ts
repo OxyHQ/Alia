@@ -4,7 +4,11 @@ import apiClient from '@/shared/api/client';
 import { API_ROUTES } from '@/shared/api/routes';
 import { queryKeys } from '@/shared/api/query-keys';
 import { errorStatus } from '@/shared/api/error-utils';
-import { threadHistory, type ThreadMessage, type ThreadPage } from '@/features/chat/model/thread-history';
+import {
+  threadHistory,
+  type ThreadMessage,
+  type ThreadPage,
+} from '@/features/chat/model/thread-history';
 
 /**
  * Finding something said earlier in a thread, and getting back to it.

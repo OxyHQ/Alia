@@ -109,14 +109,25 @@ export function browserStackIdentity(deploymentId: string): BrowserStackIdentity
 
 /** Finds every container of this deployment's browser stack, whatever state it is in. */
 export function browserStackFilter(identity: BrowserStackIdentity): string[] {
-  return Object.entries(identity.labels).flatMap(([key, value]) => ['--filter', `label=${key}=${value}`]);
+  return Object.entries(identity.labels).flatMap(([key, value]) => [
+    '--filter',
+    `label=${key}=${value}`,
+  ]);
 }
 
 const labelArgs = (labels: Readonly<Record<string, string>>) =>
   Object.entries(labels).flatMap(([key, value]) => ['--label', `${key}=${value}`]);
 
 export function networkCreateArgs(identity: BrowserStackIdentity): string[] {
-  return ['network', 'create', '--driver', 'bridge', '--internal', ...labelArgs(identity.labels), identity.network];
+  return [
+    'network',
+    'create',
+    '--driver',
+    'bridge',
+    '--internal',
+    ...labelArgs(identity.labels),
+    identity.network,
+  ];
 }
 
 export function profilesVolumeArgs(identity: BrowserStackIdentity): string[] {
@@ -124,14 +135,21 @@ export function profilesVolumeArgs(identity: BrowserStackIdentity): string[] {
 }
 
 const hardening = (runtime: string) => [
-  '--pull', 'never',
-  '--runtime', runtime,
-  '--user', USER,
+  '--pull',
+  'never',
+  '--runtime',
+  runtime,
+  '--user',
+  USER,
   '--read-only',
-  '--cap-drop', 'ALL',
-  '--security-opt', 'no-new-privileges',
-  '--ipc', 'private',
-  '--restart', 'no',
+  '--cap-drop',
+  'ALL',
+  '--security-opt',
+  'no-new-privileges',
+  '--ipc',
+  'private',
+  '--restart',
+  'no',
 ];
 
 export interface BrowserEnv {
@@ -154,7 +172,10 @@ export function browserEnv(env: BrowserEnv): Record<string, string> {
   };
 }
 
-export function egressEnv(env: { dns: readonly string[]; denyCidrs: readonly string[] }): Record<string, string> {
+export function egressEnv(env: {
+  dns: readonly string[];
+  denyCidrs: readonly string[];
+}): Record<string, string> {
   return {
     HOME: '/tmp',
     LANG: 'C.UTF-8',
@@ -163,24 +184,41 @@ export function egressEnv(env: { dns: readonly string[]; denyCidrs: readonly str
   };
 }
 
-const envArgs = (env: Record<string, string>) => Object.entries(env).flatMap(([key, value]) => ['--env', `${key}=${value}`]);
+const envArgs = (env: Record<string, string>) =>
+  Object.entries(env).flatMap(([key, value]) => ['--env', `${key}=${value}`]);
 
-export function browserCreateArgs(identity: BrowserStackIdentity, image: string, runtime: string, env: BrowserEnv): string[] {
+export function browserCreateArgs(
+  identity: BrowserStackIdentity,
+  image: string,
+  runtime: string,
+  env: BrowserEnv,
+): string[] {
   return [
-    'container', 'create',
-    '--name', identity.browser,
+    'container',
+    'create',
+    '--name',
+    identity.browser,
     ...labelArgs({ ...identity.labels, [ROLE_LABEL]: 'browser' }),
     ...hardening(runtime),
-    '--workdir', '/tmp',
-    '--network', identity.network,
-    '--memory', '1024m',
-    '--memory-swap', '1024m',
-    '--cpus', '1.5',
-    '--pids-limit', String(BROWSER_PIDS),
-    '--tmpfs', `/tmp:${BROWSER_TMPFS}`,
-    '--mount', `type=volume,source=${identity.profilesVolume},target=${PROFILES}`,
+    '--workdir',
+    '/tmp',
+    '--network',
+    identity.network,
+    '--memory',
+    '1024m',
+    '--memory-swap',
+    '1024m',
+    '--cpus',
+    '1.5',
+    '--pids-limit',
+    String(BROWSER_PIDS),
+    '--tmpfs',
+    `/tmp:${BROWSER_TMPFS}`,
+    '--mount',
+    `type=volume,source=${identity.profilesVolume},target=${PROFILES}`,
     ...envArgs(browserEnv(env)),
-    '--entrypoint', NODE,
+    '--entrypoint',
+    NODE,
     image,
     WORKER_SCRIPT,
   ];
@@ -194,19 +232,29 @@ export function egressCreateArgs(
   env: { dns: readonly string[]; denyCidrs: readonly string[] },
 ): string[] {
   return [
-    'container', 'create',
-    '--name', identity.egress,
+    'container',
+    'create',
+    '--name',
+    identity.egress,
     ...labelArgs({ ...identity.labels, [ROLE_LABEL]: 'egress' }),
     ...hardening(runtime),
-    '--workdir', '/tmp',
-    '--network', 'bridge',
-    '--memory', '128m',
-    '--memory-swap', '128m',
-    '--cpus', '0.5',
-    '--pids-limit', String(EGRESS_PIDS),
-    '--tmpfs', `/tmp:${EGRESS_TMPFS}`,
+    '--workdir',
+    '/tmp',
+    '--network',
+    'bridge',
+    '--memory',
+    '128m',
+    '--memory-swap',
+    '128m',
+    '--cpus',
+    '0.5',
+    '--pids-limit',
+    String(EGRESS_PIDS),
+    '--tmpfs',
+    `/tmp:${EGRESS_TMPFS}`,
     ...envArgs(egressEnv(env)),
-    '--entrypoint', NODE,
+    '--entrypoint',
+    NODE,
     image,
     EGRESS_SCRIPT,
   ];
@@ -242,7 +290,10 @@ export interface StackExpectation {
  * control-API process (stale, recreate it); any other difference means
  * somebody built it differently, and the host refuses to use it.
  */
-export function stackViolations(raw: unknown, expected: StackExpectation): { violations: string[]; stale: boolean } {
+export function stackViolations(
+  raw: unknown,
+  expected: StackExpectation,
+): { violations: string[]; stale: boolean } {
   const parsed = z.array(inspectionSchema).length(1).safeParse(raw);
   if (!parsed.success) return { violations: ['inspection_shape'], stale: false };
   const c = parsed.data[0];
@@ -255,7 +306,9 @@ export function stackViolations(raw: unknown, expected: StackExpectation): { vio
     image: c.Config.Image === expected.image,
     user: c.Config.User === USER,
     workdir: c.Config.WorkingDir === '/tmp',
-    labels: Object.entries({ ...identity.labels, [ROLE_LABEL]: role }).every(([key, value]) => c.Config.Labels?.[key] === value),
+    labels: Object.entries({ ...identity.labels, [ROLE_LABEL]: role }).every(
+      ([key, value]) => c.Config.Labels?.[key] === value,
+    ),
     entrypoint: JSON.stringify(c.Config.Entrypoint) === JSON.stringify([NODE]),
     cmd: JSON.stringify(c.Config.Cmd) === JSON.stringify([browser ? WORKER_SCRIPT : EGRESS_SCRIPT]),
     noExposedPorts: Object.keys(c.Config.ExposedPorts ?? {}).length === 0,
@@ -271,7 +324,10 @@ export function stackViolations(raw: unknown, expected: StackExpectation): { vio
       : JSON.stringify(networks) === JSON.stringify(['bridge', identity.network].sort()),
     memory: h.Memory > 0 && h.Memory <= (browser ? BROWSER_MEMORY_BYTES : EGRESS_MEMORY_BYTES),
     noSwap: h.MemorySwap === h.Memory,
-    pids: h.PidsLimit !== null && h.PidsLimit > 0 && h.PidsLimit <= (browser ? BROWSER_PIDS : EGRESS_PIDS),
+    pids:
+      h.PidsLimit !== null &&
+      h.PidsLimit > 0 &&
+      h.PidsLimit <= (browser ? BROWSER_PIDS : EGRESS_PIDS),
     cpus: h.NanoCpus > 0 && h.NanoCpus <= (browser ? BROWSER_NANO_CPUS : EGRESS_NANO_CPUS),
     noBinds: empty(h.Binds),
     noDevices: empty(h.Devices) && empty(h.DeviceRequests),
@@ -280,7 +336,9 @@ export function stackViolations(raw: unknown, expected: StackExpectation): { vio
     ipcPrivate: h.IpcMode === 'private',
     usernsDefault: (h.UsernsMode ?? '') === '',
     noRestart: h.RestartPolicy.Name === 'no',
-    tmpfs: Object.keys(h.Tmpfs ?? {}).length === 1 && h.Tmpfs?.['/tmp'] === (browser ? BROWSER_TMPFS : EGRESS_TMPFS),
+    tmpfs:
+      Object.keys(h.Tmpfs ?? {}).length === 1 &&
+      h.Tmpfs?.['/tmp'] === (browser ? BROWSER_TMPFS : EGRESS_TMPFS),
     mounts: browser
       ? c.Mounts.length === 1 &&
         c.Mounts[0]?.Type === 'volume' &&
@@ -289,7 +347,9 @@ export function stackViolations(raw: unknown, expected: StackExpectation): { vio
         c.Mounts[0]?.RW === true
       : c.Mounts.length === 0,
   };
-  const violations = Object.entries(checks).filter(([, ok]) => !ok).map(([name]) => name);
+  const violations = Object.entries(checks)
+    .filter(([, ok]) => !ok)
+    .map(([name]) => name);
   const envOk = envMatches(c.Config.Env, expected.env);
   return { violations, stale: violations.length === 0 && !envOk };
 }
@@ -305,7 +365,10 @@ const networkSchema = z.object({
   ConfigFrom: z.object({ Network: z.string() }).optional(),
   Labels: z.record(z.string(), z.string()).nullable(),
   Options: z.record(z.string(), z.string()).nullable(),
-  Containers: z.record(z.string(), z.object({ Name: z.string(), IPv4Address: z.string().optional() })).nullable().optional(),
+  Containers: z
+    .record(z.string(), z.object({ Name: z.string(), IPv4Address: z.string().optional() }))
+    .nullable()
+    .optional(),
 });
 
 export type NetworkInspection = z.infer<typeof networkSchema>;
@@ -331,16 +394,29 @@ export function networkViolations(
     networkNotIngress: n.Ingress !== true,
     networkNoConfigFrom: !n.ConfigOnly && !n.ConfigFrom?.Network,
     networkOptions: Object.keys(n.Options ?? {}).length === 0,
-    networkLabels: Object.entries(identity.labels).every(([key, value]) => n.Labels?.[key] === value),
+    networkLabels: Object.entries(identity.labels).every(
+      ([key, value]) => n.Labels?.[key] === value,
+    ),
     networkMembers: members.every((name) => allowedMembers.includes(name)),
   };
-  return { inspection: n, violations: Object.entries(checks).filter(([, ok]) => !ok).map(([name]) => name) };
+  return {
+    inspection: n,
+    violations: Object.entries(checks)
+      .filter(([, ok]) => !ok)
+      .map(([name]) => name),
+  };
 }
 
 /** A container's IPv4 address on the browser network, from `container inspect`. */
 export function addressOn(raw: unknown, network: string): string | null {
   const parsed = z
-    .array(z.object({ NetworkSettings: z.object({ Networks: z.record(z.string(), z.object({ IPAddress: z.string() }).partial()).nullable() }) }))
+    .array(
+      z.object({
+        NetworkSettings: z.object({
+          Networks: z.record(z.string(), z.object({ IPAddress: z.string() }).partial()).nullable(),
+        }),
+      }),
+    )
     .length(1)
     .safeParse(raw);
   if (!parsed.success) return null;

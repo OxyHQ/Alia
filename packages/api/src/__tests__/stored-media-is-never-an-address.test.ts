@@ -73,7 +73,11 @@ describe('no source builds an address for the media bucket', () => {
   it('constructs no `s3.<region>.amazonaws.com` address outside its own test', () => {
     const offenders = sources
       .filter(({ file }) => !file.includes('__tests__'))
-      .filter(({ text }) => /\.s3\.\$?\{?[^}\s'"`]*\}?\.amazonaws\.com/.test(text) || text.includes('.amazonaws.com/'))
+      .filter(
+        ({ text }) =>
+          /\.s3\.\$?\{?[^}\s'"`]*\}?\.amazonaws\.com/.test(text) ||
+          text.includes('.amazonaws.com/'),
+      )
       .map(({ file }) => file);
 
     expect(offenders).toEqual([]);

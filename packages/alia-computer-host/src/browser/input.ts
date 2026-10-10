@@ -17,10 +17,23 @@ export const VIEWPORT = { width: 1280, height: 800 } as const;
 
 /** Keys a form needs, and nothing that reaches the browser's own UI. */
 export const ALLOWED_KEYS = [
-  'Enter', 'Tab', 'Shift+Tab', 'Escape', 'Backspace', 'Delete', 'Space',
-  'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-  'Home', 'End', 'PageUp', 'PageDown',
-  'Control+a', 'Meta+a',
+  'Enter',
+  'Tab',
+  'Shift+Tab',
+  'Escape',
+  'Backspace',
+  'Delete',
+  'Space',
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown',
+  'Control+a',
+  'Meta+a',
 ] as const;
 
 export type AllowedKey = (typeof ALLOWED_KEYS)[number];
@@ -28,17 +41,30 @@ export type AllowedKey = (typeof ALLOWED_KEYS)[number];
 export const MAX_TYPED_CHARACTERS = 2000;
 export const MAX_SCROLL_PIXELS = 5000;
 
-const coordinate = (max: number) => z.number().int().min(0).max(max - 1);
+const coordinate = (max: number) =>
+  z
+    .number()
+    .int()
+    .min(0)
+    .max(max - 1);
 
 export const browserInputSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('click'), x: coordinate(VIEWPORT.width), y: coordinate(VIEWPORT.height) }).strict(),
+  z
+    .object({
+      type: z.literal('click'),
+      x: coordinate(VIEWPORT.width),
+      y: coordinate(VIEWPORT.height),
+    })
+    .strict(),
   z.object({ type: z.literal('type'), text: z.string().min(1).max(MAX_TYPED_CHARACTERS) }).strict(),
   z.object({ type: z.literal('key'), key: z.enum(ALLOWED_KEYS) }).strict(),
-  z.object({
-    type: z.literal('scroll'),
-    deltaY: z.number().int().min(-MAX_SCROLL_PIXELS).max(MAX_SCROLL_PIXELS),
-    deltaX: z.number().int().min(-MAX_SCROLL_PIXELS).max(MAX_SCROLL_PIXELS).optional(),
-  }).strict(),
+  z
+    .object({
+      type: z.literal('scroll'),
+      deltaY: z.number().int().min(-MAX_SCROLL_PIXELS).max(MAX_SCROLL_PIXELS),
+      deltaX: z.number().int().min(-MAX_SCROLL_PIXELS).max(MAX_SCROLL_PIXELS).optional(),
+    })
+    .strict(),
 ]);
 
 export type BrowserInput = z.infer<typeof browserInputSchema>;

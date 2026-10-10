@@ -102,8 +102,7 @@ const AgentThreadPage = () => {
    * Oxy account resolved nothing still gets called what they called it rather
    * than being renamed to a noun.
    */
-  const headerName =
-    thread.agent.name?.trim() || thread.agent.handle?.trim() || handle;
+  const headerName = thread.agent.name?.trim() || thread.agent.handle?.trim() || handle;
 
   /**
    * The agent's own Bloom recipe, applied to this screen and nothing else.

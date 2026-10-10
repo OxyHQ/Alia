@@ -48,21 +48,25 @@ describe('automation formatting', () => {
 
   it('describes each trigger and actor-selection shape', () => {
     expect(triggerLabel({ type: 'manual' }, t)).toBe('Manual request');
-    expect(triggerLabel({ type: 'schedule', cron: '0 9 * * 1', timezone: 'Europe/Bucharest' }, t))
-      .toBe('Mondays at 09:00 · Europe/Bucharest');
-    expect(triggerLabel({ type: 'schedule', cron: null, timezone: null }, t))
-      .toBe('Unscheduled · UTC');
+    expect(
+      triggerLabel({ type: 'schedule', cron: '0 9 * * 1', timezone: 'Europe/Bucharest' }, t),
+    ).toBe('Mondays at 09:00 · Europe/Bucharest');
+    expect(triggerLabel({ type: 'schedule', cron: null, timezone: null }, t)).toBe(
+      'Unscheduled · UTC',
+    );
     expect(actorLabel({ mode: 'alia' }, () => 'unused', t)).toBe('Alia');
-    expect(actorLabel({ mode: 'fixed', agentId: 'agent-1' }, () => 'Writer', t))
-      .toBe('Writer');
-    expect(actorLabel({ mode: 'automatic', eligibleAgentIds: [] }, () => 'unused', t))
-      .toBe('No eligible agents');
-    expect(resourceLabel({
-      appId: 'inbox',
-      effectiveAccountId: 'company-1',
-      resourceType: 'mailbox',
-      resourceId: 'support',
-    })).toBe('inbox · company-1 · mailbox/support');
+    expect(actorLabel({ mode: 'fixed', agentId: 'agent-1' }, () => 'Writer', t)).toBe('Writer');
+    expect(actorLabel({ mode: 'automatic', eligibleAgentIds: [] }, () => 'unused', t)).toBe(
+      'No eligible agents',
+    );
+    expect(
+      resourceLabel({
+        appId: 'inbox',
+        effectiveAccountId: 'company-1',
+        resourceType: 'mailbox',
+        resourceId: 'support',
+      }),
+    ).toBe('inbox · company-1 · mailbox/support');
   });
 
   it('selects the newest run per automation even if the response is unordered', () => {
@@ -77,20 +81,25 @@ describe('automation formatting', () => {
   });
 
   it('surfaces the policy reason and permits only valid manual controls', () => {
-    expect(policyReason({
-      ...run('run-1', 'automation-1', '2026-09-02T09:00:00Z'),
-      policyDecision: { reason: 'grant_revoked' },
-    }))
-      .toBe('Grant Revoked');
+    expect(
+      policyReason({
+        ...run('run-1', 'automation-1', '2026-09-02T09:00:00Z'),
+        policyDecision: { reason: 'grant_revoked' },
+      }),
+    ).toBe('Grant Revoked');
     expect(canRunNow(baseAutomation)).toBe(true);
-    expect(canRunNow({
-      ...baseAutomation,
-      trigger: { type: 'event', appId: 'inbox', eventType: 'email.received' },
-    })).toBe(false);
-    expect(canRunNow({
-      ...baseAutomation,
-      trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' },
-    })).toBe(true);
+    expect(
+      canRunNow({
+        ...baseAutomation,
+        trigger: { type: 'event', appId: 'inbox', eventType: 'email.received' },
+      }),
+    ).toBe(false);
+    expect(
+      canRunNow({
+        ...baseAutomation,
+        trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' },
+      }),
+    ).toBe(true);
   });
 });
 

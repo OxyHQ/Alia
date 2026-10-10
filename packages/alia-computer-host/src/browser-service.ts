@@ -66,7 +66,10 @@ interface WorkerStatus {
   lastActiveAt: string | null;
 }
 
-export type BrowserStackLike = Pick<BrowserStack, 'ensure' | 'live' | 'current' | 'isRunning' | 'stop' | 'suspect'>;
+export type BrowserStackLike = Pick<
+  BrowserStack,
+  'ensure' | 'live' | 'current' | 'isRunning' | 'stop' | 'suspect'
+>;
 
 export interface BrowserServiceOptions {
   store: ComputerStore;
@@ -98,7 +101,14 @@ const toState = (status: WorkerStatus): BrowserState => ({
   lastActiveAt: status.lastActiveAt,
 });
 
-const CLOSED: BrowserState = { state: 'closed', url: '', title: '', controller: 'agent', pendingDownloads: 0, lastActiveAt: null };
+const CLOSED: BrowserState = {
+  state: 'closed',
+  url: '',
+  title: '',
+  controller: 'agent',
+  pendingDownloads: 0,
+  lastActiveAt: null,
+};
 
 export class BrowserService {
   private readonly fetchImpl: typeof fetch;
@@ -155,7 +165,12 @@ export class BrowserService {
 
   // ── the worker ──
 
-  private async call<T>(target: WorkerTarget, method: string, path: string, body?: unknown): Promise<T> {
+  private async call<T>(
+    target: WorkerTarget,
+    method: string,
+    path: string,
+    body?: unknown,
+  ): Promise<T> {
     let response: Response;
     try {
       response = await this.fetchImpl(`${target.url}${path}`, {
@@ -169,10 +184,16 @@ export class BrowserService {
       });
     } catch {
       this.options.stack.suspect();
-      throw new HostError('The browser is not responding; try again shortly', 503, 'browser_unavailable');
+      throw new HostError(
+        'The browser is not responding; try again shortly',
+        503,
+        'browser_unavailable',
+      );
     }
     if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
+      const payload = (await response.json().catch(() => null)) as {
+        error?: { code?: string; message?: string };
+      } | null;
       throw new HostError(
         payload?.error?.message ?? 'The browser operation failed',
         response.status >= 500 ? 502 : response.status,
@@ -228,53 +249,78 @@ export class BrowserService {
     options: { start?: boolean } = {},
   ): Promise<BrowserResult> {
     const hash = this.hash(actorId);
-    return this.options.computers.track(() => this.used(() =>
-      this.exclusive(hash, async () => {
-        const target = options.start ? await this.startStack() : await this.existing();
-        if (!target) throw new HostError('The browser is not open; open it first', 409, 'browser_closed');
-        let status: WorkerStatus;
-        try {
-          status = await run(target, hash);
-        } catch (error) {
-          const code = error instanceof HostError ? error.code : 'failed';
+    return this.options.computers.track(() =>
+      this.used(() =>
+        this.exclusive(hash, async () => {
+          const target = options.start ? await this.startStack() : await this.existing();
+          if (!target)
+            throw new HostError('The browser is not open; open it first', 409, 'browser_closed');
+          let status: WorkerStatus;
+          try {
+            status = await run(target, hash);
+          } catch (error) {
+            const code = error instanceof HostError ? error.code : 'failed';
+            await this.record(hash, {
+              action,
+              by,
+              origin: '',
+              detail: `${detail}${detail ? ' — ' : ''}${code}`.slice(0, 200),
+              status: error instanceof HostError && error.status < 500 ? 'refused' : 'failed',
+            });
+            throw error;
+          }
           await this.record(hash, {
             action,
             by,
-            origin: '',
-            detail: `${detail}${detail ? ' — ' : ''}${code}`.slice(0, 200),
-            status: error instanceof HostError && error.status < 500 ? 'refused' : 'failed',
+            origin: originOf(status.url),
+            detail,
+            status: 'ok',
           });
-          throw error;
-        }
-        await this.record(hash, { action, by, origin: originOf(status.url), detail, status: 'ok' });
-        const collected = status.pendingDownloads > 0 ? await this.collect(actorId, hash, target) : { saved: [], notes: [] };
-        return {
-          ...toState(status),
-          pendingDownloads: Math.max(0, status.pendingDownloads - collected.saved.length),
-          downloads: collected.saved,
-          downloadNotes: collected.notes,
-        };
-      }),
-    ));
+          const collected =
+            status.pendingDownloads > 0
+              ? await this.collect(actorId, hash, target)
+              : { saved: [], notes: [] };
+          return {
+            ...toState(status),
+            pendingDownloads: Math.max(0, status.pendingDownloads - collected.saved.length),
+            downloads: collected.saved,
+            downloadNotes: collected.notes,
+          };
+        }),
+      ),
+    );
   }
 
   // ── downloads ──
 
-  private async collect(actorId: string, hash: string, target: WorkerTarget): Promise<{ saved: SavedDownload[]; notes: string[] }> {
+  private async collect(
+    actorId: string,
+    hash: string,
+    target: WorkerTarget,
+  ): Promise<{ saved: SavedDownload[]; notes: string[] }> {
     const saved: SavedDownload[] = [];
     const notes: string[] = [];
     const listing = await this.call<{
       downloads: { id: string; name: string; size: number; mimeType: string }[];
       failures: { name: string; reason: string }[];
     }>(target, 'GET', `/actors/${hash}/downloads`);
-    for (const failure of listing.failures.slice(0, 3)) notes.push(`${failure.name}: ${failure.reason.replace(/_/g, ' ')}`);
+    for (const failure of listing.failures.slice(0, 3))
+      notes.push(`${failure.name}: ${failure.reason.replace(/_/g, ' ')}`);
     if (listing.downloads.length === 0) return { saved, notes };
     try {
       // The workspace is the actor's computer; a download is a reason to start it.
       await this.options.computers.start(actorId);
       for (const download of listing.downloads) {
-        const bytes = await this.call<Buffer>(target, 'GET', `/actors/${hash}/downloads/${download.id}`);
-        const written = await this.options.computers.writeDownload(actorId, `${DOWNLOAD_DIRECTORY}/${download.name}`, bytes);
+        const bytes = await this.call<Buffer>(
+          target,
+          'GET',
+          `/actors/${hash}/downloads/${download.id}`,
+        );
+        const written = await this.options.computers.writeDownload(
+          actorId,
+          `${DOWNLOAD_DIRECTORY}/${download.name}`,
+          bytes,
+        );
         await this.call(target, 'DELETE', `/actors/${hash}/downloads/${download.id}`);
         saved.push({ path: written.path, bytes: written.bytes, mimeType: download.mimeType });
         await this.record(hash, {
@@ -288,7 +334,9 @@ export class BrowserService {
     } catch (error) {
       // Left pending in the worker: the next call tries again.
       const reason = error instanceof HostError ? error.code : 'failed';
-      notes.push(`a download is waiting: ${reason === 'busy' ? 'the computer is busy' : reason.replace(/_/g, ' ')}`);
+      notes.push(
+        `a download is waiting: ${reason === 'busy' ? 'the computer is busy' : reason.replace(/_/g, ' ')}`,
+      );
     }
     return { saved, notes };
   }
@@ -309,7 +357,11 @@ export class BrowserService {
       'open',
       by,
       url ? 'with address' : '',
-      (target, hash) => this.call<WorkerStatus>(target, 'POST', `/actors/${hash}/open`, { ...(url ? { url } : {}), by }),
+      (target, hash) =>
+        this.call<WorkerStatus>(target, 'POST', `/actors/${hash}/open`, {
+          ...(url ? { url } : {}),
+          by,
+        }),
       { start: true },
     );
   }
@@ -327,8 +379,13 @@ export class BrowserService {
   }
 
   control(actorId: string, controller: ActorRole): Promise<BrowserResult> {
-    return this.act(actorId, 'control', controller, controller === 'owner' ? 'taken by owner' : 'handed back', (target, hash) =>
-      this.call<WorkerStatus>(target, 'POST', `/actors/${hash}/control`, { controller }),
+    return this.act(
+      actorId,
+      'control',
+      controller,
+      controller === 'owner' ? 'taken by owner' : 'handed back',
+      (target, hash) =>
+        this.call<WorkerStatus>(target, 'POST', `/actors/${hash}/control`, { controller }),
     );
   }
 
@@ -345,15 +402,20 @@ export class BrowserService {
 
   async read(actorId: string): Promise<PageReading & { downloads: SavedDownload[] }> {
     const hash = this.hash(actorId);
-    return this.options.computers.track(() => this.used(async () => {
-      const target = await this.existing();
-      if (!target) throw new HostError('The browser is not open; open it first', 409, 'browser_closed');
-      const reading = await this.call<PageReading>(target, 'GET', `/actors/${hash}/read`);
-      const status = await this.call<WorkerStatus>(target, 'GET', `/actors/${hash}`);
-      const collected =
-        status.pendingDownloads > 0 ? await this.exclusive(hash, () => this.collect(actorId, hash, target)) : { saved: [] };
-      return { ...reading, downloads: collected.saved };
-    }));
+    return this.options.computers.track(() =>
+      this.used(async () => {
+        const target = await this.existing();
+        if (!target)
+          throw new HostError('The browser is not open; open it first', 409, 'browser_closed');
+        const reading = await this.call<PageReading>(target, 'GET', `/actors/${hash}/read`);
+        const status = await this.call<WorkerStatus>(target, 'GET', `/actors/${hash}`);
+        const collected =
+          status.pendingDownloads > 0
+            ? await this.exclusive(hash, () => this.collect(actorId, hash, target))
+            : { saved: [] };
+        return { ...reading, downloads: collected.saved };
+      }),
+    );
   }
 
   async screenshot(actorId: string): Promise<Buffer> {
@@ -367,7 +429,10 @@ export class BrowserService {
 
   async actions(actorId: string, limit: number): Promise<Omit<BrowserAction, 'actorId'>[]> {
     const hash = this.hash(actorId);
-    const rows = await this.options.store.listBrowserActions(hash, Math.min(Math.max(1, limit), 50));
+    const rows = await this.options.store.listBrowserActions(
+      hash,
+      Math.min(Math.max(1, limit), 50),
+    );
     return rows.map(({ actorId: _actor, ...rest }) => rest);
   }
 

@@ -3,13 +3,22 @@ import { formatBytes, parentPath, viewportPoint } from '@/features/agents/model/
 
 describe('viewportPoint', () => {
   it('maps a press on the drawn screenshot to the 1280×800 page', () => {
-    expect(viewportPoint({ x: 160, y: 100 }, { width: 640, height: 400 })).toEqual({ x: 320, y: 200 });
+    expect(viewportPoint({ x: 160, y: 100 }, { width: 640, height: 400 })).toEqual({
+      x: 320,
+      y: 200,
+    });
     expect(viewportPoint({ x: 0, y: 0 }, { width: 320, height: 200 })).toEqual({ x: 0, y: 0 });
   });
 
   it('clamps an edge press onto the page', () => {
-    expect(viewportPoint({ x: 640, y: 400 }, { width: 640, height: 400 })).toEqual({ x: 1279, y: 799 });
-    expect(viewportPoint({ x: -5, y: 9999 }, { width: 640, height: 400 })).toEqual({ x: 0, y: 799 });
+    expect(viewportPoint({ x: 640, y: 400 }, { width: 640, height: 400 })).toEqual({
+      x: 1279,
+      y: 799,
+    });
+    expect(viewportPoint({ x: -5, y: 9999 }, { width: 640, height: 400 })).toEqual({
+      x: 0,
+      y: 799,
+    });
   });
 
   it('answers nothing before the image has a size', () => {

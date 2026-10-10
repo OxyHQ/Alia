@@ -2,10 +2,7 @@ import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import { RiLogoutCircleLine } from '@oxy.so/bloom/icons/RiLogoutCircleLine';
-import {
-  SettingsProfilePage,
-  SettingsValueField,
-} from '@oxy.so/bloom/settings-modal';
+import { SettingsProfilePage, SettingsValueField } from '@oxy.so/bloom/settings-modal';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { getAccountDisplayName } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services';

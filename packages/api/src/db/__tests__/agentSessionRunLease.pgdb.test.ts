@@ -46,7 +46,13 @@ async function seedSession(overrides: Record<string, unknown> = {}) {
     authorOxyUserId: OWNER,
     category: 'research',
   });
-  return createAgentSession(db, { agentId: agent._id, oxyUserId: OWNER, task: 'work', status: 'queued', ...overrides });
+  return createAgentSession(db, {
+    agentId: agent._id,
+    oxyUserId: OWNER,
+    task: 'work',
+    status: 'queued',
+    ...overrides,
+  });
 }
 
 const later = (ms: number) => new Date(Date.now() + ms);
@@ -87,10 +93,16 @@ describe('claiming a background run', () => {
 
   it('carries the persisted counters a resume continues from', async () => {
     const session = await seedSession();
-    await db.update(agentSessions).set({ statsTotalSteps: 7, statsTotalTokens: 1234 }).where(eq(agentSessions.id, session._id));
+    await db
+      .update(agentSessions)
+      .set({ statsTotalSteps: 7, statsTotalTokens: 1234 })
+      .where(eq(agentSessions.id, session._id));
 
     const claim = await claimAgentSessionRun(db, session._id, 'w');
-    expect(claim.claimed && claim.session.stats).toMatchObject({ totalSteps: 7, totalTokens: 1234 });
+    expect(claim.claimed && claim.session.stats).toMatchObject({
+      totalSteps: 7,
+      totalTokens: 1234,
+    });
   });
 });
 
@@ -137,7 +149,10 @@ describe('holding and losing a run', () => {
     await claimAgentSessionRun(db, session._id, 'w', past);
     expect(await failExhaustedAgentSessionRun(db, session._id)).toBeNull();
 
-    await db.update(agentSessions).set({ runnerAttempts: RUNNER_MAX_ATTEMPTS }).where(eq(agentSessions.id, session._id));
+    await db
+      .update(agentSessions)
+      .set({ runnerAttempts: RUNNER_MAX_ATTEMPTS })
+      .where(eq(agentSessions.id, session._id));
     const [first, second] = await Promise.all([
       failExhaustedAgentSessionRun(db, session._id),
       failExhaustedAgentSessionRun(db, session._id),

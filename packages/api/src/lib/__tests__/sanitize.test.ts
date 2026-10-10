@@ -26,7 +26,12 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { redactUnsafeDetail, sanitizeMessage, getSafeErrorMessage, formatErrorResponse } from '../errors/sanitize.js';
+import {
+  redactUnsafeDetail,
+  sanitizeMessage,
+  getSafeErrorMessage,
+  formatErrorResponse,
+} from '../errors/sanitize.js';
 import { AliaError, AliaErrorCode } from '../errors/error-codes.js';
 import { PROVIDER_NAMES } from '../../internal/providers/lib/provider-names.js';
 
@@ -60,14 +65,19 @@ describe('sanitizeMessage conceals every upstream identifier the router can pick
     expect(sanitizeMessage(brand)).toMatch(FULLY_CONCEALED);
   });
 
-  it.each(UPSTREAM_OPERATORS)('conceals the operator %s written inside an identifier', (operator) => {
-    expect(sanitizeMessage(`${operator}/some-model-3`)).toMatch(FULLY_CONCEALED);
-    expect(sanitizeMessage(`provider=${operator}`)).toMatch(FULLY_CONCEALED);
-  });
+  it.each(UPSTREAM_OPERATORS)(
+    'conceals the operator %s written inside an identifier',
+    (operator) => {
+      expect(sanitizeMessage(`${operator}/some-model-3`)).toMatch(FULLY_CONCEALED);
+      expect(sanitizeMessage(`provider=${operator}`)).toMatch(FULLY_CONCEALED);
+    },
+  );
 
   it('conceals route detail embedded in a sentence, leaving the sentence', () => {
     expect(sanitizeMessage('OpenAI returned a 429 error')).toBe('[provider] returned a 429 error');
-    expect(sanitizeMessage('Model gpt-4o-mini is unavailable')).toBe('Model [model] is unavailable');
+    expect(sanitizeMessage('Model gpt-4o-mini is unavailable')).toBe(
+      'Model [model] is unavailable',
+    );
     expect(sanitizeMessage('Tried OpenAI then Anthropic, both failed')).toBe(
       'Tried [provider] then [provider], both failed',
     );
@@ -86,7 +96,9 @@ describe('sanitizeMessage conceals every upstream identifier the router can pick
 describe('sanitizeMessage leaves what the product must still be able to say', () => {
   it('leaves every shipped default user message untouched', () => {
     const messages = Object.values(AliaErrorCode).map(
-      (code) => new AliaError({ code, message: 'internal', retryable: false, reason: 'unknown' }).userMessage,
+      (code) =>
+        new AliaError({ code, message: 'internal', retryable: false, reason: 'unknown' })
+          .userMessage,
     );
     expect(messages.length).toBeGreaterThan(5);
     for (const message of messages) expect(sanitizeMessage(message)).toBe(message);
@@ -144,12 +156,12 @@ describe('sanitizeMessage leaves what the product must still be able to say', ()
 
 describe('redactUnsafeDetail strips what may never reach a user anywhere', () => {
   it('redacts a credential', () => {
-    expect(redactUnsafeDetail('key sk-proj-abcdefghijklmnopqrstuvwxyz0123456789ABCD leaked')).not.toContain(
-      'abcdefghijklmnop',
-    );
-    expect(redactUnsafeDetail('token ghp_abcdefghijklmnopqrstuvwxyz0123456789 leaked')).not.toContain(
-      'abcdefghijklmnop',
-    );
+    expect(
+      redactUnsafeDetail('key sk-proj-abcdefghijklmnopqrstuvwxyz0123456789ABCD leaked'),
+    ).not.toContain('abcdefghijklmnop');
+    expect(
+      redactUnsafeDetail('token ghp_abcdefghijklmnopqrstuvwxyz0123456789 leaked'),
+    ).not.toContain('abcdefghijklmnop');
   });
 
   it('redacts every upstream error code the classifier reads, bar one named exception', () => {
@@ -159,7 +171,10 @@ describe('redactUnsafeDetail strips what may never reach a user anywhere', () =>
      * what actually grows. Workstream 15 depends on this redaction, so the gate
      * has to fail when the classifier learns a code the redactor does not know.
      */
-    const src = readFileSync(path.join(REPO_ROOT, 'packages/api/src/lib/errors/failover-error.ts'), 'utf8');
+    const src = readFileSync(
+      path.join(REPO_ROOT, 'packages/api/src/lib/errors/failover-error.ts'),
+      'utf8',
+    );
     // A census over source must exclude comments: the file explains several of
     // these codes in prose, and counting the prose would make the census agree
     // with itself no matter what the code did.
@@ -183,7 +198,9 @@ describe('redactUnsafeDetail strips what may never reach a user anywhere', () =>
     expect(found).toContain('TOOL_USE_FAILED');
     expect(found).not.toContain('string');
 
-    const uncovered = [...found].filter((c) => redactUnsafeDetail(`upstream said ${c}`).includes(c));
+    const uncovered = [...found].filter((c) =>
+      redactUnsafeDetail(`upstream said ${c}`).includes(c),
+    );
     // Exact, not a floor. `UNAVAILABLE` is an ordinary English word in capitals
     // and cannot be told from prose; every other code is covered, and a new one
     // arriving uncovered lands here.
@@ -200,11 +217,15 @@ describe('redactUnsafeDetail strips what may never reach a user anywhere', () =>
   });
 
   it('redacts a URL', () => {
-    expect(redactUnsafeDetail('POST https://api.internal.alia/v1/x failed')).toBe('POST [endpoint] failed');
+    expect(redactUnsafeDetail('POST https://api.internal.alia/v1/x failed')).toBe(
+      'POST [endpoint] failed',
+    );
   });
 
   it('redacts a bare hostname', () => {
-    expect(redactUnsafeDetail('could not reach cache.internal.io')).toBe('could not reach [endpoint]');
+    expect(redactUnsafeDetail('could not reach cache.internal.io')).toBe(
+      'could not reach [endpoint]',
+    );
   });
 
   it('does not mistake a filename for a hostname', () => {
@@ -223,7 +244,9 @@ describe('redactUnsafeDetail strips what may never reach a user anywhere', () =>
 
 describe('sanitizeMessage carries rule 1 as well as rule 2', () => {
   it('redacts a credential and conceals the operator in one pass', () => {
-    const result = sanitizeMessage('OpenAI rejected sk-proj-abcdefghijklmnopqrstuvwxyz0123456789ABCD');
+    const result = sanitizeMessage(
+      'OpenAI rejected sk-proj-abcdefghijklmnopqrstuvwxyz0123456789ABCD',
+    );
     expect(result).not.toContain('abcdefghijklmnop');
     expect(result).not.toContain('OpenAI');
   });
@@ -294,7 +317,9 @@ describe('getSafeErrorMessage', () => {
   });
 
   it('falls back for a non-Error throw, and sanitises the fallback too', () => {
-    expect(getSafeErrorMessage('string error', 'Something went wrong')).toBe('Something went wrong');
+    expect(getSafeErrorMessage('string error', 'Something went wrong')).toBe(
+      'Something went wrong',
+    );
     expect(getSafeErrorMessage(null, 'Something went wrong')).toBe('Something went wrong');
     expect(getSafeErrorMessage(undefined, 'OpenAI failed')).toBe('[provider] failed');
   });

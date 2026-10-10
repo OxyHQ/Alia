@@ -50,7 +50,8 @@ vi.mock('../../../lib/credits-manager.js', () => ({
   refundReservation: (...args: any[]) => mockRefundReservation(...args),
   // Mirrors the real helper, which refunds through `refundReservation` — so a
   // refund taken by either name lands on the same assertion.
-  safeRefund: (reservation: any) => (reservation ? mockRefundReservation(reservation) : Promise.resolve()),
+  safeRefund: (reservation: any) =>
+    reservation ? mockRefundReservation(reservation) : Promise.resolve(),
 }));
 
 vi.mock('../../../lib/user-credits-helpers.js', () => ({
@@ -233,7 +234,13 @@ const VALID_RESOLVED_MODEL = {
   modelId: 'acme/chat-1',
   keyConfig: { provider: 'kaana', modelId: 'acme/chat-1' },
   oxyInferenceTarget: { kind: 'model', model: 'acme/chat-1' },
-  catalogue: { id: 'acme/chat-1', name: 'Chat 1', publisher: { id: 'acme', name: 'Acme' }, contextWindow: 128000, reasoningEfforts: [] },
+  catalogue: {
+    id: 'acme/chat-1',
+    name: 'Chat 1',
+    publisher: { id: 'acme', name: 'Acme' },
+    contextWindow: 128000,
+    reasoningEfforts: [],
+  },
 };
 
 const VALID_RESERVATION = {
@@ -249,7 +256,10 @@ interface RouteStackLayer {
   route?: {
     path?: string;
     methods?: Record<string, boolean>;
-    stack: Array<{ method?: string; handle: (req: unknown, res: unknown, next: unknown) => Promise<void> }>;
+    stack: Array<{
+      method?: string;
+      handle: (req: unknown, res: unknown, next: unknown) => Promise<void>;
+    }>;
   };
 }
 
@@ -305,7 +315,9 @@ function createMockRes() {
       _headersSent = true;
       return true;
     }),
-    end: vi.fn(() => { ended = true; }),
+    end: vi.fn(() => {
+      ended = true;
+    }),
     flushHeaders: vi.fn(() => {
       flushed = true;
       _headersSent = true;
@@ -319,8 +331,12 @@ function createMockRes() {
     }),
     on: vi.fn(),
     off: vi.fn(),
-    get writableEnded() { return ended; },
-    get headersSent() { return _headersSent; },
+    get writableEnded() {
+      return ended;
+    },
+    get headersSent() {
+      return _headersSent;
+    },
     socket: { setNoDelay: vi.fn() },
     // Test inspection helpers
     _written: written,
@@ -381,7 +397,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
       createMockStream([
         { type: 'text-delta', text: 'Hello' },
         { type: 'finish', finishReason: 'stop' },
-      ])
+      ]),
     );
     mockGenerateText.mockResolvedValue({
       text: 'Hello',
@@ -397,7 +413,9 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
   });
 
   it('sends early SSE headers + keep-alive before provider call (streaming)', async () => {
-    const req = createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true } });
+    const req = createMockReq({
+      body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true },
+    });
     const res = createMockRes();
 
     await handler(req, res, vi.fn());
@@ -432,7 +450,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
 
     // No keep-alive comment
     const keepAliveWrites = res.write.mock.calls.filter(
-      (call: any[]) => call[0] === ': keep-alive\n\n'
+      (call: any[]) => call[0] === ': keep-alive\n\n',
     );
     expect(keepAliveWrites).toHaveLength(0);
 
@@ -458,7 +476,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         error: expect.objectContaining({ code: 'INSUFFICIENT_CREDITS' }),
-      })
+      }),
     );
 
     // status called only once (global timer did not fire a second 503)
@@ -484,7 +502,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         error: expect.objectContaining({ message: 'No models available. Please try again.' }),
-      })
+      }),
     );
 
     // status called only once
@@ -534,7 +552,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         error: expect.objectContaining({ message: 'No models available. Please try again.' }),
-      })
+      }),
     );
 
     // Handler completed normally (no unhandled rejection)
@@ -562,7 +580,9 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
       };
     });
 
-    const req = createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true } });
+    const req = createMockReq({
+      body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true },
+    });
     const res = createMockRes();
 
     await handler(req, res, vi.fn());
@@ -600,14 +620,16 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
   });
 
   it('does not re-set SSE headers on subsequent chunks when earlySSE is active', async () => {
-    const req = createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true } });
+    const req = createMockReq({
+      body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true },
+    });
     const res = createMockRes();
 
     await handler(req, res, vi.fn());
 
     // Content-Type: text/event-stream should be set exactly once (during early SSE)
     const contentTypeSetCalls = res.setHeader.mock.calls.filter(
-      (call: any[]) => call[0] === 'Content-Type' && call[1] === 'text/event-stream'
+      (call: any[]) => call[0] === 'Content-Type' && call[1] === 'text/event-stream',
     );
     expect(contentTypeSetCalls).toHaveLength(1);
 
@@ -671,7 +693,9 @@ describe('a turn that produced nothing costs nothing - /v1/chat/completions', ()
     }));
 
     await handler(
-      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true } }),
+      createMockReq({
+        body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true },
+      }),
       createMockRes(),
       vi.fn(),
     );
@@ -686,7 +710,9 @@ describe('a turn that produced nothing costs nothing - /v1/chat/completions', ()
     mockStreamText.mockReturnValue(createMockStream([{ type: 'finish', finishReason: 'stop' }]));
 
     await handler(
-      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true } }),
+      createMockReq({
+        body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true },
+      }),
       createMockRes(),
       vi.fn(),
     );
@@ -703,14 +729,18 @@ describe('a turn that produced nothing costs nothing - /v1/chat/completions', ()
     let release: (() => void) | undefined;
     mockStreamText.mockImplementation(() => ({
       fullStream: (async function* () {
-        await new Promise<void>((resolve) => { release = resolve; });
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
         yield { type: 'finish', finishReason: 'stop' };
       })(),
     }));
 
     const res = createMockRes();
     const pending = handler(
-      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true } }),
+      createMockReq({
+        body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true },
+      }),
       res,
       vi.fn(),
     );
@@ -736,13 +766,18 @@ describe('a turn that produced nothing costs nothing - /v1/chat/completions', ()
     // not a completion whose content is "the request took too long".
     vi.useFakeTimers();
     let release: (() => void) | undefined;
-    mockGenerateText.mockImplementationOnce(() => new Promise((_resolve, reject) => {
-      release = () => reject(new Error('aborted after the deadline'));
-    }));
+    mockGenerateText.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          release = () => reject(new Error('aborted after the deadline'));
+        }),
+    );
 
     const res = createMockRes();
     const pending = handler(
-      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: false } }),
+      createMockReq({
+        body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: false },
+      }),
       res,
       vi.fn(),
     );
@@ -785,7 +820,7 @@ describe('routing policy refusals - /v1/chat/completions', () => {
       createMockStream([
         { type: 'text-delta', text: 'Hello' },
         { type: 'finish', finishReason: 'stop' },
-      ])
+      ]),
     );
   });
 
@@ -797,7 +832,11 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     mockResolveModel.mockRejectedValue(new ModelNotFoundError('nobody/no-such-model'));
 
     const req = createMockReq({
-      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'nobody/no-such-model', stream: false },
+      body: {
+        messages: [{ role: 'user', content: 'Hello' }],
+        model: 'nobody/no-such-model',
+        stream: false,
+      },
     });
     const res = createMockRes();
 
@@ -819,7 +858,13 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     mockResolveModel.mockRejectedValue(new ModelNotFoundError('nobody/no-such-model'));
 
     await handler(
-      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'nobody/no-such-model', stream: false } }),
+      createMockReq({
+        body: {
+          messages: [{ role: 'user', content: 'Hi' }],
+          model: 'nobody/no-such-model',
+          stream: false,
+        },
+      }),
       createMockRes(),
       vi.fn(),
     );
@@ -856,15 +901,27 @@ describe('routing policy refusals - /v1/chat/completions', () => {
 
   it('resolves the named model exactly, and the auto level when none is named', async () => {
     mockResolveModel.mockResolvedValue(VALID_RESOLVED_MODEL);
-    await handler(createMockReq({
-      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'acme/chat-1', stream: false },
-    }), createMockRes(), vi.fn());
+    await handler(
+      createMockReq({
+        body: {
+          messages: [{ role: 'user', content: 'Hello' }],
+          model: 'acme/chat-1',
+          stream: false,
+        },
+      }),
+      createMockRes(),
+      vi.fn(),
+    );
     expect(mockResolveModel).toHaveBeenCalledWith('acme/chat-1');
 
     mockResolveModel.mockClear();
-    await handler(createMockReq({
-      body: { messages: [{ role: 'user', content: 'Hello' }], stream: false },
-    }), createMockRes(), vi.fn());
+    await handler(
+      createMockReq({
+        body: { messages: [{ role: 'user', content: 'Hello' }], stream: false },
+      }),
+      createMockRes(),
+      vi.fn(),
+    );
     // `resolveDefaultModel` shares the spy here; it takes nothing — the
     // default is the `auto` power level for everyone (ADR 0014).
     expect(mockResolveModel).toHaveBeenCalledWith();

@@ -45,7 +45,10 @@ vi.mock('../../lib/agent-identity.js', () => ({
   attachAgentIdentity: vi.fn(async (agent: unknown) => agent),
 }));
 vi.mock('../../lib/user-credits-helpers.js', () => ({ getOrCreateUserCredits: vi.fn() }));
-vi.mock('../../lib/credits-manager.js', () => ({ reserveCredits: vi.fn(), finalizeCredits: vi.fn() }));
+vi.mock('../../lib/credits-manager.js', () => ({
+  reserveCredits: vi.fn(),
+  finalizeCredits: vi.fn(),
+}));
 vi.mock('../../lib/logger.js', () => ({
   log: {
     webhook: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },

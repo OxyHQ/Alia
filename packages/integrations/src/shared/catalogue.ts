@@ -68,7 +68,9 @@ function asCount(value: unknown): number | null {
 }
 
 function asTextList(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }
 
 /** A `publisher/model` id: two or more non-empty, whitespace-free segments. */
@@ -101,10 +103,11 @@ function parseEntry(value: unknown): CatalogueModel | null {
     inputModalities: asTextList(raw.inputModalities),
     outputModalities: asTextList(raw.outputModalities),
     tools: raw.tools === true,
-    reasoningEfforts: asTextList(raw.reasoningEfforts).filter(
-      (effort): effort is ReasoningEffort => REASONING_EFFORTS.has(effort),
+    reasoningEfforts: asTextList(raw.reasoningEfforts).filter((effort): effort is ReasoningEffort =>
+      REASONING_EFFORTS.has(effort),
     ),
-    pricing: inputPerMTok !== null && outputPerMTok !== null ? { inputPerMTok, outputPerMTok } : null,
+    pricing:
+      inputPerMTok !== null && outputPerMTok !== null ? { inputPerMTok, outputPerMTok } : null,
     releasedAt: asText(raw.releasedAt),
     featured: raw.featured === true,
   };
@@ -208,10 +211,11 @@ export function searchModels(catalogue: Catalogue, text: string): CatalogueModel
     return 2;
   };
   return modelsForListing(catalogue)
-    .filter((model) =>
-      model.id.toLowerCase().includes(wanted)
-      || model.name.toLowerCase().includes(wanted)
-      || model.publisher.name.toLowerCase().includes(wanted),
+    .filter(
+      (model) =>
+        model.id.toLowerCase().includes(wanted) ||
+        model.name.toLowerCase().includes(wanted) ||
+        model.publisher.name.toLowerCase().includes(wanted),
     )
     .map((model, index) => ({ model, index, rank: rank(model) }))
     .sort((a, b) => a.rank - b.rank || a.index - b.index)
@@ -228,10 +232,7 @@ export function defaultLabel(catalogue: Catalogue): string {
  * What a person's current model is called. A choice the catalogue does not
  * list is not what requests use (they omit `model`), so it reads as the default.
  */
-export function currentModelLabel(
-  chosen: string | null | undefined,
-  catalogue: Catalogue,
-): string {
+export function currentModelLabel(chosen: string | null | undefined, catalogue: Catalogue): string {
   const id = resolveRequestModel(chosen, catalogue);
   const model = id === undefined ? null : findModel(catalogue, id);
   return model === null ? defaultLabel(catalogue) : model.name;
@@ -252,7 +253,10 @@ const RESET_WORDS: ReadonlySet<string> = new Set(['default', 'reset']);
  * clears; an exact id (case-insensitive) or a single match selects; several
  * matches are listed; none says so.
  */
-export function resolveModelCommand(argument: string | null | undefined, catalogue: Catalogue): ModelCommand {
+export function resolveModelCommand(
+  argument: string | null | undefined,
+  catalogue: Catalogue,
+): ModelCommand {
   const text = (argument ?? '').trim();
   if (text === '') return { kind: 'list' };
   if (RESET_WORDS.has(text.toLowerCase())) return { kind: 'reset' };

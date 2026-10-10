@@ -97,8 +97,20 @@ describe('the unread counter advances rather than resetting', () => {
 describe('a chat list orders by recency with never-used chats LAST', () => {
   it('orders three chats and puts the null timestamp at the end', async () => {
     const sessionId = await newSession('tg-order');
-    await upsertTelegramChat(db, { sessionId, chatId: 'old', name: 'Old', lastMessageTimestamp: 10, chatType: 'user' });
-    await upsertTelegramChat(db, { sessionId, chatId: 'new', name: 'New', lastMessageTimestamp: 90, chatType: 'channel' });
+    await upsertTelegramChat(db, {
+      sessionId,
+      chatId: 'old',
+      name: 'Old',
+      lastMessageTimestamp: 10,
+      chatType: 'user',
+    });
+    await upsertTelegramChat(db, {
+      sessionId,
+      chatId: 'new',
+      name: 'New',
+      lastMessageTimestamp: 90,
+      chatType: 'channel',
+    });
 
     const chats = await listTelegramChats(db, sessionId, 50);
     expect(chats.map((c) => c.chatId)).toEqual(['new', 'old']);
@@ -110,9 +122,33 @@ describe('a message list is newest first and scoped to its chat', () => {
   it('orders three messages descending', async () => {
     const sessionId = await newSession('tg-msgs');
     await insertTelegramMessages(db, [
-      { sessionId, chatId: 'c1', messageId: '1', fromMe: false, timestamp: 100, text: 'oldest', senderName: 'A' },
-      { sessionId, chatId: 'c1', messageId: '2', fromMe: false, timestamp: 200, text: 'middle', senderName: 'A' },
-      { sessionId, chatId: 'c1', messageId: '3', fromMe: true, timestamp: 300, text: 'newest', senderName: '' },
+      {
+        sessionId,
+        chatId: 'c1',
+        messageId: '1',
+        fromMe: false,
+        timestamp: 100,
+        text: 'oldest',
+        senderName: 'A',
+      },
+      {
+        sessionId,
+        chatId: 'c1',
+        messageId: '2',
+        fromMe: false,
+        timestamp: 200,
+        text: 'middle',
+        senderName: 'A',
+      },
+      {
+        sessionId,
+        chatId: 'c1',
+        messageId: '3',
+        fromMe: true,
+        timestamp: 300,
+        text: 'newest',
+        senderName: '',
+      },
     ]);
 
     const messages = await listTelegramMessages(db, sessionId, 'c1', 50);
@@ -124,7 +160,15 @@ describe('a message list is newest first and scoped to its chat', () => {
   it('ignores another chat in the same session', async () => {
     const sessionId = 'tg-msgs';
     await insertTelegramMessages(db, [
-      { sessionId, chatId: 'c2', messageId: '4', fromMe: false, timestamp: 999, text: 'elsewhere', senderName: '' },
+      {
+        sessionId,
+        chatId: 'c2',
+        messageId: '4',
+        fromMe: false,
+        timestamp: 999,
+        text: 'elsewhere',
+        senderName: '',
+      },
     ]);
     expect((await listTelegramMessages(db, sessionId, 'c1', 50)).map((m) => m.text)).toEqual([
       'newest',
@@ -137,10 +181,28 @@ describe('a message list is newest first and scoped to its chat', () => {
   it('keeps the first row when a batch repeats a protocol id', async () => {
     const sessionId = await newSession('tg-dup');
     await insertTelegramMessages(db, [
-      { sessionId, chatId: 'c', messageId: 'same', fromMe: false, timestamp: 1, text: 'kept', senderName: '' },
-      { sessionId, chatId: 'c', messageId: 'same', fromMe: false, timestamp: 2, text: 'dropped', senderName: '' },
+      {
+        sessionId,
+        chatId: 'c',
+        messageId: 'same',
+        fromMe: false,
+        timestamp: 1,
+        text: 'kept',
+        senderName: '',
+      },
+      {
+        sessionId,
+        chatId: 'c',
+        messageId: 'same',
+        fromMe: false,
+        timestamp: 2,
+        text: 'dropped',
+        senderName: '',
+      },
     ]);
-    expect((await listTelegramMessages(db, sessionId, 'c', 50)).map((m) => m.text)).toEqual(['kept']);
+    expect((await listTelegramMessages(db, sessionId, 'c', 50)).map((m) => m.text)).toEqual([
+      'kept',
+    ]);
   });
 });
 
@@ -174,7 +236,9 @@ describe('the GramJS session string stays inside the process', () => {
     expect(session?.status).toBe('connected');
 
     // And the one caller entitled to it gets it back byte-identical.
-    expect((await findTelegramSessionCredential(db, sessionId))?.sessionString).toBe(SESSION_STRING);
+    expect((await findTelegramSessionCredential(db, sessionId))?.sessionString).toBe(
+      SESSION_STRING,
+    );
     // Connecting spends the QR.
     expect((await findTelegramSessionQr(db, sessionId))?.lastQr).toBeNull();
   });
@@ -182,7 +246,9 @@ describe('the GramJS session string stays inside the process', () => {
   it('is destroyed by a logout, together with the QR', async () => {
     const sessionId = 'tg-secret';
     await markTelegramQrPending(db, sessionId, 'tg://login?token=live-again');
-    expect((await findTelegramSessionQr(db, sessionId))?.lastQr).toBe('tg://login?token=live-again');
+    expect((await findTelegramSessionQr(db, sessionId))?.lastQr).toBe(
+      'tg://login?token=live-again',
+    );
 
     await markTelegramLoggedOut(db, sessionId);
 

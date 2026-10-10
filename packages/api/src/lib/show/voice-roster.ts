@@ -49,11 +49,41 @@ export interface ShowVoice {
  * gender, so Marcus and Sarah remain the default hosts they always were.
  */
 export const SHOW_VOICES: readonly ShowVoice[] = [
-  { voiceId: 'rex', name: 'Marcus', gender: 'male', accent: 'Neutral', description: 'Confident, clear male voice' },
-  { voiceId: 'leo', name: 'Adam', gender: 'male', accent: 'Neutral', description: 'Deep, authoritative male voice' },
-  { voiceId: 'ara', name: 'Sarah', gender: 'female', accent: 'Neutral', description: 'Warm, friendly female voice' },
-  { voiceId: 'eve', name: 'Emily', gender: 'female', accent: 'Neutral', description: 'Bright, energetic female voice' },
-  { voiceId: 'sal', name: 'Sam', gender: 'neutral', accent: 'Neutral', description: 'Smooth, balanced voice' },
+  {
+    voiceId: 'rex',
+    name: 'Marcus',
+    gender: 'male',
+    accent: 'Neutral',
+    description: 'Confident, clear male voice',
+  },
+  {
+    voiceId: 'leo',
+    name: 'Adam',
+    gender: 'male',
+    accent: 'Neutral',
+    description: 'Deep, authoritative male voice',
+  },
+  {
+    voiceId: 'ara',
+    name: 'Sarah',
+    gender: 'female',
+    accent: 'Neutral',
+    description: 'Warm, friendly female voice',
+  },
+  {
+    voiceId: 'eve',
+    name: 'Emily',
+    gender: 'female',
+    accent: 'Neutral',
+    description: 'Bright, energetic female voice',
+  },
+  {
+    voiceId: 'sal',
+    name: 'Sam',
+    gender: 'neutral',
+    accent: 'Neutral',
+    description: 'Smooth, balanced voice',
+  },
 ];
 
 /**
@@ -99,11 +129,13 @@ export function speakingVoices(cast: readonly ShowSpeaker[]): Map<string, string
 
   for (const speaker of cast) {
     const wanted =
-      currentVoice(speaker.voiceId) ?? SHOW_VOICES.find((voice) => voice.name === speaker.voiceName);
+      currentVoice(speaker.voiceId) ??
+      SHOW_VOICES.find((voice) => voice.name === speaker.voiceName);
     const chosen =
       (wanted !== undefined && !taken.has(wanted.voiceId) ? wanted : undefined) ??
       SHOW_VOICES.find(
-        (voice) => wanted !== undefined && voice.gender === wanted.gender && !taken.has(voice.voiceId),
+        (voice) =>
+          wanted !== undefined && voice.gender === wanted.gender && !taken.has(voice.voiceId),
       ) ??
       SHOW_VOICES.find((voice) => !taken.has(voice.voiceId)) ??
       // A cast larger than the roster: sharing a voice beats a silent speaker.
@@ -154,9 +186,7 @@ export const FORMAT_DEFAULTS: Record<ShowFormat, FormatRoles> = {
     ],
   },
   explainer: {
-    roles: [
-      { role: 'narrator', defaultGender: 'female' },
-    ],
+    roles: [{ role: 'narrator', defaultGender: 'female' }],
   },
 };
 
@@ -184,7 +214,9 @@ export function buildSeriesCast(
     const requested = requestedVoiceIds?.[index];
     const requestedVoice = currentVoice(requested);
     const chosen =
-      (requestedVoice !== undefined && !taken.has(requestedVoice.voiceId) ? requestedVoice : undefined) ??
+      (requestedVoice !== undefined && !taken.has(requestedVoice.voiceId)
+        ? requestedVoice
+        : undefined) ??
       SHOW_VOICES.find(
         (voice) => voice.gender === roleConfig.defaultGender && !taken.has(voice.voiceId),
       ) ??

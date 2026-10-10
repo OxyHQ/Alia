@@ -1,6 +1,10 @@
 import type { TaskSession } from '@/features/automations/runtime/use-tasks';
 import { latestRunsByAutomation } from './format';
-import type { AutomationDefinition, AutomationRun, Translate } from '@/shared/contracts/automations';
+import type {
+  AutomationDefinition,
+  AutomationRun,
+  Translate,
+} from '@/shared/contracts/automations';
 
 /**
  * The ONE list the Tasks page shows: agent sessions and automations together.
@@ -52,23 +56,23 @@ export type WorkLifecycle =
 
 export type WorkItem =
   | {
-    kind: 'task';
-    id: string;
-    lifecycle: WorkLifecycle;
-    /** Epoch milliseconds of the most recent activity, for ordering. */
-    activityAt: number;
-    task: TaskSession;
-  }
+      kind: 'task';
+      id: string;
+      lifecycle: WorkLifecycle;
+      /** Epoch milliseconds of the most recent activity, for ordering. */
+      activityAt: number;
+      task: TaskSession;
+    }
   | {
-    kind: 'automation';
-    id: string;
-    lifecycle: WorkLifecycle;
-    activityAt: number;
-    automation: AutomationDefinition;
-    latestRun?: AutomationRun;
-    /** The session currently executing this automation, when the listing links them. */
-    session?: TaskSession;
-  };
+      kind: 'automation';
+      id: string;
+      lifecycle: WorkLifecycle;
+      activityAt: number;
+      automation: AutomationDefinition;
+      latestRun?: AutomationRun;
+      /** The session currently executing this automation, when the listing links them. */
+      session?: TaskSession;
+    };
 
 const ACTIVE_TASK_STATUSES: ReadonlySet<TaskSession['status']> = new Set(['running', 'queued']);
 
@@ -111,27 +115,39 @@ export function automationLifecycle(
 }
 
 /** The pill text for a lifecycle, and the tone `AutomationPill` draws it in. */
-export function lifecycleLabel(lifecycle: WorkLifecycle, t: Translate): {
+export function lifecycleLabel(
+  lifecycle: WorkLifecycle,
+  t: Translate,
+): {
   label: string;
   tone: 'neutral' | 'positive' | 'warning' | 'danger';
 } {
   switch (lifecycle) {
-    case 'running': return { label: t('automations.lifecycle.running'), tone: 'warning' };
-    case 'queued': return { label: t('automations.lifecycle.queued'), tone: 'neutral' };
-    case 'scheduled': return { label: t('automations.lifecycle.scheduled'), tone: 'positive' };
-    case 'on_request': return { label: t('automations.lifecycle.on_request'), tone: 'positive' };
-    case 'paused': return { label: t('automations.lifecycle.paused'), tone: 'neutral' };
-    case 'completed': return { label: t('automations.lifecycle.completed'), tone: 'positive' };
-    case 'failed': return { label: t('automations.lifecycle.failed'), tone: 'danger' };
-    case 'cancelled': return { label: t('automations.lifecycle.cancelled'), tone: 'neutral' };
+    case 'running':
+      return { label: t('automations.lifecycle.running'), tone: 'warning' };
+    case 'queued':
+      return { label: t('automations.lifecycle.queued'), tone: 'neutral' };
+    case 'scheduled':
+      return { label: t('automations.lifecycle.scheduled'), tone: 'positive' };
+    case 'on_request':
+      return { label: t('automations.lifecycle.on_request'), tone: 'positive' };
+    case 'paused':
+      return { label: t('automations.lifecycle.paused'), tone: 'neutral' };
+    case 'completed':
+      return { label: t('automations.lifecycle.completed'), tone: 'positive' };
+    case 'failed':
+      return { label: t('automations.lifecycle.failed'), tone: 'danger' };
+    case 'cancelled':
+      return { label: t('automations.lifecycle.cancelled'), tone: 'neutral' };
   }
 }
 
 function inTab(lifecycle: WorkLifecycle, tab: WorkTab): boolean {
-  const over = lifecycle === 'paused'
-    || lifecycle === 'completed'
-    || lifecycle === 'failed'
-    || lifecycle === 'cancelled';
+  const over =
+    lifecycle === 'paused' ||
+    lifecycle === 'completed' ||
+    lifecycle === 'failed' ||
+    lifecycle === 'cancelled';
   return tab === 'history' ? over : !over;
 }
 

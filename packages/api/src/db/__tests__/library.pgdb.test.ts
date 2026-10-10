@@ -25,7 +25,8 @@ afterAll(async () => {
   await closePostgres();
 });
 
-const insertFile = (id: string, category: string, size: number) => db.execute(sql`
+const insertFile = (id: string, category: string, size: number) =>
+  db.execute(sql`
   insert into ${libraryFiles} (id, owner_oxy_user_id, name, url, type, size, category)
   values (${id}, 'lib-owner', 'f.bin', 'https://example.test/f.bin', 'application/octet-stream', ${size}, ${category})
 `);

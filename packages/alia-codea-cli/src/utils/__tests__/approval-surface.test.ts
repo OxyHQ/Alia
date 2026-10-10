@@ -88,7 +88,9 @@ describe('QR', () => {
   it('draws exactly the modules the encoder produced, with a light quiet zone', () => {
     const symbol = QRCode.create(PAYLOAD, { errorCorrectionLevel: 'M' });
     const size = symbol.modules.size;
-    const lines = drawQr({ size, isDark: (x, y) => Boolean(symbol.modules.get(y, x)) }).map(stripAnsi);
+    const lines = drawQr({ size, isDark: (x, y) => Boolean(symbol.modules.get(y, x)) }).map(
+      stripAnsi,
+    );
 
     // Read the picture back: each character is two vertically stacked modules.
     const quiet = QUIET;
@@ -148,7 +150,10 @@ describe('approvalLines', () => {
 
   it('prints no QR and asks for no keypress when output is not a terminal', () => {
     const renderer = vi.fn(() => ['QR']);
-    const lines = approvalLines(input({ columns: undefined, canRenderQr: false, canPromptEnter: false }), renderer);
+    const lines = approvalLines(
+      input({ columns: undefined, canRenderQr: false, canPromptEnter: false }),
+      renderer,
+    );
     const joined = lines.join('\n');
     expect(renderer).not.toHaveBeenCalled();
     expect(joined).not.toContain('\x1b[47m');
@@ -158,8 +163,12 @@ describe('approvalLines', () => {
   });
 
   it('explains a missing QR on a narrow terminal and still gives the link and code', () => {
-    const text = approvalLines(input({ columns: 40 })).map(stripAnsi).join('\n');
-    expect(text).toContain(`too narrow for the QR — widen it to ${minimumQrColumns(PAYLOAD)} columns`);
+    const text = approvalLines(input({ columns: 40 }))
+      .map(stripAnsi)
+      .join('\n');
+    expect(text).toContain(
+      `too narrow for the QR — widen it to ${minimumQrColumns(PAYLOAD)} columns`,
+    );
     expect(text).toContain(`user_code=${CODE}`);
     expect(text).toContain(CODE);
   });
@@ -185,7 +194,10 @@ describe('launchTargetFor', () => {
 
   it('picks the launcher per platform, with WSL handed to the Windows browser', () => {
     expect(launchTargetFor(url, 'darwin', {})).toEqual({ command: 'open', args: [url] });
-    expect(launchTargetFor(url, 'win32', {})).toEqual({ command: 'cmd', args: ['/c', 'start', '', url] });
+    expect(launchTargetFor(url, 'win32', {})).toEqual({
+      command: 'cmd',
+      args: ['/c', 'start', '', url],
+    });
     expect(launchTargetFor(url, 'linux', { WSL_DISTRO_NAME: 'Debian' })).toEqual({
       command: 'explorer.exe',
       args: [url],
@@ -207,9 +219,17 @@ describe('openInBrowser', () => {
 
   it('reports a missing launcher, and stays quiet about a non-zero exit', () => {
     const problems: string[] = [];
-    openInBrowser(url, (p) => problems.push(p), (_c, _a, cb) => cb({ code: 1 }));
+    openInBrowser(
+      url,
+      (p) => problems.push(p),
+      (_c, _a, cb) => cb({ code: 1 }),
+    );
     expect(problems).toEqual([]);
-    openInBrowser(url, (p) => problems.push(p), (_c, _a, cb) => cb({ code: 'ENOENT' }));
+    openInBrowser(
+      url,
+      (p) => problems.push(p),
+      (_c, _a, cb) => cb({ code: 'ENOENT' }),
+    );
     expect(problems).toHaveLength(1);
     expect(problems[0]).toMatch(/No browser launcher found/);
   });

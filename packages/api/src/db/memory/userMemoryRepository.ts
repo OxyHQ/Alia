@@ -267,7 +267,9 @@ export async function updateSettings(
   await db
     .update(userMemories)
     .set({
-      ...(patch.autoSaveEnabled === undefined ? {} : { settingsAutoSaveEnabled: patch.autoSaveEnabled }),
+      ...(patch.autoSaveEnabled === undefined
+        ? {}
+        : { settingsAutoSaveEnabled: patch.autoSaveEnabled }),
       ...(patch.recallEnabled === undefined ? {} : { settingsRecallEnabled: patch.recallEnabled }),
     })
     .where(eq(userMemories.id, userMemoryId));
@@ -330,7 +332,9 @@ export async function mergePreferences(
   const set = {
     ...(patch.language === undefined ? {} : { preferencesLanguage: patch.language }),
     ...(patch.tone === undefined ? {} : { preferencesTone: patch.tone }),
-    ...(patch.responseLength === undefined ? {} : { preferencesResponseLength: patch.responseLength }),
+    ...(patch.responseLength === undefined
+      ? {}
+      : { preferencesResponseLength: patch.responseLength }),
     ...(patch.interests === undefined ? {} : { preferencesInterests: patch.interests }),
   };
   if (Object.keys(set).length === 0) return;
@@ -471,7 +475,9 @@ export async function updateEntryById(
     const [existing] = await db
       .select()
       .from(userMemoryEntries)
-      .where(and(eq(userMemoryEntries.id, entryId), eq(userMemoryEntries.userMemoryId, userMemoryId)));
+      .where(
+        and(eq(userMemoryEntries.id, entryId), eq(userMemoryEntries.userMemoryId, userMemoryId)),
+      );
     return existing ? toEntry(existing) : undefined;
   }
   const [row] = await db
@@ -496,7 +502,9 @@ export async function deleteEntryById(
 ): Promise<number> {
   const result = await db
     .delete(userMemoryEntries)
-    .where(and(eq(userMemoryEntries.id, entryId), eq(userMemoryEntries.userMemoryId, userMemoryId)));
+    .where(
+      and(eq(userMemoryEntries.id, entryId), eq(userMemoryEntries.userMemoryId, userMemoryId)),
+    );
   return result.count;
 }
 
@@ -509,7 +517,9 @@ export async function addEntries(
   if (entries.length === 0) return 0;
   const rows = await db
     .insert(userMemoryEntries)
-    .values(entries.map((e) => ({ userMemoryId, title: e.title, summary: e.summary, type: e.type })))
+    .values(
+      entries.map((e) => ({ userMemoryId, title: e.title, summary: e.summary, type: e.type })),
+    )
     .onConflictDoNothing()
     .returning({ id: userMemoryEntries.id });
   return rows.length;
@@ -557,7 +567,9 @@ export async function replaceEntries(
     if (entries.length === 0) return 0;
     const rows = await tx
       .insert(userMemoryEntries)
-      .values(entries.map((e) => ({ userMemoryId, title: e.title, summary: e.summary, type: e.type })))
+      .values(
+        entries.map((e) => ({ userMemoryId, title: e.title, summary: e.summary, type: e.type })),
+      )
       .onConflictDoNothing()
       .returning({ id: userMemoryEntries.id });
     return rows.length;

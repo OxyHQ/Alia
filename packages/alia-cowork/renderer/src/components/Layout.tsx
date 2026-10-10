@@ -1,7 +1,7 @@
-"use client"
+'use client';
 
-import * as React from "react"
-import { HugeiconsIcon } from "@hugeicons/react"
+import * as React from 'react';
+import { HugeiconsIcon } from '@hugeicons/react';
 import {
   MinusSignIcon,
   Cancel01Icon,
@@ -13,16 +13,12 @@ import {
   CommandIcon,
   CodeIcon,
   Globe02Icon,
-} from "@hugeicons/core-free-icons"
+} from '@hugeicons/core-free-icons';
 
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Menubar,
   MenubarContent,
@@ -31,8 +27,8 @@ import {
   MenubarSeparator,
   MenubarShortcut,
   MenubarTrigger,
-} from "@/components/ui/menubar"
-import { useAuth } from "@/contexts/AuthContext"
+} from '@/components/ui/menubar';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Sidebar,
   SidebarContent,
@@ -46,25 +42,31 @@ import {
   SidebarProvider,
   SidebarInset,
   useSidebar,
-} from "@/components/ui/sidebar"
+} from '@/components/ui/sidebar';
 
 // Navigation items for sidebar
 const navItems = [
-  { id: "chat", label: "Chat", icon: Message01Icon },
-  { id: "browser", label: "Browser", icon: Globe02Icon },
-  { id: "files", label: "Files", icon: FolderOpenIcon },
-  { id: "commands", label: "Commands", icon: CommandIcon },
-  { id: "console", label: "Console", icon: CodeIcon },
-]
+  { id: 'chat', label: 'Chat', icon: Message01Icon },
+  { id: 'browser', label: 'Browser', icon: Globe02Icon },
+  { id: 'files', label: 'Files', icon: FolderOpenIcon },
+  { id: 'commands', label: 'Commands', icon: CommandIcon },
+  { id: 'console', label: 'Console', icon: CodeIcon },
+];
 
 interface LayoutProps {
-  children: React.ReactNode
-  currentView?: string
-  onViewChange?: (view: string) => void
+  children: React.ReactNode;
+  currentView?: string;
+  onViewChange?: (view: string) => void;
 }
 
-function AppSidebar({ currentView, onViewChange }: { currentView?: string; onViewChange?: (view: string) => void }) {
-  const { state } = useSidebar()
+function AppSidebar({
+  currentView,
+  onViewChange,
+}: {
+  currentView?: string;
+  onViewChange?: (view: string) => void;
+}) {
+  const { state } = useSidebar();
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
@@ -74,9 +76,7 @@ function AppSidebar({ currentView, onViewChange }: { currentView?: string; onVie
             <AvatarImage src="icon.png" alt="Alia" />
             <AvatarFallback>AI</AvatarFallback>
           </Avatar>
-          {state === "expanded" && (
-            <span className="font-semibold text-sm">Alia Cowork</span>
-          )}
+          {state === 'expanded' && <span className="font-semibold text-sm">Alia Cowork</span>}
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -104,8 +104,8 @@ function AppSidebar({ currentView, onViewChange }: { currentView?: string; onVie
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Settings"
-              isActive={currentView === "settings"}
-              onClick={() => onViewChange?.("settings")}
+              isActive={currentView === 'settings'}
+              onClick={() => onViewChange?.('settings')}
             >
               <HugeiconsIcon icon={Settings01Icon} strokeWidth={2} className="size-4" />
               <span>Settings</span>
@@ -114,36 +114,36 @@ function AppSidebar({ currentView, onViewChange }: { currentView?: string; onVie
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }
 
 interface TitleBarProps {
-  onViewChange?: (view: string) => void
+  onViewChange?: (view: string) => void;
 }
 
 function TitleBar({ onViewChange }: TitleBarProps) {
-  const [isPinned, setIsPinned] = React.useState(false)
-  const [isFullScreen, setIsFullScreen] = React.useState(false)
-  const { toggleSidebar, state: sidebarState } = useSidebar()
-  const { signOut, user } = useAuth()
+  const [isPinned, setIsPinned] = React.useState(false);
+  const [isFullScreen, setIsFullScreen] = React.useState(false);
+  const { toggleSidebar, state: sidebarState } = useSidebar();
+  const { signOut, user } = useAuth();
 
   const togglePin = async () => {
-    const newState = await window.api?.toggleAlwaysOnTop()
-    setIsPinned(newState)
-  }
+    const newState = await window.api?.toggleAlwaysOnTop();
+    setIsPinned(newState);
+  };
 
   const handleFullScreen = async () => {
-    const newState = await window.api?.fullscreen()
-    setIsFullScreen(newState)
-  }
+    const newState = await window.api?.fullscreen();
+    setIsFullScreen(newState);
+  };
 
   // Listen for fullscreen changes from main process
   React.useEffect(() => {
     const unsubscribe = window.api?.onFullScreenChanged((isFs) => {
-      setIsFullScreen(isFs)
-    })
-    return () => unsubscribe?.()
-  }, [])
+      setIsFullScreen(isFs);
+    });
+    return () => unsubscribe?.();
+  }, []);
 
   return (
     <div className="flex items-center justify-between h-10 px-2 border-b bg-background/80 backdrop-blur shrink-0">
@@ -157,15 +157,13 @@ function TitleBar({ onViewChange }: TitleBarProps) {
                 New Chat <MenubarShortcut>Ctrl+N</MenubarShortcut>
               </MenubarItem>
               <MenubarSeparator />
-              <MenubarItem onClick={() => onViewChange?.("settings")}>
+              <MenubarItem onClick={() => onViewChange?.('settings')}>
                 Settings <MenubarShortcut>Ctrl+,</MenubarShortcut>
               </MenubarItem>
               <MenubarSeparator />
               {user && (
                 <>
-                  <MenubarItem onClick={signOut}>
-                    Sign Out
-                  </MenubarItem>
+                  <MenubarItem onClick={signOut}>Sign Out</MenubarItem>
                   <MenubarSeparator />
                 </>
               )}
@@ -199,10 +197,11 @@ function TitleBar({ onViewChange }: TitleBarProps) {
             <MenubarTrigger className="px-3 py-1.5 text-sm font-medium">View</MenubarTrigger>
             <MenubarContent className="z-[200]">
               <MenubarItem onClick={toggleSidebar}>
-                {sidebarState === "expanded" ? "Collapse" : "Expand"} Sidebar <MenubarShortcut>Ctrl+B</MenubarShortcut>
+                {sidebarState === 'expanded' ? 'Collapse' : 'Expand'} Sidebar{' '}
+                <MenubarShortcut>Ctrl+B</MenubarShortcut>
               </MenubarItem>
               <MenubarItem onClick={handleFullScreen}>
-                {isFullScreen ? "Exit" : "Enter"} Full Screen <MenubarShortcut>F11</MenubarShortcut>
+                {isFullScreen ? 'Exit' : 'Enter'} Full Screen <MenubarShortcut>F11</MenubarShortcut>
               </MenubarItem>
               <MenubarSeparator />
               <MenubarItem onClick={() => window.api?.zoomIn()}>
@@ -222,13 +221,13 @@ function TitleBar({ onViewChange }: TitleBarProps) {
               <MenubarItem onClick={() => window.open('https://docs.alia.onl', '_blank')}>
                 Documentation
               </MenubarItem>
-              <MenubarItem onClick={() => window.open('https://github.com/alia-ai/cowork/issues', '_blank')}>
+              <MenubarItem
+                onClick={() => window.open('https://github.com/alia-ai/cowork/issues', '_blank')}
+              >
                 Report Issue
               </MenubarItem>
               <MenubarSeparator />
-              <MenubarItem onClick={() => window.api?.showAbout()}>
-                About Alia Cowork
-              </MenubarItem>
+              <MenubarItem onClick={() => window.api?.showAbout()}>About Alia Cowork</MenubarItem>
             </MenubarContent>
           </MenubarMenu>
         </Menubar>
@@ -243,36 +242,48 @@ function TitleBar({ onViewChange }: TitleBarProps) {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" className="size-8" onClick={togglePin}>
-              <HugeiconsIcon icon={isPinned ? Pin02Icon : PinIcon} strokeWidth={2} className={cn("size-4", isPinned && "text-primary")} />
+              <HugeiconsIcon
+                icon={isPinned ? Pin02Icon : PinIcon}
+                strokeWidth={2}
+                className={cn('size-4', isPinned && 'text-primary')}
+              />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">{isPinned ? "Unpin window" : "Pin on top"}</TooltipContent>
+          <TooltipContent side="bottom">{isPinned ? 'Unpin window' : 'Pin on top'}</TooltipContent>
         </Tooltip>
-        <Button variant="ghost" size="icon" className="size-8" onClick={() => window.api?.minimize()}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          onClick={() => window.api?.minimize()}
+        >
           <HugeiconsIcon icon={MinusSignIcon} strokeWidth={2} className="size-4" />
         </Button>
-        <Button variant="ghost" size="icon" className="size-8 hover:bg-destructive hover:text-destructive-foreground" onClick={() => window.api?.close()}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 hover:bg-destructive hover:text-destructive-foreground"
+          onClick={() => window.api?.close()}
+        >
           <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-4" />
         </Button>
       </div>
     </div>
-  )
+  );
 }
 
-export function Layout({ children, currentView = "chat", onViewChange }: LayoutProps) {
+export function Layout({ children, currentView = 'chat', onViewChange }: LayoutProps) {
   return (
     <SidebarProvider defaultOpen={false}>
       <div className="flex h-screen w-full flex-col bg-background text-foreground overflow-hidden">
         <TitleBar onViewChange={onViewChange} />
         <div className="flex flex-1 overflow-hidden min-h-0">
           <AppSidebar currentView={currentView} onViewChange={onViewChange} />
-          <SidebarInset className="flex flex-col overflow-hidden min-h-0">
-            {children}
-          </SidebarInset>
+          <SidebarInset className="flex flex-col overflow-hidden min-h-0">{children}</SidebarInset>
         </div>
       </div>
     </SidebarProvider>
-  )
+  );
 }
 
-export default Layout
+export default Layout;

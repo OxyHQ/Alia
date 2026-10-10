@@ -16,7 +16,12 @@ import {
   type NotificationTypeValue,
 } from '../db/schema/notifications.js';
 import { authenticateToken } from '../middleware/auth.js';
-import { getUnreadCount, markAsRead, markAllAsRead, dismissNotification } from '../lib/notification-service.js';
+import {
+  getUnreadCount,
+  markAsRead,
+  markAllAsRead,
+  dismissNotification,
+} from '../lib/notification-service.js';
 import { VAPID_PUBLIC_KEY } from '../lib/web-push.js';
 import { log } from '../lib/logger.js';
 import {
@@ -220,7 +225,10 @@ router.post('/web-push-subscription', async (req: Request, res: Response) => {
       keys.auth,
     );
 
-    log.general.info({ userId, subscriptionId: subscription.id }, 'Web push subscription registered');
+    log.general.info(
+      { userId, subscriptionId: subscription.id },
+      'Web push subscription registered',
+    );
     res.json({ success: true, id: subscription.id });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error registering web push subscription');
@@ -297,11 +305,14 @@ router.put('/email-alerts', async (req: Request, res: Response) => {
     const userId = req.user.id as string;
     const { agentId, enabled } = req.body ?? {};
     if (typeof enabled !== 'boolean' || (agentId !== null && typeof agentId !== 'string')) {
-      return res.status(400).json({ error: 'agentId (string or null) and enabled (boolean) are required' });
+      return res
+        .status(400)
+        .json({ error: 'agentId (string or null) and enabled (boolean) are required' });
     }
     if (agentId !== null) {
       const agent = await findAgentById(getDb(), agentId);
-      if (!agent || agent.ownerOxyAccountId !== userId) return res.status(404).json({ error: 'Agent not found' });
+      if (!agent || agent.ownerOxyAccountId !== userId)
+        return res.status(404).json({ error: 'Agent not found' });
     }
     await setEmailAlertPreference(getDb(), { oxyUserId: userId, agentId, enabled });
     res.json({ agentId, enabled });

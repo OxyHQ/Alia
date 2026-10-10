@@ -485,7 +485,8 @@ describe('the reach invariant', () => {
       );
       expect(result.ok).toBe(true);
       if (!result.ok) continue;
-      for (const operation of result.plan.operations) expect(planWidensReach(operation)).toBe(false);
+      for (const operation of result.plan.operations)
+        expect(planWidensReach(operation)).toBe(false);
     }
   });
 });

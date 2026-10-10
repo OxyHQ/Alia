@@ -10,10 +10,7 @@
 import { index, integer, pgTable, text } from 'drizzle-orm/pg-core';
 import { generatedId, timestamptz } from '@oxy.so/db';
 import { checkOneOf } from './columns';
-import {
-  API_KEY_USAGE_AUTH_TYPES,
-  API_KEY_USAGE_METHODS,
-} from '../../domain/api-key-usage.js';
+import { API_KEY_USAGE_AUTH_TYPES, API_KEY_USAGE_METHODS } from '../../domain/api-key-usage.js';
 
 /**
  * One request served through Alia's public API.
@@ -76,14 +73,8 @@ export const apiKeyUsage = pgTable(
     timestamp: timestamptz().notNull(),
   },
   (t) => [
-    index('api_key_usage_api_key_timestamp_idx').on(
-      t.apiKeyId,
-      t.timestamp.desc(),
-    ),
-    index('api_key_usage_oxy_user_timestamp_idx').on(
-      t.oxyUserId,
-      t.timestamp.desc(),
-    ),
+    index('api_key_usage_api_key_timestamp_idx').on(t.apiKeyId, t.timestamp.desc()),
+    index('api_key_usage_oxy_user_timestamp_idx').on(t.oxyUserId, t.timestamp.desc()),
     index('api_key_usage_oxy_user_auth_type_timestamp_idx').on(
       t.oxyUserId,
       t.authType,
@@ -92,11 +83,7 @@ export const apiKeyUsage = pgTable(
     index('api_key_usage_app_timestamp_idx').on(t.appId, t.timestamp.desc()),
     // The expiry sweep's predicate column. Indexed because the sweep scans it.
     index('api_key_usage_timestamp_idx').on(t.timestamp),
-    checkOneOf(
-      'api_key_usage_auth_type_check',
-      t.authType,
-      API_KEY_USAGE_AUTH_TYPES,
-    ),
+    checkOneOf('api_key_usage_auth_type_check', t.authType, API_KEY_USAGE_AUTH_TYPES),
     checkOneOf('api_key_usage_method_check', t.method, API_KEY_USAGE_METHODS),
   ],
 );

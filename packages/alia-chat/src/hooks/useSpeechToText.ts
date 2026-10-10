@@ -8,7 +8,11 @@ import {
 } from '../lib/speech-recognition';
 import type { SpeechRecognitionSession } from '../lib/speech-recognition-types';
 import type { SpeechRecognizerChoice } from '../lib/speech-recognition-types';
-import { speechFailureCode, VOICE_ERROR_MESSAGES, type VoiceErrorCode } from '../lib/speech-messages';
+import {
+  speechFailureCode,
+  VOICE_ERROR_MESSAGES,
+  type VoiceErrorCode,
+} from '../lib/speech-messages';
 import { defaultSpeechLanguage } from '../lib/speech-language';
 
 // ============== OPTIONS ==============
@@ -81,7 +85,10 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
   const currentTextRef = useRef('');
   const restartsRef = useRef(0);
   /** The recognizer and tag this dictation uses, chosen once when it starts. */
-  const recognizerRef = useRef<{ lang: string; service?: string; silent: boolean }>({ lang, silent: false });
+  const recognizerRef = useRef<{ lang: string; service?: string; silent: boolean }>({
+    lang,
+    silent: false,
+  });
   const endWaitersRef = useRef<Array<() => void>>([]);
   const lastMeteringRef = useRef(0);
   const mountedRef = useRef(true);

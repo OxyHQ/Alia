@@ -43,6 +43,14 @@ export interface IconEntry {
 }
 
 export const ICONS: readonly IconEntry[] = [
-  { id: 'agent-robot', name: 'AgentRobot', purpose: 'agents — the sidebar section and the delegation capability' },
-  { id: 'clock', name: 'Clock', purpose: 'Automations — scheduled triggers, in the sidebar and the agent editor' },
+  {
+    id: 'agent-robot',
+    name: 'AgentRobot',
+    purpose: 'agents — the sidebar section and the delegation capability',
+  },
+  {
+    id: 'clock',
+    name: 'Clock',
+    purpose: 'Automations — scheduled triggers, in the sidebar and the agent editor',
+  },
 ];

@@ -99,11 +99,21 @@ describe('plans', () => {
   });
 
   it('filters on all four keys and orders by product then sortOrder', async () => {
-    await insertPlan(db, aPlan('cat-f-a', { product: 'alia', sortOrder: 2, isActive: true, isFree: false }));
-    await insertPlan(db, aPlan('cat-f-b', { product: 'alia', sortOrder: 1, isActive: true, isFree: true }));
-    await insertPlan(db, aPlan('cat-f-c', { product: 'codea', sortOrder: 1, isActive: false, isFree: false }));
+    await insertPlan(
+      db,
+      aPlan('cat-f-a', { product: 'alia', sortOrder: 2, isActive: true, isFree: false }),
+    );
+    await insertPlan(
+      db,
+      aPlan('cat-f-b', { product: 'alia', sortOrder: 1, isActive: true, isFree: true }),
+    );
+    await insertPlan(
+      db,
+      aPlan('cat-f-c', { product: 'codea', sortOrder: 1, isActive: false, isFree: false }),
+    );
 
-    const mine = (rows: { planId: string }[]) => rows.map((r) => r.planId).filter((id) => id.startsWith('cat-f-'));
+    const mine = (rows: { planId: string }[]) =>
+      rows.map((r) => r.planId).filter((id) => id.startsWith('cat-f-'));
 
     // `product` asc then `sortOrder` asc — 'alia' before 'codea', and b before a.
     expect(mine(await selectPlans(db))).toEqual(['cat-f-b', 'cat-f-a', 'cat-f-c']);
@@ -174,9 +184,25 @@ describe('seedPlan', () => {
 
 describe('features', () => {
   it('round-trips, filters and orders by category then sortOrder', async () => {
-    await insertFeature(db, { featureId: 'cat-feat-b', label: 'B', category: 'cat-zone', sortOrder: 2 });
-    await insertFeature(db, { featureId: 'cat-feat-a', label: 'A', category: 'cat-zone', sortOrder: 1 });
-    await insertFeature(db, { featureId: 'cat-feat-off', label: 'Off', category: 'cat-zone', sortOrder: 3, isActive: false });
+    await insertFeature(db, {
+      featureId: 'cat-feat-b',
+      label: 'B',
+      category: 'cat-zone',
+      sortOrder: 2,
+    });
+    await insertFeature(db, {
+      featureId: 'cat-feat-a',
+      label: 'A',
+      category: 'cat-zone',
+      sortOrder: 1,
+    });
+    await insertFeature(db, {
+      featureId: 'cat-feat-off',
+      label: 'Off',
+      category: 'cat-zone',
+      sortOrder: 3,
+      isActive: false,
+    });
 
     const inZone = await selectFeatures(db, { category: 'cat-zone' });
     expect(inZone.map((f) => f.featureId)).toEqual(['cat-feat-a', 'cat-feat-b', 'cat-feat-off']);
@@ -192,7 +218,9 @@ describe('features', () => {
 
   it('updates and deletes by feature id, answering null for a miss', async () => {
     await insertFeature(db, { featureId: 'cat-feat-edit', label: 'Before', category: 'cat-zone' });
-    expect((await updateFeatureByFeatureId(db, 'cat-feat-edit', { label: 'After' }))?.label).toBe('After');
+    expect((await updateFeatureByFeatureId(db, 'cat-feat-edit', { label: 'After' }))?.label).toBe(
+      'After',
+    );
     expect(await updateFeatureByFeatureId(db, 'cat-feat-nope', { label: 'x' })).toBeNull();
     expect((await deleteFeatureByFeatureId(db, 'cat-feat-edit'))?.featureId).toBe('cat-feat-edit');
     expect(await findFeatureByFeatureId(db, 'cat-feat-edit')).toBeNull();
@@ -211,14 +239,29 @@ describe('features', () => {
 
 describe('credit packages', () => {
   it('round-trips and orders by sortOrder, with price as a number', async () => {
-    await seedCreditPackage(db, { packageId: 'cat-pkg-b', name: 'B', credits: 100, price: 999, sortOrder: 2 });
-    await seedCreditPackage(db, { packageId: 'cat-pkg-a', name: 'A', credits: 50, price: 499, sortOrder: 1, isActive: false });
+    await seedCreditPackage(db, {
+      packageId: 'cat-pkg-b',
+      name: 'B',
+      credits: 100,
+      price: 999,
+      sortOrder: 2,
+    });
+    await seedCreditPackage(db, {
+      packageId: 'cat-pkg-a',
+      name: 'A',
+      credits: 50,
+      price: 499,
+      sortOrder: 1,
+      isActive: false,
+    });
 
     const all = (await selectCreditPackages(db)).filter((p) => p.packageId.startsWith('cat-pkg-'));
     expect(all.map((p) => p.packageId)).toEqual(['cat-pkg-a', 'cat-pkg-b']);
     expect(typeof all[0]?.price).toBe('number');
 
-    const active = (await selectCreditPackages(db, { isActive: true })).filter((p) => p.packageId.startsWith('cat-pkg-'));
+    const active = (await selectCreditPackages(db, { isActive: true })).filter((p) =>
+      p.packageId.startsWith('cat-pkg-'),
+    );
     expect(active.map((p) => p.packageId)).toEqual(['cat-pkg-b']);
   });
 
@@ -228,7 +271,12 @@ describe('credit packages', () => {
     // no mocked counterpart.
     let zeroCredits: unknown;
     try {
-      await seedCreditPackage(db, { packageId: 'cat-pkg-zero', name: 'Zero', credits: 0, price: 100 });
+      await seedCreditPackage(db, {
+        packageId: 'cat-pkg-zero',
+        name: 'Zero',
+        credits: 0,
+        price: 100,
+      });
     } catch (error) {
       zeroCredits = error;
     }
@@ -236,7 +284,12 @@ describe('credit packages', () => {
 
     let negativePrice: unknown;
     try {
-      await seedCreditPackage(db, { packageId: 'cat-pkg-neg', name: 'Neg', credits: 10, price: -1 });
+      await seedCreditPackage(db, {
+        packageId: 'cat-pkg-neg',
+        name: 'Neg',
+        credits: 10,
+        price: -1,
+      });
     } catch (error) {
       negativePrice = error;
     }
@@ -246,7 +299,10 @@ describe('credit packages', () => {
   it('seeds once and never overwrites an admin edit', async () => {
     const values = { packageId: 'cat-pkg-seed', name: 'Seeded', credits: 10, price: 100 };
     expect((await seedCreditPackage(db, values)).inserted).toBe(true);
-    await db.update(creditPackages).set({ price: 200 }).where(eq(creditPackages.packageId, 'cat-pkg-seed'));
+    await db
+      .update(creditPackages)
+      .set({ price: 200 })
+      .where(eq(creditPackages.packageId, 'cat-pkg-seed'));
     expect((await seedCreditPackage(db, values)).inserted).toBe(false);
     const rows = await selectCreditPackages(db, {});
     expect(rows.find((p) => p.packageId === 'cat-pkg-seed')?.price).toBe(200);
@@ -309,7 +365,11 @@ describe('plan features', () => {
   it('bulk upsert separates rows it INSERTED from rows it updated', async () => {
     const result = await bulkUpsertPlanFeatures(db, [
       { planId: 'cat-pf-plan', featureId: 'cat-pf-feat', values: { enabled: true } },
-      { planId: 'cat-pf-plan', featureId: 'cat-pf-feat2', values: { enabled: true, limitValue: 7 } },
+      {
+        planId: 'cat-pf-plan',
+        featureId: 'cat-pf-feat2',
+        values: { enabled: true, limitValue: 7 },
+      },
     ]);
     // `cat-pf-feat` already exists from the test above; `cat-pf-feat2` is new.
     expect(result).toEqual({ upserted: 1, modified: 1 });

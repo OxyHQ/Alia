@@ -34,7 +34,10 @@ export class BlockedDestination extends Error {
 }
 
 const blocked = () =>
-  new BlockedDestination('blocked_url', 'Only public HTTP(S) destinations on ports 80 and 443 are allowed.');
+  new BlockedDestination(
+    'blocked_url',
+    'Only public HTTP(S) destinations on ports 80 and 443 are allowed.',
+  );
 
 /** One IPv4 CIDR, as [network, mask] integers. */
 export type Cidr4 = readonly [number, number];
@@ -71,7 +74,7 @@ export function isPublicIp(address: string, extraDenied: readonly Cidr4[] = []):
       (a === 203 && b === 0 && c === 113);
     if (reserved) return false;
     const value = ipv4ToInt(address);
-    return !extraDenied.some(([network, mask]) => ((value & mask) >>> 0) === network);
+    return !extraDenied.some(([network, mask]) => (value & mask) >>> 0 === network);
   }
   // A zone id or an embedded dotted quad (::ffff:10.0.0.1, ::10.0.0.1) is
   // never a browser destination; refusing beats unwrapping.
@@ -80,7 +83,10 @@ export function isPublicIp(address: string, extraDenied: readonly Cidr4[] = []):
   if (halves.length > 2) return false;
   const left = halves[0] ? halves[0].split(':') : [];
   const right = halves[1] ? halves[1].split(':') : [];
-  const words = halves.length === 1 ? left : [...left, ...Array<string>(8 - left.length - right.length).fill('0'), ...right];
+  const words =
+    halves.length === 1
+      ? left
+      : [...left, ...Array<string>(8 - left.length - right.length).fill('0'), ...right];
   const first = Number.parseInt(words[0] ?? '0', 16);
   const second = Number.parseInt(words[1] ?? '0', 16);
   return (
@@ -104,7 +110,10 @@ export function allowedUrl(value: string): URL {
   } catch {
     throw blocked();
   }
-  const hostname = url.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+  const hostname = url.hostname
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '')
+    .toLowerCase();
   if (
     !['http:', 'https:'].includes(url.protocol) ||
     url.username ||
@@ -134,10 +143,15 @@ export function dnsResolver(servers: readonly string[] = []): HostResolver {
   const resolver = new Resolver({ timeout: 3000, tries: 2 });
   if (servers.length > 0) resolver.setServers([...servers]);
   return async (hostname) => {
-    const settled = await Promise.allSettled([resolver.resolve4(hostname), resolver.resolve6(hostname)]);
+    const settled = await Promise.allSettled([
+      resolver.resolve4(hostname),
+      resolver.resolve6(hostname),
+    ]);
     const answers: ResolvedAddress[] = [];
-    if (settled[0].status === 'fulfilled') answers.push(...settled[0].value.map((address) => ({ address, family: 4 as const })));
-    if (settled[1].status === 'fulfilled') answers.push(...settled[1].value.map((address) => ({ address, family: 6 as const })));
+    if (settled[0].status === 'fulfilled')
+      answers.push(...settled[0].value.map((address) => ({ address, family: 4 as const })));
+    if (settled[1].status === 'fulfilled')
+      answers.push(...settled[1].value.map((address) => ({ address, family: 6 as const })));
     return answers;
   };
 }
@@ -162,7 +176,10 @@ export async function destinationFor(
   timeoutMs = 5000,
 ): Promise<Destination> {
   const url = allowedUrl(value);
-  const hostname = url.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+  const hostname = url.hostname
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '')
+    .toLowerCase();
   const port = Number(url.port || (url.protocol === 'https:' ? 443 : 80));
   let answers: ResolvedAddress[];
   const literal = isIP(hostname);
@@ -183,7 +200,8 @@ export async function destinationFor(
       clearTimeout(timer);
     }
   }
-  if (answers.length === 0) throw new BlockedDestination('dns_unavailable', 'The destination could not be resolved.');
+  if (answers.length === 0)
+    throw new BlockedDestination('dns_unavailable', 'The destination could not be resolved.');
   if (answers.some((answer) => !isPublicIp(answer.address, extraDenied))) throw blocked();
   const chosen = answers.find((answer) => answer.family === 4) ?? answers[0];
   if (!chosen) throw blocked();

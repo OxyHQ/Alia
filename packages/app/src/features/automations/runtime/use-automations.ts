@@ -56,7 +56,10 @@ export function useAutomationRuns(automationId: string) {
 export function useSetAutomationEnabled() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ automation, enabled }: {
+    mutationFn: async ({
+      automation,
+      enabled,
+    }: {
       automation: AutomationDefinition;
       enabled: boolean;
     }): Promise<AutomationControlResult> => {
@@ -73,7 +76,10 @@ export function useSetAutomationEnabled() {
 export function useUpdateAutomation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ automationId, update }: {
+    mutationFn: async ({
+      automationId,
+      update,
+    }: {
       automationId: string;
       update: AutomationUpdateInput;
     }): Promise<AutomationControlResult> => {
@@ -107,11 +113,9 @@ export function useRunAutomation() {
       if (automation.trigger.type === 'event') {
         throw new Error('Event tasks run only when their configured event occurs');
       }
-      await apiClient.post(
-        API_ROUTES.automations.run(automation.id),
-        undefined,
-        { headers: { 'Idempotency-Key': createRandomUuid() } },
-      );
+      await apiClient.post(API_ROUTES.automations.run(automation.id), undefined, {
+        headers: { 'Idempotency-Key': createRandomUuid() },
+      });
     },
     onSuccess: () => invalidateOverview(queryClient),
   });

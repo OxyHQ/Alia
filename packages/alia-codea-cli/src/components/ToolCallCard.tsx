@@ -17,11 +17,15 @@ export function ToolCallCard({ execution }: ToolCallCardProps) {
       <Box flexDirection="column" paddingLeft={2}>
         <Box gap={1}>
           <Text color="red">{'✗'}</Text>
-          <Text bold color="gray" strikethrough>{tool}</Text>
+          <Text bold color="gray" strikethrough>
+            {tool}
+          </Text>
           <Text color="gray">{argStr}</Text>
         </Box>
         <Box paddingLeft={2}>
-          <Text color="yellow" dimColor>Declined by user</Text>
+          <Text color="yellow" dimColor>
+            Declined by user
+          </Text>
         </Box>
       </Box>
     );
@@ -41,7 +45,8 @@ export function ToolCallCard({ execution }: ToolCallCardProps) {
       {isDone && result && (
         <Box paddingLeft={2}>
           <Text color="gray" wrap="truncate-end">
-            {result.slice(0, 120).replace(/\n/g, ' ')}{result.length > 120 ? '...' : ''}
+            {result.slice(0, 120).replace(/\n/g, ' ')}
+            {result.length > 120 ? '...' : ''}
           </Text>
         </Box>
       )}

@@ -3499,25 +3499,7 @@
       "No rollout stage has been entered (oxy:docs/inference/README.md): INFERENCE_EDGE_AUDIENCE unset serves nobody, the machine-key lane is shut, charging is shadow-metered."
     ],
     "earned": [
-      323,
-      334,
-      336,
-      339,
-      340,
-      341,
-      342,
-      343,
-      344,
-      345,
-      346,
-      351,
-      352,
-      365,
-      368,
-      377,
-      406,
-      407,
-      538
+      323, 334, 336, 339, 340, 341, 342, 343, 344, 345, 346, 351, 352, 365, 368, 377, 406, 407, 538
     ],
     "landedThisSession": {
       "kaana": "#70 conformance over every OpenAI-compatible built-in slug; docs/architecture.md embeddings sentence",

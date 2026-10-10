@@ -1,10 +1,7 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { crowdsourceWebhooks } from '@crowdsource.you/core/express';
 import { crowdSourceConfig } from '../lib/crowdsource/config.js';
-import {
-  recordDecisionEvent,
-  recordIgnoredEvent,
-} from '../lib/crowdsource/inbound-service.js';
+import { recordDecisionEvent, recordIgnoredEvent } from '../lib/crowdsource/inbound-service.js';
 import { processedEventStore } from '../lib/crowdsource/event-store.js';
 import { log } from '../lib/logger.js';
 import { recordMetric } from '../lib/observability/index.js';

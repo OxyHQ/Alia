@@ -30,9 +30,8 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
     document: vscode.TextDocument,
     position: vscode.Position,
     context: vscode.InlineCompletionContext,
-    token: vscode.CancellationToken
+    token: vscode.CancellationToken,
   ): Promise<vscode.InlineCompletionItem[] | vscode.InlineCompletionList | null | undefined> {
-
     // Check if inline completions are enabled
     const config = vscode.workspace.getConfiguration('codea');
     const enabled = config.get('enableInlineCompletions', true);
@@ -60,12 +59,7 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
         return null;
       }
 
-      return [
-        new vscode.InlineCompletionItem(
-          completion,
-          new vscode.Range(position, position)
-        )
-      ];
+      return [new vscode.InlineCompletionItem(completion, new vscode.Range(position, position))];
     } catch (error) {
       log.error('Alia inline completion error:', error);
       return null;
@@ -76,13 +70,12 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
     document: vscode.TextDocument,
     position: vscode.Position,
     token: vscode.CancellationToken,
-    accessToken: string
+    accessToken: string,
   ): Promise<string | null> {
     // Get context around the cursor
-    const prefix = document.getText(new vscode.Range(
-      new vscode.Position(Math.max(0, position.line - 10), 0),
-      position
-    ));
+    const prefix = document.getText(
+      new vscode.Range(new vscode.Position(Math.max(0, position.line - 10), 0), position),
+    );
 
     /**
      * The ten lines AFTER the cursor.
@@ -119,7 +112,9 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
      */
     const controller = new AbortController();
     if (token.isCancellationRequested) controller.abort();
-    const cancellation = token.onCancellationRequested(() => { controller.abort(); });
+    const cancellation = token.onCancellationRequested(() => {
+      controller.abort();
+    });
 
     try {
       // The product runtime — same reason as `chatParticipant.ts`.
@@ -127,7 +122,7 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           // Resolved at the request. `undefined` drops the key from the JSON,
@@ -136,25 +131,26 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
           messages: [
             {
               role: 'system',
-              content: 'You are an expert code completion assistant. Provide only the code completion, nothing else. Do not include explanations, markdown, or code fences. Just the raw completion code.'
+              content:
+                'You are an expert code completion assistant. Provide only the code completion, nothing else. Do not include explanations, markdown, or code fences. Just the raw completion code.',
             },
             {
               role: 'user',
-              content: prompt
-            }
+              content: prompt,
+            },
           ],
           max_tokens: 500,
           temperature: 0.2,
-          stream: false
+          stream: false,
         }),
-        signal: controller.signal
+        signal: controller.signal,
       });
 
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
       }
 
-      const data = await response.json() as {
+      const data = (await response.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
       };
 
@@ -190,11 +186,7 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
     }
   }
 
-  private buildPrompt(
-    document: vscode.TextDocument,
-    prefix: string,
-    suffix: string
-  ): string {
+  private buildPrompt(document: vscode.TextDocument, prefix: string, suffix: string): string {
     const language = document.languageId;
 
     return `Complete the following ${language} code. Provide only the completion for the cursor position, do not repeat the prefix.

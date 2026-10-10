@@ -48,9 +48,16 @@ const STOPPER_FOR: Readonly<Record<string, string>> = {
 const order: string[] = [];
 
 /** Records the call, in order, and resolves. */
-const traced = (name: string) => vi.fn(() => { order.push(name); return Promise.resolve(); });
+const traced = (name: string) =>
+  vi.fn(() => {
+    order.push(name);
+    return Promise.resolve();
+  });
 /** Records the call, in order, and returns nothing — for the synchronous starters. */
-const tracedSync = (name: string) => vi.fn(() => { order.push(name); });
+const tracedSync = (name: string) =>
+  vi.fn(() => {
+    order.push(name);
+  });
 
 const startTriggerEngine = tracedSync('startTriggerEngine');
 const stopTriggerEngine = traced('stopTriggerEngine');
@@ -67,7 +74,10 @@ const startShowWorker = traced('startShowWorker');
 const shutdownShowQueue = traced('shutdownShowQueue');
 const startSkillRegistrySync = tracedSync('startSkillRegistrySync');
 const stopSkillRegistrySync = traced('stopSkillRegistrySync');
-const failOrphanedAudioJobs = vi.fn(() => { order.push('failOrphanedAudioJobs'); return Promise.resolve(0); });
+const failOrphanedAudioJobs = vi.fn(() => {
+  order.push('failOrphanedAudioJobs');
+  return Promise.resolve(0);
+});
 const startAgentRunReaper = tracedSync('startAgentRunReaper');
 const stopAgentRunReaper = tracedSync('stopAgentRunReaper');
 
@@ -80,7 +90,11 @@ vi.mock('../crowdsource/dispatcher.js', () => ({
   moderationOutboxDispatcher: { start: dispatcherStart, stop: dispatcherStop },
 }));
 vi.mock('../task-queue.js', () => ({ initTaskQueue, startWorker, shutdownTaskQueue }));
-vi.mock('../alia-task-queue.js', () => ({ initAliaTaskQueue, startAliaTaskWorker, shutdownAliaTaskQueue }));
+vi.mock('../alia-task-queue.js', () => ({
+  initAliaTaskQueue,
+  startAliaTaskWorker,
+  shutdownAliaTaskQueue,
+}));
 vi.mock('../show/show-queue.js', () => ({ initShowQueue, startShowWorker, shutdownShowQueue }));
 vi.mock('../skills/scheduler.js', () => ({ startSkillRegistrySync, stopSkillRegistrySync }));
 vi.mock('../../db/notifications/audioJobRepository.js', () => ({ failOrphanedAudioJobs }));
@@ -90,7 +104,9 @@ vi.mock('../logger.js', () => ({
   log: { general: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
 }));
 
-const { startBackgroundServices, stopBackgroundServices } = await import('../background-services.js');
+const { startBackgroundServices, stopBackgroundServices } = await import(
+  '../background-services.js'
+);
 
 /** Let the `.then(...)` continuations of the fire-and-forget starters settle. */
 async function settle(): Promise<void> {
@@ -136,8 +152,14 @@ describe('startBackgroundServices', () => {
      * asserted is that nothing here is awaited: every starter's promise is still
      * pending when the call returns.
      */
-    initTaskQueue.mockImplementationOnce(() => { order.push('initTaskQueue'); return new Promise(() => {}); });
-    initShowQueue.mockImplementationOnce(() => { order.push('initShowQueue'); return new Promise(() => {}); });
+    initTaskQueue.mockImplementationOnce(() => {
+      order.push('initTaskQueue');
+      return new Promise(() => {});
+    });
+    initShowQueue.mockImplementationOnce(() => {
+      order.push('initShowQueue');
+      return new Promise(() => {});
+    });
 
     expect(startBackgroundServices()).toBeUndefined();
     // It got all the way to the last statement despite two starters that never settle.

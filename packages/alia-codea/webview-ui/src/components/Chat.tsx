@@ -1,9 +1,9 @@
-"use client"
+'use client';
 
-import * as React from "react"
-import Markdown from "react-markdown"
-import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import * as React from 'react';
+import Markdown from 'react-markdown';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,21 +12,17 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+} from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupTextarea,
-} from "@/components/ui/input-group"
-import { Item, ItemContent, ItemDescription, ItemTitle } from "@/components/ui/item"
-import { cn } from "@/lib/utils"
-import { HugeiconsIcon } from "@hugeicons/react"
+} from '@/components/ui/input-group';
+import { Item, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
+import { cn } from '@/lib/utils';
+import { HugeiconsIcon } from '@hugeicons/react';
 import {
   PlusSignIcon,
   AttachmentIcon,
@@ -42,137 +38,153 @@ import {
   UserIcon,
   Login01Icon,
   Logout01Icon,
-} from "@hugeicons/core-free-icons"
+} from '@hugeicons/core-free-icons';
 
 // Types
 interface Message {
-  role: "user" | "assistant"
-  content: string
-  context?: ContextItem[]
-  toolExecutions?: ToolExecution[]
-  retryable?: boolean
+  role: 'user' | 'assistant';
+  content: string;
+  context?: ContextItem[];
+  toolExecutions?: ToolExecution[];
+  retryable?: boolean;
 }
 
 interface ToolExecution {
-  tool: string
-  args: Record<string, unknown>
-  status: "preparing" | "running" | "success" | "error"
-  result?: string
+  tool: string;
+  args: Record<string, unknown>;
+  status: 'preparing' | 'running' | 'success' | 'error';
+  result?: string;
 }
 
 interface VSCodeAPI {
-  postMessage: (message: unknown) => void
-  getState: () => unknown
-  setState: (state: unknown) => void
+  postMessage: (message: unknown) => void;
+  getState: () => unknown;
+  setState: (state: unknown) => void;
 }
 
-declare function acquireVsCodeApi(): VSCodeAPI
+declare function acquireVsCodeApi(): VSCodeAPI;
 
 // VS Code API singleton
-const vscode = typeof acquireVsCodeApi !== "undefined" ? acquireVsCodeApi() : null
+const vscode = typeof acquireVsCodeApi !== 'undefined' ? acquireVsCodeApi() : null;
 
 // Logo URI from extension (set in webview HTML)
-const LOGO_URI = (window as unknown as { CODEA_LOGO_URI?: string }).CODEA_LOGO_URI || "/codea-logo.png"
+const LOGO_URI =
+  (window as unknown as { CODEA_LOGO_URI?: string }).CODEA_LOGO_URI || '/codea-logo.png';
 
 // Permission modes
 const permissionModes = [
-  { id: "ask", label: "Ask before edits", description: "Asks for approval before making changes", icon: SparklesIcon },
-  { id: "edit", label: "Edit automatically", description: "Makes changes without asking", icon: CheckmarkCircle02Icon },
-  { id: "plan", label: "Plan mode", description: "Plans changes before executing", icon: NoteIcon },
-  { id: "yolo", label: "Bypass permissions", description: "Full autonomous mode", icon: AlertCircleIcon },
-]
+  {
+    id: 'ask',
+    label: 'Ask before edits',
+    description: 'Asks for approval before making changes',
+    icon: SparklesIcon,
+  },
+  {
+    id: 'edit',
+    label: 'Edit automatically',
+    description: 'Makes changes without asking',
+    icon: CheckmarkCircle02Icon,
+  },
+  { id: 'plan', label: 'Plan mode', description: 'Plans changes before executing', icon: NoteIcon },
+  {
+    id: 'yolo',
+    label: 'Bypass permissions',
+    description: 'Full autonomous mode',
+    icon: AlertCircleIcon,
+  },
+];
 
 // Personalized greetings
 const greetings = [
   "let's code",
-  "ready to build something?",
-  "what are we working on?",
+  'ready to build something?',
+  'what are we working on?',
   "let's ship some code",
   "what's on the agenda?",
   "let's get creative",
-  "time to build",
-  "what can I help with?",
+  'time to build',
+  'what can I help with?',
   "let's make magic happen",
-  "ready when you are",
-]
+  'ready when you are',
+];
 
 // Tool name to friendly label
 const toolLabels: Record<string, string> = {
-  read_file: "Read",
-  write_file: "Write",
-  edit_file: "Edit",
-  delete_file: "Delete",
-  list_files: "List",
-  search_files: "Search",
-  run_command: "Bash",
-  set_mode: "Mode",
-}
+  read_file: 'Read',
+  write_file: 'Write',
+  edit_file: 'Edit',
+  delete_file: 'Delete',
+  list_files: 'List',
+  search_files: 'Search',
+  run_command: 'Bash',
+  set_mode: 'Mode',
+};
 
 // Thinking phrases like Claude Code
 const thinkingPhrases = [
-  "Thinking...",
-  "Crafting...",
-  "Pondering...",
-  "Computing...",
-  "Processing...",
-  "Analyzing...",
-  "Reasoning...",
-  "Cooking...",
-  "Brewing...",
-  "Conjuring...",
-]
+  'Thinking...',
+  'Crafting...',
+  'Pondering...',
+  'Computing...',
+  'Processing...',
+  'Analyzing...',
+  'Reasoning...',
+  'Cooking...',
+  'Brewing...',
+  'Conjuring...',
+];
 
 const workingPhrases = [
-  "Working...",
-  "Executing...",
-  "Running...",
-  "Building...",
-  "Creating...",
-  "Doing the thing...",
-]
+  'Working...',
+  'Executing...',
+  'Running...',
+  'Building...',
+  'Creating...',
+  'Doing the thing...',
+];
 
 // Animated thinking indicator component
 function ThinkingIndicator({ isWorking = false }: { isWorking?: boolean }) {
-  const phrases = isWorking ? workingPhrases : thinkingPhrases
+  const phrases = isWorking ? workingPhrases : thinkingPhrases;
   const [animation, setAnimation] = React.useState(() => ({
     phraseIndex: Math.floor(Math.random() * phrases.length),
-    displayText: "",
+    displayText: '',
     isTyping: true,
-  }))
-  const phrase = phrases[animation.phraseIndex % phrases.length]
+  }));
+  const phrase = phrases[animation.phraseIndex % phrases.length];
 
   React.useEffect(() => {
-    let charIndex = 0
-    let nextPhraseTimeout: ReturnType<typeof setTimeout> | undefined
+    let charIndex = 0;
+    let nextPhraseTimeout: ReturnType<typeof setTimeout> | undefined;
 
     // Type out the phrase
     const typeInterval = setInterval(() => {
       if (charIndex < phrase.length) {
-        charIndex++
+        charIndex++;
         setAnimation((current) => ({
           ...current,
           displayText: phrase.slice(0, charIndex),
-        }))
+        }));
       } else {
-        clearInterval(typeInterval)
-        setAnimation((current) => ({ ...current, isTyping: false }))
+        clearInterval(typeInterval);
+        setAnimation((current) => ({ ...current, isTyping: false }));
 
         // Wait then switch to next phrase
         nextPhraseTimeout = setTimeout(() => {
           setAnimation((current) => ({
             phraseIndex: (current.phraseIndex + 1) % phrases.length,
-            displayText: "",
+            displayText: '',
             isTyping: true,
-          }))
-        }, 1500)
+          }));
+        }, 1500);
       }
-    }, 40)
+    }, 40);
 
     return () => {
-      clearInterval(typeInterval)
-      if (nextPhraseTimeout) clearTimeout(nextPhraseTimeout)
-    }
-  }, [phrase, phrases.length])
+      clearInterval(typeInterval);
+      if (nextPhraseTimeout) clearTimeout(nextPhraseTimeout);
+    };
+  }, [phrase, phrases.length]);
 
   return (
     <div className="flex items-center gap-2 py-1 text-sm text-muted-foreground">
@@ -182,7 +194,7 @@ function ThinkingIndicator({ isWorking = false }: { isWorking?: boolean }) {
         {animation.isTyping && <span className="animate-pulse">|</span>}
       </span>
     </div>
-  )
+  );
 }
 
 /**
@@ -194,28 +206,28 @@ function ThinkingIndicator({ isWorking = false }: { isWorking?: boolean }) {
  * first, then by publisher. There is deliberately no built-in list.
  */
 interface PickerModel {
-  id: string
-  label: string
-  description: string
+  id: string;
+  label: string;
+  description: string;
 }
 
 interface PickerGroup {
-  title: string
-  models: PickerModel[]
+  title: string;
+  models: PickerModel[];
 }
 
 // Context item interface
 interface ContextItem {
-  path: string
-  content: string
-  language: string
+  path: string;
+  content: string;
+  language: string;
 }
 
 export function Chat() {
-  const [messages, setMessages] = React.useState<Message[]>([])
-  const [input, setInput] = React.useState("")
-  const [isGenerating, setIsGenerating] = React.useState(false)
-  const [currentMode, setCurrentMode] = React.useState("ask")
+  const [messages, setMessages] = React.useState<Message[]>([]);
+  const [input, setInput] = React.useState('');
+  const [isGenerating, setIsGenerating] = React.useState(false);
+  const [currentMode, setCurrentMode] = React.useState('ask');
   /**
    * The model the picker has selected, empty for "no explicit choice".
    *
@@ -223,201 +235,216 @@ export function Chat() {
    * `codea.model` setting and, when that is empty too, omits `model` so the
    * server uses its default (`chatProvider.ts`). No default is chosen here.
    */
-  const [currentModelId, setCurrentModelId] = React.useState("")
-  const [streamingContent, setStreamingContent] = React.useState("")
-  const [userName, setUserName] = React.useState<string | null>(null)
-  const [toolExecutions, setToolExecutions] = React.useState<ToolExecution[]>([])
-  const [modelGroups, setModelGroups] = React.useState<PickerGroup[]>([])
-  const [defaultModelLabel, setDefaultModelLabel] = React.useState("Default")
-  const [contextItems, setContextItems] = React.useState<ContextItem[]>([])
-  const scrollRef = React.useRef<HTMLDivElement>(null)
-  const bottomRef = React.useRef<HTMLDivElement>(null)
-  const textareaRef = React.useRef<HTMLTextAreaElement>(null)
-  const streamingContentRef = React.useRef("")
-  const toolExecutionsRef = React.useRef<ToolExecution[]>([])
+  const [currentModelId, setCurrentModelId] = React.useState('');
+  const [streamingContent, setStreamingContent] = React.useState('');
+  const [userName, setUserName] = React.useState<string | null>(null);
+  const [toolExecutions, setToolExecutions] = React.useState<ToolExecution[]>([]);
+  const [modelGroups, setModelGroups] = React.useState<PickerGroup[]>([]);
+  const [defaultModelLabel, setDefaultModelLabel] = React.useState('Default');
+  const [contextItems, setContextItems] = React.useState<ContextItem[]>([]);
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const bottomRef = React.useRef<HTMLDivElement>(null);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const streamingContentRef = React.useRef('');
+  const toolExecutionsRef = React.useRef<ToolExecution[]>([]);
 
   // Keep refs in sync with state
   React.useEffect(() => {
-    streamingContentRef.current = streamingContent
-  }, [streamingContent])
+    streamingContentRef.current = streamingContent;
+  }, [streamingContent]);
 
   React.useEffect(() => {
-    toolExecutionsRef.current = toolExecutions
-  }, [toolExecutions])
+    toolExecutionsRef.current = toolExecutions;
+  }, [toolExecutions]);
 
   // Handle messages from extension
   React.useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      const data = event.data
-      console.log('[Codea Webview] Received message:', data.type, data)
+      const data = event.data;
+      console.log('[Codea Webview] Received message:', data.type, data);
       switch (data.type) {
-        case "addMessage":
+        case 'addMessage':
           // Only add assistant messages from extension (user messages are added locally with context)
-          if (data.message.role === "assistant") {
-            setMessages((prev) => [...prev, data.message])
+          if (data.message.role === 'assistant') {
+            setMessages((prev) => [...prev, data.message]);
           }
-          break
-        case "startAssistantMessage":
-          setIsGenerating(true)
-          setStreamingContent("")
-          streamingContentRef.current = ""
-          setToolExecutions([])
-          break
-        case "streamContent":
-          setStreamingContent((prev) => prev + data.content)
-          break
-        case "endAssistantMessage": {
-          setIsGenerating(false)
+          break;
+        case 'startAssistantMessage':
+          setIsGenerating(true);
+          setStreamingContent('');
+          streamingContentRef.current = '';
+          setToolExecutions([]);
+          break;
+        case 'streamContent':
+          setStreamingContent((prev) => prev + data.content);
+          break;
+        case 'endAssistantMessage': {
+          setIsGenerating(false);
           // Use refs to get latest values (avoids closure issues)
-          const finalContent = streamingContentRef.current
-          const finalToolExecutions = toolExecutionsRef.current
+          const finalContent = streamingContentRef.current;
+          const finalToolExecutions = toolExecutionsRef.current;
           if (finalContent || finalToolExecutions.length > 0) {
-            setMessages((prev) => [...prev, {
-              role: "assistant",
-              content: finalContent || "",
-              toolExecutions: finalToolExecutions.length > 0 ? [...finalToolExecutions] : undefined
-            }])
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: 'assistant',
+                content: finalContent || '',
+                toolExecutions:
+                  finalToolExecutions.length > 0 ? [...finalToolExecutions] : undefined,
+              },
+            ]);
           }
-          setStreamingContent("")
-          streamingContentRef.current = ""
-          setToolExecutions([])
-          toolExecutionsRef.current = []
-          break
+          setStreamingContent('');
+          streamingContentRef.current = '';
+          setToolExecutions([]);
+          toolExecutionsRef.current = [];
+          break;
         }
-        case "error":
-          setIsGenerating(false)
-          setMessages((prev) => [...prev, {
-            role: "assistant",
-            content: `Error: ${data.message}`,
-            retryable: !!data.retryable
-          }])
-          setStreamingContent("")
-          streamingContentRef.current = ""
-          setToolExecutions([])
-          break
-        case "clearStream":
-          setStreamingContent("")
-          streamingContentRef.current = ""
-          setToolExecutions([])
-          break
-        case "clearChat":
-          setMessages([])
-          setStreamingContent("")
-          streamingContentRef.current = ""
-          setToolExecutions([])
-          break
-        case "userInfo":
-          setUserName(data.userName)
-          break
-        case "toolCall":
+        case 'error':
+          setIsGenerating(false);
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: `Error: ${data.message}`,
+              retryable: !!data.retryable,
+            },
+          ]);
+          setStreamingContent('');
+          streamingContentRef.current = '';
+          setToolExecutions([]);
+          break;
+        case 'clearStream':
+          setStreamingContent('');
+          streamingContentRef.current = '';
+          setToolExecutions([]);
+          break;
+        case 'clearChat':
+          setMessages([]);
+          setStreamingContent('');
+          streamingContentRef.current = '';
+          setToolExecutions([]);
+          break;
+        case 'userInfo':
+          setUserName(data.userName);
+          break;
+        case 'toolCall':
           setToolExecutions((prev) => {
             // Check if this tool already exists (from preparing phase)
-            const existingIndex = prev.findIndex(t => t.tool === data.tool && t.status === "preparing")
-            if (existingIndex >= 0 && data.status === "running") {
+            const existingIndex = prev.findIndex(
+              (t) => t.tool === data.tool && t.status === 'preparing',
+            );
+            if (existingIndex >= 0 && data.status === 'running') {
               // Update existing preparing entry to running
               return prev.map((t, i) =>
-                i === existingIndex ? { ...t, args: data.args, status: "running" } : t
-              )
+                i === existingIndex ? { ...t, args: data.args, status: 'running' } : t,
+              );
             }
             // Add new entry
-            return [...prev, {
-              tool: data.tool,
-              args: data.args,
-              status: data.status || "running"
-            }]
-          })
-          break
-        case "toolResult":
+            return [
+              ...prev,
+              {
+                tool: data.tool,
+                args: data.args,
+                status: data.status || 'running',
+              },
+            ];
+          });
+          break;
+        case 'toolResult':
           setToolExecutions((prev) =>
             prev.map((t, i) =>
               i === prev.length - 1
-                ? { ...t, status: data.success ? "success" : "error", result: data.result }
-                : t
-            )
-          )
-          break
-        case "models":
+                ? { ...t, status: data.success ? 'success' : 'error', result: data.result }
+                : t,
+            ),
+          );
+          break;
+        case 'models':
           if (Array.isArray(data.groups)) {
-            setModelGroups(data.groups)
+            setModelGroups(data.groups);
           }
-          if (typeof data.defaultLabel === "string") {
-            setDefaultModelLabel(data.defaultLabel)
+          if (typeof data.defaultLabel === 'string') {
+            setDefaultModelLabel(data.defaultLabel);
           }
-          break
-        case "contextAdded":
+          break;
+        case 'contextAdded':
           if (data.items && data.items.length > 0) {
-            setContextItems((prev) => [...prev, ...data.items])
+            setContextItems((prev) => [...prev, ...data.items]);
           }
-          break
-        case "modeChanged":
+          break;
+        case 'modeChanged':
           if (data.mode) {
-            setCurrentMode(data.mode)
+            setCurrentMode(data.mode);
           }
-          break
+          break;
       }
-    }
+    };
 
-    window.addEventListener("message", handleMessage)
-    return () => window.removeEventListener("message", handleMessage)
-  }, [])
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   // Auto-scroll to bottom
   React.useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages, streamingContent, toolExecutions])
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, streamingContent, toolExecutions]);
 
   const sendMessage = () => {
-    if (!input.trim() || isGenerating) return
-    const messageContext = contextItems.length > 0 ? [...contextItems] : undefined
+    if (!input.trim() || isGenerating) return;
+    const messageContext = contextItems.length > 0 ? [...contextItems] : undefined;
     vscode?.postMessage({
-      type: "sendMessage",
+      type: 'sendMessage',
       message: input.trim(),
       // Two different things: `mode` is ask/agent, `model` is the request
       // field the API reads — a `publisher/model` id from the picker, or empty
       // for the server default.
       mode: currentMode,
       model: currentModelId,
-      context: messageContext
-    })
+      context: messageContext,
+    });
     // Add message with context to local state for display
-    setMessages((prev) => [...prev, {
-      role: "user",
-      content: input.trim(),
-      context: messageContext
-    }])
-    setInput("")
-    setContextItems([])
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'user',
+        content: input.trim(),
+        context: messageContext,
+      },
+    ]);
+    setInput('');
+    setContextItems([]);
     if (textareaRef.current) {
-      textareaRef.current.style.height = "auto"
+      textareaRef.current.style.height = 'auto';
     }
-  }
+  };
 
   const removeContextItem = (index: number) => {
-    setContextItems((prev) => prev.filter((_, i) => i !== index))
-  }
+    setContextItems((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const stopGeneration = () => {
-    vscode?.postMessage({ type: "stopGeneration" })
-  }
+    vscode?.postMessage({ type: 'stopGeneration' });
+  };
 
   const newConversation = () => {
-    vscode?.postMessage({ type: "newConversation" })
-  }
+    vscode?.postMessage({ type: 'newConversation' });
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
       if (isGenerating) {
-        stopGeneration()
+        stopGeneration();
       } else {
-        sendMessage()
+        sendMessage();
       }
     }
-  }
+  };
 
-  const currentModeConfig = permissionModes.find((m) => m.id === currentMode)
+  const currentModeConfig = permissionModes.find((m) => m.id === currentMode);
 
-  const hasMessages = messages.length > 0 || streamingContent
+  const hasMessages = messages.length > 0 || streamingContent;
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
@@ -425,7 +452,12 @@ export function Chat() {
       <header className="sticky top-0 z-10 flex h-10 shrink-0 items-center gap-2 border-b bg-background px-3">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-7" onClick={() => vscode?.postMessage({ type: "showHistory" })}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={() => vscode?.postMessage({ type: 'showHistory' })}
+            >
               <HugeiconsIcon icon={Clock01Icon} strokeWidth={2} className="size-4" />
             </Button>
           </TooltipTrigger>
@@ -437,7 +469,8 @@ export function Chat() {
             <Button variant="ghost" size="sm" className="gap-1.5 px-2 h-7">
               <img src={LOGO_URI} alt="Codea" className="size-5 rounded-full" />
               <span className="text-sm font-medium truncate max-w-40">
-                {modelGroups.flatMap(g => g.models).find(m => m.id === currentModelId)?.label || defaultModelLabel}
+                {modelGroups.flatMap((g) => g.models).find((m) => m.id === currentModelId)?.label ||
+                  defaultModelLabel}
               </span>
               <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} className="size-3 opacity-50" />
             </Button>
@@ -448,20 +481,26 @@ export function Chat() {
                 <Item size="xs" className="p-0">
                   <ItemContent>
                     <ItemTitle>{defaultModelLabel}</ItemTitle>
-                    <ItemDescription className="text-xs">The model Alia uses when you don't pick one</ItemDescription>
+                    <ItemDescription className="text-xs">
+                      The model Alia uses when you don't pick one
+                    </ItemDescription>
                   </ItemContent>
                 </Item>
               </DropdownMenuRadioItem>
               {modelGroups.map((group) => (
                 <DropdownMenuGroup key={group.title}>
-                  <DropdownMenuLabel className="text-xs text-muted-foreground">{group.title}</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">
+                    {group.title}
+                  </DropdownMenuLabel>
                   {group.models.map((model) => (
                     <DropdownMenuRadioItem key={`${group.title}:${model.id}`} value={model.id}>
                       <Item size="xs" className="p-0">
                         <ItemContent>
                           <ItemTitle>{model.label}</ItemTitle>
                           {model.description && (
-                            <ItemDescription className="text-xs">{model.description}</ItemDescription>
+                            <ItemDescription className="text-xs">
+                              {model.description}
+                            </ItemDescription>
                           )}
                         </ItemContent>
                       </Item>
@@ -486,7 +525,7 @@ export function Chat() {
               <DropdownMenuRadioGroup>
                 <button
                   className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent cursor-pointer"
-                  onClick={() => vscode?.postMessage({ type: "signOut" })}
+                  onClick={() => vscode?.postMessage({ type: 'signOut' })}
                 >
                   <HugeiconsIcon icon={Logout01Icon} strokeWidth={2} className="size-4" />
                   Sign out
@@ -497,7 +536,12 @@ export function Chat() {
         ) : (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-1.5 px-2 h-7" onClick={() => vscode?.postMessage({ type: "signIn" })}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 px-2 h-7"
+                onClick={() => vscode?.postMessage({ type: 'signIn' })}
+              >
                 <HugeiconsIcon icon={Login01Icon} strokeWidth={2} className="size-4" />
                 <span className="text-xs">Sign in</span>
               </Button>
@@ -508,7 +552,12 @@ export function Chat() {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-7" onClick={() => vscode?.postMessage({ type: "openSettings" })}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={() => vscode?.postMessage({ type: 'openSettings' })}
+            >
               <HugeiconsIcon icon={Settings01Icon} strokeWidth={2} className="size-4" />
             </Button>
           </TooltipTrigger>
@@ -531,8 +580,8 @@ export function Chat() {
           <WelcomeScreen
             userName={userName}
             onSuggestionClick={(text) => {
-              setInput(text)
-              textareaRef.current?.focus()
+              setInput(text);
+              textareaRef.current?.focus();
             }}
           />
         ) : (
@@ -541,11 +590,15 @@ export function Chat() {
               <MessageBubble
                 key={i}
                 message={msg}
-                onRetry={msg.retryable ? () => {
-                  // Remove the error message and retry
-                  setMessages((prev) => prev.filter((_, idx) => idx !== i))
-                  vscode?.postMessage({ type: "retry" })
-                } : undefined}
+                onRetry={
+                  msg.retryable
+                    ? () => {
+                        // Remove the error message and retry
+                        setMessages((prev) => prev.filter((_, idx) => idx !== i));
+                        vscode?.postMessage({ type: 'retry' });
+                      }
+                    : undefined
+                }
               />
             ))}
             {isGenerating && (
@@ -561,7 +614,7 @@ export function Chat() {
                 {/* Show streaming content or thinking/working indicator */}
                 {streamingContent ? (
                   <MessageBubble
-                    message={{ role: "assistant", content: streamingContent }}
+                    message={{ role: 'assistant', content: streamingContent }}
                     isStreaming
                   />
                 ) : (
@@ -578,7 +631,7 @@ export function Chat() {
       <div
         className="sticky bottom-0 z-10 shrink-0 p-3 pt-8"
         style={{
-          background: 'linear-gradient(to top, var(--background) 70%, transparent 100%)'
+          background: 'linear-gradient(to top, var(--background) 70%, transparent 100%)',
         }}
       >
         {/* Context items */}
@@ -606,10 +659,10 @@ export function Chat() {
             placeholder="Message Codea..."
             value={input}
             onChange={(e) => {
-              setInput(e.target.value)
+              setInput(e.target.value);
               // Auto-resize
-              e.target.style.height = "auto"
-              e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px"
+              e.target.style.height = 'auto';
+              e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
             }}
             onKeyDown={handleKeyDown}
             className="min-h-[36px] max-h-[200px]"
@@ -625,15 +678,19 @@ export function Chat() {
                       icon={currentModeConfig?.icon || SparklesIcon}
                       strokeWidth={2}
                       className={cn(
-                        "size-3.5",
-                        currentMode === "ask" && "text-primary",
-                        currentMode === "edit" && "text-green-500",
-                        currentMode === "plan" && "text-blue-500",
-                        currentMode === "yolo" && "text-destructive"
+                        'size-3.5',
+                        currentMode === 'ask' && 'text-primary',
+                        currentMode === 'edit' && 'text-green-500',
+                        currentMode === 'plan' && 'text-blue-500',
+                        currentMode === 'yolo' && 'text-destructive',
                       )}
                     />
-                    <span>{currentModeConfig?.label.split(" ")[0]}</span>
-                    <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} className="size-3 opacity-50" />
+                    <span>{currentModeConfig?.label.split(' ')[0]}</span>
+                    <HugeiconsIcon
+                      icon={ArrowDown01Icon}
+                      strokeWidth={2}
+                      className="size-3 opacity-50"
+                    />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-56">
@@ -645,16 +702,18 @@ export function Chat() {
                             icon={mode.icon}
                             strokeWidth={2}
                             className={cn(
-                              "size-4",
-                              mode.id === "ask" && "text-primary",
-                              mode.id === "edit" && "text-green-500",
-                              mode.id === "plan" && "text-blue-500",
-                              mode.id === "yolo" && "text-destructive"
+                              'size-4',
+                              mode.id === 'ask' && 'text-primary',
+                              mode.id === 'edit' && 'text-green-500',
+                              mode.id === 'plan' && 'text-blue-500',
+                              mode.id === 'yolo' && 'text-destructive',
                             )}
                           />
                           <ItemContent>
                             <ItemTitle>{mode.label}</ItemTitle>
-                            <ItemDescription className="text-xs">{mode.description}</ItemDescription>
+                            <ItemDescription className="text-xs">
+                              {mode.description}
+                            </ItemDescription>
                           </ItemContent>
                         </Item>
                       </DropdownMenuRadioItem>
@@ -670,7 +729,7 @@ export function Chat() {
                     variant="ghost"
                     size="icon-sm"
                     className="size-7"
-                    onClick={() => vscode?.postMessage({ type: "addContext" })}
+                    onClick={() => vscode?.postMessage({ type: 'addContext' })}
                   >
                     <HugeiconsIcon icon={AttachmentIcon} strokeWidth={2} className="size-4" />
                   </InputGroupButton>
@@ -681,99 +740,127 @@ export function Chat() {
 
             {/* Send/Stop button */}
             {isGenerating ? (
-              <Button size="icon" variant="destructive" className="size-7 rounded-full" onClick={stopGeneration}>
+              <Button
+                size="icon"
+                variant="destructive"
+                className="size-7 rounded-full"
+                onClick={stopGeneration}
+              >
                 <HugeiconsIcon icon={StopIcon} strokeWidth={2} className="size-4" />
               </Button>
             ) : (
-              <Button size="icon" className="size-7 rounded-full" onClick={sendMessage} disabled={!input.trim()}>
+              <Button
+                size="icon"
+                className="size-7 rounded-full"
+                onClick={sendMessage}
+                disabled={!input.trim()}
+              >
                 <HugeiconsIcon icon={ArrowUp02Icon} strokeWidth={2} className="size-4" />
               </Button>
             )}
           </InputGroupAddon>
         </InputGroup>
         <div className="mt-2 text-center text-[10px] text-muted-foreground">
-          Powered by <a href="https://alia.onl" target="_blank" rel="noopener noreferrer" className="hover:underline">Alia</a>, an <a href="https://oxy.so" target="_blank" rel="noopener noreferrer" className="hover:underline">Oxy</a> AI.
+          Powered by{' '}
+          <a
+            href="https://alia.onl"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline"
+          >
+            Alia
+          </a>
+          , an{' '}
+          <a
+            href="https://oxy.so"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline"
+          >
+            Oxy
+          </a>{' '}
+          AI.
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function ToolExecutionItem({ execution }: { execution: ToolExecution; stepNumber?: number }) {
   // Auto-expand bash commands by default
-  const [isExpanded, setIsExpanded] = React.useState(execution.tool === 'run_command')
-  const label = toolLabels[execution.tool] || execution.tool
+  const [isExpanded, setIsExpanded] = React.useState(execution.tool === 'run_command');
+  const label = toolLabels[execution.tool] || execution.tool;
 
   // Format description based on tool type
   const getDescription = () => {
     switch (execution.tool) {
       case 'read_file':
-        return execution.args.path ? String(execution.args.path) : ''
+        return execution.args.path ? String(execution.args.path) : '';
       case 'write_file':
-        return execution.args.path ? String(execution.args.path) : ''
+        return execution.args.path ? String(execution.args.path) : '';
       case 'edit_file':
-        return execution.args.path ? String(execution.args.path) : ''
+        return execution.args.path ? String(execution.args.path) : '';
       case 'delete_file':
-        return execution.args.path ? String(execution.args.path) : ''
+        return execution.args.path ? String(execution.args.path) : '';
       case 'list_files':
-        return String(execution.args.path || '.')
+        return String(execution.args.path || '.');
       case 'search_files':
-        return `"${execution.args.query || execution.args.pattern}" ${execution.args.path ? `in ${execution.args.path}` : ''}`
+        return `"${execution.args.query || execution.args.pattern}" ${execution.args.path ? `in ${execution.args.path}` : ''}`;
       case 'run_command': {
         // Try to extract a description from the command
-        const cmd = String(execution.args.command || '')
-        if (cmd.includes('npm run build')) return 'Build the project'
-        if (cmd.includes('npm test')) return 'Run tests'
-        if (cmd.includes('npm install')) return 'Install dependencies'
-        if (cmd.includes('git status')) return 'Check git status'
-        if (cmd.includes('git diff')) return 'Show git diff'
-        if (cmd.includes('git add')) return 'Stage changes'
-        if (cmd.includes('git commit')) return 'Commit changes'
-        if (cmd.includes('ls ')) return 'List directory'
-        return ''
+        const cmd = String(execution.args.command || '');
+        if (cmd.includes('npm run build')) return 'Build the project';
+        if (cmd.includes('npm test')) return 'Run tests';
+        if (cmd.includes('npm install')) return 'Install dependencies';
+        if (cmd.includes('git status')) return 'Check git status';
+        if (cmd.includes('git diff')) return 'Show git diff';
+        if (cmd.includes('git add')) return 'Stage changes';
+        if (cmd.includes('git commit')) return 'Commit changes';
+        if (cmd.includes('ls ')) return 'List directory';
+        return '';
       }
       case 'set_mode':
-        return `→ ${execution.args.mode}`
+        return `→ ${execution.args.mode}`;
       default:
-        return ''
+        return '';
     }
-  }
+  };
 
-  const description = getDescription()
-  const isCommand = execution.tool === 'run_command'
-  const hasExpandableContent = isCommand || (execution.result && execution.status !== 'running' && execution.status !== 'preparing')
+  const description = getDescription();
+  const isCommand = execution.tool === 'run_command';
+  const hasExpandableContent =
+    isCommand ||
+    (execution.result && execution.status !== 'running' && execution.status !== 'preparing');
 
   return (
     <div className="py-1.5">
       {/* Main row with bullet, tool name, and description */}
       <div
         className={cn(
-          "flex items-start gap-2 text-sm",
-          hasExpandableContent && "cursor-pointer hover:opacity-80"
+          'flex items-start gap-2 text-sm',
+          hasExpandableContent && 'cursor-pointer hover:opacity-80',
         )}
         onClick={() => hasExpandableContent && setIsExpanded(!isExpanded)}
       >
         {/* Bullet indicator */}
-        <span className={cn(
-          "mt-0.5 text-base leading-none",
-          execution.status === "preparing" && "text-muted-foreground animate-pulse",
-          execution.status === "running" && "text-yellow-500 animate-pulse",
-          execution.status === "success" && "text-green-500",
-          execution.status === "error" && "text-destructive"
-        )}>
+        <span
+          className={cn(
+            'mt-0.5 text-base leading-none',
+            execution.status === 'preparing' && 'text-muted-foreground animate-pulse',
+            execution.status === 'running' && 'text-yellow-500 animate-pulse',
+            execution.status === 'success' && 'text-green-500',
+            execution.status === 'error' && 'text-destructive',
+          )}
+        >
           ●
         </span>
 
         {/* Tool name and description */}
         <div className="flex-1 min-w-0">
           <span className="font-bold">{label}</span>
-          {description && (
-            <span className="text-muted-foreground ml-2">{description}</span>
-          )}
+          {description && <span className="text-muted-foreground ml-2">{description}</span>}
           {hasExpandableContent && (
-            <span className="text-muted-foreground ml-1 text-xs">
-              {isExpanded ? '˅' : '˃'}
-            </span>
+            <span className="text-muted-foreground ml-1 text-xs">{isExpanded ? '˅' : '˃'}</span>
           )}
         </div>
       </div>
@@ -782,14 +869,20 @@ function ToolExecutionItem({ execution }: { execution: ToolExecution; stepNumber
       {isExpanded && isCommand && (
         <div className="ml-5 mt-2 rounded-lg bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] overflow-hidden text-xs font-mono">
           <div className="flex border-b border-[var(--vscode-panel-border)]">
-            <span className="text-muted-foreground px-3 py-2 w-12 shrink-0 border-r border-[var(--vscode-panel-border)] bg-muted/20">IN</span>
+            <span className="text-muted-foreground px-3 py-2 w-12 shrink-0 border-r border-[var(--vscode-panel-border)] bg-muted/20">
+              IN
+            </span>
             <div className="px-3 py-2 flex-1 overflow-x-auto">
-              <code className="text-foreground whitespace-pre">{String(execution.args.command || '')}</code>
+              <code className="text-foreground whitespace-pre">
+                {String(execution.args.command || '')}
+              </code>
             </div>
           </div>
           {execution.result && (
             <div className="flex">
-              <span className="text-muted-foreground px-3 py-2 w-12 shrink-0 border-r border-[var(--vscode-panel-border)] bg-muted/20">OUT</span>
+              <span className="text-muted-foreground px-3 py-2 w-12 shrink-0 border-r border-[var(--vscode-panel-border)] bg-muted/20">
+                OUT
+              </span>
               <div className="px-3 py-2 flex-1 max-h-40 overflow-auto">
                 <pre className="text-muted-foreground whitespace-pre-wrap">{execution.result}</pre>
               </div>
@@ -806,24 +899,31 @@ function ToolExecutionItem({ execution }: { execution: ToolExecution; stepNumber
       )}
 
       {/* Error display */}
-      {execution.status === "error" && execution.result && !isExpanded && (
+      {execution.status === 'error' && execution.result && !isExpanded && (
         <div className="ml-5 mt-1 text-xs text-destructive/80">
-          {execution.result.slice(0, 100)}{execution.result.length > 100 ? '...' : ''}
+          {execution.result.slice(0, 100)}
+          {execution.result.length > 100 ? '...' : ''}
         </div>
       )}
     </div>
-  )
+  );
 }
 
-function WelcomeScreen({ userName, onSuggestionClick }: { userName: string | null; onSuggestionClick: (text: string) => void }) {
+function WelcomeScreen({
+  userName,
+  onSuggestionClick,
+}: {
+  userName: string | null;
+  onSuggestionClick: (text: string) => void;
+}) {
   const suggestions = [
-    { text: "Explain this code", icon: SparklesIcon },
-    { text: "Help me fix a bug", icon: AlertCircleIcon },
-    { text: "Write a function that ", icon: NoteIcon },
-  ]
+    { text: 'Explain this code', icon: SparklesIcon },
+    { text: 'Help me fix a bug', icon: AlertCircleIcon },
+    { text: 'Write a function that ', icon: NoteIcon },
+  ];
 
   // Pick a random greeting (stable per render)
-  const [greeting] = React.useState(() => greetings[Math.floor(Math.random() * greetings.length)])
+  const [greeting] = React.useState(() => greetings[Math.floor(Math.random() * greetings.length)]);
 
   return (
     <div className="flex min-h-full flex-col items-center justify-center gap-6 p-8 text-center">
@@ -836,17 +936,13 @@ function WelcomeScreen({ userName, onSuggestionClick }: { userName: string | nul
           <p className="text-sm text-muted-foreground">
             {userName
               ? "I'm your AI coding assistant. Ask questions, get help with code, or explore ideas."
-              : "Sign in to get started with your AI coding assistant."}
+              : 'Sign in to get started with your AI coding assistant.'}
           </p>
         </div>
       </div>
 
       {!userName && (
-        <Button
-          size="sm"
-          className="gap-2"
-          onClick={() => vscode?.postMessage({ type: "signIn" })}
-        >
+        <Button size="sm" className="gap-2" onClick={() => vscode?.postMessage({ type: 'signIn' })}>
           <HugeiconsIcon icon={Login01Icon} strokeWidth={2} className="size-4" />
           Sign in with Oxy
         </Button>
@@ -862,16 +958,24 @@ function WelcomeScreen({ userName, onSuggestionClick }: { userName: string | nul
             onClick={() => onSuggestionClick(s.text)}
           >
             <HugeiconsIcon icon={s.icon} strokeWidth={2} className="size-4 text-primary" />
-            {s.text.replace(" that ", "")}
+            {s.text.replace(' that ', '')}
           </Button>
         ))}
       </div>
     </div>
-  )
+  );
 }
 
-function MessageBubble({ message, isStreaming, onRetry }: { message: Message; isStreaming?: boolean; onRetry?: () => void }) {
-  if (message.role === "user") {
+function MessageBubble({
+  message,
+  isStreaming,
+  onRetry,
+}: {
+  message: Message;
+  isStreaming?: boolean;
+  onRetry?: () => void;
+}) {
+  if (message.role === 'user') {
     return (
       <div className="flex flex-col items-end gap-1.5">
         {/* Context chips */}
@@ -888,11 +992,9 @@ function MessageBubble({ message, isStreaming, onRetry }: { message: Message; is
           </div>
         )}
         {/* Message bubble */}
-        <div className="max-w-[85%] rounded-2xl bg-muted px-3 py-2 text-sm">
-          {message.content}
-        </div>
+        <div className="max-w-[85%] rounded-2xl bg-muted px-3 py-2 text-sm">{message.content}</div>
       </div>
-    )
+    );
   }
 
   return (
@@ -900,7 +1002,10 @@ function MessageBubble({ message, isStreaming, onRetry }: { message: Message; is
       <img
         src={LOGO_URI}
         alt="Codea"
-        className={cn("size-6 shrink-0 rounded-full", isStreaming && !message.content && "animate-pulse")}
+        className={cn(
+          'size-6 shrink-0 rounded-full',
+          isStreaming && !message.content && 'animate-pulse',
+        )}
       />
       <div className="flex-1 min-w-0 text-sm overflow-hidden">
         {/* Show tool executions from history */}
@@ -921,18 +1026,13 @@ function MessageBubble({ message, isStreaming, onRetry }: { message: Message; is
           </div>
         ) : null}
         {message.retryable && onRetry && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-2 gap-1.5"
-            onClick={onRetry}
-          >
+          <Button variant="outline" size="sm" className="mt-2 gap-1.5" onClick={onRetry}>
             Retry
           </Button>
         )}
       </div>
     </div>
-  )
+  );
 }
 
-export default Chat
+export default Chat;

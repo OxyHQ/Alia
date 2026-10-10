@@ -43,15 +43,25 @@ vi.mock('@oxy.so/services', () => ({
   useOxy: () => ({ oxyServices: { session: { accessToken: 'token' } } }),
 }));
 vi.mock('@/shared/platform/device-info', () => ({ collectDeviceInfo: async () => ({}) }));
-vi.mock('@/features/chat/runtime/use-agent-row-preview', () => ({ useAgentRowPreview: () => () => {} }));
+vi.mock('@/features/chat/runtime/use-agent-row-preview', () => ({
+  useAgentRowPreview: () => () => {},
+}));
 vi.mock('@/features/memory/runtime/use-user-data', () => ({ USER_MEMORY_QUERY_KEY: ['memory'] }));
 vi.mock('@/features/chat/runtime/model-store', () => ({
   useModelStore: { getState: () => ({ webSearch: true, setSelectedModel: () => {} }) },
 }));
 vi.mock('@/features/chat/runtime/ui-store', () => ({
-  useUIStore: { getState: () => ({ addCanvasArtifact: () => {}, setRightPanel: () => {}, openAgentPanel: () => {} }) },
+  useUIStore: {
+    getState: () => ({
+      addCanvasArtifact: () => {},
+      setRightPanel: () => {},
+      openAgentPanel: () => {},
+    }),
+  },
 }));
-vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
+vi.mock('@oxy.so/bloom/toast', () => ({
+  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
+}));
 vi.mock('@/shared/i18n', () => ({ default: { t: (k: string) => k } }));
 
 import { useStreamingChat } from '@/features/chat/runtime/use-streaming-chat';
@@ -107,12 +117,20 @@ describe('the usage frame', () => {
     harness.responses.push([
       contentFrame('hi'),
       stopFrame,
-      usageFrame({ level: 'critical', daysRemaining: 1.5, todaySpend: 90, avgDailySpend: 20, currentModelMultiplier: 4 }),
+      usageFrame({
+        level: 'critical',
+        daysRemaining: 1.5,
+        todaySpend: 90,
+        avgDailySpend: 20,
+        currentModelMultiplier: 4,
+      }),
       done,
     ]);
     await mount();
     client.setQueryData(['credits'], { credits: 44 });
-    await act(async () => { await api.append({ role: 'user', content: 'hello' }); });
+    await act(async () => {
+      await api.append({ role: 'user', content: 'hello' });
+    });
 
     expect(client.getQueryData<{ credits: number }>(['credits'])?.credits).toBe(41);
     expect(client.getQueryData(['usage-warning'])).toEqual({
@@ -127,7 +145,9 @@ describe('the usage frame', () => {
   it('keeps no warning when the server sends none', async () => {
     harness.responses.push([contentFrame('hi'), stopFrame, usageFrame(null), done]);
     await mount();
-    await act(async () => { await api.append({ role: 'user', content: 'hello' }); });
+    await act(async () => {
+      await api.append({ role: 'user', content: 'hello' });
+    });
     expect(client.getQueryData(['usage-warning'])).toBeUndefined();
   });
 });

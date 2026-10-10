@@ -83,5 +83,7 @@ export function formatEpisodeCount(count: number, t: Translate): string {
  * trails or doubles.
  */
 export function joinEpisodeMeta(parts: readonly (string | null | undefined)[]): string {
-  return parts.filter((part): part is string => typeof part === 'string' && part !== '').join(' · ');
+  return parts
+    .filter((part): part is string => typeof part === 'string' && part !== '')
+    .join(' · ');
 }

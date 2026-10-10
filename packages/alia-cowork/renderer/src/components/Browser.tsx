@@ -1,41 +1,41 @@
-import * as React from "react"
+import * as React from 'react';
 
 export function Browser() {
-  const [screenshot, setScreenshot] = React.useState<string | null>(null)
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
+  const [screenshot, setScreenshot] = React.useState<string | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     // Handle screenshot updates from main process
     const handlePreview = (...args: unknown[]) => {
-      const data = args[0] as { screenshot: string }
-      setScreenshot(data.screenshot)
-      setIsLoading(false)
-      setError(null)
-    }
+      const data = args[0] as { screenshot: string };
+      setScreenshot(data.screenshot);
+      setIsLoading(false);
+      setError(null);
+    };
 
     const handleError = (...args: unknown[]) => {
-      const data = args[0] as { error: string }
-      setError(data.error)
-      setIsLoading(false)
-    }
+      const data = args[0] as { error: string };
+      setError(data.error);
+      setIsLoading(false);
+    };
 
     const handleClosed = () => {
-      setScreenshot(null)
-      setIsLoading(true)
-      setError(null)
-    }
+      setScreenshot(null);
+      setIsLoading(true);
+      setError(null);
+    };
 
-    window.electron.on('browser:preview', handlePreview)
-    window.electron.on('browser:error', handleError)
-    window.electron.on('browser:closed', handleClosed)
+    window.electron.on('browser:preview', handlePreview);
+    window.electron.on('browser:error', handleError);
+    window.electron.on('browser:closed', handleClosed);
 
     return () => {
-      window.electron.off('browser:preview', handlePreview)
-      window.electron.off('browser:error', handleError)
-      window.electron.off('browser:closed', handleClosed)
-    }
-  }, [])
+      window.electron.off('browser:preview', handlePreview);
+      window.electron.off('browser:error', handleError);
+      window.electron.off('browser:closed', handleClosed);
+    };
+  }, []);
 
   return (
     <div className="flex-1 flex flex-col bg-background overflow-hidden">
@@ -45,9 +45,7 @@ export function Browser() {
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           <span className="text-sm font-medium">Browser</span>
         </div>
-        <span className="text-xs text-muted-foreground">
-          AI is controlling the browser
-        </span>
+        <span className="text-xs text-muted-foreground">AI is controlling the browser</span>
       </div>
 
       {/* Browser Preview */}
@@ -61,12 +59,7 @@ export function Browser() {
 
         {error && (
           <div className="flex flex-col items-center gap-3 text-destructive max-w-md text-center">
-            <svg
-              className="w-12 h-12"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -106,5 +99,5 @@ export function Browser() {
         </p>
       </div>
     </div>
-  )
+  );
 }

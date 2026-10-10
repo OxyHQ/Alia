@@ -58,7 +58,7 @@ export default function CreateAgentScreen() {
   const { t } = useTranslation();
   const generateAgent = useGenerateAgent();
 
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValue] = useState('');
   const [generating, setGenerating] = useState(false);
   /**
    * The power level the new agent answers at, kept for this screen rather than
@@ -98,17 +98,16 @@ export default function CreateAgentScreen() {
        * standing where they can change it.
        */
       if (adjustedHandle !== null) {
-        toast.info(t("agents.handleAdjusted", { handle: adjustedHandle }));
+        toast.info(t('agents.handleAdjusted', { handle: adjustedHandle }));
       } else {
-        toast.success(t("agents.agentUpdated"));
+        toast.success(t('agents.agentUpdated'));
       }
-      router.replace({ pathname: "/(app)/agents/edit/[id]", params: { id: agent._id } });
+      router.replace({ pathname: '/(app)/agents/edit/[id]', params: { id: agent._id } });
       // No `else` for a null agent any more: the mutation THROWS a refusal
       // rather than returning null, so a failed create lands in the catch below
       // with the server's own message instead of a swallowed "Failed to create".
     } catch (error: unknown) {
-      const message =
-        getErrorMessage(error, "Failed to generate agent");
+      const message = getErrorMessage(error, 'Failed to generate agent');
       toast.error(message);
     } finally {
       setGenerating(false);
@@ -118,7 +117,7 @@ export default function CreateAgentScreen() {
   if (generating) {
     return (
       <View className="flex-1 items-center justify-center">
-        <Loading variant="spinner" size="lg" text={t("agents.generating")} />
+        <Loading variant="spinner" size="lg" text={t('agents.generating')} />
       </View>
     );
   }
@@ -130,13 +129,13 @@ export default function CreateAgentScreen() {
     >
       <View className="w-full max-w-[672px] gap-6">
         <Text className="text-center text-lg font-semibold leading-[26px] text-foreground">
-          {t("agents.createTitle")}
+          {t('agents.createTitle')}
         </Text>
 
         {/* Archetype picker: one radio row per archetype. */}
         <View className="gap-2">
-          <Muted>{t("pages.agents.agentType")}</Muted>
-          <View accessibilityRole="radiogroup" accessibilityLabel={t("pages.agents.agentType")}>
+          <Muted>{t('pages.agents.agentType')}</Muted>
+          <View accessibilityRole="radiogroup" accessibilityLabel={t('pages.agents.agentType')}>
             {ARCHETYPE_OPTIONS.map((option) => (
               <Item
                 key={option.value}
@@ -144,9 +143,7 @@ export default function CreateAgentScreen() {
                 selected={selectedArchetype === option.value}
                 onPress={() => setSelectedArchetype(option.value)}
                 leading={<option.Icon width={20} height={20} />}
-                trailing={
-                  selectedArchetype === option.value ? <RiCheckLine size="md" /> : null
-                }
+                trailing={selectedArchetype === option.value ? <RiCheckLine size="md" /> : null}
                 title={t(option.label)}
                 subtitle={t(option.description)}
               />
@@ -170,7 +167,7 @@ export default function CreateAgentScreen() {
           onSubmit={handleGenerate}
           busy={generating}
           disabled={generating}
-          placeholder={t("agents.createPlaceholder")}
+          placeholder={t('agents.createPlaceholder')}
         />
       </View>
     </ScrollView>

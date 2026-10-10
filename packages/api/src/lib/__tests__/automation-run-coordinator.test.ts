@@ -17,7 +17,10 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
 vi.mock('../../db/agents/agentSessionRepository.js', () => ({
   createAutomationStageSession: state.createSession,
 }));
-vi.mock('../credits-manager.js', () => ({ reserveCredits: state.reserve, safeRefund: state.refund }));
+vi.mock('../credits-manager.js', () => ({
+  reserveCredits: state.reserve,
+  safeRefund: state.refund,
+}));
 
 const RESERVATION = { reservationId: 'hold-2', amount: 1 };
 
@@ -47,16 +50,18 @@ describe('automation run coordinator', () => {
         objective: 'Publish a weekly summary',
         trigger: { type: 'prior_stage' },
         inputs: {},
-        actions: [{
-          resource: {
-            appId: 'mention',
-            effectiveAccountId: 'owner-1',
-            resourceType: 'social_account',
-            resourceId: 'profile-1',
+        actions: [
+          {
+            resource: {
+              appId: 'mention',
+              effectiveAccountId: 'owner-1',
+              resourceType: 'social_account',
+              resourceId: 'profile-1',
+            },
+            tool: 'publishPost',
+            input: {},
           },
-          tool: 'publishPost',
-          input: {},
-        }],
+        ],
         receivePreviousResult: true,
       },
     });
@@ -68,12 +73,15 @@ describe('automation run coordinator', () => {
     await expect(advanceAutomationRunAfterSession(completedSession)).resolves.toEqual(
       expect.objectContaining({ kind: 'next', created: true, runId: 'run-1' }),
     );
-    expect(state.createSession).toHaveBeenCalledWith(database, expect.objectContaining({
-      automationRunId: 'run-1',
-      automationStage: 1,
-      agentId: 'publisher',
-      task: expect.stringContaining('weekly summary'),
-    }));
+    expect(state.createSession).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        automationRunId: 'run-1',
+        automationStage: 1,
+        agentId: 'publisher',
+        task: expect.stringContaining('weekly summary'),
+      }),
+    );
   });
 
   it('returns terminal state without creating another session', async () => {
@@ -125,16 +133,18 @@ describe('automation run coordinator', () => {
         objective: 'Publish a weekly summary',
         trigger: { type: 'prior_stage' },
         inputs: {},
-        actions: [{
-          resource: {
-            appId: 'mention',
-            effectiveAccountId: 'owner-1',
-            resourceType: 'social_account',
-            resourceId: 'profile-1',
+        actions: [
+          {
+            resource: {
+              appId: 'mention',
+              effectiveAccountId: 'owner-1',
+              resourceType: 'social_account',
+              resourceId: 'profile-1',
+            },
+            tool: 'publishPost',
+            input: {},
           },
-          tool: 'publishPost',
-          input: {},
-        }],
+        ],
         receivePreviousResult: true,
       },
     };
@@ -142,13 +152,19 @@ describe('automation run coordinator', () => {
     state.createSession.mockResolvedValue({ session: { id: 'stage-1' }, created: true });
 
     await advanceAutomationRunAfterSession(completedSession);
-    expect(state.createSession).toHaveBeenCalledWith(database, expect.objectContaining({ creditReservation: RESERVATION }));
+    expect(state.createSession).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({ creditReservation: RESERVATION }),
+    );
 
     vi.clearAllMocks();
     state.progress.mockResolvedValue(next);
     state.reserve.mockResolvedValue(null);
-    await expect(advanceAutomationRunAfterSession(completedSession))
-      .resolves.toEqual({ kind: 'terminal', status: 'failed', runId: 'run-1' });
+    await expect(advanceAutomationRunAfterSession(completedSession)).resolves.toEqual({
+      kind: 'terminal',
+      status: 'failed',
+      runId: 'run-1',
+    });
     expect(state.createSession).not.toHaveBeenCalled();
   });
 });

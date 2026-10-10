@@ -21,7 +21,13 @@ import {
   isDuplicateTransaction,
   selectTransactionsForUser,
 } from '../db/billing/transactionRepository.js';
-import { getPlans, getCreditPackages, getFeatures, getPlanFeatures, type PlanFeatureData } from '../lib/gateway-client.js';
+import {
+  getPlans,
+  getCreditPackages,
+  getFeatures,
+  getPlanFeatures,
+  type PlanFeatureData,
+} from '../lib/gateway-client.js';
 import { ensureStripePriceId } from '../lib/stripe-prices.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { getUserEntitlements, invalidateEntitlementsCache } from '../lib/plan-access.js';
@@ -51,7 +57,10 @@ function getWebhookSecret(): string {
 }
 
 // Helper to get or create Stripe customer
-async function getOrCreateStripeCustomer(userId: string, userCredits: UserCreditsRow): Promise<string> {
+async function getOrCreateStripeCustomer(
+  userId: string,
+  userCredits: UserCreditsRow,
+): Promise<string> {
   const existingCustomerId = userCredits.stripeCustomerId;
 
   if (existingCustomerId) {
@@ -90,7 +99,7 @@ router.get('/packages', async (_req: Request, res: Response) => {
   try {
     const packages = await getCreditPackages(true);
     res.json({
-      packages: packages.map(p => ({
+      packages: packages.map((p) => ({
         id: p.packageId,
         name: p.name,
         credits: p.credits,
@@ -116,7 +125,7 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
     const userId = req.user!.id;
 
     const allPackages = await getCreditPackages(true);
-    const pkg = allPackages.find(p => p.packageId === packageId);
+    const pkg = allPackages.find((p) => p.packageId === packageId);
     if (!pkg) {
       return res.status(400).json({ error: 'Invalid package ID' });
     }
@@ -129,7 +138,10 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
       : {
           price_data: {
             currency: pkg.currency,
-            product_data: { name: pkg.name, description: `${pkg.credits.toLocaleString()} AI credits` },
+            product_data: {
+              name: pkg.name,
+              description: `${pkg.credits.toLocaleString()} AI credits`,
+            },
             unit_amount: pkg.price,
           },
           quantity: 1,
@@ -143,7 +155,12 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
       allow_promotion_codes: true,
       success_url: successUrl,
       cancel_url: cancelUrl,
-      metadata: { userId, type: 'credit_purchase', packageId: pkg.packageId, credits: pkg.credits.toString() },
+      metadata: {
+        userId,
+        type: 'credit_purchase',
+        packageId: pkg.packageId,
+        credits: pkg.credits.toString(),
+      },
     });
 
     res.json({ sessionId: session.id, url: session.url });
@@ -152,7 +169,9 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
     log.credits.error({ err: error }, 'Error creating checkout session');
-    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to create checkout session') });
+    res
+      .status(500)
+      .json({ error: getSafeErrorMessage(error, 'Failed to create checkout session') });
   }
 });
 
@@ -176,7 +195,7 @@ router.post('/checkout/custom-credits', authenticateToken, async (req: Request, 
     const packages = await getCreditPackages(true);
     let pricePerCredit = CREDIT_PRICE_PER_1K_CENTS / 1000;
     if (packages.length > 0) {
-      pricePerCredit = Math.min(...packages.map(p => p.price / p.credits));
+      pricePerCredit = Math.min(...packages.map((p) => p.price / p.credits));
     }
 
     const totalCents = Math.round(credits * pricePerCredit);
@@ -190,19 +209,29 @@ router.post('/checkout/custom-credits', authenticateToken, async (req: Request, 
     const session = await getStripe().checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          product_data: { name: `${credits.toLocaleString()} AI Credits`, description: 'Custom credit purchase' },
-          unit_amount: totalCents,
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `${credits.toLocaleString()} AI Credits`,
+              description: 'Custom credit purchase',
+            },
+            unit_amount: totalCents,
+          },
+          quantity: 1,
         },
-        quantity: 1,
-      }],
+      ],
       mode: 'payment',
       allow_promotion_codes: true,
       success_url: successUrl,
       cancel_url: cancelUrl,
-      metadata: { userId, type: 'credit_purchase', packageId: 'custom', credits: credits.toString() },
+      metadata: {
+        userId,
+        type: 'credit_purchase',
+        packageId: 'custom',
+        credits: credits.toString(),
+      },
     });
 
     res.json({ sessionId: session.id, url: session.url });
@@ -211,7 +240,9 @@ router.post('/checkout/custom-credits', authenticateToken, async (req: Request, 
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
     log.credits.error({ err: error }, 'Error creating custom credits checkout');
-    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to create custom credits checkout') });
+    res
+      .status(500)
+      .json({ error: getSafeErrorMessage(error, 'Failed to create custom credits checkout') });
   }
 });
 
@@ -221,9 +252,13 @@ router.get('/credit-price', async (_req: Request, res: Response) => {
     let pricePerCredit = CREDIT_PRICE_PER_1K_CENTS / 1000;
     const creditPricePackages = await getCreditPackages(true);
     if (creditPricePackages.length > 0) {
-      pricePerCredit = Math.min(...creditPricePackages.map(p => p.price / p.credits));
+      pricePerCredit = Math.min(...creditPricePackages.map((p) => p.price / p.credits));
     }
-    res.json({ pricePerCreditCents: pricePerCredit, minCredits: MIN_CUSTOM_CREDITS, maxCredits: MAX_CUSTOM_CREDITS });
+    res.json({
+      pricePerCreditCents: pricePerCredit,
+      minCredits: MIN_CUSTOM_CREDITS,
+      maxCredits: MAX_CUSTOM_CREDITS,
+    });
   } catch (error: unknown) {
     res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch credit price') });
   }
@@ -241,8 +276,10 @@ router.get('/plans', async (req: Request, res: Response) => {
       getPlanFeatures(),
     ]);
     // Filter features/plan-features client-side (API may return all)
-    const allFeatures = rawFeatures.filter(f => f.isActive !== false && f.isVisibleOnPricing !== false);
-    const allPlanFeatures = rawPlanFeatures.filter(pf => pf.enabled !== false);
+    const allFeatures = rawFeatures.filter(
+      (f) => f.isActive !== false && f.isVisibleOnPricing !== false,
+    );
+    const allPlanFeatures = rawPlanFeatures.filter((pf) => pf.enabled !== false);
 
     // Build lookup: planId -> featureId -> PlanFeature mapping
     const pfMap: Record<string, Record<string, PlanFeatureData>> = {};
@@ -251,7 +288,7 @@ router.get('/plans', async (req: Request, res: Response) => {
       pfMap[pf.planId][pf.featureId] = pf;
     }
 
-    const plans = dbPlans.map(p => {
+    const plans = dbPlans.map((p) => {
       const planId = p.planId;
       const planMappings = pfMap[planId] || {};
 
@@ -315,7 +352,9 @@ const createSubscriptionSchema = z.object({
 
 router.post('/checkout/subscription', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const { planId, billingPeriod, successUrl, cancelUrl } = createSubscriptionSchema.parse(req.body);
+    const { planId, billingPeriod, successUrl, cancelUrl } = createSubscriptionSchema.parse(
+      req.body,
+    );
     const userId = req.user!.id;
 
     const matchingPlans = await getPlans({ planId, isActive: true, isFree: false });
@@ -330,7 +369,8 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
 
     if (existingSubscription) {
       return res.status(409).json({
-        error: 'You already have an active subscription for this product. Please cancel it first or manage it from the billing page.',
+        error:
+          'You already have an active subscription for this product. Please cancel it first or manage it from the billing page.',
       });
     }
 
@@ -341,7 +381,10 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
     try {
       stripePriceId = await ensureStripePriceId(getStripe, plan.planId, billingPeriod);
     } catch (err: unknown) {
-      log.credits.error({ err, planId: plan.planId, billingPeriod }, 'Failed to ensure Stripe price for checkout');
+      log.credits.error(
+        { err, planId: plan.planId, billingPeriod },
+        'Failed to ensure Stripe price for checkout',
+      );
       return res.status(500).json({ error: 'Failed to configure plan pricing' });
     }
 
@@ -356,7 +399,9 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
       success_url: successUrl,
       cancel_url: cancelUrl,
       metadata: { userId, planId: plan.planId, billingPeriod, product: plan.product },
-      subscription_data: { metadata: { userId, planId: plan.planId, billingPeriod, product: plan.product } },
+      subscription_data: {
+        metadata: { userId, planId: plan.planId, billingPeriod, product: plan.product },
+      },
     });
 
     res.json({ sessionId: session.id, url: session.url });
@@ -365,7 +410,9 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
     log.credits.error({ err: error }, 'Error creating subscription checkout');
-    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to create subscription checkout') });
+    res
+      .status(500)
+      .json({ error: getSafeErrorMessage(error, 'Failed to create subscription checkout') });
   }
 });
 
@@ -444,7 +491,9 @@ router.post('/subscription/cancel', authenticateToken, async (req: Request, res:
     // applicable. There is nothing to cancel: the grant is re-asserted on the
     // account's next request either way.
     if (isCompedSubscriptionId(subscription.stripeSubscriptionId)) {
-      return res.status(400).json({ error: 'This plan is complimentary and is not billed, so there is nothing to cancel.' });
+      return res.status(400).json({
+        error: 'This plan is complimentary and is not billed, so there is nothing to cancel.',
+      });
     }
 
     await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
@@ -488,7 +537,9 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
     // subscription is a comp, not a Stripe mirror, and it already holds the most
     // expensive plan its product sells.
     if (isCompedSubscriptionId(subscription.stripeSubscriptionId)) {
-      return res.status(400).json({ error: 'This plan is complimentary and is not billed, so it cannot be changed.' });
+      return res
+        .status(400)
+        .json({ error: 'This plan is complimentary and is not billed, so it cannot be changed.' });
     }
 
     // Find target plan
@@ -523,12 +574,17 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
     try {
       targetPriceId = await ensureStripePriceId(getStripe, targetPlan.planId, billingPeriod);
     } catch (err: unknown) {
-      log.credits.error({ err, planId: targetPlan.planId, billingPeriod }, 'Failed to ensure Stripe price');
+      log.credits.error(
+        { err, planId: targetPlan.planId, billingPeriod },
+        'Failed to ensure Stripe price',
+      );
       return res.status(500).json({ error: 'Failed to configure plan pricing' });
     }
 
     // Retrieve Stripe subscription to get item ID
-    const stripeSubscription = await getStripe().subscriptions.retrieve(subscription.stripeSubscriptionId);
+    const stripeSubscription = await getStripe().subscriptions.retrieve(
+      subscription.stripeSubscriptionId,
+    );
     const itemId = stripeSubscription.items.data[0]?.id;
     if (!itemId) {
       return res.status(500).json({ error: 'Could not find subscription item' });
@@ -577,8 +633,15 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
     invalidateEntitlementsCache(userId);
 
     const direction = isUpgrade ? 'upgrade' : 'downgrade';
-    log.credits.info({ userId, from: currentPlan.planId, to: targetPlan.planId, direction, billingPeriod }, 'Plan changed');
-    res.json({ message: 'Plan changed successfully', subscription: serializeSubscription(subscription), direction });
+    log.credits.info(
+      { userId, from: currentPlan.planId, to: targetPlan.planId, direction, billingPeriod },
+      'Plan changed',
+    );
+    res.json({
+      message: 'Plan changed successfully',
+      subscription: serializeSubscription(subscription),
+      direction,
+    });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
@@ -620,7 +683,9 @@ router.post('/portal', authenticateToken, async (req: Request, res: Response) =>
     res.json({ url: session.url });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error creating portal session');
-    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to create billing portal session') });
+    res
+      .status(500)
+      .json({ error: getSafeErrorMessage(error, 'Failed to create billing portal session') });
   }
 });
 
@@ -630,8 +695,12 @@ router.get('/entitlements', authenticateToken, async (req: Request, res: Respons
     const entitlements = await getUserEntitlements(req.user!.id);
     const productAllowance = await readCurrentProductAllowance(req.user!.id, req.accessToken);
     res.set('Cache-Control', 'no-store');
-    res.json({ ...entitlements, subjectAccountId: req.user!.id, productAllowance,
-      effectivePlanId: effectiveCreditPlan(entitlements.planId, productAllowance?.planId ?? null) });
+    res.json({
+      ...entitlements,
+      subjectAccountId: req.user!.id,
+      productAllowance,
+      effectivePlanId: effectiveCreditPlan(entitlements.planId, productAllowance?.planId ?? null),
+    });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching entitlements');
     res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch entitlements') });
@@ -650,7 +719,9 @@ router.post('/webhook', async (req: Request, res: Response) => {
     event = getStripe().webhooks.constructEvent(req.body, sig, webhookSecret);
   } catch (err: unknown) {
     log.credits.error({ err }, 'Webhook verification failed');
-    return res.status(400).send(`Webhook Error: ${getSafeErrorMessage(err, 'Invalid webhook payload')}`);
+    return res
+      .status(400)
+      .send(`Webhook Error: ${getSafeErrorMessage(err, 'Invalid webhook payload')}`);
   }
 
   try {
@@ -726,7 +797,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       log.credits.info({ credits, userId: metadata.userId }, 'Added credits to user');
     } catch (err: unknown) {
       if (isDuplicateTransaction(err)) {
-        log.credits.warn({ paymentIntent: session.payment_intent }, 'Duplicate checkout event, skipping');
+        log.credits.warn(
+          { paymentIntent: session.payment_intent },
+          'Duplicate checkout event, skipping',
+        );
         return;
       }
       throw err;
@@ -736,8 +810,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   // Handle subscription checkouts as fallback (in case customer.subscription.created is delayed)
   if (session.mode === 'subscription' && session.subscription) {
-    log.credits.info({ subscriptionId: session.subscription }, 'checkout.session.completed, fetching and syncing');
-    const stripeSubscription = await getStripe().subscriptions.retrieve(session.subscription as string);
+    log.credits.info(
+      { subscriptionId: session.subscription },
+      'checkout.session.completed, fetching and syncing',
+    );
+    const stripeSubscription = await getStripe().subscriptions.retrieve(
+      session.subscription as string,
+    );
     await handleSubscriptionUpdate(stripeSubscription);
   }
 }
@@ -750,13 +829,19 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
   let userCredits = await findUserCreditsByStripeCustomerId(getDb(), customerId);
   if (!userCredits) {
     if (metadata?.userId) {
-      log.credits.warn({ customerId, userId: metadata.userId }, 'No UserCredits for stripeCustomerId, falling back to userId');
+      log.credits.warn(
+        { customerId, userId: metadata.userId },
+        'No UserCredits for stripeCustomerId, falling back to userId',
+      );
       userCredits = await getOrCreateUserCredits(metadata.userId);
       if (!userCredits.stripeCustomerId) {
-        userCredits = (await setStripeCustomerId(getDb(), userCredits.id, customerId)) ?? userCredits;
+        userCredits =
+          (await setStripeCustomerId(getDb(), userCredits.id, customerId)) ?? userCredits;
       }
     } else {
-      throw new Error(`No UserCredits found for stripeCustomerId ${customerId} and no userId in metadata`);
+      throw new Error(
+        `No UserCredits found for stripeCustomerId ${customerId} and no userId in metadata`,
+      );
     }
   }
 
@@ -783,7 +868,9 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
     stripePriceId: stripeSubscription.items.data[0].price.id,
     status: stripeSubscription.status,
     currentPeriodStart: periodStart ? new Date(periodStart * 1000) : new Date(),
-    currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    currentPeriodEnd: periodEnd
+      ? new Date(periodEnd * 1000)
+      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
     planId: plan.planId,
     billingPeriod: isAnnual ? 'annual' : 'monthly',
@@ -824,7 +911,10 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
         metadata: { dedup: dedupKey },
       });
       await addCredits(getDb(), userCredits.id, plan.creditsPerMonth, 'paid');
-      log.credits.info({ credits: plan.creditsPerMonth, subscriptionId: stripeSubscription.id, periodStart }, 'Added subscription credits');
+      log.credits.info(
+        { credits: plan.creditsPerMonth, subscriptionId: stripeSubscription.id, periodStart },
+        'Added subscription credits',
+      );
     } catch (err: unknown) {
       if (isDuplicateTransaction(err)) {
         log.credits.warn({ dedupKey }, 'Duplicate subscription credit event, skipping');

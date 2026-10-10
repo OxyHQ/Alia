@@ -19,7 +19,9 @@ export default function AgentComputerScreen() {
     <>
       <Stack.Screen
         options={{
-          title: agent ? t('agents.computer.title', { name: agentDisplayName(agent) }) : t('agents.computer.open'),
+          title: agent
+            ? t('agents.computer.title', { name: agentDisplayName(agent) })
+            : t('agents.computer.open'),
           headerBackVisible: true,
         }}
       />

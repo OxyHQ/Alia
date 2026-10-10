@@ -75,12 +75,12 @@ describe('an OAuth token is encrypted at rest, by construction', () => {
     // The null path is the one a custom type most easily gets wrong: mapping a
     // null through `encrypt` would throw, and mapping it through `decrypt` on
     // read would too. Both directions are exercised here.
-    await db.insert(integrations).values(
-      integrationValues({ id: 'int-null-refresh', oauthRefreshToken: null }),
-    );
-    await db.insert(integrations).values(
-      integrationValues({ id: 'int-has-refresh', oauthRefreshToken: 'plaintext-refresh' }),
-    );
+    await db
+      .insert(integrations)
+      .values(integrationValues({ id: 'int-null-refresh', oauthRefreshToken: null }));
+    await db
+      .insert(integrations)
+      .values(integrationValues({ id: 'int-has-refresh', oauthRefreshToken: 'plaintext-refresh' }));
 
     const [nullRow] = await db
       .select({ token: integrations.oauthRefreshToken })

@@ -12,7 +12,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@oxy.so/bloom/select';
-import { isPowerLevel, POWER_LEVELS, DEFAULT_POWER_LEVEL } from '@/features/chat/model/power-levels';
+import {
+  isPowerLevel,
+  POWER_LEVELS,
+  DEFAULT_POWER_LEVEL,
+} from '@/features/chat/model/power-levels';
 import { useTranslation } from '@/shared/i18n/use-translation';
 
 /**
@@ -38,8 +42,13 @@ export function AgentModelField({
 
   const items = useMemo(
     () => [
-      ...POWER_LEVELS.map((level) => ({ value: level as string, label: t(`powerLevels.${level}.label`) })),
-      ...(pinned === null ? [] : [{ value: pinned, label: t('agents.modelPinned', { model: pinned }) }]),
+      ...POWER_LEVELS.map((level) => ({
+        value: level as string,
+        label: t(`powerLevels.${level}.label`),
+      })),
+      ...(pinned === null
+        ? []
+        : [{ value: pinned, label: t('agents.modelPinned', { model: pinned }) }]),
     ],
     [pinned, t],
   );
@@ -60,7 +69,9 @@ export function AgentModelField({
         }}
       >
         <SelectTrigger label={t('agents.modelLabel')}>
-          <SelectValue>{() => items.find((item) => item.value === current)?.label ?? current}</SelectValue>
+          <SelectValue>
+            {() => items.find((item) => item.value === current)?.label ?? current}
+          </SelectValue>
           <SelectIcon />
         </SelectTrigger>
         <SelectContent

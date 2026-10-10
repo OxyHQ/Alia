@@ -69,10 +69,7 @@ export async function markAudioJobCompleted(
   jobId: string,
   audioUrl: string,
 ): Promise<void> {
-  await db
-    .update(audioJobs)
-    .set({ status: 'completed', audioUrl })
-    .where(eq(audioJobs.id, jobId));
+  await db.update(audioJobs).set({ status: 'completed', audioUrl }).where(eq(audioJobs.id, jobId));
 }
 
 /** Record a failed generation. Not scoped by user — the caller owns the id. */

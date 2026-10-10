@@ -13,7 +13,8 @@ import { markdownToTelegramHtml, stripMarkdown } from '../channels/telegram-form
  */
 export function createSendTelegramTool(userId: string) {
   return tool({
-    description: 'Send a message to user\'s Telegram. Use ONLY when user explicitly requests (e.g., "send me X on Telegram", "remind me via Telegram").',
+    description:
+      'Send a message to user\'s Telegram. Use ONLY when user explicitly requests (e.g., "send me X on Telegram", "remind me via Telegram").',
     inputSchema: z.object({
       message: z.string().describe('Complete message to send to user on Telegram'),
     }),
@@ -57,7 +58,7 @@ export function createSendTelegramTool(userId: string) {
         });
 
         if (!response.ok) {
-          const result = await response.json() as { ok?: boolean; description?: string };
+          const result = (await response.json()) as { ok?: boolean; description?: string };
 
           // If HTML parsing failed, retry as plain text
           if (response.status === 400) {
@@ -68,7 +69,10 @@ export function createSendTelegramTool(userId: string) {
             });
 
             if (fallback.ok) {
-              log.tools.info({ platformUserId: botUser.platformUserId }, 'Telegram message sent (plain text fallback)');
+              log.tools.info(
+                { platformUserId: botUser.platformUserId },
+                'Telegram message sent (plain text fallback)',
+              );
               return { success: true, message: 'Telegram message sent successfully' };
             }
           }
@@ -83,7 +87,10 @@ export function createSendTelegramTool(userId: string) {
           };
         }
 
-        log.tools.info({ platformUserId: botUser.platformUserId }, 'Telegram message sent successfully');
+        log.tools.info(
+          { platformUserId: botUser.platformUserId },
+          'Telegram message sent successfully',
+        );
         return {
           success: true,
           message: 'Telegram message sent successfully',

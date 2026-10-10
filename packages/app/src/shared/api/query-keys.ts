@@ -2,7 +2,8 @@ export const queryKeys = {
   /** "Avísame de emails importantes" for Alia and each owned agent. */
   emailAlerts: ['email-alerts'] as const,
   skills: {
-    catalogue: (filters?: Record<string, string | undefined>) => ['skills', 'catalogue', filters ?? {}] as const,
+    catalogue: (filters?: Record<string, string | undefined>) =>
+      ['skills', 'catalogue', filters ?? {}] as const,
     installed: ['skills', 'installed'] as const,
     mine: ['skills', 'mine'] as const,
     /** The catalogue and the caller's own, merged: what an agent may be given. */

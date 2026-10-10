@@ -86,7 +86,10 @@ const FORMAT_GUIDANCE: Record<ShowFormat, string> = {
  * because a model given names once at the top and an abstract schema below will
  * fill the schema with the schema's placeholder names.
  */
-export function buildScriptSystemPrompt(format: ShowFormat, speakers: readonly ShowSpeaker[]): string {
+export function buildScriptSystemPrompt(
+  format: ShowFormat,
+  speakers: readonly ShowSpeaker[],
+): string {
   const guidance = FORMAT_GUIDANCE[format];
   const roster = speakers.map((speaker) => `- ${speaker.name} (${speaker.role})`).join('\n');
   const [first, second] = speakers;

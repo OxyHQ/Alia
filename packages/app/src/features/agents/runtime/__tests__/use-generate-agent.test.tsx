@@ -19,15 +19,21 @@ vi.mock('@/features/agents/runtime/use-agents', () => ({
   }),
 }));
 vi.mock('@/shared/api/client', () => ({
-  default: { post: async () => ({ data: { suggestedUsername: 'scout', name: 'Scout', tagline: 't' } }) },
+  default: {
+    post: async () => ({ data: { suggestedUsername: 'scout', name: 'Scout', tagline: 't' } }),
+  },
 }));
-vi.mock('@/shared/api/routes', () => ({ API_ROUTES: { agents: { generate: '/agents/generate' } } }));
+vi.mock('@/shared/api/routes', () => ({
+  API_ROUTES: { agents: { generate: '/agents/generate' } },
+}));
 vi.mock('@/features/agents/model/bot-account', () => ({
   createBotAccount: async () => ({ accountId: 'acct-1', account: { username: 'scoutbot' } }),
   applyBotUsernameSuffix: (name: string) => `${name}bot`,
 }));
 vi.mock('@oxy.so/core', () => ({ SELECTABLE_ACCOUNT_CATEGORY_IDS: [] }));
-vi.mock('@oxy.so/services', () => ({ useOxy: () => ({ createAccount: vi.fn(), oxyServices: {} }) }));
+vi.mock('@oxy.so/services', () => ({
+  useOxy: () => ({ createAccount: vi.fn(), oxyServices: {} }),
+}));
 
 import { useGenerateAgent } from '../use-generate-agent';
 

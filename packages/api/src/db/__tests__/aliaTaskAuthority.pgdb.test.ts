@@ -39,9 +39,25 @@ beforeAll(() => {
 afterAll(async () => closePostgres());
 
 const OWNER = 'alia-auth-owner';
-const root = { appId: 'inbox', effectiveAccountId: OWNER, resourceType: 'email_account', resourceId: OWNER };
-const mailbox = { appId: 'inbox', effectiveAccountId: OWNER, resourceType: 'mailbox', resourceId: 'box-1' };
-const HOLD = { userId: OWNER, creditsReserved: 12, initialFreeCredits: 40, initialPaidCredits: 3, grantKind: 'free_allowance' as const };
+const root = {
+  appId: 'inbox',
+  effectiveAccountId: OWNER,
+  resourceType: 'email_account',
+  resourceId: OWNER,
+};
+const mailbox = {
+  appId: 'inbox',
+  effectiveAccountId: OWNER,
+  resourceType: 'mailbox',
+  resourceId: 'box-1',
+};
+const HOLD = {
+  userId: OWNER,
+  creditsReserved: 12,
+  initialFreeCredits: 40,
+  initialPaidCredits: 3,
+  grantKind: 'free_allowance' as const,
+};
 
 async function aliaTask(input: { actions?: boolean; inputs?: Record<string, unknown> } = {}) {
   const id = uuidv7();
@@ -76,46 +92,76 @@ describe('migration 0081', () => {
     const tables = await db.execute(sql`
       select table_name from information_schema.tables
       where table_name in ('alia_task_authorizations', 'automation_watch_states') order by table_name`);
-    expect((tables as unknown as Array<{ table_name: string }>).map((row) => row.table_name))
-      .toEqual(['alia_task_authorizations', 'automation_watch_states']);
+    expect(
+      (tables as unknown as Array<{ table_name: string }>).map((row) => row.table_name),
+    ).toEqual(['alia_task_authorizations', 'automation_watch_states']);
     const columns = await db.execute(sql`
       select column_name from information_schema.columns
       where table_name = 'automation_runs' and column_name in ('credit_reservation', 'lease_expires_at')
       order by column_name`);
-    expect((columns as unknown as Array<{ column_name: string }>).map((row) => row.column_name))
-      .toEqual(['credit_reservation', 'lease_expires_at']);
+    expect(
+      (columns as unknown as Array<{ column_name: string }>).map((row) => row.column_name),
+    ).toEqual(['credit_reservation', 'lease_expires_at']);
   });
 });
 
 describe('Alia standing authority', () => {
-  it('replaces the set, lists it with the agent path\'s ids and marks both revoked', async () => {
+  it("replaces the set, lists it with the agent path's ids and marks both revoked", async () => {
     const { automation, actionId } = await aliaTask({ actions: true });
     await replaceAliaTaskAuthorizations(db, automation.id, [
-      { automationActionId: null, resource: root, tool: 'listEmails', oxyAuthorizationId: `read-${automation.id}`, expiresAt: later() },
-      { automationActionId: actionId, resource: mailbox, tool: 'replyToEmail', oxyAuthorizationId: `act-${automation.id}`, expiresAt: later() },
+      {
+        automationActionId: null,
+        resource: root,
+        tool: 'listEmails',
+        oxyAuthorizationId: `read-${automation.id}`,
+        expiresAt: later(),
+      },
+      {
+        automationActionId: actionId,
+        resource: mailbox,
+        tool: 'replyToEmail',
+        oxyAuthorizationId: `act-${automation.id}`,
+        expiresAt: later(),
+      },
       // Already expired: never listed.
-      { automationActionId: null, resource: root, tool: 'getEmail', oxyAuthorizationId: `old-${automation.id}`, expiresAt: new Date(Date.now() - 1_000) },
+      {
+        automationActionId: null,
+        resource: root,
+        tool: 'getEmail',
+        oxyAuthorizationId: `old-${automation.id}`,
+        expiresAt: new Date(Date.now() - 1_000),
+      },
     ]);
     // A legacy agent row on the same task is revoked through the same path.
-    await upsertAutomationActionAuthorizations(db, [{
-      automationActionId: actionId,
-      agentId: 'agent-legacy',
-      actorAccountId: 'bot-legacy',
-      oxyAuthorizationId: `agent-${automation.id}`,
-      expiresAt: later(),
-    }]);
+    await upsertAutomationActionAuthorizations(db, [
+      {
+        automationActionId: actionId,
+        agentId: 'agent-legacy',
+        actorAccountId: 'bot-legacy',
+        oxyAuthorizationId: `agent-${automation.id}`,
+        expiresAt: later(),
+      },
+    ]);
 
-    expect((await listActiveAliaTaskAuthorizations(db, automation.id)).map((row) => row.tool).sort())
-      .toEqual(['listEmails', 'replyToEmail']);
-    expect((await listActiveTaskAuthorityIds(db, automation.id)).sort())
-      .toEqual([`act-${automation.id}`, `agent-${automation.id}`, `read-${automation.id}`].sort());
+    expect(
+      (await listActiveAliaTaskAuthorizations(db, automation.id)).map((row) => row.tool).sort(),
+    ).toEqual(['listEmails', 'replyToEmail']);
+    expect((await listActiveTaskAuthorityIds(db, automation.id)).sort()).toEqual(
+      [`act-${automation.id}`, `agent-${automation.id}`, `read-${automation.id}`].sort(),
+    );
 
     await markTaskAuthorityRevoked(db, [`read-${automation.id}`, `agent-${automation.id}`]);
     expect(await listActiveTaskAuthorityIds(db, automation.id)).toEqual([`act-${automation.id}`]);
 
     // A fresh set reinstates a revoked exact tool with its new id.
     await replaceAliaTaskAuthorizations(db, automation.id, [
-      { automationActionId: null, resource: root, tool: 'listEmails', oxyAuthorizationId: `read2-${automation.id}`, expiresAt: later() },
+      {
+        automationActionId: null,
+        resource: root,
+        tool: 'listEmails',
+        oxyAuthorizationId: `read2-${automation.id}`,
+        expiresAt: later(),
+      },
     ]);
     expect(await listActiveTaskAuthorityIds(db, automation.id)).toEqual([`read2-${automation.id}`]);
   });
@@ -123,8 +169,20 @@ describe('Alia standing authority', () => {
   it('gives a run every standing read and only the declared actions it has a step for', async () => {
     const { automation, actionId } = await aliaTask({ actions: true });
     await replaceAliaTaskAuthorizations(db, automation.id, [
-      { automationActionId: null, resource: root, tool: 'listEmails', oxyAuthorizationId: `r-${automation.id}`, expiresAt: later() },
-      { automationActionId: actionId, resource: mailbox, tool: 'replyToEmail', oxyAuthorizationId: `a-${automation.id}`, expiresAt: later() },
+      {
+        automationActionId: null,
+        resource: root,
+        tool: 'listEmails',
+        oxyAuthorizationId: `r-${automation.id}`,
+        expiresAt: later(),
+      },
+      {
+        automationActionId: actionId,
+        resource: mailbox,
+        tool: 'replyToEmail',
+        oxyAuthorizationId: `a-${automation.id}`,
+        expiresAt: later(),
+      },
     ]);
     const runId = uuidv7();
     await claimAutomationRunPlan({
@@ -134,32 +192,54 @@ describe('Alia standing authority', () => {
       requesterAccountId: OWNER,
       triggerEventId: `schedule:${automation.id}:1`,
       actorType: 'alia',
-      stages: [{
-        stage: 0,
-        selectedAgentId: null,
-        selectedActorAccountId: OWNER,
-        resource: mailbox,
-        taskInput: {},
-        actions: automation.actions,
-      }],
+      stages: [
+        {
+          stage: 0,
+          selectedAgentId: null,
+          selectedActorAccountId: OWNER,
+          resource: mailbox,
+          taskInput: {},
+          actions: automation.actions,
+        },
+      ],
     });
     const steps = await listAutomationRunSteps(db, runId);
     const actionStep = steps.find((step) => step.tool === 'replyToEmail');
     expect(actionStep?.actorType).toBe('alia');
 
     const forRun = await listAliaTaskAuthorizationsForRun(db, automation.id, runId);
-    expect(forRun).toEqual(expect.arrayContaining([
-      { resource: root, tool: 'listEmails', oxyAuthorizationId: `r-${automation.id}`, repeatable: true },
-      { resource: mailbox, tool: 'replyToEmail', oxyAuthorizationId: `a-${automation.id}`, stepId: actionStep?.id, repeatable: false },
-    ]));
-    expect(await listAliaTaskAuthorizationsForRun(db, automation.id, uuidv7()))
-      .toEqual([expect.objectContaining({ tool: 'listEmails' })]);
+    expect(forRun).toEqual(
+      expect.arrayContaining([
+        {
+          resource: root,
+          tool: 'listEmails',
+          oxyAuthorizationId: `r-${automation.id}`,
+          repeatable: true,
+        },
+        {
+          resource: mailbox,
+          tool: 'replyToEmail',
+          oxyAuthorizationId: `a-${automation.id}`,
+          stepId: actionStep?.id,
+          repeatable: false,
+        },
+      ]),
+    );
+    expect(await listAliaTaskAuthorizationsForRun(db, automation.id, uuidv7())).toEqual([
+      expect.objectContaining({ tool: 'listEmails' }),
+    ]);
   });
 
   it('is replaced with the definition on edit, and cascades with the task', async () => {
     const { automation } = await aliaTask();
     await replaceAliaTaskAuthorizations(db, automation.id, [
-      { automationActionId: null, resource: root, tool: 'listEmails', oxyAuthorizationId: `e1-${automation.id}`, expiresAt: later() },
+      {
+        automationActionId: null,
+        resource: root,
+        tool: 'listEmails',
+        oxyAuthorizationId: `e1-${automation.id}`,
+        expiresAt: later(),
+      },
     ]);
     const updated = await updateAutomationDefinition(db, {
       id: automation.id,
@@ -179,14 +259,22 @@ describe('Alia standing authority', () => {
       enabled: true,
       authorizations: [],
       aliaAuthorizations: [
-        { automationActionId: null, resource: root, tool: 'getEmail', oxyAuthorizationId: `e2-${automation.id}`, expiresAt: later() },
+        {
+          automationActionId: null,
+          resource: root,
+          tool: 'getEmail',
+          oxyAuthorizationId: `e2-${automation.id}`,
+          expiresAt: later(),
+        },
       ],
     });
     expect(updated).not.toBeNull();
     expect(await listActiveTaskAuthorityIds(db, automation.id)).toEqual([`e2-${automation.id}`]);
 
     await db.execute(sql`delete from automation_definitions where id = ${automation.id}`);
-    const left = await db.execute(sql`select count(*)::int as n from alia_task_authorizations where automation_id = ${automation.id}`);
+    const left = await db.execute(
+      sql`select count(*)::int as n from alia_task_authorizations where automation_id = ${automation.id}`,
+    );
     expect((left as unknown as Array<{ n: number }>)[0]?.n).toBe(0);
   });
 });
@@ -202,9 +290,16 @@ describe('Alia run lease, hold and reaper', () => {
       triggerEventId: `schedule:${automationId}:${runId}`,
       actorType: 'alia',
       creditReservation: HOLD,
-      stages: [{
-        stage: 0, selectedAgentId: null, selectedActorAccountId: OWNER, resource: root, taskInput: {}, actions: [],
-      }],
+      stages: [
+        {
+          stage: 0,
+          selectedAgentId: null,
+          selectedActorAccountId: OWNER,
+          resource: root,
+          taskInput: {},
+          actions: [],
+        },
+      ],
     });
     return runId;
   }
@@ -239,11 +334,18 @@ describe('Alia run lease, hold and reaper', () => {
     expect(abandoned).not.toContain(live);
 
     const reaped = await failAbandonedAliaRun(db, lapsed, now, plannedBefore);
-    expect(reaped).toEqual({ id: lapsed, automationId: automation.id, requesterAccountId: OWNER, creditReservation: HOLD });
+    expect(reaped).toEqual({
+      id: lapsed,
+      automationId: automation.id,
+      requesterAccountId: OWNER,
+      creditReservation: HOLD,
+    });
     expect(await failAbandonedAliaRun(db, lapsed, now, plannedBefore)).toBeNull();
     expect(await failAbandonedAliaRun(db, live, now, plannedBefore)).toBeNull();
     expect((await findAutomationRunById(db, lapsed))?.status).toBe('failed');
-    expect((await listAutomationRunSteps(db, lapsed)).every((step) => step.status === 'failed')).toBe(true);
+    expect(
+      (await listAutomationRunSteps(db, lapsed)).every((step) => step.status === 'failed'),
+    ).toBe(true);
     // The worker that finishes late cannot settle what the reaper refunded.
     expect(await markAliaAutomationRun(db, lapsed, 'succeeded')).toBe(false);
   });
@@ -256,10 +358,18 @@ describe('watch state', () => {
     const now = new Date();
 
     await recordAutomationWatchObservation(db, {
-      automationId: automation.id, hash: 'h1', items: ['a', 'b'], matched: false, changed: false, now,
+      automationId: automation.id,
+      hash: 'h1',
+      items: ['a', 'b'],
+      matched: false,
+      changed: false,
+      now,
     });
     expect(await findAutomationWatchState(db, automation.id)).toMatchObject({
-      lastHash: 'h1', lastItems: ['a', 'b'], consecutiveFailures: 0, lastChangedAt: null,
+      lastHash: 'h1',
+      lastItems: ['a', 'b'],
+      consecutiveFailures: 0,
+      lastChangedAt: null,
     });
 
     for (let streak = 1; streak <= 5; streak++) {
@@ -272,20 +382,31 @@ describe('watch state', () => {
     expect(await pauseFailingAutomationWatch(db, automation.id, 5, now)).toBe(true);
     expect(await pauseFailingAutomationWatch(db, automation.id, 5, now)).toBe(false);
     expect((await findAutomationDefinitionById(db, automation.id))?.enabled).toBe(false);
-    expect(await findAutomationWatchState(db, automation.id)).toMatchObject({ consecutiveFailures: 0, nextCheckAt: null });
+    expect(await findAutomationWatchState(db, automation.id)).toMatchObject({
+      consecutiveFailures: 0,
+      nextCheckAt: null,
+    });
 
     await recordAutomationWatchObservation(db, {
-      automationId: automation.id, hash: 'h2', items: ['a', 'c'], matched: false, changed: true, now,
+      automationId: automation.id,
+      hash: 'h2',
+      items: ['a', 'c'],
+      matched: false,
+      changed: true,
+      now,
     });
     expect(await findAutomationWatchState(db, automation.id)).toMatchObject({
-      lastHash: 'h2', pausedAt: null, lastChangedAt: now,
+      lastHash: 'h2',
+      pausedAt: null,
+      lastChangedAt: now,
     });
   });
 
   it('rejects a negative streak', async () => {
     const { automation } = await aliaTask();
-    await expect(db.execute(sql`
-      insert into automation_watch_states (automation_id, consecutive_failures) values (${automation.id}, -1)`))
-      .rejects.toThrow();
+    await expect(
+      db.execute(sql`
+      insert into automation_watch_states (automation_id, consecutive_failures) values (${automation.id}, -1)`),
+    ).rejects.toThrow();
   });
 });

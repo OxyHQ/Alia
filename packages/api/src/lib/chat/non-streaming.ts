@@ -70,10 +70,26 @@ export interface NonStreamingParams {
 /** Handle one non-streaming provider attempt end to end; writes the JSON response. */
 export async function runNonStreaming(params: NonStreamingParams): Promise<void> {
   const {
-    req, res, requestId, globalTimer, baseConfig, clearFirstByteTimer,
-    modelId, requestedModel, reasoningEffort, conversationId, assistantMessageId, messages, creditReservation,
-    systemPromptTokens, requestStartTime, skills, autonomyRuntime, toolNameMapping,
-    observation, settlement,
+    req,
+    res,
+    requestId,
+    globalTimer,
+    baseConfig,
+    clearFirstByteTimer,
+    modelId,
+    requestedModel,
+    reasoningEffort,
+    conversationId,
+    assistantMessageId,
+    messages,
+    creditReservation,
+    systemPromptTokens,
+    requestStartTime,
+    skills,
+    autonomyRuntime,
+    toolNameMapping,
+    observation,
+    settlement,
   } = params;
 
   log.v1.info('Non-streaming request, using generateText');
@@ -100,16 +116,18 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
 
   const assistantResponse = result.text || '';
 
-  const nonStreamToolInvocations = result.toolCalls.filter((tc) => !isInvalidToolCall(tc)).map((tc) => {
-    const toolResult = result.toolResults.find((tr) => tr.toolCallId === tc.toolCallId);
-    return {
-      toolCallId: tc.toolCallId,
-      toolName: toolNameMapping.get(tc.toolName) || tc.toolName,
-      state: toolResult ? 'result' as const : 'call' as const,
-      args: tc.input,
-      ...(toolResult && { result: toolResult.output }),
-    };
-  });
+  const nonStreamToolInvocations = result.toolCalls
+    .filter((tc) => !isInvalidToolCall(tc))
+    .map((tc) => {
+      const toolResult = result.toolResults.find((tr) => tr.toolCallId === tc.toolCallId);
+      return {
+        toolCallId: tc.toolCallId,
+        toolName: toolNameMapping.get(tc.toolName) || tc.toolName,
+        state: toolResult ? ('result' as const) : ('call' as const),
+        args: tc.input,
+        ...(toolResult && { result: toolResult.output }),
+      };
+    });
 
   // Build lifecycle context for post-request operations
   const lifecycleCtx: LifecycleContext = {
@@ -134,7 +152,12 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
   }
 
   // Finalize credits + detect anomalies
-  const { creditsCharged, creditsRemaining, creditWarning } = await finalizeChatCredits(lifecycleCtx, req, settlement, observation.resolvedModelReference);
+  const { creditsCharged, creditsRemaining, creditWarning } = await finalizeChatCredits(
+    lifecycleCtx,
+    req,
+    settlement,
+    observation.resolvedModelReference,
+  );
 
   // Fire afterChat hooks (non-blocking)
   runPostChatHooks(lifecycleCtx, assistantResponse, observation, null);
@@ -147,22 +170,24 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
   }));
 
   // Return OpenAI-compatible non-streaming response
-  res.json(buildCompletionResponse({
-    requestId,
-    // The model that ran, as OpenAI's shape means it: for a power level, the
-    // one Oxy chose (ADR 0014); the request's own id when none was reported.
-    model: servedModelId(modelId, observation.resolvedModelReference),
-    content: assistantResponse,
-    finishReason: result.finishReason || 'stop',
-    toolCalls,
-    usage: tokenUsage,
-    aliaUsage: {
-      system_prompt_tokens: tokenUsage.systemPromptTokens || 0,
-      billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
-      credits_charged: creditsCharged,
-      credits_remaining: creditsRemaining,
-      credit_warning: creditWarning,
-    },
-  }));
+  res.json(
+    buildCompletionResponse({
+      requestId,
+      // The model that ran, as OpenAI's shape means it: for a power level, the
+      // one Oxy chose (ADR 0014); the request's own id when none was reported.
+      model: servedModelId(modelId, observation.resolvedModelReference),
+      content: assistantResponse,
+      finishReason: result.finishReason || 'stop',
+      toolCalls,
+      usage: tokenUsage,
+      aliaUsage: {
+        system_prompt_tokens: tokenUsage.systemPromptTokens || 0,
+        billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
+        credits_charged: creditsCharged,
+        credits_remaining: creditsRemaining,
+        credit_warning: creditWarning,
+      },
+    }),
+  );
   clearTimeout(globalTimer);
 }

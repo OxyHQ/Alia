@@ -7,7 +7,12 @@ import {
 } from '@/features/chat/runtime/use-agent-activity';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
-import { AgentLogRow, AgentLogShimmerText, AgentLogWorkingRow, useAgentLogMotion } from '@oxy.so/bloom/agent-log';
+import {
+  AgentLogRow,
+  AgentLogShimmerText,
+  AgentLogWorkingRow,
+  useAgentLogMotion,
+} from '@oxy.so/bloom/agent-log';
 import { AgentProgress } from '@oxy.so/bloom/agent-progress';
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
 import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
@@ -81,8 +86,11 @@ export function agentStepLabel(event: AgentActivityEvent, t: Translate): string 
           target: cut(args?.url, 30) || cut(args?.query, 30),
         }).trim();
       if (toolName === 'plan')
-        return args?.action === 'complete' ? t('panels.agent.step.completing') : t('panels.agent.step.updatingPlan');
-      if (toolName === 'delegate') return t('panels.agent.step.delegate', { agent: args?.agent || 'agent' });
+        return args?.action === 'complete'
+          ? t('panels.agent.step.completing')
+          : t('panels.agent.step.updatingPlan');
+      if (toolName === 'delegate')
+        return t('panels.agent.step.delegate', { agent: args?.agent || 'agent' });
       return `${toolName}(${cut(event.content, 40)})`;
     }
     case 'tool_result':
@@ -138,15 +146,32 @@ function StepsTab({ events, isActive }: { events: AgentActivityEvent[]; isActive
         const failed = step.type === 'error' || step.type === 'threat';
         // The glyph comes from the CAPABILITY FAMILY that grants the tool, so
         // this log and the agent editor draw one concept one way.
-        const FamilyIcon = step.type === 'tool_call' ? capabilityIconForTool(step.metadata?.toolName || '') : undefined;
+        const FamilyIcon =
+          step.type === 'tool_call'
+            ? capabilityIconForTool(step.metadata?.toolName || '')
+            : undefined;
         return (
-          <AgentLogRow key={`${step.timestamp}-${index}`} first={index === 0} last={last} reduce={reduce}>
+          <AgentLogRow
+            key={`${step.timestamp}-${index}`}
+            first={index === 0}
+            last={last}
+            reduce={reduce}
+          >
             <View className="flex-row items-center gap-1.5 py-1">
-              {step.type === 'complete' ? <RiCheckboxCircleLine size="sm" fill={colors.success} /> : null}
+              {step.type === 'complete' ? (
+                <RiCheckboxCircleLine size="sm" fill={colors.success} />
+              ) : null}
               {failed ? <RiErrorWarningLine size="sm" fill={colors.error} /> : null}
               {FamilyIcon ? <FamilyIcon width={14} fill={colors.text} /> : null}
-              <Text variant={step.type === 'complete' ? 'body-medium' : 'body-regular'} numberOfLines={2}>
-                {isActive && last && label ? <AgentLogShimmerText>{label}</AgentLogShimmerText> : label}
+              <Text
+                variant={step.type === 'complete' ? 'body-medium' : 'body-regular'}
+                numberOfLines={2}
+              >
+                {isActive && last && label ? (
+                  <AgentLogShimmerText>{label}</AgentLogShimmerText>
+                ) : (
+                  label
+                )}
               </Text>
             </View>
           </AgentLogRow>
@@ -159,7 +184,9 @@ function StepsTab({ events, isActive }: { events: AgentActivityEvent[]; isActive
 function SourcesTab({ sources }: { sources: AgentSource[] }) {
   const { t } = useTranslation();
   if (sources.length === 0) {
-    return <EmptyState variant="compact" icon={RiSearchLine} description={t('panels.agent.noSources')} />;
+    return (
+      <EmptyState variant="compact" icon={RiSearchLine} description={t('panels.agent.noSources')} />
+    );
   }
 
   return (
@@ -223,14 +250,22 @@ export function AgentPanel() {
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: 'steps', label: t('panels.agent.tabs.steps') },
-    { key: 'sources', label: t('panels.agent.tabs.sources'), count: activity.sources.length || undefined },
+    {
+      key: 'sources',
+      label: t('panels.agent.tabs.sources'),
+      count: activity.sources.length || undefined,
+    },
   ];
 
   return (
     <View className="min-h-0 flex-1 gap-2.5 pt-2">
       <View className="h-[30px] flex-row items-center justify-between">
         <View className="min-w-0 shrink">
-          <Tabs variant="pill" value={activeTab} onValueChange={(next) => setActiveTab(next as Tab)}>
+          <Tabs
+            variant="pill"
+            value={activeTab}
+            onValueChange={(next) => setActiveTab(next as Tab)}
+          >
             {tabs.map((tab) => (
               <TabsTrigger key={tab.key} value={tab.key} label={tab.label} count={tab.count} />
             ))}
@@ -277,14 +312,24 @@ export function AgentPanel() {
             description={`${approval.toolName}: ${approval.description}`}
             dismissible={false}
             actions={[
-              { label: t('panels.agent.deny'), onPress: () => activity.respondApproval(approval.requestId, false) },
-              { label: t('panels.agent.approve'), onPress: () => activity.respondApproval(approval.requestId, true) },
+              {
+                label: t('panels.agent.deny'),
+                onPress: () => activity.respondApproval(approval.requestId, false),
+              },
+              {
+                label: t('panels.agent.approve'),
+                onPress: () => activity.respondApproval(approval.requestId, true),
+              },
             ]}
           />
         </View>
       ) : null}
 
-      <ScrollView className="flex-1 px-4" contentContainerClassName="pb-6" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1 px-4"
+        contentContainerClassName="pb-6"
+        showsVerticalScrollIndicator={false}
+      >
         {activeTab === 'steps' ? (
           <StepsTab events={activity.events} isActive={isActive} />
         ) : (

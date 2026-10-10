@@ -20,10 +20,7 @@ import {
 import { useVoiceSoundEffects } from '@/shared/platform/use-sound-effects';
 import type { Attachment, SendOptions } from '@/shared/contracts/chat-turn';
 import { useThreadHistory } from '@/features/chat/runtime/use-thread-history';
-import {
-  useThreadWindow,
-  type ThreadSearchHit,
-} from '@/features/chat/runtime/use-thread-search';
+import { useThreadWindow, type ThreadSearchHit } from '@/features/chat/runtime/use-thread-search';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useVoiceMode } from '@/features/voice/runtime/use-voice-mode';
 import { useModelStore } from '@/features/chat/runtime/model-store';
@@ -86,9 +83,7 @@ export const ConversationScreen = ({
   // the screen that started the conversation.
   const { data: conversationDetails } = useConversation(conversationId);
   const globalLevel = useModelStore((s) => s.selectedLevel);
-  const [conversationLevel, setConversationLevel] = useState<string | null>(
-    null,
-  );
+  const [conversationLevel, setConversationLevel] = useState<string | null>(null);
   const selectedModel = conversationLevel ?? globalLevel;
   const selection = useModeSelection(selectedModel);
 
@@ -192,13 +187,7 @@ export const ConversationScreen = ({
         },
       },
     );
-  }, [
-    agentId,
-    threadHandle,
-    createConversation,
-    queryClient,
-    dismissSuggestedNewConversation,
-  ]);
+  }, [agentId, threadHandle, createConversation, queryClient, dismissSuggestedNewConversation]);
 
   /**
    * The messages, for the export — behind a ref so `handleExport` is built
@@ -229,11 +218,9 @@ export const ConversationScreen = ({
       assistantName: agentName,
       userLabel: t('chat.searchThreadYou'),
     });
-    deliverMarkdownFile(exportFilename(title, exportedAt), markdown, title).catch(
-      () => {
-        toast.error(t('chat.exportFailed'));
-      },
-    );
+    deliverMarkdownFile(exportFilename(title, exportedAt), markdown, title).catch(() => {
+      toast.error(t('chat.exportFailed'));
+    });
   }, [queryClient, conversationId, agentName, t]);
 
   /**
@@ -284,7 +271,8 @@ export const ConversationScreen = ({
   const terminalAgentId = agentId ?? (agentTurnHere && activeAgentId ? activeAgentId : undefined);
   const pathname = usePathname();
   const handleOpenTerminal = useCallback(() => {
-    if (terminalAgentId !== undefined) useUIStore.getState().openAgentTerminal(terminalAgentId, pathname);
+    if (terminalAgentId !== undefined)
+      useUIStore.getState().openAgentTerminal(terminalAgentId, pathname);
   }, [terminalAgentId, pathname]);
 
   const headerActions = (
@@ -332,11 +320,7 @@ export const ConversationScreen = ({
   // Auto-activate voice when navigated with startVoice (once only)
   const voiceAutoStartedRef = useRef(false);
   useEffect(() => {
-    if (
-      startVoice &&
-      !voiceAutoStartedRef.current &&
-      voice.roomState === 'disconnected'
-    ) {
+    if (startVoice && !voiceAutoStartedRef.current && voice.roomState === 'disconnected') {
       voiceAutoStartedRef.current = true;
       voice.activateVoice();
     }
@@ -357,67 +341,51 @@ export const ConversationScreen = ({
 
   return (
     <>
-        <ChatPageContent
-          selectedModel={selectedModel}
-          onModelChange={setConversationLevel}
-          conversationTitle={conversationDetails?.title}
-          // Nothing live under a window: it is a view of the past, and the
-          // conversation being streamed into is not below it in the thread.
-          messages={jumped ? NO_MESSAGES : messages}
-          conversationId={conversationId}
-          isLoading={isLoading}
-          conversationLoading={conversationLoading}
-          onSubmit={handleSubmit}
-          onStop={stopGeneration}
-          onEditMessage={editMessage}
-          onRegenerateMessage={regenerateMessage}
-          turnOptionsOf={turnOptionsOf}
-          disabled={!!usageLimitError}
-          voice={voice}
-          agentName={agentName}
-          onApprovePlan={approvePlan}
-          onRejectPlan={rejectPlan}
-          suggestedNewConversation={suggestedNewConversation}
-          onAcceptNewConversation={handleAcceptNewConversation}
-          onDismissNewConversation={dismissSuggestedNewConversation}
-          historyMessages={jumped ? past.messages : history.messages}
-          hasMoreHistory={jumped ? past.hasMore : history.hasMore}
-          isLoadingHistory={
-            jumped
-              ? past.isLoadingMore || past.isLoading
-              : history.isLoadingMore
-          }
-          onLoadHistory={jumped ? past.loadMore : history.loadMore}
-          focusCursor={jumpedTo}
-          failedTurn={failedTurn}
-          onRetryTurn={retryFailedTurn}
-          headerActions={headerActions}
-          agentActivity={activeAgentSessionId === null ? null : agentActivity}
-          agentSessionId={activeAgentSessionId}
-        />
-        {!jumped ? null : (
-          <View
-            className="absolute inset-x-0 top-16 z-10 items-center"
-            pointerEvents="box-none"
-          >
-            <Button
-              appearance="outline"
-              tone="neutral"
-              size="sm"
-              onPress={handleBackToLatest}
-            >
-              {t('chat.backToLatest')}
-            </Button>
-          </View>
-        )}
-        {!searchOpen || threadHandle === undefined ? null : (
-          <ThreadSearch
-            handle={threadHandle}
-            onJump={handleJump}
-            onClose={handleSearchClose}
-          />
-        )}
-        <UsageLimitDialog error={usageLimitError} onDismiss={clearError} />
+      <ChatPageContent
+        selectedModel={selectedModel}
+        onModelChange={setConversationLevel}
+        conversationTitle={conversationDetails?.title}
+        // Nothing live under a window: it is a view of the past, and the
+        // conversation being streamed into is not below it in the thread.
+        messages={jumped ? NO_MESSAGES : messages}
+        conversationId={conversationId}
+        isLoading={isLoading}
+        conversationLoading={conversationLoading}
+        onSubmit={handleSubmit}
+        onStop={stopGeneration}
+        onEditMessage={editMessage}
+        onRegenerateMessage={regenerateMessage}
+        turnOptionsOf={turnOptionsOf}
+        disabled={!!usageLimitError}
+        voice={voice}
+        agentName={agentName}
+        onApprovePlan={approvePlan}
+        onRejectPlan={rejectPlan}
+        suggestedNewConversation={suggestedNewConversation}
+        onAcceptNewConversation={handleAcceptNewConversation}
+        onDismissNewConversation={dismissSuggestedNewConversation}
+        historyMessages={jumped ? past.messages : history.messages}
+        hasMoreHistory={jumped ? past.hasMore : history.hasMore}
+        isLoadingHistory={jumped ? past.isLoadingMore || past.isLoading : history.isLoadingMore}
+        onLoadHistory={jumped ? past.loadMore : history.loadMore}
+        focusCursor={jumpedTo}
+        failedTurn={failedTurn}
+        onRetryTurn={retryFailedTurn}
+        headerActions={headerActions}
+        agentActivity={activeAgentSessionId === null ? null : agentActivity}
+        agentSessionId={activeAgentSessionId}
+      />
+      {!jumped ? null : (
+        <View className="absolute inset-x-0 top-16 z-10 items-center" pointerEvents="box-none">
+          <Button appearance="outline" tone="neutral" size="sm" onPress={handleBackToLatest}>
+            {t('chat.backToLatest')}
+          </Button>
+        </View>
+      )}
+      {!searchOpen || threadHandle === undefined ? null : (
+        <ThreadSearch handle={threadHandle} onJump={handleJump} onClose={handleSearchClose} />
+      )}
+      <UsageLimitDialog error={usageLimitError} onDismiss={clearError} />
     </>
   );
 };

@@ -7,33 +7,33 @@
  */
 
 declare module 'gulp-postcss' {
-  import type { AcceptedPlugin } from 'postcss'
+  import type { AcceptedPlugin } from 'postcss';
 
   /** Applies a list of PostCSS plugins to each file in a Vinyl/gulp stream. */
-  function gulpPostcss(plugins?: readonly AcceptedPlugin[]): NodeJS.ReadWriteStream
+  function gulpPostcss(plugins?: readonly AcceptedPlugin[]): NodeJS.ReadWriteStream;
 
-  export = gulpPostcss
+  export = gulpPostcss;
 }
 
 declare module 'postcss-import' {
-  import type { AcceptedPlugin, Plugin } from 'postcss'
+  import type { AcceptedPlugin, Plugin } from 'postcss';
 
   interface AtImportOptions {
     /** Directory to resolve `@import` paths from. Defaults to `process.cwd()`. */
-    root?: string
+    root?: string;
     /** Additional directories to search for imported files. */
-    path?: string | string[]
+    path?: string | string[];
     /** PostCSS plugins to run on each imported file. */
-    plugins?: AcceptedPlugin[]
+    plugins?: AcceptedPlugin[];
     /** Only transform imports for which this returns `true`. */
-    filter?: (path: string) => boolean
+    filter?: (path: string) => boolean;
     /** Skip re-importing files with identical content. Defaults to `true`. */
-    skipDuplicates?: boolean
+    skipDuplicates?: boolean;
     /** Extra directories appended to the default module resolver. */
-    addModulesDirectories?: string[]
+    addModulesDirectories?: string[];
   }
 
-  function postcssImport(options?: AtImportOptions): Plugin
+  function postcssImport(options?: AtImportOptions): Plugin;
 
-  export = postcssImport
+  export = postcssImport;
 }

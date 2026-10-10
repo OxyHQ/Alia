@@ -43,7 +43,7 @@ let database: TestDatabaseHandle;
 beforeAll(async () => {
   database = await setUpTestDatabase();
   const connected = connectPostgres(database.databaseUrl);
-  if (!connected) throw new Error('could not connect to this file\'s throwaway database');
+  if (!connected) throw new Error("could not connect to this file's throwaway database");
   db = connected;
 }, 120_000);
 

@@ -3,7 +3,9 @@ vi.mock('@oxy.so/core/server', async () => {
   const { createRequire } = await import('node:module');
   return createRequire(import.meta.url)('@oxy.so/core/server') as Record<string, unknown>;
 });
-const { createOxyAliaMachineCredentialAuth, OXY_ALIA_RESOURCE_APPLICATION_ID } = await import('@oxy.so/core/server');
+const { createOxyAliaMachineCredentialAuth, OXY_ALIA_RESOURCE_APPLICATION_ID } = await import(
+  '@oxy.so/core/server'
+);
 
 /**
  * What a request's `model` becomes, measured on the REAL boundary (ADR 0012).
@@ -48,9 +50,10 @@ vi.mock('@oxy.so/core', async () => {
           kind: 'bot',
           relationship: oxy.mode === 'grants' ? 'owner' : 'none',
           account: { id: accountId, kind: 'bot' },
-          callerMembership: oxy.mode === 'grants'
-            ? { status: 'active', role: 'owner', permissions: ['account:act_as'] }
-            : null,
+          callerMembership:
+            oxy.mode === 'grants'
+              ? { status: 'active', role: 'owner', permissions: ['account:act_as'] }
+              : null,
         };
       }
     },
@@ -66,9 +69,10 @@ vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../../../db/memory/userMemoryRepository.js', () => ({
   findUserMemory: async () => undefined,
 }));
-vi.mock('../../../db/chat/conversationRepository.js', () => ({
+vi.mock('../../../db/chat/conversationRepository.js', () => ({}));
+vi.mock('../../../db/agents/skillRepository.js', () => ({
+  findSkillPrompt: async () => undefined,
 }));
-vi.mock('../../../db/agents/skillRepository.js', () => ({ findSkillPrompt: async () => undefined }));
 vi.mock('../../../db/agents/agentRepository.js', () => ({
   findAgentById: (...args: unknown[]) => findAgentById(...args),
   // The turn's skill runtime asks which skills the agent carries; an agent with
@@ -77,7 +81,11 @@ vi.mock('../../../db/agents/agentRepository.js', () => ({
 }));
 vi.mock('../../agent-identity.js', () => ({
   attachAgentIdentity: async (agent: Record<string, unknown>) => ({
-    ...agent, name: 'Pepe', handle: 'pepe', avatar: null, authorName: null,
+    ...agent,
+    name: 'Pepe',
+    handle: 'pepe',
+    avatar: null,
+    authorName: null,
   }),
 }));
 vi.mock('../../../db/integrations/mcpServerRepository.js', () => ({
@@ -115,7 +123,12 @@ function hosted(id: string) {
     modelId: id,
     keyConfig: { provider: 'kaana', modelId: id },
     oxyInferenceTarget: { kind: 'model', model: id },
-    catalogue: { id, name: id, publisher: { id: 'acme', name: 'Acme' }, reasoningEfforts: ['low', 'high'] },
+    catalogue: {
+      id,
+      name: id,
+      publisher: { id: 'acme', name: 'Acme' },
+      reasoningEfforts: ['low', 'high'],
+    },
     powerLevel: null,
   };
 }
@@ -180,7 +193,9 @@ async function run(
       messages: [{ role: 'user', content: 'hi' }],
       ...(model === undefined ? {} : { model }),
       ...('mcpServerId' in options ? { mcpServerId: options.mcpServerId } : {}),
-      ...('assistantMessageId' in options ? { assistantMessageId: options.assistantMessageId } : {}),
+      ...('assistantMessageId' in options
+        ? { assistantMessageId: options.assistantMessageId }
+        : {}),
       ...(options.body ?? {}),
     },
     ...(options.directUserId === undefined ? {} : { user: { id: options.directUserId } }),
@@ -200,7 +215,13 @@ async function run(
       : { serviceActingAs: { userId: options.directUserId, scopes: options.delegatedScopes } }),
     ...(options.oxyRequester === undefined
       ? {}
-      : { oxyRequester: { ...options.oxyRequester, jti: 'jti-1', expiresAt: '2026-09-17T12:02:00.000Z' } }),
+      : {
+          oxyRequester: {
+            ...options.oxyRequester,
+            jti: 'jti-1',
+            expiresAt: '2026-09-17T12:02:00.000Z',
+          },
+        }),
     accessToken: options.accessToken ?? 'token-1',
   };
   if (options.agentId !== undefined) {
@@ -209,13 +230,25 @@ async function run(
   if (options.machine) {
     Reflect.deleteProperty(req, 'accessToken');
     Reflect.set(req, 'headers', { authorization: 'Bearer oxy_sk_machine_payer_fixture' });
-    await createOxyAliaMachineCredentialAuth({ apps: { introspectAliaMachineCredential: async () => ({
-      active: true, principal: {
-        kind: 'machine', audience: OXY_ALIA_RESOURCE_APPLICATION_ID, applicationId: 'machine-app',
-        credentialId: 'machine-credential', ownerAccountId: 'machine-payer', environment: 'production',
-        scopes: ['alia:chat', 'inference:invoke'],
+    await createOxyAliaMachineCredentialAuth(
+      {
+        apps: {
+          introspectAliaMachineCredential: async () => ({
+            active: true,
+            principal: {
+              kind: 'machine',
+              audience: OXY_ALIA_RESOURCE_APPLICATION_ID,
+              applicationId: 'machine-app',
+              credentialId: 'machine-credential',
+              ownerAccountId: 'machine-payer',
+              environment: 'production',
+              scopes: ['alia:chat', 'inference:invoke'],
+            },
+          }),
+        },
       },
-    }) } }, { environment: 'production' })(req as never, res as never, () => undefined);
+      { environment: 'production' },
+    )(req as never, res as never, () => undefined);
   }
   const ctx = await buildChatRequestContext(
     req as never,
@@ -254,8 +287,19 @@ describe('app-only machine turn boundary and payer', () => {
     expect(findAgentById).not.toHaveBeenCalled();
     expect(findMcpServerForUser).not.toHaveBeenCalled();
   });
-  it.each(['agentId', 'conversationId', 'mcpServerId', 'skillIds', 'tools', 'deepResearch', 'userId'])('refuses personal/tool authority field %s before resolution', async key => {
-    const { ctx, captured } = await run(KNOWN, { machine: true, body: { [key]: 'claimed-authority' } });
+  it.each([
+    'agentId',
+    'conversationId',
+    'mcpServerId',
+    'skillIds',
+    'tools',
+    'deepResearch',
+    'userId',
+  ])('refuses personal/tool authority field %s before resolution', async (key) => {
+    const { ctx, captured } = await run(KNOWN, {
+      machine: true,
+      body: { [key]: 'claimed-authority' },
+    });
     expect(ctx).toBeNull();
     expect(captured.status).toBe(403);
     expect(resolveModel).not.toHaveBeenCalled();
@@ -353,7 +397,8 @@ describe('the turn resolves the agent it NAMED', () => {
     findAgentById.mockResolvedValue(null);
 
     const { ctx, captured } = await run(undefined, {
-      directUserId: 'user-1', agentId: 'agent-does-not-exist',
+      directUserId: 'user-1',
+      agentId: 'agent-does-not-exist',
     });
 
     expect(ctx).toBeNull();
@@ -370,7 +415,8 @@ describe('the turn resolves the agent it NAMED', () => {
     findAgentById.mockRejectedValue(new Error('database unavailable'));
 
     const { ctx, captured } = await run(undefined, {
-      directUserId: 'user-1', agentId: 'agent-1',
+      directUserId: 'user-1',
+      agentId: 'agent-1',
     });
 
     expect(ctx).toBeNull();
@@ -500,7 +546,7 @@ describe('a present requester reaches exactly the native agent it was admitted f
     expect(ctx?.isDirectUserSession).toBe(false);
   });
 
-  it('refuses a turn that names no agent, so the entry cannot become plain Alia with the person\'s memory', async () => {
+  it("refuses a turn that names no agent, so the entry cannot become plain Alia with the person's memory", async () => {
     const { ctx, captured } = await run(undefined, {
       directUserId: 'user-1',
       serviceApp: product,
@@ -513,7 +559,12 @@ describe('a present requester reaches exactly the native agent it was admitted f
   });
 
   it('refuses any other agent, including a public one', async () => {
-    findAgentById.mockResolvedValue({ ...privateAgent, _id: 'agent-2', access: 'public', applicationId: null });
+    findAgentById.mockResolvedValue({
+      ...privateAgent,
+      _id: 'agent-2',
+      access: 'public',
+      applicationId: null,
+    });
     const { ctx, captured } = await run(undefined, {
       directUserId: 'user-1',
       agentId: 'agent-2',
@@ -642,7 +693,9 @@ describe('a turn naming an agent Oxy could not be asked about', () => {
     findAgentById.mockResolvedValue(privateAgent);
 
     const { ctx, captured, sse } = await run(undefined, {
-      directUserId: 'user-1', agentId: 'agent-2', sseSent: true,
+      directUserId: 'user-1',
+      agentId: 'agent-2',
+      sseSent: true,
     });
 
     expect(ctx).toBeNull();
@@ -790,12 +843,18 @@ describe('reasoningEffort is validated against the model', () => {
     expect((await run(KNOWN)).ctx?.reasoningEffort).toBeNull();
   });
 
-  it.each(['medium', 'max', 'instant', 7])('refuses %p, which the model does not declare', async (level) => {
-    const { ctx, captured } = await run(KNOWN, { body: { reasoningEffort: level } });
-    expect(ctx).toBeNull();
-    expect(captured.status).toBe(400);
-    expect(captured.body?.error).toMatchObject({ code: 'invalid_reasoning_effort', param: 'reasoningEffort' });
-  });
+  it.each(['medium', 'max', 'instant', 7])(
+    'refuses %p, which the model does not declare',
+    async (level) => {
+      const { ctx, captured } = await run(KNOWN, { body: { reasoningEffort: level } });
+      expect(ctx).toBeNull();
+      expect(captured.status).toBe(400);
+      expect(captured.body?.error).toMatchObject({
+        code: 'invalid_reasoning_effort',
+        param: 'reasoningEffort',
+      });
+    },
+  );
 
   it('accepts any effort on a power level: the level has no catalogue entry, Oxy filters its models', async () => {
     resolveModel.mockResolvedValueOnce(level('high'));
@@ -878,7 +937,10 @@ describe('fallbackPolicy is refused, because this API cannot carry it', () => {
   it('refuses the wire spelling GET /catalogue documents, fallback_policy', async () => {
     const { captured } = await send({ fallback_policy: 'cross-model' });
     expect(captured.status).toBe(400);
-    expect(captured.body?.error).toMatchObject({ code: 'invalid_request', param: 'fallback_policy' });
+    expect(captured.body?.error).toMatchObject({
+      code: 'invalid_request',
+      param: 'fallback_policy',
+    });
   });
 
   it('writes the refusal as an SSE error once headers are out', async () => {

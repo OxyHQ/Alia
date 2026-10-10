@@ -19,7 +19,11 @@ vi.mock('@oxy.so/core/server', async (importActual) => ({
   OxyServer: class {
     constructor(options: { serviceAuth?: { apiKey: string; apiSecret: string } }) {
       mocks.serviceOptions.push(options);
-      if (options.serviceAuth) mocks.configuredCredentials.push([options.serviceAuth.apiKey, options.serviceAuth.apiSecret]);
+      if (options.serviceAuth)
+        mocks.configuredCredentials.push([
+          options.serviceAuth.apiKey,
+          options.serviceAuth.apiSecret,
+        ]);
     }
 
     async serviceToken(): Promise<string> {
@@ -102,21 +106,33 @@ describe('Oxy inference client', () => {
 
   it('accepts only the canonical deployed Oxy API origin', () => {
     expect(oxyInferenceEndpointRefusal('https://api.oxy.so', 'production')).toBeNull();
-    expect(oxyInferenceEndpointRefusal('https://kaana.ai', 'production')).toContain('not an approved Oxy');
-    expect(oxyInferenceEndpointRefusal('https://api.oxy.so/internal/v1/inference', 'production')).toContain('not a path');
+    expect(oxyInferenceEndpointRefusal('https://kaana.ai', 'production')).toContain(
+      'not an approved Oxy',
+    );
+    expect(
+      oxyInferenceEndpointRefusal('https://api.oxy.so/internal/v1/inference', 'production'),
+    ).toContain('not a path');
     expect(oxyInferenceEndpointRefusal('http://localhost:3000', 'development')).toBeNull();
-    expect(oxyInferenceEndpointRefusal('http://localhost:3000', 'production')).toContain('not an approved Oxy');
+    expect(oxyInferenceEndpointRefusal('http://localhost:3000', 'production')).toContain(
+      'not an approved Oxy',
+    );
   });
 
   it('hands the published SDK an Oxy service-token credential', async () => {
     expect(buildOxyInferenceClient(configured)).not.toBeNull();
     expect(mocks.serviceOptions).toEqual([
-      { baseURL: 'https://api.oxy.so', serviceAuth: { apiKey: 'credential-key', apiSecret: 'credential-secret' } },
+      {
+        baseURL: 'https://api.oxy.so',
+        serviceAuth: { apiKey: 'credential-key', apiSecret: 'credential-secret' },
+      },
     ]);
     expect(mocks.configuredCredentials).toEqual([['credential-key', 'credential-secret']]);
     expect(mocks.clientOptions).toHaveLength(1);
 
-    const options = mocks.clientOptions[0] as { baseURL: string; credential: () => Promise<string> };
+    const options = mocks.clientOptions[0] as {
+      baseURL: string;
+      credential: () => Promise<string>;
+    };
     expect(options.baseURL).toBe('https://api.oxy.so');
     await expect(options.credential()).resolves.toBe('short-lived-oxy-service-token');
   });
@@ -130,15 +146,19 @@ describe('Oxy inference client', () => {
   });
 
   it('builds a request-scoped client from the verified product token without Alia credentials', () => {
-    expect(buildOxyInferenceClientForServiceToken(' product-service-token ', {
-      NODE_ENV: 'production',
-      OXY_API_URL: 'https://api.oxy.so',
-    })).not.toBeNull();
+    expect(
+      buildOxyInferenceClientForServiceToken(' product-service-token ', {
+        NODE_ENV: 'production',
+        OXY_API_URL: 'https://api.oxy.so',
+      }),
+    ).not.toBeNull();
     expect(mocks.serviceOptions).toEqual([]);
     expect(mocks.configuredCredentials).toEqual([]);
-    expect(mocks.clientOptions).toEqual([{
-      baseURL: 'https://api.oxy.so',
-      credential: 'product-service-token',
-    }]);
+    expect(mocks.clientOptions).toEqual([
+      {
+        baseURL: 'https://api.oxy.so',
+        credential: 'product-service-token',
+      },
+    ]);
   });
 });

@@ -44,7 +44,11 @@ vi.mock('../../middleware/auth.js', async () => {
   );
   return {
     ...actual,
-    authenticateToken: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+    authenticateToken: (
+      req: express.Request,
+      _res: express.Response,
+      next: express.NextFunction,
+    ) => {
       req.user = { id: USER_ID };
       next();
     },
@@ -52,7 +56,8 @@ vi.mock('../../middleware/auth.js', async () => {
 });
 
 vi.mock('../../lib/syra/syra.js', async () => {
-  const actual = await vi.importActual<typeof import('../../lib/syra/syra.js')>('../../lib/syra/syra.js');
+  const actual =
+    await vi.importActual<typeof import('../../lib/syra/syra.js')>('../../lib/syra/syra.js');
   return {
     ...actual,
     syraForRequest: () => ({
@@ -203,7 +208,7 @@ describe('asking for another episode', () => {
     expect(generateText).not.toHaveBeenCalled();
   });
 
-  it('takes the owner\'s own words when they steer this one', async () => {
+  it("takes the owner's own words when they steer this one", async () => {
     // The positive control. A route that discarded its whole body would pass
     // every assertion above.
     const { status } = await ask({

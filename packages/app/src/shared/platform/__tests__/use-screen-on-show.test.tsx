@@ -38,7 +38,7 @@ beforeEach(() => {
 });
 
 describe('useScreenOnShow', () => {
-  it('follows the route\'s focus on native, where a covered screen stays mounted', () => {
+  it("follows the route's focus on native, where a covered screen stays mounted", () => {
     expect(read()).toBe(false);
     env.focused = true;
     expect(read()).toBe(true);

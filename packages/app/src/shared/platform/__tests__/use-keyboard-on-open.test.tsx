@@ -15,7 +15,11 @@ import { APP_ROOT } from '@/shared/testing/app-root';
 const rn = vi.hoisted(() => ({ os: 'android', visible: false }));
 
 vi.mock('react-native', () => ({
-  Platform: { get OS() { return rn.os; } },
+  Platform: {
+    get OS() {
+      return rn.os;
+    },
+  },
   Keyboard: { isVisible: () => rn.visible },
 }));
 
@@ -90,6 +94,8 @@ describe('useKeyboardOnOpen', () => {
     const menus = read('src/shell/sidebar-menus.tsx');
     expect(menus).toMatch(/inputRef=\{titleInput\}/);
     expect(menus).toMatch(/inputRef=\{folderInput\}/);
-    expect(read('src/features/projects/ui/project-edit-dialog.tsx')).toMatch(/inputRef=\{nameInput\}/);
+    expect(read('src/features/projects/ui/project-edit-dialog.tsx')).toMatch(
+      /inputRef=\{nameInput\}/,
+    );
   });
 });

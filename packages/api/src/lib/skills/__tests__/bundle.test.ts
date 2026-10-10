@@ -36,7 +36,10 @@ describe('buildSkillBundle', () => {
   });
 
   it('keeps the document body on the bundle and out of the file list', () => {
-    const bundle = buildSkillBundle([file('SKILL.md', DOCUMENT), file('references/FORMS.md', '# Forms')]);
+    const bundle = buildSkillBundle([
+      file('SKILL.md', DOCUMENT),
+      file('references/FORMS.md', '# Forms'),
+    ]);
     expect(bundle.document.body).toBe('# PDF Processing');
     expect(bundle.files.map((f) => f.path)).toEqual(['references/FORMS.md']);
   });
@@ -53,15 +56,18 @@ describe('buildSkillBundle', () => {
 
   it('refuses a symlink, whose target is outside what was validated', () => {
     expect(() =>
-      buildSkillBundle([file('SKILL.md', DOCUMENT), file('link.md', '../../secret', { symlink: true })]),
+      buildSkillBundle([
+        file('SKILL.md', DOCUMENT),
+        file('link.md', '../../secret', { symlink: true }),
+      ]),
     ).toThrow(/symlink/);
   });
 
   it('refuses a bundle over the size limit', () => {
     const big = Buffer.alloc(MAX_BUNDLE_BYTES + 1);
-    expect(() => buildSkillBundle([file('SKILL.md', DOCUMENT), file('assets/big.bin', big)])).toThrow(
-      /larger than/,
-    );
+    expect(() =>
+      buildSkillBundle([file('SKILL.md', DOCUMENT), file('assets/big.bin', big)]),
+    ).toThrow(/larger than/);
   });
 
   it('refuses a bundle with too many files', () => {
@@ -97,7 +103,10 @@ describe('buildSkillBundle', () => {
     });
 
     it('marks a script executable even when the archive carried no mode', () => {
-      const bundle = buildSkillBundle([file('SKILL.md', DOCUMENT), file('scripts/run.sh', 'echo hi')]);
+      const bundle = buildSkillBundle([
+        file('SKILL.md', DOCUMENT),
+        file('scripts/run.sh', 'echo hi'),
+      ]);
       expect(bundle.files[0].executable).toBe(true);
     });
   });
@@ -162,10 +171,12 @@ describe('splitSkillDirectories', () => {
       file('repo-abc/skills/xlsx/SKILL.md', DOCUMENT),
     ]);
     expect([...groups.keys()].sort()).toEqual(['repo-abc/skills/pdf', 'repo-abc/skills/xlsx']);
-    expect(groups.get('repo-abc/skills/pdf')!.map((f) => f.path).sort()).toEqual([
-      'SKILL.md',
-      'references/API.md',
-    ]);
+    expect(
+      groups
+        .get('repo-abc/skills/pdf')!
+        .map((f) => f.path)
+        .sort(),
+    ).toEqual(['SKILL.md', 'references/API.md']);
   });
 
   it('gives a nested skill its own files rather than its parent claiming them', () => {
@@ -175,13 +186,28 @@ describe('splitSkillDirectories', () => {
       file('outer/inner/SKILL.md', DOCUMENT),
       file('outer/inner/scripts/go.sh', 'x'),
     ]);
-    expect(groups.get('outer')!.map((f) => f.path).sort()).toEqual(['SKILL.md', 'notes.md']);
-    expect(groups.get('outer/inner')!.map((f) => f.path).sort()).toEqual(['SKILL.md', 'scripts/go.sh']);
+    expect(
+      groups
+        .get('outer')!
+        .map((f) => f.path)
+        .sort(),
+    ).toEqual(['SKILL.md', 'notes.md']);
+    expect(
+      groups
+        .get('outer/inner')!
+        .map((f) => f.path)
+        .sort(),
+    ).toEqual(['SKILL.md', 'scripts/go.sh']);
   });
 
   it('handles an archive whose SKILL.md sits at the root', () => {
     const groups = splitSkillDirectories([file('SKILL.md', DOCUMENT), file('scripts/go.sh', 'x')]);
     expect([...groups.keys()]).toEqual(['']);
-    expect(groups.get('')!.map((f) => f.path).sort()).toEqual(['SKILL.md', 'scripts/go.sh']);
+    expect(
+      groups
+        .get('')!
+        .map((f) => f.path)
+        .sort(),
+    ).toEqual(['SKILL.md', 'scripts/go.sh']);
   });
 });

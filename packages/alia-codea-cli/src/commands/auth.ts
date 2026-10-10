@@ -119,7 +119,9 @@ export async function login(): Promise<boolean> {
         if (now - lastNotice < WAITING_NOTICE_INTERVAL_MS) return;
         lastNotice = now;
         console.log(
-          chalk.gray(`  Still waiting — this code expires in ${remainingTime(handle.expiresAt, now)}.`),
+          chalk.gray(
+            `  Still waiting — this code expires in ${remainingTime(handle.expiresAt, now)}.`,
+          ),
         );
       },
     });

@@ -27,8 +27,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     }),
     '@oxy.so/expo-splash',
   ];
-  const routerIndex = plugins.findIndex((plugin) =>
-    plugin === 'expo-router' || (Array.isArray(plugin) && plugin[0] === 'expo-router')
+  const routerIndex = plugins.findIndex(
+    (plugin) => plugin === 'expo-router' || (Array.isArray(plugin) && plugin[0] === 'expo-router'),
   );
   plugins.splice(routerIndex >= 0 ? routerIndex + 1 : 0, 0, ...splashPlugins);
 

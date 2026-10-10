@@ -24,11 +24,13 @@ afterAll(async () => {
   await closePostgres();
 });
 
-const insertProfile = (id: string, oxyUserId: string) => db.execute(sql`
+const insertProfile = (id: string, oxyUserId: string) =>
+  db.execute(sql`
   insert into ${userMemories} (id, oxy_user_id) values (${id}, ${oxyUserId})
 `);
 
-const insertEntry = (id: string, profileId: string, title: string) => db.execute(sql`
+const insertEntry = (id: string, profileId: string, title: string) =>
+  db.execute(sql`
   insert into ${userMemoryEntries} (id, user_memory_id, title, summary, type)
   values (${id}, ${profileId}, ${title}, 'a summary', 'topic')
 `);
@@ -137,7 +139,8 @@ describe('an embedding is a plain array of doubles, and needs no extension', () 
   });
 
   it('refuses a second embedding for one (user, memory key)', async () => {
-    const insert = (id: string) => db.execute(sql`
+    const insert = (id: string) =>
+      db.execute(sql`
       insert into ${memoryEmbeddings} (id, oxy_user_id, memory_key, embedding)
       values (${id}, 'mem-user-8', 'Tea', ${sql.param([0.5])}::double precision[])
     `);
@@ -179,10 +182,12 @@ describe('the profile columns the interface claims are an open bag', () => {
   });
 
   it('refuses a response length outside the tuple', async () => {
-    await expect(db.execute(sql`
+    await expect(
+      db.execute(sql`
       insert into ${userMemories} (id, oxy_user_id, preferences_response_length)
       values ('mem-badlen', 'mem-user-11', 'epic')
-    `)).rejects.toSatisfy((error: unknown) => {
+    `),
+    ).rejects.toSatisfy((error: unknown) => {
       expect(isCheckViolation(error)).toBe(true);
       expect(constraintNameOf(error)).toBe('user_memories_preferences_response_length_check');
       return true;

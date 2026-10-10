@@ -106,10 +106,7 @@ export async function listConnectedAccountsForUser(
     .where(
       platform === undefined
         ? eq(connectedAccounts.oxyUserId, oxyUserId)
-        : and(
-            eq(connectedAccounts.oxyUserId, oxyUserId),
-            eq(connectedAccounts.platform, platform),
-          ),
+        : and(eq(connectedAccounts.oxyUserId, oxyUserId), eq(connectedAccounts.platform, platform)),
     )
     .orderBy(desc(connectedAccounts.createdAt));
 

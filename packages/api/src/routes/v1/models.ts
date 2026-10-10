@@ -54,7 +54,12 @@ router.get('/:publisher/:model', async (req, res) => {
   } catch (err: unknown) {
     log.v1.error({ err }, 'Model lookup unavailable');
     return res.status(503).json({
-      error: { message: 'The model catalogue is unavailable right now.', type: 'server_error', param: null, code: 'catalogue_unavailable' },
+      error: {
+        message: 'The model catalogue is unavailable right now.',
+        type: 'server_error',
+        param: null,
+        code: 'catalogue_unavailable',
+      },
     });
   }
 });

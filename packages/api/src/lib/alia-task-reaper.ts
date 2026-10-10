@@ -33,7 +33,8 @@ import { sendNotification } from './notification-service.js';
 /** A run still `planned` this long after dispatch was never picked up. */
 export const ALIA_RUN_PICKUP_GRACE_MS = 30 * 60_000;
 
-const INTERRUPTED_MESSAGE = "This scheduled task was interrupted and couldn't finish this time. Your credits were returned.";
+const INTERRUPTED_MESSAGE =
+  "This scheduled task was interrupted and couldn't finish this time. Your credits were returned.";
 
 export async function reapAbandonedAliaRuns(now: Date = new Date()): Promise<{ failed: number }> {
   const plannedBefore = new Date(now.getTime() - ALIA_RUN_PICKUP_GRACE_MS);
@@ -60,12 +61,19 @@ export async function reapAbandonedAliaRuns(now: Date = new Date()): Promise<{ f
         await sendNotification({
           userId: automation?.ownerAccountId ?? run.requesterAccountId,
           type: 'trigger_result',
-          title: automation ? `“${automation.objective}” did not finish` : 'A scheduled task did not finish',
+          title: automation
+            ? `“${automation.objective}” did not finish`
+            : 'A scheduled task did not finish',
           body: INTERRUPTED_MESSAGE,
           priority: 'normal',
           channels: ['in_app', 'push'],
           data: { automationId: run.automationId, runId, status: 'failed' },
-        }).catch((notifyErr: unknown) => log.agents.warn({ err: notifyErr, runId }, 'Could not notify about an abandoned Alia run'));
+        }).catch((notifyErr: unknown) =>
+          log.agents.warn(
+            { err: notifyErr, runId },
+            'Could not notify about an abandoned Alia run',
+          ),
+        );
       }
     } catch (err: unknown) {
       log.agents.error({ err, runId }, 'Could not reap an abandoned Alia run');

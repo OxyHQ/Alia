@@ -62,7 +62,10 @@ describe('live selection', () => {
   });
 
   it('a person’s default is their last-used model; a usage outage is a cold start, not an error', async () => {
-    listChatModels.mockResolvedValue([model('a/x', { pricing: { inputPerMTok: '9', outputPerMTok: '9' } }), model('b/y')]);
+    listChatModels.mockResolvedValue([
+      model('a/x', { pricing: { inputPerMTok: '9', outputPerMTok: '9' } }),
+      model('b/y'),
+    ]);
     aggregateModelTurnsSince.mockRejectedValue(new Error('db down'));
     findLastUsedModel.mockResolvedValue('a/x');
     expect(await getDefaultModelId('user-1')).toBe('a/x');
@@ -82,8 +85,13 @@ describe('live selection', () => {
   });
 
   it('picks utility and speech from the catalogue', async () => {
-    listChatModels.mockResolvedValue([model('a/cheap', { pricing: { inputPerMTok: '0.1', outputPerMTok: '0.1' } }), model('b/dear')]);
-    listCatalogueModels.mockResolvedValue([model('v/voice', { outputModalities: ['audio'], tools: false })]);
+    listChatModels.mockResolvedValue([
+      model('a/cheap', { pricing: { inputPerMTok: '0.1', outputPerMTok: '0.1' } }),
+      model('b/dear'),
+    ]);
+    listCatalogueModels.mockResolvedValue([
+      model('v/voice', { outputModalities: ['audio'], tools: false }),
+    ]);
     expect(await getUtilityModelId()).toBe('a/cheap');
     expect(await getSpeechModelId()).toBe('v/voice');
   });

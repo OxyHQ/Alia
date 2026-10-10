@@ -1,9 +1,6 @@
 import type { AgentThreadSummary as AgentThread } from '@/features/agents/runtime/use-agent-threads';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import {
-  SettingsListGroup,
-  SettingsListItem,
-} from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 
 function formatRelativeTime(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();

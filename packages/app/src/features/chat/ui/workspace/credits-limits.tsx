@@ -28,10 +28,15 @@ export function CreditsLimits() {
   const { data: credits, isLoading } = useCredits();
   const { data: subscription } = useSubscription();
   const { plan, limits } = agentLimitsProps(credits, subscription, Date.now(), t);
-  const subscribed = subscription?.status === 'active' || !!(credits?.productAllowance && Date.parse(credits.productAllowance.periodEnd) > Date.now());
+  const subscribed =
+    subscription?.status === 'active' ||
+    !!(credits?.productAllowance && Date.parse(credits.productAllowance.periodEnd) > Date.now());
   // The open conversation's context window, as its latest turn filled it.
   const conversationId = useStore((s) => s.chatId?.id);
-  const context = contextCardProps(useUIStore((s) => (conversationId ? s.contextUsage[conversationId] : undefined)), t);
+  const context = contextCardProps(
+    useUIStore((s) => (conversationId ? s.contextUsage[conversationId] : undefined)),
+    t,
+  );
 
   const openPlan = () => {
     setRightPanel(null);

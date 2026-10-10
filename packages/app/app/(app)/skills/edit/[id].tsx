@@ -11,10 +11,7 @@ import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { Field } from '@oxy.so/bloom/field';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { Loading } from '@oxy.so/bloom/loading';
-import {
-  SettingsListGroup,
-  SettingsListItem,
-} from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Switch } from '@oxy.so/bloom/switch';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -135,20 +132,14 @@ export default function EditSkillScreen() {
           body,
           license: license.trim() || undefined,
           compatibility: compatibility.trim() || undefined,
-          allowedTools: allowedTools.trim()
-            ? allowedTools.trim().split(/\s+/)
-            : undefined,
+          allowedTools: allowedTools.trim() ? allowedTools.trim().split(/\s+/) : undefined,
         },
       });
       if (result.unchanged) toast.info(t('skills.versionUnchanged'));
-      else
-        toast.success(
-          t('skills.versionSaved', { version: result.version?.version ?? '' }),
-        );
+      else toast.success(t('skills.versionSaved', { version: result.version?.version ?? '' }));
     } catch (error) {
-      const message = (
-        error as { response?: { data?: { error?: { message?: string } } } }
-      ).response?.data?.error?.message;
+      const message = (error as { response?: { data?: { error?: { message?: string } } } }).response
+        ?.data?.error?.message;
       toast.error(message ?? t('skills.saveFailed'));
     }
   };
@@ -172,10 +163,7 @@ export default function EditSkillScreen() {
           headerRight: () => (
             <>
               <ButtonGroup accessibilityLabel={t('skills.save')}>
-                <ButtonGroupItem
-                  disabled={patch.isPending}
-                  onPress={savePresentation}
-                >
+                <ButtonGroupItem disabled={patch.isPending} onPress={savePresentation}>
                   {t('skills.save')}
                 </ButtonGroupItem>
               </ButtonGroup>
@@ -278,20 +266,12 @@ export default function EditSkillScreen() {
 
         <SettingsListGroup>
           <SettingsListItem
-            icon={
-              <RiDeleteBinLine width={18} height={18} fill={colors.error} />
-            }
-            title={
-              confirmingDelete
-                ? t('skills.deleteSkillConfirm')
-                : t('skills.deleteSkill')
-            }
+            icon={<RiDeleteBinLine width={18} height={18} fill={colors.error} />}
+            title={confirmingDelete ? t('skills.deleteSkillConfirm') : t('skills.deleteSkill')}
             destructive
             showChevron={false}
             disabled={remove.isPending}
-            onPress={() =>
-              confirmingDelete ? void handleDelete() : setConfirmingDelete(true)
-            }
+            onPress={() => (confirmingDelete ? void handleDelete() : setConfirmingDelete(true))}
           />
         </SettingsListGroup>
       </ScrollView>

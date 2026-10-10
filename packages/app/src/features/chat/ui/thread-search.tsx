@@ -1,7 +1,4 @@
-import {
-  useThreadSearch,
-  type ThreadSearchHit,
-} from '@/features/chat/runtime/use-thread-search';
+import { useThreadSearch, type ThreadSearchHit } from '@/features/chat/runtime/use-thread-search';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { Card, CardBody } from '@oxy.so/bloom/card';
@@ -47,11 +44,7 @@ function hitDay(createdAt: string, locale: string): string {
   });
 }
 
-export const ThreadSearch = ({
-  handle,
-  onJump,
-  onClose,
-}: ThreadSearchProps) => {
+export const ThreadSearch = ({ handle, onJump, onClose }: ThreadSearchProps) => {
   const { t, locale } = useTranslation();
   const [query, setQuery] = useState('');
   const { data: hits, isFetching, isError } = useThreadSearch(handle, query);
@@ -102,9 +95,7 @@ export const ThreadSearch = ({
             ) : found.length === 0 ? (
               <View className="px-1 py-4">
                 <Muted>
-                  {isFetching
-                    ? t('chat.searchThreadSearching')
-                    : t('chat.searchThreadEmpty')}
+                  {isFetching ? t('chat.searchThreadSearching') : t('chat.searchThreadEmpty')}
                 </Muted>
               </View>
             ) : (
@@ -122,9 +113,7 @@ export const ThreadSearch = ({
                     key={hit.cursor}
                     title={hit.snippet}
                     subtitle={`${t(
-                      hit.role === 'user'
-                        ? 'chat.searchThreadYou'
-                        : 'chat.searchThreadAgent',
+                      hit.role === 'user' ? 'chat.searchThreadYou' : 'chat.searchThreadAgent',
                     )} · ${hitDay(hit.createdAt, locale)}`}
                     onPress={() => onJump(hit)}
                   />

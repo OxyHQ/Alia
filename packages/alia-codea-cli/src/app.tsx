@@ -5,10 +5,20 @@ import { MessageList, DisplayMessage } from './components/MessageList.js';
 import { InputBar } from './components/InputBar.js';
 import { ApprovalPrompt } from './components/ApprovalPrompt.js';
 import { processConversation, Message, ToolExecution } from './utils/conversation.js';
-import { buildSystemMessage, getCodebaseContext, loadProjectInstructions } from './utils/context.js';
+import {
+  buildSystemMessage,
+  getCodebaseContext,
+  loadProjectInstructions,
+} from './utils/context.js';
 import { createSession, saveSession } from './utils/config.js';
 import { ApprovalMode, parseApprovalMode } from './utils/approval.js';
-import { formatModelList, labelFor, labelForChoice, searchModels, tryCatalogue } from './utils/catalogue.js';
+import {
+  formatModelList,
+  labelFor,
+  labelForChoice,
+  searchModels,
+  tryCatalogue,
+} from './utils/catalogue.js';
 
 export interface AppOptions {
   /** A `publisher/model` id or search text; `''` for the server's default model. */
@@ -67,7 +77,11 @@ export function App({ options }: { options: AppOptions }) {
         if (ctx && !cancelled) {
           setDisplayMessages((prev) => [
             ...prev,
-            { id: nextId(), type: 'info', content: `Loaded context from ${ctx.split('\n').length} lines` },
+            {
+              id: nextId(),
+              type: 'info',
+              content: `Loaded context from ${ctx.split('\n').length} lines`,
+            },
           ]);
         }
       }
@@ -89,9 +103,12 @@ export function App({ options }: { options: AppOptions }) {
        * unchanged when the catalogue cannot be read.
        */
       const label = await labelFor(options.model);
-      if (!cancelled) setSelection((current) => (current.id === options.model ? { ...current, label } : current));
+      if (!cancelled)
+        setSelection((current) => (current.id === options.model ? { ...current, label } : current));
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [nextId, options.context, options.model]);
 
   // Handle Ctrl+C
@@ -148,198 +165,227 @@ export function App({ options }: { options: AppOptions }) {
     });
   }, []);
 
-  const handleSubmit = useCallback(async (userInput: string) => {
-    // Handle slash commands
-    if (userInput.startsWith('/')) {
-      const [cmd, ...args] = userInput.slice(1).split(' ');
-      switch (cmd.toLowerCase()) {
-        case 'help':
-          addMessage({
-            id: nextId(),
-            type: 'info',
-            content:
-              'Commands: /help, /clear, /mode <suggest|auto-edit|full-auto>, ' +
-              '/model [id or name | default], /exit',
-          });
-          return;
-        case 'clear':
-          messagesRef.current = [];
-          setDisplayMessages([]);
-          setContextPercent(100);
-          return;
-        case 'mode': {
-          const parsed = parseApprovalMode(args[0]);
-          if (args[0] && parsed === args[0]) {
-            setApprovalMode(parsed);
-            addMessage({ id: nextId(), type: 'info', content: `Approval mode: ${parsed}` });
-          } else {
-            addMessage({ id: nextId(), type: 'info', content: `Current mode: ${approvalMode}. Options: suggest, auto-edit, full-auto` });
-          }
-          return;
-        }
-        case 'model': {
-          /**
-           * `/model` lists the real models; `/model <text>` searches id, name
-           * and publisher and switches only on a single match; `/model default`
-           * clears the choice so the server's default model answers.
-           */
-          const query = args.join(' ').trim();
-          void (async () => {
-            const catalogue = await tryCatalogue();
-            if (query === '') {
-              addMessage({
-                id: nextId(),
-                type: 'info',
-                content: catalogue === undefined
-                  ? `Could not read the model catalogue. Current: ${selection.label}.`
-                  : `Current: ${selection.label}\n\n${formatModelList(catalogue, model)}`,
-              });
-              return;
-            }
-            if (['default', 'reset', 'clear'].includes(query.toLowerCase())) {
-              const label = labelForChoice('', catalogue);
-              setSelection({ id: '', label });
-              addMessage({ id: nextId(), type: 'info', content: `Using the server's default model: ${label}.` });
-              return;
-            }
-            if (catalogue === undefined) {
-              addMessage({
-                id: nextId(),
-                type: 'info',
-                content: `Could not read the model catalogue; unchanged (${selection.label}).`,
-              });
-              return;
-            }
-            const matches = searchModels(query, catalogue);
-            const only = matches.length === 1 ? matches[0] : undefined;
-            if (only !== undefined) {
-              setSelection({ id: only.id, label: only.name });
-              addMessage({
-                id: nextId(),
-                type: 'info',
-                content: `Model: ${only.name} — ${only.publisher.name} (${only.id})`,
-              });
-              return;
-            }
+  const handleSubmit = useCallback(
+    async (userInput: string) => {
+      // Handle slash commands
+      if (userInput.startsWith('/')) {
+        const [cmd, ...args] = userInput.slice(1).split(' ');
+        switch (cmd.toLowerCase()) {
+          case 'help':
             addMessage({
               id: nextId(),
               type: 'info',
-              content: matches.length === 0
-                ? `No model matches "${query}". Type /model to list them.`
-                : `"${query}" matches ${matches.length} models; be more specific:\n` +
-                  matches
-                    .slice(0, 15)
-                    .map((m) => `  ${m.name} — ${m.publisher.name}  ${m.id}`)
-                    .join('\n') +
-                  (matches.length > 15 ? `\n  … and ${matches.length - 15} more` : ''),
+              content:
+                'Commands: /help, /clear, /mode <suggest|auto-edit|full-auto>, ' +
+                '/model [id or name | default], /exit',
             });
-          })();
-          return;
-        }
-        case 'exit':
-        case 'quit':
-          exit();
-          return;
-        default:
-          addMessage({ id: nextId(), type: 'info', content: `Unknown command: /${cmd}` });
-          return;
-      }
-    }
-
-    // Add user message
-    addMessage({ id: nextId(), type: 'user', content: userInput });
-    messagesRef.current.push({ role: 'user', content: userInput });
-
-    setIsProcessing(true);
-    activeRef.current = true;
-    abortRef.current = new AbortController();
-    streamingIdRef.current = null;
-
-    const systemMessage = buildSystemMessage(codebaseContext, instructions);
-
-    await processConversation({
-      messages: messagesRef.current,
-      systemMessage,
-      model,
-      approvalMode,
-      isActive: () => activeRef.current,
-      signal: abortRef.current.signal,
-      requestApproval: (execution) => {
-        return new Promise<boolean>((resolve) => {
-          setPendingApproval({ execution, resolve });
-        });
-      },
-      onEvent: (event) => {
-        switch (event.type) {
-          case 'thinking':
-            setThinkingLabel('Thinking');
-            streamingIdRef.current = nextId();
-            setDisplayMessages((prev) => [
-              ...prev,
-              { id: streamingIdRef.current!, type: 'assistant', content: '', streaming: true },
-            ]);
-            break;
-          case 'content':
-            updateLastAssistant(event.text);
-            break;
-          case 'tool_start':
-            finalizeAssistant();
-            setThinkingLabel(`Running ${event.execution.tool}`);
-            addMessage({
-              id: nextId(),
-              type: 'tool',
-              content: '',
-              toolExecution: { ...event.execution },
-            });
-            break;
-          case 'tool_done':
-            setDisplayMessages((prev) => {
-              const idx = prev.findLastIndex(
-                (m) => m.type === 'tool' && m.toolExecution?.id === event.execution.id
-              );
-              if (idx >= 0) {
-                const updated = [...prev];
-                updated[idx] = {
-                  ...updated[idx],
-                  toolExecution: { ...event.execution },
-                };
-                return updated;
+            return;
+          case 'clear':
+            messagesRef.current = [];
+            setDisplayMessages([]);
+            setContextPercent(100);
+            return;
+          case 'mode': {
+            const parsed = parseApprovalMode(args[0]);
+            if (args[0] && parsed === args[0]) {
+              setApprovalMode(parsed);
+              addMessage({ id: nextId(), type: 'info', content: `Approval mode: ${parsed}` });
+            } else {
+              addMessage({
+                id: nextId(),
+                type: 'info',
+                content: `Current mode: ${approvalMode}. Options: suggest, auto-edit, full-auto`,
+              });
+            }
+            return;
+          }
+          case 'model': {
+            /**
+             * `/model` lists the real models; `/model <text>` searches id, name
+             * and publisher and switches only on a single match; `/model default`
+             * clears the choice so the server's default model answers.
+             */
+            const query = args.join(' ').trim();
+            void (async () => {
+              const catalogue = await tryCatalogue();
+              if (query === '') {
+                addMessage({
+                  id: nextId(),
+                  type: 'info',
+                  content:
+                    catalogue === undefined
+                      ? `Could not read the model catalogue. Current: ${selection.label}.`
+                      : `Current: ${selection.label}\n\n${formatModelList(catalogue, model)}`,
+                });
+                return;
               }
-              return prev;
-            });
-            break;
-          case 'done':
-            finalizeAssistant();
-            break;
-          case 'error':
-            finalizeAssistant();
-            addMessage({ id: nextId(), type: 'info', content: `Error: ${event.message}` });
-            break;
+              if (['default', 'reset', 'clear'].includes(query.toLowerCase())) {
+                const label = labelForChoice('', catalogue);
+                setSelection({ id: '', label });
+                addMessage({
+                  id: nextId(),
+                  type: 'info',
+                  content: `Using the server's default model: ${label}.`,
+                });
+                return;
+              }
+              if (catalogue === undefined) {
+                addMessage({
+                  id: nextId(),
+                  type: 'info',
+                  content: `Could not read the model catalogue; unchanged (${selection.label}).`,
+                });
+                return;
+              }
+              const matches = searchModels(query, catalogue);
+              const only = matches.length === 1 ? matches[0] : undefined;
+              if (only !== undefined) {
+                setSelection({ id: only.id, label: only.name });
+                addMessage({
+                  id: nextId(),
+                  type: 'info',
+                  content: `Model: ${only.name} — ${only.publisher.name} (${only.id})`,
+                });
+                return;
+              }
+              addMessage({
+                id: nextId(),
+                type: 'info',
+                content:
+                  matches.length === 0
+                    ? `No model matches "${query}". Type /model to list them.`
+                    : `"${query}" matches ${matches.length} models; be more specific:\n` +
+                      matches
+                        .slice(0, 15)
+                        .map((m) => `  ${m.name} — ${m.publisher.name}  ${m.id}`)
+                        .join('\n') +
+                      (matches.length > 15 ? `\n  … and ${matches.length - 15} more` : ''),
+              });
+            })();
+            return;
+          }
+          case 'exit':
+          case 'quit':
+            exit();
+            return;
+          default:
+            addMessage({ id: nextId(), type: 'info', content: `Unknown command: /${cmd}` });
+            return;
         }
-      },
-    });
+      }
 
-    setIsProcessing(false);
-    setPendingApproval(null);
+      // Add user message
+      addMessage({ id: nextId(), type: 'user', content: userInput });
+      messagesRef.current.push({ role: 'user', content: userInput });
 
-    // Save session
-    const session = sessionRef.current;
-    session.messages = messagesRef.current.map((m) => ({ role: m.role, content: m.content }));
-    session.title = messagesRef.current[0]?.content.slice(0, 50) || 'New conversation';
-    session.updatedAt = Date.now();
-    saveSession(session);
+      setIsProcessing(true);
+      activeRef.current = true;
+      abortRef.current = new AbortController();
+      streamingIdRef.current = null;
 
-    // Update context estimate
-    const totalChars = messagesRef.current.reduce((acc, m) => acc + m.content.length, 0);
-    setContextPercent(Math.max(5, 100 - Math.floor((totalChars / APPROX_MAX_CONTEXT_CHARS) * 100)));
-  }, [approvalMode, model, selection.label, codebaseContext, instructions, nextId, addMessage, updateLastAssistant, finalizeAssistant, exit]);
+      const systemMessage = buildSystemMessage(codebaseContext, instructions);
 
-  const handleApprovalResolve = useCallback((approved: boolean) => {
-    if (pendingApproval) {
-      pendingApproval.resolve(approved);
+      await processConversation({
+        messages: messagesRef.current,
+        systemMessage,
+        model,
+        approvalMode,
+        isActive: () => activeRef.current,
+        signal: abortRef.current.signal,
+        requestApproval: (execution) => {
+          return new Promise<boolean>((resolve) => {
+            setPendingApproval({ execution, resolve });
+          });
+        },
+        onEvent: (event) => {
+          switch (event.type) {
+            case 'thinking':
+              setThinkingLabel('Thinking');
+              streamingIdRef.current = nextId();
+              setDisplayMessages((prev) => [
+                ...prev,
+                { id: streamingIdRef.current!, type: 'assistant', content: '', streaming: true },
+              ]);
+              break;
+            case 'content':
+              updateLastAssistant(event.text);
+              break;
+            case 'tool_start':
+              finalizeAssistant();
+              setThinkingLabel(`Running ${event.execution.tool}`);
+              addMessage({
+                id: nextId(),
+                type: 'tool',
+                content: '',
+                toolExecution: { ...event.execution },
+              });
+              break;
+            case 'tool_done':
+              setDisplayMessages((prev) => {
+                const idx = prev.findLastIndex(
+                  (m) => m.type === 'tool' && m.toolExecution?.id === event.execution.id,
+                );
+                if (idx >= 0) {
+                  const updated = [...prev];
+                  updated[idx] = {
+                    ...updated[idx],
+                    toolExecution: { ...event.execution },
+                  };
+                  return updated;
+                }
+                return prev;
+              });
+              break;
+            case 'done':
+              finalizeAssistant();
+              break;
+            case 'error':
+              finalizeAssistant();
+              addMessage({ id: nextId(), type: 'info', content: `Error: ${event.message}` });
+              break;
+          }
+        },
+      });
+
+      setIsProcessing(false);
       setPendingApproval(null);
-    }
-  }, [pendingApproval]);
+
+      // Save session
+      const session = sessionRef.current;
+      session.messages = messagesRef.current.map((m) => ({ role: m.role, content: m.content }));
+      session.title = messagesRef.current[0]?.content.slice(0, 50) || 'New conversation';
+      session.updatedAt = Date.now();
+      saveSession(session);
+
+      // Update context estimate
+      const totalChars = messagesRef.current.reduce((acc, m) => acc + m.content.length, 0);
+      setContextPercent(
+        Math.max(5, 100 - Math.floor((totalChars / APPROX_MAX_CONTEXT_CHARS) * 100)),
+      );
+    },
+    [
+      approvalMode,
+      model,
+      selection.label,
+      codebaseContext,
+      instructions,
+      nextId,
+      addMessage,
+      updateLastAssistant,
+      finalizeAssistant,
+      exit,
+    ],
+  );
+
+  const handleApprovalResolve = useCallback(
+    (approved: boolean) => {
+      if (pendingApproval) {
+        pendingApproval.resolve(approved);
+        setPendingApproval(null);
+      }
+    },
+    [pendingApproval],
+  );
 
   const modelDisplay = selection.label;
 
@@ -353,10 +399,7 @@ export function App({ options }: { options: AppOptions }) {
       />
       <MessageList messages={displayMessages} />
       {pendingApproval ? (
-        <ApprovalPrompt
-          execution={pendingApproval.execution}
-          onResolve={handleApprovalResolve}
-        />
+        <ApprovalPrompt execution={pendingApproval.execution} onResolve={handleApprovalResolve} />
       ) : (
         <InputBar
           onSubmit={handleSubmit}

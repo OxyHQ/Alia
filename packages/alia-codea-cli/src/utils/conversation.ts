@@ -59,7 +59,16 @@ const MAX_CONSECUTIVE_FAILURES = 2;
 const MAX_TOOL_ROUNDS = 20;
 
 export async function processConversation(opts: ConversationOptions): Promise<void> {
-  const { messages, systemMessage, model, approvalMode, onEvent, requestApproval, isActive, signal } = opts;
+  const {
+    messages,
+    systemMessage,
+    model,
+    approvalMode,
+    onEvent,
+    requestApproval,
+    isActive,
+    signal,
+  } = opts;
 
   let consecutiveFailures = 0;
   let toolRounds = 0;
@@ -71,19 +80,25 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
     onEvent({ type: 'thinking' });
 
     try {
-      await streamChat(messages, systemMessage, model, {
-        onContent: (content) => {
-          if (!isActive()) return;
-          fullContent += content;
-          onEvent({ type: 'content', text: content });
+      await streamChat(
+        messages,
+        systemMessage,
+        model,
+        {
+          onContent: (content) => {
+            if (!isActive()) return;
+            fullContent += content;
+            onEvent({ type: 'content', text: content });
+          },
+          onDone: (_content, tcs) => {
+            toolCalls = tcs;
+          },
+          onError: (error) => {
+            onEvent({ type: 'error', message: error.message });
+          },
         },
-        onDone: (_content, tcs) => {
-          toolCalls = tcs;
-        },
-        onError: (error) => {
-          onEvent({ type: 'error', message: error.message });
-        },
-      }, signal);
+        signal,
+      );
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       onEvent({ type: 'error', message });
@@ -196,7 +211,10 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
       if (hasAnyExecution && !hasAnySuccess) {
         consecutiveFailures++;
         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-          onEvent({ type: 'error', message: 'Multiple consecutive tool failures. Stopping to prevent loop.' });
+          onEvent({
+            type: 'error',
+            message: 'Multiple consecutive tool failures. Stopping to prevent loop.',
+          });
           break;
         }
       } else if (hasAnyExecution) {

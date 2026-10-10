@@ -41,7 +41,10 @@ let queue: Queue<AliaTaskJobData, AliaTaskJobResult> | null = null;
 let worker: Worker<AliaTaskJobData, AliaTaskJobResult> | null = null;
 let redisAvailable = false;
 
-async function processAliaTask(data: AliaTaskJobData, finalAttempt: boolean): Promise<AliaTaskJobResult> {
+async function processAliaTask(
+  data: AliaTaskJobData,
+  finalAttempt: boolean,
+): Promise<AliaTaskJobResult> {
   const { runAliaTask } = await import('./alia-task-run.js');
   const status = await runAliaTask(data, { finalAttempt });
   return { runId: data.runId, status };
@@ -119,14 +122,19 @@ export async function startAliaTaskWorker(): Promise<void> {
  * Enqueue one Alia task run. Deduplicated by run id. Without Redis it runs
  * directly (fire-and-forget) as its only attempt.
  */
-export async function enqueueAliaTask(data: AliaTaskJobData): Promise<{ queued: boolean; jobId?: string }> {
+export async function enqueueAliaTask(
+  data: AliaTaskJobData,
+): Promise<{ queued: boolean; jobId?: string }> {
   if (queue && redisAvailable) {
     try {
       const job = await queue.add(`alia-task:${data.runId}`, data, { jobId: data.runId });
       log.agents.info({ runId: data.runId, jobId: job.id }, 'Alia task enqueued');
       return { queued: true, jobId: job.id ?? undefined };
     } catch (err) {
-      log.agents.warn({ err, runId: data.runId }, 'Failed to enqueue an Alia task — falling back to direct');
+      log.agents.warn(
+        { err, runId: data.runId },
+        'Failed to enqueue an Alia task — falling back to direct',
+      );
     }
   }
 

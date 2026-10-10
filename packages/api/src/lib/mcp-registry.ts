@@ -10,7 +10,14 @@ export interface McpRegistryEntry {
   requiredEnv: string[];
   requiresOAuth?: boolean;
   featured?: boolean;
-  category: 'data' | 'development' | 'productivity' | 'search' | 'communication' | 'filesystem' | 'featured';
+  category:
+    | 'data'
+    | 'development'
+    | 'productivity'
+    | 'search'
+    | 'communication'
+    | 'filesystem'
+    | 'featured';
 }
 
 export const MCP_REGISTRY: McpRegistryEntry[] = [

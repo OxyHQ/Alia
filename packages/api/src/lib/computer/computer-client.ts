@@ -144,7 +144,10 @@ export interface ComputerClient {
   start(actorId: string): Promise<ComputerStatus>;
   stop(actorId: string): Promise<ComputerStatus>;
   run(actorId: string, input: CommandInput): Promise<CommandReceipt>;
-  list(actorId: string, path: string): Promise<{ path: string; entries: DirectoryEntry[]; truncated: boolean }>;
+  list(
+    actorId: string,
+    path: string,
+  ): Promise<{ path: string; entries: DirectoryEntry[]; truncated: boolean }>;
   read(actorId: string, path: string): Promise<{ path: string; text: string }>;
   write(actorId: string, path: string, text: string): Promise<{ path: string; bytes: number }>;
   mkdir(actorId: string, path: string): Promise<{ path: string }>;
@@ -233,7 +236,8 @@ export class HttpComputerClient implements ComputerClient {
   }
 
   private async bearer(force = false): Promise<string> {
-    if (!force && this.token && this.token.expiresAt - TOKEN_MARGIN_MS > Date.now()) return this.token.value;
+    if (!force && this.token && this.token.expiresAt - TOKEN_MARGIN_MS > Date.now())
+      return this.token.value;
     // One exchange in flight per process, however many tools ask at once.
     this.pending ??= this.mint()
       .then((granted) => {
@@ -249,7 +253,9 @@ export class HttpComputerClient implements ComputerClient {
   /** `/health`, quickly: a stopped instance's address would otherwise hang a call for a minute. */
   async healthy(): Promise<boolean> {
     try {
-      const response = await this.fetchImpl(`${this.baseUrl}/health`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
+      const response = await this.fetchImpl(`${this.baseUrl}/health`, {
+        signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+      });
       if (response.ok) this.lastContactAt = Date.now();
       return response.ok;
     } catch {
@@ -261,7 +267,13 @@ export class HttpComputerClient implements ComputerClient {
    * One control-API call, waking the host first when it may be asleep and once
    * more if it turns out to be (unreachable, or answering `host_stopping`).
    */
-  private async call<T>(method: string, path: string, body?: unknown, timeoutMs = CONTROL_TIMEOUT_MS, binary = false): Promise<T> {
+  private async call<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    timeoutMs = CONTROL_TIMEOUT_MS,
+    binary = false,
+  ): Promise<T> {
     if (this.waker && Date.now() - this.lastContactAt > AWAKE_TRUST_MS && !(await this.healthy())) {
       await this.waker.wake();
     }
@@ -287,7 +299,13 @@ export class HttpComputerClient implements ComputerClient {
     return this.request<T>('GET', path, undefined, CONTROL_TIMEOUT_MS);
   }
 
-  private async request<T>(method: string, path: string, body: unknown, timeoutMs: number, binary = false): Promise<T> {
+  private async request<T>(
+    method: string,
+    path: string,
+    body: unknown,
+    timeoutMs: number,
+    binary = false,
+  ): Promise<T> {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const token = await this.bearer(attempt > 0);
       const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
@@ -303,9 +321,10 @@ export class HttpComputerClient implements ComputerClient {
       if (response.status === 401 && attempt === 0) continue;
       this.lastContactAt = Date.now();
       if (binary && response.ok) return Buffer.from(await response.arrayBuffer()) as T;
-      const payload = (await response.json().catch(() => null)) as
-        | { data?: T; error?: { code?: string; message?: string } }
-        | null;
+      const payload = (await response.json().catch(() => null)) as {
+        data?: T;
+        error?: { code?: string; message?: string };
+      } | null;
       if (!response.ok || !payload || payload.data === undefined) {
         throw new ComputerHostError(
           payload?.error?.message ?? `The computer host answered ${response.status}`,
@@ -329,7 +348,12 @@ export class HttpComputerClient implements ComputerClient {
       if (state === 'stopped' || state === 'stopping') return ASLEEP;
       await this.waker.wake();
     }
-    return this.request<ComputerStatus>('GET', `${this.actor(actorId)}/computer`, undefined, CONTROL_TIMEOUT_MS);
+    return this.request<ComputerStatus>(
+      'GET',
+      `${this.actor(actorId)}/computer`,
+      undefined,
+      CONTROL_TIMEOUT_MS,
+    );
   }
 
   start(actorId: string) {
@@ -343,7 +367,7 @@ export class HttpComputerClient implements ComputerClient {
   run(actorId: string, input: CommandInput) {
     // The host bounds a command by its own timeout; wait a little longer than
     // that so its receipt, not our abort, is what the agent reads.
-    const timeoutMs = ((input.background ? 15 : input.timeoutSeconds ?? 60) + 30) * 1000;
+    const timeoutMs = ((input.background ? 15 : (input.timeoutSeconds ?? 60)) + 30) * 1000;
     return this.call<CommandReceipt>('POST', `${this.actor(actorId)}/commands`, input, timeoutMs);
   }
 
@@ -362,11 +386,17 @@ export class HttpComputerClient implements ComputerClient {
   }
 
   write(actorId: string, path: string, text: string) {
-    return this.call<{ path: string; bytes: number }>('PUT', `${this.actor(actorId)}/files/content`, { path, text });
+    return this.call<{ path: string; bytes: number }>(
+      'PUT',
+      `${this.actor(actorId)}/files/content`,
+      { path, text },
+    );
   }
 
   mkdir(actorId: string, path: string) {
-    return this.call<{ path: string }>('POST', `${this.actor(actorId)}/files/directories`, { path });
+    return this.call<{ path: string }>('POST', `${this.actor(actorId)}/files/directories`, {
+      path,
+    });
   }
 
   recentCommands(actorId: string, limit: number) {
@@ -379,11 +409,21 @@ export class HttpComputerClient implements ComputerClient {
 
   browserOpen(actorId: string, url: string | undefined, by: BrowserActor) {
     // Starting the browser stack can take a while on a cold host.
-    return this.call<BrowserResult>('POST', `${this.actor(actorId)}/browser/open`, { ...(url ? { url } : {}), by }, 90_000);
+    return this.call<BrowserResult>(
+      'POST',
+      `${this.actor(actorId)}/browser/open`,
+      { ...(url ? { url } : {}), by },
+      90_000,
+    );
   }
 
   browserNavigate(actorId: string, url: string, by: BrowserActor) {
-    return this.call<BrowserResult>('POST', `${this.actor(actorId)}/browser/navigate`, { url, by }, 75_000);
+    return this.call<BrowserResult>(
+      'POST',
+      `${this.actor(actorId)}/browser/navigate`,
+      { url, by },
+      75_000,
+    );
   }
 
   browserRead(actorId: string) {
@@ -391,15 +431,28 @@ export class HttpComputerClient implements ComputerClient {
   }
 
   browserScreenshot(actorId: string) {
-    return this.call<Buffer>('GET', `${this.actor(actorId)}/browser/screenshot`, undefined, 30_000, true);
+    return this.call<Buffer>(
+      'GET',
+      `${this.actor(actorId)}/browser/screenshot`,
+      undefined,
+      30_000,
+      true,
+    );
   }
 
   browserInput(actorId: string, input: BrowserInput, by: BrowserActor) {
-    return this.call<BrowserResult>('POST', `${this.actor(actorId)}/browser/input`, { input, by }, 75_000);
+    return this.call<BrowserResult>(
+      'POST',
+      `${this.actor(actorId)}/browser/input`,
+      { input, by },
+      75_000,
+    );
   }
 
   browserControl(actorId: string, controller: BrowserActor) {
-    return this.call<BrowserResult>('POST', `${this.actor(actorId)}/browser/control`, { controller });
+    return this.call<BrowserResult>('POST', `${this.actor(actorId)}/browser/control`, {
+      controller,
+    });
   }
 
   browserClose(actorId: string, by: BrowserActor) {
@@ -407,7 +460,10 @@ export class HttpComputerClient implements ComputerClient {
   }
 
   browserActions(actorId: string, limit: number) {
-    return this.ifAwake<BrowserActionReceipt[]>(`${this.actor(actorId)}/browser/actions?limit=${limit}`, []);
+    return this.ifAwake<BrowserActionReceipt[]>(
+      `${this.actor(actorId)}/browser/actions?limit=${limit}`,
+      [],
+    );
   }
 }
 
@@ -432,7 +488,10 @@ export function getComputerClient(env: NodeJS.ProcessEnv = process.env): Compute
     // only runs on a call, by which time `client` exists.
     let client: HttpComputerClient | null = null;
     const waker = INSTANCE_ID.test(instanceId)
-      ? new HostWaker({ control: new Ec2InstanceControl(instanceId), healthy: async () => client?.healthy() ?? false })
+      ? new HostWaker({
+          control: new Ec2InstanceControl(instanceId),
+          healthy: async () => client?.healthy() ?? false,
+        })
       : null;
     client = new HttpComputerClient({ baseUrl: url, waker });
     cached = { key, client };

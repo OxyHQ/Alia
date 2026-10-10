@@ -38,7 +38,11 @@ const TURN_NOT_SENT = 'voice-turn-not-sent';
 
 interface UseVoiceModeOptions {
   /** The conversation's own send — `useChatConversation().sendMessage`. */
-  sendMessage: (content: string, attachments?: Attachment[], options?: SendOptions) => Promise<boolean>;
+  sendMessage: (
+    content: string,
+    attachments?: Attachment[],
+    options?: SendOptions,
+  ) => Promise<boolean>;
   /** Stops the turn streaming now; how talking over an answer cancels it. */
   stopGeneration: () => void;
   onDeactivate?: () => void;
@@ -51,7 +55,13 @@ interface UseVoiceModeOptions {
   isFocused: boolean;
 }
 
-export function useVoiceMode({ sendMessage, stopGeneration, onDeactivate, owner, isFocused }: UseVoiceModeOptions) {
+export function useVoiceMode({
+  sendMessage,
+  stopGeneration,
+  onDeactivate,
+  owner,
+  isFocused,
+}: UseVoiceModeOptions) {
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const queryClient = useQueryClient();
   const { t } = useTranslation();
@@ -86,7 +96,10 @@ export function useVoiceMode({ sendMessage, stopGeneration, onDeactivate, owner,
     const cancel = (): void => stopRef.current();
     signal.addEventListener('abort', cancel, { once: true });
     try {
-      const sent = await sendRef.current(text, undefined, { responseMode: 'voice', onAnswerText: onText });
+      const sent = await sendRef.current(text, undefined, {
+        responseMode: 'voice',
+        onAnswerText: onText,
+      });
       if (!sent && !signal.aborted) throw new Error(TURN_NOT_SENT);
     } finally {
       signal.removeEventListener('abort', cancel);
@@ -94,7 +107,10 @@ export function useVoiceMode({ sendMessage, stopGeneration, onDeactivate, owner,
   }, []);
 
   const voiceRoom = useVoiceRoom(sendTurn);
-  const { captureLevel, playbackLevel } = useAudioLevelMonitor(voiceRoom.room, voiceRoom.isConnected);
+  const { captureLevel, playbackLevel } = useAudioLevelMonitor(
+    voiceRoom.room,
+    voiceRoom.isConnected,
+  );
   const { waveAmplitude } = useAudioLevels({
     captureLevel,
     playbackLevel,

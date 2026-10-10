@@ -106,7 +106,10 @@ export class WorkloadAuthority {
     const now = this.now();
     for (const [nonce, expires] of this.nonces) if (expires <= now) this.nonces.delete(nonce);
     if (this.nonces.size >= MAX_OUTSTANDING_NONCES) {
-      throw new AttestationError('too_many_challenges', 'Too many outstanding challenges; try again shortly.');
+      throw new AttestationError(
+        'too_many_challenges',
+        'Too many outstanding challenges; try again shortly.',
+      );
     }
     const nonce = randomBytes(24).toString('base64url');
     this.nonces.set(nonce, now + NONCE_TTL_MS);
@@ -126,25 +129,39 @@ export class WorkloadAuthority {
    * bounded `reason`; nothing the caller sent is echoed.
    */
   async exchange(body: unknown): Promise<{ token: string; expiresIn: number; appName: string }> {
-    if (typeof body !== 'object' || body === null) throw new AttestationError('malformed', 'The request is not an object.');
-    const { provider, nonce, attestation } = body as { provider?: unknown; nonce?: unknown; attestation?: unknown };
-    if (provider !== 'aws-iam') throw new AttestationError('unsupported_provider', 'Only aws-iam attestations are accepted.');
+    if (typeof body !== 'object' || body === null)
+      throw new AttestationError('malformed', 'The request is not an object.');
+    const { provider, nonce, attestation } = body as {
+      provider?: unknown;
+      nonce?: unknown;
+      attestation?: unknown;
+    };
+    if (provider !== 'aws-iam')
+      throw new AttestationError('unsupported_provider', 'Only aws-iam attestations are accepted.');
     if (typeof nonce !== 'string' || !this.consumeNonce(nonce)) {
       throw new AttestationError('unknown_challenge', 'The challenge is unknown, used or expired.');
     }
     const headers = this.parse(attestation);
 
     const host = headerOf(headers, 'host');
-    if (!host || !STS_HOST_PATTERN.test(host)) throw new AttestationError('host_not_sts', 'The attestation is not addressed to AWS STS.');
+    if (!host || !STS_HOST_PATTERN.test(host))
+      throw new AttestationError('host_not_sts', 'The attestation is not addressed to AWS STS.');
     const authorization = headerOf(headers, 'authorization');
-    if (!authorization?.startsWith('AWS4-HMAC-SHA256 ')) throw new AttestationError('unsigned', 'The attestation carries no SigV4 signature.');
+    if (!authorization?.startsWith('AWS4-HMAC-SHA256 '))
+      throw new AttestationError('unsigned', 'The attestation carries no SigV4 signature.');
     const signedHeaders = /SignedHeaders=([^,]+)/.exec(authorization)?.[1] ?? '';
     if (!signedHeaders.split(';').includes(ATTESTATION_NONCE_HEADER)) {
-      throw new AttestationError('nonce_unsigned', 'The attestation does not sign the nonce header.');
+      throw new AttestationError(
+        'nonce_unsigned',
+        'The attestation does not sign the nonce header.',
+      );
     }
     const signedNonce = headerOf(headers, ATTESTATION_NONCE_HEADER);
     if (!signedNonce || !safeEquals(signedNonce, nonce)) {
-      throw new AttestationError('nonce_mismatch', 'The attestation answers a different challenge.');
+      throw new AttestationError(
+        'nonce_mismatch',
+        'The attestation answers a different challenge.',
+      );
     }
     const signedAt = parseAmzDate(headerOf(headers, 'x-amz-date'));
     if (signedAt === null || Math.abs(this.now() - signedAt) > MAX_SIGNATURE_AGE_MS) {
@@ -165,7 +182,8 @@ export class WorkloadAuthority {
     }
     const flat: Record<string, string> = {};
     for (const [key, value] of Object.entries(headers as Record<string, unknown>)) {
-      if (typeof value !== 'string') throw new AttestationError('malformed', 'An attestation header is not a string.');
+      if (typeof value !== 'string')
+        throw new AttestationError('malformed', 'An attestation header is not a string.');
       flat[key] = value;
     }
     return flat;
@@ -181,10 +199,14 @@ export class WorkloadAuthority {
         signal: AbortSignal.timeout(10_000),
       });
     } catch {
-      throw new AttestationError('sts_unreachable', 'The attestation could not be verified right now.');
+      throw new AttestationError(
+        'sts_unreachable',
+        'The attestation could not be verified right now.',
+      );
     }
     const text = await response.text();
-    if (!response.ok) throw new AttestationError('sts_rejected', 'The attestation was refused by AWS.');
+    if (!response.ok)
+      throw new AttestationError('sts_rejected', 'The attestation was refused by AWS.');
     const arn = /<Arn>([^<]+)<\/Arn>/.exec(text)?.[1];
     if (!arn) throw new AttestationError('sts_unreadable', 'AWS did not name the caller.');
     return arn;
@@ -205,9 +227,13 @@ export class WorkloadAuthority {
   verifyToken(token: string | undefined): string | null {
     if (!token) return null;
     const [version, payload, signature] = token.split('.');
-    if (version !== 'v1' || !payload || !signature || !safeEquals(signature, this.sign(payload))) return null;
+    if (version !== 'v1' || !payload || !signature || !safeEquals(signature, this.sign(payload)))
+      return null;
     try {
-      const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { sub?: unknown; exp?: unknown };
+      const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+        sub?: unknown;
+        exp?: unknown;
+      };
       if (typeof claims.sub !== 'string' || typeof claims.exp !== 'number') return null;
       if (claims.exp * 1000 <= this.now()) return null;
       return this.options.allowedRoleArns.includes(claims.sub) ? claims.sub : null;

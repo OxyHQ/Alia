@@ -23,7 +23,8 @@ const env = (name: string, fallback?: string) => {
 
 const token = env('ALIA_BROWSER_TOKEN');
 const proxy = new URL(env('ALIA_BROWSER_PROXY'));
-const log = (msg: string, fields: Record<string, unknown> = {}) => console.log(JSON.stringify({ msg, ...fields }));
+const log = (msg: string, fields: Record<string, unknown> = {}) =>
+  console.log(JSON.stringify({ msg, ...fields }));
 
 const pool = new BrowserPool({
   profilesDir: env('ALIA_BROWSER_PROFILES', '/profiles'),

@@ -1,4 +1,10 @@
-import { AliaRequestError, AliaStreamError, failureDetailOf, isRecord, type AliaFailureDetail } from './errors.js';
+import {
+  AliaRequestError,
+  AliaStreamError,
+  failureDetailOf,
+  isRecord,
+  type AliaFailureDetail,
+} from './errors.js';
 import type { AliaStreamEvent } from './events.js';
 import { readAliaEventStream } from './stream.js';
 

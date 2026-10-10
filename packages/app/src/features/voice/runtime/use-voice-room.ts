@@ -15,7 +15,7 @@ import { useUserDataStore } from '@/features/memory/runtime/user-data-store';
 export type { RoomState, AgentState, VoiceMessage, VoiceToolInvocation } from '@alia.onl/sdk/voice';
 
 export function useVoiceRoom(sendTurn: VoiceTurnSender) {
-  const voicePref = useUserDataStore(s => s.memory?.preferences?.voice);
+  const voicePref = useUserDataStore((s) => s.memory?.preferences?.voice);
 
   return useVoiceRoomSDK({
     apiUrl: config.apiUrl,

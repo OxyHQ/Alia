@@ -270,7 +270,11 @@ describe('the task listings', () => {
     const childAgent = await seedAgent();
     const doomedAgent = await seedAgent();
 
-    const parent = await createAgentSession(db, { agentId: parentAgent, oxyUserId: user, task: 'p' });
+    const parent = await createAgentSession(db, {
+      agentId: parentAgent,
+      oxyUserId: user,
+      task: 'p',
+    });
     await createAgentSession(db, {
       agentId: childAgent,
       oxyUserId: user,
@@ -358,7 +362,9 @@ describe('the reads the runner and the routes make', () => {
     await seedSession(agentId, { status: 'failed' });
     const running = await seedSession(agentId, { status: 'running' });
 
-    expect(await findLatestAgentSessionOwnedBy(db, agentId, OWNER, ['running', 'completed'])).toEqual({
+    expect(
+      await findLatestAgentSessionOwnedBy(db, agentId, OWNER, ['running', 'completed']),
+    ).toEqual({
       _id: running._id,
     });
     expect(await findLatestAgentSessionOwnedBy(db, agentId, OWNER, [])).toBeNull();
@@ -446,9 +452,24 @@ describe('the reads the runner and the routes make', () => {
     const wanted = await seedAgent();
     const other = await seedAgent();
     await db.insert(agentSessions).values([
-      { agentId: wanted, oxyUserId: user, task: 'in', createdAt: new Date('2026-08-10T00:00:00.000Z') },
-      { agentId: wanted, oxyUserId: user, task: 'early', createdAt: new Date('2026-07-01T00:00:00.000Z') },
-      { agentId: other, oxyUserId: user, task: 'wrong-agent', createdAt: new Date('2026-08-10T00:00:00.000Z') },
+      {
+        agentId: wanted,
+        oxyUserId: user,
+        task: 'in',
+        createdAt: new Date('2026-08-10T00:00:00.000Z'),
+      },
+      {
+        agentId: wanted,
+        oxyUserId: user,
+        task: 'early',
+        createdAt: new Date('2026-07-01T00:00:00.000Z'),
+      },
+      {
+        agentId: other,
+        oxyUserId: user,
+        task: 'wrong-agent',
+        createdAt: new Date('2026-08-10T00:00:00.000Z'),
+      },
     ]);
 
     const rows = await listAgentSessionsForAudit(db, user, {
@@ -537,9 +558,9 @@ describe('the columns whose TYPE is the whole point', () => {
       },
     });
 
-    expect(
-      (await findAgentSessionById(db, paidFunded._id))?.creditReservation?.grantKind,
-    ).toBe('paid_balance');
+    expect((await findAgentSessionById(db, paidFunded._id))?.creditReservation?.grantKind).toBe(
+      'paid_balance',
+    );
   });
 
   /**
@@ -552,7 +573,13 @@ describe('the columns whose TYPE is the whole point', () => {
       agentId: await seedAgent(),
       oxyUserId: OWNER,
       task: 'autonomous',
-      messages: [{ role: 'system', content: 'Autonomous Oxy service event execution', timestamp: new Date() }],
+      messages: [
+        {
+          role: 'system',
+          content: 'Autonomous Oxy service event execution',
+          timestamp: new Date(),
+        },
+      ],
     });
     const read = await findAgentSessionById(db, session._id);
     expect(read?.messages).toHaveLength(1);

@@ -54,7 +54,7 @@ describe('the bootstrap one-shot', () => {
 
   it('runs the image production is serving, not whatever main built', () => {
     expect(workflow).toContain('aws ecs describe-services');
-    expect(workflow).toContain(".taskDefinition' <<<\"$service_json\"");
+    expect(workflow).toContain('.taskDefinition\' <<<"$service_json"');
     expect(workflow).not.toContain('register-task-definition');
     expect(workflow).not.toContain('update-service');
   });

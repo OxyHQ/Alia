@@ -67,16 +67,11 @@ describe('day buckets', () => {
      * the past, and put a row one minute after it.
      */
     const now = new Date();
-    const midnightUtc = Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-    );
+    const midnightUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
     // If it is currently within an hour of midnight UTC, step back a day so the
     // fixture is unambiguously in the past.
-    const anchor = now.getTime() - midnightUtc < 60 * MINUTE
-      ? midnightUtc - 24 * 60 * MINUTE
-      : midnightUtc;
+    const anchor =
+      now.getTime() - midnightUtc < 60 * MINUTE ? midnightUtc - 24 * 60 * MINUTE : midnightUtc;
     const justAfterMidnight = new Date(anchor + MINUTE);
     const expectedDay = justAfterMidnight.toISOString().slice(0, 10);
 
@@ -116,8 +111,14 @@ describe('day buckets', () => {
   it('orders days oldest-first and keys them as _id', async () => {
     const oxyUserId = 'aku-user-order';
     const day = 24 * 60 * MINUTE;
-    await recordApiKeyUsage(db, usage({ oxyUserId, creditsUsed: 1, timestamp: new Date(Date.now() - 2 * day) }));
-    await recordApiKeyUsage(db, usage({ oxyUserId, creditsUsed: 1, timestamp: new Date(Date.now() - 1 * day) }));
+    await recordApiKeyUsage(
+      db,
+      usage({ oxyUserId, creditsUsed: 1, timestamp: new Date(Date.now() - 2 * day) }),
+    );
+    await recordApiKeyUsage(
+      db,
+      usage({ oxyUserId, creditsUsed: 1, timestamp: new Date(Date.now() - 1 * day) }),
+    );
 
     const days = await creditSpendByDay(db, oxyUserId, new Date(Date.now() - 5 * day));
     expect(days).toHaveLength(2);
@@ -152,7 +153,7 @@ describe('the rate-limit window', () => {
     expect(day.tokens).toBe(6500);
   });
 
-  it('separates a session user\'s budget from their other traffic', async () => {
+  it("separates a session user's budget from their other traffic", async () => {
     const oxyUserId = 'aku-rl-user';
     await recordApiKeyUsage(db, usage({ oxyUserId, authType: 'session', tokensUsed: 10 }));
     await recordApiKeyUsage(db, usage({ oxyUserId, authType: 'api_key', tokensUsed: 999 }));
@@ -201,7 +202,10 @@ describe('credit spend', () => {
     const oxyUserId = 'aku-credits-window';
     const day = 24 * 60 * MINUTE;
     const cutoff = new Date(Date.now() - day);
-    await recordApiKeyUsage(db, usage({ oxyUserId, creditsUsed: 5, timestamp: new Date(Date.now() - 2 * day) }));
+    await recordApiKeyUsage(
+      db,
+      usage({ oxyUserId, creditsUsed: 5, timestamp: new Date(Date.now() - 2 * day) }),
+    );
     await recordApiKeyUsage(db, usage({ oxyUserId, creditsUsed: 7, timestamp: minutesAgo(1) }));
 
     const bounded = await creditSpendByDay(db, oxyUserId, new Date(Date.now() - 5 * day), cutoff);
@@ -224,7 +228,10 @@ describe('the rolling spend window', () => {
     await recordApiKeyUsage(db, usage({ oxyUserId, creditsUsed: 7, timestamp: oldest }));
     await recordApiKeyUsage(db, usage({ oxyUserId, creditsUsed: 5, timestamp: minutesAgo(10) }));
     // A free row inside the window cannot be the oldest SPENDING turn.
-    await recordApiKeyUsage(db, usage({ oxyUserId, creditsUsed: 0, tokensUsed: 0, timestamp: minutesAgo(250) }));
+    await recordApiKeyUsage(
+      db,
+      usage({ oxyUserId, creditsUsed: 0, tokensUsed: 0, timestamp: minutesAgo(250) }),
+    );
 
     const window = await creditSpendWindow(db, oxyUserId, minutesAgo(300));
     expect(window.used).toBe(12);
@@ -232,6 +239,9 @@ describe('the rolling spend window', () => {
   });
 
   it('is empty, with no oldest turn, for somebody who spent nothing', async () => {
-    expect(await creditSpendWindow(db, 'aku-spend-window-none', minutesAgo(300))).toEqual({ used: 0, oldest: null });
+    expect(await creditSpendWindow(db, 'aku-spend-window-none', minutesAgo(300))).toEqual({
+      used: 0,
+      oldest: null,
+    });
   });
 });

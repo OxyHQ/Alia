@@ -36,12 +36,19 @@ export async function checkInRefusal(input: {
   readonly countSince: (since: Date) => Promise<number>;
 }): Promise<CheckInRefusal | null> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  if (await input.countSince(since) >= CHECK_IN_DAILY_LIMIT) return 'daily_limit';
+  if ((await input.countSince(since)) >= CHECK_IN_DAILY_LIMIT) return 'daily_limit';
   if (input.conversationId === null) return null;
-  const latest = await listLatestMessageMarks(getDb(), input.oxyUserId, input.conversationId, UNANSWERED_CHECK_IN_LIMIT);
-  if (latest.length === UNANSWERED_CHECK_IN_LIMIT && latest.every((m) => isAgentOutreachMessageId(m.clientMessageId))) {
+  const latest = await listLatestMessageMarks(
+    getDb(),
+    input.oxyUserId,
+    input.conversationId,
+    UNANSWERED_CHECK_IN_LIMIT,
+  );
+  if (
+    latest.length === UNANSWERED_CHECK_IN_LIMIT &&
+    latest.every((m) => isAgentOutreachMessageId(m.clientMessageId))
+  ) {
     return 'unanswered';
   }
   return null;
 }
-

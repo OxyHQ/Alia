@@ -17,7 +17,9 @@ describe('agent memory contract', () => {
 
   it('uses stable hashes and enforces the prompt line budget', () => {
     expect(hashAgentMemory('same')).toBe(hashAgentMemory('same'));
-    const sliced = agentMemoryPromptSlice(Array.from({ length: 240 }, (_, i) => `line ${i}`).join('\n'));
+    const sliced = agentMemoryPromptSlice(
+      Array.from({ length: 240 }, (_, i) => `line ${i}`).join('\n'),
+    );
     expect(sliced.content.split('\n')).toHaveLength(AGENT_MEMORY_MAX_LINES);
     expect(sliced.truncated).toBe(true);
   });

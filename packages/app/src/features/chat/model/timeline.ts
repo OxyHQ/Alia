@@ -104,7 +104,10 @@ type Shape = Pick<Message, 'id' | 'role' | 'createdAt' | 'agentInfo'>;
 function sameShape(a: Shape, b: Shape): boolean {
   return (
     a === b ||
-    (a.id === b.id && a.role === b.role && a.createdAt === b.createdAt && a.agentInfo?.id === b.agentInfo?.id)
+    (a.id === b.id &&
+      a.role === b.role &&
+      a.createdAt === b.createdAt &&
+      a.agentInfo?.id === b.agentInfo?.id)
   );
 }
 

@@ -14,29 +14,204 @@ import {
 // ── Stop words (EN + ES) ───────────────────────────────────────────────
 const STOP_WORDS = new Set([
   // English
-  'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-  'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-  'should', 'may', 'might', 'shall', 'can', 'need', 'dare', 'ought',
-  'used', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from',
-  'as', 'into', 'through', 'during', 'before', 'after', 'above', 'below',
-  'between', 'out', 'off', 'over', 'under', 'again', 'further', 'then',
-  'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'both',
-  'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor',
-  'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just',
-  'because', 'but', 'and', 'or', 'if', 'while', 'about', 'up', 'it',
-  'its', 'i', 'me', 'my', 'we', 'our', 'you', 'your', 'he', 'him',
-  'his', 'she', 'her', 'they', 'them', 'their', 'this', 'that', 'these',
-  'those', 'what', 'which', 'who', 'whom', 'am', 'also', 'get', 'got',
-  'like', 'know', 'think', 'want', 'really', 'much', 'well',
+  'the',
+  'a',
+  'an',
+  'is',
+  'are',
+  'was',
+  'were',
+  'be',
+  'been',
+  'being',
+  'have',
+  'has',
+  'had',
+  'do',
+  'does',
+  'did',
+  'will',
+  'would',
+  'could',
+  'should',
+  'may',
+  'might',
+  'shall',
+  'can',
+  'need',
+  'dare',
+  'ought',
+  'used',
+  'to',
+  'of',
+  'in',
+  'for',
+  'on',
+  'with',
+  'at',
+  'by',
+  'from',
+  'as',
+  'into',
+  'through',
+  'during',
+  'before',
+  'after',
+  'above',
+  'below',
+  'between',
+  'out',
+  'off',
+  'over',
+  'under',
+  'again',
+  'further',
+  'then',
+  'once',
+  'here',
+  'there',
+  'when',
+  'where',
+  'why',
+  'how',
+  'all',
+  'both',
+  'each',
+  'few',
+  'more',
+  'most',
+  'other',
+  'some',
+  'such',
+  'no',
+  'nor',
+  'not',
+  'only',
+  'own',
+  'same',
+  'so',
+  'than',
+  'too',
+  'very',
+  'just',
+  'because',
+  'but',
+  'and',
+  'or',
+  'if',
+  'while',
+  'about',
+  'up',
+  'it',
+  'its',
+  'i',
+  'me',
+  'my',
+  'we',
+  'our',
+  'you',
+  'your',
+  'he',
+  'him',
+  'his',
+  'she',
+  'her',
+  'they',
+  'them',
+  'their',
+  'this',
+  'that',
+  'these',
+  'those',
+  'what',
+  'which',
+  'who',
+  'whom',
+  'am',
+  'also',
+  'get',
+  'got',
+  'like',
+  'know',
+  'think',
+  'want',
+  'really',
+  'much',
+  'well',
   // Spanish
-  'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'de', 'del',
-  'en', 'con', 'por', 'para', 'es', 'son', 'fue', 'ser', 'estar',
-  'tiene', 'hay', 'que', 'se', 'su', 'sus', 'al', 'lo', 'como', 'pero',
-  'si', 'ya', 'yo', 'tu', 'mi', 'nos', 'le', 'les', 'me', 'te',
-  'más', 'mas', 'muy', 'este', 'esta', 'esto', 'ese', 'esa', 'eso',
-  'no', 'sí', 'también', 'porque', 'cuando', 'donde', 'qué', 'cómo',
-  'todo', 'todos', 'toda', 'todas', 'otro', 'otra', 'otros', 'otras',
-  'uno', 'dos', 'tres', 'bien', 'aquí', 'ahí', 'así', 'algo', 'nada',
+  'el',
+  'la',
+  'los',
+  'las',
+  'un',
+  'una',
+  'unos',
+  'unas',
+  'de',
+  'del',
+  'en',
+  'con',
+  'por',
+  'para',
+  'es',
+  'son',
+  'fue',
+  'ser',
+  'estar',
+  'tiene',
+  'hay',
+  'que',
+  'se',
+  'su',
+  'sus',
+  'al',
+  'lo',
+  'como',
+  'pero',
+  'si',
+  'ya',
+  'yo',
+  'tu',
+  'mi',
+  'nos',
+  'le',
+  'les',
+  'me',
+  'te',
+  'más',
+  'mas',
+  'muy',
+  'este',
+  'esta',
+  'esto',
+  'ese',
+  'esa',
+  'eso',
+  'no',
+  'sí',
+  'también',
+  'porque',
+  'cuando',
+  'donde',
+  'qué',
+  'cómo',
+  'todo',
+  'todos',
+  'toda',
+  'todas',
+  'otro',
+  'otra',
+  'otros',
+  'otras',
+  'uno',
+  'dos',
+  'tres',
+  'bien',
+  'aquí',
+  'ahí',
+  'así',
+  'algo',
+  'nada',
 ]);
 
 // ── Emoji regex ────────────────────────────────────────────────────────
@@ -88,11 +263,91 @@ const CLOSING_PATTERNS: [RegExp, string][] = [
 
 // ── Language trigram profiles (simplified) ──────────────────────────────
 const LANG_TRIGRAMS: Record<string, string[]> = {
-  en: ['the', 'and', 'ing', 'tion', 'for', 'ent', 'ion', 'her', 'was', 'tha', 'ere', 'his', 'not', 'but', 'you'],
-  es: ['que', 'los', 'las', 'por', 'con', 'una', 'del', 'est', 'ent', 'ión', 'ado', 'ara', 'cia', 'mos', 'com'],
-  fr: ['les', 'des', 'que', 'ent', 'est', 'une', 'par', 'pas', 'ous', 'ait', 'eur', 'ion', 'ans', 'ont', 'ais'],
-  pt: ['que', 'ção', 'dos', 'com', 'ent', 'ado', 'par', 'est', 'uma', 'não', 'são', 'mos', 'foi', 'tem', 'ele'],
-  de: ['der', 'die', 'und', 'den', 'ein', 'das', 'ist', 'ich', 'cht', 'sch', 'ung', 'ber', 'ver', 'auf', 'eit'],
+  en: [
+    'the',
+    'and',
+    'ing',
+    'tion',
+    'for',
+    'ent',
+    'ion',
+    'her',
+    'was',
+    'tha',
+    'ere',
+    'his',
+    'not',
+    'but',
+    'you',
+  ],
+  es: [
+    'que',
+    'los',
+    'las',
+    'por',
+    'con',
+    'una',
+    'del',
+    'est',
+    'ent',
+    'ión',
+    'ado',
+    'ara',
+    'cia',
+    'mos',
+    'com',
+  ],
+  fr: [
+    'les',
+    'des',
+    'que',
+    'ent',
+    'est',
+    'une',
+    'par',
+    'pas',
+    'ous',
+    'ait',
+    'eur',
+    'ion',
+    'ans',
+    'ont',
+    'ais',
+  ],
+  pt: [
+    'que',
+    'ção',
+    'dos',
+    'com',
+    'ent',
+    'ado',
+    'par',
+    'est',
+    'uma',
+    'não',
+    'são',
+    'mos',
+    'foi',
+    'tem',
+    'ele',
+  ],
+  de: [
+    'der',
+    'die',
+    'und',
+    'den',
+    'ein',
+    'das',
+    'ist',
+    'ich',
+    'cht',
+    'sch',
+    'ung',
+    'ber',
+    'ver',
+    'auf',
+    'eit',
+  ],
 };
 
 // ── Helper functions ───────────────────────────────────────────────────
@@ -100,8 +355,8 @@ const LANG_TRIGRAMS: Record<string, string[]> = {
 function splitSentences(text: string): string[] {
   return text
     .split(/(?<=[.!?])\s+/)
-    .map(s => s.trim())
-    .filter(s => s.length > 0);
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
 }
 
 function tokenizeWords(text: string): string[] {
@@ -110,11 +365,11 @@ function tokenizeWords(text: string): string[] {
     .replace(EMOJI_RE, ' ')
     .replace(/[^\w\sáéíóúñüàèìòùâêîôûäëïöüç'-]/g, ' ')
     .split(/\s+/)
-    .filter(w => w.length > 1);
+    .filter((w) => w.length > 1);
 }
 
 function extractEmojis(text: string): string[] {
-  return [...text.matchAll(EMOJI_RE)].map(m => m[0]);
+  return [...text.matchAll(EMOJI_RE)].map((m) => m[0]);
 }
 
 function detectLanguage(text: string): string {
@@ -160,7 +415,11 @@ function pushRolling(arr: number[], value: number, maxLen: number): number[] {
   return arr;
 }
 
-function incrementMap(map: Record<string, number>, key: string, maxEntries: number): Record<string, number> {
+function incrementMap(
+  map: Record<string, number>,
+  key: string,
+  maxEntries: number,
+): Record<string, number> {
   map[key] = (map[key] || 0) + 1;
 
   // Prune if exceeding max entries: remove lowest-count entries
@@ -282,7 +541,11 @@ export function analyzeMessage(
   // ── 2. Sentence/message lengths ─────────────────────────────────
   for (const sentence of sentences) {
     const sentWords = tokenizeWords(sentence);
-    raw.sentenceLengths = pushRolling(raw.sentenceLengths, sentWords.length, STYLE_RAW_ROLLING_WINDOW);
+    raw.sentenceLengths = pushRolling(
+      raw.sentenceLengths,
+      sentWords.length,
+      STYLE_RAW_ROLLING_WINDOW,
+    );
   }
   raw.messageLengths = pushRolling(raw.messageLengths, words.length, STYLE_RAW_ROLLING_WINDOW);
 
@@ -326,7 +589,10 @@ export function analyzeMessage(
   }
 
   // ── 9. Closing detection ────────────────────────────────────────
-  const lines = trimmed.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const lines = trimmed
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
   const lastLine = lines[lines.length - 1] || '';
   for (const [pattern, label] of CLOSING_PATTERNS) {
     if (pattern.test(lastLine)) {
@@ -374,7 +640,8 @@ export function deriveProfile(profile: IWritingStyleProfile): IWritingStyleProfi
   const topWords = topEntries(raw.wordFrequency, 50);
   if (topWords.length > 0) {
     const avgWordLen = topWords.reduce((sum, w) => sum + w.length, 0) / topWords.length;
-    const avgSyllables = topWords.reduce((sum, w) => sum + estimateSyllables(w), 0) / topWords.length;
+    const avgSyllables =
+      topWords.reduce((sum, w) => sum + estimateSyllables(w), 0) / topWords.length;
 
     if (avgSyllables >= 2.5 || avgWordLen >= 7) {
       profile.vocabularyLevel = 'advanced';
@@ -435,8 +702,8 @@ export function deriveProfile(profile: IWritingStyleProfile): IWritingStyleProfi
   // Contractions lower formality
   const avgContractions = (() => {
     // Sample from recent raw data: approximate from word patterns
-    const contractionWords = profile.commonWords.filter(w =>
-      /n't$|'m$|'re$|'ve$|'ll$|'d$|'s$/.test(w)
+    const contractionWords = profile.commonWords.filter((w) =>
+      /n't$|'m$|'re$|'ve$|'ll$|'d$|'s$/.test(w),
     );
     return contractionWords.length;
   })();

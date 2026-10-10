@@ -99,7 +99,12 @@ export function BillingToggle({
   // wrapper is what lets a centred parent centre it.
   return (
     <View>
-      <SegmentedControl type="radio" label={t('subscribe.billingPeriod')} value={value} onValueChange={onChange}>
+      <SegmentedControl
+        type="radio"
+        label={t('subscribe.billingPeriod')}
+        value={value}
+        onValueChange={onChange}
+      >
         <SegmentedControlItem value="monthly">
           <SegmentedControlItemText>{t('subscribe.monthly')}</SegmentedControlItemText>
         </SegmentedControlItem>
@@ -198,8 +203,7 @@ function getButtonState(
   tiers: PricingTier[],
 ): { label: string; disabled: boolean } {
   if (tier.isFree) {
-    if (!hasActiveSubscription)
-      return { label: 'subscribe.currentPlan', disabled: true };
+    if (!hasActiveSubscription) return { label: 'subscribe.currentPlan', disabled: true };
     return { label: 'subscribe.downgrade', disabled: false };
   }
 
@@ -208,14 +212,11 @@ function getButtonState(
   }
 
   if (currentPlanId === tier.id) {
-    if (cancelAtPeriodEnd)
-      return { label: 'subscribe.reactivate', disabled: false };
+    if (cancelAtPeriodEnd) return { label: 'subscribe.reactivate', disabled: false };
     if (currentBillingPeriod && currentBillingPeriod !== billingPeriod) {
       return {
         label:
-          billingPeriod === 'annual'
-            ? 'subscribe.switchToAnnual'
-            : 'subscribe.switchToMonthly',
+          billingPeriod === 'annual' ? 'subscribe.switchToAnnual' : 'subscribe.switchToMonthly',
         disabled: false,
       };
     }

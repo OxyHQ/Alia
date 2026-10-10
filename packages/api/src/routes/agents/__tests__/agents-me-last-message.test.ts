@@ -62,7 +62,7 @@ vi.mock('../../../db/agents/agentRepository.js', () => ({
   listAgentsWithHeartbeat: vi.fn(async () => []),
   setAgentCatalogueFlags: vi.fn(),
   incrementAgentUsage: vi.fn(),
-  withoutSystemPrompt: <T,>(agent: T) => agent,
+  withoutSystemPrompt: <T>(agent: T) => agent,
   withoutInternalAgentBindings: <T extends Record<string, unknown>>(agent: T) => {
     const { applicationId: _applicationId, ownerOxyAccountId: _owner, ...rest } = agent;
     return rest;
@@ -70,10 +70,12 @@ vi.mock('../../../db/agents/agentRepository.js', () => ({
 }));
 
 vi.mock('../../../db/chat/conversationRepository.js', () => ({
-  latestMessagePerAgent: vi.fn(async (_db: unknown, oxyUserId: string, agentIds: readonly string[]) => {
-    state.latestCalls.push({ oxyUserId, agentIds });
-    return state.latestRows;
-  }),
+  latestMessagePerAgent: vi.fn(
+    async (_db: unknown, oxyUserId: string, agentIds: readonly string[]) => {
+      state.latestCalls.push({ oxyUserId, agentIds });
+      return state.latestRows;
+    },
+  ),
 }));
 
 vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));

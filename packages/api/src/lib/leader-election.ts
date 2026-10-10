@@ -51,7 +51,7 @@ export interface LeaderElectionHandle {
 export function startLeaderElection(
   name: string,
   hooks: LeaderElectionHooks,
-  opts?: LeaderElectionOptions
+  opts?: LeaderElectionOptions,
 ): LeaderElectionHandle {
   const leaseTtlMs = opts?.leaseTtlMs ?? DEFAULT_LEASE_TTL_MS;
   const heartbeatMs = opts?.heartbeatMs ?? DEFAULT_HEARTBEAT_MS;
@@ -81,7 +81,10 @@ export function startLeaderElection(
    */
   const pending = new Set<Promise<void>>();
 
-  async function runHook(kind: 'onElected' | 'onDemoted', fn: () => void | Promise<void>): Promise<void> {
+  async function runHook(
+    kind: 'onElected' | 'onDemoted',
+    fn: () => void | Promise<void>,
+  ): Promise<void> {
     try {
       await fn();
     } catch (err) {
@@ -104,7 +107,10 @@ export function startLeaderElection(
         await runHook('onElected', hooks.onElected);
       } else if (!held && leader) {
         leader = false;
-        log.general.info({ lease: name, instanceId }, 'Leader election: demoted (lease taken over)');
+        log.general.info(
+          { lease: name, instanceId },
+          'Leader election: demoted (lease taken over)',
+        );
         await runHook('onDemoted', hooks.onDemoted);
       }
     } catch (err) {
@@ -113,7 +119,10 @@ export function startLeaderElection(
       log.general.warn({ err, lease: name }, 'Leader election: heartbeat failed');
       if (leader && Date.now() - lastRenewOk >= leaseTtlMs - heartbeatMs) {
         leader = false;
-        log.general.warn({ lease: name, instanceId }, 'Leader election: demoted (lost contact with DB)');
+        log.general.warn(
+          { lease: name, instanceId },
+          'Leader election: demoted (lost contact with DB)',
+        );
         await runHook('onDemoted', hooks.onDemoted);
       }
     }

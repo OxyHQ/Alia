@@ -40,13 +40,19 @@ describe('agent admission', () => {
     const { db, tx } = databaseWithActiveCount(0);
     const order: string[] = [];
     tx.update.mockImplementation(() => ({
-      set: vi.fn(() => ({ where: vi.fn(async () => { order.push('reclaim-expired-lease'); }) })),
+      set: vi.fn(() => ({
+        where: vi.fn(async () => {
+          order.push('reclaim-expired-lease');
+        }),
+      })),
     }));
     tx.select.mockImplementation(() => ({
-      from: vi.fn(() => ({ where: vi.fn(async () => {
-        order.push('count-active');
-        return [{ count: 0 }];
-      }) })),
+      from: vi.fn(() => ({
+        where: vi.fn(async () => {
+          order.push('count-active');
+          return [{ count: 0 }];
+        }),
+      })),
     }));
 
     await withAgentAdmission(db, PAIR, 1, async () => 'session-2');
@@ -66,7 +72,12 @@ describe('agent admission', () => {
     const first = databaseWithActiveCount(0);
     await withAgentAdmission(first.db, PAIR, 1, async () => 'session-a');
     const second = databaseWithActiveCount(0);
-    await withAgentAdmission(second.db, { agentId: 'agent-1', oxyUserId: 'user-2' }, 1, async () => 'session-b');
+    await withAgentAdmission(
+      second.db,
+      { agentId: 'agent-1', oxyUserId: 'user-2' },
+      1,
+      async () => 'session-b',
+    );
 
     const lockKey = (tx: typeof first.tx) => JSON.stringify(tx.execute.mock.calls[0]?.[0]);
     expect(lockKey(first.tx)).toContain('alia-agent:agent-1:user-1');

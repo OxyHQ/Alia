@@ -1,11 +1,11 @@
-import React from "react";
+import React from 'react';
 import {
   classifyIntake,
   readFraction,
   type IntakeKind,
   type IntakeRefusal,
-} from "@/features/chat/model/attachment-intake";
-import type { Attachment } from "./types";
+} from '@/features/chat/model/attachment-intake';
+import type { Attachment } from './types';
 
 /**
  * The composer's own file intake: the queue between "the user handed us a
@@ -66,7 +66,7 @@ export interface IntakeItem {
    * stub, and a component that cannot be mounted in a test is a component
    * whose behaviour nothing pins.
    */
-  status: "reading" | "failed" | "refused";
+  status: 'reading' | 'failed' | 'refused';
   /**
    * How far the read has got, 0–1 — or `null` for "no measurable progress",
    * which the tile must render as indeterminate activity rather than as a
@@ -107,7 +107,7 @@ const startFileRead: StartRead = (file, handlers) => {
     // A `readAsDataURL` result is always a string when it succeeded; anything
     // else means the read did not produce what the message needs, and a
     // failure the user can retry is the truthful reading of that.
-    if (typeof result === "string") handlers.onDone(result);
+    if (typeof result === 'string') handlers.onDone(result);
     else handlers.onFailed();
   };
   reader.onerror = () => handlers.onFailed();
@@ -202,9 +202,7 @@ export function useAttachmentIntake({
           if (!live()) return;
           setItems((prev) =>
             prev.map((item) =>
-              item.id === id && item.status === "reading"
-                ? { ...item, fraction }
-                : item,
+              item.id === id && item.status === 'reading' ? { ...item, fraction } : item,
             ),
           );
         },
@@ -223,7 +221,7 @@ export function useAttachmentIntake({
             type: kind,
             name: file.name,
             size: file.size,
-            mimeType: file.type || "application/octet-stream",
+            mimeType: file.type || 'application/octet-stream',
           });
         },
         onFailed: () => {
@@ -233,7 +231,7 @@ export function useAttachmentIntake({
           reads.current.delete(id);
           setItems((prev) =>
             prev.map((item) =>
-              item.id === id ? { ...item, status: "failed", fraction: null } : item,
+              item.id === id ? { ...item, status: 'failed', fraction: null } : item,
             ),
           );
         },
@@ -252,13 +250,13 @@ export function useAttachmentIntake({
       const starts: Array<() => void> = [];
 
       for (const file of files) {
-        const name = file.name || "";
+        const name = file.name || '';
         const verdict = classifyIntake({
           name,
-          mimeType: file.type || "",
+          mimeType: file.type || '',
           size: file.size,
         });
-        const id = nextId("intake");
+        const id = nextId('intake');
         if (!verdict.accepted) {
           // A file that silently fails to attach is the worst of the three
           // outcomes: the user sends the message believing the picture went
@@ -266,17 +264,17 @@ export function useAttachmentIntake({
           // and "one of them didn't work" is no answer when four were dropped.
           queued.push({
             id,
-            name: name || "file",
+            name: name || 'file',
             size: file.size,
-            mimeType: file.type || "",
-            kind: "document",
-            status: "refused",
+            mimeType: file.type || '',
+            kind: 'document',
+            status: 'refused',
             fraction: null,
             refusal: verdict.refusal,
           });
           continue;
         }
-        if (verdict.kind === "document") {
+        if (verdict.kind === 'document') {
           /*
            * A document never gets read. `buildMessageContent` filters the
            * attachment list down to `type === 'image'`, so a document's bytes
@@ -288,13 +286,13 @@ export function useAttachmentIntake({
           addAttachment({
             id,
             uri:
-              typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
+              typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
                 ? URL.createObjectURL(file)
-                : "",
-            type: "document",
-            name: name || "file",
+                : '',
+            type: 'document',
+            name: name || 'file',
             size: file.size,
-            mimeType: file.type || "application/octet-stream",
+            mimeType: file.type || 'application/octet-stream',
           });
           continue;
         }
@@ -302,11 +300,11 @@ export function useAttachmentIntake({
         sources.current.set(id, file);
         queued.push({
           id,
-          name: name || "image",
+          name: name || 'image',
           size: file.size,
-          mimeType: file.type || "image/*",
+          mimeType: file.type || 'image/*',
           kind: verdict.kind,
-          status: "reading",
+          status: 'reading',
           // Not zero. Zero is a claim that nothing has moved yet; `null` is the
           // truth, which is that nothing has been reported yet.
           fraction: null,
@@ -345,13 +343,13 @@ export function useAttachmentIntake({
       if (file === undefined) return;
       setItems((prev) =>
         prev.map((item) =>
-          item.id === id ? { ...item, status: "reading", fraction: null } : item,
+          item.id === id ? { ...item, status: 'reading', fraction: null } : item,
         ),
       );
       // `"image"` is not an assumption: a document is handed over on arrival
       // and never queues, so the only thing that can hold a source is a
       // picture being read.
-      begin(id, file, "image");
+      begin(id, file, 'image');
     },
     [begin],
   );
@@ -382,7 +380,7 @@ export function useAttachmentIntake({
       cancel,
       retry,
       dismiss,
-      isBusy: items.some((item) => item.status === "reading"),
+      isBusy: items.some((item) => item.status === 'reading'),
     }),
     [items, accept, cancel, retry, dismiss],
   );

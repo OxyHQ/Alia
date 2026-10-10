@@ -149,7 +149,10 @@ export function IdentityMark({
     (current, previous) => {
       if (current === previous || current === 0) return;
       rotation.value = 0;
-      rotation.value = withTiming(360, { duration: 500, easing: Easing.bezier(0.34, 1.3, 0.64, 1) });
+      rotation.value = withTiming(360, {
+        duration: 500,
+        easing: Easing.bezier(0.34, 1.3, 0.64, 1),
+      });
     },
     [spinCount],
   );
@@ -168,7 +171,12 @@ export function IdentityMark({
     onPress?.();
   };
 
-  const box = { width: size, height: size, alignItems: 'center', justifyContent: 'center' } as const;
+  const box = {
+    width: size,
+    height: size,
+    alignItems: 'center',
+    justifyContent: 'center',
+  } as const;
   const glyph = (
     <Animated.View style={animatedStyle}>
       <Svg width={size} height={size} viewBox={VIEWBOX}>

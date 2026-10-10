@@ -46,7 +46,10 @@ describe('wrapToolsWithTruncation', () => {
       version: 1,
       data: {
         place: 'Barcelona',
-        hourly: Array.from({ length: 168 }, (_, i) => ({ time: `h${i}`, temperature: 20 + (i % 10) })),
+        hourly: Array.from({ length: 168 }, (_, i) => ({
+          time: `h${i}`,
+          temperature: 20 + (i % 10),
+        })),
       },
     };
     const out = await run({ card, summary: 'Barcelona: 28°C.' });

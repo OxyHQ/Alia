@@ -42,9 +42,7 @@ export function useBots() {
       // GET /bots also returns the caller's own per-agent bots — those are
       // managed in the agent editor, so this system-bots screen shows only the
       // shared system bots (no owner).
-      const botList: SystemBot[] = (response.data.bots || []).filter(
-        (b: SystemBot) => !b.userId,
-      );
+      const botList: SystemBot[] = (response.data.bots || []).filter((b: SystemBot) => !b.userId);
       setBots(botList);
 
       // Fetch link status for each bot
@@ -57,7 +55,7 @@ export function useBots() {
           } catch {
             statuses[bot._id] = { linked: false };
           }
-        })
+        }),
       );
       setLinkStatuses(statuses);
       setError(null);

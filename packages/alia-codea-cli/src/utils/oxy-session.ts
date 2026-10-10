@@ -42,7 +42,13 @@ import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { OxyServices } from '@oxy.so/core';
-import { createNativeAuthStateStore, installAuthRefreshHandler, runSessionColdBoot, startTokenRefreshScheduler, type AuthStateStore } from '@oxy.so/core/session';
+import {
+  createNativeAuthStateStore,
+  installAuthRefreshHandler,
+  runSessionColdBoot,
+  startTokenRefreshScheduler,
+  type AuthStateStore,
+} from '@oxy.so/core/session';
 
 import { toEpochMs } from './approval-surface.js';
 import { config } from './config.js';

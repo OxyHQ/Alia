@@ -342,4 +342,3 @@ export const agentOxyAppPermissions = pgTable(
     checkOneOf('agent_oxy_app_permissions_level_check', t.level, STORED_OXY_APP_LEVELS),
   ],
 );
-

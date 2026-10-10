@@ -16,9 +16,13 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
   markAutomationEventStatus: vi.fn(),
   matchingEventAutomations: vi.fn(async () => []),
 }));
-vi.mock('../../lib/automation-dispatcher.js', () => ({ dispatchStructuredAutomation: state.dispatch }));
+vi.mock('../../lib/automation-dispatcher.js', () => ({
+  dispatchStructuredAutomation: state.dispatch,
+}));
 vi.mock('../../lib/notification-service.js', () => ({ sendNotification: vi.fn() }));
-vi.mock('../../lib/proactive/email-outreach.js', () => ({ handleInboxEmailEvent: state.emailOutreach }));
+vi.mock('../../lib/proactive/email-outreach.js', () => ({
+  handleInboxEmailEvent: state.emailOutreach,
+}));
 vi.mock('../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return { log: { triggers: child, general: child } };
@@ -32,35 +36,52 @@ const router = eventsModule.default;
 let server: Server;
 let port: number;
 
-function post(body: unknown, token?: string): Promise<{ status: number; body: Record<string, unknown> }> {
+function post(
+  body: unknown,
+  token?: string,
+): Promise<{ status: number; body: Record<string, unknown> }> {
   return new Promise((resolve, reject) => {
     const json = JSON.stringify(body);
-    const request = httpRequest({
-      host: '127.0.0.1', port, path: '/webhooks/oxy', method: 'POST',
-      headers: {
-        'content-type': 'application/json', 'content-length': Buffer.byteLength(json),
-        ...(token ? { authorization: `Bearer ${token}` } : {}),
+    const request = httpRequest(
+      {
+        host: '127.0.0.1',
+        port,
+        path: '/webhooks/oxy',
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(json),
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
       },
-    }, (response) => {
-      const chunks: Buffer[] = [];
-      response.on('data', (chunk: Buffer) => chunks.push(chunk));
-      response.on('end', () => resolve({
-        status: response.statusCode ?? 0,
-        body: JSON.parse(Buffer.concat(chunks).toString()) as Record<string, unknown>,
-      }));
-    });
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () =>
+          resolve({
+            status: response.statusCode ?? 0,
+            body: JSON.parse(Buffer.concat(chunks).toString()) as Record<string, unknown>,
+          }),
+        );
+      },
+    );
     request.on('error', reject);
     request.end(json);
   });
 }
 
 const event = {
-  eventId: 'message-1:new_email', appId: 'inbox', accountId: 'account-1',
+  eventId: 'message-1:new_email',
+  appId: 'inbox',
+  accountId: 'account-1',
   resource: {
-    appId: 'inbox', effectiveAccountId: 'account-1',
-    resourceType: 'mailbox', resourceId: 'mailbox-1',
+    appId: 'inbox',
+    effectiveAccountId: 'account-1',
+    resourceType: 'mailbox',
+    resourceId: 'mailbox-1',
   },
-  type: 'new_email', occurredAt: '2026-09-02T10:00:00.000Z',
+  type: 'new_email',
+  occurredAt: '2026-09-02T10:00:00.000Z',
   data: { messageId: 'message-1', mailboxId: 'mailbox-1' },
 };
 
@@ -75,17 +96,27 @@ beforeAll(async () => {
   port = address.port;
 });
 
-afterAll(async () => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
+afterAll(
+  async () =>
+    new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    ),
+);
 
 beforeEach(() => {
   state.claim.mockReset().mockResolvedValue(false);
   state.dispatch.mockReset();
   state.emailOutreach.mockClear();
-  serviceFetch.mockReset().mockResolvedValue(new Response(JSON.stringify({
-    service: { appId: 'application-1', scopes: ['capability-events:publish'] },
-    catalogAppIds: ['inbox'],
-    catalogs: [{ appId: 'inbox', eventTypes: ['new_email', 'email_needs_response'] }],
-  }), { status: 200, headers: { 'content-type': 'application/json' } }));
+  serviceFetch.mockReset().mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        service: { appId: 'application-1', scopes: ['capability-events:publish'] },
+        catalogAppIds: ['inbox'],
+        catalogs: [{ appId: 'inbox', eventTypes: ['new_email', 'email_needs_response'] }],
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ),
+  );
 });
 
 describe('normalized Oxy app events', () => {
@@ -106,11 +137,16 @@ describe('normalized Oxy app events', () => {
   });
 
   it('refuses an app that is not owned by the publisher catalog', async () => {
-    serviceFetch.mockResolvedValueOnce(new Response(JSON.stringify({
-      service: { appId: 'application-1', scopes: ['capability-events:publish'] },
-      catalogAppIds: ['mention'],
-      catalogs: [{ appId: 'mention', eventTypes: ['post_created'] }],
-    }), { status: 200 }));
+    serviceFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          service: { appId: 'application-1', scopes: ['capability-events:publish'] },
+          catalogAppIds: ['mention'],
+          catalogs: [{ appId: 'mention', eventTypes: ['post_created'] }],
+        }),
+        { status: 200 },
+      ),
+    );
     const response = await post(event, 'service-token');
     expect(response.status).toBe(403);
     expect(response.body.error).toBe('catalog_not_owned_by_service');
@@ -126,17 +162,23 @@ describe('normalized Oxy app events', () => {
   });
 
   it('rejects a resource that claims a different app', async () => {
-    const response = await post({ ...event, resource: { ...event.resource, appId: 'mention' } }, 'service-token');
+    const response = await post(
+      { ...event, resource: { ...event.resource, appId: 'mention' } },
+      'service-token',
+    );
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('event_resource_app_mismatch');
     expect(serviceFetch).not.toHaveBeenCalled();
   });
 
   it('rejects a resource that claims a different effective account', async () => {
-    const response = await post({
-      ...event,
-      resource: { ...event.resource, effectiveAccountId: 'account-2' },
-    }, 'service-token');
+    const response = await post(
+      {
+        ...event,
+        resource: { ...event.resource, effectiveAccountId: 'account-2' },
+      },
+      'service-token',
+    );
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('event_resource_account_mismatch');
     expect(serviceFetch).not.toHaveBeenCalled();
@@ -151,15 +193,33 @@ describe('normalized Oxy app events', () => {
 
   it('hands a new email to the outreach path once, and never stores its snippet', async () => {
     state.claim.mockResolvedValueOnce(true);
-    const withSnippet = { ...event, data: { ...event.data, from: 'a@b.c', subject: 'Hi', snippet: 'first line of the body', folder: 'inbox' } };
+    const withSnippet = {
+      ...event,
+      data: {
+        ...event.data,
+        from: 'a@b.c',
+        subject: 'Hi',
+        snippet: 'first line of the body',
+        folder: 'inbox',
+      },
+    };
 
     const response = await post(withSnippet, 'service-token');
 
     expect(response.body).toEqual({ accepted: true, duplicate: false });
     const stored = state.claim.mock.calls[0]![1] as { data: Record<string, unknown> };
-    expect(stored.data).toEqual({ messageId: 'message-1', mailboxId: 'mailbox-1', from: 'a@b.c', subject: 'Hi', folder: 'inbox' });
+    expect(stored.data).toEqual({
+      messageId: 'message-1',
+      mailboxId: 'mailbox-1',
+      from: 'a@b.c',
+      subject: 'Hi',
+      folder: 'inbox',
+    });
     expect(state.emailOutreach).toHaveBeenCalledTimes(1);
-    expect(state.emailOutreach).toHaveBeenCalledWith({ accountId: 'account-1', data: withSnippet.data });
+    expect(state.emailOutreach).toHaveBeenCalledWith({
+      accountId: 'account-1',
+      data: withSnippet.data,
+    });
   });
 
   it('does not reconsider a duplicate email', async () => {

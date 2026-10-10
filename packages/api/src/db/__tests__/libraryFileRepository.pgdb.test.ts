@@ -33,7 +33,11 @@ afterAll(async () => {
   await closePostgres();
 });
 
-const seed = (owner: string, name: string, extra: Partial<Parameters<typeof createLibraryFile>[1]> = {}) =>
+const seed = (
+  owner: string,
+  name: string,
+  extra: Partial<Parameters<typeof createLibraryFile>[1]> = {},
+) =>
   createLibraryFile(db, {
     ownerOxyUserId: owner,
     name,
@@ -130,8 +134,8 @@ describe('the wire shape a shipped client reads', () => {
   });
 });
 
-describe('listing an owner\'s files', () => {
-  it('returns only this owner\'s rows, newest first', async () => {
+describe("listing an owner's files", () => {
+  it("returns only this owner's rows, newest first", async () => {
     const owner = 'lfr-list';
     const older = await seed(owner, 'older.pdf');
     // `created_at` defaults to `now()` and two inserts can land in one
@@ -165,7 +169,10 @@ describe('listing an owner\'s files', () => {
     expect((await listLibraryFiles(db, owner, 'documents')).map((f) => f.name)).toEqual(['a.pdf']);
     // Both, when unfiltered — so the two above are filtering rather than the
     // table simply holding one row per category.
-    expect((await listLibraryFiles(db, owner)).map((f) => f.name).sort()).toEqual(['a.pdf', 'b.png']);
+    expect((await listLibraryFiles(db, owner)).map((f) => f.name).sort()).toEqual([
+      'a.pdf',
+      'b.png',
+    ]);
   });
 
   it('returns an empty array for an owner with nothing', async () => {
@@ -174,7 +181,7 @@ describe('listing an owner\'s files', () => {
 });
 
 describe('reading and removing one file', () => {
-  it('finds this owner\'s file and NOT another account\'s', async () => {
+  it("finds this owner's file and NOT another account's", async () => {
     const mine = await seed('lfr-find', 'mine.pdf');
 
     expect((await findLibraryFile(db, mine.id, 'lfr-find'))?.name).toBe('mine.pdf');

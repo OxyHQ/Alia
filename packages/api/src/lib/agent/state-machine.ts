@@ -81,7 +81,8 @@ const TRANSITIONS: Record<AgentState, Partial<Record<TransitionEvent, AgentState
  */
 const STATE_INSTRUCTIONS: Record<AgentState, string> = {
   INITIALIZING: '',
-  PLANNING: 'You are in PLANNING state. If the task requires multiple steps, create a plan using the plan action. For simple questions or greetings, you may respond directly.',
+  PLANNING:
+    'You are in PLANNING state. If the task requires multiple steps, create a plan using the plan action. For simple questions or greetings, you may respond directly.',
   ACTING: '', // All actions available, no restrictions
   OBSERVING: '', // Passive state — no instruction needed
   REFLECTING: `Review the result of your last action. If it failed, analyze WHY it failed:
@@ -97,7 +98,12 @@ Update your plan with the new approach, then continue.`,
 
 export class AgentStateMachine {
   private state: AgentState = 'INITIALIZING';
-  private history: Array<{ from: AgentState; event: TransitionEvent; to: AgentState; timestamp: number }> = [];
+  private history: Array<{
+    from: AgentState;
+    event: TransitionEvent;
+    to: AgentState;
+    timestamp: number;
+  }> = [];
 
   constructor(initialState?: AgentState) {
     if (initialState) this.state = initialState;

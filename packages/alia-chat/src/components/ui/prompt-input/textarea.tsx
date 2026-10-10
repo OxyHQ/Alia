@@ -1,8 +1,8 @@
-import React from "react";
-import { StyleSheet, View } from "react-native";
-import { cn } from "../../../lib/utils";
-import { ChatTextInput } from "../chat-text-input";
-import { usePromptInput } from "./context";
+import React from 'react';
+import { StyleSheet, View } from 'react-native';
+import { cn } from '../../../lib/utils';
+import { ChatTextInput } from '../chat-text-input';
+import { usePromptInput } from './context';
 
 export type PromptInputTextareaProps = {
   placeholder?: string;
@@ -49,9 +49,9 @@ export function PromptInputTextarea({
       fillContainer={isFullscreen}
       unstyled
       className={cn(
-        "w-full border-0 bg-transparent text-foreground web:shadow-none",
-        isFullscreen ? "px-4 pt-4" : "min-h-[44px] py-3",
-        className
+        'w-full border-0 bg-transparent text-foreground web:shadow-none',
+        isFullscreen ? 'px-4 pt-4' : 'min-h-[44px] py-3',
+        className,
       )}
       style={inputStyle}
       underlineColorAndroid="transparent"

@@ -73,7 +73,8 @@ vi.mock('@/features/chat/ui/chat-interface', () => ({ ChatInterface: () => null 
 vi.mock('@/features/chat/ui/ambient-field', async () => {
   const ReactModule = await import('react');
   return {
-    AmbientField: (props: Record<string, unknown>) => ReactModule.createElement('AmbientField', props),
+    AmbientField: (props: Record<string, unknown>) =>
+      ReactModule.createElement('AmbientField', props),
   };
 });
 vi.mock('@/features/voice/ui/voice-mode-icon', () => ({ VoiceModeIcon: () => null }));
@@ -98,10 +99,18 @@ vi.mock('@/features/chat/ui/composer/composer-suggestions', () => ({
   ComposerSuggestions: () => null,
   useComposerSuggestions: () => ({ completions: [], selected: null, onKeyPress: vi.fn() }),
 }));
-vi.mock('@/features/billing/runtime/use-billing', () => ({ useEntitlements: () => ({ data: undefined }) }));
-vi.mock('@/features/billing/runtime/use-credits', () => ({ useCredits: () => ({ data: undefined }) }));
-vi.mock('@/features/chat/runtime/use-credit-warnings', () => ({ useCreditWarnings: () => undefined }));
-vi.mock('@/features/chat/runtime/use-local-models-invite', () => ({ useLocalModelsInvite: () => undefined }));
+vi.mock('@/features/billing/runtime/use-billing', () => ({
+  useEntitlements: () => ({ data: undefined }),
+}));
+vi.mock('@/features/billing/runtime/use-credits', () => ({
+  useCredits: () => ({ data: undefined }),
+}));
+vi.mock('@/features/chat/runtime/use-credit-warnings', () => ({
+  useCreditWarnings: () => undefined,
+}));
+vi.mock('@/features/chat/runtime/use-local-models-invite', () => ({
+  useLocalModelsInvite: () => undefined,
+}));
 vi.mock('@/features/projects/runtime/folders-store', () => ({
   useFoldersStore: (select: (state: { folders: never[] }) => unknown) => select({ folders: [] }),
 }));
@@ -110,9 +119,15 @@ vi.mock('@/features/chat/runtime/use-turn-edit', () => ({
 }));
 vi.mock('@oxy.so/bloom/typography', () => ({ Text: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiEditLine', () => ({ RiEditLine: () => null }));
-vi.mock('@/features/chat/runtime/use-suggestions', () => ({ useRecordSuggestionUsage: () => ({ mutate: vi.fn() }) }));
-vi.mock('@/features/voice/runtime/use-tts', () => ({ useTTS: () => ({ ttsWaveAmplitude: 0, playbackState: 'idle' }) }));
-vi.mock('@/features/chat/runtime/use-at-bottom', () => ({ useAtBottom: () => ({ isAtBottom: true, onScroll: vi.fn() }) }));
+vi.mock('@/features/chat/runtime/use-suggestions', () => ({
+  useRecordSuggestionUsage: () => ({ mutate: vi.fn() }),
+}));
+vi.mock('@/features/voice/runtime/use-tts', () => ({
+  useTTS: () => ({ ttsWaveAmplitude: 0, playbackState: 'idle' }),
+}));
+vi.mock('@/features/chat/runtime/use-at-bottom', () => ({
+  useAtBottom: () => ({ isAtBottom: true, onScroll: vi.fn() }),
+}));
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => `t:${key}` }),
 }));
@@ -129,16 +144,22 @@ vi.mock('@/shared/platform/useColorScheme', () => ({
   useColorScheme: () => ({ colors: { primary: '#000' }, isDarkColorScheme: false }),
 }));
 vi.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
-vi.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { backgroundTertiary: '#eee' } }) }));
+vi.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({ colors: { backgroundTertiary: '#eee' } }),
+}));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), info: vi.fn() } }));
 vi.mock('@oxy.so/bloom/ai-chat', () => ({ AiChatMobileHeader: () => null }));
 vi.mock('@oxy.so/bloom/composer-panel', () => ({ ComposerPanelStatusTab: () => null }));
 vi.mock('@oxy.so/bloom/chat-screen', () => ({ ScrollToBottomButton: () => null }));
-vi.mock('@oxy.so/services', () => ({ useAuth: () => ({ isAuthenticated: true, signIn: vi.fn() }) }));
+vi.mock('@oxy.so/services', () => ({
+  useAuth: () => ({ isAuthenticated: true, signIn: vi.fn() }),
+}));
 const focus = vi.hoisted(() => ({ isFocused: true }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
 vi.mock('@/shared/platform/use-screen-on-show', () => ({ useScreenOnShow: () => focus.isFocused }));
-vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) }));
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0 }),
+}));
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   return {
@@ -187,7 +208,7 @@ beforeEach(() => {
 });
 
 describe('a call replaces dictation', () => {
-  it('draws the composer — dictation\'s only door — until a call starts, and the call bar instead of it during one', () => {
+  it("draws the composer — dictation's only door — until a call starts, and the call bar instead of it during one", () => {
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(screen(false));
@@ -229,7 +250,7 @@ describe('a call replaces dictation', () => {
     expect(mounts.lastValue).toBe('dictado a medias');
   });
 
-  it('labels the call bar in the app\'s language', () => {
+  it("labels the call bar in the app's language", () => {
     act(() => {
       create(screen(true));
     });
@@ -268,10 +289,12 @@ describe('the ambient field behind the chat', () => {
     act(() => {
       renderer = create(screen(false));
     });
-    expect((renderer.root.findByType('AmbientField' as never).props as { paused: boolean }).paused).toBe(true);
+    expect(
+      (renderer.root.findByType('AmbientField' as never).props as { paused: boolean }).paused,
+    ).toBe(true);
   });
 
-  it('gives way to the intro\'s own field while the intro shows — never both', () => {
+  it("gives way to the intro's own field while the intro shows — never both", () => {
     const introField = React.createElement('IntroField');
     let renderer!: ReactTestRenderer;
     act(() => {

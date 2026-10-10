@@ -80,12 +80,14 @@ function sameContent(a: Message['content'], b: Message['content']): boolean {
 }
 
 function isEmptyAssistantPlaceholder(message: Message | undefined): boolean {
-  return message?.role === 'assistant'
-    && message.content === ''
-    && !message.thinking
-    && !message.toolInvocations?.length
-    && !message.agentInfo
-    && !message.audioUrl;
+  return (
+    message?.role === 'assistant' &&
+    message.content === '' &&
+    !message.thinking &&
+    !message.toolInvocations?.length &&
+    !message.agentInfo &&
+    !message.audioUrl
+  );
 }
 
 /**
@@ -105,10 +107,10 @@ export function normalizeConversationMessages(messages: readonly Message[]): Mes
     const duplicate = messages[index + 2];
 
     if (
-      current.role === 'user'
-      && isEmptyAssistantPlaceholder(placeholder)
-      && duplicate?.role === 'user'
-      && sameContent(current.content, duplicate.content)
+      current.role === 'user' &&
+      isEmptyAssistantPlaceholder(placeholder) &&
+      duplicate?.role === 'user' &&
+      sameContent(current.content, duplicate.content)
     ) {
       normalized.push(current);
       index += 2;

@@ -37,10 +37,7 @@ describe('day separators', () => {
   it('draws none between two messages on the same local day', () => {
     inTimezone('Europe/Madrid', () => {
       const separators = daySeparators(
-        [
-          message('a', '2026-03-04T08:00:00Z'),
-          message('b', '2026-03-04T20:00:00Z'),
-        ],
+        [message('a', '2026-03-04T08:00:00Z'), message('b', '2026-03-04T20:00:00Z')],
         new Date('2026-03-04T21:00:00Z'),
         'en-GB',
       );
@@ -53,10 +50,7 @@ describe('day separators', () => {
     inTimezone('Europe/Madrid', () => {
       // 23:40 and 00:10 Madrid time, half an hour apart.
       const separators = daySeparators(
-        [
-          message('a', '2026-03-04T22:40:00Z'),
-          message('b', '2026-03-04T23:10:00Z'),
-        ],
+        [message('a', '2026-03-04T22:40:00Z'), message('b', '2026-03-04T23:10:00Z')],
         new Date('2026-03-05T10:00:00Z'),
         'en-GB',
       );
@@ -149,7 +143,11 @@ describe('day separators', () => {
   it('draws nothing above the first message, whatever day it is', () => {
     inTimezone('Europe/Madrid', () => {
       expect(
-        daySeparators([message('a', '2020-01-01T12:00:00Z')], new Date('2026-03-04T13:00:00Z'), 'en-GB'),
+        daySeparators(
+          [message('a', '2020-01-01T12:00:00Z')],
+          new Date('2026-03-04T13:00:00Z'),
+          'en-GB',
+        ),
       ).toEqual([]);
     });
   });
@@ -180,10 +178,7 @@ describe('day separators', () => {
     // "ago" plus a bit — which a millisecond division rounds to today.
     inTimezone('Europe/Madrid', () => {
       const [separator] = daySeparators(
-        [
-          message('a', '2026-03-27T12:00:00Z'),
-          message('b', '2026-03-28T22:00:00Z'),
-        ],
+        [message('a', '2026-03-27T12:00:00Z'), message('b', '2026-03-28T22:00:00Z')],
         // 29 March, 12:00 local.
         new Date('2026-03-29T10:00:00Z'),
         'en-GB',

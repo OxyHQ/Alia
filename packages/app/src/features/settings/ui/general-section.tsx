@@ -2,10 +2,7 @@ import { useSubscription } from '@/features/billing/runtime/use-billing';
 import { useCredits } from '@/features/billing/runtime/use-credits';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  SettingsGeneralPage,
-  type SettingsPageSection,
-} from '@oxy.so/bloom/settings-modal';
+import { SettingsGeneralPage, type SettingsPageSection } from '@oxy.so/bloom/settings-modal';
 import { APP_COLOR_NAMES, useBloomTheme } from '@oxy.so/bloom/theme';
 import { getNativeLanguageName } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services';
@@ -19,16 +16,13 @@ import { useAliaSettings } from './settings-context';
  */
 export function GeneralSection() {
   const { mode, setMode, colorPreset, setColorPreset } = useBloomTheme();
-  const { currentLanguage, currentLanguages, showBottomSheet, isAuthenticated } =
-    useOxy();
+  const { currentLanguage, currentLanguages, showBottomSheet, isAuthenticated } = useOxy();
   const { afterClose, open } = useAliaSettings();
   const { data: subscription } = useSubscription();
   const { data: credits } = useCredits();
   const router = useRouter();
   const { t } = useTranslation();
-  const languages = currentLanguages.length
-    ? currentLanguages
-    : [currentLanguage];
+  const languages = currentLanguages.length ? currentLanguages : [currentLanguage];
 
   const plan = subscription?.plan;
   const price =
@@ -81,9 +75,7 @@ export function GeneralSection() {
               size="sm"
               appearance="outline"
               tone="neutral"
-              onPress={() =>
-                afterClose(() => showBottomSheet?.('LanguageSelector'))
-              }
+              onPress={() => afterClose(() => showBottomSheet?.('LanguageSelector'))}
             >
               {languages.map(getNativeLanguageName).join(', ')}
             </Button>
@@ -141,9 +133,7 @@ export function GeneralSection() {
                   size="sm"
                   appearance="outline"
                   tone="neutral"
-                  onPress={() =>
-                    afterClose(() => router.push('/(biglayout)/subscribe'))
-                  }
+                  onPress={() => afterClose(() => router.push('/(biglayout)/subscribe'))}
                 >
                   {t('sidebar.upgradeToPro')}
                 </Button>

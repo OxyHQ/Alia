@@ -82,9 +82,12 @@ describe('membership and sharing cascade with the organization', () => {
       invitedBy: 'oxy-user-1',
       expiresAt: new Date(Date.now() + 86_400_000),
     });
-    await db
-      .insert(organizationAgents)
-      .values({ id: 'oa-1', organizationId: 'org-doomed', agentId: 'agent-1', addedBy: 'oxy-user-1' });
+    await db.insert(organizationAgents).values({
+      id: 'oa-1',
+      organizationId: 'org-doomed',
+      agentId: 'agent-1',
+      addedBy: 'oxy-user-1',
+    });
 
     await db.delete(organizations).where(eq(organizations.id, 'org-doomed'));
 

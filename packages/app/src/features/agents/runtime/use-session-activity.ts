@@ -49,9 +49,7 @@ export function useSessionActivity(sessionId: string | undefined) {
   return useQuery({
     queryKey: ['agent-session-activity', sessionId ?? ''],
     queryFn: async (): Promise<SessionActivity> => {
-      const res = await apiClient.get(
-        `/agents/any/sessions/${sessionId}/activity`,
-      );
+      const res = await apiClient.get(`/agents/any/sessions/${sessionId}/activity`);
       return {
         entries: res.data.entries || [],
         session: res.data.session || null,

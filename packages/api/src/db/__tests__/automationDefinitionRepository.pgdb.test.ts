@@ -58,13 +58,15 @@ describe('normalized automation definitions', () => {
       fixedAgentId: 'aut-agent-1',
       eligibleAgentIds: [],
       executionMode: 'execute',
-      actions: [{
-        id: actionId,
-        resource,
-        tool: 'replyToEmail',
-        input: { polite: true },
-        limits: [{ key: 'daily', value: 10 }],
-      }],
+      actions: [
+        {
+          id: actionId,
+          resource,
+          tool: 'replyToEmail',
+          input: { polite: true },
+          limits: [{ key: 'daily', value: 10 }],
+        },
+      ],
       inputs: {},
       resources: [resource],
       dataFlow: { sources: [resource], destinations: [resource] },
@@ -72,55 +74,68 @@ describe('normalized automation definitions', () => {
       limits: [],
       enabled: true,
     });
-    await upsertAutomationActionAuthorizations(db, [{
-      automationActionId: actionId,
-      agentId: 'aut-agent-1',
-      actorAccountId: 'aut-bot-1',
-      oxyAuthorizationId: authorizationId,
-      expiresAt: new Date(Date.now() + 60_000),
-    }]);
+    await upsertAutomationActionAuthorizations(db, [
+      {
+        automationActionId: actionId,
+        agentId: 'aut-agent-1',
+        actorAccountId: 'aut-bot-1',
+        oxyAuthorizationId: authorizationId,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    ]);
 
     expect(automation.executionMode).toBe('execute');
-    expect(automation.actions).toEqual([expect.objectContaining({
-      id: actionId,
-      resource,
-      tool: 'replyToEmail',
-      limits: [{ key: 'daily', value: 10 }],
-    })]);
-    expect(await automationHasActiveAuthorizationCoverage(
-      db,
-      automationId,
-      'aut-agent-1',
-      [actionId],
-    )).toBe(true);
+    expect(automation.actions).toEqual([
+      expect.objectContaining({
+        id: actionId,
+        resource,
+        tool: 'replyToEmail',
+        limits: [{ key: 'daily', value: 10 }],
+      }),
+    ]);
+    expect(
+      await automationHasActiveAuthorizationCoverage(db, automationId, 'aut-agent-1', [actionId]),
+    ).toBe(true);
 
-    await expect(claimAutomationRunPlan({
+    await expect(
+      claimAutomationRunPlan({
+        db,
+        runId,
+        automationId,
+        requesterAccountId: 'aut-owner-1',
+        triggerEventId: `event-${uuidv7()}`,
+        stages: [
+          {
+            stage: 0,
+            selectedAgentId: 'aut-agent-1',
+            selectedActorAccountId: 'aut-bot-1',
+            resource,
+            taskInput: { objective: automation.objective },
+            actions: automation.actions,
+          },
+        ],
+      }),
+    ).resolves.toBe(true);
+
+    const references = await listAutomationExecutionAuthorizationsForRun(
       db,
       runId,
-      automationId,
-      requesterAccountId: 'aut-owner-1',
-      triggerEventId: `event-${uuidv7()}`,
-      stages: [{
-        stage: 0,
-        selectedAgentId: 'aut-agent-1',
-        selectedActorAccountId: 'aut-bot-1',
-        resource,
-        taskInput: { objective: automation.objective },
-        actions: automation.actions,
-      }],
-    })).resolves.toBe(true);
-
-    const references = await listAutomationExecutionAuthorizationsForRun(db, runId, 'aut-agent-1', 0);
-    expect(references).toEqual([expect.objectContaining({
-      automationActionId: actionId,
-      oxyAuthorizationId: authorizationId,
-      tool: 'replyToEmail',
-    })]);
+      'aut-agent-1',
+      0,
+    );
+    expect(references).toEqual([
+      expect.objectContaining({
+        automationActionId: actionId,
+        oxyAuthorizationId: authorizationId,
+        tool: 'replyToEmail',
+      }),
+    ]);
     const stepId = references[0]?.stepId;
     if (!stepId) throw new Error('Expected an action step');
     await markAutomationActionStep(db, stepId, 'succeeded', 'audit-event-1');
-    expect((await listAutomationRunSteps(db, runId)).find((step) => step.id === stepId))
-      .toEqual(expect.objectContaining({ status: 'succeeded', auditEventId: 'audit-event-1' }));
+    expect((await listAutomationRunSteps(db, runId)).find((step) => step.id === stepId)).toEqual(
+      expect.objectContaining({ status: 'succeeded', auditEventId: 'audit-event-1' }),
+    );
   });
 
   it('updates editable fields and assignment order without replacing exact actions', async () => {
@@ -135,13 +150,15 @@ describe('normalized automation definitions', () => {
       fixedAgentId: 'editor-agent-1',
       eligibleAgentIds: [],
       executionMode: 'observe',
-      actions: [{
-        id: actionId,
-        resource: { ...resource, effectiveAccountId: 'aut-owner-edit' },
-        tool: 'searchEmails',
-        input: {},
-        limits: [],
-      }],
+      actions: [
+        {
+          id: actionId,
+          resource: { ...resource, effectiveAccountId: 'aut-owner-edit' },
+          tool: 'searchEmails',
+          input: {},
+          limits: [],
+        },
+      ],
       inputs: {},
       resources: [{ ...resource, effectiveAccountId: 'aut-owner-edit' }],
       dataFlow: { sources: [], destinations: [] },
@@ -175,35 +192,39 @@ describe('normalized automation definitions', () => {
       authorizations: [],
     });
 
-    expect(updated).toEqual(expect.objectContaining({
-      objective: 'Weekly published digest',
-      trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' },
-      actorSelection: {
-        mode: 'automatic',
-        eligibleAgentIds: ['editor-agent-2', 'editor-agent-1'],
-      },
-      maximumAutonomy: 'autonomous',
-      limits: [{ key: 'weekly', value: 1 }],
-      enabled: true,
-      actions: [expect.objectContaining({ id: actionId, tool: 'searchEmails' })],
-    }));
-    await expect(updateAutomationDefinition(db, {
-      id: automationId,
-      ownerAccountId: 'aut-owner-edit',
-      expectedUpdatedAt: new Date(0),
-      objective: 'Stale overwrite',
-      triggerKind: 'manual',
-      actorMode: 'fixed',
-      fixedAgentId: 'editor-agent-1',
-      eligibleAgentIds: [],
-      inputs: initial.inputs,
-      resources: initial.resources,
-      dataFlow: initial.dataFlow,
-      maximumAutonomy: 'execute_on_request',
-      limits: [],
-      enabled: false,
-      authorizations: [],
-    })).resolves.toBeNull();
+    expect(updated).toEqual(
+      expect.objectContaining({
+        objective: 'Weekly published digest',
+        trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' },
+        actorSelection: {
+          mode: 'automatic',
+          eligibleAgentIds: ['editor-agent-2', 'editor-agent-1'],
+        },
+        maximumAutonomy: 'autonomous',
+        limits: [{ key: 'weekly', value: 1 }],
+        enabled: true,
+        actions: [expect.objectContaining({ id: actionId, tool: 'searchEmails' })],
+      }),
+    );
+    await expect(
+      updateAutomationDefinition(db, {
+        id: automationId,
+        ownerAccountId: 'aut-owner-edit',
+        expectedUpdatedAt: new Date(0),
+        objective: 'Stale overwrite',
+        triggerKind: 'manual',
+        actorMode: 'fixed',
+        fixedAgentId: 'editor-agent-1',
+        eligibleAgentIds: [],
+        inputs: initial.inputs,
+        resources: initial.resources,
+        dataFlow: initial.dataFlow,
+        maximumAutonomy: 'execute_on_request',
+        limits: [],
+        enabled: false,
+        authorizations: [],
+      }),
+    ).resolves.toBeNull();
   });
 
   it('records observation mode without creating executable authority', async () => {
@@ -220,13 +241,15 @@ describe('normalized automation definitions', () => {
       fixedAgentId: 'aut-agent-observe',
       eligibleAgentIds: [],
       executionMode: 'observe',
-      actions: [{
-        id: actionId,
-        resource: { ...resource, appId: 'noted', effectiveAccountId: 'aut-owner-observe' },
-        tool: 'searchNotes',
-        input: {},
-        limits: [],
-      }],
+      actions: [
+        {
+          id: actionId,
+          resource: { ...resource, appId: 'noted', effectiveAccountId: 'aut-owner-observe' },
+          tool: 'searchNotes',
+          input: {},
+          limits: [],
+        },
+      ],
       inputs: {},
       resources: [{ ...resource, appId: 'noted', effectiveAccountId: 'aut-owner-observe' }],
       dataFlow: { sources: [], destinations: [] },
@@ -237,44 +260,55 @@ describe('normalized automation definitions', () => {
     const observedAction = automation.actions[0];
     if (!observedAction) throw new Error('Expected one observed action');
     const eventId = `event-${uuidv7()}`;
-    await expect(createObservedAutomationRun({
-      db,
-      automationId,
-      requesterAccountId: 'aut-owner-observe',
-      triggerEventId: eventId,
-      stages: [{
-        stage: 0,
-        selectedAgentId: 'aut-agent-observe',
-        selectedActorAccountId: 'aut-bot-observe',
-        resource: observedAction.resource,
-        taskInput: { objective: automation.objective },
-        actions: automation.actions,
-      }],
-    })).resolves.toBe(true);
+    await expect(
+      createObservedAutomationRun({
+        db,
+        automationId,
+        requesterAccountId: 'aut-owner-observe',
+        triggerEventId: eventId,
+        stages: [
+          {
+            stage: 0,
+            selectedAgentId: 'aut-agent-observe',
+            selectedActorAccountId: 'aut-bot-observe',
+            resource: observedAction.resource,
+            taskInput: { objective: automation.objective },
+            actions: automation.actions,
+          },
+        ],
+      }),
+    ).resolves.toBe(true);
 
-    expect(await createObservedAutomationRun({
-      db,
-      automationId,
-      requesterAccountId: 'aut-owner-observe',
-      triggerEventId: eventId,
-      stages: [{
-        stage: 0,
-        selectedAgentId: 'aut-agent-observe',
-        selectedActorAccountId: 'aut-bot-observe',
-        resource: observedAction.resource,
-        taskInput: { objective: automation.objective },
-        actions: automation.actions,
-      }],
-    })).toBe(false);
+    expect(
+      await createObservedAutomationRun({
+        db,
+        automationId,
+        requesterAccountId: 'aut-owner-observe',
+        triggerEventId: eventId,
+        stages: [
+          {
+            stage: 0,
+            selectedAgentId: 'aut-agent-observe',
+            selectedActorAccountId: 'aut-bot-observe',
+            resource: observedAction.resource,
+            taskInput: { objective: automation.objective },
+            actions: automation.actions,
+          },
+        ],
+      }),
+    ).toBe(false);
     const runs = await listAutomationRuns(db, 'aut-owner-observe', automationId);
     expect(runs).toHaveLength(1);
     expect(runs[0]?.status).toBe('observed');
     const observedRun = runs[0];
     if (!observedRun) throw new Error('Expected one observed run');
-    expect((await listAutomationRunSteps(db, observedRun.id)).map((step) => step.status))
-      .toEqual(['observed', 'observed']);
-    expect(await findAutomationDefinition(db, automationId, 'aut-owner-observe'))
-      .toEqual(expect.objectContaining({ executionMode: 'observe' }));
+    expect((await listAutomationRunSteps(db, observedRun.id)).map((step) => step.status)).toEqual([
+      'observed',
+      'observed',
+    ]);
+    expect(await findAutomationDefinition(db, automationId, 'aut-owner-observe')).toEqual(
+      expect.objectContaining({ executionMode: 'observe' }),
+    );
   });
 
   it('advances two agent stages once each and finishes only after every action succeeds', async () => {
@@ -300,7 +334,13 @@ describe('normalized automation definitions', () => {
       executionMode: 'execute',
       actions: [
         { id: readActionId, resource, tool: 'searchEmails', input: {}, limits: [] },
-        { id: publishActionId, resource: mentionResource, tool: 'publishPost', input: {}, limits: [] },
+        {
+          id: publishActionId,
+          resource: mentionResource,
+          tool: 'publishPost',
+          input: {},
+          limits: [],
+        },
       ],
       inputs: {},
       resources: [resource, mentionResource],
@@ -327,31 +367,33 @@ describe('normalized automation definitions', () => {
         expiresAt: new Date(Date.now() + 60_000),
       },
     ]);
-    await expect(claimAutomationRunPlan({
-      db,
-      runId,
-      automationId,
-      requesterAccountId: 'aut-owner-multi',
-      triggerEventId: `schedule:${automationId}:2026-09-07T09:00:00.000Z`,
-      stages: [
-        {
-          stage: 0,
-          selectedAgentId: 'reader-agent',
-          selectedActorAccountId: 'reader-bot',
-          resource,
-          taskInput: { objective: automation.objective },
-          actions: [readAction],
-        },
-        {
-          stage: 1,
-          selectedAgentId: 'publisher-agent',
-          selectedActorAccountId: 'publisher-bot',
-          resource: mentionResource,
-          taskInput: { objective: automation.objective, receivePreviousResult: true },
-          actions: [publishAction],
-        },
-      ],
-    })).resolves.toBe(true);
+    await expect(
+      claimAutomationRunPlan({
+        db,
+        runId,
+        automationId,
+        requesterAccountId: 'aut-owner-multi',
+        triggerEventId: `schedule:${automationId}:2026-09-07T09:00:00.000Z`,
+        stages: [
+          {
+            stage: 0,
+            selectedAgentId: 'reader-agent',
+            selectedActorAccountId: 'reader-bot',
+            resource,
+            taskInput: { objective: automation.objective },
+            actions: [readAction],
+          },
+          {
+            stage: 1,
+            selectedAgentId: 'publisher-agent',
+            selectedActorAccountId: 'publisher-bot',
+            resource: mentionResource,
+            taskInput: { objective: automation.objective, receivePreviousResult: true },
+            actions: [publishAction],
+          },
+        ],
+      }),
+    ).resolves.toBe(true);
 
     const reader = await createAutomationStageSession(db, {
       agentId: 'reader-agent',
@@ -388,10 +430,12 @@ describe('normalized automation definitions', () => {
       task: 'publish again',
     });
     expect(publisher.created).toBe(true);
-    expect(duplicatePublisher).toEqual(expect.objectContaining({
-      created: false,
-      session: expect.objectContaining({ id: publisher.session.id }),
-    }));
+    expect(duplicatePublisher).toEqual(
+      expect.objectContaining({
+        created: false,
+        session: expect.objectContaining({ id: publisher.session.id }),
+      }),
+    );
     const [publishAuthorization] = await listAutomationExecutionAuthorizationsForRun(
       db,
       runId,
@@ -421,13 +465,15 @@ describe('normalized automation definitions', () => {
       fixedAgentId: 'aut-agent-schedule',
       eligibleAgentIds: [],
       executionMode: 'observe',
-      actions: [{
-        id: uuidv7(),
-        resource: { ...resource, appId: 'noted', effectiveAccountId: 'aut-owner-schedule' },
-        tool: 'searchNotes',
-        input: {},
-        limits: [],
-      }],
+      actions: [
+        {
+          id: uuidv7(),
+          resource: { ...resource, appId: 'noted', effectiveAccountId: 'aut-owner-schedule' },
+          tool: 'searchNotes',
+          input: {},
+          limits: [],
+        },
+      ],
       inputs: {},
       resources: [{ ...resource, appId: 'noted', effectiveAccountId: 'aut-owner-schedule' }],
       dataFlow: { sources: [], destinations: [] },
@@ -436,14 +482,17 @@ describe('normalized automation definitions', () => {
       enabled: true,
     });
     const scheduled = await listSchedulableAutomationDefinitions(db);
-    expect(scheduled.filter((entry) => entry.ownerAccountId === 'aut-owner-schedule'))
-      .toEqual([expect.objectContaining({ id: automationId })]);
-    expect(await findAutomationDefinitionById(db, automationId))
-      .toEqual(expect.objectContaining({
+    expect(scheduled.filter((entry) => entry.ownerAccountId === 'aut-owner-schedule')).toEqual([
+      expect.objectContaining({ id: automationId }),
+    ]);
+    expect(await findAutomationDefinitionById(db, automationId)).toEqual(
+      expect.objectContaining({
         trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' },
-      }));
-    expect(await listAutomationDefinitions(db, 'aut-owner-schedule'))
-      .toContainEqual(expect.objectContaining({ id: automationId }));
+      }),
+    );
+    expect(await listAutomationDefinitions(db, 'aut-owner-schedule')).toContainEqual(
+      expect.objectContaining({ id: automationId }),
+    );
   });
 });
 
@@ -473,7 +522,12 @@ describe('tasks Alia is responsible for', () => {
     stage: 0,
     selectedAgentId: null,
     selectedActorAccountId: owner,
-    resource: { appId: 'alia', effectiveAccountId: owner, resourceType: 'automation', resourceId: automationId },
+    resource: {
+      appId: 'alia',
+      effectiveAccountId: owner,
+      resourceType: 'automation',
+      resourceId: automationId,
+    },
     taskInput: { objective: 'Track the latest releases from Meta' },
     actions: [],
   });
@@ -483,8 +537,9 @@ describe('tasks Alia is responsible for', () => {
 
     expect(automation.actorSelection).toEqual({ mode: 'alia' });
     expect(automation.conversationId).toBeNull();
-    expect(await findAutomationDefinitionById(db, automation.id))
-      .toEqual(expect.objectContaining({ actorSelection: { mode: 'alia' }, conversationId: null }));
+    expect(await findAutomationDefinitionById(db, automation.id)).toEqual(
+      expect.objectContaining({ actorSelection: { mode: 'alia' }, conversationId: null }),
+    );
   });
 
   it('claims a run under Alia and moves it to a terminal state exactly once', async () => {
@@ -492,25 +547,35 @@ describe('tasks Alia is responsible for', () => {
     const automation = await createAliaTask(owner);
     const runId = uuidv7();
 
-    await expect(claimAutomationRunPlan({
-      db,
-      runId,
-      automationId: automation.id,
-      requesterAccountId: owner,
-      triggerEventId: `schedule:${automation.id}:1`,
-      stages: [aliaStage(owner, automation.id)],
-      actorType: 'alia',
-    })).resolves.toBe(true);
+    await expect(
+      claimAutomationRunPlan({
+        db,
+        runId,
+        automationId: automation.id,
+        requesterAccountId: owner,
+        triggerEventId: `schedule:${automation.id}:1`,
+        stages: [aliaStage(owner, automation.id)],
+        actorType: 'alia',
+      }),
+    ).resolves.toBe(true);
 
     const run = await findAutomationRunById(db, runId);
-    expect(run).toEqual(expect.objectContaining({ selectedActorType: 'alia', selectedAgentId: null, status: 'planned' }));
-    expect(await listAutomationRunSteps(db, runId)).toEqual([expect.objectContaining({
-      actorType: 'alia',
-      agentId: null,
-      actorAccountId: owner,
-      tool: 'alia.run',
-      status: 'planned',
-    })]);
+    expect(run).toEqual(
+      expect.objectContaining({
+        selectedActorType: 'alia',
+        selectedAgentId: null,
+        status: 'planned',
+      }),
+    );
+    expect(await listAutomationRunSteps(db, runId)).toEqual([
+      expect.objectContaining({
+        actorType: 'alia',
+        agentId: null,
+        actorAccountId: owner,
+        tool: 'alia.run',
+        status: 'planned',
+      }),
+    ]);
 
     await markAliaAutomationRun(db, runId, 'running');
     expect((await findAutomationRunById(db, runId))?.status).toBe('running');
@@ -529,29 +594,37 @@ describe('tasks Alia is responsible for', () => {
     const owner = 'aut-owner-alia-observe';
     const automation = await createAliaTask(owner);
 
-    await expect(createObservedAutomationRun({
-      db,
-      automationId: automation.id,
-      requesterAccountId: owner,
-      triggerEventId: `schedule:${automation.id}:observe`,
-      stages: [aliaStage(owner, automation.id)],
-      actorType: 'alia',
-    })).resolves.toBe(true);
+    await expect(
+      createObservedAutomationRun({
+        db,
+        automationId: automation.id,
+        requesterAccountId: owner,
+        triggerEventId: `schedule:${automation.id}:observe`,
+        stages: [aliaStage(owner, automation.id)],
+        actorType: 'alia',
+      }),
+    ).resolves.toBe(true);
     const [run] = await listAutomationRuns(db, owner, automation.id);
     if (!run) throw new Error('Expected one observed run');
     expect(run).toEqual(expect.objectContaining({ selectedActorType: 'alia', status: 'observed' }));
-    expect((await listAutomationRunSteps(db, run.id))[0]).toEqual(expect.objectContaining({
-      actorType: 'alia',
-      tool: 'alia.select',
-      status: 'observed',
-    }));
+    expect((await listAutomationRunSteps(db, run.id))[0]).toEqual(
+      expect.objectContaining({
+        actorType: 'alia',
+        tool: 'alia.select',
+        status: 'observed',
+      }),
+    );
   });
 
   it('claims the task conversation once, without touching the edit token', async () => {
     const automation = await createAliaTask('aut-owner-alia-conversation');
 
-    await expect(claimAutomationConversation(db, automation.id, 'conversation-first')).resolves.toBe('conversation-first');
-    await expect(claimAutomationConversation(db, automation.id, 'conversation-second')).resolves.toBe('conversation-first');
+    await expect(
+      claimAutomationConversation(db, automation.id, 'conversation-first'),
+    ).resolves.toBe('conversation-first');
+    await expect(
+      claimAutomationConversation(db, automation.id, 'conversation-second'),
+    ).resolves.toBe('conversation-first');
     const stored = await findAutomationDefinitionById(db, automation.id);
     expect(stored?.conversationId).toBe('conversation-first');
     expect(stored?.updatedAt.getTime()).toBe(automation.updatedAt.getTime());

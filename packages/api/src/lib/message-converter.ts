@@ -18,20 +18,29 @@ export interface ChatMessage {
   name?: string;
   tool_call_id?: string;
   tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
-  toolInvocations?: Array<{ toolCallId: string; toolName: string; state: string; args?: unknown; result?: unknown }>;
+  toolInvocations?: Array<{
+    toolCallId: string;
+    toolName: string;
+    state: string;
+    args?: unknown;
+    result?: unknown;
+  }>;
 }
 
 /**
  * Convert OpenAI-format messages to AI SDK ModelMessage format.
  * Handles tool result messages which have role "tool" in OpenAI format.
  */
-export function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping: Map<string, string>): ModelMessage[] {
+export function convertToAISDKMessages(
+  messages: ChatMessage[],
+  toolNameMapping: Map<string, string>,
+): ModelMessage[] {
   // biome-ignore lint/suspicious/noExplicitAny: AI SDK ModelMessage types are complex/dynamic
   const result: any[] = [];
   const toolCallsMap = new Map<string, { name: string; index: number }>();
   const sanitizedToolName = (originalName: string): string =>
-    Array.from(toolNameMapping.entries())
-      .find(([, original]) => original === originalName)?.[0] || originalName;
+    Array.from(toolNameMapping.entries()).find(([, original]) => original === originalName)?.[0] ||
+    originalName;
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
@@ -39,24 +48,26 @@ export function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping:
     if (msg.role === 'system') {
       result.push({
         role: 'system',
-        content: msg.content || ''
+        content: msg.content || '',
       });
     } else if (msg.role === 'user') {
       if (Array.isArray(msg.content)) {
         // Multi-part content (text + images): convert OpenAI image_url format to AI SDK image format
         result.push({
           role: 'user',
-          content: (msg.content as Array<{ type: string; image_url?: { url: string } }>).map(part => {
-            if (part.type === 'image_url' && part.image_url?.url) {
-              return { type: 'image', image: part.image_url.url };
-            }
-            return part;
-          }),
+          content: (msg.content as Array<{ type: string; image_url?: { url: string } }>).map(
+            (part) => {
+              if (part.type === 'image_url' && part.image_url?.url) {
+                return { type: 'image', image: part.image_url.url };
+              }
+              return part;
+            },
+          ),
         });
       } else {
         result.push({
           role: 'user',
-          content: msg.content
+          content: msg.content,
         });
       }
     } else if (msg.role === 'assistant') {
@@ -64,8 +75,13 @@ export function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping:
       // - tool_calls: OpenAI/editor format (from Cursor, VS Code, etc.)
       // - toolInvocations: Alia app format (from mobile/web app)
       let toolCalls = msg.tool_calls;
-      if (!toolCalls && msg.toolInvocations && Array.isArray(msg.toolInvocations) && msg.toolInvocations.length > 0) {
-        toolCalls = msg.toolInvocations!.map(inv => ({
+      if (
+        !toolCalls &&
+        msg.toolInvocations &&
+        Array.isArray(msg.toolInvocations) &&
+        msg.toolInvocations.length > 0
+      ) {
+        toolCalls = msg.toolInvocations!.map((inv) => ({
           id: inv.toolCallId,
           type: 'function',
           function: {
@@ -94,9 +110,10 @@ export function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping:
               type: 'tool-call' as const,
               toolCallId: tc.id,
               toolName,
-              input: typeof tc.function?.arguments === 'string'
-                ? JSON.parse(tc.function.arguments)
-                : (tc.function?.arguments || {}),
+              input:
+                typeof tc.function?.arguments === 'string'
+                  ? JSON.parse(tc.function.arguments)
+                  : tc.function?.arguments || {},
             };
           }),
         ];
@@ -110,18 +127,21 @@ export function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping:
         if (msg.toolInvocations && Array.isArray(msg.toolInvocations)) {
           for (const inv of msg.toolInvocations) {
             if (inv.state === 'result' && inv.result !== undefined) {
-              const resultValue = typeof inv.result === 'string' ? inv.result : JSON.stringify(inv.result);
+              const resultValue =
+                typeof inv.result === 'string' ? inv.result : JSON.stringify(inv.result);
               result.push({
                 role: 'tool',
-                content: [{
-                  type: 'tool-result',
-                  toolCallId: inv.toolCallId,
-                  toolName: sanitizedToolName(inv.toolName),
-                  output: {
-                    type: 'text',
-                    value: resultValue,
+                content: [
+                  {
+                    type: 'tool-result',
+                    toolCallId: inv.toolCallId,
+                    toolName: sanitizedToolName(inv.toolName),
+                    output: {
+                      type: 'text',
+                      value: resultValue,
+                    },
                   },
-                }],
+                ],
               });
             }
           }
@@ -129,7 +149,7 @@ export function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping:
       } else {
         result.push({
           role: 'assistant',
-          content: msg.content || ''
+          content: msg.content || '',
         });
       }
     } else if (msg.role === 'tool') {
@@ -143,7 +163,7 @@ export function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping:
         for (let j = i - 1; j >= 0; j--) {
           const prevMsg = messages[j];
           if (prevMsg.role === 'assistant' && prevMsg.tool_calls) {
-            const matchingCall = prevMsg.tool_calls!.find(tc => tc.id === toolCallId);
+            const matchingCall = prevMsg.tool_calls!.find((tc) => tc.id === toolCallId);
             if (matchingCall) {
               toolName = matchingCall.function?.name || 'unknown';
               break;
@@ -152,19 +172,22 @@ export function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping:
         }
       }
 
-      const contentValue = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+      const contentValue =
+        typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
 
       result.push({
         role: 'tool',
-        content: [{
-          type: 'tool-result',
-          toolCallId: toolCallId,
-          toolName: toolName,
-          output: {
-            type: 'text',
-            value: contentValue
-          }
-        }]
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: toolCallId,
+            toolName: toolName,
+            output: {
+              type: 'text',
+              value: contentValue,
+            },
+          },
+        ],
       });
     }
   }
@@ -198,7 +221,11 @@ export function priorToolCallsOf(
       if (Array.isArray(message.toolInvocations)) {
         for (const invocation of message.toolInvocations) {
           if (typeof invocation?.toolName !== 'string') continue;
-          calls.push({ toolName: invocation.toolName, args: invocation.args, result: invocation.result });
+          calls.push({
+            toolName: invocation.toolName,
+            args: invocation.args,
+            result: invocation.result,
+          });
         }
       } else if (Array.isArray(message.tool_calls)) {
         for (const call of message.tool_calls) {

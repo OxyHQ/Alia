@@ -52,7 +52,10 @@ import { buildIdentityGuard } from './identity-guard.js';
 import { log } from './logger.js';
 import { sendNotification } from './notification-service.js';
 import { ToolPipeline } from './tool-pipeline.js';
-import { oxyExecutionAuthorizationKey, type OxyExecutionAuthorizationRef } from './tools/oxy-services.js';
+import {
+  oxyExecutionAuthorizationKey,
+  type OxyExecutionAuthorizationRef,
+} from './tools/oxy-services.js';
 import { userContextBlock } from './user-context.js';
 
 /** Model steps one run may take: room to search, read and answer, not to wander. */
@@ -82,14 +85,16 @@ The source this task watches changed; \`trigger.watch\` below says what changed.
 export function aliaRunAuthorizationMap(
   authorizations: Awaited<ReturnType<typeof listAliaTaskAuthorizationsForRun>>,
 ): Record<string, OxyExecutionAuthorizationRef> {
-  return Object.fromEntries(authorizations.map((authorization) => [
-    oxyExecutionAuthorizationKey(authorization.resource, authorization.tool),
-    {
-      id: authorization.oxyAuthorizationId,
-      ...(authorization.stepId ? { stepId: authorization.stepId } : {}),
-      repeatable: authorization.repeatable,
-    },
-  ]));
+  return Object.fromEntries(
+    authorizations.map((authorization) => [
+      oxyExecutionAuthorizationKey(authorization.resource, authorization.tool),
+      {
+        id: authorization.oxyAuthorizationId,
+        ...(authorization.stepId ? { stepId: authorization.stepId } : {}),
+        repeatable: authorization.repeatable,
+      },
+    ]),
+  );
 }
 
 function isWatchRun(input: Record<string, unknown>): boolean {
@@ -99,7 +104,10 @@ function isWatchRun(input: Record<string, unknown>): boolean {
 
 const FAILURE_MESSAGE = "I couldn't complete this scheduled task this time.";
 
-function buildAliaTaskSystemPrompt(oxyUser: OxyUser | null, memory: UserMemoryProfile | null): string {
+function buildAliaTaskSystemPrompt(
+  oxyUser: OxyUser | null,
+  memory: UserMemoryProfile | null,
+): string {
   // Names nobody: `buildIdentityGuard` is prepended above this and owns that.
   const prompt = `You are running a scheduled task the person asked you to do, unattended. They are not in this conversation right now; they will read your answer later, in a conversation dedicated to this task.
 
@@ -112,12 +120,16 @@ function buildAliaTaskSystemPrompt(oxyUser: OxyUser | null, memory: UserMemoryPr
   return `${userContextBlock(oxyUser, memory)}${prompt}`;
 }
 
-async function loadPersonContext(userId: string): Promise<{ oxyUser: OxyUser | null; memory: UserMemoryProfile | null }> {
+async function loadPersonContext(
+  userId: string,
+): Promise<{ oxyUser: OxyUser | null; memory: UserMemoryProfile | null }> {
   const [memory, oxyUser] = await Promise.all([
-    findUserMemory(getDb(), userId).then((found) => found ?? null).catch((err: unknown) => {
-      log.agents.warn({ err }, 'Could not load memory for an Alia task');
-      return null;
-    }),
+    findUserMemory(getDb(), userId)
+      .then((found) => found ?? null)
+      .catch((err: unknown) => {
+        log.agents.warn({ err }, 'Could not load memory for an Alia task');
+        return null;
+      }),
     (oxyClient.users.get(userId) as Promise<OxyUser>).catch((err: unknown) => {
       log.agents.info({ err }, 'Could not fetch the Oxy profile for an Alia task');
       return null;
@@ -158,7 +170,11 @@ export async function runAliaTask(
     const task = renderAutomationStageTask(control.input);
     const watchRun = isWatchRun(control.input);
     // Also renews the lease on a retry. False: the reaper already closed it.
-    if (!await markAliaAutomationRun(getDb(), data.runId, 'running', { leaseMs: ALIA_TASK_LEASE_MS })) {
+    if (
+      !(await markAliaAutomationRun(getDb(), data.runId, 'running', {
+        leaseMs: ALIA_TASK_LEASE_MS,
+      }))
+    ) {
       settled = true;
       return 'skipped';
     }
@@ -186,7 +202,10 @@ export async function runAliaTask(
         try {
           await markAutomationActionStep(getDb(), stepId, status, auditEventId);
         } catch (err: unknown) {
-          log.agents.warn({ err, runId: data.runId, stepId, status }, 'Could not record an Alia task step');
+          log.agents.warn(
+            { err, runId: data.runId, stepId, status },
+            'Could not record an Alia task step',
+          );
         }
       },
     });
@@ -219,11 +238,18 @@ export async function runAliaTask(
     const closed = await markAliaAutomationRun(getDb(), data.runId, 'succeeded');
     settled = true;
     if (!closed) {
-      log.agents.warn({ runId: data.runId }, 'Alia task finished after it was reaped; result dropped');
+      log.agents.warn(
+        { runId: data.runId },
+        'Alia task finished after it was reaped; result dropped',
+      );
       return 'skipped';
     }
     try {
-      await finalizeCredits(data.creditReservation, usage, servedModelId(resolved.modelId, servedReferenceOf(result)));
+      await finalizeCredits(
+        data.creditReservation,
+        usage,
+        servedModelId(resolved.modelId, servedReferenceOf(result)),
+      );
     } catch (err: unknown) {
       log.agents.error({ err, runId: data.runId }, 'Could not settle an Alia task run');
       // Unsettled, therefore refunded: the person is not charged the full hold.
@@ -231,7 +257,10 @@ export async function runAliaTask(
     }
 
     const reply = result.text.trim();
-    if (watchRun && (reply === WATCH_NOTHING_TO_REPORT || reply.startsWith(WATCH_NOTHING_TO_REPORT))) {
+    if (
+      watchRun &&
+      (reply === WATCH_NOTHING_TO_REPORT || reply.startsWith(WATCH_NOTHING_TO_REPORT))
+    ) {
       return 'completed';
     }
     try {
@@ -282,6 +311,8 @@ async function notifyFailure(
       priority: 'high',
       channels: ['in_app', 'push'],
       data: { automationId: automation.id, runId: data.runId, status: 'failed' },
-    }).catch((notifyErr: unknown) => log.agents.warn({ err: notifyErr }, 'Could not notify about a failed Alia task'));
+    }).catch((notifyErr: unknown) =>
+      log.agents.warn({ err: notifyErr }, 'Could not notify about a failed Alia task'),
+    );
   }
 }

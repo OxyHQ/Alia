@@ -118,9 +118,7 @@ export async function buildModerationReportInput(
       externalReportId: report.id,
       subject: snapshot.subject,
       content: snapshot.content,
-      ...(snapshot.attachments === undefined
-        ? {}
-        : { attachments: snapshot.attachments }),
+      ...(snapshot.attachments === undefined ? {} : { attachments: snapshot.attachments }),
       ...(snapshot.context === undefined ? {} : { context: snapshot.context }),
       /**
        * The reporter's own words ride on the FIRST allegation only.

@@ -1,5 +1,5 @@
-import { tool } from "ai";
-import { z } from "zod";
+import { tool } from 'ai';
+import { z } from 'zod';
 
 /**
  * A crypto quote, as a card the client draws.
@@ -20,19 +20,24 @@ import { z } from "zod";
  * `packages/app/components/cards/market-card.tsx`.
  */
 
-const BASE = "https://api.coingecko.com/api/v3";
+const BASE = 'https://api.coingecko.com/api/v3';
 
 /** Daily points to keep per range. `max` keeps everything the coin has. */
-const RANGE_DAYS: Record<string, number | "max"> = {
-  "5D": 5,
-  "1M": 30,
-  "6M": 180,
-  "1Y": 365,
-  "5Y": 1825,
-  MAX: "max",
+const RANGE_DAYS: Record<string, number | 'max'> = {
+  '5D': 5,
+  '1M': 30,
+  '6M': 180,
+  '1Y': 365,
+  '5Y': 1825,
+  MAX: 'max',
 };
 
-interface SearchHit { id: string; name: string; symbol: string; thumb?: string }
+interface SearchHit {
+  id: string;
+  name: string;
+  symbol: string;
+  thumb?: string;
+}
 
 async function resolveCoin(query: string): Promise<SearchHit | null> {
   const res = await fetch(`${BASE}/search?query=${encodeURIComponent(query)}`);
@@ -46,10 +51,13 @@ type ChartPoint = [number, number];
 
 export const getMarketQuoteTool = tool({
   description:
-    "Consultar el precio de una criptomoneda y su histórico. Devuelve una tarjeta que la app dibuja; no repitas la serie en el texto. No sirve para acciones ni índices bursátiles.",
+    'Consultar el precio de una criptomoneda y su histórico. Devuelve una tarjeta que la app dibuja; no repitas la serie en el texto. No sirve para acciones ni índices bursátiles.',
   inputSchema: z.object({
     coin: z.string().describe("Nombre o símbolo, por ejemplo 'bitcoin', 'BTC' o 'ethereum'."),
-    currency: z.string().default("usd").describe("Moneda de cotización en ISO, por ejemplo 'usd' o 'eur'."),
+    currency: z
+      .string()
+      .default('usd')
+      .describe("Moneda de cotización en ISO, por ejemplo 'usd' o 'eur'."),
   }),
   execute: async ({ coin, currency }) => {
     const hit = await resolveCoin(coin);
@@ -59,19 +67,21 @@ export const getMarketQuoteTool = tool({
     const [intradayRes, dailyRes, quoteRes] = await Promise.all([
       fetch(`${BASE}/coins/${hit.id}/market_chart?vs_currency=${vs}&days=1`),
       fetch(`${BASE}/coins/${hit.id}/market_chart?vs_currency=${vs}&days=max&interval=daily`),
-      fetch(`${BASE}/simple/price?ids=${hit.id}&vs_currencies=${vs}&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`),
+      fetch(
+        `${BASE}/simple/price?ids=${hit.id}&vs_currencies=${vs}&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`,
+      ),
     ]);
     if (!intradayRes.ok || !dailyRes.ok || !quoteRes.ok) {
-      return { error: "El servicio de cotizaciones no responde ahora mismo." };
+      return { error: 'El servicio de cotizaciones no responde ahora mismo.' };
     }
 
     const intraday = ((await intradayRes.json()) as { prices: ChartPoint[] }).prices;
     const daily = ((await dailyRes.json()) as { prices: ChartPoint[] }).prices;
     const quote = ((await quoteRes.json()) as Record<string, Record<string, number>>)[hit.id] ?? {};
 
-    const series: Record<string, ChartPoint[]> = { "1D": intraday };
+    const series: Record<string, ChartPoint[]> = { '1D': intraday };
     for (const [label, days] of Object.entries(RANGE_DAYS)) {
-      series[label] = days === "max" ? daily : daily.slice(-days);
+      series[label] = days === 'max' ? daily : daily.slice(-days);
     }
     // Year to date is a date, not a count of days, so it is cut rather than sliced.
     const startOfYear = Date.UTC(new Date().getUTCFullYear(), 0, 1);
@@ -82,7 +92,7 @@ export const getMarketQuoteTool = tool({
 
     return {
       card: {
-        type: "market" as const,
+        type: 'market' as const,
         version: 1 as const,
         data: {
           id: hit.id,
@@ -93,17 +103,19 @@ export const getMarketQuoteTool = tool({
           changePct,
           // Absolute change is derivable, but every client would derive it the
           // same way and one of them would round it differently.
-          changeAbs: price !== undefined && changePct !== undefined
-            ? price - price / (1 + changePct / 100)
-            : undefined,
+          changeAbs:
+            price !== undefined && changePct !== undefined
+              ? price - price / (1 + changePct / 100)
+              : undefined,
           marketCap: quote[`${vs}_market_cap`],
           volume24h: quote[`${vs}_24h_vol`],
           series,
         },
       },
-      summary: price === undefined
-        ? `${hit.name}: sin cotización disponible.`
-        : `${hit.name} (${hit.symbol.toUpperCase()}): ${price} ${vs.toUpperCase()}.`,
+      summary:
+        price === undefined
+          ? `${hit.name}: sin cotización disponible.`
+          : `${hit.name} (${hit.symbol.toUpperCase()}): ${price} ${vs.toUpperCase()}.`,
     };
   },
 });

@@ -31,8 +31,7 @@ export default function OrgInviteScreen() {
   const [error, setError] = useState<string | null>(null);
   const { t } = useTranslation();
 
-  const orgName =
-    inviteData?.invite?.organization?.name || t('orgInvite.thisOrganization');
+  const orgName = inviteData?.invite?.organization?.name || t('orgInvite.thisOrganization');
   const rawRole = inviteData?.invite?.role || 'member';
   // The roles the API issues have words of their own; anything else is shown
   // as the API spelled it rather than as a guessed key.
@@ -89,10 +88,7 @@ export default function OrgInviteScreen() {
       <>
         <Head>
           <title>{t('orgInvite.pageTitle', { org: orgName })}</title>
-          <meta
-            name="description"
-            content={t('orgInvite.metaJoin', { org: orgName, role })}
-          />
+          <meta name="description" content={t('orgInvite.metaJoin', { org: orgName, role })} />
         </Head>
         <AuthContainer>
           {accepted ? (
@@ -129,9 +125,7 @@ export default function OrgInviteScreen() {
               title={t('orgInvite.join', { org: orgName })}
               description={t('orgInvite.invitedAs', { role })}
               action={{
-                label: acceptMutation.isPending
-                  ? t('orgInvite.joining')
-                  : t('orgInvite.accept'),
+                label: acceptMutation.isPending ? t('orgInvite.joining') : t('orgInvite.accept'),
                 icon: RiTeamLine,
                 onPress: handleAccept,
                 disabled: acceptMutation.isPending,
@@ -149,10 +143,7 @@ export default function OrgInviteScreen() {
     <>
       <Head>
         <title>{t('orgInvite.pageTitle', { org: orgName })}</title>
-        <meta
-          name="description"
-          content={t('orgInvite.metaSignIn', { org: orgName })}
-        />
+        <meta name="description" content={t('orgInvite.metaSignIn', { org: orgName })} />
       </Head>
       <AuthContainer>
         <EmptyState

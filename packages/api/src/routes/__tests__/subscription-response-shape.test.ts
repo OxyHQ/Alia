@@ -165,7 +165,12 @@ describe('GET /billing/subscription', () => {
     const { body } = await getSubscription();
     const { subscription } = body as { subscription: Record<string, unknown> };
 
-    for (const leaked of ['stripeCustomerId', 'stripeSubscriptionId', 'stripePriceId', 'oxyUserId']) {
+    for (const leaked of [
+      'stripeCustomerId',
+      'stripeSubscriptionId',
+      'stripePriceId',
+      'oxyUserId',
+    ]) {
       expect(Object.keys(subscription), `${leaked} reached the client`).not.toContain(leaked);
     }
     // The floor: the object is the subscription and not an empty one.
@@ -174,12 +179,18 @@ describe('GET /billing/subscription', () => {
 
   it('marks a comped subscription, and only a comped one', async () => {
     vi.mocked(findActiveSubscription).mockResolvedValue(row() as never);
-    expect(((await getSubscription()).body as { subscription: { isComped: boolean } }).subscription.isComped).toBe(false);
+    expect(
+      ((await getSubscription()).body as { subscription: { isComped: boolean } }).subscription
+        .isComped,
+    ).toBe(false);
 
     vi.mocked(findActiveSubscription).mockResolvedValue(
       row({ stripeSubscriptionId: 'comp_oxy-user-1_alia' }) as never,
     );
-    expect(((await getSubscription()).body as { subscription: { isComped: boolean } }).subscription.isComped).toBe(true);
+    expect(
+      ((await getSubscription()).body as { subscription: { isComped: boolean } }).subscription
+        .isComped,
+    ).toBe(true);
   });
 
   it('answers null for an account with no subscription, and for an anonymous caller', async () => {

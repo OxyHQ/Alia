@@ -52,7 +52,7 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 export async function upsertMemoryEmbedding(
   oxyUserId: string,
   memoryKey: string,
-  embedding: number[]
+  embedding: number[],
 ): Promise<void> {
   try {
     await upsertRow(getDb(), oxyUserId, memoryKey, embedding);
@@ -64,10 +64,7 @@ export async function upsertMemoryEmbedding(
 /**
  * Delete embedding for a memory
  */
-export async function deleteMemoryEmbedding(
-  oxyUserId: string,
-  memoryKey: string
-): Promise<void> {
+export async function deleteMemoryEmbedding(oxyUserId: string, memoryKey: string): Promise<void> {
   try {
     await deleteRow(getDb(), oxyUserId, memoryKey);
   } catch (error) {
@@ -103,7 +100,7 @@ export function invalidateUserEmbeddingCache(oxyUserId: string): void {
 export async function searchByVector(
   oxyUserId: string,
   queryEmbedding: number[],
-  topK: number = 5
+  topK: number = 5,
 ): Promise<{ memoryKey: string; score: number }[]> {
   try {
     let cached = userEmbeddingCache.get(oxyUserId);
@@ -113,7 +110,7 @@ export async function searchByVector(
       if (embeddings.length === 0) return [];
 
       cached = {
-        embeddings: embeddings.map(e => ({ memoryKey: e.memoryKey, embedding: e.embedding })),
+        embeddings: embeddings.map((e) => ({ memoryKey: e.memoryKey, embedding: e.embedding })),
         loadedAt: Date.now(),
       };
 
@@ -127,7 +124,7 @@ export async function searchByVector(
 
     if (cached.embeddings.length === 0) return [];
 
-    const scored = cached.embeddings.map(e => ({
+    const scored = cached.embeddings.map((e) => ({
       memoryKey: e.memoryKey,
       score: cosineSimilarity(queryEmbedding, e.embedding),
     }));

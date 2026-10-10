@@ -31,7 +31,12 @@ export function onAlert(handler: AlertHandler): void {
 }
 
 /** Emit an alert */
-function emit(level: Alert['level'], type: string, message: string, metadata?: Record<string, unknown>): void {
+function emit(
+  level: Alert['level'],
+  type: string,
+  message: string,
+  metadata?: Record<string, unknown>,
+): void {
   const alert: Alert = {
     id: `alert-${++alertSeq}`,
     level,
@@ -64,7 +69,9 @@ function emit(level: Alert['level'], type: string, message: string, metadata?: R
   for (const handler of alertHandlers) {
     try {
       handler(alert);
-    } catch { /* don't let handler errors break alerting */ }
+    } catch {
+      /* don't let handler errors break alerting */
+    }
   }
 }
 
@@ -80,7 +87,11 @@ export function getRecentAlerts(limit = 50): Alert[] {
  */
 const recentActions = new Map<string, string[]>(); // sessionId -> recent action signatures
 
-export function checkInfiniteLoop(sessionId: string, toolName: string, args: Record<string, unknown>): boolean {
+export function checkInfiniteLoop(
+  sessionId: string,
+  toolName: string,
+  args: Record<string, unknown>,
+): boolean {
   const signature = `${toolName}:${JSON.stringify(args).slice(0, 200)}`;
 
   if (!recentActions.has(sessionId)) {
@@ -96,7 +107,10 @@ export function checkInfiniteLoop(sessionId: string, toolName: string, args: Rec
   if (actions.length >= 3) {
     const last3 = actions.slice(-3);
     if (last3[0] === last3[1] && last3[1] === last3[2]) {
-      emit('warning', 'infinite_loop', `Agent repeating same action: ${toolName}`, { sessionId, toolName });
+      emit('warning', 'infinite_loop', `Agent repeating same action: ${toolName}`, {
+        sessionId,
+        toolName,
+      });
       return true;
     }
   }
@@ -107,12 +121,21 @@ export function checkInfiniteLoop(sessionId: string, toolName: string, args: Rec
 /**
  * Check for session runaway (exceeding expected duration).
  */
-export function checkSessionRunaway(sessionId: string, durationMs: number, maxExpectedMs = 600_000): void {
+export function checkSessionRunaway(
+  sessionId: string,
+  durationMs: number,
+  maxExpectedMs = 600_000,
+): void {
   if (durationMs > maxExpectedMs) {
-    emit('warning', 'session_runaway', `Session running for ${Math.round(durationMs / 60000)}min (expected max ${Math.round(maxExpectedMs / 60000)}min)`, {
-      sessionId,
-      durationMs,
-    });
+    emit(
+      'warning',
+      'session_runaway',
+      `Session running for ${Math.round(durationMs / 60000)}min (expected max ${Math.round(maxExpectedMs / 60000)}min)`,
+      {
+        sessionId,
+        durationMs,
+      },
+    );
   }
 }
 
@@ -130,9 +153,14 @@ export function checkSessionRunaway(sessionId: string, durationMs: number, maxEx
  * lives there, because an alert per request is an alert nobody reads.
  */
 export function alertDirectProviderEgress(host: string): void {
-  emit('critical', 'unpermitted_egress', `Outbound connection to a host the egress policy does not permit: ${host}`, {
-    host,
-  });
+  emit(
+    'critical',
+    'unpermitted_egress',
+    `Outbound connection to a host the egress policy does not permit: ${host}`,
+    {
+      host,
+    },
+  );
 }
 
 /**
