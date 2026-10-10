@@ -168,7 +168,6 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
             props.editable === false && "opacity-50 web:cursor-not-allowed",
             className
           )}
-          placeholderClassName={cn("text-muted-foreground", props.placeholderClassName)}
           onKeyPress={handleKeyPress}
           onContentSizeChange={handleContentSizeChange}
           scrollEnabled={fillContainer || props.multiline}
