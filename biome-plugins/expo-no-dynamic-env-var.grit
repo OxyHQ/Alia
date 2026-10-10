@@ -1,0 +1,13 @@
+// Port of eslint-plugin-expo `no-dynamic-env-var`. Metro only inlines
+// `process.env.EXPO_PUBLIC_*` when accessed with a static member name, so a
+// computed lookup is silently `undefined` in the shipped bundle.
+language js
+
+`process.env[$key]` where {
+  $key <: not string(),
+  register_diagnostic(
+    span = $key,
+    message = "Unexpected dynamic access. Cannot dynamically access a variable from process.env: Expo only inlines `process.env.EXPO_PUBLIC_*` read with a static name.",
+    severity = "error"
+  )
+}

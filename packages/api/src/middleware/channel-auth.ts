@@ -4,6 +4,7 @@ import { getChannel } from '../lib/channels/registry.js';
 import type { ChannelId } from '../lib/channels/types.js';
 
 declare global {
+  // biome-ignore lint/style/noNamespace: Express/global type augmentation requires `declare global { namespace Express }`.
   namespace Express {
     interface Request {
       channelType?: ChannelId;

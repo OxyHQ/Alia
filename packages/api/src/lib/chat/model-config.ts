@@ -68,7 +68,7 @@ export interface BuildBaseConfigParams {
 }
 
 export interface BaseConfigResult {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK config is dynamically extended; strict SDK param types don't support this pattern
+  // biome-ignore lint/suspicious/noExplicitAny: AI SDK config is dynamically extended; strict SDK param types don't support this pattern
   config: any;
   providerAbort: AbortController;
   clearFirstByteTimer: () => void;
@@ -81,7 +81,7 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
   const model = getAIModel(resolved, 'chat', oxyUserId, serviceToken, { reasoningEffort, onInferenceRequest });
 
   // Build common config for both streaming and non-streaming
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK config is dynamically extended; strict SDK param types don't support this pattern
+  // biome-ignore lint/suspicious/noExplicitAny: AI SDK config is dynamically extended; strict SDK param types don't support this pattern
   const baseConfig: any = {
     model,
     messages: convertedMessages,

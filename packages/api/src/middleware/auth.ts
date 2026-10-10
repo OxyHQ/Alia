@@ -26,6 +26,7 @@ export const oxyClient = new OxyServer({
 
 // Extend Express Request for Oxy users and service tokens
 declare global {
+  // biome-ignore lint/style/noNamespace: Express/global type augmentation requires `declare global { namespace Express }`.
   namespace Express {
     interface Request {
       userId?: string;

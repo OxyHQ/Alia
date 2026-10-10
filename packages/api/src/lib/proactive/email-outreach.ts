@@ -125,8 +125,9 @@ async function resolveAudience(accountId: string): Promise<Audience | null> {
 
 /** One line, no control characters, bounded. */
 function oneLine(value: string | undefined, max: number): string {
-  // eslint-disable-next-line no-control-regex
-  return (value ?? '').replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+  return (value ?? '')
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control characters is the point
+    .replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
 /**
