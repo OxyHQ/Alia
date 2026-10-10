@@ -71,13 +71,16 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '4150', 10);
 
 // Create HTTP server with optimized settings for streaming
-const server = http.createServer({
-  // Increase max header size for long authentication tokens
-  maxHeaderSize: 16384,
-  // Keep connections alive for SSE
-  keepAlive: true,
-  keepAliveTimeout: 65000, // Slightly higher than default
-}, app);
+const server = http.createServer(
+  {
+    // Increase max header size for long authentication tokens
+    maxHeaderSize: 16384,
+    // Keep connections alive for SSE
+    keepAlive: true,
+    keepAliveTimeout: 65000, // Slightly higher than default
+  },
+  app,
+);
 const activity = startPlatformActivity(() => server.listening);
 if (activity) app.use(activity.observeHttp);
 
@@ -98,22 +101,38 @@ server.on('connection', (socket) => {
   socket.setKeepAlive(true, 60000);
 });
 
-initSocket(server).on('connection', socket => activity?.observeSocket(socket));
+initSocket(server).on('connection', (socket) => activity?.observeSocket(socket));
 initMcpRelay(server, (socket, headers) => {
   activity?.observeWebSocket(socket, { headers, activityType: 'ai' });
 });
 
 // Public API routes (/v1) - allow all origins (like OpenAI's API)
-app.use('/v1', cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Service-Name', 'X-Timestamp', 'X-Signature', 'X-Session-Id', 'X-Device-Info', 'X-Oxy-Edge-Region', 'X-Oxy-Activity-Id'],
-  // A deprecation header a browser client cannot read is not a signal. Without
-  // this, `Deprecation`, `Sunset` and `Link` are stripped from every
-  // cross-origin response before the SDK ever sees them.
-  exposedHeaders: ['Deprecation', 'Sunset', 'Link'],
-  optionsSuccessStatus: 200
-}));
+app.use(
+  '/v1',
+  cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+      'X-Service-Name',
+      'X-Timestamp',
+      'X-Signature',
+      'X-Session-Id',
+      'X-Device-Info',
+      'X-Oxy-Edge-Region',
+      'X-Oxy-Activity-Id',
+    ],
+    // A deprecation header a browser client cannot read is not a signal. Without
+    // this, `Deprecation`, `Sunset` and `Link` are stripped from every
+    // cross-origin response before the SDK ever sees them.
+    exposedHeaders: ['Deprecation', 'Sunset', 'Link'],
+    optionsSuccessStatus: 200,
+  }),
+);
 
 // Disable nginx/proxy buffering for /v1 SSE streaming responses
 app.use('/v1', (_req, res, next) => {
@@ -172,12 +191,14 @@ declare global {
 }
 
 // Increase body size limit for large chat contexts.
-app.use(express.json({
-  limit: '10mb',
-  verify: (req, _res, buf) => {
-    (req as express.Request).rawBody = buf;
-  },
-}));
+app.use(
+  express.json({
+    limit: '10mb',
+    verify: (req, _res, buf) => {
+      (req as express.Request).rawBody = buf;
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Optimize SSE routes for real-time streaming
@@ -280,8 +301,8 @@ app.get('/', (_req, res) => {
       '/writing-style',
       '/notifications',
       '/v1/audio/speech',
-      '/internal/trigger'
-    ]
+      '/internal/trigger',
+    ],
   });
 });
 
@@ -313,7 +334,10 @@ process.on('unhandledRejection', (reason) => {
   }
 
   // Everything else: log as error but keep running
-  log.general.error({ reason: reason instanceof Error ? reason : String(reason) }, '[Process] Unhandled promise rejection');
+  log.general.error(
+    { reason: reason instanceof Error ? reason : String(reason) },
+    '[Process] Unhandled promise rejection',
+  );
 });
 
 process.on('uncaughtException', (error) => {
@@ -373,20 +397,28 @@ server.listen(PORT, '0.0.0.0', () => {
    * Called here, after `listen`, for the same reason the seeders are not called
    * here at all: nothing on the boot path may stand between the process and
    * `/health/live` answering.
-  */
+   */
   startBackgroundServices();
 
   // Verify Redis connectivity (non-blocking)
-  import('./lib/redis.js').then(({ getRedisClient }) => {
-    const redis = getRedisClient();
-    if (redis) {
-      redis.ping()
-        .then(() => log.general.info('Redis readiness check passed'))
-        .catch((err) => log.general.warn({ err }, 'Redis readiness check failed — rate limiting will fail-open'));
-    } else {
-      log.general.info('Redis not configured (REDIS_URL not set) — rate limiting disabled');
-    }
-  }).catch((err) => log.general.warn({ err }, 'Redis readiness check init failed'));
+  import('./lib/redis.js')
+    .then(({ getRedisClient }) => {
+      const redis = getRedisClient();
+      if (redis) {
+        redis
+          .ping()
+          .then(() => log.general.info('Redis readiness check passed'))
+          .catch((err) =>
+            log.general.warn(
+              { err },
+              'Redis readiness check failed — rate limiting will fail-open',
+            ),
+          );
+      } else {
+        log.general.info('Redis not configured (REDIS_URL not set) — rate limiting disabled');
+      }
+    })
+    .catch((err) => log.general.warn({ err }, 'Redis readiness check init failed'));
 });
 
 // Graceful shutdown handler

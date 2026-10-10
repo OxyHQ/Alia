@@ -159,7 +159,9 @@ export interface AgentSessionListing {
   createdAt: Date;
 }
 
-function toPlan(row: Pick<AgentSessionRow, 'planObjective' | 'planItems'>): AgentSessionPlan | undefined {
+function toPlan(
+  row: Pick<AgentSessionRow, 'planObjective' | 'planItems'>,
+): AgentSessionPlan | undefined {
   // The CHECK keeps the pair together, so either column answers the question.
   if (row.planObjective === null || row.planItems === null) return undefined;
   return { objective: row.planObjective, items: row.planItems };
@@ -188,8 +190,12 @@ function toCreditReservation(row: AgentSessionRow): AgentSessionCreditReservatio
     initialFreeCredits,
     initialPaidCredits: row.creditReservationInitialPaidCredits ?? 0,
     ...(row.creditReservationOperationId ? { operationId: row.creditReservationOperationId } : {}),
-    ...(row.creditReservationProductAllocationId ? { productAllocationId: row.creditReservationProductAllocationId } : {}),
-    grantKind: row.creditReservationProductAllocationId ? 'product_allowance' : fundingSourceOf(initialFreeCredits),
+    ...(row.creditReservationProductAllocationId
+      ? { productAllocationId: row.creditReservationProductAllocationId }
+      : {}),
+    grantKind: row.creditReservationProductAllocationId
+      ? 'product_allowance'
+      : fundingSourceOf(initialFreeCredits),
   };
 }
 
@@ -433,7 +439,10 @@ export async function listAgentSessionHistory(
       .from(agentSessions)
       .leftJoin(agents, eq(agentSessions.agentId, agents.id))
       .where(where)
-      .orderBy(sql`${agentSessions.statsCompletedAt} desc nulls last`, desc(agentSessions.createdAt))
+      .orderBy(
+        sql`${agentSessions.statsCompletedAt} desc nulls last`,
+        desc(agentSessions.createdAt),
+      )
       .limit(page.limit)
       .offset(page.offset),
     db.select({ total: sql<number>`count(*)::int` }).from(agentSessions).where(where),
@@ -670,10 +679,7 @@ export async function createAgentSession(
   db: Executor,
   input: CreateAgentSessionInput,
 ): Promise<AgentSessionRecord> {
-  const [row] = await db
-    .insert(agentSessions)
-    .values(agentSessionValues(input))
-    .returning();
+  const [row] = await db.insert(agentSessions).values(agentSessionValues(input)).returning();
   return toAgentSessionRecord(row);
 }
 
@@ -682,18 +688,26 @@ export async function createAutomationStageSession(
   db: Executor,
   input: CreateAgentSessionInput & { automationRunId: string; automationStage: number },
 ): Promise<{ session: AgentSessionRecord; created: boolean }> {
-  const [inserted] = await db.insert(agentSessions)
+  const [inserted] = await db
+    .insert(agentSessions)
     .values(agentSessionValues(input))
     .onConflictDoNothing({
       target: [agentSessions.automationRunId, agentSessions.automationStage],
     })
     .returning();
   if (inserted) return { session: toAgentSessionRecord(inserted), created: true };
-  const [existing] = await db.select().from(agentSessions).where(and(
-    eq(agentSessions.automationRunId, input.automationRunId),
-    eq(agentSessions.automationStage, input.automationStage),
-  )).limit(1);
-  if (!existing) throw new Error('Automation stage session conflict did not identify an existing row');
+  const [existing] = await db
+    .select()
+    .from(agentSessions)
+    .where(
+      and(
+        eq(agentSessions.automationRunId, input.automationRunId),
+        eq(agentSessions.automationStage, input.automationStage),
+      ),
+    )
+    .limit(1);
+  if (!existing)
+    throw new Error('Automation stage session conflict did not identify an existing row');
   return { session: toAgentSessionRecord(existing), created: false };
 }
 
@@ -871,12 +885,14 @@ export async function claimAgentSessionRun(
       statsStartedAt: sql`coalesce(${agentSessions.statsStartedAt}, ${now.toISOString()}::timestamptz)`,
       statsLastActivityAt: now,
     })
-    .where(and(
-      eq(agentSessions.id, id),
-      inArray(agentSessions.status, ['queued', 'running']),
-      sql`${agentSessions.chatLeaseExpiresAt} is null`,
-      sql`(${agentSessions.runnerLeaseExpiresAt} is null or ${agentSessions.runnerLeaseExpiresAt} < ${now.toISOString()}::timestamptz)`,
-    ))
+    .where(
+      and(
+        eq(agentSessions.id, id),
+        inArray(agentSessions.status, ['queued', 'running']),
+        sql`${agentSessions.chatLeaseExpiresAt} is null`,
+        sql`(${agentSessions.runnerLeaseExpiresAt} is null or ${agentSessions.runnerLeaseExpiresAt} < ${now.toISOString()}::timestamptz)`,
+      ),
+    )
     .returning();
   if (!row) return { claimed: false };
   return { claimed: true, session: toAgentSessionRecord(row), attempt: row.runnerAttempts };
@@ -896,17 +912,23 @@ export async function renewAgentSessionRunLease(
   const updated = await db
     .update(agentSessions)
     .set({ runnerLeaseExpiresAt: new Date(now.getTime() + RUNNER_LEASE_MS) })
-    .where(and(
-      eq(agentSessions.id, id),
-      eq(agentSessions.runnerLeaseOwner, owner),
-      eq(agentSessions.status, 'running'),
-    ))
+    .where(
+      and(
+        eq(agentSessions.id, id),
+        eq(agentSessions.runnerLeaseOwner, owner),
+        eq(agentSessions.status, 'running'),
+      ),
+    )
     .returning({ id: agentSessions.id });
   return updated.length > 0;
 }
 
 /** Drop this worker's lease on a run it is leaving, settled or not. */
-export async function releaseAgentSessionRunLease(db: Executor, id: string, owner: string): Promise<void> {
+export async function releaseAgentSessionRunLease(
+  db: Executor,
+  id: string,
+  owner: string,
+): Promise<void> {
   await db
     .update(agentSessions)
     .set({ runnerLeaseOwner: null, runnerLeaseExpiresAt: null })
@@ -931,11 +953,13 @@ export async function listLapsedAgentSessionRuns(
   const rows = await db
     .select()
     .from(agentSessions)
-    .where(and(
-      eq(agentSessions.status, 'running'),
-      sql`${agentSessions.runnerLeaseExpiresAt} is not null`,
-      lt(agentSessions.runnerLeaseExpiresAt, now),
-    ))
+    .where(
+      and(
+        eq(agentSessions.status, 'running'),
+        sql`${agentSessions.runnerLeaseExpiresAt} is not null`,
+        lt(agentSessions.runnerLeaseExpiresAt, now),
+      ),
+    )
     .limit(limit);
   return rows.map((row) => ({
     id: row.id,
@@ -967,12 +991,14 @@ export async function failExhaustedAgentSessionRun(
       runnerLeaseExpiresAt: null,
       statsCompletedAt: now,
     })
-    .where(and(
-      eq(agentSessions.id, id),
-      eq(agentSessions.status, 'running'),
-      lt(agentSessions.runnerLeaseExpiresAt, now),
-      sql`${agentSessions.runnerAttempts} >= ${RUNNER_MAX_ATTEMPTS}`,
-    ))
+    .where(
+      and(
+        eq(agentSessions.id, id),
+        eq(agentSessions.status, 'running'),
+        lt(agentSessions.runnerLeaseExpiresAt, now),
+        sql`${agentSessions.runnerAttempts} >= ${RUNNER_MAX_ATTEMPTS}`,
+      ),
+    )
     .returning();
   return row ? { id: row.id, creditReservation: toCreditReservation(row) } : null;
 }

@@ -73,7 +73,10 @@ export async function orchestrate(opts: OrchestrationOptions): Promise<Orchestra
     };
   }
 
-  opts.eventStream.append('system_message', 'Orchestrator: activating three-layer execution (Planner → Executors → Verifier)');
+  opts.eventStream.append(
+    'system_message',
+    'Orchestrator: activating three-layer execution (Planner → Executors → Verifier)',
+  );
 
   // ── Layer 1: Planning ──
 
@@ -85,20 +88,33 @@ export async function orchestrate(opts: OrchestrationOptions): Promise<Orchestra
     maxSubtasks: Math.min(Math.floor(opts.session.config.maxSteps / 5), 10),
   });
 
-  opts.eventStream.append('plan_update', [
-    `Strategy: ${plan.strategy}`,
-    `Analysis: ${plan.analysis}`,
-    `Subtasks (${plan.subtasks.length}):`,
-    ...plan.subtasks.map(s => `  ${s.id}. [${s.complexity}] ${s.description}${s.dependsOn.length ? ` (after: ${s.dependsOn.join(', ')})` : ''}`),
-    plan.parallelGroups.length > 0 ? `Parallel groups: ${plan.parallelGroups.map(g => `[${g.join(', ')}]`).join(', ')}` : '',
-  ].filter(Boolean).join('\n'));
+  opts.eventStream.append(
+    'plan_update',
+    [
+      `Strategy: ${plan.strategy}`,
+      `Analysis: ${plan.analysis}`,
+      `Subtasks (${plan.subtasks.length}):`,
+      ...plan.subtasks.map(
+        (s) =>
+          `  ${s.id}. [${s.complexity}] ${s.description}${s.dependsOn.length ? ` (after: ${s.dependsOn.join(', ')})` : ''}`,
+      ),
+      plan.parallelGroups.length > 0
+        ? `Parallel groups: ${plan.parallelGroups.map((g) => `[${g.join(', ')}]`).join(', ')}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  );
 
   // If only 1 subtask, no point orchestrating — return the single task
   if (plan.subtasks.length <= 1) {
-    opts.eventStream.append('system_message', 'Orchestrator: single subtask — skipping multi-agent execution');
+    opts.eventStream.append(
+      'system_message',
+      'Orchestrator: single subtask — skipping multi-agent execution',
+    );
     return {
       success: true,
-      result: '',  // Caller should run single-agent mode
+      result: '', // Caller should run single-agent mode
       plan,
       executorResults: [],
       verification: null,
@@ -108,12 +124,24 @@ export async function orchestrate(opts: OrchestrationOptions): Promise<Orchestra
 
   // ── Layer 2: Execution ──
 
-  opts.eventStream.append('system_message', `Orchestrator: launching ${plan.subtasks.length} executors (max ${maxConcurrency} concurrent)`);
+  opts.eventStream.append(
+    'system_message',
+    `Orchestrator: launching ${plan.subtasks.length} executors (max ${maxConcurrency} concurrent)`,
+  );
 
   // Calculate per-executor budgets from parent session
-  const maxStepsPerExecutor = Math.max(5, Math.floor(opts.session.config.maxSteps / plan.subtasks.length));
-  const maxTokensPerExecutor = Math.max(5000, Math.floor(opts.session.config.maxTokens / plan.subtasks.length));
-  const timeoutMs = Math.max(30_000, Math.floor(300_000 / plan.subtasks.length) * plan.subtasks.length);
+  const maxStepsPerExecutor = Math.max(
+    5,
+    Math.floor(opts.session.config.maxSteps / plan.subtasks.length),
+  );
+  const maxTokensPerExecutor = Math.max(
+    5000,
+    Math.floor(opts.session.config.maxTokens / plan.subtasks.length),
+  );
+  const timeoutMs = Math.max(
+    30_000,
+    Math.floor(300_000 / plan.subtasks.length) * plan.subtasks.length,
+  );
 
   const executorResults = await executeSubtasks(plan.subtasks, {
     maxConcurrency,
@@ -137,7 +165,7 @@ export async function orchestrate(opts: OrchestrationOptions): Promise<Orchestra
 
   let verification = await verifyResults(
     opts.task,
-    executorResults.map(r => ({ subtask: r.subtask, result: r.result, success: r.success })),
+    executorResults.map((r) => ({ subtask: r.subtask, result: r.result, success: r.success })),
   );
 
   opts.eventStream.append(
@@ -148,17 +176,20 @@ export async function orchestrate(opts: OrchestrationOptions): Promise<Orchestra
   // ── Retry on verification failure ──
 
   if (!verification.passed && maxRetries > 0) {
-    opts.eventStream.append('system_message', `Orchestrator: verification failed, retrying failed subtasks...`);
+    opts.eventStream.append(
+      'system_message',
+      `Orchestrator: verification failed, retrying failed subtasks...`,
+    );
 
     // Re-run only failed subtasks with verification feedback
-    const failedSubtasks = plan.subtasks.filter(s => {
-      const result = executorResults.find(r => r.subtaskId === s.id);
+    const failedSubtasks = plan.subtasks.filter((s) => {
+      const result = executorResults.find((r) => r.subtaskId === s.id);
       return !result?.success;
     });
 
     if (failedSubtasks.length > 0) {
       // Append feedback to failed subtask descriptions
-      const feedbackSubtasks = failedSubtasks.map(s => ({
+      const feedbackSubtasks = failedSubtasks.map((s) => ({
         ...s,
         description: `${s.description}\n\nPrevious attempt failed. Feedback: ${verification.suggestions.join('. ')}`,
         dependsOn: [], // Remove dependencies for retry
@@ -174,14 +205,14 @@ export async function orchestrate(opts: OrchestrationOptions): Promise<Orchestra
 
       // Merge retry results
       for (const retry of retryResults) {
-        const idx = executorResults.findIndex(r => r.subtaskId === retry.subtaskId);
+        const idx = executorResults.findIndex((r) => r.subtaskId === retry.subtaskId);
         if (idx >= 0) executorResults[idx] = retry;
       }
 
       // Re-verify
       verification = await verifyResults(
         opts.task,
-        executorResults.map(r => ({ subtask: r.subtask, result: r.result, success: r.success })),
+        executorResults.map((r) => ({ subtask: r.subtask, result: r.result, success: r.success })),
       );
 
       opts.eventStream.append(
@@ -195,7 +226,10 @@ export async function orchestrate(opts: OrchestrationOptions): Promise<Orchestra
 
   const finalResult = await synthesizeResult(opts.task, executorResults);
 
-  opts.eventStream.append('complete', `Orchestrator: finished in ${Math.round((Date.now() - startMs) / 1000)}s`);
+  opts.eventStream.append(
+    'complete',
+    `Orchestrator: finished in ${Math.round((Date.now() - startMs) / 1000)}s`,
+  );
 
   return {
     success: verification.passed,
@@ -210,12 +244,9 @@ export async function orchestrate(opts: OrchestrationOptions): Promise<Orchestra
 /**
  * Synthesize a coherent final result from multiple executor outputs.
  */
-async function synthesizeResult(
-  task: string,
-  results: ExecutorResult[],
-): Promise<string> {
+async function synthesizeResult(task: string, results: ExecutorResult[]): Promise<string> {
   // If only successful results, just concatenate
-  const successResults = results.filter(r => r.success);
+  const successResults = results.filter((r) => r.success);
   if (successResults.length === 0) {
     return 'All subtasks failed. No result produced.';
   }
@@ -228,25 +259,29 @@ async function synthesizeResult(
   try {
     const resolved = await resolveUtilityModel().catch(() => null);
     if (!resolved) {
-      return successResults.map(r => `## ${r.subtask}\n${r.result}`).join('\n\n');
+      return successResults.map((r) => `## ${r.subtask}\n${r.result}`).join('\n\n');
     }
 
     const model = getAIModel(resolved, 'agent_run');
-    const resultsSummary = successResults
-      .map(r => `### ${r.subtask}\n${r.result}`)
-      .join('\n\n');
+    const resultsSummary = successResults.map((r) => `### ${r.subtask}\n${r.result}`).join('\n\n');
 
     const synthesis = await generateText({
       model,
-      system: 'Synthesize the results from multiple subtasks into a coherent, unified response. Be concise but complete.',
-      messages: [{ role: 'user', content: `Original task: ${task}\n\nSubtask results:\n\n${resultsSummary}` }],
+      system:
+        'Synthesize the results from multiple subtasks into a coherent, unified response. Be concise but complete.',
+      messages: [
+        {
+          role: 'user',
+          content: `Original task: ${task}\n\nSubtask results:\n\n${resultsSummary}`,
+        },
+      ],
       temperature: 0.2,
       maxRetries: 1,
     });
 
-    return synthesis.text || successResults.map(r => r.result).join('\n\n');
+    return synthesis.text || successResults.map((r) => r.result).join('\n\n');
   } catch {
-    return successResults.map(r => `## ${r.subtask}\n${r.result}`).join('\n\n');
+    return successResults.map((r) => `## ${r.subtask}\n${r.result}`).join('\n\n');
   }
 }
 
@@ -268,7 +303,7 @@ export function shouldOrchestrate(task: string, depth: number): boolean {
   const multiPartIndicators = [
     /\b(and then|after that|next|finally|also|additionally)\b/i,
     /\b(first|second|third|step \d|phase \d)\b/i,
-    /\d+\.\s/,  // Numbered lists
+    /\d+\.\s/, // Numbered lists
     /\b(multiple|several|various|each|every|all)\b.*\b(files?|repos?|APIs?|services?|pages?|endpoints?|components?)\b/i,
     /\b(compare|contrast|evaluate|analyze)\b.*\b(and|versus|vs|with)\b/i,
   ];
@@ -279,8 +314,8 @@ export function shouldOrchestrate(task: string, depth: number): boolean {
     /\b(migrate|refactor|restructure|overhaul)\b/i,
   ];
 
-  const multiPartScore = multiPartIndicators.filter(r => r.test(task)).length;
-  const complexScore = complexIndicators.filter(r => r.test(task)).length;
+  const multiPartScore = multiPartIndicators.filter((r) => r.test(task)).length;
+  const complexScore = complexIndicators.filter((r) => r.test(task)).length;
 
   return multiPartScore >= 2 || (multiPartScore >= 1 && complexScore >= 1);
 }

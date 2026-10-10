@@ -29,19 +29,7 @@
   },
   "formatter": {
     "enabled": true,
-    "includes": [
-      "**",
-      "!packages/api/src/db/agents/agentSessionRepository.ts",
-      "!packages/api/src/index.ts",
-      "!packages/api/src/lib/agent/orchestrator.ts",
-      "!packages/api/src/lib/chat/provider-loop.ts",
-      "!packages/api/src/lib/chat/request-context.ts",
-      "!packages/api/src/lib/credits-manager.ts",
-      "!packages/api/src/routes/chat.ts",
-      "!packages/api/src/routes/v1/chat-completions.ts",
-      "!packages/app/index.web.tsx",
-      "!packages/app/src/features/chat/runtime/use-chat-conversation.ts"
-    ],
+    "includes": ["**"],
     "indentStyle": "space",
     "indentWidth": 2,
     "lineWidth": 100,
