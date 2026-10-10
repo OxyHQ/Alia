@@ -1,16 +1,14 @@
 /**
  * One account's credit balance, on Postgres.
  *
- * The table is keyed by the OXY ACCOUNT ID (`id`), not by a row identity — Mongo
- * declared `_id: { type: String }` and wrote the account id into it. The
- * `credits` sub-document became `credits_*` columns.
+ * The table is keyed by the OXY ACCOUNT ID (`id`), not by a row identity. The
+ * `credits` group is `credits_*` columns.
  *
  * ## Every balance change is ONE statement, and that is the point
  *
- * The Mongoose model expressed "spend free first, then paid" as an aggregation-
- * pipeline update with `$cond`, guarded by `$expr` on the total. It is
- * reproduced here as arithmetic in the `SET` clause with the same guard in the
- * `WHERE`, so the read and the write are still one atomic statement:
+ * "Spend free first, then paid" is arithmetic in the `SET` clause with the
+ * total guarded in the `WHERE`, so the read and the write are one atomic
+ * statement:
  *
  *     credits_free = greatest(credits_free - $n, 0)
  *     credits_paid = credits_paid - greatest($n - credits_free, 0)
@@ -39,7 +37,7 @@ import { userCredits } from '../schema/billing';
 
 export type UserCreditsRow = typeof userCredits.$inferSelect;
 
-/** Mongoose's schema defaults, which the upsert has to supply explicitly. */
+/** The account defaults, which the upsert has to supply explicitly. */
 const DEFAULT_FREE_CREDITS = 300;
 
 /**

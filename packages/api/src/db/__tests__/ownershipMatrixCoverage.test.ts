@@ -108,11 +108,11 @@ interface MatrixRow {
  * copy of provider construction, removed by #184. Three paths carry two rows
  * each, because two separate migration subjects lived in one file.
  *
- * The 41st is `dead-providers-mongoose-db`, `internal/providers/lib/db.ts`: a
- * second `mongoose.connect()` on `MONGODB_URI`, left over from the alia-gateway
+ * The 41st is `dead-providers-second-db`, `internal/providers/lib/db.ts`: a
+ * second database connection, left over from the alia-gateway
  * split, with zero importers. Its row had already read `owner: delete`,
  * `removalGate: NONE` — it went with `lib/db.ts` when the boot path stopped
- * waiting on a Mongo connection.
+ * waiting on that connection.
  *
  * The row that did NOT move is `sdk-integrations-ai-sdk`: the three `@ai-sdk/*`
  * dependencies it covers went in the same commit, but its `currentPath` is a
@@ -196,10 +196,10 @@ interface MatrixRow {
  *
  * ## 101 -> 102: `migration-purge-ip-fields-unrunnable`
  *
- * The source Mongo database had already been destroyed. The backup-only purge
- * script therefore stopped being a working safety net and was the sole reason
- * the Mongoose driver remained installed. The script and dependency leave in
- * one cut; the retained pre-drop archive is external data and is not deleted.
+ * The script's source database had already been destroyed, so the backup-only
+ * purge script stopped being a working safety net. The script and its driver
+ * dependency leave in one cut; the retained pre-drop archive is external data
+ * and is not deleted.
  *
  * ## 109 -> 110: `dead-startup-seed`
  *
@@ -249,8 +249,15 @@ interface MatrixRow {
  * the LiveKit token and transcription stubs that had refused every call since
  * #477 — is deleted: four rows named the file (both routes, its gateway-client
  * import and the transcription behaviour).
+ *
+ * ## 169 -> 170: `retired-model-ledger-removal`
+ *
+ * `models/__tests__/` held only the ledger of deleted model files and the
+ * uniqueness map read against it. The required uniquenesses moved to
+ * `db/__tests__/uniqueConstraints.pgdb.test.ts`, and the ledger row's file
+ * went with the directory.
  */
-const REMOVED_ROW_COUNT = 169;
+const REMOVED_ROW_COUNT = 170;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);

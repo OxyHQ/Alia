@@ -36,8 +36,8 @@ function sessionValues(id: string) {
 describe('event_stream_entries', () => {
   it('holds an epoch-MILLISECOND timestamp, which integer cannot', async () => {
     /**
-     * `lib/agent/event-stream.ts:89` writes `Date.now()`. Mongoose types it a
-     * bare `Number` with nothing naming the unit, so this column is the only
+     * `lib/agent/event-stream.ts:89` writes `Date.now()`. TypeScript types it a
+     * bare `number` with nothing naming the unit, so this column is the only
      * place the fact is recorded — and `integer` would reject the very first
      * write, 800 times over.
      *
@@ -122,9 +122,7 @@ describe('event_stream_entries', () => {
   it('closes the event type against the tuple the OTHER model also uses', async () => {
     // One vocabulary, one tuple: `EVENT_STREAM_ENTRY_TYPES` lives in
     // `domain/event-stream-entry.ts`, and the schema renders this CHECK from it.
-    // It was two identical fourteen-value literals in two Mongoose models before
-    // batch 9 — both of which are gone; the tuple outlived them, which is why it
-    // was moved out of `models/` in the first place.
+    // Two writers share it, so there is no second literal to drift.
     const bad = db.execute(sql`
       insert into ${eventStreamEntries} (id, session_id, seq, timestamp, type, content)
       values ('ese-bad', 'cs-events', 99, 1700000000000, 'daydream', 'x')

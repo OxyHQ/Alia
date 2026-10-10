@@ -3,8 +3,7 @@
  *
  * ## `config` is FLAT in the database and NESTED on both wires
  *
- * Mongo stored a `config` sub-document; the port flattened it to
- * `config_command`, `config_args`, `config_url`, `config_headers`, `config_env`
+ * `config` is stored flat as `config_command`, `config_args`, `config_url`, `config_headers`, `config_env`
  * and `config_requires_oauth`. Two consumers still need the nested object and
  * neither can be changed from here:
  *
@@ -56,8 +55,7 @@ export interface McpServerConfig {
  * Reassemble the nested `config` from the flat columns.
  *
  * A `null` column becomes an ABSENT key rather than `null`, because that is what
- * Mongoose produced for an unset sub-document field and what the integrations
- * service's `??`-style defaults are written against. `{ url: null }` and `{}`
+ * the integrations service's `??`-style defaults are written against. `{ url: null }` and `{}`
  * are the same to a `if (config.url)` and different to a `Object.keys` count or
  * a JSON body a strict schema validates.
  */
@@ -126,13 +124,10 @@ export function serializeMcpServer(row: McpServerRow): SerializedMcpServer {
 /**
  * One connector belonging to this user, or `null`.
  *
- * Six routes take this path and all six are scoped by `oxyUserId`, exactly as
- * the source was — an id alone must not reach another account's connector.
+ * Six routes take this path and all six are scoped by `oxyUserId` — an id alone must not reach another account's connector.
  *
- * `id` is `text`, so an id of any shape simply fails to match. Mongo answered a
- * malformed `ObjectId` with a `CastError` the route turned into a 500; this
- * returns the 404 the caller deserved. Quieter, and in the right direction —
- * pinned by a test, because a change from loud to quiet is worth a test whichever
+ * `id` is `text`, so an id of any shape simply fails to match and the caller
+ * gets a 404 — pinned by a test, because a quiet answer is worth a test whichever
  * way it points.
  */
 export async function findMcpServerForUser(

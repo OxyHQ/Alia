@@ -4,15 +4,15 @@
  * ## An upsert here can now be REFUSED, and that is new
  *
  * Both columns carry foreign keys, so a mapping naming a plan or feature that
- * does not exist raises `23503` where Mongo cheerfully created an orphan. The
+ * does not exist raises `23503` rather than creating an orphan. The
  * callers translate that into a 400 rather than letting it become a 500 — an
  * orphan mapping was never meaningful, and the schema is where that is now said.
  *
  * ## `modifiedCount` has no exact Postgres equivalent, and this is the
  * approximation, stated
  *
- * Mongo's `modifiedCount` counts documents whose VALUES changed: re-saving a row
- * with identical values gives `matchedCount: 1, modifiedCount: 0`.
+ * A "modified" count would count rows whose VALUES changed: re-saving a row
+ * with identical values would be matched but not modified.
  * `ON CONFLICT DO UPDATE` writes the tuple either way, so `modified` below counts
  * rows WRITTEN, not rows whose values differed. For the admin grid's "Save All"
  * — which posts the whole matrix every time — the new reading is the useful one,
@@ -41,9 +41,9 @@ export interface PlanFeatureValues {
 /**
  * Only the keys the caller actually supplied.
  *
- * Mongoose strips `undefined` out of a `$set`, so an absent field left the
- * stored value untouched rather than nulling it. Reproducing that means building
- * the update object rather than passing `undefined` through.
+ * An absent field leaves the stored value untouched rather than nulling it.
+ * That means building the update object rather than passing `undefined`
+ * through.
  */
 function definedOnly(values: PlanFeatureValues): Record<string, unknown> {
   const set: Record<string, unknown> = {};

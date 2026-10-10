@@ -14,8 +14,8 @@ import { moderationEvents, moderationOutboxes } from '../schema/moderation';
 /**
  * Inbound webhook events against a REAL Postgres.
  *
- * The claim is the part that had to change shape in the port. Mongo inserted and
- * read a duplicate-key error as "somebody else has this"; here it is
+ * The claim is not a caught duplicate-key error read as "somebody else has
+ * this"; it is
  * `ON CONFLICT DO NOTHING … RETURNING`, and the EMPTY result set is the answer.
  * The difference is not stylistic — a caught exception cannot tell a duplicate
  * from a dropped connection, and answering "already processed" to a connection

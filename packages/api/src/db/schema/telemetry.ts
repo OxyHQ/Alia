@@ -40,8 +40,7 @@ import { API_KEY_USAGE_AUTH_TYPES, API_KEY_USAGE_METHODS } from '../../domain/ap
  * Cascade would delete 90 days of billing and rate-limit evidence along with the
  * key, and `RESTRICT` would make a key undeletable for those 90 days.
  *
- * No `created_at`/`updated_at`. The Mongoose schema sets `timestamps: false` and
- * `timestamp` is the event time — adding a second, nearly-identical clock would
+ * No `created_at`/`updated_at`. `timestamp` is the event time — adding a second, nearly-identical clock would
  * invite the sweep to be pointed at the wrong one.
  */
 export const apiKeyUsage = pgTable(

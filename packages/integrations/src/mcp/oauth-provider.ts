@@ -8,8 +8,7 @@
  * `mcp_connector_auths`, encrypted at rest via `../shared/crypto`.
  *
  * **Encryption happens HERE, not in the column.** `encrypt()` on the way in and
- * `decrypt()` on the way out, with the store holding opaque `text`. That is the
- * arrangement the Mongoose version had and the port keeps it byte-for-byte;
+ * `decrypt()` on the way out, with the store holding opaque `text`;
  * `oauth-store.ts` states what both ways of changing it would break.
  *
  * One instance is bound to a single (user, server) session. The `stateToken` is
@@ -20,9 +19,8 @@
  *
  * ## Why the row is loaded once and then tracked in memory
  *
- * The Mongoose version held one hydrated document for the provider's lifetime,
- * mutated it and called `save()`; a read after a write therefore saw the write.
- * Reads here are served from the same in-memory copy for exactly that reason —
+ * A read after a write must see the write. Reads here are served from one
+ * in-memory copy for exactly that reason —
  * the SDK writes a code verifier and reads it back within one `auth()` call,
  * and a re-read from the database would be a second round trip that answers the
  * same question. Each HTTP request builds a fresh provider, so nothing is

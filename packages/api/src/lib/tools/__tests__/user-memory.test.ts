@@ -74,8 +74,7 @@ interface MemoryDoc {
   settings: MemorySettings;
   /**
    * Counts repository WRITES. It keeps the name `save` because that is exactly
-   * what every assertion below means by it — "did this tool persist anything" —
-   * and the Mongoose `save()` it replaces answered the same question.
+   * what every assertion below means by it — "did this tool persist anything".
    */
   save: ReturnType<typeof vi.fn<() => void>>;
 }

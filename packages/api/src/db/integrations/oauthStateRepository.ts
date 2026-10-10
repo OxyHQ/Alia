@@ -1,9 +1,8 @@
 /**
  * The integrations OAuth `state`, on Postgres.
  *
- * The token IS the primary key — Mongo declared `_id: String` and wrote the
- * random state into it, and `oauth_states.id` is `text` with no default for the
- * same reason: a minted id would produce a row the callback could never find.
+ * The token IS the primary key — `oauth_states.id` is `text` with no default,
+ * because a minted id would produce a row the callback could never find.
  *
  * It is a credential, stored in the clear and matched on by value, so the same
  * rule as `mcp_oauth_states.state` applies — never `encryptedText`, because a

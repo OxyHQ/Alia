@@ -95,7 +95,7 @@ Beside these, the API reaches the person's Oxy apps through Oxy's capability tic
 (`packages/alia-computer-host`, its own EC2 Spot instance) over the internal network
 ([actors](./actors.mdx#the-agents-computer)).
 
-PostgreSQL is Alia's product store. The last domains — conversations, messages, agents, organizations, skills and the rest — are ported, and `packages/api` opens no MongoDB connection and registers no Mongoose model. Under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md), every hosted inference call crosses the published Oxy inference client and Oxy calls Kaana; only a user's explicitly connected local runtime stays outside that hop.
+PostgreSQL is Alia's only product store: conversations, messages, agents, organizations, skills and the rest. Under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md), every hosted inference call crosses the published Oxy inference client and Oxy calls Kaana; only a user's explicitly connected local runtime stays outside that hop.
 
 | App | Stack | Purpose |
 | --- | --- | --- |
@@ -118,7 +118,7 @@ The monorepo uses Bun workspaces — no Turborepo or Nx; root scripts fan out wi
 bun install
 ```
 
-Copy `packages/api/.env.example` to `packages/api/.env` and fill it in. `DATABASE_URL` is the only database variable and the API refuses to boot without it. Alia declares no Mongo driver dependency. Hosted provider credentials are not Alia environment variables or database rows; Kaana stores and uses them in its own PostgreSQL database. Alia authenticates to Oxy with its Oxy application service credential, and Oxy is the only hop that calls Kaana.
+Copy `packages/api/.env.example` to `packages/api/.env` and fill it in. `DATABASE_URL` is the only database variable and the API refuses to boot without it. Hosted provider credentials are not Alia environment variables or database rows; Kaana stores and uses them in its own PostgreSQL database. Alia authenticates to Oxy with its Oxy application service credential, and Oxy is the only hop that calls Kaana.
 
 ## Quick start
 
@@ -191,7 +191,6 @@ One canonical page per topic; other pages link to it rather than repeat it.
 - [Bloom adoption](./bloom-adoption.mdx) and the [UI layer retirement](./ui-layer-retirement.mdx)
 - Baselines: [visual](./visual-baseline.mdx), [runtime](./runtime-baseline.mdx), [bundle](./bundle-baseline.mdx), [native validation](./native-validation.mdx)
 - [Dependency updates](./dependencies.md)
-- [PostgreSQL-only runtime and the optional Mongo lock entry](./mongodb-runtime-boundary.md)
 
 ### Operations
 

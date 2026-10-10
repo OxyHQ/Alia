@@ -2,10 +2,9 @@
  * User Memory Service
  * Centralized find-or-create for a user's memory profile.
  *
- * The chokepoint nine files reach for. It stays a chokepoint after the port —
- * callers get a plain projection instead of a hydrated Mongoose document, so
- * `memory.memories[…]`, `memory.settings` and `memory.preferences` read exactly
- * as before, but there is no `save()`: a mutation is a named repository call.
+ * The chokepoint nine files reach for. Callers get a plain projection —
+ * `memory.memories[…]`, `memory.settings` and `memory.preferences` — and there
+ * is no `save()`: a mutation is a named repository call.
  */
 
 import { getDb } from '../../db/index.js';
@@ -29,8 +28,7 @@ export async function getOrCreateUserMemory(oxyUserId: string): Promise<UserMemo
  * Falls back to 'en-US' when the user is unknown or has no stored preference.
  *
  * Reads the one column rather than the profile and its entries: this is on the
- * chat hot path, and the Mongo version used `.select('preferences.language')`
- * for the same reason. The swallow is pre-existing and deliberate — a language
+ * chat hot path. The swallow is pre-existing and deliberate — a language
  * preference is decoration, and failing a chat turn over it would be worse than
  * answering in the default.
  */
