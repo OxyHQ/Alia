@@ -32,7 +32,7 @@ import { log } from '../lib/logger.js';
 import { getDb } from './index';
 import { EXPIRY_TARGETS } from './expiryTargets';
 
-/** How often to sweep. Mongo's own TTL monitor ran every 60s; this is less urgent. */
+/** How often to sweep. Retention is measured in days, so this need not be urgent. */
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
 let timer: ReturnType<typeof setInterval> | null = null;

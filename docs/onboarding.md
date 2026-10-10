@@ -39,7 +39,7 @@ model providers directly.
      +-----------------+
 ```
 
-PostgreSQL is the hard dependency — the API exits at boot without `DATABASE_URL`. It is also the only one: `packages/api` registers no Mongoose model and opens no MongoDB connection.
+PostgreSQL is the hard dependency — the API exits at boot without `DATABASE_URL`. It is also the only database.
 
 ### Autonomy Loop
 
@@ -94,7 +94,7 @@ Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_
 | `db/index.ts`, `db/schema/` | Postgres connection and the 80-table drizzle schema | Schema changes |
 | `db/migrate.ts` | The migrator; requires `--target-database` and honours phase markers | Migrations |
 | `middleware/auth.ts` | Token verification via OxyHQ, sets `req.user` | Auth changes |
-| `db/*/…Repository.ts` | One repository per domain — chat, agents, billing, automation, autonomy. `models/` holds no model any more; `models/__tests__/retiredModelFiles.ts` is the ledger of the 43 that were deleted | Reads and writes for a domain |
+| `db/*/…Repository.ts` | One repository per domain — chat, agents, billing, automation, autonomy. `db/__tests__/uniqueConstraints.pgdb.test.ts` pins every uniqueness the product depends on | Reads and writes for a domain |
 | `domain/` | Closed value sets the drizzle CHECK constraints render from | Adding an enum value |
 | `internal/providers/` | Dormant compatibility catalogue and historical migration code; it is not the hosted inference runtime and must not regain provider credentials | Product catalogue compatibility during the retirement window |
 
@@ -268,7 +268,7 @@ each run creates and migrates its own throwaway database.
 
 Environment: copy `.env.example` to `.env` in `packages/api/` and fill it in.
 `DATABASE_URL` is the only database variable and the API refuses to boot without
-it. Alia declares no Mongo driver dependency. Hosted provider credentials live
+it. Hosted provider credentials live
 exclusively in Kaana's PostgreSQL database; Alia reaches inference through Oxy
 with an Oxy application service credential and never receives a provider key.
 

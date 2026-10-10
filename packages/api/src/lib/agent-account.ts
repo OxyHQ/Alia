@@ -582,9 +582,8 @@ export async function loadThreadAgent(
  * This replaces `findConversationAgentById(conversationId)`, which addressed the
  * conversations table's PRIMARY KEY while `conversationId` is the client's
  * BUSINESS key (a `randomUUID()` minted by `POST /conversations/new`). It could
- * not match, so the escalation branch behind it never ran once — and the
- * Mongoose original threw a CastError that both call sites caught and turned
- * into `null`, which is why nothing ever looked wrong.
+ * not match, so the escalation branch behind it never ran once — and both call
+ * sites turned the failure into `null`, which is why nothing ever looked wrong.
  *
  * The client has been sending `agentId` on the request body all along
  * (`use-streaming-chat.ts`) and nothing read it. So the turn reads it, and

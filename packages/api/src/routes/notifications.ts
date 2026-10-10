@@ -49,9 +49,8 @@ router.get('/', async (req: Request, res: Response) => {
 
     /**
      * The filters are CHECKED against the closed value sets rather than passed
-     * through. Under Mongo an unknown `status` simply matched nothing; here it
-     * would be compared against a `text` column with a CHECK, which is still a
-     * legal comparison — so the behaviour is the same, but stating the narrowing
+     * through. An unknown `status` compared against a `text` column with a CHECK
+     * is still a legal comparison that matches nothing, but stating the narrowing
      * is what lets the repository take a typed filter instead of `any`.
      */
     const statusFilter: NotificationStatus | undefined =

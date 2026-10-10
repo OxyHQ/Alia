@@ -45,10 +45,9 @@ describe('the dedup key is the double-credit guard, and it survived the port', (
   /**
    * `routes/billing.ts` writes a transaction FIRST as a lock, keyed
    * `<subscriptionId>_<periodStart>`, and reads the duplicate-key error as
-   * "already credited, skip". In Mongo that was
-   * `index({'metadata.dedup': 1}, {unique: true, sparse: true})` — a unique index
-   * on a path inside a `Mixed` field, which a mechanical `metadata → jsonb` port
-   * drops in silence. The symptom is a customer credited twice on a webhook
+   * "already credited, skip". The key lives inside `metadata`, and storing
+   * `metadata` as plain `jsonb` with no generated unique column drops the guard
+   * in silence. The symptom is a customer credited twice on a webhook
    * redelivery, with no error raised anywhere.
    */
   it('derives dedup_key from the metadata a caller actually writes', async () => {
@@ -88,11 +87,8 @@ describe('the dedup key is the double-credit guard, and it survived the port', (
      * to stay unconstrained — and it arrives in three different shapes that a
      * unique index could plausibly treat differently.
      *
-     * The third is the one worth a fixture. Mongo's `sparse: true` exempted a
-     * MISSING field but still INDEXED a stored null, so a writer that `$set` the
-     * path to null rather than omitting it collided on the second row — a real
-     * trap, in Mongo. It does not carry over: `'{"dedup":null}'::jsonb ->>
-     * 'dedup'` is SQL NULL, and a Postgres unique index is NULLS DISTINCT by
+     * The third is the one worth a fixture: a writer that sets the path to null
+     * rather than omitting it. `'{"dedup":null}'::jsonb ->> 'dedup'` is SQL NULL, and a Postgres unique index is NULLS DISTINCT by
      * default, so every one of these is permitted.
      *
      * Without a fixture in the explicit-null shape, this test could not tell a
@@ -181,9 +177,7 @@ describe('a payment intent identifies at most one transaction', () => {
   });
 
   it('permits many transactions with no payment intent', async () => {
-    // Mongo's `sparse: true` did NOT exempt a stored `null` — a second explicit
-    // null was an E11000 there. Postgres nulls are distinct, so this is strictly
-    // more permissive than the source, and correct.
+    // Postgres nulls are distinct, so any number of explicit nulls is permitted.
     await db.insert(transactions).values(transactionValues({ id: 'txn-pi-null-1' }));
     await db.insert(transactions).values(transactionValues({ id: 'txn-pi-null-2' }));
 
@@ -267,7 +261,7 @@ describe('closed value sets that ARE this service\'s own are enforced', () => {
   it('accepts any subscription status, because Stripe owns that vocabulary', async () => {
     /**
      * `paused` is a real Stripe subscription status and is absent from the seven
-     * the Mongoose model lists. A CHECK rendered from that tuple would reject
+     * the tuple lists. A CHECK rendered from that tuple would reject
      * this write — a live billing webhook — for a value Stripe considers
      * ordinary. This is the assertion that the column was deliberately left
      * open, so a later "tidy-up" adding the CHECK fails here rather than in
@@ -336,7 +330,7 @@ describe('a credit balance is keyed by the Oxy account, not by a row identity', 
       .where(eq(userCredits.id, 'oxy-user-42'));
 
     expect(row?.id).toBe('oxy-user-42');
-    // The Mongoose defaults came across with the columns.
+    // The account defaults are applied.
     expect(row?.free).toBe(300);
   });
 });

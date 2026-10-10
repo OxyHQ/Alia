@@ -192,9 +192,8 @@ export async function learnFromRun(params: {
   const oxyUserId = params.userId;
   const now = new Date();
 
-  // Exactly ONE of the two timestamps is supplied per run. The source wrote the
-  // other as `undefined`, which Mongo drops from a `$set`; passing it here would
-  // write NULL and erase the opposite timestamp on every run, so the key is
+  // Exactly ONE of the two timestamps is supplied per run. Passing the other
+  // as NULL would write NULL and erase the opposite timestamp on every run, so the key is
   // omitted instead. The repository has no way to express an explicit NULL.
   await Promise.all(params.usedSources.map((sourceKey) =>
     recordSourceRun(getDb(), {

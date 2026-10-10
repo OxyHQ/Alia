@@ -57,7 +57,7 @@ describe('day buckets', () => {
     const oxyUserId = 'aku-user-utc';
 
     /**
-     * The trap. Mongo's `$dateToString` with no `timezone` is UTC; `to_char()`
+     * The trap. Day buckets are UTC; `to_char()`
      * over a `timestamptz` uses the SESSION time zone. An instant just after
      * midnight UTC lands on one day in UTC and on the PREVIOUS day anywhere west
      * of it — a whole day of usage sliding between buckets, no error, an
@@ -122,7 +122,7 @@ describe('day buckets', () => {
     const days = await creditSpendByDay(db, oxyUserId, new Date(Date.now() - 5 * day));
     expect(days).toHaveLength(2);
     expect(days[0]._id < days[1]._id).toBe(true);
-    // `_id`, not `date` — the client destructures the Mongo `$group` key name.
+    // `_id`, not `date` — the client destructures that key name.
     expect(days[0]).toHaveProperty('_id');
     expect(typeof days[0].used).toBe('number');
   });

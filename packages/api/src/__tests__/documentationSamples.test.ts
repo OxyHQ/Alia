@@ -198,16 +198,11 @@ const presentsAliasAsRoutingProfile = (text: string): boolean =>
 /**
  * Fenced code blocks that legitimately contain a retired identifier, and why.
  *
- * Two, exactly, and the count is asserted. A list of exemptions with no count
+ * None today, and the count is asserted. A list of exemptions with no count
  * erodes one plausible line at a time until the gate is vacuous, and this is the
  * list somebody reaches for when the census goes red.
  */
-const ALIAS_IN_FENCE_EXEMPTIONS: Readonly<Record<string, string>> = {
-  'docs/superpowers/plans/2026-07-15-memory-screen-redesign.md':
-    'A dated plan archive. Its code blocks record what was proposed on 2026-07-15, ' +
-    'including a test double returning the then-current default. Editing an archive ' +
-    'to match today makes it stop being a record.',
-};
+const ALIAS_IN_FENCE_EXEMPTIONS: Readonly<Record<string, string>> = {};
 
 /* -------------------------------------------------------------------------- */
 /*  Corpus 1 — markdown, fenced blocks and prose                               */
@@ -391,7 +386,8 @@ describe('the census reads what it claims to read', () => {
     // that is the failure this whole file exists to prevent one level down.
     expect(MARKDOWN_FILES).toBeGreaterThan(60);
     expect(MARKDOWN.length).toBeGreaterThan(10_000);
-    expect(FENCE_DELIMITERS).toBeGreaterThan(300);
+    // 244 when the 2026-07-15 plan archive was deleted; it alone held 70.
+    expect(FENCE_DELIMITERS).toBeGreaterThan(200);
     expect(SOURCE_FILES).toBeGreaterThan(1_000);
     expect(COMMENTS.length).toBeGreaterThan(10_000);
     expect(JSX_TEXT.length).toBeGreaterThan(5_000);
@@ -445,7 +441,7 @@ describe('the census reads what it claims to read', () => {
     // is a sample teaching a caller, and the same string in prose is a document
     // explaining a migration.
     const fenced = MARKDOWN.filter((line) => line.fenced).length;
-    expect(fenced).toBeGreaterThan(1_000);
+    expect(fenced).toBeGreaterThan(700);
     expect(fenced).toBeLessThan(MARKDOWN.length);
     // A fence delimiter is never itself content.
     expect(MARKDOWN.some((line) => /^\s*```/.test(line.text))).toBe(false);
@@ -557,10 +553,10 @@ describe('no sample presents an alia-* identifier as a model (#139 ws20)', () =>
     expect(offenders).toEqual(Object.keys(ALIAS_IN_FENCE_EXEMPTIONS).sort());
   });
 
-  it('has exactly one fence exemption, with a reason', () => {
+  it('has no fence exemption, and any future one carries a reason', () => {
     // The exemption list needs its own exact count, or it erodes one plausible
     // line at a time until the census above passes trivially.
-    expect(Object.keys(ALIAS_IN_FENCE_EXEMPTIONS)).toHaveLength(1);
+    expect(Object.keys(ALIAS_IN_FENCE_EXEMPTIONS)).toHaveLength(0);
     for (const [file, reason] of Object.entries(ALIAS_IN_FENCE_EXEMPTIONS)) {
       expect(reason.length, `${file} has no reason`).toBeGreaterThan(80);
       // And the exempted file still exists and still contains what it excuses,

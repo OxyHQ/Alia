@@ -25,12 +25,9 @@ import { subjectProviderFor } from './subjects/registry.js';
  * id that was rolled back). Neither surfaces as an error at the moment it happens,
  * which is exactly why this has to be atomic rather than carefully ordered.
  *
- * **On Postgres the transaction is no longer conditional on the deployment.**
- * Under Mongo this needed a replica set, so `topology.ts` checked for one at boot
- * and the dispatcher refused to run without it — a standalone `mongod` accepted
- * every other write Alia made and failed only here. Postgres has no such mode, so
- * the check and its "there is deliberately no non-transactional fallback" warning
- * are gone with it: there is nothing left to fall back FROM.
+ * **The transaction is not conditional on the deployment.** Postgres always
+ * has transactions, so there is no topology check and no non-transactional
+ * fallback.
  *
  * The one report with NO delivery event is the one whose type has no subject
  * provider, and that is a different claim entirely: not "delivery failed" but
@@ -54,9 +51,8 @@ export class DuplicateReportError extends Error {
  * Refuses an identifier that is not a string, at the point the WRITE is built.
  *
  * `CreateReportInput` types these as strings and the route rejects a missing one,
- * but a type is erased at runtime. Under Mongo the specific hazard was an operator
- * object (`{$ne: null}`) reaching a `findOne` filter and matching an unrelated
- * report; parameterised SQL cannot be subverted that way, but a non-string still
+ * but a type is erased at runtime. Parameterised SQL cannot be subverted by an
+ * operator object, but a non-string still
  * has no business being stored in an identifier column, and the unique key that
  * decides duplicates is built from these three values.
  *
@@ -132,8 +128,7 @@ function localOnlyReason(reportedType: string): string {
  *
  * **The id is minted here, not by the database.** `reports.id` has no default, and
  * that is what this function needs: `reportSubmitEventId(reportId)` has to be
- * known BEFORE the insert so both rows can be written in one pass. Mongo got the
- * same property from a client-generated `ObjectId`.
+ * known BEFORE the insert so both rows can be written in one pass.
  *
  * Intake deliberately does not read `CROWDSOURCE_ENABLED`. A report taken while
  * the integration is off still gets its delivery event, so turning the flag on

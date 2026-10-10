@@ -214,9 +214,7 @@ channel emits cache-invalidation events for conversation and notification lists.
 | `GET /health/ready` | "Can this task serve traffic." Issues a real `select 1` against Postgres (`routes/health.ts:59`) |
 | `GET /health` | Detailed snapshot, cached for 10 seconds |
 
-MongoDB is not reported by any of the three, and there is nothing for them to report:
-`packages/api` registers no Mongoose model and opens no connection. Postgres is the only
-dependency a readiness answer turns on.
+Postgres is the only dependency a readiness answer turns on.
 
 ### Moving to Oxy
 

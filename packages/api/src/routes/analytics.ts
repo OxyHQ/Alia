@@ -15,11 +15,8 @@ router.use(authenticateToken);
 /**
  * The window every route here shares: `days` back from now, default 30.
  *
- * The Mongo version additionally cast the account id with
- * `new mongoose.Types.ObjectId(req.user!.id)`, which THREW for any id that was
- * not 24 hex characters and turned into a 500 through the catch. `oxy_user_id`
- * is `text`, so the comparison is now plain equality and that failure mode is
- * gone rather than ported.
+ * `oxy_user_id` is `text`, so the account comparison is plain equality and an
+ * id of any shape is accepted.
  */
 function startOfWindow(days: unknown): Date {
   /**

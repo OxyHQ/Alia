@@ -1898,21 +1898,6 @@
       "reachable": "dead"
     },
     {
-      "id": "dead-providers-mongoose-db",
-      "workstream": "9",
-      "domain": "provider-runtime",
-      "kind": "module",
-      "currentPath": "packages/api/src/internal/providers/lib/db.ts",
-      "removedIn": "#225",
-      "reachable": "dead",
-      "owner": "delete",
-      "targetPath": "delete",
-      "dependsOn": [],
-      "removalGate": "NONE.",
-      "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/db.ts:1-9; symbol census for its importers returned 0"
-    },
-    {
       "id": "dead-providers-proxy-route",
       "workstream": "9",
       "domain": "provider-runtime",
@@ -1947,6 +1932,21 @@
       "removalGate": "NONE. `grep '\\.proxy('` across all tracked .ts returns exactly one hit, this file, line 138.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/routes/providers.ts:138 (sole .proxy( call site repo-wide)"
+    },
+    {
+      "id": "dead-providers-second-db",
+      "workstream": "9",
+      "domain": "provider-runtime",
+      "kind": "module",
+      "currentPath": "packages/api/src/internal/providers/lib/db.ts",
+      "removedIn": "#225",
+      "reachable": "dead",
+      "owner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [],
+      "removalGate": "NONE.",
+      "provenance": "re-derived",
+      "evidence": "packages/api/src/internal/providers/lib/db.ts:1-9; symbol census for its importers returned 0"
     },
     {
       "id": "dead-providers-ws",
@@ -2560,6 +2560,23 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/grok-voice.ts:52 (only read repo-wide). The packages/api/.env.example entry this row also cited was removed by #139 workstream 8, after re-deriving the unreachability the removalGate asserts: 24 isEnabled definitions under packages/api/src, zero call sites repo-wide. The adapter's dead read is what remains, and it dies with the adapter."
     },
     {
+      "id": "env-legacy-database-uri",
+      "workstream": "8",
+      "domain": "provider-runtime",
+      "kind": "env",
+      "currentPath": "packages/api/.env.example",
+      "reachable": "dead",
+      "owner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [
+        "dead-providers-second-db",
+        "hazard-db-gated-boot"
+      ],
+      "removalGate": "SATISFIED: every product domain is on PostgreSQL, the final backup-only script is deleted, no second connection string is in the environment contract and the architecture gate no longer permits a runtime read.",
+      "provenance": "inventory-provider-runtime",
+      "evidence": "packages/api/.env.example; packages/api/src/__tests__/architectureGates.test.ts; packages/api/src/db/__tests__/bootWiring.test.ts"
+    },
+    {
       "id": "env-livekit",
       "workstream": "15",
       "domain": "provider-runtime",
@@ -2575,23 +2592,6 @@
       "removalGate": "Stays with Alia unless Kaana terminates LiveKit.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/livekit-token.ts:22; .github/workflows/deploy-aws.yml:73-74, :92-93; packages/api/.env.example:103-106"
-    },
-    {
-      "id": "env-mongodb-uri-legacy",
-      "workstream": "8",
-      "domain": "provider-runtime",
-      "kind": "env",
-      "currentPath": "packages/api/.env.example",
-      "reachable": "dead",
-      "owner": "delete",
-      "targetPath": "delete",
-      "dependsOn": [
-        "dead-providers-mongoose-db",
-        "hazard-mongo-gated-boot"
-      ],
-      "removalGate": "SATISFIED: every product domain is on PostgreSQL, the final backup-only script is deleted, MONGODB_URI is absent from the environment contract and the architecture gate no longer permits a runtime read.",
-      "provenance": "inventory-provider-runtime",
-      "evidence": "packages/api/.env.example; packages/api/src/__tests__/architectureGates.test.ts; packages/api/src/db/__tests__/bootWiring.test.ts"
     },
     {
       "id": "env-service-secret",
@@ -3345,11 +3345,11 @@
       "targetPath": "keep",
       "dependsOn": [
         "gateway-client",
-        "hazard-mongo-gated-boot"
+        "hazard-db-gated-boot"
       ],
-      "removalGate": "Delete alongside the Mongo-gated boot block, not on its own.",
+      "removalGate": "Delete alongside the connection-gated boot block, not on its own.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/index.ts:66 (import), :344 (call, inside startBackgroundServices), :386-398 (connectWithRetry gate), :435-446 (comment: 'Mongo no longer exists, so in practice this retries forever and none of them start')"
+      "evidence": "packages/api/src/index.ts:66 (import), :344 (call, inside startBackgroundServices), :386-398 (connectWithRetry gate), :435-446 (comment: the connection never succeeds, so in practice this retries forever and none of them start)"
     },
     {
       "id": "gwc-import-models-stats",
@@ -3551,6 +3551,24 @@
       "removedIn": "voz-en-dispositivo"
     },
     {
+      "id": "hazard-db-gated-boot",
+      "workstream": "8",
+      "domain": "provider-runtime",
+      "kind": "behaviour",
+      "currentPath": "packages/api/src/index.ts",
+      "reachable": "live",
+      "owner": "alia",
+      "targetPath": "keep (fix)",
+      "dependsOn": [
+        "gwc-import-index-warmup",
+        "provider-warmup",
+        "script-sync-zeroeval"
+      ],
+      "removalGate": "FIXED. `startBackgroundServices()` is called directly from the `server.listen` callback; the `connectDB()` retry loop it hung off is deleted along with `lib/db.ts`. The claim this row was raised against — 'we warm the model cache at boot' — is now true, so a Kaana design may assume a warmed cache.",
+      "provenance": "re-derived",
+      "evidence": "packages/api/src/lib/background-services.ts (the nine starters, extracted so they can be asserted); packages/api/src/index.ts, `startBackgroundServices()` inside `server.listen`; packages/api/src/lib/__tests__/background-services.test.ts asserts which services start and in what order; packages/api/src/db/__tests__/bootWiring.test.ts walks the import graph from src/index.ts and asserts the boot wiring"
+    },
+    {
       "id": "hazard-do-app-yaml-gateway-url",
       "workstream": "8",
       "domain": "provider-runtime",
@@ -3578,30 +3596,12 @@
       "owner": "alia",
       "targetPath": "keep (rewrite)",
       "dependsOn": [
-        "env-mongodb-uri-legacy",
+        "env-legacy-database-uri",
         "hazard-do-app-yaml-gateway-url"
       ],
       "removalGate": "A wrong instruction survives forever in a dotenv template. Fix in the same change that touches gateway-client, or the next operator wires GATEWAY_API_URL at a dead host.",
       "provenance": "inventory-provider-runtime",
       "evidence": "packages/api/.env.example:15-17, :31-35, :76-80"
-    },
-    {
-      "id": "hazard-mongo-gated-boot",
-      "workstream": "8",
-      "domain": "provider-runtime",
-      "kind": "behaviour",
-      "currentPath": "packages/api/src/index.ts",
-      "reachable": "live",
-      "owner": "alia",
-      "targetPath": "keep (fix)",
-      "dependsOn": [
-        "gwc-import-index-warmup",
-        "provider-warmup",
-        "script-sync-zeroeval"
-      ],
-      "removalGate": "FIXED. `startBackgroundServices()` is called directly from the `server.listen` callback; the `connectDB()` retry loop it hung off is deleted along with `lib/db.ts`. The claim this row was raised against — 'we warm the model cache at boot' — is now true, so a Kaana design may assume a warmed cache.",
-      "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/background-services.ts (the nine starters, extracted so they can be asserted); packages/api/src/index.ts, `startBackgroundServices()` inside `server.listen`; packages/api/src/lib/__tests__/background-services.test.ts asserts which services start and in what order; packages/api/src/db/__tests__/bootWiring.test.ts walks the import graph from src/index.ts and asserts no Mongoose driver is reachable"
     },
     {
       "id": "hazard-plaintext-key-in-memory",
@@ -4186,7 +4186,7 @@
         "table-subscriptions",
         "table-user-credits"
       ],
-      "removalGate": "THIS IS THE BINDING CONSTRAINT ON EVERY 'production row count audited' GATE ABOVE. There is no Mongo source to audit against; the only remaining verification is establishing correctness in TESTS before each switch, with rows seeded by the migrator so that zero means filtering rather than emptiness. Prose items that still matter for this epic: user_credits may hold NEGATIVE balances (no CHECK, addCredits accepts negatives); subscriptions' three notNull plan_snapshot_* columns bind only writes made after `required` was added; every text+CHECK column may hold a value outside its tuple because Mongoose never validated enums on updateOne.",
+      "removalGate": "THIS IS THE BINDING CONSTRAINT ON EVERY 'production row count audited' GATE ABOVE. There is no source database to audit against; the only remaining verification is establishing correctness in TESTS before each switch, with rows seeded by the migrator so that zero means filtering rather than emptiness. Prose items that still matter for this epic: user_credits may hold NEGATIVE balances (no CHECK, addCredits accepts negatives); subscriptions' three notNull plan_snapshot_* columns bind only writes made after `required` was added; every text+CHECK column may hold a value outside its tuple because the legacy writer never validated enums on updates.",
       "provenance": "inventory-data-billing",
       "evidence": "packages/api/src/db/schema/CONVENTIONS.md:956"
     },
@@ -4217,7 +4217,7 @@
       "dependsOn": [
         "table-api-key-usage"
       ],
-      "removalGate": "SATISFIED: the `alia-production` MongoDB database no longer exists (CONVENTIONS.md:960), so the script and its sole Mongoose dependency were deleted together. The retained pre-drop archive was not modified.",
+      "removalGate": "SATISFIED: the script's source database no longer exists, so the script was deleted. The retained pre-drop archive was not modified.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/db/__tests__/bootWiring.test.ts; packages/api/package.json"
     },
@@ -4525,11 +4525,12 @@
       "evidence": "packages/api/src/lib/chat/response-shapes.ts:22-28,69; packages/app/src/features/chat/runtime/use-streaming-chat.ts:667"
     },
     {
-      "id": "retired-mongoose-billing-models",
+      "id": "retired-billing-models",
       "workstream": "10",
       "domain": "data-billing",
       "kind": "module",
       "currentPath": "packages/api/src/models/__tests__/retiredModelFiles.ts",
+      "removedIn": "retired-model-ledger-removal",
       "reachable": "dead",
       "owner": "delete",
       "targetPath": "already deleted",
@@ -4612,7 +4613,7 @@
       "owner": "alia",
       "targetPath": "keep",
       "dependsOn": [
-        "hazard-mongo-gated-boot",
+        "hazard-db-gated-boot",
         "hostname-zeroeval",
         "table-external-models"
       ],
@@ -5832,7 +5833,7 @@
       "dependsOn": [
         "table-transactions"
       ],
-      "removalGate": "The tuple IS a live database constraint — it renders the CHECK on its column — so moving or narrowing it is a MIGRATION, in the same PR as the code change. Contrast with subscriptions.status, which deliberately has NO CHECK because Stripe owns that vocabulary and has values (e.g. `paused`) the Mongoose list omitted.",
+      "removalGate": "The tuple IS a live database constraint — it renders the CHECK on its column — so moving or narrowing it is a MIGRATION, in the same PR as the code change. Contrast with subscriptions.status, which deliberately has NO CHECK because Stripe owns that vocabulary and has values (e.g. `paused`) the original list omitted.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/domain/transaction.ts:11"
     },

@@ -20,10 +20,7 @@
  * treats `null` as a state to CARRY: there is no `tryGetDb()` any more, so a
  * caller cannot quietly no-op when the database is absent.
  *
- * This said "Mongoose call sites remain until the last domain is ported". They
- * do not: `lib/db.ts` went with the boot path's `connectDB()`, and this is the
- * service's only store. `db/__tests__/bootWiring.test.ts` walks the import graph
- * from `src/index.ts` and asserts the Mongo driver is unreachable from it.
+ * This is the service's only store.
  */
 
 import { createDatabase, type OxyDatabase } from '@oxy.so/db';

@@ -63,8 +63,7 @@ describe('the append-ordering unique, which a real code path branches on', () =>
   it('lets legacy seq-less messages coexist, which is what the partial predicate documents', async () => {
     /**
      * The fixture that exercises the decision: TWO rows with no `seq` in one
-     * `(user, conversation)`. Mongo needed `partialFilterExpression` to permit
-     * this; Postgres treats NULLs as distinct and would permit it with or
+     * `(user, conversation)`. Postgres treats NULLs as distinct and would permit it with or
      * without the `WHERE`, which is exactly why the schema comment says the
      * predicate documents intent rather than enforcing anything. The test is
      * still worth having — it fails if somebody makes `seq` NOT NULL, or
@@ -95,7 +94,7 @@ describe('content is genuinely polymorphic, which is why it is jsonb', () => {
     `);
 
     /**
-     * Mongoose `Mixed`: `routes/conversations.ts` forwards whatever the AI SDK
+     * Polymorphic: `routes/conversations.ts` forwards whatever the AI SDK
      * client sent. Asserting the two JSON TYPES is what distinguishes a column
      * that really holds both from one that quietly stringified the array.
      */

@@ -184,7 +184,7 @@ describe('reading an organization requires membership, of any role', () => {
     }
 
     // 403, not 404: the caller learns nothing about whether the organization
-    // exists, which is the same answer the Mongo routes gave.
+    // exists.
     expect((await call('GET', `/organization/${id}`, OUTSIDER)).status).toBe(403);
     expect((await call('GET', `/organization/${id}/members`, OUTSIDER)).status).toBe(403);
     expect((await call('GET', `/organization/${id}/agents`, OUTSIDER)).status).toBe(403);
@@ -453,9 +453,8 @@ describe('removing a member', () => {
 
   it('refuses a member id belonging to ANOTHER organization', async () => {
     /**
-     * The cross-tenant write the Mongo route allowed: it checked that the caller
-     * administered the organization in the URL and then looked the member up by
-     * id alone. End to end, because the fix has to hold at the route the request
+     * The cross-tenant write: checking that the caller administers the
+     * organization in the URL and then looking the member up by id alone. End to end, because the fix has to hold at the route the request
      * actually reaches.
      */
     const mine = await aStaffedOrganization();
@@ -536,8 +535,8 @@ describe('the agents an organization shares', () => {
     const served = listed.body.agents as { _id: string; id: string; name: string }[];
     /**
      * The ORDER is the route's, not the query's. `listSharedAgentIds` sorts by
-     * when the agent was SHARED — which is what the Mongo `.sort({ createdAt: -1 })`
-     * sorted by, the join row's timestamp rather than the agent's — while
+     * when the agent was SHARED — the join row's timestamp rather than the
+     * agent's — while
      * `findAgentsByIds` is an `inArray` with no `ORDER BY` at all, so Postgres may
      * answer in any order. Serving that directly reshuffles the list on an
      * unrelated day: nobody reports it and nobody can reproduce it.
@@ -558,9 +557,8 @@ describe('the agents an organization shares', () => {
   it('drops a share whose agent no longer exists, rather than serving a null', async () => {
     /**
      * `organization_agents.agent_id` carries no foreign key — `agents` was a
-     * later batch — so a share can outlive its agent. Mongo `.populate()` yielded
-     * null and the route filtered it; `findAgentsByIds` answers with the agents
-     * that exist, which is the same set, and this is what says so.
+     * later batch — so a share can outlive its agent. `findAgentsByIds` answers
+     * with the agents that exist, and this is what says so.
      */
     const id = await aStaffedOrganization();
     await seedAgent(FIRST, 'oxy-bot-orgauth-first');
@@ -596,7 +594,7 @@ describe('the agents an organization shares', () => {
     expect((await call('DELETE', `/organization/${id}/agents/${FIRST}`, MEMBER)).status).toBe(403);
 
     expect((await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST })).status).toBe(200);
-    // Idempotent, as the Mongo upsert was.
+    // Idempotent.
     expect((await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST })).status).toBe(200);
     expect((await call('DELETE', `/organization/${id}/agents/${FIRST}`, ADMIN)).status).toBe(200);
     // And the second removal finds nothing to remove.
@@ -619,8 +617,7 @@ describe('an invitation link is redeemable by whoever holds it', () => {
     const info = await call('GET', '/organization/invites/orgauth-token-flow/info', OUTSIDER);
     expect(info.status).toBe(200);
     const preview = info.body.invite as { organization: Record<string, unknown> };
-    // The projection the Mongo `.populate('organizationId', 'name slug image')`
-    // served, and no more: anyone holding a token reaches this endpoint.
+    // The projection `name`, `slug`, `image` and no more: anyone holding a token reaches this endpoint.
     expect(Object.keys(preview.organization).sort()).toEqual(['_id', 'image', 'name', 'slug']);
 
     const accepted = await call('POST', '/organization/invites/orgauth-token-flow/accept', OUTSIDER);

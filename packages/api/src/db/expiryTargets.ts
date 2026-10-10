@@ -1,19 +1,18 @@
 /**
- * Expiry Sweep Registry — the replacement for this service's Mongo TTL indexes.
+ * Expiry Sweep Registry — this service's retention rules.
  *
- * Postgres has no TTL index. Mongo reaped; Postgres does not. A table ported
- * without an entry here grows FOREVER — no error, no failing test, no symptom of
+ * Postgres has no TTL index. A table with a retention rule and no entry here
+ * grows FOREVER — no error, no failing test, no symptom of
  * any kind until disk — and it is invisible in review, because the thing doing
  * the work was never in this codebase to be seen going missing.
  *
- * `db/__tests__/ttlRegistryCoverage.test.ts` is what stops that: it WALKS the
- * Mongoose schemas for `expireAfterSeconds` declarations and fails when one has
- * no entry here. A hand-maintained list only ever falls as far behind as the
- * last time somebody remembered it.
+ * `db/__tests__/ttlRegistryCoverage.test.ts` is what stops that: it holds the
+ * closed record of declared TTL rules and fails when one has no entry here, or
+ * an entry measures the wrong column or retention.
  *
  * The active registry covers API usage, notifications, moderation, OAuth state
- * and organization invites. Historical Mongo TTL models whose tables have since
- * been dropped (hosted-provider telemetry, auth health counters, routing logs,
+ * and organization invites. Retention rules whose tables have since been
+ * dropped (hosted-provider telemetry, auth health counters, routing logs,
  * legacy trigger runs) have no entry because there is nothing left to sweep.
  *
  * ## The one that cannot be copied, and what to do about it
@@ -28,17 +27,16 @@
  * CONDITION a COLUMN: a `dismissed_at` written only on dismissal, swept at 90
  * days from IT, with a CHECK binding it to `status = 'dismissed'` so the sweep
  * cannot drift from the condition it replaced. A row never dismissed has NULL
- * and is never swept. That is also more correct than the original — Mongo
- * measured from `createdAt`, so a notification dismissed on day 89 vanished the
- * next day while one dismissed on day 1 survived another 89.
+ * and is never swept. Measuring from `createdAt` instead would make a
+ * notification dismissed on day 89 vanish the next day while one dismissed on
+ * day 1 survived another 89.
  *
- * Mercaria's `packages/backend/src/db/expiryTargets.ts` is the reference. This
- * lands with the notifications batch; the coverage test already knows about it.
+ * Mercaria's `packages/backend/src/db/expiryTargets.ts` is the reference.
  *
  * ## Every entry is checked for INTENT, not just replicated
  *
- * A Mongo TTL index DELETES, unconditionally, once the deadline passes. The
- * per-entry comments below say why that is safe for each table.
+ * A sweep DELETES, unconditionally, once the deadline passes. The per-entry
+ * comments below say why that is safe for each table.
  */
 
 import type { ExpirySweepTarget } from '@oxy.so/db/expiry';
@@ -59,9 +57,8 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
   {
     table: apiKeyUsage,
     /**
-     * `timestamp`, NOT a `created_at` — this table has none. Its Mongoose schema
-     * sets `timestamps: false`, so the event time is the only clock it carries
-     * and the sweep measures from the same column the TTL index did.
+     * `timestamp`, NOT a `created_at` — this table has none, so the event time is
+     * the only clock it carries.
      */
     column: apiKeyUsage.timestamp,
     retentionSeconds: 90 * DAY,
@@ -71,7 +68,7 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
   {
     table: notifications,
     /**
-     * **The conditional TTL, made expressible.** Mongo swept
+     * **The conditional TTL, made expressible.** The rule is
      * `{createdAt: 1}, 90d, partialFilterExpression: {status: 'dismissed'}` —
      * `ExpirySweepTarget` has no predicate, so the entry its type permits would
      * have deleted every notification older than 90 days, dismissed or not.
@@ -80,10 +77,9 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
      * dismissal, bound to `status` by a CHECK so the two cannot drift. A row
      * never dismissed has NULL and is never swept.
      *
-     * This is deliberately MORE correct than the original, and the one real
-     * behaviour change in the port: Mongo measured from `created_at`, so a
-     * notification dismissed on day 89 vanished the next day while one dismissed
-     * on day 1 survived another 89.
+     * Measuring from `created_at` instead would make a notification dismissed on
+     * day 89 vanish the next day while one dismissed on day 1 survived another
+     * 89.
      */
     column: notifications.dismissedAt,
     retentionSeconds: 90 * DAY,
@@ -123,7 +119,7 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
      * **The only entry in this registry measuring a NON-ZERO retention from a
      * DEADLINE column, and both ways of "correcting" it destroy data.**
      *
-     * Mongo: `{expiresAt: 1}, expireAfterSeconds: 30 days` — a row leaves 30 days
+     * The rule: `{expiresAt: 1}, expireAfterSeconds: 30 days` — a row leaves 30 days
      * AFTER its own expiry. Every other `expires_at` target here
      * (`cache_entries`, and the two moderation tables) is retention ZERO, so the
      * pattern a reader arrives with is the wrong one:

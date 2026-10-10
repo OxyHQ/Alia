@@ -3,8 +3,7 @@
  *
  * One table, one consumer: `lib/autonomy/context-graph.ts` reads them into a
  * recall result and writes one when a user corrects the assistant. It sits
- * beside `contextGraphRepository.ts` because that file's header already named
- * this table as the last thing keeping `mongoose` in `context-graph.ts`.
+ * beside `contextGraphRepository.ts`, which serves the same consumer.
  */
 
 import { and, desc, eq, or } from 'drizzle-orm';

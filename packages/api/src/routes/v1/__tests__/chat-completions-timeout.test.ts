@@ -77,7 +77,7 @@ vi.mock('../../../db/agents/skillRepository.js', () => ({
 /**
  * `getDb()` is mocked to `{}` above, so an unmocked repository call would throw
  * on `db.select` inside a `catch`-wrapped save and quietly change what this
- * suite observes. Stubbed at the module boundary, as the Mongoose model was.
+ * suite observes. Stubbed at the module boundary.
  */
 vi.mock('../../../db/chat/conversationRepository.js', () => ({
   conversationExists: vi.fn(async () => false),

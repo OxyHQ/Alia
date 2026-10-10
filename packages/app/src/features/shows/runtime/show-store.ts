@@ -7,7 +7,7 @@
  * places. The API has answered `id` since the Postgres port, so every one of
  * those reads was `undefined` — which does not throw: `keyExtractor` returned
  * undefined for every row, and a delete posted to `/v1/shows/undefined`. A
- * Mongo leftover that survived because nothing about it looks broken until you
+ * leftover that survived because nothing about it looks broken until you
  * check what the server actually sends.
  *
  * ## The audio is Syra's, so no `audioUrl` reaches here

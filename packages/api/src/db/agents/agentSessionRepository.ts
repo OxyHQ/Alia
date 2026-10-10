@@ -3,7 +3,7 @@
  *
  * ## The runner mutates a DOCUMENT; this file exposes STATEMENTS
  *
- * `lib/agent/runner.ts` was written against a hydrated Mongoose document — it
+ * `lib/agent/runner.ts` was written against a hydrated document — it
  * assigns `session.status`, `session.stats.totalSteps` and calls `save()`
  * eleven times across one run. That
  * surface has no Postgres counterpart, and reproducing it (a dirty-tracking
@@ -177,7 +177,7 @@ function toStats(row: AgentSessionRow): AgentSessionStats {
 }
 
 function toCreditReservation(row: AgentSessionRow): AgentSessionCreditReservation | undefined {
-  // `default: undefined` in Mongoose, so the group is absent or whole. The
+  // An optional group, so it is absent or whole. The
   // account id is the member every writer sets first, and it is `notNull` in
   // every write path here, so it is the one the absence test reads.
   if (row.creditReservationOxyUserId === null) return undefined;
@@ -413,10 +413,9 @@ const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'] as const;
 /**
  * The account's finished sessions, newest completion first.
  *
- * `stats.completedAt` is nullable and Mongo sorted `{'stats.completedAt': -1,
- * createdAt: -1}`, which put missing values LAST — Mongo sorts null before
- * everything on ascending, so descending puts it after. Postgres defaults the
- * other way (`NULLS FIRST` on DESC), so `nulls last` is spelled out; without it
+ * `stats.completedAt` is nullable and the order is completion DESC then
+ * `createdAt` DESC, with missing values LAST. Postgres defaults the other way
+ * (`NULLS FIRST` on DESC), so `nulls last` is spelled out; without it
  * a cancelled session that never completed would head the page.
  */
 export async function listAgentSessionHistory(
@@ -703,8 +702,8 @@ export async function createAutomationStageSession(
  *
  * `plan: null` CLEARS both plan columns, which the CHECK requires and which
  * `runner.ts` does when it finds a malformed plan. `plan: undefined` means "do
- * not touch" — `$set: {x: undefined}` is a no-op in Mongo and writes NULL here,
- * so the two have to stay distinguishable and the SET clause is built from
+ * not touch" — an `undefined` in the SET clause would write NULL, so the two
+ * have to stay distinguishable and the SET clause is built from
  * DEFINED keys only.
  */
 export interface UpdateAgentSessionInput {
@@ -741,8 +740,8 @@ function buildSessionPatch(input: UpdateAgentSessionInput): Record<string, unkno
 /**
  * Patch a session. Returns the matched count, never the row.
  *
- * `rowCount` behaves like Mongo's `matchedCount` rather than `modifiedCount`, so
- * a patch that changes nothing still reports one — which is what every caller
+ * `rowCount` counts rows MATCHED rather than rows changed, so a patch that
+ * changes nothing still reports one — which is what every caller
  * here wants, since they all already hold the values they just wrote.
  */
 export async function updateAgentSession(

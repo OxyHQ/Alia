@@ -491,8 +491,8 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
  * account is not an edit, it is a different agent.
  *
  * Every member is optional and `undefined` never reaches the repository, which
- * builds its SET clause from DEFINED keys only: `{ x: undefined }` is a no-op
- * in Mongo and a NULL write in Postgres.
+ * builds its SET clause from DEFINED keys only: `{ x: undefined }` would be a
+ * NULL write.
  */
 const updateAgentSchema = z
   .object({

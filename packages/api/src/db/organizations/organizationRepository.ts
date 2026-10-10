@@ -2,16 +2,13 @@
  * Organizations, their members, their invitations and the agents they share, on
  * Postgres.
  *
- * ## Every membership read is scoped by organization, and the Mongo code was not
+ * ## Every membership read is scoped by organization
  *
- * `routes/organization.ts` used to reach a member row by id alone —
- * `OrganizationMember.findByIdAndUpdate(memberId, { role })`,
- * `findById(memberId)`, `findByIdAndDelete(memberId)` — after checking only that
- * the CALLER was an owner or admin of the organization in the URL. The member id
- * was never checked against that organization, so an owner of one organization
- * could pass the id of a member of another and change or delete that row. That
- * is cross-tenant privilege escalation, not merely an IDOR, and it is fixed here
- * rather than at the route: every function taking a member id also takes the
+ * Reaching a member row by id alone — after checking only that the CALLER is an
+ * owner or admin of the organization in the URL — would let an owner of one
+ * organization pass the id of a member of another and change or delete that
+ * row. That is cross-tenant privilege escalation, not merely an IDOR, and it is
+ * prevented here rather than at the route: every function taking a member id also takes the
  * organization it must belong to, so the pattern cannot be lost by reaching for
  * a conveniently narrower one. `organizationRepository.pgdb.test.ts` holds the
  * regression.
@@ -22,10 +19,10 @@
  * hands a route somebody else's membership row to filter in JavaScript, so a
  * future leak cannot be one forgotten `if`.
  *
- * ## `id` is a uuid v7 string, where Mongo had an ObjectId
+ * ## `id` is a uuid v7 string
  *
- * An organization or member id from an OLD client is an ObjectId hex string that
- * matches nothing — a 404 rather than the CastError Mongoose threw.
+ * An organization or member id from an OLD client is a 24-character hex string
+ * that matches nothing — a 404.
  */
 
 import { and, desc, eq, gt, sql } from 'drizzle-orm';
@@ -133,10 +130,10 @@ export function toMemberResponse(row: OrganizationMemberRow): OrganizationMember
  * An invitation as a LIST serves it — without the token.
  *
  * `token` is a live bearer credential: whoever holds it joins the organization,
- * and the schema comment for this table says so beside the column. The Mongo
- * route served the whole document from `GET /:id/invites`, which put an
- * unexpired join-link for the organization into every administrator's browser
- * cache and every proxy between. Measured before narrowing it: `useOrgInvites`
+ * and the schema comment for this table says so beside the column. Serving the
+ * whole row from `GET /:id/invites` would put an unexpired join-link for the
+ * organization into every administrator's browser cache and every proxy
+ * between. Measured before narrowing it: `useOrgInvites`
  * in `packages/app` has **zero** call sites, so nothing reads it. The one response that must carry
  * a token is the CREATE, which is where the inviter is handed the link, and that
  * route builds its own literal.
@@ -179,8 +176,7 @@ const memberCountOf = sql<number>`(
  * Every organization this account belongs to, newest first, with its own role
  * and the total membership.
  *
- * One statement where Mongo took three (memberships, organizations, a
- * `$group` aggregate). The join IS the membership filter, so an organization the
+ * One statement. The join IS the membership filter, so an organization the
  * caller does not belong to cannot appear.
  */
 export async function listOrganizationsForMember(
@@ -311,10 +307,9 @@ export async function createOrganization(
 /**
  * What a caller may change about an organization.
  *
- * `settings` is nested rather than flattened BECAUSE the Mongo statement was
- * `$set: { settings: { … } }`, which replaced the whole sub-document: a PATCH
- * carrying only `billingEmail` cleared `apiCallLimit`. Flattening it here would
- * quietly turn that into a partial update — a behaviour change invisible in
+ * `settings` is nested rather than flattened BECAUSE an update replaces the whole
+ * settings block: a PATCH carrying only `billingEmail` clears `apiCallLimit`.
+ * Flattening it here would quietly turn that into a partial update — a behaviour change invisible in
  * review and untestable from the column list. {@link updateOrganization}
  * reproduces the replacement, and the pgdb suite pins it.
  *
@@ -336,9 +331,9 @@ export interface OrganizationUpdate {
 /**
  * Apply an update, or `null` when no such organization exists.
  *
- * The SET clause is built from DEFINED keys only. `$set: { x: undefined }` is a
- * no-op in Mongo and writes NULL in Postgres, so spreading the parsed body would
- * erase whatever the caller did not mention.
+ * The SET clause is built from DEFINED keys only. An `undefined` value would
+ * write NULL, so spreading the parsed body would erase whatever the caller did
+ * not mention.
  */
 export async function updateOrganization(
   db: ApiDatabase,
@@ -371,10 +366,10 @@ export async function updateOrganization(
  * Its members, invitations and shared agents go with it through
  * `ON DELETE CASCADE`, which is asserted directly in
  * `db/__tests__/organizations.pgdb.test.ts` ("removes members, invites and
- * shared agents when the organization goes"). The Mongo route deleted the
- * members by hand and LEAKED the invitations and the shared agents — a live
- * invitation token to a deleted organization outlived it — so this is a fix
- * carried by the schema rather than a redundancy removed from the route.
+ * shared agents when the organization goes"). Deleting the members by hand
+ * would LEAK the invitations and the shared agents — a live invitation token to
+ * a deleted organization would outlive it — so the schema carries this rather
+ * than the route.
  */
 export async function deleteOrganization(
   db: ApiDatabase,
@@ -503,10 +498,8 @@ export interface CreateInviteInput {
 /**
  * Issue an invitation.
  *
- * `email` is deliberately not a parameter. The Mongoose field carried
- * `lowercase`/`trim` setters and no route ever wrote it — the console posts an
- * `email` that the route's zod schema drops — so adding a writer here would be
- * inventing a feature during a port. If one is added later it normalises at this
+ * `email` is deliberately not a parameter. No route writes it — the console
+ * posts an `email` that the route's zod schema drops. If one is added later it normalises at this
  * call site, per the schema comment; no index depends on the normalisation.
  */
 export async function createInvite(
@@ -605,10 +598,10 @@ export type AcceptInviteResult =
  *
  * ## The duplicate membership is handled by the STATEMENT, not by a catch
  *
- * Mongo read the membership first and, on a hit, marked the invitation accepted
- * and answered 400. That read-then-write is a race, and the Mongo idiom it
- * invites — insert, catch E11000, treat it as "already done" — does not port:
- * inside a transaction the raised error aborts every later statement (`25P02`),
+ * Reading the membership first and, on a hit, marking the invitation accepted
+ * is a read-then-write race, and the idiom it invites — insert, catch the
+ * duplicate-key error, treat it as "already done" — does not work here: inside
+ * a transaction the raised error aborts every later statement (`25P02`),
  * so the invitation could not then be marked accepted, and a catch cannot tell a
  * duplicate from a dropped connection. `ON CONFLICT DO NOTHING RETURNING` on
  * `organization_members_org_user_key` answers the same question with no error to
@@ -725,10 +718,9 @@ export async function revokeInvite(
 /**
  * Share an agent into an organization.
  *
- * `ON CONFLICT DO NOTHING` where Mongo used an upsert with `$setOnInsert`: the
- * unique index is `organization_agents_org_agent_key`, sharing twice is a no-op,
+ * `ON CONFLICT DO NOTHING`: the unique index is `organization_agents_org_agent_key`, sharing twice is a no-op,
  * and `added_by` keeps naming whoever shared it first. The route answers
- * `{ added: true }` either way, exactly as the upsert did.
+ * `{ added: true }` either way.
  */
 export async function shareAgentWithOrganization(
   db: ApiDatabase,

@@ -3,34 +3,31 @@
  *
  * ## Three write counts, three different answers
  *
- * Mongo reports `matchedCount` AND `modifiedCount`; Postgres reports only
- * `rowCount`, which behaves like `matchedCount`. Every caller here read
- * `modifiedCount`, and they do NOT all port the same way — it is a per-call-site
- * decision, and getting one backwards 404s a retry or succeeds where it should
- * not.
+ * Postgres reports only `rowCount`, the number of rows MATCHED. Every caller
+ * here wants the number of rows CHANGED, and they do NOT all get it the same
+ * way — it is a per-call-site decision, and getting one backwards 404s a retry
+ * or succeeds where it should not.
  *
- *  - **`markAsRead`** set `status` AND `read_at: new Date()`. The timestamp
- *    differs on every call, so a repeat DID modify the document and
- *    `modifiedCount` was already behaving like `matchedCount`. `rowCount` is
- *    faithful with no predicate.
- *  - **`markAllAsRead`** filtered `status in ('pending','sent')` and set
- *    `status = 'read'`, so every matched row changes. `rowCount` is faithful —
+ *  - **`markAsRead`** sets `status` AND `read_at: new Date()`. The timestamp
+ *    differs on every call, so a repeat DOES change the row. `rowCount` is
+ *    right with no predicate.
+ *  - **`markAllAsRead`** filters `status in ('pending','sent')` and sets
+ *    `status = 'read'`, so every matched row changes. `rowCount` is right —
  *    the narrowed-filter case.
- *  - **`dismissNotification`** set `status` and NOTHING else. Dismissing an
- *    already-dismissed notification matched but modified nothing, so Mongo
- *    returned 0 and the route answered 404. A bare `rowCount` would return 1 and
- *    answer success. The filter is narrowed with `status <> 'dismissed'` to
- *    reproduce it — which is also what keeps `dismissed_at` from being ADVANCED
+ *  - **`dismissNotification`** sets `status` and NOTHING else. Dismissing an
+ *    already-dismissed notification changes nothing and the route answers 404.
+ *    A bare `rowCount` would return 1 and answer success. The filter is narrowed
+ *    with `status <> 'dismissed'` to keep that — which is also what keeps `dismissed_at` from being ADVANCED
  *    by a second dismissal, and the 90-day sweep measures from that column.
  *
  * ## `dismissed_at` is a CHECK, so a status transition has to carry it
  *
  * `(status = 'dismissed') = (dismissed_at is not null)`. Two consequences the
- * port has to honour or the route 500s:
+ * writers have to honour or the route 500s:
  *
  *  - dismissing must WRITE `dismissed_at`;
- *  - marking a DISMISSED notification as read must CLEAR it. Mongo allowed that
- *    transition (`markAsRead` has no status filter), and leaving the column set
+ *  - marking a DISMISSED notification as read must CLEAR it. That transition is
+ *    allowed (`markAsRead` has no status filter), and leaving the column set
  *    would violate the constraint. Clearing it is the honest answer: the row is
  *    no longer dismissed, so it is no longer awaiting a dismissal sweep.
  */
@@ -168,8 +165,8 @@ export async function countUnread(db: ApiDatabase, oxyUserId: string): Promise<n
 /**
  * Mark one notification read.
  *
- * `dismissed_at` is CLEARED, because the CHECK binds it to the status and Mongo
- * permitted dismissed -> read. No status predicate: the source had none, and
+ * `dismissed_at` is CLEARED, because the CHECK binds it to the status and
+ * dismissed -> read is permitted. No status predicate, and
  * `read_at` changes on every call so a repeat legitimately reports success.
  */
 export async function markNotificationRead(

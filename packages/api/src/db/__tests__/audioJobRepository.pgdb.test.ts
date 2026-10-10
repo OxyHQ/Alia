@@ -18,7 +18,7 @@ import {
  * ## This file OWNS `audio_jobs`, and that is load-bearing
  *
  * `failOrphanedAudioJobs` is deliberately UNSCOPED — it fails every stalled job
- * in the table, as the Mongoose static did, because a crashed process leaves
+ * in the table, because a crashed process leaves
  * orphans belonging to whoever happened to be generating. That makes its
  * returned count a property of the whole table, and realdb files share ONE
  * database per run: a sibling file inserting a `processing` row older than five
@@ -149,9 +149,8 @@ describe('polling is scoped to the account that owns the job', () => {
 
   it('answers a malformed id with a miss rather than raising', async () => {
     /**
-     * Under Mongo `_id` was an `ObjectId`, so a junk `jobId` threw a `CastError`
-     * that the route turned into a 500. `id` is `text` here, so it simply fails
-     * to match — the caller gets the 404 it deserved. A behaviour change, in the
+     * `id` is `text`, so a junk `jobId` simply fails to match — the caller gets
+     * a 404. A behaviour change, in the
      * direction of the status code the route always meant.
      */
     await expect(findAudioJobStatus(db, 'not-an-id-at-all', USER)).resolves.toBeNull();
@@ -191,8 +190,8 @@ describe('the orphan sweep', () => {
 
   it('is not a `matchedCount` in disguise — the REPEAT is the discriminator', async () => {
     /**
-     * Mongo reported `modifiedCount`; Postgres reports only `rowCount`, which
-     * behaves like `matchedCount`. A SINGLE call returns the same answer under
+     * The sweep wants rows CHANGED; Postgres reports only `rowCount`, the
+     * matched count. A SINGLE call returns the same answer under
      * either meaning, so it cannot tell them apart — only a repeat can.
      *
      * They agree here because the filter guarantees it: the statement selects

@@ -17,7 +17,7 @@ image and the environment contract below. Runtime secret values live only in SSM
 - **Redis or Valkey, optional.** Without `REDIS_URL`, BullMQ tasks run inline and rate
   limiting fails open.
 
-There is no MongoDB precondition. See *Database* below.
+PostgreSQL is the only database precondition. See *Database* below.
 - **Object storage, required for uploads.** S3 or a compatible endpoint.
 
 ## Database
@@ -28,17 +28,10 @@ migrated by `packages/api/src/db/migrate.ts`, which requires an explicit
 migration; a zero-capacity deploy exits before the post-migration step, so a `post`
 migration does not land on one.
 
-MongoDB is not part of this service. `lib/db.ts`, the boot-time `connectDB()` and
-the last backup-only operator script are deleted; no Mongoose model is
-registered and no Mongo driver is declared. The old script could not reach the
-destroyed source database and was not a restore or backfill path.
-
-`packages/api/src/db/__tests__/bootWiring.test.ts` asserts the boundary twice:
-it walks the import graph from `src/index.ts`, and it scans every tracked source
-file plus the package manifest for either Mongo driver. The first protects a
-request in production; the second catches a model declared today and routed
-next week. The pre-drop archive is external retention data and was not modified
-by this repository cleanup.
+PostgreSQL is the only store this service opens.
+`packages/api/src/db/__tests__/bootWiring.test.ts` pins the boot wiring: the boot
+guards run before the socket opens, and the expiry sweeper and background services
+start unconditionally.
 
 The `integrations` service is a separate process with its own manifest.
 
@@ -252,10 +245,8 @@ number in a document drifts with every edit above it):
 4. Start the expiry sweeper, which deletes rows whose retention has passed. It depends only
    on PostgreSQL.
 5. Start the background services — the trigger engine, the moderation-outbox dispatcher,
-   and both queues — unconditionally. These were gated on a MongoDB
-   connection resolving, which after the decommission it never did, so none of them had run
-   in production since; the gate is gone rather than relaxed, and each one self-gates on the
-   dependency it actually reads.
+   and both queues — unconditionally. Each one self-gates on the dependency it actually
+   reads.
 6. Check Redis connectivity asynchronously; without `REDIS_URL`, rate limiting
    is disabled and the service records that state without inventing another
    inference path.

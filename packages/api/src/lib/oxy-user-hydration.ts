@@ -2,18 +2,16 @@
  * Resolving an Oxy account id to something renderable.
  *
  * Alia stores `oxyUserId` / `userId` as a bare id and Oxy owns the identity
- * behind it. Several models declare `ref: 'User'` on those fields, which is a
- * Mongoose instruction to join against a model this service does not have and
- * never will — Oxy is a separate service reached over HTTP, and a local `User`
- * collection would be a cache free to disagree with it.
+ * behind it. There is no local `User` table to join against, and there never
+ * will be — Oxy is a separate service reached over HTTP, and a local copy would
+ * be a cache free to disagree with it.
  *
- * `.populate()` on such a field throws `MissingSchemaError`, but ONLY once there
- * is at least one document to populate: with an empty result set Mongoose never
- * reaches for the model and the query resolves normally. That is why the fault
- * survived — a fresh organization and an unreviewed agent both work, and the
- * endpoint starts failing the moment the feature is used.
+ * A join against such a table fails ONLY once there is at least one row to
+ * join, which is why that kind of fault survives — a fresh organization and an
+ * unreviewed agent both work, and the endpoint starts failing the moment the
+ * feature is used.
  *
- * This module is the replacement. It reads through `users.getMany`, the batch
+ * This module resolves accounts instead. It reads through `users.getMany`, the batch
  * endpoint built for exactly this fan-out, so a page of twenty reviews costs one
  * round trip rather than twenty.
  */
@@ -26,11 +24,9 @@ import { oxyServiceClient } from './oxy-service-client.js';
 /**
  * What a caller may render for an account.
  *
- * `_id` rather than `id` because it stands where a populated Mongoose document
- * did, and the clients already read `.userId._id`.
+ * `_id` rather than `id` because the clients already read `.userId._id`.
  *
- * Deliberately NOT carrying `email`. The removed `.populate()` calls asked for
- * it, but `/users/by-ids` answers with the PUBLIC profile and does not serve
+ * Deliberately NOT carrying `email`. `/users/by-ids` answers with the PUBLIC profile and does not serve
  * addresses to a third party — and a member list is read by every member of an
  * organization, so this is the correct projection rather than a limitation to
  * work around. Nothing regresses: the populate never once succeeded, so no

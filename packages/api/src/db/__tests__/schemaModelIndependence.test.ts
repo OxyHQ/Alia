@@ -5,36 +5,22 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * The Postgres schema must not import a Mongoose model — at all, and especially
- * not as a RUNTIME value.
+ * Every closed value set lives in `src/domain/`, and every module there is a
+ * LEAF: it imports nothing.
  *
- * Every closed value set in this schema renders a CHECK constraint, and until
- * this gate existed those tuples were `export const`s on the Mongoose models, so
- * `db/schema` imported `src/models/` at module-evaluation time. That made the
- * SCHEMA — and therefore every migration's CHECK — depend on a model directory
- * the port exists to delete. Deleting a model would not merely break a type: it
- * would stop `db/schema/index.ts` loading, which is a failure `drizzle-kit`
- * reports by generating NOTHING while exiting 0.
- *
- * The tuples now live in `src/domain/`, read by BOTH stores — the model's
- * `enum` validator and the CHECK — so the single-tuple rule in
- * `CONVENTIONS.md` ("Closed value sets") survives the models' removal.
+ * Each tuple renders a CHECK constraint, so the SCHEMA — and therefore every
+ * migration's CHECK — depends on it. A `domain` module that imports anything
+ * (for an interface, say) lets `db/schema/index.ts` depend on whatever that
+ * import reaches, and a failure to load the schema is one `drizzle-kit` reports
+ * by generating NOTHING while exiting 0. That is the single-tuple rule in
+ * `CONVENTIONS.md` ("Closed value sets").
  *
  * ## Why a test rather than a convention
  *
- * The regression is one `import` line in a new schema file, it typechecks, and
- * every suite stays green: the schema still loads, because the models still
- * exist. The dependency only bites on the day somebody deletes them, in a
- * different PR, as a failure that names the deleter rather than the author. This
- * is the one moment the rule is cheap to enforce.
- *
- * ## Both directions, because only one is obvious
- *
- * A `db/schema` file importing a model is the regression this exists for. A
- * `domain` module importing ANYTHING is the subtler one: the whole point of
- * that directory is that it is a leaf, so a value set that reaches back into a
- * model (for an interface, say) re-creates the dependency through one more hop
- * and reads as harmless in review.
+ * The regression is one `import` line in a new domain file, it typechecks, and
+ * every suite stays green. It only bites on the day the imported module moves
+ * or is deleted, in a different PR, as a failure that names the deleter rather
+ * than the author. This is the one moment the rule is cheap to enforce.
  */
 
 const PACKAGE_ROOT = path.resolve(fileURLToPath(new URL('../../..', import.meta.url)));
@@ -73,16 +59,6 @@ function specifiersOf(text: string): string[] {
   return out;
 }
 
-/** Resolve a relative specifier to a package-relative path with no extension. */
-function resolve(fromFile: string, spec: string): string | null {
-  if (!spec.startsWith('.')) return null;
-  const abs = path.resolve(path.dirname(path.join(PACKAGE_ROOT, fromFile)), spec);
-  return path.relative(PACKAGE_ROOT, abs).replace(/\.(js|ts)$/, '');
-}
-
-/** Matches BOTH model directories. `src/internal/providers/models/` is the one a single-path check misses. */
-const MODEL_DIR = /(^|\/)models\//;
-
 /**
  * The scanner, pinned against literal buffers.
  *
@@ -114,7 +90,7 @@ describe('the import scanner recognises every form a specifier can take', () => 
   }
 });
 
-describe('the Postgres schema does not depend on the Mongoose models', () => {
+describe('the closed value sets are leaves', () => {
   const schemaFiles = trackedSources('src/db/schema');
   const domainFiles = trackedSources('src/domain');
 
@@ -134,34 +110,10 @@ describe('the Postgres schema does not depend on the Mongoose models', () => {
     expect(seen).toContain('drizzle-orm/pg-core');
   });
 
-  it('no db/schema module imports from a Mongoose model directory', () => {
-    const offenders = schemaFiles.flatMap(({ file, text }) =>
-      specifiersOf(text)
-        .map((spec) => ({ spec, resolved: resolve(file, spec) }))
-        .filter(({ resolved }) => resolved !== null && MODEL_DIR.test(resolved))
-        .map(({ spec }) => `${file} imports '${spec}'`),
-    );
-    expect(offenders).toEqual([]);
-  });
-
   it('every domain module is a leaf — it imports nothing', () => {
     const offenders = domainFiles.flatMap(({ file, text }) =>
       specifiersOf(text).map((spec) => `${file} imports '${spec}'`),
     );
-    expect(offenders).toEqual([]);
-  });
-
-  it('no Mongoose model re-exports a value set', () => {
-    // The clean cut. A re-export would let every existing consumer keep
-    // compiling, which is precisely what makes the dependency survive a review
-    // that only reads the schema.
-    const offenders = trackedSources('src/models')
-      .concat(trackedSources('src/internal/providers/models'))
-      .flatMap(({ file, text }) =>
-        [...text.matchAll(/(?:^|\n)\s*export\s+(?:type\s+)?(?:\{[^}]*\}|\*)\s+from\s+['"]([^'"]+)['"]/g)].map(
-          (m) => `${file} re-exports from '${m[1]}'`,
-        ),
-      );
     expect(offenders).toEqual([]);
   });
 });

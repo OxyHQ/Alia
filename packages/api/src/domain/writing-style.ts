@@ -1,10 +1,7 @@
 /**
  * The analysed writing-style profile, and the thresholds that drive it.
  *
- * These lived in `models/user-memory.ts` alongside the Mongoose model, which is
- * why `lib/style/style-analyzer.ts`, `style-prompt.ts` and `style-refiner.ts`
- * imported a MODEL module while never touching the model. Nothing here is a
- * storage concern: `user_memories.writing_style` is `jsonb`, and this is the
+ * Nothing here is a storage concern: `user_memories.writing_style` is `jsonb`, and this is the
  * shape the application puts in and takes out.
  */
 

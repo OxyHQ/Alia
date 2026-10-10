@@ -128,10 +128,9 @@ function actionContext(): AgentRuntimeContext {
   const ctx = {
     session: {
       /**
-       * Plain STRINGS. These were `{toString: () => 'sess-ws13'}` doubles for
-       * Mongoose ObjectIds, and the code called `.toString()` on them; against
-       * `agent_sessions` they are `text` columns and the record carries them as
-       * they are, so a double that still needed stringifying would have written
+       * Plain STRINGS. `agent_sessions` ids are `text` columns and the record
+       * carries them as they are, so a `{toString}` double that needed
+       * stringifying would have written
        * the OBJECT into a rollback record and matched nothing.
        */
       _id: 'sess-ws13',

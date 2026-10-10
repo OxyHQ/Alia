@@ -13,9 +13,7 @@
  *    needs a SAVEPOINT — see `db/moderation/reportRepository.ts`.
  *
  * The value tuples are imported from `domain/`, never retyped here, so the CHECK
- * and the TypeScript union cannot drift. They were read off the Mongoose models
- * while both stores existed and moved to `domain/` when those were deleted —
- * one definition throughout, at no point duplicated.
+ * and the TypeScript union cannot drift — one definition, never duplicated.
  */
 
 import { boolean, check, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
@@ -37,10 +35,9 @@ export const MODERATION_ENFORCEMENT_MODES = ['observe', 'manual', 'automatic'] a
  * An abuse report.
  *
  * `UNIQUE(reporter, reported_type, reported_id)` is what makes a repeat
- * submission converge instead of creating a second case. Under Mongo the service
- * ALSO did a `findOne` first and threw with the existing document — a read that
- * only narrowed the race the index already closed. The Postgres port drops the
- * pre-check and handles the unique violation, which is both race-free and the
+ * submission converge instead of creating a second case. There is no `findOne`
+ * pre-check — a read that would only narrow the race the index already closes.
+ * The repository handles the unique violation, which is both race-free and the
  * reason the recovery read needs a savepoint.
  *
  * `categories` is `text[]`, not a child table: it is a small unordered set read
@@ -52,7 +49,7 @@ export const MODERATION_ENFORCEMENT_MODES = ['observe', 'manual', 'automatic'] a
 export const reports = pgTable(
   'reports',
   {
-    /** Mongo `_id`, preserved verbatim — CrowdSource holds these ids. */
+    /** Legacy hex id, preserved verbatim — CrowdSource holds these ids. */
     id: text().primaryKey(),
     reportedType: text({ enum: REPORTED_TYPES as [string, ...string[]] }).notNull(),
     reportedId: text().notNull(),
@@ -115,8 +112,7 @@ export const reports = pgTable(
     checkOneOf('reports_enforced_action_check', t.enforcedAction, MODERATION_ENFORCEMENT_ACTIONS),
     checkArrayWithin('reports_categories_check', t.categories, REPORT_CATEGORIES),
     // Cardinality, kept separate from membership: containment permits `{}`, and
-    // a report with no allegation is not a report. Mongoose expressed this as a
-    // custom validator, which did not run on updateOne at all.
+    // a report with no allegation is not a report.
     //
     // `cardinality`, NOT `array_length(col, 1)`. On an EMPTY array
     // `array_length` returns NULL, `NULL >= 1` is NULL, and a CHECK rejects only
@@ -258,8 +254,7 @@ export const moderationEnforcements = pgTable(
      * subject, which is what lets `restore` put back the value that was actually
      * there instead of guessing one.
      *
-     * Present in the Mongo model and missing here until the enforcement port —
-     * the kind of omission nothing catches, because a sequential scan over a
+     * An index whose absence nothing catches, because a sequential scan over a
      * small table returns exactly the right row. It only ever shows up as a slow
      * query years later, on the path a correction takes.
      */

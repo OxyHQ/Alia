@@ -102,24 +102,15 @@ interface PublishableState {
  * it back. Two branches of three lines each cost nothing and stay honest with
  * the schemas.
  *
- * ## There is no `isValidObjectId` here, and its whole lifetime is the lesson
+ * ## There is no id-shape guard here
  *
- * One guarded BOTH branches, at the top, back when both models were Mongoose.
- * It was moved into the agent branch when `skills` moved to Postgres, because a
- * skill row minted after that port carries a `generatedId()` uuid and
- * `isValidObjectId` REJECTS one — leaving it above both would have answered
- * "the reported object no longer exists" to every report about a skill made
- * from then on.
- *
- * Then `agents` moved too, and the same guard on the agent branch became the
- * same fault pointed the other way. So it is gone rather than moved again.
- *
- * Both failures are silent and permissive, and neither is visible to a test
- * whose fixtures predate the port it belongs to: while the rows are all
- * ObjectIds the guard is invisible, and by the time one is not, the endpoint is
- * quietly reporting that real objects do not exist. A shape-checking guard on an
- * id whose shape the storage layer owns has no correct resting place — the
- * lookup itself is the check, and a `text` column simply does not match.
+ * Ids are a mixture of 24-hex and `generatedId()` uuids. A guard accepting only
+ * one shape would answer "the reported object no longer exists" to every report
+ * about an object with the other — silently and permissively, while the
+ * endpoint quietly reports that real objects do not exist. A shape-checking
+ * guard on an id whose shape the storage layer owns has no correct resting
+ * place — the lookup itself is the check, and a `text` column simply does not
+ * match.
  */
 async function loadPublishable(
   subject: EnforcementSubject,
@@ -380,8 +371,7 @@ async function applyOne(
    * `decisionId + revision + action`, so losing this insert is the answer
    * "another delivery already handled it" and not an error.
    *
-   * `null` rather than a caught duplicate-key error, and that is the whole
-   * difference from the Mongo version: `ON CONFLICT DO NOTHING … RETURNING`
+   * `null` rather than a caught duplicate-key error: `ON CONFLICT DO NOTHING … RETURNING`
    * means no statement fails, so a genuine failure — a dropped connection, an
    * exhausted pool — still propagates instead of being read as "already
    * enforced" and silently retiring a decision nobody carried out.

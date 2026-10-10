@@ -6,16 +6,15 @@
  * here, and the consequence is that a thread delete removes its messages by
  * hand.
  *
- * ## `seq` decides the order, and NULL placement is where a port loses it
+ * ## `seq` decides the order, and NULL placement is easy to lose
  *
- * Mongo sorts a missing or null field BELOW every number in ASC and ABOVE none
- * in DESC. Postgres defaults to the opposite on both counts — `NULLS LAST` for
- * ASC, `NULLS FIRST` for DESC — so every ordering here spells its NULL placement
+ * A missing `seq` sorts BELOW every number: first in ASC, last in DESC.
+ * Postgres defaults to the opposite on both counts — `NULLS LAST` for ASC,
+ * `NULLS FIRST` for DESC — so every ordering here spells its NULL placement
  * out. Getting it wrong reorders somebody's conversation and raises no error.
  *
  * Legacy rows with no `seq` are real: `routes/webhooks.ts` appends bot turns
- * without one. They sort first, ahead of every numbered message, which is what
- * Mongo did.
+ * without one. They sort first, ahead of every numbered message.
  *
  * ## `agent_info` is four columns, and `content` is `jsonb`
  *
@@ -61,8 +60,8 @@ export interface MessageRow {
  *
  * ## The field the client reads is `id`, and it is the CLIENT's id
  *
- * Mongoose stored the AI SDK's client-assigned id in a field literally called
- * `id`, beside `_id`. `packages/app/src/features/chat/runtime/use-conversations.ts` declares
+ * The AI SDK's client-assigned id travels in a field literally called `id`,
+ * beside `_id`. `packages/app/src/features/chat/runtime/use-conversations.ts` declares
  * `Message.id` and `components/chat-interface.tsx:605` puts that value in the
  * vote URL, so `id` on the wire has to keep meaning the client's id — not the
  * row's primary key, which is what a naive `_id -> id` rename would have made
@@ -161,8 +160,8 @@ function toInsert(message: NewMessage): typeof messages.$inferInsert {
 /**
  * Every message in a thread, in the order the client should render them.
  *
- * `seq ASC NULLS FIRST` is Mongo's `sort({ seq: 1 })`, which put missing values
- * below every number; Postgres would put them last. `created_at` breaks ties
+ * `seq ASC NULLS FIRST` puts missing values below every number; Postgres's
+ * default would put them last. `created_at` breaks ties
  * among the legacy rows that have no `seq` at all.
  */
 export async function listMessages(
@@ -185,16 +184,14 @@ export async function listMessages(
  * Serves the bot webhooks, which feed the history straight to a model as
  * `{ role, content: string }`. The string narrowing is done by the DATABASE —
  * `jsonb_typeof(content) = 'string'` — for the same reason
- * `lib/style/style-refiner.ts` did it in Mongo with `{ $type: 'string' }`: a
- * parts array cannot be rendered as a chat line, and picking one up here would
+ * `lib/style/style-refiner.ts` needs it: a parts array cannot be rendered as a chat line, and picking one up here would
  * put `[object Object]` in a model's context. Bot threads are written only by
  * the webhook path, which stores strings, so this filter removes nothing that
  * exists today.
  *
  * The `desc` + reverse is the source's own shape. `created_at DESC` alone is not
  * a total order — two turns of one exchange can land in the same millisecond —
- * so `seq DESC NULLS LAST` breaks the tie ahead of it, matching Mongo's natural
- * order, and the webhook writers give their two turns distinct timestamps.
+ * so `seq DESC NULLS LAST` breaks the tie ahead of it, and the webhook writers give their two turns distinct timestamps.
  *
  * `#>> '{}'` unwraps the jsonb string to `text`. Measured: selecting the column
  * bare returns the same JS string, because postgres.js `JSON.parse`s `jsonb` and
@@ -459,8 +456,7 @@ export interface ThreadSearchHit {
  *    reserves credits.
  *  - It is a second store that grows without bound. `db/schema/context-graph.ts`
  *    already records that the autonomy graph mints a node per chat turn and that
- *    **nothing reaps them** — a problem ported from Mongo rather than
- *    introduced. Adding message embeddings would make that two, and the
+ *    **nothing reaps them**. Adding message embeddings would make that two, and the
  *    retention answer would still not exist.
  *
  * A `tsvector` index adds no new store: it indexes a column that is already
@@ -521,8 +517,7 @@ export async function searchThread(
 /**
  * The last message of a thread, as the append fast path reads it.
  *
- * `seq DESC NULLS LAST` is Mongo's `sort({ seq: -1 })`: descending, a number
- * outranks a null. Postgres's default for DESC is `NULLS FIRST`, so the naive
+ * `seq DESC NULLS LAST`: descending, a number outranks a null. Postgres's default for DESC is `NULLS FIRST`, so the naive
  * translation would hand back a legacy seq-less row as "the last one" and take
  * the append path against it.
  */
@@ -597,10 +592,8 @@ export async function messageExistsInConversation(
  * `23505` as "a concurrent append claimed this seq", falling back to a full
  * rewrite. So the error must NOT be swallowed here.
  *
- * One statement rather than a loop, which is also a behaviour change worth
- * naming: Mongo's `insertMany(…, { ordered: false })` kept the rows that did not
- * collide, while a multi-row INSERT is all-or-nothing. Nothing partial is what
- * the caller wants — it rewrites the whole thread on the error path — and a
+ * One statement rather than a loop, so a multi-row INSERT is all-or-nothing.
+ * Nothing partial is what the caller wants — it rewrites the whole thread on the error path — and a
  * half-written history was never a state anything could use.
  */
 export async function insertMessages(
@@ -634,23 +627,21 @@ export async function deleteMessages(
 /**
  * Replace a thread's messages with exactly this list.
  *
- * ## `seq` is assigned here, and the source assigned none
+ * ## `seq` is assigned here
  *
- * `POST /conversations` wrote its messages with no `seq` at all and then read
- * them back ordered by it. That worked on Mongo only because natural order
- * approximates insertion order; on Postgres a set of rows that tie on every
- * ORDER BY key comes back in whatever order the plan produces, so a saved
- * conversation could render scrambled with nothing to see in the data.
+ * `POST /conversations` reads its messages back ordered by `seq`. On Postgres a
+ * set of rows that tie on every ORDER BY key comes back in whatever order the
+ * plan produces, so without a `seq` a saved conversation could render scrambled
+ * with nothing to see in the data.
  *
  * The index within the list IS what `seq` means — `lib/conversation-saver.ts`
  * assigns exactly this on its own full-rewrite path — so the ordering the route
  * already assumed is made real rather than left to the planner. It also means a
  * concurrent second save collides on the unique instead of silently doubling
- * every message, which is what Mongo did here.
+ * every message.
  *
- * Delete and insert are one transaction: the source's `deleteMany().then(insertMany)`
- * could leave a thread empty if the insert failed, and there is no reason to keep
- * that.
+ * Delete and insert are one transaction, so a failed insert cannot leave a
+ * thread empty.
  */
 export async function replaceMessages(
   db: ApiDatabase,
@@ -685,13 +676,10 @@ export async function replaceMessages(
  *
  * ## Both spellings of "message id", and no ObjectId check
  *
- * The source matched `{ id }` OR `{ _id }`, guarding the second with
- * `mongoose.isValidObjectId` because a non-ObjectId string threw a CastError.
- * `id` is `text` here, so the comparison is simply a comparison and the guard
- * has nothing left to prevent — which is what removes the last `mongoose` import
- * from `routes/conversations.ts`.
+ * A message is matched by its client `id` OR its row `_id`. Both are `text`, so
+ * the comparison is simply a comparison and needs no format guard.
  *
- * Clearing is `vote = null`, the port of `$unset: { vote: 1 }`.
+ * Clearing is `vote = null`.
  */
 export async function voteMessage(
   db: ApiDatabase,

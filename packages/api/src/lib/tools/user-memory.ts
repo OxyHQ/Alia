@@ -175,11 +175,9 @@ export const updateUserMemoryTool = (oxyUserId: string) => tool({
         : null;
 
       /**
-       * The collision check stays, and is now belt AND braces. Mongo could not
-       * express a unique inside a sub-document array, so this in-JS lookup was
-       * the ONLY thing keeping titles distinct and two concurrent renames could
-       * both pass it. The functional unique now refuses the second write
-       * outright — but the check is kept because it produces this specific,
+       * The collision check is belt AND braces. This in-JS lookup alone is one
+       * two concurrent renames could both pass; the functional unique refuses
+       * the second write outright — but the check is kept because it produces this specific,
        * actionable message instead of a 500 from a constraint violation.
        */
       if (renamedTo) {

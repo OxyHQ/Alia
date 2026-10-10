@@ -20,7 +20,7 @@
       "Counts of call sites exclude comments only where stated. The provider-conditional census (`provider === '<name>'`) does not filter comments; its 6 hits were each read in context and all 6 are executable code.",
       "grep is line-based. A provider hostname split across a template-literal newline would not match. No such construction was found, but this is an unmeasured blind spot \u2014 the finding is 'not observed', not 'absent'.",
       "Reachability claims are STATIC (import graph + Express mount table). They do not account for a runtime `require`/`eval`. No dynamic module loading by string concatenation was found in packages/api/src.",
-      "Provider CREDENTIAL VALUES were not read. The store is asserted from the schema (provider_keys.key is a plaintext `text()` column) and from the deploy workflow's secret list; no live database was queried (Mongo is gone, Postgres not reachable from this box).",
+      "Provider CREDENTIAL VALUES were not read. The store is asserted from the schema (provider_keys.key is a plaintext `text()` column) and from the deploy workflow's secret list; no live database was queried (Postgres not reachable from this box).",
       "The `.do/app.yaml` DigitalOcean spec is present in the repo but the deploy pipeline is `.github/workflows/deploy-aws.yml` (ECS). Whether `.do/app.yaml` still governs a running DO app was NOT verified \u2014 that requires the DO dashboard, outside this read-only repo scan. It is reported as a hazard, not as live config."
     ],
     "residual": [
@@ -482,11 +482,11 @@
       "evidence": "packages/api/src/internal/providers/lib/seed-model-configs.ts:258 (definition, no callers); seed-plans.ts:157, seed-features.ts:241, seed-credit-packages.ts:27"
     },
     {
-      "id": "dead-providers-mongoose-db",
+      "id": "dead-providers-second-db",
       "kind": "module",
       "name": "internal/providers/lib/db.ts",
       "currentPath": "packages/api/src/internal/providers/lib/db.ts",
-      "summary": "A second mongoose.connect() using MONGODB_URI, left over from the alia-gateway split. Zero importers.",
+      "summary": "A second database connection using a legacy connection-string variable, left over from the alia-gateway split. Zero importers.",
       "proposedOwner": "delete",
       "targetPath": "delete",
       "dependsOn": [],
@@ -518,15 +518,15 @@
       "kind": "module",
       "name": "gateway-client importer: index.ts (warmupGatewayClient)",
       "currentPath": "packages/api/src/index.ts",
-      "summary": "INFRA. Calls warmupGatewayClient() at boot \u2014 but inside startBackgroundServices(), which only runs after a MongoDB connection succeeds. Mongo is gone, so this NEVER RUNS in production.",
+      "summary": "INFRA. Calls warmupGatewayClient() at boot \u2014 but inside startBackgroundServices(), which only runs after a legacy database connection succeeds. That connection never succeeds, so this NEVER RUNS in production.",
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": [
         "gateway-client",
-        "hazard-mongo-gated-boot"
+        "hazard-db-gated-boot"
       ],
-      "removalGate": "Delete alongside the Mongo-gated boot block, not on its own.",
-      "evidence": "packages/api/src/index.ts:66 (import), :344 (call, inside startBackgroundServices), :386-398 (connectWithRetry gate), :435-446 (comment: 'Mongo no longer exists, so in practice this retries forever and none of them start')"
+      "removalGate": "Delete alongside the connection-gated boot block, not on its own.",
+      "evidence": "packages/api/src/index.ts:66 (import), :344 (call, inside startBackgroundServices), :386-398 (connectWithRetry gate), :435-446 (comment: the connection never succeeds, so in practice this retries forever and none of them start)"
     },
     {
       "id": "gwc-import-agent-runner",
@@ -1059,7 +1059,7 @@
       "kind": "module",
       "name": "provider-warmup.ts (TLS pre-warm)",
       "currentPath": "packages/api/src/lib/provider-warmup.ts",
-      "summary": "On every boot, fires HEAD requests with a 5s timeout to 9 provider endpoints purely to complete the TLS handshake. RUNS IN PRODUCTION (it is outside the Mongo-gated boot block).",
+      "summary": "On every boot, fires HEAD requests with a 5s timeout to 9 provider endpoints purely to complete the TLS handshake. RUNS IN PRODUCTION (it is outside the connection-gated boot block).",
       "proposedOwner": "delete",
       "targetPath": "delete",
       "dependsOn": [
@@ -1113,7 +1113,7 @@
       "dependsOn": [
         "hostname-zeroeval",
         "schema-external-models",
-        "hazard-mongo-gated-boot"
+        "hazard-db-gated-boot"
       ],
       "removalGate": "Not provider inference \u2014 a marketing/leaderboard feature. Keep, but its dead-on-boot state should be fixed independently.",
       "evidence": "packages/api/src/scripts/sync-zeroeval.ts:8; called packages/api/src/index.ts:350"
@@ -1793,18 +1793,18 @@
       "evidence": "packages/alia-gateway-admin/.env.example:4; packages/alia-gateway-admin/src/lib/api/client.ts:6; packages/alia-gateway-admin/src/lib/websocket/client.ts:34"
     },
     {
-      "id": "env-mongodb-uri-legacy",
+      "id": "env-legacy-database-uri",
       "kind": "env",
-      "name": "MONGODB_URI / CA_CERT (legacy)",
+      "name": "Legacy database connection string / CA_CERT",
       "currentPath": "packages/api/.env.example",
-      "summary": "Still declared required in .env.example and .do/app.yaml, still read by lib/db.ts and by the dead internal/providers/lib/db.ts. index.ts's own comment says Mongo no longer exists.",
+      "summary": "Still declared required in .env.example and .do/app.yaml, still read by lib/db.ts and by the dead internal/providers/lib/db.ts. index.ts's own comment says that database no longer exists.",
       "proposedOwner": "delete",
       "targetPath": "delete",
       "dependsOn": [
-        "dead-providers-mongoose-db",
-        "hazard-mongo-gated-boot"
+        "dead-providers-second-db",
+        "hazard-db-gated-boot"
       ],
-      "removalGate": "Not the provider workstream's call alone \u2014 routes/v1/audio.ts and other product code still use Mongoose Message models. Flagged because the provider cleanup will surface it.",
+      "removalGate": "Not the provider workstream's call alone \u2014 routes/v1/audio.ts and other product code still use the legacy Message model. Flagged because the provider cleanup will surface it.",
       "evidence": "packages/api/.env.example:35; packages/api/src/index.ts:435-446; packages/api/src/routes/v1/audio.ts:58, :136"
     },
     {
@@ -1842,22 +1842,22 @@
       "kind": "env",
       "name": "HAZARD: packages/api/.env.example documents a provider architecture that no longer exists",
       "currentPath": "packages/api/.env.example",
-      "summary": "Header states 'Provider API keys (OpenAI/Anthropic/etc.) are NOT configured here \u2014 they live in the alia-gateway service. The API reaches it via GATEWAY_API_URL + SERVICE_SECRET.' The gateway is deleted and keys live in Postgres. It also lists MONGODB_URI as required and never mentions DATABASE_URL.",
+      "summary": "Header states 'Provider API keys (OpenAI/Anthropic/etc.) are NOT configured here \u2014 they live in the alia-gateway service. The API reaches it via GATEWAY_API_URL + SERVICE_SECRET.' The gateway is deleted and keys live in Postgres. It also lists a legacy connection string as required and never mentions DATABASE_URL.",
       "proposedOwner": "alia",
       "targetPath": "keep (rewrite)",
       "dependsOn": [
         "hazard-do-app-yaml-gateway-url",
-        "env-mongodb-uri-legacy"
+        "env-legacy-database-uri"
       ],
       "removalGate": "A wrong instruction survives forever in a dotenv template. Fix in the same change that touches gateway-client, or the next operator wires GATEWAY_API_URL at a dead host.",
       "evidence": "packages/api/.env.example:15-17, :31-35, :76-80"
     },
     {
-      "id": "hazard-mongo-gated-boot",
+      "id": "hazard-db-gated-boot",
       "kind": "behaviour",
-      "name": "HAZARD: warmupGatewayClient and syncZeroEval never run (Mongo-gated boot)",
+      "name": "HAZARD: warmupGatewayClient and syncZeroEval never run (connection-gated boot)",
       "currentPath": "packages/api/src/index.ts",
-      "summary": "startBackgroundServices() is called only from connectWithRetry()'s success branch. The file's own comment states Mongo no longer exists and the retry loop therefore never succeeds, so the gateway-client cache warm-up and the leaderboard sync are dead in production. warmupProviders() is NOT affected \u2014 it sits outside the gate and does run.",
+      "summary": "startBackgroundServices() is called only from connectWithRetry()'s success branch. The file's own comment states that database no longer exists and the retry loop therefore never succeeds, so the gateway-client cache warm-up and the leaderboard sync are dead in production. warmupProviders() is NOT affected \u2014 it sits outside the gate and does run.",
       "proposedOwner": "alia",
       "targetPath": "keep (fix)",
       "dependsOn": [
@@ -1959,7 +1959,7 @@
     "providerHostnames": 20,
     "providerHostnamesDetail": "19 inference hostnames (openai, openai-realtime-wss, anthropic, google, groq, openrouter, digitalocean, xai incl. wss, mistral, deepseek, cerebras, together, fireworks, perplexity, novita, hyperbolic, sambanova, cohere, replicate, cloudflare \u2014 counted as 19 distinct hosts since api.openai.com and api.x.ai each serve both https and wss) plus api.zeroeval.com which is NOT inference. Excludes the unbounded dynamic asset URLs returned by DO async-invoke.",
     "providerEnvVars": 12,
-    "providerEnvVarsDetail": "GROK_API_KEY, GATEWAY_API_URL, SERVICE_SECRET, ALLOWED_SERVICES, ADMIN_USERNAMES, DATABASE_URL, LIVEKIT_URL, LIVEKIT_INTERNAL_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, MONGODB_URI, VITE_GATEWAY_API_URL. Exactly ONE (GROK_API_KEY) is a provider credential, and it is inert.",
+    "providerEnvVarsDetail": "GROK_API_KEY, GATEWAY_API_URL, SERVICE_SECRET, ALLOWED_SERVICES, ADMIN_USERNAMES, DATABASE_URL, LIVEKIT_URL, LIVEKIT_INTERNAL_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, a legacy database URI, VITE_GATEWAY_API_URL. Exactly ONE (GROK_API_KEY) is a provider credential, and it is inert.",
     "providerSdkDeps": 11,
     "providerSdkDepsDetail": "11 declarations across 5 distinct packages: ai (api, integrations), @ai-sdk/openai (api, integrations), @ai-sdk/anthropic (api, integrations), @ai-sdk/google (api, integrations), openai (alia-codea, alia-codea-cli, alia-cowork). The 3 openai declarations are CLIENTS of Alia's own API, not provider deps. Excludes the 5 LiveKit packages (voice transport).",
     "deadCodeFiles": 26,

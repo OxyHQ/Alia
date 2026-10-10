@@ -6,9 +6,8 @@
  * The agent behind a chat turn used to be inferred:
  * `findConversationAgentById(conversationId)` addressed the conversations
  * table's PRIMARY KEY while `conversationId` is the client's BUSINESS key, a
- * `randomUUID()` minted by `POST /conversations/new`. It could never match. The
- * Mongoose original threw a `CastError` that both call sites caught and turned
- * into `null`, so the failure had no symptom at all: the agent-escalation
+ * `randomUUID()` minted by `POST /conversations/new`. It could never match, and
+ * both call sites turned the failure into `null`, so it had no symptom at all: the agent-escalation
  * branch, the archetype prompt and the agent's own identity were dead for the
  * entire life of the feature and nothing anywhere went red.
  *

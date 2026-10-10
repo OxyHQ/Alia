@@ -48,9 +48,7 @@ const DEFAULT_PAGE = 20;
  *
  * ## Why this is a function and not a spread
  *
- * The Mongoose schema was the whitelist: unknown keys were stripped, `state` was
- * checked against its `enum`, and `agentInfo` was cast to its sub-schema.
- * `content` and `tool_invocations` are `jsonb` now and enforce nothing, so a
+ * `content` and `tool_invocations` are `jsonb` and enforce nothing, so a
  * `{ ...m }` here would store whatever the client sent under whatever names it
  * chose — including `seq`, `oxyUserId` and `vote`, which decide ordering,
  * ownership and somebody's feedback signal.
@@ -114,7 +112,7 @@ function isMessageContent(value: unknown): value is MessageContent {
  * The five fields a tool invocation may carry, with `state` checked.
  *
  * An element that is not recognisably one is dropped rather than failing the
- * request, which is what Mongoose's cast did to a malformed sub-document.
+ * request.
  */
 function toolInvocationsFromBody(value: unknown): { toolInvocations: ToolInvocation[] } | null {
   if (!Array.isArray(value)) return null;
@@ -158,9 +156,8 @@ function agentInfoFromBody(value: unknown): { agentInfo: AgentInfo } | null {
 /**
  * A client-supplied `createdAt`, when it is a usable instant.
  *
- * Mongoose cast the string and threw a CastError on anything else, failing the
- * whole save with a 500. Falling back to the column default instead is the one
- * deliberate softening in this route: a client sending a malformed timestamp
+ * An unparseable value falls back to the column default rather than failing the
+ * whole save — the one deliberate softening in this route: a client sending a malformed timestamp
  * would otherwise lose the conversation it was trying to save, and no shipped
  * client sends the field at all — `packages/app/src/features/chat/runtime/use-conversations.ts`
  * declares no `createdAt` on `Message`.
@@ -180,11 +177,9 @@ function preview(content: MessageContent): string | undefined {
 /**
  * A `source` the schema's CHECK will accept, or `undefined`.
  *
- * An unrecognised value is IGNORED rather than stored. `Conversation.create`
- * ran Mongoose validators, so the source's answer to `source: 'carrier-pigeon'`
- * was a 500 for the whole request; the column's CHECK would answer the same way
- * and less legibly. No shipped client sends anything but `app` here, so the
- * fallback affects nothing that exists — but it is a change, and it is in the
+ * An unrecognised value is IGNORED rather than stored: the column's CHECK
+ * would answer `source: 'carrier-pigeon'` with a 500 for the whole request. No
+ * shipped client sends anything but `app` here, and the fallback is in the
  * direction of the request succeeding with a slightly less precise label rather
  * than failing.
  */
@@ -203,11 +198,8 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
 
     const conversationId = randomUUID();
     /**
-     * Any string. Mongoose cast this to an ObjectId and threw on anything else;
-     * `agent_id` is `text` with no foreign key (`db/schema/chat.ts` says why), so
-     * there is nothing left to cast against. An id naming no agent is inert —
-     * the only reader joins on it — and rejecting one here would be a new
-     * validation rather than a ported one.
+     * Any string. `agent_id` is `text` with no foreign key (`db/schema/chat.ts`
+     * says why). An id naming no agent is inert — the only reader joins on it.
      */
     const agentId = typeof req.body?.agentId === 'string' ? req.body.agentId : undefined;
 
@@ -241,8 +233,7 @@ router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) =
     }
 
     /**
-     * Clamped at BOTH ends. Mongo read a negative `limit` as "this many, one
-     * batch"; Postgres refuses it outright, so an unclamped `?limit=-5` would
+     * Clamped at BOTH ends. Postgres refuses a negative `limit` outright, so an unclamped `?limit=-5` would
      * turn a working request into a 500.
      */
     const limit = Math.min(
@@ -252,8 +243,7 @@ router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) =
     const cursor = req.query.cursor as string | undefined;
     const before = cursor ? new Date(cursor) : undefined;
     /**
-     * An unparseable cursor is refused rather than ignored. Mongo compared
-     * against an Invalid Date and matched nothing, so the page came back empty;
+     * An unparseable cursor is refused rather than ignored.
      * `lt(updated_at, 'Invalid Date')` does not survive parameter binding at
      * all, and answering 400 says what happened instead of failing the whole
      * request with a 500.

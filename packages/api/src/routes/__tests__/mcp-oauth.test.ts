@@ -97,10 +97,9 @@ const mockDeleteState = vi.mocked(deleteMcpOAuthState);
 const mockDeleteStateByToken = vi.mocked(deleteMcpOAuthStateByToken);
 
 /**
- * Two distinct user ids. They were 24-hex ObjectId strings because the route
- * wrapped `req.userId` in `new mongoose.Types.ObjectId(...)`, which threw on
- * anything else. `oxy_user_id` is `text` now and the ids need only differ —
- * kept in the old shape so the fixtures stay recognisable, not because the code
+ * Two distinct user ids, in the 24-hex shape. `oxy_user_id` is `text` and the
+ * ids need only differ — the shape is kept so the fixtures stay recognisable,
+ * not because the code
  * still requires it.
  */
 const USER_A = '507f1f77bcf86cd799439011';
@@ -410,9 +409,7 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
   describe('the list and delete routes serve the shape the mobile build reads', () => {
     it('answers 404 rather than 500 for an id of any shape', async () => {
       /**
-       * A behaviour change worth a test. `_id: req.params.id` against a Mongo
-       * `ObjectId` raised a `CastError` the route turned into a 500 for any
-       * malformed id; `id` is `text`, so a malformed id simply matches nothing.
+       * `id` is `text`, so a malformed id simply matches nothing.
        * Loud to quiet, in the direction the caller deserved — and stated here so
        * it cannot be mistaken for an accident later.
        */

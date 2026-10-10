@@ -2,8 +2,7 @@
  * The key a batch is de-duplicated by before it becomes one `INSERT`.
  *
  * `ON CONFLICT DO UPDATE` raises `21000` ("cannot affect row a second time")
- * when a single statement would touch one row twice, where Mongo's unordered
- * `bulkWrite` simply applied both operations in turn. Every batch helper in the
+ * when a single statement would touch one row twice. Every batch helper in the
  * three gateway repositories therefore collapses its input on the SAME key the
  * unique index is built on, and this is that key.
  *

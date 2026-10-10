@@ -67,8 +67,7 @@ const mockGetOrCreate = getOrCreateUserMemory as unknown as ReturnType<typeof vi
  * The two handler cases below assert what the store ends up holding — that
  * `/add` inserts, that `/settings` changes ONE toggle and leaves the other —
  * and bare spies would reduce both to "the handler called something", which is
- * true of a handler that writes the wrong thing. `doc.save` counts writes, the
- * question the Mongoose `save()` it replaces was asked.
+ * true of a handler that writes the wrong thing. `doc.save` counts writes.
  */
 interface FakeEntry { _id: string; title: string; summary: string; type: string }
 interface FakeProfile {

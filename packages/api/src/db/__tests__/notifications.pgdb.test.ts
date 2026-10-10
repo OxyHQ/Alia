@@ -60,7 +60,7 @@ describe('the conditional TTL became a column, and the column cannot drift', () 
   it('sweeps from the DISMISSAL, not from creation — the behaviour change', async () => {
     /**
      * The whole point of the column. All three rows were CREATED a year ago, so
-     * a sweep measuring from `created_at` (what Mongo did) would delete every
+     * a sweep measuring from `created_at` would delete every
      * one of them. Measuring from the dismissal keeps the two that were never
      * dismissed and the one dismissed recently, and reaps only the one dismissed
      * more than 90 days ago.

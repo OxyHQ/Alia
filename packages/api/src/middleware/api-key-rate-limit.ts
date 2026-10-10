@@ -10,9 +10,8 @@ import { log } from '../lib/logger.js';
  * A key's rate-limit allowance. NULL means UNLIMITED, never zero — a zero would
  * read as "no requests permitted", which is the opposite.
  *
- * It lived on the Mongoose model beside the sub-document it described. The
- * sub-document is four columns now, and this is the module that consumes them,
- * so the shape lives here rather than orphaned in a deleted model.
+ * Stored as four columns; this is the module that consumes them, so the shape
+ * lives here.
  */
 export interface IRateLimitConfig {
   requestsPerMinute: number | null;
@@ -233,9 +232,8 @@ export async function recordUsage(
      * `req.method` is any HTTP verb; the column accepts the five this API
      * exposes and a CHECK enforces it. Narrowing against the tuple recognises
      * the mismatch here instead of letting the insert fail in the driver and be
-     * logged as "failed to record usage" — which is what happened before, since
-     * the Mongoose enum rejected these too. A HEAD or OPTIONS request is now
-     * skipped deliberately and says so.
+     * logged as "failed to record usage". A HEAD or OPTIONS request is skipped
+     * deliberately and says so.
      */
     const method = API_KEY_USAGE_METHODS.find((known) => known === req.method);
     if (!method) {

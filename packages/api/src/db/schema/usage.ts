@@ -19,15 +19,13 @@ import { createdAt, generatedId } from '@oxy.so/db';
 /**
  * One completion's usage, recorded by the analytics hook.
  *
- * `oxy_user_id` was declared `ref: 'User'` in Mongoose — a join to a model this
- * service does not register. It is a plain Oxy account id here with no foreign
- * key, per `lib/oxy-user-hydration.ts`.
+ * `oxy_user_id` is a plain Oxy account id with no foreign key, per `lib/oxy-user-hydration.ts`.
  *
- * `platform` has no CHECK. Its Mongoose field is a bare `String` defaulting to
- * `'app'` with no enum, so production may hold anything a client sent, and a
+ * `platform` has no CHECK. It is a bare string defaulting to `'app'` with no
+ * enum, so production may hold anything a client sent, and a
  * CHECK would fail on the first unexpected value — in a hook that runs on every
- * completion. Same reasoning as `auth_health_metrics.method`; revisit after the
- * backfill audits the actual values.
+ * completion. Same reasoning as `auth_health_metrics.method`; revisit after an
+ * audit of the actual values.
  *
  * ## Which model a turn ran on
  *

@@ -926,8 +926,7 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
     /**
      * Sanitize the plan before the save.
      *
-     * Mongoose rejected a malformed sub-document with a ValidationError, and the
-     * plan is built from model output. There is no validator on `plan_items` —
+     * The plan is built from model output. There is no validator on `plan_items` —
      * it is `jsonb` — so a malformed plan would be STORED rather than refused,
      * and the next resume would hand it to `todoManager.loadFromPersisted`. The
      * check therefore has to be here, and clearing it writes NULL to both plan

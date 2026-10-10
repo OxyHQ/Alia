@@ -45,7 +45,7 @@ const seed = (owner: string, name: string, extra: Partial<Parameters<typeof crea
   });
 
 describe('recording an upload', () => {
-  it('stores the account under `owner_oxy_user_id`, which Mongoose called `owner`', async () => {
+  it('stores the account under `owner_oxy_user_id`, which the API calls `owner`', async () => {
     const row = await seed('lfr-owner', 'notes.pdf');
 
     /**
@@ -65,8 +65,7 @@ describe('recording an upload', () => {
     const without = await seed('lfr-thumb', 'plain.pdf');
     expect(without.thumbnail).toBeNull();
     /**
-     * Mongo's `lean()` left an unset optional field off the document entirely.
-     * `'thumbnail' in …` rather than a value check: `undefined` and absent are
+     * An unset optional field is absent from the response. `'thumbnail' in …` rather than a value check: `undefined` and absent are
      * the same to `toEqual`, and only the key's presence decides what
      * `JSON.stringify` puts on the wire.
      */
@@ -187,12 +186,9 @@ describe('reading and removing one file', () => {
     expect(await findLibraryFile(db, mine.id, 'lfr-find-other')).toBeUndefined();
   });
 
-  it('answers undefined for an id that is not a Mongo ObjectId, rather than throwing', async () => {
+  it('answers undefined for a malformed id, rather than throwing', async () => {
     /**
-     * A deliberate behaviour change, recorded because it is one. Mongoose cast
-     * `_id: 'not-an-id'` and THREW a `CastError`, which `routes/library.ts`
-     * caught and turned into a 500. A `text` primary key just fails to match,
-     * so the route now answers 404 — which is the correct answer to "no such
+     * A `text` primary key just fails to match, so the route answers 404 — which is the correct answer to "no such
      * file", and is what the same request already returned for a well-formed
      * id belonging to nobody.
      */

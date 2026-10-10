@@ -67,8 +67,8 @@ const entry = (seq: number, overrides: Record<string, unknown> = {}) => ({
 
 describe('the flush is ON CONFLICT DO NOTHING, not a caught duplicate', () => {
   /**
-   * A resumed session re-emits seqs it already wrote, and Mongo answered that
-   * with E11000 which the flush caught. Ported as a `catch` it would answer
+   * A resumed session re-emits seqs it already wrote. Handled as a caught
+   * duplicate-key error it would answer
    * "already persisted" to a dropped connection too — Postgres cannot tell the
    * two apart once you are inside the handler. The insert count is what says
    * which happened.
@@ -101,7 +101,7 @@ describe('the flush is ON CONFLICT DO NOTHING, not a caught duplicate', () => {
 describe('`timestamp` is epoch MILLISECONDS in a bigint', () => {
   /**
    * `lib/agent/event-stream.ts` writes `Date.now()` — around 1.76e12, which is
-   * 800 times past the `integer` maximum. It is a plain `Number` in Mongoose
+   * 800 times past the `integer` maximum. It is a plain `number` in TypeScript
    * with nothing naming the unit, so the column type is the only place that fact
    * is recorded, and `integer` would have refused the very first write.
    */
@@ -247,7 +247,7 @@ describe('the compliance export', () => {
 
 describe('the threat log', () => {
   /**
-   * Mongo's `{content: {$regex: /THREAT/}}` is case-SENSITIVE, and the writer
+   * The `THREAT` match is case-SENSITIVE, and the writer
    * upper-cases (`THREAT BLOCKED`, `THREAT WARNING`). `ilike` would widen the
    * log to any message mentioning "threat" in prose, which is a different and
    * noisier set — so the case sensitivity is deliberate and asserted.

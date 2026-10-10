@@ -11,10 +11,9 @@
  * worth a sentence rather than silence: every one of these tables is written by
  * an ingestion path that mints a node per chat turn
  * (`context-graph.ts:234` keys a node on a base64 slice of the message text),
- * so they grow without bound and nothing reaps them. Mongo did not reap them
- * either — this is a faithful port of an existing problem, not one the port
- * introduces, and it is the kind of growth a retention decision should be made
- * about deliberately rather than by adding a sweep here on the way past.
+ * so they grow without bound and nothing reaps them. That is the kind of growth
+ * a retention decision should be made about deliberately rather than by adding a
+ * sweep here on the way past.
  *
  * ## Everything in this domain is behind a flag that is not on
  *
@@ -23,11 +22,11 @@
  * of age, and a backfill audit reporting "no rows" here is evidence about the
  * flag rather than about the schema.
  *
- * ## `last_seen_at` is `notNull` with NO default, unlike Mongoose's `Date.now`
+ * ## `last_seen_at` is `notNull` with NO default
  *
  * Every writer supplies it — all three node upserts and the edge upsert set it
  * in `$set` (`context-graph.ts:248,264,288`, `oxy-service-events.ts:127`), so
- * the Mongoose default never fires in practice. Reproducing it would mean
+ * a default would never fire in practice. Adding one would mean
  * copying `@oxy.so/db`'s private millisecond-truncated `now()` expression, and a
  * local copy of something that package owns is a second thing to keep in
  * lockstep — the rule this schema's conventions open with. Without a default a
@@ -47,13 +46,13 @@ import { checkOneOf } from './columns';
 /**
  * A thing the graph knows about, addressed by `node_key` within one user.
  *
- * `metadata` is `jsonb`: `Record<string, unknown>` in Mongoose, composed by
+ * `metadata` is `jsonb`: a `Record<string, unknown>` composed by
  * whichever ingestion path wrote the node, and read by nothing in SQL.
  *
  * **The three score columns carry no CHECK, and that is deliberate.** They are
  * plainly intended to be 0..1 — every writer sets 0.4, 0.5, 0.85 or 0.9 — but
- * Mongoose declares no `min`/`max`, so this schema declares none either, per
- * the rule that where Mongoose validated nothing neither does the port. A CHECK
+ * no `min`/`max` was ever declared, so this schema declares none either, per
+ * the rule that where the source validated nothing neither does the schema. A CHECK
  * here would fail on whatever a non-validating write actually stored, in an
  * ingestion path that runs on every chat turn. It is an audit item.
  */
@@ -110,7 +109,7 @@ export const contextNodes = pgTable(
  * nobody "fixes" this by adding a redundant `unique()`, and so the next author
  * pointing an FK at a NON-key column knows the rule still bites there.
  *
- * `oxy_user_id` is denormalised from the nodes, exactly as Mongo had it: it
+ * `oxy_user_id` is denormalised from the nodes: it
  * carries the unique index and the browse index, and re-deriving it through two
  * joins to enforce the same uniqueness would be slower and no more correct.
  */
@@ -147,7 +146,7 @@ export const contextEdges = pgTable(
       t.edgeType,
       t.updatedAt.desc(),
     ),
-    // Mongo indexed each endpoint on its own. The unique above is prefixed by
+    // Each endpoint is indexed. The unique above is prefixed by
     // `(oxy_user_id, from_node_id)` and serves that direction; `to_node_id` gets
     // its own, because the CASCADE has to find rows by it.
     index('context_edges_to_node_id_idx').on(t.toNodeId),
@@ -165,10 +164,9 @@ export const contextEdges = pgTable(
  * Ported as-is; correcting it is a call-site change, not a schema one.
  *
  * `last_success_at` / `last_error_at` are nullable, and the write path sets one
- * of them to `undefined` on each run. In Mongo `$set: {x: undefined}` leaves the
- * field alone; the same statement in Postgres would write NULL and erase the
- * other timestamp. That is a DESTINATION note for whoever ports the call site,
- * not something the schema can prevent.
+ * of them to `undefined` on each run. A statement that wrote NULL for the
+ * undefined one would erase the other timestamp; the call site must omit it,
+ * and the schema cannot prevent that.
  */
 export const contextSources = pgTable(
   'context_sources',
@@ -236,7 +234,7 @@ export const contextSources = pgTable(
  * table with a foreign key to `context_sources(oxy_user_id, source_key)`. That
  * is plainly what the fields were designed for; it just has not been built.
  *
- * `unique(oxy_user_id, intent, name)` is Mongo's, kept. Note it does NOT say
+ * `unique(oxy_user_id, intent, name)`. Note it does NOT say
  * one ACTIVE strategy per intent, and the write path assumes that: both
  * `ensureIntentStrategy` and `learnFromRun` filter on
  * `{oxyUserId, intent, active: true}`. Two active strategies under different

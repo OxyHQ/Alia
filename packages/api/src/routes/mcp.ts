@@ -305,7 +305,7 @@ router.post('/install', authenticateToken, async (req, res) => {
           // Remote connectors carry their hosted endpoint + OAuth requirement;
           // stdio entries leave these undefined, and `installMcpServer` turns an
           // undefined into a NULL column, which `toMcpServerConfig` reads back as
-          // an absent key — the round trip Mongoose gave for free.
+          // an absent key.
           url: registryEntry.url,
           requiresOAuth: registryEntry.requiresOAuth,
           ...(env && typeof env === 'object' && !Array.isArray(env) ? { env } : {}),

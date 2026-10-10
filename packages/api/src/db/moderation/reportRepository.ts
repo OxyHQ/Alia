@@ -3,24 +3,21 @@
  *
  * ## Why a SAVEPOINT
  *
- * Under Mongo, intake read the report first and threw `DuplicateReportError`
- * carrying the existing document, so the caller could answer "you already
- * reported this" with the real report. That read was also a race the unique
- * index already closed — two concurrent submissions both see nothing and both
- * proceed, and it was always the index that decided the loser.
+ * Intake answers "you already reported this" with the real report
+ * (`DuplicateReportError` carries it). Reading the report first would be a race
+ * the unique index already closes — two concurrent submissions both see nothing
+ * and both proceed, and it is always the index that decides the loser.
  *
- * So the correct port drops the pre-check and lets the INSERT fail. That is the
- * right move, and it is precisely what introduces the trap:
+ * So there is no pre-check: the INSERT is allowed to fail. That is the right
+ * move, and it is precisely what introduces the trap:
  *
  *   **In PostgreSQL a failed statement aborts the ENTIRE transaction.** Every
  *   later statement, including a plain SELECT, fails with `25P02 current
  *   transaction is aborted` until it rolls back.
  *
- * MongoDB has no equivalent — a duplicate-key error leaves the session perfectly
- * usable, which is why the "let it fail and read the row back" shape was fine
- * there and is not here. A handler that reacts to the unique violation by
- * reading the existing report gets `25P02` on that read instead, and returns 500
- * where Mongo returned a friendly 409.
+ * So the "let it fail and read the row back" shape does not work as written. A
+ * handler that reacts to the unique violation by reading the existing report
+ * gets `25P02` on that read instead, and returns 500 instead of a friendly 409.
  *
  * The diff that introduces it looks like a strict improvement (a racy pre-check
  * replaced by a real constraint), which is how it gets past review.
@@ -217,9 +214,8 @@ export async function markReportDeliveryFailed(id: string, message: string): Pro
 /**
  * Record a successful delivery.
  *
- * `lastDeliveryError` and `localStatusReason` are cleared — Mongo's `$unset`.
- * Setting them to `null` is the same fact here, because the columns are nullable
- * and absence is spelled `NULL` rather than "key not present".
+ * `lastDeliveryError` and `localStatusReason` are cleared: set to `null`,
+ * because the columns are nullable and absence is spelled `NULL`.
  */
 export async function markReportSubmitted(
   id: string,
@@ -259,7 +255,7 @@ export async function findReportsByCaseId(
     .from(reports)
     .where(eq(reports.crowdSourceCaseId, caseId))
     /**
-     * Ordered, where Mongo's `find` was not.
+     * Ordered, deliberately.
      *
      * The caller takes `reports[0]` as the case's subject, so an unordered query
      * makes that an arbitrary row — harmless while §7.3's dedup key guarantees
@@ -292,15 +288,13 @@ export interface ReportDecision {
  * revision landing last would otherwise overwrite the current answer with a
  * stale one.
  *
- * `decision_revision IS NULL OR decision_revision <= $revision` is Mongo's
- * `$or: [{$exists: false}, {$lte: …}]` exactly. The `IS NULL` branch is not
+ * `decision_revision IS NULL OR decision_revision <= $revision`. The `IS NULL` branch is not
  * decoration: in SQL a comparison against NULL is NULL, which a WHERE treats as
  * false, so without it the FIRST decision on a report — the only case where the
  * column is still unset — would match nothing and be silently dropped.
  *
- * Returns whether a row was written. Mongo read `matchedCount` here and
- * Postgres's row count is `matchedCount`, so this is a faithful port; the
- * `RETURNING` is what makes the count readable.
+ * Returns whether a row was written; the `RETURNING` is what makes the count
+ * readable.
  */
 export async function applyDecisionToReport(
   id: string,

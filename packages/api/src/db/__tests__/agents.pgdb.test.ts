@@ -155,7 +155,7 @@ describe('agents', () => {
       return true;
     });
 
-    // Mongoose declares `min: 0, max: 5`. The value is an average of 1..5 review
+    // Bounded 0..5. The value is an average of 1..5 review
     // ratings, so anything outside means a non-validating write produced it.
     const badRating = db.execute(sql`
       insert into ${agents} (id, oxy_account_id, tagline, description, author_oxy_user_id, category, rating)
@@ -297,12 +297,11 @@ describe('agent_skills and agent_knowledge', () => {
     expect(rows.map((r) => r.agentId).sort()).toEqual(['ag-s1', 'ag-s2']);
   });
 
-  it('drops the link when the SKILL is deleted, which Mongo did not', async () => {
+  it('drops the link when the SKILL is deleted', async () => {
     /**
-     * A deliberate behaviour change, and the same one `routing_profile_provider_mappings`
-     * made. Mongo left a deleted skill's id in `agent.skills` and `populate`
-     * silently dropped it on read, so the agent's skill list shrank with nothing
-     * recording why. A `text[]` of ids could not express this at all.
+     * The same call `routing_profile_provider_mappings` made: no dangling skill
+     * id left behind to be silently dropped on read. A `text[]` of ids could not
+     * express this at all.
      */
     await db.insert(agents).values(agentValues({ id: 'ag-cascade' }));
     await db.insert(skills).values(skillValues({ id: 'sk-doomed' }));
@@ -357,7 +356,7 @@ describe('agent_skills and agent_knowledge', () => {
   it('keeps the order the client sent, which a set could not', async () => {
     // `routes/agents/crud.ts:252` replaces the whole array, and the read path
     // renders it in order — so `position` is what a child table has to carry to
-    // stay faithful to an ordered Mongo array.
+    // keep the client's order.
     await db.insert(agents).values(agentValues({ id: 'ag-order' }));
     await db.insert(skills).values(skillValues({ id: 'sk-first' }));
     await db.insert(skills).values(skillValues({ id: 'sk-second' }));

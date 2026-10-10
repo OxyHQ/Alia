@@ -35,9 +35,8 @@ afterAll(async () => {
 describe('an organization slug is unique regardless of case', () => {
   it('refuses a slug differing only in case from an existing one', async () => {
     /**
-     * Mongoose declared `lowercase: true, unique: true` — a SETTER plus a
-     * unique, so `Acme` and `acme` were one slug. Postgres has no setter, so a
-     * plain unique on the stored text would accept both. The fixture is
+     * A slug is case-insensitive, so `Acme` and `acme` are one slug. A plain
+     * unique on the stored text would accept both. The fixture is
      * deliberately in the UN-normalised case: with two already-lowercase slugs,
      * a plain unique and a functional one behave identically and the test would
      * prove nothing.

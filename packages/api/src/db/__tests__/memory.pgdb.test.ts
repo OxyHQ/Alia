@@ -7,9 +7,8 @@ import { memoryEmbeddings, userMemories, userMemoryEntries } from '../schema/mem
 /**
  * Memory, against a REAL server.
  *
- * The functional unique below is the one thing here Mongo could not express at
- * all — it kept titles distinct with an in-JS array scan — so it is both the
- * batch's most valuable constraint and its most likely backfill failure.
+ * The functional unique below is the batch's most valuable constraint: it makes
+ * title distinctness structural rather than an in-JS scan.
  */
 
 let db: ApiDatabase;

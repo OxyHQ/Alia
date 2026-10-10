@@ -63,11 +63,8 @@ afterAll(async () => {
 describe('a token is encrypted at rest AND kept out of every response', () => {
   it('stores ciphertext, and the codec runs however the write is spelled', async () => {
     /**
-     * In Mongo this held because of a `set: encrypt` FIELD setter, which a
-     * dotted-path `updateOne()` bypassed — `lib/integration-token.ts` had to
-     * reach for `document.save()` specifically to avoid storing a refreshed
-     * token in the clear. The codec is on the COLUMN now, so there is no
-     * spelling through the query builder that skips it, and this asserts that
+     * The codec is on the COLUMN, so there is no spelling through the query
+     * builder that skips it — a refreshed token is never stored in the clear — and this asserts that
      * for BOTH an insert and an update.
      */
     const created = await createIntegration(db, newIntegration({ oxyUserId: 'intu-cipher' }));
@@ -80,7 +77,7 @@ describe('a token is encrypted at rest AND kept out of every response', () => {
     expect(raw[0]?.at).toMatch(/^[0-9a-f]{24}:[0-9a-f]{32}:[0-9a-f]+$/);
     expect(raw[0]?.rt).toMatch(/^[0-9a-f]{24}:[0-9a-f]{32}:[0-9a-f]+$/);
 
-    // The UPDATE path — the one the Mongoose setter did not cover.
+    // The UPDATE path — the one a refresh takes.
     await saveRefreshedIntegrationTokens(db, created.id, { accessToken: 'refreshed-token' });
     const rawAfter = await db.execute<{ at: string }>(
       sql`select oauth_access_token as at from ${integrations} where id = ${created.id}`,
@@ -301,7 +298,7 @@ describe('the OAuth state is the primary key, and single-use', () => {
     });
 
     // A single call cannot tell an atomic delete from a read-then-delete; the
-    // REPEAT is the discriminator, exactly as with a Mongo write count.
+    // REPEAT is the discriminator.
     expect(await consumeOAuthState(db, 'int-state-3')).toBe(true);
     expect(await consumeOAuthState(db, 'int-state-3')).toBe(false);
   });

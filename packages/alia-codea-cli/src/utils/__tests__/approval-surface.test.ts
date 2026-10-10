@@ -21,8 +21,8 @@ import {
  * The payloads are the real shape `POST /auth/session/create` mints
  * (`packages/api/src/routes/auth.ts` in the Oxy repo), including the empty
  * `origin=` a CLI produces because it sends no `Origin`. The `app=` id comes in
- * the two shapes Oxy stores (`@oxy.so/db` `generatedId`): a 24-hex Mongo id for
- * applications registered before the Postgres cutover, a uuid v7 after. Length
+ * the two shapes Oxy stores (`@oxy.so/db` `generatedId`): a legacy 24-hex id for
+ * older applications, a uuid v7 for newer ones. Length
  * is the point — it decides the QR version — so sizes below are derived from the
  * encoder rather than written down, and a short invented fixture would pass
  * width checks the real payload fails.
@@ -36,7 +36,7 @@ const CODE = '9354243fe1ebfeb4fc1a71e7348690c8';
 const payloadFor = (appId: string) =>
   `oxycommons://approve?v=1&code=${CODE}&app=${appId}&origin=&nonce=0123456789abcdef&exp=1758000000000`;
 const PAYLOADS = {
-  legacyMongoId: payloadFor('65f1c2a9b8e4d7f0a1b2c3d4'),
+  legacyHexId: payloadFor('65f1c2a9b8e4d7f0a1b2c3d4'),
   uuidV7: payloadFor('01920f3a-7b2c-7d4e-8f5a-6b7c8d9e0f1a'),
 };
 const PAYLOAD = PAYLOADS.uuidV7;

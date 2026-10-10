@@ -5,7 +5,7 @@
  * directory for the decisions that apply to all three messaging domains — the
  * short version is that `session_id` is the real primary key (the code has
  * always addressed sessions by it), and chats and messages carry a genuine
- * foreign key to it, which Mongo could not express.
+ * foreign key to it.
  */
 
 import { bigint, boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
@@ -43,7 +43,7 @@ export const whatsappSessions = pgTable(
      * `protectedColumns.ts`.
      */
     authState: jsonb(),
-    /** Mongoose `Map<string, unknown>`; a plain object in JSON either way. */
+    /** A `Map<string, unknown>`, stored as a plain JSON object. */
     authKeys: jsonb().notNull().default({}),
     lastConnected: timestamptz(),
     lastDisconnected: timestamptz(),

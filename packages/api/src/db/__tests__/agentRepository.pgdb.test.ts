@@ -169,7 +169,7 @@ describe('what a permission gate starts from', () => {
 
 describe('the update SET clause is built from DEFINED keys only', () => {
   /**
-   * `$set: { x: undefined }` is a NO-OP in Mongo and writes NULL in Postgres, so
+   * An `undefined` in the SET clause writes NULL, so
    * a spread of an optional-member object erases columns the caller never
    * mentioned. Mutation proof: replacing the `value !== undefined` filter with a
    * plain spread turns this red on `tagline`.
@@ -183,7 +183,7 @@ describe('the update SET clause is built from DEFINED keys only', () => {
   });
 
   /**
-   * `rowCount` behaves like Mongo's matchedCount, not modifiedCount. A patch
+   * `rowCount` counts rows matched, not rows changed. A patch
    * that changes nothing must still report a hit, or a retry 404s.
    */
   it('a no-change patch still matches rather than 404ing', async () => {
@@ -239,9 +239,7 @@ describe('the child lists', () => {
   });
 
   it('an agent with an EMPTY knowledge list reads as [] rather than throwing', async () => {
-    // The measured asymmetry: mongoose threw MissingSchemaError even for
-    // `knowledge: []`, so "empty" and "broken" were the same outcome. Here they
-    // are not.
+    // "Empty" and "broken" must be different outcomes.
     const created = await createAgent(db, newAgentInput());
     expect(await findAgentKnowledge(db, created._id)).toEqual([]);
   });
@@ -285,8 +283,7 @@ describe('the child lists', () => {
 
 describe('concurrent replaces serialize on the parent row', () => {
   /**
-   * A transaction gives atomicity, not SERIALIZATION — a Mongo document
-   * replacement gave both. Under READ COMMITTED, two concurrent replaces leave
+   * A transaction gives atomicity, not SERIALIZATION. Under READ COMMITTED, two concurrent replaces leave
    * the UNION: B's DELETE blocks on A's row locks and then cannot see rows A
    * inserted after that statement began.
    *
@@ -370,7 +367,7 @@ describe('counters and the catalogue', () => {
   });
 
   /**
-   * Mongo's `{ tags: /x/i }` matched when ANY element matched. Comparing the
+   * A tag search matches when ANY element matches. Comparing the
    * ARRAY to a pattern in Postgres matches nothing and reads as "no results" —
    * the quietest failure a search box has.
    */
@@ -466,12 +463,9 @@ describe('soul evolution', () => {
     read = await findAgentById(db, created._id);
     /**
      * `['a','b'] ∪ ['b','c','d']` is `['a','b','c','d']`, and the cap keeps the
-     * LAST three. This assertion previously read `['a','b','c']`, which is what
-     * `soul_expertise[1:3]` produces and what `$slice: [..., -3]` does not:
-     * Mongo's negative slice takes from the tail, so the agent kept what it had
-     * learned most recently. The old expectation was written against the
-     * implementation instead of against the source, so the port's one silent
-     * behaviour change was asserted as correct.
+     * LAST three, so the agent keeps what it learned most recently.
+     * `soul_expertise[1:3]` would produce `['a','b','c']` — the head, not the
+     * tail.
      */
     expect(read?.soul?.expertise).toEqual(['b', 'c', 'd']);
     expect(read?.soul?.interactionCount).toBe(2);
@@ -517,9 +511,7 @@ describe('soul evolution', () => {
 
 describe('cascade behaviour that arrives WITH the switch', () => {
   /**
-   * BEHAVIOUR CHANGE, deliberate. Mongo's `deleteOne` cleaned up nothing, so
-   * orphaned child rows accumulated. Stated here so somebody who notices the new
-   * behaviour does not assume something broke.
+   * Child rows go with the agent through the schema's foreign keys.
    */
   it('deleting an agent takes its skill and knowledge links with it', async () => {
     const created = await createAgent(db, newAgentInput());

@@ -340,8 +340,8 @@ describe('aggregateUsageByDay', () => {
 
     /**
      * `set local` inside a transaction, because postgres.js pools connections
-     * and a bare `SET` could land on one the query never uses. Mongo's
-     * `$dateToString` with no `timezone` is UTC; `to_char` on a `timestamptz`
+     * and a bare `SET` could land on one the query never uses. Day buckets are
+     * UTC; `to_char` on a `timestamptz`
      * uses the SESSION's zone, so without `at time zone 'UTC'` this bucket
      * silently shifts a day on any server not running UTC.
      */

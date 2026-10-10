@@ -20,10 +20,10 @@
  * realdb suite performs both lookups against real rows, so a change that made
  * the secrets "consistent" fails there rather than in production.
  *
- * ## `select: false` has no counterpart, so the projections carry it
+ * ## There is no projection default, so the projections carry it
  *
- * Mongoose omitted `bot_token` and `webhook_secret` from every query that did
- * not ask. drizzle returns whatever the column list names, so there are two
+ * `bot_token` and `webhook_secret` must stay out of every query that does not
+ * ask. drizzle returns whatever the column list names, so there are two
  * shapes: `BotRow` for everything the routes render, and the two credential
  * readers that name the secret they need and nothing more.
  *
@@ -264,9 +264,8 @@ export async function registerBot(db: ApiDatabase, input: NewBot): Promise<BotRo
 /**
  * Bind or CLEAR the agent on a bot this user owns.
  *
- * `null` clears it. The source assigned `undefined`, which unset the field in
- * Mongo; `.set({ agentId: undefined })` in drizzle is a silent no-op, so an
- * explicit clear would have left the bot answering with the old agent's prompt
+ * `null` clears it. `.set({ agentId: undefined })` in drizzle is a silent
+ * no-op, so a clear passed as `undefined` would leave the bot answering with the old agent's prompt
  * while the UI showed it unbound.
  */
 export async function setBotAgent(
@@ -480,10 +479,9 @@ export async function upsertBotUser(
 /**
  * Redeem a link token: bind the Oxy account and CLEAR the token.
  *
- * The clearing is the security-relevant half. The source set
- * `botUser.authToken = undefined; botUser.authTokenExpiry = undefined`, which
- * UNSET both in Mongo — `.set({ authToken: undefined })` in drizzle is a silent
- * no-op, so a redeemed one-time link token would stay live until its 15-minute
+ * The clearing is the security-relevant half. `.set({ authToken: undefined })`
+ * in drizzle is a silent no-op, so a redeemed one-time link token cleared that
+ * way would stay live until its 15-minute
  * expiry and could be redeemed again, by anyone holding it, into a DIFFERENT
  * account. Explicit `null` is what makes it single-use.
  */

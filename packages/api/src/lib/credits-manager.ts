@@ -146,9 +146,8 @@ export async function reserveCredits(
      * `$cond` pipeline was. A null result means the balance will not cover it,
      * or the account does not exist.
      *
-     * The source also `$set` a `credits.lastUsed`. That path is not in the
-     * Mongoose schema, so `strict` dropped it on every write and it has never
-     * been stored; there is no column for it and none is added.
+     * There is no `credits.lastUsed` column; it has never been stored and none
+     * is added.
      */
     let operationId: string | undefined;
     let productAllocationId: string | undefined;

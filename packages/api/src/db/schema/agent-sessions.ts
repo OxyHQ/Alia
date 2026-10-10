@@ -10,10 +10,9 @@ import { productCreditAllocations } from './product-credit-allocations';
  * ## Deleting an agent cleans up NOTHING today, and each child answers that
  * differently
  *
- * `routes/agents/crud.ts:323` is a bare `Agent.deleteOne` — no session, review
- * or team membership is touched, so all of them orphan in
- * Mongo right now. That fact does not settle the foreign keys; it means every
- * one of them is a decision this file has to make and state:
+ * Deleting an agent touches only its own row — no session, review or team
+ * membership is touched by the route. That does not settle the foreign keys;
+ * it means every one of them is a decision this file has to make and state:
  *
  * - **`agent_sessions.agent_id` gets NO foreign key.** A session is the record
  *   of work a person asked for and spent credits on — its `task`, `result` and
@@ -30,12 +29,12 @@ import { productCreditAllocations } from './product-credit-allocations';
  * ## `agent_sessions.event_stream` is `jsonb`, and `event_stream_entries` is a
  * table — both are live
  *
- * `lib/agent/event-stream.ts` persists ONLY to the `EventStreamEntry`
- * collection, which exists to escape Mongo's 16MB document limit. But
+ * `lib/agent/event-stream.ts` persists ONLY to `event_stream_entries`, one row
+ * per event, so a long session never becomes one unbounded value. But
  * `lib/agent/runner.ts` also writes `session.eventStream = eventStream.toJSON()`
  * on every save (`:424`, `:678`, `:772`, `:809`), and `getRecentActivity` reads
  * the collection first and falls back to the embedded array — its own comment
- * says "(legacy)". So both stores hold the same events and the port has to carry
+ * says "(legacy)". So both stores hold the same events and the schema carries
  * both.
  *
  * The embedded one is `jsonb`: nothing queries it, nothing filters it, it is
@@ -108,7 +107,7 @@ export interface AgentSessionEventStreamEntry {
  *
  * The three flat sub-documents become column groups, per the `routing_logs`
  * rule: `stats_*`, `config_*` and `credit_reservation_*`. Only the last is
- * `default: undefined` in Mongoose, so only its columns are nullable as a group.
+ * optional as a whole, so only its columns are nullable as a group.
  *
  * `plan` is `{objective, items[]}` and splits: `plan_objective` is a column, and
  * `plan_items` is `jsonb` because `lib/agent/runner.ts:298` hands the whole
@@ -118,8 +117,8 @@ export interface AgentSessionEventStreamEntry {
  * together — the one cross-field rule in this table that the writers actually
  * maintain, since the group is set and cleared as a unit.
  *
- * `credit_reservation_oxy_user_id` is Mongoose's `creditReservation.userId`,
- * renamed for what it holds. It duplicates the session's own `oxy_user_id` in
+ * `credit_reservation_oxy_user_id` is `creditReservation.userId`, named for
+ * what it holds. It duplicates the session's own `oxy_user_id` in
  * every write today; it is carried rather than collapsed because it records
  * which account the reservation was taken AGAINST at the time, which is not
  * necessarily the same question.
@@ -266,9 +265,9 @@ export const agentSessions = pgTable(
  * hidden reviews from the aggregate, which is why the flag has to be readable
  * in SQL rather than implied by absence.
  *
- * `comment` had `maxlength: 1000` in Mongoose and does NOT become a CHECK: a
- * maxlength shapes INPUT at the write path, where the request validators sit,
- * and as a constraint it would fail the backfill on a legacy long string.
+ * `comment` is capped at 1000 characters by the request validator and does NOT
+ * get a CHECK: a maxlength shapes INPUT at the write path, where the request
+ * validators sit, and as a constraint it would fail on a legacy long string.
  */
 export const agentReviews = pgTable(
   'agent_reviews',
@@ -289,11 +288,11 @@ export const agentReviews = pgTable(
       columns: [t.agentId],
       foreignColumns: [agents.id],
     }).onDelete('cascade'),
-    // Mongoose declares this unique: one review per account per agent.
+    // One review per account per agent.
     uniqueIndex('agent_reviews_agent_user_key').on(t.agentId, t.oxyUserId),
     index('agent_reviews_agent_created_idx').on(t.agentId, t.createdAt.desc()),
     /**
-     * Mongoose declares `min: 1, max: 5` — and 1, not 0, unlike
+     * Bounded 1..5 — and 1, not 0, unlike
      * `agents.rating`, which is an AVERAGE and may legitimately be 0 when there
      * are no reviews at all. The two bounds are different on purpose.
      */

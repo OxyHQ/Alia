@@ -11,8 +11,7 @@
  * The single statement that decides an election lives in
  * `db/coordination/leaseRepository.ts`; everything here is the state machine
  * around it. The database handle is resolved per tick rather than captured at
- * start, so this module has the same signature it had on Mongo and
- * `trigger-engine.ts` did not have to learn about Postgres to keep working.
+ * start, so `trigger-engine.ts` does not have to know about the database.
  */
 
 import os from 'os';

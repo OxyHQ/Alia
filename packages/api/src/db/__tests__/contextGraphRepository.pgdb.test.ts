@@ -58,9 +58,8 @@ describe('recording a read against a source', () => {
   /**
    * THE case this repository exists for.
    *
-   * `learnFromRun` sets exactly one of the two timestamps per run and left the
-   * other `undefined`, which Mongo drops from a `$set`. Translated literally,
-   * the same statement writes NULL — so a failed run would erase the last
+   * `learnFromRun` sets exactly one of the two timestamps per run and leaves the
+   * other `undefined`. Written as NULL, it — so a failed run would erase the last
    * success, and a successful one the last error, with every write reporting
    * success and no error anywhere. Nothing else in the suite would notice.
    *
@@ -99,8 +98,8 @@ describe('recording a read against a source', () => {
   });
 
   /**
-   * `$inc` on a Mongo upsert applies to the INSERT too, so a first run stores
-   * the delta rather than zero. Both halves are asserted because they fail
+   * The increment applies to the INSERT too, so a first run stores the delta
+   * rather than zero. Both halves are asserted because they fail
    * differently: getting the insert wrong stores 0 forever, getting the
    * conflict clause wrong pins the counter at 1.
    */
@@ -324,9 +323,8 @@ describe('retrieval strategies', () => {
 
     await createStrategyIfAbsent(db, params);
     /**
-     * Mongoose's `create` threw E11000 here, uncaught, rejecting the whole
-     * recall. `do nothing` makes the loser of the race a no-op — a behaviour
-     * change, pinned so it is not read as accidental.
+     * Without `do nothing` the loser of the race would hit the unique, uncaught,
+     * rejecting the whole recall. Pinned so it is not read as accidental.
      */
     await expect(createStrategyIfAbsent(db, params)).resolves.toBeUndefined();
 

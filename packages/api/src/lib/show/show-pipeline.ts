@@ -177,8 +177,7 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
   /**
    * `let`, and rebound by every patch.
    *
-   * A row is a plain value, so the accumulation the old Mongoose document did
-   * implicitly has to be explicit: `applyUpdate` writes the patch and rebinds
+   * A row is a plain value, so accumulation has to be explicit: `applyUpdate` writes the patch and rebinds
    * `episode` to what the database returned. Reads further down depend on it.
    */
   const loaded = await findEpisodeById(getDb(), episodeId);

@@ -12,8 +12,7 @@ import { fileURLToPath } from 'node:url';
  *
  * A seeder whose caller cannot fire reads as WIRED from any single call site.
  * `startBackgroundServices()` was reached only from `connectDB().then(...)` — a
- * Mongo connection that no longer existed and never resolved — so everything
- * placed there ran never. That gate is gone and the function now runs on every
+ * connection that never resolved — so everything placed there ran never. That gate is gone and the function now runs on every
  * boot, which makes the boot-path assertion at the bottom of this file matter
  * MORE rather than less: a seeder called from there today would actually
  * execute, once per task, racing every sibling.
@@ -211,7 +210,7 @@ describe('every table seeder reaches the entrypoint that runs', () => {
      *
      * **Both files, and the second one is the whole point of this edit.** The
      * boot path used to be `src/index.ts` alone; `startBackgroundServices()`
-     * moved to `lib/background-services.ts` when the Mongo gate came off, and a
+     * moved to `lib/background-services.ts` when that gate came off, and a
      * scan that still read only `index.ts` would report clean for a seeder added
      * to the module the boot path actually runs. `seedBots()` was called from
      * exactly that code; it is now deleted.

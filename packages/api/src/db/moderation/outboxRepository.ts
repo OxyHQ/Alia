@@ -4,16 +4,15 @@
  * This file is the weld in the moderation slice. Two transactions live in this
  * service and BOTH write this table through {@link enqueueModerationOutboxEvent}
  * — intake (`reports` + this) and inbound (`moderation_events` + this) — which is
- * why those three tables had to switch stores in one commit. A Mongo
- * `ClientSession` cannot enlist a Postgres write, so leaving either transaction
- * behind would have produced a queue that looks empty rather than an error.
+ * why those three tables share one database: an outbox row written outside the
+ * transaction that wrote its subject would produce a queue that looks empty
+ * rather than an error.
  *
  * ## The enqueue takes an EXECUTOR, and refuses the root connection
  *
- * Mongo's spelling was a required `ClientSession` plus `session.inTransaction()`,
- * because a required parameter is satisfied by a bare `startSession()` nobody
+ * A required parameter alone is not enough: it is satisfied by a handle nobody
  * opened a transaction on — code that type-checks perfectly and commits the row
- * on its own. Postgres has exactly the same hole one level over: `Executor` is a
+ * on its own. That is the hole here: `Executor` is a
  * union, and passing the root `db` where a `tx` belongs compiles.
  *
  * {@link requireTransaction} closes it the same way, discriminating on `rollback`
@@ -26,8 +25,8 @@
  * ## The clock is the SERVER's
  *
  * Every instant compared or stored here is Postgres's `now()`; nothing binds a
- * JavaScript `Date`. Mongo compared against the caller's clock, which was already
- * wrong and merely invisible — several ECS tasks share this queue, and two whose
+ * JavaScript `Date`. Comparing against the caller's clock is wrong — several ECS
+ * tasks share this queue, and two whose
  * clocks disagree by more than a lease would both believe a lease had expired and
  * both claim the same event. `db/coordination/leaseRepository.ts` reaches the
  * same conclusion for the same reason. Durations stay parameters: a duration has
@@ -152,10 +151,7 @@ function secondsFromNow(seconds: number) {
  *
  * `ON CONFLICT DO NOTHING`, never `DO UPDATE`. A repeat must write no tuple
  * version and touch no timestamp, because the dispatcher may be holding a lease
- * on this very row when it arrives. Mongo needed `$setOnInsert` PLUS
- * `timestamps: false` to get the same no-op — Mongoose otherwise added its own
- * `$set: { updatedAt }` and modified a row the operator promised to leave alone.
- * Here it is one clause.
+ * on this very row when it arrives. One clause gives exactly that no-op.
  *
  * This is also the ONLY writer that CREATES a row in this table; the dispatcher
  * claims existing rows and never inserts one. So there is no second queue that
@@ -202,8 +198,7 @@ function claimable() {
 /**
  * Atomically claim one due event, oldest first.
  *
- * Mongo did this with `findOneAndUpdate` + `sort`, which is atomic per document.
- * The Postgres equivalent is an `UPDATE` whose target is chosen by a subquery
+ * An `UPDATE` whose target is chosen by a subquery
  * taking `FOR UPDATE SKIP LOCKED` — and SKIP LOCKED is the load-bearing half.
  * Without it, N dispatcher tasks all pick the same oldest row and serialise
  * behind one lock; with it, each takes a different row and the queue actually
@@ -273,11 +268,9 @@ function ownedLiveLease(eventId: string, leaseOwner: string) {
 /**
  * Complete only the lease this dispatcher currently owns.
  *
- * The boolean comes off `RETURNING`, which is the one reading that is right under
- * both of Mongo's two counts. Mongo reported `matchedCount` AND `modifiedCount`
- * and this call site read `modifiedCount`; Postgres reports only a row count,
- * which behaves like `matchedCount`. They agree HERE because the update always
- * changes `status`, so a matched row is always a modified one — stated because
+ * The boolean comes off `RETURNING`. A row count counts rows MATCHED, not rows
+ * changed; the two agree HERE because the update always changes `status`, so a
+ * matched row is always a modified one — stated because
  * the same substitution is not safe everywhere and the next reader should not
  * have to re-derive it. (`rows.length` off a plain `UPDATE` is 0 either way; it
  * means something only because of the `RETURNING`.)
@@ -304,11 +297,10 @@ export async function completeModerationOutboxEvent(
 /**
  * Extend only a live lease still owned by this dispatcher.
  *
- * Mongo read `matchedCount` here, NOT `modifiedCount`, and deliberately: renewing
- * twice within one instant writes an identical `leaseUntil`, which Mongo counts
- * as matched-but-not-modified. Reading the wrong count would report a still-held
- * lease as lost and abandon work mid-delivery. Postgres's row count IS
- * `matchedCount`, so this one is a faithful port rather than a coincidence.
+ * The count must be rows MATCHED, not rows changed: renewing twice within one
+ * instant writes an identical `leaseUntil`, which is matched-but-not-modified.
+ * Reading a changed-rows count would report a still-held lease as lost and
+ * abandon work mid-delivery. Postgres's row count is the matched count.
  */
 export async function renewModerationOutboxEvent(
   eventId: string,

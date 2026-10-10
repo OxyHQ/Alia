@@ -2,7 +2,7 @@
  * Notifications and their delivery credentials, plus the small independent
  * tables that travel with them: suggestions and referrals.
  *
- * Seven Mongoose models became EIGHT tables — `referral_redemptions` is a child
+ * Seven models are EIGHT tables — `referral_redemptions` is a child
  * table, for the reason given at `referrals`.
  *
  * **`shows` left this file**, and its departure is the reason "small independent
@@ -11,12 +11,10 @@
  * outside Alia. That is a domain, not a table travelling with the neighbours it
  * happened to be ported beside. It lives in `shows.ts`.
  *
- * ## `dismissed_at` is the conditional TTL made expressible, and it is MORE
- * correct than the original
+ * ## `dismissed_at` is the conditional TTL made expressible
  *
- * Mongo swept notifications with `{createdAt: 1}, expireAfterSeconds: 90d,
- * partialFilterExpression: {status: 'dismissed'}` — a CONDITIONAL delete
- * measured from the wrong column. `ExpirySweepTarget` has no predicate, so the
+ * A dismissed notification is deleted 90 days after DISMISSAL — a CONDITIONAL
+ * delete. `ExpirySweepTarget` has no predicate, so the
  * only entry its type permits would delete every notification older than 90 days
  * including undismissed ones.
  *
@@ -26,12 +24,10 @@
  * condition it replaced. A notification never dismissed has NULL and is never
  * swept.
  *
- * **This is a real behaviour change and the only one in the port so far.** Mongo
- * measured from `created_at`, so a notification dismissed on day 89 vanished the
- * next day while one dismissed on day 1 survived another 89. Measuring from the
- * dismissal is the retention rule anyone would actually write down, and it means
- * a dismissed notification now reliably lasts 90 days from dismissal rather than
- * however much of its first 90 days happened to remain.
+ * Measuring from `created_at` instead would make a notification dismissed on
+ * day 89 vanish the next day while one dismissed on day 1 survived another 89.
+ * Measuring from the dismissal is the retention rule anyone would actually write
+ * down: a dismissed notification reliably lasts 90 days from dismissal.
  */
 
 import { boolean, check, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
@@ -130,9 +126,7 @@ export const notifications = pgTable(
   (t) => [
     index('notifications_oxy_user_status_created_idx').on(t.oxyUserId, t.status, t.createdAt.desc()),
     /**
-     * The unread-count index, partial exactly as Mongo declared it. This one IS
-     * a faithful copy of a `partialFilterExpression` — unlike the TTL, a partial
-     * INDEX ports directly.
+     * The unread-count index, partial over unread rows.
      */
     index('notifications_unread_idx')
       .on(t.oxyUserId, t.status)
@@ -191,8 +185,7 @@ export const pushTokens = pgTable(
  *
  * `keys_p256dh` and `keys_auth` are the subscription's encryption keys — a
  * credential pair, flattened from the nested `keys` sub-document. Not encrypted
- * in Mongo and not encrypted here (a faithful port), but they belong out of
- * every response and every log line.
+ * at rest, but they belong out of every response and every log line.
  */
 export const webPushSubscriptions = pgTable(
   'web_push_subscriptions',
@@ -214,11 +207,9 @@ export const webPushSubscriptions = pgTable(
 /**
  * A prompt suggestion.
  *
- * **Mongo's TEXT index is deliberately NOT ported.** `{text: 'text', title:
- * 'text'}` exists on the model and nothing queries it — there is no `$text` or
- * `$search` anywhere in the service. Porting it would mean adding a `tsvector`
- * column and a GIN index to support a search nobody performs, which is inventing
- * a feature rather than migrating one. If full-text search is wanted later it is
+ * **No full-text index, deliberately.** Nothing searches suggestion text
+ * anywhere in the service. Adding one would mean a `tsvector` column and a GIN
+ * index to support a search nobody performs. If full-text search is wanted later it is
  * an additive migration.
  *
  * `template_variables` and `is_template` are DERIVED from `text` by a
@@ -262,7 +253,7 @@ export const suggestions = pgTable(
     tags: text().array().notNull().default(sql`'{}'::text[]`),
     occupations: text().array().notNull().default(sql`'{}'::text[]`),
     interests: text().array().notNull().default(sql`'{}'::text[]`),
-    /** A publication deadline the READ filters on. NOT a sweep target — Mongo declared no TTL. */
+    /** A publication deadline the READ filters on. NOT a sweep target. */
     expiresAt: timestamptz(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -282,13 +273,11 @@ export const suggestions = pgTable(
  * One account's referral record.
  *
  * **`id` is an OXY ACCOUNT ID with no default**, the second table after
- * `user_credits` where `generatedId()` would be actively wrong: Mongo declared
- * `_id: { type: String }` and wrote the account id into it.
+ * `user_credits` where `generatedId()` would be actively wrong: the id IS the
+ * account id.
  *
- * `total_credits_earned` and `total_referrals` are counters Mongo maintained with
- * `$inc`. They are kept as stored columns (a faithful port) and are now
- * DERIVABLE from `referral_redemptions`, so a repair is possible where it was not
- * before. Never sum the two sources together.
+ * `total_credits_earned` and `total_referrals` are stored counters, and are
+ * DERIVABLE from `referral_redemptions`, so a repair is possible. Never sum the two sources together.
  */
 export const referrals = pgTable(
   'referrals',
@@ -312,15 +301,15 @@ export const referrals = pgTable(
 /**
  * One redemption: who was referred by whom, and what it paid.
  *
- * **A child table rather than the `jsonb` its Mongoose sub-document array
- * suggests, and the reason is a money race.**
+ * **A child table rather than a `jsonb` array, and the reason is a money
+ * race.**
  *
  * `routes/referrals.ts` grants credits to BOTH parties and only afterwards sets
  * the redeemer's `referred_by` — so the "have you already redeemed?" guard is a
  * read-then-write whose write lands after the money moves. Two concurrent
- * redemptions by one account both pass the check and both pay out, and Mongo had
- * no constraint that could stop it: a `$push` into an array cannot be made
- * unique.
+ * redemptions by one account both pass the check and both pay out, and an
+ * array column has no constraint that could stop it: a push into an array
+ * cannot be made unique.
  *
  * `UNIQUE(referred_user_id)` makes it structural — an account can be referred at
  * most once, globally, which is the rule the credit grant already assumes. It is

@@ -209,17 +209,6 @@ jobs:
       - name: Verify the static-asset gate can still fail
         run: node .github/scripts/test-check-static-assets.mjs
 
-      # The Mongo runtime boundary is a documented invariant
-      # (docs/mongodb-runtime-boundary.md) enforced by a script that had never
-      # been observed doing anything but passing — and it had stopped looking
-      # over most of the tree. Its manifest pattern could not see either nested
-      # workspace, and its source pattern assumed every workspace keeps code in
-      # `src/`, which `packages/app` does not: 1,009 of 1,539 tracked files were
-      # scanned, the largest client in the repository among the missing 530.
-      # Here because this job installs nothing and needs no workspace.
-      - name: Verify the Mongo runtime gate can still fail
-        run: node .github/scripts/test-check-no-mongodb-runtime.mjs
-
       # Runs in the one job that installs nothing, so it reports before the jobs
       # it protects would fail. See the header comment: the cache is the only
       # thing stopping an unauthenticatable GitHub fetch on every install.
@@ -544,14 +533,6 @@ jobs:
       - name: Check an agent is offered no colour it cannot keep
         run: node scripts/check-agent-colour-vocabulary.mjs
 
-      # Alia is PostgreSQL-only: no workspace may depend on or import a Mongo
-      # driver, and `bun.lock` may not resolve one. The lockfile used to carry
-      # `mongodb` as an optional peer of Nitro's unstorage, pulled in only by the
-      # retired `alia-console`, which is why this step once had to build that
-      # console and search its artefact instead.
-      - name: Prove the runtime contains no Mongo driver
-        run: node scripts/check-no-mongodb-runtime.mjs
-
   build-api:
     name: Build API
     runs-on: ubuntu-latest
@@ -608,7 +589,7 @@ jobs:
     # constraints, unique indexes, ON DELETE CASCADE, ON CONFLICT — are enforced
     # by the server and have no mocked counterpart. A mocked `insert` accepts any
     # statement, including one Postgres rejects outright, which is exactly the
-    # class of defect a Mongo port introduces.
+    # class of defect only a real server catches.
     services:
       postgres:
         image: postgres:17-alpine

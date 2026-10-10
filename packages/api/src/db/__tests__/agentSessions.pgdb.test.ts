@@ -12,8 +12,8 @@ import { agents } from '../schema/agents';
 /**
  * Batch 9c against a REAL server.
  *
- * Deleting an agent cleans up nothing in Mongo today, so every child in this
- * batch had to answer that separately — and the answers are different. Each is
+ * Deleting an agent touches only its own row, so every child in this batch has
+ * to answer that separately — and the answers are different. Each is
  * pinned here, because a deletion rule is invisible in a schema diff and its
  * damage is the kind nobody notices: a session that vanished, a review that
  * outlived its subject. (`agent_session_resources` and `container_templates`

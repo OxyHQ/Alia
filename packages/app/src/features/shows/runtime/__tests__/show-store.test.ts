@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { translator } from '@/shared/testing/translate';
 
 /**
- * The show store, and the Mongo leftover it removes.
+ * The show store, and the `_id` leftover it removes.
  *
  * The store used to declare `_id` while the API has answered `id` since the
  * Postgres port. That does not throw — it produces `undefined` — so the screen

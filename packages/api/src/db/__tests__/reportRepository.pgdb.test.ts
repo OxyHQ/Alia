@@ -192,8 +192,7 @@ describe('the categories constraints', () => {
 
   it('refuses an EMPTY category list', async () => {
     // Containment permits `{}`, so membership alone would let this through —
-    // which is why the cardinality CHECK is a separate constraint. Mongoose
-    // expressed it as a custom validator that never ran on updateOne.
+    // which is why the cardinality CHECK is a separate constraint.
     const empty = createReport(db, { ...REPORT, categories: [] }, EVENT);
     await expect(empty).rejects.toThrow();
   });
@@ -249,7 +248,7 @@ describe('the delivery worker writes back onto the report', () => {
     expect(stored?.localStatus).toBe('submitted');
     expect(stored?.crowdSourceCaseId).toBe('case_1');
     expect(stored?.crowdSourceMerged).toBe(true);
-    // Mongo spelled this `$unset`; here absence is NULL. If it stayed set, an
+    // Absence is NULL. If it stayed set, an
     // operational sweep would report a delivered report as still failing.
     expect(stored?.lastDeliveryError).toBeNull();
     expect(stored?.submittedAt).toBeInstanceOf(Date);

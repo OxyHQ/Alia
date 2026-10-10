@@ -30,7 +30,7 @@
       "packages/alia-gateway-admin/src/lib/websocket/client.ts speaks a hand-rolled JSON protocol ({type:'subscribe'|'ping'|'pong'|'error', channel, data}) to ws://.../internal/gateway/ws. The API serves only /ws/mcp plus socket.io, so this protocol has no server. Its message 'type' vocabulary was not enumerated because there is nothing on the other end to enumerate against.",
       "packages/api/src/routes/models-stats.ts (GET /models/stats, /models/stats/:modelId) and packages/api/src/routes/external-models.ts (GET /, /organizations, /:modelId) are mounted and live but have ZERO in-repo HTTP callers. They are model-metadata endpoints, so they plausibly belong to the removal set, but no client evidence exists either way.",
       "The exact ownership split for /v1/voice/* (LiveKit token minting vs transcription) was not decided: token minting is an Alia product concern, transcription is inference. Both live in one file (packages/api/src/routes/v1/voice.ts), so the file will have to be split.",
-      "docs/superpowers/plans/2026-07-15-memory-screen-redesign.md and docs/superpowers/specs/*.md are inside docsPath and therefore PUBLISHED, but are historical planning documents. Whether they should be in the public docs corpus at all is a docs decision, not an API one."
+      "docs/superpowers/specs/*.md are inside docsPath and therefore PUBLISHED, but are historical planning documents. Whether they should be in the public docs corpus at all is a docs decision, not an API one."
     ]
   },
   "items": [

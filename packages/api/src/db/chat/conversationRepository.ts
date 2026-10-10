@@ -6,20 +6,19 @@
  * takes both. `db/schema/chat.ts` states why that pair, and not an id, is the
  * identity; this file is the only place the package reaches the table.
  *
- * ## Ordering is the thing this port could get wrong silently
+ * ## Ordering is the thing that goes wrong silently
  *
- * Mongo's natural order approximates insertion order, so `sort({ updatedAt: -1 })`
- * had a de-facto tiebreak Postgres does not. Where the source relied on it, the
- * order is made explicit rather than left to the planner — an arbitrary but
- * stable-looking order is exactly the "plausible, not wrong-looking" failure a
- * port produces.
+ * Postgres has no natural insertion order, so a sort on `updatedAt` alone has no
+ * tiebreak. Every order is made explicit rather than left to the planner — an
+ * arbitrary but stable-looking order is exactly the "plausible, not
+ * wrong-looking" failure.
  *
- * ## NULL ordering differs from Mongo in BOTH directions
+ * ## NULL ordering is spelled out
  *
- * Mongo sorts `null`/missing BELOW every number, in both directions. Postgres
- * defaults to `NULLS LAST` for ASC and `NULLS FIRST` for DESC — the opposite of
- * Mongo on both. Every `seq` ordering in this package therefore spells its NULL
- * placement out; see `messageRepository.ts`, which is where `seq` actually lives.
+ * Postgres defaults to `NULLS LAST` for ASC and `NULLS FIRST` for DESC, and the
+ * thread order wants a missing `seq` BELOW every number in both directions.
+ * Every `seq` ordering in this package therefore spells its NULL placement out;
+ * see `messageRepository.ts`, which is where `seq` actually lives.
  */
 
 import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
@@ -186,7 +185,7 @@ export async function conversationExists(
 /**
  * The fields an upsert may write.
  *
- * Split the way Mongo's `$set` and `$setOnInsert` were, because the two branches
+ * Split into insert-only and always-written fields, because the two branches
  * genuinely differ: `title` and `source` are decided when the thread is created
  * and must survive every later save, while `last_message` tracks the newest turn.
  */
@@ -211,8 +210,7 @@ export interface ConversationUpsert {
  *
  * ## `undefined` must not reach the SET clause
  *
- * `$set: { lastMessage: undefined }` is a NO-OP in Mongo. The same statement in
- * Postgres writes NULL, and `POST /conversations` really does produce it: a save
+ * Passing `lastMessage: undefined` to the SET clause would write NULL, and `POST /conversations` really does produce it: a save
  * whose `messages` array is empty leaves `lastMessage` undefined, and a
  * translation that passed it through would erase the last message of a thread
  * every time the client sent an empty history. So the SET clause is built from
@@ -269,9 +267,8 @@ export async function upsertConversation(
  * Rename a thread, reporting whether one was renamed.
  *
  * `db.update()` here rather than the upsert above, so `updatedAt`'s `$onUpdate`
- * applies — the source was `Conversation.updateOne` on a `timestamps: true`
- * schema, which moved `updatedAt` too. The count is read off `count`, which is
- * Mongo's `matchedCount`: for an UPDATE the returned row set is empty whether or
+ * applies and a rename moves `updatedAt`. The count is read off `count`, the
+ * number of rows MATCHED: for an UPDATE the returned row set is empty whether or
  * not anything matched, so `rows.length` would be a plausible, always-zero
  * answer.
  */
@@ -304,8 +301,8 @@ export async function updateConversationTitle(
  *
  * `db.update()` for the same reason `updateConversationTitle` uses it: the
  * `$onUpdate` moves `updated_at`, so a thread that was just emptied surfaces
- * where the list expects a thread that was just touched. The count is Mongo's
- * `matchedCount` — the route reads `0` as "not yours or not there", and answers
+ * where the list expects a thread that was just touched. The count is the
+ * number of rows matched — the route reads `0` as "not yours or not there", and answers
  * the two identically so an id cannot be probed for.
  *
  * Takes an {@link Executor} because the route runs it in ONE transaction with
@@ -334,7 +331,7 @@ export async function clearConversationPreview(
  *
  * Its messages are NOT removed by this — there is no foreign key to cascade
  * through, deliberately (`db/schema/chat.ts` records why), so the caller deletes
- * them itself exactly as the Mongo version did.
+ * them itself.
  */
 export async function deleteConversation(
   db: ApiDatabase,

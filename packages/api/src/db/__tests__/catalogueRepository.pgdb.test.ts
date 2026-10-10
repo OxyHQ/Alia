@@ -42,8 +42,8 @@ const SEED: ConfigAuditActor = { kind: 'seed', id: 'catalogueRepository.pgdb.tes
  *
  * Three of the properties here have no mocked counterpart at all: the foreign
  * keys that now REFUSE an orphan mapping, the cascade that removes a withdrawn
- * plan's entitlements, and `xmax = 0`, which is the only way to recover Mongo's
- * `upsertedCount` from a Postgres upsert.
+ * plan's entitlements, and `xmax = 0`, which is the only way to tell an insert
+ * from an update in a Postgres upsert.
  *
  * Business keys are namespaced `cat-` so this file cannot collide with another's
  * fixtures — `plan_id`, `feature_id` and `package_id` are all unique GLOBALLY and
@@ -137,9 +137,8 @@ describe('seedPlan', () => {
     /**
      * The second call is the whole point, and the mechanism changed with the
      * behaviour. It used to be `ON CONFLICT DO UPDATE ... RETURNING (xmax = 0)`,
-     * because `rowCount` is 1 both times — it behaves like Mongo's
-     * `matchedCount` — so a port reading it would report every re-run as a
-     * fresh seed. `DO NOTHING RETURNING` returns NO ROW on conflict, so the
+     * because `rowCount` is 1 both times, so a reader of it would report every
+     * re-run as a fresh seed. `DO NOTHING RETURNING` returns NO ROW on conflict, so the
      * empty result IS the conflict branch and `xmax` is not needed.
      */
     expect((await seedPlan(db, { ...values, name: 'Seeded again' }, SEED)).inserted).toBe(false);
@@ -262,8 +261,7 @@ describe('plan features', () => {
 
   it('REFUSES a mapping naming a plan that does not exist', async () => {
     /**
-     * Mongo created the orphan happily. The foreign key is what makes the
-     * difference, and the route turns `23503` into a 400 — so this is the
+     * The foreign key refuses the orphan, and the route turns `23503` into a 400 — so this is the
      * assertion that keeps that branch reachable.
      */
     let caught: unknown;
@@ -295,8 +293,8 @@ describe('plan features', () => {
     });
 
     // The second call supplies neither `limitValue` nor `displayLabel`.
-    // Mongoose strips `undefined` out of a `$set`, so the stored values must
-    // survive — a port passing `undefined` straight through would null them.
+    // The stored values must survive — passing `undefined` straight through
+    // would null them.
     const row = await upsertPlanFeature(db, 'cat-pf-plan', 'cat-pf-feat', { enabled: false });
     expect(row.enabled).toBe(false);
     expect(row.limitValue).toBe(25);
@@ -348,9 +346,8 @@ describe('plan features', () => {
     expect(await selectPlanFeatures(db, { planId: 'cat-cascade-plan' })).toHaveLength(1);
 
     /**
-     * A deliberate change from Mongo, which left the mapping behind — where a
-     * plan re-created under the same id silently inherited the withdrawn one's
-     * entitlements. The cascade is the schema's, and this is where it shows.
+     * A mapping left behind would let a plan re-created under the same id
+     * silently inherit the withdrawn one's entitlements. The cascade is the schema's, and this is where it shows.
      */
     await deletePlanByPlanId(db, 'cat-cascade-plan');
     expect(await selectPlanFeatures(db, { planId: 'cat-cascade-plan' })).toHaveLength(0);

@@ -11,8 +11,7 @@ import { defineConfig } from 'vitest/config';
  * test` — and the `Lint & Test` CI job — fail on a machine without Docker,
  * which is a good way to get a suite disabled by whoever hits it next.
  *
- * `*.pgdb.test.ts` names the database in the file name. The convention outlived
- * the Mongo suite it was invented to be tellable apart from, and it stays: the
+ * `*.pgdb.test.ts` names the database in the file name, and it matters: the
  * default config EXCLUDES this glob, so a real-database test that loses the
  * suffix silently moves into a job with no Postgres.
  *
