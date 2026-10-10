@@ -555,7 +555,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
     const retryableError = Object.assign(new Error('Rate limit exceeded'), { status: 429 });
     mockStreamText.mockImplementation(() => {
       return {
-        // eslint-disable-next-line require-yield -- simulates immediate provider failure
+        // biome-ignore lint/correctness/useYield: simulates immediate provider failure
         fullStream: (async function* () {
           throw retryableError;
         })(),
@@ -664,7 +664,7 @@ describe('a turn that produced nothing costs nothing - /v1/chat/completions', ()
       return Promise.resolve(calls === 1 ? VALID_RESOLVED_MODEL : null);
     });
     mockStreamText.mockImplementation(() => ({
-      // eslint-disable-next-line require-yield -- simulates immediate provider failure
+      // biome-ignore lint/correctness/useYield: simulates immediate provider failure
       fullStream: (async function* () {
         throw Object.assign(new Error('Rate limit exceeded'), { status: 429 });
       })(),
@@ -879,7 +879,7 @@ describe('routing policy refusals - /v1/chat/completions', () => {
      */
     mockResolveModel.mockResolvedValue(VALID_RESOLVED_MODEL);
     mockStreamText.mockImplementation(() => ({
-      // eslint-disable-next-line require-yield -- simulates immediate provider failure
+      // biome-ignore lint/correctness/useYield: simulates immediate provider failure
       fullStream: (async function* () {
         throw Object.assign(new Error('Rate limit exceeded'), { status: 429 });
       })(),

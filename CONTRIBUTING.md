@@ -68,7 +68,7 @@ CI runs the following on every pull request, and each line runs locally as writt
 
 ```bash
 bun install && git diff --exit-code bun.lock
-bun run --filter @alia/api lint
+bunx biome ci .                           # Biome: format check + lint, whole repo
 bun run --filter @alia/api typecheck
 bun run --filter @alia/api test
 bun run --filter @alia.onl/sdk typecheck

@@ -12,7 +12,6 @@ import type { WebSocketServer, WebSocket } from 'ws';
 export type SessionWebSocket = WebSocket & { sessionId?: string };
 
 declare global {
-  // eslint-disable-next-line no-var
   var __wss: WebSocketServer | undefined;
 }
 

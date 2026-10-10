@@ -114,7 +114,7 @@ export interface RunStreamParams<TOOLS extends ToolSet> {
   requestId: string;
   modelId: string;
   resolved: ResolvedModel;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK config is dynamically extended; strict SDK param types don't support this pattern
+  // biome-ignore lint/suspicious/noExplicitAny: AI SDK config is dynamically extended; strict SDK param types don't support this pattern
   baseConfig: any;
   convertedMessages: ModelMessage[];
   toolNameMapping: Map<string, string>;

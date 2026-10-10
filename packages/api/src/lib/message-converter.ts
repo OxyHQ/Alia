@@ -26,7 +26,7 @@ export interface ChatMessage {
  * Handles tool result messages which have role "tool" in OpenAI format.
  */
 export function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping: Map<string, string>): ModelMessage[] {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK ModelMessage types are complex/dynamic
+  // biome-ignore lint/suspicious/noExplicitAny: AI SDK ModelMessage types are complex/dynamic
   const result: any[] = [];
   const toolCallsMap = new Map<string, { name: string; index: number }>();
   const sanitizedToolName = (originalName: string): string =>

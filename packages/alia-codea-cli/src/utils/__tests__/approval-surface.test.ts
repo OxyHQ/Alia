@@ -45,7 +45,7 @@ const QUIET = 4;
 const sizeAt = (payload: string, level: 'M' | 'L') =>
   QRCode.create(payload, { errorCorrectionLevel: level }).modules.size;
 
-// eslint-disable-next-line no-control-regex
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching ANSI escape sequences is the point
 const stripAnsi = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, '');
 const width = (line: string) => [...stripAnsi(line)].length;
 
