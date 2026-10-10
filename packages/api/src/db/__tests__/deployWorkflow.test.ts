@@ -26,7 +26,7 @@
  * a copy would drift in exactly the case it is meant to catch.
  */
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 // `@oxy.so/db/migrate`, not the root entry — the root export map does not
@@ -524,5 +524,83 @@ describe('the deploy removes retired credentials and runtime configuration', () 
     const s3 = readFileSync(fileURLToPath(new URL('../../lib/s3.ts', import.meta.url)), 'utf8');
     expect(s3).toContain('resolveS3Credentials');
     expect(s3).not.toContain("process.env.AWS_ACCESS_KEY_ID || ''");
+  });
+});
+
+/**
+ * Runtime secrets live in SSM Parameter Store, and no workflow writes one.
+ *
+ * Until 2026-10-10 `deploy-aws.yml` and `deploy-integrations.yml` copied GitHub
+ * repo secrets into SSM on every deploy, which made GitHub the source of truth
+ * for production credentials: whoever could edit a repo secret could change
+ * what production ran with, and the value lived in two systems. SSM
+ * (`/oxy/alia/*`, `/oxy/alia-integrations/*`, SecureString) is now the only
+ * source; a value is set or rotated with `aws ssm put-parameter --overwrite` by
+ * its owner (oxy-infra docs/runbooks/46-app-secrets-in-ssm.md), never by a
+ * workflow.
+ *
+ * Both halves are asserted, because each can regress alone: a step that writes
+ * a secret to SSM again, and a workflow that starts reading app secrets out of
+ * GitHub again (`toJSON(secrets)` additionally holds every run at
+ * `action_required`). Comment lines are ignored, so prose that names a pattern
+ * to explain its absence does not trip it.
+ */
+describe('runtime secrets live in SSM only; no workflow writes one', () => {
+  const workflowsDir = fileURLToPath(new URL('../../../../../.github/workflows/', import.meta.url));
+  const workflows = readdirSync(workflowsDir)
+    .filter((name) => /\.ya?ml$/.test(name))
+    .map((name) => ({
+      name,
+      code: readFileSync(`${workflowsDir}${name}`, 'utf8')
+        .split('\n')
+        .filter((line) => !/^\s*#/.test(line))
+        .join('\n'),
+    }));
+
+  /** What CI itself spends, per workflow. Every other workflow: the job token only. */
+  const CI_ONLY_SECRETS: Record<string, readonly string[]> = {
+    'deploy-frontends.yml': ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN'],
+  };
+
+  it('read every deploy workflow', () => {
+    const names = workflows.map((workflow) => workflow.name);
+    for (const name of ['deploy-aws.yml', 'deploy-integrations.yml', 'deploy-computer-host.yml', 'deploy-frontends.yml']) {
+      expect(names).toContain(name);
+    }
+  });
+
+  it('writes no secret to SSM; only the computer host records its image digests', () => {
+    for (const { name, code } of workflows) {
+      const writes = code.split('\n').filter((line) => /\bssm\s+put-parameter\b/.test(line));
+      if (name !== 'deploy-computer-host.yml') {
+        expect(writes, `${name} writes SSM`).toEqual([]);
+        continue;
+      }
+      // The one legitimate writer: the linux/arm64 digests this run just built,
+      // as plain `String` parameters the instance's unit pulls. Release
+      // configuration derived in CI, not a secret, and never from `secrets.*`.
+      expect(code).toContain('SSM_PREFIX: /oxy/alia-computer-host');
+      expect(writes).toHaveLength(2);
+      for (const line of writes) {
+        expect(line).toContain('--type String');
+        expect(line).not.toContain('SecureString');
+        expect(line).toMatch(/--name "\$SSM_PREFIX\/(HOST|WORKSPACE)_IMAGE" --value "\$(HOST|WORKSPACE)_IMAGE"$/);
+      }
+    }
+  });
+
+  it('reads no repo secret but the CI-only ones, and never the whole context', () => {
+    let reads = 0;
+    for (const { name, code } of workflows) {
+      expect(code, name).not.toMatch(/\$\{\{[^}]*toJSON\s*\(\s*secrets\s*\)/);
+      const allowed = new Set(['GITHUB_TOKEN', ...(CI_ONLY_SECRETS[name] ?? [])]);
+      for (const [, secret] of code.matchAll(/\bsecrets\.([A-Za-z0-9_]+)/g)) {
+        reads += 1;
+        expect(allowed.has(secret!), `${name} reads secrets.${secret}`).toBe(true);
+      }
+    }
+    // Vacuity floor: the Cloudflare credentials ARE read, so a matcher that
+    // stopped matching would otherwise pass every workflow silently.
+    expect(reads).toBeGreaterThan(0);
   });
 });

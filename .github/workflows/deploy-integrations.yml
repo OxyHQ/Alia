@@ -83,49 +83,15 @@ jobs:
           role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
           aws-region: ${{ env.AWS_REGION }}
 
-      # Enumerated one at a time, for the two reasons `deploy-aws.yml` gives at
-      # length: a workflow that walks the whole `secrets` context is shaped like
-      # an exfiltration payload and GitHub holds every run for human approval,
-      # and enumerating is least privilege.
-      #
-      # The database URL and shared gateway secret are SSM-owned. This workflow
-      # syncs only the shared encryption key from GitHub:
-      #
-      #   DATABASE_URL         — NO LINE, ON PURPOSE. `/oxy/alia-integrations/
-      #                          DATABASE_URL` is written once by hand when the
-      #                          database is provisioned (oxy-infra runbook 30
-      #                          §2) and SSM is the only copy. A sync line here
-      #                          would be a loaded gun: the day somebody creates
-      #                          a `DATABASE_URL` repo secret for any reason, the
-      #                          next deploy overwrites the only copy of the
-      #                          connection string with it, silently.
-      #                          `/oxy/alia/DATABASE_URL` is the same shape and
-      #                          the reason CrowdSource was provisioned SSM-only.
-      #   INTEGRATIONS_SECRET  — NO LINE, ON PURPOSE. The API and this service
-      #                          bind the SAME existing SSM parameter. Neither
-      #                          workflow retrieves, decrypts or overwrites it.
-      #   TOKEN_ENCRYPTION_KEY — likewise shared, and likewise the API's
-      #                          parameter. See the deploy step for why the VALUE
-      #                          must be the same on both services.
-      - name: Sync GitHub secrets -> SSM (GitHub is the source of truth)
-        env:
-          SHARED_TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
-        run: |
-          sync_secret() {
-            name="$1"; value="$2"; path="$3"
-            if [ -z "$value" ] || [ "$value" = "-" ]; then
-              echo "::warning::skip empty/placeholder secret $name; SSM unchanged"
-              return 0
-            fi
-            aws ssm put-parameter --name "$path" --value "$value" --type SecureString --overwrite >/dev/null
-            echo "synced -> $path"
-          }
-
-          # `/oxy/alia/`, not `/oxy/alia-integrations/`: both are the API's
-          # parameters and this service reads them. A second copy under its own
-          # prefix is one rotation away from a mismatch nobody can explain.
-          sync_secret TOKEN_ENCRYPTION_KEY "$SHARED_TOKEN_ENCRYPTION_KEY" "/oxy/alia/TOKEN_ENCRYPTION_KEY"
-
+      # Runtime secrets are NOT in GitHub, and nothing in this workflow writes
+      # one. This service reads three SSM parameters, each with one owner:
+      # `/oxy/alia-integrations/DATABASE_URL` (written by hand at provisioning,
+      # oxy-infra runbook 30), and the API's `/oxy/alia/INTEGRATIONS_SECRET` and
+      # `/oxy/alia/TOKEN_ENCRYPTION_KEY`, shared with the API by binding the SAME
+      # parameter so a rotation cannot leave the two services disagreeing. Set
+      # or rotate with `aws ssm put-parameter --overwrite` (oxy-infra
+      # docs/runbooks/46-app-secrets-in-ssm.md). Until 2026-10-10 a step here
+      # copied the TOKEN_ENCRYPTION_KEY repo secret into SSM on every deploy.
       - name: Verify SSM-owned runtime secret metadata
         run: |
           for parameter_name in \
