@@ -18,7 +18,10 @@ import { SSEWriter } from '../../lib/chat/sse-writer.js';
 import { buildChatRequestContext } from '../../lib/chat/request-context.js';
 import type { AgentMessage } from '../../lib/chat/stream-runner.js';
 import { runProviderLoop, type ChatLoopState } from '../../lib/chat/provider-loop.js';
-import { AgentTurnCoordinator, type CoordinatedAgentTurn } from '../../lib/agent/agent-turn-coordinator.js';
+import {
+  AgentTurnCoordinator,
+  type CoordinatedAgentTurn,
+} from '../../lib/agent/agent-turn-coordinator.js';
 
 const router = Router();
 
@@ -118,12 +121,14 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         log.v1.warn({ err, turnId: turn.id }, 'Failed to settle a timed-out agent turn');
       });
     }
-    failTurn(new AliaError({
-      code: AliaErrorCode.TIMEOUT,
-      message: 'Global request timeout after 80s',
-      retryable: true,
-      reason: 'timeout',
-    }));
+    failTurn(
+      new AliaError({
+        code: AliaErrorCode.TIMEOUT,
+        message: 'Global request timeout after 80s',
+        retryable: true,
+        reason: 'timeout',
+      }),
+    );
   }, GLOBAL_TIMEOUT_MS);
 
   try {
@@ -133,11 +138,25 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     if (!ctx) return; // response already written (validation error or gate rejection)
 
     const {
-      body, messages, conversationId, assistantMessageId, reasoningEffort, responseMode, deepResearch, webSearch,
+      body,
+      messages,
+      conversationId,
+      assistantMessageId,
+      reasoningEffort,
+      responseMode,
+      deepResearch,
+      webSearch,
       mcpServerId,
-      includeUsage, isDirectUserSession, requestedModel, clientContext, surface,
+      includeUsage,
+      isDirectUserSession,
+      requestedModel,
+      clientContext,
+      surface,
       isLocalRuntime,
-      userMemory, oxyUser, skills, linkedAgent,
+      userMemory,
+      oxyUser,
+      skills,
+      linkedAgent,
     } = ctx;
     state.creditReservation = ctx.creditReservation;
     state.resolved = ctx.resolved;
@@ -178,16 +197,22 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     if (agentRuntimeEnabled && linkedAgent && req.user?.id && isDirectUserSession) {
       const lastUserMessage = [...messages].reverse().find((message) => message.role === 'user');
-      const task = typeof lastUserMessage?.content === 'string'
-        ? lastUserMessage.content
-        : Array.isArray(lastUserMessage?.content)
+      const task =
+        typeof lastUserMessage?.content === 'string'
           ? lastUserMessage.content
-              .filter((part): part is { type: 'text'; text: string } => Boolean(
-                part && typeof part === 'object' && part.type === 'text' && typeof part.text === 'string',
-              ))
-              .map((part) => part.text)
-              .join('\n')
-          : 'Continue the agent thread';
+          : Array.isArray(lastUserMessage?.content)
+            ? lastUserMessage.content
+                .filter((part): part is { type: 'text'; text: string } =>
+                  Boolean(
+                    part &&
+                      typeof part === 'object' &&
+                      part.type === 'text' &&
+                      typeof part.text === 'string',
+                  ),
+                )
+                .map((part) => part.text)
+                .join('\n')
+            : 'Continue the agent thread';
       coordinatedTurn = await AgentTurnCoordinator.begin({
         agent: linkedAgent,
         oxyUserId: req.user.id,
@@ -196,12 +221,14 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       });
       if (body.stream) {
         sse.ensureHeaders();
-        res.write(`event: alia.agent_turn\ndata: ${JSON.stringify({
-          eventVersion: 1,
-          turnId: coordinatedTurn.id,
-          agentId: linkedAgent._id,
-          conversationId: conversationId ?? null,
-        })}\n\n`);
+        res.write(
+          `event: alia.agent_turn\ndata: ${JSON.stringify({
+            eventVersion: 1,
+            turnId: coordinatedTurn.id,
+            agentId: linkedAgent._id,
+            conversationId: conversationId ?? null,
+          })}\n\n`,
+        );
       }
     }
 
@@ -209,26 +236,28 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     const sseEmitter = createResponseSSEEmitter(res, sse.ensureHeaders);
     let assembled: Awaited<ReturnType<typeof ToolPipeline.forUser>>;
     try {
-      assembled = req.machineCredential ? ToolPipeline.forMachineTurn() : await ToolPipeline.forUser({
-        userId: req.user?.id || '',
-        accessToken: req.accessToken,
-        isDirectSession: isDirectUserSession,
-        // A session acts for the person holding it; an API key does not.
-        actsForPerson: isDirectUserSession,
-        agentMode: agentRuntimeEnabled,
-        requestId,
-        // The apps this conversation already opened stay open (`lib/tool-budget.ts`).
-        priorToolCalls: priorToolCallsOf(messages),
-        editorToolDefinitions: body.tools,
-        sseEmitter,
-        webSearch,
-        mcpServerId,
-        isLocalRuntime,
-        toolsEnabled: true,
-        agent: linkedAgent,
-        skills,
-        runtime: coordinatedTurn?.runtime,
-      });
+      assembled = req.machineCredential
+        ? ToolPipeline.forMachineTurn()
+        : await ToolPipeline.forUser({
+            userId: req.user?.id || '',
+            accessToken: req.accessToken,
+            isDirectSession: isDirectUserSession,
+            // A session acts for the person holding it; an API key does not.
+            actsForPerson: isDirectUserSession,
+            agentMode: agentRuntimeEnabled,
+            requestId,
+            // The apps this conversation already opened stay open (`lib/tool-budget.ts`).
+            priorToolCalls: priorToolCallsOf(messages),
+            editorToolDefinitions: body.tools,
+            sseEmitter,
+            webSearch,
+            mcpServerId,
+            isLocalRuntime,
+            toolsEnabled: true,
+            agent: linkedAgent,
+            skills,
+            runtime: coordinatedTurn?.runtime,
+          });
     } catch (error: unknown) {
       /**
        * The turn cannot be served without dropping tools somebody explicitly
@@ -253,7 +282,13 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       coordinatedTurn = null;
       return;
     }
-    const { tools: allTools, toolNameMapping, routing: toolRouting, appCatalogPrompt, activeToolNames } = assembled;
+    const {
+      tools: allTools,
+      toolNameMapping,
+      routing: toolRouting,
+      appCatalogPrompt,
+      activeToolNames,
+    } = assembled;
 
     const agentMessages: AgentMessage[] = [];
 
@@ -403,7 +438,6 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     failTurn(loopResult.error);
     await coordinatedTurn?.fail(new Error('All inference attempts were exhausted'));
     return; // Handled — do not fall to outer catch
-
   } catch (e: unknown) {
     clearTimeout(globalTimer);
     log.v1.error({ err: e }, 'Request error');
@@ -411,7 +445,10 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       try {
         await coordinatedTurn.fail(e);
       } catch (settleError) {
-        log.v1.warn({ err: settleError, turnId: coordinatedTurn.id }, 'Failed to settle agent turn');
+        log.v1.warn(
+          { err: settleError, turnId: coordinatedTurn.id },
+          'Failed to settle agent turn',
+        );
       }
     }
 
@@ -425,7 +462,10 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     // CRITICAL: Translate error to remove provider information!
     const { toAliaError } = await import('../../lib/errors/index.js');
-    const aliaError = toAliaError(e, { provider: state.resolved?.provider, model: state.resolved?.modelId });
+    const aliaError = toAliaError(e, {
+      provider: state.resolved?.provider,
+      model: state.resolved?.modelId,
+    });
 
     // Most often an upstream error after text or tools were already streamed.
     // Nothing was saved and nothing is charged: the release point below
@@ -457,7 +497,7 @@ router.get('/', async (_req: Request, res: Response) => {
   res.json({
     status: '🟢 Online',
     service: 'Alia AI Agent System',
-    endpoint: '/v1/chat/completions'
+    endpoint: '/v1/chat/completions',
   });
 });
 

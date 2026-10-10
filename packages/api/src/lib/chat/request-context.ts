@@ -1,5 +1,5 @@
-import {productCreditPlanId} from '../product-credit-contract';
-import {USAGE_WINDOW_CREDITS} from '../usage-window';
+import { productCreditPlanId } from '../product-credit-contract';
+import { USAGE_WINDOW_CREDITS } from '../usage-window';
 import { readConfiguredProductCreditSnapshot } from '../product-credit-access';
 /**
  * Pre-flight assembly for /v1/chat/completions: body validation, the parallel
@@ -16,11 +16,7 @@ import { captureCreditPriceBook } from '../credit-price-snapshot.js';
 import { admitMachineTurn } from './machine-turn.js';
 import { MAX_TOOLS_PER_INFERENCE_REQUEST } from '../inference/tool-limit.js';
 import type { Request, Response } from 'express';
-import {
-  resolveModel,
-  resolveDefaultModel,
-  type ResolvedModel,
-} from '../chat-core.js';
+import { resolveModel, resolveDefaultModel, type ResolvedModel } from '../chat-core.js';
 import { isReasoningEffort, REASONING_EFFORTS, type ReasoningEffort } from '../models/catalogue.js';
 import { ModelNotFoundError } from '../models/errors.js';
 import {
@@ -41,35 +37,25 @@ import {
  */
 import { redactUnsafeDetail } from '../errors/sanitize.js';
 import { getDb } from '../../db/index.js';
-import {
-  findUserMemory,
-  type UserMemoryProfile,
-} from '../../db/memory/userMemoryRepository.js';
+import { findUserMemory, type UserMemoryProfile } from '../../db/memory/userMemoryRepository.js';
 import { getOrCreateUserCredits } from '../user-credits-helpers.js';
-import {
-  reserveCredits,
-  refundReservation,
-  type CreditReservation,
-} from '../credits-manager.js';
+import { reserveCredits, refundReservation, type CreditReservation } from '../credits-manager.js';
 import { getUserEntitlements, type Entitlements } from '../plan-access.js';
 import { readUsageWindow, secondsUntilReset, type UsageWindow } from '../usage-window.js';
-import { PROMPT_SURFACES, type OxyUserProfile, type PromptSurface } from '../system-prompt-builder.js';
+import {
+  PROMPT_SURFACES,
+  type OxyUserProfile,
+  type PromptSurface,
+} from '../system-prompt-builder.js';
 import { oxyClient } from '../../middleware/auth.js';
 import { findAgentSkills } from '../../db/agents/agentRepository.js';
 import { buildSkillRuntime, type SkillRuntime } from '../skills/runtime.js';
 import { runBeforeChatHooks } from '../hooks/index.js';
 import { log } from '../logger.js';
-import {
-  loadTurnAgent,
-  refusalMessage,
-  refusalStatus,
-} from '../agent-account.js';
+import { loadTurnAgent, refusalMessage, refusalStatus } from '../agent-account.js';
 import type { HydratedAgent } from '../agent-identity.js';
 import { findMcpServerForUser } from '../../db/integrations/mcpServerRepository.js';
-import {
-  runAutonomyBeforeChat,
-  type AutonomyRuntimeContext,
-} from '../autonomy/runtime.js';
+import { runAutonomyBeforeChat, type AutonomyRuntimeContext } from '../autonomy/runtime.js';
 import type { ChatMessage } from '../message-converter.js';
 import { usableMessageId } from '../../domain/conversation.js';
 import type { OpenAITool } from '../tool-converter.js';
@@ -189,7 +175,12 @@ export async function buildChatRequestContext(
   const body = req.body;
   const machineTurn = admitMachineTurn(req);
   if (machineTurn && 'error' in machineTurn) {
-    res.status(403).json({ error: { code: machineTurn.error, message: 'This machine credential authorizes an app-only chat turn.' } });
+    res.status(403).json({
+      error: {
+        code: machineTurn.error,
+        message: 'This machine credential authorizes an app-only chat turn.',
+      },
+    });
     return null;
   }
 
@@ -212,8 +203,7 @@ export async function buildChatRequestContext(
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     res.status(400).json({
       error: {
-        message:
-          'Request body must include a "messages" array with at least one message.',
+        message: 'Request body must include a "messages" array with at least one message.',
         type: 'invalid_request_error',
         param: 'messages',
         code: 'invalid_messages',
@@ -316,8 +306,7 @@ export async function buildChatRequestContext(
   const deepResearch = body.deepResearch as boolean | undefined;
   // Absent means ON, which is what every request did before the switch existed.
   const webSearch = machineTurn === null && body.webSearch !== false;
-  const streamOptions = body.stream_options as
-    { include_usage?: boolean } | undefined;
+  const streamOptions = body.stream_options as { include_usage?: boolean } | undefined;
   const includeUsage = streamOptions?.include_usage === true;
 
   log.v1.info(
@@ -368,7 +357,10 @@ export async function buildChatRequestContext(
    * agent, and use a product's entry to reach what that product never asked for.
    * Same neutral refusal as every other unavailable agent.
    */
-  if (req.oxyRequester !== undefined && (!isPresentRequesterSession || body.agentId !== req.oxyRequester.agentId)) {
+  if (
+    req.oxyRequester !== undefined &&
+    (!isPresentRequesterSession || body.agentId !== req.oxyRequester.agentId)
+  ) {
     res.status(404).json({
       error: {
         message: 'The selected agent is unavailable.',
@@ -457,10 +449,7 @@ export async function buildChatRequestContext(
   let mcpServerId: string | null | undefined;
   if (body.mcpServerId === undefined || body.mcpServerId === null) {
     mcpServerId = body.mcpServerId;
-  } else if (
-    typeof body.mcpServerId !== 'string' ||
-    body.mcpServerId.trim() === ''
-  ) {
+  } else if (typeof body.mcpServerId !== 'string' || body.mcpServerId.trim() === '') {
     res.status(400).json({
       error: {
         message: 'mcpServerId must be a connector id or null.',
@@ -481,11 +470,7 @@ export async function buildChatRequestContext(
     });
     return null;
   } else {
-    const selectedServer = await findMcpServerForUser(
-      getDb(),
-      body.mcpServerId,
-      req.user.id,
-    );
+    const selectedServer = await findMcpServerForUser(getDb(), body.mcpServerId, req.user.id);
     const runnable =
       selectedServer?.enabled === true &&
       selectedServer.status === 'running' &&
@@ -515,11 +500,16 @@ export async function buildChatRequestContext(
    *  - **absent** — the `auto` power level.
    *  - **`local/<runtime>/<model>`** — the caller's own machine, below.
    */
-  if (body.model !== undefined && body.model !== null && (typeof body.model !== 'string' || body.model.trim() === '')) {
+  if (
+    body.model !== undefined &&
+    body.model !== null &&
+    (typeof body.model !== 'string' || body.model.trim() === '')
+  ) {
     clearTimeout(globalTimer);
     res.status(400).json({
       error: {
-        message: 'model must be a power level (auto, instant, medium, high, xhigh, pro, ultra), a model id from GET /catalogue, or omitted for auto.',
+        message:
+          'model must be a power level (auto, instant, medium, high, xhigh, pro, ultra), a model id from GET /catalogue, or omitted for auto.',
         type: 'invalid_request_error',
         param: 'model',
         code: 'invalid_model',
@@ -550,9 +540,7 @@ export async function buildChatRequestContext(
    * plan that grants someone their own hardware, and nothing to bill for using
    * it. See `lib/inference/user-runtime-bridge.ts`.
    */
-  const localRuntime: UserRuntimeSelection | null = parseUserRuntimeModel(
-    body.model,
-  );
+  const localRuntime: UserRuntimeSelection | null = parseUserRuntimeModel(body.model);
   /**
    * The resolution a local turn uses in place of `resolveModel`.
    *
@@ -670,24 +658,24 @@ export async function buildChatRequestContext(
     resolved = localResolved;
   } else {
     try {
-      resolved = typeof body.model === 'string'
-        ? await resolveModel(body.model)
-        : resolveDefaultModel();
+      resolved =
+        typeof body.model === 'string' ? await resolveModel(body.model) : resolveDefaultModel();
     } catch (err: unknown) {
       clearTimeout(globalTimer);
-      const refusal = err instanceof ModelNotFoundError
-        ? {
-            message: err.userMessage,
-            type: 'invalid_request_error',
-            param: 'model',
-            code: ModelNotFoundError.WIRE_CODE,
-          }
-        : {
-            message: 'No models available. Please try again.',
-            type: 'server_error',
-            param: 'model',
-            code: 'model_not_available',
-          };
+      const refusal =
+        err instanceof ModelNotFoundError
+          ? {
+              message: err.userMessage,
+              type: 'invalid_request_error',
+              param: 'model',
+              code: ModelNotFoundError.WIRE_CODE,
+            }
+          : {
+              message: 'No models available. Please try again.',
+              type: 'server_error',
+              param: 'model',
+              code: 'model_not_available',
+            };
       if (!(err instanceof ModelNotFoundError)) log.v1.error({ err }, 'Error resolving model');
       if (sse.sent) {
         sse.writeError(refusal);
@@ -710,9 +698,10 @@ export async function buildChatRequestContext(
    */
   let reasoningEffort: ReasoningEffort | null = null;
   if (body.reasoningEffort !== undefined && body.reasoningEffort !== null) {
-    const offered: readonly ReasoningEffort[] = resolved.powerLevel !== null
-      ? REASONING_EFFORTS
-      : resolved.catalogue?.reasoningEfforts ?? [];
+    const offered: readonly ReasoningEffort[] =
+      resolved.powerLevel !== null
+        ? REASONING_EFFORTS
+        : (resolved.catalogue?.reasoningEfforts ?? []);
     if (!isReasoningEffort(body.reasoningEffort) || !offered.includes(body.reasoningEffort)) {
       clearTimeout(globalTimer);
       const refusal = {
@@ -753,13 +742,7 @@ export async function buildChatRequestContext(
   const preStreamStart = Date.now();
 
   const creditAccountId = req.user?.id;
-  const [
-    creditResult,
-    userMemory,
-    oxyUser,
-    entitlements,
-    turnAgent,
-  ] = await Promise.all([
+  const [creditResult, userMemory, oxyUser, entitlements, turnAgent] = await Promise.all([
     // Credits: sequential pair (getOrCreate → reserve), parallel with everything else
     // Skip for internal service requests (no credits charged)
     /**
@@ -768,27 +751,46 @@ export async function buildChatRequestContext(
      * any exit that neither charges nor refunds silently costs the person the
      * reserved credit.
      */
-    (creditAccountId !== undefined && !req.serviceApp && localRuntime === null) ? (async () => {
+    creditAccountId !== undefined && !req.serviceApp && localRuntime === null
+      ? (async () => {
           await getOrCreateUserCredits(creditAccountId);
           // The rolling window first (`lib/usage-window.ts`): a turn that
           // would start with it spent reserves nothing and is refused below.
           // It fails OPEN — a window that cannot be read never stops a turn;
           // the balance still bounds it.
-          const productCreditSnapshot = req.user?.id === creditAccountId
-            ? await readConfiguredProductCreditSnapshot(creditAccountId,req.accessToken).catch(() => undefined) : undefined;
-          const window = await usageWindowFor(creditAccountId, productCreditPlanId(productCreditSnapshot,creditAccountId));
+          const productCreditSnapshot =
+            req.user?.id === creditAccountId
+              ? await readConfiguredProductCreditSnapshot(creditAccountId, req.accessToken).catch(
+                  () => undefined,
+                )
+              : undefined;
+          const window = await usageWindowFor(
+            creditAccountId,
+            productCreditPlanId(productCreditSnapshot, creditAccountId),
+          );
           if (window?.exhausted) {
             return { reservation: null, error: false as const, window };
           }
           const priceBook = await captureCreditPriceBook();
-          const reservation = await reserveCredits(creditAccountId, undefined, { priceBook, requestedModel, aliaRequestId, productCreditSnapshot });
-          if(reservation?.productAllocationId) reservation.refreshProductCreditSnapshot = () => readConfiguredProductCreditSnapshot(creditAccountId,req.accessToken);
+          const reservation = await reserveCredits(creditAccountId, undefined, {
+            priceBook,
+            requestedModel,
+            aliaRequestId,
+            productCreditSnapshot,
+          });
+          if (reservation?.productAllocationId)
+            reservation.refreshProductCreditSnapshot = () =>
+              readConfiguredProductCreditSnapshot(creditAccountId, req.accessToken);
           return { reservation, error: false as const, window: null };
         })().catch((error) => {
           log.v1.error({ err: error }, 'Error reserving credits');
           return { reservation: null, error: true as const, window: null };
         })
-      : Promise.resolve({ reservation: null, error: false as const, window: null as UsageWindow | null }),
+      : Promise.resolve({
+          reservation: null,
+          error: false as const,
+          window: null as UsageWindow | null,
+        }),
 
     // User memory
     req.user
@@ -806,8 +808,7 @@ export async function buildChatRequestContext(
       : Promise.resolve<OxyUserProfile | null>(null),
 
     // User entitlements (plan window, features) — parallelized to avoid sequential delay
-    req.user ? getUserEntitlements(req.user.id).catch(() => null)
-      : Promise.resolve(null),
+    req.user ? getUserEntitlements(req.user.id).catch(() => null) : Promise.resolve(null),
 
     /**
      * The agent this TURN is for, named by the request rather than inferred.
@@ -835,19 +836,13 @@ export async function buildChatRequestContext(
            * unavailable identity lookup; the important invariant here is that
            * an explicit selector can never become `kind: 'none'`.
            */
-          log.v1.warn(
-            { err, agentId: requestedAgentId },
-            'Could not resolve the turn agent',
-          );
+          log.v1.warn({ err, agentId: requestedAgentId }, 'Could not resolve the turn agent');
           return { kind: 'resolution_unavailable' } as const;
         })
       : Promise.resolve({ kind: 'none' } as const),
   ]);
 
-  log.v1.info(
-    { durationMs: Date.now() - preStreamStart },
-    'Pre-stream setup complete',
-  );
+  log.v1.info({ durationMs: Date.now() - preStreamStart }, 'Pre-stream setup complete');
 
   // Validate credit reservation
   // Only return 402 if reserveCredits explicitly returned null (insufficient credits),
@@ -875,7 +870,12 @@ export async function buildChatRequestContext(
       code: 'USAGE_WINDOW_EXCEEDED',
       retryAfter: secondsUntilReset(window),
       suggestedAction: 'wait',
-      details: { limitType: 'usage_window', current: window.used, limit: window.limit, tier: entitlements?.planId ?? null },
+      details: {
+        limitType: 'usage_window',
+        current: window.used,
+        limit: window.limit,
+        tier: entitlements?.planId ?? null,
+      },
     };
     if (sse.sent) {
       sse.writeError(windowError);
@@ -894,8 +894,7 @@ export async function buildChatRequestContext(
   ) {
     clearTimeout(globalTimer);
     const creditError = {
-      message:
-        "You've run out of credits. Add more or upgrade your plan to continue.",
+      message: "You've run out of credits. Add more or upgrade your plan to continue.",
       type: 'invalid_request_error',
       param: null,
       code: 'INSUFFICIENT_CREDITS',
@@ -937,9 +936,7 @@ export async function buildChatRequestContext(
     if (sse.sent) {
       sse.writeError(refusal);
     } else {
-      res
-        .status(refusalStatus('identity_unavailable'))
-        .json({ error: refusal });
+      res.status(refusalStatus('identity_unavailable')).json({ error: refusal });
     }
     return null;
   }
@@ -998,8 +995,7 @@ export async function buildChatRequestContext(
   // to Alia's process credential for this lane.
   let inferenceServiceToken: string | undefined = machineTurn?.bearer;
   if (linkedAgent?.applicationId != null) {
-    const exactApplication =
-      req.serviceApp?.appId === linkedAgent.applicationId;
+    const exactApplication = req.serviceApp?.appId === linkedAgent.applicationId;
     /**
      * Two ways a person can be behind a product's service token: an offline
      * delegation grant (its scopes narrow the token), or a present requester
@@ -1016,12 +1012,7 @@ export async function buildChatRequestContext(
       req.serviceApp?.scopes.includes('inference:invoke') === true &&
       (presentRequesterForThisAgent ||
         req.serviceActingAs?.scopes.includes('inference:invoke') === true);
-    if (
-      !exactApplication ||
-      !exactDelegation ||
-      !hasInferenceScope ||
-      !req.accessToken
-    ) {
+    if (!exactApplication || !exactDelegation || !hasInferenceScope || !req.accessToken) {
       clearTimeout(globalTimer);
       const refusal = {
         message: 'The selected agent is unavailable.',
@@ -1055,9 +1046,7 @@ export async function buildChatRequestContext(
         oxyUserId: req.user.id,
         selectedNames: selectedSkillNames,
         agentSkillIds: linkedAgent
-          ? (await findAgentSkills(getDb(), linkedAgent.id)).map(
-              (ref) => ref._id,
-            )
+          ? (await findAgentSkills(getDb(), linkedAgent.id)).map((ref) => ref._id)
           : [],
         // Linking a skill to an agent is the explicit grant. A person's other
         // installed skills are not inherited by every agent they talk to.
@@ -1068,10 +1057,7 @@ export async function buildChatRequestContext(
       })
     : null;
 
-  log.v1.info(
-    { provider: resolved.provider, modelId },
-    'Using provider',
-  );
+  log.v1.info({ provider: resolved.provider, modelId }, 'Using provider');
 
   let recalledMemories: Array<{ title: string; summary: string }> | undefined;
   if (req.user?.id) {
@@ -1085,7 +1071,8 @@ export async function buildChatRequestContext(
       metadata: {},
     }).catch(() => null);
     recalledMemories = hookResult?.metadata?.recalledMemories as
-      Array<{ title: string; summary: string }> | undefined;
+      | Array<{ title: string; summary: string }>
+      | undefined;
   }
 
   return {
@@ -1130,15 +1117,25 @@ export async function buildChatRequestContext(
  * The requester's rolling usage window, or `null` when their plan has none or
  * it cannot be read — the window fails open.
  */
-async function usageWindowFor(oxyUserId: string, productPlanId: string | null = null): Promise<UsageWindow | null> {
+async function usageWindowFor(
+  oxyUserId: string,
+  productPlanId: string | null = null,
+): Promise<UsageWindow | null> {
   try {
     const entitlements = await getUserEntitlements(oxyUserId);
     const legacyPlanId = entitlements?.planId;
-    const selected = productPlanId && (USAGE_WINDOW_CREDITS.get(productPlanId)??0) > (USAGE_WINDOW_CREDITS.get(legacyPlanId??'free')??Infinity)
-      ? productPlanId : legacyPlanId;
+    const selected =
+      productPlanId &&
+      (USAGE_WINDOW_CREDITS.get(productPlanId) ?? 0) >
+        (USAGE_WINDOW_CREDITS.get(legacyPlanId ?? 'free') ?? Infinity)
+        ? productPlanId
+        : legacyPlanId;
     return selected ? await readUsageWindow(oxyUserId, selected) : null;
   } catch (error) {
-    log.v1.warn({ err: error }, 'Usage window unavailable; the turn goes ahead on the balance alone');
+    log.v1.warn(
+      { err: error },
+      'Usage window unavailable; the turn goes ahead on the balance alone',
+    );
     return null;
   }
 }

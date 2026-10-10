@@ -28,7 +28,11 @@ import { streamText, type ModelMessage, type ToolSet } from 'ai';
 import type { ResolvedModel } from '../chat-core.js';
 import { getDb } from '../../db/index.js';
 import { updateConversationTitle } from '../../db/chat/conversationRepository.js';
-import { recordCreditInferenceRequest, type CreditReservation, type CreditUsage } from '../credits-manager.js';
+import {
+  recordCreditInferenceRequest,
+  type CreditReservation,
+  type CreditUsage,
+} from '../credits-manager.js';
 import {
   saveConversationResult,
   turnProducedOutput,
@@ -131,10 +135,31 @@ export type ProviderLoopResult =
 /** Run one Kaana-hosted attempt and report whether a response was sent. */
 export async function runProviderLoop(params: ProviderLoopParams): Promise<ProviderLoopResult> {
   const {
-    req, res, sse, requestId, requestStartTime, globalTimer, globalTimeoutMs, state,
-    body, messages, conversationId, assistantMessageId, reasoningEffort, convertedMessages, truncatedTools,
-    toolRouting, toolNameMapping, agentMessages, systemPromptTokens, requestedModel,
-    autonomyRuntime, includeUsage, skills, inferenceServiceToken, beforeStreamClose,
+    req,
+    res,
+    sse,
+    requestId,
+    requestStartTime,
+    globalTimer,
+    globalTimeoutMs,
+    state,
+    body,
+    messages,
+    conversationId,
+    assistantMessageId,
+    reasoningEffort,
+    convertedMessages,
+    truncatedTools,
+    toolRouting,
+    toolNameMapping,
+    agentMessages,
+    systemPromptTokens,
+    requestedModel,
+    autonomyRuntime,
+    includeUsage,
+    skills,
+    inferenceServiceToken,
+    beforeStreamClose,
   } = params;
 
   // Track token usage (streaming path; the non-streaming path owns its own)
@@ -154,7 +179,11 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
    *
    * The disconnect listener is registered once, before either response mode.
    */
-  const observation: TurnObservation = { timeToFirstTokenMs: null, cancelled: false, resolvedModelReference: null };
+  const observation: TurnObservation = {
+    timeToFirstTokenMs: null,
+    cancelled: false,
+    resolvedModelReference: null,
+  };
 
   const onClientClose = (): void => {
     if (!res.writableEnded) observation.cancelled = true;
@@ -192,12 +221,13 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     retryable: true,
     reason: 'unknown',
   });
-  const timedOut = (): AliaError => new AliaError({
-    code: AliaErrorCode.TIMEOUT,
-    message: 'Time budget exhausted before Kaana inference',
-    retryable: true,
-    reason: 'timeout',
-  });
+  const timedOut = (): AliaError =>
+    new AliaError({
+      code: AliaErrorCode.TIMEOUT,
+      message: 'Time budget exhausted before Kaana inference',
+      retryable: true,
+      reason: 'timeout',
+    });
 
   /**
    * The usage record for a turn that did not complete.
@@ -212,286 +242,315 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
   };
 
   try {
-  hostedAttempt: {
-    // Check the global timeout before opening the hosted stream.
-    if (state.globalTimedOut) {
-      failure = timedOut();
-      break hostedAttempt;
-    }
-
-    // Leave enough time for the last-resort response.
-    const elapsedMs = Date.now() - requestStartTime;
-    if (elapsedMs > globalTimeoutMs - 10_000) {
-      log.v1.warn({ elapsedMs }, 'Time budget nearly exhausted before Kaana inference');
-      failure = timedOut();
-      break hostedAttempt;
-    }
-
-    // The route returns 503 before this function when resolution is absent.
-    const resolved = state.resolved;
-    if (!resolved) break hostedAttempt;
-    const modelId = state.modelId;
-
-    // Shared with the stream runner and catch: reflects writes made
-    // inside runStream even when the stream throws mid-flight.
-    const streamState: StreamRunnerState = { hasStreamedContent: false };
-
-    // Build common config for both streaming and non-streaming, plus first-byte abort
-    const { config: baseConfig, clearFirstByteTimer } = buildBaseConfig({
-      resolved,
-      body,
-      convertedMessages,
-      truncatedTools,
-      toolRouting,
-      reasoningEffort,
-      systemPromptTokens,
-      streamState,
-      oxyUserId: req.user?.id,
-      serviceToken: inferenceServiceToken,
-      onInferenceRequest: request => recordCreditInferenceRequest(state.creditReservation, request),
-      onUsage: (usage) => { tokenUsage = usage; },
-      onResolvedModel: (reference) => { observation.resolvedModelReference = reference; },
-    });
-
-    try {
-
-      // Handle non-streaming requests
-      if (body.stream !== true) {
-        await runNonStreaming({
-          settlement: state,
-          req,
-          res,
-          requestId,
-          globalTimer,
-          baseConfig,
-          clearFirstByteTimer,
-          modelId,
-          requestedModel,
-          reasoningEffort,
-          conversationId,
-          assistantMessageId,
-          messages,
-          creditReservation: state.creditReservation,
-          systemPromptTokens,
-          requestStartTime,
-          skills,
-          autonomyRuntime,
-          toolNameMapping,
-          observation,
-        });
-        // Stable, metadata-free positive signal for the passive public status
-        // alarm. It is emitted only after the hosted turn completed.
-        if (!observation.cancelled) log.v1.info('Alia functional turn completed');
-        return { status: 'completed' };
+    hostedAttempt: {
+      // Check the global timeout before opening the hosted stream.
+      if (state.globalTimedOut) {
+        failure = timedOut();
+        break hostedAttempt;
       }
 
-      // Start title generation in parallel for new conversations (runs during streaming)
-      let titlePromise: Promise<string | null> | null = null;
-      if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user) {
-        /**
-         * The catch is what keeps a title failure from failing the TURN, and
-         * the log is what keeps it from being invisible. `() => null` was both
-         * at once: `generateTitle` swallows its own faults, so anything that
-         * reaches here is a fault of the two existence queries above it, and
-         * the whole feature could stop working against a sick database with
-         * nothing anywhere to say so.
-         */
-        titlePromise = startParallelTitleGeneration(req.user.id, conversationId, messages).catch((err: unknown) => {
-          log.v1.error({ err, conversationId }, 'Parallel title generation failed');
-          return null;
-        });
+      // Leave enough time for the last-resort response.
+      const elapsedMs = Date.now() - requestStartTime;
+      if (elapsedMs > globalTimeoutMs - 10_000) {
+        log.v1.warn({ elapsedMs }, 'Time budget nearly exhausted before Kaana inference');
+        failure = timedOut();
+        break hostedAttempt;
       }
 
-      // Streaming request
-      const result = streamText(baseConfig);
+      // The route returns 503 before this function when resolution is absent.
+      const resolved = state.resolved;
+      if (!resolved) break hostedAttempt;
+      const modelId = state.modelId;
 
-      // Periodic keep-alive during stream processing — prevents proxy timeouts
-      // during multi-step LLM calls (e.g. the follow-up request after tool execution).
-      sse.startKeepAlive();
+      // Shared with the stream runner and catch: reflects writes made
+      // inside runStream even when the stream throws mid-flight.
+      const streamState: StreamRunnerState = { hasStreamedContent: false };
 
-      // Stream OpenAI-compatible chunks
-      const streamResult = await runStream({
-        result,
-        res,
-        sse,
-        requestId,
-        modelId,
+      // Build common config for both streaming and non-streaming, plus first-byte abort
+      const { config: baseConfig, clearFirstByteTimer } = buildBaseConfig({
         resolved,
-        baseConfig,
+        body,
         convertedMessages,
-        toolNameMapping,
-        agentMessages,
-        toolCallCount,
-        state: streamState,
-        onFirstChunk: () => {
-          // Called on EVERY chunk, so the first one wins: time to FIRST token,
-          // not time to the most recent one.
-          //
-          // Timed HERE, where the provider stream is consumed, rather than after
-          // the SSE frame is written — so the number is the model's latency and
-          // not the model's latency plus this process's own write path. Both are
-          // worth knowing and they are different questions; conflating them is
-          // how a socket-buffering problem gets attributed to a provider.
-          observation.timeToFirstTokenMs ??= Date.now() - requestStartTime;
-          clearFirstByteTimer();
+        truncatedTools,
+        toolRouting,
+        reasoningEffort,
+        systemPromptTokens,
+        streamState,
+        oxyUserId: req.user?.id,
+        serviceToken: inferenceServiceToken,
+        onInferenceRequest: (request) =>
+          recordCreditInferenceRequest(state.creditReservation, request),
+        onUsage: (usage) => {
+          tokenUsage = usage;
+        },
+        onResolvedModel: (reference) => {
+          observation.resolvedModelReference = reference;
         },
       });
-      let assistantResponse = streamResult.assistantResponse;
-      const toolInvocations = streamResult.toolInvocations;
-      toolCallCount = streamResult.toolCallCount;
 
-      sse.stopKeepAlive();
-      log.v1.info({ totalChunks: streamResult.chunkCount }, 'Stream processing complete');
-
-      // ── Text-based tool call fallback ──
-      // Some models (Gemini 3 preview, Minimax, etc.) output tool calls as text
-      // instead of using the native tool calling API. Detect and execute them.
-      assistantResponse = (await runTextToolFallback({
-        assistantResponse,
-        toolInvocations,
-        tools: truncatedTools,
-        convertedMessages,
-        baseConfig,
-        res,
-        requestId,
-        modelId,
-        resolved,
-      })).assistantResponse;
-
-      // Build lifecycle context for post-stream operations
-      const lifecycleCtx = lifecycleContext();
-
-      // Save conversation
-      await saveConversationResult(lifecycleCtx, assistantResponse, toolInvocations, agentMessages);
-
-      // Send AI-generated title via SSE (generated in parallel with streaming)
-      if (titlePromise && conversationId && req.user) {
-        try {
-          const title = await titlePromise;
-          if (title) {
-            res.write(`event: alia.title\ndata: ${JSON.stringify({ eventVersion: 1, title, conversationId })}\n\n`);
-            await updateConversationTitle(getDb(), req.user.id, conversationId, title);
-            // The title is a model summary of the user's own conversation.
-            log.v1.info({ conversationId }, 'Auto-generated conversation title');
-          }
-        } catch (err) {
-          log.v1.error({ err }, 'Failed to send inline title');
+      try {
+        // Handle non-streaming requests
+        if (body.stream !== true) {
+          await runNonStreaming({
+            settlement: state,
+            req,
+            res,
+            requestId,
+            globalTimer,
+            baseConfig,
+            clearFirstByteTimer,
+            modelId,
+            requestedModel,
+            reasoningEffort,
+            conversationId,
+            assistantMessageId,
+            messages,
+            creditReservation: state.creditReservation,
+            systemPromptTokens,
+            requestStartTime,
+            skills,
+            autonomyRuntime,
+            toolNameMapping,
+            observation,
+          });
+          // Stable, metadata-free positive signal for the passive public status
+          // alarm. It is emitted only after the hosted turn completed.
+          if (!observation.cancelled) log.v1.info('Alia functional turn completed');
+          return { status: 'completed' };
         }
-      }
 
-      /**
-       * Finalize credits + send usage chunk.
-       *
-       * Only for a turn that produced something. `calculateCreditsFromTokens`
-       * bills `MIN_CREDITS_PER_REQUEST` for zero tokens, which makes the
-       * adjustment exactly zero and quietly keeps the whole reservation as the
-       * charge — a person pays for an answer that never arrived. Left unsettled,
-       * the handler's release point refunds it.
-       */
-      const producedOutput = turnProducedOutput(assistantResponse, toolInvocations);
-      const { creditsCharged, creditsRemaining, creditWarning } = producedOutput
-        ? await finalizeChatCredits(lifecycleCtx, req, state, observation.resolvedModelReference)
-        : { creditsCharged: 0, creditsRemaining: 0, creditWarning: null };
-      if (includeUsage && state.creditReservation && req.user) {
-        const usageChunk = {
-          id: requestId,
-          object: 'chat.completion.chunk',
-          created: Math.floor(Date.now() / 1000),
-          model: modelId,
-          system_fingerprint: 'fp_alia',
-          service_tier: 'default',
-          choices: [],
-          usage: {
-            prompt_tokens: tokenUsage.promptTokens,
-            completion_tokens: tokenUsage.completionTokens,
-            total_tokens: tokenUsage.totalTokens,
-            prompt_tokens_details: { cached_tokens: 0, audio_tokens: 0 },
-            completion_tokens_details: { reasoning_tokens: 0, audio_tokens: 0, accepted_prediction_tokens: 0, rejected_prediction_tokens: 0 },
+        // Start title generation in parallel for new conversations (runs during streaming)
+        let titlePromise: Promise<string | null> | null = null;
+        if (
+          conversationId &&
+          typeof conversationId === 'string' &&
+          conversationId.trim() &&
+          req.user
+        ) {
+          /**
+           * The catch is what keeps a title failure from failing the TURN, and
+           * the log is what keeps it from being invisible. `() => null` was both
+           * at once: `generateTitle` swallows its own faults, so anything that
+           * reaches here is a fault of the two existence queries above it, and
+           * the whole feature could stop working against a sick database with
+           * nothing anywhere to say so.
+           */
+          titlePromise = startParallelTitleGeneration(req.user.id, conversationId, messages).catch(
+            (err: unknown) => {
+              log.v1.error({ err, conversationId }, 'Parallel title generation failed');
+              return null;
+            },
+          );
+        }
+
+        // Streaming request
+        const result = streamText(baseConfig);
+
+        // Periodic keep-alive during stream processing — prevents proxy timeouts
+        // during multi-step LLM calls (e.g. the follow-up request after tool execution).
+        sse.startKeepAlive();
+
+        // Stream OpenAI-compatible chunks
+        const streamResult = await runStream({
+          result,
+          res,
+          sse,
+          requestId,
+          modelId,
+          resolved,
+          baseConfig,
+          convertedMessages,
+          toolNameMapping,
+          agentMessages,
+          toolCallCount,
+          state: streamState,
+          onFirstChunk: () => {
+            // Called on EVERY chunk, so the first one wins: time to FIRST token,
+            // not time to the most recent one.
+            //
+            // Timed HERE, where the provider stream is consumed, rather than after
+            // the SSE frame is written — so the number is the model's latency and
+            // not the model's latency plus this process's own write path. Both are
+            // worth knowing and they are different questions; conflating them is
+            // how a socket-buffering problem gets attributed to a provider.
+            observation.timeToFirstTokenMs ??= Date.now() - requestStartTime;
+            clearFirstByteTimer();
           },
-          alia_usage: {
-            system_prompt_tokens: tokenUsage.systemPromptTokens || 0,
-            billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
-            credits_charged: creditsCharged,
-            credits_remaining: creditsRemaining,
-            credit_warning: creditWarning,
-          },
-        };
-        res.write(`data: ${JSON.stringify(usageChunk)}\n\n`);
-      }
-
-      // Fire afterChat hooks + autonomy (non-blocking)
-      runPostChatHooks(lifecycleCtx, assistantResponse, observation, null);
-
-      // Record agent.end for observability (success path)
-      recordEvent({
-        type: 'agent.end',
-        timestamp: Date.now(),
-        durationMs: Date.now() - requestStartTime,
-        inputTokens: tokenUsage.promptTokens,
-        outputTokens: tokenUsage.completionTokens,
-        toolCallCount,
-      });
-
-      sse.stopKeepAlive();
-      if (beforeStreamClose) {
-        await beforeStreamClose().catch((err: unknown) => {
-          // The answer has already completed and been persisted. A bookkeeping
-          // failure must be observable, but must not turn that answer into a
-          // provider retry or prevent the client from receiving its terminator.
-          log.v1.warn({ err }, 'Failed to settle agent turn before stream close');
         });
-      }
-      res.write('data: [DONE]\n\n');
-      res.end();
-      clearTimeout(globalTimer);
-      // Keep this identical to the non-streaming marker: CloudWatch counts one
-      // successful functional turn without learning user, model or provider.
-      if (!observation.cancelled) log.v1.info('Alia functional turn completed');
+        let assistantResponse = streamResult.assistantResponse;
+        const toolInvocations = streamResult.toolInvocations;
+        toolCallCount = streamResult.toolCallCount;
 
-      // If the client disconnected before the stream finished, send a push notification
-      if (observation.cancelled && req.user?.id && body.conversationId) {
-        notifyDisconnectedClient(req.user.id, body.conversationId, assistantResponse);
-      }
+        sse.stopKeepAlive();
+        log.v1.info({ totalChunks: streamResult.chunkCount }, 'Stream processing complete');
 
-      return { status: 'completed' }; // Success - exit the route handler
+        // ── Text-based tool call fallback ──
+        // Some models (Gemini 3 preview, Minimax, etc.) output tool calls as text
+        // instead of using the native tool calling API. Detect and execute them.
+        assistantResponse = (
+          await runTextToolFallback({
+            assistantResponse,
+            toolInvocations,
+            tools: truncatedTools,
+            convertedMessages,
+            baseConfig,
+            res,
+            requestId,
+            modelId,
+            resolved,
+          })
+        ).assistantResponse;
 
-    } catch (inferenceError: unknown) {
-      // Clean up timers on inference failure.
-      sse.stopKeepAlive();
-      clearFirstByteTimer();
-      log.v1.error({ err: inferenceError, modelId: resolved.modelId, reference: requestId }, 'Kaana inference failed');
-      const errorReason = classifyError(inferenceError);
+        // Build lifecycle context for post-stream operations
+        const lifecycleCtx = lifecycleContext();
 
-      // The class this failure would end the turn with, if nothing after it
-      // succeeds. `toAliaError` owns the reason -> code table, so this is the
-      // same classification the client is answered with rather than a second
-      // one that can disagree with it.
-      failure = toAliaError(inferenceError);
+        // Save conversation
+        await saveConversationResult(
+          lifecycleCtx,
+          assistantResponse,
+          toolInvocations,
+          agentMessages,
+        );
 
-      if (TERMINAL_STREAM_ERRORS.has(errorReason)) {
+        // Send AI-generated title via SSE (generated in parallel with streaming)
+        if (titlePromise && conversationId && req.user) {
+          try {
+            const title = await titlePromise;
+            if (title) {
+              res.write(
+                `event: alia.title\ndata: ${JSON.stringify({ eventVersion: 1, title, conversationId })}\n\n`,
+              );
+              await updateConversationTitle(getDb(), req.user.id, conversationId, title);
+              // The title is a model summary of the user's own conversation.
+              log.v1.info({ conversationId }, 'Auto-generated conversation title');
+            }
+          } catch (err) {
+            log.v1.error({ err }, 'Failed to send inline title');
+          }
+        }
+
+        /**
+         * Finalize credits + send usage chunk.
+         *
+         * Only for a turn that produced something. `calculateCreditsFromTokens`
+         * bills `MIN_CREDITS_PER_REQUEST` for zero tokens, which makes the
+         * adjustment exactly zero and quietly keeps the whole reservation as the
+         * charge — a person pays for an answer that never arrived. Left unsettled,
+         * the handler's release point refunds it.
+         */
+        const producedOutput = turnProducedOutput(assistantResponse, toolInvocations);
+        const { creditsCharged, creditsRemaining, creditWarning } = producedOutput
+          ? await finalizeChatCredits(lifecycleCtx, req, state, observation.resolvedModelReference)
+          : { creditsCharged: 0, creditsRemaining: 0, creditWarning: null };
+        if (includeUsage && state.creditReservation && req.user) {
+          const usageChunk = {
+            id: requestId,
+            object: 'chat.completion.chunk',
+            created: Math.floor(Date.now() / 1000),
+            model: modelId,
+            system_fingerprint: 'fp_alia',
+            service_tier: 'default',
+            choices: [],
+            usage: {
+              prompt_tokens: tokenUsage.promptTokens,
+              completion_tokens: tokenUsage.completionTokens,
+              total_tokens: tokenUsage.totalTokens,
+              prompt_tokens_details: { cached_tokens: 0, audio_tokens: 0 },
+              completion_tokens_details: {
+                reasoning_tokens: 0,
+                audio_tokens: 0,
+                accepted_prediction_tokens: 0,
+                rejected_prediction_tokens: 0,
+              },
+            },
+            alia_usage: {
+              system_prompt_tokens: tokenUsage.systemPromptTokens || 0,
+              billable_tokens: Math.max(
+                0,
+                tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0),
+              ),
+              credits_charged: creditsCharged,
+              credits_remaining: creditsRemaining,
+              credit_warning: creditWarning,
+            },
+          };
+          res.write(`data: ${JSON.stringify(usageChunk)}\n\n`);
+        }
+
+        // Fire afterChat hooks + autonomy (non-blocking)
+        runPostChatHooks(lifecycleCtx, assistantResponse, observation, null);
+
+        // Record agent.end for observability (success path)
+        recordEvent({
+          type: 'agent.end',
+          timestamp: Date.now(),
+          durationMs: Date.now() - requestStartTime,
+          inputTokens: tokenUsage.promptTokens,
+          outputTokens: tokenUsage.completionTokens,
+          toolCallCount,
+        });
+
+        sse.stopKeepAlive();
+        if (beforeStreamClose) {
+          await beforeStreamClose().catch((err: unknown) => {
+            // The answer has already completed and been persisted. A bookkeeping
+            // failure must be observable, but must not turn that answer into a
+            // provider retry or prevent the client from receiving its terminator.
+            log.v1.warn({ err }, 'Failed to settle agent turn before stream close');
+          });
+        }
+        res.write('data: [DONE]\n\n');
+        res.end();
+        clearTimeout(globalTimer);
+        // Keep this identical to the non-streaming marker: CloudWatch counts one
+        // successful functional turn without learning user, model or provider.
+        if (!observation.cancelled) log.v1.info('Alia functional turn completed');
+
+        // If the client disconnected before the stream finished, send a push notification
+        if (observation.cancelled && req.user?.id && body.conversationId) {
+          notifyDisconnectedClient(req.user.id, body.conversationId, assistantResponse);
+        }
+
+        return { status: 'completed' }; // Success - exit the route handler
+      } catch (inferenceError: unknown) {
+        // Clean up timers on inference failure.
+        sse.stopKeepAlive();
+        clearFirstByteTimer();
+        log.v1.error(
+          { err: inferenceError, modelId: resolved.modelId, reference: requestId },
+          'Kaana inference failed',
+        );
+        const errorReason = classifyError(inferenceError);
+
+        // The class this failure would end the turn with, if nothing after it
+        // succeeds. `toAliaError` owns the reason -> code table, so this is the
+        // same classification the client is answered with rather than a second
+        // one that can disagree with it.
+        failure = toAliaError(inferenceError);
+
+        if (TERMINAL_STREAM_ERRORS.has(errorReason)) {
+          if (streamState.hasStreamedContent) {
+            recordFailedTurn(failure.code);
+            throw inferenceError;
+          }
+          break hostedAttempt;
+        }
+
+        // If content already streamed, the outer handler finishes the SSE reply.
         if (streamState.hasStreamedContent) {
           recordFailedTurn(failure.code);
           throw inferenceError;
         }
+
+        // Kaana owns routing and retries; Alia never re-resolves around it.
         break hostedAttempt;
       }
-
-      // If content already streamed, the outer handler finishes the SSE reply.
-      if (streamState.hasStreamedContent) {
-        recordFailedTurn(failure.code);
-        throw inferenceError;
-      }
-
-      // Kaana owns routing and retries; Alia never re-resolves around it.
-      break hostedAttempt;
     }
 
-  }
-
-  // Every exit above that is not `completed` is a turn that
-  // failed, and this is the only place it gets a usage record.
-  recordFailedTurn(failure.code);
-  return { status: 'exhausted', attemptedProviders: 1, error: failure };
+    // Every exit above that is not `completed` is a turn that
+    // failed, and this is the only place it gets a usage record.
+    recordFailedTurn(failure.code);
+    return { status: 'exhausted', attemptedProviders: 1, error: failure };
   } finally {
     res.off('close', onClientClose);
   }
