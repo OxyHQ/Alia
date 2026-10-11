@@ -23,7 +23,7 @@ compatibility_date = "2026-08-24"
 
 workers_dev = false
 
-# The Worker observes each request before streaming the asset response. `expo export --platform web` emits ONE
+# The Worker hands every request to the asset binding unchanged. `expo export --platform web` emits ONE
 # `index.html` plus hashed assets — a client-routed SPA, not per-route static
 # HTML — so the fallback below is what makes a deep link work.
 #
