@@ -42,6 +42,7 @@ import {
 } from '../db/automation/automationDefinitionRepository.js';
 import { findUserMemory, type UserMemoryProfile } from '../db/memory/userMemoryRepository.js';
 import { oxyClient } from '../middleware/auth.js';
+import { oxyApprovalGate } from './agent/action-review.js';
 import { postAliaMessage } from './agent/alia-outreach.js';
 import type { AliaTaskJobData } from './alia-task-queue.js';
 import { renderAutomationStageTask } from './automation-stage-task.js';
@@ -198,6 +199,19 @@ export async function runAliaTask(
       oxyAutonomy: automation.maximumAutonomy,
       // Exactly her standing authority; `{}` (none) builds no Oxy tools.
       oxyExecutionAuthorizations: aliaRunAuthorizationMap(authorizations),
+      // Even a declared step that pays or deletes waits for the person's OK,
+      // asked in the task's own conversation (`action-review.ts`).
+      oxyApprovals: oxyApprovalGate({
+        oxyUserId: data.userId,
+        actor: { type: 'alia' },
+        turnId: data.runId,
+        delivery: {
+          kind: 'alia_task',
+          automationId: automation.id,
+          objective: automation.objective,
+          conversationId: automation.conversationId,
+        },
+      }),
       onOxyStepStatus: async (stepId, status, auditEventId) => {
         try {
           await markAutomationActionStep(getDb(), stepId, status, auditEventId);

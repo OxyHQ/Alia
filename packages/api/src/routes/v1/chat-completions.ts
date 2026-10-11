@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import { safeRefund } from '../../lib/credits-manager.js';
 import { handleDeepResearch } from '../../lib/chat-modes/deep-research-handler.js';
+import { oxyApprovalGate } from '../../lib/agent/action-review.js';
 import { ToolPipeline } from '../../lib/tool-pipeline.js';
 import { createResponseSSEEmitter } from '../../lib/sse-emitter.js';
 import { SystemPromptBuilder } from '../../lib/system-prompt-builder.js';
@@ -206,6 +207,19 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     // Assemble all tools via the unified pipeline
     const sseEmitter = createResponseSSEEmitter(res, sse.ensureHeaders);
+    // A payment or a deletion is shown to the person in THIS chat as a card,
+    // and only their decision performs it (`lib/agent/action-review.ts`).
+    const oxyApprovals =
+      isDirectUserSession && req.user?.id
+        ? oxyApprovalGate({
+            oxyUserId: req.user.id,
+            actor: linkedAgent
+              ? { type: 'agent', agentId: linkedAgent._id, accountId: linkedAgent.oxyAccountId }
+              : { type: 'alia' },
+            turnId: requestId,
+            delivery: { kind: 'present', conversationId: conversationId ?? null },
+          })
+        : undefined;
     let assembled: Awaited<ReturnType<typeof ToolPipeline.forUser>>;
     try {
       assembled = req.machineCredential ? ToolPipeline.forMachineTurn() : await ToolPipeline.forUser({
@@ -216,6 +230,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         actsForPerson: isDirectUserSession,
         agentMode: agentRuntimeEnabled,
         requestId,
+        oxyApprovals,
         // The apps this conversation already opened stay open (`lib/tool-budget.ts`).
         priorToolCalls: priorToolCallsOf(messages),
         editorToolDefinitions: body.tools,

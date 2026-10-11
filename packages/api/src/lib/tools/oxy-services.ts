@@ -30,7 +30,14 @@ import {
 } from './oxy-catalog-actors.js';
 import { getErrorMessage } from '../errors/index.js';
 import { log } from '../logger.js';
-import { declareReadOnly } from '../agent/tool-effects.js';
+import { declareOxyAppTool, declareReadOnly } from '../agent/tool-effects.js';
+import {
+  REVIEW_UNAVAILABLE_MESSAGE,
+  reviewKindOf,
+  type IdentityMode,
+  type OxyApprovalGate,
+  type ReviewKind,
+} from '../agent/action-proposal.js';
 import {
   createOxyAgentRunAuthorization,
   createOxyExecutionAuthorization,
@@ -140,6 +147,12 @@ export interface OxyToolExecutionContext {
     status: 'running' | 'succeeded' | 'failed',
     auditEventId?: string,
   ) => Promise<void>;
+  /**
+   * Where a payment or a deletion is filed for the person's OK instead of
+   * running (`lib/agent/action-review.ts`). Absent: such a call is refused,
+   * never run — the surface has nowhere to ask.
+   */
+  approvals?: OxyApprovalGate;
 }
 
 interface CompiledTool {
@@ -182,6 +195,18 @@ export class OxyAuthorityUnavailableError extends Error {
   }
 }
 
+/**
+ * The request reached the wire and no answer came back (a timeout, a reset):
+ * the app may have committed the effect. Never retried, never reported as a
+ * plain failure.
+ */
+export class OxyOutcomeUnknownError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'OxyOutcomeUnknownError';
+  }
+}
+
 async function safeExecute(service: string, operation: () => Promise<unknown>): Promise<unknown> {
   try {
     return await operation();
@@ -191,6 +216,12 @@ async function safeExecute(service: string, operation: () => Promise<unknown>): 
       return {
         error: 'oxy_app_unavailable',
         message: `${appDisplayName(service)} is temporarily unavailable. Oxy could not confirm authority for this action. Do not claim it succeeded or use another route to bypass the check. Request any required consent through the supported account flow, or try again when authority is available.`,
+      };
+    }
+    if (error instanceof OxyOutcomeUnknownError) {
+      return {
+        error: 'oxy_app_result_unknown',
+        message: `${appDisplayName(service)} did not answer, so it is not known whether this happened. Do not repeat it and do not claim it succeeded; tell the person to check.`,
       };
     }
     return {
@@ -931,12 +962,21 @@ async function callBoundTool(
         toolCallId,
       );
     }
-    const response = await fetch(url, {
-      method: binding.compiled.definition.invocation.method,
-      headers,
-      ...(body ? { body: JSON.stringify(body) } : {}),
-      signal: AbortSignal.timeout(TOOL_TIMEOUT_MS),
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: binding.compiled.definition.invocation.method,
+        headers,
+        ...(body ? { body: JSON.stringify(body) } : {}),
+        signal: AbortSignal.timeout(TOOL_TIMEOUT_MS),
+      });
+    } catch (error: unknown) {
+      // Sent, and no answer: the app may have done it.
+      throw new OxyOutcomeUnknownError(
+        `${binding.compiled.definition.name} sent without an answer: ${getErrorMessage(error).slice(0, 120)}`,
+        { cause: error },
+      );
+    }
     if (!response.ok) {
       const message = `Oxy app error (${response.status}): ${(await response.text()).slice(0, 240)}`;
       // 401/403 is the app refusing the ticket, not the request.
@@ -997,6 +1037,14 @@ function toolDescription(binding: BoundTool, context: OxyToolExecutionContext): 
   return `[${app}] ${binding.compiled.definition.description} ${resource}`;
 }
 
+/** Told to the model up front, so a reviewed tool is not a surprise. */
+const REVIEW_NOTE: Record<ReviewKind, string> = {
+  payment:
+    'This is a PAYMENT: calling it does not pay; it asks the person to approve this exact payment, and it happens only after they do.',
+  deletion:
+    'This DELETES permanently: calling it does not delete; it asks the person to approve this exact deletion, and it happens only after they do.',
+};
+
 function sanitizeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9_]/g, '_');
 }
@@ -1052,13 +1100,32 @@ export async function buildOxyServiceTools(
         context.executionAuthorizations?.[
           oxyExecutionAuthorizationKey(binding.resource, binding.compiled.definition.name)
         ]?.repeatable === true;
+      const reviewKind = reviewKindOf(binding.compiled.definition);
       const built = tool({
-        description: toolDescription(binding, context),
+        description: reviewKind
+          ? `${toolDescription(binding, context)} ${REVIEW_NOTE[reviewKind]}`
+          : toolDescription(binding, context),
         inputSchema: binding.compiled.inputSchema,
         execute: async (
           args: Record<string, unknown>,
           { toolCallId }: { toolCallId?: string } = {},
         ) => {
+          // A payment or a deletion never runs from the model's call: it is
+          // filed for the person's OK, and only their decision performs it.
+          if (reviewKind) {
+            if (!context.approvals)
+              return { error: 'approval_required', message: REVIEW_UNAVAILABLE_MESSAGE };
+            return context.approvals.propose({
+              toolName,
+              appId: binding.compiled.catalog.appId,
+              tool: binding.compiled.definition.name,
+              toolVersion: binding.compiled.definition.version,
+              kind: reviewKind,
+              identity: binding.self ? 'self' : 'for_user',
+              resource: binding.resource,
+              args,
+            });
+          }
           if (context.executionAuthorizations !== undefined && !repeatable) {
             if (preauthorizedInvocationStarted) {
               return {
@@ -1072,9 +1139,13 @@ export async function buildOxyServiceTools(
           );
         },
       });
-      // The catalog knows the effect; the runtime policy cannot tell it from the name.
-      tools[toolName] =
-        binding.compiled.definition.effect === 'read' ? declareReadOnly(built) : built;
+      // The catalog knows the effect; the runtime policy cannot tell it from the
+      // name. Every Oxy tool is marked as one: Oxy authorizes it per call, and
+      // a payment or deletion is reviewed above, so the agent runtime's own
+      // approval policy must not ask a second time.
+      tools[toolName] = declareOxyAppTool(
+        binding.compiled.definition.effect === 'read' ? declareReadOnly(built) : built,
+      );
     }
     if (
       context.userAccessToken &&
@@ -1204,4 +1275,150 @@ export function agentIdentityPrompt(toolNames: readonly string[]): string {
     );
   }
   return lines.join('\n');
+}
+
+function sameResource(a: ResourceRef, b: ResourceRef): boolean {
+  return (
+    a.appId === b.appId &&
+    a.effectiveAccountId === b.effectiveAccountId &&
+    a.resourceType === b.resourceType &&
+    a.resourceId === b.resourceId
+  );
+}
+
+export interface ReviewedOxyActionInput {
+  readonly appId: string;
+  readonly tool: string;
+  readonly resource: ResourceRef;
+  readonly identity: IdentityMode;
+  readonly args: Record<string, unknown>;
+  /** As it stands NOW: Alia for the decider, or the agent's current bot. */
+  readonly actor: ActorRef;
+  /** The person deciding, who must be the person the action is for. */
+  readonly deciderAccountId: string;
+  /** The decider's live bearer: the action runs as a `direct_request`. */
+  readonly userAccessToken: string;
+  /** Names this one execution; also the app's idempotency key. */
+  readonly operationId: string;
+}
+
+export type ReviewedOxyOutcome =
+  | { readonly status: 'succeeded'; readonly result: unknown }
+  | { readonly status: 'failed'; readonly reason: string }
+  | { readonly status: 'outcome_unknown'; readonly reason: string };
+
+export type ResolvedReviewedOxyAction =
+  | {
+      readonly ok: true;
+      /** The catalog's CURRENT version and classification of the tool. */
+      readonly toolVersion: string;
+      readonly kind: ReviewKind | null;
+      readonly execute: () => Promise<ReviewedOxyOutcome>;
+    }
+  | {
+      readonly ok: false;
+      readonly reason: 'tool_gone' | 'input_invalid' | 'binding_changed' | 'authority_unavailable';
+    };
+
+/**
+ * Re-derive, at decision time, the exact binding a reviewed action was
+ * prepared on — and refuse if it no longer exists for this identity.
+ *
+ * The proposal names a tool, a resource and an identity; this asks the live
+ * catalogue and (for an agent's `for_user` call) Oxy's live capability map
+ * whether THIS actor still reaches THAT resource with THAT tool. A revoked
+ * level, a re-pointed bot, a resource of somebody else: no binding, nothing
+ * runs. The caller compares the returned version with the proposal's hash.
+ */
+export async function resolveReviewedOxyAction(
+  input: ReviewedOxyActionInput,
+): Promise<ResolvedReviewedOxyAction> {
+  const context: OxyToolExecutionContext = {
+    requesterAccountId: input.deciderAccountId,
+    ownerAccountId: input.deciderAccountId,
+    actor: input.actor,
+    ...(input.actor.type === 'agent'
+      ? {
+          agentIdentity: {
+            forUser: input.identity === 'for_user',
+            self: input.identity === 'self',
+          },
+        }
+      : {}),
+    runId: input.operationId,
+    userAccessToken: input.userAccessToken,
+  };
+  let defs: CatalogDef[];
+  try {
+    defs = defsFor(await getCatalogDefs(), input.actor.type).filter(
+      (entry) => entry.catalog.appId === input.appId,
+    );
+  } catch {
+    return { ok: false, reason: 'authority_unavailable' };
+  }
+  const compiled = defs[0]?.compiledTools.find((entry) => entry.definition.name === input.tool);
+  if (!compiled) return { ok: false, reason: 'tool_gone' };
+
+  let candidates: BoundTool[];
+  if (input.actor.type === 'alia') {
+    // Alia reaches the person's own account roots; nothing else was ever
+    // offered to her, so nothing else is accepted back.
+    candidates =
+      input.identity === 'for_user' &&
+      input.resource.appId === input.appId &&
+      input.resource.effectiveAccountId === input.deciderAccountId &&
+      compiled.definition.resourceTypes.includes(input.resource.resourceType)
+        ? [{ compiled, resource: input.resource, suffix: null }]
+        : [];
+  } else if (input.identity === 'self') {
+    candidates = agentSelfBindings(defs, context);
+  } else {
+    try {
+      candidates = agentBindings(defs, await agentAssignments(context), false);
+    } catch {
+      return { ok: false, reason: 'authority_unavailable' };
+    }
+  }
+  const binding = candidates.find(
+    (candidate) =>
+      candidate.compiled.definition.name === input.tool &&
+      sameResource(candidate.resource, input.resource),
+  );
+  if (!binding) return { ok: false, reason: 'binding_changed' };
+  if (!binding.compiled.inputSchema.safeParse(input.args).success)
+    return { ok: false, reason: 'input_invalid' };
+
+  return {
+    ok: true,
+    toolVersion: binding.compiled.definition.version,
+    kind: reviewKindOf(binding.compiled.definition),
+    execute: async () => {
+      try {
+        const result = await callBoundTool(binding, input.args, context, input.operationId);
+        // The internal MCP path answers its outcome instead of throwing.
+        if (
+          typeof result === 'object' &&
+          result !== null &&
+          'operation' in result &&
+          'status' in result
+        ) {
+          const status = (result as { status: unknown }).status;
+          if (status === 'unknown') return { status: 'outcome_unknown', reason: 'no_answer' };
+          if (status !== 'succeeded') return { status: 'failed', reason: 'oxy_app_unavailable' };
+        }
+        return { status: 'succeeded', result };
+      } catch (error: unknown) {
+        if (error instanceof OxyOutcomeUnknownError)
+          return { status: 'outcome_unknown', reason: 'no_answer' };
+        log.general.warn({ err: error, tool: input.tool }, 'Reviewed Oxy action failed');
+        return {
+          status: 'failed',
+          reason:
+            error instanceof OxyAuthorityUnavailableError
+              ? 'oxy_app_unavailable'
+              : getErrorMessage(error).slice(0, 180),
+        };
+      }
+    },
+  };
 }

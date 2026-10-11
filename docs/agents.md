@@ -204,8 +204,9 @@ second paid session beside the answer.
   `lib/agent/run-reaper.ts` (every minute, on every task) re-enqueues the run,
   which RESUMES from its persisted events, plan and step/token counters. After
   `RUNNER_MAX_ATTEMPTS` (3) claims it is failed and refunded instead.
-- R2 approvals are durable rows. Socket.IO carries prompts and immediate
-  decisions, while the executing replica observes PostgreSQL as the authority.
+- Approvals are durable rows (`agent_approval_requests`, Alia's and agents').
+  Socket.IO carries prompts and immediate decisions, while the executing replica
+  observes PostgreSQL as the authority.
 - A completed run moves its goal to `candidate`; `POST
   /agents/threads/:threadId/goals/:goalId/verify` requires evidence for every
   criterion before the goal becomes `completed`.
@@ -540,6 +541,15 @@ Risk policy is enforced per action:
 - `R3` destructive: blocked.
 
 Risk is classified per call by `classifyActionRisk` (`lib/agent/governance.ts`).
+An **Oxy app tool** is not classified by name: the builder marks it
+(`declareOxyAppTool`), a read is R0 and an effect R1 with no rollback window, and no
+threat heuristic turns it into a card. Oxy authorizes each call (the owner's bearer
+or the agent's level), so an agent at *Ver y actuar* acts without asking, and a
+payment or a deletion is reviewed by the tool itself — see
+[Actors → Approvals](./actors.mdx#approvals-only-payments-and-deletions). R2 below
+is about the agent's runtime tools (its browser typing in the background, a
+connector, an unknown MCP tool).
+
 User approvals are interactive and real-time. `alia.approval_request` and `alia.approval_result` travel over Socket.IO, to the `agent-session:<sessionId>` room (`packages/api/src/socket.ts`) — not over the chat SSE stream. An attended approval waits 60 seconds by default (`lib/agent/action-approval.ts`); a background run never waits (see "Approvals nobody is waiting for" below).
 
 ## Triggers and Proactive Runs
@@ -639,15 +649,24 @@ write is journaled with origin `agent`. Reads are R0, writes R1 (journaled),
 
 ### Approvals nobody is waiting for
 
-A top-level background run does not wait for an R2 approval (or one the threat
-detector asks for). `lib/agent/deferred-approvals.ts` files a durable request
-(`thread_id` may be NULL), tells the person in the agent's conversation, and
-tells the model to carry on. `GET /agents/approvals` lists what is pending;
-`POST /agents/approvals/:id/decision {approved}` answers. Approving one whose
-run has moved on starts a held, queued run with the exact arguments; the
-policy lets that call through because a granted approval matches its hash
-(agent, tool, sorted args), and spends it (`executed`) so one "yes" covers one
-action. Interactive chat turns keep the in-process wait.
+A top-level background run does not wait for an R2 approval of a runtime tool (or
+one the threat detector asks for). `lib/agent/deferred-approvals.ts` files a
+durable request (`execution_mode = 'rerun'`, `thread_id` may be NULL), tells the
+person in the agent's conversation, and tells the model to carry on.
+`GET /agents/approvals` lists what is pending (Alia's and agents', with `actorType`,
+`conversationId`, `kind` and `hash`); `POST /agents/approvals/:id/decision
+{approved, hash}` answers, only for the person it is for and only from their own
+session. Approving a `rerun` request starts a held, queued run with the exact
+arguments; the policy lets that call through because a granted approval matches its
+hash (agent, person, identity, tool, canonical args) and CLAIMS it first
+(`approved` → `executing`, one conditional UPDATE), then records `succeeded` — or
+`outcome_unknown` if the call threw. The same run never asks again for what it just
+did, and a row a restart left `executing` is made `outcome_unknown` by the reaper,
+so one "yes" covers one action. Interactive chat turns keep the in-process wait.
+
+A payment or a deletion in an Oxy app is a `direct` request instead, by Alia or an
+agent, attended or not: the decision itself performs it, once, with the person's
+bearer (`lib/agent/action-review.ts`). It never reaches the runtime policy above.
 
 The saver keeps an agent-written message the client has not seen yet
 (`keepAgentOutreach`): storage converges on the client's copy for what the
