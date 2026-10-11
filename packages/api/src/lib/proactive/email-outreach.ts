@@ -100,8 +100,21 @@ const newEmailDataSchema = z.object({
 export interface InboxEmailEvent {
   /** The account whose mailbox received it: a person, or an agent's bot account. */
   readonly accountId: string;
+  /** When the email arrived (the event's `occurredAt`). */
+  readonly occurredAt: Date;
   readonly data: Record<string, unknown>;
 }
+
+/**
+ * How old an email may be and still be worth writing first about.
+ *
+ * Oxy's event outbox is durable: events wait while delivery is off and arrive
+ * late, in bulk, when it comes back (Inbox's worker was never enabled until
+ * 2026-10-11, so its whole backlog arrives at once). "You have an important
+ * email" about one from last week is noise, not help. Automations still get
+ * every event; only this outreach is time-boxed.
+ */
+export const EMAIL_OUTREACH_MAX_AGE_MS = 2 * 60 * 60_000;
 
 export type EmailOutreachOutcome =
   | {
@@ -117,7 +130,8 @@ export type EmailOutreachOutcome =
         | 'no_audience'
         | 'not_an_alia_user'
         | 'disabled'
-        | 'duplicate';
+        | 'duplicate'
+        | 'stale';
     }
   | {
       readonly status: 'skipped';
@@ -324,6 +338,9 @@ async function languageOf(oxyUserId: string): Promise<Language> {
 
 /** Decide about one `new_email` event and, when it is important, tell the person. Never throws. */
 export async function handleInboxEmailEvent(event: InboxEmailEvent): Promise<EmailOutreachOutcome> {
+  if (Date.now() - event.occurredAt.getTime() > EMAIL_OUTREACH_MAX_AGE_MS) {
+    return { status: 'ignored', reason: 'stale' };
+  }
   const parsed = newEmailDataSchema.safeParse(event.data);
   if (!parsed.success) return { status: 'ignored', reason: 'invalid_event' };
   const data = parsed.data;
