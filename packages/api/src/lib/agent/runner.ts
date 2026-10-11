@@ -60,6 +60,7 @@ import { orchestrate, shouldOrchestrate } from './orchestrator.js';
 import { postAgentMessage } from './agent-outreach.js';
 import type { AgentRuntimeContext } from './actions.js';
 import { scheduleAgentFollowUp } from './follow-ups.js';
+import { oxyApprovalGate } from './action-review.js';
 import { deferredApprovalsFor } from './deferred-approvals.js';
 import { agentMemoryPromptSection } from './agent-memory-runtime.js';
 import { compactContext } from './context-compaction.js';
@@ -515,6 +516,18 @@ async function driveAgentSession(
       ? { oxyExecutionAuthorizations }
       : { oxyAgentRunSessionId: session.id }),
     toolScope: session.automationRunId ? 'preauthorized_oxy_automation' : 'standard',
+    // A payment or a deletion is asked of the person in the agent's thread
+    // and performed by their decision; a child run has nobody to ask.
+    ...(session.parentSessionId
+      ? {}
+      : {
+          oxyApprovals: oxyApprovalGate({
+            oxyUserId: session.oxyUserId,
+            actor: { type: 'agent', agentId: agent._id, accountId: agent.oxyAccountId },
+            turnId: session.id,
+            delivery: { kind: 'agent_thread', threadId: session.threadId ?? null },
+          }),
+        }),
     onOxyStepStatus: async (stepId, status, auditEventId) => {
       try {
         await markAutomationActionStep(getDb(), stepId, status, auditEventId);

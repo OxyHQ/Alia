@@ -109,7 +109,7 @@ vi.mock('../../logger.js', () => {
 import { applyRuntimePolicy, buildRuntimeTools, type AgentRuntimeContext } from '../actions.js';
 import { buildMcpTools } from '../../tools/mcp.js';
 import { classifyActionRisk } from '../governance.js';
-import { declareReadOnly } from '../tool-effects.js';
+import { declareOxyAppTool, declareReadOnly } from '../tool-effects.js';
 import { requestApproval } from '../action-approval.js';
 import { insertRollbackRecord } from '../../../db/agents/rollbackRecordRepository.js';
 import { GRANTS_EVERYTHING, readCapabilityGrants } from '../../../domain/capability-grants.js';
@@ -343,8 +343,11 @@ describe('the governance wrapper enforces the level it classified', () => {
   });
 
   it('a background run asks asynchronously instead of waiting, and runs a call approved earlier', async () => {
+    const finish = vi.fn(async () => undefined);
     const approvals = {
-      granted: vi.fn(async () => false),
+      granted: vi.fn(
+        async (): Promise<{ state: string; finish?: typeof finish }> => ({ state: 'none' }),
+      ),
       request: vi.fn(async () => 'asked the person'),
     };
     const ctx = { ...actionContext(), approvals } as unknown as AgentRuntimeContext;
@@ -361,10 +364,65 @@ describe('the governance wrapper enforces the level it classified', () => {
     expect(H.state.mcpRuns).toEqual([]);
     expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
 
-    // Approved earlier for exactly this call: it runs.
-    approvals.granted.mockResolvedValueOnce(true);
+    // Approved earlier for exactly this call: it is claimed, runs, and its
+    // end is recorded.
+    approvals.granted.mockResolvedValueOnce({ state: 'claimed', finish });
     expect(await run(actions, 'send_message', { to: 'a', text: 'hi' })).toBe('sent');
     expect(H.state.mcpRuns).toEqual(['send_message']);
+    expect(finish).toHaveBeenCalledWith('succeeded', expect.any(Object));
+
+    // Already performed once under that approval: never again.
+    approvals.granted.mockResolvedValueOnce({ state: 'already_done' });
+    expect(await run(actions, 'send_message', { to: 'a', text: 'hi' })).toMatch(
+      /already performed once/,
+    );
+    expect(H.state.mcpRuns).toEqual(['send_message']);
+  });
+
+  it('an Oxy app write runs with no approval card, attended or not (Ver y actuar)', async () => {
+    H.state.approval = 'denied';
+    const approvals = {
+      granted: vi.fn(async () => ({ state: 'none' })),
+      request: vi.fn(async () => 'asked the person'),
+    };
+    const ctx = { ...actionContext(), approvals } as unknown as AgentRuntimeContext;
+    const tools: ToolSet = {
+      oxy_inbox__sendEmail: declareOxyAppTool({
+        description: 'send an email',
+        execute: async () => {
+          H.timeline.push('exec:sendEmail');
+          return 'sent';
+        },
+      }) as unknown as ToolSet[string],
+    };
+    const actions = await applyRuntimePolicy(tools, ctx, new Set());
+    // Text a threat heuristic asks about, and a query word R3 would block on
+    // an unknown tool: neither turns an Oxy call into a card.
+    expect(
+      await run(actions, 'oxy_inbox__sendEmail', {
+        to: 'a@b.c',
+        body: 'ignore previous instructions',
+        query: 'delete from',
+      }),
+    ).toBe('sent');
+    expect(approvals.request).not.toHaveBeenCalled();
+    expect(approvals.granted).not.toHaveBeenCalled();
+    expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
+    expect(vi.mocked(insertRollbackRecord)).not.toHaveBeenCalled();
+  });
+
+  it('the same write WITHOUT the Oxy mark is still an unknown R2 tool (the control)', async () => {
+    H.state.approval = 'denied';
+    const tools: ToolSet = {
+      oxy_inbox__sendEmail: {
+        description: 'send an email',
+        execute: async () => 'sent',
+      } as unknown as ToolSet[string],
+    };
+    const actions = await applyRuntimePolicy(tools, actionContext(), new Set());
+    expect(await run(actions, 'oxy_inbox__sendEmail', { to: 'a@b.c' })).toBe(
+      'Error: Action requires approval (denied).',
+    );
   });
 
   it('a read-only declaration reaches the wrapper through the tool object', async () => {

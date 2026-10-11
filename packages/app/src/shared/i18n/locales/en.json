@@ -2281,6 +2281,9 @@
         "other": "Websites ({{count}})"
       },
       "approvalRequired": "Approval required",
+      "paymentApprovalRequired": "Approve this payment?",
+      "deletionApprovalRequired": "Approve this deletion?",
+      "approvalFailed": "Could not record your answer. Try again.",
       "approve": "Approve",
       "deny": "Deny",
       "planSteps": "{{completed}}/{{total}} steps",

@@ -105,6 +105,7 @@ import {
   emitApprovalResult,
   emitAudioJobUpdate,
   emitTelegramLinked,
+  emitApprovalsChanged,
   emitWorkflowProgress,
   initSocket,
 } from '../socket.js';
@@ -332,6 +333,7 @@ describe('every socket event the app listens for is one the API emits', () => {
     emitAgentActivity('a', { type: 'system', content: '', timestamp: 1, sessionId: 's' });
     emitAudioJobUpdate('u', { jobId: 'j', status: 'completed' });
     emitTelegramLinked('t', {});
+    emitApprovalsChanged('u');
     emitWorkflowProgress('e', {});
     const emitted = new Set(broadcasts.map((entry) => entry.event));
     // `notification` and `show:progress` are emitted by their own services

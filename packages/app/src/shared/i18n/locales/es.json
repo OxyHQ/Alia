@@ -2281,6 +2281,9 @@
         "other": "Sitios web ({{count}})"
       },
       "approvalRequired": "Se necesita aprobación",
+      "paymentApprovalRequired": "¿Apruebas este pago?",
+      "deletionApprovalRequired": "¿Apruebas este borrado?",
+      "approvalFailed": "No se pudo registrar tu respuesta. Inténtalo de nuevo.",
       "approve": "Aprobar",
       "deny": "Denegar",
       "planSteps": "{{completed}}/{{total}} pasos",

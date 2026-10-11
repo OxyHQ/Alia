@@ -32,6 +32,7 @@ import { sendNotification } from '../notification-service.js';
 import { enqueueAgentSession } from '../task-queue.js';
 import { reclaimOrphanedAgentSessions } from './session-handoff.js';
 import { reapAbandonedAliaRuns } from '../alia-task-reaper.js';
+import { reapStuckReviewedActions } from './action-review.js';
 
 const REAP_EVERY_MS = 60_000;
 
@@ -95,6 +96,10 @@ async function sweep(): Promise<void> {
   );
   await expireAgentApprovals(getDb()).catch((err: unknown) =>
     log.agents.error({ err }, '[AgentApproval] Expiry error'),
+  );
+  // An approved action a restart left half-run: `outcome_unknown`, never rerun.
+  await reapStuckReviewedActions().catch((err: unknown) =>
+    log.agents.error({ err }, '[AgentApproval] Stuck execution sweep error'),
   );
   // Alia's own task runs have no session to resume; one whose worker vanished
   // is failed and refunded (`alia-task-reaper.ts`).

@@ -332,6 +332,9 @@ export function initSocket(server: http.Server) {
         // The pending approval is bound to a sessionId at creation time. Reject if
         // the claimed session does not match the request, or the user does not own it.
         const durable = await findPendingApproval(getDb(), userId, data.requestId);
+        // A reviewed Oxy action (a payment, a deletion) is decided only through
+        // `POST /agents/approvals/:id/decision`, which performs it.
+        if (durable && durable.executionMode !== 'rerun') return;
         const boundSessionId = getPendingApprovalSession(data.requestId) ?? durable?.turnId ?? null;
         if (!boundSessionId || boundSessionId !== data.sessionId) return;
         if (!(await ownsAgentSession(userId, data.sessionId))) return;
@@ -365,6 +368,13 @@ export function initSocket(server: http.Server) {
 
 export function getIO(): Server | null {
   return io;
+}
+
+/** The person's pending approvals changed: the app refetches its cards. */
+export function emitApprovalsChanged(oxyUserId: string) {
+  if (io) {
+    io.to(`user:${oxyUserId}`).emit('approvals:changed', { eventVersion: 1 });
+  }
 }
 
 export function emitTelegramLinked(token: string, data: any) {

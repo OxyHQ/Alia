@@ -89,6 +89,7 @@ import {
   type OxyExecutionAuthorizationRef,
   type OxyToolAutonomy,
 } from './tools/oxy-services.js';
+import type { OxyApprovalGate } from './agent/action-proposal.js';
 import { convertOpenAIToolsToToolSet, type OpenAITool } from './tool-converter.js';
 import { log } from './logger.js';
 import type { SSEEmitter } from './sse-emitter.js';
@@ -173,6 +174,12 @@ export interface ForUserOptions {
    * bearer) an agent's tools could only ever be refused.
    */
   oxyAgentRunSessionId?: string;
+  /**
+   * Where this turn files a payment or a deletion in an Oxy app for the
+   * person's explicit OK (`lib/agent/action-review.ts`). Without one such a
+   * call is refused, never run: the surface has nowhere to ask.
+   */
+  oxyApprovals?: OxyApprovalGate;
   onOxyStepStatus?: (
     stepId: string,
     status: 'running' | 'succeeded' | 'failed',
@@ -376,6 +383,7 @@ export class ToolPipeline {
       oxyAutonomy,
       oxyExecutionAuthorizations,
       oxyAgentRunSessionId,
+      oxyApprovals,
       onOxyStepStatus,
       editorToolDefinitions,
       sseEmitter,
@@ -433,6 +441,7 @@ export class ToolPipeline {
               autonomy: oxyAutonomy,
               executionAuthorizations: oxyExecutionAuthorizations,
               onStepStatus: onOxyStepStatus,
+              ...(oxyApprovals ? { approvals: oxyApprovals } : {}),
             });
       const tools: ToolSet = {
         getCurrentDate: getCurrentDateTool,
@@ -689,6 +698,7 @@ export class ToolPipeline {
             userAccessToken: isDirectSession ? accessToken : undefined,
             executionAuthorizations: oxyExecutionAuthorizations,
             onStepStatus: onOxyStepStatus,
+            ...(oxyApprovals ? { approvals: oxyApprovals } : {}),
           }).catch(bulkFailure('oxy-service')),
       actsForPerson && wants('agent')
         ? buildAskAgentTool(

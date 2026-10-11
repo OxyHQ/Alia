@@ -199,8 +199,27 @@ export function classifyActionRisk(
      * read it.
      */
     attended?: boolean;
+    /**
+     * Built from an Oxy app catalog (`isOxyAppTool`). Oxy authorizes each call
+     * itself (the person's bearer, or the agent's level), and the builder sends
+     * a payment or a deletion to the person for review, so neither the name
+     * nor a word in a search query decides anything here: a read is R0 and an
+     * effect is R1, with no rollback window (Oxy keeps the audit).
+     */
+    oxyApp?: boolean;
   } = {},
 ): ActionRisk {
+  if (options.oxyApp) {
+    return options.declaredReadOnly
+      ? R0('Reading an Oxy app is autonomous')
+      : {
+          riskLevel: 'R1',
+          reason:
+            'An Oxy app effect, authorized by Oxy per call; payments and deletions are reviewed by the person',
+          reversible: false,
+          externalImpact: true,
+        };
+  }
   const primitive = classifyPrimitive(toolName, args, options.attended === true);
   // A search or a plan cannot run what its text names: "how to reboot a
   // router" is a query, not a command.

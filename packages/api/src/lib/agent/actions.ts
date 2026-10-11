@@ -64,7 +64,7 @@ import { analyzeThreat, formatThreatSummary } from './threat-detector.js';
 import type { ThreatResult } from './threat-detector.js';
 import { requestApproval } from './action-approval.js';
 import { classifyActionRisk, createRollbackRecord } from './governance.js';
-import { isDeclaredReadOnly } from './tool-effects.js';
+import { isDeclaredReadOnly, isOxyAppTool } from './tool-effects.js';
 import { autonomyFlags } from '../autonomy/flags.js';
 import { getDb } from '../../db/index.js';
 import {
@@ -72,7 +72,7 @@ import {
   type AgentSessionRecord,
 } from '../../db/agents/agentSessionRepository.js';
 import type { EventStream } from './event-stream.js';
-import type { DeferredApprovals } from './deferred-approvals.js';
+import type { ClaimedApproval, DeferredApprovals } from './deferred-approvals.js';
 import { buildAgentMemoryTool } from './agent-memory-runtime.js';
 import { RepeatDetector, repeatedToolCallKey } from './repeat-detector.js';
 import {
@@ -464,9 +464,13 @@ export async function applyRuntimePolicy(
       }
       // A chat turn is the one context with the person present
       // (`continueInBackground` exists only there).
+      // An Oxy app tool is authorized by Oxy and reviews its own payments and
+      // deletions (`oxy-services.ts`); nothing here asks about it a second time.
+      const oxyApp = isOxyAppTool(action);
       const risk = classifyActionRisk(name, inputArgs, {
         declaredReadOnly: isDeclaredReadOnly(action),
         attended: Boolean(ctx.continueInBackground),
+        oxyApp,
       });
 
       if (risk.riskLevel === 'R3') {
@@ -479,17 +483,29 @@ export async function applyRuntimePolicy(
       }
 
       const earlyThreat = analyzeThreat(name, inputArgs);
+      // A threat heuristic never turns an Oxy app call into an approval card
+      // (a *Ver y actuar* agent acts without asking); a blocking match still
+      // blocks it below.
+      const threatAsks = earlyThreat.shouldApprove && !oxyApp;
       const needsApproval =
         !earlyThreat.shouldBlock &&
         autonomyFlags.approvalsEnabled &&
-        (risk.riskLevel === 'R2' || earlyThreat.shouldApprove);
+        (risk.riskLevel === 'R2' || threatAsks);
+      let claimed: ClaimedApproval | null = null;
       // Nobody is watching a background run: ask the person asynchronously and
-      // let the run carry on, unless they already approved exactly this call.
+      // let the run carry on, unless they already approved exactly this call —
+      // which is then CLAIMED, once, before it runs.
       if (needsApproval && ctx.approvals) {
-        if (!(await ctx.approvals.granted(name, inputArgs))) {
+        const grant = await ctx.approvals.granted(name, inputArgs);
+        if (grant.state === 'already_done') {
+          eventStream?.append('system_message', `APPROVED ACTION ALREADY DONE: ${name}`);
+          return "Error: this exact action was already performed once with the person's approval. Do not repeat it; report what happened.";
+        }
+        if (grant.state === 'none') {
           eventStream?.append('system_message', `APPROVAL REQUESTED (deferred): ${name}`);
           return ctx.approvals.request(name, inputArgs, risk.reason);
         }
+        claimed = grant;
         eventStream?.append('system_message', `APPROVED EARLIER: ${name}`);
       } else if (risk.riskLevel === 'R2' && autonomyFlags.approvalsEnabled) {
         const syntheticThreat: ThreatResult = {
@@ -538,9 +554,9 @@ export async function applyRuntimePolicy(
         return `Error: Action blocked by security policy — ${threat.threats[0]?.pattern.description || 'security violation'}`;
       }
 
-      if (threat.shouldApprove && !ctx.approvals) {
+      if (threat.shouldApprove && (oxyApp || !ctx.approvals)) {
         const summary = formatThreatSummary(threat);
-        if (autonomyFlags.approvalsEnabled) {
+        if (autonomyFlags.approvalsEnabled && !oxyApp) {
           const approval = await requestApproval({
             sessionId: session._id,
             agentId: session.agentId,
@@ -569,7 +585,18 @@ export async function applyRuntimePolicy(
         }
       }
 
-      const result = await originalExecute(input, options);
+      let result: unknown;
+      try {
+        result = await originalExecute(input, options);
+      } catch (err: unknown) {
+        // It threw mid-call: whether it happened is unknown, and an approved
+        // action is never run a second time to find out.
+        await claimed?.finish('outcome_unknown', { error: getErrorMessage(err).slice(0, 300) });
+        throw err;
+      }
+      await claimed?.finish('succeeded', {
+        resultPreview: typeof result === 'string' ? result.slice(0, 300) : 'completed',
+      });
 
       // Only a write that CAN be undone opens a window; a delegation has no
       // inverse to offer, and a record promising one would lie.
