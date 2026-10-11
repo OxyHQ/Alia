@@ -16,16 +16,37 @@ const OXY_API_URL = (process.env.OXY_API_URL || 'https://api.oxy.so').replace(/\
 const AUTHORITY_TIMEOUT_MS = 15_000;
 const SERVICE_IDENTITY_KEY = 'alia';
 
-const serviceIdentityResponseSchema = z
+/**
+ * Oxy's `GET /capabilities/service-identity` answer — the ONE definition Alia
+ * reads it with (routes/capabilities.ts there: `service` is the live
+ * principal, `{ applicationId, credentialId, ownerAccountId, scopes,
+ * capabilities }`).
+ *
+ * The event route used to carry its own copy expecting `service.appId`, a field
+ * Oxy has never sent, so every app event (Inbox's `new_email` included) was
+ * refused as `invalid_service_identity`. Fields are passthrough: a new one on
+ * Oxy's side must never break the read.
+ */
+export const oxyServiceIdentityResponseSchema = z
   .object({
     service: z
       .object({
         applicationId: z.string().min(1),
         credentialId: z.string().min(1),
+        scopes: z.array(z.string()).default([]),
       })
       .passthrough(),
+    catalogAppIds: z.array(z.string()).default([]),
+    catalogs: z
+      .array(
+        z
+          .object({ appId: z.string().min(1), eventTypes: z.array(z.string().min(1)) })
+          .passthrough(),
+      )
+      .default([]),
   })
   .passthrough();
+const serviceIdentityResponseSchema = oxyServiceIdentityResponseSchema;
 
 const serviceIdentityCache = new TTLCache<{ applicationId: string; credentialId: string }>({
   ttlMs: 60_000,
