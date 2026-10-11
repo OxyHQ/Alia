@@ -19,7 +19,6 @@ import {
   type ReasoningEffort,
 } from './models/catalogue.js';
 import { ModelNotFoundError } from './models/errors.js';
-import { getUtilityModelId } from './models/selection.js';
 import {
   DEFAULT_POWER_LEVEL,
   isPowerLevel,
@@ -108,11 +107,20 @@ export function resolveDefaultModel(): ResolvedModel {
 }
 
 /**
- * The model for Alia's own background calls — titles, summaries, compaction,
- * suggestions, planning, verification. Chosen from the catalogue, never named.
+ * What Alia's own background calls run on — titles, summaries, compaction,
+ * suggestions, planning, verification, the important-email classifier.
+ *
+ * The cheapest power level, so OXY picks a model it can actually route for
+ * Alia (ADR 0014: Alia chooses levels, not models). It used to pick the
+ * cheapest model from the public catalogue itself, and under the internal
+ * metered pilot that model is not one of Alia's admitted routes: every such
+ * call was refused `no_route_available` (production 2026-10-11 — titles,
+ * the email classifier).
  */
+export const UTILITY_POWER_LEVEL = 'instant' satisfies PowerLevel;
+
 export async function resolveUtilityModel(): Promise<ResolvedModel> {
-  return resolveModel(await getUtilityModelId());
+  return powerLevelResolution(UTILITY_POWER_LEVEL);
 }
 
 /**

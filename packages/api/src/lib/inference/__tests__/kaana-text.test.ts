@@ -64,8 +64,10 @@ describe('one-shot product inference through Oxy', () => {
     });
 
     expect(mocks.request?.responseFormat).toEqual(responseFormat);
-    // No model named: the utility model the catalogue selects.
-    expect(mocks.request?.model).toBe('acme/small-1');
+    // No model named: the utility power level, which Oxy routes for Alia —
+    // never a model Alia picked from the public catalogue itself.
+    expect(mocks.request?.model).toBeUndefined();
+    expect(mocks.request?.routingProfile).toBe('instant');
     expect(mocks.request).not.toHaveProperty('providerOptions');
   });
 });
