@@ -9,7 +9,6 @@ import { convertToAISDKMessages, priorToolCallsOf } from '../../lib/message-conv
 import { ToolLimitExceededError } from '../../lib/inference/tool-limit.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
 import { measureContext } from '../../lib/chat/context-breakdown.js';
-import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/result-truncation.js';
 import { log } from '../../lib/logger.js';
 import { recordEvent } from '../../lib/observability/index.js';
 import { recordInferenceCorrelation } from '../../lib/observability/inference-correlation.js';
@@ -299,8 +298,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     // Convert OpenAI-format messages to AI SDK format (handles tool messages)
     const convertedMessages = convertToAISDKMessages(rawMessages, toolNameMapping);
 
-    // Wrap tools with truncation to cap large results (saves tokens)
-    const truncatedTools = wrapToolsWithTruncation(allTools, getToolResultBudget(128_000));
+    // Tool results are already bounded by the assembler (`lib/tool-pipeline.ts`).
+    const truncatedTools = allTools;
     const initialActiveTools = activeToolNames();
     log.v1.info(
       {
