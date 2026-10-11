@@ -19,6 +19,7 @@ import type { ResponseFormat } from '@oxy.so/contracts';
 import { getUtilityModelId } from '../models/selection.js';
 import { getOxyInferenceClient } from './oxy-inference.js';
 import type { AliaInferenceSurface } from './product-seam.js';
+import { fitControlledInput } from './request-budget.js';
 
 /**
  * How long a call may take when the caller does not say.
@@ -81,10 +82,20 @@ export async function generateTextViaKaana(request: KaanaTextRequest): Promise<s
   if (client === null) throw new KaanaClientUnavailableError();
 
   const budgetMs = request.budgetMs ?? DEFAULT_BUDGET_MS;
+  // One user message has nothing to shrink: an input over Oxy's byte budget is
+  // refused here, typed, rather than at the edge (`request-budget.ts`).
+  const { messages } = fitControlledInput(
+    {
+      messages: [{ role: 'user', content: [{ type: 'text', text: request.prompt }] }],
+      tools: [],
+      ...(request.responseFormat === undefined ? {} : { responseFormat: request.responseFormat }),
+    },
+    { surface: request.surface },
+  );
   const completion = await client.respond(
     {
       model: request.model ?? (await getUtilityModelId()),
-      input: [{ role: 'user', content: [{ type: 'text', text: request.prompt }] }],
+      input: messages,
       maxOutputTokens: request.maxOutputTokens,
       ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
       tools: [],
