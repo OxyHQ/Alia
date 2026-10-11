@@ -8,7 +8,6 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 import {
-  appCapabilityCatalogSchema,
   capabilityCatalogBindingSchema,
   canonicalCapabilityJson,
   type CapabilityCatalogBinding,
@@ -24,6 +23,11 @@ import { tool, type ToolSet } from 'ai';
 import { createInternalCatalogMcpClient } from '@oxy.so/mcp';
 import { z, type ZodTypeAny } from 'zod';
 import { jsonSchemaToZod } from './mcp-schema.js';
+import {
+  type CatalogActorType,
+  catalogToolAllowsActor,
+  parseRegistryCatalog,
+} from './oxy-catalog-actors.js';
 import { getErrorMessage } from '../errors/index.js';
 import { log } from '../logger.js';
 import { declareReadOnly } from '../agent/tool-effects.js';
@@ -227,39 +231,79 @@ async function loadCatalogDefs(): Promise<CatalogDef[]> {
     .catch(() => {
       throw new OxyAuthorityUnavailableError('Oxy catalogue authority unavailable');
     });
-  return registrations.map((registration) => {
-    const catalog = appCapabilityCatalogSchema.parse(registration.catalog);
-    let internalCatalogBinding: CapabilityCatalogBinding | undefined;
-    if (catalog.appId === INTERNAL_MCP_PILOT) {
-      if (!('id' in registration) || !('version' in registration) || !('digest' in registration)) {
-        throw new Error('Internal MCP requires complete registry provenance');
-      }
-      internalCatalogBinding = capabilityCatalogBindingSchema.parse({
-        registrationId: registration.id,
-        version: registration.version,
-        digest: registration.digest,
-      });
-      if (
-        internalCatalogBinding.version !== catalog.version ||
-        internalCatalogBinding.digest !==
-          createHash('sha256').update(canonicalCapabilityJson(catalog)).digest('hex')
-      ) {
-        throw new Error('Registry catalogue content mismatch');
-      }
+  const defs: CatalogDef[] = [];
+  for (const registration of registrations) {
+    try {
+      defs.push(compileRegistration(registration));
+    } catch (error: unknown) {
+      // One app's catalogue that this Alia cannot read (a newer contract, a
+      // bad registration) costs that app's tools, never every other app's.
+      log.general.error(
+        { err: error, appId: registryAppId(registration) },
+        'Skipping an Oxy capability catalogue that does not parse',
+      );
     }
-    return {
-      catalog,
-      displayName: appDisplayName(catalog.appId),
-      compiledTools: catalog.tools
-        .filter((definition) => definition.exposure.includes('internal'))
-        .map((definition) => ({
-          catalog,
-          definition,
-          inputSchema: jsonSchemaToZod(definition.inputSchema),
-          ...(internalCatalogBinding ? { internalCatalogBinding } : {}),
-        })),
-    };
-  });
+  }
+  return defs;
+}
+
+type Registration = Awaited<ReturnType<ReturnType<typeof agency>['serviceCatalogs']>>[number];
+
+function registryAppId(registration: { catalog?: unknown }): string | undefined {
+  const catalog = registration.catalog;
+  return typeof catalog === 'object' &&
+    catalog !== null &&
+    typeof (catalog as { appId?: unknown }).appId === 'string'
+    ? (catalog as { appId: string }).appId
+    : undefined;
+}
+
+function compileRegistration(registration: Registration): CatalogDef {
+  const catalog = parseRegistryCatalog(registration.catalog);
+  let internalCatalogBinding: CapabilityCatalogBinding | undefined;
+  if (catalog.appId === INTERNAL_MCP_PILOT) {
+    if (!('id' in registration) || !('version' in registration) || !('digest' in registration)) {
+      throw new Error('Internal MCP requires complete registry provenance');
+    }
+    internalCatalogBinding = capabilityCatalogBindingSchema.parse({
+      registrationId: registration.id,
+      version: registration.version,
+      digest: registration.digest,
+    });
+    if (
+      internalCatalogBinding.version !== catalog.version ||
+      internalCatalogBinding.digest !==
+        createHash('sha256').update(canonicalCapabilityJson(catalog)).digest('hex')
+    ) {
+      throw new Error('Registry catalogue content mismatch');
+    }
+  }
+  return {
+    catalog,
+    displayName: appDisplayName(catalog.appId),
+    compiledTools: catalog.tools
+      .filter((definition) => definition.exposure.includes('internal'))
+      .map((definition) => ({
+        catalog,
+        definition,
+        inputSchema: jsonSchemaToZod(definition.inputSchema),
+        ...(internalCatalogBinding ? { internalCatalogBinding } : {}),
+      })),
+  };
+}
+
+/**
+ * Only the tools Oxy will authorize for `actorType` (catalogue `actors`). A
+ * tool the actor can never run is not offered at all — Oxy would refuse it
+ * with `tool_not_available_to_actor`, which the model can do nothing about.
+ */
+function defsFor(defs: readonly CatalogDef[], actorType: CatalogActorType): CatalogDef[] {
+  return defs.map((service) => ({
+    ...service,
+    compiledTools: service.compiledTools.filter((compiled) =>
+      catalogToolAllowsActor(compiled.definition, actorType),
+    ),
+  }));
 }
 
 function getCatalogDefs(): Promise<CatalogDef[]> {
@@ -392,7 +436,7 @@ function authorizedAliaBindings(
 export async function listOxyAccountReadTools(
   accountId: string,
 ): Promise<Array<{ resource: ResourceRef; tool: string }>> {
-  const defs = await getCatalogDefs();
+  const defs = defsFor(await getCatalogDefs(), 'alia');
   return regularAliaBindings(defs, {
     requesterAccountId: accountId,
     ownerAccountId: accountId,
@@ -963,7 +1007,9 @@ export async function buildOxyServiceTools(
   serviceIds?: readonly string[],
 ): Promise<ToolSet> {
   try {
-    const allDefs = await getCatalogDefs();
+    // Alia, and an agent in either identity (its own `self_*` account and its
+    // owner's apps), are each ONE actor type to Oxy.
+    const allDefs = defsFor(await getCatalogDefs(), context.actor.type);
     const allowed =
       serviceIds === undefined
         ? null
@@ -1118,13 +1164,17 @@ export async function getOxyServiceContext(userId: string, accessToken: string):
 export function getOxyServicePromptFragment(_oxyUserId: string): string {
   const defs = defsCache.get(DEFS_KEY);
   if (!defs?.length) return '';
-  const lines = defs.map((service) => {
-    const names = service.compiledTools.map(
-      (entry) =>
-        `oxy_${sanitizeName(service.catalog.appId)}__${sanitizeName(entry.definition.name)}`,
-    );
-    return `- **${service.displayName}**: ${names.join(', ')}.`;
-  });
+  // Alia's own `oxy_*` names: a tool she can never run is not advertised.
+  const lines = defsFor(defs, 'alia')
+    .filter((service) => service.compiledTools.length > 0)
+    .map((service) => {
+      const names = service.compiledTools.map(
+        (entry) =>
+          `oxy_${sanitizeName(service.catalog.appId)}__${sanitizeName(entry.definition.name)}`,
+      );
+      return `- **${service.displayName}**: ${names.join(', ')}.`;
+    });
+  if (lines.length === 0) return '';
   return `\n\n## Oxy apps\nUse the available Oxy app tools for the person's requested actions. Oxy checks account, resource and action authority. If an action is denied, request any required consent through the supported account flow.\n${lines.join('\n')}`;
 }
 
