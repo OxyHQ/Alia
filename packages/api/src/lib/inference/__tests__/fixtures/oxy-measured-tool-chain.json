@@ -1,0 +1,67 @@
+{
+  "input": [
+    {
+      "role": "system",
+      "content": [
+        { "type": "text", "text": "You are Alia. Answer in the person's language — «siempre»." }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [{ "type": "text", "text": "¿Qué dice el último correo de Sarah?" }]
+    },
+    {
+      "role": "assistant",
+      "content": [],
+      "toolCalls": [
+        { "id": "call_1", "name": "oxy_inbox__readEmail", "arguments": "{\"id\":\"msg_42\"}" }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"subject\":\"Reunión \\\"Q4\\\"\",\"body\":\"Hola,\\nnos vemos el martes. 🙂\"}"
+        }
+      ],
+      "toolCallId": "call_1"
+    },
+    {
+      "role": "assistant",
+      "content": [{ "type": "text", "text": "Sarah confirma la reunión del martes." }]
+    },
+    { "role": "user", "content": [{ "type": "text", "text": "Respóndele que sí." }] }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "name": "oxy_inbox__readEmail",
+      "description": "[Inbox] Read one email by id.",
+      "parameters": {
+        "type": "object",
+        "properties": { "id": { "type": "string" } },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "function",
+      "name": "oxy_inbox__sendEmail",
+      "description": "[Inbox] Send an email.",
+      "parameters": {
+        "type": "object",
+        "properties": { "to": { "type": "string" }, "body": { "type": "string" } },
+        "required": ["to", "body"]
+      },
+      "strict": false
+    }
+  ],
+  "toolChoice": "auto",
+  "responseFormat": {
+    "type": "json_schema",
+    "name": "response",
+    "schema": { "type": "object" },
+    "strict": false
+  }
+}
