@@ -18,6 +18,7 @@ import {
 import { dispatchStructuredAutomation } from '../lib/automation-dispatcher.js';
 import { getErrorMessage } from '../lib/errors/index.js';
 import { log } from '../lib/logger.js';
+import { oxyServiceIdentityResponseSchema } from '../lib/oxy-capability-authority.js';
 import { sendNotification } from '../lib/notification-service.js';
 import { handleInboxEmailEvent } from '../lib/proactive/email-outreach.js';
 
@@ -44,25 +45,7 @@ const normalizedEventSchema = z
   })
   .strict();
 
-const serviceIdentitySchema = z
-  .object({
-    service: z
-      .object({
-        appId: z.string().min(1),
-        scopes: z.array(z.string()),
-      })
-      .passthrough(),
-    catalogAppIds: z.array(z.string()),
-    catalogs: z.array(
-      z
-        .object({
-          appId: z.string().min(1),
-          eventTypes: z.array(z.string().min(1)),
-        })
-        .strict(),
-    ),
-  })
-  .strict();
+const serviceIdentitySchema = oxyServiceIdentityResponseSchema;
 
 function bearer(request: Request): string | null {
   const authorization = request.headers.authorization;
