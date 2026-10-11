@@ -1,14 +1,14 @@
 -- oxy:deploy-phase=pre
 --
 -- Additive only: four new tables for triggers and workflows. Nothing existing is
--- touched. The serving image writes all four collections in Mongo.
+-- touched.
 --
 -- `triggers` looks like it is missing a constraint and is not. `type` selects
 -- which configuration group applies, but the obvious discriminant CHECK
 -- (`type = 'schedule'` <=> `schedule_type is not null`) would be WRONG:
 -- `agent_heartbeat` triggers ALSO carry a schedule, and `lib/trigger-engine.ts`
 -- both schedules `type IN ('schedule','agent_heartbeat')` and creates heartbeat
--- triggers itself. Mongoose enforced no cross-field rule either, so production
+-- triggers itself. No cross-field rule has ever been enforced, so production
 -- may hold any combination. The correct constraint is `schedule present =>
 -- type IN ('schedule','agent_heartbeat')`, and it is a backfill audit item
 -- rather than something to guess at here.

@@ -4,9 +4,8 @@
 -- serving image does not read or write any of them, so this applies safely
 -- ahead of the rollout that starts using them.
 --
--- `leases` is the one table here with no Mongoose model behind it — it is
--- reached through mongoose.connection.collection('leases') in
--- lib/leader-election.ts, which is why a model-based inventory cannot see it.
+-- `leases` holds the leader-election lease (lib/leader-election.ts): one row
+-- per named lease, owned by `holder_id` until `expires_at`.
 
 CREATE TABLE "leases" (
 	"name" text PRIMARY KEY NOT NULL,

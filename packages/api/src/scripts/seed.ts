@@ -108,7 +108,7 @@ const logger = log.seed;
  *
  * `plan_features` carries `plan_features_plan_id_fk` → `plans.plan_id` and
  * `plan_features_feature_id_fk` → `features.feature_id`
- * (`drizzle/0003_closed_black_queen.sql:364-365`), so both parents must exist
+ * (`drizzle/0003_closed_black_queen.sql:362-363`), so both parents must exist
  * first. `runStartupSeed()` had `seedFeatures()` then `seedPlanFeatures()` with
  * no `seedPlans()` between them — that function moved to `src/index.ts` — so on
  * an EMPTY database it would have failed with a foreign-key violation. It never

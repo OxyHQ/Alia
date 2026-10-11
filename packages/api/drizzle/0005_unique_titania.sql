@@ -1,14 +1,13 @@
 -- oxy:deploy-phase=pre
 --
 -- Additive only: four new tables for platform bots and the Oxy service
--- connector. Nothing existing is touched. The serving image writes all four
--- collections in Mongo and reads none of these tables.
+-- connector. Nothing existing is touched.
 --
 -- The one thing here that must not be "made consistent":
 --
 --   `bots.bot_token` is encrypted application-side (the `encryptedText` custom
---   type) and `bots.webhook_secret` is PLAINTEXT, even though both were
---   `select: false` credentials in Mongoose. That asymmetry is load-bearing.
+--   type) and `bots.webhook_secret` is PLAINTEXT, even though both are
+--   credentials. That asymmetry is load-bearing.
 --   `routes/webhooks.ts` finds a bot with `Bot.findOne({ webhookSecret: ... })`
 --   on every inbound update, so the column is a LOOKUP KEY; the codec is AES-GCM
 --   with a random IV, so the same plaintext encrypts differently every time and
@@ -19,9 +18,9 @@
 --   digest stored beside the secret, not encryption of the secret itself.
 --
 -- `oxy_services.webhook_secret` is a different case and is also plaintext: it is
--- a verification key read AFTER the row is found by `service_id`, and it was not
--- `select: false`, so encrypting it would be a change of posture rather than a
--- faithful port.
+-- a verification key read AFTER the row is found by `service_id`, so encrypting
+-- it would not break a lookup — but it would be a deliberate change of posture,
+-- not a consistency fix.
 --
 CREATE TABLE "bot_users" (
 	"id" text PRIMARY KEY NOT NULL,

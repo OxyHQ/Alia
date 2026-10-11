@@ -1,16 +1,14 @@
 -- oxy:deploy-phase=pre
 --
--- Additive only: four new moderation tables, nothing existing altered. The
--- serving image still writes these collections in Mongo and reads none of these
--- tables.
+-- Additive only: four new moderation tables, nothing existing altered.
 --
 -- reports.categories carries TWO constraints, not one. `<@` is containment
 -- (every member drawn from the tuple) and is TRUE for an EMPTY array, so the
 -- cardinality rule is separate. It uses `cardinality()` and NOT
 -- `array_length(col, 1)`: the latter returns NULL on an empty array, `NULL >= 1`
 -- is NULL, and a CHECK rejects only FALSE — so the obvious spelling admits
--- exactly the value it exists to forbid. Mongoose expressed cardinality as a
--- custom validator, which did not run on updateOne at all.
+-- exactly the value it exists to forbid. Being a CHECK, the rule holds for
+-- every write path, updates included.
 
 CREATE TABLE "moderation_enforcements" (
 	"id" text PRIMARY KEY NOT NULL,

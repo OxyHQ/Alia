@@ -2,28 +2,24 @@
 --
 -- Additive only: eleven new tables for the organizations and developer-platform
 -- domains, plus ONE constraint added to an existing table. No column of any
--- existing table is altered or dropped. The serving image writes all eleven
--- collections in Mongo and reads none of these tables — no call site moved, and
--- the task definition still carries no DATABASE_URL.
+-- existing table is altered or dropped.
 --
 -- Four things in here are easy to "tidy" into breakage or data loss:
 --
 --   * `integrations.oauth_access_token` / `oauth_refresh_token` and the same
 --     pair on `connected_accounts` are plain `text` in this DDL and are NOT
 --     plaintext data. They are encrypted APPLICATION-side by the `encryptedText`
---     custom type (see src/db/schema/columns.ts), which replaces Mongoose's
---     field-level `set: encrypt, get: decrypt`. Two consequences: a hand-written
---     INSERT against these columns must pass ciphertext, because raw SQL bypasses
---     the type; and the BACKFILL must read PLAINTEXT through Mongoose (whose
---     getters decrypt) and write through drizzle, which encrypts once. Reading
---     ciphertext raw and writing it through drizzle encrypts it a SECOND time and
---     the row is then unrecoverable.
+--     custom type (see src/db/schema/columns.ts). Two consequences: a
+--     hand-written INSERT against these columns must pass ciphertext, because raw
+--     SQL bypasses the type; and any copy of these rows must read PLAINTEXT
+--     through drizzle (which decrypts) before writing through it again, which
+--     encrypts once. Reading ciphertext raw and writing it through drizzle
+--     encrypts it a SECOND time and the row is then unrecoverable.
 --
 --   * `organizations_slug_lower_key` is a unique index on `lower(slug)`, not on
---     `slug`. Mongoose declared the column `lowercase: true, unique: true` — a
---     SETTER plus a unique — so `Acme` and `acme` were one slug. A plain unique
---     on the stored text accepts both and silently widens the namespace that
---     addresses organizations.
+--     `slug`, so `Acme` and `acme` are one slug. A plain unique on the stored
+--     text accepts both and silently widens the namespace that addresses
+--     organizations.
 --
 --   * `organization_invites` is swept 30 days AFTER `expires_at`, which is the
 --     only non-zero retention measured from a deadline column in this schema.
@@ -34,8 +30,8 @@
 --
 --   * `provider_keys_organization_id_organizations_id_fk` is the one statement
 --     touching a pre-existing table. It is safe to apply today because the column
---     is inert — declared and indexed in Mongoose, never written and never
---     filtered on, verified package-wide — so every value is NULL. It is CASCADE
+--     is inert — never written and never filtered on, verified package-wide — so
+--     every value is NULL. It is CASCADE
 --     rather than SET NULL deliberately: key-manager.ts selects by provider and
 --     does not filter by organization, so nulling would promote a deleted
 --     organization private credential into the pool every tenant draws from.
