@@ -11,17 +11,27 @@ import { reserveBackgroundProductCredits } from '../product-credit-access';
  * Here the run does not wait. It files a durable request, tells the person in
  * its conversation with them, and carries on (or finishes). When the person
  * approves, a new run is started whose only job is that exact action, and the
- * policy lets it through because a granted, unused approval matches its hash.
- * Granted once, spent once: it moves to `executed` as it is used.
+ * policy lets it through because a granted, unclaimed approval matches its
+ * hash. Granted once, run once: the run CLAIMS it (`approved` → `executing`,
+ * one conditional UPDATE) before the call and records how the call ended
+ * (`succeeded`, or `outcome_unknown` if it threw); one the run never finished
+ * recording is marked `outcome_unknown` by the sweep and never run again.
+ *
+ * Only for tools that act through the agent's own runtime (its browser, its
+ * computer, a connector). An Oxy app tool never comes here: Oxy authorizes it
+ * per call, and its payments and deletions are reviewed and performed by the
+ * decision itself (`action-review.ts`).
  */
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { getDb } from '../../db/index.js';
 import {
+  claimApprovalExecution,
   createAgentApprovalRequest,
   findAgentApproval,
+  findClaimedApprovalInTurn,
   findGrantedApproval,
-  markApprovalExecuted,
+  finishApprovalExecution,
 } from '../../db/agents/agentRuntimeRepository.js';
 import {
   createAgentSession,
@@ -33,38 +43,57 @@ import { log } from '../logger.js';
 import { enqueueAgentSession } from '../task-queue.js';
 import { getOrCreateUserCredits } from '../user-credits-helpers.js';
 import { sanitizeArgsForDisplay } from './action-approval.js';
+import { proposalHash } from './action-proposal.js';
 import { postAgentMessage } from './agent-outreach.js';
 
 /** How long a person has to answer. */
 const DEFERRED_APPROVAL_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
-/** How long a granted approval stays usable by the run started for it. */
-const GRANT_USABLE_FOR_MS = 7 * 24 * 60 * 60 * 1000;
+/** How long an approval stays claimable by the run started for it. */
+export const RERUN_APPROVAL_USABLE_FOR_MS = 24 * 60 * 60 * 1000;
 
-function sortJson(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortJson);
-  if (typeof value !== 'object' || value === null) return value;
-  return Object.fromEntries(
-    Object.entries(value)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => [k, sortJson(v)]),
-  );
-}
-
-/** The identity of one action by one agent: the same call hashes the same. */
+/**
+ * The identity of one action by one agent for one person: the same call
+ * hashes the same, and the same call by another agent, or for another person,
+ * does not. A runtime tool acts through the agent's own runtime, so its
+ * identity is `self` unless it reaches the person's account by name.
+ */
 export function deferredActionHash(
   agentId: string,
+  oxyUserId: string,
   toolName: string,
   args: Record<string, unknown>,
 ): string {
-  return createHash('sha256')
-    .update(JSON.stringify(sortJson(['deferred', agentId, toolName, args])))
-    .digest('hex');
+  return proposalHash({
+    actor: { type: 'agent', agentId },
+    identity: toolName.startsWith('oxy_') ? 'for_user' : 'self',
+    tool: { name: toolName },
+    input: args,
+    resource: { person: oxyUserId },
+  });
 }
 
+/** An approval this run claimed; it records how the call ended, once. */
+export interface ClaimedApproval {
+  readonly state: 'claimed';
+  finish(
+    status: 'succeeded' | 'failed' | 'outcome_unknown',
+    outcome: Record<string, unknown>,
+  ): Promise<void>;
+}
+
+export type GrantLookup =
+  | ClaimedApproval
+  | { readonly state: 'none' }
+  | { readonly state: 'already_done' };
+
 export interface DeferredApprovals {
-  /** Spend a granted approval for exactly this call, if there is one. */
-  granted(toolName: string, args: Record<string, unknown>): Promise<boolean>;
+  /**
+   * Claim a granted approval for exactly this call, if there is one. A call
+   * this run ALREADY performed under an approval is `already_done`: one "yes"
+   * covers one action, even within the run started for it.
+   */
+  granted(toolName: string, args: Record<string, unknown>): Promise<GrantLookup>;
   /** File a request and tell the person; returns what the model is told. */
   request(toolName: string, args: Record<string, unknown>, reason: string): Promise<string>;
 }
@@ -72,13 +101,32 @@ export interface DeferredApprovals {
 export function deferredApprovalsFor(session: AgentSessionRecord): DeferredApprovals {
   return {
     async granted(toolName, args) {
+      const actionHash = deferredActionHash(session.agentId, session.oxyUserId, toolName, args);
+      if (await findClaimedApprovalInTurn(getDb(), { turnId: session._id, actionHash }))
+        return { state: 'already_done' };
       const grant = await findGrantedApproval(getDb(), {
         oxyUserId: session.oxyUserId,
-        agentId: session.agentId,
-        actionHash: deferredActionHash(session.agentId, toolName, args),
-        decidedAfter: new Date(Date.now() - GRANT_USABLE_FOR_MS),
+        actionHash,
       });
-      return grant ? markApprovalExecuted(getDb(), grant.id) : false;
+      if (!grant) return { state: 'none' };
+      const claimed = await claimApprovalExecution(getDb(), {
+        approvalId: grant.id,
+        turnId: session._id,
+      });
+      // Another run got it first: this one must not run it too.
+      if (!claimed) return { state: 'already_done' };
+      return {
+        state: 'claimed',
+        async finish(status, outcome) {
+          await finishApprovalExecution(getDb(), { approvalId: claimed.id, status, outcome }).catch(
+            (err: unknown) =>
+              log.agents.warn(
+                { err, approvalId: claimed.id },
+                'Could not record how an approved action ended; the reaper will mark it unknown',
+              ),
+          );
+        },
+      };
     },
 
     async request(toolName, args, reason) {
@@ -90,10 +138,12 @@ export function deferredApprovalsFor(session: AgentSessionRecord): DeferredAppro
         turnId: session._id,
         threadId: session.threadId,
         oxyUserId: session.oxyUserId,
+        actorType: 'agent',
         agentId: session.agentId,
+        executionMode: 'rerun',
         toolName,
         riskLevel: 'R2',
-        actionHash: deferredActionHash(session.agentId, toolName, args),
+        actionHash: deferredActionHash(session.agentId, session.oxyUserId, toolName, args),
         summary,
         // The exact arguments, so the run started on approval can repeat the
         // call the person saw; `display` is what a screen shows them.
@@ -131,7 +181,9 @@ export async function runApprovedAction(
   approvalId: string,
 ): Promise<{ started: boolean; sessionId?: string }> {
   const approval = await findAgentApproval(getDb(), approvalId);
-  if (!approval || approval.status !== 'approved') return { started: false };
+  if (approval?.status !== 'approved' || approval.executionMode !== 'rerun' || !approval.agentId)
+    return { started: false };
+  const agentId = approval.agentId;
   const args = (approval.details as { args?: Record<string, unknown> }).args;
   if (!args) return { started: false };
 
@@ -148,7 +200,7 @@ export async function runApprovedAction(
   let sessionId: string | undefined;
   try {
     const session = await createAgentSession(getDb(), {
-      agentId: approval.agentId,
+      agentId,
       oxyUserId: approval.oxyUserId,
       task,
       status: 'queued',
@@ -159,8 +211,8 @@ export async function runApprovedAction(
     await enqueueAgentSession({
       sessionId: session._id,
       userId: approval.oxyUserId,
-      agentId: approval.agentId,
-      agentName: `Agent ${approval.agentId}`,
+      agentId,
+      agentName: `Agent ${agentId}`,
     });
     return { started: true, sessionId: session._id };
   } catch (error: unknown) {

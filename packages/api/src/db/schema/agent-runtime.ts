@@ -27,9 +27,13 @@ export const AGENT_GOAL_STATUSES = [
   'cancelled',
 ] as const;
 /**
- * `executed`: an approval a background run asked for was granted and the
- * action it covered has now been performed, once. It is what stops one "yes"
- * from authorizing the same action again.
+ * The life of one reviewed action (`lib/agent/action-review.ts`).
+ *
+ * `pending` → `approved` | `denied` | `expired` | `cancelled`, then, once
+ * approved, ONE atomic claim to `executing` and one of `succeeded`, `failed`
+ * or `outcome_unknown` (still `executing` after a restart: it may or may not
+ * have happened, so it is never run again). `executed` is the pre-0088 name
+ * for a spent approval and is kept for the rows that carry it.
  */
 export const AGENT_APPROVAL_STATUSES = [
   'pending',
@@ -38,7 +42,21 @@ export const AGENT_APPROVAL_STATUSES = [
   'expired',
   'cancelled',
   'executed',
+  'executing',
+  'succeeded',
+  'failed',
+  'outcome_unknown',
 ] as const;
+/** Who asked: Alia herself, or an agent (then `agent_id` is set). */
+export const APPROVAL_ACTOR_TYPES = ['alia', 'agent'] as const;
+/** Whose account the action reaches: the person's, or the agent's own. */
+export const APPROVAL_IDENTITY_MODES = ['for_user', 'self'] as const;
+/**
+ * How an approved action runs. `direct`: the decision route performs it with
+ * the deciding person's bearer (an Oxy app action). `rerun`: a new run of the
+ * agent performs it (a runtime tool that needs the agent's machine).
+ */
+export const APPROVAL_EXECUTION_MODES = ['direct', 'rerun'] as const;
 export const AGENT_TEAM_ROLES = ['coordinator', 'member'] as const;
 export const COWORK_DEVICE_STATUSES = ['online', 'offline', 'revoked'] as const;
 
@@ -143,7 +161,17 @@ export const agentApprovalRequests = pgTable(
     /** NULL for a background run with no thread: an automation, a follow-up. */
     threadId: text(),
     oxyUserId: text().notNull(),
-    agentId: text().notNull(),
+    actorType: text({ enum: APPROVAL_ACTOR_TYPES as unknown as [string, ...string[]] })
+      .notNull()
+      .default('agent'),
+    /** NULL exactly when Alia asked (`actor_type = 'alia'`). */
+    agentId: text(),
+    /** The Alia conversation the request belongs to (a chat, a task's own). */
+    conversationId: text(),
+    identityMode: text({ enum: APPROVAL_IDENTITY_MODES as unknown as [string, ...string[]] }),
+    executionMode: text({ enum: APPROVAL_EXECUTION_MODES as unknown as [string, ...string[]] })
+      .notNull()
+      .default('rerun'),
     toolName: text().notNull(),
     riskLevel: text().notNull(),
     actionHash: text().notNull(),
@@ -156,13 +184,32 @@ export const agentApprovalRequests = pgTable(
     decidedByOxyUserId: text(),
     decidedAt: timestamptz(),
     expiresAt: timestamptz().notNull(),
+    /** The run (or decision) that claimed it: one claim, ever. */
+    executedByTurnId: text(),
+    executionStartedAt: timestamptz(),
+    executionFinishedAt: timestamptz(),
+    /** What happened, for the person: never credentials. */
+    outcome: jsonb().$type<Record<string, unknown>>(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     uniqueIndex('agent_approval_turn_action_key').on(t.turnId, t.actionHash),
     index('agent_approval_owner_status_expiry_idx').on(t.oxyUserId, t.status, t.expiresAt),
+    index('agent_approval_executing_started_idx')
+      .on(t.executionStartedAt)
+      .where(sql`${t.status} = 'executing'`),
     checkOneOf('agent_approval_status_check', t.status, AGENT_APPROVAL_STATUSES),
+    checkOneOf('agent_approval_actor_type_check', t.actorType, APPROVAL_ACTOR_TYPES),
+    checkOneOf('agent_approval_execution_mode_check', t.executionMode, APPROVAL_EXECUTION_MODES),
+    check(
+      'agent_approval_identity_mode_check',
+      sql`${t.identityMode} is null or ${t.identityMode} in ('for_user', 'self')`,
+    ),
+    check(
+      'agent_approval_actor_agent_check',
+      sql`(${t.actorType} = 'agent') = (${t.agentId} is not null)`,
+    ),
   ],
 );
 

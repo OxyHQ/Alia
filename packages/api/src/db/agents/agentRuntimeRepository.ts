@@ -138,7 +138,12 @@ export async function createAgentApprovalRequest(
     turnId: string;
     threadId: string | null;
     oxyUserId: string;
-    agentId: string;
+    /** Defaults to `agent`; `alia` requires `agentId: null`. */
+    actorType?: 'alia' | 'agent';
+    agentId: string | null;
+    conversationId?: string | null;
+    identityMode?: 'for_user' | 'self' | null;
+    executionMode?: 'direct' | 'rerun';
     toolName: string;
     riskLevel: string;
     actionHash: string;
@@ -179,15 +184,21 @@ export async function findAgentApproval(db: ApiDatabase, approvalId: string) {
   return row;
 }
 
+/**
+ * The person's answer, once: only a `pending`, unexpired request of THEIRS
+ * moves. An approval stays claimable until `usableUntil`; after that it is
+ * expired by the sweep and nothing can run it.
+ */
 export async function decideAgentApproval(
   db: ApiDatabase,
   input: {
     approvalId: string;
     oxyUserId: string;
     approved: boolean;
+    usableUntil?: Date;
   },
+  now = new Date(),
 ): Promise<AgentApprovalRow | undefined> {
-  const now = new Date();
   const [row] = await db
     .update(agentApprovalRequests)
     .set({
@@ -195,24 +206,30 @@ export async function decideAgentApproval(
       decidedByOxyUserId: input.oxyUserId,
       decidedAt: now,
       updatedAt: now,
+      ...(input.approved && input.usableUntil ? { expiresAt: input.usableUntil } : {}),
     })
     .where(
       and(
         eq(agentApprovalRequests.id, input.approvalId),
         eq(agentApprovalRequests.oxyUserId, input.oxyUserId),
         eq(agentApprovalRequests.status, 'pending'),
+        gt(agentApprovalRequests.expiresAt, now),
       ),
     )
     .returning();
   return row;
 }
 
+/** Requests nobody answered, and approvals nobody claimed in time. */
 export async function expireAgentApprovals(db: ApiDatabase, now = new Date()): Promise<string[]> {
   const rows = await db
     .update(agentApprovalRequests)
     .set({ status: 'expired', updatedAt: now })
     .where(
-      and(eq(agentApprovalRequests.status, 'pending'), lt(agentApprovalRequests.expiresAt, now)),
+      and(
+        inArray(agentApprovalRequests.status, ['pending', 'approved']),
+        lt(agentApprovalRequests.expiresAt, now),
+      ),
     )
     .returning({ id: agentApprovalRequests.id });
   return rows.map((row) => row.id);
@@ -344,18 +361,19 @@ export async function verifyAgentGoal(
 }
 
 /**
- * A granted, not yet used approval for exactly this action by this agent for
- * this person — what lets a background run perform what it asked for earlier.
- * Matched on the action hash, so a different action is not covered.
+ * A granted, not yet claimed approval for exactly this action for this person
+ * — what lets a background run perform what it asked for earlier. Matched on
+ * the action hash, which names the actor, the identity, the tool, the input
+ * and the resource, so a different action (or the same one by another actor)
+ * is not covered.
  */
 export async function findGrantedApproval(
   db: ApiDatabase,
   input: {
     oxyUserId: string;
-    agentId: string;
     actionHash: string;
-    decidedAfter: Date;
   },
+  now = new Date(),
 ): Promise<AgentApprovalRow | undefined> {
   const [row] = await db
     .select()
@@ -363,10 +381,9 @@ export async function findGrantedApproval(
     .where(
       and(
         eq(agentApprovalRequests.oxyUserId, input.oxyUserId),
-        eq(agentApprovalRequests.agentId, input.agentId),
         eq(agentApprovalRequests.actionHash, input.actionHash),
         eq(agentApprovalRequests.status, 'approved'),
-        gt(agentApprovalRequests.decidedAt, input.decidedAfter),
+        gt(agentApprovalRequests.expiresAt, now),
       ),
     )
     .orderBy(desc(agentApprovalRequests.decidedAt))
@@ -374,16 +391,131 @@ export async function findGrantedApproval(
   return row;
 }
 
-/** Spend a granted approval. `false` means another run already used it. */
-export async function markApprovalExecuted(db: ApiDatabase, approvalId: string): Promise<boolean> {
+/**
+ * Whether `turnId` already claimed an approval for this exact action: the run
+ * started for one approval must not ask again for what it just did.
+ */
+export async function findClaimedApprovalInTurn(
+  db: ApiDatabase,
+  input: { turnId: string; actionHash: string },
+): Promise<AgentApprovalRow | undefined> {
+  const [row] = await db
+    .select()
+    .from(agentApprovalRequests)
+    .where(
+      and(
+        eq(agentApprovalRequests.executedByTurnId, input.turnId),
+        eq(agentApprovalRequests.actionHash, input.actionHash),
+      ),
+    )
+    .limit(1);
+  return row;
+}
+
+/**
+ * THE claim: `approved` → `executing`, once. One conditional UPDATE, so two
+ * runs, two replicas or two clicks cannot both get the row; `undefined` means
+ * somebody else already has it (or it expired, or was never approved).
+ */
+export async function claimApprovalExecution(
+  db: ApiDatabase,
+  input: { approvalId: string; turnId: string },
+  now = new Date(),
+): Promise<AgentApprovalRow | undefined> {
+  const [row] = await db
+    .update(agentApprovalRequests)
+    .set({
+      status: 'executing',
+      executedByTurnId: input.turnId,
+      executionStartedAt: now,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(agentApprovalRequests.id, input.approvalId),
+        eq(agentApprovalRequests.status, 'approved'),
+        gt(agentApprovalRequests.expiresAt, now),
+      ),
+    )
+    .returning();
+  return row;
+}
+
+/** How a claimed action ended. Only an `executing` row moves. */
+export async function finishApprovalExecution(
+  db: ApiDatabase,
+  input: {
+    approvalId: string;
+    status: 'succeeded' | 'failed' | 'outcome_unknown';
+    outcome: Record<string, unknown>;
+  },
+  now = new Date(),
+): Promise<boolean> {
   const updated = await db
     .update(agentApprovalRequests)
-    .set({ status: 'executed', updatedAt: new Date() })
+    .set({
+      status: input.status,
+      outcome: input.outcome,
+      executionFinishedAt: now,
+      updatedAt: now,
+    })
     .where(
-      and(eq(agentApprovalRequests.id, approvalId), eq(agentApprovalRequests.status, 'approved')),
+      and(
+        eq(agentApprovalRequests.id, input.approvalId),
+        eq(agentApprovalRequests.status, 'executing'),
+      ),
     )
     .returning({ id: agentApprovalRequests.id });
   return updated.length > 0;
+}
+
+/**
+ * An approved action that can no longer be run as approved — its identity or
+ * resource changed, its tool is gone — is closed, so it can never be claimed.
+ */
+export async function cancelApprovedAction(
+  db: ApiDatabase,
+  input: { approvalId: string; outcome: Record<string, unknown> },
+  now = new Date(),
+): Promise<boolean> {
+  const updated = await db
+    .update(agentApprovalRequests)
+    .set({ status: 'cancelled', outcome: input.outcome, updatedAt: now })
+    .where(
+      and(
+        eq(agentApprovalRequests.id, input.approvalId),
+        eq(agentApprovalRequests.status, 'approved'),
+      ),
+    )
+    .returning({ id: agentApprovalRequests.id });
+  return updated.length > 0;
+}
+
+/**
+ * Claimed actions whose executor vanished (a restart, a killed task) before
+ * it recorded how they ended. They may or may not have happened, so they
+ * become `outcome_unknown` — terminal: nothing ever runs them again.
+ */
+export async function markStuckApprovalExecutions(
+  db: ApiDatabase,
+  startedBefore: Date,
+  now = new Date(),
+): Promise<AgentApprovalRow[]> {
+  return db
+    .update(agentApprovalRequests)
+    .set({
+      status: 'outcome_unknown',
+      outcome: { reason: 'executor_lost' },
+      executionFinishedAt: now,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(agentApprovalRequests.status, 'executing'),
+        lt(agentApprovalRequests.executionStartedAt, startedBefore),
+      ),
+    )
+    .returning();
 }
 
 /** A person's approvals still waiting on them, newest first. */
