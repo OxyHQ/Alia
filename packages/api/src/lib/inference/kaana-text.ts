@@ -16,7 +16,7 @@
 
 import type { ResponseFormat } from '@oxy.so/contracts';
 
-import { getUtilityModelId } from '../models/selection.js';
+import { UTILITY_POWER_LEVEL } from '../chat-core.js';
 import { getOxyInferenceClient } from './oxy-inference.js';
 import type { AliaInferenceSurface } from './product-seam.js';
 import { fitControlledInput } from './request-budget.js';
@@ -94,7 +94,11 @@ export async function generateTextViaKaana(request: KaanaTextRequest): Promise<s
   );
   const completion = await client.respond(
     {
-      model: request.model ?? (await getUtilityModelId()),
+      // A named model when the caller has one; otherwise the utility power level,
+      // which Oxy routes to a model it can serve for Alia (`chat-core.ts`).
+      ...(request.model === undefined
+        ? { routingProfile: UTILITY_POWER_LEVEL }
+        : { model: request.model }),
       input: messages,
       maxOutputTokens: request.maxOutputTokens,
       ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
