@@ -97,6 +97,7 @@ vi.mock('../action-approval.js', () => ({
 }));
 vi.mock('../../../socket.js', () => ({
   getIO: () => ({ to: () => ({ emit: H.emit }) }),
+  emitApprovalsChanged: () => H.emit('approvals:changed', { eventVersion: 1 }),
 }));
 vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };

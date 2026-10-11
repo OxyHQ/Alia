@@ -370,6 +370,13 @@ export function getIO(): Server | null {
   return io;
 }
 
+/** The person's pending approvals changed: the app refetches its cards. */
+export function emitApprovalsChanged(oxyUserId: string) {
+  if (io) {
+    io.to(`user:${oxyUserId}`).emit('approvals:changed', { eventVersion: 1 });
+  }
+}
+
 export function emitTelegramLinked(token: string, data: any) {
   if (io) {
     io.to(`telegram-token:${token}`).emit('telegram-linked', data);

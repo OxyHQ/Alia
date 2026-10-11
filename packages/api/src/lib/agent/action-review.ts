@@ -46,7 +46,7 @@ import {
   markStuckApprovalExecutions,
   type AgentApprovalRow,
 } from '../../db/agents/agentRuntimeRepository.js';
-import { getIO } from '../../socket.js';
+import { emitApprovalsChanged } from '../../socket.js';
 import { log } from '../logger.js';
 import { resolveReviewedOxyAction } from '../tools/oxy-services.js';
 import { resolveApprovalDecision, sanitizeArgsForDisplay } from './action-approval.js';
@@ -102,10 +102,6 @@ export interface ReviewGateTarget {
   /** The turn or run filing it: one row per (turn, exact action). */
   readonly turnId: string;
   readonly delivery: ReviewDelivery;
-}
-
-function emitApprovalsChanged(oxyUserId: string): void {
-  getIO()?.to(`user:${oxyUserId}`).emit('approvals:changed', { eventVersion: 1 });
 }
 
 function summaryOf(proposal: OxyActionProposal): string {
