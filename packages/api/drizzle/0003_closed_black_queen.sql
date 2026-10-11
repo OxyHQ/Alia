@@ -1,23 +1,21 @@
 -- oxy:deploy-phase=pre
 --
 -- Additive only: thirteen new tables for the providers and billing domains, no
--- column of any existing table touched. The serving image writes all thirteen
--- collections in Mongo and reads none of these tables — no call site moved in
--- this batch, and the task definition still carries no DATABASE_URL.
+-- column of any existing table touched.
 --
 -- Two things in here are easy to "tidy" into breakage:
 --
 --   * `plan_features`' two foreign keys target `plans.plan_id` and
 --     `features.feature_id`, which are inline `CONSTRAINT ... UNIQUE` clauses
---     inside CREATE TABLE (lines 31 and 71). That is load-bearing, not a style
---     choice: drizzle-kit emits every FK statement (339-342) BEFORE every
---     CREATE UNIQUE INDEX (343+), so declaring either target with
+--     inside CREATE TABLE (lines 94 and 54). That is load-bearing, not a style
+--     choice: drizzle-kit emits every FK statement (362-365) BEFORE every
+--     CREATE UNIQUE INDEX (366+), so declaring either target with
 --     `uniqueIndex()` instead generates just as cleanly and fails at APPLY time
 --     with `42830: there is no unique constraint matching given keys`.
 --
 --   * `transactions.dedup_key` is `GENERATED ALWAYS AS ((metadata ->> 'dedup'))
---     STORED` with a unique index over it. It replaces Mongo's
---     `{'metadata.dedup': 1}, {unique: true, sparse: true}` — the index that
+--     STORED` with a unique index over it (NULLs never collide, so only rows
+--     whose metadata carries `dedup` are constrained) — the index that
 --     stops a Stripe webhook redelivery crediting a customer twice
 --     (`routes/billing.ts` writes the transaction first as a lock and treats the
 --     duplicate-key error as "already credited"). Dropping it loses money, in
