@@ -110,7 +110,13 @@ beforeEach(() => {
   serviceFetch.mockReset().mockResolvedValue(
     new Response(
       JSON.stringify({
-        service: { appId: 'application-1', scopes: ['capability-events:publish'] },
+        service: {
+          applicationId: 'application-1',
+          credentialId: 'wl_inbox',
+          ownerAccountId: 'owner-1',
+          capabilities: ['catalog:inbox'],
+          scopes: ['capability-events:publish'],
+        },
         catalogAppIds: ['inbox'],
         catalogs: [{ appId: 'inbox', eventTypes: ['new_email', 'email_needs_response'] }],
       }),
@@ -140,7 +146,13 @@ describe('normalized Oxy app events', () => {
     serviceFetch.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
-          service: { appId: 'application-1', scopes: ['capability-events:publish'] },
+          service: {
+            applicationId: 'application-1',
+            credentialId: 'wl_inbox',
+            ownerAccountId: 'owner-1',
+            capabilities: ['catalog:inbox'],
+            scopes: ['capability-events:publish'],
+          },
           catalogAppIds: ['mention'],
           catalogs: [{ appId: 'mention', eventTypes: ['post_created'] }],
         }),
