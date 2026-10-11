@@ -21,7 +21,9 @@ bun run --filter @alia/api test:pg     # suite con Postgres real; necesita TEST_
 Biome sustituye a ESLint/Prettier (`biome.json` en la raíz). Las guardas de
 Expo sobre `process.env` (sin destructurar ni acceso dinámico: Metro solo
 inlinea `process.env.EXPO_PUBLIC_*` estático) son plugins GritQL en
-`biome-plugins/`. Nunca `bun test` a pelo: los paquetes usan vitest.
+`biome-plugins/`. Biome no cubre `@ts-nocheck` ni `@ts-expect-error` sin
+descripción: lo hace `scripts/check-ts-directives.mjs` en CI. Nunca `bun test`
+a pelo: los paquetes usan vitest.
 `bun.lock` va en el mismo commit que el `package.json` que lo cambia.
 
 ## Reglas

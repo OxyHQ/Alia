@@ -304,6 +304,16 @@ jobs:
       - name: Lint and format check (Biome)
         run: bunx biome ci .
 
+      # The half of ESLint's `ban-ts-comment` Biome cannot express: the no-check
+      # pragma, and an expect-error with no description. Biome's GritQL plugins
+      # match syntax nodes and comments are trivia, so this is a script. It needs
+      # the installed `typescript` to read comments the way the compiler does.
+      - name: Check TypeScript directive comments
+        run: node scripts/check-ts-directives.mjs
+
+      - name: Verify that gate can still fail
+        run: node .github/scripts/test-check-ts-directives.mjs
+
       - name: Typecheck API
         run: bun run --filter @alia/api typecheck
 
