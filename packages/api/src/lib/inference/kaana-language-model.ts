@@ -56,6 +56,7 @@ import type {
 
 import { buildOxyInferenceClientForServiceToken, getOxyInferenceClient } from './oxy-inference.js';
 import type { AliaInferenceSurface } from './product-seam.js';
+import { fitControlledInput } from './request-budget.js';
 import { assertToolCountWithinLimit } from './tool-limit.js';
 import type { OxyInferenceTarget } from '../models/power-levels.js';
 
@@ -417,24 +418,40 @@ function translate(call: LanguageModelV3CallOptions): Translation {
 }
 
 /**
- * The translation, refused before sending when it carries more tools than one
- * request may (`tool-limit.ts`).
+ * The translation, fitted to what one request may carry, or refused before
+ * sending.
  *
- * The assembler already budgets every turn it builds; this is the seam's own
- * check, so a path that did not go through it fails here with a typed
- * `invalid_request` and a log naming the families, instead of at the edge with
- * a 400 the person reads as "Alia couldn't answer".
+ *  - More tools than one request may carry (`tool-limit.ts`) is refused. The
+ *    assembler already budgets every turn it builds; this is the seam's own
+ *    check, so a path that did not go through it fails here with a typed
+ *    `invalid_request` and a log naming the families, instead of at the edge
+ *    with a 400 the person reads as "Alia couldn't answer".
+ *  - An input larger than Oxy's byte budget is shrunk to fit — older tool
+ *    results, then the oldest history turns (`request-budget.ts`) — and refused
+ *    with a typed `context_length_exceeded` when it cannot be. Every model step
+ *    of every surface passes through here, so this is the one place it runs.
  */
 function translateWithinLimit(
   options: KaanaModelOptions,
   call: LanguageModelV3CallOptions,
 ): Translation {
   const translation = translate(call);
+  const model = targetLabel(options.target);
   assertToolCountWithinLimit(
     translation.tools.map((tool) => tool.name),
-    { surface: options.surface, model: targetLabel(options.target) },
+    { surface: options.surface, model },
   );
-  return translation;
+  const responseFormat = toResponseFormat(call.responseFormat);
+  const fitted = fitControlledInput(
+    {
+      messages: translation.messages,
+      tools: translation.tools,
+      ...(translation.toolChoice === undefined ? {} : { toolChoice: translation.toolChoice }),
+      ...(responseFormat === undefined ? {} : { responseFormat }),
+    },
+    { surface: options.surface, model },
+  );
+  return { ...translation, messages: fitted.messages };
 }
 
 /**

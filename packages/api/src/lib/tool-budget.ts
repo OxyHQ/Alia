@@ -57,10 +57,11 @@
  * named in the result, so the model can close something and ask again.
  */
 
-import { tool, type Tool, type ToolSet } from 'ai';
+import { asSchema, tool, type Tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 
 import { declareReadOnly } from './agent/tool-effects.js';
+import { toolDefinitionBytes, toolDefinitionsBudgetBytes } from './inference/request-budget.js';
 import {
   MAX_TOOLS_PER_INFERENCE_REQUEST,
   ToolLimitExceededError,
@@ -412,10 +413,50 @@ export interface BudgetToolsInput {
   /** Tool calls already in this conversation, oldest first. */
   readonly priorToolCalls?: readonly PriorToolCall[];
   readonly budget?: number;
+  /**
+   * The most bytes the active tool definitions may add to one request.
+   * Defaults to {@link toolDefinitionsBudgetBytes}: half the request input
+   * budget, the other half being the conversation.
+   */
+  readonly definitionBytesBudget?: number;
 }
 
 /**
- * Fit a turn's tools to the per-request budget.
+ * What one tool adds to a request, as the Kaana adapter sends it: the contract's
+ * `{ type, name, description, parameters, strict }`, measured by
+ * `request-budget.ts`. A schema that only resolves asynchronously is counted
+ * without its parameters — the adapter's own measurement is still exact.
+ */
+export function sentToolBytes(name: string, built: Tool): number {
+  let parameters: Record<string, unknown> = {};
+  try {
+    const schema: unknown = asSchema(built.inputSchema).jsonSchema;
+    if (
+      schema !== null &&
+      typeof schema === 'object' &&
+      typeof (schema as { then?: unknown }).then !== 'function'
+    )
+      parameters = schema as Record<string, unknown>;
+  } catch {
+    // Unmeasurable schema: counted as empty here, measured exactly at the seam.
+  }
+  return toolDefinitionBytes({
+    type: 'function',
+    name,
+    ...(built.description === undefined ? {} : { description: built.description }),
+    parameters,
+    ...(built.strict === undefined ? {} : { strict: built.strict }),
+  });
+}
+
+/**
+ * Fit a turn's tools to the per-request budget: at most `budget` tools, whose
+ * definitions add at most `definitionBytesBudget` bytes to the request.
+ *
+ * The bytes matter because the request's whole input has a byte ceiling
+ * (`inference/request-budget.ts`): a set of fewer than 128 tools with large
+ * schemas can leave no room for the conversation. Over either limit, apps are
+ * routed exactly as for a count overflow.
  *
  * Throws {@link ToolLimitExceededError} only when the turn cannot be served
  * without dropping something the caller or the person explicitly asked for:
@@ -429,10 +470,13 @@ export function budgetTools(input: BudgetToolsInput): BudgetedToolSet {
     pins = [],
     priorToolCalls = [],
     budget = MAX_TOOLS_PER_INFERENCE_REQUEST,
+    definitionBytesBudget = toolDefinitionsBudgetBytes(),
   } = input;
   const allNames = Object.keys(tools);
+  const bytesOf = new Map(allNames.map((name) => [name, sentToolBytes(name, tools[name])]));
+  const assembledBytes = [...bytesOf.values()].reduce((sum, bytes) => sum + bytes, 0);
 
-  if (allNames.length <= budget) {
+  if (allNames.length <= budget && assembledBytes <= definitionBytesBudget) {
     return { tools, routing: {}, appCatalogPrompt: '', activeToolNames: () => allNames };
   }
 
@@ -467,8 +511,30 @@ export function budgetTools(input: BudgetToolsInput): BudgetedToolSet {
     for (const name of pinnedTools) active.add(name);
     return [...active];
   };
-  const fits = (extra: readonly string[]): boolean =>
-    new Set([...activeToolNames(), ...extra]).size <= budget;
+  /** Set once `useApps` exists; it is always active, so it always counts. */
+  let routerBytes = 0;
+  const bytesOfActive = (names: Iterable<string>): number => {
+    let sum = 0;
+    for (const name of names)
+      sum += name === USE_APPS_TOOL ? routerBytes : (bytesOf.get(name) ?? 0);
+    return sum;
+  };
+  const fits = (extra: readonly string[]): boolean => {
+    const active = new Set([...activeToolNames(), ...extra]);
+    return active.size <= budget && bytesOfActive(active) <= definitionBytesBudget;
+  };
+
+  const useApps = createUseAppsTool({
+    apps,
+    open,
+    pinnedApps,
+    fits,
+    activeToolNames,
+    budget,
+    activeBytes: () => bytesOfActive(activeToolNames()),
+    definitionBytesBudget,
+  });
+  routerBytes = sentToolBytes(USE_APPS_TOOL, useApps);
 
   // 1. The person's picks, in the order given. Never dropped.
   const unfit: string[] = [];
@@ -493,7 +559,8 @@ export function budgetTools(input: BudgetToolsInput): BudgetedToolSet {
     throw new ToolLimitExceededError({
       toolCount: new Set([...activeToolNames()]).size,
       message:
-        `The selected ${unfit.length === 1 ? 'app does' : 'apps do'} not fit in one request of at most ${budget} tools: ` +
+        `The selected ${unfit.length === 1 ? 'app does' : 'apps do'} not fit in one request of at most ${budget} tools ` +
+        `and ${definitionBytesBudget} bytes of tool definitions: ` +
         `${unfit.join(', ')}. Select fewer apps or tools for this message.`,
     });
   }
@@ -505,7 +572,6 @@ export function budgetTools(input: BudgetToolsInput): BudgetedToolSet {
     if (app && !open.includes(id) && fits(app.names)) open.push(id);
   }
 
-  const useApps = createUseAppsTool({ apps, open, pinnedApps, fits, activeToolNames, budget });
   const registered: ToolSet = { ...tools, [USE_APPS_TOOL]: useApps };
 
   log.tools.info(
@@ -517,6 +583,9 @@ export function budgetTools(input: BudgetToolsInput): BudgetedToolSet {
       pinnedTools: [...pinnedTools],
       active: activeToolNames().length,
       budget,
+      assembledBytes,
+      activeBytes: bytesOfActive(activeToolNames()),
+      definitionBytesBudget,
     },
     'Tool budget applied: connected apps are opened on demand with useApps',
   );
@@ -550,8 +619,19 @@ function createUseAppsTool(state: {
   fits: (extra: readonly string[]) => boolean;
   activeToolNames: () => string[];
   budget: number;
+  activeBytes: () => number;
+  definitionBytesBudget: number;
 }): Tool {
-  const { apps, open, pinnedApps, fits, activeToolNames, budget } = state;
+  const {
+    apps,
+    open,
+    pinnedApps,
+    fits,
+    activeToolNames,
+    budget,
+    activeBytes,
+    definitionBytesBudget,
+  } = state;
   return declareReadOnly(
     tool({
       description:
@@ -604,7 +684,8 @@ function createUseAppsTool(state: {
             ? {
                 didNotFit,
                 hint:
-                  `At most ${budget} tools can be active (now ${active}). ` +
+                  `At most ${budget} tools (now ${active}) and ${definitionBytesBudget} bytes of tool ` +
+                  `definitions (now ${activeBytes()}) can be active. ` +
                   `Close apps you no longer need with useApps({ apps: [...], close: [...] }).`,
               }
             : {}),

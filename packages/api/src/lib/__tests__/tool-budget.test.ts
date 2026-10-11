@@ -13,7 +13,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { tool, type Tool, type ToolSet } from 'ai';
+import { asSchema, tool, type Tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 
 vi.mock('../logger.js', () => {
@@ -56,9 +56,8 @@ vi.mock('../tools/mcp.js', () => ({
 vi.mock('../tools/integrations.js', () => ({ buildIntegrationTools: vi.fn(async () => ({})) }));
 vi.mock('../tools/ask-agent.js', () => ({ buildAskAgentTool: vi.fn(async () => ({})) }));
 
-const { budgetTools, stickyAppsFrom, appsOf, coversOf, USE_APPS_TOOL } = await import(
-  '../tool-budget.js'
-);
+const { budgetTools, stickyAppsFrom, appsOf, coversOf, sentToolBytes, USE_APPS_TOOL } =
+  await import('../tool-budget.js');
 const { ToolPipeline } = await import('../tool-pipeline.js');
 const { ToolLimitExceededError, MAX_TOOLS_PER_INFERENCE_REQUEST } = await import(
   '../inference/tool-limit.js'
@@ -633,5 +632,76 @@ describe('the catalog says what each app covers', () => {
     expect(budgeted.appCatalogPrompt).toMatch(
       /^- skyline — Skyline \(3 tools\): weather, forecast, radar, alert$/m,
     );
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  The definition-bytes budget                                               */
+/* -------------------------------------------------------------------------- */
+
+describe('tool definitions are budgeted in bytes as well as in count', () => {
+  /** An app whose `count` tools each carry a large schema. */
+  function heavy(prefix: string, label: string, count: number, bytes: number): ToolSet {
+    const tools: ToolSet = {};
+    for (let n = 0; n < count; n += 1)
+      tools[`${prefix}__action${n}`] = tool({
+        description: `[${label}] ${'x'.repeat(bytes)}`,
+        inputSchema: z.object({ text: z.string() }),
+      });
+    return tools;
+  }
+  const turn = (apps: ToolSet) => ({
+    tools: { ...core(10), ...apps },
+    sources: { oxy_service: apps, mcp: {}, integration: {} },
+  });
+
+  it('measures a tool as the adapter sends it', () => {
+    const built = tool({ description: 'd', inputSchema: z.object({ text: z.string() }) });
+    const sent = {
+      type: 'function',
+      name: 'echo',
+      description: 'd',
+      parameters: asSchema(built.inputSchema).jsonSchema,
+    };
+    expect(sentToolBytes('echo', built)).toBe(Buffer.byteLength(JSON.stringify(sent)) + 1 + 32);
+  });
+
+  it('a small set under both limits is not routed — the control', () => {
+    const budgeted = budgetTools(turn(heavy('oxy_docs', 'Docs', 10, 100)));
+    expect(budgeted.routing).toEqual({});
+    expect(budgeted.tools[USE_APPS_TOOL]).toBeUndefined();
+  });
+
+  it('fewer than 128 tools whose schemas are over the bytes budget are routed', () => {
+    // 40 tools × ~2.1KB ≈ 85KB: well under 128 tools, over the 61_440-byte half.
+    const budgeted = budgetTools(turn(heavy('oxy_docs', 'Docs', 40, 2_000)));
+    const first = budgeted.routing.prepareStep?.().activeTools ?? [];
+    expect(first).toContain(USE_APPS_TOOL);
+    expect(first.filter((name) => name.startsWith('oxy_docs__'))).toEqual([]);
+    expect(budgeted.appCatalogPrompt).toContain('- docs — Docs (40 tools)');
+  });
+
+  it('useApps refuses an app that would push the definitions past the bytes budget, and says why', async () => {
+    const budgeted = budgetTools(
+      turn({
+        ...heavy('oxy_docs', 'Docs', 20, 2_000),
+        ...heavy('oxy_wiki', 'Wiki', 20, 2_000),
+      }),
+    );
+    const opened = await openApps(budgeted, { apps: ['docs', 'wiki'] });
+    expect(opened.opened).toEqual(['docs']);
+    expect(opened.didNotFit).toEqual([{ app: 'wiki', tools: 20 }]);
+    expect(String(opened.hint)).toContain('bytes of tool definitions');
+    const active = budgeted.activeToolNames();
+    const bytes = active.reduce((sum, name) => sum + sentToolBytes(name, budgeted.tools[name]), 0);
+    expect(bytes).toBeLessThanOrEqual(61_440);
+  });
+
+  it('honours an explicit bytes budget', () => {
+    const apps = heavy('oxy_docs', 'Docs', 10, 100);
+    expect(budgetTools(turn(apps)).routing).toEqual({});
+    expect(
+      budgetTools({ ...turn(apps), definitionBytesBudget: 1_000 }).tools[USE_APPS_TOOL],
+    ).toBeDefined();
   });
 });

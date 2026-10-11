@@ -192,6 +192,44 @@ before credits are reserved (`lib/chat/request-context.ts`), and a set whose
 always-sent tools leave no room for the router is refused by the assembler with
 the same typed error.
 
+## Request input budget
+
+One inference request's input is also bounded in **bytes**. The Oxy edge
+refuses an Alia completion whose controlled input — UTF-8 bytes of
+`JSON.stringify({ input, tools, toolChoice, responseFormat })` plus 256, plus 32
+per message, plus 32 per tool — is over 126_976
+(`maxControlledCompletionInputBudget`, OxyHQServices
+`packages/api/src/config/inferenceEconomicPolicy.ts`; measured by
+`controlledInputBudget` in `packages/api/src/services/inferenceInternalPilot.ts`).
+Bytes are a worst-case token bound, so the request can never exceed the
+128Ki-token route context. The limit is Oxy's and deliberate; Alia fits inside
+it.
+
+`lib/inference/request-budget.ts` holds the ceiling: 4 KiB below Oxy's, 122_880
+bytes, lowered (never raised) with `ALIA_INFERENCE_INPUT_BUDGET_BYTES`. The Kaana
+adapter measures every model step of every surface — chat, `/v1`, tasks, the
+runner, delegation, bots, triggers and background derivations all reach Oxy
+through it — exactly as Oxy will, and when the request is over, shrinks only
+what is sent, in this order, until it fits:
+
+1. **Older tool results**, oldest first, in this turn and in history: their
+   content becomes `[result omitted to fit context — call the tool again if
+   needed]`. The call and its id stay, so no result is orphaned. The latest
+   step's results are kept.
+2. **The oldest history turns**, whole (a user message and everything up to the
+   next), never the system prompt, the latest user message or the current step
+   chain.
+3. **The latest step's results**, oldest first, never the newest.
+
+The AI SDK's messages and what the turn persists are untouched; each step is
+fitted again. Tool definitions are the app router's to bound: the active
+schemas may take at most half the budget (61_440 bytes by default), and a set
+over that — even under 128 tools — is routed behind `useApps` exactly as a
+count overflow is. If a request still cannot fit (a pasted message larger than
+the budget), it is not sent: the step fails with a typed
+`context_length_exceeded` (`RequestInputBudgetExceededError`, not retryable),
+the edge's own code, and a log of the measured sizes — never the content.
+
 ## Persistence and failure
 
 Conversations and messages are stored through the Postgres repositories.
