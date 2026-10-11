@@ -69,3 +69,70 @@ describe('wrapToolsWithTruncation', () => {
     expect(out).toContain('truncated');
   });
 });
+
+describe('a result too large for the model, whatever its shape', () => {
+  const body = 'x'.repeat(5000);
+
+  it('bounds a nested app result, which used to pass through whole', async () => {
+    const wrapped = wrapToolsWithTruncation(
+      {
+        probe: tool({
+          description: 'p',
+          inputSchema: z.object({}),
+          execute: async () => ({ data: { subject: 'Hi', body } }),
+        }),
+      },
+      2000,
+    );
+    const out = (await (wrapped.probe.execute as (a: unknown, o: unknown) => Promise<unknown>)(
+      {},
+      {},
+    )) as Record<string, unknown>;
+    expect(JSON.stringify(out).length).toBeLessThanOrEqual(2200);
+    expect((out.data as Record<string, unknown>).subject).toBe('Hi');
+  });
+
+  it('bounds a list of results and says how many it dropped', async () => {
+    const emails = Array.from({ length: 80 }, (_, index) => ({
+      id: `e${index}`,
+      snippet: 'y'.repeat(300),
+    }));
+    const wrapped = wrapToolsWithTruncation(
+      {
+        probe: tool({
+          description: 'p',
+          inputSchema: z.object({}),
+          execute: async () => ({ data: emails }),
+        }),
+      },
+      4000,
+    );
+    const out = await (wrapped.probe.execute as (a: unknown, o: unknown) => Promise<unknown>)(
+      {},
+      {},
+    );
+    expect(JSON.stringify(out).length).toBeLessThanOrEqual(4300);
+  });
+
+  it('still never touches a card, however large the rest is', async () => {
+    const card = {
+      type: 'weather',
+      data: { hourly: Array.from({ length: 168 }, (_, h) => ({ h, t: 20 })) },
+    };
+    const wrapped = wrapToolsWithTruncation(
+      {
+        probe: tool({
+          description: 'p',
+          inputSchema: z.object({}),
+          execute: async () => ({ card, data: { body } }),
+        }),
+      },
+      2000,
+    );
+    const out = (await (wrapped.probe.execute as (a: unknown, o: unknown) => Promise<unknown>)(
+      {},
+      {},
+    )) as Record<string, unknown>;
+    expect(out.card).toEqual(card);
+  });
+});

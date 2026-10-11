@@ -54,6 +54,7 @@
  * would mean fetching a connector's tools in order to discard them.
  */
 
+import { getToolResultBudget, wrapToolsWithTruncation } from './tools/result-truncation.js';
 import type { ToolSet } from 'ai';
 import {
   getCurrentDateTool,
@@ -334,7 +335,10 @@ function withBudget(
   toolNameMapping: Map<string, string>,
 ): ForUserResult {
   return {
-    tools: budgeted.tools,
+    // Bounded here, once, for every surface: a chat turn, an Alia task, an
+    // agent run and a bot reply all reach the model through this result, and
+    // only the chat route used to bound tool output at all.
+    tools: wrapToolsWithTruncation(budgeted.tools, getToolResultBudget(128_000)),
     toolNameMapping,
     routing: budgeted.routing,
     appCatalogPrompt: budgeted.appCatalogPrompt,
