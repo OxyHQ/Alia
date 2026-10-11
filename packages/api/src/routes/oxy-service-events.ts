@@ -159,11 +159,13 @@ router.post('/', async (request: Request, response: Response) => {
     // Independent of any automation, and of their failure notification: an
     // important email is told by Alia or by the agent whose mailbox it is.
     if (isNewEmail(event)) {
-      void handleInboxEmailEvent({ accountId: event.accountId, data: parsed.data.data }).catch(
-        (error: unknown) => {
-          log.triggers.warn({ err: error, eventId: event.eventId }, 'Email outreach did not run');
-        },
-      );
+      void handleInboxEmailEvent({
+        accountId: event.accountId,
+        occurredAt: event.occurredAt,
+        data: parsed.data.data,
+      }).catch((error: unknown) => {
+        log.triggers.warn({ err: error, eventId: event.eventId }, 'Email outreach did not run');
+      });
     }
     void dispatchEvent(event).catch(async (error: unknown) => {
       log.triggers.error(

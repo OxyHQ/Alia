@@ -50,6 +50,7 @@ import {
 
 const email = (data: Record<string, unknown> = {}) => ({
   accountId: 'person-1',
+  occurredAt: new Date(),
   data: {
     messageId: 'msg-1',
     mailboxId: 'mailbox-1',
@@ -221,7 +222,11 @@ describe('cheap refusals come before the model', () => {
 
   it('ignores an event without a message id', async () => {
     expect(
-      await handleInboxEmailEvent({ accountId: 'person-1', data: { mailboxId: 'm' } }),
+      await handleInboxEmailEvent({
+        accountId: 'person-1',
+        occurredAt: new Date(),
+        data: { mailboxId: 'm' },
+      }),
     ).toEqual({ status: 'ignored', reason: 'invalid_event' });
   });
 });
@@ -296,5 +301,15 @@ describe('quoting what a stranger wrote', () => {
       snippet: 'n',
     });
     expect(prompt).toContain('<email>{"from":"a@b.c","subject":"s","snippet":"n"}</email>');
+  });
+});
+
+describe('an email that arrives late', () => {
+  it('is never written first about, and costs no model call', async () => {
+    const outcome = await handleInboxEmailEvent({
+      ...email(),
+      occurredAt: new Date(Date.now() - 3 * 60 * 60_000),
+    });
+    expect(outcome).toEqual({ status: 'ignored', reason: 'stale' });
   });
 });
