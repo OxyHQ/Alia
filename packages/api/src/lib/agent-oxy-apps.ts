@@ -31,6 +31,7 @@
  */
 
 import type { AppCapabilityCatalog, AutonomyLevel, CapabilityPackage } from '@oxy.so/contracts';
+import { catalogToolAllowsActor } from './tools/oxy-catalog-actors.js';
 import { z } from 'zod';
 import { getDb } from '../db/index.js';
 import {
@@ -62,6 +63,9 @@ export function grantTermsForLevel(
   const tools = catalog.tools.filter(
     (tool) =>
       tool.exposure.includes('internal') &&
+      // A tool only a present requester may run (the Oxy profile reads) is not
+      // something an owner can hand to an agent at any level.
+      catalogToolAllowsActor(tool, 'agent') &&
       tool.resourceTypes.includes(catalog.accountResourceType) &&
       !SENSITIVE_PACKAGES.has(tool.capabilityPackage),
   );

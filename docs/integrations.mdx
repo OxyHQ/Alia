@@ -78,6 +78,13 @@ app-specific code in Alia.
 - `packages/api/src/lib/tools/oxy-services.ts` turns catalog tools into AI SDK tools,
   named `oxy_<app>__<tool>` (the person's account) and, for an agent,
   `self_<app>__<tool>` (its own account).
+- A tool whose catalogue `actors` excludes the current actor (`alia`, or `agent` for
+  both of an agent's identities) is never offered: the Oxy profile reads are
+  `requester`-only, and Oxy refuses anyone else (`tool_not_available_to_actor`).
+  Absent `actors` means `alia` + `agent`. `lib/tools/oxy-catalog-actors.ts` reads
+  the field whichever `@oxy.so/contracts` is installed (older ones refuse it).
+- One registry catalogue that does not parse is logged and skipped; it costs that
+  app's tools, never the others'.
 - `packages/api/src/lib/oxy-capability-authority.ts` exchanges the turn's authority
   (a direct request, an automation's standing authorization, or Oxy's agent-run lane)
   for opaque execution-authorization ids and short-lived tickets.
