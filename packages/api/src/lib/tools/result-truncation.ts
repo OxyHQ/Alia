@@ -47,29 +47,77 @@ export function getToolResultBudget(contextTokens: number): number {
   return Math.max(2000, Math.min(20000, budget));
 }
 
-/**
- * Recursively truncate string values in an object.
- * Only truncates fields likely to contain large content.
- */
-function truncateObjectStrings(obj: any, maxChars: number): any {
-  if (typeof obj === 'string') return truncateToolResult(obj, maxChars);
-  if (Array.isArray(obj)) return obj.map((item) => truncateObjectStrings(item, maxChars));
-  if (obj && typeof obj === 'object') {
-    const result: any = {};
-    for (const [key, value] of Object.entries(obj)) {
-      // Truncate known content-heavy fields
-      if (
-        typeof value === 'string' &&
-        (key === 'content' || key === 'text' || key === 'output' || key === 'result')
-      ) {
-        result[key] = truncateToolResult(value, maxChars);
-      } else {
-        result[key] = value;
-      }
-    }
-    return result;
+/** Fields long prose usually lives in; the cheap, shape-preserving first pass. */
+const CONTENT_FIELDS = new Set(['content', 'text', 'output', 'result']);
+/** An array longer than this keeps its head and says how many it dropped. */
+const MAX_ARRAY_ITEMS = 50;
+
+function serializedLength(value: unknown): number {
+  try {
+    return JSON.stringify(value)?.length ?? 0;
+  } catch {
+    return Number.POSITIVE_INFINITY;
   }
-  return obj;
+}
+
+/** Every string leaf at most `leafChars`, every array at most {@link MAX_ARRAY_ITEMS}. */
+function boundLeaves(value: unknown, leafChars: number): unknown {
+  if (typeof value === 'string') return truncateToolResult(value, leafChars);
+  if (Array.isArray(value)) {
+    const kept = value.slice(0, MAX_ARRAY_ITEMS).map((item) => boundLeaves(item, leafChars));
+    if (value.length > MAX_ARRAY_ITEMS)
+      kept.push(`[truncated — ${value.length - MAX_ARRAY_ITEMS} more items omitted]`);
+    return kept;
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, boundLeaves(entry, leafChars)]),
+    );
+  }
+  return value;
+}
+
+/**
+ * Bound what a tool hands the model to `maxChars` of JSON, whatever its shape.
+ *
+ * This used to rewrite only TOP-LEVEL string fields named content/text/output/
+ * result and pass everything else through, so an app result shaped
+ * `{ data: { body } }` or a list of emails reached the model whole: four
+ * `readEmail` calls in one turn overran the inference edge's input ceiling and
+ * the turn failed (`context_length_exceeded`, production 2026-10-08/10).
+ *
+ * A top-level `card` is a UI payload stored and rendered as-is, so it is never
+ * touched and never counted. Everything else is kept as it is when it fits;
+ * otherwise its string leaves and arrays are shortened, and if even that is
+ * too large the rest becomes one truncated JSON preview.
+ */
+function boundObject(obj: Record<string, unknown>, maxChars: number): Record<string, unknown> {
+  const { card, ...rest } = obj;
+  const withCard = (body: Record<string, unknown>) =>
+    card === undefined ? body : { ...body, card };
+
+  // First the historical, shape-preserving pass: top-level prose fields only.
+  const trimmed: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(rest)) {
+    trimmed[key] =
+      typeof value === 'string' && CONTENT_FIELDS.has(key)
+        ? truncateToolResult(value, maxChars)
+        : value;
+  }
+  if (serializedLength(trimmed) <= maxChars + 64) return withCard(trimmed);
+
+  const leafChars = Math.min(maxChars, Math.max(200, Math.floor(maxChars / 8)));
+  const shortened = boundLeaves(trimmed, leafChars) as Record<string, unknown>;
+  if (serializedLength(shortened) <= maxChars) return withCard(shortened);
+
+  log.general.info(
+    { original: serializedLength(rest), maxChars },
+    'Tool result reduced to a preview',
+  );
+  return withCard({
+    truncated: true,
+    preview: truncateToolResult(JSON.stringify(shortened), maxChars),
+  });
 }
 
 /**
@@ -96,8 +144,12 @@ export function wrapToolsWithTruncation(
         if (typeof result === 'string') {
           return truncateToolResult(result, maxChars);
         }
+        if (Array.isArray(result)) {
+          const bounded = boundObject({ items: result }, maxChars);
+          return 'items' in bounded ? bounded.items : bounded;
+        }
         if (result && typeof result === 'object') {
-          return truncateObjectStrings(result, maxChars);
+          return boundObject(result as Record<string, unknown>, maxChars);
         }
         return result;
       },
