@@ -3,9 +3,8 @@
 -- Additive only: four new tables, nothing existing altered or dropped. The
 -- serving image reads and writes none of them.
 --
--- cache_stats carries a CHECK pinning its id to the single value 'global'. Mongo
--- enforced the singleton by everybody defaulting `_id` to the same string; here a
--- second row is unrepresentable, so a stray insert cannot split the counters and
+-- cache_stats carries a CHECK pinning its id to the single value 'global', so a
+-- second row is unrepresentable: a stray insert cannot split the counters and
 -- leave every read showing whichever half it found.
 
 CREATE TABLE "cache_entries" (

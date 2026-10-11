@@ -1,36 +1,33 @@
 -- oxy:deploy-phase=pre
 --
 -- Additive only: eight new tables for notifications, delivery credentials and
--- the small independent tables that travel with them. Seven Mongoose models
--- become eight tables — `referral_redemptions` is a child table, see below.
--- Nothing existing is touched.
+-- the small independent tables that travel with them — `referral_redemptions`
+-- is a child table, see below. Nothing existing is touched.
 --
--- Two things here are deliberate DEPARTURES from the source, not oversights:
+-- Two things here are deliberate, not oversights:
 --
---   * `notifications.dismissed_at` exists because Mongo's TTL was CONDITIONAL
---     (90 days from `createdAt` where `status = 'dismissed'`) and the sweep
---     registry has no predicate. The condition became a column, bound to
---     `status` by `notifications_dismissed_at_check` so the two cannot drift.
---     This is MORE correct than the original: Mongo measured from creation, so a
---     notification dismissed on day 89 vanished the next day while one dismissed
---     on day 1 survived another 89. Dismissed notifications now last 90 days
---     from the dismissal. It is the one real behaviour change in the port.
+--   * `notifications.dismissed_at` exists because retention is CONDITIONAL
+--     (90 days, only where `status = 'dismissed'`) and the sweep registry has no
+--     predicate. The condition is a column, bound to `status` by
+--     `notifications_dismissed_at_check` so the two cannot drift. Dismissed
+--     notifications last 90 days from the dismissal, not from creation, so one
+--     dismissed late in its life is not swept the next day.
 --
 --   * `referral_redemptions` is a child table with UNIQUE(referred_user_id),
---     where Mongo had a `referredUsers` sub-document array. That unique is a
+--     not an array of redeemers on the referrer's row. That unique is a
 --     money guard: routes/referrals.ts grants credits to BOTH parties and only
 --     afterwards sets the redeemer's `referred_by`, so the "already redeemed?"
 --     check is a read-then-write whose write lands after the payout. Two
---     concurrent redemptions both pass it and both pay. A `$push` into an array
+--     concurrent redemptions both pass it and both pay. An append to an array
 --     cannot be made unique; a row can.
 --
 --     BACKFILL AUDIT ITEM: this is a tightening. An account appearing under two
 --     referrers in production will be refused by the index — which is the bug
 --     surfacing at the right moment, but expect it rather than discover it.
 --
--- Mongo's TEXT index on `suggestions` is deliberately NOT ported: nothing in the
--- service issues a $text or $search query, so a tsvector column and GIN index
--- would be inventing a feature rather than migrating one.
+-- `suggestions` deliberately has no full-text index: nothing in the service
+-- issues a full-text query, so a tsvector column and GIN index would be
+-- inventing a feature nobody uses.
 --
 CREATE TABLE "audio_jobs" (
 	"id" text PRIMARY KEY NOT NULL,

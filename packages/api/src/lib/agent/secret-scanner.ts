@@ -245,12 +245,6 @@ const SECRET_PATTERNS: SecretPattern[] = [
 
   // ── Connection Strings ──
   {
-    type: 'mongodb_uri',
-    pattern: /\bmongodb(?:\+srv)?:\/\/[^\s"'`,)}\]]+/g,
-    severity: 'critical',
-    redact: (m) => m.replace(/:\/\/([^@]+)@/, '://****@'),
-  },
-  {
     type: 'postgres_uri',
     pattern: /\bpostgres(?:ql)?:\/\/[^\s"'`,)}\]]+/g,
     severity: 'critical',
