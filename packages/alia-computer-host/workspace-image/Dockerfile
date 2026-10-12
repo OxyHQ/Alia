@@ -24,7 +24,7 @@
 # The browser and egress containers name their own entrypoint
 # (`src/browser-isolation.ts`).
 
-ARG BUN_VERSION=1.3.10
+ARG BUN_VERSION=1.4.3
 
 FROM oven/bun:${BUN_VERSION}-slim AS builder
 WORKDIR /build

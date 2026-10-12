@@ -19,7 +19,7 @@
 
 # Bun version pinned to "packageManager" in the root package.json for
 # reproducible installs across build hosts / architectures.
-ARG BUN_VERSION=1.3.10
+ARG BUN_VERSION=1.4.3
 ARG NODE_VERSION=22
 
 # --- Stage 1: Install dependencies and build the API bundle ---
