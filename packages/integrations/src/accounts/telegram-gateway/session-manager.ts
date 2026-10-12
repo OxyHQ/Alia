@@ -26,31 +26,24 @@ import { handleIncomingMessage } from '../../shared/chat-handler';
 import { APIClient } from '../../shared/api-client';
 import { DedupSet, errorMessage } from '../../shared/utils';
 import { createLogger } from '../../shared/logger';
+import { PendingQrs } from '../pending-qr';
 
 const apiClient = new APIClient('telegram-gateway', process.env.INTEGRATIONS_SECRET || '');
 const dedup = new DedupSet();
 const logger = createLogger('Telegram');
 
-/**
- * Pending QR resolver used while a session is being created and the user
- * has not scanned the QR code yet. The HTTP endpoint polls or awaits this.
- */
-interface PendingQR {
-  resolve: (qr: string) => void;
-  reject: (err: Error) => void;
-  promise: Promise<string>;
-}
-
 class SessionManager {
   private sessions: Map<string, TelegramClient> = new Map();
   private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
   private reconnectAttempts: Map<string, number> = new Map();
-  private pendingQRs: Map<string, PendingQR> = new Map();
+  private pendingQrs = new PendingQrs();
 
   private static readonly MAX_RECONNECT_ATTEMPTS = 10;
   private static readonly BASE_RECONNECT_MS = 5000;
   private static readonly MAX_RECONNECT_MS = 60000;
   private static readonly JITTER_MAX_MS = 1000;
+  /** Telegram's first QR takes longer than WhatsApp's. */
+  private static readonly QR_TIMEOUT_MS = 60000;
 
   private get apiId(): number {
     return parseInt(process.env.TELEGRAM_API_ID || '0', 10);
@@ -88,26 +81,17 @@ class SessionManager {
 
     await createTelegramSession(getDb(), { sessionId, oxyUserId });
 
-    // Set up a QR promise that the HTTP handler can await
-    let qrResolve!: (qr: string) => void;
-    let qrReject!: (err: Error) => void;
-    const qrPromise = new Promise<string>((resolve, reject) => {
-      qrResolve = resolve;
-      qrReject = reject;
-    });
-    this.pendingQRs.set(sessionId, { resolve: qrResolve, reject: qrReject, promise: qrPromise });
-
-    // Auto-reject if no QR received within 60 seconds (Telegram QR takes longer)
-    setTimeout(() => {
-      const pending = this.pendingQRs.get(sessionId);
-      if (pending) {
-        pending.reject(new Error('QR code generation timed out'));
-        this.pendingQRs.delete(sessionId);
-      }
-    }, 60000);
-
-    // Start the session (which will emit the QR)
-    await this.startSession(sessionId, true);
+    // A fresh id has no client, timer or wait to reset, so this goes straight to
+    // `openClient` rather than through `startSession`, whose reset would reject
+    // the wait armed here before the caller could await it.
+    const qrPromise = this.pendingQrs.arm(sessionId, SessionManager.QR_TIMEOUT_MS);
+    try {
+      await this.openClient(sessionId, null);
+    } catch (err) {
+      // The caller gets this error instead of the promise, so nobody awaits the wait.
+      this.pendingQrs.discard(sessionId);
+      throw err;
+    }
 
     return { sessionId, qrPromise };
   }
@@ -115,7 +99,7 @@ class SessionManager {
   /**
    * Start or reconnect an existing session using the stored session string.
    */
-  async startSession(sessionId: string, isNewSession: boolean = false): Promise<void> {
+  async startSession(sessionId: string): Promise<void> {
     const sessionData = await findTelegramSessionCredential(getDb(), sessionId);
     if (!sessionData) {
       throw new Error(`No session record found for sessionId ${sessionId}`);
@@ -124,96 +108,114 @@ class SessionManager {
     // Clean up any existing client for this session
     await this.cleanupSocket(sessionId);
 
-    const stringSession = sessionData.sessionString
-      ? new StringSession(sessionData.sessionString)
-      : new StringSession('');
+    await this.openClient(sessionId, sessionData.sessionString || null);
+  }
 
-    const client = new TelegramClient(stringSession, this.apiId, this.apiHash, {
-      connectionRetries: 5,
-      deviceModel: 'Alia Gateway',
-      systemVersion: 'Linux',
-      appVersion: '1.0.0',
-    });
+  /**
+   * Connect a client for a session that has nothing left to clean up. Without a
+   * session string it starts the QR login and returns once the client is
+   * connected — the login itself finishes in the background.
+   */
+  private async openClient(sessionId: string, sessionString: string | null): Promise<void> {
+    const client = new TelegramClient(
+      new StringSession(sessionString ?? ''),
+      this.apiId,
+      this.apiHash,
+      {
+        connectionRetries: 5,
+        deviceModel: 'Alia Gateway',
+        systemVersion: 'Linux',
+        appVersion: '1.0.0',
+      },
+    );
 
     await client.connect();
 
     this.sessions.set(sessionId, client);
 
-    if (isNewSession || !sessionData.sessionString) {
-      // New session: initiate QR code login flow
-      try {
-        await client.signInUserWithQrCode(
-          { apiId: this.apiId, apiHash: this.apiHash },
-          {
-            qrCode: async (token) => {
-              const base64Token = Buffer.from(token.token).toString('base64url');
-              const qrUrl = `tg://login?token=${base64Token}`;
+    if (!sessionString) {
+      // GramJS's QR login settles only once the user has scanned the code (or
+      // the login fails), and the caller needs the code before that, so it must
+      // not be awaited here. `loginWithQr` never rejects.
+      void this.loginWithQr(sessionId, client);
+      return;
+    }
 
-              await markTelegramQrPending(getDb(), sessionId, qrUrl);
-
-              const pending = this.pendingQRs.get(sessionId);
-              if (pending) {
-                pending.resolve(qrUrl);
-                this.pendingQRs.delete(sessionId);
-              }
-
-              logger.debug(`QR code generated for session ${sessionId}`);
-            },
-            onError: async (error) => {
-              logger.error(`QR login error for ${sessionId}:`, error);
-              const pending = this.pendingQRs.get(sessionId);
-              if (pending) {
-                pending.reject(error instanceof Error ? error : new Error(String(error)));
-                this.pendingQRs.delete(sessionId);
-              }
-              return true; // retry
-            },
-          },
-        );
-
-        // If we reach here, login succeeded
+    // Reconnecting with existing session string
+    try {
+      if (await client.isUserAuthorized()) {
         await this.onConnected(sessionId, client);
-      } catch (err: unknown) {
-        // If QR login fails fatally, mark as failed
-        const isAlreadyRejected = !this.pendingQRs.has(sessionId);
-        if (!isAlreadyRejected) {
-          const pending = this.pendingQRs.get(sessionId);
-          if (pending) {
-            pending.reject(err instanceof Error ? err : new Error(String(err)));
-            this.pendingQRs.delete(sessionId);
-          }
-        }
-
-        await markTelegramLoginFailed(getDb(), sessionId);
+      } else {
+        // Session expired
+        await markTelegramLoggedOut(getDb(), sessionId);
         this.sessions.delete(sessionId);
-        logger.error(`QR login failed for session ${sessionId}:`, err);
+        logger.warn(`Session ${sessionId} expired, marked as logged-out`);
         return;
       }
-    } else {
-      // Reconnecting with existing session string
-      try {
-        if (await client.isUserAuthorized()) {
-          await this.onConnected(sessionId, client);
-        } else {
-          // Session expired
-          await markTelegramLoggedOut(getDb(), sessionId);
-          this.sessions.delete(sessionId);
-          logger.warn(`Session ${sessionId} expired, marked as logged-out`);
-          return;
-        }
-      } catch (err: unknown) {
-        const errorMsg = errorMessage(err);
-        if (errorMsg.includes('AUTH_KEY_UNREGISTERED') || errorMsg.includes('SESSION_REVOKED')) {
-          // Session permanently invalidated
-          await markTelegramLoggedOut(getDb(), sessionId);
-          this.sessions.delete(sessionId);
-          logger.warn(`Session ${sessionId} revoked, marked as logged-out`);
-          return;
-        }
-
-        // Transient error: schedule reconnect
+    } catch (err: unknown) {
+      const errorMsg = errorMessage(err);
+      if (errorMsg.includes('AUTH_KEY_UNREGISTERED') || errorMsg.includes('SESSION_REVOKED')) {
+        // Session permanently invalidated
+        await markTelegramLoggedOut(getDb(), sessionId);
         this.sessions.delete(sessionId);
-        this.scheduleReconnect(sessionId);
+        logger.warn(`Session ${sessionId} revoked, marked as logged-out`);
+        return;
+      }
+
+      // Transient error: schedule reconnect
+      this.sessions.delete(sessionId);
+      this.scheduleReconnect(sessionId);
+    }
+  }
+
+  /**
+   * The QR login of a session with no session string: hands each QR to the
+   * pending wait and the database, then records the outcome. Never rejects —
+   * it runs detached from the request that started it.
+   */
+  private async loginWithQr(sessionId: string, client: TelegramClient): Promise<void> {
+    try {
+      await client.signInUserWithQrCode(
+        { apiId: this.apiId, apiHash: this.apiHash },
+        {
+          qrCode: async (token) => {
+            const base64Token = Buffer.from(token.token).toString('base64url');
+            const qrUrl = `tg://login?token=${base64Token}`;
+
+            await markTelegramQrPending(getDb(), sessionId, qrUrl);
+            this.pendingQrs.resolve(sessionId, qrUrl);
+
+            logger.debug(`QR code generated for session ${sessionId}`);
+          },
+          onError: async (error) => {
+            logger.error(`QR login error for ${sessionId}:`, error);
+            this.pendingQrs.reject(
+              sessionId,
+              error instanceof Error ? error : new Error(String(error)),
+            );
+            return true; // retry
+          },
+        },
+      );
+
+      // If we reach here, login succeeded
+      await this.onConnected(sessionId, client);
+    } catch (err: unknown) {
+      // A login that fails before the first QR fails the wait with its reason.
+      this.pendingQrs.reject(sessionId, err instanceof Error ? err : new Error(String(err)));
+
+      if (this.sessions.get(sessionId) !== client) {
+        // Disconnected, reset or shut down while waiting for the scan: whoever
+        // replaced this client owns the session's state now.
+        logger.info(`QR login for session ${sessionId} ended after its client was replaced`);
+        return;
+      }
+      this.sessions.delete(sessionId);
+      logger.error(`QR login failed for session ${sessionId}:`, err);
+      try {
+        await markTelegramLoginFailed(getDb(), sessionId);
+      } catch (dbErr) {
+        logger.error(`Failed to record the failed QR login for session ${sessionId}:`, dbErr);
       }
     }
   }
@@ -518,11 +520,7 @@ class SessionManager {
       this.sessions.delete(sessionId);
     }
 
-    const pending = this.pendingQRs.get(sessionId);
-    if (pending) {
-      pending.reject(new Error('Session was reset'));
-      this.pendingQRs.delete(sessionId);
-    }
+    this.pendingQrs.reject(sessionId, new Error('Session was reset'));
 
     const timer = this.reconnectTimers.get(sessionId);
     if (timer) {
