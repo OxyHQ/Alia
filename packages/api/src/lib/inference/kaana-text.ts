@@ -16,7 +16,7 @@
 
 import type { ResponseFormat } from '@oxy.so/contracts';
 
-import { UTILITY_POWER_LEVEL } from '../chat-core.js';
+import { UTILITY_POWER_LEVEL, utilityOutputTokens } from '../chat-core.js';
 import { getOxyInferenceClient } from './oxy-inference.js';
 import type { AliaInferenceSurface } from './product-seam.js';
 import { fitControlledInput } from './request-budget.js';
@@ -39,6 +39,11 @@ export interface KaanaTextRequest {
   readonly prompt: string;
   /** Which product surface is asking, for cost attribution on the receipt. */
   readonly surface: AliaInferenceSurface;
+  /**
+   * The answer's size. A call without `model` runs the utility level, whose
+   * model may reason, so its reasoning allowance is added on top
+   * (`utilityOutputTokens`, `chat-core.ts`).
+   */
   readonly maxOutputTokens: number;
   readonly temperature?: number;
   /** The Oxy account this is for, or `null` for a call no user is waiting on. */
@@ -100,7 +105,10 @@ export async function generateTextViaKaana(request: KaanaTextRequest): Promise<s
         ? { routingProfile: UTILITY_POWER_LEVEL }
         : { model: request.model }),
       input: messages,
-      maxOutputTokens: request.maxOutputTokens,
+      maxOutputTokens:
+        request.model === undefined
+          ? utilityOutputTokens(request.maxOutputTokens)
+          : request.maxOutputTokens,
       ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
       tools: [],
       ...(request.responseFormat === undefined ? {} : { responseFormat: request.responseFormat }),

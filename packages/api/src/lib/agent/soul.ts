@@ -21,7 +21,7 @@ import {
   findAgentById,
   type AgentSoul,
 } from '../../db/agents/agentRepository.js';
-import { resolveUtilityModel, getAIModel } from '../chat-core.js';
+import { resolveUtilityModel, getAIModel, utilityOutputTokens } from '../chat-core.js';
 import { log } from '../logger.js';
 
 // ============== FORMATTING ==============
@@ -134,7 +134,7 @@ export async function evolveAgentSoul(
     const result = await generateText({
       model: getAIModel(resolved, 'agent_run'),
       prompt,
-      maxOutputTokens: 200,
+      maxOutputTokens: utilityOutputTokens(200),
       temperature: 0.3,
     });
 
