@@ -64,7 +64,14 @@ describe('deploy-integrations.yml', () => {
   });
 
   it("builds this package's Dockerfile, not the API's", () => {
-    expect(workflow).toContain('DOCKERFILE: packages/integrations/Dockerfile');
+    // The Dockerfile path is the reviewed recipe's, handed to the build by the
+    // guard step, so the recipe is what names the file.
+    expect(workflow).toContain('reviewed-image.py guard --recipe alia-integrations');
+    expect(workflow).toContain('DOCKERFILE: ${{ steps.reviewed.outputs.dockerfile }}');
+    const recipes = JSON.parse(repositoryFile('.github/scripts/reviewed-images.json')).recipes;
+    expect(recipes.find((r: { name: string }) => r.name === 'alia-integrations')?.dockerfile).toBe(
+      'packages/integrations/Dockerfile',
+    );
   });
 
   it('deploys the validated linux/arm64 child while retaining the provenance index', () => {

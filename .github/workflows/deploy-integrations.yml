@@ -67,7 +67,6 @@ env:
   # a hyphen). Three names for three namespaces; none is derivable from another.
   APP: alia-integrations
   CLUSTER: oxy-cluster
-  DOCKERFILE: packages/integrations/Dockerfile
   MIGRATION_DATABASE: alia_integrations
 
 jobs:
@@ -118,10 +117,27 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Production builds only what the owner reviewed. The Dockerfile, its
+      # context, target and both .dockerignore files are hashed and compared
+      # with the ONE pin in .github/scripts/reviewed-images.json; a mismatch
+      # stops here, before anything is built or pushed. The Dockerfile path,
+      # context and the label values below are this step's outputs, so the
+      # build cannot use a different file than the one checked, and no hash is
+      # spelled out in this workflow to drift from the pin. CI runs the same
+      # check on every pull request (`reviewed-image.py check`, Deploy Script
+      # Tests), so a change that would stop here fails before it can merge.
+      - name: Refuse unreviewed image build inputs
+        id: reviewed
+        run: python3 -B .github/scripts/reviewed-image.py guard --recipe alia-integrations
+
       - name: Build and push (linux/arm64)
         id: build
         env:
           COMMIT_TAG: ${{ github.sha }}
+          DOCKERFILE: ${{ steps.reviewed.outputs.dockerfile }}
+          CONTEXT: ${{ steps.reviewed.outputs.context }}
+          SOURCE_TREE: ${{ steps.reviewed.outputs.source_tree }}
+          BUILD_INPUTS_SHA256: ${{ steps.reviewed.outputs.build_inputs_sha256 }}
         run: |
           IMG=$ECR_REGISTRY/oxy/$APP
           # Keep the provenance-bearing OCI index under both tags, but deploy
@@ -131,11 +147,15 @@ jobs:
           docker buildx build \
             --platform linux/arm64 \
             -f "$DOCKERFILE" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --label "io.oxy.source.tree=$SOURCE_TREE" \
+            --label "io.oxy.build-inputs.sha256=$BUILD_INPUTS_SHA256" \
             -t "$IMG:$COMMIT_TAG" \
             -t "$IMG:latest" \
             --metadata-file "$RUNNER_TEMP/build-metadata.json" \
             --push \
-            .
+            "$CONTEXT"
 
           # `:latest` is moved but nothing that deploys reads it. It exists so a
           # from-scratch `terraform apply` — whose task definition declares

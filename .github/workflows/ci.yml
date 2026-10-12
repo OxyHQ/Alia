@@ -257,6 +257,19 @@ jobs:
       - name: Verify that gate can still fail
         run: node .github/scripts/test-check-native-product-agent-manifest.mjs
 
+      # The production images' build inputs (Dockerfile, context, target and
+      # both .dockerignore files) must match the one reviewed pin in
+      # .github/scripts/reviewed-images.json. deploy-aws.yml and
+      # deploy-integrations.yml refuse to build on a mismatch, so catching it
+      # here is what stops a merge from stranding main undeployable. Here
+      # because it reads files and installs nothing. The fixture tests run
+      # first so a green check means the gate can fail, not that it stopped
+      # looking.
+      - name: Prove the reviewed-image gate can fail
+        run: python3 -B -m unittest discover -s .github/scripts -p test_reviewed_image.py
+      - name: Verify the production image's build inputs are reviewed
+        run: python3 -B .github/scripts/reviewed-image.py check
+
   lint-and-test:
     name: Lint & Test
     runs-on: ubuntu-latest
