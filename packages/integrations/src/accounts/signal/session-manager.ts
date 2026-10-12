@@ -57,6 +57,39 @@ interface PendingQR {
   promise: Promise<string>;
 }
 
+/**
+ * Listen for 'error' on a signal-cli child and its stdin. An 'error' event with
+ * no listener is thrown, so a spawn failure (ENOENT, EACCES) or a broken pipe
+ * would end the whole integrations process, not just this session.
+ */
+function watchChildErrors(
+  child: ChildProcess,
+  label: string,
+  onError?: (err: Error) => void,
+): void {
+  child.on('error', (err) => {
+    logger.error(`signal-cli ${label} failed:`, err);
+    onError?.(err);
+  });
+  child.stdin?.on('error', (err) => logger.error(`signal-cli ${label} stdin error:`, err));
+}
+
+/** Resolves once the child is running; rejects with the spawn error otherwise. */
+function spawned(child: ChildProcess): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const onSpawn = () => {
+      child.off('error', onError);
+      resolve();
+    };
+    const onError = (err: Error) => {
+      child.off('spawn', onSpawn);
+      reject(err);
+    };
+    child.once('spawn', onSpawn);
+    child.once('error', onError);
+  });
+}
+
 class SessionManager {
   private daemons: Map<string, ChildProcess> = new Map();
   private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
@@ -106,6 +139,10 @@ class SessionManager {
       qrResolve = resolve;
       qrReject = reject;
     });
+    // The caller receives a rejection when it awaits; one landing before that
+    // await (a spawn failure is reported on the next tick) must not count as
+    // unhandled, which on Node ends the process.
+    qrPromise.catch(() => {});
     this.pendingQRs.set(sessionId, { resolve: qrResolve, reject: qrReject, promise: qrPromise });
 
     // Timeout after 90 seconds (Signal linking can be slow)
@@ -120,6 +157,16 @@ class SessionManager {
     const cliPath = process.env.SIGNAL_CLI_PATH || 'signal-cli';
     const linkProcess = spawn(cliPath, ['--config', dataDir, 'link', '-n', 'Alia'], {
       stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    // A spawn failure reaches the waiting request as itself. Node still emits
+    // 'close' afterwards, which marks the session failed.
+    watchChildErrors(linkProcess, `link process for ${sessionId}`, (err) => {
+      const pending = this.pendingQRs.get(sessionId);
+      if (pending) {
+        pending.reject(err);
+        this.pendingQRs.delete(sessionId);
+      }
     });
 
     let outputBuffer = '';
@@ -146,37 +193,49 @@ class SessionManager {
       logger.error(`link stderr for ${sessionId}:`, chunk.toString());
     });
 
-    linkProcess.on('close', async (code) => {
-      if (code === 0) {
-        // Linking succeeded -- extract phone number from the data directory
-        try {
-          const accountsDir = path.join(dataDir, 'data');
-          const files = await fs.readdir(accountsDir).catch(() => []);
-          // signal-cli creates a directory named with the phone number
-          const phoneDir = files.find((f) => f.startsWith('+'));
-          const phoneNumber = phoneDir || '';
-
-          await markSignalLinked(getDb(), sessionId, phoneNumber);
-
-          // Start the daemon for receiving messages
-          await this.startDaemon(sessionId);
-        } catch (err) {
-          logger.error(`Post-link error for ${sessionId}:`, err);
-          await markSignalFailed(getDb(), sessionId);
-        }
-      } else {
-        logger.error(`Link process exited with code ${code} for ${sessionId}`);
-        await markSignalFailed(getDb(), sessionId);
-
-        const pending = this.pendingQRs.get(sessionId);
-        if (pending) {
-          pending.reject(new Error(`Link process exited with code ${code}`));
-          this.pendingQRs.delete(sessionId);
-        }
-      }
+    // Nothing awaits an event listener, so a rejected DB write in one is an
+    // unhandled rejection, and on Node that ends the process.
+    linkProcess.on('close', (code) => {
+      this.onLinkExit(sessionId, dataDir, code).catch((err) =>
+        logger.error(`Link exit handling failed for ${sessionId}:`, err),
+      );
     });
 
     return { sessionId, qrPromise };
+  }
+
+  private async onLinkExit(sessionId: string, dataDir: string, code: number | null): Promise<void> {
+    if (code === 0) {
+      // Linking succeeded -- extract phone number from the data directory
+      try {
+        const accountsDir = path.join(dataDir, 'data');
+        const files = await fs.readdir(accountsDir).catch(() => []);
+        // signal-cli creates a directory named with the phone number
+        const phoneDir = files.find((f) => f.startsWith('+'));
+        const phoneNumber = phoneDir || '';
+
+        await markSignalLinked(getDb(), sessionId, phoneNumber);
+
+        // Start the daemon for receiving messages
+        await this.startDaemon(sessionId);
+      } catch (err) {
+        logger.error(`Post-link error for ${sessionId}:`, err);
+        await markSignalFailed(getDb(), sessionId);
+      }
+      return;
+    }
+
+    logger.error(`Link process exited with code ${code} for ${sessionId}`);
+
+    // Fail the waiting request before the write, so a failed write cannot leave
+    // it hanging until the link timeout.
+    const pending = this.pendingQRs.get(sessionId);
+    if (pending) {
+      pending.reject(new Error(`Link process exited with code ${code}`));
+      this.pendingQRs.delete(sessionId);
+    }
+
+    await markSignalFailed(getDb(), sessionId);
   }
 
   /**
@@ -229,6 +288,18 @@ class SessionManager {
       },
     );
 
+    watchChildErrors(daemon, `daemon for ${sessionId}`);
+
+    // A spawn failure (missing binary) fails this call rather than leaving a
+    // session marked connected with no daemon; every caller (restore,
+    // post-link, reconnect) logs it.
+    try {
+      await spawned(daemon);
+    } catch (err) {
+      this.usedPorts.delete(port);
+      throw err;
+    }
+
     this.daemons.set(sessionId, daemon);
 
     await markSignalDaemonStarted(getDb(), sessionId, { port, pid: daemon.pid });
@@ -248,61 +319,12 @@ class SessionManager {
     // Set up polling for incoming messages
     this.listenForMessages(sessionId, port);
 
-    // Handle daemon crash with reconnect backoff
-    daemon.on('close', async (code) => {
-      logger.info(`Daemon for ${sessionId} exited with code ${code}`);
-      this.daemons.delete(sessionId);
-
-      // Clean up SSE listener
-      const cleanup = this.sseCleanups.get(sessionId);
-      if (cleanup) {
-        cleanup();
-        this.sseCleanups.delete(sessionId);
-      }
-
-      // Release port
-      this.usedPorts.delete(port);
-
-      // Check if session still exists and is not intentionally unlinked
-      const currentSession = await findSignalDaemonState(getDb(), sessionId);
-      if (!currentSession || currentSession.status === 'unlinked') {
-        return;
-      }
-
-      // Reconnect with exponential backoff
-      const attempts = (this.reconnectAttempts.get(sessionId) || 0) + 1;
-      this.reconnectAttempts.set(sessionId, attempts);
-
-      if (attempts > SessionManager.MAX_RECONNECT_ATTEMPTS) {
-        await markSignalFailed(getDb(), sessionId);
-        this.reconnectAttempts.delete(sessionId);
-        logger.error(
-          `Session ${sessionId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`,
-        );
-      } else {
-        const delay =
-          Math.min(
-            SessionManager.BASE_RECONNECT_MS * Math.pow(2, attempts - 1),
-            SessionManager.MAX_RECONNECT_MS,
-          ) + Math.floor(Math.random() * SessionManager.JITTER_MAX_MS);
-
-        await markSignalDisconnected(getDb(), sessionId);
-        logger.info(
-          `Session ${sessionId} disconnected (code ${code}), reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`,
-        );
-
-        // Clear any existing reconnect timer
-        const existing = this.reconnectTimers.get(sessionId);
-        if (existing) clearTimeout(existing);
-
-        const timer = setTimeout(() => {
-          this.reconnectTimers.delete(sessionId);
-          this.startDaemon(sessionId).catch((err) =>
-            logger.error(`Reconnect failed for ${sessionId}:`, err),
-          );
-        }, delay);
-        this.reconnectTimers.set(sessionId, timer);
-      }
+    // Handle daemon crash with reconnect backoff. Nothing awaits an event
+    // listener, so a rejected DB write in one would be an unhandled rejection.
+    daemon.on('close', (code) => {
+      this.onDaemonExit(sessionId, port, code).catch((err) =>
+        logger.error(`Daemon exit handling failed for ${sessionId}:`, err),
+      );
     });
 
     // Reset reconnect counter on successful daemon start
@@ -311,6 +333,66 @@ class SessionManager {
     await markSignalConnected(getDb(), sessionId);
 
     logger.info(`Daemon started for session ${sessionId} on port ${port}`);
+  }
+
+  private async onDaemonExit(sessionId: string, port: number, code: number | null): Promise<void> {
+    logger.info(`Daemon for ${sessionId} exited with code ${code}`);
+    this.daemons.delete(sessionId);
+
+    // Clean up SSE listener
+    const cleanup = this.sseCleanups.get(sessionId);
+    if (cleanup) {
+      cleanup();
+      this.sseCleanups.delete(sessionId);
+    }
+
+    // Release port
+    this.usedPorts.delete(port);
+
+    // Check if session still exists and is not intentionally unlinked
+    const currentSession = await findSignalDaemonState(getDb(), sessionId);
+    if (!currentSession || currentSession.status === 'unlinked') {
+      return;
+    }
+
+    // Reconnect with exponential backoff
+    const attempts = (this.reconnectAttempts.get(sessionId) || 0) + 1;
+    this.reconnectAttempts.set(sessionId, attempts);
+
+    if (attempts > SessionManager.MAX_RECONNECT_ATTEMPTS) {
+      this.reconnectAttempts.delete(sessionId);
+      logger.error(
+        `Session ${sessionId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`,
+      );
+      await markSignalFailed(getDb(), sessionId);
+      return;
+    }
+
+    const delay =
+      Math.min(
+        SessionManager.BASE_RECONNECT_MS * Math.pow(2, attempts - 1),
+        SessionManager.MAX_RECONNECT_MS,
+      ) + Math.floor(Math.random() * SessionManager.JITTER_MAX_MS);
+
+    logger.info(
+      `Session ${sessionId} disconnected (code ${code}), reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`,
+    );
+
+    // Clear any existing reconnect timer
+    const existing = this.reconnectTimers.get(sessionId);
+    if (existing) clearTimeout(existing);
+
+    // Scheduled before the status write, so a failed write cannot cost the
+    // session its reconnect.
+    const timer = setTimeout(() => {
+      this.reconnectTimers.delete(sessionId);
+      this.startDaemon(sessionId).catch((err) =>
+        logger.error(`Reconnect failed for ${sessionId}:`, err),
+      );
+    }, delay);
+    this.reconnectTimers.set(sessionId, timer);
+
+    await markSignalDisconnected(getDb(), sessionId);
   }
 
   /**
