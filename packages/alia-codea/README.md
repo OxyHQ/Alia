@@ -93,19 +93,19 @@ Access these commands via the Command Palette (`Cmd/Ctrl + Shift + P`):
 
 ```bash
 # Install dependencies
-npm install
+bun install
 
 # Build extension
-npm run build
+bun run build
 
 # Watch mode for development
-npm run watch
+bun run watch
 
 # Build webview in watch mode
-npm run watch:webview
+bun run watch:webview
 
 # Package as .vsix
-npm run package
+bun run package
 ```
 
 ## Changelog
