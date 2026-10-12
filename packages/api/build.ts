@@ -19,9 +19,9 @@ import { cp } from 'fs/promises';
 //   Error: Dynamic require of "zod" is not supported
 // That killed Moovo's backend at container start (2026-07-30) — tests,
 // typecheck and image build were all green, because the failure is at startup.
-// Node's own ESM loader imports CJS packages correctly, so leave the resolution
-// to Node; the runtime image ships the hoisted node_modules for the
-// externalized bundle to resolve against (see Dockerfile).
+// The runtime's own ESM loader (Node's then, Bun's now) imports CJS packages
+// correctly, so leave the resolution to it; the runtime image ships the hoisted
+// node_modules for the externalized bundle to resolve against (see Dockerfile).
 //
 // What would invalidate this: an @oxy.so/* package entering this package's
 // dependency graph whose ESM build DOES use extensionless relative imports.
@@ -55,9 +55,10 @@ await esbuild.build({
 //
 // It MUST be an entrypoint of its own. The deploy's one-shot task invokes a file
 // path, and a migrator that only exists as TypeScript source is a deploy step
-// that cannot work — the runtime stage is `node:*-slim` and carries no bun and no
-// `src/`. This is the half that fails silently: `RUN_MIGRATIONS` defaults to
-// false, so nothing complains until the day somebody turns it on.
+// that cannot work — the runtime stage carries no `src/` (it ran on
+// `node:*-slim` with no bun at all until the 2026-10 switch to `oven/bun`).
+// This is the half that fails silently: `RUN_MIGRATIONS` defaults to false, so
+// nothing complains until the day somebody turns it on.
 await esbuild.build({
   entryPoints: ['src/db/migrate.ts'],
   bundle: true,
@@ -72,8 +73,8 @@ await esbuild.build({
 });
 
 // The seeder, bundled for the same reason the migrator is: the deploy's
-// post-rollout one-shot invokes a FILE PATH, and the runtime stage is
-// `node:*-slim` with no bun and no `src/`. A seeder that exists only as
+// post-rollout one-shot invokes a FILE PATH, and the runtime stage carries no
+// `src/`. A seeder that exists only as
 // TypeScript is a deploy step that cannot run — and this one fails the same way
 // the migrator's entrypoint did: silently, because nothing complains until the
 // day the command is actually issued. `db/__tests__/deployWorkflow.test.ts`
@@ -94,8 +95,7 @@ await esbuild.build({
 // The native product-agent bootstrap. Oxy publishes the Sindi/Clarity manifest
 // and Alia owns the `agents` rows it describes, so applying it is a one-shot
 // against the live image — and a one-shot invokes a FILE PATH, which the
-// runtime stage (`node:*-slim`, no bun, no `src/`) can only resolve if the
-// bundle exists. `scripts/__tests__/native-product-agent-bootstrap-wiring.test.ts`
+// runtime stage (no `src/`) can only resolve if the bundle exists. `scripts/__tests__/native-product-agent-bootstrap-wiring.test.ts`
 // asserts this outfile and the workflow's command together.
 await esbuild.build({
   entryPoints: ['src/scripts/bootstrap-native-product-agents.ts'],

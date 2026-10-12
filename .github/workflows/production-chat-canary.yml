@@ -74,7 +74,11 @@ jobs:
           running_json=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "${running_tasks[@]}" --output json)
           [ "$(jq --arg td "$live" --arg digest "$EXPECTED_IMAGE_DIGEST" '[.tasks[] | select(.taskDefinitionArn != $td or ([.containers[] | select(.name == "alia" and .imageDigest == $digest)] | length != 1))] | length' <<<"$running_json")" = 0 ] || { echo '::error::running tasks do not all attest the exact revision and digest'; exit 1; }
           network=$(jq -c '.networkConfiguration.awsvpcConfiguration' <<<"$service_json")
-          overrides=$(jq -cn --arg container "$container" --arg user "$QA_USER_ID" '{containerOverrides:[{name:$container,command:["node","packages/api/dist/scripts/production-chat-canary.js"],environment:[{name:"ALIA_CANARY_OXY_USER_ID",value:$user}]}]}')
+          # `bun`: the runtime packages/api/Dockerfile ships since the Node-to-Bun
+          # switch. This runs the LIVE image, so it needs a Bun image to be serving:
+          # against a pre-switch Node revision the task fails to start (loudly, no
+          # write), which is only possible until the first Bun deploy completes.
+          overrides=$(jq -cn --arg container "$container" --arg user "$QA_USER_ID" '{containerOverrides:[{name:$container,command:["bun","packages/api/dist/scripts/production-chat-canary.js"],environment:[{name:"ALIA_CANARY_OXY_USER_ID",value:$user}]}]}')
           task=''
           cleanup() {
             status=$?

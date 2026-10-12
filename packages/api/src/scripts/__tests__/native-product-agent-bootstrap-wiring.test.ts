@@ -1,8 +1,8 @@
 /**
  * The bootstrap's three halves are one fact, and they live in three files.
  *
- * `build.ts` emits the bundle, the workflow invokes it by PATH, and the runtime
- * stage is `node:*-slim` with no bun and no `src/` — so a script that exists
+ * `build.ts` emits the bundle, the workflow invokes it by PATH with `bun` (the
+ * runtime stage is `oven/bun:*-slim`) and the image carries no `src/` — so a script that exists
  * only as TypeScript is a dispatch that cannot work. That failure is loud when
  * it happens and invisible until then, because nothing builds or runs the
  * one-shot on an ordinary day. The migrator and the seeder are asserted the
@@ -38,7 +38,7 @@ describe('the bootstrap one-shot', () => {
   });
 
   it('is invoked by the path that bundle lands at', () => {
-    expect(workflow).toContain(`"node","packages/api/${BUNDLE}"`);
+    expect(workflow).toContain(`"bun","packages/api/${BUNDLE}"`);
   });
 
   /**

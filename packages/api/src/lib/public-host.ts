@@ -1,11 +1,9 @@
 import net from 'net';
 import { lookup as dnsLookup } from 'dns/promises';
-import { Agent } from 'undici';
 import { log } from './logger.js';
 
 /**
- * Whether a hostname is one this service will reach, and a client that connects
- * only to the addresses that answered yes.
+ * Whether a hostname is one this service will reach.
  *
  * Alia fetches URLs it did not choose. `webScraper` and `browser` take whatever
  * the model produces — which is shaped by search results and by what the person
@@ -17,15 +15,21 @@ import { log } from './logger.js';
  * It never resolved, so `http://a-name-i-control.example/` whose A record says
  * `169.254.169.254` passed all three of its checks and was fetched.
  *
- * ## Why the dispatcher exists
+ * ## What this does not close
  *
  * Checking an address and then handing the hostname to `fetch` leaves a
  * rebinding window: `fetch` resolves the name a second time and may connect
- * somewhere else. {@link publicOnlyAgent} closes it by doing the check INSIDE
- * the lookup, so the addresses that were judged are the addresses connected to.
- * A caller that does not use the agent still gets the name check, and still has
- * that window — Clarity fetches for `webScraper` and `browser`, and resolves on
- * its own.
+ * somewhere else. Clarity fetches for `webScraper` and `browser` and resolves on
+ * its own, so no caller here connects by itself.
+ *
+ * This module used to export an undici `Agent` whose `connect.lookup` judged
+ * the addresses it connected to, plus a `publicFetch` that passed it as
+ * `dispatcher`. Nothing called either, and the API now runs on Bun, where
+ * `undici` is a built-in stub and fetch ignores `dispatcher` — measured: a
+ * lookup that refuses everything was never invoked and the request went
+ * through. A guard that silently does nothing is worse than none, so both went
+ * rather than survive as a claim. A caller that needs to connect itself must
+ * pin the judged address in its own connection, not through undici.
  */
 
 export type HostVerdict = 'ok' | 'refused' | 'unresolvable';
@@ -152,66 +156,4 @@ export async function classifyHost(hostname: string): Promise<HostVerdict> {
     return 'refused';
   }
   return 'ok';
-}
-
-/** The error a refused connection fails with, so callers can tell it apart. */
-export class NonPublicAddressError extends Error {
-  constructor(hostname: string, address: string) {
-    super(`${hostname} resolves to a non-public address (${address})`);
-    this.name = 'NonPublicAddressError';
-  }
-}
-
-/**
- * A dispatcher whose every connection resolves through the same judgement.
- *
- * This is what closes the rebinding window: the check happens inside the lookup
- * the connection itself uses, so there is no second resolution between deciding
- * and connecting. Pass it as `dispatcher` to undici's `fetch`.
- */
-export const publicOnlyAgent = new Agent({
-  connect: {
-    lookup: (hostname, options, callback) => {
-      if (normaliseHostname(hostname) === null) {
-        callback(new NonPublicAddressError(hostname, hostname), '', 4);
-        return;
-      }
-      dnsLookup(hostname, { all: true, verbatim: true }).then(
-        (addresses) => {
-          const blocked = anyBlocked(addresses);
-          if (blocked !== null) {
-            log.general.warn(
-              { hostname, address: blocked },
-              'Refused a connection to a non-public address',
-            );
-            callback(new NonPublicAddressError(hostname, blocked), '', 4);
-            return;
-          }
-          // `all` was requested, so the caller gets every judged address and
-          // connects to one of them — never to a name resolved again later.
-          callback(null, addresses);
-        },
-        (err: unknown) => callback(err as NodeJS.ErrnoException, '', 4),
-      );
-    },
-  },
-});
-
-/**
- * `fetch`, but every connection resolves through {@link publicOnlyAgent}.
- *
- * The global `fetch` IS undici's, so handing it a dispatcher is enough — and it
- * keeps one seam for callers and for the tests that stand in front of them,
- * rather than a second fetch implementation that a `vi.stubGlobal` would miss.
- *
- * `dispatcher` is undici's own option and is not in the DOM `RequestInit`, so
- * the init is built as a named value: passing it as a fresh object literal
- * would trip excess-property checking, and silencing that with a cast is how a
- * typo in the option name becomes an unguarded request.
- */
-type GuardedInit = RequestInit & { dispatcher?: unknown };
-
-export function publicFetch(input: string | URL, init: RequestInit = {}): Promise<Response> {
-  const guarded: GuardedInit = { ...init, dispatcher: publicOnlyAgent };
-  return fetch(input, guarded);
 }

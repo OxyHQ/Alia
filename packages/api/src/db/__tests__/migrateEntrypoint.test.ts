@@ -1,5 +1,10 @@
 /**
- * The migrator must run under NODE, not just under bun.
+ * The migrator must run under BUN, the image's runtime, AND under node.
+ *
+ * Bun since 2026-10 (`packages/api/Dockerfile`, `MIGRATION_RUNTIME: bun`), so
+ * Bun is what the deploy's one-shot executes. Node stays asserted because a
+ * rollback to Node is reverting one change, and the bundle must still start
+ * there the day that happens — the defect below is invisible to Bun.
  *
  * ## The defect this exists to prevent, which shipped and was never noticed
  *
@@ -14,7 +19,7 @@
  * same file). Everything that exercises the migrator locally goes through bun:
  * `bun run db:migrate`, and `testDatabase.ts`, which shells out to this
  * entrypoint for every `*.pgdb.test.ts` suite. The runtime image is
- * `node:*-slim`. And `tsc` accepts `__dirname` because `@types/node` declares
+ * was `node:*-slim`. And `tsc` accepts `__dirname` because `@types/node` declares
  * it globally.
  *
  * So: 180 Postgres tests green, `typecheck` green, `Build API` green, and a
@@ -29,7 +34,7 @@
  * bug through a dependency or a different global. `build.ts` takes ~90ms, so the
  * honest gate is affordable: build with the REAL build script (never a second
  * copy of its esbuild options, which would drift from the thing that ships) and
- * execute the output with `node`.
+ * execute the output with each runtime.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -40,10 +45,15 @@ import { beforeAll, describe, expect, it } from 'vitest';
 const packageRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const artefact = fileURLToPath(new URL('../../../dist/db/migrate.js', import.meta.url));
 
-/** What `node` printed, and the exit status, without throwing on a non-zero exit. */
-function runUnderNode(args: string[]): { output: string; status: number } {
+const RUNTIMES = ['bun', 'node'] as const;
+
+/** What the runtime printed, and the exit status, without throwing on a non-zero exit. */
+function runUnder(
+  runtime: (typeof RUNTIMES)[number],
+  args: string[],
+): { output: string; status: number } {
   try {
-    const output = execFileSync('node', [artefact, ...args], {
+    const output = execFileSync(runtime, [artefact, ...args], {
       cwd: packageRoot,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -58,7 +68,7 @@ function runUnderNode(args: string[]): { output: string; status: number } {
   }
 }
 
-describe('the bundled migrator runs under node', () => {
+describe('the bundled migrator runs under bun and under node', () => {
   beforeAll(() => {
     execFileSync('bun', ['build.ts'], { cwd: packageRoot, stdio: 'pipe' });
   }, 120_000);
@@ -75,19 +85,32 @@ describe('the bundled migrator runs under node', () => {
   });
 
   /**
-   * The positive control, and it is the load-bearing half: "node printed no
+   * The positive control, and it is the load-bearing half: "the runtime printed no
    * ReferenceError" is also true of a file that fails to exist, so the run must
    * be shown to have reached the migrator's OWN first check. That message is
    * emitted after the module has fully evaluated, which is exactly what the
    * `__dirname` throw prevented.
    */
-  it('gets far enough to make its own argument check, rather than dying on import', () => {
-    const { output } = runUnderNode(['--target-database=alia', '--phase=pre']);
-    expect(output).toContain('DATABASE_URL is required to run migrations');
+  it.each(RUNTIMES)(
+    'gets far enough under %s to make its own argument check, rather than dying on import',
+    (runtime) => {
+      const { output } = runUnder(runtime, ['--target-database=alia', '--phase=pre']);
+      expect(output).toContain('DATABASE_URL is required to run migrations');
+    },
+  );
+
+  /**
+   * And a refused run is a FAILED run. The deploy reads the one-shot task's
+   * exit code and nothing else, so a migrator that printed its refusal and
+   * exited 0 would read as a migration that succeeded.
+   */
+  it.each(RUNTIMES)('exits non-zero under %s when it refuses to run', (runtime) => {
+    const { status } = runUnder(runtime, ['--target-database=alia', '--phase=pre']);
+    expect(status).not.toBe(0);
   });
 
-  it('does not throw a CommonJS-global ReferenceError under ESM', () => {
-    const { output } = runUnderNode(['--target-database=alia', '--phase=pre']);
+  it.each(RUNTIMES)('does not throw a CommonJS-global ReferenceError under ESM (%s)', (runtime) => {
+    const { output } = runUnder(runtime, ['--target-database=alia', '--phase=pre']);
     expect(output).not.toContain('is not defined in ES module scope');
     expect(output).not.toContain('ReferenceError');
   });

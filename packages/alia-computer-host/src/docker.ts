@@ -90,6 +90,11 @@ export const runDocker: DockerRunner = (args, options) =>
       finish();
     });
     child.on('close', (code) => {
+      // A run already settled by a timeout, an abort or a spawn failure keeps
+      // the result it resolved with. Bun emits 'close' (code -2) after a spawn
+      // 'error' where Node does not, and without this guard that late code
+      // would overwrite the already-resolved result object in place.
+      if (settled) return;
       result.exitCode = code;
       finish();
     });

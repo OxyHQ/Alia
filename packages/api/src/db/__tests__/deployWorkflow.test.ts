@@ -307,7 +307,7 @@ describe('deploy-aws.yml migration wiring', () => {
    */
   it('runs the pre and post phases against the same migrator', () => {
     const entrypoint = workflow.match(/MIGRATION_ENTRYPOINT:\s*(\S+)/);
-    const postMigrate = workflow.match(/MIGRATE='node (\S+) /);
+    const postMigrate = workflow.match(/MIGRATE='bun (\S+) /);
 
     // Positive control. A regex that stopped matching would otherwise let
     // `undefined === undefined` report agreement.
@@ -340,7 +340,7 @@ describe('deploy-aws.yml migration wiring', () => {
     // releases that happen to carry one.
     const step = workflow.slice(workflow.indexOf('id: phases'));
     const seedLine = step.slice(0, step.indexOf('>>"$GITHUB_OUTPUT"'));
-    expect(seedLine).toMatch(/SEED='node packages\/api\/dist\/scripts\/seed\.js[^']*'/);
+    expect(seedLine).toMatch(/SEED='bun packages\/api\/dist\/scripts\/seed\.js[^']*'/);
     expect(seedLine.indexOf('SEED=')).toBeLessThan(seedLine.indexOf('if grep -rlE'));
 
     // It must state its target, for the same reason the migrator must: `alia`

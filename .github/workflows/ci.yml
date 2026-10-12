@@ -166,6 +166,7 @@ jobs:
     outputs:
       api: ${{ steps.filter.outputs.api }}
       integrations: ${{ steps.filter.outputs.integrations }}
+      computer_host: ${{ steps.filter.outputs.computer_host }}
     steps:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
@@ -179,9 +180,14 @@ jobs:
             api:
               - *shared
               - 'packages/api/**'
+              - '.github/scripts/smoke-api-image.sh'
             integrations:
               - *shared
               - 'packages/integrations/**'
+            computer_host:
+              - *shared
+              - 'packages/alia-computer-host/**'
+              - '.github/scripts/smoke-computer-host-image.sh'
 
   # Gates the rollout logic deploy-aws.yml runs against production. The script
   # and this harness are byte-identical copies of Mention's, so they share its
@@ -578,6 +584,89 @@ jobs:
 
       - name: Build API
         run: bun run build:api
+
+  # The API image as ECS runs it, on the production architecture (arm64,
+  # Graviton): Bun as PID 1, a refused boot exiting non-zero, every migrator
+  # phase and the seeder with the deploy's own commands, /health/ready 200, the
+  # socket.io handshake and the `/ws/mcp` upgrade on one server, and a graceful
+  # exit 0 on SIGTERM. `Build API` above proves the bundle builds; only running
+  # the image proves the RUNTIME the Dockerfile ships can serve it — the image
+  # moved from Node to Bun in 2026-10, and this is the gate that holds it there.
+  api-image:
+    name: API image (Bun runtime)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    needs: [lint-and-test, changes]
+    if: >-
+      !cancelled() && needs.lint-and-test.result == 'success' &&
+      (github.event_name != 'pull_request' || needs.changes.outputs.api == 'true')
+    # A throwaway database for the smoke; nothing else uses it.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: alia
+          POSTGRES_PASSWORD: alia
+          POSTGRES_DB: alia
+        ports:
+          - 5441:5432
+        options: >-
+          --health-cmd "pg_isready -U alia -d alia"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the API image
+        run: docker build -f packages/api/Dockerfile -t alia-api:ci .
+
+      - name: Smoke the API image under its Bun runtime
+        env:
+          IMAGE: alia-api:ci
+          DATABASE_URL: postgres://alia:alia@127.0.0.1:5441/alia
+        run: bash .github/scripts/smoke-api-image.sh
+
+  # The computer host's control API image, under the hardening its systemd unit
+  # applies (read-only root, no capabilities, 512 MB), on arm64 like the host:
+  # Bun as PID 1, a refused boot exiting non-zero, /health and the ops drain,
+  # and exit 0 on the unit's SIGTERM. The workspace image is not built here: it
+  # stays on Node and nothing in this change touches it.
+  computer-host-image:
+    name: Computer host image (Bun runtime)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    needs: [lint-and-test, changes]
+    if: >-
+      !cancelled() && needs.lint-and-test.result == 'success' &&
+      (github.event_name != 'pull_request' || needs.changes.outputs.computer_host == 'true')
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: alia
+          POSTGRES_PASSWORD: alia
+          POSTGRES_DB: alia_computer
+        ports:
+          - 5442:5432
+        options: >-
+          --health-cmd "pg_isready -U alia -d alia_computer"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the computer-host image
+        run: docker build -f packages/alia-computer-host/Dockerfile -t alia-computer-host:ci .
+
+      - name: Smoke the computer-host image under its Bun runtime
+        env:
+          IMAGE: alia-computer-host:ci
+          DATABASE_URL: postgres://alia:alia@127.0.0.1:5442/alia_computer
+        run: bash .github/scripts/smoke-computer-host-image.sh
 
   integrations-postgres:
     name: Integrations (Postgres)

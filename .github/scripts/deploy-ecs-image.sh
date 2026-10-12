@@ -34,6 +34,13 @@ MIGRATION_PHASE="${MIGRATION_PHASE:-pre}"
 # is `integrations`, so a derivation would need a mapping table that is wrong the
 # first time the two names disagree — which is already.
 MIGRATION_ENTRYPOINT="${MIGRATION_ENTRYPOINT:-packages/api/dist/db/migrate.js}"
+# The runtime that executes the migrator: whatever the image's runtime stage
+# ships. `packages/api` runs on Bun (oven/bun) and passes `bun`;
+# `packages/integrations` still runs on Node (node:*-slim) and keeps the
+# default. Defaulted to `node` because it is the one value that works on BOTH
+# images: oven/bun puts a `node` on PATH that is a symlink to bun, while a
+# `bun` command against a Node image dies before the migrator starts.
+MIGRATION_RUNTIME="${MIGRATION_RUNTIME:-node}"
 INTERNAL_METRICS_PARAMETER="${INTERNAL_METRICS_PARAMETER:-}"
 TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
 # The environment-variable counterpart of TASK_SECRET_OVERRIDES_JSON, and the
@@ -92,6 +99,10 @@ if ! [[ "$POLL_INTERVAL" =~ ^[0-9]+$ ]] || (( POLL_INTERVAL < 1 )); then
 fi
 if [[ "$RUN_MIGRATIONS" != "true" && "$RUN_MIGRATIONS" != "false" ]]; then
   echo "::error::RUN_MIGRATIONS must be either 'true' or 'false'."
+  exit 1
+fi
+if [[ "$MIGRATION_RUNTIME" != "bun" && "$MIGRATION_RUNTIME" != "node" ]]; then
+  echo "::error::MIGRATION_RUNTIME must be either 'bun' or 'node'."
   exit 1
 fi
 if [[ -n "$POST_DEPLOY_SMOKE_SCRIPT" && ! -f "$POST_DEPLOY_SMOKE_SCRIPT" ]]; then
@@ -654,7 +665,7 @@ if [[ "$RUN_MIGRATIONS" == "true" || -n "$PRE_DEPLOY_TASK_COMMAND_JSON" || -n "$
 fi
 
 if [[ "$RUN_MIGRATIONS" == "true" ]]; then
-  # `node`, not `bun`: the runtime stage is node:*-slim and carries no bun.
+  # `MIGRATION_RUNTIME`: the runtime the image ships (see its definition above).
   # `packages/api`, not `packages/backend`: this repo has no backend package.
   # `dist/db/migrate.js`: an entrypoint of build.ts, so it exists in the image.
   # Both flags are REQUIRED by the migrator and have no defaults — a run that
@@ -663,16 +674,18 @@ if [[ "$RUN_MIGRATIONS" == "true" ]]; then
   # it reports success over an untouched one.
   #
   # The PATH is now `MIGRATION_ENTRYPOINT` rather than a literal, because two
-  # packages in this repository ship a migrator against two different databases.
-  # Everything else about the invocation is unchanged and stays asserted verbatim
-  # by test-deploy-ecs-image.sh.
+  # packages in this repository ship a migrator against two different databases,
+  # and the RUNTIME is `MIGRATION_RUNTIME` because those two packages no longer
+  # share one. The whole invocation stays asserted verbatim by
+  # test-deploy-ecs-image.sh.
   if ! run_one_shot_command \
     "Migration (phase=$MIGRATION_PHASE, target=$MIGRATION_TARGET_DATABASE)" \
     "$(jq -cn \
+      --arg runtime "$MIGRATION_RUNTIME" \
       --arg entrypoint "$MIGRATION_ENTRYPOINT" \
       --arg target "--target-database=$MIGRATION_TARGET_DATABASE" \
       --arg phase "--phase=$MIGRATION_PHASE" \
-      '["node",$entrypoint,$target,$phase]')"; then
+      '[$runtime,$entrypoint,$target,$phase]')"; then
     exit 1
   fi
 fi

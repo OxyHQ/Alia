@@ -238,6 +238,14 @@ let installed: Installed | null = null;
  * before this ran is out of reach, which is one of the reasons the authoritative
  * egress control is the network rule in `oxy-infra` and this is the half that
  * fails closed inside the process.
+ *
+ * Under Bun (the production runtime since 2026-10) the five hooks hold as on
+ * Node — measured: fetch, `http(s).request` and `http(s).get` to a provider
+ * host are all refused, an allowed host still answers. What does NOT hold is
+ * the `ws` door: Bun replaces the `ws` package with a built-in whose client is
+ * the native WebSocket and never calls `https.request`. Nothing in this
+ * process opens a client WebSocket today (`lib/mcp-relay.ts` is a server); one
+ * that did would be reachable only through the network rule.
  */
 export function installProviderEgressBlock(
   env: NodeJS.ProcessEnv = process.env,

@@ -78,7 +78,9 @@ export function isTransientNetworkError(err: unknown): boolean {
   const code = extractCodeWithCause(err);
   if (code && TRANSIENT_NETWORK_CODES.has(code)) return true;
 
-  // "fetch failed" TypeError from undici (Node's native fetch) wraps the real error
+  // "fetch failed" TypeError from undici (Node's native fetch) wraps the real error.
+  // Bun's fetch puts the code (ECONNRESET, ENOTFOUND, ...) on the error itself,
+  // which the code check above already reads.
   if (err instanceof TypeError && err.message === 'fetch failed') {
     const cause = getErrorCause(err);
     if (cause) return isTransientNetworkError(cause);

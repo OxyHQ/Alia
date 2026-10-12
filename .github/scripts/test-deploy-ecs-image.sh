@@ -345,7 +345,7 @@ export -f aws
 # Raise this with the case count; lower it ONLY alongside a deletion you can
 # name. A floor quietly adjusted to match whatever ran is not a floor.
 cases_run=0
-MINIMUM_CASES=17
+MINIMUM_CASES=20
 
 # Extra `NAME=value` entries a single case adds to the release environment.
 #
@@ -617,8 +617,8 @@ diff -u \
 # MIGRATION_ENTRYPOINT fails here while `migration-command` still passes, which
 # names the fault instead of just reporting one.
 #
-# `node`, not `bun`, for the same reason as the default: the integrations runtime
-# stage is `node:22-bookworm-slim`.
+# `node`, the default runtime: the integrations runtime stage is
+# `node:22-bookworm-slim`.
 RELEASE_EXTRA_ENV=(
   MIGRATION_ENTRYPOINT=packages/integrations/dist/db/migrate.js
   MIGRATION_TARGET_DATABASE=alia_integrations
@@ -633,6 +633,40 @@ printf '%s\n' \
 diff -u \
   "$test_directory/migration-entrypoint-override/expected.log" \
   "$test_directory/migration-entrypoint-override/aws.log"
+
+# The migrator RUNTIME is a parameter too, and `migration-command` above is its
+# control (the `node` default). `packages/api` ships on oven/bun and its deploy
+# passes `bun`; a script that ignored MIGRATION_RUNTIME would still print `node`
+# here and fail this diff, while `migration-command` kept passing.
+RELEASE_EXTRA_ENV=(
+  MIGRATION_RUNTIME=bun
+)
+run_release migration-runtime-bun true true false
+printf '%s\n' \
+  'run-task:bun packages/api/dist/db/migrate.js --target-database=alia --phase=pre' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  smoke \
+  'run-task:reconcile' \
+  >"$test_directory/migration-runtime-bun/expected.log"
+diff -u \
+  "$test_directory/migration-runtime-bun/expected.log" \
+  "$test_directory/migration-runtime-bun/aws.log"
+
+# Any other runtime is refused during argument validation, before the first
+# `aws` call: a typo here would otherwise be a one-shot task that cannot start,
+# discovered only after the image was built and pushed.
+RELEASE_EXTRA_ENV=(
+  MIGRATION_RUNTIME=deno
+)
+run_release migration-runtime-invalid false true false
+: >"$test_directory/migration-runtime-invalid/expected.log"
+diff -u \
+  "$test_directory/migration-runtime-invalid/expected.log" \
+  "$test_directory/migration-runtime-invalid/aws.log"
+grep -F \
+  "MIGRATION_RUNTIME must be either 'bun' or 'node'." \
+  "$test_directory/migration-runtime-invalid/output.log" \
+  >/dev/null
 
 grep -F \
   "[migration] fixture failure" \
