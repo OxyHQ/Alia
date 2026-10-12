@@ -54,6 +54,7 @@ vi.mock('../../chat-core.js', () => ({
   resolveUtilityModel: vi.fn(async () => ({ provider: 'p', modelId: 'utility/m' })),
   resolveStoredModel: vi.fn(async (id?: string) => ({ provider: 'p', modelId: id ?? 'default/m' })),
   getAIModel: vi.fn(() => ({ modelId: 'fake' })),
+  utilityOutputTokens: (answerTokens: number) => answerTokens,
 }));
 
 vi.mock('ai', () => ({

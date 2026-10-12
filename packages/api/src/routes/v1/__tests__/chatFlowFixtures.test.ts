@@ -164,6 +164,7 @@ vi.mock('@oxy.so/core', async () => {
 });
 
 vi.mock('../../../lib/chat-core.js', () => ({
+  utilityOutputTokens: (answerTokens: number) => answerTokens,
   resolveModel: vi.fn(async () => {
     const answers = H.state.resolveAnswers;
     const answer = answers.length > 1 ? answers.shift() : answers[0];
