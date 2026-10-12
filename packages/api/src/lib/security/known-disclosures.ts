@@ -17,6 +17,28 @@
  * matches nothing fails just as loudly as a finding that matches no entry,
  * because a ledger only a human maintains is a ledger that silently rots.
  *
+ * ## The 2026-10-11 rewrite
+ *
+ * `main` was rewritten anyway, on 2026-10-11: every commit kept its tree and
+ * `keys.json` and `apps/app/google-services.json` were dropped from all of
+ * history, so every commit has a new id. The root `old:94a0ba8d` is now
+ * `4c32e3b1`, and #680, the last commit before the rewrite, went from
+ * `old:3168c14b` to `65c14b37` with the identical tree. The four values those
+ * files held stopped being reachable from `HEAD`, and the census below went
+ * red, which is what this gate is for.
+ *
+ * The rewrite changed what the scan can SEE, not what was disclosed. The values
+ * were public for months before it, and GitHub still serves the pre-rewrite
+ * commits through every read-only `refs/pull/<n>/head`. So the entries stay,
+ * with `purgedFromHistory` set: still pending rotation, still refused by
+ * {@link disclosedCredentialMatching}, and held to ABSENT by the census.
+ * Merging any branch cut before the rewrite brings the whole old history back,
+ * and these entries are what then fail.
+ *
+ * A commit id in backticks is one reachable from `HEAD`; the census test checks
+ * that it is. One written `old:<id>` is a pre-rewrite commit, and the test
+ * checks that it is NOT reachable from `HEAD`.
+ *
  * ## Rotation is the remedy; this file is the receipt
  *
  * `rotatedAt` is the only durable evidence that the value was replaced at its
@@ -73,23 +95,38 @@ export interface KnownDisclosure {
   readonly where: string;
   /** ISO date the value was rotated at its provider, or `null` while pending. */
   readonly rotatedAt: string | null;
+  /**
+   * ISO date a history rewrite removed every blob holding this value from the
+   * commits reachable from `HEAD`, or `null` while the scan still finds it.
+   *
+   * Not a remedy and not a substitute for `rotatedAt`: a value pushed to a public
+   * remote stays published in every clone, fork and GitHub pull ref made before
+   * the rewrite. It only moves the entry from "the scan must find it" to "the
+   * scan must NOT find it".
+   */
+  readonly purgedFromHistory: string | null;
   /** What it is and what the decision was. One line, no value. */
   readonly note: string;
 }
 
 /**
- * Everything {@link import('./credential-scan.js').scanGitHistory} finds today.
+ * Everything this repository has disclosed: what
+ * {@link import('./credential-scan.js').scanGitHistory} finds today, plus what a
+ * history rewrite has since made it unable to find.
  *
  * Discovered 2026-08-17 by the first run of that scanner over the commits
  * reachable from `main`. Six distinct values, of three kinds:
  *
  *  - **`keys.json`** was a provider-key fixture committed on 2026-01-14
- *    (`94a0ba8d`) and deleted the same day (`3ccbf430`). Three live upstream
- *    credentials, one per provider, each granting billable inference on the
- *    account that issued it. Deleting the file removed it from the tree and from
- *    nothing else.
+ *    (`old:94a0ba8d`) and deleted the same day (`old:3ccbf430`). Three live
+ *    upstream credentials, one per provider, each granting billable inference on
+ *    the account that issued it. Deleting the file removed it from the tree and
+ *    from nothing else. The 2026-10-11 rewrite dropped it from history too; those
+ *    commits are now `4c32e3b1` and `71152cef`, without it. The three keys are
+ *    still public and still pending rotation.
  *  - **`google-services.json`** is a Firebase Android client configuration
- *    (`413ffa3f`, removed and gitignored in `042baefd`). Its `AIza…` value is a
+ *    (`old:413ffa3f`, removed and gitignored in `old:042baefd`; now `018f228f`
+ *    and `e5ad73f0`, without it). Its `AIza…` value is a
  *    CLIENT key: Google ships it inside every APK and treats it as public, so
  *    its protection is API restrictions in the Cloud console rather than
  *    secrecy. It is recorded because it matches, and classified for what it is
@@ -107,30 +144,34 @@ export const KNOWN_DISCLOSURES: readonly KnownDisclosure[] = [
   {
     key: 'google_api_key:07e55bffe541',
     classification: 'credential',
-    where: 'keys.json, added in 94a0ba8d and removed in 3ccbf430, both 2026-01-14',
+    where: 'keys.json, added in old:94a0ba8d and removed in old:3ccbf430, both 2026-01-14',
     rotatedAt: null,
+    purgedFromHistory: '2026-10-11',
     note: 'Google Generative Language key for a Gemini model. Revoke in the Google Cloud console.',
   },
   {
     key: 'groq_api_key:2118d4a12bba',
     classification: 'credential',
-    where: 'keys.json, added in 94a0ba8d and removed in 3ccbf430, both 2026-01-14',
+    where: 'keys.json, added in old:94a0ba8d and removed in old:3ccbf430, both 2026-01-14',
     rotatedAt: null,
+    purgedFromHistory: '2026-10-11',
     note: 'Groq key for a Llama model. Revoke at console.groq.com.',
   },
   {
     key: 'openai_project_key:903e989da925',
     classification: 'credential',
-    where: 'keys.json, added in 94a0ba8d and removed in 3ccbf430, both 2026-01-14',
+    where: 'keys.json, added in old:94a0ba8d and removed in old:3ccbf430, both 2026-01-14',
     rotatedAt: null,
+    purgedFromHistory: '2026-10-11',
     note: 'OpenAI project key for a GPT-4o model. Revoke at platform.openai.com.',
   },
   {
     key: 'google_api_key:dc53650a7c03',
     classification: 'firebase_client_config',
     where:
-      'apps/app/google-services.json, added in 413ffa3f and removed in 042baefd, both 2026-03-11',
+      'apps/app/google-services.json, added in old:413ffa3f and removed in old:042baefd, both 2026-03-11',
     rotatedAt: null,
+    purgedFromHistory: '2026-10-11',
     note: 'Firebase Android client key; ships in every APK by design. Restrict it in the Cloud console rather than rotating it.',
   },
   {
@@ -139,6 +180,7 @@ export const KNOWN_DISCLOSURES: readonly KnownDisclosure[] = [
     where:
       'packages/api/src/lib/__tests__/sanitize.test.ts and lib/routing/__tests__/routing-policy.test.ts',
     rotatedAt: null,
+    purgedFromHistory: null,
     note: 'The `sk-proj-` literal those two gates feed to redactUnsafeDetail; without it neither assertion can fail.',
   },
   {
@@ -146,6 +188,7 @@ export const KNOWN_DISCLOSURES: readonly KnownDisclosure[] = [
     classification: 'synthetic_fixture',
     where: 'packages/api/src/lib/__tests__/sanitize.test.ts',
     rotatedAt: null,
+    purgedFromHistory: null,
     note: 'The `ghp_abcd…` literal the same file feeds the redactor, alongside the sk-proj- one.',
   },
 ];
@@ -167,6 +210,9 @@ export const KNOWN_DISCLOSURES: readonly KnownDisclosure[] = [
  * a public secret into service, and rotated it is a dead value whose upstream
  * `401`s look like an outage rather than a paste error. Writing it is wrong both
  * ways, so neither is admitted.
+ *
+ * Nor is `purgedFromHistory`: a purged value was published before the purge
+ * and is exactly as usable by whoever copied it.
  *
  * ## Scoped to `credential`
  *

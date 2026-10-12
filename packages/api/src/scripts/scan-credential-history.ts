@@ -9,10 +9,13 @@
  * Exit codes are the point of running it in a pipeline:
  *
  *  - `0` — every finding is in the ledger and none is pending rotation.
- *  - `1` — a credential is in this repository's history and NOT in the ledger.
- *    A new leak, or a rewritten history. Rotate first, then record it.
- *  - `2` — every finding is ledgered, but at least one is still pending
- *    rotation. Not a new leak; a job someone has not finished.
+ *  - `1` — a credential is in this repository's history and NOT in the ledger
+ *    (a new leak: rotate first, then record it), a ledger entry matches nothing
+ *    (the history moved: date its `purgedFromHistory`), or a purged value is back
+ *    (a branch from before the rewrite was merged).
+ *  - `2` — every finding is ledgered, but at least one disclosed credential is
+ *    still pending rotation, whether or not the history still holds it. Not a
+ *    new leak; a job someone has not finished.
  *
  * The values themselves are never printed. A scanner that echoes what it found
  * moves the credential into a second place — a terminal, a CI log — which is the
@@ -46,7 +49,7 @@ function report(result: CredentialScanResult): number {
   );
 
   const unledgered: CredentialFinding[] = [];
-  const pending: CredentialFinding[] = [];
+  const firstFinding = new Map<string, CredentialFinding>();
   const seen = new Set<string>();
 
   for (const finding of result.findings) {
@@ -55,14 +58,21 @@ function report(result: CredentialScanResult): number {
     // lives in two files, and printing it twice reads as two problems.
     if (seen.has(key)) continue;
     seen.add(key);
-    const known = ledger.get(key);
-    if (known === undefined) unledgered.push(finding);
-    else if (known.rotatedAt === null && known.classification === 'credential') {
-      pending.push(finding);
-    }
+    firstFinding.set(key, finding);
+    if (!ledger.has(key)) unledgered.push(finding);
   }
 
-  const stale = KNOWN_DISCLOSURES.filter((entry) => !seen.has(entry.key));
+  const stale = KNOWN_DISCLOSURES.filter(
+    (entry) => entry.purgedFromHistory === null && !seen.has(entry.key),
+  );
+  const resurfaced = KNOWN_DISCLOSURES.filter(
+    (entry) => entry.purgedFromHistory !== null && seen.has(entry.key),
+  );
+  // From the LEDGER, not the findings: a purged credential is invisible to the
+  // scan and exactly as published as before, so it stays pending until rotated.
+  const pending = KNOWN_DISCLOSURES.filter(
+    (entry) => entry.classification === 'credential' && entry.rotatedAt === null,
+  );
 
   process.stdout.write(
     `scanned ${String(result.blobsScanned)} blobs (${String(result.bytesScanned)} bytes) ` +
@@ -75,6 +85,16 @@ function report(result: CredentialScanResult): number {
       'LEDGER ENTRIES THAT MATCHED NOTHING — the history moved, or the entry is wrong:\n',
     );
     for (const entry of stale) process.stdout.write(`  ${entry.key}  ${entry.note}\n`);
+    process.stdout.write('\n');
+  }
+
+  if (resurfaced.length > 0) {
+    process.stdout.write(
+      'PURGED VALUES BACK IN HISTORY — a branch from before the rewrite was merged:\n',
+    );
+    for (const entry of resurfaced) {
+      process.stdout.write(`  ${entry.key}  purged ${String(entry.purgedFromHistory)}\n`);
+    }
     process.stdout.write('\n');
   }
 
@@ -94,18 +114,27 @@ function report(result: CredentialScanResult): number {
 
   if (pending.length > 0) {
     process.stdout.write('PENDING ROTATION — disclosed, acknowledged, not yet rotated:\n');
-    for (const finding of pending) {
-      const known = ledger.get(findingKey(finding));
-      process.stdout.write(`  ${describe(finding)}\n      ${known?.note ?? ''}\n`);
+    for (const entry of pending) {
+      const finding = firstFinding.get(entry.key);
+      const where =
+        finding !== undefined
+          ? describe(finding)
+          : `${entry.key}  purged from history ${String(entry.purgedFromHistory)}; ` +
+            'still published in pre-rewrite clones and GitHub pull refs';
+      process.stdout.write(`  ${where}\n      ${entry.note}\n`);
     }
     process.stdout.write(
       '\nSee docs/runbooks/credential-rotation.md § Rotating the keys found in git history.\n',
     );
-    return 2;
   }
 
-  process.stdout.write('Every finding is ledgered and rotated.\n');
-  return stale.length > 0 ? 1 : 0;
+  // A ledger that no longer matches the history outranks pending rotation:
+  // purged credentials stay pending until someone rotates them, and a `2` must
+  // not hide that the census itself is wrong.
+  if (stale.length > 0 || resurfaced.length > 0) return 1;
+  if (pending.length > 0) return 2;
+  process.stdout.write('Every finding is ledgered and every disclosed credential rotated.\n');
+  return 0;
 }
 
 const result = await scanGitHistory(REPO_ROOT);

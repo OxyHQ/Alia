@@ -357,15 +357,42 @@ describe("this repository's disclosures are exactly the ledger (#139 ws15)", () 
 
   it('every finding is ledgered and every ledger entry is found', () => {
     const found = [...new Set(repoScan.findings.map(findingKey))].sort();
-    const ledgered = KNOWN_DISCLOSURES.map((entry) => entry.key).sort();
+    const inHistory = KNOWN_DISCLOSURES.filter((entry) => entry.purgedFromHistory === null)
+      .map((entry) => entry.key)
+      .sort();
 
     // Exact, in both directions. A new credential in history fails here, and so
     // does a ledger entry whose blob the history no longer contains — which is
-    // what a rewrite, or a wrong entry, looks like.
-    expect(found).toEqual(ledgered);
+    // what a rewrite, or a wrong entry, looks like. A rewrite is answered by
+    // dating `purgedFromHistory` on the entries it removed, never by deleting
+    // them: the values stay published wherever the old history was copied.
+    expect(found).toEqual(inHistory);
     // The floor before the equality: the ledger is not empty and neither is the
     // scan, so `[] === []` cannot pass this test.
-    expect(ledgered.length).toBeGreaterThan(0);
+    expect(inHistory.length).toBeGreaterThan(0);
+  });
+
+  it('a value purged from history stays out of it', () => {
+    // The equality above already fails on a purged value that reappears; this
+    // says WHY in the failure. The likely cause is a merge of a branch cut before
+    // the 2026-10-11 rewrite, which carries the whole pre-rewrite history.
+    const found = new Set(repoScan.findings.map(findingKey));
+    const purged = KNOWN_DISCLOSURES.filter((entry) => entry.purgedFromHistory !== null);
+    // Pinned here because the history can no longer vouch for them. Before the
+    // rewrite, deleting an entry failed the equality above; for a purged entry
+    // nothing would, so this list is the record of what the 2026-10-11 rewrite
+    // removed, and dropping a disclosure from the ledger means editing it too.
+    expect(purged.map((entry) => entry.key).sort()).toEqual([
+      'google_api_key:07e55bffe541',
+      'google_api_key:dc53650a7c03',
+      'groq_api_key:2118d4a12bba',
+      'openai_project_key:903e989da925',
+    ]);
+    for (const entry of purged) {
+      expect(found.has(entry.key), `${entry.key} is back in the history reachable from HEAD`).toBe(
+        false,
+      );
+    }
   });
 
   it('the ledger says what each disclosure is and what was decided', () => {
@@ -374,20 +401,44 @@ describe("this repository's disclosures are exactly the ledger (#139 ws15)", () 
       // A date or an explicit null. A free-text "soon" is the value this refuses.
       if (entry.rotatedAt !== null)
         expect(entry.rotatedAt, entry.key).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      if (entry.purgedFromHistory !== null)
+        expect(entry.purgedFromHistory, entry.key).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(entry.note.length, entry.key).toBeGreaterThan(20);
       expect(entry.where.length, entry.key).toBeGreaterThan(10);
     }
-    // Every commit the ledger's prose cites must exist, or it describes a
-    // history nobody has. Read out of `where` and the module doc rather than
-    // from a field, because a commit is context for a human and not part of a
-    // finding's identity.
+    // Every commit the ledger's prose cites must be in the history it says it
+    // is in, or it describes a history nobody has. Read out of `where` and the
+    // module doc rather than from a field, because a commit is context for a
+    // human and not part of a finding's identity.
+    //
+    // Two notations, each checked in its own direction. A backticked id must be
+    // reachable from HEAD. An `old:<id>` is a commit from before the 2026-10-11
+    // rewrite and must NOT be: a CI clone does not have it at all, and a local
+    // clone that still does has it only on a stale ref.
     const prose = readFileSync(path.join(SECURITY_DIR, 'known-disclosures.ts'), 'utf8');
+    const ancestorOfHead = (commit: string): boolean => {
+      try {
+        execFileSync('git', ['merge-base', '--is-ancestor', commit, 'HEAD'], {
+          cwd: REPO_ROOT,
+          stdio: 'ignore',
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    };
     const commits = [...new Set([...prose.matchAll(/`([0-9a-f]{8})`/g)].map((m) => m[1]))];
     expect(commits.length).toBeGreaterThanOrEqual(4);
     for (const commit of commits) {
       expect(() =>
         execFileSync('git', ['cat-file', '-e', `${commit}^{commit}`], { cwd: REPO_ROOT }),
       ).not.toThrow();
+      expect(ancestorOfHead(commit), commit).toBe(true);
+    }
+    const preRewrite = [...new Set([...prose.matchAll(/\bold:([0-9a-f]{8})\b/g)].map((m) => m[1]))];
+    expect(preRewrite.length).toBeGreaterThanOrEqual(4);
+    for (const commit of preRewrite) {
+      expect(ancestorOfHead(commit), `old:${commit}`).toBe(false);
     }
   });
 
