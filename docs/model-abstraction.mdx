@@ -69,6 +69,16 @@ are request flags and run at the chosen level.
 | `pro` | frontier models | `high` | Slower, costs more |
 | `ultra` | the heaviest frontier models | `high` | Most capable, slowest |
 
+Under Oxy's internal metered pilot, which bounds Alia's traffic, `pro` and
+`ultra` run on Claude only while Kaana's direct Anthropic route is funded by an
+available promotional credit grant, and otherwise on `xhigh`'s models; Oxy
+signs those as the fallback of the same request. Claude is never reached
+through a paid route, and never from `auto` or the other levels
+(`oxy/docs/adr/0037-pilot-spends-promotional-credit-at-named-levels.md`). A
+step that sets a `temperature` cannot run on Claude Opus 4.7 or later, which
+refuse one: the autonomous agent runner, agent turns and bot replies still set
+one, so at `pro`/`ultra` they run on the fallback.
+
 Membership, ordering and failover inside a level are Oxy's
 (`oxy/docs/inference/power-levels.md`). Alia never retries or swaps a model
 itself. It reads the model that ran from the response
