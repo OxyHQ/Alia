@@ -214,11 +214,12 @@ describe('packages/integrations/Dockerfile', () => {
 
   /**
    * The migrator is invoked with `node`, and the runtime stage is
-   * `node:22-bookworm-slim`. A `bun` invocation would be a module-not-found at
-   * deploy time; the two halves of that fact belong in one place.
+   * `node:22-bookworm-slim` (pinned by digest). A `bun` invocation would be a
+   * module-not-found at deploy time; the two halves of that fact belong in one
+   * place.
    */
   it('runs a Node runtime, which is what the deploy invokes the migrator with', () => {
-    expect(dockerfile).toContain('FROM node:22-bookworm-slim AS runtime');
+    expect(dockerfile).toMatch(/^FROM node:22-bookworm-slim@sha256:[0-9a-f]{64} AS runtime$/m);
     expect(workflow).toContain('MIGRATION_ENTRYPOINT: packages/integrations/dist/db/migrate.js');
   });
 });

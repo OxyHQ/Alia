@@ -1,11 +1,17 @@
 **/node_modules
 **/dist
-.env
-.env.*
+# Env files at ANY depth: `COPY packages/<pkg>/ ...` would otherwise carry a
+# developer's packages/<pkg>/.env into a build layer on a local build. No
+# image reads a .env.example, so none is re-included.
+**/.env
+**/.env.*
 *.log
-signal-data
+# signal-cli account state (keys) if a local run left it in the tree.
+**/signal-data
 .git
 .github
 .vscode
 .claude
+# Agent worktrees live inside the checkout; each is a full copy of the repo.
+.worktrees
 docs
