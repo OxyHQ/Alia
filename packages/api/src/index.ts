@@ -2,9 +2,6 @@ import express from 'express';
 import { startPlatformActivity } from './lib/platform-activity.js';
 import http from 'http';
 import cors from 'cors';
-import dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 import { closePostgres } from './db/index.js';
 import { runBootGuards } from './lib/boot-guards.js';
 import { createInternalCors } from './lib/cors-origins.js';
@@ -59,12 +56,9 @@ import { initSocket } from './socket.js';
 // MCP relay for local MCP tool calls via WebSocket
 import { initMcpRelay, shutdownMcpRelay } from './lib/mcp-relay.js';
 
-// Fix for ES Modules __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Load .env from the api directory (not the monorepo root)
-dotenv.config({ path: join(__dirname, '../.env') });
+// Bun loads `.env` from the working directory before any module runs; the
+// package scripts (`bun run dev`, `bun run start`) run from packages/api, so
+// that is packages/api/.env, the file dotenv used to be pointed at.
 
 // Initialize multi-channel gateway
 initChannels();

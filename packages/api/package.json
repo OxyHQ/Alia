@@ -33,6 +33,7 @@
     "@oxy.so/contracts": "4.11.0-oxy-one.0",
     "@oxy.so/core": "4.5.0-oxy-one.0",
     "@oxy.so/db": "^1.0.0",
+    "@oxy.so/mcp": "1.1.0",
     "@oxy.so/utils": "^1.0.1",
     "@socket.io/redis-adapter": "^8.3.0",
     "@syra.fm/sdk": "^0.14.0",
@@ -41,7 +42,6 @@
     "bullmq": "^5.80.2",
     "cors": "^2.8.6",
     "cron-parser": "4.9.0",
-    "dotenv": "^16.6.1",
     "drizzle-orm": "0.45.2",
     "esbuild": "^0.28.1",
     "expo-server-sdk": "^6.1.0",
@@ -58,8 +58,7 @@
     "web-push": "^3.6.7",
     "ws": "^8.21.0",
     "yaml": "^2.9.0",
-    "zod": "^3.25.76",
-    "@oxy.so/mcp": "1.1.0"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@ai-sdk/provider-utils": "4.0.38",

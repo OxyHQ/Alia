@@ -101,11 +101,11 @@ function serialisesToAnOrigin(candidate: string): boolean {
 /**
  * Build the internal-routes CORS middleware.
  *
- * A function rather than a module-level constant because `index.ts` calls
- * `dotenv.config()` in its module BODY, which runs after every import has been
- * evaluated: a `process.env.WEB_URL` read at this module's top level would see
- * the variable before `.env` was loaded and silently drop the origin in local
- * development.
+ * A function rather than a module-level constant, so `WEB_URL` is read when the
+ * middleware is built rather than when this module is first imported. It was
+ * made one when `index.ts` loaded `.env` with dotenv in its module body, after
+ * every import had been evaluated; Bun now loads `.env` before any module runs,
+ * but the read stays independent of import order.
  *
  * `webUrl` is unvalidated deployment configuration, so it goes through the same
  * check as the literals above. The lists here are additionally frozen against

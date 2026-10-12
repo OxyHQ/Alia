@@ -136,10 +136,10 @@ let cached: CrowdSourceConfig | null = null;
 /**
  * The configuration, read on first use.
  *
- * Lazy rather than module-level because `dotenv.config()` runs inside
- * `src/index.ts` AFTER the import graph is evaluated — a top-level read would
- * capture the environment as it was before the `.env` file was loaded and report
- * every deployment as unconfigured.
+ * Lazy rather than module-level, so the environment is read on first use rather
+ * than when this module is first imported. It was made lazy when `src/index.ts`
+ * loaded `.env` with dotenv AFTER the import graph was evaluated; Bun now loads
+ * `.env` before any module runs, but the read stays independent of import order.
  */
 export function crowdSourceConfig(): CrowdSourceConfig {
   cached ??= readConfig();
