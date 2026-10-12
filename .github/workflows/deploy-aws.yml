@@ -176,7 +176,11 @@ jobs:
       # deploy fails at its migration step.
       # Two things run after the rollout, and deploy-ecs-image.sh takes exactly
       # ONE command, so they are chained through the image's own `/bin/sh`
-      # (present in `node:*-bookworm-slim`, verified). `&&` is load-bearing:
+      # (present in `oven/bun:*-slim`, Debian, as it was in the Node image).
+      #
+      # `bun`: the runtime packages/api/Dockerfile ships. Both one-shots run on
+      # the image this workflow just built, never on an older one, so the
+      # command and the image always move together. `&&` is load-bearing:
       # `sh -c 'a && b'` exits non-zero if EITHER fails, so a failed migration
       # neither runs the seeder nor reports success.
       #
@@ -193,9 +197,9 @@ jobs:
       - name: Build the post-rollout command
         id: phases
         run: |
-          SEED='node packages/api/dist/scripts/seed.js --target-database=alia'
+          SEED='bun packages/api/dist/scripts/seed.js --target-database=alia'
           if grep -rlE '^-- oxy:deploy-phase=post$' packages/api/drizzle >/dev/null 2>&1; then
-            MIGRATE='node packages/api/dist/db/migrate.js --target-database=alia --phase=post'
+            MIGRATE='bun packages/api/dist/db/migrate.js --target-database=alia --phase=post'
             echo "this release carries at least one post-rollout migration"
           else
             MIGRATE=''
@@ -365,6 +369,10 @@ jobs:
           # separately-written paths for one fact is exactly how a `pre` and a
           # `post` phase end up migrating different packages.
           MIGRATION_ENTRYPOINT: packages/api/dist/db/migrate.js
+          # The runtime packages/api/Dockerfile ships (oven/bun). The script's
+          # default is `node`, which packages/integrations still runs on;
+          # `dockerfileRuntime.test.ts` holds this line and the Dockerfile together.
+          MIGRATION_RUNTIME: bun
           POST_DEPLOY_TASK_COMMAND_JSON: ${{ steps.phases.outputs.post_command }}
           TASK_SECRET_OVERRIDES_JSON: ${{ steps.kaana.outputs.secret_overrides }}
           # Stop injecting a static IAM user's keys.

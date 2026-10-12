@@ -153,6 +153,10 @@ jobs:
           network=$(jq -ec '.networkConfiguration' <<<"$service_json")
           echo "live task definition: $task_definition"
 
+          # `bun`: the runtime packages/api/Dockerfile ships since the Node-to-Bun
+          # switch. This runs the LIVE image, so it needs a Bun image to be serving:
+          # against a pre-switch Node revision the task fails to start (loudly, no
+          # write), which is only possible until the first Bun deploy completes.
           overrides=$(jq -nc \
             --arg container "$CONTAINER" \
             --arg apply "$apply" \
@@ -161,7 +165,7 @@ jobs:
             --arg expected "$expected_plan" '
               {containerOverrides:[{
                 name:$container,
-                command:["node","packages/api/dist/scripts/bootstrap-native-product-agents.js","--target-database=alia"],
+                command:["bun","packages/api/dist/scripts/bootstrap-native-product-agents.js","--target-database=alia"],
                 environment:[
                   {name:"APPLY",value:$apply},
                   {name:"BOOTSTRAP_ACTOR",value:$actor},

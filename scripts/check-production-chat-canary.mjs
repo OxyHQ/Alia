@@ -25,7 +25,7 @@ requireText(
 );
 requireText(
   workflow,
-  'command:["node","packages/api/dist/scripts/production-chat-canary.js"]',
+  'command:["bun","packages/api/dist/scripts/production-chat-canary.js"]',
   'workflow does not run the shipped private entrypoint',
 );
 requireText(workflow, '.taskDefinition', 'workflow is not bound to the live task definition');

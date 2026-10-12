@@ -71,6 +71,11 @@ a pelo: los paquetes usan vitest.
 - **Un fallo de inferencia es un error tipado** (`failTurn`), antes o después de
   emitir texto; jamás un mensaje de relleno con `finish_reason: "stop"` —
   `docs/chat-runtime.mdx`.
+- **Runtime: Bun** para la API y el control del computer host (imagen
+  `oven/bun`, CMD `bun ...`); `packages/integrations` y la imagen workspace
+  siguen en Node. Todo one-shot que arranca la imagen de la API nombra `bun`
+  (`MIGRATION_RUNTIME`, comando post-rollout, bootstrap, canary): un `bun`
+  contra una imagen Node muere — `src/__tests__/dockerfileRuntime.test.ts`.
 - `Relay` es un nombre retirado; el único origen de Kaana es `https://kaana.ai`.
   `lib/mcp-relay.ts` es el transporte WebSocket de MCP y no se renombra.
 - **Shows** (podcasts en Syra): la ruta acuña un ticket de ingesta de un solo

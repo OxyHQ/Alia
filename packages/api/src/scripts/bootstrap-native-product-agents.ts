@@ -3,9 +3,9 @@
  * Apply Oxy's native product-agent manifest to Alia's `agents` table.
  *
  * ```
- * node packages/api/dist/scripts/bootstrap-native-product-agents.js --target-database=alia
+ * bun packages/api/dist/scripts/bootstrap-native-product-agents.js --target-database=alia
  * APPLY=1 BOOTSTRAP_ACTOR=... BOOTSTRAP_REASON=... EXPECTED_PLAN_SHA256=... \
- *   node packages/api/dist/scripts/bootstrap-native-product-agents.js --target-database=alia
+ *   bun packages/api/dist/scripts/bootstrap-native-product-agents.js --target-database=alia
  * ```
  *
  * ## What it is for

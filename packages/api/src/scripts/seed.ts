@@ -3,7 +3,7 @@
  * The ONLY thing that seeds this service's reference data.
  *
  * Run as a one-shot task on the deploy boundary:
- * `node packages/api/dist/scripts/seed.js --target-database=alia`.
+ * `bun packages/api/dist/scripts/seed.js --target-database=alia`.
  *
  * ## Why a deploy one-shot and not boot, and not a migration
  *
