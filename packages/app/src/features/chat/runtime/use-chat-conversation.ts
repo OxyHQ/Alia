@@ -1,20 +1,33 @@
-import { useEffect, useCallback, useRef } from "react";
-import { useRouter } from "expo-router";
-import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys } from "@/shared/api/query-keys";
-import { useStore } from "@/features/chat/runtime/global-store";
-import { releaseAttachments, useComposerDraftStore } from "@/features/chat/runtime/composer-draft-store";
-import { useStreamingChat } from "@/features/chat/runtime/use-streaming-chat";
-import type { Attachment, SendOptions } from "@/shared/contracts/chat-turn";
-import { ConversationNotFoundError, useClearConversation, useConversation, useCreateConversation, useDeleteConversation, type Message } from "@/features/chat/runtime/use-conversations";
-import { generateAPIUrl } from "@/shared/api/generate-api-url";
-import { API_ROUTES } from "@/shared/api/routes";
-import { buildMessageContent, type DroppedAttachment } from "@/features/chat/model/attachment-utils";
-import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
-import { toast } from "@oxy.so/bloom/toast";
-import i18n from "@/shared/i18n";
-import { getTextFromContent } from "@alia.onl/sdk/content";
-import { acquireNotificationsSocket } from "@/features/notifications/runtime/notifications-socket";
+import { useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/shared/api/query-keys';
+import { useStore } from '@/features/chat/runtime/global-store';
+import {
+  releaseAttachments,
+  useComposerDraftStore,
+} from '@/features/chat/runtime/composer-draft-store';
+import { useStreamingChat } from '@/features/chat/runtime/use-streaming-chat';
+import type { Attachment, SendOptions } from '@/shared/contracts/chat-turn';
+import {
+  ConversationNotFoundError,
+  useClearConversation,
+  useConversation,
+  useCreateConversation,
+  useDeleteConversation,
+  type Message,
+} from '@/features/chat/runtime/use-conversations';
+import { generateAPIUrl } from '@/shared/api/generate-api-url';
+import { API_ROUTES } from '@/shared/api/routes';
+import {
+  buildMessageContent,
+  type DroppedAttachment,
+} from '@/features/chat/model/attachment-utils';
+import type { ScrollView as GHScrollView } from 'react-native-gesture-handler';
+import { toast } from '@oxy.so/bloom/toast';
+import i18n from '@/shared/i18n';
+import { getTextFromContent } from '@alia.onl/sdk/content';
+import { acquireNotificationsSocket } from '@/features/notifications/runtime/notifications-socket';
 
 interface UseChatConversationOptions {
   conversationId?: string;
@@ -44,7 +57,10 @@ export type EditedContent = string | MessageContent;
  * the picture ahead of the question; an original with no text part (image-only)
  * gets the new text appended after its attachments.
  */
-export function mergeEditedContent(original: MessageContent | undefined, edit: EditedContent): MessageContent {
+export function mergeEditedContent(
+  original: MessageContent | undefined,
+  edit: EditedContent,
+): MessageContent {
   if (typeof edit !== 'string') return edit;
   if (!Array.isArray(original)) return edit;
   const attachments = original.filter((part) => part.type !== 'text');
@@ -95,7 +111,11 @@ export function reportDroppedAttachments(dropped: DroppedAttachment[] | undefine
   }
 }
 
-export function useChatConversation({ conversationId, selectedModel, agentId }: UseChatConversationOptions = {}) {
+export function useChatConversation({
+  conversationId,
+  selectedModel,
+  agentId,
+}: UseChatConversationOptions = {}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const scrollViewRef = useRef<GHScrollView>(null);
@@ -109,7 +129,7 @@ export function useChatConversation({ conversationId, selectedModel, agentId }: 
     error: conversationQueryError,
     isLoading: conversationQueryLoading,
     isFetching: conversationFetching,
-  } = useConversation(conversationId || "");
+  } = useConversation(conversationId || '');
   const createConversationMutation = useCreateConversation();
   const { mutateAsync: deleteConversation } = useDeleteConversation();
   const { mutateAsync: clearMessages } = useClearConversation();
@@ -119,10 +139,12 @@ export function useChatConversation({ conversationId, selectedModel, agentId }: 
   // valid composer; the query itself has retries disabled, so this happens once.
   useEffect(() => {
     if (!(conversationQueryError instanceof ConversationNotFoundError)) return;
-    queryClient.removeQueries({ queryKey: queryKeys.conversations.detail(conversationQueryError.conversationId) });
+    queryClient.removeQueries({
+      queryKey: queryKeys.conversations.detail(conversationQueryError.conversationId),
+    });
     queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
     useStore.getState().setChatId(null);
-    router.replace("/(app)");
+    router.replace('/(app)');
   }, [conversationQueryError, queryClient, router]);
 
   /**
@@ -172,7 +194,12 @@ export function useChatConversation({ conversationId, selectedModel, agentId }: 
     retryFailedTurn: retry,
     clearFailedTurn,
     turnOptionsOf,
-  } = useStreamingChat(generateAPIUrl(API_ROUTES.chat.alia), conversationId, selectedModel, agentId);
+  } = useStreamingChat(
+    generateAPIUrl(API_ROUTES.chat.alia),
+    conversationId,
+    selectedModel,
+    agentId,
+  );
 
   // Expose streaming state globally so sidebar can show a spinner
   const setStreamingChatId = useStore((s) => s.setStreamingChatId);
@@ -206,13 +233,14 @@ export function useChatConversation({ conversationId, selectedModel, agentId }: 
   // Sync chatId and load messages when conversation changes or when
   // seeded cache data upgrades to full data (messages go from empty to populated).
   useEffect(() => {
-    useStore.getState().setChatId(conversationId ? { id: conversationId, from: "url" } : null);
+    useStore.getState().setChatId(conversationId ? { id: conversationId, from: 'url' } : null);
 
     if (!conversationId || conversationQueryLoading) return;
 
     const incomingMessages = conversation?.messages || [];
     const isNewConversation = lastConversationId.current !== conversationId;
-    const isDataUpgrade = !isNewConversation && incomingMessages.length > 0 && messages.length === 0;
+    const isDataUpgrade =
+      !isNewConversation && incomingMessages.length > 0 && messages.length === 0;
 
     if (!isNewConversation && !isDataUpgrade) return;
 
@@ -222,7 +250,7 @@ export function useChatConversation({ conversationId, selectedModel, agentId }: 
     }
 
     const validMessages = incomingMessages
-      .filter(msg => msg?.role && msg?.content !== undefined)
+      .filter((msg) => msg?.role && msg?.content !== undefined)
       .map((msg, index) => ({
         ...msg,
         id: msg.id || `db-${conversationId}-${index}`,
@@ -285,98 +313,107 @@ export function useChatConversation({ conversationId, selectedModel, agentId }: 
         mcpServerId: pending.mcpServerId,
         skillNames: pending.skillNames,
       });
-      router.replace("/(app)");
+      router.replace('/(app)');
       toast.error(i18n.t('chat.sendFailed'));
     });
-  }, [conversationId, pendingInitialMessage, isLoading, messages.length, append, deleteConversation, router]);
+  }, [
+    conversationId,
+    pendingInitialMessage,
+    isLoading,
+    messages.length,
+    append,
+    deleteConversation,
+    router,
+  ]);
 
   // Actions
-  const sendMessage = useCallback(async (
-    content: string,
-    attachments?: Attachment[],
-    options?: SendOptions,
-  ): Promise<boolean> => {
-    if ((!content.trim() && !attachments?.length) || isLoading) return false;
-    const draft = useComposerDraftStore.getState().address(conversationId ?? null);
+  const sendMessage = useCallback(
+    async (
+      content: string,
+      attachments?: Attachment[],
+      options?: SendOptions,
+    ): Promise<boolean> => {
+      if ((!content.trim() && !attachments?.length) || isLoading) return false;
+      const draft = useComposerDraftStore.getState().address(conversationId ?? null);
 
-    useStore.getState().setBottomChatHeightHandler(true);
+      useStore.getState().setBottomChatHeightHandler(true);
 
-    const built = attachments?.length
-      ? await buildMessageContent(content, attachments)
-      : null;
-    const messageContent = built ? built.content : content;
-    reportDroppedAttachments(built?.dropped);
+      const built = attachments?.length ? await buildMessageContent(content, attachments) : null;
+      const messageContent = built ? built.content : content;
+      reportDroppedAttachments(built?.dropped);
 
-    const outcome = await append(
-      { role: 'user', content: messageContent },
-      options,
-    );
+      const outcome = await append({ role: 'user', content: messageContent }, options);
 
-    // Nothing was persisted server-side (a turn without an assistant response is
-    // never saved), so returning the composer to its pre-send state is the whole
-    // rollback. Only the usage-limit errors end here now; every other failure
-    // is `errored` — the turn stays in the thread with its error and a retry,
-    // and the composer stays clear because the text is already on screen.
-    if (outcome === 'failed') {
-      useComposerDraftStore.getState().restore(draft, {
-        text: content,
-        attachments: attachments ?? [],
-        mcpServerId: options?.mcpServerId ?? null,
-        skillNames: options?.skillNames ?? [],
-      });
-      toast.error(i18n.t('chat.sendFailed'));
-      return false;
-    }
-    // A retry re-sends the built content, whose bytes are inline.
-    releaseAttachments(attachments ?? []);
-    return true;
-  }, [isLoading, append, conversationId]);
-
-  const createNewConversation = useCallback(async (
-    initialMessage: string,
-    attachments?: Attachment[],
-    options?: SendOptions,
-  ): Promise<boolean> => {
-    if (!initialMessage.trim() && !attachments?.length) return false;
-    const draft = useComposerDraftStore.getState().address(null);
-
-    // If there are attachments, build multi-part content and store it as pending.
-    // The raw text and attachments ride along so a failed send can restore them.
-    const pendingAttachments = attachments ?? [];
-    const built = pendingAttachments.length
-      ? await buildMessageContent(initialMessage, pendingAttachments)
-      : null;
-    const content = built ? built.content : initialMessage;
-    reportDroppedAttachments(built?.dropped);
-    useStore.getState().setPendingInitialMessage({
-      content,
-      text: initialMessage,
-      attachments: pendingAttachments,
-      mcpServerId: options?.mcpServerId ?? null,
-      skillNames: options?.skillNames ?? [],
-    });
-
-    try {
-      // Create conversation on backend and get the ID
-      const newConversation = await createConversationMutation.mutateAsync({ agentId });
-
-      // Navigate to the new conversation
-      router.replace({ pathname: "/(app)/c/[id]", params: { id: newConversation.id } });
+      // Nothing was persisted server-side (a turn without an assistant response is
+      // never saved), so returning the composer to its pre-send state is the whole
+      // rollback. Only the usage-limit errors end here now; every other failure
+      // is `errored` — the turn stays in the thread with its error and a retry,
+      // and the composer stays clear because the text is already on screen.
+      if (outcome === 'failed') {
+        useComposerDraftStore.getState().restore(draft, {
+          text: content,
+          attachments: attachments ?? [],
+          mcpServerId: options?.mcpServerId ?? null,
+          skillNames: options?.skillNames ?? [],
+        });
+        toast.error(i18n.t('chat.sendFailed'));
+        return false;
+      }
+      // A retry re-sends the built content, whose bytes are inline.
+      releaseAttachments(attachments ?? []);
       return true;
-    } catch {
-      // useCreateConversation.onError already shows the toast. Drop the queued
-      // message — left behind it auto-fires into the next empty conversation the
-      // user opens — and hand the composer back what it was holding.
-      useStore.getState().clearPendingInitialMessage();
-      useComposerDraftStore.getState().restore(draft, {
+    },
+    [isLoading, append, conversationId],
+  );
+
+  const createNewConversation = useCallback(
+    async (
+      initialMessage: string,
+      attachments?: Attachment[],
+      options?: SendOptions,
+    ): Promise<boolean> => {
+      if (!initialMessage.trim() && !attachments?.length) return false;
+      const draft = useComposerDraftStore.getState().address(null);
+
+      // If there are attachments, build multi-part content and store it as pending.
+      // The raw text and attachments ride along so a failed send can restore them.
+      const pendingAttachments = attachments ?? [];
+      const built = pendingAttachments.length
+        ? await buildMessageContent(initialMessage, pendingAttachments)
+        : null;
+      const content = built ? built.content : initialMessage;
+      reportDroppedAttachments(built?.dropped);
+      useStore.getState().setPendingInitialMessage({
+        content,
         text: initialMessage,
         attachments: pendingAttachments,
         mcpServerId: options?.mcpServerId ?? null,
         skillNames: options?.skillNames ?? [],
       });
-      return false;
-    }
-  }, [router, createConversationMutation, agentId]);
+
+      try {
+        // Create conversation on backend and get the ID
+        const newConversation = await createConversationMutation.mutateAsync({ agentId });
+
+        // Navigate to the new conversation
+        router.replace({ pathname: '/(app)/c/[id]', params: { id: newConversation.id } });
+        return true;
+      } catch {
+        // useCreateConversation.onError already shows the toast. Drop the queued
+        // message — left behind it auto-fires into the next empty conversation the
+        // user opens — and hand the composer back what it was holding.
+        useStore.getState().clearPendingInitialMessage();
+        useComposerDraftStore.getState().restore(draft, {
+          text: initialMessage,
+          attachments: pendingAttachments,
+          mcpServerId: options?.mcpServerId ?? null,
+          skillNames: options?.skillNames ?? [],
+        });
+        return false;
+      }
+    },
+    [router, createConversationMutation, agentId],
+  );
 
   /**
    * Rewrite a user turn: cut the thread back to it and send the new version.
@@ -386,71 +423,78 @@ export function useChatConversation({ conversationId, selectedModel, agentId }: 
    * `EditedContent` — so rewording a question and adding a second picture is
    * one edit, not a lost picture.
    */
-  const editMessage = useCallback(async (
-    messageId: string,
-    newContent: EditedContent,
-    options?: SendOptions,
-    attachments?: Attachment[],
-  ): Promise<boolean> => {
-    // Truncate to messages before the edited one, then re-send.
-    // setMessages eagerly syncs messagesRef so append reads truncated history.
-    const beforeEdit = messages;
-    const draft = useComposerDraftStore.getState().address(conversationId ?? null);
-    const original = messages.find(msg => msg.id === messageId);
-    if (original === undefined) return false;
-    // A string edit keeps the original turn's attachments; only a full parts
-    // array replaces them. See `EditedContent`.
-    let content = mergeEditedContent(original.content, newContent);
-    if (attachments?.length && typeof newContent === 'string') {
-      const built = await buildMessageContent(newContent, attachments);
-      reportDroppedAttachments(built.dropped);
-      const added = typeof built.content === 'string'
-        ? []
-        : built.content.filter((part) => part.type !== 'text');
-      if (added.length > 0) {
-        content = [
-          ...(typeof content === 'string' ? [{ type: 'text', text: content }] : content),
-          ...added,
-        ];
+  const editMessage = useCallback(
+    async (
+      messageId: string,
+      newContent: EditedContent,
+      options?: SendOptions,
+      attachments?: Attachment[],
+    ): Promise<boolean> => {
+      // Truncate to messages before the edited one, then re-send.
+      // setMessages eagerly syncs messagesRef so append reads truncated history.
+      const beforeEdit = messages;
+      const draft = useComposerDraftStore.getState().address(conversationId ?? null);
+      const original = messages.find((msg) => msg.id === messageId);
+      if (original === undefined) return false;
+      // A string edit keeps the original turn's attachments; only a full parts
+      // array replaces them. See `EditedContent`.
+      let content = mergeEditedContent(original.content, newContent);
+      if (attachments?.length && typeof newContent === 'string') {
+        const built = await buildMessageContent(newContent, attachments);
+        reportDroppedAttachments(built.dropped);
+        const added =
+          typeof built.content === 'string'
+            ? []
+            : built.content.filter((part) => part.type !== 'text');
+        if (added.length > 0) {
+          content = [
+            ...(typeof content === 'string' ? [{ type: 'text', text: content }] : content),
+            ...added,
+          ];
+        }
       }
-    }
-    if (isEmptyContent(content)) return false;
+      if (isEmptyContent(content)) return false;
 
-    setMessages(prev => {
-      const idx = prev.findIndex(msg => msg.id === messageId);
-      return idx < 0 ? prev : prev.slice(0, idx);
-    });
-
-    const outcome = await append({ role: 'user', content }, options);
-
-    // append rolls back to the truncated list; only this scope still knows what
-    // was cut, so it restores the rest and returns the edit to the composer.
-    // The original turn — attachments included — comes back with the rest, so
-    // nothing the person attached is orphaned by a send that never happened;
-    // the composer gets the text, and the attachments added while editing.
-    if (outcome === 'failed') {
-      setMessages(beforeEdit);
-      useComposerDraftStore.getState().restore(draft, {
-        text: typeof newContent === 'string' ? newContent : getTextFromContent(content),
-        attachments: attachments ?? [],
-        mcpServerId: options?.mcpServerId ?? null,
-        skillNames: options?.skillNames ?? [],
+      setMessages((prev) => {
+        const idx = prev.findIndex((msg) => msg.id === messageId);
+        return idx < 0 ? prev : prev.slice(0, idx);
       });
-      toast.error(i18n.t('chat.sendFailed'));
-      return false;
-    }
-    releaseAttachments(attachments ?? []);
-    return true;
-  }, [setMessages, append, messages, conversationId]);
+
+      const outcome = await append({ role: 'user', content }, options);
+
+      // append rolls back to the truncated list; only this scope still knows what
+      // was cut, so it restores the rest and returns the edit to the composer.
+      // The original turn — attachments included — comes back with the rest, so
+      // nothing the person attached is orphaned by a send that never happened;
+      // the composer gets the text, and the attachments added while editing.
+      if (outcome === 'failed') {
+        setMessages(beforeEdit);
+        useComposerDraftStore.getState().restore(draft, {
+          text: typeof newContent === 'string' ? newContent : getTextFromContent(content),
+          attachments: attachments ?? [],
+          mcpServerId: options?.mcpServerId ?? null,
+          skillNames: options?.skillNames ?? [],
+        });
+        toast.error(i18n.t('chat.sendFailed'));
+        return false;
+      }
+      releaseAttachments(attachments ?? []);
+      return true;
+    },
+    [setMessages, append, messages, conversationId],
+  );
 
   /** The user turn a reply answers: the nearest one before it, or `undefined`. */
-  const promptOf = useCallback((assistantMessageId: string): Message | undefined => {
-    const idx = messages.findIndex(msg => msg.id === assistantMessageId);
-    for (let i = idx - 1; i >= 0; i--) {
-      if (messages[i].role === 'user') return messages[i];
-    }
-    return undefined;
-  }, [messages]);
+  const promptOf = useCallback(
+    (assistantMessageId: string): Message | undefined => {
+      const idx = messages.findIndex((msg) => msg.id === assistantMessageId);
+      for (let i = idx - 1; i >= 0; i--) {
+        if (messages[i].role === 'user') return messages[i];
+      }
+      return undefined;
+    },
+    [messages],
+  );
 
   /**
    * Ask for this reply again, with the options its prompt was sent with.
@@ -459,22 +503,22 @@ export function useChatConversation({ conversationId, selectedModel, agentId }: 
    * reloaded since): nothing records what it carried, so the caller's current
    * choice — the composer's — is the best there is.
    */
-  const regenerateMessage = useCallback(async (
-    assistantMessageId: string,
-    fallback?: SendOptions,
-  ): Promise<boolean> => {
-    // Regenerating IS re-sending the prompt that produced this answer. Walk back
-    // to the user turn before it and replay that — editMessage already truncates
-    // the history and re-appends, so there is no second path to keep in step.
-    //
-    // The turn goes through WHOLE: a string stays a string and a parts array
-    // keeps its `image_url`/file parts. Reducing it to its text first is what
-    // used to regenerate "what is in this picture" without the picture, and
-    // refuse outright on a prompt that was only a picture.
-    const prompt = promptOf(assistantMessageId);
-    if (prompt === undefined || isEmptyContent(prompt.content)) return false;
-    return editMessage(prompt.id, prompt.content, turnOptionsOf(prompt.id) ?? fallback);
-  }, [promptOf, editMessage, turnOptionsOf]);
+  const regenerateMessage = useCallback(
+    async (assistantMessageId: string, fallback?: SendOptions): Promise<boolean> => {
+      // Regenerating IS re-sending the prompt that produced this answer. Walk back
+      // to the user turn before it and replay that — editMessage already truncates
+      // the history and re-appends, so there is no second path to keep in step.
+      //
+      // The turn goes through WHOLE: a string stays a string and a parts array
+      // keeps its `image_url`/file parts. Reducing it to its text first is what
+      // used to regenerate "what is in this picture" without the picture, and
+      // refuse outright on a prompt that was only a picture.
+      const prompt = promptOf(assistantMessageId);
+      if (prompt === undefined || isEmptyContent(prompt.content)) return false;
+      return editMessage(prompt.id, prompt.content, turnOptionsOf(prompt.id) ?? fallback);
+    },
+    [promptOf, editMessage, turnOptionsOf],
+  );
 
   const stopGeneration = useCallback(() => {
     stop();
@@ -535,7 +579,8 @@ export function useChatConversation({ conversationId, selectedModel, agentId }: 
   }, [isLoading, stop, conversationId, clearMessages, setMessages, clearFailedTurn]);
 
   // True while loading conversation messages (initial fetch or seeded→full upgrade)
-  const conversationLoading = conversationQueryLoading ||
+  const conversationLoading =
+    conversationQueryLoading ||
     (conversationFetching && (!conversation?.messages || conversation.messages.length === 0));
 
   return {

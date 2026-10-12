@@ -1,7 +1,5 @@
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -115,29 +113,17 @@ import { createPlanPreviewTool, type PlanStep } from '../../tools/plan-preview.j
 import { executeSubtasks } from '../executor-pool.js';
 import { shouldOrchestrate } from '../orchestrator.js';
 import type { Subtask } from '../planner-agent.js';
+import { codeOfFile, snippet } from '../../../__tests__/support/source-code.js';
 
 const API_SRC = path.resolve(fileURLToPath(new URL('../../../', import.meta.url)));
 
-/** Source with comments stripped, so a census cannot read this repo's prose. */
+/**
+ * Source in its canonical form (`__tests__/support/source-code.ts`): comments
+ * dropped, so a census cannot read this repo's prose, and layout and quote
+ * style dropped, so the formatter cannot turn an assertion red.
+ */
 function code(relative: string): string {
-  const text = readFileSync(path.join(API_SRC, relative), 'utf8');
-  const source = ts.createSourceFile(relative, text, ts.ScriptTarget.Latest, true);
-  const ranges: [number, number][] = [];
-  const visit = (node: ts.Node): void => {
-    for (const comment of [
-      ...(ts.getLeadingCommentRanges(text, node.getFullStart()) ?? []),
-      ...(ts.getTrailingCommentRanges(text, node.getEnd()) ?? []),
-    ]) {
-      ranges.push([comment.pos, comment.end]);
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(source);
-  let out = text;
-  for (const [start, end] of ranges.sort((a, b) => b[0] - a[0])) {
-    out = out.slice(0, start) + ' '.repeat(end - start) + out.slice(end);
-  }
-  return out;
+  return codeOfFile(path.join(API_SRC, relative));
 }
 
 beforeEach(() => {
@@ -208,8 +194,10 @@ describe('the in-chat planner reaches the client (#139 ws6)', () => {
     // Registration and the event name in one match, because they are one fact:
     // a `planPreview` wired to a different event name is not this feature, and
     // the two clients that render it bind on the name.
-    expect(pipeline).toMatch(
-      /aliaTools\.planPreview = createPlanPreviewTool\(\(steps\) => \{\s*sseEmitter\.emit\('alia\.plan_preview'/,
+    expect(pipeline).toContain(
+      snippet(
+        "aliaTools.planPreview = createPlanPreviewTool((steps) => { sseEmitter.emit('alia.plan_preview'",
+      ),
     );
 
     /**
@@ -227,8 +215,8 @@ describe('the in-chat planner reaches the client (#139 ws6)', () => {
      * is the source-level half, and it exists for the EVENT NAME above, which
      * no behavioural test can see.
      */
-    const guardAt = pipeline.indexOf('if (sseEmitter && isDirectSession) {');
-    const planAt = pipeline.indexOf('aliaTools.planPreview =');
+    const guardAt = pipeline.indexOf(snippet('if (sseEmitter && isDirectSession) {'));
+    const planAt = pipeline.indexOf(snippet('aliaTools.planPreview ='));
     expect(guardAt).toBeGreaterThan(-1);
     expect(planAt).toBeGreaterThan(guardAt);
   });
@@ -238,8 +226,14 @@ describe('the in-chat planner reaches the client (#139 ws6)', () => {
     // emitter argument the pipeline's `if (sseEmitter)` is simply false and the
     // tool silently stops being offered — no error anywhere.
     const route = code('routes/v1/chat-completions.ts');
-    expect(route).toContain('const sseEmitter = createResponseSSEEmitter(res, sse.ensureHeaders);');
-    expect(route).toMatch(/ToolPipeline\.forUser\(\{[\s\S]{0,600}?sseEmitter,[\s\S]{0,200}?\}\)/);
+    expect(route).toContain(
+      snippet('const sseEmitter = createResponseSSEEmitter(res, sse.ensureHeaders);'),
+    );
+    // `sseEmitter` as a property of the call's own argument: shorthand, between
+    // two other properties or last (where the canonical form has no comma).
+    expect(route).toMatch(
+      /ToolPipeline\.forUser\(\{(?:[^;]{0,400}?,)?sseEmitter[,}][^;]{0,150}?\}\)/,
+    );
 
     // The floor: this really is the handler both chat surfaces run
     // (`routes/__tests__/unified-product-runtime.test.ts` pins the identity).
@@ -413,19 +407,21 @@ describe('orchestration is gated, and the gate is the plan (#139 ws6)', () => {
     // every assertion above would keep passing and no session would ever plan.
     const runner = code('lib/agent/runner.ts');
     expect(runner).toContain('export async function runAgentSession');
-    expect(runner).toMatch(
-      /if \(!resuming && !session\.automationRunId && shouldOrchestrate\(session\.task, session\.depth\)\) \{/,
+    expect(runner).toContain(
+      snippet(
+        'if (!resuming && !session.automationRunId && shouldOrchestrate(session.task, session.depth)) {',
+      ),
     );
-    expect(runner).toMatch(/await orchestrate\(\{/);
+    expect(runner).toContain(snippet('await orchestrate({'));
 
     const orchestrator = code('lib/agent/orchestrator.ts');
     expect(orchestrator).toContain('export async function orchestrate');
-    expect(orchestrator).toMatch(/const plan = await generatePlan\(opts\.task, \{/);
+    expect(orchestrator).toContain(snippet('const plan = await generatePlan(opts.task, {'));
     // The plan is announced to the session's event stream, which is what
     // `routes/audit.ts` later exports and the agent UI renders live.
-    expect(orchestrator).toContain("opts.eventStream.append('plan_update'");
+    expect(orchestrator).toContain(snippet("opts.eventStream.append('plan_update'"));
     // And the plan's subtasks are what gets executed — not a second list built
     // somewhere else, which is the way this coupling would rot quietly.
-    expect(orchestrator).toMatch(/executeSubtasks\(plan\.subtasks, \{/);
+    expect(orchestrator).toContain(snippet('executeSubtasks(plan.subtasks, {'));
   });
 });

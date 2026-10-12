@@ -74,6 +74,7 @@ vi.mock('../gateway-client.js', () => ({
 }));
 
 import { getUserEntitlements, invalidateEntitlementsCache } from '../plan-access.js';
+import { codeOfFile, snippet } from '../../__tests__/support/source-code.js';
 
 const API_SRC = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
@@ -470,9 +471,10 @@ describe('the product runtime still runs the check (#139 ws6)', () => {
   it('prefetches entitlements and gates no model on the plan', () => {
     // Plans differ only by credits (ADR 0012). The prefetch still runs — the
     // usage window and plan features read it — but no model is refused on it.
-    const context = code('lib/chat/request-context.ts');
-    expect(context).toContain('export async function buildChatRequestContext');
-    expect(context).toMatch(/req\.user\s*\?\s*getUserEntitlements\(req\.user\.id\)/);
+    // Canonical form (`__tests__/support/source-code.ts`): layout-independent.
+    const context = codeOfFile(path.join(API_SRC, 'lib/chat/request-context.ts'));
+    expect(context).toContain(snippet('export async function buildChatRequestContext'));
+    expect(context).toContain(snippet('req.user ? getUserEntitlements(req.user.id)'));
     expect(context).not.toContain('allowedModelIds');
     expect(context).not.toContain('MODEL_NOT_IN_PLAN');
   });
@@ -481,11 +483,11 @@ describe('the product runtime still runs the check (#139 ws6)', () => {
     // The floor for the file above: it is what `handleChatCompletions` calls,
     // and that handler is the one object behind `/v1/chat/completions` and
     // `/alia/chat` (`routes/__tests__/unified-product-runtime.test.ts`).
-    const route = code('routes/v1/chat-completions.ts');
-    expect(route).toContain('export const handleChatCompletions');
-    expect(route).toMatch(
-      /const ctx = await buildChatRequestContext\(req, res, sse, globalTimer, requestId\);/,
+    const route = codeOfFile(path.join(API_SRC, 'routes/v1/chat-completions.ts'));
+    expect(route).toContain(snippet('export const handleChatCompletions'));
+    expect(route).toContain(
+      snippet('const ctx = await buildChatRequestContext(req, res, sse, globalTimer, requestId);'),
     );
-    expect(route).toMatch(/if \(!ctx\) return;/);
+    expect(route).toContain(snippet('if (!ctx) return;'));
   });
 });

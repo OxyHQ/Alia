@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
+import { codeOfFile, snippet } from '../../__tests__/support/source-code.js';
 
 /**
  * Alia's own inbound boundary — epic #139 workstream 15, *"Service security"*.
@@ -42,6 +43,13 @@ const API_SRC = path.join(REPO_ROOT, 'packages/api/src');
 const SELF = path.relative(REPO_ROOT, fileURLToPath(import.meta.url));
 
 const read = (relative: string): string => readFileSync(path.join(API_SRC, relative), 'utf8');
+
+/**
+ * Source in its canonical form (`__tests__/support/source-code.ts`), for the
+ * files the formatter is free to re-wrap: comments, layout and quote style
+ * dropped, so an assertion holds however the call is laid out.
+ */
+const canonical = (relative: string): string => codeOfFile(path.join(API_SRC, relative));
 
 /** Source with comments stripped, so a census cannot read this repo's prose. */
 function code(relative: string): string {
@@ -296,7 +304,7 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
   const PROTECTION: Readonly<Record<string, () => void>> = {
     'routes/chat.ts': () => {
       // Mounted on the route itself, because `/alia/chat` is one POST.
-      const chat = code('routes/chat.ts');
+      const chat = canonical('routes/chat.ts');
       expect(chat).toContain('apiKeyRateLimit');
       expect(chat).toMatch(/router\.post\('\/',[^)]*apiKeyRateLimit[^)]*handleChatCompletions\)/);
     },
@@ -358,7 +366,7 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
      * and unmetered inference on this surface. Reverting the middleware puts the
      * hole straight back, which is what this asserts.
      */
-    const chat = code('routes/chat.ts');
+    const chat = canonical('routes/chat.ts');
     expect(chat).toContain('authenticateTokenOrApiKey');
     expect(chat).not.toMatch(/router\.post\([^)]*optionalAuth/);
     expect(code('routes/v1.ts')).toContain('router.use(authenticateTokenOrApiKey)');
@@ -366,10 +374,12 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
     // Both halves of what authentication is now protecting, read at the code
     // that produces each. The limiter's last keyed branch is the signed-in user;
     // below it the function falls through to a bare `next()`.
-    const context = code('lib/chat/request-context.ts');
-    expect(context).toContain('const creditAccountId = req.user?.id;');
-    expect(context).toContain(
-      '(creditAccountId !== undefined && !req.serviceApp && localRuntime === null) ?',
+    const context = canonical('lib/chat/request-context.ts');
+    expect(context).toContain(snippet('const creditAccountId = req.user?.id;'));
+    // Parenthesised or not: the formatter drops redundant parentheses, and the
+    // conjunction is the same either way.
+    expect(context).toMatch(
+      /creditAccountId!==undefined&&!req\.serviceApp&&localRuntime===null\)?\?/,
     );
 
     /**
@@ -380,7 +390,7 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
      * `userRuntimeCanServe` is never consulted for a request that has none.
      */
     expect(context).toContain(
-      'if (owner === undefined || !(await userRuntimeCanServe(owner, localRuntime)))',
+      snippet('if (owner === undefined || !(await userRuntimeCanServe(owner, localRuntime)))'),
     );
 
     const limiter = code('middleware/api-key-rate-limit.ts');

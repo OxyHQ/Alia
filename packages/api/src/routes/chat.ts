@@ -38,7 +38,13 @@ const router = Router();
  * who were not authenticating, which is the same set as callers whose usage
  * was attributed to nobody and whose conversations were never persisted.
  */
-router.post('/', authenticateTokenOrApiKey, authenticateRequesterAssertion, apiKeyRateLimit, handleChatCompletions);
+router.post(
+  '/',
+  authenticateTokenOrApiKey,
+  authenticateRequesterAssertion,
+  apiKeyRateLimit,
+  handleChatCompletions,
+);
 
 /**
  * The status banner stays public.
