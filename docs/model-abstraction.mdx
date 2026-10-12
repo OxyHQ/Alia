@@ -161,7 +161,13 @@ The selection rules are pure functions over the catalogue and usage data
 - **Utility model** — titles, summaries, compaction, suggestions, soul, style
   refinement, planner, verifier and other internal calls use the cheapest
   stable chat-usable model with a context window of at least 32k tokens.
-- **Speech model** — the cheapest catalogue model with audio output.
+- **Speech model** — the cheapest catalogue model that answers `/v1/audio/speech` —
+  text in, audio out, `audio_speech` among its declared formats when Oxy
+  declares any, and no realtime sessions — ranked by its per-character price
+  (speech is billed by the characters it reads, not by tokens); ties and
+  unpriced models break on the id. An audio chat model or a realtime voice
+  model also produces audio but cannot answer a speech request, so neither is
+  chosen.
 
 Stored choices hold a power level, a real model id or `NULL`:
 `agents.model_id`, `agent_threads.model_id`, a bot's default/preferred model and

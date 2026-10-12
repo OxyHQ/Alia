@@ -84,6 +84,8 @@ describe('normalizeCatalogueEntry', () => {
       reasoningEfforts: [],
       pricing: { inputPerMTok: '0.15', outputPerMTok: '0.6', priceVersionId: 'pv-1' },
       releasedAt: '2026-01-01',
+      holdsSessions: false,
+      characterPricePerM: null,
     });
     expect(JSON.stringify(model)).not.toContain('some-operator');
   });
@@ -155,11 +157,58 @@ describe('capability filters', () => {
     expect(isChatUsable({ ...chat, inputModalities: ['audio'] })).toBe(false);
   });
 
-  it('a speech model gives audio out', () => {
+  it('a speech model takes text and gives audio, through the speech format', () => {
     const chat = normalizeCatalogueEntry(oxyEntry());
     if (chat === null) throw new Error('Missing normalized catalogue fixture');
     expect(isSpeechCapable(chat)).toBe(false);
     expect(isSpeechCapable({ ...chat, outputModalities: ['audio'] })).toBe(true);
+    expect(
+      isSpeechCapable({ ...chat, outputModalities: ['audio'], apiFormats: ['audio_speech'] }),
+    ).toBe(true);
+    expect(
+      isSpeechCapable({
+        ...chat,
+        outputModalities: ['audio', 'text'],
+        apiFormats: ['chat_completions'],
+      }),
+    ).toBe(false);
+    expect(
+      isSpeechCapable({
+        ...chat,
+        inputModalities: ['audio', 'text'],
+        outputModalities: ['audio', 'text'],
+        holdsSessions: true,
+      }),
+    ).toBe(false);
+    expect(
+      isSpeechCapable({ ...chat, inputModalities: ['audio'], outputModalities: ['audio'] }),
+    ).toBe(false);
+  });
+
+  it('reads the per-character price, the declared formats and sessions from the entry', () => {
+    const speech = normalizeCatalogueEntry(
+      oxyEntry(
+        {
+          pricing: {
+            unitPrices: [
+              { unit: 'characters', amount: '15.00', per: 1_000_000 },
+              { unit: 'requests', amount: '0', per: 1 },
+            ],
+          },
+        },
+        { outputModalities: ['audio'], apiFormats: ['audio_speech'] },
+      ),
+    );
+    expect(speech?.characterPricePerM).toBe('15');
+    expect(speech?.pricing).toBeNull();
+    expect(speech?.apiFormats).toEqual(['audio_speech']);
+    expect(speech?.holdsSessions).toBe(false);
+    const voice = normalizeCatalogueEntry(
+      oxyEntry({}, { realtime: { transports: ['websocket'], sessionKinds: ['conversation'] } }),
+    );
+    expect(voice?.holdsSessions).toBe(true);
+    expect(voice?.apiFormats).toBeUndefined();
+    expect(normalizeCatalogueEntry(oxyEntry())?.characterPricePerM).toBeNull();
   });
 
   it('keeps the first entry per id, sorted by id', () => {

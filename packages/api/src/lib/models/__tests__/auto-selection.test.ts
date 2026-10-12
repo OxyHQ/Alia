@@ -148,23 +148,62 @@ describe('selectUtilityModelId', () => {
 });
 
 describe('selectSpeechModelId', () => {
-  it('is the cheapest model with audio output', () => {
+  const speech = (id: string, perMChar: string | null, overrides: Partial<CatalogueModel> = {}) =>
+    model(id, {
+      outputModalities: ['audio'],
+      tools: false,
+      pricing: null,
+      characterPricePerM: perMChar,
+      ...overrides,
+    });
+
+  it('is the cheapest speech model by its per-character price', () => {
     expect(
       selectSpeechModelId([
         model('a/chat'),
-        model('b/voice-dear', {
-          outputModalities: ['audio'],
-          tools: false,
-          pricing: { inputPerMTok: '5', outputPerMTok: '5' },
-        }),
-        model('c/voice-cheap', {
-          outputModalities: ['audio'],
-          tools: false,
-          pricing: { inputPerMTok: '1', outputPerMTok: '1' },
-        }),
+        speech('b/voice-dear', '80'),
+        speech('c/voice-cheap', '15'),
+        speech('d/voice-unpriced', null),
       ]),
     ).toBe('c/voice-cheap');
     expect(selectSpeechModelId([model('a/chat')])).toBeNull();
+  });
+
+  it('does not rank speech by a token price it is not billed by', () => {
+    // A token price on a speech model must not beat a character-priced one.
+    expect(
+      selectSpeechModelId([
+        speech('a/voice-tokens', null, { pricing: { inputPerMTok: '0.1', outputPerMTok: '0.1' } }),
+        speech('z/voice-chars', '40'),
+      ]),
+    ).toBe('z/voice-chars');
+  });
+
+  it('never picks an audio model that cannot answer a speech request', () => {
+    expect(
+      selectSpeechModelId([
+        // Audio chat: declares chat_completions only.
+        speech('a/audio-chat', '1', {
+          inputModalities: ['audio', 'text'],
+          outputModalities: ['audio', 'text'],
+          apiFormats: ['chat_completions'],
+        }),
+        // Realtime voice: holds sessions.
+        speech('b/realtime-voice', '1', {
+          inputModalities: ['audio', 'text'],
+          outputModalities: ['audio', 'text'],
+          holdsSessions: true,
+        }),
+        // Speech-to-speech: no text in.
+        speech('c/voice-changer', '1', { inputModalities: ['audio'] }),
+        speech('x/text-to-speech', '15'),
+        speech('y/declared-speech', '40', { apiFormats: ['audio_speech'] }),
+      ]),
+    ).toBe('x/text-to-speech');
+  });
+
+  it('breaks a price tie on the id', () => {
+    expect(selectSpeechModelId([speech('b/voice', '40'), speech('a/voice', '40')])).toBe('a/voice');
   });
 });
 

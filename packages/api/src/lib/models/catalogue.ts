@@ -48,6 +48,19 @@ export interface CatalogueModel {
   readonly pricing: ModelPricing | null;
   /** ISO date the publisher released it, when Oxy knows. */
   readonly releasedAt: string | null;
+  /**
+   * The request dialects Oxy says a route to this model executes
+   * (`capabilities.apiFormats`). Absent means undeclared — an older catalogue
+   * entry — never "every format".
+   */
+  readonly apiFormats?: readonly string[];
+  /** Whether the model holds realtime sessions (`capabilities.realtime`). */
+  readonly holdsSessions?: boolean;
+  /**
+   * USD per million input characters, as an exact decimal string, when Oxy
+   * prices the model by `characters` — how speech synthesis is priced.
+   */
+  readonly characterPricePerM?: string | null;
 }
 
 /** How long a fetched catalogue is served before Oxy is asked again. */
@@ -104,6 +117,19 @@ export function scaleToPerMillion(amount: string, per: number): string | null {
   }
   const scaled = Number(amount) * factor;
   return Number.isFinite(scaled) ? String(Number(scaled.toPrecision(12))) : null;
+}
+
+/** `characters` scaled to per-million, or null when the model is not priced by character. */
+function characterPriceOf(raw: unknown): string | null {
+  const pricing = record(raw);
+  if (pricing === null || !Array.isArray(pricing.unitPrices)) return null;
+  for (const entry of pricing.unitPrices as unknown[]) {
+    const price = record(entry);
+    if (price === null || price.unit !== 'characters') continue;
+    if (typeof price.amount !== 'string' || typeof price.per !== 'number') continue;
+    return scaleToPerMillion(price.amount, price.per);
+  }
+  return null;
 }
 
 function pricingOf(raw: unknown): ModelPricing | null {
@@ -181,6 +207,11 @@ export function normalizeCatalogueEntry(raw: unknown): CatalogueModel | null {
     reasoningEfforts: reasoningEffortsOf(entry, capabilities),
     pricing: pricingOf(entry.pricing),
     releasedAt: text(entry.releasedAt) ?? text(entry.releasedOn),
+    ...(Array.isArray(capabilities?.apiFormats)
+      ? { apiFormats: stringList(capabilities.apiFormats) }
+      : {}),
+    holdsSessions: record(capabilities?.realtime) !== null,
+    characterPricePerM: characterPriceOf(entry.pricing),
   };
 }
 
@@ -207,9 +238,18 @@ export function isStableRelease(model: CatalogueModel): boolean {
   return !PRE_RELEASE.test(model.id) && !PRE_RELEASE.test(model.name);
 }
 
-/** A model that can speak: audio out. */
+/**
+ * A model that can read text aloud through `/v1/audio/speech`: text in, audio
+ * out, and — where Oxy declares the formats a route executes — `audio_speech`
+ * among them. A conversational audio model (it declares `chat_completions`)
+ * and a realtime voice model (it holds sessions) also produce audio, but
+ * neither answers a speech request; Oxy refuses both, so neither is offered.
+ */
 export function isSpeechCapable(model: CatalogueModel): boolean {
-  return model.outputModalities.includes('audio');
+  if (!model.inputModalities.includes('text') || !model.outputModalities.includes('audio'))
+    return false;
+  if (model.holdsSessions === true) return false;
+  return model.apiFormats === undefined || model.apiFormats.includes('audio_speech');
 }
 
 /** Normalize a whole listing, keeping the first entry per id. */

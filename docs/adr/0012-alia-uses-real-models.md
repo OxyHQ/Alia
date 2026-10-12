@@ -85,7 +85,13 @@ provider retires disappears from Alia on the next refresh without a deploy.
 - **Utility model** (titles, summaries, compaction, suggestions, soul, style refinement,
   planner, verifier and similar internal calls): the cheapest stable chat-usable model
   with a context window of at least 32k tokens.
-- **Speech model:** the cheapest catalogue model with audio output.
+- **Speech model:** the cheapest catalogue model that answers `/v1/audio/speech` —
+  text in, audio out, `audio_speech` among its declared formats when Oxy
+  declares any, and no realtime sessions — ranked by its per-character price
+  (speech is billed by the characters it reads, not by tokens); ties and
+  unpriced models break on the id. An audio chat model or a realtime voice
+  model also produces audio but cannot answer a speech request, so neither is
+  chosen.
 
 No model id appears in code, in environment variables or in a curated list. A persisted
 choice (an agent's or thread's `model_id`, a bot's preferred model, a canvas node's model)

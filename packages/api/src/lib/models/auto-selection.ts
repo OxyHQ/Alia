@@ -179,7 +179,26 @@ export function selectUtilityModelId(models: readonly CatalogueModel[]): string 
   return [...pool].sort(byPriceThenId)[0]?.id ?? null;
 }
 
-/** The cheapest model that produces audio, for spoken answers. */
+/**
+ * Per-million-character price, or `Infinity` when unpriced: speech is priced
+ * by the characters it reads, not by tokens, so the token blend says nothing
+ * about it.
+ */
+function characterPrice(model: CatalogueModel): number {
+  const price = Number(model.characterPricePerM ?? Number.NaN);
+  return Number.isFinite(price) ? price : Number.POSITIVE_INFINITY;
+}
+
+/**
+ * The cheapest speech model by its published per-character price, for spoken
+ * answers; ties, and unpriced models, break on the id.
+ */
 export function selectSpeechModelId(models: readonly CatalogueModel[]): string | null {
-  return [...models.filter(isSpeechCapable)].sort(byPriceThenId)[0]?.id ?? null;
+  return (
+    [...models.filter(isSpeechCapable)].sort((a, b) => {
+      const delta = characterPrice(a) - characterPrice(b);
+      if (delta !== 0 && !Number.isNaN(delta)) return delta < 0 ? -1 : 1;
+      return a.id.localeCompare(b.id);
+    })[0]?.id ?? null
+  );
 }
