@@ -20,10 +20,14 @@ set -euo pipefail
 PORT="${PORT:-3001}"
 NAME="alia-api-smoke-$$"
 
-# Placeholder Oxy credentials: the boot guard requires the variables, nothing
-# here authenticates. api.oxy.so is pinned to loopback so no background service
-# in the container talks to the real Oxy with them.
-RUN_ARGS=(
+# One-shots get the database and nothing else, exactly as the deploy's task
+# overrides do. The seeder's comped-accounts step resolves a public Oxy username
+# (unauthenticated) at api.oxy.so, as it does in production.
+ONE_SHOT_ARGS=(--network host -e DATABASE_URL)
+# The server needs the Oxy variables only because the boot guard requires them:
+# nothing here authenticates. api.oxy.so is pinned to loopback for the server
+# so no background service talks to the real Oxy with placeholder credentials.
+SERVER_ARGS=(
   --network host
   --add-host api.oxy.so:127.0.0.1
   -e DATABASE_URL
@@ -51,14 +55,14 @@ echo "Refused boot exited $refused."
 
 # 2. Migrations and the seeder, as the deploy runs them.
 for phase in all pre post; do
-  docker run --rm "${RUN_ARGS[@]}" "$IMAGE" \
+  docker run --rm "${ONE_SHOT_ARGS[@]}" "$IMAGE" \
     bun packages/api/dist/db/migrate.js --target-database=alia --phase="$phase"
 done
-docker run --rm "${RUN_ARGS[@]}" "$IMAGE" /bin/sh -c \
+docker run --rm "${ONE_SHOT_ARGS[@]}" "$IMAGE" /bin/sh -c \
   'bun packages/api/dist/db/migrate.js --target-database=alia --phase=post && bun packages/api/dist/scripts/seed.js --target-database=alia'
 
 # 3. The server, from the image's own CMD.
-docker run -d --name "$NAME" "${RUN_ARGS[@]}" "$IMAGE" >/dev/null
+docker run -d --name "$NAME" "${SERVER_ARGS[@]}" "$IMAGE" >/dev/null
 
 ready=
 for _ in $(seq 1 60); do

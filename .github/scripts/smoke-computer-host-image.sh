@@ -5,7 +5,7 @@
 # dropped, no-new-privileges, 256 pids, 512 MB — against a throwaway Postgres,
 # and fail unless the image's runtime (Bun as PID 1, the image's own CMD) can:
 #   1. refuse a production boot without DATABASE_URL with a NON-ZERO exit,
-#   2. create its store and answer /health with 200 and the ops drain on 8081,
+#   2. create its store and answer /health with 200 and the ops drain on 8081
 #      with no Docker socket mounted (the browser reset's `docker` call fails
 #      and is logged, which is the spawn path working, not the engine),
 #   3. run as Bun at PID 1, so the unit's `docker stop` SIGTERM reaches it,
@@ -64,7 +64,10 @@ if [ -z "$ready" ]; then
   echo "::error::the computer-host image never answered /health"
   exit 1
 fi
-drain=$(curl -fsS --max-time 10 -X POST http://127.0.0.1:8081/idle/drain)
+# No Docker socket is mounted, so the drain cannot inspect the engine and
+# answers 503 `{"data":{"stop":false}}` — "any doubt is do not stop", which is
+# the contract. What is asserted is that the ops listener answers it.
+drain=$(curl -sS --max-time 10 -X POST http://127.0.0.1:8081/idle/drain)
 if ! jq -e '.data.stop | type == "boolean"' <<<"$drain" >/dev/null; then
   echo "::error::the ops drain answered '$drain'"
   exit 1
