@@ -38,6 +38,11 @@ on:
       - 'bun.lock'
       - '.github/workflows/deploy-integrations.yml'
       - '.github/scripts/deploy-ecs-image.sh'
+      # The reviewed-image gate's inputs: the root ignore file is hashed into
+      # the pin, and a re-pin or a gate change must reach the guard here.
+      - '.dockerignore'
+      - '.github/scripts/reviewed-images.json'
+      - '.github/scripts/reviewed-image.py'
   workflow_dispatch:
 
 permissions:
@@ -138,6 +143,7 @@ jobs:
           CONTEXT: ${{ steps.reviewed.outputs.context }}
           SOURCE_TREE: ${{ steps.reviewed.outputs.source_tree }}
           BUILD_INPUTS_SHA256: ${{ steps.reviewed.outputs.build_inputs_sha256 }}
+          TARGET: ${{ steps.reviewed.outputs.target }}
         run: |
           IMG=$ECR_REGISTRY/oxy/$APP
           # Keep the provenance-bearing OCI index under both tags, but deploy
@@ -147,6 +153,7 @@ jobs:
           docker buildx build \
             --platform linux/arm64 \
             -f "$DOCKERFILE" \
+            ${TARGET:+--target "$TARGET"} \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
             --label "io.oxy.source.tree=$SOURCE_TREE" \

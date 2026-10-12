@@ -130,6 +130,7 @@ jobs:
           CONTEXT: ${{ steps.reviewed.outputs.context }}
           SOURCE_TREE: ${{ steps.reviewed.outputs.source_tree }}
           BUILD_INPUTS_SHA256: ${{ steps.reviewed.outputs.build_inputs_sha256 }}
+          TARGET: ${{ steps.reviewed.outputs.target }}
         run: |
           IMG=$ECR_REGISTRY/oxy/$APP
           # Buildx publishes an OCI index so the tag retains provenance and its
@@ -143,6 +144,7 @@ jobs:
             --cache-from type=gha,scope=$APP \
             --cache-to type=gha,scope=$APP,mode=max,ignore-error=true \
             -f "$DOCKERFILE" \
+            ${TARGET:+--target "$TARGET"} \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
             --label "io.oxy.source.tree=$SOURCE_TREE" \
