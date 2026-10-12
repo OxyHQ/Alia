@@ -298,7 +298,6 @@
         "bullmq": "^5.80.2",
         "cors": "^2.8.6",
         "cron-parser": "4.9.0",
-        "dotenv": "^16.6.1",
         "drizzle-orm": "0.45.2",
         "esbuild": "^0.28.1",
         "expo-server-sdk": "^6.1.0",
