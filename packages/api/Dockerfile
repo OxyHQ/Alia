@@ -42,12 +42,16 @@
 # They must always name the runtime this image ships;
 # `src/__tests__/dockerfileRuntime.test.ts` holds them together.
 
-# Bun version pinned to "packageManager" in the root package.json for
-# reproducible installs across build hosts / architectures.
-ARG BUN_VERSION=1.4.3
+# Base image: oven/bun 1.4.3 (the root package.json's "packageManager"), slim.
+# The DIGEST is what the build pulls; the tag is only for readers, and BuildKit
+# ignores it when a digest is present. Both stages name the same reference, so
+# the runtime is the exact Bun and libc the dependencies were installed with.
+# A Bun bump needs the new tag's multi-arch index digest (linux/arm64 included)
+# in BOTH lines, then a re-pin of `alia` in .github/scripts/reviewed-images.json,
+# which is the owner's review of the new base.
 
 # --- Stage 1: Install dependencies and build the API bundle ---
-FROM oven/bun:${BUN_VERSION}-slim AS builder
+FROM oven/bun:1.4.3-slim@sha256:14a223fa35747ec728bce300ef85888bc5f7958164d15bbba6a54b22b52a3288 AS builder
 
 WORKDIR /build
 
@@ -105,7 +109,7 @@ RUN cd packages/api && bun run build
 # --- Stage 2: Production runtime ---
 # The builder's own image: the runtime is the exact Bun and libc the dependency
 # tree (ffmpeg-static's binary included) was installed against.
-FROM oven/bun:${BUN_VERSION}-slim AS runtime
+FROM oven/bun:1.4.3-slim@sha256:14a223fa35747ec728bce300ef85888bc5f7958164d15bbba6a54b22b52a3288 AS runtime
 
 # Runtime system libraries:
 # - ca-certificates: outbound TLS (Redis TLS, Stripe, S3, Kaana and Oxy services).

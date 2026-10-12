@@ -4,24 +4,31 @@
 # Unified service: messaging gateways + bots + browser + terminal
 # Includes: Node.js, Chromium (Playwright), Java 21 (Temurin), signal-cli
 
+# Base images are pinned by DIGEST: the digest is what the build pulls, and the
+# tag is only for readers (BuildKit ignores it when a digest is present). A bump
+# needs the new tag's multi-arch index digest (linux/arm64 included), then a
+# re-pin of `alia-integrations` in .github/scripts/reviewed-images.json, which is
+# the owner's review of the new base. `node:22-bookworm-slim` appears twice
+# (toolchain and runtime) and both must move together: native modules are built
+# in one and loaded in the other.
+
+# Bun 1.4.3 (the root package.json's "packageManager"), from the official image
+# by digest. A named stage, so scripts/check-bun-pin.mjs reads its tag and holds
+# it to the pin; the toolchain below copies only the binary out of it.
+FROM oven/bun:1.4.3-slim@sha256:14a223fa35747ec728bce300ef85888bc5f7958164d15bbba6a54b22b52a3288 AS bun
+
 # --- Toolchain: bun + the compilers native modules (node-pty) build with ---
-# The bun the root package.json pins in `packageManager`. Without a version the
-# install script fetches whatever bun is newest on the day the image builds,
-# which is not the bun that wrote bun.lock or the one CI tests with;
-# scripts/check-bun-pin.mjs holds this default to the pin.
-ARG BUN_VERSION=1.4.3
+FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS toolchain
 
-FROM node:22-bookworm-slim AS toolchain
-ARG BUN_VERSION
-
-# Install build tools for native modules (node-pty requires python3 + make + g++) and Bun
+# Install build tools for native modules (node-pty requires python3 + make + g++).
 RUN apt-get update && \
     apt-get install -y --no-install-recommends python3 make g++ ca-certificates curl unzip git && \
-    curl -fsSL https://bun.com/install -o /tmp/install-bun.sh && \
-    bash /tmp/install-bun.sh "bun-v${BUN_VERSION}" && \
-    ln -s /root/.bun/bin/bun /usr/local/bin/bun && \
-    rm /tmp/install-bun.sh && \
     rm -rf /var/lib/apt/lists/*
+
+# Bun, from the `bun` stage above rather than `curl https://bun.com/install |
+# bash`, which installed whatever release was latest on the day of the build.
+# Bun is used only to install and build here; it never reaches the runtime.
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 
 # Rewrite git+ssh:// to git+https:// so cloning works without SSH keys
 RUN git config --global url."https://github.com/".insteadOf "git@github.com:" && \
@@ -106,24 +113,26 @@ RUN cd "$(dirname "$(node -p "require.resolve('node-pty/package.json', { paths: 
 # points to), pinned to the libsignal version the jar is, and needs glibc 2.30.
 # LIBSIGNAL_VERSION must follow SIGNAL_CLI_VERSION: the jar path below fails the
 # build if they drift.
+#
+# The checksums are literals in the RUN, not build args, so a `--build-arg`
+# cannot swap what is verified: overriding a version ARG alone fails the check.
+# A version bump edits its checksum below and re-pins `alia-integrations`.
 FROM toolchain AS signal-cli
 
 ARG TARGETARCH
 ARG TEMURIN_TAG=jdk-21.0.12.1+1
 ARG TEMURIN_VERSION=21.0.12.1_1
-ARG TEMURIN_SHA256_ARM64=14be1f35ebdbd1f6e8d57eb911a3ffb74d6d9aa255abc5daf2b1302002cf2cf2
-ARG TEMURIN_SHA256_AMD64=2413149700df0f7d440500a84a8f764c535f21e5a5e87d38328b64eec2c5b500
 ARG SIGNAL_CLI_VERSION=0.13.24
-ARG SIGNAL_CLI_SHA256=5e0e37a662e2e64f87e7c5183a1b73628823b89590707c54e48b084be65dd43f
 ARG LIBSIGNAL_VERSION=0.87.0
-ARG LIBSIGNAL_SHA256_ARM64=25df41f49e90b803492de25b18c6c006fc488bd55891537beafd87bd234e2f00
 
 COPY packages/integrations/docker/libsignal-jar.py /tmp/libsignal-jar.py
 
 RUN set -eu; \
+    signal_cli_sha=5e0e37a662e2e64f87e7c5183a1b73628823b89590707c54e48b084be65dd43f; \
+    libsignal_sha_arm64=25df41f49e90b803492de25b18c6c006fc488bd55891537beafd87bd234e2f00; \
     case "$TARGETARCH" in \
-      arm64) jdk_arch=aarch64; java_arch=aarch64; jdk_sha="$TEMURIN_SHA256_ARM64" ;; \
-      amd64) jdk_arch=x64; java_arch=amd64; jdk_sha="$TEMURIN_SHA256_AMD64" ;; \
+      arm64) jdk_arch=aarch64; java_arch=aarch64; jdk_sha=14be1f35ebdbd1f6e8d57eb911a3ffb74d6d9aa255abc5daf2b1302002cf2cf2 ;; \
+      amd64) jdk_arch=x64; java_arch=amd64; jdk_sha=2413149700df0f7d440500a84a8f764c535f21e5a5e87d38328b64eec2c5b500 ;; \
       *) echo "unsupported TARGETARCH=$TARGETARCH" >&2; exit 1 ;; \
     esac; \
     tag="$(printf %s "$TEMURIN_TAG" | sed 's/+/%2B/')"; \
@@ -132,14 +141,14 @@ RUN set -eu; \
     mkdir -p /opt/java/openjdk; \
     tar xzf /tmp/jre.tar.gz -C /opt/java/openjdk --strip-components=1; \
     curl -fsSL -o /tmp/signal-cli.tar.gz "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz"; \
-    echo "${SIGNAL_CLI_SHA256}  /tmp/signal-cli.tar.gz" | sha256sum -c -; \
+    echo "${signal_cli_sha}  /tmp/signal-cli.tar.gz" | sha256sum -c -; \
     mkdir -p /opt/signal-cli; \
     tar xzf /tmp/signal-cli.tar.gz -C /opt/signal-cli --strip-components=1; \
     jar="/opt/signal-cli/lib/libsignal-client-${LIBSIGNAL_VERSION}.jar"; \
     test -f "$jar" || { echo "signal-cli ${SIGNAL_CLI_VERSION} does not ship $jar; bump LIBSIGNAL_VERSION" >&2; exit 1; }; \
     if [ "$java_arch" = aarch64 ]; then \
       curl -fsSL -o /tmp/libsignal.tar.gz "https://github.com/exquo/signal-libs-build/releases/download/libsignal_v${LIBSIGNAL_VERSION}/libsignal_jni.so-v${LIBSIGNAL_VERSION}-aarch64-unknown-linux-gnu.tar.gz"; \
-      echo "${LIBSIGNAL_SHA256_ARM64}  /tmp/libsignal.tar.gz" | sha256sum -c -; \
+      echo "${libsignal_sha_arm64}  /tmp/libsignal.tar.gz" | sha256sum -c -; \
       tar xzf /tmp/libsignal.tar.gz -C /tmp libsignal_jni.so; \
       python3 /tmp/libsignal-jar.py "$jar" aarch64 /tmp/libsignal_jni.so; \
     else \
@@ -148,7 +157,7 @@ RUN set -eu; \
     rm -f /tmp/*.tar.gz /tmp/libsignal_jni.so
 
 # --- Stage 2: Production Runtime ---
-FROM node:22-bookworm-slim AS runtime
+FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS runtime
 
 # Install system dependencies:
 # - curl: health checks

@@ -64,7 +64,14 @@ describe('deploy-integrations.yml', () => {
   });
 
   it("builds this package's Dockerfile, not the API's", () => {
-    expect(workflow).toContain('DOCKERFILE: packages/integrations/Dockerfile');
+    // The Dockerfile path is the reviewed recipe's, handed to the build by the
+    // guard step, so the recipe is what names the file.
+    expect(workflow).toContain('reviewed-image.py guard --recipe alia-integrations');
+    expect(workflow).toContain('DOCKERFILE: ${{ steps.reviewed.outputs.dockerfile }}');
+    const recipes = JSON.parse(repositoryFile('.github/scripts/reviewed-images.json')).recipes;
+    expect(recipes.find((r: { name: string }) => r.name === 'alia-integrations')?.dockerfile).toBe(
+      'packages/integrations/Dockerfile',
+    );
   });
 
   it('deploys the validated linux/arm64 child while retaining the provenance index', () => {
@@ -207,11 +214,12 @@ describe('packages/integrations/Dockerfile', () => {
 
   /**
    * The migrator is invoked with `node`, and the runtime stage is
-   * `node:22-bookworm-slim`. A `bun` invocation would be a module-not-found at
-   * deploy time; the two halves of that fact belong in one place.
+   * `node:22-bookworm-slim` (pinned by digest). A `bun` invocation would be a
+   * module-not-found at deploy time; the two halves of that fact belong in one
+   * place.
    */
   it('runs a Node runtime, which is what the deploy invokes the migrator with', () => {
-    expect(dockerfile).toContain('FROM node:22-bookworm-slim AS runtime');
+    expect(dockerfile).toMatch(/^FROM node:22-bookworm-slim@sha256:[0-9a-f]{64} AS runtime$/m);
     expect(workflow).toContain('MIGRATION_ENTRYPOINT: packages/integrations/dist/db/migrate.js');
   });
 });

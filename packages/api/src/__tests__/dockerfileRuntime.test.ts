@@ -28,7 +28,8 @@ const deploy = read('../../../../.github/workflows/deploy-aws.yml');
 const bootstrap = read('../../../../.github/workflows/bootstrap-native-product-agents.yml');
 const canary = read('../../../../.github/workflows/production-chat-canary.yml');
 
-/** The image the runtime stage starts FROM, and the command it runs. */
+/** The images the build and runtime stages start FROM, and the command it runs. */
+const builderStage = dockerfile.match(/^FROM (\S+) AS builder$/m)?.[1];
 const runtimeStage = dockerfile.match(/^FROM (\S+) AS runtime$/m)?.[1];
 const cmd = dockerfile.match(/^CMD \["([^"]+)", "([^"]+)"\]$/m);
 
@@ -36,7 +37,11 @@ describe('the API image and the commands that run it agree on Bun', () => {
   it('ships Bun as the runtime and starts the bundle with it', () => {
     // Positive controls: a regex that stopped matching must fail here rather
     // than let every comparison below pass against `undefined`.
-    expect(runtimeStage).toBe('oven/bun:${BUN_VERSION}-slim');
+    // Pinned by digest (the tag is for readers; the digest is what is pulled),
+    // and the builder's own image, so the runtime is the Bun and libc the
+    // dependency tree was installed against.
+    expect(runtimeStage).toMatch(/^oven\/bun:\d+\.\d+\.\d+-slim@sha256:[0-9a-f]{64}$/);
+    expect(builderStage).toBe(runtimeStage);
     expect(cmd?.[1]).toBe('bun');
     expect(cmd?.[2]).toBe('packages/api/dist/index.js');
     expect(dockerfile).not.toMatch(/^FROM node:/m);
