@@ -17,7 +17,7 @@ compatibility_date = "2026-08-24"
 # The whole point.
 workers_dev = false
 
-# The Worker observes every request before the asset binding. This replaces BOTH Pages-only
+# The Worker hands every request to the asset binding. This replaces BOTH Pages-only
 # files the project used to carry — `public/_redirects` (`/* /index.html 200`)
 # and the `public/_worker.js` that had to re-implement it once `_worker.js`
 # took over routing.

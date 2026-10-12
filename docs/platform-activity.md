@@ -31,12 +31,10 @@ Counters describe observed application operations, not network bytes. Direct
 object-storage downloads, media transports, database wire protocols and third
 party runtime internals require instrumentation at their owning services.
 
-## Static edge requests
+## Static web traffic
 
-The deployed frontend Worker observes requests before its ASSETS binding, including static files and navigations. Enable with private Worker bindings `OXY_EDGE_ACTIVITY_ENABLED=true`, `OXY_EDGE_ACTIVITY_API_KEY`, `OXY_EDGE_ACTIVITY_API_SECRET`, and optional `OXY_EDGE_ACTIVITY_API_URL`. These credentials are separate from backend credentials and must never use a public frontend environment prefix. Disabled or unavailable telemetry leaves the response unchanged; publication runs in `ctx.waitUntil`.
-
-The serving Cloudflare PoP appears as a pulse for external edge activity. It does not fabricate an arc to a visitor location. Verified internal peers may supply a known source region.
+The web apps' traffic (`alia.onl` and `canvas.alia.onl`) is measured keylessly by Oxy from Cloudflare's own analytics; see OxyHQ/oxy `docs/operations/cloudflare-web-activity.md`. Alia holds no Oxy activity secret and its Workers run no activity code: each one hands the request straight to its `ASSETS` binding. The `OXY_EDGE_ACTIVITY_*` bindings were never provisioned and nothing reads them now; if one is ever found on a deployment, delete it.
 
 ## Package versions
 
-Core and contracts are aligned through workspace overrides so browser and server packages share one version. Edge activity uses the published telemetry package; the lockfile records registry artifacts. Run the edge observer checks in `scripts/edge-activity.test.mjs` alongside the existing package checks.
+Core and contracts are aligned through workspace overrides so browser and server packages share one version. The asset Workers' pass-through check is `node --test scripts/asset-worker.test.mjs`.
