@@ -6,6 +6,7 @@ import makeWASocket, {
   makeCacheableSignalKeyStore,
   type AuthenticationCreds,
   type AuthenticationState,
+  type BaileysEventMap,
   type SignalKeyStore,
   type WASocket,
 } from '@whiskeysockets/baileys';
@@ -62,6 +63,38 @@ function serialize(data: unknown): unknown {
 /** Restore Buffers from the stored jsonb. */
 function deserialize<T = unknown>(data: unknown): T {
   return JSON.parse(JSON.stringify(data), BufferJSON.reviver) as T;
+}
+
+/**
+ * Subscribe async listeners to a socket's events. Baileys' `ev` is a plain
+ * EventEmitter that drops the promise a listener returns, so a rejection inside
+ * one is unhandled, and on Node an unhandled rejection ends the process — every
+ * account and bot it serves, not just this session.
+ */
+function socketListener(sock: WASocket, sessionId: string) {
+  return <E extends keyof BaileysEventMap>(
+    event: E,
+    listener: (arg: BaileysEventMap[E]) => Promise<void>,
+  ): void => {
+    sock.ev.on(event, (arg) => {
+      listener(arg).catch((err) =>
+        logger.error(`Error handling ${event} for session ${sessionId}:`, err),
+      );
+    });
+  };
+}
+
+/**
+ * Await a status write without letting its failure stop the caller: the QR must
+ * still reach the waiting request, and a dropped socket must still be
+ * rescheduled, while Postgres is briefly unreachable.
+ */
+async function bestEffort(what: string, write: Promise<unknown>): Promise<void> {
+  try {
+    await write;
+  } catch (err) {
+    logger.error(`Failed to ${what}:`, err);
+  }
 }
 
 class SessionManager {
@@ -158,14 +191,18 @@ class SessionManager {
     });
 
     this.sessions.set(sessionId, sock);
+    const on = socketListener(sock, sessionId);
 
     // ---- Connection updates ----
-    sock.ev.on('connection.update', async (update) => {
+    on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
         // Store QR for polling endpoint and resolve the pending promise
-        await markWhatsAppQrPending(getDb(), sessionId, qr);
+        await bestEffort(
+          `store the QR for session ${sessionId}`,
+          markWhatsAppQrPending(getDb(), sessionId, qr),
+        );
 
         this.pendingQrs.resolve(sessionId, qr);
 
@@ -179,7 +216,10 @@ class SessionManager {
         const phoneNumber = sock.user?.id?.split(':')[0] || '';
         const displayName = sock.user?.name || '';
 
-        await markWhatsAppConnected(getDb(), sessionId, { phoneNumber, displayName });
+        await bestEffort(
+          `mark session ${sessionId} connected`,
+          markWhatsAppConnected(getDb(), sessionId, { phoneNumber, displayName }),
+        );
         logger.info(`Session ${sessionId} connected for user ${oxyUserId} (${phoneNumber})`);
       }
 
@@ -196,7 +236,10 @@ class SessionManager {
           this.reconnectAttempts.set(sessionId, attempts);
 
           if (attempts > SessionManager.MAX_RECONNECT_ATTEMPTS) {
-            await markWhatsAppFailed(getDb(), sessionId);
+            await bestEffort(
+              `mark session ${sessionId} failed`,
+              markWhatsAppFailed(getDb(), sessionId),
+            );
             this.reconnectAttempts.delete(sessionId);
             logger.error(
               `Session ${sessionId} for ${oxyUserId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`,
@@ -208,7 +251,10 @@ class SessionManager {
                 SessionManager.MAX_RECONNECT_MS,
               ) + Math.floor(Math.random() * SessionManager.JITTER_MAX_MS);
 
-            await markWhatsAppDisconnected(getDb(), sessionId);
+            await bestEffort(
+              `mark session ${sessionId} disconnected`,
+              markWhatsAppDisconnected(getDb(), sessionId),
+            );
             logger.info(
               `Session ${sessionId} disconnected for user ${oxyUserId} (status ${statusCode}), reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`,
             );
@@ -226,7 +272,10 @@ class SessionManager {
             this.reconnectTimers.set(sessionId, timer);
           }
         } else {
-          await markWhatsAppLoggedOut(getDb(), sessionId);
+          await bestEffort(
+            `mark session ${sessionId} logged out`,
+            markWhatsAppLoggedOut(getDb(), sessionId),
+          );
           logger.info(`Session ${sessionId} logged out for user ${oxyUserId}`);
         }
       }
@@ -236,7 +285,7 @@ class SessionManager {
     sock.ev.on('creds.update', saveCreds);
 
     // ---- Incoming messages ----
-    sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    on('messages.upsert', async ({ messages, type }) => {
       // Persist all messages (both notify and history sync)
       const rows: WhatsAppMessageInsert[] = [];
       for (const msg of messages) {
@@ -281,14 +330,14 @@ class SessionManager {
         const remoteJid = msg.key?.remoteJid;
         if (!remoteJid) continue;
 
-        // Look up the oxyUserId from the session record
-        const owner = await findWhatsAppSessionOwner(getDb(), sessionId);
-        if (!owner) {
-          logger.error(`Chat: No session found for sessionId ${sessionId}`);
-          continue;
-        }
-
         try {
+          // Look up the oxyUserId from the session record
+          const owner = await findWhatsAppSessionOwner(getDb(), sessionId);
+          if (!owner) {
+            logger.error(`Chat: No session found for sessionId ${sessionId}`);
+            continue;
+          }
+
           await handleIncomingMessage(
             {
               platform: 'whatsapp',
@@ -316,7 +365,7 @@ class SessionManager {
     });
 
     // ---- Chat sync ----
-    sock.ev.on('chats.upsert', async (chats) => {
+    on('chats.upsert', async (chats) => {
       for (const chat of chats) {
         if (!chat.id || chat.id === 'status@broadcast') continue;
 
@@ -335,7 +384,7 @@ class SessionManager {
       }
     });
 
-    sock.ev.on('chats.update', async (updates) => {
+    on('chats.update', async (updates) => {
       for (const update of updates) {
         if (!update.id || update.id === 'status@broadcast') continue;
 
@@ -370,7 +419,7 @@ class SessionManager {
     });
 
     // ---- Deletions ----
-    sock.ev.on('chats.delete', async (deletedJids) => {
+    on('chats.delete', async (deletedJids) => {
       for (const jid of deletedJids) {
         try {
           await deleteWhatsAppChat(getDb(), sessionId, jid);
@@ -381,7 +430,7 @@ class SessionManager {
       }
     });
 
-    sock.ev.on('messages.delete', async (item) => {
+    on('messages.delete', async (item) => {
       if ('keys' in item) {
         // Individual message deletions
         for (const key of item.keys) {
@@ -402,7 +451,7 @@ class SessionManager {
       }
     });
 
-    sock.ev.on('messages.update', async (updates) => {
+    on('messages.update', async (updates) => {
       for (const update of updates) {
         if (!update.key?.id) continue;
         // Handle message edits
@@ -419,7 +468,7 @@ class SessionManager {
     });
 
     // ---- History sync (bulk chat/message sets from WhatsApp) ----
-    sock.ev.on('messaging-history.set', async ({ chats, messages, isLatest }) => {
+    on('messaging-history.set', async ({ chats, messages, isLatest }) => {
       logger.info(
         `History sync for session ${sessionId}: ${chats.length} chats, ${messages.length} messages (isLatest: ${isLatest})`,
       );

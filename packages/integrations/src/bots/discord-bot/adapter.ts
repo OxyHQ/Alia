@@ -176,8 +176,14 @@ export class DiscordBotAdapter implements BotAdapter {
     await this.client.login(process.env.DISCORD_BOT_TOKEN);
   }
 
+  /**
+   * `destroy()` is async: it closes the gateway shards. Not awaiting it let a
+   * failed close become an unhandled rejection (fatal on Node) and let the
+   * shutdown sequence move on to closing the Postgres pool while the shards
+   * were still closing.
+   */
   async shutdown() {
-    this.client.destroy();
+    await this.client.destroy();
   }
 
   /**
