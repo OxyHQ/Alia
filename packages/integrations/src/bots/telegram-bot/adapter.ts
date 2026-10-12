@@ -32,6 +32,13 @@ const logger = createLogger('TelegramBot');
 export class TelegramBotAdapter implements BotAdapter {
   name = 'telegram-bot';
   private bot: Telegraf;
+  /**
+   * Whether long-polling was launched and has not since failed. Telegraf's
+   * `stop()` throws 'Bot is not running!' for a bot that never got that far
+   * (the token was rejected, `setMyCommands` failed, `getMe` timed out), and
+   * that throw used to abort the whole graceful shutdown.
+   */
+  private polling = false;
 
   constructor() {
     this.bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN!);
@@ -110,13 +117,22 @@ export class TelegramBotAdapter implements BotAdapter {
 
     // Launch with long-polling (fire-and-forget — launch() never resolves
     // because it runs an infinite getUpdates loop)
+    this.polling = true;
     bot.launch({ dropPendingUpdates: true }).catch((err) => {
+      // Launch failed before polling began, or the polling loop died: either
+      // way nothing is polling any more.
+      this.polling = false;
       logger.error('Polling error:', err);
     });
     logger.info('Bot started (polling)');
   }
 
   async shutdown() {
+    if (!this.polling) {
+      logger.info('Bot was not running; nothing to stop');
+      return;
+    }
+    this.polling = false;
     this.bot.stop('shutdown');
   }
 

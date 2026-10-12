@@ -41,6 +41,7 @@ import {
 import { handleIncomingMessage } from '../../shared/chat-handler';
 import { APIClient } from '../../shared/api-client';
 import { createLogger } from '../../shared/logger';
+import { PendingQrs } from '../pending-qr';
 
 const apiClient = new APIClient('whatsapp', process.env.INTEGRATIONS_SECRET || '');
 const logger = createLogger('WhatsApp');
@@ -63,27 +64,18 @@ function deserialize<T = unknown>(data: unknown): T {
   return JSON.parse(JSON.stringify(data), BufferJSON.reviver) as T;
 }
 
-/**
- * Pending QR resolver used while a session is being created and the user
- * has not scanned the QR code yet. The HTTP endpoint polls or awaits this.
- */
-interface PendingQR {
-  resolve: (qr: string) => void;
-  reject: (err: Error) => void;
-  promise: Promise<string>;
-}
-
 class SessionManager {
   private sessions: Map<string, WASocket> = new Map();
   private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
   private reconnectAttempts: Map<string, number> = new Map();
-  private pendingQRs: Map<string, PendingQR> = new Map();
+  private pendingQrs = new PendingQrs();
   private credsSaveQueue: Promise<void> = Promise.resolve();
 
   private static readonly MAX_RECONNECT_ATTEMPTS = 10;
   private static readonly BASE_RECONNECT_MS = 5000;
   private static readonly MAX_RECONNECT_MS = 60000;
   private static readonly JITTER_MAX_MS = 1000;
+  private static readonly QR_TIMEOUT_MS = 30000;
 
   /**
    * On startup, load all 'connected' or 'disconnected' sessions and attempt to
@@ -116,26 +108,17 @@ class SessionManager {
 
     await createWhatsAppSession(getDb(), { sessionId, oxyUserId });
 
-    // Set up a QR promise that the HTTP handler can await
-    let qrResolve!: (qr: string) => void;
-    let qrReject!: (err: Error) => void;
-    const qrPromise = new Promise<string>((resolve, reject) => {
-      qrResolve = resolve;
-      qrReject = reject;
-    });
-    this.pendingQRs.set(sessionId, { resolve: qrResolve, reject: qrReject, promise: qrPromise });
-
-    // Auto-reject if no QR received within 30 seconds
-    setTimeout(() => {
-      const pending = this.pendingQRs.get(sessionId);
-      if (pending) {
-        pending.reject(new Error('QR code generation timed out'));
-        this.pendingQRs.delete(sessionId);
-      }
-    }, 30000);
-
-    // Start the session (which will emit the QR)
-    await this.startSession(sessionId);
+    // A fresh id has no socket, timer or wait to reset, so this goes straight to
+    // `openSocket` rather than through `startSession`, whose reset would reject
+    // the wait armed here before the caller could await it.
+    const qrPromise = this.pendingQrs.arm(sessionId, SessionManager.QR_TIMEOUT_MS);
+    try {
+      await this.openSocket(sessionId, oxyUserId);
+    } catch (err) {
+      // The caller gets this error instead of the promise, so nobody awaits the wait.
+      this.pendingQrs.discard(sessionId);
+      throw err;
+    }
 
     return { sessionId, qrPromise };
   }
@@ -152,6 +135,14 @@ class SessionManager {
     // Clean up any existing socket for this sessionId
     await this.cleanupSocket(sessionId);
 
+    await this.openSocket(sessionId, oxyUserId);
+  }
+
+  /**
+   * Open a socket for a session that has nothing left to clean up, and wire its
+   * events.
+   */
+  private async openSocket(sessionId: string, oxyUserId: string): Promise<void> {
     // Build Postgres-backed auth state
     const { state, saveCreds } = await this.createAuthState(sessionId);
 
@@ -176,11 +167,7 @@ class SessionManager {
         // Store QR for polling endpoint and resolve the pending promise
         await markWhatsAppQrPending(getDb(), sessionId, qr);
 
-        const pending = this.pendingQRs.get(sessionId);
-        if (pending) {
-          pending.resolve(qr);
-          this.pendingQRs.delete(sessionId);
-        }
+        this.pendingQrs.resolve(sessionId, qr);
 
         logger.info(`QR code generated for session ${sessionId} (user ${oxyUserId})`);
       }
@@ -655,11 +642,7 @@ class SessionManager {
       this.sessions.delete(sessionId);
     }
 
-    const pending = this.pendingQRs.get(sessionId);
-    if (pending) {
-      pending.reject(new Error('Session was reset'));
-      this.pendingQRs.delete(sessionId);
-    }
+    this.pendingQrs.reject(sessionId, new Error('Session was reset'));
 
     const timer = this.reconnectTimers.get(sessionId);
     if (timer) {

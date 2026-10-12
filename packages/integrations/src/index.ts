@@ -9,6 +9,7 @@ import type { BotAdapter } from './bots/types';
 import { setWss, type SessionWebSocket } from './realtime/wss-global';
 import { authorizeUpgrade, maySubscribe } from './realtime/subscription-auth';
 import { createLogger } from './shared/logger';
+import { runShutdownSteps } from './shared/shutdown';
 
 const logger = createLogger('Integrations');
 
@@ -307,22 +308,24 @@ async function main() {
 async function shutdown(signal: string) {
   activityReady = false;
   logger.info(`Received ${signal}, shutting down...`);
-  try {
-    // Shutdown MCP servers
-    const { shutdownAll: shutdownMcp } = await import('./mcp/manager');
-    await shutdownMcp();
-    logger.info('MCP servers shut down');
-
-    const allAdapters = [...accountAdapters, ...botAdapters];
-    for (const adapter of allAdapters) {
-      await adapter.shutdown();
-      logger.info(`${adapter.name} shut down`);
-    }
-    await activity?.stop();
-    await closePostgres();
-    logger.info('Postgres pool closed');
-  } catch (err) {
-    logger.error('Error during shutdown:', err);
+  const allAdapters = [...accountAdapters, ...botAdapters];
+  const failed = await runShutdownSteps(
+    [
+      {
+        name: 'MCP servers',
+        run: async () => {
+          const { shutdownAll: shutdownMcp } = await import('./mcp/manager');
+          await shutdownMcp();
+        },
+      },
+      ...allAdapters.map((adapter) => ({ name: adapter.name, run: () => adapter.shutdown() })),
+      { name: 'platform activity', run: async () => activity?.stop() },
+      { name: 'Postgres pool', run: () => closePostgres() },
+    ],
+    logger,
+  );
+  if (failed.length > 0) {
+    logger.error(`Shutdown finished with failures in: ${failed.join(', ')}`);
   }
   process.exit(0);
 }
