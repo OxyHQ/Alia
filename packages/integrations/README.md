@@ -79,11 +79,11 @@ OXY_SERVICE_API_SECRET=<from-oxy-console>
 
 ```bash
 # From monorepo root
-npm run dev:integrations
+bun run dev:integrations
 
 # Or directly
 cd packages/integrations
-npx tsx src/index.ts
+bun src/index.ts
 ```
 
 The service starts the HTTP server first (for health checks), then initializes adapters with 30s timeouts each. Failed adapter initialization is non-fatal — other adapters continue running.

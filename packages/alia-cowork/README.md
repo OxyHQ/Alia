@@ -55,15 +55,15 @@ names a model.
 ## Development
 
 ```bash
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 Build/package:
 
 ```bash
-npm run build
-npm run package
+bun run build
+bun run package
 ```
 
 ## Configuration
