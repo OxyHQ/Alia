@@ -124,6 +124,25 @@ export async function resolveUtilityModel(): Promise<ResolvedModel> {
 }
 
 /**
+ * Output tokens a utility call reserves for the model's reasoning, on top of
+ * the answer it asks for.
+ *
+ * Oxy counts reasoning against `maxOutputTokens`, and Oxy — not Alia — picks
+ * the model behind the utility level, so Alia cannot know whether it reasons.
+ * The one it routes today (gpt-oss) does: given the important-email
+ * classifier's 60 tokens it spent them thinking, the schema-constrained JSON
+ * was cut short and Groq refused every call `invalid_request` (production
+ * 2026-10-11/12). A ceiling, not a spend: a model that does not reason uses
+ * none of it.
+ */
+export const UTILITY_REASONING_ALLOWANCE_TOKENS = 2048;
+
+/** The output ceiling for a utility-level call whose answer needs `answerTokens`. */
+export function utilityOutputTokens(answerTokens: number): number {
+  return answerTokens + UTILITY_REASONING_ALLOWANCE_TOKENS;
+}
+
+/**
  * A stored preference (an agent's, a thread's, a bot's) — a power level or a
  * model — or the default when it is unset or no longer offered.
  */

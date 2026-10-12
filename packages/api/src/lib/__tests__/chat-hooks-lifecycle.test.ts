@@ -110,6 +110,7 @@ vi.mock('../chat-core.js', () => {
     resolveModel: vi.fn(async () => resolved),
     resolveUtilityModel: vi.fn(async () => resolved),
     getAIModel: vi.fn(() => ({})),
+    utilityOutputTokens: (answerTokens: number) => answerTokens,
   };
 });
 

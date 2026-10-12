@@ -21,6 +21,7 @@ vi.mock('../oxy-inference.js', () => ({
   }),
 }));
 
+import { UTILITY_REASONING_ALLOWANCE_TOKENS } from '../../chat-core.js';
 import { generateTextViaKaana } from '../kaana-text.js';
 
 describe('one-shot product inference through Oxy', () => {
@@ -47,6 +48,8 @@ describe('one-shot product inference through Oxy', () => {
       labels: { 'alia.surface': 'background', 'alia.visibility': 'derived' },
     });
     expect(mocks.options).toMatchObject({ delegatedUserId: 'user-id' });
+    // A named model is the caller's to size: no reasoning allowance is added.
+    expect(mocks.request?.maxOutputTokens).toBe(128);
   });
 
   it('carries a structured response request without provider options', async () => {
@@ -69,5 +72,15 @@ describe('one-shot product inference through Oxy', () => {
     expect(mocks.request?.model).toBeUndefined();
     expect(mocks.request?.routingProfile).toBe('instant');
     expect(mocks.request).not.toHaveProperty('providerOptions');
+  });
+
+  it('reserves room for reasoning on top of a utility answer', async () => {
+    // The utility level's model is Oxy's choice and may reason; reasoning
+    // counts against maxOutputTokens, so a 60-token classifier answer left
+    // gpt-oss nothing to answer with (production 2026-10-11/12).
+    await generateTextViaKaana({ prompt: 'clasifica', surface: 'background', maxOutputTokens: 60 });
+
+    expect(mocks.request?.routingProfile).toBe('instant');
+    expect(mocks.request?.maxOutputTokens).toBe(60 + UTILITY_REASONING_ALLOWANCE_TOKENS);
   });
 });

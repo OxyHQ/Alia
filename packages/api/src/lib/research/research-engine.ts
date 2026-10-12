@@ -26,7 +26,12 @@
  */
 
 import { generateText } from 'ai';
-import { resolveStoredModel, resolveUtilityModel, getAIModel } from '../chat-core.js';
+import {
+  resolveStoredModel,
+  resolveUtilityModel,
+  getAIModel,
+  utilityOutputTokens,
+} from '../chat-core.js';
 import { webSearchTool } from '../tools/web-search.js';
 import { SourceTracker, formatSourceLink } from './source-tracker.js';
 import { normalizeCitationMarkers } from './citations.js';
@@ -393,7 +398,7 @@ async function decomposeQuery(
 Every sub-question must be ABOUT THE SUBJECT ITSELF. Never produce a sub-question about how to write, summarize, shorten, cite, reference, format or structure an answer — those are not research topics.
 Return ONLY a JSON array of strings, nothing else.`,
       prompt: `Subject: ${contract.subject}\n\n${requestNote}${contextSummary ? `Context from conversation:\n${contextSummary}\n\n` : ''}Decompose this into ${range} research sub-questions about the subject:`,
-      maxOutputTokens: 500,
+      maxOutputTokens: utilityOutputTokens(500),
     });
 
     const parsed: unknown = JSON.parse(text.replace(/```json?\n?|\n?```/g, '').trim());
@@ -462,7 +467,7 @@ async function extractFindings(
       system:
         'You are a research analyst. Extract key findings from the provided search results relevant to the question. Use inline citations like [1], [2] referencing the source numbers. Be factual and concise.',
       prompt: `Question: ${question}\n\nSearch Results:\n${sourcesText}\n\nExtract the key findings with citations:`,
-      maxOutputTokens: 1500,
+      maxOutputTokens: utilityOutputTokens(1500),
     });
 
     return text;
@@ -541,7 +546,7 @@ async function identifyGaps(
       system:
         'You identify gaps in research reports. Given a query and current report, identify 1-3 specific search queries that would fill important gaps. Return ONLY a JSON array of search query strings. Return an empty array [] if the report is sufficiently comprehensive.',
       prompt: `Original query: ${originalQuery}\n\nCurrent report (excerpt):\n${currentReport.slice(0, 2000)}\n\nWhat gaps remain? Return JSON array of follow-up search queries:`,
-      maxOutputTokens: 300,
+      maxOutputTokens: utilityOutputTokens(300),
     });
 
     const parsed = JSON.parse(text.replace(/```json?\n?|\n?```/g, '').trim());

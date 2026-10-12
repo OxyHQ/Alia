@@ -21,6 +21,19 @@ The scanner prints paths, blob identifiers and short prefixes, never secret valu
 `rotatedAt` only after the provider confirms revocation. Do not rewrite repository
 history: forks, archives, CI caches and existing clones remain exposed.
 
+History was rewritten anyway on 2026-10-11. Every commit kept its tree, and
+`keys.json` and `apps/app/google-services.json` were dropped from all of history, so
+every commit id changed. That changed what the scan can see and nothing else:
+
+- GitHub still serves the pre-rewrite commits through every read-only
+  `refs/pull/<n>/head`.
+- The three keys are still pending rotation.
+- The ledger keeps all four entries with `purgedFromHistory` set, and the census
+  test now requires them to be ABSENT.
+
+Never merge a branch cut before the rewrite: it carries the whole old history,
+and that test is what fails.
+
 ## Current-state checks
 
 1. In Kaana, identify the credential by metadata without selecting or logging the

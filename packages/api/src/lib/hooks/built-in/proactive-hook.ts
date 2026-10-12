@@ -12,7 +12,7 @@
 
 import { generateText } from 'ai';
 import { registerHook } from '../hook-runner.js';
-import { resolveUtilityModel, getAIModel } from '../../chat-core.js';
+import { resolveUtilityModel, getAIModel, utilityOutputTokens } from '../../chat-core.js';
 import { getDb } from '../../../db/index.js';
 import { createSuggestion } from '../../../db/notifications/suggestionRepository.js';
 import { getUserLanguage } from '../../memory/user-memory-service.js';
@@ -112,7 +112,7 @@ registerHook({
           },
         ],
         temperature: 0.1,
-        maxOutputTokens: 300,
+        maxOutputTokens: utilityOutputTokens(300),
         maxRetries: 0,
       });
 
