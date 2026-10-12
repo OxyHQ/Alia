@@ -66,7 +66,7 @@ The Postgres suites need a real server — CHECK constraints, unique indexes, `O
 CI runs the following on every pull request, and each line runs locally as written:
 
 ```bash
-bun install && git diff --exit-code bun.lock
+bun install --frozen-lockfile
 bunx biome ci .                           # Biome: format check + lint, whole repo
 bun run --filter @alia/api typecheck
 bun run --filter @alia/api test

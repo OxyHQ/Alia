@@ -4,7 +4,8 @@
 # Multi-stage build, multi-arch (linux/amd64 + linux/arm64 / AWS Graviton).
 #
 # - oven/bun is pinned to the version in the root package.json's
-#   "packageManager" field for reproducible installs.
+#   "packageManager" field for reproducible installs; scripts/check-bun-pin.mjs
+#   fails CI when they disagree.
 # - Only the @alia/api workspace is installed (via --filter), so the image
 #   stays lean and unrelated workspaces' native builds (e.g. node-pty in the
 #   Electron app) are never compiled.
@@ -86,13 +87,11 @@ ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
 # keeps the image lean and avoids building native modules from unrelated
 # workspaces (e.g. node-pty in the Electron app) that are irrelevant to the API.
 #
-# --frozen-lockfile is intentionally NOT used: bun's frozen check reports false
-# drift for this mixed monorepo. It re-resolves ^/~ transitive ranges against
-# the live registry and fails even on a freshly regenerated, idempotent
-# bun.lock, on every bun version tested (through 1.3.14) and independent of the
-# root `overrides` block. bun.lock remains the resolution baseline for locked
-# versions.
-RUN bun install --filter "@alia/api"
+# --frozen-lockfile installs bun.lock verbatim or fails the build. It was left
+# out while bun 1.3.14's frozen check falsely reported drift for this monorepo
+# (it failed even on a freshly regenerated, idempotent bun.lock); on 1.4.3 this
+# exact filtered install passes from a cold cache.
+RUN bun install --frozen-lockfile --filter "@alia/api"
 
 # Copy API source and build the bundle.
 COPY packages/api/ ./packages/api/

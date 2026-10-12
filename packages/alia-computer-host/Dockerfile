@@ -45,8 +45,7 @@ COPY packages/alia-computer-host/package.json ./packages/alia-computer-host/
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
     PUPPETEER_SKIP_DOWNLOAD=1
-# --frozen-lockfile omitted for the same false-drift reason as packages/api/Dockerfile.
-RUN bun install --filter "@alia/computer-host"
+RUN bun install --frozen-lockfile --filter "@alia/computer-host"
 COPY packages/alia-computer-host/ ./packages/alia-computer-host/
 RUN cd packages/alia-computer-host && ../../node_modules/.bin/tsc -p tsconfig.build.json
 

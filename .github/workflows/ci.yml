@@ -221,6 +221,16 @@ jobs:
       - name: Verify bun cache wiring
         run: node .github/scripts/check-bun-cache-wiring.mjs
 
+      # Same job, same reason. `packageManager` is the one bun pin; the Docker
+      # images name bun as a literal (or, in integrations, named none at all and
+      # ran the newest), and only this compares them. A drift here is found by
+      # the post-merge image build otherwise, never by a pull request.
+      - name: Verify every image and workflow runs the pinned bun
+        run: node scripts/check-bun-pin.mjs
+
+      - name: Verify that gate can still fail
+        run: node .github/scripts/test-check-bun-pin.mjs
+
       # Same job, same reason: it installs nothing, so it reports before the
       # jobs it protects would be cancelled. A cancelled check is in the check
       # list, is not red, and never ran.
@@ -266,7 +276,10 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.3
+          # Not a literal: `packageManager` in package.json is the one pin, and
+          # scripts/check-bun-pin.mjs fails when any setup-bun step or Docker
+          # image runs a bun other than it.
+          bun-version-file: package.json
 
       - uses: actions/setup-node@v4
         with:
@@ -281,12 +294,12 @@ jobs:
           restore-keys: |
             bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
 
-      # bun 1.3.14's --frozen-lockfile falsely reports drift for this monorepo,
-      # so we assert lockfile stability via `git diff --exit-code bun.lock` instead.
+      # Frozen: bun.lock is installed verbatim or the step fails. Under bun
+      # 1.3.14 the frozen check falsely reported drift on this monorepo, so CI
+      # ran a plain install and diffed bun.lock instead; on 1.4.3 it passes on a
+      # clean checkout with a cold cache, so the real check is back.
       - name: Install dependencies
-        run: |
-          bun install
-          git diff --exit-code bun.lock
+        run: bun install --frozen-lockfile
 
       # The ONE writer of the git-dependency cache every job restores: a push
       # to main, on an exact-key miss (a `bun.lock` change). A pull request's
@@ -378,7 +391,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.3
+          bun-version-file: package.json
 
       - uses: actions/setup-node@v4
         with:
@@ -393,12 +406,8 @@ jobs:
           restore-keys: |
             bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
 
-      # bun 1.3.14's --frozen-lockfile falsely reports drift for this monorepo,
-      # so we assert lockfile stability via `git diff --exit-code bun.lock` instead.
       - name: Install dependencies
-        run: |
-          bun install
-          git diff --exit-code bun.lock
+        run: bun install --frozen-lockfile
 
       # Enumerates the workspaces and requires each to be checked here, checked by
       # a named job elsewhere, explicitly excluded, or explicitly scriptless — so
@@ -560,7 +569,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.3
+          bun-version-file: package.json
 
       - uses: actions/setup-node@v4
         with:
@@ -575,12 +584,8 @@ jobs:
           restore-keys: |
             bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
 
-      # bun 1.3.14's --frozen-lockfile falsely reports drift for this monorepo,
-      # so we assert lockfile stability via `git diff --exit-code bun.lock` instead.
       - name: Install dependencies
-        run: |
-          bun install
-          git diff --exit-code bun.lock
+        run: bun install --frozen-lockfile
 
       - name: Build API
         run: bun run build:api
@@ -704,7 +709,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.3
+          bun-version-file: package.json
 
       - uses: actions/setup-node@v4
         with:
@@ -720,9 +725,7 @@ jobs:
             bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install dependencies
-        run: |
-          bun install
-          git diff --exit-code bun.lock
+        run: bun install --frozen-lockfile
 
       - name: Typecheck integrations
         run: bun run --filter @alia/integrations type-check
@@ -774,7 +777,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.3
+          bun-version-file: package.json
 
       - uses: actions/setup-node@v4
         with:
@@ -790,9 +793,7 @@ jobs:
             bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install dependencies
-        run: |
-          bun install
-          git diff --exit-code bun.lock
+        run: bun install --frozen-lockfile
 
       # The suite creates its own throwaway, fully-migrated database per run via
       # the REAL src/db/migrate.ts entrypoint, so this also exercises the phase

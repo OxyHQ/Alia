@@ -5,13 +5,20 @@
 # Includes: Node.js, Chromium (Playwright), Java 21 (Temurin), signal-cli
 
 # --- Toolchain: bun + the compilers native modules (node-pty) build with ---
+# The bun the root package.json pins in `packageManager`. Without a version the
+# install script fetches whatever bun is newest on the day the image builds,
+# which is not the bun that wrote bun.lock or the one CI tests with;
+# scripts/check-bun-pin.mjs holds this default to the pin.
+ARG BUN_VERSION=1.4.3
+
 FROM node:22-bookworm-slim AS toolchain
+ARG BUN_VERSION
 
 # Install build tools for native modules (node-pty requires python3 + make + g++) and Bun
 RUN apt-get update && \
     apt-get install -y --no-install-recommends python3 make g++ ca-certificates curl unzip git && \
     curl -fsSL https://bun.com/install -o /tmp/install-bun.sh && \
-    bash /tmp/install-bun.sh && \
+    bash /tmp/install-bun.sh "bun-v${BUN_VERSION}" && \
     ln -s /root/.bun/bin/bun /usr/local/bin/bun && \
     rm /tmp/install-bun.sh && \
     rm -rf /var/lib/apt/lists/*
@@ -39,12 +46,9 @@ COPY packages/alia-cowork/package.json ./packages/alia-cowork/
 COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
 COPY packages/alia-computer-host/package.json ./packages/alia-computer-host/
 
-# Install all dependencies (including devDependencies for build).
-# --frozen-lockfile is intentionally omitted: bun's frozen check reports false
-# drift for this monorepo (re-resolves ^/~ transitive ranges against the live
-# registry) even against a freshly regenerated bun.lock. bun.lock remains the
-# resolution baseline. Matches packages/api/Dockerfile.
-RUN bun install --filter @alia/integrations
+# Install all dependencies (including devDependencies for build), exactly as
+# bun.lock records them. Matches packages/api/Dockerfile.
+RUN bun install --frozen-lockfile --filter @alia/integrations
 
 # Copy source
 COPY packages/integrations/ ./packages/integrations/
@@ -76,8 +80,7 @@ COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
 COPY packages/alia-computer-host/package.json ./packages/alia-computer-host/
 
 # Install production dependencies only.
-# See builder stage: --frozen-lockfile omitted due to bun's false-drift check.
-RUN bun install --production --filter @alia/integrations
+RUN bun install --production --frozen-lockfile --filter @alia/integrations
 
 # node-pty has no linux prebuild, so its `install` script compiles it with
 # node-gyp — and bun never runs that script here: the root `trustedDependencies`

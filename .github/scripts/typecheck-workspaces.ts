@@ -227,8 +227,9 @@ function main(): void {
 
   /**
    * The obvious hazard here would be a filter that matched nothing reporting a
-   * clean pass. Measured on bun 1.3.14: `bun run --filter <no-match> typecheck`
-   * prints "No packages matched the filter" and exits **1**, and so does a real
+   * clean pass. Measured on bun 1.3.14 and again on 1.4.3: `bun run --filter
+   * <no-match> typecheck` prints "No packages matched the filter" and exits
+   * **1**, and so does a real
    * workspace that has no such script. Both therefore land in `failed` rather
    * than passing silently, which is why no extra assertion is needed for it.
    */
