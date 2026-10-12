@@ -8,7 +8,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/@alia.onl/sdk"><img alt="@alia.onl/sdk" src="https://img.shields.io/npm/v/@alia.onl/sdk?style=flat-square&label=%40alia.onl%2Fsdk&labelColor=440151&color=D26AE7"></a>
   <a href="https://www.npmjs.com/package/@alia-codea/cli"><img alt="@alia-codea/cli" src="https://img.shields.io/npm/v/@alia-codea/cli?style=flat-square&label=%40alia-codea%2Fcli&labelColor=440151&color=D26AE7"></a>
-  <img alt="Bun" src="https://img.shields.io/badge/bun-1.3.14-440151?style=flat-square&logo=bun&logoColor=white">
+  <img alt="Bun" src="https://img.shields.io/badge/bun-1.4.3-440151?style=flat-square&logo=bun&logoColor=white">
   <img alt="Expo" src="https://img.shields.io/badge/Expo-57-440151?style=flat-square&logo=expo&logoColor=white">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-440151?style=flat-square&logo=typescript&logoColor=white">
 </p>

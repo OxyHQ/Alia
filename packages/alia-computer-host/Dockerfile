@@ -10,7 +10,7 @@
 # host's engine through the socket the systemd unit mounts. It never runs an
 # actor's code itself — that happens in the workspace image, under gVisor.
 
-ARG BUN_VERSION=1.3.10
+ARG BUN_VERSION=1.4.3
 ARG NODE_VERSION=22
 
 FROM oven/bun:${BUN_VERSION}-slim AS builder
