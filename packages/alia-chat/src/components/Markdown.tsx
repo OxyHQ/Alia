@@ -180,7 +180,8 @@ function createRules(colors: AliaColors, renderCodeBlock?: RenderCodeBlock) {
           <Text style={{ marginRight: 8, minWidth: 14, ...BODY_TEXT, color: mutedForeground }}>
             {bullet}
           </Text>
-          <Text style={{ flex: 1, ...BODY_TEXT, color: textColor }}>{children}</Text>
+          {/* A View, not a Text: a nested list is a View, and inside a Text it runs inline. */}
+          <View style={{ flex: 1 }}>{children}</View>
         </View>
       );
     },

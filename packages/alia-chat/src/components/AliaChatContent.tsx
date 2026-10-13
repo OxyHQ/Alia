@@ -151,7 +151,8 @@ function AliaChatContentBody({
   );
   // ── Chat ──
   const chatOptions: UseAliaChatOptions = { apiUrl, model, clientContext };
-  const { messages, setMessages, send, isStreaming, stop, clear } = useAliaChat(chatOptions);
+  const { messages, setMessages, send, isStreaming, stop, clear, approvePlan, rejectPlan } =
+    useAliaChat(chatOptions);
 
   useEffect(() => {
     onStopReady?.(stop);
@@ -402,8 +403,8 @@ function AliaChatContentBody({
             onEditMessage={onEditMessage}
             onThumbsUp={onThumbsUp}
             onThumbsDown={onThumbsDown}
-            onApprovePlan={onApprovePlan}
-            onRejectPlan={onRejectPlan}
+            onApprovePlan={onApprovePlan ?? approvePlan}
+            onRejectPlan={onRejectPlan ?? rejectPlan}
             onAnswerQuestions={(message) => send(message)}
             renderMarkdown={renderMarkdown}
             welcomeComponent={welcomeComponent}

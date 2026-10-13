@@ -57,6 +57,10 @@ export interface UseAliaChatReturn {
   isStreaming: boolean;
   stop: () => void;
   clear: () => void;
+  /** The person accepted a proposed plan; the card collapses to "approved". */
+  approvePlan: (planId: string) => void;
+  /** The person cancelled a proposed plan: the card collapses to "cancelled" and the turn stops. */
+  rejectPlan: (planId: string) => void;
   error: string | null;
 }
 
@@ -439,5 +443,23 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
     setError(null);
   }, [stop]);
 
-  return { messages, setMessages, send, isStreaming, stop, clear, error };
+  const decidePlan = useCallback((planId: string, decision: 'approved' | 'rejected') => {
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.pendingPlan?.planId === planId
+          ? { ...message, pendingPlan: { ...message.pendingPlan, [decision]: true } }
+          : message,
+      ),
+    );
+  }, []);
+  const approvePlan = useCallback((planId: string) => decidePlan(planId, 'approved'), [decidePlan]);
+  const rejectPlan = useCallback(
+    (planId: string) => {
+      decidePlan(planId, 'rejected');
+      stop();
+    },
+    [decidePlan, stop],
+  );
+
+  return { messages, setMessages, send, isStreaming, stop, clear, approvePlan, rejectPlan, error };
 }

@@ -9,7 +9,7 @@ import type { CitationSource } from '@alia.onl/sdk/tools';
  *
  * ## Two halves
  *
- *  * `normalizeCitationMarkers` is a TWIN of the API's
+ *  * `normalizeCitationMarkers` (the SDK's, so its chat links citations too) is a TWIN of the API's
  *    (`packages/api/src/lib/research/citations.ts`). The API normalises what
  *    it streams and saves now; this copy is for the messages saved before it
  *    did, which still carry `【1†L1-L3】` and `[1, 2]`. The two must agree, and
@@ -23,37 +23,12 @@ import type { CitationSource } from '@alia.onl/sdk/tools';
 
 // One definition of the numbered sources, the SDK's, so its chat and this app agree.
 export type { CitationSource } from '@alia.onl/sdk/tools';
-export { extractCitationSources } from '@alia.onl/sdk/tools';
-
-const FULLWIDTH_MARKER_RE = /【\s*(\d{1,3})\s*(?:†[^】]*)?】/g;
-const ASCII_DAGGER_MARKER_RE = /\[(\d{1,3})†[^\]]*\]/g;
-const COMMA_LIST_RE = /\[(\d{1,3}(?:\s*,\s*\d{1,3})+)\](?![(:])/g;
-const SINGLE_MARKER_RE = /\[(\d{1,3})\](?![(:])/g;
-
-/**
- * Rewrite every citation marker into the `[n]` form; with `knownIds`, drop
- * the ones that name no source. See the API twin for the reasoning.
- */
-export function normalizeCitationMarkers(text: string, knownIds?: Iterable<number>): string {
-  const known = knownIds ? new Set(knownIds) : null;
-
-  let out = text
-    .replace(FULLWIDTH_MARKER_RE, '[$1]')
-    .replace(ASCII_DAGGER_MARKER_RE, '[$1]')
-    .replace(COMMA_LIST_RE, (_m, list: string) =>
-      list
-        .split(',')
-        .map((n) => `[${n.trim()}]`)
-        .join(''),
-    );
-
-  if (known && known.size > 0) {
-    out = out.replace(SINGLE_MARKER_RE, (m, n: string) => (known.has(Number(n)) ? m : ''));
-    out = out.replace(/[ \t]+([.,;:!?])/g, '$1').replace(/[ \t]{2,}/g, ' ');
-  }
-
-  return out;
-}
+export {
+  citationLabel,
+  extractCitationSources,
+  linkifyCitations,
+  normalizeCitationMarkers,
+} from '@alia.onl/sdk/tools';
 
 function domainOf(url: string): string {
   try {
@@ -61,35 +36,6 @@ function domainOf(url: string): string {
   } catch {
     return url;
   }
-}
-
-/**
- * The accessible name of one citation: what a screen reader says for the
- * link, and what `CustomMarkdown` puts in the link's title.
- */
-export function citationLabel(source: CitationSource): string {
-  return `Source ${source.id}: ${source.title}`;
-}
-
-/**
- * `[n]` markers that name a known source become Markdown links to it, so the
- * SDK's Markdown renderer makes them pressable. Markers with no source are
- * left as text: dropping them here would hide that the model cited something
- * the reader cannot check, and the API already drops them for new answers.
- *
- * Runs on the normalised text, so legacy `【n†…】` markers link too. The
- * link title carries the accessible name; a title containing quotes would end
- * it early, so those are folded to apostrophes.
- */
-export function linkifyCitations(text: string, sources: CitationSource[]): string {
-  if (sources.length === 0) return normalizeCitationMarkers(text);
-  const byId = new Map(sources.map((s) => [s.id, s]));
-  return normalizeCitationMarkers(text).replace(SINGLE_MARKER_RE, (m, n: string) => {
-    const source = byId.get(Number(n));
-    if (!source) return m;
-    const title = citationLabel(source).replace(/"/g, "'");
-    return `[${n}](${source.url} "${title}")`;
-  });
 }
 
 /** One entry of a rendered references section. */
