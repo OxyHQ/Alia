@@ -16,6 +16,7 @@
     "clean": "gulp clean",
     "clean:all": "gulp clean:all",
     "kill": "gulp kill-electron",
+    "postinstall": "playwright install chromium",
     "package": "bun run build && electron-builder",
     "dist": "bun run build && electron-builder --publish never"
   },
@@ -33,6 +34,7 @@
     "electron-store": "^11.0.2",
     "lucide-react": "^0.563.0",
     "openai": "^6.46.0",
+    "playwright": "^1.61.1",
     "radix-ui": "^1.6.2",
     "react": "19.2.0",
     "react-dom": "19.2.0",
