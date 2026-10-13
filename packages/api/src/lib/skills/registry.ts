@@ -50,12 +50,4 @@ export const SKILL_REGISTRY: readonly SkillRegistrySource[] = [
     tags: ['development', 'ai-sdk'],
     why: 'The AI SDK the API itself runs on. A skill maintained by the library authors beats one written here from its docs.',
   },
-  {
-    id: 'agent-skills-examples',
-    repo: 'agentskills/agentskills',
-    path: 'examples',
-    publisher: 'Agent Skills',
-    tags: ['examples', 'official'],
-    why: "The specification repository's own examples, which are what the format is defined by.",
-  },
 ];

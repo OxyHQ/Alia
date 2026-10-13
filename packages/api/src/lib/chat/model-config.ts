@@ -74,6 +74,28 @@ export interface BaseConfigResult {
   clearFirstByteTimer: () => void;
 }
 
+/**
+ * The leading system messages as the SDK's `system` option, and the rest.
+ *
+ * The SDK warns on every call that carries a system message inside `messages`:
+ * a message list is where untrusted input is spliced in, so `system` is the one
+ * place it can trust. Everything the model sees is unchanged — the SDK puts
+ * `system` back in front of the prompt.
+ */
+function splitSystemMessages(messages: ModelMessage[]): {
+  system?: string;
+  messages: ModelMessage[];
+} {
+  let end = 0;
+  while (end < messages.length && messages[end].role === 'system') end++;
+  if (end === 0) return { messages };
+  const system = messages
+    .slice(0, end)
+    .map((m) => (typeof m.content === 'string' ? m.content : ''))
+    .join('\n\n');
+  return { system, messages: messages.slice(end) };
+}
+
 /** Assemble the shared AI SDK config for one provider attempt + its first-byte abort. */
 export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult {
   const {
@@ -101,7 +123,7 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
   // biome-ignore lint/suspicious/noExplicitAny: AI SDK config is dynamically extended; strict SDK param types don't support this pattern
   const baseConfig: any = {
     model,
-    messages: convertedMessages,
+    ...splitSystemMessages(convertedMessages),
     // Only a temperature the caller asked for. An invented default is a
     // parameter the model never requested, and the reasoning models (GPT-5.6,
     // GPT-6, Gemini 3.7) take none: with Kaana's `require_parameters` routing,

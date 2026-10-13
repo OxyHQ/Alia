@@ -8,12 +8,14 @@
  * file, since that flag is the whole of `bundle.ts`'s defence against one.
  */
 
+import { randomBytes } from 'node:crypto';
 import { mkdtemp, rm, symlink, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import AdmZip from 'adm-zip';
 import { c as createTar } from 'tar';
 import { afterAll, describe, expect, it } from 'vitest';
+import { MAX_BUNDLE_BYTES } from '../bundle.js';
 import { readSkillDirectory, readTarGzArchive, readZipArchive } from '../archive.js';
 
 const scratch: string[] = [];
@@ -46,6 +48,14 @@ describe('readZipArchive', () => {
   });
 });
 
+/** Compressible, but well inside the ratio tar refuses past. */
+function repeatedBlock(size: number): Buffer {
+  const block = randomBytes(64 * 1024);
+  return Buffer.concat(
+    Array.from({ length: Math.ceil(size / block.length) }, () => block),
+  ).subarray(0, size);
+}
+
 describe('readTarGzArchive', () => {
   it('reads a gzipped tarball the way GitHub serves one', async () => {
     const dir = await scratchDir();
@@ -54,11 +64,25 @@ describe('readTarGzArchive', () => {
     await writeFile(join(dir, 'repo-sha/README.md'), '# repo');
     const buffer = await createTar({ gzip: true, cwd: dir }, ['repo-sha']).concat();
 
-    const files = await readTarGzArchive(Buffer.from(buffer));
+    const { files } = await readTarGzArchive(Buffer.from(buffer));
     expect(files.map((f) => f.path).sort()).toEqual([
       'repo-sha/README.md',
       'repo-sha/skills/pdf/SKILL.md',
     ]);
+  });
+
+  it('counts only the entries the caller keeps toward the size limit', async () => {
+    const dir = await scratchDir();
+    await mkdir(join(dir, 'repo-sha/skills'), { recursive: true });
+    await mkdir(join(dir, 'repo-sha/vendor'), { recursive: true });
+    await writeFile(join(dir, 'repo-sha/skills/SKILL.md'), '---\nname: a\n---\n');
+    // Larger than a bundle may be, but outside the directory that was asked for.
+    await writeFile(join(dir, 'repo-sha/vendor/blob.bin'), repeatedBlock(MAX_BUNDLE_BYTES + 1));
+    const buffer = Buffer.from(await createTar({ gzip: true, cwd: dir }, ['repo-sha']).concat());
+
+    await expect(readTarGzArchive(buffer)).rejects.toThrow(/expands past/);
+    const { files } = await readTarGzArchive(buffer, (path) => path.startsWith('repo-sha/skills/'));
+    expect(files.map((f) => f.path)).toEqual(['repo-sha/skills/SKILL.md']);
   });
 
   it('flags a symlink instead of reading through it', async () => {
@@ -68,7 +92,7 @@ describe('readTarGzArchive', () => {
     await symlink('../../../etc/passwd', join(dir, 'pkg/link.md'));
     const buffer = await createTar({ gzip: true, cwd: dir }, ['pkg']).concat();
 
-    const files = await readTarGzArchive(Buffer.from(buffer));
+    const { files } = await readTarGzArchive(Buffer.from(buffer));
     const link = files.find((f) => f.path.endsWith('link.md'));
     expect(link?.symlink).toBe(true);
     expect(link?.content.byteLength).toBe(0);

@@ -924,10 +924,8 @@ router.post('/import/from-text', async (req, res) => {
 
     const result = await generateText({
       model: getAIModel(resolved, 'background'),
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: text },
-      ],
+      system: systemPrompt,
+      messages: [{ role: 'user', content: text }],
       tools: { saveUserMemory: saveTool },
       temperature: 0.2,
       maxRetries: 0,

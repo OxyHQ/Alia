@@ -176,7 +176,6 @@ ${actionLines(agent, options)}
 // ── Context Builder (Manus KV-cache optimization) ──
 
 function buildContextMessages(
-  systemPrompt: string,
   eventStream: EventStream,
   todoManager: TodoManager,
   stateMachine: AgentStateMachine,
@@ -184,8 +183,8 @@ function buildContextMessages(
 ): ModelMessage[] {
   const messages: ModelMessage[] = [];
 
-  // 1. Stable system prompt (never changes — KV-cache friendly)
-  messages.push({ role: 'system', content: systemPrompt });
+  // 1. The stable system prompt (never changes — KV-cache friendly) is not a
+  // message: it leaves as the SDK's `system` option at the call site.
 
   // 2. Event stream as conversation history
   const recentEvents = eventStream.getRecentWindow(EVENT_STREAM_BUDGET);
@@ -711,18 +710,13 @@ async function driveAgentSession(
       const startMs = Date.now();
 
       // Build context (stable prefix + event stream + todo/state tail)
-      const messages = buildContextMessages(
-        systemPrompt,
-        eventStream,
-        todoManager,
-        stateMachine,
-        iteration,
-      );
+      const messages = buildContextMessages(eventStream, todoManager, stateMachine, iteration);
 
       try {
         // One action per iteration (Manus principle)
         const result = await generateText({
           model,
+          system: systemPrompt,
           messages,
           tools: allActions, // ALL actions always registered (KV-cache stability)
           // What each request SENDS is bounded by the per-request tool budget:
@@ -914,7 +908,6 @@ async function driveAgentSession(
 
         totalSteps++;
         if (totalSteps >= session.config.maxSteps) break;
-        continue;
       }
     }
 

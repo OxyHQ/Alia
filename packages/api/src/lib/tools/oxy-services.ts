@@ -207,11 +207,20 @@ export class OxyOutcomeUnknownError extends Error {
   }
 }
 
-async function safeExecute(service: string, operation: () => Promise<unknown>): Promise<unknown> {
+async function safeExecute(
+  service: string,
+  call: { tool: string; argKeys: readonly string[] },
+  operation: () => Promise<unknown>,
+): Promise<unknown> {
   try {
     return await operation();
   } catch (error: unknown) {
-    log.general.warn({ err: error, service }, 'Oxy capability tool error');
+    // Which tool and which argument NAMES (never values: they are the person's
+    // content) — a 400 from the app is otherwise indistinguishable from any other.
+    log.general.warn(
+      { err: error, service, tool: call.tool, argKeys: call.argKeys },
+      'Oxy capability tool error',
+    );
     if (error instanceof OxyAuthorityUnavailableError) {
       return {
         error: 'oxy_app_unavailable',
@@ -1134,8 +1143,10 @@ export async function buildOxyServiceTools(
             }
             preauthorizedInvocationStarted = true;
           }
-          return safeExecute(binding.compiled.catalog.appId, () =>
-            callBoundTool(binding, args, context, toolCallId, retirements),
+          return safeExecute(
+            binding.compiled.catalog.appId,
+            { tool: binding.compiled.definition.name, argKeys: Object.keys(args ?? {}) },
+            () => callBoundTool(binding, args, context, toolCallId, retirements),
           );
         },
       });

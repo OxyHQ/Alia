@@ -645,10 +645,8 @@ async function generateScript(
     try {
       const result = await generateText({
         model: getAIModel(resolved, 'media'),
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: user },
-        ],
+        system: system,
+        messages: [{ role: 'user', content: user }],
         temperature: 0.8,
         maxRetries: 0,
       });

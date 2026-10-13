@@ -26,8 +26,8 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('ai', () => ({
-  generateText: vi.fn(async (options: { messages: { role: string; content: string }[] }) => {
-    state.systemPrompt = options.messages.find((m) => m.role === 'system')?.content ?? '';
+  generateText: vi.fn(async (options: { system?: string }) => {
+    state.systemPrompt = options.system ?? '';
     return { text: state.modelText };
   }),
 }));

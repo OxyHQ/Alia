@@ -164,10 +164,8 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     // Use generateText (non-streaming) for server-to-server
     const result = await generateText({
       model,
-      messages: [
-        { role: 'system', content: systemPrompt + appCatalogPrompt },
-        { role: 'user', content: eventDescription },
-      ],
+      system: systemPrompt + appCatalogPrompt,
+      messages: [{ role: 'user', content: eventDescription }],
       tools,
       // Bounds each request to the per-request tool budget (`lib/tool-budget.ts`).
       ...toolRouting,

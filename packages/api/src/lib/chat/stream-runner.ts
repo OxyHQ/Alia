@@ -121,7 +121,6 @@ export interface RunStreamParams<TOOLS extends ToolSet> {
   resolved: ResolvedModel;
   // biome-ignore lint/suspicious/noExplicitAny: AI SDK config is dynamically extended; strict SDK param types don't support this pattern
   baseConfig: any;
-  convertedMessages: ModelMessage[];
   toolNameMapping: Map<string, string>;
   /** Accumulator for delegate-to-agent replies; mutated in place. */
   agentMessages: AgentMessage[];
@@ -157,7 +156,6 @@ export async function runStream<TOOLS extends ToolSet>(
     modelId,
     resolved,
     baseConfig,
-    convertedMessages,
     toolNameMapping,
     agentMessages,
     state,
@@ -191,7 +189,7 @@ export async function runStream<TOOLS extends ToolSet>(
     if (completed.length === 0 || res.writableEnded) return false;
 
     const followUpMessages: ModelMessage[] = [
-      ...convertedMessages,
+      ...baseConfig.messages,
       ...completed.flatMap(toolRoundTrip),
     ];
 
@@ -430,7 +428,12 @@ export async function runStream<TOOLS extends ToolSet>(
       log.v1.debug('Stream started');
     } else if (chunk.type === 'start-step') {
       log.v1.debug('Step started');
-    } else if (chunk.type === 'text-start' || chunk.type === 'text-end') {
+    } else if (
+      chunk.type === 'text-start' ||
+      chunk.type === 'text-end' ||
+      chunk.type === 'reasoning-start' ||
+      chunk.type === 'reasoning-end'
+    ) {
       // Text generation lifecycle events - no action needed
     } else if (
       chunk.type === 'tool-input-start' ||

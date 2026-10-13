@@ -120,33 +120,29 @@ async function request(url: string, accept?: string): Promise<Response> {
   throw new SkillImportError(`GitHub answered ${lastStatus} for ${url}`);
 }
 
-/** The ref as a commit SHA. This is what an import pins to. */
-export async function resolveCommit(source: GitHubSource): Promise<string> {
-  const ref = source.ref ?? 'HEAD';
-  const response = await request(
-    `https://api.github.com/repos/${source.owner}/${source.repo}/commits/${encodeURIComponent(ref)}`,
-    'application/vnd.github.sha',
-  );
-  const sha = (await response.text()).trim();
-  if (!/^[0-9a-f]{40}$/.test(sha))
-    throw new SkillImportError(`GitHub returned "${sha}" instead of a commit sha`);
-  return sha;
-}
+const COMMIT_SHA = /^[0-9a-f]{40}$/;
 
 /**
- * The repository at one commit, as files.
+ * The repository at one ref, as files, and the commit that ref was at.
  *
- * GitHub wraps a tarball in a single `{repo}-{sha}/` directory that is an
+ * The commit comes out of the archive itself — GitHub records it in the
+ * tarball's pax global header — rather than from `api.github.com`. That API
+ * allows sixty unauthenticated requests an hour per egress address, shared by
+ * every task behind the same NAT, so asking it for a SHA first made the sync
+ * fail on rate limits that the download it was about to do never had.
+ *
+ * GitHub wraps a tarball in a single `{repo}-{ref}/` directory that is an
  * artefact of the download rather than part of the repository, so it is stripped
  * here — otherwise every path in the bundle would carry a prefix that changes on
  * every commit, and a `path` filter written by a person would never match.
  */
 export async function fetchRepositoryFiles(
   source: GitHubSource,
-  commit: string,
-): Promise<RawFile[]> {
+): Promise<{ commit: string; files: RawFile[] }> {
+  const prefix = source.path?.replace(/^\/+|\/+$/g, '');
+  const ref = source.ref ?? 'HEAD';
   const response = await request(
-    `https://codeload.github.com/${source.owner}/${source.repo}/tar.gz/${commit}`,
+    `https://codeload.github.com/${source.owner}/${source.repo}/tar.gz/${encodeURIComponent(ref)}`,
   );
   const declared = Number(response.headers.get('content-length') ?? 0);
   if (declared > MAX_ARCHIVE_BYTES) {
@@ -157,11 +153,29 @@ export async function fetchRepositoryFiles(
     throw new SkillImportError(`the repository archive is larger than ${MAX_ARCHIVE_BYTES} bytes`);
   }
 
-  const files = await readTarGzArchive(buffer);
-  return files.map((file) => {
-    const slash = file.path.indexOf('/');
-    return slash === -1 ? file : { ...file, path: file.path.slice(slash + 1) };
-  });
+  const { files, comment } = await readTarGzArchive(
+    buffer,
+    prefix
+      ? (path) => {
+          const inner = path.slice(path.indexOf('/') + 1);
+          return inner === prefix || inner.startsWith(`${prefix}/`);
+        }
+      : undefined,
+  );
+  // An archive requested by SHA is wrapped in `{repo}-{sha}/`, so a header-less
+  // archive of one (a mirror, a fixture) still says which commit it is.
+  const wrapper = /-([0-9a-f]{40})\//.exec(files[0]?.path ?? '');
+  const commit = [comment?.trim(), ref, wrapper?.[1]].find((c) => c && COMMIT_SHA.test(c));
+  if (!commit)
+    throw new SkillImportError('GitHub sent an archive that does not say which commit it is');
+
+  return {
+    commit,
+    files: files.map((file) => {
+      const slash = file.path.indexOf('/');
+      return slash === -1 ? file : { ...file, path: file.path.slice(slash + 1) };
+    }),
+  };
 }
 
 export interface ImportedSkill {
@@ -187,8 +201,7 @@ export interface GitHubImport {
  */
 export async function importSkillsFromGitHub(input: string | GitHubSource): Promise<GitHubImport> {
   const source = typeof input === 'string' ? parseGitHubSource(input) : input;
-  const commit = await resolveCommit(source);
-  const files = await fetchRepositoryFiles(source, commit);
+  const { commit, files } = await fetchRepositoryFiles(source);
 
   const prefix = source.path?.replace(/^\/+|\/+$/g, '');
   const scoped = prefix

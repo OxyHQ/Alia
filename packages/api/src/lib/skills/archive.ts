@@ -69,13 +69,28 @@ export function readZipArchive(buffer: Buffer): RawFile[] {
   return files;
 }
 
-export async function readTarGzArchive(buffer: Buffer): Promise<RawFile[]> {
+/**
+ * `keep` is asked with the entry's path as stored, and an entry it refuses is
+ * skipped before it counts toward the limit: a repository import wants one
+ * directory, and a whole monorepo's expansion says nothing about that skill.
+ */
+export async function readTarGzArchive(
+  buffer: Buffer,
+  keep?: (path: string) => boolean,
+): Promise<{ files: RawFile[]; comment?: string }> {
   const files: RawFile[] = [];
+  let comment: string | undefined;
   let bytes = 0;
 
   await new Promise<void>((resolve, reject) => {
     const parser = new Parser();
     parser.on('entry', (entry) => {
+      // GitHub writes the commit into the archive's pax global header.
+      comment ??= entry.globalExtended?.comment;
+      if (keep && !keep(String(entry.path))) {
+        entry.resume();
+        return;
+      }
       const symlink = entry.type === 'SymbolicLink' || entry.type === 'Link';
       if (entry.type !== 'File' && !symlink) {
         entry.resume();
@@ -117,7 +132,7 @@ export async function readTarGzArchive(buffer: Buffer): Promise<RawFile[]> {
   // message has to cover both rather than claim the one it cannot distinguish.
   if (files.length === 0)
     throw new SkillArchiveError('the tarball is not readable, or holds no files');
-  return files;
+  return { files, comment };
 }
 
 /**
