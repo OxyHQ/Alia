@@ -18,12 +18,14 @@
  */
 
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from '../lib/keyboard';
 import { AliaChatContent } from './AliaChatContent';
-import { IdentityMark } from './IdentityMark';
+import { AliaChatHeader } from './AliaChatHeader';
 import type { WelcomeSuggestion } from './AliaWelcomeMessage';
+import type { AliaChatLabels } from '../lib/labels';
 import type { VoiceSessionComponent } from '../types';
 
 export interface AliaChatScreenProps {
@@ -43,12 +45,12 @@ export interface AliaChatScreenProps {
   welcomeSubtitle?: string;
   /** Welcome screen suggestions */
   welcomeSuggestions?: WelcomeSuggestion[];
-  /** Theme primary color hex — forwarded to the ambient wave overlay palette. */
-  primaryColor?: string;
   /** Dark-mode flag — forwarded to the ambient wave overlay. */
   isDarkMode?: boolean;
   /** Voice capability — `VoiceSession` from `@alia.onl/sdk/voice`. */
   voiceSession?: VoiceSessionComponent;
+  /** Overrides for the chat's own copy (header, composer, plan, research…); omitted, English. */
+  labels?: Partial<AliaChatLabels>;
 }
 
 export function AliaChatScreen({
@@ -60,11 +62,12 @@ export function AliaChatScreen({
   welcomeGreeting,
   welcomeSubtitle,
   welcomeSuggestions,
-  primaryColor,
   isDarkMode,
   voiceSession,
+  labels,
 }: AliaChatScreenProps) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
 
   // The screen owns the whole window, so it keeps its composer out of both
   // system bars: the top inset clears the status bar, the bottom one the
@@ -78,8 +81,12 @@ export function AliaChatScreen({
   // this deep in a host's tree, which is why the offset is measured.)
   return (
     <View
-      className="flex-1 bg-background"
-      style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
+      className="flex-1"
+      style={{
+        backgroundColor: colors.background,
+        paddingTop: insets.top,
+        paddingBottom: insets.bottom,
+      }}
     >
       <KeyboardAvoidingView behavior="padding" automaticOffset style={{ flex: 1 }}>
         <AliaChatContent
@@ -89,25 +96,17 @@ export function AliaChatScreen({
           welcomeGreeting={welcomeGreeting}
           welcomeSubtitle={welcomeSubtitle}
           welcomeSuggestions={welcomeSuggestions}
-          primaryColor={primaryColor}
           isDarkMode={isDarkMode}
           voiceSession={voiceSession}
-          header={({ markState, hasMessages, clear }) => (
-            <View className="flex-row items-center justify-between px-4 py-3">
-              <View className="flex-row items-center gap-2.5">
-                {headerLeft}
-                <IdentityMark size={28} state={markState} spinOnPress />
-                <Text className="text-lg font-semibold text-foreground">Alia</Text>
-              </View>
-              <View className="flex-row items-center gap-2">
-                {hasMessages && (
-                  <TouchableOpacity onPress={clear} className="px-2.5 py-1.5">
-                    <Text className="text-sm text-muted-foreground">Clear</Text>
-                  </TouchableOpacity>
-                )}
-                {headerRight}
-              </View>
-            </View>
+          labels={labels}
+          title={null}
+          headerLeading={({ hasMessages, clear }) => (
+            <AliaChatHeader
+              hasMessages={hasMessages}
+              onClear={clear}
+              leading={headerLeft}
+              trailing={headerRight}
+            />
           )}
         />
       </KeyboardAvoidingView>

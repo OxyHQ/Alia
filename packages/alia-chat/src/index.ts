@@ -9,14 +9,19 @@ export { AliaChatScreen } from './components/AliaChatScreen';
 export type { AliaChatScreenProps } from './components/AliaChatScreen';
 
 // ── Chat UI components ──
+export { DEFAULT_LABELS } from './lib/labels';
+export type { AliaChatLabels } from './lib/labels';
+export { VoiceModeIcon } from './components/VoiceModeIcon';
+export { AmbientField, PARALLAX_DURATION, PARALLAX_EASE } from './components/AmbientField';
+export type { AmbientFieldProps } from './components/AmbientField';
+export { AliaAvatar } from './components/AliaAvatar';
+export type { AliaAvatarProps, AliaAvatarState } from './components/AliaAvatar';
 export { IdentityMark } from './components/IdentityMark';
 export type { IdentityMarkProps, IdentityMarkState } from './components/IdentityMark';
-export { ThinkingIndicator } from './components/ThinkingIndicator';
 export { AliaMarkdown } from './components/Markdown';
 export type { AliaMarkdownProps, RenderCodeBlock } from './components/Markdown';
 export { Reasoning, ReasoningTrigger, ReasoningContent } from './components/Reasoning';
 export { AliaWelcomeMessage } from './components/AliaWelcomeMessage';
-export { ResearchProgressCard } from './components/ResearchProgressCard';
 export { PlanPreviewCard } from './components/PlanPreviewCard';
 
 // ── Chat hook ──
@@ -64,12 +69,20 @@ export type {
 } from './types';
 
 // ── UI Primitives (NativeWind) ──
-export { Button, buttonVariants, buttonTextVariants } from './components/ui/button';
-export type { ButtonProps } from './components/ui/button';
-export { Text, TextClassContext } from './components/ui/text';
 export { cn, formatFileSize } from './lib/utils';
 export { getToolLabel, getToolActiveLabel, getResearchActiveLabel } from './lib/tool-registry';
 export { getTextFromContent, getImagesFromContent } from './lib/content-utils';
+
+// ── The turn's work log: tool calls as Bloom's `WebSearch` and `TaskList` ──
+export { isWebInvocation, taskListLog, webSearchLog } from './lib/work-log';
+export type { LiveResearch, TaskListLog, WebSearchLog, WorkLogOptions } from './lib/work-log';
+export { englishWorkLog } from './lib/work-log-copy';
+export type { Translate } from './lib/work-log-copy';
+export { getToolDoneLabel, getToolPillLabel } from './lib/task-labels';
+export { extractCitationSources } from './lib/citations';
+export type { CitationSource } from './lib/citations';
+export { toolCallStatus } from './lib/tool-call-status';
+export type { ToolCallStatus } from './lib/tool-call-status';
 
 // ── Picker hooks ──
 export { useImagePicker } from './hooks/useImagePicker';

@@ -115,7 +115,7 @@ vi.mock('react-native-svg', async () => {
   };
 });
 
-import { AmbientField } from '@/features/chat/ui/ambient-field';
+import { AmbientField } from '../../src/components/AmbientField';
 
 /** The loops a blob asks for: its float (a lap, delayed or not) and its beat. */
 function isLoop(value: unknown): boolean {

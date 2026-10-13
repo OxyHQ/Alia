@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useOxy } from '@oxy.so/services/ui/client';
 import type { ChatMessage, ToolInvocation } from '../types';
-import { getTextFromContent } from '../lib/content-utils';
+import { getTextFromContent, type MessageContent } from '../lib/content-utils';
 import { resolveModelId } from '../lib/catalogue';
 import { streamAliaChat } from '../lib/chat-transport';
 import type { AliaChatStreamEvent } from '../lib/chat-stream';
@@ -45,10 +45,15 @@ export interface UseAliaChatOptions {
   accessToken?: string;
 }
 
+export interface SendOptions {
+  images?: ReadonlyArray<string>;
+}
+
 export interface UseAliaChatReturn {
   messages: ChatMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
-  send: (text: string) => void;
+  /** `images` are `data:` or `https:` URLs sent with the turn as `image_url` parts. */
+  send: (text: string, options?: SendOptions) => void;
   isStreaming: boolean;
   stop: () => void;
   clear: () => void;
@@ -226,9 +231,10 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
   }, [cancelPendingTimer]);
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, options?: SendOptions) => {
       const trimmed = text.trim();
-      if (!trimmed) return;
+      const images = options?.images ?? [];
+      if (!trimmed && images.length === 0) return;
 
       const activeToken = oxyServices.session.accessToken;
       if (accessTokenProp !== undefined && accessTokenProp !== activeToken) {
@@ -248,10 +254,17 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
         flushPendingUpdates(previousPending);
       }
 
+      const userContent: MessageContent =
+        images.length > 0
+          ? [
+              ...(trimmed ? [{ type: 'text', text: trimmed }] : []),
+              ...images.map((url) => ({ type: 'image_url', image_url: { url } })),
+            ]
+          : trimmed;
       const userMessage: ChatMessage = {
         id: generateId(),
         role: 'user',
-        content: trimmed,
+        content: userContent,
         createdAt: Date.now(),
       };
       const assistantMessage: ChatMessage = {
@@ -276,7 +289,7 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
       setError(null);
       setIsStreaming(true);
 
-      const apiMessages: Array<{ role: string; content: string }> = [];
+      const apiMessages: Array<{ role: string; content: MessageContent }> = [];
       if (clientContext) apiMessages.push({ role: 'system', content: clientContext });
       for (const message of history) {
         if (message.role === 'system') continue;
@@ -290,7 +303,7 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
           }
         }
       }
-      apiMessages.push({ role: 'user', content: trimmed });
+      apiMessages.push({ role: 'user', content: userContent });
 
       const pending: PendingUpdates = {
         assistantId: assistantMessage.id,

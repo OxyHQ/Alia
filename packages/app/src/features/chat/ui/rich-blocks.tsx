@@ -188,7 +188,7 @@ export function Credibility({ level, source }: { level: number; source: string }
   const { t } = useTranslation();
   return (
     <View className="my-2 flex-row items-center gap-2">
-      <Rating value={Math.max(0, Math.min(5, level))} size="small" />
+      <Rating value={Math.max(0, Math.min(5, level))} size="sm" />
       <Muted>{t('chat.richBlocks.source', { source })}</Muted>
     </View>
   );

@@ -2,6 +2,7 @@ import '../global.css';
 import { useNavigationTheme } from '@oxy.so/bloom/theme';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
+import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
 import { BloomProvider } from '@oxy.so/bloom/provider';
 import { preventNativeSplashAutoHide, useHideNativeSplashWhenReady } from '@oxy.so/expo-splash';
 import { OxyProvider, useOxy } from '@oxy.so/services';
@@ -17,6 +18,7 @@ import '@/shared/i18n';
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from '@/shared/i18n';
 import { useI18nStore } from '@/shared/i18n/i18n-store';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/shared/platform/themePersistence';
+import { CHARACTER_RUNTIME_URL } from '@/shared/platform/character-runtime';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
 import 'react-native-reanimated';
 
@@ -120,28 +122,30 @@ function RootLayout() {
       persistKey={BLOOM_THEME_PERSIST_KEY}
       storage={BLOOM_THEME_STORAGE}
     >
-      <AppErrorBoundary>
-        <OxyProvider
-          baseURL={OXY_API_URL}
-          clientId={OXY_CLIENT_ID}
-          authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}
-          // Wires Alia's own i18n-js instance to Oxy's resolved language (the
-          // signed-in account's primary locale, or the device/guest locale
-          // when signed out) — Oxy decides WHICH language; `useI18nStore`
-          // keeps owning the translation catalogs and library. See ADR 0022
-          // in OxyHQServices (`docs/adr/0022-app-i18n-follows-oxy-language.md`).
-          language={{
-            supportedLocales: SUPPORTED_LOCALES,
-            fallbackLocale: DEFAULT_LOCALE,
-            onChange: useI18nStore.getState().setLocale,
-            onError: (error, locale) => {
-              console.error('Failed to follow the Oxy-resolved language', error, { locale });
-            },
-          }}
-        >
-          <AppContent />
-        </OxyProvider>
-      </AppErrorBoundary>
+      <AgentAvatarProvider runtimeUrl={CHARACTER_RUNTIME_URL}>
+        <AppErrorBoundary>
+          <OxyProvider
+            baseURL={OXY_API_URL}
+            clientId={OXY_CLIENT_ID}
+            authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}
+            // Wires Alia's own i18n-js instance to Oxy's resolved language (the
+            // signed-in account's primary locale, or the device/guest locale
+            // when signed out) — Oxy decides WHICH language; `useI18nStore`
+            // keeps owning the translation catalogs and library. See ADR 0022
+            // in OxyHQServices (`docs/adr/0022-app-i18n-follows-oxy-language.md`).
+            language={{
+              supportedLocales: SUPPORTED_LOCALES,
+              fallbackLocale: DEFAULT_LOCALE,
+              onChange: useI18nStore.getState().setLocale,
+              onError: (error, locale) => {
+                console.error('Failed to follow the Oxy-resolved language', error, { locale });
+              },
+            }}
+          >
+            <AppContent />
+          </OxyProvider>
+        </AppErrorBoundary>
+      </AgentAvatarProvider>
     </BloomProvider>
   );
 }

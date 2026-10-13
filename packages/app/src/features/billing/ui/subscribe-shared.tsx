@@ -255,7 +255,7 @@ function TierName({ tier, t }: { tier: PricingTier; t: Translate }) {
     <View className="flex-row flex-wrap items-center gap-2">
       <Text variant="title-3-bold">{tier.name}</Text>
       {tier.isFeatured ? (
-        <Chip size="small" variant="solid" color="primary">
+        <Chip size="sm" variant="solid" color="primary">
           {t('subscribe.popular')}
         </Chip>
       ) : null}

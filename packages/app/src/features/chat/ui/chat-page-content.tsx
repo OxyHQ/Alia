@@ -14,7 +14,6 @@ import { useCredits } from '@/features/billing/runtime/use-credits';
 import { useRecordSuggestionUsage, type Suggestion } from '@/features/chat/runtime/use-suggestions';
 import { Button } from '@oxy.so/bloom/button';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { VoiceModeIcon } from '@/features/voice/ui/voice-mode-icon';
 import { toast } from '@oxy.so/bloom/toast';
 import { useRouter } from 'expo-router';
 import { useScreenOnShow } from '@/shared/platform/use-screen-on-show';
@@ -33,8 +32,8 @@ import { useProjectsStore } from '@/features/projects/runtime/projects-store';
 import type { ThreadMessage } from '@/features/chat/model/thread-history';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
 import type { Message } from '@/features/chat/model/chat';
-import { AmbientField } from '@/features/chat/ui/ambient-field';
 import { useTTS } from '@/features/voice/runtime/use-tts';
+import { AmbientField, VoiceModeIcon } from '@alia.onl/sdk';
 import { VoiceControls, useAmbientWave } from '@alia.onl/sdk/voice';
 import { AiChatMobileHeader, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
@@ -496,7 +495,6 @@ export const ChatPageContent = ({
               isMuted={voice.isMuted}
               onToggleMute={voice.toggleMute}
               onEnd={voice.deactivateVoice}
-              primaryColor={colors.primary}
               labels={voiceControlLabels}
             />
           </View>

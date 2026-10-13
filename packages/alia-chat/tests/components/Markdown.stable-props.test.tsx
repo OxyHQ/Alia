@@ -21,6 +21,8 @@ vi.mock('react-native', () => ({
   useColorScheme: () => 'light',
 }));
 
+vi.mock('@oxy.so/bloom/code', () => ({ CodeBlock: () => null }));
+
 vi.mock('react-native-markdown-display', () => ({
   default: (props: Record<string, unknown>) => {
     seen.props.push(props);

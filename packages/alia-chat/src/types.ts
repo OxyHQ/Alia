@@ -115,8 +115,11 @@ export interface VoiceSessionProps {
   apiUrl?: string;
   /** Called on every room, agent, or transcript change. */
   onStateChange: (state: VoiceSessionState) => void;
-  /** The call is over — the user ended it, it errored, or the room dropped. */
-  onEnd: () => void;
+  /**
+   * The call is over — the user ended it, it errored, or the room dropped. When it
+   * failed, say why, so the shell can tell the person instead of silently going back.
+   */
+  onEnd: (error?: string) => void;
 }
 
 /**

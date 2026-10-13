@@ -1,5 +1,57 @@
 # @alia.onl/sdk
 
+## 11.0.0
+
+The chat UI is Bloom's, not a copy of it. Breaking:
+
+- **Bloom is a peer dependency** (`@oxy.so/bloom ^8.0.0`; with `@oxy.so/services`
+  11.2.0-oxy-one.4 and `@oxy.so/core` 4.5.0-oxy-one.1 it is the newest set that
+  satisfies every peer range). The host must mount `BloomProvider`.
+- **Alia's avatar is Bloom's 3D character.** The host mounts `AgentAvatarProvider`
+  with the URL of the hosted `character-runtime` (see the README). New:
+  `AliaAvatar`. `IdentityMark` stays only for an agent's likeness.
+- **Removed exports:** `Button`, `buttonVariants`, `buttonTextVariants`, `Text`,
+  `TextClassContext` (use `@oxy.so/bloom/button` and `typography`), and
+  `ThinkingIndicator` (`AgentThinking`). `zeego`, `class-variance-authority` and
+  both `@radix-ui` packages are no longer dependencies.
+- **Composer:** Bloom's `ComposerPill` with a Photos entry in its add menu. Photos are
+  now actually sent, as `image_url` parts: `useAliaChat().send(text, { images })`
+  (the old composer collected attachments and never sent them). The autocomplete
+  props (`useSuggestions`, `onSuggestionUsed`) are gone; nobody passed them.
+- **Sheet:** `AliaChatSheet` is Bloom's `BottomSheet`, detached, radius 40. The
+  header is Bloom's `PageHeader` (avatar over a name capsule; press it for a wave).
+  `AliaChatScreen` uses the same header; `headerLeft` and `headerRight` still work.
+- **Chat parts:** the thread uses `AiChatUserMessage` and `AiChatFeedbackRow`, replies
+  render code through Bloom's `CodeBlock`, research through `WebSearch`, and
+  reasoning through `AgentThinking`. The welcome is the app's: the greeting at
+  display size and the suggestions as compact rows.
+- **Voice controls:** `VoiceControls` is Bloom's `CallControls`; its `primaryColor` prop
+  is gone (Bloom paints from the theme). The plan card is `Card`, `Item` and `Button`;
+  editing a message uses Bloom's `Textarea`; the agent line shows a Bloom `Avatar`.
+  Colours come from Bloom's theme and tokens, not hard-coded values or the host's
+  shadcn classes. `lucide-react-native` and `expo-blur` are no longer used here.
+- **The turn's work is drawn as the app draws it.** Tool calls are Bloom's `TaskList` and
+  `WebSearch`, driven by `revealed` from the calls that have really arrived, through one
+  shared mapping: `webSearchLog`, `taskListLog` and `isWebInvocation` (root entry), and the
+  pure `@alia.onl/sdk/tools` entry (`toolCallStatus`, `extractCitationSources`,
+  `getToolDoneLabel`, `getToolPillLabel`), which the app now imports instead of keeping
+  copies. `ResearchProgressCard` and the `onToolResultPress` prop are gone: research is a
+  step of the `WebSearch` trail, and a tool row is not a button. The words of the log are
+  English unless the host passes `labels.workLog` (a translator keyed like the app's).
+- **One animated background.** The ambient gradient (three blurred, drifting colour fields
+  that answer the live audio level) is the app's `AmbientField`, now exported by the SDK
+  with `PARALLAX_DURATION` and `PARALLAX_EASE`; the chat draws it as its container's
+  background and the app imports it from here. `VoiceOverlay`, `AudioWaveVisualizer` and the
+  `primaryColor` props that fed them are gone.
+- **Errors:** a failed voice call or dictation goes to `onError` when the host gives one and
+  to Bloom's `toast` otherwise (the host needs a `ToastOutlet`; `OxyProvider` mounts one). A
+  voice session reports why it ended: `onEnd(error?)`.
+- **Thread:** the messages are a Bloom `AiChatThread` inside `AiChatContainer` with
+  floating chrome, so the conversation scrolls behind the header and the composer with
+  Bloom's edge fades. The `scrollOffsetY` plumbing is gone.
+- **New:** `labels` on `AliaChatSheet` and `AliaChatScreen` to translate the chat's
+  own copy; `AliaChatLabels` and `DEFAULT_LABELS` are exported.
+
 ## 10.1.1
 
 `ChatTextInput` no longer passes `placeholderClassName`. No styling runtime ever

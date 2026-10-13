@@ -29,7 +29,7 @@ export function ChipList({ items }: { items: string[] }) {
   return (
     <View className="flex-row flex-wrap gap-1.5">
       {items.map((item, i) => (
-        <Chip key={i} size="large">
+        <Chip key={i} size="lg">
           {item}
         </Chip>
       ))}

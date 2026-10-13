@@ -1,4 +1,4 @@
-import type { ToolInvocation } from '@/shared/contracts/messages';
+import type { CitationSource } from '@alia.onl/sdk/tools';
 
 /**
  * Citations — the `[n]` markers in a research answer, resolved to the sources
@@ -21,13 +21,9 @@ import type { ToolInvocation } from '@/shared/contracts/messages';
  *    (`lib/chat-modes/deep-research-handler.ts`).
  */
 
-export interface CitationSource {
-  /** The citation number, as it appears in `[n]`. */
-  id: number;
-  url: string;
-  title: string;
-  domain: string;
-}
+// One definition of the numbered sources, the SDK's, so its chat and this app agree.
+export type { CitationSource } from '@alia.onl/sdk/tools';
+export { extractCitationSources } from '@alia.onl/sdk/tools';
 
 const FULLWIDTH_MARKER_RE = /【\s*(\d{1,3})\s*(?:†[^】]*)?】/g;
 const ASCII_DAGGER_MARKER_RE = /\[(\d{1,3})†[^\]]*\]/g;
@@ -65,50 +61,6 @@ function domainOf(url: string): string {
   } catch {
     return url;
   }
-}
-
-/** One persisted research source, as the handler saves it. */
-interface PersistedResearchSource {
-  id?: unknown;
-  url?: unknown;
-  title?: unknown;
-}
-
-/**
- * The sources a message's `[n]` markers can resolve to, by citation number.
- *
- * Only `deepResearch` invocations carry NUMBERED sources; a `webSearch`
- * result has URLs but no `[n]` to stand for them, so it contributes nothing
- * here (it still reaches the Sources row through `extractSources`). The first
- * invocation to claim a number wins, which is also the only one there is.
- */
-export function extractCitationSources(
-  toolInvocations?: ToolInvocation[],
-  /** `researchProgress.sources` of a live research answer, before it is persisted. */
-  liveSources?: Array<{ id?: unknown; url?: unknown; title?: unknown }> | null,
-): CitationSource[] {
-  const byId = new Map<number, CitationSource>();
-  const take = (raw: PersistedResearchSource) => {
-    if (!raw || typeof raw !== 'object') return;
-    const id = typeof raw.id === 'number' ? raw.id : Number(raw.id);
-    const url = typeof raw.url === 'string' ? raw.url : '';
-    if (!Number.isInteger(id) || id < 1 || url.length === 0 || byId.has(id)) return;
-    const title =
-      typeof raw.title === 'string' && raw.title.trim().length > 0
-        ? raw.title.trim()
-        : domainOf(url);
-    byId.set(id, { id, url, title, domain: domainOf(url) });
-  };
-
-  for (const inv of toolInvocations ?? []) {
-    if (inv.toolName !== 'deepResearch' || inv.state !== 'result') continue;
-    const sources: unknown = inv.result?.sources;
-    if (!Array.isArray(sources)) continue;
-    for (const raw of sources as PersistedResearchSource[]) take(raw);
-  }
-  for (const raw of liveSources ?? []) take(raw);
-
-  return [...byId.values()].sort((a, b) => a.id - b.id);
 }
 
 /**

@@ -32,7 +32,7 @@ vi.mock('@/shared/platform/keyboard', async () => {
   };
 });
 
-vi.mock('@/features/chat/ui/ambient-field', async () => {
+vi.mock('@alia.onl/sdk', async () => {
   const ReactModule = await import('react');
   return {
     AmbientField: (props: Record<string, unknown>) =>

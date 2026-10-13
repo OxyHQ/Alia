@@ -67,7 +67,7 @@ vi.mock('@oxy.so/services', () => ({
   useOxy: () => ({ isAuthenticated: true, user: { id: 'user-a' }, showBottomSheet: vi.fn() }),
 }));
 
-vi.mock('@alia.onl/sdk', () => ({ IdentityMark: () => null }));
+vi.mock('@alia.onl/sdk', () => ({ AliaAvatar: () => null }));
 vi.mock('@/features/onboarding/ui/invite-dialog', () => ({ InviteDialog: () => null }));
 vi.mock('@/features/projects/ui/project-edit-dialog', () => ({ ProjectEditDialog: () => null }));
 vi.mock('@/features/settings/ui/settings-context', () => ({

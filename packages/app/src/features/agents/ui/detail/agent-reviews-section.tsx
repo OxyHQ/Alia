@@ -132,7 +132,7 @@ export function AgentReviewsSection({
             <View key={review._id} className="gap-1">
               <View className="flex-row items-center gap-2">
                 <Text variant="body-medium">{review.userId?.username || 'User'}</Text>
-                <Rating value={review.rating} size="small" />
+                <Rating value={review.rating} size="sm" />
                 <View className="flex-1" />
                 {viewerId !== null && review.userId?._id === viewerId && (
                   <Button

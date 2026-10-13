@@ -18,6 +18,10 @@ vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => mocks.insets,
 }));
 
+vi.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { background: '#fff' } }) }));
+
+vi.mock('../../src/components/AliaChatHeader', () => ({ AliaChatHeader: () => null }));
+
 vi.mock('../../src/components/AliaChatContent', () => ({
   AliaChatContent: () => React.createElement('AliaChatContent'),
 }));

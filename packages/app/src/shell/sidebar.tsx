@@ -33,7 +33,7 @@ import { useFoldersStore, type Folder } from '@/features/projects/runtime/folder
 import { useStore } from '@/features/chat/runtime/global-store';
 import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
 import { useProjectsStore, type Project } from '@/features/projects/runtime/projects-store';
-import { IdentityMark } from '@alia.onl/sdk';
+import { AliaAvatar } from '@alia.onl/sdk';
 import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
 import { RiAddFill } from '@oxy.so/bloom/icons/RiAddFill';
 import { RiBookOpenLine } from '@oxy.so/bloom/icons/RiBookOpenLine';
@@ -673,7 +673,7 @@ function useSidebarProps() {
 
   const props = {
     logo: {
-      icon: <IdentityMark size={26} />,
+      icon: <AliaAvatar size={26} />,
       wordmark: 'Alia',
       onPress: () => {
         closeNav?.();

@@ -64,7 +64,7 @@ export function AgentIdentitySummary({ agent }: { agent: Agent }) {
       )}
       {agent.tagline ? <Text variant="body-regular">{agent.tagline}</Text> : null}
       <View className="flex-row items-center gap-3">
-        <Rating value={agent.rating} count={agent.reviewCount} size="small" />
+        <Rating value={agent.rating} count={agent.reviewCount} size="sm" />
         <Muted>
           {formatCount(agent.hireCount)} {t('agents.hires')} · {formatCount(agent.usageCount)}{' '}
           {t('agents.uses')}

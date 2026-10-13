@@ -22,6 +22,30 @@ listed under `peerDependencies` in `package.json` are yours to install. Metro
 must resolve package `exports` (`resolver.unstable_enablePackageExports = true`,
 the default in Expo SDK 53+), because every icon import is a subpath.
 
+The chat is built from Bloom (`@oxy.so/bloom`, a peer dependency): mount Bloom's
+`BloomProvider` above it, with the one `KeyboardProvider` your app already has.
+
+Alia's avatar is Bloom's 3D character (`AgentAvatar`), which draws through a
+runtime Bloom ships as static files (about 11 MB). Serve the package's
+`assets/character-runtime/` directory unchanged and give the URL of `runtime.mjs`
+to Bloom's provider, once, near the root:
+
+```tsx
+import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
+
+<AgentAvatarProvider runtimeUrl="/bloom-character/runtime.mjs">…</AgentAvatarProvider>
+```
+
+Without it the avatar shows Bloom's "unavailable" state. Native avatars run in a
+WebView, so there the URL must be absolute and reachable from the device.
+
+Failures (a voice call that cannot start, a dictation error) are shown with Bloom's `toast`,
+so the app needs a `ToastOutlet` (`OxyProvider` mounts one), or pass `onError` to handle them.
+
+The chat's own copy is English. Pass `labels` to `AliaChatSheet` or
+`AliaChatScreen` to translate it (`AliaChatLabels`; anything omitted stays
+English). Bloom's own strings follow `BloomProvider`'s `locale`.
+
 Two entry points:
 
 - `@alia.onl/sdk` — text chat, dictation, read-aloud, catalogue, primitives.

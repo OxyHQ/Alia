@@ -1,13 +1,9 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-  withSequence,
-  cancelAnimation,
-} from 'react-native-reanimated';
+import { Pressable, View } from 'react-native';
+import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
+import { Button } from '@oxy.so/bloom/button';
+import { useLabels } from '../lib/labels';
+import { RiArrowDownSLine, RiArrowRightSLine, RiSparklingLine } from '@oxy.so/bloom/icons';
 
 // Context
 type ReasoningContextType = {
@@ -88,46 +84,31 @@ export function Reasoning({
   );
 }
 
-// Trigger — shows "Thinking for Xs..." label with pulsing icon
+// Trigger — a live "Thinking" indicator while streaming, a disclosure button once done
 export function ReasoningTrigger({ onPress }: ReasoningTriggerProps) {
   const { isStreaming, isOpen, setIsOpen, duration } = useReasoning();
-  const pulseOpacity = useSharedValue(1);
-
-  useEffect(() => {
-    if (isStreaming) {
-      pulseOpacity.value = withRepeat(
-        withSequence(withTiming(0.4, { duration: 800 }), withTiming(1, { duration: 800 })),
-        -1,
-        false,
-      );
-    } else {
-      cancelAnimation(pulseOpacity);
-      pulseOpacity.value = 1;
-    }
-  }, [isStreaming]);
-
-  const pulseStyle = useAnimatedStyle(() => ({ opacity: pulseOpacity.value }));
-
-  const message = isStreaming
-    ? duration
-      ? `Thinking for ${duration}s...`
-      : 'Thinking...'
-    : duration
-      ? `Thought for ${duration} seconds`
-      : 'Reasoning';
-
+  const labels = useLabels();
   const handlePress = onPress || (() => setIsOpen(!isOpen));
 
+  if (isStreaming) {
+    return (
+      <Pressable onPress={handlePress} accessibilityRole="button" className="px-3 py-2">
+        <AgentThinking variant="stars" showTimer />
+      </Pressable>
+    );
+  }
+
   return (
-    <Pressable onPress={handlePress} style={styles.trigger}>
-      <Animated.View style={isStreaming ? pulseStyle : undefined}>
-        <Text style={{ color: '#a855f7', fontSize: 14 }}>{'\u2726'}</Text>
-      </Animated.View>
-      <Text style={[styles.triggerText, { color: '#a855f7' }]}>{message}</Text>
-      <Text style={{ color: '#a855f7', fontSize: 14 }}>
-        {onPress ? '\u203A' : isOpen ? '\u25BE' : '\u25B8'}
-      </Text>
-    </Pressable>
+    <Button
+      tone="neutral"
+      appearance="plain"
+      size="sm"
+      leadingIcon={RiSparklingLine}
+      trailingIcon={onPress ? RiArrowRightSLine : isOpen ? RiArrowDownSLine : RiArrowRightSLine}
+      onPress={handlePress}
+    >
+      {duration ? labels.thoughtFor(duration) : labels.reasoning}
+    </Button>
   );
 }
 
@@ -141,35 +122,10 @@ export function ReasoningContent({ children }: ReasoningContentProps) {
   const { AliaMarkdown } = require('./Markdown');
 
   return (
-    <View
-      style={[styles.contentWrapper, { backgroundColor: '#a855f710', borderColor: '#a855f730' }]}
-    >
+    <View className="mx-3 mb-3 rounded-lg border border-border-secondary bg-background-secondary-default p-3">
       <View style={{ opacity: isStreaming ? 0.8 : 1 }}>
         <AliaMarkdown content={children} />
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  trigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  triggerText: {
-    fontSize: 14,
-    fontWeight: '500',
-    flex: 1,
-  },
-  contentWrapper: {
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    marginHorizontal: 12,
-    marginBottom: 12,
-  },
-});

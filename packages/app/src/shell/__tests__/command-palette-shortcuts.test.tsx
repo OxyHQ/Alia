@@ -13,8 +13,8 @@ const harness = vi.hoisted(() => ({ visible: false }));
 vi.mock('react-native', () => ({ Platform: { OS: 'web' } }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
 vi.mock('@oxy.so/bloom/command', () => ({
-  Command: (props: { visible: boolean }) => {
-    harness.visible = props.visible;
+  Command: (props: { open: boolean }) => {
+    harness.visible = props.open;
     return null;
   },
 }));
