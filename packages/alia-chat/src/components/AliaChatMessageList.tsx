@@ -31,7 +31,7 @@ import {
   RiStopFill,
   RiVolumeUpLine,
 } from '@oxy.so/bloom/icons';
-import { Reasoning, ReasoningTrigger, ReasoningContent } from './Reasoning';
+import { ThinkingBlock } from './ThinkingBlock';
 import { PlanPreviewCard } from './PlanPreviewCard';
 import { chatMessageEnter } from '../animations';
 import { getToolLabel, getToolActiveLabel, getResearchActiveLabel } from '../lib/tool-registry';
@@ -285,10 +285,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
       {/* Extended Thinking */}
       {hasThinking && (
         <View className="mb-3 w-full">
-          <Reasoning isStreaming={isStreamingThis && !hasContent}>
-            <ReasoningTrigger />
-            <ReasoningContent>{message.thinking!}</ReasoningContent>
-          </Reasoning>
+          <ThinkingBlock text={message.thinking!} streaming={isStreamingThis && !hasContent} />
         </View>
       )}
 

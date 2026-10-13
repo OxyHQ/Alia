@@ -4,17 +4,18 @@
 
 The chat UI is Bloom's, not a copy of it. Breaking:
 
-- **Bloom is a peer dependency** (`@oxy.so/bloom ^8.0.0`; with `@oxy.so/services`
-  11.2.0-oxy-one.4 and `@oxy.so/core` 4.5.0-oxy-one.1 it is the newest set that
+- **Bloom is a peer dependency** (`@oxy.so/bloom ^9.0.0`; with `@oxy.so/services`
+  11.2.0-oxy-one.5 and `@oxy.so/core` 4.5.0-oxy-one.1 it is the newest set that
   satisfies every peer range). The host must mount `BloomProvider`.
 - **Alia's avatar is Bloom's 3D character.** The host mounts `AgentAvatarProvider`
   with the URL of the hosted `character-runtime` (see the README). New:
   `AliaAvatar`. `IdentityMark` stays only for an agent's likeness.
 - **Removed exports:** `Button`, `buttonVariants`, `buttonTextVariants`, `Text`,
   `TextClassContext` (use `@oxy.so/bloom/button` and `typography`), and
-  `ThinkingIndicator` (`AgentThinking`). `zeego`, `class-variance-authority` and
+  `ThinkingIndicator` (`AgentThinking`) and `Reasoning`, `ReasoningTrigger`,
+  `ReasoningContent` (the reasoning block is `AgentThinking` with children). `zeego`, `class-variance-authority` and
   both `@radix-ui` packages are no longer dependencies.
-- **Composer:** Bloom's `ComposerPill` with a Photos entry in its add menu. Photos are
+- **Composer:** Bloom's `ComposerPill` with a Photos entry in its add menu; the picked photos are its own `attachments`, not a strip mounted above it. Photos are
   now actually sent, as `image_url` parts: `useAliaChat().send(text, { images })`
   (the old composer collected attachments and never sent them). The autocomplete
   props (`useSuggestions`, `onSuggestionUsed`) are gone; nobody passed them.
