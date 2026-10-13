@@ -33,6 +33,8 @@ import {
 } from '@oxy.so/bloom/icons';
 import { ThinkingBlock } from './ThinkingBlock';
 import { PlanPreviewCard } from './PlanPreviewCard';
+import { QuestionCard } from './QuestionCard';
+import { askedQuestions, isQuestionInvocation } from '../lib/questions';
 import { chatMessageEnter } from '../animations';
 import { getToolLabel, getToolActiveLabel, getResearchActiveLabel } from '../lib/tool-registry';
 import { getTextFromContent, getImagesFromContent } from '../lib/content-utils';
@@ -67,6 +69,8 @@ export interface AliaChatMessageListProps {
   onThumbsDown?: (messageId: string) => void;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
+  /** Sends the answers to Alia's questions as the person's next message. */
+  onAnswerQuestions?: (message: string) => void;
   // Welcome
   welcomeComponent?: React.ReactNode;
   // Markdown renderer override (app passes CustomMarkdown, SDK uses AliaMarkdown)
@@ -188,6 +192,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
   onThumbsDown,
   onApprovePlan,
   onRejectPlan,
+  onAnswerQuestions,
   renderMarkdown,
 }: {
   message: ChatMessage;
@@ -203,6 +208,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
   onThumbsDown?: (messageId: string) => void;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
+  onAnswerQuestions?: (message: string) => void;
   renderMarkdown?: (content: string) => React.ReactNode;
 }) {
   const labels = useLabels();
@@ -217,8 +223,16 @@ const AssistantMessage = React.memo(function AssistantMessage({
     () => webSearchLog(toolInvocations, researchProgress, { t: labels.workLog }),
     [toolInvocations, researchProgress, labels.workLog],
   );
+  // The questions Alia asked, drawn as a card. Answerable only on the last message once the
+  // turn is over; any later message (typed or sent from the card) is the answer.
+  const questions = useMemo(
+    () => (toolInvocations ?? []).flatMap((inv) => askedQuestions(inv) ?? []),
+    [toolInvocations],
+  );
   const taskLog = useMemo(() => {
-    const tasks = (toolInvocations ?? []).filter((inv) => !isWebInvocation(inv));
+    const tasks = (toolInvocations ?? []).filter(
+      (inv) => !isWebInvocation(inv) && !isQuestionInvocation(inv),
+    );
     return tasks.length === 0 || isStreamingThis
       ? null
       : taskListLog(tasks, false, { t: labels.workLog });
@@ -338,6 +352,16 @@ const AssistantMessage = React.memo(function AssistantMessage({
         </View>
       )}
 
+      {questions.length === 0 ? null : (
+        <QuestionCard
+          questions={questions}
+          onSubmit={
+            isLastMessage && !isLoading && onAnswerQuestions !== undefined
+              ? onAnswerQuestions
+              : undefined
+          }
+        />
+      )}
       {thinkingIndicator}
     </View>
   );
@@ -356,6 +380,7 @@ export function AliaChatMessageList({
   onThumbsDown,
   onApprovePlan,
   onRejectPlan,
+  onAnswerQuestions,
   welcomeComponent,
   renderMarkdown,
 }: AliaChatMessageListProps) {
@@ -459,6 +484,7 @@ export function AliaChatMessageList({
                     onThumbsDown={onThumbsDown}
                     onApprovePlan={onApprovePlan}
                     onRejectPlan={onRejectPlan}
+                    onAnswerQuestions={onAnswerQuestions}
                     renderMarkdown={renderMarkdown}
                   />
                 )}

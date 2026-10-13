@@ -1,5 +1,19 @@
 # @alia.onl/sdk
 
+## 11.1.0
+
+Alia can ask clarifying questions, as ChatGPT and Claude do.
+
+- **New:** `QuestionCard` (Bloom's `Questionnaire`: single or multiple choice, a free-text
+  "Other", one question per step), drawn under a reply that asked. `AliaChatMessageList`
+  renders it from the turn's `askUserQuestion` tool call; `AliaChatContent` sends the
+  answers as the person's next message (`onAnswerQuestions` on the list, for hosts that
+  compose their own).
+- **New, pure** (root entry and `@alia.onl/sdk/tools`): `askedQuestions`, `formatAnswers`,
+  `isQuestionInvocation`, `ASK_USER_QUESTION_TOOL`. The question is the stored tool call, so
+  it survives a reload; it is answered once any later message exists, typed or picked.
+- The turn **ends** at the card: the server stops after the call and writes no answer under it.
+
 ## 11.0.0
 
 The chat UI is Bloom's, not a copy of it. Breaking:

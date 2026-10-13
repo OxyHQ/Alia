@@ -253,6 +253,9 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
  *  - `plan` — the autonomous runner's own checklist AND its completion signal.
  *    An agent denied it could never finish a session, so it is protocol rather
  *    than capability.
+ *  - `askUserQuestion` — shows the person a card of clarifying questions and
+ *    ends the turn; the answers come back as their next message. It reads
+ *    nothing and reaches nothing, so there is nothing to grant.
  *  - `suggestNewConversation` — proposes that the next stretch of the thread
  *    start fresh, and is structurally incapable of starting one: its whole
  *    effect is an SSE frame the person may ignore. It reads nothing, writes
@@ -266,6 +269,7 @@ export const UNGRANTED_TOOLS: readonly string[] = [
   'planPreview',
   'plan',
   'suggestNewConversation',
+  'askUserQuestion',
 ];
 
 /** `family` or `family:instanceId`, which is how a grant is stored and sent. */

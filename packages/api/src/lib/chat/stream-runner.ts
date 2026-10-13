@@ -37,6 +37,7 @@ import {
 } from '../streaming-helpers.js';
 import type { SSEWriter } from './sse-writer.js';
 import { isInvalidToolCall, toolRoundTrip } from './tool-calls.js';
+import { ASK_USER_QUESTION_TOOL } from '../tools/ask-user-question.js';
 
 /**
  * The tools whose result IS another agent's answer, and is drawn as one.
@@ -184,7 +185,11 @@ export async function runStream<TOOLS extends ToolSet>(
    * progress, not the requested response. The same tools-disabled follow-up is
    * also the safe recovery for a provider error after tools ran.
    */
+  /** The turn ended at a question card: the person's answer is the next message. */
+  const endedAtQuestion = () => toolInvocations.some((t) => t.toolName === ASK_USER_QUESTION_TOOL);
+
   const synthesizeCompletedToolResults = async (): Promise<boolean> => {
+    if (endedAtQuestion()) return false;
     const completed = toolInvocations.filter((t) => t.state === 'result');
     if (completed.length === 0 || res.writableEnded) return false;
 
@@ -497,6 +502,7 @@ export async function runStream<TOOLS extends ToolSet>(
       // final tools-disabled synthesis pass.
       if (
         !hasStreamedText &&
+        !endedAtQuestion() &&
         agentMessages.length === 0 &&
         toolInvocations.some((t) => t.state === 'result')
       ) {

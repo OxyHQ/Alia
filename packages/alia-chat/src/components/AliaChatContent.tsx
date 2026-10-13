@@ -404,6 +404,7 @@ function AliaChatContentBody({
             onThumbsDown={onThumbsDown}
             onApprovePlan={onApprovePlan}
             onRejectPlan={onRejectPlan}
+            onAnswerQuestions={(message) => send(message)}
             renderMarkdown={renderMarkdown}
             welcomeComponent={welcomeComponent}
           />

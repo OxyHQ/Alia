@@ -22,6 +22,14 @@ export { AliaMarkdown } from './components/Markdown';
 export type { AliaMarkdownProps, RenderCodeBlock } from './components/Markdown';
 export { AliaWelcomeMessage } from './components/AliaWelcomeMessage';
 export { PlanPreviewCard } from './components/PlanPreviewCard';
+export { QuestionCard } from './components/QuestionCard';
+export {
+  ASK_USER_QUESTION_TOOL,
+  askedQuestions,
+  formatAnswers,
+  isQuestionInvocation,
+} from './lib/questions';
+export type { AskedOption, AskedQuestion, QuestionAnswer } from './lib/questions';
 
 // ── Chat hook ──
 export { useAliaChat } from './hooks/useAliaChat';

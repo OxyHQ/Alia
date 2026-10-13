@@ -49,3 +49,6 @@ export { createDeepResearchTool } from './deep-research.js';
 
 // Plan preview tool (AI-callable)
 export { createPlanPreviewTool } from './plan-preview.js';
+
+// Clarifying questions (AI-callable): the turn ends at the card
+export { ASK_USER_QUESTION_TOOL, createAskUserQuestionTool } from './ask-user-question.js';
