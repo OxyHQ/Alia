@@ -129,7 +129,7 @@ export function BrowserLiveView({
   return (
     <View className="gap-3" testID="browser-live">
       <View className="flex-row flex-wrap items-center justify-between gap-2">
-        <Chip size="large">
+        <Chip size="lg">
           {owner
             ? t('agents.computer.browser.youInControl')
             : t('agents.computer.browser.agentInControl')}

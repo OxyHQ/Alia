@@ -1,3 +1,4 @@
+import type { MessageContent } from './content-utils';
 import {
   AliaChatStreamError,
   consumeAliaChatStream,
@@ -20,7 +21,7 @@ export interface AliaChatRequest {
   readonly url: string;
   /** `publisher/model`; omitted, the server's default model answers. */
   readonly model?: string;
-  readonly messages: ReadonlyArray<{ readonly role: string; readonly content: string }>;
+  readonly messages: ReadonlyArray<{ readonly role: string; readonly content: MessageContent }>;
   /**
    * `'voice'` asks for an answer meant to be heard: short, conversational, no
    * formatting (the API layers its voice response profile over the turn's

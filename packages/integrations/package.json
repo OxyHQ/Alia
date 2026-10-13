@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@oxy.so/core": "4.5.0-oxy-one.0",
+    "@oxy.so/core": "4.5.0-oxy-one.1",
     "@oxy.so/db": "^1.0.0",
     "@whiskeysockets/baileys": "~6.7.23",
     "axios": "^1.18.1",
@@ -25,7 +25,6 @@
     "drizzle-orm": "0.45.2",
     "express": "^4.22.2",
     "node-pty": "^1.1.0",
-    "playwright": "^1.61.1",
     "postgres": "3.4.9",
     "telegraf": "^4.16.3",
     "telegram": "^2.26.22",

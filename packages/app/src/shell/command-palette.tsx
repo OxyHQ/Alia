@@ -202,8 +202,8 @@ export function CommandPalette() {
 
   return (
     <Command
-      visible={open}
-      onClose={() => setOpen(false)}
+      open={open}
+      onOpenChange={setOpen}
       items={items}
       query={query}
       onQueryChange={setQuery}

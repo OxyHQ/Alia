@@ -1,33 +1,42 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { View, Pressable, TextInput, StyleSheet, Platform } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { View, Pressable, Platform } from 'react-native';
 import Animated, {
-  useAnimatedScrollHandler,
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
   withTiming,
   withSequence,
   cancelAnimation,
-  type SharedValue,
 } from 'react-native-reanimated';
-import Copy from 'lucide-react-native/icons/copy';
-import Check from 'lucide-react-native/icons/check';
-import Volume2 from 'lucide-react-native/icons/volume-2';
-import Square from 'lucide-react-native/icons/square';
-import ThumbsUp from 'lucide-react-native/icons/thumbs-up';
-import ThumbsDown from 'lucide-react-native/icons/thumbs-down';
-import Pencil from 'lucide-react-native/icons/pencil';
-import { Text } from './ui/text';
+import { Textarea } from '@oxy.so/bloom/textarea';
+import { TaskList } from '@oxy.so/bloom/task-list';
+import { Text } from '@oxy.so/bloom/typography';
+import { WebSearch } from '@oxy.so/bloom/web-search';
 import { AliaMarkdown } from './Markdown';
-import { ThinkingIndicator } from './ThinkingIndicator';
+import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
+import {
+  AiChatFeedbackRow,
+  AiChatMessageLine,
+  AiChatThread,
+  AiChatUserMessage,
+} from '@oxy.so/bloom/ai-chat';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { Button } from '@oxy.so/bloom/button';
+import { useLabels } from '../lib/labels';
+import { isWebInvocation, taskListLog, webSearchLog } from '../lib/work-log';
+import {
+  RiCheckLine,
+  RiFileCopyLine,
+  RiPencilLine,
+  RiStopFill,
+  RiVolumeUpLine,
+} from '@oxy.so/bloom/icons';
 import { Reasoning, ReasoningTrigger, ReasoningContent } from './Reasoning';
-import { ResearchProgressCard } from './ResearchProgressCard';
 import { PlanPreviewCard } from './PlanPreviewCard';
 import { chatMessageEnter } from '../animations';
 import { getToolLabel, getToolActiveLabel, getResearchActiveLabel } from '../lib/tool-registry';
 import { getTextFromContent, getImagesFromContent } from '../lib/content-utils';
-import type { ChatMessage, ToolInvocation } from '../types';
+import type { ChatMessage } from '../types';
 
 // Resolve expo-image once at module load (optional peer dep)
 type ExpoImageProps = {
@@ -49,7 +58,6 @@ type PlaybackState = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
 export interface AliaChatMessageListProps {
   messages: ChatMessage[];
   isStreaming: boolean;
-  scrollOffsetY: SharedValue<number>;
   onReadAloud?: (messageId: string, text: string) => void;
   ttsActiveMessageId?: string | null;
   ttsPlaybackState?: PlaybackState;
@@ -59,35 +67,10 @@ export interface AliaChatMessageListProps {
   onThumbsDown?: (messageId: string) => void;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
-  onToolResultPress?: (messageId: string) => void;
   // Welcome
   welcomeComponent?: React.ReactNode;
-  conversationLoading?: boolean;
   // Markdown renderer override (app passes CustomMarkdown, SDK uses AliaMarkdown)
   renderMarkdown?: (content: string) => React.ReactNode;
-}
-
-// ── Tool Bullet ──
-
-function ToolBullet({ isRunning }: { isRunning: boolean }) {
-  const opacity = useSharedValue(1);
-  useEffect(() => {
-    if (isRunning) {
-      opacity.value = withRepeat(
-        withSequence(withTiming(0.3, { duration: 500 }), withTiming(1, { duration: 500 })),
-        -1,
-      );
-    } else {
-      opacity.value = 1;
-    }
-    return () => cancelAnimation(opacity);
-  }, [isRunning]);
-  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  return (
-    <Animated.View style={style}>
-      <Text style={{ color: isRunning ? '#eab308' : '#22c55e', fontSize: 10 }}>{'\u25CF'}</Text>
-    </Animated.View>
-  );
 }
 
 // ── User Bubble ──
@@ -117,88 +100,73 @@ const UserBubble = React.memo(function UserBubble({
   copiedMessageId: string | null;
   showEditButton: boolean;
 }) {
+  const labels = useLabels();
   const images = getImagesFromContent(message.content);
 
   return (
     <View className="flex-col items-end gap-0.5">
       {isEditing ? (
-        <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] overflow-hidden border border-border">
-          <BlurView intensity={60} tint="default" style={StyleSheet.absoluteFill} />
-          <View className="px-4 py-2">
-            <TextInput
-              value={editedContent}
-              onChangeText={onEditedContentChange}
-              multiline
-              className="text-base text-foreground leading-7"
-              autoFocus
-            />
-            <View className="flex-row gap-2 mt-2">
-              <Pressable
-                className="px-3 py-1.5 rounded-lg bg-primary"
-                onPress={() => onSaveEdit(message.id)}
-              >
-                <Text className="text-xs text-primary-foreground">Save</Text>
-              </Pressable>
-              <Pressable
-                className="px-3 py-1.5 rounded-lg bg-muted-foreground"
-                onPress={onCancelEdit}
-              >
-                <Text className="text-xs text-background">Cancel</Text>
-              </Pressable>
-            </View>
+        <View className="w-full max-w-[85%] gap-2 sm:max-w-[75%]">
+          <Textarea
+            value={editedContent}
+            onValueChange={onEditedContentChange}
+            rows={1}
+            autoResize
+            autoFocus
+            accessibilityLabel={labels.edit}
+          />
+          <View className="flex-row justify-end gap-2">
+            <Button tone="neutral" appearance="subtle" size="xs" onPress={onCancelEdit}>
+              {labels.cancel}
+            </Button>
+            <Button tone="action" size="xs" onPress={() => onSaveEdit(message.id)}>
+              {labels.save}
+            </Button>
           </View>
         </View>
       ) : (
-        <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] overflow-hidden border border-border">
-          <BlurView intensity={60} tint="default" style={StyleSheet.absoluteFill} />
-          <View className="px-4 py-2">
-            {/* Inline images from multi-part content */}
-            {images.length > 0 && (
-              <View className="flex-row flex-wrap gap-2 mb-2">
-                {images.map((imgUrl, imgIdx) => {
-                  if (!ExpoImage) return null;
-                  return (
-                    <View
-                      key={`img-${imgIdx}`}
-                      className="rounded-xl overflow-hidden"
-                      style={{ width: 120, height: 120 }}
-                    >
-                      <ExpoImage
-                        source={{ uri: imgUrl }}
-                        className="w-full h-full"
-                        contentFit="cover"
-                      />
-                    </View>
-                  );
-                })}
+        <AiChatUserMessage
+          animate={false}
+          actions={[
+            {
+              key: 'copy',
+              label: copiedMessageId === message.id ? labels.copied : labels.copy,
+              icon: copiedMessageId === message.id ? RiCheckLine : RiFileCopyLine,
+              onPress: () => onCopy(text, message.id),
+            },
+            ...(showEditButton
+              ? [
+                  {
+                    key: 'edit',
+                    label: labels.edit,
+                    icon: RiPencilLine,
+                    onPress: () => onStartEdit(message.id, text),
+                  },
+                ]
+              : []),
+          ]}
+        >
+          {images.length > 0 && ExpoImage ? (
+            <AiChatMessageLine block>
+              <View className="flex-row flex-wrap gap-2">
+                {images.map((imgUrl) => (
+                  <View
+                    key={imgUrl}
+                    className="rounded-xl overflow-hidden"
+                    style={{ width: 120, height: 120 }}
+                  >
+                    <ExpoImage
+                      source={{ uri: imgUrl }}
+                      className="w-full h-full"
+                      contentFit="cover"
+                    />
+                  </View>
+                ))}
               </View>
-            )}
-            <Text className="text-base text-foreground leading-7">{text}</Text>
-          </View>
-        </View>
-      )}
-      {/* User message actions */}
-      {!isEditing && (
-        <View className="flex-row gap-1">
-          <Pressable
-            className="p-1.5 rounded-lg active:bg-muted"
-            onPress={() => onCopy(text, message.id)}
-          >
-            {copiedMessageId === message.id ? (
-              <Check size={14} className="text-green-500" />
-            ) : (
-              <Copy size={14} className="text-muted-foreground" />
-            )}
-          </Pressable>
-          {showEditButton && (
-            <Pressable
-              className="p-1.5 rounded-lg active:bg-muted"
-              onPress={() => onStartEdit(message.id, text)}
-            >
-              <Pencil size={14} className="text-muted-foreground" />
-            </Pressable>
-          )}
-        </View>
+            </AiChatMessageLine>
+          ) : null}
+          <AiChatMessageLine>{text}</AiChatMessageLine>
+        </AiChatUserMessage>
       )}
     </View>
   );
@@ -216,12 +184,10 @@ const AssistantMessage = React.memo(function AssistantMessage({
   ttsActiveMessageId,
   ttsPlaybackState,
   onCopy,
-  copiedMessageId,
   onThumbsUp,
   onThumbsDown,
   onApprovePlan,
   onRejectPlan,
-  onToolResultPress,
   renderMarkdown,
 }: {
   message: ChatMessage;
@@ -233,22 +199,36 @@ const AssistantMessage = React.memo(function AssistantMessage({
   ttsActiveMessageId?: string | null;
   ttsPlaybackState?: PlaybackState;
   onCopy: (text: string, messageId: string) => void;
-  copiedMessageId: string | null;
   onThumbsUp?: (messageId: string) => void;
   onThumbsDown?: (messageId: string) => void;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
-  onToolResultPress?: (messageId: string) => void;
   renderMarkdown?: (content: string) => React.ReactNode;
 }) {
+  const labels = useLabels();
   const hasContent = messageText.length > 0;
   const hasThinking = !!message.thinking;
+
+  // Both logs count units and are driven by `revealed`, from the calls that have really
+  // arrived — never by their own demo ticker. The task list waits for the turn to end.
+  const toolInvocations = message.toolInvocations;
+  const researchProgress = message.researchProgress;
+  const webLog = useMemo(
+    () => webSearchLog(toolInvocations, researchProgress, { t: labels.workLog }),
+    [toolInvocations, researchProgress, labels.workLog],
+  );
+  const taskLog = useMemo(() => {
+    const tasks = (toolInvocations ?? []).filter((inv) => !isWebInvocation(inv));
+    return tasks.length === 0 || isStreamingThis
+      ? null
+      : taskListLog(tasks, false, { t: labels.workLog });
+  }, [toolInvocations, isStreamingThis, labels.workLog]);
 
   const isThisPlaying = ttsActiveMessageId === message.id && ttsPlaybackState === 'playing';
   const isThisPaused = ttsActiveMessageId === message.id && ttsPlaybackState === 'paused';
   const isThisLoading = ttsActiveMessageId === message.id && ttsPlaybackState === 'loading';
 
-  // ThinkingIndicator — context-aware status
+  // AgentThinking — context-aware status
   let thinkingIndicator: React.ReactNode = null;
   if (isLoading && isLastMessage && !hasContent) {
     const activeTool = message.toolInvocations?.find(
@@ -260,15 +240,16 @@ const AssistantMessage = React.memo(function AssistantMessage({
       activeStatus = getToolActiveLabel(activeTool.toolName);
     } else if (rp?.phase && rp.phase !== 'complete') {
       activeStatus = getResearchActiveLabel(rp.phase);
-    } else if (message.thinking) {
-      activeStatus = 'Reasoning...';
     }
-    thinkingIndicator = (
-      <ThinkingIndicator
-        isWorking={(message.toolInvocations?.length ?? 0) > 0}
-        statusText={activeStatus}
-      />
-    );
+    // While it reasons, the reasoning block draws its own indicator: two at once is noise.
+    if (activeStatus !== undefined || !hasThinking) {
+      thinkingIndicator = (
+        <AgentThinking
+          variant={(message.toolInvocations?.length ?? 0) > 0 ? 'spin' : 'wave'}
+          label={activeStatus?.replace(/\.{3}$/, '')}
+        />
+      );
+    }
   }
 
   return (
@@ -284,40 +265,22 @@ const AssistantMessage = React.memo(function AssistantMessage({
         />
       )}
 
-      {/* Tool Invocations */}
-      {message.toolInvocations?.map((t, ti) => {
-        const key = t.toolCallId || `tool-${message.id}-${ti}`;
-        const toolLabel = getToolLabel(t.toolName);
-        const isRunning = t.state === 'call' || t.state === 'partial-call';
-        const isDone = t.state === 'result';
-
-        let description = '';
-        if (t.args?.url) {
-          const url = String(t.args.url);
-          description = url.length > 40 ? url.substring(0, 40) + '...' : url;
-        } else if (t.args?.query) {
-          const q = String(t.args.query);
-          description = `"${q.length > 30 ? q.substring(0, 30) + '...' : q}"`;
-        }
-
-        return (
-          <Pressable
-            key={key}
-            className="flex-row items-center gap-2 py-1 active:opacity-70"
-            onPress={isDone && onToolResultPress ? () => onToolResultPress(message.id) : undefined}
-            disabled={!isDone || !onToolResultPress}
-          >
-            <ToolBullet isRunning={isRunning} />
-            <Text className="text-sm text-foreground flex-1 flex-shrink">
-              <Text className="font-bold">{toolLabel}</Text>
-              {description ? <Text className="text-muted-foreground"> {description}</Text> : null}
-            </Text>
-          </Pressable>
-        );
-      })}
-
-      {/* Research Progress */}
-      {message.researchProgress && <ResearchProgressCard progress={message.researchProgress} />}
+      {/* What the turn did: where it went (searches, pages, research) and everything else. */}
+      {taskLog === null ? null : (
+        <TaskList
+          tasks={taskLog.tasks}
+          revealed={taskLog.revealed}
+          collapseOnComplete="all"
+          working={false}
+        />
+      )}
+      {webLog.steps.length === 0 ? null : (
+        <WebSearch
+          steps={webLog.steps}
+          revealed={webLog.revealed}
+          working={isStreamingThis ? undefined : false}
+        />
+      )}
 
       {/* Extended Thinking */}
       {hasThinking && (
@@ -334,18 +297,16 @@ const AssistantMessage = React.memo(function AssistantMessage({
         <View className="flex-col items-start gap-0.5">
           {/* Agent identity */}
           {message.agentInfo && (
-            <View className="flex-row items-center gap-2 mb-0.5">
-              <View className="w-5 h-5 rounded-full bg-orange-500/20 items-center justify-center">
-                <Text style={{ fontSize: 8, color: '#f97316' }}>{'\u25CF'}</Text>
-              </View>
-              <Text className="text-xs font-semibold" style={{ color: '#f97316' }}>
+            <View className="mb-0.5 flex-row items-center gap-2">
+              <Avatar source={message.agentInfo.avatar} size="xs" />
+              <Text className="text-xs font-semibold text-text-primary">
                 {message.agentInfo.name}
               </Text>
             </View>
           )}
           <View className="w-full">
             {message.source === 'voice' ? (
-              <Text className="text-base text-foreground leading-7">
+              <Text className="text-base text-text-primary leading-7">
                 {messageText}
                 {message.isStreaming ? '\u258C' : ''}
               </Text>
@@ -355,56 +316,27 @@ const AssistantMessage = React.memo(function AssistantMessage({
               <AliaMarkdown content={messageText} />
             )}
           </View>
-          {/* Action buttons */}
           {!isStreamingThis && hasContent && (
-            <View className="flex-row gap-1">
-              {onReadAloud && (
-                <Pressable
-                  className="p-1.5 rounded-lg active:bg-muted"
-                  onPress={() => onReadAloud(message.id, messageText)}
-                >
-                  {isThisPlaying || isThisPaused ? (
-                    <Square
-                      size={14}
-                      className={isThisPlaying ? 'text-primary' : 'text-muted-foreground'}
-                    />
-                  ) : (
-                    <Volume2
-                      size={14}
-                      className={
-                        isThisLoading ? 'text-primary opacity-50' : 'text-muted-foreground'
-                      }
-                    />
-                  )}
-                </Pressable>
-              )}
-              <Pressable
-                className="p-1.5 rounded-lg active:bg-muted"
-                onPress={() => onCopy(messageText, message.id)}
-              >
-                {copiedMessageId === message.id ? (
-                  <Check size={14} className="text-green-500" />
-                ) : (
-                  <Copy size={14} className="text-muted-foreground" />
-                )}
-              </Pressable>
-              {onThumbsUp && (
-                <Pressable
-                  className="p-1.5 rounded-lg active:bg-muted"
-                  onPress={() => onThumbsUp(message.id)}
-                >
-                  <ThumbsUp size={14} className="text-muted-foreground" />
-                </Pressable>
-              )}
-              {onThumbsDown && (
-                <Pressable
-                  className="p-1.5 rounded-lg active:bg-muted"
-                  onPress={() => onThumbsDown(message.id)}
-                >
-                  <ThumbsDown size={14} className="text-muted-foreground" />
-                </Pressable>
-              )}
-            </View>
+            <AiChatFeedbackRow
+              onLike={onThumbsUp ? () => onThumbsUp(message.id) : undefined}
+              onDislike={onThumbsDown ? () => onThumbsDown(message.id) : undefined}
+              onCopy={() => onCopy(messageText, message.id)}
+              actions={
+                onReadAloud
+                  ? [
+                      {
+                        key: 'read-aloud',
+                        label:
+                          isThisPlaying || isThisPaused ? labels.stopReading : labels.readAloud,
+                        icon: isThisPlaying || isThisPaused ? RiStopFill : RiVolumeUpLine,
+                        active: isThisPlaying || isThisPaused,
+                        disabled: isThisLoading,
+                        onPress: () => onReadAloud(message.id, messageText),
+                      },
+                    ]
+                  : []
+              }
+            />
           )}
         </View>
       )}
@@ -419,7 +351,6 @@ const AssistantMessage = React.memo(function AssistantMessage({
 export function AliaChatMessageList({
   messages,
   isStreaming,
-  scrollOffsetY,
   onReadAloud,
   ttsActiveMessageId,
   ttsPlaybackState,
@@ -428,12 +359,9 @@ export function AliaChatMessageList({
   onThumbsDown,
   onApprovePlan,
   onRejectPlan,
-  onToolResultPress,
   welcomeComponent,
-  conversationLoading,
   renderMarkdown,
 }: AliaChatMessageListProps) {
-  const scrollRef = useRef<Animated.ScrollView>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState('');
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -442,24 +370,6 @@ export function AliaChatMessageList({
   useEffect(() => {
     prevMessageCountRef.current = messages.length;
   }, [messages.length]);
-
-  // Auto-scroll
-  useEffect(() => {
-    if (messages.length > 0) {
-      const timer = setTimeout(() => {
-        (
-          scrollRef.current as { scrollToEnd?: (opts: { animated: boolean }) => void } | null
-        )?.scrollToEnd?.({ animated: true });
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [messages.length, isStreaming]);
-
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollOffsetY.value = event.contentOffset.y;
-    },
-  });
 
   const handleCopy = useCallback(async (content: string, messageId: string) => {
     try {
@@ -503,15 +413,9 @@ export function AliaChatMessageList({
   const filteredMessages = useMemo(() => messages.filter((m) => m.role !== 'system'), [messages]);
 
   return (
-    <Animated.ScrollView
-      ref={scrollRef}
-      className="flex-1 bg-background px-4 py-4"
-      contentContainerStyle={{ flexGrow: 1, paddingTop: 4, paddingBottom: 16 }}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      onScroll={scrollHandler}
-      scrollEventThrottle={16}
-    >
+    // Bloom's thread: follows the newest turn, and reports its scroll to a floating-chrome
+    // container so the header and composer fade in over it.
+    <AiChatThread>
       <View
         className="max-w-3xl mx-auto w-full"
         style={!filteredMessages.length ? { flex: 1, justifyContent: 'center' } : undefined}
@@ -554,12 +458,10 @@ export function AliaChatMessageList({
                     ttsActiveMessageId={ttsActiveMessageId}
                     ttsPlaybackState={ttsPlaybackState}
                     onCopy={handleCopy}
-                    copiedMessageId={copiedMessageId}
                     onThumbsUp={onThumbsUp}
                     onThumbsDown={onThumbsDown}
                     onApprovePlan={onApprovePlan}
                     onRejectPlan={onRejectPlan}
-                    onToolResultPress={onToolResultPress}
                     renderMarkdown={renderMarkdown}
                   />
                 )}
@@ -568,6 +470,6 @@ export function AliaChatMessageList({
           })}
         </View>
       </View>
-    </Animated.ScrollView>
+    </AiChatThread>
   );
 }

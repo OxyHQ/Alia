@@ -5,8 +5,6 @@
 
 // ── Voice components ──
 export { VoiceSession } from './components/voice/VoiceSession';
-export { AudioWaveVisualizer } from './components/voice/AudioWaveVisualizer';
-export { VoiceOverlay } from './components/voice/VoiceOverlay';
 export { VoiceControls } from './components/voice/VoiceControls';
 export { VOICE_CONTROLS_LABELS } from './components/voice/VoiceControls';
 export type { VoiceControlsLabels, VoiceControlsProps } from './components/voice/VoiceControls';

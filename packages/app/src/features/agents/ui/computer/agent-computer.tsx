@@ -90,7 +90,7 @@ export function AgentComputer({ agentId }: { agentId: string }) {
         <View className="gap-2">
           <Muted>{t('agents.computer.subtitle')}</Muted>
           <View className="flex-row">
-            <Chip size="large">{t(`agents.computer.state.${state}`)}</Chip>
+            <Chip size="lg">{t(`agents.computer.state.${state}`)}</Chip>
           </View>
           {!granted ? <Muted>{t('agents.computer.notGranted')}</Muted> : null}
         </View>

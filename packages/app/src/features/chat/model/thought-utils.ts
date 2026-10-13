@@ -582,33 +582,10 @@ export function buildAuditTimeline(
 // ---------------------------------------------------------------------------
 
 /**
- * How a single tool call reads in an execution row.
- *
- *  - `running`: it has not returned and its turn is still live.
- *  - `done`: it returned, and what it returned was not an error.
- *  - `error`: it returned an error — the tool pipeline reports a throw as a
- *    result carrying `error`, so the call is over but did not succeed.
- *  - `interrupted`: it never returned and its turn is over — a stop, a
- *    failure, or a persisted turn cut short. It must not read as running.
+ * How a single tool call reads in an execution row (`running`, `done`, `error`,
+ * `interrupted`). One definition, the SDK's, so its chat and this app agree.
  */
-export type ToolCallStatus = 'running' | 'done' | 'error' | 'interrupted';
-
-export function toolCallStatus(
-  inv: Pick<ToolInvocation, 'state' | 'result'>,
-  live: boolean,
-): ToolCallStatus {
-  if (inv.state !== 'result') return live ? 'running' : 'interrupted';
-  const result: unknown = inv.result;
-  if (
-    result !== null &&
-    typeof result === 'object' &&
-    'error' in result &&
-    Boolean((result as { error?: unknown }).error)
-  ) {
-    return 'error';
-  }
-  return 'done';
-}
+export { type ToolCallStatus, toolCallStatus } from '@alia.onl/sdk/tools';
 
 /** Upper bound on the text an expanded row prints for one side of a call. */
 const TOOL_TEXT_LIMIT = 4000;

@@ -70,14 +70,14 @@ vi.mock('@/features/chat/ui/chat-workspace', async () => {
 });
 
 vi.mock('@/features/chat/ui/chat-interface', () => ({ ChatInterface: () => null }));
-vi.mock('@/features/chat/ui/ambient-field', async () => {
+vi.mock('@alia.onl/sdk', async () => {
   const ReactModule = await import('react');
   return {
+    VoiceModeIcon: () => null,
     AmbientField: (props: Record<string, unknown>) =>
       ReactModule.createElement('AmbientField', props),
   };
 });
-vi.mock('@/features/voice/ui/voice-mode-icon', () => ({ VoiceModeIcon: () => null }));
 // The draft lives in the per-conversation draft store, outside the screen: a
 // module-level value stands in for it, so it outlives the composer's unmount.
 const draft = vi.hoisted(() => ({ text: '' }));

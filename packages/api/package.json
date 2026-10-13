@@ -31,7 +31,7 @@
     "@crowdsource.you/contracts": "1.1.0",
     "@crowdsource.you/core": "3.0.0",
     "@oxy.so/contracts": "4.11.0-oxy-one.0",
-    "@oxy.so/core": "4.5.0-oxy-one.0",
+    "@oxy.so/core": "4.5.0-oxy-one.1",
     "@oxy.so/db": "^1.0.0",
     "@oxy.so/mcp": "1.1.0",
     "@oxy.so/utils": "^1.0.1",

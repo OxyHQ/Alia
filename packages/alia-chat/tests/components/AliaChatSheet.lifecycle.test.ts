@@ -7,14 +7,17 @@ const source = readFileSync(
 );
 
 describe('AliaChatSheet request lifecycle wiring', () => {
-  it('stops text generation when button, backdrop or system dismissal begins', () => {
+  it('stops text generation when the button or the imperative dismiss begins', () => {
     expect(source).toMatch(/const handleDismiss = useCallback\(\(\) => \{\s*stopChat\(\);/);
-    expect(source).toMatch(/onRequestClose=\{handleDismiss\}/);
-    expect(source).toMatch(/onPress=\{handleDismiss\}/);
+    expect(source).toMatch(/onClose=\{handleDismiss\}/);
   });
 
-  it('stops text generation when a pan gesture commits to closing', () => {
-    expect(source).toMatch(/if \(shouldClose\) \{\s*runOnJS\(stopChat\)\(\);/);
+  it('stops text generation when a drag, backdrop press, Back or Escape starts closing', () => {
+    expect(source).toMatch(
+      /const onDismissAttempt = useCallback\(\(\) => \{\s*stopChat\(\);\s*return true;/,
+    );
+    expect(source).toMatch(/onDismissAttempt=\{onDismissAttempt\}/);
+    expect(source).toMatch(/onDismiss=\{stopChat\}/);
   });
 
   it('registers the exact stop callback owned by the mounted chat content', () => {

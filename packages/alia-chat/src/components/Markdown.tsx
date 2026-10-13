@@ -1,6 +1,7 @@
 import React, { useMemo, type ReactNode } from 'react';
 import { View, Text, Platform, Linking, useColorScheme } from 'react-native';
 import Markdown, { MarkdownIt, type ASTNode } from 'react-native-markdown-display';
+import { CodeBlock } from '@oxy.so/bloom/code';
 import type { AliaColors } from '../theme';
 
 // Hardcoded fallback colors for standalone SDK usage (when no color override is passed).
@@ -31,26 +32,23 @@ function createRules(colors: AliaColors, renderCodeBlock?: RenderCodeBlock) {
   const { text: textColor, muted, border, primary, mutedForeground } = colors;
 
   /**
-   * Fenced and indented code, drawn by the host when it brings a code card of
-   * its own (the app passes Bloom's `CodeBlock`). This package has no Bloom
-   * dependency, so it cannot name one itself; without the prop the library's
-   * default `fence` / `code_block` rendering, styled below, stays.
+   * Fenced and indented code: Bloom's `CodeBlock` unless the host brings a
+   * code card of its own.
    */
-  const codeRules =
-    renderCodeBlock === undefined
-      ? {}
-      : {
-          fence: (node: ASTNode) => (
-            <View key={node.key} style={{ marginVertical: 8 }}>
-              {renderCodeBlock(node.content.replace(/\n$/, ''), codeLanguage(node))}
-            </View>
-          ),
-          code_block: (node: ASTNode) => (
-            <View key={node.key} style={{ marginVertical: 8 }}>
-              {renderCodeBlock(node.content.replace(/\n$/, ''), undefined)}
-            </View>
-          ),
-        };
+  const drawCodeBlock: RenderCodeBlock =
+    renderCodeBlock ?? ((code, language) => <CodeBlock code={code} language={language} />);
+  const codeRules = {
+    fence: (node: ASTNode) => (
+      <View key={node.key} style={{ marginVertical: 8 }}>
+        {drawCodeBlock(node.content.replace(/\n$/, ''), codeLanguage(node))}
+      </View>
+    ),
+    code_block: (node: ASTNode) => (
+      <View key={node.key} style={{ marginVertical: 8 }}>
+        {drawCodeBlock(node.content.replace(/\n$/, ''), undefined)}
+      </View>
+    ),
+  };
 
   return {
     ...codeRules,
@@ -270,9 +268,8 @@ function createStyles(colors: AliaColors, fontFamily: string | undefined) {
     // in any Expo consumer, and this renderer cannot inherit a face.
     //
     // `fontFamily` therefore comes from the caller, which is the only party
-    // that both knows the family and is allowed to name it: this package has no
-    // `@oxy.so/bloom` dependency, and react-native-markdown-display takes RN
-    // style objects, so there is no className path to NativeWind's token.
+    // that both knows the family and is allowed to name it: react-native-markdown-display
+    // takes RN style objects, so there is no className path to NativeWind's token.
     body: { ...BODY_TEXT, color: textColor, fontFamily },
     text: { ...BODY_TEXT, color: textColor, fontFamily },
     paragraph: { marginTop: 0, marginBottom: 8 },
@@ -350,8 +347,8 @@ export interface AliaMarkdownProps {
    * Omitted, body text inherits: correct on web, where Bloom's
    * `--bloom-font-sans` reaches it through the cascade. On native nothing is
    * inherited (see `createStyles`), so a native caller that wants Bloom's face
-   * has to pass it — this package has no `@oxy.so/bloom` dependency and so
-   * cannot name it itself.
+   * has to pass it — this renderer takes RN style objects, so it cannot
+   * read Bloom's token itself.
    */
   fontFamily?: string;
   content: string;

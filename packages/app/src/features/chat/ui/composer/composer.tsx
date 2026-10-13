@@ -217,8 +217,8 @@ export function Composer({
         permissions={modes ?? NO_MODES}
         permission={mode}
         onPermissionChange={onModeChange}
-        listening={stt.isRecording}
-        onListeningChange={(next) => void handleListeningChange(next)}
+        voiceState={stt.isTranscribing ? 'transcribing' : stt.isRecording ? 'recording' : 'idle'}
+        onVoiceStateChange={(next) => void handleListeningChange(next === 'recording')}
         attachments={tiles}
         onRemoveAttachment={removeTile}
         // Clears the tile's error and starts its progress again: `intake.retry`

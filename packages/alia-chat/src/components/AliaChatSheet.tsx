@@ -1,46 +1,20 @@
-import React, {
-  forwardRef,
-  useImperativeHandle,
-  useRef,
-  useCallback,
-  useState,
-  useEffect,
-  useMemo,
-} from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Modal,
-  Pressable,
-  Dimensions,
-  Platform,
-  useColorScheme,
-  type ViewStyle,
-} from 'react-native';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useKeyboardHandler } from 'react-native-keyboard-controller';
-import Animated, {
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AliaChatContent } from './AliaChatContent';
-import { IdentityMark } from './IdentityMark';
-import type { WelcomeSuggestion } from './AliaWelcomeMessage';
+import { BottomSheet, type BottomSheetRef } from '@oxy.so/bloom/bottom-sheet';
+import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
+import { useColorScheme, View } from 'react-native';
+import type { AliaChatLabels } from '../lib/labels';
 import type { VoiceSessionComponent } from '../types';
+import { AliaChatContent } from './AliaChatContent';
+import { AliaChatHeader } from './AliaChatHeader';
+import type { WelcomeSuggestion } from './AliaWelcomeMessage';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-const SPRING_CONFIG = {
-  damping: 25,
-  stiffness: 300,
-  mass: 0.8,
-};
+/**
+ * TODO(bloom): drop this once Bloom's sheet is rounder by default. Its detached
+ * sheet hardcodes `radius: 24` (`BottomSheetBase.tsx`, not a design token) and
+ * the web fork draws a plain `border-radius`, so 24 reads squarer than the
+ * native `smooth` curve it is meant to match. Remove `SHEET_RADIUS` and the
+ * `borderRadius` in `style` below when that lands.
+ */
+const SHEET_RADIUS = 40;
 
 export interface AliaChatSheetProps {
   /** App context injected into system prompt */
@@ -55,8 +29,6 @@ export interface AliaChatSheetProps {
   welcomeSubtitle?: string;
   /** Welcome screen suggestions */
   welcomeSuggestions?: WelcomeSuggestion[];
-  /** Theme primary color hex — forwarded to the ambient wave overlay palette. */
-  primaryColor?: string;
   /** Dark-mode flag — forwarded to the ambient wave overlay (defaults to the sheet's own color scheme). */
   isDarkMode?: boolean;
   /**
@@ -65,6 +37,8 @@ export interface AliaChatSheetProps {
    * enters the bundle.
    */
   voiceSession?: VoiceSessionComponent;
+  /** Overrides for the chat's own copy (header, composer, plan, research…); omitted, English. */
+  labels?: Partial<AliaChatLabels>;
 }
 
 export interface AliaChatSheetRef {
@@ -81,50 +55,15 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       welcomeGreeting,
       welcomeSubtitle,
       welcomeSuggestions,
-      primaryColor,
       isDarkMode,
       voiceSession,
+      labels,
     },
     ref,
   ) => {
-    const scheme = useColorScheme();
-    const isDark = scheme === 'dark';
-    const insets = useSafeAreaInsets();
-
-    // Sheet visibility
-    const [rendered, setRendered] = useState(false);
-    const hasClosedRef = useRef(false);
-    const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isDark = useColorScheme() === 'dark';
+    const sheetRef = useRef<BottomSheetRef>(null);
     const chatStopRef = useRef<(() => void) | null>(null);
-
-    // Reanimated shared values
-    const translateY = useSharedValue(SCREEN_HEIGHT);
-    const backdropOpacity = useSharedValue(0);
-    const scrollOffsetY = useSharedValue(0);
-    const allowPanClose = useSharedValue(true);
-    const keyboardHeight = useSharedValue(0);
-    const panContext = useSharedValue({ y: 0 });
-
-    useKeyboardHandler(
-      {
-        onMove: (e) => {
-          'worklet';
-          keyboardHeight.value = e.height;
-        },
-        onEnd: (e) => {
-          'worklet';
-          keyboardHeight.value = e.height;
-        },
-      },
-      [],
-    );
-
-    // Dismiss helpers
-    const finishDismiss = useCallback(() => {
-      if (hasClosedRef.current) return;
-      hasClosedRef.current = true;
-      setRendered(false);
-    }, []);
 
     const stopChat = useCallback(() => {
       chatStopRef.current?.();
@@ -134,245 +73,56 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       chatStopRef.current = stop;
     }, []);
 
-    const handlePresent = useCallback(() => {
-      hasClosedRef.current = false;
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current);
-        closeTimeoutRef.current = null;
-      }
-      setRendered(true);
-      backdropOpacity.value = withTiming(1, { duration: 250 });
-      translateY.value = withSpring(0, SPRING_CONFIG);
-    }, []);
-
     const handleDismiss = useCallback(() => {
       stopChat();
-      backdropOpacity.value = withTiming(0, { duration: 250 }, (finished) => {
-        if (finished) runOnJS(finishDismiss)();
-      });
-      translateY.value = withSpring(SCREEN_HEIGHT, {
-        ...SPRING_CONFIG,
-        stiffness: 250,
-      });
-      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = setTimeout(() => {
-        finishDismiss();
-        closeTimeoutRef.current = null;
-      }, 350);
-    }, [finishDismiss, stopChat]);
+      sheetRef.current?.dismiss();
+    }, [stopChat]);
 
-    useEffect(
-      () => () => {
-        if (closeTimeoutRef.current) {
-          clearTimeout(closeTimeoutRef.current);
-          closeTimeoutRef.current = null;
-        }
-      },
-      [],
+    useImperativeHandle(
+      ref,
+      () => ({ present: () => sheetRef.current?.present(), dismiss: handleDismiss }),
+      [handleDismiss],
     );
 
-    useImperativeHandle(ref, () => ({ present: handlePresent, dismiss: handleDismiss }), [
-      handlePresent,
-      handleDismiss,
-    ]);
-
-    // Pan gesture for swipe-to-dismiss
-    const nativeGesture = useMemo(() => Gesture.Native(), []);
-
-    const panGesture = useMemo(
-      () =>
-        Gesture.Pan()
-          .simultaneousWithExternalGesture(nativeGesture)
-          .onStart(() => {
-            'worklet';
-            panContext.value = { y: translateY.value };
-            allowPanClose.value = scrollOffsetY.value <= 8;
-          })
-          .onUpdate((event) => {
-            'worklet';
-            if (!allowPanClose.value) return;
-            if (event.translationY > 0 && scrollOffsetY.value > 8) return;
-            const newY = panContext.value.y + event.translationY;
-            translateY.value = Math.max(0, newY);
-          })
-          .onEnd((event) => {
-            'worklet';
-            if (!allowPanClose.value) return;
-            const velocity = event.velocityY;
-            const distance = translateY.value;
-            const closeThreshold = Math.max(140, SCREEN_HEIGHT * 0.25);
-            const shouldClose = velocity > 900 || (distance > closeThreshold && velocity > -300);
-
-            if (shouldClose) {
-              runOnJS(stopChat)();
-              translateY.value = withSpring(SCREEN_HEIGHT, {
-                ...SPRING_CONFIG,
-                velocity,
-              });
-              backdropOpacity.value = withTiming(0, { duration: 250 }, (finished) => {
-                if (finished) runOnJS(finishDismiss)();
-              });
-            } else {
-              translateY.value = withSpring(0, { ...SPRING_CONFIG, velocity });
-            }
-          }),
-      [nativeGesture, finishDismiss, stopChat],
-    );
-
-    // Animated styles
-    const backdropAnimStyle = useAnimatedStyle(() => ({
-      opacity: backdropOpacity.value,
-    }));
-
-    const sheetAnimStyle = useAnimatedStyle(() => ({
-      transform: [{ translateY: translateY.value - keyboardHeight.value }],
-    }));
-
-    const sheetMaxHeightStyle = useAnimatedStyle(
-      () => ({
-        maxHeight: SCREEN_HEIGHT - keyboardHeight.value - insets.top,
-      }),
-      [insets.top],
-    );
-
-    if (!rendered) return null;
+    // A drag, backdrop press, Back or Escape starts closing here: stop the turn first.
+    const onDismissAttempt = useCallback(() => {
+      stopChat();
+      return true;
+    }, [stopChat]);
 
     return (
-      <Modal
-        visible={rendered}
-        transparent
-        animationType="none"
-        statusBarTranslucent
-        onRequestClose={handleDismiss}
+      <BottomSheet
+        ref={sheetRef}
+        detached
+        scrollable={false}
+        manualActivation
+        onDismissAttempt={onDismissAttempt}
+        onDismiss={stopChat}
+        style={{ maxWidth: 600, alignSelf: 'center', borderRadius: SHEET_RADIUS }}
       >
-        <GestureHandlerRootView style={StyleSheet.absoluteFill}>
-          {/* Backdrop */}
-          <Animated.View style={[styles.backdrop, backdropAnimStyle]}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={handleDismiss} />
-          </Animated.View>
-
-          {/* Sheet */}
-          <GestureDetector gesture={panGesture}>
-            <Animated.View
-              className="bg-background"
-              style={[styles.sheet, sheetAnimStyle, sheetMaxHeightStyle]}
-            >
-              {/* Drag handle */}
-              <View style={styles.dragHandle}>
-                <View
-                  style={[styles.dragHandlePill, { backgroundColor: isDark ? '#444' : '#C7C7CC' }]}
-                />
-              </View>
-
-              {/* Chat content (header rendered inside via render prop) */}
-              <GestureDetector gesture={nativeGesture}>
-                <AliaChatContent
-                  clientContext={clientContext}
-                  model={model}
-                  apiUrl={apiUrl}
-                  scrollOffsetY={scrollOffsetY}
-                  welcomeGreeting={welcomeGreeting}
-                  welcomeSubtitle={welcomeSubtitle}
-                  welcomeSuggestions={welcomeSuggestions}
-                  primaryColor={primaryColor}
-                  isDarkMode={isDarkMode ?? isDark}
-                  voiceSession={voiceSession}
-                  onStopReady={registerChatStop}
-                  header={({ markState, hasMessages, clear }) => (
-                    <View style={styles.header}>
-                      <View style={styles.headerLeft}>
-                        <IdentityMark size={28} state={markState} spinOnPress />
-                        <Text className="text-lg font-semibold text-foreground">Alia</Text>
-                      </View>
-                      <View style={styles.headerRight}>
-                        {hasMessages && (
-                          <TouchableOpacity onPress={clear} style={styles.clearButton}>
-                            <Text className="text-sm text-muted-foreground">Clear</Text>
-                          </TouchableOpacity>
-                        )}
-                        <TouchableOpacity
-                          onPress={handleDismiss}
-                          style={styles.closeButton}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          <Text className="text-lg font-semibold text-muted-foreground">
-                            {'\u2715'}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
-                />
-              </GestureDetector>
-            </Animated.View>
-          </GestureDetector>
-        </GestureHandlerRootView>
-      </Modal>
+        <AliaChatContent
+          clientContext={clientContext}
+          model={model}
+          apiUrl={apiUrl}
+          welcomeGreeting={welcomeGreeting}
+          welcomeSubtitle={welcomeSubtitle}
+          welcomeSuggestions={welcomeSuggestions}
+          isDarkMode={isDarkMode ?? isDark}
+          voiceSession={voiceSession}
+          labels={labels}
+          onStopReady={registerChatStop}
+          // The top padding clears the 28px drag handle, which Bloom floats over the content
+          // instead of reserving room for.
+          title={null}
+          headerLeading={({ hasMessages, clear }) => (
+            <View className="pt-8">
+              <AliaChatHeader hasMessages={hasMessages} onClear={clear} onClose={handleDismiss} />
+            </View>
+          )}
+        />
+      </BottomSheet>
     );
   },
 );
 
 AliaChatSheet.displayName = 'AliaChatSheet';
-
-const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: 'hidden',
-    maxWidth: 600,
-    alignSelf: 'center',
-    ...Platform.select({
-      web: {
-        marginHorizontal: 'auto',
-        boxShadow: '0 -4px 24px rgba(0,0,0,0.15)',
-      } as ViewStyle & { boxShadow?: string },
-      default: { elevation: 16 },
-    }),
-  },
-  dragHandle: {
-    alignItems: 'center',
-    paddingTop: 10,
-    paddingBottom: 4,
-  },
-  dragHandlePill: {
-    width: 36,
-    height: 5,
-    borderRadius: 3,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  clearButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-  },
-});

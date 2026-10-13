@@ -14,7 +14,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
-import type { AgentState } from '@alia.onl/sdk/voice';
+import type { AgentState } from '../types';
 
 /**
  * Cross-platform blur. React Native 0.86 types `filter` on `ViewStyle`, but the
@@ -53,6 +53,18 @@ const EXIT_EASE = Easing.bezier(0.2, 0.7, 0.2, 1);
  * the whole term is zero and the blob does not move at all.
  */
 const PULSE_DURATION = 900;
+
+/**
+ * A field shorter than a phone screen (the chat's sheet) is not drawn at its own scale: the
+ * blobs are sized in `vmax` of the field, which would be its small side, and laid out across
+ * its width, which would pile them on the centre. It takes the blob size of a phone screen,
+ * and its blobs are spread wider (`SHORT_FIELD_SPREAD`), cropped by its edges — the blue, warm
+ * and green of the intro side by side, not one smudge in the middle.
+ */
+const MIN_FIELD_REFERENCE = 800;
+const SHORT_FIELD_SPREAD = 1.4;
+/** The spread leaves the composition leaning left; this much of the width puts it back. */
+const SHORT_FIELD_SHIFT = 0.17;
 
 /** One keyframe stop of a float loop: [translateX in vw, translateY in vh, scale]. */
 type FloatStop = readonly [number, number, number];
@@ -475,9 +487,11 @@ export function AmbientField({
     setField({ width, height });
   };
 
-  const vw = field.width / 100;
+  const short = field.height > 0 && field.height < MIN_FIELD_REFERENCE;
+  const vw = (field.width / 100) * (short ? SHORT_FIELD_SPREAD : 1);
   const vh = field.height / 100;
-  const vmax = Math.max(field.width, field.height) / 100;
+  const vmax = Math.max(field.width, field.height, short ? MIN_FIELD_REFERENCE : 0) / 100;
+  const shiftX = short ? field.width * SHORT_FIELD_SHIFT : 0;
 
   const fieldStyle = useAnimatedStyle(() => ({
     // On the way out the field keeps 45% of its opacity, sinking as it goes.
@@ -531,26 +545,28 @@ export function AmbientField({
           <Animated.View
             style={[{ position: 'absolute', inset: 0 }, blurStyle(FIELD_BLUR), fieldStyle]}
           >
-            {FLOURISHES.map((config, index) => (
-              <Flourish
-                key={config.w}
-                config={config}
-                index={index}
-                color={palette[index]}
-                vw={vw}
-                vh={vh}
-                vmax={vmax}
-                fieldWidth={field.width}
-                fieldHeight={field.height}
-                blobOpacity={isDarkMode ? BLOB_OPACITY_DARK : BLOB_OPACITY_LIGHT}
-                blend={isDarkMode ? 'screen' : 'multiply'}
-                entrance={entrance}
-                running={running}
-                waveAmplitude={amplitude}
-                pointerX={px}
-                pointerY={py}
-              />
-            ))}
+            <View style={{ position: 'absolute', inset: 0, transform: [{ translateX: shiftX }] }}>
+              {FLOURISHES.map((config, index) => (
+                <Flourish
+                  key={config.w}
+                  config={config}
+                  index={index}
+                  color={palette[index]}
+                  vw={vw}
+                  vh={vh}
+                  vmax={vmax}
+                  fieldWidth={field.width}
+                  fieldHeight={field.height}
+                  blobOpacity={isDarkMode ? BLOB_OPACITY_DARK : BLOB_OPACITY_LIGHT}
+                  blend={isDarkMode ? 'screen' : 'multiply'}
+                  entrance={entrance}
+                  running={running}
+                  waveAmplitude={amplitude}
+                  pointerX={px}
+                  pointerY={py}
+                />
+              ))}
+            </View>
           </Animated.View>
         </>
       ) : null}

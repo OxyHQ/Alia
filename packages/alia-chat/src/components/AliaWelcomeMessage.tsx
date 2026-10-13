@@ -1,71 +1,72 @@
-import { Pressable, StyleSheet, View } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { Text } from './ui/text';
+import { Item } from '@oxy.so/bloom/item';
+import { Text } from '@oxy.so/bloom/typography';
+import { View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { IdentityMark } from './IdentityMark';
 import type { WelcomeSuggestion } from '../types';
+import { AliaAvatar } from './AliaAvatar';
 
 export type { WelcomeSuggestion };
 
 export interface AliaWelcomeMessageProps {
+  /** The greeting, e.g. "Hi Nate, what's on your mind?". */
   greeting: string;
   subtitle?: string;
   suggestions?: WelcomeSuggestion[];
   onSuggestionPress?: (text: string) => void;
   markSize?: number;
+  /** Leave the avatar out, where the surrounding header already shows it. */
+  hideMark?: boolean;
 }
 
+/**
+ * The empty chat, as the Alia app has it: the avatar beside the greeting at display
+ * size, centred (stacked on a phone, side by side from `md`), and the suggestions as
+ * compact rows under it.
+ */
 export function AliaWelcomeMessage({
   greeting,
   subtitle,
   suggestions = [],
   onSuggestionPress,
-  markSize = 64,
+  markSize = 38,
+  hideMark = false,
 }: AliaWelcomeMessageProps) {
   return (
-    <View className="flex-1 items-center justify-center px-4">
-      <View className="w-full max-w-2xl">
-        {/* Mark + Title */}
-        <View className="items-start mb-8">
-          <View className="mb-4">
-            <IdentityMark size={markSize} spinOnPress />
-          </View>
-          <View className="space-y-2">
-            <Text className="text-3xl font-bold tracking-tight text-foreground">{greeting}</Text>
-            {subtitle ? (
-              <Text className="text-xl font-medium text-muted-foreground">{subtitle}</Text>
-            ) : null}
-          </View>
+    <View className="flex-1 items-center justify-center gap-6 px-4">
+      <View className="items-center gap-2">
+        <View className="flex-col items-center justify-center gap-3 md:flex-row">
+          {hideMark ? null : <AliaAvatar size={markSize} interactive />}
+          <Text
+            selectable={false}
+            className="text-center text-4xl tracking-tight text-text-primary md:text-left"
+          >
+            {greeting}
+          </Text>
         </View>
-
-        {/* Suggestion Grid */}
-        {suggestions.length > 0 && (
-          <Animated.View entering={FadeIn.duration(400)}>
-            <View className="flex-row flex-wrap gap-2">
-              {suggestions.map((item) => (
-                <Pressable
-                  key={item.id}
-                  className="flex-1 min-w-[35%] flex-col items-start rounded-3xl border border-border overflow-hidden active:bg-muted/50"
-                  onPress={() => onSuggestionPress?.(item.description)}
-                >
-                  <BlurView intensity={60} tint="default" style={StyleSheet.absoluteFill} />
-                  <View className="p-4 w-full">
-                    <Text
-                      className="text-sm font-medium text-surface-foreground mb-1"
-                      numberOfLines={1}
-                    >
-                      {item.title}
-                    </Text>
-                    <Text className="text-xs text-muted-foreground line-clamp-1" numberOfLines={1}>
-                      {item.description}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          </Animated.View>
-        )}
+        {subtitle ? (
+          <Text className="text-center text-lg text-text-secondary">{subtitle}</Text>
+        ) : null}
       </View>
+
+      {suggestions.length > 0 ? (
+        <Animated.View
+          entering={FadeIn.duration(400)}
+          accessibilityRole="list"
+          className="w-full max-w-[768px]"
+        >
+          {suggestions.map((item) => (
+            <Item
+              key={item.id}
+              density="compact"
+              accessibilityRole="button"
+              accessibilityLabel={item.title}
+              onPress={() => onSuggestionPress?.(item.description)}
+              title={<Text numberOfLines={1}>{item.title}</Text>}
+              subtitle={item.description}
+            />
+          ))}
+        </Animated.View>
+      ) : null}
     </View>
   );
 }

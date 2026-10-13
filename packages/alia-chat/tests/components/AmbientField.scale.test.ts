@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { levelFromDbfs } from '../../../../../../alia-chat/src/lib/audio-level';
+import { levelFromDbfs } from '../../src/lib/audio-level';
 
 /**
  * How big a blob gets for a given level — pinned to what DICTATION was seen at,
@@ -32,7 +32,7 @@ import { levelFromDbfs } from '../../../../../../alia-chat/src/lib/audio-level';
  */
 
 const SOURCE = readFileSync(
-  fileURLToPath(new URL('../ambient-field.tsx', import.meta.url)),
+  fileURLToPath(new URL('../../src/components/AmbientField.tsx', import.meta.url)),
   'utf8',
 );
 
@@ -54,7 +54,7 @@ const ARITHMETIC_ONLY = /^(?:amp|config\.amp|pulse\.value|[\d.\s+\-*/()])+$/;
  */
 function ampScaleFromSource(): (amp: number, configAmp: number, pulse: number) => number {
   const match = /const ampScale = ([^;]+);/.exec(SOURCE);
-  if (match === null) throw new Error('ambient-field.tsx no longer declares `const ampScale`');
+  if (match === null) throw new Error('AmbientField.tsx no longer declares `const ampScale`');
   const expression = match[1];
   if (!ARITHMETIC_ONLY.test(expression)) {
     throw new Error(

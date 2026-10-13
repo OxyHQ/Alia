@@ -301,4 +301,57 @@ describe('useAliaChat request lifecycle', () => {
 
     await act(async () => renderer.unmount());
   });
+  it('sends photos as image_url parts, in the request and in the user message', async () => {
+    const photo = 'data:image/png;base64,AAAA';
+    const session = createSession(async () => successfulResponse('Un gato'));
+    const renderer = await renderHarness();
+
+    await act(async () => {
+      current().send('¿Qué es?', { images: [photo] });
+      await vi.waitFor(() => expect(session.request).toHaveBeenCalledOnce());
+    });
+    await waitUntilIdle();
+
+    const parts = [
+      { type: 'text', text: '¿Qué es?' },
+      { type: 'image_url', image_url: { url: photo } },
+    ];
+    const body = JSON.parse(session.request.mock.calls[0]?.[0].body ?? '{}');
+    expect(body.messages.at(-1)).toEqual({ role: 'user', content: parts });
+    expect(current().messages[0]?.content).toEqual(parts);
+
+    await act(async () => renderer.unmount());
+  });
+
+  it('sends a photo with no caption, without an empty text part', async () => {
+    const photo = 'data:image/png;base64,BBBB';
+    const session = createSession(async () => successfulResponse('Una foto'));
+    const renderer = await renderHarness();
+
+    await act(async () => {
+      current().send('   ', { images: [photo] });
+      await vi.waitFor(() => expect(session.request).toHaveBeenCalledOnce());
+    });
+    await waitUntilIdle();
+
+    const body = JSON.parse(session.request.mock.calls[0]?.[0].body ?? '{}');
+    expect(body.messages.at(-1)).toEqual({
+      role: 'user',
+      content: [{ type: 'image_url', image_url: { url: photo } }],
+    });
+
+    await act(async () => renderer.unmount());
+  });
+
+  it('does not send a turn with neither text nor photos', async () => {
+    const session = createSession(async () => successfulResponse());
+    const renderer = await renderHarness();
+
+    await act(async () => current().send('  ', { images: [] }));
+
+    expect(session.request).not.toHaveBeenCalled();
+    expect(current().messages).toEqual([]);
+
+    await act(async () => renderer.unmount());
+  });
 });

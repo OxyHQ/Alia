@@ -1,7 +1,6 @@
-import { AmbientField, PARALLAX_DURATION, PARALLAX_EASE } from '@/features/chat/ui/ambient-field';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
-import { IdentityMark } from '@alia.onl/sdk';
+import { AliaAvatar, AmbientField, PARALLAX_DURATION, PARALLAX_EASE } from '@alia.onl/sdk';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services';
@@ -263,7 +262,7 @@ export function WelcomeIntro({
       <View className="w-full max-w-[640px] items-center gap-3">
         <Animated.View className="max-w-[560px] items-center gap-4">
           <Animated.View style={markStyle}>
-            <IdentityMark size={40} spinOnPress />
+            <AliaAvatar size={40} interactive />
           </Animated.View>
           <Animated.View
             className="flex-row items-center justify-center"

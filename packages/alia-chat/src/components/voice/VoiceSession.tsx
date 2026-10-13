@@ -11,6 +11,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useVoiceRoom } from '../../hooks/useVoiceRoom';
+import { VOICE_ERROR_MESSAGES } from '../../lib/speech-messages';
 import { useAudioLevelMonitor } from '../../hooks/useAudioLevelMonitor';
 import { useAudioLevels } from '../../hooks/useAudioLevels';
 import { VoiceControls } from './VoiceControls';
@@ -57,7 +58,7 @@ export function VoiceSession({ apiUrl, onStateChange, onEnd }: VoiceSessionProps
   useEffect(() => {
     if (roomState === 'connected') reachedRoomRef.current = true;
     if (error || roomState === 'error') {
-      onEnd();
+      onEnd(error ?? VOICE_ERROR_MESSAGES['turn-failed']);
       return;
     }
     if (roomState === 'disconnected' && reachedRoomRef.current) onEnd();
