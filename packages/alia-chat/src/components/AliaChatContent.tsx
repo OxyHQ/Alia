@@ -29,7 +29,6 @@ import { AliaChatMessageList } from './AliaChatMessageList';
 import { AliaWelcomeMessage, type WelcomeSuggestion } from './AliaWelcomeMessage';
 import { ComposerLoader } from '@oxy.so/bloom/composer-loader';
 import { AiChatContainer } from '@oxy.so/bloom/ai-chat';
-import { ComposerAttachmentStrip } from '@oxy.so/bloom/chat-composer';
 import { ComposerPill, type ComposerPanelAddMenuGroup } from '@oxy.so/bloom/composer-panel';
 import { RiImageLine } from '@oxy.so/bloom/icons';
 import { toast } from '@oxy.so/bloom/toast';
@@ -338,16 +337,6 @@ function AliaChatContentBody({
       </Suspense>
     ) : (
       <>
-        {photos.length > 0 ? (
-          <ComposerAttachmentStrip
-            attachments={photos.map((photo) => ({
-              id: photo.id,
-              name: photo.name,
-              source: photo.uri,
-            }))}
-            onRemove={(id) => setPhotos((prev) => prev.filter((p) => p.id !== id))}
-          />
-        ) : null}
         <ComposerLoader active={isStreaming}>
           <ComposerPill
             surface={false}
@@ -361,6 +350,13 @@ function AliaChatContentBody({
             placeholder={labels.placeholder}
             addMenu={addMenuGroups}
             onAddMenuSelect={handleAddMenuSelect}
+            attachments={photos.map((photo) => ({
+              id: photo.id,
+              name: photo.name,
+              kind: 'image' as const,
+              src: photo.uri,
+            }))}
+            onRemoveAttachment={(id) => setPhotos((prev) => prev.filter((p) => p.id !== id))}
             voiceState={
               stt.isTranscribing ? 'transcribing' : stt.isRecording ? 'recording' : 'idle'
             }

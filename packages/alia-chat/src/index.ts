@@ -20,7 +20,6 @@ export { IdentityMark } from './components/IdentityMark';
 export type { IdentityMarkProps, IdentityMarkState } from './components/IdentityMark';
 export { AliaMarkdown } from './components/Markdown';
 export type { AliaMarkdownProps, RenderCodeBlock } from './components/Markdown';
-export { Reasoning, ReasoningTrigger, ReasoningContent } from './components/Reasoning';
 export { AliaWelcomeMessage } from './components/AliaWelcomeMessage';
 export { PlanPreviewCard } from './components/PlanPreviewCard';
 
