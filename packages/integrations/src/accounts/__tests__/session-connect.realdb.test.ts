@@ -64,6 +64,7 @@ vi.mock('telegram', async (importOriginal) => {
       await fakes.nextMacrotask();
     }
     async disconnect() {}
+    async destroy() {}
     async getMe() {
       return { phone: '15550001', firstName: 'Ada', lastName: 'Lovelace', id: 42 };
     }

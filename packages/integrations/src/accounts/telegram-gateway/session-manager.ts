@@ -1,6 +1,7 @@
 import { TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions';
-import { NewMessage } from 'telegram/events';
+import { NewMessage, Raw } from 'telegram/events';
+import { UpdateConnectionState } from 'telegram/network';
 import { Api } from 'telegram/tl';
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../../db';
@@ -36,6 +37,8 @@ class SessionManager {
   private sessions: Map<string, TelegramClient> = new Map();
   private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
   private reconnectAttempts: Map<string, number> = new Map();
+  /** Connections reported down, waiting to see whether GramJS brings them back. */
+  private connectionLosses: Map<string, { timer: NodeJS.Timeout; broken: boolean }> = new Map();
   private pendingQrs = new PendingQrs();
 
   private static readonly MAX_RECONNECT_ATTEMPTS = 10;
@@ -44,6 +47,17 @@ class SessionManager {
   private static readonly JITTER_MAX_MS = 1000;
   /** Telegram's first QR takes longer than WhatsApp's. */
   private static readonly QR_TIMEOUT_MS = 60000;
+  /**
+   * How long a client may report itself disconnected before the session is torn
+   * down and reconnected from scratch. GramJS reports `disconnected` for blips it
+   * recovers from on its own: every ping slower than a second (its wake-up
+   * warning, `client/updates.js` `_updateLoop`) and the start of its own
+   * reconnect (`MTProtoSender._reconnect` → `_disconnect`), each followed by
+   * `connected` once it is back. A slow ping answers within its 3s timeout and a
+   * reconnect that works is a 1s pause plus one connect, so this covers both; a
+   * connect stuck on a dead network is what the session-level reconnect is for.
+   */
+  private static readonly CONNECTION_LOSS_GRACE_MS = 20000;
 
   private get apiId(): number {
     return parseInt(process.env.TELEGRAM_API_ID || '0', 10);
@@ -149,6 +163,7 @@ class SessionManager {
         // Session expired
         await markTelegramLoggedOut(getDb(), sessionId);
         this.sessions.delete(sessionId);
+        this.discardClient(sessionId, client);
         logger.warn(`Session ${sessionId} expired, marked as logged-out`);
         return;
       }
@@ -158,12 +173,14 @@ class SessionManager {
         // Session permanently invalidated
         await markTelegramLoggedOut(getDb(), sessionId);
         this.sessions.delete(sessionId);
+        this.discardClient(sessionId, client);
         logger.warn(`Session ${sessionId} revoked, marked as logged-out`);
         return;
       }
 
       // Transient error: schedule reconnect
       this.sessions.delete(sessionId);
+      this.discardClient(sessionId, client);
       this.scheduleReconnect(sessionId);
     }
   }
@@ -362,18 +379,91 @@ class SessionManager {
       }
     }, new NewMessage({}));
 
-    // Handle disconnection events
-    client.addEventHandler(async () => {
-      // Client disconnected — attempt reconnect
-      if (!this.sessions.has(sessionId)) return; // Already cleaned up
+    // Only connection-state changes. A handler registered without an event
+    // builder gets a `Raw({})` that matches EVERY update (GramJS
+    // `client/updates.js` `addEventHandler`), so the first message — or the
+    // `connected` GramJS dispatches after every successful ping — tore the
+    // session down.
+    client.addEventHandler(
+      (update: UpdateConnectionState) => this.onConnectionState(sessionId, client, update.state),
+      new Raw({ types: [UpdateConnectionState] }),
+    );
+  }
 
-      logger.info(`Client disconnected for session ${sessionId}`);
-      this.sessions.delete(sessionId);
+  /**
+   * A connection-state change GramJS dispatched for `client`. `disconnected` and
+   * `broken` start the grace period; `connected` ends it. Only the client the
+   * session currently runs counts: one that was replaced, reset, unlinked or
+   * shut down was removed from `sessions` before it was disconnected, and its
+   * own `disconnected` is not a reason to reconnect.
+   */
+  private onConnectionState(sessionId: string, client: TelegramClient, state: number): void {
+    if (this.sessions.get(sessionId) !== client) return;
 
-      await markTelegramDisconnected(getDb(), sessionId);
+    if (state === UpdateConnectionState.connected) {
+      this.clearConnectionLoss(sessionId);
+      return;
+    }
 
-      this.scheduleReconnect(sessionId);
-    });
+    const broken = state === UpdateConnectionState.broken;
+    // Already waiting on this loss: GramJS reports one outage several times.
+    const pending = this.connectionLosses.get(sessionId);
+    if (pending) {
+      pending.broken ||= broken;
+      return;
+    }
+
+    const loss = {
+      broken,
+      timer: setTimeout(() => {
+        this.connectionLosses.delete(sessionId);
+        this.onConnectionLost(sessionId, client, loss.broken);
+      }, SessionManager.CONNECTION_LOSS_GRACE_MS),
+    };
+    this.connectionLosses.set(sessionId, loss);
+  }
+
+  /**
+   * The grace period of a reported loss ran out: unless the client is back, drop
+   * it and reconnect with backoff. The bookkeeping is synchronous so that an
+   * unlink or shutdown racing the writes below still finds — and clears — the
+   * reconnect it must cancel.
+   */
+  private onConnectionLost(sessionId: string, client: TelegramClient, broken: boolean): void {
+    if (this.sessions.get(sessionId) !== client) return;
+    // GramJS dispatches each update on its own promise chain, so a `connected`
+    // can overtake the `disconnected` before it; the client's own state settles
+    // it. Not for `broken`: a broken auth key ends the receive loop
+    // (`network/MTProtoSender.js` `_recvLoop`) while the client still reports
+    // itself connected.
+    if (!broken && client.connected) return;
+
+    logger.info(`Client disconnected for session ${sessionId}`);
+    this.sessions.delete(sessionId);
+    this.scheduleReconnect(sessionId);
+
+    this.discardClient(sessionId, client);
+    markTelegramDisconnected(getDb(), sessionId).catch((err) =>
+      logger.error(`Failed to record the disconnect of session ${sessionId}:`, err),
+    );
+  }
+
+  /**
+   * Shut down a client the session no longer uses, in the background. `destroy`,
+   * not `disconnect`: GramJS's ping loop runs until the client is destroyed
+   * (`client/updates.js` `_updateLoop`), so a merely disconnected client keeps
+   * pinging a dead connection — and reporting it down — for good.
+   */
+  private discardClient(sessionId: string, client: TelegramClient): void {
+    client.destroy().catch((err) => logger.warn(`Error closing client for ${sessionId}:`, err));
+  }
+
+  private clearConnectionLoss(sessionId: string): void {
+    const loss = this.connectionLosses.get(sessionId);
+    if (loss) {
+      clearTimeout(loss.timer);
+      this.connectionLosses.delete(sessionId);
+    }
   }
 
   /**
@@ -422,14 +512,17 @@ class SessionManager {
    * Disconnect and log out a session (removes session string).
    */
   async disconnectSession(sessionId: string): Promise<void> {
+    // Out of `sessions` before the disconnect, so its `disconnected` is not
+    // taken for a dropped connection.
     const client = this.sessions.get(sessionId);
+    this.sessions.delete(sessionId);
+    this.clearConnectionLoss(sessionId);
     if (client) {
       try {
-        await client.disconnect();
+        await client.destroy();
       } catch (err) {
         logger.error(`Disconnect error for ${sessionId}:`, err);
       }
-      this.sessions.delete(sessionId);
     }
 
     // Clear reconnect timer and attempts
@@ -490,18 +583,23 @@ class SessionManager {
       this.reconnectTimers.delete(sessionId);
     }
 
+    for (const loss of this.connectionLosses.values()) clearTimeout(loss.timer);
+    this.connectionLosses.clear();
+
     // Clear reconnect attempts
     this.reconnectAttempts.clear();
 
-    // Disconnect all clients
-    for (const [sessionId, client] of this.sessions) {
+    // Out of `sessions` before the disconnect, so no client's `disconnected`
+    // is taken for a dropped connection.
+    const clients = [...this.sessions];
+    this.sessions.clear();
+    for (const [sessionId, client] of clients) {
       try {
-        await client.disconnect();
+        await client.destroy();
       } catch (err) {
         logger.error(`Error disconnecting session ${sessionId}:`, err);
       }
     }
-    this.sessions.clear();
 
     logger.info('All sessions shut down');
   }
@@ -510,14 +608,17 @@ class SessionManager {
    * Internal: clean up client and timers for a session before creating a new one.
    */
   private async cleanupSocket(sessionId: string): Promise<void> {
+    // Out of `sessions` before the disconnect, so its `disconnected` is not
+    // taken for a dropped connection.
     const existingClient = this.sessions.get(sessionId);
+    this.sessions.delete(sessionId);
+    this.clearConnectionLoss(sessionId);
     if (existingClient) {
       try {
-        await existingClient.disconnect();
+        await existingClient.destroy();
       } catch {
         // ignore
       }
-      this.sessions.delete(sessionId);
     }
 
     this.pendingQrs.reject(sessionId, new Error('Session was reset'));
