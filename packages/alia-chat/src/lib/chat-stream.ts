@@ -1,4 +1,5 @@
 import type { PlanStep, ResearchProgress, ResearchSource } from '../types';
+import { ASK_USER_QUESTION_TOOL } from './questions';
 
 const MAX_STREAM_BYTES = 8 * 1024 * 1024;
 const MAX_STREAM_LINES = 65_536;
@@ -579,6 +580,10 @@ export async function consumeAliaChatStream(
     }
     for (const event of parsed.events) {
       if (event.kind === 'content' && event.content.trim().length > 0) answerReceived = true;
+      // A turn that ends at a question card is answered by the card, even with no sentence before it.
+      if (event.kind === 'tool_call' && event.toolName === ASK_USER_QUESTION_TOOL) {
+        answerReceived = true;
+      }
       onEvent(event);
     }
     if (parsed.finishReason !== null) {
