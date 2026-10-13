@@ -400,10 +400,8 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
     try {
       const result = await generateText({
         model: getAIModel(resolved, 'authoring'),
-        messages: [
-          { role: 'system', content: draftInstructions(language) },
-          { role: 'user', content: prompt },
-        ],
+        system: draftInstructions(language),
+        messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
         maxRetries: 0,
       });

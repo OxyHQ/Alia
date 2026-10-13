@@ -104,8 +104,8 @@ registerHook({
 
       const result = await generateText({
         model,
+        system: CLASSIFICATION_PROMPT,
         messages: [
-          { role: 'system', content: CLASSIFICATION_PROMPT },
           {
             role: 'user',
             content: `User message: "${lastUserMessage.slice(0, 500)}"\n\nAI response: "${assistantResponse}"`,

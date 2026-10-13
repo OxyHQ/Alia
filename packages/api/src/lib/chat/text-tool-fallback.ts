@@ -30,7 +30,6 @@ export interface TextToolFallbackParams {
   toolInvocations: ToolInvocation[];
   /** The truncated tool set the model had access to. */
   tools: ToolSet;
-  convertedMessages: ModelMessage[];
   // biome-ignore lint/suspicious/noExplicitAny: AI SDK config is dynamically extended; strict SDK param types don't support this pattern
   baseConfig: any;
   res: Response;
@@ -44,16 +43,7 @@ const TEXT_TOOL_CALL_RE = /<function\((\w+)\)>\s*<?\s*(\{[\s\S]*?\})\s*>?\s*<\/f
 export async function runTextToolFallback(
   params: TextToolFallbackParams,
 ): Promise<{ assistantResponse: string }> {
-  const {
-    toolInvocations,
-    tools,
-    convertedMessages,
-    baseConfig,
-    res,
-    requestId,
-    modelId,
-    resolved,
-  } = params;
+  const { toolInvocations, tools, baseConfig, res, requestId, modelId, resolved } = params;
   let assistantResponse = params.assistantResponse;
 
   let textToolCallIdx = 0;
@@ -112,7 +102,7 @@ export async function runTextToolFallback(
       // Follow-up LLM call so the model generates a natural response
       try {
         const followUpMessages: ModelMessage[] = [
-          ...convertedMessages,
+          ...baseConfig.messages,
           ...toolRoundTrip(invocation),
         ];
         const followUpResult = streamText({

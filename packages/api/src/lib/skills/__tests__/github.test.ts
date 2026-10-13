@@ -36,10 +36,11 @@ async function repositoryTarball(entries: Record<string, string>): Promise<Buffe
 function stubGitHub(tarball: Buffer): void {
   vi.stubGlobal('fetch', async (input: string | URL) => {
     const url = String(input);
+    // The commit is read from the archive: the rate-limited API is never asked.
     if (url.startsWith('https://api.github.com/')) {
-      return new Response(COMMIT, { status: 200 });
+      return new Response('rate limited', { status: 403 });
     }
-    if (url === `https://codeload.github.com/anthropics/skills/tar.gz/${COMMIT}`) {
+    if (url.startsWith('https://codeload.github.com/anthropics/skills/tar.gz/')) {
       return new Response(new Uint8Array(tarball), { status: 200 });
     }
     return new Response('not found', { status: 404 });

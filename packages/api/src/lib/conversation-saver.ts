@@ -374,14 +374,9 @@ export async function generateTitle(userMessage: string): Promise<string | null>
     const model = getAIModel(resolved, 'background');
     const result = await generateText({
       model,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Generate a concise conversation title (max 6 words) in the same language as the user message. Return ONLY the title, no quotes or trailing punctuation.',
-        },
-        { role: 'user', content: userMessage },
-      ],
+      system:
+        'Generate a concise conversation title (max 6 words) in the same language as the user message. Return ONLY the title, no quotes or trailing punctuation.',
+      messages: [{ role: 'user', content: userMessage }],
       maxOutputTokens: TITLE_OUTPUT_TOKEN_BUDGET,
     });
 

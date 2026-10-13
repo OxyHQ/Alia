@@ -40,10 +40,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
         const model = getAIModel(resolved, 'authoring');
         result = await generateText({
           model,
-          messages: [
-            {
-              role: 'system',
-              content: `You are an agent configuration generator. Given a user's description of what they want their AI agent to do, generate a structured JSON configuration for the agent.
+          system: `You are an agent configuration generator. Given a user's description of what they want their AI agent to do, generate a structured JSON configuration for the agent.
 
 Return ONLY valid JSON with these fields:
 - "name": A GIVEN NAME for the agent, as you would name a person — "Claudio", "Nadia", "Bruno", "Xiomara". Never a job title: not "Community Manager", not "Support Bot", not "Research Assistant". Prefer the distinctive over the ordinary: not "Albert", "John" or "Maria". One or two words.
@@ -58,7 +55,7 @@ Return ONLY valid JSON with these fields:
 - "archetype": Exactly one of: "general", "qa", "task_router", "status_update". Use "qa" if the agent answers questions from knowledge/data sources. Use "task_router" if the agent triages and routes tasks to people or teams. Use "status_update" if the agent gathers data and generates periodic reports or summaries. Use "general" for everything else.
 
 Do not include any text outside the JSON object.`,
-            },
+          messages: [
             {
               role: 'user',
               content: prompt.trim(),

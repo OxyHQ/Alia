@@ -1,5 +1,5 @@
 import { effectiveCreditPlan, readCurrentProductAllowance } from '../lib/product-credit-read-model';
-import { Router, Request, Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import Stripe from 'stripe';
 import { authenticateToken, optionalAuth, oxyClient } from '../middleware/auth.js';
 import { getDb } from '../db/index.js';
@@ -38,12 +38,33 @@ import { getSafeErrorMessage } from '../lib/errors/sanitize.js';
 
 const router = Router();
 
+/**
+ * Stripe is an optional dependency of the deployment: without its key the
+ * billing routes cannot do their job, and that is a statement about the
+ * environment, not a server fault. It is raised as its own type so a route can
+ * answer 503 `billing_unavailable` instead of a 500 that pages as a crash.
+ */
+class BillingNotConfiguredError extends Error {
+  constructor() {
+    super('STRIPE_SECRET_KEY is not defined');
+    this.name = 'BillingNotConfiguredError';
+  }
+}
+
+/** The failure response of a handler that needs Stripe. Returns true when it answered. */
+function respondBillingUnavailable(error: unknown, res: Response): boolean {
+  if (!(error instanceof BillingNotConfiguredError)) return false;
+  log.credits.warn('Billing request refused: Stripe is not configured');
+  res.status(503).json({ error: 'billing_unavailable' });
+  return true;
+}
+
 let stripeInstance: Stripe | null = null;
 
 function getStripe(): Stripe {
   if (!stripeInstance) {
     if (!process.env.STRIPE_SECRET_KEY) {
-      throw new Error('STRIPE_SECRET_KEY is not defined');
+      throw new BillingNotConfiguredError();
     }
     stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
       apiVersion: '2026-08-26.dahlia',
@@ -168,6 +189,7 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
+    if (respondBillingUnavailable(error, res)) return;
     log.credits.error({ err: error }, 'Error creating checkout session');
     res
       .status(500)
@@ -239,6 +261,7 @@ router.post('/checkout/custom-credits', authenticateToken, async (req: Request, 
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
+    if (respondBillingUnavailable(error, res)) return;
     log.credits.error({ err: error }, 'Error creating custom credits checkout');
     res
       .status(500)
@@ -409,6 +432,7 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
+    if (respondBillingUnavailable(error, res)) return;
     log.credits.error({ err: error }, 'Error creating subscription checkout');
     res
       .status(500)
@@ -511,6 +535,7 @@ router.post('/subscription/cancel', authenticateToken, async (req: Request, res:
       subscription: canceled && serializeSubscription(canceled),
     });
   } catch (error: unknown) {
+    if (respondBillingUnavailable(error, res)) return;
     log.credits.error({ err: error }, 'Error canceling subscription');
     res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to cancel subscription') });
   }
@@ -646,6 +671,7 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
+    if (respondBillingUnavailable(error, res)) return;
     log.credits.error({ err: error }, 'Error changing plan');
     res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to change plan') });
   }
@@ -682,6 +708,7 @@ router.post('/portal', authenticateToken, async (req: Request, res: Response) =>
 
     res.json({ url: session.url });
   } catch (error: unknown) {
+    if (respondBillingUnavailable(error, res)) return;
     log.credits.error({ err: error }, 'Error creating portal session');
     res
       .status(500)
