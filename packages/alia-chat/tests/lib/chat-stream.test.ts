@@ -50,6 +50,22 @@ async function consume(parts: Array<string | Uint8Array>): Promise<AliaChatStrea
 }
 
 describe('consumeAliaChatStream', () => {
+  it('counts a turn that ends at a question card as answered, with no sentence before it', async () => {
+    const call = {
+      tool_calls: [
+        {
+          index: 0,
+          id: 'call-1',
+          type: 'function',
+          function: { name: 'askUserQuestion', arguments: '{"questions":[]}' },
+        },
+      ],
+    };
+    const events = await consume([frames(chunk(call), chunk({}, 'tool-calls'), '[DONE]')]);
+
+    expect(events).toMatchObject([{ kind: 'tool_call', toolName: 'askUserQuestion' }]);
+  });
+
   it('raises a failure before any output as a typed error, past the context event', async () => {
     const wire = [
       ': keep-alive\n\n',

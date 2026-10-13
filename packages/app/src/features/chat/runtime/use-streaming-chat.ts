@@ -29,6 +29,7 @@ import {
   type StreamOutputEvidence,
 } from '@/features/chat/runtime/stream-outcome';
 import { createSseFrameReader } from '@/features/chat/runtime/sse-frame-reader';
+import { ASK_USER_QUESTION_TOOL } from '@alia.onl/sdk/tools';
 
 import type { ToolInvocation } from '@/shared/contracts/messages';
 import { failureDetail, readAliaMeta, type FailedTurn } from '@/features/chat/ui/turn-failure';
@@ -1072,6 +1073,8 @@ export function useStreamingChat(
                   const toolName = tc.function?.name;
                   if (!toolCallId || !toolName) continue;
                   outputEvidence.toolInvocationCount += 1;
+                  // A question card is the turn's output, even with no sentence before it.
+                  if (toolName === ASK_USER_QUESTION_TOOL) outputEvidence.durableArtifactCount += 1;
 
                   let args: Record<string, unknown> | undefined;
                   if (tc.function?.arguments) {
