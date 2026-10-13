@@ -587,6 +587,7 @@ export const ChatPageContent = ({
         agentSessionId={agentSessionId}
         onApprovePlan={onApprovePlan}
         onRejectPlan={onRejectPlan}
+        onAnswerQuestions={(message) => void onSubmit(message, undefined, turnOptions)}
         suggestedNewConversation={suggestedNewConversation}
         onAcceptNewConversation={onAcceptNewConversation}
         onDismissNewConversation={onDismissNewConversation}

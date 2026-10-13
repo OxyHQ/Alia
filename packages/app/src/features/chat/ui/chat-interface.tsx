@@ -44,7 +44,9 @@ import {
   getTextFromContent,
   IdentityMark,
   PlanPreviewCard,
+  QuestionCard,
 } from '@alia.onl/sdk';
+import { askedQuestions, isQuestionInvocation } from '@alia.onl/sdk/tools';
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
 import {
   AiChatAssistantMessage,
@@ -130,6 +132,8 @@ type ChatInterfaceProps = {
   agentSessionId?: string | null;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
+  /** Sends the answers to Alia's questions as the person's next message. */
+  onAnswerQuestions?: (message: string) => void;
   /** The agent's reason for offering a fresh stretch, or `null` for no offer. */
   suggestedNewConversation?: string | null;
   onAcceptNewConversation?: () => void;
@@ -250,6 +254,7 @@ type MessageRowProps = {
   workEndedAt: number | null;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
+  onAnswerQuestions?: (message: string) => void;
   /** Open the thought panel on this turn, in the conversation it belongs to. */
   onOpenThought?: OpenThought;
 };
@@ -271,6 +276,7 @@ const MessageRow = React.memo(function MessageRow({
   onStartEdit,
   onApprovePlan,
   onRejectPlan,
+  onAnswerQuestions,
   workStartedAt,
   workEndedAt,
   onOpenThought,
@@ -286,7 +292,12 @@ const MessageRow = React.memo(function MessageRow({
    * the row is memoised on `m` already.
    */
   const workInvocations =
-    m.role === 'assistant' ? (m.toolInvocations ?? []).filter((t) => !hasToolCard(t)) : [];
+    m.role === 'assistant'
+      ? (m.toolInvocations ?? []).filter((t) => !hasToolCard(t) && !isQuestionInvocation(t))
+      : [];
+  /** The clarifying questions the turn asked, drawn as a card under the reply. */
+  const questions =
+    m.role === 'assistant' ? (m.toolInvocations ?? []).flatMap((t) => askedQuestions(t) ?? []) : [];
   /** The template swaps the steps for the reply once the turn is done. */
   const turnWorking = isLoading && isLastAlia && m.isStreaming === true;
   /**
@@ -518,6 +529,14 @@ const MessageRow = React.memo(function MessageRow({
                       <ToolResultCard card={card} />
                     </MessageBlockBoundary>
                   ))}
+                  {questions.length === 0 ? null : (
+                    <MessageBlockBoundary>
+                      <QuestionCard
+                        questions={questions}
+                        onSubmit={isLastAlia && !isLoading ? onAnswerQuestions : undefined}
+                      />
+                    </MessageBlockBoundary>
+                  )}
                   {/* The reply's text as Alia always drew it: its own Markdown
                       renderer (tables, headings, lists, code, citations), which
                       reads better than a line-per-block transcript. */}
@@ -584,6 +603,7 @@ export const ChatInterface = React.memo(function ChatInterface({
   agentSessionId,
   onApprovePlan,
   onRejectPlan,
+  onAnswerQuestions,
   suggestedNewConversation,
   onAcceptNewConversation,
   onDismissNewConversation,
@@ -959,6 +979,7 @@ export const ChatInterface = React.memo(function ChatInterface({
           onOpenThought={openThought}
           onApprovePlan={onApprovePlan}
           onRejectPlan={onRejectPlan}
+          onAnswerQuestions={onAnswerQuestions}
         />
         {failedTurn === null ||
         failedTurn === undefined ||

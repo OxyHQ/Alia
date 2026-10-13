@@ -20,9 +20,10 @@
  * Import seams (`ai`, `../chat-core.js`, `../logger.js`) match the paths the
  * route used inline so the timeout suite's module mocks keep intercepting them.
  */
-import { stepCountIs, type ModelMessage, type ToolSet } from 'ai';
+import { hasToolCall, stepCountIs, type ModelMessage, type ToolSet } from 'ai';
 import { getAIModel, type ResolvedModel } from '../chat-core.js';
 import { log } from '../logger.js';
+import { ASK_USER_QUESTION_TOOL } from '../tools/ask-user-question.js';
 import type { CreditUsage } from '../credits-manager.js';
 import type { StreamRunnerState } from './stream-runner.js';
 import type { ReasoningEffort } from '../models/catalogue.js';
@@ -134,7 +135,8 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
     maxRetries: 0, // Fail fast to application-level provider fallback
     // AI SDK v6: stopWhen replaces maxSteps. Without this, the SDK defaults to
     // stepCountIs(1) which stops after tool calls without generating a text response.
-    stopWhen: stepCountIs(5),
+    // `askUserQuestion` ends the turn: its answers are the next message.
+    stopWhen: [stepCountIs(5), hasToolCall(ASK_USER_QUESTION_TOOL)],
     onFinish: async (result: {
       usage?: {
         inputTokens?: number;

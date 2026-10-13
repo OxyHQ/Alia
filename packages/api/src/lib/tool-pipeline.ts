@@ -76,6 +76,8 @@ import {
   createAgentTool,
   createDeepResearchTool,
   createPlanPreviewTool,
+  createAskUserQuestionTool,
+  ASK_USER_QUESTION_TOOL,
   createSuggestNewConversationTool,
 } from './tools/index.js';
 import { getWeatherTool } from './tools/weather.js';
@@ -595,6 +597,7 @@ export class ToolPipeline {
      * nobody draws.
      */
     if (sseEmitter && isDirectSession) {
+      aliaTools[ASK_USER_QUESTION_TOOL] = createAskUserQuestionTool();
       aliaTools.planPreview = createPlanPreviewTool((steps) => {
         sseEmitter.emit('alia.plan_preview', {
           eventVersion: 1,

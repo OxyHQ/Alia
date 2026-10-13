@@ -34,6 +34,7 @@ vi.mock('ai', () => ({
   streamText: (...args: any[]) => mockStreamText(...args),
   generateText: (...args: any[]) => mockGenerateText(...args),
   stepCountIs: vi.fn(() => 'mock-stop-condition'),
+  hasToolCall: vi.fn(() => 'mock-ask-stop-condition'),
   tool: vi.fn((def: any) => def),
 }));
 
@@ -126,6 +127,8 @@ vi.mock('../../../lib/tools/index.js', () => ({
   createSwitchModelTool: vi.fn(() => ({ execute: vi.fn() })),
   createAgentTool: vi.fn(() => ({ execute: vi.fn() })),
   createPlanPreviewTool: vi.fn(() => ({ execute: vi.fn() })),
+  createAskUserQuestionTool: vi.fn(() => ({ execute: vi.fn() })),
+  ASK_USER_QUESTION_TOOL: 'askUserQuestion',
   createSuggestNewConversationTool: vi.fn(() => ({ execute: vi.fn() })),
 }));
 
