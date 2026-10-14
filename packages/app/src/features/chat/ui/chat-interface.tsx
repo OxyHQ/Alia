@@ -1,7 +1,7 @@
 import { AgentResultCard } from '@/features/chat/ui/cards/agent-result-card';
 import { AgentTaskCard } from '@/features/chat/ui/cards/agent-task-card';
 import { WelcomeMessage } from '@/features/chat/ui/welcome-message';
-import { FailedTurnCard } from '@/features/chat/ui/failed-turn-card';
+import { useFailedTurnToast } from '@/features/chat/ui/failed-turn-toast';
 import {
   copyText,
   TurnMenu,
@@ -610,6 +610,8 @@ export const ChatInterface = React.memo(function ChatInterface({
   callActive = false,
 }: ChatInterfaceProps) {
   const { t, locale } = useTranslation();
+  // A failed turn is a toast with Retry, not a card in the thread.
+  useFailedTurnToast(failedTurn, onRetryTurn);
   /** This screen's votes, read to decide whether a press casts or retracts one. */
   const votesRef = useRef<Record<string, 'up' | 'down'>>({});
   const voteInFlightRef = useRef<Set<string>>(new Set());
@@ -972,16 +974,6 @@ export const ChatInterface = React.memo(function ChatInterface({
           onApprovePlan={onApprovePlan}
           onRejectPlan={onRejectPlan}
         />
-        {failedTurn === null ||
-        failedTurn === undefined ||
-        failedTurn.anchorMessageId !== m.id ? null : (
-          <FailedTurnCard
-            partial={failedTurn.partial}
-            retryable={failedTurn.retryable}
-            detail={failedTurn.detail}
-            onRetry={onRetryTurn}
-          />
-        )}
       </React.Fragment>
     );
   };
