@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **The `@oxy.so` peers are open-ended** above their floors (`bloom >=10.0.0`, `core >=3.0.0`,
+  `services >=8.0.0`). The `^10.0.0`, `^4.0.0` and `^11.0.0` caps made each new Oxy major a peer
+  conflict in every app until this package republished; apps always run the latest Oxy SDK.
+
 - **`AmbientField` takes `layout="sheet"`** for a short card (the chat's sheet): the blobs are
   drawn at the size of a phone screen, spread wider and shifted back to the right, cropped by the
   card's edges. It is asked for, not inferred from the field's height, so a short app screen is
