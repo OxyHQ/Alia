@@ -19,7 +19,7 @@
     "@oxy.so/core": "4.5.0",
     "@oxy.so/db": "^1.0.0",
     "@whiskeysockets/baileys": "~6.7.23",
-    "axios": "^1.18.1",
+    "axios": "^1.20.0",
     "discord.js": "^14.26.5",
     "dotenv": "^18.0.7",
     "drizzle-orm": "0.45.2",
