@@ -15,17 +15,27 @@ import { WebSearch } from '@oxy.so/bloom/web-search';
 import { AliaMarkdown } from './Markdown';
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
 import { AiChatMessageLine, AiChatThread, AiChatUserMessage } from '@oxy.so/bloom/ai-chat';
-import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
-import { useTheme } from '@oxy.so/bloom/theme';
+import {
+  AgentReply,
+  AgentReplyAction,
+  AgentReplyActions,
+  AgentReplyBubble,
+  AgentReplyIdentity,
+} from '@oxy.so/bloom/agent-reply';
 import { agentCharacter } from '../lib/agent-character';
 import { Button } from '@oxy.so/bloom/button';
 import { useLabels } from '../lib/labels';
 import { isWebInvocation, taskListLog, webSearchLog } from '../lib/work-log';
-import { RiCheckLine, RiFileCopyLine, RiPencilLine } from '@oxy.so/bloom/icons';
-import { AgentReplyActions } from './AgentReplyActions';
+import {
+  RiCheckLine,
+  RiFileCopyLine,
+  RiPencilLine,
+  RiStopFill,
+  RiVolumeUpLine,
+} from '@oxy.so/bloom/icons';
 import { ThinkingBlock } from './ThinkingBlock';
 import { PlanPreviewCard } from './PlanPreviewCard';
-import { QuestionCard } from './QuestionCard';
+import { AskedQuestions } from './QuestionCard';
 import { askedQuestions, isQuestionInvocation } from '../lib/questions';
 import { chatMessageEnter } from '../animations';
 import { getToolLabel, getToolActiveLabel, getResearchActiveLabel } from '../lib/tool-registry';
@@ -61,8 +71,6 @@ export interface AliaChatMessageListProps {
   onThumbsDown?: (messageId: string) => void;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
-  /** Sends the answers to Alia's questions as the person's next message. */
-  onAnswerQuestions?: (message: string) => void;
   // Welcome
   welcomeComponent?: React.ReactNode;
   // Markdown renderer override (app passes CustomMarkdown, SDK uses AliaMarkdown)
@@ -170,6 +178,36 @@ const UserBubble = React.memo(function UserBubble({
 
 // ── Assistant Message ──
 
+/**
+ * Alia's own text runs the width of the thread with its actions under it; a delegated agent
+ * answers in a bubble, its avatar and name beneath, as Bloom's multi-agent chat sets a reply.
+ */
+function ReplyBody({
+  agent,
+  actions,
+  children,
+}: {
+  agent: ChatMessage['agentInfo'];
+  actions: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  if (agent === undefined)
+    return (
+      <View className="flex-col items-start gap-0.5">
+        <View className="w-full">{children}</View>
+        {actions}
+      </View>
+    );
+  return (
+    <AgentReply
+      identity={<AgentReplyIdentity character={agentCharacter(agent.id)} name={agent.name} />}
+      actions={actions}
+    >
+      <AgentReplyBubble>{children}</AgentReplyBubble>
+    </AgentReply>
+  );
+}
+
 const AssistantMessage = React.memo(function AssistantMessage({
   message,
   messageText,
@@ -184,7 +222,6 @@ const AssistantMessage = React.memo(function AssistantMessage({
   onThumbsDown,
   onApprovePlan,
   onRejectPlan,
-  onAnswerQuestions,
   renderMarkdown,
 }: {
   message: ChatMessage;
@@ -200,11 +237,9 @@ const AssistantMessage = React.memo(function AssistantMessage({
   onThumbsDown?: (messageId: string) => void;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
-  onAnswerQuestions?: (message: string) => void;
   renderMarkdown?: (content: string) => React.ReactNode;
 }) {
   const labels = useLabels();
-  const { colors } = useTheme();
   const hasContent = messageText.length > 0;
   const hasThinking = !!message.thinking;
 
@@ -216,8 +251,8 @@ const AssistantMessage = React.memo(function AssistantMessage({
     () => webSearchLog(toolInvocations, researchProgress, { t: labels.workLog }),
     [toolInvocations, researchProgress, labels.workLog],
   );
-  // The questions Alia asked, drawn as a card. Answerable only on the last message once the
-  // turn is over; any later message (typed or sent from the card) is the answer.
+  // The questions Alia asked, kept in the thread as a record. They are answered above the
+  // composer (`AliaChatContent`), where the person is about to type.
   const questions = useMemo(
     () => (toolInvocations ?? []).flatMap((inv) => askedQuestions(inv) ?? []),
     [toolInvocations],
@@ -234,6 +269,25 @@ const AssistantMessage = React.memo(function AssistantMessage({
   const isThisPlaying = ttsActiveMessageId === message.id && ttsPlaybackState === 'playing';
   const isThisPaused = ttsActiveMessageId === message.id && ttsPlaybackState === 'paused';
   const isThisLoading = ttsActiveMessageId === message.id && ttsPlaybackState === 'loading';
+  const replyActions =
+    !isStreamingThis && hasContent ? (
+      <AgentReplyActions
+        onVoteChange={(vote) =>
+          vote === 'up' ? onThumbsUp?.(message.id) : onThumbsDown?.(message.id)
+        }
+        onCopy={() => onCopy(messageText, message.id)}
+      >
+        {onReadAloud ? (
+          <AgentReplyAction
+            icon={isThisPlaying || isThisPaused ? RiStopFill : RiVolumeUpLine}
+            label={isThisPlaying || isThisPaused ? labels.stopReading : labels.readAloud}
+            selected={isThisPlaying || isThisPaused}
+            disabled={isThisLoading}
+            onPress={() => onReadAloud(message.id, messageText)}
+          />
+        ) : null}
+      </AgentReplyActions>
+    ) : undefined;
 
   // AgentThinking — context-aware status
   let thinkingIndicator: React.ReactNode = null;
@@ -298,59 +352,22 @@ const AssistantMessage = React.memo(function AssistantMessage({
 
       {/* Message Content */}
       {(hasContent || message.isStreaming) && (
-        <View className="flex-col items-start gap-0.5">
-          {/* A delegated agent speaks in a bubble, its name and avatar beneath it: the way
-              Bloom's multi-agent chat sets a reply, so the thread tells the voices apart. */}
-          <View
-            className={message.agentInfo ? 'w-full rounded-3xl p-3' : 'w-full'}
-            style={message.agentInfo ? { backgroundColor: colors.backgroundTertiary } : undefined}
-          >
-            {message.source === 'voice' ? (
-              <Text className="text-base text-text-primary leading-7">
-                {messageText}
-                {message.isStreaming ? '\u258C' : ''}
-              </Text>
-            ) : renderMarkdown ? (
-              renderMarkdown(messageText)
-            ) : (
-              <AliaMarkdown content={messageText} />
-            )}
-          </View>
-          {message.agentInfo && (
-            <View className="mt-1.5 flex-row items-center gap-2 px-1">
-              <AgentAvatar
-                character={agentCharacter(message.agentInfo.id)}
-                size={20}
-                label={message.agentInfo.name}
-              />
-              <Text className="text-sm font-medium text-text-secondary">
-                {message.agentInfo.name}
-              </Text>
-            </View>
+        <ReplyBody agent={message.agentInfo} actions={replyActions}>
+          {message.source === 'voice' ? (
+            <Text className="text-base text-text-primary leading-7">
+              {messageText}
+              {message.isStreaming ? '\u258C' : ''}
+            </Text>
+          ) : renderMarkdown ? (
+            renderMarkdown(messageText)
+          ) : (
+            <AliaMarkdown content={messageText} />
           )}
-          {!isStreamingThis && hasContent && (
-            <AgentReplyActions
-              onLike={onThumbsUp ? () => onThumbsUp(message.id) : undefined}
-              onDislike={onThumbsDown ? () => onThumbsDown(message.id) : undefined}
-              onCopy={() => onCopy(messageText, message.id)}
-              onReadAloud={onReadAloud ? () => onReadAloud(message.id, messageText) : undefined}
-              reading={isThisPlaying || isThisPaused}
-              readDisabled={isThisLoading}
-            />
-          )}
-        </View>
+        </ReplyBody>
       )}
 
-      {questions.length === 0 ? null : (
-        <QuestionCard
-          questions={questions}
-          onSubmit={
-            isLastMessage && !isLoading && onAnswerQuestions !== undefined
-              ? onAnswerQuestions
-              : undefined
-          }
-        />
-      )}
+      {/* What Alia asked stays in the thread as a record; answering happens above the composer. */}
+      {questions.length === 0 ? null : <AskedQuestions questions={questions} />}
       {thinkingIndicator}
     </View>
   );
@@ -369,7 +386,6 @@ export function AliaChatMessageList({
   onThumbsDown,
   onApprovePlan,
   onRejectPlan,
-  onAnswerQuestions,
   welcomeComponent,
   renderMarkdown,
 }: AliaChatMessageListProps) {
@@ -473,7 +489,6 @@ export function AliaChatMessageList({
                     onThumbsDown={onThumbsDown}
                     onApprovePlan={onApprovePlan}
                     onRejectPlan={onRejectPlan}
-                    onAnswerQuestions={onAnswerQuestions}
                     renderMarkdown={renderMarkdown}
                   />
                 )}

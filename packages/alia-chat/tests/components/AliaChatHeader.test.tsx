@@ -4,16 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const seen = vi.hoisted(() => ({
   items: [] as Array<Record<string, unknown>>,
-  agentAvatars: [] as unknown[],
-  agentKeys: [] as Array<number | undefined>,
-  markKeys: [] as Array<number | undefined>,
+  profiles: [] as Array<{ agents: Array<{ id: string; name: string }>; onPress: () => void }>,
 }));
 
-vi.mock('react-native', () => ({
-  View: ({ children }: { children?: React.ReactNode }) => children,
-  Pressable: ({ children }: { children?: React.ReactNode }) => children,
-  StyleSheet: { hairlineWidth: 1 },
-}));
 vi.mock('@oxy.so/bloom/button-group', () => ({
   ButtonGroup: ({ children }: { children?: React.ReactNode }) => children,
   ButtonGroupItem: (props: Record<string, unknown>) => {
@@ -39,29 +32,15 @@ vi.mock('@oxy.so/bloom/page-header', () => ({
     </>
   ),
 }));
-vi.mock('@oxy.so/bloom/theme', () => ({
-  useTheme: () => ({
-    colors: { backgroundSecondary: '#eee', backgroundTertiary: '#ddd', border: '#ccc' },
-  }),
-}));
-vi.mock('@oxy.so/bloom/agent-avatar', () => ({
-  AgentAvatar: ({ character, reactionKey }: { character: unknown; reactionKey?: number }) => {
-    seen.agentAvatars.push(character);
-    seen.agentKeys.push(reactionKey);
+vi.mock('@oxy.so/bloom/agent-reply', () => ({
+  AgentProfile: (props: { agents: Array<{ id: string; name: string }>; onPress: () => void }) => {
+    seen.profiles.push(props);
     return null;
   },
 }));
+vi.mock('../../src/components/AliaAvatar', () => ({ ALIA_AVATAR: { preset: 'alia' } }));
 vi.mock('../../src/lib/agent-character', () => ({
   agentCharacter: (id: string) => ({ id }),
-}));
-vi.mock('@oxy.so/bloom/typography', () => ({
-  Text: ({ children }: { children?: React.ReactNode }) => children,
-}));
-vi.mock('../../src/components/AliaChatContent', () => ({
-  AliaChatMark: ({ reactionKey }: { reactionKey?: number }) => {
-    seen.markKeys.push(reactionKey);
-    return null;
-  },
 }));
 
 import { AliaChatHeader } from '../../src/components/AliaChatHeader';
@@ -81,52 +60,41 @@ const item = (label: string) => seen.items.find((props) => props.accessibilityLa
 describe('AliaChatHeader', () => {
   beforeEach(() => {
     seen.items = [];
-    seen.markKeys = [];
-    seen.agentAvatars = [];
-    seen.agentKeys = [];
+    seen.profiles = [];
   });
+
+  const team = () => seen.profiles.at(-1)?.agents.map((agent) => agent.name);
 
   it('shows no profile on an empty chat, whose greeting already carries the avatar', () => {
-    const renderer = render(<AliaChatHeader hasMessages={false} onClear={vi.fn()} />);
+    render(<AliaChatHeader hasMessages={false} onClear={vi.fn()} />);
 
-    expect(renderer.root.findAllByProps({ accessibilityLabel: 'Alia' })).toHaveLength(0);
-    expect(seen.markKeys).toEqual([]);
+    expect(seen.profiles).toEqual([]);
   });
 
-  it('shows the profile once there is a conversation', () => {
-    const renderer = render(<AliaChatHeader hasMessages onClear={vi.fn()} />);
+  it('shows Alia alone once there is a conversation', () => {
+    render(<AliaChatHeader hasMessages onClear={vi.fn()} />);
 
-    expect(renderer.root.findAllByProps({ accessibilityLabel: 'Alia' }).length).toBeGreaterThan(0);
+    expect(team()).toEqual(['Alia']);
   });
 
-  it('puts the agents that answered beside Alia, named together, three at most', () => {
-    const agents = ['lumi', 'atlas', 'sol'].map((id) => ({ id, name: id.toUpperCase() }));
-    const renderer = render(<AliaChatHeader hasMessages agents={agents} onClear={vi.fn()} />);
+  it('joins the agents that answered to Alia, with their own characters', () => {
+    const agents = ['lumi', 'atlas'].map((id) => ({ id, name: id.toUpperCase() }));
+    render(<AliaChatHeader hasMessages agents={agents} onClear={vi.fn()} />);
 
-    // Alia and the first two agents: a third agent is in the conversation, not in the profile.
-    expect(seen.agentAvatars).toEqual([{ id: 'lumi' }, { id: 'atlas' }]);
+    expect(team()).toEqual(['Alia', 'LUMI', 'ATLAS']);
     expect(
-      renderer.root.findAllByProps({ accessibilityLabel: 'Alia + LUMI + ATLAS' }).length,
-    ).toBeGreaterThan(0);
+      seen.profiles.at(-1)?.agents.map((agent) => (agent as { avatar?: unknown }).avatar),
+    ).toEqual([{ preset: 'alia' }, { id: 'lumi' }, { id: 'atlas' }]);
   });
 
-  it('has every avatar in the profile react to a tap, not only Alia', () => {
-    const agents = [{ id: 'lumi', name: 'Lumi' }];
-    const renderer = render(<AliaChatHeader hasMessages agents={agents} onClear={vi.fn()} />);
-    seen.markKeys = [];
-    seen.agentKeys = [];
+  it('runs the host action when the profile is pressed, and is inert without one', () => {
+    const onProfilePress = vi.fn();
+    render(<AliaChatHeader hasMessages onClear={vi.fn()} onProfilePress={onProfilePress} />);
+    seen.profiles.at(-1)?.onPress();
+    expect(onProfilePress).toHaveBeenCalledTimes(1);
 
-    const profile = renderer.root.findAllByProps({ accessibilityLabel: 'Alia + Lumi' })[0];
-    act(() => (profile?.props.onPress as () => void)());
-
-    expect(seen.markKeys.at(-1)).toBe(1);
-    expect(seen.agentKeys.at(-1)).toBe(1);
-  });
-
-  it('draws only Alia when no agent has answered', () => {
-    render(<AliaChatHeader hasMessages agents={[]} onClear={vi.fn()} />);
-
-    expect(seen.agentAvatars).toEqual([]);
+    render(<AliaChatHeader hasMessages onClear={vi.fn()} />);
+    expect(() => seen.profiles.at(-1)?.onPress()).not.toThrow();
   });
 
   it('offers neither clear nor close on an empty chat that cannot be dismissed', () => {
@@ -140,7 +108,7 @@ describe('AliaChatHeader', () => {
     render(<AliaChatHeader hasMessages onClear={onClear} />);
 
     (item('Clear')?.onPress as () => void)();
-    expect(onClear).toHaveBeenCalledOnce();
+    expect(onClear).toHaveBeenCalledTimes(1);
     expect(item('Close')).toBeUndefined();
   });
 
@@ -149,7 +117,7 @@ describe('AliaChatHeader', () => {
     render(<AliaChatHeader hasMessages={false} onClear={vi.fn()} onClose={onClose} />);
 
     (item('Close')?.onPress as () => void)();
-    expect(onClose).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledTimes(1);
     expect(item('Clear')).toBeUndefined();
   });
 
@@ -162,26 +130,5 @@ describe('AliaChatHeader', () => {
 
     expect(item('Borrar')).toBeDefined();
     expect(item('Cerrar')).toBeDefined();
-  });
-
-  it('makes the profile a button: it runs the host action when given one', () => {
-    const onProfilePress = vi.fn();
-    const renderer = render(
-      <AliaChatHeader hasMessages onClear={vi.fn()} onProfilePress={onProfilePress} />,
-    );
-
-    act(() => renderer.root.findByProps({ accessibilityLabel: 'Alia' }).props.onPress());
-
-    expect(onProfilePress).toHaveBeenCalledOnce();
-    expect(seen.markKeys.every((key) => key === 0)).toBe(true);
-  });
-
-  it('makes the avatar wave when the host gives the profile no action', () => {
-    const renderer = render(<AliaChatHeader hasMessages onClear={vi.fn()} />);
-    expect(seen.markKeys.at(-1)).toBe(0);
-
-    act(() => renderer.root.findByProps({ accessibilityLabel: 'Alia' }).props.onPress());
-
-    expect(seen.markKeys.at(-1)).toBe(1);
   });
 });

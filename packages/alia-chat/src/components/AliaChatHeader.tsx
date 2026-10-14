@@ -1,14 +1,12 @@
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { RiCloseLine, RiDeleteBin6Line } from '@oxy.so/bloom/icons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { useTheme } from '@oxy.so/bloom/theme';
-import { Text } from '@oxy.so/bloom/typography';
-import { type ReactNode, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { useLabels } from '../lib/labels';
-import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
+import { AgentProfile } from '@oxy.so/bloom/agent-reply';
+import { type ReactNode, useMemo } from 'react';
 import { agentCharacter } from '../lib/agent-character';
-import { AliaChatMark, type AliaChatAgent } from './AliaChatContent';
+import { useLabels } from '../lib/labels';
+import { ALIA_AVATAR } from './AliaAvatar';
+import type { AliaChatAgent } from './AliaChatContent';
 
 export interface AliaChatHeaderProps {
   /** The chat has messages to clear. */
@@ -27,84 +25,21 @@ export interface AliaChatHeaderProps {
 }
 
 /**
- * Alia's avatar above a name capsule, the conversation header of Bloom's `MultiAgentChat`.
- *
- * TODO(bloom): `ChatAgentProfile` draws exactly this (a 56px avatar over a 28px capsule
- * of radius 14, `backgroundSecondary` with a hairline border) but is not exported, so
- * this repeats its geometry. Use Bloom's component when it is.
+ * Alia's profile, Bloom's `AgentProfile`: her avatar above a name capsule, joined by the agents
+ * that answered ("Alia + Lumi + Atlas"). Pressing it makes every avatar wave.
  */
 function AliaProfile({ agents, onPress }: { agents: AliaChatAgent[]; onPress?: () => void }) {
-  const { colors } = useTheme();
-  const [hovered, setHovered] = useState(false);
-  const [reactionKey, setReactionKey] = useState(0);
-  const alone = agents.length === 0;
-  // "Alia + Lumi + Atlas": the first three, as the multi-agent header names its team.
-  const name = ['Alia', ...agents.map((agent) => agent.name)].slice(0, 3).join(' + ');
-
-  // Without a host action the profile is still a button: the avatar waves back.
-  const handlePress = () => {
-    if (onPress) onPress();
-    else setReactionKey((key) => key + 1);
-  };
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={name}
-      onPress={handlePress}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
-      className="items-center"
-    >
-      <View
-        pointerEvents="none"
-        style={{ width: 56, height: 56, marginBottom: -2, zIndex: 1 }}
-        accessibilityElementsHidden
-      >
-        {alone ? (
-          <AliaChatMark size={56} reactionKey={reactionKey} />
-        ) : (
-          // Alia and up to two agents overlap as in Bloom's multi-agent header: the first at the
-          // top start, the second down and right, the third below.
-          <>
-            <View style={{ position: 'absolute', start: 0, top: 0 }}>
-              <AliaChatMark size={36} reactionKey={reactionKey} />
-            </View>
-            {agents.slice(0, 2).map((agent, index) => (
-              <View
-                key={agent.id}
-                style={{
-                  position: 'absolute',
-                  start: index === 0 ? 20 : 10,
-                  top: index === 0 ? 0 : 20,
-                }}
-              >
-                <AgentAvatar
-                  character={agentCharacter(agent.id)}
-                  size={36}
-                  reactionKey={reactionKey}
-                />
-              </View>
-            ))}
-          </>
-        )}
-      </View>
-      <View
-        pointerEvents="none"
-        className="items-center justify-center rounded-[14px] px-2.5 py-1"
-        style={{
-          backgroundColor: hovered ? colors.backgroundTertiary : colors.backgroundSecondary,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: colors.border,
-        }}
-      >
-        <Text numberOfLines={1} className="text-[16px] font-medium leading-5 text-text-primary">
-          {name}
-        </Text>
-      </View>
-    </Pressable>
+  const team = useMemo(
+    () => [
+      { id: 'alia', name: 'Alia', avatar: ALIA_AVATAR },
+      ...agents.map((agent) => ({ ...agent, avatar: agentCharacter(agent.id) })),
+    ],
+    [agents],
   );
+  return <AgentProfile agents={team} onPress={onPress ?? noop} />;
 }
+
+const noop = () => undefined;
 
 /**
  * The chat's top bar: Bloom's `PageHeader`, set up as the shell sets it up for the

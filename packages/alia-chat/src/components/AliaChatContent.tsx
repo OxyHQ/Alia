@@ -25,6 +25,8 @@ import { useImagePicker } from '../hooks/useImagePicker';
 import { imageUriToDataUrl } from '../lib/image-data-url';
 import { useAmbientWave } from '../hooks/useAmbientWave';
 import { AmbientField } from './AmbientField';
+import { QuestionCard } from './QuestionCard';
+import { pendingQuestions } from '../lib/questions';
 import { AliaChatMessageList } from './AliaChatMessageList';
 import { AliaWelcomeMessage } from './AliaWelcomeMessage';
 import { ComposerSuggestions } from './ComposerSuggestions';
@@ -189,6 +191,15 @@ function AliaChatContentBody({
   const chatOptions: UseAliaChatOptions = { apiUrl, model, clientContext };
   const { messages, setMessages, send, isStreaming, stop, clear } = useAliaChat(chatOptions);
   const agents = useMemo(() => participatingAgents(messages), [messages]);
+  // What Alia asked in her last turn and the person has not answered: asked above the composer,
+  // not in the thread. Any later message, typed or sent from the card, is the answer.
+  const lastMessage = messages.at(-1);
+  const questionsAsked = useMemo(
+    () => pendingQuestions(messages, isStreaming),
+    [messages, isStreaming],
+  );
+  const [dismissedQuestionsOf, setDismissedQuestionsOf] = useState<string | null>(null);
+  const asking = questionsAsked.length > 0 && dismissedQuestionsOf !== lastMessage?.id;
   const chatState: AliaChatState = { hasMessages: messages.length > 0, clear, agents };
 
   useEffect(() => {
@@ -396,6 +407,16 @@ function AliaChatContentBody({
           selected={suggestions.selected}
           onPick={handlePickSuggestion}
         />
+        {/* Beside the loader, not inside the pill: its light traces the box it wraps. */}
+        {asking ? (
+          <View className="mb-2">
+            <QuestionCard
+              questions={questionsAsked}
+              onSubmit={(message) => send(message)}
+              onDismiss={() => setDismissedQuestionsOf(lastMessage?.id ?? null)}
+            />
+          </View>
+        ) : null}
         <ComposerLoader active={isStreaming}>
           <ComposerPill
             onKeyPress={suggestions.onKeyPress}
@@ -460,7 +481,6 @@ function AliaChatContentBody({
             onThumbsDown={onThumbsDown}
             onApprovePlan={onApprovePlan}
             onRejectPlan={onRejectPlan}
-            onAnswerQuestions={(message) => send(message)}
             renderMarkdown={renderMarkdown}
             welcomeComponent={welcomeComponent}
           />

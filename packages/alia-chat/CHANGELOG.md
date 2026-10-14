@@ -25,6 +25,16 @@
 - **The row under every reply is Bloom's multi-agent one**: helpful, unhelpful and copy as 22px
   tiles with 12px icons (read aloud is a fourth tile where the host reads), replacing the
   `AiChatFeedbackRow`. New label keys `helpful` and `unhelpful`.
+- **Built on Bloom's `agent-reply`** (peer `@oxy.so/bloom ^10.1.1`): replies, their identity line and
+  action tiles, and the header profile are Bloom's `AgentReply`, `AgentReplyBubble`,
+  `AgentReplyIdentity`, `AgentReplyActions` and `AgentProfile`, the pieces `MultiAgentChat` is made
+  of, not copies. Pressing the profile makes every avatar in it wave.
+- **Questions are asked above the composer, not in the thread.** What Alia asks in her last turn
+  (`askUserQuestion`) docks above the composer as Bloom's `Questionnaire`, with a dismiss; typing a
+  reply answers just as well. The thread keeps the questions as plain lines (`AskedQuestions`).
+  **Breaking:** `QuestionCard` is now the docked questionnaire (`onSubmit` required, new
+  `onDismiss`) and no longer draws a read-only variant; the `onAnswerQuestions` prop of the message
+  list is gone. `pendingQuestions` joins `@alia.onl/sdk/tools`.
 - **Breaking:** `WelcomeSuggestion { id, title, description }` becomes `AliaSuggestion { id, text }`
   (`text` is what is shown and what is sent). New optional props on the sheet, screen and content:
   `suggestionMatches` and `onSuggestionQuery(query)`, so a host can search as the person types.

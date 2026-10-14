@@ -24,7 +24,7 @@ export { AliaMarkdown } from './components/Markdown';
 export type { AliaMarkdownProps, RenderCodeBlock } from './components/Markdown';
 export { AliaWelcomeMessage } from './components/AliaWelcomeMessage';
 export { PlanPreviewCard } from './components/PlanPreviewCard';
-export { QuestionCard } from './components/QuestionCard';
+export { AskedQuestions, QuestionCard } from './components/QuestionCard';
 export { ComposerSuggestions } from './components/ComposerSuggestions';
 export { useComposerSuggestions, useSuggestionQuery } from './hooks/useComposerSuggestions';
 export { composerCompletions } from './lib/suggestions';

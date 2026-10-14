@@ -75,6 +75,8 @@ vi.mock('@alia.onl/sdk', async () => {
   return {
     VoiceModeIcon: () => null,
     ComposerSuggestions: () => null,
+    QuestionCard: (props: Record<string, unknown>) =>
+      ReactModule.createElement('QuestionCard', props),
     AmbientField: (props: Record<string, unknown>) =>
       ReactModule.createElement('AmbientField', props),
   };
@@ -302,5 +304,78 @@ describe('the ambient field behind the chat', () => {
     });
     expect(renderer.root.findAllByType('AmbientField' as never)).toHaveLength(0);
     expect(renderer.root.findAllByType('IntroField' as never)).toHaveLength(1);
+  });
+});
+
+describe("Alia's questions", () => {
+  const asked = {
+    id: 'a1',
+    role: 'assistant',
+    content: '',
+    toolInvocations: [
+      {
+        toolName: 'askUserQuestion',
+        state: 'result',
+        args: {
+          questions: [{ question: 'Which one?', options: [{ label: 'A' }, { label: 'B' }] }],
+        },
+      },
+    ],
+  };
+  const question = (renderer: ReactTestRenderer) =>
+    renderer.root.findByType('Composer' as never).props.question as
+      | { props: { onSubmit: (message: string) => void; onDismiss: () => void } }
+      | undefined;
+  const withMessages = (messages: unknown[], extra: Record<string, unknown> = {}) =>
+    React.createElement(ChatPageContent, {
+      ...(screen(false).props as unknown as Record<string, unknown>),
+      messages,
+      ...extra,
+    } as never);
+
+  it('are asked above the composer, and the answer is sent as the next message', () => {
+    const onSubmit = vi.fn();
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(withMessages([asked], { onSubmit }));
+    });
+
+    const card = question(renderer);
+    expect(card).toBeDefined();
+    card?.props.onSubmit('A');
+    expect(onSubmit).toHaveBeenCalledWith('A', undefined, expect.anything());
+  });
+
+  it('go away when dismissed, while she is still answering, or once anything follows them', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(withMessages([asked]));
+    });
+    act(() => question(renderer)?.props.onDismiss());
+    expect(question(renderer)).toBeUndefined();
+
+    act(() => {
+      renderer.update(withMessages([asked], { isLoading: true }));
+    });
+    expect(question(renderer)).toBeUndefined();
+
+    act(() => {
+      renderer.update(withMessages([asked, { id: 'u2', role: 'user', content: 'A' }]));
+    });
+    expect(question(renderer)).toBeUndefined();
+  });
+
+  it('come back with the next question after one was dismissed', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(withMessages([asked]));
+    });
+    act(() => question(renderer)?.props.onDismiss());
+    act(() => {
+      renderer.update(
+        withMessages([asked, { id: 'u2', role: 'user', content: 'x' }, { ...asked, id: 'a2' }]),
+      );
+    });
+    expect(question(renderer)).toBeDefined();
   });
 });

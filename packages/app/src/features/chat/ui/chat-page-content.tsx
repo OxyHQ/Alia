@@ -30,12 +30,13 @@ import type { ThreadMessage } from '@/features/chat/model/thread-history';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
 import type { Message } from '@/features/chat/model/chat';
 import { useTTS } from '@/features/voice/runtime/use-tts';
-import { AmbientField, ComposerSuggestions, VoiceModeIcon } from '@alia.onl/sdk';
+import { AmbientField, ComposerSuggestions, QuestionCard, VoiceModeIcon } from '@alia.onl/sdk';
+import { pendingQuestions } from '@alia.onl/sdk/tools';
 import { VoiceControls, useAmbientWave } from '@alia.onl/sdk/voice';
 import { AiChatMobileHeader, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
 import { useAuth } from '@oxy.so/services';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollToBottomButton } from '@oxy.so/bloom/chat-screen';
 import { useAtBottom } from '@/features/chat/runtime/use-at-bottom';
 import {
@@ -443,6 +444,15 @@ export const ChatPageContent = ({
     onPick: handlePickSuggestion,
   });
   const { onKeyPress: onSuggestionKeyPress } = suggestions;
+  // What Alia asked in her last turn: asked above the composer, where the person is about to
+  // type, not in the thread. A later message, typed or sent from the card, is the answer.
+  const questionsAsked = useMemo(
+    () => pendingQuestions(messages, isLoading),
+    [messages, isLoading],
+  );
+  const lastMessageId = messages.at(-1)?.id;
+  const [dismissedQuestionsOf, setDismissedQuestionsOf] = useState<string | null>(null);
+  const asking = questionsAsked.length > 0 && dismissedQuestionsOf !== lastMessageId;
   const cancelEdit = edit.cancel;
   const handleComposerKeyPress = useCallback(
     (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
@@ -509,6 +519,15 @@ export const ChatPageContent = ({
               // for the last one are aborted rather than landing here.
               key={composer.address.account ?? ''}
               onKeyPress={handleComposerKeyPress}
+              question={
+                asking ? (
+                  <QuestionCard
+                    questions={questionsAsked}
+                    onSubmit={(message) => void onSubmit(message, undefined, turnOptions)}
+                    onDismiss={() => setDismissedQuestionsOf(lastMessageId ?? null)}
+                  />
+                ) : undefined
+              }
               inputRef={composerInputRef}
               value={inputValue}
               onValueChange={setInputValue}
@@ -584,7 +603,6 @@ export const ChatPageContent = ({
         agentSessionId={agentSessionId}
         onApprovePlan={onApprovePlan}
         onRejectPlan={onRejectPlan}
-        onAnswerQuestions={(message) => void onSubmit(message, undefined, turnOptions)}
         suggestedNewConversation={suggestedNewConversation}
         onAcceptNewConversation={onAcceptNewConversation}
         onDismissNewConversation={onDismissNewConversation}

@@ -44,7 +44,7 @@ import {
   getImagesFromContent,
   getTextFromContent,
   PlanPreviewCard,
-  QuestionCard,
+  AskedQuestions,
 } from '@alia.onl/sdk';
 import { askedQuestions, isQuestionInvocation } from '@alia.onl/sdk/tools';
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
@@ -132,8 +132,6 @@ type ChatInterfaceProps = {
   agentSessionId?: string | null;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
-  /** Sends the answers to Alia's questions as the person's next message. */
-  onAnswerQuestions?: (message: string) => void;
   /** The agent's reason for offering a fresh stretch, or `null` for no offer. */
   suggestedNewConversation?: string | null;
   onAcceptNewConversation?: () => void;
@@ -254,7 +252,6 @@ type MessageRowProps = {
   workEndedAt: number | null;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
-  onAnswerQuestions?: (message: string) => void;
   /** Open the thought panel on this turn, in the conversation it belongs to. */
   onOpenThought?: OpenThought;
 };
@@ -276,7 +273,6 @@ const MessageRow = React.memo(function MessageRow({
   onStartEdit,
   onApprovePlan,
   onRejectPlan,
-  onAnswerQuestions,
   workStartedAt,
   workEndedAt,
   onOpenThought,
@@ -531,10 +527,7 @@ const MessageRow = React.memo(function MessageRow({
                   ))}
                   {questions.length === 0 ? null : (
                     <MessageBlockBoundary>
-                      <QuestionCard
-                        questions={questions}
-                        onSubmit={isLastAlia && !isLoading ? onAnswerQuestions : undefined}
-                      />
+                      <AskedQuestions questions={questions} />
                     </MessageBlockBoundary>
                   )}
                   {/* The reply's text as Alia always drew it: its own Markdown
@@ -603,7 +596,6 @@ export const ChatInterface = React.memo(function ChatInterface({
   agentSessionId,
   onApprovePlan,
   onRejectPlan,
-  onAnswerQuestions,
   suggestedNewConversation,
   onAcceptNewConversation,
   onDismissNewConversation,
@@ -979,7 +971,6 @@ export const ChatInterface = React.memo(function ChatInterface({
           onOpenThought={openThought}
           onApprovePlan={onApprovePlan}
           onRejectPlan={onRejectPlan}
-          onAnswerQuestions={onAnswerQuestions}
         />
         {failedTurn === null ||
         failedTurn === undefined ||
