@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+Fixes found by driving the sheet end to end (the sheet shows plans, links citations, nests lists):
+
+- **A plan is drawn.** `plan_preview` was parsed but the sheet passed no handlers, so the card
+  never showed. `useAliaChat` now returns `approvePlan` / `rejectPlan` (approve collapses the
+  card to "approved"; reject collapses it and stops the turn) and `AliaChatContent` uses them
+  unless the host passes its own.
+- **Citations link.** `[n]` markers in a reply link to their sources (`linkifyCitations`,
+  `normalizeCitationMarkers`, `citationLabel` are exported from `@alia.onl/sdk/tools`; the app
+  re-exports them instead of keeping a copy).
+- **Nested lists** draw under their parent instead of inline beside it.
+- A finished research step reads "Researched", not "Researching".
+- A turn that ends at a question card with no sentence before it counts as answered.
+
 - **BREAKING: an agent is drawn with the look the server stores for it.** `agentCharacter(id)` (a
   look hashed from the id) is removed; `readAgentCharacter(value)` parses a stored character
   (Bloom's `parseAvatarCharacter`) and falls back on `DEFAULT_AGENT_CHARACTER`. The `alia.agent`

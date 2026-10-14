@@ -48,6 +48,7 @@ function resultOf(inv: Pick<ToolInvocation, 'result'>): Record<string, unknown> 
 
 /** The research the live stream reports before the answer is persisted. */
 export interface LiveResearch {
+  isComplete?: boolean;
   currentQuery?: string;
   sourcesFound?: number;
   sources?: Array<{ id?: unknown; url?: unknown; title?: unknown }> | null;
@@ -266,7 +267,7 @@ export function webSearchLog(
     mapped.push({
       arrived: true,
       step: {
-        label: t('chat.bloom.researching'),
+        label: t(research.isComplete ? 'chat.bloom.researched' : 'chat.bloom.researching'),
         query: str(research.currentQuery),
         icon: RiBookOpenLine,
         ...(found > 0 ? { meta: t('chat.bloom.sourceCount', { count: found }) } : {}),

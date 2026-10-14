@@ -218,6 +218,11 @@ describe('tool calls → WebSearch steps and sources', () => {
     });
   });
 
+  it('says "researched" once the live progress is complete', () => {
+    const [step] = webSearchLog([], { isComplete: true, sourcesFound: 2 }, options).steps;
+    expect(step.label).toBe('chat.bloom.researched');
+  });
+
   it('draws live research progress before the answer is saved, and drops it once the invocation exists', () => {
     const live = {
       currentQuery: 'battery density 2026',

@@ -491,4 +491,44 @@ describe('useAliaChat request lifecycle', () => {
       await act(async () => renderer.unmount());
     });
   });
+
+  describe('a proposed plan', () => {
+    const planResponse = () =>
+      new Response(
+        'event: alia.plan_preview\ndata: {"eventVersion":1,"planId":"plan-1","steps":[{"action":"A","description":"a"},{"action":"B","description":"b"}]}\n\n' +
+          'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"example/model","choices":[{"index":0,"delta":{"content":"Plan listo"},"finish_reason":null}]}\n\n' +
+          'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"example/model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n' +
+          'data: [DONE]\n\n',
+        { headers: { 'content-type': 'text/event-stream' } },
+      );
+    const planOf = () => current().messages.find((m) => m.pendingPlan)?.pendingPlan;
+
+    it('is approved by approvePlan, and only that plan', async () => {
+      createSession(async () => planResponse());
+      const renderer = await renderHarness();
+      await act(async () => current().send('Haz un plan'));
+      await waitUntilIdle();
+      expect(planOf()).toMatchObject({ approved: false, rejected: false });
+
+      await act(async () => current().approvePlan('plan-other'));
+      expect(planOf()).toMatchObject({ approved: false });
+      await act(async () => current().approvePlan('plan-1'));
+      expect(planOf()).toMatchObject({ approved: true, rejected: false });
+
+      await act(async () => renderer.unmount());
+    });
+
+    it('is cancelled by rejectPlan', async () => {
+      createSession(async () => planResponse());
+      const renderer = await renderHarness();
+      await act(async () => current().send('Haz un plan'));
+      await waitUntilIdle();
+
+      await act(async () => current().rejectPlan('plan-1'));
+      expect(planOf()).toMatchObject({ approved: false, rejected: true });
+      expect(current().isStreaming).toBe(false);
+
+      await act(async () => renderer.unmount());
+    });
+  });
 });

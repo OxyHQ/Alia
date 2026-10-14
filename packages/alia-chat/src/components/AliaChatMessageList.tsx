@@ -39,6 +39,7 @@ import { ThinkingBlock } from './ThinkingBlock';
 import { PlanPreviewCard } from './PlanPreviewCard';
 import { AskedQuestions } from './QuestionCard';
 import { askedQuestions, isQuestionInvocation } from '../lib/questions';
+import { extractCitationSources, linkifyCitations } from '../lib/citations';
 import { chatMessageEnter } from '../animations';
 import { getToolLabel, getToolActiveLabel, getResearchActiveLabel } from '../lib/tool-registry';
 import { getTextFromContent, getImagesFromContent } from '../lib/content-utils';
@@ -266,6 +267,15 @@ const AssistantMessage = React.memo(function AssistantMessage({
 }) {
   const labels = useLabels();
   const hasContent = messageText.length > 0;
+  // `[n]` markers that name a source become links to it.
+  const citedText = useMemo(
+    () =>
+      linkifyCitations(
+        messageText,
+        extractCitationSources(message.toolInvocations, message.researchProgress?.sources),
+      ),
+    [messageText, message.toolInvocations, message.researchProgress?.sources],
+  );
   const hasThinking = !!message.thinking;
 
   // Both logs count units and are driven by `revealed`, from the calls that have really
@@ -379,9 +389,9 @@ const AssistantMessage = React.memo(function AssistantMessage({
               {message.isStreaming ? '\u258C' : ''}
             </Text>
           ) : renderMarkdown ? (
-            renderMarkdown(messageText)
+            renderMarkdown(citedText)
           ) : (
-            <AliaMarkdown content={messageText} />
+            <AliaMarkdown content={citedText} />
           )}
         </ReplyBody>
       </Collapsible>

@@ -203,7 +203,8 @@ function AliaChatContentBody({
   );
   // ── Chat ──
   const chatOptions: UseAliaChatOptions = { apiUrl, model, clientContext, agents: knownAgents };
-  const { messages, setMessages, send, isStreaming, stop, clear } = useAliaChat(chatOptions);
+  const { messages, setMessages, send, isStreaming, stop, clear, approvePlan, rejectPlan } =
+    useAliaChat(chatOptions);
   const agents = useMemo(() => participatingAgents(messages), [messages]);
   // What Alia asked in her last turn and the person has not answered: asked above the composer,
   // not in the thread. Any later message, typed or sent from the card, is the answer.
@@ -549,8 +550,8 @@ function AliaChatContentBody({
             onEditMessage={onEditMessage}
             onThumbsUp={onThumbsUp}
             onThumbsDown={onThumbsDown}
-            onApprovePlan={onApprovePlan}
-            onRejectPlan={onRejectPlan}
+            onApprovePlan={onApprovePlan ?? approvePlan}
+            onRejectPlan={onRejectPlan ?? rejectPlan}
             renderMarkdown={renderMarkdown}
             welcomeComponent={welcomeComponent}
           />
