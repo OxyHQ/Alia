@@ -134,9 +134,9 @@ passed, and removes the Browser or Styles tab when its content is `null`.
 `src/shell/workspace-panel.tsx` uses that: the code panel has no undo and no
 `-0`, its header holds the terminal (where there is one) and hide-panel, and
 its tab is "Preview" only for the terminal or a non-code canvas; the gallery's
-header is hide-panel alone, with no Styles tab. Download is real on web and iOS
-(`src/features/chat/runtime/save-image.ts`); Android has none, since sharing a
-file there needs `expo-sharing`. More opens Open (web links) and Delete (Library
+header is hide-panel alone, with no Styles tab. Download is real on web, iOS and Android
+(`src/features/chat/runtime/save-image.ts`; Android shares the file through
+`expo-sharing`, not yet validated on a device). More opens Open (web links) and Delete (Library
 images, confirmed). `src/shell/__tests__/workspace-panel-controls.test.tsx`
 mounts the real panels and fails on any control without a handler.
 
