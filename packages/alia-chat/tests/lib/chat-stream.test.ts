@@ -163,7 +163,7 @@ describe('consumeAliaChatStream', () => {
     expect(events).toContainEqual({
       kind: 'agent_answer',
       content: 'Ya está',
-      agent: { id: 'a1', name: 'Sindi', avatar: null },
+      agent: { id: 'a1', name: 'Sindi' },
     });
   });
 

@@ -13,6 +13,10 @@
   message with its name and avatar, placed before Alia's reply as the app places it, so a turn
   with Lumi, Atlas and Sol shows three speakers. Before, every answer was merged into one message
   under the last agent's name. Alia's reply is dropped when she said nothing after handing over.
+- **A delegated agent shows its 3D avatar.** The speaker line of an agent's message is Bloom's
+  `AgentAvatar`, not an image (an agent's account has none): the character comes from the agent's
+  id (`agentCharacter(id)`, exported), so the same agent looks the same everywhere and two agents
+  in a turn are told apart. The app draws its agents' messages with the same avatar.
 - **Breaking:** `WelcomeSuggestion { id, title, description }` becomes `AliaSuggestion { id, text }`
   (`text` is what is shown and what is sent). New optional props on the sheet, screen and content:
   `suggestionMatches` and `onSuggestionQuery(query)`, so a host can search as the person types.

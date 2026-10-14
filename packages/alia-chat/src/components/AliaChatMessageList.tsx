@@ -20,7 +20,8 @@ import {
   AiChatThread,
   AiChatUserMessage,
 } from '@oxy.so/bloom/ai-chat';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
+import { agentCharacter } from '../lib/agent-character';
 import { Button } from '@oxy.so/bloom/button';
 import { useLabels } from '../lib/labels';
 import { isWebInvocation, taskListLog, webSearchLog } from '../lib/work-log';
@@ -309,7 +310,11 @@ const AssistantMessage = React.memo(function AssistantMessage({
           {/* Agent identity */}
           {message.agentInfo && (
             <View className="mb-0.5 flex-row items-center gap-2">
-              <Avatar source={message.agentInfo.avatar} size="xs" />
+              <AgentAvatar
+                character={agentCharacter(message.agentInfo.id)}
+                size={24}
+                label={message.agentInfo.name}
+              />
               <Text className="text-xs font-semibold text-text-primary">
                 {message.agentInfo.name}
               </Text>

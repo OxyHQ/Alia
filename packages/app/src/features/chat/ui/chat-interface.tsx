@@ -17,6 +17,7 @@ import { useOpenThought, type OpenThought } from '@/features/chat/runtime/use-op
 import { getToolPillLabel } from '@/features/chat/model/task-utils';
 import { isWebInvocation, taskListLog, webSearchLog } from '@/features/chat/model/work-log';
 import { daySeparators } from '@/features/chat/model/message-days';
+import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
 import { AgentProgress } from '@oxy.so/bloom/agent-progress';
 import { ChatDateHeader } from '@oxy.so/bloom/chat-screen';
 import { Divider } from '@oxy.so/bloom/divider';
@@ -24,7 +25,6 @@ import { TaskList } from '@oxy.so/bloom/task-list';
 import { WebSearch } from '@oxy.so/bloom/web-search';
 import { NewConversationOffer } from '@/features/chat/ui/new-conversation-offer';
 import { CustomMarkdown } from '@/features/chat/ui/markdown';
-import { agentTint } from '@/shared/domain/agent-color';
 import apiClient from '@/shared/api/client';
 import { queryKeys } from '@/shared/api/query-keys';
 import type { AgentActivityState } from '@/features/chat/runtime/use-agent-activity';
@@ -40,9 +40,9 @@ import { arrivedIds } from '@/features/chat/model/timeline';
 import type { ToolInvocation } from '@/shared/contracts/messages';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
 import {
+  agentCharacter,
   getImagesFromContent,
   getTextFromContent,
-  IdentityMark,
   PlanPreviewCard,
   QuestionCard,
 } from '@alia.onl/sdk';
@@ -457,10 +457,10 @@ const MessageRow = React.memo(function MessageRow({
             <View className="flex-col">
               {m.agentInfo ? (
                 <View className="flex-row items-center gap-2 mb-0.5">
-                  <IdentityMark
-                    size={20}
-                    color={agentTint(m.agentInfo.color, colors)}
-                    accessibilityLabel={m.agentInfo.name}
+                  <AgentAvatar
+                    character={agentCharacter(m.agentInfo.id)}
+                    size={24}
+                    label={m.agentInfo.name}
                   />
                   <Text className="text-xs font-semibold text-foreground">{m.agentInfo.name}</Text>
                 </View>

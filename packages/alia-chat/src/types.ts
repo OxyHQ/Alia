@@ -63,7 +63,7 @@ export interface ChatMessage {
   /** Cached TTS audio URL for read-aloud */
   audioUrl?: string;
   /** Delegated agent identity */
-  agentInfo?: { id: string; name: string; avatar: string | null };
+  agentInfo?: { id: string; name: string };
 }
 
 export interface ToolInvocation {

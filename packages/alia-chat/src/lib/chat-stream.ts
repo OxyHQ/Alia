@@ -31,7 +31,7 @@ export type AliaChatStreamEvent =
   | {
       readonly kind: 'agent_answer';
       readonly content: string;
-      readonly agent: { readonly id: string; readonly name: string; readonly avatar: null };
+      readonly agent: { readonly id: string; readonly name: string };
     };
 
 export interface AliaChatStreamResult {
@@ -335,7 +335,6 @@ function parseNamedEvent(eventName: string, payload: unknown): AliaChatStreamEve
         agent: {
           id: asString(body.agentId, `${eventName} agentId`),
           name: asString(body.agentName, `${eventName} agentName`),
-          avatar: null,
         },
       };
     }

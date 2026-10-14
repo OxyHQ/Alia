@@ -110,7 +110,7 @@ vi.mock('@alia.onl/sdk', async () => ({
           .map((part) => part.text ?? '')
           .join(''),
   getImagesFromContent: () => [],
-  IdentityMark: () => null,
+  agentCharacter: () => ({}),
   PlanPreviewCard: () => null,
 }));
 
