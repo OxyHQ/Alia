@@ -9,6 +9,10 @@
   and from two typed characters they become matches with the typed part highlighted, arrows /
   Enter / Escape through the composer's `onKeyPress`. The app now draws its greeting and its
   suggestions with these same components and only supplies its API's data.
+- **Several agents in one turn.** A delegated agent's answer (`alia.agent`) is now its own
+  message with its name and avatar, placed before Alia's reply as the app places it, so a turn
+  with Lumi, Atlas and Sol shows three speakers. Before, every answer was merged into one message
+  under the last agent's name. Alia's reply is dropped when she said nothing after handing over.
 - **Breaking:** `WelcomeSuggestion { id, title, description }` becomes `AliaSuggestion { id, text }`
   (`text` is what is shown and what is sent). New optional props on the sheet, screen and content:
   `suggestionMatches` and `onSuggestionQuery(query)`, so a host can search as the person types.

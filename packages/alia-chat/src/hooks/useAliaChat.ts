@@ -70,6 +70,8 @@ interface PendingUpdates {
   content: string;
   reasoning: string;
   tools: ToolInvocation[];
+  /** How many delegated agents have answered in this turn: the next one's id suffix. */
+  agentAnswers: number;
   timer: ReturnType<typeof setTimeout> | null;
 }
 
@@ -310,6 +312,7 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
         content: '',
         reasoning: '',
         tools: [],
+        agentAnswers: 0,
         timer: null,
       };
       pendingRef.current = pending;
@@ -373,11 +376,25 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
               },
             }));
             return;
-          case 'agent_answer':
-            pending.content += event.content;
-            updateAssistant(pending.assistantId, () => ({ agentInfo: event.agent }));
-            scheduleFlush(pending);
+          case 'agent_answer': {
+            // A delegated agent speaks as itself: its answer is its own message, placed before
+            // Alia's reply, as the Alia app places it. Several agents are several messages.
+            const answer: ChatMessage = {
+              id: `${pending.assistantId}-agent-${pending.agentAnswers++}`,
+              role: 'assistant',
+              content: event.content,
+              createdAt: Date.now(),
+              agentInfo: event.agent,
+            };
+            setMessages((previous) => {
+              const at = previous.findIndex((message) => message.id === pending.assistantId);
+              const updated = [...previous];
+              updated.splice(at < 0 ? updated.length : at, 0, answer);
+              messagesRef.current = updated;
+              return updated;
+            });
             return;
+          }
         }
       };
 
@@ -409,6 +426,8 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
       } finally {
         cancelPendingTimer(pending);
         flushPendingUpdates(pending);
+        // Alia said nothing herself after handing the turn over: no empty reply under the answers.
+        if (pending.agentAnswers > 0) removeEmptyAssistant(pending.assistantId);
         linked.dispose();
         if (pendingRef.current === pending) pendingRef.current = null;
         if (activeRequestRef.current?.key === request.key) {
