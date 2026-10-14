@@ -1,3 +1,4 @@
+import { WEB_ORIGIN } from '@/shared/platform/web-origin';
 import { agentChatRoute, agentDisplayName, agentHandle } from '@/features/agents/model/identity';
 import {
   errorResponseData,
@@ -14,9 +15,6 @@ import { toast } from '@oxy.so/bloom/toast';
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Share } from 'react-native';
-
-/** Alia's web origin, where every app route is also a page. */
-const WEB_ORIGIN = 'https://alia.onl';
 
 /**
  * The text "Share" hands the system sheet: who the agent is and its page.

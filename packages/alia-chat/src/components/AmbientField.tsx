@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { AppState, Platform, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
 import Animated, {
   cancelAnimation,
@@ -55,16 +55,16 @@ const EXIT_EASE = Easing.bezier(0.2, 0.7, 0.2, 1);
 const PULSE_DURATION = 900;
 
 /**
- * A field shorter than a phone screen (the chat's sheet) is not drawn at its own scale: the
- * blobs are sized in `vmax` of the field, which would be its small side, and laid out across
- * its width, which would pile them on the centre. It takes the blob size of a phone screen,
- * and its blobs are spread wider (`SHORT_FIELD_SPREAD`), cropped by its edges — the blue, warm
- * and green of the intro side by side, not one smudge in the middle.
+ * How the field lays itself out in a container that is not a screen. The blobs are sized in
+ * `vmax` of the field and laid out across its width, which on a short, wide card (the chat's
+ * sheet) would make them half as big and pile them on the centre. The `sheet` layout draws
+ * them at the size of a phone screen (`reference`), spread wider across the width (`spread`)
+ * and shifted back toward the right (`shift`, a share of the width, since the spread leaves the
+ * composition leaning left), cropped by the card's edges: the blue, warm and green of the
+ * intro side by side. Asked for, not inferred from the height, so a short app screen is
+ * never reinterpreted.
  */
-const MIN_FIELD_REFERENCE = 800;
-const SHORT_FIELD_SPREAD = 1.4;
-/** The spread leaves the composition leaning left; this much of the width puts it back. */
-const SHORT_FIELD_SHIFT = 0.17;
+const SHEET_LAYOUT = { reference: 800, spread: 1.4, shift: 0.17 } as const;
 
 /** One keyframe stop of a float loop: [translateX in vw, translateY in vh, scale]. */
 type FloatStop = readonly [number, number, number];
@@ -368,6 +368,8 @@ function Flourish({
 }
 
 export interface AmbientFieldProps {
+  /** `screen` (default) fills a page; `sheet` is for a short card, see `SHEET_LAYOUT`. */
+  layout?: 'screen' | 'sheet';
   /**
    * Combined amplitude from `useAmbientWave` — swells and brightens the blobs.
    * Omit where there is no audio (the intro) and the field simply rests.
@@ -420,7 +422,8 @@ export interface AmbientFieldProps {
  * layer, nothing is seen THROUGH it, and the translucent surfaces over it are
  * Bloom's, which follow that setting themselves.
  */
-export function AmbientField({
+export const AmbientField = memo(function AmbientField({
+  layout = 'screen',
   waveAmplitude,
   agentState = 'idle',
   intensity = 1,
@@ -487,11 +490,11 @@ export function AmbientField({
     setField({ width, height });
   };
 
-  const short = field.height > 0 && field.height < MIN_FIELD_REFERENCE;
-  const vw = (field.width / 100) * (short ? SHORT_FIELD_SPREAD : 1);
+  const sheet = layout === 'sheet';
+  const vw = (field.width / 100) * (sheet ? SHEET_LAYOUT.spread : 1);
   const vh = field.height / 100;
-  const vmax = Math.max(field.width, field.height, short ? MIN_FIELD_REFERENCE : 0) / 100;
-  const shiftX = short ? field.width * SHORT_FIELD_SHIFT : 0;
+  const vmax = Math.max(field.width, field.height, sheet ? SHEET_LAYOUT.reference : 0) / 100;
+  const shiftX = sheet ? field.width * SHEET_LAYOUT.shift : 0;
 
   const fieldStyle = useAnimatedStyle(() => ({
     // On the way out the field keeps 45% of its opacity, sinking as it goes.
@@ -572,6 +575,6 @@ export function AmbientField({
       ) : null}
     </View>
   );
-}
+});
 
 export { PARALLAX_DURATION, PARALLAX_EASE };

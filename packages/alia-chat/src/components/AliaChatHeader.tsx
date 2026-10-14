@@ -1,14 +1,15 @@
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { RiCloseLine, RiDeleteBin6Line } from '@oxy.so/bloom/icons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
-import { type ReactNode, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { memo, type ReactNode, useState } from 'react';
+import { Pressable, View } from 'react-native';
 import { useLabels } from '../lib/labels';
-import { AliaChatMark } from './AliaChatContent';
+import { AliaAvatar, type AliaAvatarState } from './AliaAvatar';
 
 export interface AliaChatHeaderProps {
+  /** What Alia is doing; the avatar shows it. */
+  markState: AliaAvatarState;
   /** The chat has messages to clear. */
   hasMessages: boolean;
   onClear: () => void;
@@ -29,9 +30,7 @@ export interface AliaChatHeaderProps {
  * of radius 14, `backgroundSecondary` with a hairline border) but is not exported, so
  * this repeats its geometry. Use Bloom's component when it is.
  */
-function AliaProfile({ onPress }: { onPress?: () => void }) {
-  const { colors } = useTheme();
-  const [hovered, setHovered] = useState(false);
+function AliaProfile({ markState, onPress }: { markState: AliaAvatarState; onPress?: () => void }) {
   const [reactionKey, setReactionKey] = useState(0);
 
   // Without a host action the profile is still a button: the avatar waves back.
@@ -45,21 +44,14 @@ function AliaProfile({ onPress }: { onPress?: () => void }) {
       accessibilityRole="button"
       accessibilityLabel="Alia"
       onPress={handlePress}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
-      className="items-center"
+      className="group/profile items-center"
     >
-      <View pointerEvents="none" style={{ marginBottom: -2, zIndex: 1 }}>
-        <AliaChatMark size={56} reactionKey={reactionKey} />
+      <View pointerEvents="none" className="z-10 -mb-0.5">
+        <AliaAvatar size={56} state={markState} reactionKey={reactionKey} />
       </View>
       <View
         pointerEvents="none"
-        className="items-center justify-center rounded-[14px] px-2.5 py-1"
-        style={{
-          backgroundColor: hovered ? colors.backgroundTertiary : colors.backgroundSecondary,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: colors.border,
-        }}
+        className="items-center justify-center rounded-[14px] border border-border-secondary bg-background-secondary-default px-2.5 py-1 group-hover/profile:bg-background-tertiary-default"
       >
         <Text numberOfLines={1} className="text-[16px] font-medium leading-5 text-text-primary">
           Alia
@@ -73,7 +65,8 @@ function AliaProfile({ onPress }: { onPress?: () => void }) {
  * The chat's top bar: Bloom's `PageHeader`, set up as the shell sets it up for the
  * agents' screens (inline, no scrim, no safe area), with Alia's profile as its title.
  */
-export function AliaChatHeader({
+export const AliaChatHeader = memo(function AliaChatHeader({
+  markState,
   hasMessages,
   onClear,
   onClose,
@@ -85,7 +78,7 @@ export function AliaChatHeader({
   return (
     <PageHeader
       leading={leading}
-      title={<AliaProfile onPress={onProfilePress} />}
+      title={<AliaProfile markState={markState} onPress={onProfilePress} />}
       titleAlign="center"
       actions={
         <>
@@ -115,4 +108,4 @@ export function AliaChatHeader({
       safeArea={false}
     />
   );
-}
+});

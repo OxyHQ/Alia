@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **`AmbientField` takes `layout="sheet"`** for a short card (the chat's sheet): the blobs are
+  drawn at the size of a phone screen, spread wider and shifted back to the right, cropped by the
+  card's edges. It is asked for, not inferred from the field's height, so a short app screen is
+  never reinterpreted. `AmbientField`, `AliaAvatar` and `AliaChatHeader` are memoised and the
+  chat body no longer repaints them on every streamed token; read-aloud and starting a call no
+  longer change identity per flush. `AliaAvatar` takes `portrait` (a still thumbnail, used for
+  the sidebar's permanent mark).
+- **One `header` render prop** on `AliaChatContent`, handed `hasMessages`, `clear` and the live
+  avatar `markState`; the breadcrumb path (`title`, `actions`) and the mark-state context are gone.
+- The profile and the screen's background are NativeWind classes with Bloom tokens
+  (`bg-background-full`, `group-hover/profile:…`), not JS-computed colours.
 - **Bloom is a peer at `^10.0.0`** (was `^9.0.0`). Bloom 10 makes an avatar one flat
   `AvatarCharacter`; `AliaAvatar` is `{ preset: 'blue_beret', accessory: 'none', color: 'orchid' }`
   and no longer builds a `config`. Hosts mount `AgentAvatarProvider` as before. Hosts on Bloom 9

@@ -17,12 +17,11 @@
  * `livekit-client` never enters the bundle.
  */
 
-import React from 'react';
-import { useTheme } from '@oxy.so/bloom/theme';
+import React, { useCallback } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from '../lib/keyboard';
-import { AliaChatContent } from './AliaChatContent';
+import { AliaChatContent, type AliaChatContentProps } from './AliaChatContent';
 import { AliaChatHeader } from './AliaChatHeader';
 import type { WelcomeSuggestion } from './AliaWelcomeMessage';
 import type { AliaChatLabels } from '../lib/labels';
@@ -67,7 +66,18 @@ export function AliaChatScreen({
   labels,
 }: AliaChatScreenProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
+  const header = useCallback<NonNullable<AliaChatContentProps['header']>>(
+    ({ hasMessages, clear, markState }) => (
+      <AliaChatHeader
+        markState={markState}
+        hasMessages={hasMessages}
+        onClear={clear}
+        leading={headerLeft}
+        trailing={headerRight}
+      />
+    ),
+    [headerLeft, headerRight],
+  );
 
   // The screen owns the whole window, so it keeps its composer out of both
   // system bars: the top inset clears the status bar, the bottom one the
@@ -81,12 +91,8 @@ export function AliaChatScreen({
   // this deep in a host's tree, which is why the offset is measured.)
   return (
     <View
-      className="flex-1"
-      style={{
-        backgroundColor: colors.background,
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom,
-      }}
+      className="flex-1 bg-background-full"
+      style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
     >
       <KeyboardAvoidingView behavior="padding" automaticOffset style={{ flex: 1 }}>
         <AliaChatContent
@@ -99,15 +105,7 @@ export function AliaChatScreen({
           isDarkMode={isDarkMode}
           voiceSession={voiceSession}
           labels={labels}
-          title={null}
-          headerLeading={({ hasMessages, clear }) => (
-            <AliaChatHeader
-              hasMessages={hasMessages}
-              onClear={clear}
-              leading={headerLeft}
-              trailing={headerRight}
-            />
-          )}
+          header={header}
         />
       </KeyboardAvoidingView>
     </View>

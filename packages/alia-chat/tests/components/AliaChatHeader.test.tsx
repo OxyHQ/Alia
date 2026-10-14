@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const seen = vi.hoisted(() => ({
   items: [] as Array<Record<string, unknown>>,
   markKeys: [] as Array<number | undefined>,
+  states: [] as Array<string | undefined>,
 }));
 
 vi.mock('react-native', () => ({
@@ -45,9 +46,10 @@ vi.mock('@oxy.so/bloom/theme', () => ({
 vi.mock('@oxy.so/bloom/typography', () => ({
   Text: ({ children }: { children?: React.ReactNode }) => children,
 }));
-vi.mock('../../src/components/AliaChatContent', () => ({
-  AliaChatMark: ({ reactionKey }: { reactionKey?: number }) => {
+vi.mock('../../src/components/AliaAvatar', () => ({
+  AliaAvatar: ({ reactionKey, state }: { reactionKey?: number; state?: string }) => {
     seen.markKeys.push(reactionKey);
+    seen.states.push(state);
     return null;
   },
 }));
@@ -70,17 +72,18 @@ describe('AliaChatHeader', () => {
   beforeEach(() => {
     seen.items = [];
     seen.markKeys = [];
+    seen.states = [];
   });
 
   it('offers neither clear nor close on an empty chat that cannot be dismissed', () => {
-    render(<AliaChatHeader hasMessages={false} onClear={vi.fn()} />);
+    render(<AliaChatHeader markState="idle" hasMessages={false} onClear={vi.fn()} />);
 
     expect(seen.items).toEqual([]);
   });
 
   it('clears the chat from its own island once there are messages', () => {
     const onClear = vi.fn();
-    render(<AliaChatHeader hasMessages onClear={onClear} />);
+    render(<AliaChatHeader markState="idle" hasMessages onClear={onClear} />);
 
     (item('Clear')?.onPress as () => void)();
     expect(onClear).toHaveBeenCalledOnce();
@@ -89,7 +92,9 @@ describe('AliaChatHeader', () => {
 
   it('draws the close button only where the host can dismiss the chat', () => {
     const onClose = vi.fn();
-    render(<AliaChatHeader hasMessages={false} onClear={vi.fn()} onClose={onClose} />);
+    render(
+      <AliaChatHeader markState="idle" hasMessages={false} onClear={vi.fn()} onClose={onClose} />,
+    );
 
     (item('Close')?.onPress as () => void)();
     expect(onClose).toHaveBeenCalledOnce();
@@ -99,7 +104,7 @@ describe('AliaChatHeader', () => {
   it("takes the host's labels for its buttons", () => {
     render(
       <AliaChatLabelsProvider labels={{ clear: 'Borrar', close: 'Cerrar' }}>
-        <AliaChatHeader hasMessages onClear={vi.fn()} onClose={vi.fn()} />
+        <AliaChatHeader markState="idle" hasMessages onClear={vi.fn()} onClose={vi.fn()} />
       </AliaChatLabelsProvider>,
     );
 
@@ -110,7 +115,12 @@ describe('AliaChatHeader', () => {
   it('makes the profile a button: it runs the host action when given one', () => {
     const onProfilePress = vi.fn();
     const renderer = render(
-      <AliaChatHeader hasMessages={false} onClear={vi.fn()} onProfilePress={onProfilePress} />,
+      <AliaChatHeader
+        markState="idle"
+        hasMessages={false}
+        onClear={vi.fn()}
+        onProfilePress={onProfilePress}
+      />,
     );
 
     act(() => renderer.root.findByProps({ accessibilityLabel: 'Alia' }).props.onPress());
@@ -119,8 +129,16 @@ describe('AliaChatHeader', () => {
     expect(seen.markKeys.every((key) => key === 0)).toBe(true);
   });
 
+  it('shows what Alia is doing on the avatar', () => {
+    render(<AliaChatHeader markState="thinking" hasMessages={false} onClear={vi.fn()} />);
+
+    expect(seen.states.at(-1)).toBe('thinking');
+  });
+
   it('makes the avatar wave when the host gives the profile no action', () => {
-    const renderer = render(<AliaChatHeader hasMessages={false} onClear={vi.fn()} />);
+    const renderer = render(
+      <AliaChatHeader markState="idle" hasMessages={false} onClear={vi.fn()} />,
+    );
     expect(seen.markKeys.at(-1)).toBe(0);
 
     act(() => renderer.root.findByProps({ accessibilityLabel: 'Alia' }).props.onPress());
