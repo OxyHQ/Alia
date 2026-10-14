@@ -14,14 +14,13 @@ export interface AliaWelcomeMessageProps {
   suggestions?: WelcomeSuggestion[];
   onSuggestionPress?: (text: string) => void;
   markSize?: number;
-  /** Leave the avatar out, where the surrounding header already shows it. */
-  hideMark?: boolean;
 }
 
 /**
- * The empty chat, as the Alia app has it: the avatar beside the greeting at display
- * size, centred (stacked on a phone, side by side from `md`), and the suggestions as
- * compact rows under it.
+ * The empty chat, as the Alia app has it on a wide screen: the avatar beside the greeting at
+ * display size, centred, and the suggestions as compact rows under it. Always side by side:
+ * the chat is a sheet or a column, whose width is not the window's, so the app's `md`
+ * breakpoint would stack it in a sheet on a desktop.
  */
 export function AliaWelcomeMessage({
   greeting,
@@ -29,16 +28,15 @@ export function AliaWelcomeMessage({
   suggestions = [],
   onSuggestionPress,
   markSize = 38,
-  hideMark = false,
 }: AliaWelcomeMessageProps) {
   return (
     <View className="flex-1 items-center justify-center gap-6 px-4">
       <View className="items-center gap-2">
-        <View className="flex-col items-center justify-center gap-3 md:flex-row">
-          {hideMark ? null : <AliaAvatar size={markSize} interactive />}
+        <View className="flex-row items-center justify-center gap-3">
+          <AliaAvatar size={markSize} interactive />
           <Text
             selectable={false}
-            className="text-center text-4xl tracking-tight text-text-primary md:text-left"
+            className="shrink text-left text-4xl tracking-tight text-text-primary"
           >
             {greeting}
           </Text>

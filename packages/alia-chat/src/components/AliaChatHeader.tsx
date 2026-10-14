@@ -71,7 +71,9 @@ function AliaProfile({ onPress }: { onPress?: () => void }) {
 
 /**
  * The chat's top bar: Bloom's `PageHeader`, set up as the shell sets it up for the
- * agents' screens (inline, no scrim, no safe area), with Alia's profile as its title.
+ * agents' screens (inline, no scrim, no safe area). Alia's profile is its title only once
+ * there is a conversation: the empty chat already shows the avatar beside its greeting,
+ * so the bar carries just its buttons until then.
  */
 export function AliaChatHeader({
   hasMessages,
@@ -85,7 +87,7 @@ export function AliaChatHeader({
   return (
     <PageHeader
       leading={leading}
-      title={<AliaProfile onPress={onProfilePress} />}
+      title={hasMessages ? <AliaProfile onPress={onProfilePress} /> : undefined}
       titleAlign="center"
       actions={
         <>

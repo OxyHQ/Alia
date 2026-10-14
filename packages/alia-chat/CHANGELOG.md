@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **The empty chat has the avatar beside its greeting, and the header shows Alia's profile only
+  once there is a conversation.** `AliaWelcomeMessage` always draws the avatar and greeting side
+  by side (a sheet's width is not the window's, so the app's `md` breakpoint stacked it) and
+  loses its `hideMark` prop; `AliaChatHeader` carries just its buttons until a message exists.
+
 - **Bloom is a peer at `^10.0.0`** (was `^9.0.0`). Bloom 10 makes an avatar one flat
   `AvatarCharacter`; `AliaAvatar` is `{ preset: 'blue_beret', accessory: 'none', color: 'orchid' }`
   and no longer builds a `config`. Hosts mount `AgentAvatarProvider` as before. Hosts on Bloom 9

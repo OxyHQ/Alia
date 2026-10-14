@@ -289,7 +289,6 @@ function AliaChatContentBody({
         subtitle={welcomeSubtitle}
         suggestions={welcomeSuggestions}
         onSuggestionPress={send}
-        hideMark
       />
     );
   }, [welcomeGreeting, welcomeSubtitle, welcomeSuggestions, send, messages.length]);

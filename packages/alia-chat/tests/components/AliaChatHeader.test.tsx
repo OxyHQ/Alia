@@ -72,6 +72,19 @@ describe('AliaChatHeader', () => {
     seen.markKeys = [];
   });
 
+  it('shows no profile on an empty chat, whose greeting already carries the avatar', () => {
+    const renderer = render(<AliaChatHeader hasMessages={false} onClear={vi.fn()} />);
+
+    expect(renderer.root.findAllByProps({ accessibilityLabel: 'Alia' })).toHaveLength(0);
+    expect(seen.markKeys).toEqual([]);
+  });
+
+  it('shows the profile once there is a conversation', () => {
+    const renderer = render(<AliaChatHeader hasMessages onClear={vi.fn()} />);
+
+    expect(renderer.root.findAllByProps({ accessibilityLabel: 'Alia' }).length).toBeGreaterThan(0);
+  });
+
   it('offers neither clear nor close on an empty chat that cannot be dismissed', () => {
     render(<AliaChatHeader hasMessages={false} onClear={vi.fn()} />);
 
@@ -110,7 +123,7 @@ describe('AliaChatHeader', () => {
   it('makes the profile a button: it runs the host action when given one', () => {
     const onProfilePress = vi.fn();
     const renderer = render(
-      <AliaChatHeader hasMessages={false} onClear={vi.fn()} onProfilePress={onProfilePress} />,
+      <AliaChatHeader hasMessages onClear={vi.fn()} onProfilePress={onProfilePress} />,
     );
 
     act(() => renderer.root.findByProps({ accessibilityLabel: 'Alia' }).props.onPress());
@@ -120,7 +133,7 @@ describe('AliaChatHeader', () => {
   });
 
   it('makes the avatar wave when the host gives the profile no action', () => {
-    const renderer = render(<AliaChatHeader hasMessages={false} onClear={vi.fn()} />);
+    const renderer = render(<AliaChatHeader hasMessages onClear={vi.fn()} />);
     expect(seen.markKeys.at(-1)).toBe(0);
 
     act(() => renderer.root.findByProps({ accessibilityLabel: 'Alia' }).props.onPress());
