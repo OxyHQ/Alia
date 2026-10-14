@@ -50,7 +50,7 @@
 - **Every icon is Bloom's.** The voice button is `RiVolumeUpLine` (it was Entypo); the app's clock,
   robot and connector glyphs are `RiTimeLine`, `RiRobot2Line`, `RiPlugLine` and the SVG generator
   is gone; `@expo/vector-icons` is no longer a peer of the SDK.
-- **Greeting.** `max-w-xs`, so it always sets in two lines, with more room above than below.
+- **Greeting.** The avatar (88px) above the text, both centred; `max-w-xs`, so it always sets in two lines; more room above than below. The Alia app draws the same.
 - Peer `@oxy.so/bloom ^10.2.1` (scrollbar, pill groups, header scrim, voice controls).
 - **Breaking:** `WelcomeSuggestion { id, title, description }` becomes `AliaSuggestion { id, text }`
   (`text` is what is shown and what is sent). New optional props on the sheet, screen and content:
