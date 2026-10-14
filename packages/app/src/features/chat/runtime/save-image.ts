@@ -1,17 +1,16 @@
 import { Platform, Share } from 'react-native';
 import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 /**
  * Whether this platform can hand an image over as a FILE.
  *
- * Web downloads it and iOS offers it through the share sheet (which has "Save
- * Image"). Android's `Share.share` takes only a `message`, and `expo-sharing`
- * is not a dependency of this app (see `conversation-share.ts`), so there the
- * gallery draws no download action at all rather than one that shares a link
- * and calls it a download.
+ * Web downloads it, iOS offers it through the share sheet (which has "Save
+ * Image") and Android through `expo-sharing`, since its `Share.share` takes
+ * only a `message` (see `conversation-share.ts`).
  */
 export function canSaveImage(): boolean {
-  return Platform.OS === 'web' || Platform.OS === 'ios';
+  return Platform.OS === 'web' || Platform.OS === 'ios' || Platform.OS === 'android';
 }
 
 const EXTENSION_BY_MIME: Record<string, string> = {
@@ -45,8 +44,8 @@ export function imageFilename(name: string, uri: string): string {
  * would open it instead. If the bytes cannot be read here (CORS), the image is
  * opened in a new tab, where the browser can still save it.
  *
- * On iOS it is written to the cache (a data URI decoded, a URL downloaded) and
- * offered through the share sheet.
+ * On iOS and Android it is written to the cache (a data URI decoded, a URL
+ * downloaded) and offered through the share sheet.
  */
 export async function saveImage(uri: string, filename: string): Promise<void> {
   if (Platform.OS === 'web') {
@@ -78,6 +77,10 @@ export async function saveImage(uri: string, filename: string): Promise<void> {
     file.write(data, { encoding: 'base64' });
   } else {
     await File.downloadFileAsync(uri, file, { idempotent: true });
+  }
+  if (Platform.OS === 'android') {
+    await Sharing.shareAsync(file.uri, { dialogTitle: filename });
+    return;
   }
   await Share.share({ url: file.uri, title: filename });
 }

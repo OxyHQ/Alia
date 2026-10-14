@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * what they say.
  */
 
-const platform = vi.hoisted(() => ({ OS: 'web' as 'web' | 'ios' | 'android' }));
+const platform = vi.hoisted(() => ({ OS: 'web' as 'web' | 'ios' | 'android' | 'windows' }));
 vi.mock('react-native', async () =>
   (await import('@/shared/testing/native-module-stubs')).reactNativeModule(platform),
 );
@@ -55,6 +55,7 @@ vi.mock('@/shared/i18n/use-translation', () => ({
 }));
 vi.mock('expo-web-browser', () => ({ openBrowserAsync: vi.fn(async () => ({})) }));
 vi.mock('expo-file-system', () => ({ File: class {}, Paths: {} }));
+vi.mock('expo-sharing', () => ({ shareAsync: vi.fn() }));
 
 const saved = vi.hoisted(() => [] as [string, string][]);
 vi.mock('@/features/chat/runtime/save-image', async (importOriginal) => ({
@@ -282,7 +283,7 @@ describe('the gallery panel', () => {
   });
 
   it('draws no download where the platform cannot save a file', async () => {
-    platform.OS = 'android';
+    platform.OS = 'windows';
     library.files = [libraryImage];
     const r = await renderGallery();
     expect(labelled(r, 'panel.download:beach.png')).toHaveLength(0);
