@@ -11,6 +11,7 @@ import { AgentProfile } from '@oxy.so/bloom/agent-reply';
 import { type ReactNode, useMemo } from 'react';
 import { agentCharacter } from '../lib/agent-character';
 import { useLabels } from '../lib/labels';
+import { ALIA_ANCHORS, useAliaFlights } from '../lib/flights';
 import { ALIA_AVATAR } from './AliaAvatar';
 import type { AliaChatAgent } from './AliaChatContent';
 
@@ -40,6 +41,7 @@ export interface AliaChatHeaderProps {
  * that answered ("Alia + Lumi + Atlas"). Pressing it makes every avatar wave.
  */
 function AliaProfile({ agents, onPress }: { agents: AliaChatAgent[]; onPress?: () => void }) {
+  const flights = useAliaFlights();
   const team = useMemo(
     () => [
       { id: 'alia', name: 'Alia', avatar: ALIA_AVATAR },
@@ -47,7 +49,14 @@ function AliaProfile({ agents, onPress }: { agents: AliaChatAgent[]; onPress?: (
     ],
     [agents],
   );
-  return <AgentProfile agents={team} onPress={onPress ?? noop} />;
+  return (
+    <AgentProfile
+      agents={team}
+      onPress={onPress ?? noop}
+      avatarRef={flights?.anchor(ALIA_ANCHORS.profile)}
+      avatarHidden={flights?.isLanding(ALIA_ANCHORS.profile)}
+    />
+  );
 }
 
 const noop = () => undefined;

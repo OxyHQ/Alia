@@ -1,3 +1,4 @@
+import { AvatarFlightLayer, useAvatarFlights } from '@oxy.so/bloom/avatar-flight';
 import { BottomSheet, type BottomSheetRef } from '@oxy.so/bloom/bottom-sheet';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -144,7 +145,10 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       ? { maxWidth: 600, alignSelf: 'center' as const, borderRadius: SHEET_RADIUS }
       : undefined;
 
+    // The avatars fly between the two sheets: one controller, one layer.
+    const flights = useAvatarFlights();
     const shared = {
+      flights,
       clientContext,
       model,
       apiUrl,
@@ -214,6 +218,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
             />
           </BottomSheet>
         ) : null}
+        <AvatarFlightLayer flights={flights} />
       </>
     );
   },

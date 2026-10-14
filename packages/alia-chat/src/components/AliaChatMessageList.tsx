@@ -13,8 +13,6 @@ import { TaskList } from '@oxy.so/bloom/task-list';
 import { Text } from '@oxy.so/bloom/typography';
 import { WebSearch } from '@oxy.so/bloom/web-search';
 import { AliaMarkdown } from './Markdown';
-import { workingAgents } from '../lib/delegation';
-import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
 import { AiChatMessageLine, AiChatThread, AiChatUserMessage } from '@oxy.so/bloom/ai-chat';
 import {
   AgentReply,
@@ -24,6 +22,7 @@ import {
   AgentReplyIdentity,
 } from '@oxy.so/bloom/agent-reply';
 import { agentCharacter } from '../lib/agent-character';
+import { ALIA_AVATAR } from './AliaAvatar';
 import { Button } from '@oxy.so/bloom/button';
 import { useLabels } from '../lib/labels';
 import { isWebInvocation, taskListLog, webSearchLog } from '../lib/work-log';
@@ -180,34 +179,48 @@ const UserBubble = React.memo(function UserBubble({
 // ── Assistant Message ──
 
 /**
- * Alia's own text runs the width of the thread with its actions under it; a delegated agent
- * answers in a bubble, its avatar and name beneath, as Bloom's multi-agent chat sets a reply.
+ * One reply, Alia's or a delegated agent's: the reply, and under it who answered. While the one
+ * who answers is working the identity shows its avatar large and thinking, and when the reply
+ * arrives it is the same avatar that settles under it, as in Bloom's multi-agent chat. Alia's own
+ * text runs the width of the thread; an agent answers in a bubble.
  */
 function ReplyBody({
   agent,
+  thinking,
   actions,
   children,
 }: {
   agent: ChatMessage['agentInfo'];
+  thinking: boolean;
   actions: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const identity = (
+    <AgentReplyIdentity
+      character={agent ? agentCharacter(agent.id) : ALIA_AVATAR}
+      name={agent?.name ?? 'Alia'}
+      thinking={thinking}
+    />
+  );
   if (agent === undefined)
     return (
-      <View className="flex-col items-start gap-0.5">
-        <View className="w-full">{children}</View>
-        {actions}
-      </View>
+      <AgentReply
+        identity={identity}
+        actions={actions}
+        // The thread pads its content and spaces its messages: the text starts at its edge, full width.
+        style={{ marginHorizontal: 0, marginTop: 0, maxWidth: '100%', width: '100%' }}
+      >
+        {children}
+      </AgentReply>
     );
   return (
     <AgentReply
-      identity={<AgentReplyIdentity character={agentCharacter(agent.id)} name={agent.name} />}
+      identity={identity}
       actions={actions}
-      // The thread already pads its content and spaces its messages: the reply starts where
-      // Alia's own text does and sits one thread gap from the message above it.
+      // The reply starts where Alia's own text does and sits one thread gap from the message above.
       style={{ marginHorizontal: 0, marginTop: 0, maxWidth: '100%' }}
     >
-      <AgentReplyBubble>{children}</AgentReplyBubble>
+      {children ? <AgentReplyBubble>{children}</AgentReplyBubble> : null}
     </AgentReply>
   );
 }
@@ -218,6 +231,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
   isStreamingThis,
   isLastMessage,
   isLoading,
+  agentsWorking,
   onReadAloud,
   ttsActiveMessageId,
   ttsPlaybackState,
@@ -233,6 +247,8 @@ const AssistantMessage = React.memo(function AssistantMessage({
   isStreamingThis: boolean;
   isLastMessage: boolean;
   isLoading: boolean;
+  /** An agent Alia sent for has not answered yet: it is the one thinking, not Alia. */
+  agentsWorking: boolean;
   onReadAloud?: (messageId: string, text: string) => void;
   ttsActiveMessageId?: string | null;
   ttsPlaybackState?: PlaybackState;
@@ -293,29 +309,10 @@ const AssistantMessage = React.memo(function AssistantMessage({
       </AgentReplyActions>
     ) : undefined;
 
-  // AgentThinking — context-aware status
-  let thinkingIndicator: React.ReactNode = null;
-  if (isLoading && isLastMessage && !hasContent) {
-    const activeTool = message.toolInvocations?.find(
-      (t) => t.state === 'call' || t.state === 'partial-call',
-    );
-    const rp = message.researchProgress;
-    let activeStatus: string | undefined;
-    if (activeTool) {
-      activeStatus = getToolActiveLabel(activeTool.toolName);
-    } else if (rp?.phase && rp.phase !== 'complete') {
-      activeStatus = getResearchActiveLabel(rp.phase);
-    }
-    // While it reasons, the reasoning block draws its own indicator: two at once is noise.
-    if (activeStatus !== undefined || !hasThinking) {
-      thinkingIndicator = (
-        <AgentThinking
-          variant={(message.toolInvocations?.length ?? 0) > 0 ? 'spin' : 'wave'}
-          label={activeStatus?.replace(/\.{3}$/, '')}
-        />
-      );
-    }
-  }
+  // The one who answers is thinking until its reply starts: an agent from the call that sent for it,
+  // Alia when no agent is working for her. The avatar is the indicator.
+  const thinking =
+    isLoading && !hasContent && (message.agentInfo ? true : isLastMessage && !agentsWorking);
 
   return (
     <View className="w-full">
@@ -355,9 +352,9 @@ const AssistantMessage = React.memo(function AssistantMessage({
       )}
 
       {/* Message Content */}
-      {(hasContent || message.isStreaming) && (
-        <ReplyBody agent={message.agentInfo} actions={replyActions}>
-          {message.source === 'voice' ? (
+      {(hasContent || message.isStreaming || thinking) && (
+        <ReplyBody agent={message.agentInfo} thinking={thinking} actions={replyActions}>
+          {!hasContent && !message.isStreaming ? null : message.source === 'voice' ? (
             <Text className="text-base text-text-primary leading-7">
               {messageText}
               {message.isStreaming ? '\u258C' : ''}
@@ -372,7 +369,6 @@ const AssistantMessage = React.memo(function AssistantMessage({
 
       {/* What Alia asked stays in the thread as a record; answering happens above the composer. */}
       {questions.length === 0 ? null : <AskedQuestions questions={questions} />}
-      {thinkingIndicator}
     </View>
   );
 });
@@ -442,6 +438,9 @@ export function AliaChatMessageList({
   }, []);
 
   const filteredMessages = useMemo(() => messages.filter((m) => m.role !== 'system'), [messages]);
+  // An agent Alia sent for that has not answered: it is the one that is thinking.
+  const agentsWorking =
+    isStreaming && filteredMessages.some((m) => m.agentInfo && !getTextFromContent(m.content));
 
   return (
     // Bloom's thread: follows the newest turn, and reports its scroll to a floating-chrome
@@ -462,28 +461,8 @@ export function AliaChatMessageList({
             const isStreamingThis = isStreaming && isLast;
             const messageText = getTextFromContent(msg.content);
 
-            // The agents Alia has called and that have not answered yet: each one's avatar, thinking,
-            // where its answer will land — before Alia's own message, as the answers are placed.
-            const working = isStreamingThis && msg.role === 'assistant' ? workingAgents(msg) : [];
-
             return (
               <Animated.View key={msg.id} entering={isNewMessage ? chatMessageEnter : undefined}>
-                {working.map((agent) => (
-                  <AgentReply
-                    key={`working-${agent.id}`}
-                    identity={
-                      <AgentReplyIdentity
-                        character={agentCharacter(agent.id)}
-                        name={agent.name}
-                        thinking
-                        workingKey={agent.id}
-                      />
-                    }
-                    style={{ marginHorizontal: 0, marginTop: 0, maxWidth: '100%', marginBottom: 8 }}
-                  >
-                    {null}
-                  </AgentReply>
-                ))}
                 {msg.role === 'user' ? (
                   <UserBubble
                     message={msg}
@@ -505,6 +484,7 @@ export function AliaChatMessageList({
                     isStreamingThis={isStreamingThis}
                     isLastMessage={isLast}
                     isLoading={isStreaming}
+                    agentsWorking={agentsWorking}
                     onReadAloud={onReadAloud}
                     ttsActiveMessageId={ttsActiveMessageId}
                     ttsPlaybackState={ttsPlaybackState}

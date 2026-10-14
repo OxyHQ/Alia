@@ -1,14 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { delegatedAgent, workingAgents } from '../../src/lib/delegation';
-import type { ChatMessage } from '../../src/types';
-
-const message = (toolInvocations: ChatMessage['toolInvocations']): ChatMessage => ({
-  id: 'm',
-  role: 'assistant',
-  content: '',
-  createdAt: 0,
-  toolInvocations,
-});
+import { agentMessageId, delegatedAgent } from '../../src/lib/delegation';
 
 describe('delegatedAgent', () => {
   it('reads the agent from a delegation call', () => {
@@ -35,23 +26,10 @@ describe('delegatedAgent', () => {
   });
 });
 
-describe('workingAgents', () => {
-  it('lists the agents called and not yet answered, once each', () => {
-    const turn = message([
-      { toolName: 'delegateToAgent', state: 'result', args: { agentId: 'a', agentName: 'A' } },
-      { toolName: 'delegateToAgent', state: 'call', args: { agentId: 'b', agentName: 'B' } },
-      {
-        toolName: 'delegateToAgent',
-        state: 'partial-call',
-        args: { agentId: 'b', agentName: 'B' },
-      },
-      { toolName: 'webSearch', state: 'call' },
-    ]);
-    expect(workingAgents(turn)).toEqual([{ id: 'b', name: 'B' }]);
-  });
-
-  it('is empty without a message or without calls', () => {
-    expect(workingAgents(undefined)).toEqual([]);
-    expect(workingAgents(message(undefined))).toEqual([]);
+describe('agentMessageId', () => {
+  it('is one id per agent in a turn, so the call and the answer share a message', () => {
+    expect(agentMessageId('msg-1', 'agent-lumi')).toBe('msg-1-agent-agent-lumi');
+    expect(agentMessageId('msg-1', 'agent-lumi')).toBe(agentMessageId('msg-1', 'agent-lumi'));
+    expect(agentMessageId('msg-2', 'agent-lumi')).not.toBe(agentMessageId('msg-1', 'agent-lumi'));
   });
 });

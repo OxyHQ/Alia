@@ -1,4 +1,4 @@
-import type { ChatMessage, ToolInvocation } from '../types';
+import type { ToolInvocation } from '../types';
 
 /** The tools that hand a question to another agent. */
 const DELEGATION_TOOLS = new Set(['delegateToAgent', 'askAgent']);
@@ -25,13 +25,10 @@ export function delegatedAgent(invocation: ToolInvocation): WorkingAgent | null 
   return { id, name };
 }
 
-/** The agents still working on a delegation of this message: called, not yet answered. */
-export function workingAgents(message: ChatMessage | undefined): WorkingAgent[] {
-  const working = new Map<string, WorkingAgent>();
-  for (const invocation of message?.toolInvocations ?? []) {
-    if (invocation.state === 'result') continue;
-    const agent = delegatedAgent(invocation);
-    if (agent) working.set(agent.id, agent);
-  }
-  return [...working.values()];
-}
+/**
+ * The id of an agent's message in a turn. A delegation call creates it empty (the agent is
+ * thinking) and the agent's answer fills the same message, so one element carries the avatar from
+ * thinking to answered.
+ */
+export const agentMessageId = (assistantId: string, agentId: string) =>
+  `${assistantId}-agent-${agentId}`;

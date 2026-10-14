@@ -1,5 +1,7 @@
+import { AvatarAnchor } from '@oxy.so/bloom/avatar-flight';
 import { Text } from '@oxy.so/bloom/typography';
 import { View } from 'react-native';
+import { ALIA_ANCHORS, useAliaFlights } from '../lib/flights';
 import { greetingLines } from '../lib/greeting';
 import { AliaAvatar } from './AliaAvatar';
 
@@ -18,10 +20,19 @@ export interface AliaWelcomeMessageProps {
  * suggestions are not part of it; they sit over the composer (`ComposerSuggestions`).
  */
 export function AliaWelcomeMessage({ greeting, subtitle, markSize = 88 }: AliaWelcomeMessageProps) {
+  const flights = useAliaFlights();
+  const avatar = <AliaAvatar size={markSize} interactive />;
   return (
     <View className="items-center gap-2">
       <View className="items-center justify-center gap-4">
-        <AliaAvatar size={markSize} interactive />
+        {/* It flies up into the header's profile when the conversation begins. */}
+        {flights ? (
+          <AvatarAnchor flights={flights} anchor={ALIA_ANCHORS.welcome}>
+            {avatar}
+          </AvatarAnchor>
+        ) : (
+          avatar
+        )}
         <Text selectable={false} className="max-w-xs shrink text-center text-4xl text-text-primary">
           {greetingLines(greeting).join('\n')}
         </Text>

@@ -2,10 +2,18 @@
 
 ## Unreleased
 
-- **A delegated agent thinks with its own avatar.** While Alia waits on a `delegateToAgent` /
-  `askAgent` call, the thread shows that agent's avatar thinking (Bloom's `AgentReplyIdentity`,
-  as in the multi-agent chat), where its answer will land; the answer replaces it. The agent is
-  read from the call's arguments (`agentId` and `agentName`, or `agent`).
+- **The one who answers thinks with its own avatar, and it is the same avatar that settles under
+  the reply** (Bloom's `AgentReplyIdentity`, as in the multi-agent chat). While Alia works, her
+  avatar is the indicator, large with "Thinking…", where the `AgentThinking` line was; when her
+  text starts it shrinks under it with her name. A call to an agent (`delegateToAgent` /
+  `askAgent`, its `agentId` and `agentName` or `agent` arguments) opens the agent's message at
+  once, empty and thinking, and its answer fills that same message, so the avatar never remounts;
+  an agent that never answers leaves no message. Alia's reply now carries her identity row, as the
+  agents' do.
+- **The greeting's avatar flies up into the header's profile** as the conversation begins
+  (Bloom's `avatar-flight`: `useAvatarFlights`, `AvatarAnchor`, `AvatarFlightLayer`), across the
+  main and conversation sheets. `AgentProfile`'s new `avatarHidden` keeps the header's avatar
+  waiting for it. Needs a Bloom with `avatar-flight` (after 10.3).
 - **`AliaChatSheet` opens the conversation in a second sheet stacked over the main one.** The
   main sheet stays on the greeting, the suggestions and the composer; the first turn (typed or a
   suggestion) opens a fresh conversation sheet on top, whose back button (and the menu's Clear)
