@@ -287,7 +287,7 @@
         "@oxy.so/core": "4.5.0-oxy-one.1",
         "@oxy.so/db": "^1.0.0",
         "@oxy.so/mcp": "1.1.0",
-        "@oxy.so/utils": "^1.0.1",
+        "@oxy.so/utils": "^1.1.0",
         "@socket.io/redis-adapter": "^8.3.0",
         "@syra.fm/sdk": "^0.14.0",
         "adm-zip": "^0.6.0",
@@ -1174,7 +1174,7 @@
 
     "@oxy.so/telemetry": ["@oxy.so/telemetry@1.2.0", "", {}, "sha512-ryydgkL5jDUVzpG0I2O1/QF+AHYITpaHdqABXdno23J7kYeijUO+QBIXEEQxCBy/9S7AslqDvHwhWpFsGLLrzA=="],
 
-    "@oxy.so/utils": ["@oxy.so/utils@1.0.1", "", {}, "sha512-7bZTyXBd5z99D9zsm3k1BSHSODsUxnTZOZd9sPBuip59E71v08hYAwCHqqQIpitwLeFxDpgwADfyaP3s82gRUA=="],
+    "@oxy.so/utils": ["@oxy.so/utils@1.1.0", "", {}, "sha512-wzrwpaItBPvBHWsy4czL8UbzrbE6V9JM2T+T01HMs/MPA7X3gvLrfdHGhitLEhSsFaFqIAsTEmEU917xIARcVQ=="],
 
     "@parcel/watcher": ["@parcel/watcher@2.5.6", "", { "dependencies": { "detect-libc": "^2.0.3", "is-glob": "^4.0.3", "node-addon-api": "^7.0.0", "picomatch": "^4.0.3" }, "optionalDependencies": { "@parcel/watcher-android-arm64": "2.5.6", "@parcel/watcher-darwin-arm64": "2.5.6", "@parcel/watcher-darwin-x64": "2.5.6", "@parcel/watcher-freebsd-x64": "2.5.6", "@parcel/watcher-linux-arm-glibc": "2.5.6", "@parcel/watcher-linux-arm-musl": "2.5.6", "@parcel/watcher-linux-arm64-glibc": "2.5.6", "@parcel/watcher-linux-arm64-musl": "2.5.6", "@parcel/watcher-linux-x64-glibc": "2.5.6", "@parcel/watcher-linux-x64-musl": "2.5.6", "@parcel/watcher-win32-arm64": "2.5.6", "@parcel/watcher-win32-ia32": "2.5.6", "@parcel/watcher-win32-x64": "2.5.6" } }, "sha512-tmmZ3lQxAe/k/+rNnXQRawJ4NjxO2hqiOLTHvWchtGZULp4RyFeh6aU4XdOYBFe2KE1oShQTv4AblOs2iOrNnQ=="],
 
