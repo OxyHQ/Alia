@@ -1,46 +1,14 @@
 import { englishWorkLog, type Translate } from './work-log-copy';
 
-/** Tools that have a name of their own in the catalogue. Others are named from their id. */
-const NAMED_PILL = new Set([
-  'browse',
-  'webSearch',
-  'webScraper',
-  'generateFile',
-  'sendTelegramMessage',
-  'sendSlack',
-  'sendDiscord',
-  'sendSignal',
-  'sendEmail',
-  'delegateToAgent',
-  'askAgent',
-  // The API's app router: the model opening a connected app whose tools did not all fit in
-  // one request.
-  'useApps',
-  'agentSearch',
-  'userMemory',
-  'shellExec',
-  'fileEdit',
-  'codeInterpreter',
-]);
-
-/** Tools whose finished label differs from the running one; the rest read the same. */
-const NAMED_DONE = new Set([
-  'browse',
-  'webScraper',
-  'generateFile',
-  'delegateToAgent',
-  'askAgent',
-  'useApps',
-  'agentSearch',
-  'userMemory',
-  'shellExec',
-  'fileEdit',
-  'codeInterpreter',
-]);
+/** Whether the catalogue names this tool itself; otherwise the label is made from its id. */
+function isNamed(kind: 'pill' | 'done', toolName: string): boolean {
+  const key = `tasks.tool.${kind}.${toolName}`;
+  return englishWorkLog(key) !== key;
+}
 
 /** A tool's short label, in the reader's language when a translator is given. */
 export function getToolPillLabel(toolName: string, t: Translate = englishWorkLog): string {
-  if (NAMED_PILL.has(toolName)) return t(`tasks.tool.pill.${toolName}`);
+  if (isNamed('pill', toolName)) return t(`tasks.tool.pill.${toolName}`);
 
   // Oxy service tools: oxy_serviceName__toolName → "ServiceName"
   if (toolName.startsWith('oxy_')) {
@@ -61,7 +29,7 @@ export function getToolPillLabel(toolName: string, t: Translate = englishWorkLog
  * ("Telegram", "Email") read the same either way, so they fall back to the running label.
  */
 export function getToolDoneLabel(toolName: string, t: Translate = englishWorkLog): string {
-  return NAMED_DONE.has(toolName)
+  return isNamed('done', toolName)
     ? t(`tasks.tool.done.${toolName}`)
     : getToolPillLabel(toolName, t);
 }

@@ -8,7 +8,7 @@ import {
 import { RiArrowLeftLine, RiDeleteBin6Line, RiMoreFill, RiShare2Line } from '@oxy.so/bloom/icons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { AgentProfile } from '@oxy.so/bloom/agent-reply';
-import { type ReactNode, useMemo } from 'react';
+import { memo, type ReactNode, useMemo } from 'react';
 import { agentCharacter } from '../lib/agent-character';
 import { useLabels } from '../lib/labels';
 import { ALIA_ANCHORS, useAliaFlights } from '../lib/flights';
@@ -67,7 +67,7 @@ const noop = () => undefined;
  * there is a conversation: the empty chat already shows the avatar beside its greeting,
  * so the bar carries just its buttons until then.
  */
-export function AliaChatHeader({
+export const AliaChatHeader = memo(function AliaChatHeader({
   hasMessages,
   agents = [],
   onClear,
@@ -141,4 +141,4 @@ export function AliaChatHeader({
       safeArea={false}
     />
   );
-}
+});

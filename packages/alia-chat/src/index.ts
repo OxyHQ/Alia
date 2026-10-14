@@ -89,13 +89,7 @@ export { getTextFromContent, getImagesFromContent } from './lib/content-utils';
 // ── The turn's work log: tool calls as Bloom's `WebSearch` and `TaskList` ──
 export { isWebInvocation, taskListLog, webSearchLog } from './lib/work-log';
 export type { LiveResearch, TaskListLog, WebSearchLog, WorkLogOptions } from './lib/work-log';
-export { englishWorkLog } from './lib/work-log-copy';
-export type { Translate } from './lib/work-log-copy';
-export { getToolDoneLabel, getToolPillLabel } from './lib/task-labels';
-export { extractCitationSources } from './lib/citations';
-export type { CitationSource } from './lib/citations';
-export { toolCallStatus } from './lib/tool-call-status';
-export type { ToolCallStatus } from './lib/tool-call-status';
+// The pure parts (call status, citations, tool labels, `Translate`) are `@alia.onl/sdk/tools`.
 
 // ── Picker hooks ──
 export { useImagePicker } from './hooks/useImagePicker';

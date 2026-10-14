@@ -10,6 +10,7 @@ import type { TaskListChip, TaskListStep, TaskListTask } from '@oxy.so/bloom/tas
 import type { WebSearchBrand, WebSearchSource, WebSearchStep } from '@oxy.so/bloom/web-search';
 import type { ToolInvocation } from '../types';
 import { extractCitationSources } from './citations';
+import { domainOf } from './domain';
 import { getToolDoneLabel, getToolPillLabel } from './task-labels';
 import { toolCallStatus } from './tool-call-status';
 import { englishWorkLog, type Translate } from './work-log-copy';
@@ -61,14 +62,6 @@ export function isWebInvocation(inv: Pick<ToolInvocation, 'toolName'>): boolean 
 
 function str(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
-}
-
-function domainOf(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url;
-  }
 }
 
 /** The site marks Bloom draws, by registrable domain. Anything else is a quiet dot. */

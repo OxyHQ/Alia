@@ -729,7 +729,8 @@ function useSidebarProps() {
   const props = {
     // The panel's own header stays above the tools: the mark and name (home), and the collapse control.
     logo: {
-      icon: <AliaAvatar size={26} />,
+      // A still thumbnail: a permanent 26px spot should not hold a live 3D renderer on every page.
+      icon: <AliaAvatar size={26} portrait />,
       wordmark: 'Alia',
       onPress: () => {
         closeNav?.();

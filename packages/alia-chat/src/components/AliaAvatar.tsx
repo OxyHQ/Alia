@@ -1,5 +1,5 @@
 import { AgentAvatar, type AvatarCharacter } from '@oxy.so/bloom/agent-avatar';
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 
 /** What Alia is doing; the avatar plays a working turn each time it starts to think or work. */
 export type AliaAvatarState = 'idle' | 'thinking' | 'working' | 'writing';
@@ -26,6 +26,8 @@ export interface AliaAvatarProps {
   interactive?: boolean;
   /** Change it to replay the avatar's reaction (a wave) — for a button that wraps it. */
   reactionKey?: number;
+  /** A still thumbnail instead of a live 3D avatar: for small, permanent spots like a sidebar. */
+  portrait?: boolean;
 }
 
 /**
@@ -33,11 +35,12 @@ export interface AliaAvatarProps {
  * app must mount `AgentAvatarProvider` with the URL of the hosted `character-runtime`;
  * without it Bloom shows its own "unavailable" state.
  */
-export function AliaAvatar({
+export const AliaAvatar = memo(function AliaAvatar({
   size,
   state = 'idle',
   interactive = false,
   reactionKey,
+  portrait = false,
 }: AliaAvatarProps) {
   const [workingKey, setWorkingKey] = useState(0);
   const busy = BUSY.has(state);
@@ -53,6 +56,7 @@ export function AliaAvatar({
       workingKey={workingKey}
       interactive={interactive}
       reactionKey={reactionKey}
+      portrait={portrait}
     />
   );
-}
+});

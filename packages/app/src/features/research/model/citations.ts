@@ -1,4 +1,4 @@
-import type { CitationSource } from '@alia.onl/sdk/tools';
+import { type CitationSource, domainOf as hostOf } from '@alia.onl/sdk/tools';
 
 /**
  * Citations — the `[n]` markers in a research answer, resolved to the sources
@@ -24,6 +24,9 @@ import type { CitationSource } from '@alia.onl/sdk/tools';
 // One definition of the numbered sources, the SDK's, so its chat and this app agree.
 export type { CitationSource } from '@alia.onl/sdk/tools';
 export { extractCitationSources } from '@alia.onl/sdk/tools';
+
+/** A source's site as a citation names it: the host without a leading `www.`. */
+const domainOf = (url: string) => hostOf(url, { stripWww: true });
 
 const FULLWIDTH_MARKER_RE = /【\s*(\d{1,3})\s*(?:†[^】]*)?】/g;
 const ASCII_DAGGER_MARKER_RE = /\[(\d{1,3})†[^\]]*\]/g;
@@ -53,14 +56,6 @@ export function normalizeCitationMarkers(text: string, knownIds?: Iterable<numbe
   }
 
   return out;
-}
-
-function domainOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return url;
-  }
 }
 
 /**

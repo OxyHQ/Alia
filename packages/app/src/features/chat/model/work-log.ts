@@ -4,11 +4,11 @@ import {
   isWebInvocation,
   type LiveResearch,
   type TaskListLog,
-  type Translate,
   taskListLog as sdkTaskListLog,
   type WebSearchLog,
   webSearchLog as sdkWebSearchLog,
 } from '@alia.onl/sdk';
+import type { Translate } from '@alia.onl/sdk/tools';
 
 /**
  * A turn's tool calls, as the two Bloom logs draw them — the SDK's work log with the app's

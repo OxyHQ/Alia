@@ -17,12 +17,11 @@
  * `livekit-client` never enters the bundle.
  */
 
-import React from 'react';
-import { useTheme } from '@oxy.so/bloom/theme';
+import React, { useCallback } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from '../lib/keyboard';
-import { AliaChatContent } from './AliaChatContent';
+import { AliaChatContent, type AliaChatContentProps } from './AliaChatContent';
 import { AliaChatHeader } from './AliaChatHeader';
 import type { AliaSuggestion } from '../types';
 import type { AliaChatLabels } from '../lib/labels';
@@ -82,8 +81,6 @@ export function AliaChatScreen({
   labels,
 }: AliaChatScreenProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
-
   // The screen owns the whole window, so it keeps its composer out of both
   // system bars: the top inset clears the status bar, the bottom one the
   // gesture bar or home indicator an edge-to-edge app draws over.
@@ -94,14 +91,26 @@ export function AliaChatScreen({
   // keyboard's height minus the inset: the composer sits on the keyboard, not
   // one inset above it. (Its parent-relative layout would read as zero overlap
   // this deep in a host's tree, which is why the offset is measured.)
+  const header = useCallback<NonNullable<AliaChatContentProps['header']>>(
+    ({ hasMessages, clear, agents: answered }) => (
+      <AliaChatHeader
+        hasMessages={hasMessages}
+        agents={answered}
+        onClear={clear}
+        onBack={onBack}
+        onShare={onShare}
+        menu={headerMenu}
+        leading={headerLeft}
+        trailing={headerRight}
+      />
+    ),
+    [onBack, onShare, headerMenu, headerLeft, headerRight],
+  );
+
   return (
     <View
-      className="flex-1"
-      style={{
-        backgroundColor: colors.background,
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom,
-      }}
+      className="flex-1 bg-background-full"
+      style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
     >
       <KeyboardAvoidingView behavior="padding" automaticOffset style={{ flex: 1 }}>
         <AliaChatContent
@@ -116,19 +125,7 @@ export function AliaChatScreen({
           isDarkMode={isDarkMode}
           voiceSession={voiceSession}
           labels={labels}
-          title={null}
-          headerLeading={({ hasMessages, clear, agents }) => (
-            <AliaChatHeader
-              hasMessages={hasMessages}
-              agents={agents}
-              onClear={clear}
-              onBack={onBack}
-              onShare={onShare}
-              menu={headerMenu}
-              leading={headerLeft}
-              trailing={headerRight}
-            />
-          )}
+          header={header}
         />
       </KeyboardAvoidingView>
     </View>

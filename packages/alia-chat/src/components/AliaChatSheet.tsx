@@ -156,9 +156,6 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       voiceSession,
       bottomInset: detached ? 0 : bottom,
       labels,
-      // The top padding clears the 28px drag handle, which Bloom floats over the content
-      // instead of reserving room for.
-      title: null,
     };
 
     return (
@@ -203,7 +200,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
               onStopReady={registerConversationStop}
               // The bar is the conversation's: back to the main screen, the profile, share and
               // the menu.
-              headerLeading={({ agents }) => (
+              header={({ agents }) => (
                 <View className="pt-8">
                   <AliaChatHeader
                     hasMessages
