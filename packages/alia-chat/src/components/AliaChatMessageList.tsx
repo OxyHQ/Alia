@@ -13,6 +13,7 @@ import { TaskList } from '@oxy.so/bloom/task-list';
 import { Text } from '@oxy.so/bloom/typography';
 import { WebSearch } from '@oxy.so/bloom/web-search';
 import { AliaMarkdown } from './Markdown';
+import { workingAgents } from '../lib/delegation';
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
 import { AiChatMessageLine, AiChatThread, AiChatUserMessage } from '@oxy.so/bloom/ai-chat';
 import {
@@ -461,8 +462,28 @@ export function AliaChatMessageList({
             const isStreamingThis = isStreaming && isLast;
             const messageText = getTextFromContent(msg.content);
 
+            // The agents Alia has called and that have not answered yet: each one's avatar, thinking,
+            // where its answer will land — before Alia's own message, as the answers are placed.
+            const working = isStreamingThis && msg.role === 'assistant' ? workingAgents(msg) : [];
+
             return (
               <Animated.View key={msg.id} entering={isNewMessage ? chatMessageEnter : undefined}>
+                {working.map((agent) => (
+                  <AgentReply
+                    key={`working-${agent.id}`}
+                    identity={
+                      <AgentReplyIdentity
+                        character={agentCharacter(agent.id)}
+                        name={agent.name}
+                        thinking
+                        workingKey={agent.id}
+                      />
+                    }
+                    style={{ marginHorizontal: 0, marginTop: 0, maxWidth: '100%', marginBottom: 8 }}
+                  >
+                    {null}
+                  </AgentReply>
+                ))}
                 {msg.role === 'user' ? (
                   <UserBubble
                     message={msg}

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **A delegated agent thinks with its own avatar.** While Alia waits on a `delegateToAgent` /
+  `askAgent` call, the thread shows that agent's avatar thinking (Bloom's `AgentReplyIdentity`,
+  as in the multi-agent chat), where its answer will land; the answer replaces it. The agent is
+  read from the call's arguments (`agentId` and `agentName`, or `agent`).
 - **`AliaChatSheet` opens the conversation in a second sheet stacked over the main one.** The
   main sheet stays on the greeting, the suggestions and the composer; the first turn (typed or a
   suggestion) opens a fresh conversation sheet on top, whose back button (and the menu's Clear)
