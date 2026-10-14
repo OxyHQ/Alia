@@ -38,7 +38,7 @@
         "next-themes": "^0.4.6",
         "radix-ui": "^1.6.2",
         "react": "19.2.0",
-        "react-dom": "19.2.0",
+        "react-dom": "19.3.0",
         "react-native-gesture-handler": "3.3.0",
         "react-native-qrcode-svg": "^6.3.21",
         "react-native-safe-area-context": "~5.8.0",
@@ -52,7 +52,7 @@
       "devDependencies": {
         "@types/node": "^24.13.3",
         "@types/react": "^19.2.17",
-        "@types/react-dom": "^19.2.3",
+        "@types/react-dom": "^19.3.0",
         "@vitejs/plugin-react": "^5.2.0",
         "typescript": "~5.9.3",
         "vite": "npm:rolldown-vite@^7.3.1",
@@ -62,7 +62,7 @@
     },
     "packages/alia-chat": {
       "name": "@alia.onl/sdk",
-      "version": "12.0.0",
+      "version": "13.0.0",
       "dependencies": {
         "clsx": "^2.1.1",
         "react-native-markdown-display": "^7.0.2",
@@ -175,7 +175,7 @@
         "lucide-react": "^1.55.0",
         "radix-ui": "^1.6.2",
         "react": "^19.2.3",
-        "react-dom": "^19.2.3",
+        "react-dom": "^19.3.0",
         "react-markdown": "^10.1.0",
         "react-native-web": "^0.21.2",
         "shadcn": "^4.13.0",
@@ -188,7 +188,7 @@
       "devDependencies": {
         "@types/node": "^24.13.3",
         "@types/react": "^19.2.17",
-        "@types/react-dom": "^19.2.3",
+        "@types/react-dom": "^19.3.0",
         "@vitejs/plugin-react": "^5.2.0",
         "typescript": "~5.9.3",
         "vite": "npm:rolldown-vite@^7.3.1",
@@ -233,7 +233,7 @@
         "playwright": "^1.61.1",
         "radix-ui": "^1.6.2",
         "react": "19.2.0",
-        "react-dom": "19.2.0",
+        "react-dom": "19.3.0",
         "react-markdown": "^10.1.0",
         "shadcn": "^3.8.5",
         "tailwind-merge": "^3.7.0",
@@ -244,7 +244,7 @@
         "@types/gulp": "^4.0.18",
         "@types/node": "^20.19.43",
         "@types/react": "^19.2.17",
-        "@types/react-dom": "^19.2.3",
+        "@types/react-dom": "^19.3.0",
         "autoprefixer": "^10.5.2",
         "electron": "^43.1.0",
         "electron-builder": "^26.15.3",
@@ -383,7 +383,7 @@
         "lightningcss": "1.33.0",
         "nativewind": "5.0.0-preview.3",
         "react": "19.2.3",
-        "react-dom": "19.2.3",
+        "react-dom": "19.3.0",
         "react-native": "0.86.0",
         "react-native-css": "^3.0.7",
         "react-native-gesture-handler": "~3.3.0",
@@ -1724,7 +1724,7 @@
 
     "@types/react": ["@types/react@19.2.17", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-MXfmqaVPEVgkBT/aY0aGCkRWWtByiYQXo3xdQ8r5RzuFrPiRn8Gar2tQdXSUQ2GKV3bkXckek89V8wQBY2Q/Aw=="],
 
-    "@types/react-dom": ["@types/react-dom@19.2.3", "", { "peerDependencies": { "@types/react": "^19.2.0" } }, "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ=="],
+    "@types/react-dom": ["@types/react-dom@19.3.0", "", { "peerDependencies": { "@types/react": "^19.3.0" } }, "sha512-ZI7bU42mZXXKHn/qNLEw2IrbiINU7X5+vfgdixBHkCNpYWXjKgfQ/P+uyGb5CjOLB9UcnTeg3rylQtV2hym44Q=="],
 
     "@types/react-test-renderer": ["@types/react-test-renderer@19.1.0", "", { "dependencies": { "@types/react": "*" } }, "sha512-XD0WZrHqjNrxA/MaR9O22w/RNidWR9YZmBdRGI7wcnWGrv/3dA8wKCJ8m63Sn+tLJhcjmuhOi629N66W6kgWzQ=="],
 
