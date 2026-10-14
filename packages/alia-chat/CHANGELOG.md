@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **`AliaChatSheet` opens the conversation in a second sheet stacked over the main one.** The
+  main sheet stays on the greeting, the suggestions and the composer; the first turn (typed or a
+  suggestion) opens a fresh conversation sheet on top, whose back button (and the menu's Clear)
+  closes just that sheet, back to the main screen. A phone gets sheets flush with the screen
+  edges, with the composer clearing the home indicator; from tablet width (768 px) they float.
+  `AliaChatContent` gains `onStart` (hand an empty chat's first turn to the host) and
+  `initialTurn` (a turn sent once on mount).
 - **The empty chat looks and behaves like the Alia app's, from the same code.** The avatar sits
   beside the greeting (`AliaWelcomeMessage`, now just the greeting: always side by side, no
   `hideMark`, no suggestions) and the header shows Alia's profile only once there is a

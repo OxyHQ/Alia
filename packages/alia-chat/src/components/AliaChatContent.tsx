@@ -71,6 +71,12 @@ export interface AliaChatState {
   agents: AliaChatAgent[];
 }
 
+/** A turn of the person's: the text, and the photos (`data:` or `https:` URLs) sent with it. */
+export interface AliaTurn {
+  text: string;
+  images?: ReadonlyArray<string>;
+}
+
 export interface AliaChatContentProps {
   clientContext?: string;
   model?: string;
@@ -116,6 +122,13 @@ export interface AliaChatContentProps {
    * chat is flush with the screen (a phone sheet). The ambient background still runs behind it.
    */
   bottomInset?: number;
+  /**
+   * Hands the first turn of an empty chat to the host instead of sending it here — a sheet opens
+   * the conversation in a new sheet over this one. Omitted, the chat sends it itself.
+   */
+  onStart?: (turn: AliaTurn) => void;
+  /** A turn sent once as this chat mounts: the conversation a sheet was opened for. */
+  initialTurn?: AliaTurn;
   /** Internal sheet lifecycle bridge: receives the live request canceller. */
   onStopReady?: (stop: (() => void) | null) => void;
   /** Overrides for the chat's own copy; anything omitted is English. */
@@ -180,6 +193,8 @@ function AliaChatContentBody({
   isDarkMode,
   voiceSession: VoiceSession,
   bottomInset = 0,
+  onStart,
+  initialTurn,
   onStopReady,
 }: AliaChatContentProps) {
   const labels = useLabels();
@@ -207,6 +222,24 @@ function AliaChatContentBody({
   const [dismissedQuestionsOf, setDismissedQuestionsOf] = useState<string | null>(null);
   const asking = questionsAsked.length > 0 && dismissedQuestionsOf !== lastMessage?.id;
   const chatState: AliaChatState = { hasMessages: messages.length > 0, clear, agents };
+
+  // The first turn of an empty chat goes to the host when it asked for it; every other turn is sent here.
+  const startsElsewhere = onStart !== undefined && messages.length === 0;
+  const submitTurn = useCallback(
+    (text: string, images?: ReadonlyArray<string>) => {
+      if (startsElsewhere) onStart({ text, images });
+      else send(text, images ? { images } : undefined);
+    },
+    [startsElsewhere, onStart, send],
+  );
+
+  // The conversation this chat was opened for, sent once.
+  const initialSent = useRef(false);
+  useEffect(() => {
+    if (!initialTurn || initialSent.current) return;
+    initialSent.current = true;
+    send(initialTurn.text, initialTurn.images ? { images: initialTurn.images } : undefined);
+  }, [initialTurn, send]);
 
   useEffect(() => {
     onStopReady?.(stop);
@@ -245,9 +278,9 @@ function AliaChatContentBody({
   const handlePickSuggestion = useCallback(
     (suggestion: AliaSuggestion) => {
       setInputValue('');
-      send(suggestion.text);
+      submitTurn(suggestion.text);
     },
-    [send],
+    [submitTurn],
   );
   const suggestions = useComposerSuggestions({
     draft: inputValue,
@@ -266,7 +299,7 @@ function AliaChatContentBody({
       setPhotos([]);
       try {
         const images = await Promise.all(pending.map((photo) => imageUriToDataUrl(photo.uri)));
-        send(text, { images });
+        submitTurn(text, images);
       } catch (err) {
         // Keep the draft: the photos could not be read, nothing was sent.
         setInputValue(value);
@@ -274,7 +307,7 @@ function AliaChatContentBody({
         reportError(err instanceof Error ? err.message : 'Could not attach the photos');
       }
     },
-    [send, photos, reportError],
+    [submitTurn, photos, reportError],
   );
 
   // ── Dictation: the pill's mic toggles it, the transcript lands in the field ──
