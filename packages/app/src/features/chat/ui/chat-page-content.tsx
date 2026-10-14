@@ -3,10 +3,7 @@ import { ChatWorkspace } from '@/features/chat/ui/chat-workspace';
 import type { WelcomeIntroSlots } from '@/features/chat/ui/welcome-intro';
 import { Composer } from '@/features/chat/ui/composer/composer';
 import { useAliaComposer } from '@/features/chat/ui/composer/use-alia-composer';
-import {
-  ComposerSuggestions,
-  useComposerSuggestions,
-} from '@/features/chat/ui/composer/composer-suggestions';
+import { useComposerSuggestions } from '@/features/chat/ui/composer/composer-suggestions';
 import { useCreditWarnings } from '@/features/chat/runtime/use-credit-warnings';
 import { useLocalModelsInvite } from '@/features/chat/runtime/use-local-models-invite';
 import { useEntitlements } from '@/features/billing/runtime/use-billing';
@@ -33,7 +30,7 @@ import type { ThreadMessage } from '@/features/chat/model/thread-history';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
 import type { Message } from '@/features/chat/model/chat';
 import { useTTS } from '@/features/voice/runtime/use-tts';
-import { AmbientField, VoiceModeIcon } from '@alia.onl/sdk';
+import { AmbientField, ComposerSuggestions, VoiceModeIcon } from '@alia.onl/sdk';
 import { VoiceControls, useAmbientWave } from '@alia.onl/sdk/voice';
 import { AiChatMobileHeader, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';

@@ -5,7 +5,7 @@ import type { AliaChatLabels } from '../lib/labels';
 import type { VoiceSessionComponent } from '../types';
 import { AliaChatContent } from './AliaChatContent';
 import { AliaChatHeader } from './AliaChatHeader';
-import type { WelcomeSuggestion } from './AliaWelcomeMessage';
+import type { AliaSuggestion } from '../types';
 
 /**
  * TODO(bloom): drop this once Bloom's sheet is rounder by default. Its detached
@@ -28,7 +28,11 @@ export interface AliaChatSheetProps {
   /** Welcome screen subtitle */
   welcomeSubtitle?: string;
   /** Welcome screen suggestions */
-  welcomeSuggestions?: WelcomeSuggestion[];
+  welcomeSuggestions?: AliaSuggestion[];
+  /** What the host found for the typed text, shown over the composer (see `onSuggestionQuery`). */
+  suggestionMatches?: AliaSuggestion[];
+  /** The typed text, once typing has settled, for the host to search suggestions with. */
+  onSuggestionQuery?: (query: string) => void;
   /** Dark-mode flag — forwarded to the ambient wave overlay (defaults to the sheet's own color scheme). */
   isDarkMode?: boolean;
   /**
@@ -55,6 +59,8 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       welcomeGreeting,
       welcomeSubtitle,
       welcomeSuggestions,
+      suggestionMatches,
+      onSuggestionQuery,
       isDarkMode,
       voiceSession,
       labels,
@@ -107,6 +113,8 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
           welcomeGreeting={welcomeGreeting}
           welcomeSubtitle={welcomeSubtitle}
           welcomeSuggestions={welcomeSuggestions}
+          suggestionMatches={suggestionMatches}
+          onSuggestionQuery={onSuggestionQuery}
           isDarkMode={isDarkMode ?? isDark}
           voiceSession={voiceSession}
           labels={labels}

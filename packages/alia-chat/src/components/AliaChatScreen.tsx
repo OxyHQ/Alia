@@ -24,7 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from '../lib/keyboard';
 import { AliaChatContent } from './AliaChatContent';
 import { AliaChatHeader } from './AliaChatHeader';
-import type { WelcomeSuggestion } from './AliaWelcomeMessage';
+import type { AliaSuggestion } from '../types';
 import type { AliaChatLabels } from '../lib/labels';
 import type { VoiceSessionComponent } from '../types';
 
@@ -44,7 +44,11 @@ export interface AliaChatScreenProps {
   /** Welcome screen subtitle */
   welcomeSubtitle?: string;
   /** Welcome screen suggestions */
-  welcomeSuggestions?: WelcomeSuggestion[];
+  welcomeSuggestions?: AliaSuggestion[];
+  /** What the host found for the typed text, shown over the composer (see `onSuggestionQuery`). */
+  suggestionMatches?: AliaSuggestion[];
+  /** The typed text, once typing has settled, for the host to search suggestions with. */
+  onSuggestionQuery?: (query: string) => void;
   /** Dark-mode flag — forwarded to the ambient wave overlay. */
   isDarkMode?: boolean;
   /** Voice capability — `VoiceSession` from `@alia.onl/sdk/voice`. */
@@ -62,6 +66,8 @@ export function AliaChatScreen({
   welcomeGreeting,
   welcomeSubtitle,
   welcomeSuggestions,
+  suggestionMatches,
+  onSuggestionQuery,
   isDarkMode,
   voiceSession,
   labels,
@@ -96,6 +102,8 @@ export function AliaChatScreen({
           welcomeGreeting={welcomeGreeting}
           welcomeSubtitle={welcomeSubtitle}
           welcomeSuggestions={welcomeSuggestions}
+          suggestionMatches={suggestionMatches}
+          onSuggestionQuery={onSuggestionQuery}
           isDarkMode={isDarkMode}
           voiceSession={voiceSession}
           labels={labels}

@@ -74,6 +74,7 @@ vi.mock('@alia.onl/sdk', async () => {
   const ReactModule = await import('react');
   return {
     VoiceModeIcon: () => null,
+    ComposerSuggestions: () => null,
     AmbientField: (props: Record<string, unknown>) =>
       ReactModule.createElement('AmbientField', props),
   };
@@ -96,7 +97,6 @@ vi.mock('@/features/chat/ui/composer/use-alia-composer', () => ({
   }),
 }));
 vi.mock('@/features/chat/ui/composer/composer-suggestions', () => ({
-  ComposerSuggestions: () => null,
   useComposerSuggestions: () => ({ completions: [], selected: null, onKeyPress: vi.fn() }),
 }));
 vi.mock('@/features/billing/runtime/use-billing', () => ({

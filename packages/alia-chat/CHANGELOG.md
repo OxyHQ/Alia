@@ -2,10 +2,18 @@
 
 ## Unreleased
 
-- **The empty chat has the avatar beside its greeting, and the header shows Alia's profile only
-  once there is a conversation.** `AliaWelcomeMessage` always draws the avatar and greeting side
-  by side (a sheet's width is not the window's, so the app's `md` breakpoint stacked it) and
-  loses its `hideMark` prop; `AliaChatHeader` carries just its buttons until a message exists.
+- **The empty chat looks and behaves like the Alia app's, from the same code.** The avatar sits
+  beside the greeting (`AliaWelcomeMessage`, now just the greeting: always side by side, no
+  `hideMark`, no suggestions) and the header shows Alia's profile only once there is a
+  conversation. The suggestions are one-line rows **over the composer** (`ComposerSuggestions`),
+  and from two typed characters they become matches with the typed part highlighted, arrows /
+  Enter / Escape through the composer's `onKeyPress`. The app now draws its greeting and its
+  suggestions with these same components and only supplies its API's data.
+- **Breaking:** `WelcomeSuggestion { id, title, description }` becomes `AliaSuggestion { id, text }`
+  (`text` is what is shown and what is sent). New optional props on the sheet, screen and content:
+  `suggestionMatches` and `onSuggestionQuery(query)`, so a host can search as the person types.
+  New exports: `ComposerSuggestions`, `useComposerSuggestions`, `useSuggestionQuery`,
+  `composerCompletions`, `Completion`, `AliaSuggestion`.
 
 - **Bloom is a peer at `^10.0.0`** (was `^9.0.0`). Bloom 10 makes an avatar one flat
   `AvatarCharacter`; `AliaAvatar` is `{ preset: 'blue_beret', accessory: 'none', color: 'orchid' }`

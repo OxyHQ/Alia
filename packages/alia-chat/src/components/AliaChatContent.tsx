@@ -26,7 +26,9 @@ import { imageUriToDataUrl } from '../lib/image-data-url';
 import { useAmbientWave } from '../hooks/useAmbientWave';
 import { AmbientField } from './AmbientField';
 import { AliaChatMessageList } from './AliaChatMessageList';
-import { AliaWelcomeMessage, type WelcomeSuggestion } from './AliaWelcomeMessage';
+import { AliaWelcomeMessage } from './AliaWelcomeMessage';
+import { ComposerSuggestions } from './ComposerSuggestions';
+import { useComposerSuggestions, useSuggestionQuery } from '../hooks/useComposerSuggestions';
 import { ComposerLoader } from '@oxy.so/bloom/composer-loader';
 import { AiChatContainer } from '@oxy.so/bloom/ai-chat';
 import { ComposerPill, type ComposerPanelAddMenuGroup } from '@oxy.so/bloom/composer-panel';
@@ -36,7 +38,13 @@ import { Button } from '@oxy.so/bloom/button';
 import { type AliaChatLabels, AliaChatLabelsProvider, useLabels } from '../lib/labels';
 import { AliaAvatar, type AliaAvatarState } from './AliaAvatar';
 import { VoiceModeIcon } from './VoiceModeIcon';
-import type { ChatMessage, VoiceMessage, VoiceSessionComponent, VoiceSessionState } from '../types';
+import type {
+  AliaSuggestion,
+  ChatMessage,
+  VoiceMessage,
+  VoiceSessionComponent,
+  VoiceSessionState,
+} from '../types';
 
 export interface AliaChatContentProps {
   clientContext?: string;
@@ -47,7 +55,12 @@ export interface AliaChatContentProps {
   // Welcome message
   welcomeGreeting?: string;
   welcomeSubtitle?: string;
-  welcomeSuggestions?: WelcomeSuggestion[];
+  /** The lines offered over the composer on an empty chat. */
+  welcomeSuggestions?: AliaSuggestion[];
+  /** What the host found for the typed text (see `onSuggestionQuery`). */
+  suggestionMatches?: AliaSuggestion[];
+  /** The typed text, once typing has settled, for the host to search suggestions with. */
+  onSuggestionQuery?: (query: string) => void;
   // Message action callbacks
   onEditMessage?: (messageId: string, newContent: string) => void;
   onThumbsUp?: (messageId: string) => void;
@@ -125,6 +138,8 @@ function AliaChatContentBody({
   welcomeGreeting,
   welcomeSubtitle,
   welcomeSuggestions,
+  suggestionMatches,
+  onSuggestionQuery,
   onEditMessage,
   onThumbsUp,
   onThumbsDown,
@@ -181,6 +196,26 @@ function AliaChatContentBody({
     },
     [pickImage],
   );
+
+  // Suggestions over the composer on an empty chat, as the Alia app has them.
+  const suggestionQuery = useSuggestionQuery(inputValue, messages.length === 0);
+  useEffect(() => {
+    onSuggestionQuery?.(suggestionQuery);
+  }, [suggestionQuery, onSuggestionQuery]);
+  const handlePickSuggestion = useCallback(
+    (suggestion: AliaSuggestion) => {
+      setInputValue('');
+      send(suggestion.text);
+    },
+    [send],
+  );
+  const suggestions = useComposerSuggestions({
+    draft: inputValue,
+    enabled: messages.length === 0,
+    welcome: welcomeSuggestions,
+    matches: suggestionMatches,
+    onPick: handlePickSuggestion,
+  });
 
   const handleSubmit = useCallback(
     async (value: string) => {
@@ -284,14 +319,11 @@ function AliaChatContentBody({
   const welcomeComponent = useMemo(() => {
     if (!welcomeGreeting || messages.length > 0) return undefined;
     return (
-      <AliaWelcomeMessage
-        greeting={welcomeGreeting}
-        subtitle={welcomeSubtitle}
-        suggestions={welcomeSuggestions}
-        onSuggestionPress={send}
-      />
+      <View className="flex-1 items-center justify-center px-4">
+        <AliaWelcomeMessage greeting={welcomeGreeting} subtitle={welcomeSubtitle} />
+      </View>
     );
-  }, [welcomeGreeting, welcomeSubtitle, welcomeSuggestions, send, messages.length]);
+  }, [welcomeGreeting, welcomeSubtitle, messages.length]);
 
   // ── Ambient wave — one persistent overlay across idle/voice/TTS/STT ──
   const wave = useAmbientWave({
@@ -336,8 +368,14 @@ function AliaChatContentBody({
       </Suspense>
     ) : (
       <>
+        <ComposerSuggestions
+          completions={suggestions.completions}
+          selected={suggestions.selected}
+          onPick={handlePickSuggestion}
+        />
         <ComposerLoader active={isStreaming}>
           <ComposerPill
+            onKeyPress={suggestions.onKeyPress}
             surface={false}
             frosted={isStreaming}
             value={inputValue}
