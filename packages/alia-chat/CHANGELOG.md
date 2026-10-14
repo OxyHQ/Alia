@@ -17,6 +17,11 @@
   `AgentAvatar`, not an image (an agent's account has none): the character comes from the agent's
   id (`agentCharacter(id)`, exported), so the same agent looks the same everywhere and two agents
   in a turn are told apart. The app draws its agents' messages with the same avatar.
+- **Agents are bubbles, and the header holds the team.** As in Bloom's multi-agent chat, a
+  delegated agent's reply is a tinted bubble with its avatar and name beneath it. Once agents have
+  answered, the header profile stacks Alia with up to two of them and names them together
+  ("Alia + Lumi + Atlas"). `headerLeading` / `actions` receive `agents` in their state
+  (`AliaChatState`, `AliaChatAgent`), and `AliaChatHeader` takes `agents`.
 - **Breaking:** `WelcomeSuggestion { id, title, description }` becomes `AliaSuggestion { id, text }`
   (`text` is what is shown and what is sent). New optional props on the sheet, screen and content:
   `suggestionMatches` and `onSuggestionQuery(query)`, so a host can search as the person types.

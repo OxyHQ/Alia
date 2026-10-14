@@ -46,6 +46,29 @@ import type {
   VoiceSessionState,
 } from '../types';
 
+/** The distinct delegated agents among `messages`, in the order they first answered. */
+function participatingAgents(messages: readonly ChatMessage[]): AliaChatAgent[] {
+  const seen = new Map<string, AliaChatAgent>();
+  for (const { agentInfo } of messages) {
+    if (agentInfo && !seen.has(agentInfo.id)) seen.set(agentInfo.id, agentInfo);
+  }
+  return [...seen.values()];
+}
+
+/** An agent that answered in the conversation, as the header shows it beside Alia. */
+export interface AliaChatAgent {
+  id: string;
+  name: string;
+}
+
+/** What the chat tells its header and actions: whether there is a conversation to clear, and who took part. */
+export interface AliaChatState {
+  hasMessages: boolean;
+  clear: () => void;
+  /** The delegated agents that have answered, in the order they first did. */
+  agents: AliaChatAgent[];
+}
+
 export interface AliaChatContentProps {
   clientContext?: string;
   model?: string;
@@ -75,11 +98,9 @@ export interface AliaChatContentProps {
    * Above the breadcrumb row — a back button, a menu, or a whole custom header
    * (given `title={null}`). A function receives the clear handler.
    */
-  headerLeading?:
-    | React.ReactNode
-    | ((state: { hasMessages: boolean; clear: () => void }) => React.ReactNode);
+  headerLeading?: React.ReactNode | ((state: AliaChatState) => React.ReactNode);
   /** Right end of the breadcrumb row; receives the clear handler. Replaces Bloom's share/more. */
-  actions?: (state: { hasMessages: boolean; clear: () => void }) => React.ReactNode;
+  actions?: (state: AliaChatState) => React.ReactNode;
   /** Dark-mode flag — forwarded to the ambient wave overlay. */
   isDarkMode?: boolean;
   /**
@@ -167,6 +188,8 @@ function AliaChatContentBody({
   // ── Chat ──
   const chatOptions: UseAliaChatOptions = { apiUrl, model, clientContext };
   const { messages, setMessages, send, isStreaming, stop, clear } = useAliaChat(chatOptions);
+  const agents = useMemo(() => participatingAgents(messages), [messages]);
+  const chatState: AliaChatState = { hasMessages: messages.length > 0, clear, agents };
 
   useEffect(() => {
     onStopReady?.(stop);
@@ -408,12 +431,8 @@ function AliaChatContentBody({
       <AiChatContainer
         project={title ?? undefined}
         projectIcon={BreadcrumbMark}
-        header={
-          typeof headerLeading === 'function'
-            ? headerLeading({ hasMessages: messages.length > 0, clear })
-            : headerLeading
-        }
-        actions={actions?.({ hasMessages: messages.length > 0, clear })}
+        header={typeof headerLeading === 'function' ? headerLeading(chatState) : headerLeading}
+        actions={actions?.(chatState)}
         composer={composer}
         // The thread scrolls behind the header and the composer, which fade in over it — as
         // in the app's conversation. The wave is the container's background layer, between

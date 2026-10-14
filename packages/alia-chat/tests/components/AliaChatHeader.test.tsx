@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const seen = vi.hoisted(() => ({
   items: [] as Array<Record<string, unknown>>,
+  agentAvatars: [] as unknown[],
   markKeys: [] as Array<number | undefined>,
 }));
 
@@ -42,6 +43,15 @@ vi.mock('@oxy.so/bloom/theme', () => ({
     colors: { backgroundSecondary: '#eee', backgroundTertiary: '#ddd', border: '#ccc' },
   }),
 }));
+vi.mock('@oxy.so/bloom/agent-avatar', () => ({
+  AgentAvatar: ({ character }: { character: unknown }) => {
+    seen.agentAvatars.push(character);
+    return null;
+  },
+}));
+vi.mock('../../src/lib/agent-character', () => ({
+  agentCharacter: (id: string) => ({ id }),
+}));
 vi.mock('@oxy.so/bloom/typography', () => ({
   Text: ({ children }: { children?: React.ReactNode }) => children,
 }));
@@ -70,6 +80,7 @@ describe('AliaChatHeader', () => {
   beforeEach(() => {
     seen.items = [];
     seen.markKeys = [];
+    seen.agentAvatars = [];
   });
 
   it('shows no profile on an empty chat, whose greeting already carries the avatar', () => {
@@ -83,6 +94,23 @@ describe('AliaChatHeader', () => {
     const renderer = render(<AliaChatHeader hasMessages onClear={vi.fn()} />);
 
     expect(renderer.root.findAllByProps({ accessibilityLabel: 'Alia' }).length).toBeGreaterThan(0);
+  });
+
+  it('puts the agents that answered beside Alia, named together, three at most', () => {
+    const agents = ['lumi', 'atlas', 'sol'].map((id) => ({ id, name: id.toUpperCase() }));
+    const renderer = render(<AliaChatHeader hasMessages agents={agents} onClear={vi.fn()} />);
+
+    // Alia and the first two agents: a third agent is in the conversation, not in the profile.
+    expect(seen.agentAvatars).toEqual([{ id: 'lumi' }, { id: 'atlas' }]);
+    expect(
+      renderer.root.findAllByProps({ accessibilityLabel: 'Alia + LUMI + ATLAS' }).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('draws only Alia when no agent has answered', () => {
+    render(<AliaChatHeader hasMessages agents={[]} onClear={vi.fn()} />);
+
+    expect(seen.agentAvatars).toEqual([]);
   });
 
   it('offers neither clear nor close on an empty chat that cannot be dismissed', () => {

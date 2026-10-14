@@ -122,9 +122,14 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
           // The top padding clears the 28px drag handle, which Bloom floats over the content
           // instead of reserving room for.
           title={null}
-          headerLeading={({ hasMessages, clear }) => (
+          headerLeading={({ hasMessages, clear, agents }) => (
             <View className="pt-8">
-              <AliaChatHeader hasMessages={hasMessages} onClear={clear} onClose={handleDismiss} />
+              <AliaChatHeader
+                hasMessages={hasMessages}
+                agents={agents}
+                onClear={clear}
+                onClose={handleDismiss}
+              />
             </View>
           )}
         />

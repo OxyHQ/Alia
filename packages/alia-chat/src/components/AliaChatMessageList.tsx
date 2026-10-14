@@ -21,6 +21,7 @@ import {
   AiChatUserMessage,
 } from '@oxy.so/bloom/ai-chat';
 import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { agentCharacter } from '../lib/agent-character';
 import { Button } from '@oxy.so/bloom/button';
 import { useLabels } from '../lib/labels';
@@ -213,6 +214,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
   renderMarkdown?: (content: string) => React.ReactNode;
 }) {
   const labels = useLabels();
+  const { colors } = useTheme();
   const hasContent = messageText.length > 0;
   const hasThinking = !!message.thinking;
 
@@ -307,20 +309,12 @@ const AssistantMessage = React.memo(function AssistantMessage({
       {/* Message Content */}
       {(hasContent || message.isStreaming) && (
         <View className="flex-col items-start gap-0.5">
-          {/* Agent identity */}
-          {message.agentInfo && (
-            <View className="mb-0.5 flex-row items-center gap-2">
-              <AgentAvatar
-                character={agentCharacter(message.agentInfo.id)}
-                size={24}
-                label={message.agentInfo.name}
-              />
-              <Text className="text-xs font-semibold text-text-primary">
-                {message.agentInfo.name}
-              </Text>
-            </View>
-          )}
-          <View className="w-full">
+          {/* A delegated agent speaks in a bubble, its name and avatar beneath it: the way
+              Bloom's multi-agent chat sets a reply, so the thread tells the voices apart. */}
+          <View
+            className={message.agentInfo ? 'w-full rounded-3xl p-3' : 'w-full'}
+            style={message.agentInfo ? { backgroundColor: colors.backgroundTertiary } : undefined}
+          >
             {message.source === 'voice' ? (
               <Text className="text-base text-text-primary leading-7">
                 {messageText}
@@ -332,6 +326,18 @@ const AssistantMessage = React.memo(function AssistantMessage({
               <AliaMarkdown content={messageText} />
             )}
           </View>
+          {message.agentInfo && (
+            <View className="mt-1.5 flex-row items-center gap-2 px-1">
+              <AgentAvatar
+                character={agentCharacter(message.agentInfo.id)}
+                size={20}
+                label={message.agentInfo.name}
+              />
+              <Text className="text-sm font-medium text-text-secondary">
+                {message.agentInfo.name}
+              </Text>
+            </View>
+          )}
           {!isStreamingThis && hasContent && (
             <AiChatFeedbackRow
               onLike={onThumbsUp ? () => onThumbsUp(message.id) : undefined}

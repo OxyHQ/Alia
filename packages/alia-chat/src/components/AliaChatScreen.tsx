@@ -108,9 +108,10 @@ export function AliaChatScreen({
           voiceSession={voiceSession}
           labels={labels}
           title={null}
-          headerLeading={({ hasMessages, clear }) => (
+          headerLeading={({ hasMessages, clear, agents }) => (
             <AliaChatHeader
               hasMessages={hasMessages}
+              agents={agents}
               onClear={clear}
               leading={headerLeft}
               trailing={headerRight}

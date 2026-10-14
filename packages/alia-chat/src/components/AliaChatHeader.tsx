@@ -6,11 +6,15 @@ import { Text } from '@oxy.so/bloom/typography';
 import { type ReactNode, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useLabels } from '../lib/labels';
-import { AliaChatMark } from './AliaChatContent';
+import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
+import { agentCharacter } from '../lib/agent-character';
+import { AliaChatMark, type AliaChatAgent } from './AliaChatContent';
 
 export interface AliaChatHeaderProps {
   /** The chat has messages to clear. */
   hasMessages: boolean;
+  /** Delegated agents that have answered: they join Alia in the profile, up to three in all. */
+  agents?: AliaChatAgent[];
   onClear: () => void;
   /** Draws the close island; omit where the chat is not dismissible. */
   onClose?: () => void;
@@ -29,10 +33,13 @@ export interface AliaChatHeaderProps {
  * of radius 14, `backgroundSecondary` with a hairline border) but is not exported, so
  * this repeats its geometry. Use Bloom's component when it is.
  */
-function AliaProfile({ onPress }: { onPress?: () => void }) {
+function AliaProfile({ agents, onPress }: { agents: AliaChatAgent[]; onPress?: () => void }) {
   const { colors } = useTheme();
   const [hovered, setHovered] = useState(false);
   const [reactionKey, setReactionKey] = useState(0);
+  const alone = agents.length === 0;
+  // "Alia + Lumi + Atlas": the first three, as the multi-agent header names its team.
+  const name = ['Alia', ...agents.map((agent) => agent.name)].slice(0, 3).join(' + ');
 
   // Without a host action the profile is still a button: the avatar waves back.
   const handlePress = () => {
@@ -43,14 +50,40 @@ function AliaProfile({ onPress }: { onPress?: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Alia"
+      accessibilityLabel={name}
       onPress={handlePress}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
       className="items-center"
     >
-      <View pointerEvents="none" style={{ marginBottom: -2, zIndex: 1 }}>
-        <AliaChatMark size={56} reactionKey={reactionKey} />
+      <View
+        pointerEvents="none"
+        style={{ width: 56, height: 56, marginBottom: -2, zIndex: 1 }}
+        accessibilityElementsHidden
+      >
+        {alone ? (
+          <AliaChatMark size={56} reactionKey={reactionKey} />
+        ) : (
+          // Alia and up to two agents overlap as in Bloom's multi-agent header: the first at the
+          // top start, the second down and right, the third below.
+          <>
+            <View style={{ position: 'absolute', start: 0, top: 0 }}>
+              <AliaChatMark size={36} reactionKey={reactionKey} />
+            </View>
+            {agents.slice(0, 2).map((agent, index) => (
+              <View
+                key={agent.id}
+                style={{
+                  position: 'absolute',
+                  start: index === 0 ? 20 : 10,
+                  top: index === 0 ? 0 : 20,
+                }}
+              >
+                <AgentAvatar character={agentCharacter(agent.id)} size={36} />
+              </View>
+            ))}
+          </>
+        )}
       </View>
       <View
         pointerEvents="none"
@@ -62,7 +95,7 @@ function AliaProfile({ onPress }: { onPress?: () => void }) {
         }}
       >
         <Text numberOfLines={1} className="text-[16px] font-medium leading-5 text-text-primary">
-          Alia
+          {name}
         </Text>
       </View>
     </Pressable>
@@ -77,6 +110,7 @@ function AliaProfile({ onPress }: { onPress?: () => void }) {
  */
 export function AliaChatHeader({
   hasMessages,
+  agents = [],
   onClear,
   onClose,
   leading,
@@ -87,7 +121,7 @@ export function AliaChatHeader({
   return (
     <PageHeader
       leading={leading}
-      title={hasMessages ? <AliaProfile onPress={onProfilePress} /> : undefined}
+      title={hasMessages ? <AliaProfile agents={agents} onPress={onProfilePress} /> : undefined}
       titleAlign="center"
       actions={
         <>
