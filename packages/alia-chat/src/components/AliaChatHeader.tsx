@@ -79,7 +79,11 @@ function AliaProfile({ agents, onPress }: { agents: AliaChatAgent[]; onPress?: (
                   top: index === 0 ? 0 : 20,
                 }}
               >
-                <AgentAvatar character={agentCharacter(agent.id)} size={36} />
+                <AgentAvatar
+                  character={agentCharacter(agent.id)}
+                  size={36}
+                  reactionKey={reactionKey}
+                />
               </View>
             ))}
           </>

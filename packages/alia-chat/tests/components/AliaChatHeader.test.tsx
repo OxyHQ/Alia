@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const seen = vi.hoisted(() => ({
   items: [] as Array<Record<string, unknown>>,
   agentAvatars: [] as unknown[],
+  agentKeys: [] as Array<number | undefined>,
   markKeys: [] as Array<number | undefined>,
 }));
 
@@ -44,8 +45,9 @@ vi.mock('@oxy.so/bloom/theme', () => ({
   }),
 }));
 vi.mock('@oxy.so/bloom/agent-avatar', () => ({
-  AgentAvatar: ({ character }: { character: unknown }) => {
+  AgentAvatar: ({ character, reactionKey }: { character: unknown; reactionKey?: number }) => {
     seen.agentAvatars.push(character);
+    seen.agentKeys.push(reactionKey);
     return null;
   },
 }));
@@ -81,6 +83,7 @@ describe('AliaChatHeader', () => {
     seen.items = [];
     seen.markKeys = [];
     seen.agentAvatars = [];
+    seen.agentKeys = [];
   });
 
   it('shows no profile on an empty chat, whose greeting already carries the avatar', () => {
@@ -105,6 +108,19 @@ describe('AliaChatHeader', () => {
     expect(
       renderer.root.findAllByProps({ accessibilityLabel: 'Alia + LUMI + ATLAS' }).length,
     ).toBeGreaterThan(0);
+  });
+
+  it('has every avatar in the profile react to a tap, not only Alia', () => {
+    const agents = [{ id: 'lumi', name: 'Lumi' }];
+    const renderer = render(<AliaChatHeader hasMessages agents={agents} onClear={vi.fn()} />);
+    seen.markKeys = [];
+    seen.agentKeys = [];
+
+    const profile = renderer.root.findAllByProps({ accessibilityLabel: 'Alia + Lumi' })[0];
+    act(() => (profile?.props.onPress as () => void)());
+
+    expect(seen.markKeys.at(-1)).toBe(1);
+    expect(seen.agentKeys.at(-1)).toBe(1);
   });
 
   it('draws only Alia when no agent has answered', () => {
