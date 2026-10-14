@@ -519,7 +519,11 @@ function AliaChatContentBody({
       <AiChatContainer
         header={headerNode}
         composer={
-          bottomInset > 0 ? <View style={{ paddingBottom: bottomInset }}>{composer}</View> : composer
+          bottomInset > 0 ? (
+            <View style={{ paddingBottom: bottomInset }}>{composer}</View>
+          ) : (
+            composer
+          )
         }
         // The thread scrolls behind the header and the composer, which fade in over it — as
         // in the app's conversation. The wave is the container's background layer, between
