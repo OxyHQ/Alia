@@ -1,7 +1,9 @@
 import { BottomSheet, type BottomSheetRef } from '@oxy.so/bloom/bottom-sheet';
 import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { View } from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BREAKPOINTS } from '@oxy.so/bloom/styles';
 import type { AliaChatLabels } from '../lib/labels';
 import type { VoiceSessionComponent } from '../types';
 import { AliaChatContent } from './AliaChatContent';
@@ -16,6 +18,9 @@ import type { AliaSuggestion } from '../types';
  * `borderRadius` in `style` below when that lands.
  */
 const SHEET_RADIUS = 40;
+
+/** The sheet floats (detached) from tablet width up; on a phone it is flush with the screen edges. */
+const DETACHED_FROM = BREAKPOINTS.md;
 
 export interface AliaChatSheetProps {
   /** App context injected into system prompt */
@@ -104,15 +109,22 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       return true;
     }, [stopChat]);
 
+    const { width } = useWindowDimensions();
+    const detached = width >= DETACHED_FROM;
+    // Flush with the screen edge the sheet runs behind the home indicator: the composer clears it.
+    const { bottom } = useSafeAreaInsets();
+
     return (
       <BottomSheet
         ref={sheetRef}
-        detached
+        detached={detached}
         scrollable={false}
         manualActivation
         onDismissAttempt={onDismissAttempt}
         onDismiss={stopChat}
-        style={{ maxWidth: 600, alignSelf: 'center', borderRadius: SHEET_RADIUS }}
+        style={
+          detached ? { maxWidth: 600, alignSelf: 'center', borderRadius: SHEET_RADIUS } : undefined
+        }
       >
         <AliaChatContent
           clientContext={clientContext}
@@ -125,6 +137,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
           onSuggestionQuery={onSuggestionQuery}
           isDarkMode={isDarkMode ?? isDark}
           voiceSession={voiceSession}
+          bottomInset={detached ? 0 : bottom}
           labels={labels}
           onStopReady={registerChatStop}
           // The top padding clears the 28px drag handle, which Bloom floats over the content

@@ -111,6 +111,11 @@ export interface AliaChatContentProps {
    * from this module. May be a `React.lazy` component.
    */
   voiceSession?: VoiceSessionComponent;
+  /**
+   * Space the composer keeps clear at the bottom edge, in px — the home indicator, when the
+   * chat is flush with the screen (a phone sheet). The ambient background still runs behind it.
+   */
+  bottomInset?: number;
   /** Internal sheet lifecycle bridge: receives the live request canceller. */
   onStopReady?: (stop: (() => void) | null) => void;
   /** Overrides for the chat's own copy; anything omitted is English. */
@@ -174,6 +179,7 @@ function AliaChatContentBody({
   actions,
   isDarkMode,
   voiceSession: VoiceSession,
+  bottomInset = 0,
   onStopReady,
 }: AliaChatContentProps) {
   const labels = useLabels();
@@ -353,7 +359,7 @@ function AliaChatContentBody({
   const welcomeComponent = useMemo(() => {
     if (!welcomeGreeting || messages.length > 0) return undefined;
     return (
-      <View className="flex-1 items-center justify-center px-4 pb-8 pt-20">
+      <View className="flex-1 items-center justify-center px-4 py-10">
         <AliaWelcomeMessage greeting={welcomeGreeting} subtitle={welcomeSubtitle} />
       </View>
     );
@@ -454,11 +460,19 @@ function AliaChatContentBody({
         projectIcon={BreadcrumbMark}
         header={typeof headerLeading === 'function' ? headerLeading(chatState) : headerLeading}
         actions={actions?.(chatState)}
-        composer={composer}
+        composer={
+          bottomInset > 0 ? (
+            <View style={{ paddingBottom: bottomInset }}>{composer}</View>
+          ) : (
+            composer
+          )
+        }
         // The thread scrolls behind the header and the composer, which fade in over it — as
         // in the app's conversation. The wave is the container's background layer, between
         // its surface and the turns.
         floatingChrome
+        // The sheet or screen around it owns the fill and the shape; the container adds neither.
+        surface={false}
         background={
           <AmbientField
             waveAmplitude={wave.waveAmplitude}
