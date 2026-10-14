@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const seen = vi.hoisted(() => ({ props: [] as Array<Record<string, unknown>> }));
 
 vi.mock('@oxy.so/bloom/agent-avatar', () => ({
-  DEFAULT_CONFIG: { family: 'blob' },
   AgentAvatar: (props: Record<string, unknown>) => {
     seen.props.push(props);
     return null;
@@ -30,14 +29,12 @@ describe('AliaAvatar', () => {
     seen.props = [];
   });
 
-  it("draws Alia's flower through the 3D character recipe, not a procedural fallback", () => {
+  it("draws Alia's flower as a character: the blue_beret preset, hatless, in orchid", () => {
     render({ size: 40 });
 
-    const config = last().config as { character: { selections: Record<string, string> } };
-    expect(config.character.selections).toMatchObject({
-      shape: 'six_lobed_flower',
-      color: 'orchid',
-    });
+    // The flower is `blue_beret` with the hat off and the paint changed; Bloom fills in the rest.
+    expect(last().character).toEqual({ preset: 'blue_beret', accessory: 'none', color: 'orchid' });
+    expect(last()).not.toHaveProperty('config');
     expect(last()).toMatchObject({ size: 40, label: 'Alia', interactive: false });
   });
 

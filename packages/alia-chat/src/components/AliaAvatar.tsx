@@ -1,27 +1,15 @@
-import { AgentAvatar, type AvatarConfig, DEFAULT_CONFIG } from '@oxy.so/bloom/agent-avatar';
+import { AgentAvatar, type AvatarCharacter } from '@oxy.so/bloom/agent-avatar';
 import { useEffect, useState } from 'react';
 
 /** What Alia is doing; the avatar plays a working turn each time it starts to think or work. */
 export type AliaAvatarState = 'idle' | 'thinking' | 'working' | 'writing';
 
 /**
- * Alia's likeness in Bloom's 3D character engine: the six-lobed flower in orchid,
- * plain oval eyes, nothing on its head. The engine ids come from Bloom's catalog
- * (`character-shapes.ts`, `character-colors.ts`); change them here and nowhere else.
+ * Alia's likeness in Bloom's 3D character engine: the six-lobed flower in orchid, plain oval
+ * eyes, nothing on its head. It is `blue_beret` with the hat taken off and the paint changed,
+ * so Bloom retargets that preset's animation onto it; change it here and nowhere else.
  */
-const ALIA_AVATAR: AvatarConfig = {
-  ...DEFAULT_CONFIG,
-  character: {
-    preset: 'blue_beret',
-    selections: {
-      shape: 'six_lobed_flower',
-      color: 'orchid',
-      eyes: 'oval',
-      eyewear: 'none',
-      accessory: 'none',
-    },
-  },
-};
+const ALIA_AVATAR: AvatarCharacter = { preset: 'blue_beret', accessory: 'none', color: 'orchid' };
 
 const BUSY: ReadonlySet<AliaAvatarState> = new Set(['thinking', 'working']);
 
@@ -55,7 +43,7 @@ export function AliaAvatar({
 
   return (
     <AgentAvatar
-      config={ALIA_AVATAR}
+      character={ALIA_AVATAR}
       size={size}
       label="Alia"
       workingKey={workingKey}
