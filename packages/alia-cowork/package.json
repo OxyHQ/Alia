@@ -58,7 +58,7 @@
     "gulp": "^5.0.1",
     "gulp-esbuild": "^0.15.0",
     "gulp-postcss": "^10.0.0",
-    "postcss": "^8.5.19",
+    "postcss": "^8.5.29",
     "postcss-import": "^17.0.0",
     "tailwindcss": "^4.3.2",
     "ts-node": "^10.9.2",
