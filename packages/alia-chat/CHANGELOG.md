@@ -1,6 +1,9 @@
 # @alia.onl/sdk
 
-## Unreleased
+## 12.0.0
+
+Breaking: Bloom 10 peer; the `header` render prop replaces the breadcrumb path (`title`, `actions`)
+and the mark-state context. Hosts on Bloom 9 stay on 11.1.0.
 
 - **The `@oxy.so` peers are open-ended** above their floors (`bloom >=10.0.0`, `core >=3.0.0`,
   `services >=8.0.0`). The `^10.0.0`, `^4.0.0` and `^11.0.0` caps made each new Oxy major a peer
