@@ -9,7 +9,7 @@ import { RiArrowLeftLine, RiDeleteBin6Line, RiMoreFill, RiShare2Line } from '@ox
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { AgentProfile } from '@oxy.so/bloom/agent-reply';
 import { memo, type ReactNode, useMemo } from 'react';
-import { agentCharacter } from '../lib/agent-character';
+import { readAgentCharacter } from '../lib/agent-character';
 import { useLabels } from '../lib/labels';
 import { ALIA_ANCHORS, useAliaFlights } from '../lib/flights';
 import { ALIA_AVATAR } from './AliaAvatar';
@@ -45,7 +45,7 @@ function AliaProfile({ agents, onPress }: { agents: AliaChatAgent[]; onPress?: (
   const team = useMemo(
     () => [
       { id: 'alia', name: 'Alia', avatar: ALIA_AVATAR },
-      ...agents.map((agent) => ({ ...agent, avatar: agentCharacter(agent.id) })),
+      ...agents.map((agent) => ({ ...agent, avatar: readAgentCharacter(agent.character) })),
     ],
     [agents],
   );

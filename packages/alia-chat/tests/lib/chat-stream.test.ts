@@ -167,6 +167,36 @@ describe('consumeAliaChatStream', () => {
     });
   });
 
+  it("carries the agent's look as the server sent it, and accepts a server that sends none", async () => {
+    const character = {
+      shape: 'heart',
+      eyes: 'oval',
+      eyewear: 'none',
+      accessory: 'bow',
+      color: 'pink',
+    };
+    const withLook = await consume([
+      `event: alia.agent\r\ndata: ${JSON.stringify({ eventVersion: 1, agentId: 'a1', agentName: 'Sindi', agentHandle: 'sindi.bot', agentColor: null, agentCharacter: character, content: 'Ya está' })}\r\n\r\n` +
+        frames(chunk({}, 'stop'), '[DONE]'),
+    ]);
+    expect(withLook).toContainEqual({
+      kind: 'agent_answer',
+      content: 'Ya está',
+      agent: { id: 'a1', name: 'Sindi', character },
+    });
+
+    // An agent that could not be read: null, so the event has no look and the client draws the default.
+    const unread = await consume([
+      'event: alia.agent\r\ndata: {"eventVersion":1,"agentId":"a1","agentName":"Sindi","agentHandle":"sindi.bot","agentColor":null,"agentCharacter":null,"content":"Ya está"}\r\n\r\n' +
+        frames(chunk({}, 'stop'), '[DONE]'),
+    ]);
+    expect(unread).toContainEqual({
+      kind: 'agent_answer',
+      content: 'Ya está',
+      agent: { id: 'a1', name: 'Sindi' },
+    });
+  });
+
   it('rejects a JSON response even when its body looks like a completion', async () => {
     let cancelled = false;
     const response = new Response(
