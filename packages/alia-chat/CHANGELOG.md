@@ -10,6 +10,10 @@
   once, empty and thinking, and its answer fills that same message, so the avatar never remounts;
   an agent that never answers leaves no message. Alia's reply now carries her identity row, as the
   agents' do.
+  The reasoning is part of that same component (`AgentReplyIdentity`'s `reasoning`): while the
+  turn thinks, "Thinking… ⌃" folds it under the avatar's row, and once the reply starts it is the
+  closed "Thought for N seconds" block above it (`ThinkingBlock` draws nothing while it streams, so
+  there is one thinking indicator, not two).
 - **The greeting's avatar flies up into the header's profile** as the conversation begins
   (Bloom's `avatar-flight`: `useAvatarFlights`, `AvatarAnchor`, `AvatarFlightLayer`), across the
   main and conversation sheets. `AgentProfile`'s new `avatarHidden` keeps the header's avatar

@@ -187,11 +187,14 @@ const UserBubble = React.memo(function UserBubble({
 function ReplyBody({
   agent,
   thinking,
+  reasoning,
   actions,
   children,
 }: {
   agent: ChatMessage['agentInfo'];
   thinking: boolean;
+  /** What the model has reasoned so far: the thinking avatar folds it under its row. */
+  reasoning: React.ReactNode;
   actions: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -200,6 +203,7 @@ function ReplyBody({
       character={agent ? agentCharacter(agent.id) : ALIA_AVATAR}
       name={agent?.name ?? 'Alia'}
       thinking={thinking}
+      reasoning={reasoning}
     />
   );
   if (agent === undefined)
@@ -353,7 +357,14 @@ const AssistantMessage = React.memo(function AssistantMessage({
 
       {/* Message Content */}
       {(hasContent || message.isStreaming || thinking) && (
-        <ReplyBody agent={message.agentInfo} thinking={thinking} actions={replyActions}>
+        <ReplyBody
+          agent={message.agentInfo}
+          thinking={thinking}
+          reasoning={
+            thinking && hasThinking ? <AliaMarkdown content={message.thinking!} /> : undefined
+          }
+          actions={replyActions}
+        >
           {!hasContent && !message.isStreaming ? null : message.source === 'voice' ? (
             <Text className="text-base text-text-primary leading-7">
               {messageText}
