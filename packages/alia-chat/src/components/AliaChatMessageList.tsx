@@ -14,25 +14,15 @@ import { Text } from '@oxy.so/bloom/typography';
 import { WebSearch } from '@oxy.so/bloom/web-search';
 import { AliaMarkdown } from './Markdown';
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
-import {
-  AiChatFeedbackRow,
-  AiChatMessageLine,
-  AiChatThread,
-  AiChatUserMessage,
-} from '@oxy.so/bloom/ai-chat';
+import { AiChatMessageLine, AiChatThread, AiChatUserMessage } from '@oxy.so/bloom/ai-chat';
 import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { agentCharacter } from '../lib/agent-character';
 import { Button } from '@oxy.so/bloom/button';
 import { useLabels } from '../lib/labels';
 import { isWebInvocation, taskListLog, webSearchLog } from '../lib/work-log';
-import {
-  RiCheckLine,
-  RiFileCopyLine,
-  RiPencilLine,
-  RiStopFill,
-  RiVolumeUpLine,
-} from '@oxy.so/bloom/icons';
+import { RiCheckLine, RiFileCopyLine, RiPencilLine } from '@oxy.so/bloom/icons';
+import { AgentReplyActions } from './AgentReplyActions';
 import { ThinkingBlock } from './ThinkingBlock';
 import { PlanPreviewCard } from './PlanPreviewCard';
 import { QuestionCard } from './QuestionCard';
@@ -339,25 +329,13 @@ const AssistantMessage = React.memo(function AssistantMessage({
             </View>
           )}
           {!isStreamingThis && hasContent && (
-            <AiChatFeedbackRow
+            <AgentReplyActions
               onLike={onThumbsUp ? () => onThumbsUp(message.id) : undefined}
               onDislike={onThumbsDown ? () => onThumbsDown(message.id) : undefined}
               onCopy={() => onCopy(messageText, message.id)}
-              actions={
-                onReadAloud
-                  ? [
-                      {
-                        key: 'read-aloud',
-                        label:
-                          isThisPlaying || isThisPaused ? labels.stopReading : labels.readAloud,
-                        icon: isThisPlaying || isThisPaused ? RiStopFill : RiVolumeUpLine,
-                        active: isThisPlaying || isThisPaused,
-                        disabled: isThisLoading,
-                        onPress: () => onReadAloud(message.id, messageText),
-                      },
-                    ]
-                  : []
-              }
+              onReadAloud={onReadAloud ? () => onReadAloud(message.id, messageText) : undefined}
+              reading={isThisPlaying || isThisPaused}
+              readDisabled={isThisLoading}
             />
           )}
         </View>

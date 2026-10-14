@@ -22,6 +22,9 @@
   answered, the header profile stacks Alia with up to two of them and names them together
   ("Alia + Lumi + Atlas"). `headerLeading` / `actions` receive `agents` in their state
   (`AliaChatState`, `AliaChatAgent`), and `AliaChatHeader` takes `agents`.
+- **The row under every reply is Bloom's multi-agent one**: helpful, unhelpful and copy as 22px
+  tiles with 12px icons (read aloud is a fourth tile where the host reads), replacing the
+  `AiChatFeedbackRow`. New label keys `helpful` and `unhelpful`.
 - **Breaking:** `WelcomeSuggestion { id, title, description }` becomes `AliaSuggestion { id, text }`
   (`text` is what is shown and what is sent). New optional props on the sheet, screen and content:
   `suggestionMatches` and `onSuggestionQuery(query)`, so a host can search as the person types.

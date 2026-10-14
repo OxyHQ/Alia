@@ -15,6 +15,8 @@ export interface AliaChatLabels {
   voiceFailed: string;
   // Messages
   copy: string;
+  helpful: string;
+  unhelpful: string;
   copied: string;
   edit: string;
   save: string;
@@ -46,6 +48,8 @@ export const DEFAULT_LABELS: AliaChatLabels = {
   startVoice: 'Start voice',
   voiceFailed: "Couldn't start the voice call",
   copy: 'Copy',
+  helpful: 'Helpful response',
+  unhelpful: 'Unhelpful response',
   copied: 'Copied',
   edit: 'Edit',
   save: 'Save',
