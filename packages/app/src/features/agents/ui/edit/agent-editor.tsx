@@ -1,4 +1,4 @@
-import { AgentIdentityFields } from '@/features/agents/ui/edit/agent-identity-fields';
+import { AgentProfileFields } from '@/features/agents/ui/edit/agent-profile-fields';
 import { AgentModelField } from '@/features/agents/ui/agent-model-field';
 import {
   AgentEditorSidebar,
@@ -151,7 +151,13 @@ export function AgentEditor({ agent }: { agent: Agent }) {
             )}
           </View>
 
-          <AgentIdentityFields identity={identity} onEdit={editIdentity} />
+          <AgentProfileFields
+            id={agent._id}
+            identity={identity}
+            draft={draft}
+            onEditIdentity={editIdentity}
+            onEditDraft={editDraft}
+          />
 
           {/* The power level the agent answers at; `auto` until one is picked. */}
           <AgentModelField

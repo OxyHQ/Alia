@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **BREAKING: an agent is drawn with the look the server stores for it.** `agentCharacter(id)` (a
+  look hashed from the id) is removed; `readAgentCharacter(value)` parses a stored character
+  (Bloom's `parseAvatarCharacter`) and falls back on `DEFAULT_AGENT_CHARACTER`. The `alia.agent`
+  event carries `agentCharacter`, and `agentInfo` has `character`. `AliaChatAgent` has `character`;
+  `AliaChatSheet` / `AliaChatScreen` take `agents` (the host's directory) so a delegation's
+  thinking avatar is the agent's own before its answer arrives. Needs a server that sends
+  `agentCharacter`; release this SDK first, since the stream parser rejects unknown keys.
 - **The one who answers thinks with its own avatar, and it is the same avatar that settles under
   the reply** (Bloom's `AgentReplyIdentity`, as in the multi-agent chat). While Alia works, her
   avatar is the indicator, large with "Thinking…", where the `AgentThinking` line was; when her

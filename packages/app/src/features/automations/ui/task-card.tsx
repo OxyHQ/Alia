@@ -88,13 +88,13 @@ export const TaskCard = React.memo(function TaskCard({ task, activity, onPress }
   const agents = useMemo(() => {
     // The names are Oxy's and may be unresolved, so the row is built through the
     // shared fallback rather than each mark inventing its own.
-    const list: Array<{ _id: string; name: string; color: string | null }> = [];
+    const list: Array<{ _id: string; name: string; character: unknown }> = [];
     const push = (agent: TaskAgentRef) => {
       if (list.some((a) => a._id === agent._id)) return;
       list.push({
         _id: agent._id,
         name: agentDisplayName(agent),
-        color: agent.color,
+        character: agent.character,
       });
     };
     if (task.agentId) push(task.agentId);

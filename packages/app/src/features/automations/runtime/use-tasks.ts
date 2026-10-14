@@ -17,6 +17,8 @@ export interface TaskAgentRef {
   name: string | null;
   handle: string | null;
   color: string | null;
+  /** What the agent looks like, as the server stores it (JSON). */
+  character: unknown;
 }
 
 export interface TaskSession {

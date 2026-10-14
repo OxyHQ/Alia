@@ -70,7 +70,7 @@ vi.mock('@oxy.so/services', () => ({
 vi.mock('@alia.onl/sdk', () => ({
   AliaAvatar: () => null,
   ALIA_AVATAR: { preset: 'blue_beret' },
-  agentCharacter: (id: string) => ({ preset: 'blue_beret', seed: id }),
+  readAgentCharacter: (value: unknown) => ({ preset: 'blue_beret', value }),
 }));
 vi.mock('@oxy.so/bloom/agent-avatar', () => ({ AgentAvatar: () => null }));
 vi.mock('@/features/onboarding/ui/invite-dialog', () => ({ InviteDialog: () => null }));

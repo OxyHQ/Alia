@@ -44,6 +44,7 @@
  * typed to accept.
  */
 
+import type { AgentCharacter } from '../../domain/agent-character';
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from 'drizzle-orm';
 import type { Executor } from '../index';
 import {
@@ -138,6 +139,8 @@ export interface AgentSessionRecord {
 export interface AgentSessionAgentRef {
   _id: string;
   oxyAccountId: string;
+  /** What the agent looks like, so a task card draws it as the editor shows it. */
+  character: AgentCharacter;
 }
 
 /** A session as the task listings render it. See the file comment. */
@@ -312,6 +315,7 @@ export async function accountHasSessionWithAgent(
 const AGENT_REF = {
   _id: agents.id,
   oxyAccountId: agents.oxyAccountId,
+  character: agents.character,
 } as const;
 
 const LISTING_COLUMNS = {
@@ -501,7 +505,7 @@ export async function listChildAgentSessions(
       : [
           {
             parentSessionId: row.parentSessionId,
-            agent: { _id: row.agent._id, oxyAccountId: row.agent.oxyAccountId },
+            agent: row.agent,
           },
         ],
   );

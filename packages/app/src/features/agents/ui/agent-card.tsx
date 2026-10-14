@@ -1,9 +1,8 @@
-import { agentTint } from '@/shared/domain/agent-color';
 import { agentDisplayName, agentHandle } from '@/features/agents/model/identity';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import type { Agent } from '@/shared/contracts/agents';
-import { useColorScheme } from '@/shared/platform/useColorScheme';
-import { IdentityMark } from '@alia.onl/sdk';
+import { readAgentCharacter } from '@alia.onl/sdk';
+import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { Card, CardBody, CardTitle } from '@oxy.so/bloom/card';
@@ -44,7 +43,6 @@ export const AgentCard = React.memo(function AgentCard({
   variant = 'grid',
 }: AgentCardProps) {
   const { t } = useTranslation();
-  const { colors } = useColorScheme();
   const isFeatured = variant === 'featured';
   const handle = agentHandle(agent);
   const stats = [
@@ -71,10 +69,10 @@ export const AgentCard = React.memo(function AgentCard({
           {/* The mark, carrying the status dot, and Chat beside it. */}
           <View className="flex-row items-start justify-between">
             <Badge dot color={STATUS_TONE[agent.status]} placement="bottom-right">
-              <IdentityMark
+              <AgentAvatar
                 size={isFeatured ? 64 : 56}
-                color={agentTint(agent.color, colors)}
-                accessibilityLabel={agentDisplayName(agent)}
+                character={readAgentCharacter(agent.character)}
+                label={agentDisplayName(agent)}
               />
             </Badge>
             <Button size="sm" tone="neutral" stopPropagation onPress={() => onChat?.(agent._id)}>

@@ -4,7 +4,7 @@ import {
   PICKABLE_SHAPES,
   agentCharacterFor,
   parseAgentCharacter,
-} from '../agent-character';
+} from '../domain/agent-character';
 
 describe('parseAgentCharacter', () => {
   it('accepts a complete character, a preset, and a shape with a hex paint', () => {

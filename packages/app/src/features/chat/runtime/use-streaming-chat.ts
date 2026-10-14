@@ -754,7 +754,7 @@ export function useStreamingChat(
                         agentInfo: {
                           id: am.agentId,
                           name: am.agentName,
-                          color: am.agentColor ?? null,
+                          character: am.agentCharacter ?? undefined,
                           handle: am.agentHandle,
                         },
                       };
@@ -1191,7 +1191,7 @@ export function useStreamingChat(
                     agentInfo: {
                       id: am.agentId,
                       name: am.agentName,
-                      color: am.agentColor ?? null,
+                      character: am.agentCharacter ?? undefined,
                       handle: am.agentHandle,
                     },
                   };
