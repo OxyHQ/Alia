@@ -7,7 +7,9 @@ import type { AliaColors } from '../theme';
 
 // Hardcoded fallback colors for standalone SDK usage (when no color override is passed).
 // The main app always passes resolved colors via the `colors` prop.
-const BODY_TEXT = { fontSize: 16, lineHeight: 28 } as const;
+/** The body text of a reply: its bubble sets its padding from these. */
+export const MARKDOWN_BODY = { fontSize: 16, lineHeight: 28 } as const;
+const BODY_TEXT = MARKDOWN_BODY;
 const HEADING_TEXT = { fontSize: 16, lineHeight: 22 } as const;
 const MONO_FONT = Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' })!;
 

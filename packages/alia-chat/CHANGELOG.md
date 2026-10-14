@@ -18,6 +18,10 @@
   a thinking agent's avatar open and close with their height eased (Bloom's `Collapsible`, now
   with `appear`) instead of popping. Alia is shown thinking only once she has for a moment, so a
   turn she hands to an agent at once shows the agent thinking, not Alia for an instant first.
+- **Bubbles are equal on every side as the eye reads them.** An agent's bubble sets its top and
+  bottom padding from the reply's text metrics (`AgentReplyBubble`'s `text`, 16 on 28 here), so
+  the gap from the edge to the text is the same above, below and at the sides. Nothing is cut:
+  an open `Collapsible` no longer clips.
 - **The greeting's avatar flies up into the header's profile** as the conversation begins
   (Bloom's `avatar-flight`: `useAvatarFlights`, `AvatarAnchor`, `AvatarFlightLayer`), across the
   main and conversation sheets. `AgentProfile`'s new `avatarHidden` keeps the header's avatar

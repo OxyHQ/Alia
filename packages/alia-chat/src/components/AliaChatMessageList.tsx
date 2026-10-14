@@ -12,7 +12,7 @@ import { Textarea } from '@oxy.so/bloom/textarea';
 import { TaskList } from '@oxy.so/bloom/task-list';
 import { Text } from '@oxy.so/bloom/typography';
 import { WebSearch } from '@oxy.so/bloom/web-search';
-import { AliaMarkdown } from './Markdown';
+import { AliaMarkdown, MARKDOWN_BODY } from './Markdown';
 import { AiChatMessageLine, AiChatThread, AiChatUserMessage } from '@oxy.so/bloom/ai-chat';
 import {
   AgentReply,
@@ -229,7 +229,7 @@ function ReplyBody({
       // The reply starts where Alia's own text does and sits one thread gap from the message above.
       style={{ marginHorizontal: 0, marginTop: 0, maxWidth: '100%' }}
     >
-      {children ? <AgentReplyBubble>{children}</AgentReplyBubble> : null}
+      {children ? <AgentReplyBubble text={MARKDOWN_BODY}>{children}</AgentReplyBubble> : null}
     </AgentReply>
   );
 }
