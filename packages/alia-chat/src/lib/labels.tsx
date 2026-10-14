@@ -5,7 +5,9 @@ import { englishWorkLog, type Translate } from './work-log-copy';
 export interface AliaChatLabels {
   // Header
   clear: string;
-  close: string;
+  back: string;
+  share: string;
+  more: string;
   chatActions: string;
   // Composer
   placeholder: string;
@@ -40,7 +42,9 @@ export interface AliaChatLabels {
 
 export const DEFAULT_LABELS: AliaChatLabels = {
   clear: 'Clear',
-  close: 'Close',
+  back: 'Back',
+  share: 'Share',
+  more: 'More',
   chatActions: 'Chat actions',
   placeholder: 'Ask Alia...',
   addMenuGroup: 'Add',

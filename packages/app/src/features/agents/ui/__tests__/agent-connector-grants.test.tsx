@@ -82,22 +82,22 @@ vi.mock('@oxy.so/bloom/icons/RiWindowLine', async () => {
  * helper — `vi.mock` runs before any top-level binding exists — so each one
  * builds its own, which is why they are spelled out rather than looped.
  */
-vi.mock('@/shared/ui/action-key-icon', async () => {
+vi.mock('@oxy.so/bloom/icons/RiPlugLine', async () => {
   const ReactModule = await import('react');
   return {
-    ActionKeyIcon: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props),
+    RiPlugLine: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props),
   };
 });
-vi.mock('@/shared/ui/icons/agent-robot-icon', async () => {
+vi.mock('@oxy.so/bloom/icons/RiRobot2Line', async () => {
   const ReactModule = await import('react');
   return {
-    AgentRobotIcon: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props),
+    RiRobot2Line: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props),
   };
 });
-vi.mock('@/shared/ui/icons/clock-icon', async () => {
+vi.mock('@oxy.so/bloom/icons/RiTimeLine', async () => {
   const ReactModule = await import('react');
   return {
-    ClockIcon: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props),
+    RiTimeLine: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props),
   };
 });
 

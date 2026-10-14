@@ -7,9 +7,15 @@ const source = readFileSync(
 );
 
 describe('AliaChatSheet request lifecycle wiring', () => {
-  it('stops text generation when the button or the imperative dismiss begins', () => {
+  it('stops text generation when the imperative dismiss begins', () => {
     expect(source).toMatch(/const handleDismiss = useCallback\(\(\) => \{\s*stopChat\(\);/);
-    expect(source).toMatch(/onClose=\{handleDismiss\}/);
+  });
+
+  it('takes the back button to the main screen, not out of the sheet', () => {
+    // Back is the chat's own `clear` (which stops the turn and starts a fresh chat): the sheet
+    // stays open on its main screen.
+    expect(source).toMatch(/onBack=\{clear\}/);
+    expect(source).not.toMatch(/onBack=\{handleDismiss\}/);
   });
 
   it('stops text generation when a drag, backdrop press, Back or Escape starts closing', () => {

@@ -13,6 +13,8 @@ export interface AliaWelcomeMessageProps {
  * The empty chat's greeting: the avatar beside it at display size, centred. The Alia app and
  * the SDK chat draw exactly this. Always side by side: a chat is a sheet or a column, whose
  * width is not the window's, so a viewport breakpoint would stack it in a sheet on a desktop.
+ * The greeting has a max width (`max-w-xs`, 20rem) so it sets in two lines at any width, as a
+ * headline beside a mark rather than one long line across a wide column.
  * The suggestions are not part of it; they sit over the composer (`ComposerSuggestions`).
  */
 export function AliaWelcomeMessage({ greeting, subtitle, markSize = 38 }: AliaWelcomeMessageProps) {
@@ -22,7 +24,7 @@ export function AliaWelcomeMessage({ greeting, subtitle, markSize = 38 }: AliaWe
         <AliaAvatar size={markSize} interactive />
         <Text
           selectable={false}
-          className="shrink text-left text-4xl tracking-tight text-text-primary"
+          className="max-w-xs shrink text-left text-4xl tracking-tight text-text-primary"
         >
           {greeting}
         </Text>

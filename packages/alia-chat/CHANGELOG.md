@@ -38,6 +38,20 @@
 - **The voice bar is Bloom's voice controls.** `VoiceControls` draws Bloom's `@oxy.so/bloom/voice`
   `VoiceControls` (microphone and end) under the status text, instead of `CallControls`, which is
   made for a dark call stage and lost its captions on the chat's light surface.
+- **The header is back, the profile, share and a menu.** Bloom's `PageHeader` with a back button at
+  its start, and at its end share and a three-dots menu (Bloom's `DropdownMenu`, aligned to its
+  button) holding Clear and the host's rows. Over the empty chat there is no bar: nothing to do
+  there. In the sheet, back returns to the main screen (a fresh chat) and the sheet stays open.
+  **Breaking:** `AliaChatHeader` / `AliaChatSheet` / `AliaChatScreen` lose `onClose`; they take
+  `onBack` (screen), `onShare` and `headerMenu`; the labels `close` becomes `back`, `share`,
+  `more`.
+- **The chat follows Bloom's theme, not the system's scheme.** `AliaMarkdown` and the sheet read
+  the app's resolved mode: a person who chose light on a dark OS got white text on a light surface.
+- **Every icon is Bloom's.** The voice button is `RiVolumeUpLine` (it was Entypo); the app's clock,
+  robot and connector glyphs are `RiTimeLine`, `RiRobot2Line`, `RiPlugLine` and the SVG generator
+  is gone; `@expo/vector-icons` is no longer a peer of the SDK.
+- **Greeting.** `max-w-xs`, so it always sets in two lines, with more room above than below.
+- Peer `@oxy.so/bloom ^10.2.1` (scrollbar, pill groups, header scrim, voice controls).
 - **Breaking:** `WelcomeSuggestion { id, title, description }` becomes `AliaSuggestion { id, text }`
   (`text` is what is shown and what is sent). New optional props on the sheet, screen and content:
   `suggestionMatches` and `onSuggestionQuery(query)`, so a host can search as the person types.

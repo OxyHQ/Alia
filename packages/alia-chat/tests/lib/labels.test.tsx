@@ -39,7 +39,7 @@ describe('chat labels', () => {
 
     expect(labels.clear).toBe('Borrar');
     expect(labels.thoughtFor(4)).toBe('Pensó 4 s');
-    expect(labels.close).toBe(DEFAULT_LABELS.close);
+    expect(labels.back).toBe(DEFAULT_LABELS.back);
     expect(labels.workLog).toBe(DEFAULT_LABELS.workLog);
   });
 

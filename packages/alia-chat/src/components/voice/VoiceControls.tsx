@@ -95,8 +95,10 @@ export function VoiceControls({
         <BloomVoiceControls
           state={voiceStateOf(roomState, agentState)}
           muted={isMuted}
-          onMutedChange={onToggleMute}
-          onEnd={onEnd}
+          // Called with nothing: Bloom hands its handlers the next value or the press, and
+          // `onToggleMute` / `onEnd` of a session take optional arguments of their own.
+          onMutedChange={() => onToggleMute()}
+          onEnd={() => onEnd()}
         />
       ) : null}
 

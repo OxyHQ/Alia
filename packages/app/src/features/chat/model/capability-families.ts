@@ -41,15 +41,15 @@
 
 import type { BloomIconComponent } from '@oxy.so/bloom/icons';
 import { RiComputerLine } from '@oxy.so/bloom/icons/RiComputerLine';
+import { RiPlugLine } from '@oxy.so/bloom/icons/RiPlugLine';
+import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
+import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
 import { RiLightbulbFlashLine } from '@oxy.so/bloom/icons/RiLightbulbFlashLine';
 import { RiMessage2Line } from '@oxy.so/bloom/icons/RiMessage2Line';
 import { RiShapesLine } from '@oxy.so/bloom/icons/RiShapesLine';
 import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import { RiWindowLine } from '@oxy.so/bloom/icons/RiWindowLine';
-import { ActionKeyIcon } from '@/shared/ui/action-key-icon';
-import { AgentRobotIcon } from '@/shared/ui/icons/agent-robot-icon';
-import { ClockIcon } from '@/shared/ui/icons/clock-icon';
 
 export interface CapabilityFamily {
   /** The grant string, exactly as it is stored and sent. */
@@ -76,12 +76,12 @@ export interface CapabilityFamily {
  * runs code: its tools exist only where a computer host is configured.
  *
  * `mcp` keeps the Material Symbol the two lists this replaces already carried —
- * `ActionKeyIcon`, on the instanced family below.
+ * `RiPlugLine`, on the instanced family below.
  *
  * `delegation` and `automation` do not, and for the same reason #365 existed:
  * the SIDEBAR names both concepts too, so a glyph chosen only here would be the
- * second one for it. Both now draw the sheet's own — `AgentRobotIcon` and
- * `ClockIcon` — and the sidebar imports the same components, so "Other agents"
+ * second one for it. Both now draw the sheet's own — `RiRobot2Line` and
+ * `RiTimeLine` — and the sidebar imports the same components, so "Other agents"
  * and "Agents", "Automations" and the scheduled-trigger grant, cannot disagree.
  */
 export const CAPABILITY_FAMILIES: readonly CapabilityFamily[] = [
@@ -119,13 +119,13 @@ export const CAPABILITY_FAMILIES: readonly CapabilityFamily[] = [
     id: 'automation',
     label: 'agents.capabilityFamily.automation.label',
     description: 'agents.capabilityFamily.automation.description',
-    icon: ClockIcon,
+    icon: RiTimeLine,
   },
   {
     id: 'delegation',
     label: 'agents.capabilityFamily.delegation.label',
     description: 'agents.capabilityFamily.delegation.description',
-    icon: AgentRobotIcon,
+    icon: RiRobot2Line,
   },
   {
     id: 'computer',
@@ -220,7 +220,7 @@ export const INSTANCED_FAMILY_LABELS: Readonly<Record<string, string>> = {
 };
 
 /**
- * A team for `agent`, and deliberately NOT `AgentRobotIcon`.
+ * A team for `agent`, and deliberately NOT `RiRobot2Line`.
  *
  * That glyph is `delegation` two lists up — finding, hiring and creating agents
  * — and this family is the other half of the same sentence: the agents you
@@ -230,6 +230,6 @@ export const INSTANCED_FAMILY_LABELS: Readonly<Record<string, string>> = {
  */
 export const INSTANCED_FAMILY_ICONS: Readonly<Record<string, BloomIconComponent>> = {
   agent: RiTeamLine,
-  mcp: ActionKeyIcon,
+  mcp: RiPlugLine,
   integration: RiWindowLine,
 };

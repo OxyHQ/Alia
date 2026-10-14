@@ -35,8 +35,14 @@ export interface AliaChatScreenProps {
   model?: string;
   /** API URL override */
   apiUrl?: string;
-  /** Optional header left action (e.g., back button) */
+  /** Draws the header's back button; omit where there is nowhere to go back to. */
+  onBack?: () => void;
+  /** Optional header left content instead of the back button (e.g. a drawer's menu button) */
   headerLeft?: React.ReactNode;
+  /** Draws the header's share button once there is a conversation; omitted, no share button. */
+  onShare?: () => void;
+  /** More rows for the header's menu (`DropdownMenuItem`s from `@oxy.so/bloom/dropdown-menu`). */
+  headerMenu?: React.ReactNode;
   /** Optional header right action (e.g., settings button) */
   headerRight?: React.ReactNode;
   /** Welcome screen greeting */
@@ -61,7 +67,10 @@ export function AliaChatScreen({
   clientContext,
   model,
   apiUrl,
+  onBack,
   headerLeft,
+  onShare,
+  headerMenu,
   headerRight,
   welcomeGreeting,
   welcomeSubtitle,
@@ -113,6 +122,9 @@ export function AliaChatScreen({
               hasMessages={hasMessages}
               agents={agents}
               onClear={clear}
+              onBack={onBack}
+              onShare={onShare}
+              menu={headerMenu}
               leading={headerLeft}
               trailing={headerRight}
             />

@@ -1,6 +1,7 @@
 import { BottomSheet, type BottomSheetRef } from '@oxy.so/bloom/bottom-sheet';
 import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
-import { useColorScheme, View } from 'react-native';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { View } from 'react-native';
 import type { AliaChatLabels } from '../lib/labels';
 import type { VoiceSessionComponent } from '../types';
 import { AliaChatContent } from './AliaChatContent';
@@ -43,6 +44,10 @@ export interface AliaChatSheetProps {
   voiceSession?: VoiceSessionComponent;
   /** Overrides for the chat's own copy (header, composer, plan, research…); omitted, English. */
   labels?: Partial<AliaChatLabels>;
+  /** Draws the header's share button once there is a conversation; omitted, no share button. */
+  onShare?: () => void;
+  /** More rows for the header's menu (`DropdownMenuItem`s from `@oxy.so/bloom/dropdown-menu`). */
+  headerMenu?: React.ReactNode;
 }
 
 export interface AliaChatSheetRef {
@@ -64,10 +69,13 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       isDarkMode,
       voiceSession,
       labels,
+      onShare,
+      headerMenu,
     },
     ref,
   ) => {
-    const isDark = useColorScheme() === 'dark';
+    // Bloom's resolved mode, not the system's scheme.
+    const { isDark } = useTheme();
     const sheetRef = useRef<BottomSheetRef>(null);
     const chatStopRef = useRef<(() => void) | null>(null);
 
@@ -122,16 +130,23 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
           // The top padding clears the 28px drag handle, which Bloom floats over the content
           // instead of reserving room for.
           title={null}
-          headerLeading={({ hasMessages, clear, agents }) => (
-            <View className="pt-8">
-              <AliaChatHeader
-                hasMessages={hasMessages}
-                agents={agents}
-                onClear={clear}
-                onClose={handleDismiss}
-              />
-            </View>
-          )}
+          headerLeading={({ hasMessages, clear, agents }) =>
+            // No bar over the empty chat: there is nothing to do there (the handle, the backdrop
+            // and a swipe already close the sheet). With a conversation: back to the main
+            // screen (a fresh chat; the sheet stays open), the profile, share and the menu.
+            hasMessages ? (
+              <View className="pt-8">
+                <AliaChatHeader
+                  hasMessages
+                  agents={agents}
+                  onClear={clear}
+                  onBack={clear}
+                  onShare={onShare}
+                  menu={headerMenu}
+                />
+              </View>
+            ) : null
+          }
         />
       </BottomSheet>
     );

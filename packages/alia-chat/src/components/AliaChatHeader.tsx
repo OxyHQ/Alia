@@ -1,5 +1,11 @@
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
-import { RiCloseLine, RiDeleteBin6Line } from '@oxy.so/bloom/icons';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@oxy.so/bloom/dropdown-menu';
+import { RiArrowLeftLine, RiDeleteBin6Line, RiMoreFill, RiShare2Line } from '@oxy.so/bloom/icons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { AgentProfile } from '@oxy.so/bloom/agent-reply';
 import { type ReactNode, useMemo } from 'react';
@@ -9,16 +15,21 @@ import { ALIA_AVATAR } from './AliaAvatar';
 import type { AliaChatAgent } from './AliaChatContent';
 
 export interface AliaChatHeaderProps {
-  /** The chat has messages to clear. */
+  /** The chat has messages: there is something to share and to clear. */
   hasMessages: boolean;
   /** Delegated agents that have answered: they join Alia in the profile, up to three in all. */
   agents?: AliaChatAgent[];
+  /** Clears the conversation, from the menu. */
   onClear: () => void;
-  /** Draws the close island; omit where the chat is not dismissible. */
-  onClose?: () => void;
-  /** After the avatar, before the title — a host's back button. */
+  /** Draws the back button at the start of the bar; omit where there is nowhere to go back to. */
+  onBack?: () => void;
+  /** Draws the share button, once there is a conversation; omit where the host cannot share. */
+  onShare?: () => void;
+  /** More rows for the menu (`DropdownMenuItem`s), before Clear. */
+  menu?: ReactNode;
+  /** The host's own start content instead of the back button, e.g. a navigation drawer's menu. */
   leading?: ReactNode;
-  /** The host's own actions, kept before clear and close. */
+  /** The host's own actions, before share and the menu. */
   trailing?: ReactNode;
   /** Pressing Alia's avatar or name. Omitted, the avatar waves. */
   onProfilePress?: () => void;
@@ -51,38 +62,69 @@ export function AliaChatHeader({
   hasMessages,
   agents = [],
   onClear,
-  onClose,
+  onBack,
+  onShare,
+  menu,
   leading,
   trailing,
   onProfilePress,
 }: AliaChatHeaderProps) {
   const labels = useLabels();
+  // Share and the menu act on a conversation. With none there is nothing for them to do, and a
+  // bar of dimmed buttons over the empty chat is chrome with no job: no bar at all, unless the
+  // host brought content of its own (a back button to somewhere, a drawer's menu).
+  if (!hasMessages && !onBack && leading === undefined && trailing === undefined) return null;
   return (
     <PageHeader
-      leading={leading}
+      leading={
+        leading ??
+        (onBack ? (
+          <ButtonGroup accessibilityLabel={labels.chatActions}>
+            <ButtonGroupItem
+              iconOnly
+              leadingIcon={RiArrowLeftLine}
+              accessibilityLabel={labels.back}
+              onPress={onBack}
+            />
+          </ButtonGroup>
+        ) : undefined)
+      }
       title={hasMessages ? <AliaProfile agents={agents} onPress={onProfilePress} /> : undefined}
       titleAlign="center"
       actions={
         <>
           {trailing}
-          <ButtonGroup accessibilityLabel={labels.chatActions}>
-            {hasMessages ? (
-              <ButtonGroupItem
-                iconOnly
-                leadingIcon={RiDeleteBin6Line}
-                accessibilityLabel={labels.clear}
-                onPress={onClear}
-              />
-            ) : null}
-            {onClose ? (
-              <ButtonGroupItem
-                iconOnly
-                leadingIcon={RiCloseLine}
-                accessibilityLabel={labels.close}
-                onPress={onClose}
-              />
-            ) : null}
-          </ButtonGroup>
+          {hasMessages ? (
+            <ButtonGroup accessibilityLabel={labels.chatActions}>
+              {onShare ? (
+                <ButtonGroupItem
+                  iconOnly
+                  leadingIcon={RiShare2Line}
+                  accessibilityLabel={labels.share}
+                  onPress={onShare}
+                />
+              ) : null}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild label={labels.more}>
+                  <ButtonGroupItem
+                    iconOnly
+                    leadingIcon={RiMoreFill}
+                    accessibilityLabel={labels.more}
+                  />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {menu}
+                  <DropdownMenuItem
+                    tone="danger"
+                    leading={<RiDeleteBin6Line width={16} height={16} />}
+                    onPress={onClear}
+                  >
+                    {labels.clear}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </ButtonGroup>
+          ) : null}
         </>
       }
       scrim="none"

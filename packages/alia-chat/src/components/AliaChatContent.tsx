@@ -353,7 +353,7 @@ function AliaChatContentBody({
   const welcomeComponent = useMemo(() => {
     if (!welcomeGreeting || messages.length > 0) return undefined;
     return (
-      <View className="flex-1 items-center justify-center px-4">
+      <View className="flex-1 items-center justify-center px-4 pb-8 pt-20">
         <AliaWelcomeMessage greeting={welcomeGreeting} subtitle={welcomeSubtitle} />
       </View>
     );
