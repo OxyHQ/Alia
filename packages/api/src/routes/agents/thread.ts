@@ -144,7 +144,7 @@ router.get('/thread/:username', authenticateToken, async (req: Request, res: Res
         _id: agent._id,
         name: agent.name,
         handle: agent.handle,
-        color: agent.color,
+        character: agent.character,
         tagline: agent.tagline,
         description: agent.description,
       },

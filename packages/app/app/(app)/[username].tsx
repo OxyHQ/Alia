@@ -1,14 +1,15 @@
 import { AgentApprovalsBanner } from '@/features/agents/ui/agent-approvals-banner';
 import { ChatWorkspace } from '@/features/chat/ui/chat-workspace';
 import { ConversationScreen } from '@/features/chat/ui/conversation-screen';
-import { agentColorPreset } from '@/shared/domain/agent-color';
+import { readAgentCharacter } from '@alia.onl/sdk';
+import { avatarBodyHex, resolveAvatarCharacter } from '@oxy.so/bloom/agent-avatar';
 import { useAgentThread } from '@/features/agents/runtime/use-agent-thread';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { AiChatMobileHeader } from '@oxy.so/bloom/ai-chat';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
 import { Loading } from '@oxy.so/bloom/loading';
-import { BloomColorScope } from '@oxy.so/bloom/theme';
+import { BloomSeedScope } from '@oxy.so/bloom/theme';
 import { useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
 
@@ -126,8 +127,7 @@ const AgentThreadPage = () => {
    * navigating away cannot leave a colour behind — there is no state that
    * outlives the screen holding it.
    *
-   * `undefined` renders no wrapper at all, so an agent with no colour and the
-   * rest of the app are untouched rather than merely unchanged.
+   * The seed is the agent's own look: the body colour of its character.
    *
    * ## `asChild` over a `flex-1` View, and it is not a style preference
    *
@@ -147,7 +147,10 @@ const AgentThreadPage = () => {
    * overlays.
    */
   return (
-    <BloomColorScope colorPreset={agentColorPreset(thread.agent.color)} asChild>
+    <BloomSeedScope
+      seed={avatarBodyHex(resolveAvatarCharacter(readAgentCharacter(thread.agent.character)))}
+      asChild
+    >
       <View className="flex-1 web:z-auto">
         <AgentApprovalsBanner agentId={thread.agent._id} />
         <ConversationScreen
@@ -163,7 +166,7 @@ const AgentThreadPage = () => {
           threadHandle={thread.threadId ? undefined : handle}
         />
       </View>
-    </BloomColorScope>
+    </BloomSeedScope>
   );
 };
 

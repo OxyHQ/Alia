@@ -33,7 +33,8 @@ export interface AgentThreadIdentity {
   _id: string;
   name: string | null;
   handle: string | null;
-  color: string | null;
+  /** The agent's look, as the server stores it (JSON). It also seeds the page's theme. */
+  character: unknown;
   tagline: string;
   description: string;
 }
