@@ -624,6 +624,27 @@
       "when": 1791715718542,
       "tag": "0088_action_review_pre",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1791978628348,
+      "tag": "0089_agent_character",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1791978830469,
+      "tag": "0090_agent_info_character",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1791978880533,
+      "tag": "0091_agent_character_required",
+      "breakpoints": true
     }
   ]
 }

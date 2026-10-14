@@ -1,3 +1,4 @@
+import { parseAgentCharacter } from '../domain/agent-character.js';
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { getDb } from '../db/index.js';
@@ -165,6 +166,7 @@ function agentInfoFromBody(value: unknown): { agentInfo: AgentInfo } | null {
       id: raw.id,
       name: raw.name,
       color: typeof raw.color === 'string' ? raw.color : null,
+      character: parseAgentCharacter(raw.character),
       handle: raw.handle,
     },
   };

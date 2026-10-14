@@ -24,6 +24,7 @@
  * rather than narrowed to a string anywhere it is merely being moved.
  */
 
+import type { AgentCharacter } from '../../domain/agent-character';
 import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import type {
   AgentInfo,
@@ -49,6 +50,7 @@ export interface MessageRow {
   readonly agentInfoId: string | null;
   readonly agentInfoName: string | null;
   readonly agentInfoColor: string | null;
+  readonly agentInfoCharacter: AgentCharacter | null;
   readonly agentInfoHandle: string | null;
   readonly audioUrl: string | null;
   readonly seq: number | null;
@@ -108,6 +110,7 @@ export function toStoredMessage(row: MessageRow): StoredMessage {
             id: row.agentInfoId,
             name: row.agentInfoName ?? '',
             color: row.agentInfoColor,
+            character: row.agentInfoCharacter,
             handle: row.agentInfoHandle ?? '',
           },
         }),
@@ -149,6 +152,7 @@ function toInsert(message: NewMessage): typeof messages.$inferInsert {
     agentInfoId: message.agentInfo?.id ?? null,
     agentInfoName: message.agentInfo?.name ?? null,
     agentInfoColor: message.agentInfo?.color ?? null,
+    agentInfoCharacter: message.agentInfo?.character ?? null,
     agentInfoHandle: message.agentInfo?.handle ?? null,
     vote: message.vote ?? null,
     audioUrl: message.audioUrl ?? null,

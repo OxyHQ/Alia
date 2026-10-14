@@ -86,6 +86,12 @@ export interface AgentInfo {
   id: string;
   name: string;
   color: string | null;
+  /**
+   * The agent's look when it said this, a Bloom avatar character stored as the JSON object it is
+   * (`domain/agent-character.ts`); null when the agent is gone. Opaque here: a domain module imports
+   * nothing, and this one only carries it.
+   */
+  character: Readonly<Record<string, string | number | undefined>> | null;
   handle: string;
 }
 

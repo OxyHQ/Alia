@@ -25,6 +25,7 @@
  * fixtures.
  */
 
+import { TEST_CHARACTER } from '../../db/__tests__/support/agent-character';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
@@ -545,6 +546,7 @@ describe('the agents an organization shares', () => {
   async function seedAgent(id: string, oxyAccountId: string): Promise<void> {
     await db.insert(agents).values({
       id,
+      character: TEST_CHARACTER,
       oxyAccountId,
       ownerOxyAccountId: 'oxy-project-orgauth-internal',
       applicationId: `internal-app-${id}`,

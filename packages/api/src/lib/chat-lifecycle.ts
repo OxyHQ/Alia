@@ -1,3 +1,4 @@
+import type { AgentInfo } from '../domain/conversation.js';
 import type { Request } from 'express';
 import {
   saveConversation,
@@ -109,7 +110,7 @@ export async function saveConversationResult(
   agentMessages?: Array<{
     role: 'assistant';
     content: string;
-    agentInfo: { id: string; name: string; color: string | null; handle: string };
+    agentInfo: AgentInfo;
   }>,
 ): Promise<void> {
   const { userId, conversationId, assistantMessageId, messages } = ctx;

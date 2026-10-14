@@ -52,6 +52,7 @@
  * model has decided anything.
  */
 
+import type { AgentCharacter } from '../../domain/agent-character.js';
 import { tool } from 'ai';
 import { z } from 'zod';
 import { getDb } from '../../db/index.js';
@@ -68,6 +69,8 @@ export interface AgentDelegationResult {
   agentHandle: string;
   /** The agent's Bloom colour preset key, for the glyph a client draws. */
   agentColor: string | null;
+  /** The agent's look, a Bloom avatar character; null when the agent could not be read. */
+  agentCharacter: AgentCharacter | null;
   response: string;
   tokensUsed: number;
   error?: string;
@@ -136,6 +139,7 @@ export const createDelegateToAgentTool = (userId: string, accessToken: string | 
             agentName: 'Unknown',
             agentHandle: 'unknown',
             agentColor: null,
+            agentCharacter: null,
             response: '',
             tokensUsed: 0,
             error: 'Agent not found',
@@ -150,6 +154,7 @@ export const createDelegateToAgentTool = (userId: string, accessToken: string | 
           agentName: agentPromptName(agent),
           agentHandle: agent.handle ?? 'unknown',
           agentColor: agent.color,
+          agentCharacter: agent.character,
           response: outcome.response,
           tokensUsed: outcome.tokensUsed,
           ...(outcome.error === undefined ? {} : { error: outcome.error }),
@@ -161,6 +166,7 @@ export const createDelegateToAgentTool = (userId: string, accessToken: string | 
           agentName: 'Unknown',
           agentHandle: 'unknown',
           agentColor: null,
+          agentCharacter: null,
           response: '',
           tokensUsed: 0,
           error: getErrorMessage(error),

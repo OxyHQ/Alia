@@ -1,3 +1,4 @@
+import { TEST_CHARACTER } from './support/agent-character';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
@@ -55,6 +56,7 @@ const suffix = () => Math.random().toString(36).slice(2, 10);
 
 async function seedAgent(): Promise<string> {
   const agent = await createAgent(db, {
+    character: TEST_CHARACTER,
     oxyAccountId: `oxy-bot-reviewed-${suffix()}`,
     ownerOxyAccountId: AUTHOR,
     tagline: 't',

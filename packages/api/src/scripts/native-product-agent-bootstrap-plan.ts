@@ -72,6 +72,7 @@
  * and the whole plan is refused.
  */
 
+import { agentCharacterFor, type AgentCharacter } from '../domain/agent-character.js';
 import { createHash } from 'node:crypto';
 import {
   findNativeProductAgent,
@@ -192,6 +193,7 @@ export interface InsertValues {
   readonly oxyAccountId: string;
   readonly ownerOxyAccountId: string;
   readonly applicationId: string;
+  readonly character: AgentCharacter;
   readonly authorOxyUserId: string;
   readonly tagline: string;
   readonly description: string;
@@ -277,6 +279,8 @@ function planOne(observation: NativeAgentObservation): {
           oxyAccountId: agent.oxyAccountId,
           ownerOxyAccountId: agent.ownerOxyAccountId,
           applicationId: agent.applicationId,
+          // Picked from the id, so a product agent always looks the same; its owner changes it in the editor.
+          character: agentCharacterFor(agent.id),
           /**
            * A LISTING INDEX, never a permission (`db/schema/agents.ts`). The
            * owning project is the honest answer to "whose agent is this" and

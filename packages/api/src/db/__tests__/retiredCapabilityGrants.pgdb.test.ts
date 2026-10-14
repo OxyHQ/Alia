@@ -1,3 +1,4 @@
+import { TEST_CHARACTER } from './support/agent-character';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -32,6 +33,7 @@ afterAll(async () => {
 
 async function agentWith(grants: string[]): Promise<string> {
   const agent = await createAgent(db, {
+    character: TEST_CHARACTER,
     oxyAccountId: `oxy-bot-retired-${process.pid}-${seq++}`,
     ownerOxyAccountId: OWNER,
     tagline: 't',

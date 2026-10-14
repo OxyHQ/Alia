@@ -1,3 +1,4 @@
+import { agentCharacterFor } from '../../domain/agent-character.js';
 import { tool } from 'ai';
 import { z } from 'zod';
 import { getDb } from '../../db/index.js';
@@ -189,6 +190,9 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
           // directly under this caller's personal account. Store that authority
           // explicitly; `author` remains listing metadata only.
           ownerOxyAccountId: userId,
+          // Picked from the handle, so the same agent always looks the same; the person changes it
+          // in the editor.
+          character: agentCharacterFor(username),
           tagline,
           description,
           authorOxyUserId: userId,

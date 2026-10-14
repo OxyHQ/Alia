@@ -559,7 +559,7 @@ describe('the wire shape', () => {
         content: [{ type: 'text', text: 'hi' }],
         seq: 0,
         clientMessageId: 'client-abc',
-        agentInfo: { id: 'a1', name: 'Scout', color: 'teal', handle: 'scout' },
+        agentInfo: { id: 'a1', name: 'Scout', color: 'teal', character: null, handle: 'scout' },
         toolInvocations: [
           { toolCallId: 't1', toolName: 'search', state: 'result', result: { ok: true } },
         ],
@@ -583,6 +583,7 @@ describe('the wire shape', () => {
       id: 'a1',
       name: 'Scout',
       color: 'teal',
+      character: null,
       handle: 'scout',
     });
     expect(withAgent.toolInvocations).toEqual([

@@ -312,7 +312,7 @@ describe('saveConversation (append-only)', () => {
         {
           role: 'assistant',
           content: 'the specialist speaking',
-          agentInfo: { id: 'a1', name: 'Scout', color: 'teal', handle: 'scout' },
+          agentInfo: { id: 'a1', name: 'Scout', color: 'teal', character: null, handle: 'scout' },
         },
       ],
     });
@@ -384,12 +384,12 @@ describe('saveConversation keeps the client’s message ids', () => {
         {
           role: 'assistant',
           content: 'first',
-          agentInfo: { id: 'x', name: 'X', color: null, handle: 'x' },
+          agentInfo: { id: 'x', name: 'X', color: null, character: null, handle: 'x' },
         },
         {
           role: 'assistant',
           content: 'second',
-          agentInfo: { id: 'y', name: 'Y', color: null, handle: 'y' },
+          agentInfo: { id: 'y', name: 'Y', color: null, character: null, handle: 'y' },
         },
       ],
     });

@@ -1,3 +1,4 @@
+import { TEST_CHARACTER } from './support/agent-character';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
@@ -53,6 +54,7 @@ function newAgentInput(overrides: Record<string, unknown> = {}) {
   return {
     oxyAccountId: botAccount(),
     ownerOxyAccountId: OWNER,
+    character: TEST_CHARACTER,
     tagline: 'finds things out',
     description: 'a longer description',
     authorOxyUserId: OWNER,
