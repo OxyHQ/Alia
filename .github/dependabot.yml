@@ -1,14 +1,20 @@
 version: 2
 
 updates:
-  - package-ecosystem: npm
+  # Bun workspaces (bun.lock). Dependabot's npm updater refuses a directory with
+  # only a bun.lock, so this is the `bun` ecosystem.
+  - package-ecosystem: bun
     directory: /
     schedule:
-      interval: weekly
+      interval: daily
     groups:
+      # First-party SDKs get their own PR and it auto-merges
+      # (.github/workflows/automerge-first-party.yml). Keep it the FIRST group.
       oxy-platform:
         patterns:
           - "@oxy.so/*"
+          - "@alia.onl/*"
+          - "@clarity.surf/*"
     labels:
       - dependencies
     open-pull-requests-limit: 10
