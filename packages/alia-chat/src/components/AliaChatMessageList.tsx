@@ -12,15 +12,19 @@ import { Textarea } from '@oxy.so/bloom/textarea';
 import { TaskList } from '@oxy.so/bloom/task-list';
 import { Text } from '@oxy.so/bloom/typography';
 import { WebSearch } from '@oxy.so/bloom/web-search';
-import { AliaMarkdown } from './Markdown';
-import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
+import { AliaMarkdown, MARKDOWN_BODY } from './Markdown';
+import { AiChatMessageLine, AiChatThread, AiChatUserMessage } from '@oxy.so/bloom/ai-chat';
 import {
-  AiChatFeedbackRow,
-  AiChatMessageLine,
-  AiChatThread,
-  AiChatUserMessage,
-} from '@oxy.so/bloom/ai-chat';
-import { Avatar } from '@oxy.so/bloom/avatar';
+  AgentReply,
+  AgentReplyAction,
+  AgentReplyActions,
+  AgentReplyBubble,
+  AgentReplyIdentity,
+} from '@oxy.so/bloom/agent-reply';
+import { agentCharacter } from '../lib/agent-character';
+import { useAfterDelay } from '../lib/use-after-delay';
+import { Collapsible } from '@oxy.so/bloom/collapsible';
+import { ALIA_AVATAR } from './AliaAvatar';
 import { Button } from '@oxy.so/bloom/button';
 import { useLabels } from '../lib/labels';
 import { isWebInvocation, taskListLog, webSearchLog } from '../lib/work-log';
@@ -33,7 +37,7 @@ import {
 } from '@oxy.so/bloom/icons';
 import { ThinkingBlock } from './ThinkingBlock';
 import { PlanPreviewCard } from './PlanPreviewCard';
-import { QuestionCard } from './QuestionCard';
+import { AskedQuestions } from './QuestionCard';
 import { askedQuestions, isQuestionInvocation } from '../lib/questions';
 import { chatMessageEnter } from '../animations';
 import { getToolLabel, getToolActiveLabel, getResearchActiveLabel } from '../lib/tool-registry';
@@ -69,8 +73,6 @@ export interface AliaChatMessageListProps {
   onThumbsDown?: (messageId: string) => void;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
-  /** Sends the answers to Alia's questions as the person's next message. */
-  onAnswerQuestions?: (message: string) => void;
   // Welcome
   welcomeComponent?: React.ReactNode;
   // Markdown renderer override (app passes CustomMarkdown, SDK uses AliaMarkdown)
@@ -172,7 +174,61 @@ const UserBubble = React.memo(function UserBubble({
   );
 });
 
+/** Alia is shown thinking only once she has for this long: a hand-over to an agent shows no flash of her. */
+const ALIA_THINKING_DELAY_MS = 450;
+
 // ── Assistant Message ──
+
+/**
+ * One reply, Alia's or a delegated agent's: the reply, and under it who answered. While the one
+ * who answers is working the identity shows its avatar large and thinking, and when the reply
+ * arrives it is the same avatar that settles under it, as in Bloom's multi-agent chat. Alia's own
+ * text runs the width of the thread; an agent answers in a bubble.
+ */
+function ReplyBody({
+  agent,
+  thinking,
+  reasoning,
+  actions,
+  children,
+}: {
+  agent: ChatMessage['agentInfo'];
+  thinking: boolean;
+  /** What the model has reasoned so far: the thinking avatar folds it under its row. */
+  reasoning: React.ReactNode;
+  actions: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const identity = (
+    <AgentReplyIdentity
+      character={agent ? agentCharacter(agent.id) : ALIA_AVATAR}
+      name={agent?.name ?? 'Alia'}
+      thinking={thinking}
+      reasoning={reasoning}
+    />
+  );
+  if (agent === undefined)
+    return (
+      <AgentReply
+        identity={identity}
+        actions={actions}
+        // The thread pads its content and spaces its messages: the text starts at its edge, full width.
+        style={{ marginHorizontal: 0, marginTop: 0, maxWidth: '100%', width: '100%' }}
+      >
+        {children}
+      </AgentReply>
+    );
+  return (
+    <AgentReply
+      identity={identity}
+      actions={actions}
+      // The reply starts where Alia's own text does and sits one thread gap from the message above.
+      style={{ marginHorizontal: 0, marginTop: 0, maxWidth: '100%' }}
+    >
+      {children ? <AgentReplyBubble text={MARKDOWN_BODY}>{children}</AgentReplyBubble> : null}
+    </AgentReply>
+  );
+}
 
 const AssistantMessage = React.memo(function AssistantMessage({
   message,
@@ -180,6 +236,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
   isStreamingThis,
   isLastMessage,
   isLoading,
+  agentsWorking,
   onReadAloud,
   ttsActiveMessageId,
   ttsPlaybackState,
@@ -188,7 +245,6 @@ const AssistantMessage = React.memo(function AssistantMessage({
   onThumbsDown,
   onApprovePlan,
   onRejectPlan,
-  onAnswerQuestions,
   renderMarkdown,
 }: {
   message: ChatMessage;
@@ -196,6 +252,8 @@ const AssistantMessage = React.memo(function AssistantMessage({
   isStreamingThis: boolean;
   isLastMessage: boolean;
   isLoading: boolean;
+  /** An agent Alia sent for has not answered yet: it is the one thinking, not Alia. */
+  agentsWorking: boolean;
   onReadAloud?: (messageId: string, text: string) => void;
   ttsActiveMessageId?: string | null;
   ttsPlaybackState?: PlaybackState;
@@ -204,7 +262,6 @@ const AssistantMessage = React.memo(function AssistantMessage({
   onThumbsDown?: (messageId: string) => void;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
-  onAnswerQuestions?: (message: string) => void;
   renderMarkdown?: (content: string) => React.ReactNode;
 }) {
   const labels = useLabels();
@@ -219,8 +276,8 @@ const AssistantMessage = React.memo(function AssistantMessage({
     () => webSearchLog(toolInvocations, researchProgress, { t: labels.workLog }),
     [toolInvocations, researchProgress, labels.workLog],
   );
-  // The questions Alia asked, drawn as a card. Answerable only on the last message once the
-  // turn is over; any later message (typed or sent from the card) is the answer.
+  // The questions Alia asked, kept in the thread as a record. They are answered above the
+  // composer (`AliaChatContent`), where the person is about to type.
   const questions = useMemo(
     () => (toolInvocations ?? []).flatMap((inv) => askedQuestions(inv) ?? []),
     [toolInvocations],
@@ -237,30 +294,37 @@ const AssistantMessage = React.memo(function AssistantMessage({
   const isThisPlaying = ttsActiveMessageId === message.id && ttsPlaybackState === 'playing';
   const isThisPaused = ttsActiveMessageId === message.id && ttsPlaybackState === 'paused';
   const isThisLoading = ttsActiveMessageId === message.id && ttsPlaybackState === 'loading';
+  const replyActions =
+    !isStreamingThis && hasContent ? (
+      <AgentReplyActions
+        onVoteChange={(vote) =>
+          vote === 'up' ? onThumbsUp?.(message.id) : onThumbsDown?.(message.id)
+        }
+        onCopy={() => onCopy(messageText, message.id)}
+      >
+        {onReadAloud ? (
+          <AgentReplyAction
+            icon={isThisPlaying || isThisPaused ? RiStopFill : RiVolumeUpLine}
+            label={isThisPlaying || isThisPaused ? labels.stopReading : labels.readAloud}
+            selected={isThisPlaying || isThisPaused}
+            disabled={isThisLoading}
+            onPress={() => onReadAloud(message.id, messageText)}
+          />
+        ) : null}
+      </AgentReplyActions>
+    ) : undefined;
 
-  // AgentThinking — context-aware status
-  let thinkingIndicator: React.ReactNode = null;
-  if (isLoading && isLastMessage && !hasContent) {
-    const activeTool = message.toolInvocations?.find(
-      (t) => t.state === 'call' || t.state === 'partial-call',
-    );
-    const rp = message.researchProgress;
-    let activeStatus: string | undefined;
-    if (activeTool) {
-      activeStatus = getToolActiveLabel(activeTool.toolName);
-    } else if (rp?.phase && rp.phase !== 'complete') {
-      activeStatus = getResearchActiveLabel(rp.phase);
-    }
-    // While it reasons, the reasoning block draws its own indicator: two at once is noise.
-    if (activeStatus !== undefined || !hasThinking) {
-      thinkingIndicator = (
-        <AgentThinking
-          variant={(message.toolInvocations?.length ?? 0) > 0 ? 'spin' : 'wave'}
-          label={activeStatus?.replace(/\.{3}$/, '')}
-        />
-      );
-    }
-  }
+  // The one who answers is thinking until its reply starts: an agent from the call that sent for it,
+  // Alia when no agent is working for her. The avatar is the indicator.
+  // Alia thinks once she has for a moment: when she hands the turn over at once, only the agent is
+  // shown thinking, not Alia for an instant first.
+  const aliaThinking = useAfterDelay(
+    isLoading && !hasContent && !message.agentInfo && isLastMessage && !agentsWorking,
+    ALIA_THINKING_DELAY_MS,
+  );
+  const thinking = message.agentInfo ? isLoading && !hasContent : aliaThinking;
+  // The reply, its avatar and its reasoning come and go with their height eased, never popped.
+  const showsReply = hasContent || message.isStreaming || thinking;
 
   return (
     <View className="w-full">
@@ -300,65 +364,30 @@ const AssistantMessage = React.memo(function AssistantMessage({
       )}
 
       {/* Message Content */}
-      {(hasContent || message.isStreaming) && (
-        <View className="flex-col items-start gap-0.5">
-          {/* Agent identity */}
-          {message.agentInfo && (
-            <View className="mb-0.5 flex-row items-center gap-2">
-              <Avatar source={message.agentInfo.avatar} size="xs" />
-              <Text className="text-xs font-semibold text-text-primary">
-                {message.agentInfo.name}
-              </Text>
-            </View>
-          )}
-          <View className="w-full">
-            {message.source === 'voice' ? (
-              <Text className="text-base text-text-primary leading-7">
-                {messageText}
-                {message.isStreaming ? '\u258C' : ''}
-              </Text>
-            ) : renderMarkdown ? (
-              renderMarkdown(messageText)
-            ) : (
-              <AliaMarkdown content={messageText} />
-            )}
-          </View>
-          {!isStreamingThis && hasContent && (
-            <AiChatFeedbackRow
-              onLike={onThumbsUp ? () => onThumbsUp(message.id) : undefined}
-              onDislike={onThumbsDown ? () => onThumbsDown(message.id) : undefined}
-              onCopy={() => onCopy(messageText, message.id)}
-              actions={
-                onReadAloud
-                  ? [
-                      {
-                        key: 'read-aloud',
-                        label:
-                          isThisPlaying || isThisPaused ? labels.stopReading : labels.readAloud,
-                        icon: isThisPlaying || isThisPaused ? RiStopFill : RiVolumeUpLine,
-                        active: isThisPlaying || isThisPaused,
-                        disabled: isThisLoading,
-                        onPress: () => onReadAloud(message.id, messageText),
-                      },
-                    ]
-                  : []
-              }
-            />
-          )}
-        </View>
-      )}
-
-      {questions.length === 0 ? null : (
-        <QuestionCard
-          questions={questions}
-          onSubmit={
-            isLastMessage && !isLoading && onAnswerQuestions !== undefined
-              ? onAnswerQuestions
-              : undefined
+      <Collapsible open={showsReply}>
+        <ReplyBody
+          agent={message.agentInfo}
+          thinking={thinking}
+          reasoning={
+            thinking && hasThinking ? <AliaMarkdown content={message.thinking!} /> : undefined
           }
-        />
-      )}
-      {thinkingIndicator}
+          actions={replyActions}
+        >
+          {!hasContent && !message.isStreaming ? null : message.source === 'voice' ? (
+            <Text className="text-base text-text-primary leading-7">
+              {messageText}
+              {message.isStreaming ? '\u258C' : ''}
+            </Text>
+          ) : renderMarkdown ? (
+            renderMarkdown(messageText)
+          ) : (
+            <AliaMarkdown content={messageText} />
+          )}
+        </ReplyBody>
+      </Collapsible>
+
+      {/* What Alia asked stays in the thread as a record; answering happens above the composer. */}
+      {questions.length === 0 ? null : <AskedQuestions questions={questions} />}
     </View>
   );
 });
@@ -376,7 +405,6 @@ export function AliaChatMessageList({
   onThumbsDown,
   onApprovePlan,
   onRejectPlan,
-  onAnswerQuestions,
   welcomeComponent,
   renderMarkdown,
 }: AliaChatMessageListProps) {
@@ -429,6 +457,9 @@ export function AliaChatMessageList({
   }, []);
 
   const filteredMessages = useMemo(() => messages.filter((m) => m.role !== 'system'), [messages]);
+  // An agent Alia sent for that has not answered: it is the one that is thinking.
+  const agentsWorking =
+    isStreaming && filteredMessages.some((m) => m.agentInfo && !getTextFromContent(m.content));
 
   return (
     // Bloom's thread: follows the newest turn, and reports its scroll to a floating-chrome
@@ -451,39 +482,42 @@ export function AliaChatMessageList({
 
             return (
               <Animated.View key={msg.id} entering={isNewMessage ? chatMessageEnter : undefined}>
-                {msg.role === 'user' ? (
-                  <UserBubble
-                    message={msg}
-                    text={messageText}
-                    isEditing={editingMessageId === msg.id}
-                    editedContent={editingMessageId === msg.id ? editedContent : ''}
-                    onEditedContentChange={setEditedContent}
-                    onSaveEdit={handleSaveEdit}
-                    onCancelEdit={handleCancelEdit}
-                    onStartEdit={handleStartEdit}
-                    onCopy={handleCopy}
-                    copiedMessageId={copiedMessageId}
-                    showEditButton={!!onEditMessage}
-                  />
-                ) : (
-                  <AssistantMessage
-                    message={msg}
-                    messageText={messageText}
-                    isStreamingThis={isStreamingThis}
-                    isLastMessage={isLast}
-                    isLoading={isStreaming}
-                    onReadAloud={onReadAloud}
-                    ttsActiveMessageId={ttsActiveMessageId}
-                    ttsPlaybackState={ttsPlaybackState}
-                    onCopy={handleCopy}
-                    onThumbsUp={onThumbsUp}
-                    onThumbsDown={onThumbsDown}
-                    onApprovePlan={onApprovePlan}
-                    onRejectPlan={onRejectPlan}
-                    onAnswerQuestions={onAnswerQuestions}
-                    renderMarkdown={renderMarkdown}
-                  />
-                )}
+                {/* A new row opens up as it arrives, so what is below it moves with it. */}
+                <Collapsible open appear={isNewMessage}>
+                  {msg.role === 'user' ? (
+                    <UserBubble
+                      message={msg}
+                      text={messageText}
+                      isEditing={editingMessageId === msg.id}
+                      editedContent={editingMessageId === msg.id ? editedContent : ''}
+                      onEditedContentChange={setEditedContent}
+                      onSaveEdit={handleSaveEdit}
+                      onCancelEdit={handleCancelEdit}
+                      onStartEdit={handleStartEdit}
+                      onCopy={handleCopy}
+                      copiedMessageId={copiedMessageId}
+                      showEditButton={!!onEditMessage}
+                    />
+                  ) : (
+                    <AssistantMessage
+                      message={msg}
+                      messageText={messageText}
+                      isStreamingThis={isStreamingThis}
+                      isLastMessage={isLast}
+                      isLoading={isStreaming}
+                      agentsWorking={agentsWorking}
+                      onReadAloud={onReadAloud}
+                      ttsActiveMessageId={ttsActiveMessageId}
+                      ttsPlaybackState={ttsPlaybackState}
+                      onCopy={handleCopy}
+                      onThumbsUp={onThumbsUp}
+                      onThumbsDown={onThumbsDown}
+                      onApprovePlan={onApprovePlan}
+                      onRejectPlan={onRejectPlan}
+                      renderMarkdown={renderMarkdown}
+                    />
+                  )}
+                </Collapsible>
               </Animated.View>
             );
           })}

@@ -3,6 +3,7 @@ import { useOxy } from '@oxy.so/services/ui/client';
 import type { ChatMessage, ToolInvocation } from '../types';
 import { getTextFromContent, type MessageContent } from '../lib/content-utils';
 import { resolveModelId } from '../lib/catalogue';
+import { agentMessageId, delegatedAgent } from '../lib/delegation';
 import { streamAliaChat } from '../lib/chat-transport';
 import type { AliaChatStreamEvent } from '../lib/chat-stream';
 
@@ -70,6 +71,8 @@ interface PendingUpdates {
   content: string;
   reasoning: string;
   tools: ToolInvocation[];
+  /** How many delegated agents have answered in this turn. */
+  agentAnswers: number;
   timer: ReturnType<typeof setTimeout> | null;
 }
 
@@ -163,6 +166,58 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
         return previous;
       }
       const updated = previous.filter((message) => message.id !== assistantId);
+      messagesRef.current = updated;
+      return updated;
+    });
+  }, []);
+
+  /**
+   * An agent's message of this turn, before Alia's own: opened empty by the call that sends for the
+   * agent, filled by its answer. Without an open one, an answer makes a message of its own.
+   */
+  const insertAgentMessage = useCallback(
+    (assistantId: string, agent: { id: string; name: string }, content: string) => {
+      if (!mountedRef.current) return;
+      const id = agentMessageId(assistantId, agent.id);
+      setMessages((previous) => {
+        const open = previous.find((message) => message.id === id);
+        let updated: ChatMessage[];
+        if (open && (content === '' || getTextFromContent(open.content) === '')) {
+          // Already open: an answer fills it; a second call to the same agent changes nothing.
+          if (content === '') return previous;
+          updated = previous.map((message) => (message === open ? { ...open, content } : message));
+        } else {
+          const message: ChatMessage = {
+            id: open ? `${id}-${previous.length}` : id,
+            role: 'assistant',
+            content,
+            createdAt: Date.now(),
+            agentInfo: { id: agent.id, name: agent.name },
+          };
+          const at = previous.findIndex((candidate) => candidate.id === assistantId);
+          updated = [...previous];
+          updated.splice(at < 0 ? updated.length : at, 0, message);
+        }
+        messagesRef.current = updated;
+        return updated;
+      });
+    },
+    [],
+  );
+
+  /** A turn that ends with an agent never answering leaves no empty message of the agent's. */
+  const removeUnansweredAgents = useCallback((assistantId: string) => {
+    if (!mountedRef.current) return;
+    setMessages((previous) => {
+      const updated = previous.filter(
+        (message) =>
+          !(
+            message.agentInfo !== undefined &&
+            message.id.startsWith(`${assistantId}-agent-`) &&
+            getTextFromContent(message.content).trim() === ''
+          ),
+      );
+      if (updated.length === previous.length) return previous;
       messagesRef.current = updated;
       return updated;
     });
@@ -310,6 +365,7 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
         content: '',
         reasoning: '',
         tools: [],
+        agentAnswers: 0,
         timer: null,
       };
       pendingRef.current = pending;
@@ -339,6 +395,9 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
             if (index < 0) pending.tools = [...pending.tools, invocation];
             else pending.tools[index] = invocation;
             flushPendingUpdates(pending);
+            // A call to an agent opens the agent's message at once: empty, thinking, until it answers.
+            const agent = delegatedAgent(invocation);
+            if (agent) insertAgentMessage(pending.assistantId, agent, '');
             return;
           }
           case 'tool_result': {
@@ -373,11 +432,14 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
               },
             }));
             return;
-          case 'agent_answer':
-            pending.content += event.content;
-            updateAssistant(pending.assistantId, () => ({ agentInfo: event.agent }));
-            scheduleFlush(pending);
+          case 'agent_answer': {
+            // A delegated agent speaks as itself: its answer is its own message, placed before
+            // Alia's reply, as the Alia app places it. The call that sent for it already opened
+            // the message; an answer with no call opens it. Several agents are several messages.
+            pending.agentAnswers++;
+            insertAgentMessage(pending.assistantId, event.agent, event.content);
             return;
+          }
         }
       };
 
@@ -409,6 +471,9 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
       } finally {
         cancelPendingTimer(pending);
         flushPendingUpdates(pending);
+        removeUnansweredAgents(pending.assistantId);
+        // Alia said nothing herself after handing the turn over: no empty reply under the answers.
+        if (pending.agentAnswers > 0) removeEmptyAssistant(pending.assistantId);
         linked.dispose();
         if (pendingRef.current === pending) pendingRef.current = null;
         if (activeRequestRef.current?.key === request.key) {
@@ -427,6 +492,8 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
       oxyServices,
       requestUrl,
       removeEmptyAssistant,
+      removeUnansweredAgents,
+      insertAgentMessage,
       scheduleFlush,
       updateAssistant,
     ],

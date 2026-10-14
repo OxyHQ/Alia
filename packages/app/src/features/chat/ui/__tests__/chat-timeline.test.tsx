@@ -107,8 +107,8 @@ vi.mock('@/features/chat/ui/cards/agent-task-card', async () => ({
 vi.mock('@/features/chat/ui/welcome-message', async () => ({
   WelcomeMessage: await stub('Welcome')(),
 }));
-vi.mock('@/features/chat/ui/failed-turn-card', async () => ({
-  FailedTurnCard: await stub('FailedTurnCard')(),
+vi.mock('@/features/chat/ui/failed-turn-toast', () => ({
+  useFailedTurnToast: () => {},
 }));
 vi.mock('@/features/chat/ui/message-block-boundary', async () => ({
   MessageBlockBoundary: await stub('Boundary')(),
@@ -124,6 +124,7 @@ vi.mock('@oxy.so/bloom/agent-progress', async () => ({
   AgentProgress: await stub('AgentProgress')(),
 }));
 vi.mock('@oxy.so/bloom/chat-screen', async () => ({ ChatDateHeader: await stub('DayHeader')() }));
+vi.mock('@oxy.so/bloom/agent-avatar', async () => ({ AgentAvatar: await stub('AgentAvatar')() }));
 vi.mock('@oxy.so/bloom/divider', async () => ({ Divider: await stub('Divider')() }));
 vi.mock('@oxy.so/bloom/task-list', async () => ({ TaskList: await stub('TaskList')() }));
 vi.mock('@oxy.so/bloom/web-search', async () => ({ WebSearch: await stub('WebSearch')() }));
@@ -147,7 +148,7 @@ vi.mock('@alia.onl/sdk', async () => ({
       : (content as { type: string; image_url?: { url: string } }[])
           .filter((part) => part.type === 'image_url')
           .map((part) => part.image_url?.url ?? ''),
-  IdentityMark: await stub('IdentityMark')(),
+  agentCharacter: () => ({}),
   PlanPreviewCard: await stub('PlanPreviewCard')(),
 }));
 vi.mock('@/features/chat/model/work-log', () => ({

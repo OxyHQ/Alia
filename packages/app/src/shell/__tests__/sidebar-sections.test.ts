@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { groupHistory, sidebarSections } from '../sidebar-history';
+import { flatConversations, groupHistory, sidebarSections } from '../sidebar-history';
 import type { Conversation } from '@/features/chat/runtime/use-conversations';
 
 /**
@@ -79,5 +79,47 @@ describe('the tree sections', () => {
 
   it('keeps pinned, favourite, filed and agent chats out of History', () => {
     expect(sections.history.map((b) => [b.key, ids(b.items)])).toEqual([['today', ['plain']]]);
+  });
+});
+
+describe('The flat list of chats', () => {
+  const at = (hour: number) => new Date(2026, 8, 21, hour, 0);
+  const rows = [
+    chat('old', new Date(2026, 8, 1, 9, 0)),
+    chat('new', at(9)),
+    chat('pinned-old', new Date(2026, 7, 1, 9, 0)),
+    chat('favourite', new Date(2026, 8, 5, 9, 0)),
+    chat('in-project', at(8)),
+    chat('in-folder', at(7)),
+    chat('agent-thread', at(6), 'agent-1'),
+  ];
+  const flat = flatConversations({
+    conversations: rows,
+    projects: [{ conversationIds: ['in-project'] }],
+    folders: [{ conversationIds: ['in-folder'] }],
+    pinnedIds: ['pinned-old'],
+    favoriteIds: ['favourite'],
+  });
+
+  it('is the chats filed nowhere: no project, no folder, no agent thread', () => {
+    expect(ids(flat)).not.toContain('in-project');
+    expect(ids(flat)).not.toContain('in-folder');
+    expect(ids(flat)).not.toContain('agent-thread');
+  });
+
+  it('puts the pinned first, then the favourites, then the rest newest first', () => {
+    expect(ids(flat)).toEqual(['pinned-old', 'favourite', 'new', 'old']);
+  });
+
+  it('does not reorder or mutate what it is given', () => {
+    const before = ids(rows);
+    flatConversations({
+      conversations: rows,
+      projects: [],
+      folders: [],
+      pinnedIds: [],
+      favoriteIds: [],
+    });
+    expect(ids(rows)).toEqual(before);
   });
 });

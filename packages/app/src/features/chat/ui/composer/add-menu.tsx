@@ -13,7 +13,7 @@ import { RiPlugLine } from '@oxy.so/bloom/icons/RiPlugLine';
 import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import type { ComposerPanelAddMenuGroup } from '@oxy.so/bloom/composer-panel';
-import { ActionKeyIcon } from '@/shared/ui/action-key-icon';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useImagePicker, type ImagePickerAsset } from '@/shared/platform/use-image-picker';
 import { useDocumentPicker } from '@/shared/platform/use-document-picker';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -83,10 +83,11 @@ const CONNECTOR_PREFIX = 'connector:';
  * over, only artwork to draw.
  */
 function ConnectorMark({ icon }: { icon?: string }) {
+  const { colors } = useTheme();
   if (icon !== undefined && /^https?:\/\//i.test(icon)) {
     return <Image source={{ uri: icon }} className="h-6 w-6" contentFit="contain" />;
   }
-  return <ActionKeyIcon width={24} />;
+  return <RiPlugLine width={24} height={24} fill={colors.textSecondary} />;
 }
 
 export interface ComposerAddMenuOptions {

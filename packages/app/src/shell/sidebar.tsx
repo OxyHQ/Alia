@@ -8,13 +8,16 @@ import {
   ConversationActions,
   FolderActions,
   FolderNameDialog,
-  NewAgentAction,
   NewCollectionAction,
   ProjectActions,
   RenameConversationDialog,
   StreamingIndicator,
 } from '@/shell/sidebar-menus';
-import { agentDisplayName, agentHandle } from '@/features/agents/model/identity';
+import {
+  agentDisplayName,
+  agentHandle,
+  agentIdentityMatches,
+} from '@/features/agents/model/identity';
 import { formatRelativeTime } from '@/shared/format/relative-time';
 import { queryKeys } from '@/shared/api/query-keys';
 import {
@@ -27,15 +30,24 @@ import {
 import { useMyAgents } from '@/features/agents/runtime/use-my-agents';
 import { useUnreadCount } from '@/features/notifications/runtime/use-notifications';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { selectedItemForPath, sidebarSections } from '@/shell/sidebar-history';
+import { flatConversations, selectedItemForPath, sidebarSections } from '@/shell/sidebar-history';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
 import { useFoldersStore, type Folder } from '@/features/projects/runtime/folders-store';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
 import { useProjectsStore, type Project } from '@/features/projects/runtime/projects-store';
-import { AliaAvatar } from '@alia.onl/sdk';
+import { agentCharacter, ALIA_AVATAR, AliaAvatar } from '@alia.onl/sdk';
 import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
-import { RiAddFill } from '@oxy.so/bloom/icons/RiAddFill';
+import {
+  ConversationSidebar,
+  type ConversationSidebarAction,
+  type ConversationSidebarItem,
+} from '@oxy.so/bloom/conversation-sidebar';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
+import { RiFolderLine } from '@oxy.so/bloom/icons/RiFolderLine';
+import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
+import { RiStarLine } from '@oxy.so/bloom/icons/RiStarLine';
 import { RiBookOpenLine } from '@oxy.so/bloom/icons/RiBookOpenLine';
 import { RiCustomerServiceLine } from '@oxy.so/bloom/icons/RiCustomerServiceLine';
 import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
@@ -43,18 +55,16 @@ import { RiGiftLine } from '@oxy.so/bloom/icons/RiGiftLine';
 import { RiListCheck3 } from '@oxy.so/bloom/icons/RiListCheck3';
 import { RiMicLine } from '@oxy.so/bloom/icons/RiMicLine';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
-import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
 import { RiSettings4Line } from '@oxy.so/bloom/icons/RiSettings4Line';
 import { RiShieldLine } from '@oxy.so/bloom/icons/RiShieldLine';
 import { RiSmartphoneLine } from '@oxy.so/bloom/icons/RiSmartphoneLine';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
-import {
-  Sidebar as BloomSidebar,
-  type SidebarNavItem,
-  type SidebarTree,
-  type SidebarTreeFolder,
-  type SidebarTreeItem,
+import type {
+  SidebarNavItem,
+  SidebarTree,
+  SidebarTreeFolder,
+  SidebarTreeItem,
 } from '@oxy.so/bloom/sidebar';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { confirm } from '@oxy.so/bloom/surfaces';
@@ -79,12 +89,13 @@ const TERMS_URL = 'https://oxy.so/legal/terms';
 const AGENT_KEY = 'agent:';
 
 /**
- * Alia's sidebar is Bloom's AI Chat template sidebar, prop for prop: account,
- * quick search, primary rows, a tree of chats, theme toggle, secondary rows and
- * the plan card. Only the data is Alia's. The tree holds the agents, Pinned and
- * Favorites, the projects and folders, then History by day (see
- * `sidebarSections`). Each chat, project and folder carries a menu in the
- * tree's `actions` slot; the dialogs those menus open sit beside the sidebar.
+ * Alia's sidebar is Bloom's `ConversationSidebar`, the one the multi-agent chat
+ * draws: search, the agents' catalogue and a "+" menu on top, then ONE flat list
+ * — the agents, and the chats that are not filed anywhere, pinned and favourites
+ * first, newest after — each row with the avatar of who is in it and a context
+ * menu. Projects and folders are a tree of their own under the primary rows, for
+ * the chats filed in them; the account is the foot. Only the data is Alia's. The
+ * dialogs the menus open sit beside the sidebar.
  */
 export interface AliaSidebarProps {
   /** The drawer copy the shell shows below `lg` (the template's `mobile surface="plain"`). */
@@ -95,7 +106,11 @@ export const Sidebar = React.memo(function Sidebar({ mobile }: AliaSidebarProps)
   const { props, dialogs } = useSidebarProps();
   return (
     <>
-      {mobile ? <BloomSidebar {...props} mobile surface="plain" /> : <BloomSidebar {...props} />}
+      {mobile ? (
+        <ConversationSidebar {...props} mobile surface="plain" />
+      ) : (
+        <ConversationSidebar {...props} />
+      )}
       {dialogs}
     </>
   );
@@ -370,35 +385,15 @@ function useSidebarProps() {
     ],
   );
 
+  const sections = React.useMemo(
+    () => sidebarSections({ conversations, projects, folders, pinnedIds, favoriteIds }),
+    [conversations, projects, folders, pinnedIds, favoriteIds],
+  );
+
+  // Projects and folders, for the chats filed in them. The chats that are filed nowhere are the
+  // sidebar's own flat list, not a folder of this tree.
   const tree = React.useMemo<SidebarTree | undefined>(() => {
-    const sections = sidebarSections({
-      conversations,
-      projects,
-      folders,
-      pinnedIds,
-      favoriteIds,
-    });
-    const agents = isAuthenticated ? (myAgents ?? []) : [];
-    const shortcut = (key: string, label: string, rows: Conversation[]) =>
-      rows.length ? [{ key, label, defaultOpen: true, items: rows.map(row) }] : [];
     const treeFolders: SidebarTreeFolder[] = [
-      ...(agents.length
-        ? [
-            {
-              key: 'agents',
-              label: t('sidebar.agents'),
-              defaultOpen: true,
-              actions: <NewAgentAction onPress={() => go('/(app)/agents/create')} />,
-              items: agents.map((agent) => ({
-                key: `${AGENT_KEY}${agentHandle(agent)}`,
-                label: agentDisplayName(agent),
-                meta: agent.lastMessageAt ? shortTime(new Date(agent.lastMessageAt)) : undefined,
-              })),
-            },
-          ]
-        : []),
-      ...shortcut('pinned', t('sidebar.pinned'), sections.pinned),
-      ...shortcut('favorites', t('sidebar.favorites'), sections.favorites),
       ...sections.projects.map(({ project, conversations: rows }) => ({
         key: `project:${project.id}`,
         label: project.name,
@@ -423,17 +418,11 @@ function useSidebarProps() {
         ),
         items: rows.map(row),
       })),
-      ...sections.history.map((bucket) => ({
-        key: `history:${bucket.key}`,
-        label: t(`sidebar.${bucket.key}`),
-        defaultOpen: true,
-        items: bucket.items.map(row),
-      })),
     ];
     // Signed in, the tree stands even while empty: it holds "new project/folder".
     if (!treeFolders.length && !isAuthenticated) return undefined;
     return {
-      label: t('sidebar.chats'),
+      label: t('sidebar.projects'),
       folders: treeFolders,
       actions: isAuthenticated ? (
         <NewCollectionAction
@@ -443,17 +432,11 @@ function useSidebarProps() {
       ) : undefined,
     };
   }, [
-    conversations,
-    projects,
-    folders,
-    pinnedIds,
-    favoriteIds,
-    myAgents,
+    sections,
     toggleProject,
     toggleFolder,
     row,
     t,
-    go,
     isAuthenticated,
     openProjectDialog,
     askDeleteProject,
@@ -461,22 +444,94 @@ function useSidebarProps() {
     askDeleteFolder,
   ]);
 
+  // The flat list: the agents, then the chats filed nowhere (pinned, favourites, the rest by recency).
+  const agentRows = React.useMemo<ConversationSidebarItem[]>(
+    () =>
+      (isAuthenticated ? (myAgents ?? []) : [])
+        .filter((agent) => !searchQuery.trim() || agentIdentityMatches(agent, searchQuery.trim()))
+        .map((agent) => ({
+          id: `${AGENT_KEY}${agentHandle(agent)}`,
+          title: agentDisplayName(agent),
+          description: agent.lastMessageAt
+            ? shortTime(new Date(agent.lastMessageAt))
+            : t('sidebar.noAgentMessages'),
+          agents: [
+            { id: agent._id, name: agentDisplayName(agent), avatar: agentCharacter(agent._id) },
+          ],
+        })),
+    [isAuthenticated, myAgents, searchQuery, t],
+  );
+  const chatRows = React.useMemo<ConversationSidebarItem[]>(
+    () =>
+      flatConversations({ conversations, projects, folders, pinnedIds, favoriteIds })
+        .filter(
+          (conv) =>
+            !searchQuery.trim() ||
+            (conv.title || '').toLowerCase().includes(searchQuery.trim().toLowerCase()),
+        )
+        .map((conv) => ({
+          id: conv.id,
+          title: conv.title || t('sidebar.newConversation'),
+          description:
+            streamingChatId === conv.id ? '…' : (conv.lastMessage ?? shortTime(conv.updatedAt)),
+          agents: [{ id: 'alia', name: 'Alia', avatar: ALIA_AVATAR }],
+          pinned: pinnedIds.includes(conv.id),
+        })),
+    [conversations, projects, folders, pinnedIds, favoriteIds, searchQuery, streamingChatId, t],
+  );
+
+  /** What a chat's context menu offers: pin, favourite, rename, file it, delete. */
+  const chatActions = React.useCallback(
+    (item: ConversationSidebarItem): ConversationSidebarAction[] => {
+      if (item.id.startsWith(AGENT_KEY) || !isAuthenticated) return [];
+      const pinned = pinnedIds.includes(item.id);
+      const favorite = favoriteIds.includes(item.id);
+      return [
+        { key: 'pin', label: pinned ? t('sidebar.unpin') : t('sidebar.pin'), icon: RiPushpinLine },
+        {
+          key: 'favorite',
+          label: favorite ? t('sidebar.removeFavorite') : t('sidebar.addFavorite'),
+          icon: RiStarLine,
+        },
+        { key: 'rename', label: t('sidebar.rename'), icon: RiEditLine },
+        ...projects.map((project) => ({
+          key: `project:${project.id}`,
+          label: `${t('sidebar.moveToProject')}: ${project.name}`,
+          icon: RiFolderLine,
+        })),
+        ...folders.map((folder) => ({
+          key: `folder:${folder.id}`,
+          label: `${t('sidebar.moveToFolder')}: ${folder.name}`,
+          icon: RiFolderLine,
+        })),
+        { key: 'delete', label: t('sidebar.deleteChat'), icon: RiDeleteBinLine, destructive: true },
+      ];
+    },
+    [isAuthenticated, pinnedIds, favoriteIds, projects, folders, t],
+  );
+  const onChatAction = React.useCallback(
+    (item: ConversationSidebarItem, key: string) => {
+      const conv = conversations.find((c) => c.id === item.id);
+      if (!conv) return;
+      if (key === 'pin') void togglePin(conv.id);
+      else if (key === 'favorite') void toggleFavorite(conv.id);
+      else if (key === 'rename') setRenaming(conv);
+      else if (key === 'delete') void askDeleteConversation(conv);
+      else if (key.startsWith('project:')) void moveConversation(conv.id, key.slice(8));
+      else if (key.startsWith('folder:')) void moveConversationToFolder(conv.id, key.slice(7));
+    },
+    [
+      conversations,
+      togglePin,
+      toggleFavorite,
+      askDeleteConversation,
+      moveConversation,
+      moveConversationToFolder,
+    ],
+  );
+
+  // New chat and Agents are the toolbar's "+" and store button, not rows.
   const items: SidebarNavItem[] = [
-    {
-      key: 'new-chat',
-      label: t('sidebar.newChat'),
-      icon: RiAddFill,
-      onPress: () => {
-        closeNav?.();
-        router.replace('/(app)');
-      },
-    },
-    {
-      key: 'agents',
-      label: t('sidebar.agents'),
-      icon: RiRobot2Line,
-      onPress: () => go('/(app)/agents'),
-    },
     {
       key: 'library',
       label: t('sidebar.library'),
@@ -672,6 +727,7 @@ function useSidebarProps() {
   ) : undefined;
 
   const props = {
+    // The panel's own header stays above the tools: the mark and name (home), and the collapse control.
     logo: {
       // A still thumbnail: a permanent 26px spot should not hold a live 3D renderer on every page.
       icon: <AliaAvatar size={26} portrait />,
@@ -681,21 +737,35 @@ function useSidebarProps() {
         router.replace('/(app)');
       },
     },
+    conversations: [...agentRows, ...chatRows],
+    activeId: selectedTreeItemForPath(pathname) ?? chatId?.id,
+    onSelect: (id: string) =>
+      id.startsWith(AGENT_KEY) ? openAgent(id.slice(AGENT_KEY.length)) : openConversation(id),
+    query: searchQuery,
+    onQueryChange: setSearchQuery,
+    // The store button is the agents' catalogue.
+    onMarketplace: () => go('/(app)/agents'),
+    labels: {
+      marketplace: t('sidebar.agents'),
+      search: t('sidebar.searchChats'),
+      searchPlaceholder: t('sidebar.searchChatsPlaceholder'),
+      // A visitor has no chats to find: say "no results" only for a search that found none.
+      empty: searchQuery.trim() ? t('common.noResults') : '',
+    },
+    // The "+" is a new conversation, directly.
+    onCreate: () => {
+      closeNav?.();
+      router.replace('/(app)');
+    },
+    actions: chatActions,
+    onAction: onChatAction,
+    after: content,
     items,
     secondaryItems,
     selected: selectedItemForPath(pathname),
     tree,
-    content,
-    searchQuery,
-    onSearchQueryChange: setSearchQuery,
-    searchLabel: t('sidebar.searchChats'),
-    searchPlaceholder: t('sidebar.searchChatsPlaceholder'),
-    noResultsLabel: t('common.noResults'),
-    selectedTreeItem: selectedTreeItemForPath(pathname) ?? chatId?.id,
-    onTreeItemPress: (item: { key: string }) =>
-      item.key.startsWith(AGENT_KEY)
-        ? openAgent(item.key.slice(AGENT_KEY.length))
-        : openConversation(item.key),
+    selectedTreeItem: chatId?.id,
+    onTreeItemPress: (item: { key: string }) => openConversation(item.key),
     footer,
     onScroll,
     onClose: closeNav,

@@ -62,6 +62,8 @@ export interface ComposerProps {
   attachments?: readonly Attachment[];
   onAddAttachment?: (attachment: Attachment) => void;
   onRemoveAttachment?: (id: string) => void;
+  /** What Alia is waiting on (her questions), docked above the composer. */
+  question?: ReactNode;
   /** The tab on the card's top edge (`ComposerPanelStatusTab`). */
   status?: ReactNode;
   /** Drawn where send would be while there is nothing to send (voice mode). */
@@ -95,6 +97,7 @@ export function Composer({
   attachments = NO_ATTACHMENTS,
   onAddAttachment,
   onRemoveAttachment,
+  question,
   status,
   emptyAction,
   accessory,
@@ -224,6 +227,7 @@ export function Composer({
         // Clears the tile's error and starts its progress again: `intake.retry`
         // puts the item back to `reading` over the same `File`.
         onAttachmentRetry={intake.retry}
+        question={question}
         status={status}
         emptyAction={emptyAction}
         onKeyPress={onKeyPress}

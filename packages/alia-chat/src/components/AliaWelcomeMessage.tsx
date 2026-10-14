@@ -1,71 +1,44 @@
-import { Item } from '@oxy.so/bloom/item';
+import { AvatarAnchor } from '@oxy.so/bloom/avatar-flight';
 import { Text } from '@oxy.so/bloom/typography';
 import { View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
-import type { WelcomeSuggestion } from '../types';
+import { ALIA_ANCHORS, useAliaFlights } from '../lib/flights';
+import { greetingLines } from '../lib/greeting';
 import { AliaAvatar } from './AliaAvatar';
-
-export type { WelcomeSuggestion };
 
 export interface AliaWelcomeMessageProps {
   /** The greeting, e.g. "Hi Nate, what's on your mind?". */
   greeting: string;
   subtitle?: string;
-  suggestions?: WelcomeSuggestion[];
-  onSuggestionPress?: (text: string) => void;
   markSize?: number;
-  /** Leave the avatar out, where the surrounding header already shows it. */
-  hideMark?: boolean;
 }
 
 /**
- * The empty chat, as the Alia app has it: the avatar beside the greeting at display
- * size, centred (stacked on a phone, side by side from `md`), and the suggestions as
- * compact rows under it.
+ * The empty chat's greeting: the avatar above it, both centred, the address on top ("Hi Nate,")
+ * and the rest under it (`greetingLines`). The Alia app and the SDK chat
+ * draw exactly this. The greeting has a max width (`max-w-xs`, 20rem) so it sets in two lines at
+ * any width, as a headline under a mark rather than one long line across a wide column. The
+ * suggestions are not part of it; they sit over the composer (`ComposerSuggestions`).
  */
-export function AliaWelcomeMessage({
-  greeting,
-  subtitle,
-  suggestions = [],
-  onSuggestionPress,
-  markSize = 38,
-  hideMark = false,
-}: AliaWelcomeMessageProps) {
+export function AliaWelcomeMessage({ greeting, subtitle, markSize = 88 }: AliaWelcomeMessageProps) {
+  const flights = useAliaFlights();
+  const avatar = <AliaAvatar size={markSize} interactive />;
   return (
-    <View className="flex-1 items-center justify-center gap-6 px-4">
-      <View className="items-center gap-2">
-        <View className="flex-col items-center justify-center gap-3 md:flex-row">
-          {hideMark ? null : <AliaAvatar size={markSize} interactive />}
-          <Text
-            selectable={false}
-            className="text-center text-4xl tracking-tight text-text-primary md:text-left"
-          >
-            {greeting}
-          </Text>
-        </View>
-        {subtitle ? (
-          <Text className="text-center text-lg text-text-secondary">{subtitle}</Text>
-        ) : null}
+    <View className="items-center gap-2">
+      <View className="items-center justify-center gap-4">
+        {/* It flies up into the header's profile when the conversation begins. */}
+        {flights ? (
+          <AvatarAnchor flights={flights} anchor={ALIA_ANCHORS.welcome}>
+            {avatar}
+          </AvatarAnchor>
+        ) : (
+          avatar
+        )}
+        <Text selectable={false} className="max-w-xs shrink text-center text-4xl text-text-primary">
+          {greetingLines(greeting).join('\n')}
+        </Text>
       </View>
-
-      {suggestions.length > 0 ? (
-        <Animated.View
-          entering={FadeIn.duration(400)}
-          accessibilityRole="list"
-          className="w-full max-w-[768px]"
-        >
-          {suggestions.map((item) => (
-            <Item
-              key={item.id}
-              density="compact"
-              accessibilityRole="button"
-              accessibilityLabel={item.title}
-              onPress={() => onSuggestionPress?.(item.description)}
-              title={<Text numberOfLines={1}>{item.title}</Text>}
-              subtitle={item.description}
-            />
-          ))}
-        </Animated.View>
+      {subtitle ? (
+        <Text className="text-center text-lg text-text-secondary">{subtitle}</Text>
       ) : null}
     </View>
   );

@@ -1,10 +1,18 @@
-import Entypo from '@expo/vector-icons/Entypo';
-import type { BloomIconComponent } from '@oxy.so/bloom/icons';
+import Svg, { Path } from 'react-native-svg';
+
+/** The glyph's outline: a speaker cone with three rays, drawn on a 512 grid (y down). */
+const GLYPH =
+  'M136 117Q158 95 212.5 119.5Q267 144 323 200Q379 256 403.5 311Q428 366 406 387Q396 398 373 414Q350 430 313.5 447Q277 464 240 472.5Q203 481 162 472.5Q121 464 90.5 433.5Q60 403 51 361.5Q42 320 50.5 283Q59 246 76.5 209.5Q94 173 109.5 150.5Q125 128 136 117ZM348.5 361.5Q348.5 361.5 358.25 364.25Q368 367 373 362.5Q378 358 372.5 338Q367 318 347 286Q327 254 298 225Q269 196 237 176.5Q205 157 185.5 151Q166 145 161 150Q156 155 162 174.5Q168 194 187.5 226Q207 258 236 287.5Q265 317 297 336.5Q329 356 348.5 361.5ZM395 153Q388 161 377 161Q366 161 358.5 153.5Q351 146 351 135Q351 124 359 117L408 68Q415 61 425.5 61Q436 61 443.5 68.5Q451 76 451 86.5Q451 97 444 104ZM285 97Q272 90 272 75Q272 68 275 62L303 13Q310 0 325 0Q336 0 343.5 7.5Q351 15 351 26Q351 32 347 38L320 87Q312 101 297 101Q291 101 285 97ZM509 174Q512 180 512 187Q512 202 499 209L449 236Q443 240 437 240Q426 240 418.5 232.5Q411 225 411 214Q411 199 424 192L474 165Q480 161 486 161Q501 161 509 174Z';
 
 /**
- * The glyph of Alia's voice button: Entypo's `sound`. Remix has no equivalent, so it is
- * handed Bloom's icon contract (`width` / `fill`) for a Bloom `Button` to size and colour.
+ * The glyph of Alia's voice button: the speaker with rays the button has always worn. Bloom has no
+ * equivalent, so it is drawn here against Bloom's icon contract (`width` / `fill`) for a Bloom
+ * `Button` to size and colour.
  */
-export const VoiceModeIcon: BloomIconComponent = ({ width = 18, fill }) => (
-  <Entypo name="sound" size={width} color={fill} />
-);
+export function VoiceModeIcon({ width = 18, fill }: { width?: number; fill?: string }) {
+  return (
+    <Svg width={width} height={width} viewBox="23 -17 512 512">
+      <Path d={GLYPH} fill={fill} />
+    </Svg>
+  );
+}

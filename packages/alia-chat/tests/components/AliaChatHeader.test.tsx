@@ -4,15 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const seen = vi.hoisted(() => ({
   items: [] as Array<Record<string, unknown>>,
-  markKeys: [] as Array<number | undefined>,
-  states: [] as Array<string | undefined>,
+  rows: [] as Array<Record<string, unknown>>,
+  profiles: [] as Array<{ agents: Array<{ id: string; name: string }>; onPress: () => void }>,
 }));
 
-vi.mock('react-native', () => ({
-  View: ({ children }: { children?: React.ReactNode }) => children,
-  Pressable: ({ children }: { children?: React.ReactNode }) => children,
-  StyleSheet: { hairlineWidth: 1 },
-}));
 vi.mock('@oxy.so/bloom/button-group', () => ({
   ButtonGroup: ({ children }: { children?: React.ReactNode }) => children,
   ButtonGroupItem: (props: Record<string, unknown>) => {
@@ -20,7 +15,21 @@ vi.mock('@oxy.so/bloom/button-group', () => ({
     return null;
   },
 }));
-vi.mock('@oxy.so/bloom/icons', () => ({ RiCloseLine: 'close', RiDeleteBin6Line: 'bin' }));
+vi.mock('@oxy.so/bloom/icons', () => ({
+  RiArrowLeftLine: 'back-icon',
+  RiDeleteBin6Line: 'bin-icon',
+  RiMoreFill: 'more-icon',
+  RiShare2Line: 'share-icon',
+}));
+vi.mock('@oxy.so/bloom/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: { children?: React.ReactNode }) => children,
+  DropdownMenuTrigger: ({ children }: { children?: React.ReactNode }) => children,
+  DropdownMenuContent: ({ children }: { children?: React.ReactNode }) => children,
+  DropdownMenuItem: (props: Record<string, unknown> & { children?: React.ReactNode }) => {
+    seen.rows.push(props);
+    return null;
+  },
+}));
 vi.mock('@oxy.so/bloom/page-header', () => ({
   PageHeader: ({
     leading,
@@ -38,20 +47,15 @@ vi.mock('@oxy.so/bloom/page-header', () => ({
     </>
   ),
 }));
-vi.mock('@oxy.so/bloom/theme', () => ({
-  useTheme: () => ({
-    colors: { backgroundSecondary: '#eee', backgroundTertiary: '#ddd', border: '#ccc' },
-  }),
-}));
-vi.mock('@oxy.so/bloom/typography', () => ({
-  Text: ({ children }: { children?: React.ReactNode }) => children,
-}));
-vi.mock('../../src/components/AliaAvatar', () => ({
-  AliaAvatar: ({ reactionKey, state }: { reactionKey?: number; state?: string }) => {
-    seen.markKeys.push(reactionKey);
-    seen.states.push(state);
+vi.mock('@oxy.so/bloom/agent-reply', () => ({
+  AgentProfile: (props: { agents: Array<{ id: string; name: string }>; onPress: () => void }) => {
+    seen.profiles.push(props);
     return null;
   },
+}));
+vi.mock('../../src/components/AliaAvatar', () => ({ ALIA_AVATAR: { preset: 'alia' } }));
+vi.mock('../../src/lib/agent-character', () => ({
+  agentCharacter: (id: string) => ({ id }),
 }));
 
 import { AliaChatHeader } from '../../src/components/AliaChatHeader';
@@ -71,78 +75,119 @@ const item = (label: string) => seen.items.find((props) => props.accessibilityLa
 describe('AliaChatHeader', () => {
   beforeEach(() => {
     seen.items = [];
-    seen.markKeys = [];
-    seen.states = [];
+    seen.rows = [];
+    seen.profiles = [];
   });
 
-  it('offers neither clear nor close on an empty chat that cannot be dismissed', () => {
-    render(<AliaChatHeader markState="idle" hasMessages={false} onClear={vi.fn()} />);
+  const team = () => seen.profiles.at(-1)?.agents.map((agent) => agent.name);
 
+  it('shows no profile on an empty chat, whose greeting already carries the avatar', () => {
+    render(<AliaChatHeader hasMessages={false} onClear={vi.fn()} />);
+
+    expect(seen.profiles).toEqual([]);
+  });
+
+  it('shows Alia alone once there is a conversation', () => {
+    render(<AliaChatHeader hasMessages onClear={vi.fn()} />);
+
+    expect(team()).toEqual(['Alia']);
+  });
+
+  it('joins the agents that answered to Alia, with their own characters', () => {
+    const agents = ['lumi', 'atlas'].map((id) => ({ id, name: id.toUpperCase() }));
+    render(<AliaChatHeader hasMessages agents={agents} onClear={vi.fn()} />);
+
+    expect(team()).toEqual(['Alia', 'LUMI', 'ATLAS']);
+    expect(
+      seen.profiles.at(-1)?.agents.map((agent) => (agent as { avatar?: unknown }).avatar),
+    ).toEqual([{ preset: 'alia' }, { id: 'lumi' }, { id: 'atlas' }]);
+  });
+
+  it('runs the host action when the profile is pressed, and is inert without one', () => {
+    const onProfilePress = vi.fn();
+    render(<AliaChatHeader hasMessages onClear={vi.fn()} onProfilePress={onProfilePress} />);
+    seen.profiles.at(-1)?.onPress();
+    expect(onProfilePress).toHaveBeenCalledTimes(1);
+
+    render(<AliaChatHeader hasMessages onClear={vi.fn()} />);
+    expect(() => seen.profiles.at(-1)?.onPress()).not.toThrow();
+  });
+
+  it('draws a back button at the start, named in the host’s words, only where there is somewhere to go', () => {
+    const onBack = vi.fn();
+    render(<AliaChatHeader hasMessages={false} onClear={vi.fn()} onBack={onBack} />);
+    (item('Back')?.onPress as () => void)();
+    expect(onBack).toHaveBeenCalledTimes(1);
+
+    seen.items = [];
+    render(<AliaChatHeader hasMessages={false} onClear={vi.fn()} />);
+    expect(item('Back')).toBeUndefined();
+  });
+
+  it('lets the host’s own start content take the back button’s place', () => {
+    render(
+      <AliaChatHeader
+        hasMessages={false}
+        onClear={vi.fn()}
+        onBack={vi.fn()}
+        leading={<>drawer</>}
+      />,
+    );
+    expect(item('Back')).toBeUndefined();
+  });
+
+  it('draws nothing over an empty chat: there is nothing to do there', () => {
+    const renderer = render(
+      <AliaChatHeader hasMessages={false} onClear={vi.fn()} onShare={vi.fn()} />,
+    );
+    expect(renderer.toJSON()).toBeNull();
     expect(seen.items).toEqual([]);
   });
 
-  it('clears the chat from its own island once there are messages', () => {
-    const onClear = vi.fn();
-    render(<AliaChatHeader markState="idle" hasMessages onClear={onClear} />);
-
-    (item('Clear')?.onPress as () => void)();
-    expect(onClear).toHaveBeenCalledOnce();
-    expect(item('Close')).toBeUndefined();
+  it('keeps what the host brought on an empty chat, but not share or the menu', () => {
+    render(
+      <AliaChatHeader
+        hasMessages={false}
+        onClear={vi.fn()}
+        onBack={vi.fn()}
+        onShare={vi.fn()}
+        menu={<>host rows</>}
+      />,
+    );
+    expect(item('Back')).toBeDefined();
+    expect(item('Share')).toBeUndefined();
+    expect(item('More')).toBeUndefined();
   });
 
-  it('draws the close button only where the host can dismiss the chat', () => {
-    const onClose = vi.fn();
-    render(
-      <AliaChatHeader markState="idle" hasMessages={false} onClear={vi.fn()} onClose={onClose} />,
-    );
+  it('draws share with a conversation, where the host can share', () => {
+    const onShare = vi.fn();
+    render(<AliaChatHeader hasMessages onClear={vi.fn()} onShare={onShare} />);
+    (item('Share')?.onPress as () => void)();
+    expect(onShare).toHaveBeenCalledTimes(1);
 
-    (item('Close')?.onPress as () => void)();
-    expect(onClose).toHaveBeenCalledOnce();
-    expect(item('Clear')).toBeUndefined();
+    seen.items = [];
+    render(<AliaChatHeader hasMessages onClear={vi.fn()} />);
+    expect(item('Share')).toBeUndefined();
+  });
+
+  it('has the three-dots menu with a conversation, Clear in it after the host’s rows', () => {
+    const onClear = vi.fn();
+    render(<AliaChatHeader hasMessages onClear={onClear} menu={<>host rows</>} />);
+    expect(item('More')).toBeDefined();
+    expect(seen.rows).toHaveLength(1);
+    expect(seen.rows[0]?.tone).toBe('danger');
+    (seen.rows[0]?.onPress as () => void)();
+    expect(onClear).toHaveBeenCalledTimes(1);
   });
 
   it("takes the host's labels for its buttons", () => {
     render(
-      <AliaChatLabelsProvider labels={{ clear: 'Borrar', close: 'Cerrar' }}>
-        <AliaChatHeader markState="idle" hasMessages onClear={vi.fn()} onClose={vi.fn()} />
+      <AliaChatLabelsProvider labels={{ back: 'Volver', share: 'Compartir', more: 'Más' }}>
+        <AliaChatHeader hasMessages onClear={vi.fn()} onBack={vi.fn()} onShare={vi.fn()} />
       </AliaChatLabelsProvider>,
     );
-
-    expect(item('Borrar')).toBeDefined();
-    expect(item('Cerrar')).toBeDefined();
-  });
-
-  it('makes the profile a button: it runs the host action when given one', () => {
-    const onProfilePress = vi.fn();
-    const renderer = render(
-      <AliaChatHeader
-        markState="idle"
-        hasMessages={false}
-        onClear={vi.fn()}
-        onProfilePress={onProfilePress}
-      />,
-    );
-
-    act(() => renderer.root.findByProps({ accessibilityLabel: 'Alia' }).props.onPress());
-
-    expect(onProfilePress).toHaveBeenCalledOnce();
-    expect(seen.markKeys.every((key) => key === 0)).toBe(true);
-  });
-
-  it('shows what Alia is doing on the avatar', () => {
-    render(<AliaChatHeader markState="thinking" hasMessages={false} onClear={vi.fn()} />);
-
-    expect(seen.states.at(-1)).toBe('thinking');
-  });
-
-  it('makes the avatar wave when the host gives the profile no action', () => {
-    const renderer = render(
-      <AliaChatHeader markState="idle" hasMessages={false} onClear={vi.fn()} />,
-    );
-    expect(seen.markKeys.at(-1)).toBe(0);
-
-    act(() => renderer.root.findByProps({ accessibilityLabel: 'Alia' }).props.onPress());
-
-    expect(seen.markKeys.at(-1)).toBe(1);
+    expect(item('Volver')).toBeDefined();
+    expect(item('Compartir')).toBeDefined();
+    expect(item('Más')).toBeDefined();
   });
 });

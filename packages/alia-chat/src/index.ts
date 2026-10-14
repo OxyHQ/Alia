@@ -3,6 +3,7 @@
 // Reusable chat UI, voice, and streaming components for Oxy apps
 
 // ── Main components ──
+export type { AliaChatAgent, AliaChatState } from './components/AliaChatContent';
 export { AliaChatSheet } from './components/AliaChatSheet';
 export type { AliaChatSheetProps, AliaChatSheetRef } from './components/AliaChatSheet';
 export { AliaChatScreen } from './components/AliaChatScreen';
@@ -14,7 +15,8 @@ export type { AliaChatLabels } from './lib/labels';
 export { VoiceModeIcon } from './components/VoiceModeIcon';
 export { AmbientField, PARALLAX_DURATION, PARALLAX_EASE } from './components/AmbientField';
 export type { AmbientFieldProps } from './components/AmbientField';
-export { AliaAvatar } from './components/AliaAvatar';
+export { ALIA_AVATAR, AliaAvatar } from './components/AliaAvatar';
+export { agentCharacter } from './lib/agent-character';
 export type { AliaAvatarProps, AliaAvatarState } from './components/AliaAvatar';
 export { IdentityMark } from './components/IdentityMark';
 export type { IdentityMarkProps, IdentityMarkState } from './components/IdentityMark';
@@ -22,7 +24,11 @@ export { AliaMarkdown } from './components/Markdown';
 export type { AliaMarkdownProps, RenderCodeBlock } from './components/Markdown';
 export { AliaWelcomeMessage } from './components/AliaWelcomeMessage';
 export { PlanPreviewCard } from './components/PlanPreviewCard';
-export { QuestionCard } from './components/QuestionCard';
+export { AskedQuestions, QuestionCard } from './components/QuestionCard';
+export { ComposerSuggestions } from './components/ComposerSuggestions';
+export { useComposerSuggestions, useSuggestionQuery } from './hooks/useComposerSuggestions';
+export { composerCompletions } from './lib/suggestions';
+export type { Completion } from './lib/suggestions';
 export {
   ASK_USER_QUESTION_TOOL,
   askedQuestions,
@@ -61,7 +67,7 @@ export type { Catalogue, CatalogueEntry, ModelSelection, ReasoningEffort } from 
 export type {
   ChatMessage,
   ToolInvocation,
-  WelcomeSuggestion,
+  AliaSuggestion,
   ResearchProgress,
   ResearchSource,
   PendingPlan,

@@ -11,6 +11,7 @@ export {
   askedQuestions,
   formatAnswers,
   isQuestionInvocation,
+  pendingQuestions,
 } from './lib/questions';
 export type { AskedOption, AskedQuestion, QuestionAnswer } from './lib/questions';
 export { toolCallStatus } from './lib/tool-call-status';

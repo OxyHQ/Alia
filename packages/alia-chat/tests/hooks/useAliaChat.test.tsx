@@ -354,4 +354,141 @@ describe('useAliaChat request lifecycle', () => {
 
     await act(async () => renderer.unmount());
   });
+  describe('delegated agents', () => {
+    const agentFrame = (id: string, name: string, content: string) =>
+      `event: alia.agent\ndata: ${JSON.stringify({ eventVersion: 1, agentId: id, agentName: name, agentHandle: id, agentColor: null, content })}\n\n`;
+    const chunk = (delta: object, finish: string | null = null) =>
+      `data: ${JSON.stringify({ id: 'c1', object: 'chat.completion.chunk', created: 1, model: 'example/model', choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`;
+    const sse = (...frames: string[]) =>
+      new Response(`${frames.join('')}data: [DONE]\n\n`, {
+        headers: { 'content-type': 'text/event-stream' },
+      });
+
+    it('writes each agent as its own message, before Alia, in the order they answered', async () => {
+      createSession(async () =>
+        sse(
+          agentFrame('lumi', 'Lumi', 'Un violeta suave.'),
+          agentFrame('atlas', 'Atlas', 'Lo monto en dos días.'),
+          chunk({ content: 'Entonces, el plan.' }),
+          chunk({}, 'stop'),
+        ),
+      );
+      const renderer = await renderHarness();
+      await act(async () => current().send('Reúne al equipo'));
+      await waitUntilIdle();
+
+      const rows = current().messages.map((message) => [
+        message.role,
+        message.agentInfo?.name ?? null,
+        message.content,
+      ]);
+      expect(rows).toEqual([
+        ['user', null, 'Reúne al equipo'],
+        ['assistant', 'Lumi', 'Un violeta suave.'],
+        ['assistant', 'Atlas', 'Lo monto en dos días.'],
+        ['assistant', null, 'Entonces, el plan.'],
+      ]);
+      expect(
+        current()
+          .messages.map((message) => message.id)
+          .slice(1, 3),
+      ).toEqual([expect.stringMatching(/-agent-lumi$/), expect.stringMatching(/-agent-atlas$/)]);
+
+      await act(async () => renderer.unmount());
+    });
+
+    const delegation = (id: string, agentId: string, agentName: string) =>
+      chunk({
+        tool_calls: [
+          {
+            index: 0,
+            id,
+            type: 'function',
+            function: {
+              name: 'delegateToAgent',
+              arguments: JSON.stringify({ agentId, agentName, task: 'x' }),
+            },
+          },
+        ],
+      });
+
+    it("opens the agent's message when Alia calls it and fills that same message with its answer", async () => {
+      let release: () => void = () => {};
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      createSession(async () => {
+        const encoder = new TextEncoder();
+        return new Response(
+          new ReadableStream({
+            async start(controller) {
+              controller.enqueue(encoder.encode(delegation('call-1', 'lumi', 'Lumi')));
+              await gate;
+              controller.enqueue(encoder.encode(agentFrame('lumi', 'Lumi', 'Un violeta suave.')));
+              controller.enqueue(encoder.encode(chunk({ content: 'Listo.' })));
+              controller.enqueue(encoder.encode(chunk({}, 'stop')));
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+              controller.close();
+            },
+          }),
+          { headers: { 'content-type': 'text/event-stream' } },
+        );
+      });
+      const renderer = await renderHarness();
+      await act(async () => {
+        void current().send('Pregúntale a Lumi');
+      });
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+
+      // Called, not answered: the agent's message exists, empty, before Alia's.
+      const asked = current().messages.find((message) => message.agentInfo?.name === 'Lumi');
+      expect(asked?.content).toBe('');
+      expect(current().messages.indexOf(asked!)).toBeLessThan(
+        current().messages.findIndex(
+          (message) => message.role === 'assistant' && !message.agentInfo,
+        ),
+      );
+
+      await act(async () => release());
+      await waitUntilIdle();
+      const answered = current().messages.filter((message) => message.agentInfo?.name === 'Lumi');
+      expect(answered).toHaveLength(1);
+      expect(answered[0]!.id).toBe(asked!.id);
+      expect(answered[0]!.content).toBe('Un violeta suave.');
+
+      await act(async () => renderer.unmount());
+    });
+
+    it('removes the message of an agent that was called and never answered', async () => {
+      createSession(async () =>
+        sse(
+          delegation('call-1', 'lumi', 'Lumi'),
+          chunk({ content: 'Sin respuesta.' }),
+          chunk({}, 'stop'),
+        ),
+      );
+      const renderer = await renderHarness();
+      await act(async () => current().send('Pregúntale a Lumi'));
+      await waitUntilIdle();
+
+      expect(current().messages.filter((message) => message.agentInfo)).toHaveLength(0);
+      expect(current().messages.at(-1)?.content).toBe('Sin respuesta.');
+
+      await act(async () => renderer.unmount());
+    });
+
+    it('leaves no empty reply under agents when Alia says nothing herself', async () => {
+      createSession(async () => sse(agentFrame('lumi', 'Lumi', 'Hecho.'), chunk({}, 'stop')));
+      const renderer = await renderHarness();
+      await act(async () => current().send('Pregúntale a Lumi'));
+      await waitUntilIdle();
+
+      expect(current().messages.map((message) => message.agentInfo?.name ?? message.role)).toEqual([
+        'user',
+        'Lumi',
+      ]);
+
+      await act(async () => renderer.unmount());
+    });
+  });
 });

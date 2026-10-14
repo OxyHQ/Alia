@@ -1,12 +1,12 @@
 import type { ComponentType } from 'react';
 import type { SharedValue } from 'react-native-reanimated';
 
-// ── Welcome / Suggestion Types ──
+// ── Suggestion Types ──
 
-export interface WelcomeSuggestion {
+/** A line the person can pick: `text` is what is shown and what is sent. */
+export interface AliaSuggestion {
   id: string;
-  title: string;
-  description: string;
+  text: string;
 }
 
 // ── Chat Message Types ──
@@ -63,7 +63,7 @@ export interface ChatMessage {
   /** Cached TTS audio URL for read-aloud */
   audioUrl?: string;
   /** Delegated agent identity */
-  agentInfo?: { id: string; name: string; avatar: string | null };
+  agentInfo?: { id: string; name: string };
 }
 
 export interface ToolInvocation {

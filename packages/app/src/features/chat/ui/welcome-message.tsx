@@ -1,14 +1,11 @@
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { AliaAvatar } from '@alia.onl/sdk';
-import { Text } from '@oxy.so/bloom/typography';
+import { AliaWelcomeMessage } from '@alia.onl/sdk';
 import { getAccountDisplayName } from '@oxy.so/core';
 import { useAuth } from '@oxy.so/services';
-import { View } from 'react-native';
 
 /**
- * The empty chat's greeting, as Alia has always had it: its mark beside
- * "Hi {name}, what's on your mind?" at display size, centred in the thread —
- * stacked on a phone, side by side from `md`.
+ * The empty chat's greeting: the SDK chat's `AliaWelcomeMessage` (its mark beside the greeting
+ * at display size, centred in the thread), with the app's words.
  */
 export const WelcomeMessage = () => {
   const { user, isAuthenticated } = useAuth();
@@ -20,15 +17,5 @@ export const WelcomeMessage = () => {
       ? t('welcome.greetingNamed', { name: getAccountDisplayName(user, locale) })
       : t('welcome.greeting');
 
-  return (
-    <View className="flex-col items-center justify-center gap-3 md:flex-row">
-      <AliaAvatar size={38} interactive />
-      <Text
-        selectable={false}
-        className="text-center text-4xl tracking-tight text-foreground md:text-left"
-      >
-        {greeting}
-      </Text>
-    </View>
-  );
+  return <AliaWelcomeMessage greeting={greeting} />;
 };

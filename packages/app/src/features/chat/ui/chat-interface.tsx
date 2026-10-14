@@ -1,7 +1,7 @@
 import { AgentResultCard } from '@/features/chat/ui/cards/agent-result-card';
 import { AgentTaskCard } from '@/features/chat/ui/cards/agent-task-card';
 import { WelcomeMessage } from '@/features/chat/ui/welcome-message';
-import { FailedTurnCard } from '@/features/chat/ui/failed-turn-card';
+import { useFailedTurnToast } from '@/features/chat/ui/failed-turn-toast';
 import {
   copyText,
   TurnMenu,
@@ -17,6 +17,7 @@ import { useOpenThought, type OpenThought } from '@/features/chat/runtime/use-op
 import { getToolPillLabel } from '@/features/chat/model/task-utils';
 import { isWebInvocation, taskListLog, webSearchLog } from '@/features/chat/model/work-log';
 import { daySeparators } from '@/features/chat/model/message-days';
+import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
 import { AgentProgress } from '@oxy.so/bloom/agent-progress';
 import { ChatDateHeader } from '@oxy.so/bloom/chat-screen';
 import { Divider } from '@oxy.so/bloom/divider';
@@ -24,7 +25,6 @@ import { TaskList } from '@oxy.so/bloom/task-list';
 import { WebSearch } from '@oxy.so/bloom/web-search';
 import { NewConversationOffer } from '@/features/chat/ui/new-conversation-offer';
 import { CustomMarkdown } from '@/features/chat/ui/markdown';
-import { agentTint } from '@/shared/domain/agent-color';
 import apiClient from '@/shared/api/client';
 import { queryKeys } from '@/shared/api/query-keys';
 import type { AgentActivityState } from '@/features/chat/runtime/use-agent-activity';
@@ -40,11 +40,11 @@ import { arrivedIds } from '@/features/chat/model/timeline';
 import type { ToolInvocation } from '@/shared/contracts/messages';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
 import {
+  agentCharacter,
   getImagesFromContent,
   getTextFromContent,
-  IdentityMark,
   PlanPreviewCard,
-  QuestionCard,
+  AskedQuestions,
 } from '@alia.onl/sdk';
 import { askedQuestions, isQuestionInvocation } from '@alia.onl/sdk/tools';
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
@@ -132,8 +132,6 @@ type ChatInterfaceProps = {
   agentSessionId?: string | null;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
-  /** Sends the answers to Alia's questions as the person's next message. */
-  onAnswerQuestions?: (message: string) => void;
   /** The agent's reason for offering a fresh stretch, or `null` for no offer. */
   suggestedNewConversation?: string | null;
   onAcceptNewConversation?: () => void;
@@ -254,7 +252,6 @@ type MessageRowProps = {
   workEndedAt: number | null;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
-  onAnswerQuestions?: (message: string) => void;
   /** Open the thought panel on this turn, in the conversation it belongs to. */
   onOpenThought?: OpenThought;
 };
@@ -276,7 +273,6 @@ const MessageRow = React.memo(function MessageRow({
   onStartEdit,
   onApprovePlan,
   onRejectPlan,
-  onAnswerQuestions,
   workStartedAt,
   workEndedAt,
   onOpenThought,
@@ -457,10 +453,10 @@ const MessageRow = React.memo(function MessageRow({
             <View className="flex-col">
               {m.agentInfo ? (
                 <View className="flex-row items-center gap-2 mb-0.5">
-                  <IdentityMark
-                    size={20}
-                    color={agentTint(m.agentInfo.color, colors)}
-                    accessibilityLabel={m.agentInfo.name}
+                  <AgentAvatar
+                    character={agentCharacter(m.agentInfo.id)}
+                    size={24}
+                    label={m.agentInfo.name}
                   />
                   <Text className="text-xs font-semibold text-foreground">{m.agentInfo.name}</Text>
                 </View>
@@ -531,10 +527,7 @@ const MessageRow = React.memo(function MessageRow({
                   ))}
                   {questions.length === 0 ? null : (
                     <MessageBlockBoundary>
-                      <QuestionCard
-                        questions={questions}
-                        onSubmit={isLastAlia && !isLoading ? onAnswerQuestions : undefined}
-                      />
+                      <AskedQuestions questions={questions} />
                     </MessageBlockBoundary>
                   )}
                   {/* The reply's text as Alia always drew it: its own Markdown
@@ -603,7 +596,6 @@ export const ChatInterface = React.memo(function ChatInterface({
   agentSessionId,
   onApprovePlan,
   onRejectPlan,
-  onAnswerQuestions,
   suggestedNewConversation,
   onAcceptNewConversation,
   onDismissNewConversation,
@@ -618,6 +610,8 @@ export const ChatInterface = React.memo(function ChatInterface({
   callActive = false,
 }: ChatInterfaceProps) {
   const { t, locale } = useTranslation();
+  // A failed turn is a toast with Retry, not a card in the thread.
+  useFailedTurnToast(failedTurn, onRetryTurn);
   /** This screen's votes, read to decide whether a press casts or retracts one. */
   const votesRef = useRef<Record<string, 'up' | 'down'>>({});
   const voteInFlightRef = useRef<Set<string>>(new Set());
@@ -979,18 +973,7 @@ export const ChatInterface = React.memo(function ChatInterface({
           onOpenThought={openThought}
           onApprovePlan={onApprovePlan}
           onRejectPlan={onRejectPlan}
-          onAnswerQuestions={onAnswerQuestions}
         />
-        {failedTurn === null ||
-        failedTurn === undefined ||
-        failedTurn.anchorMessageId !== m.id ? null : (
-          <FailedTurnCard
-            partial={failedTurn.partial}
-            retryable={failedTurn.retryable}
-            detail={failedTurn.detail}
-            onRetry={onRetryTurn}
-          />
-        )}
       </React.Fragment>
     );
   };

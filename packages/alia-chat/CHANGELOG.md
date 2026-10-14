@@ -1,5 +1,94 @@
 # @alia.onl/sdk
 
+## Unreleased
+
+- **The one who answers thinks with its own avatar, and it is the same avatar that settles under
+  the reply** (Bloom's `AgentReplyIdentity`, as in the multi-agent chat). While Alia works, her
+  avatar is the indicator, large with "Thinking…", where the `AgentThinking` line was; when her
+  text starts it shrinks under it with her name. A call to an agent (`delegateToAgent` /
+  `askAgent`, its `agentId` and `agentName` or `agent` arguments) opens the agent's message at
+  once, empty and thinking, and its answer fills that same message, so the avatar never remounts;
+  an agent that never answers leaves no message. Alia's reply now carries her identity row, as the
+  agents' do.
+  The reasoning is part of that same component (`AgentReplyIdentity`'s `reasoning`): while the
+  turn thinks, "Thinking… ⌃" folds it under the avatar's row, and once the reply starts it is the
+  closed "Thought for N seconds" block above it (`ThinkingBlock` draws nothing while it streams, so
+  there is one thinking indicator, not two).
+- **No jumps of height, and no flash of the wrong thinker.** A reply, a new row, the reasoning and
+  a thinking agent's avatar open and close with their height eased (Bloom's `Collapsible`, now
+  with `appear`) instead of popping. Alia is shown thinking only once she has for a moment, so a
+  turn she hands to an agent at once shows the agent thinking, not Alia for an instant first.
+- **Bubbles are equal on every side as the eye reads them.** An agent's bubble sets its top and
+  bottom padding from the reply's text metrics (`AgentReplyBubble`'s `text`, 16 on 28 here), so
+  the gap from the edge to the text is the same above, below and at the sides. Nothing is cut:
+  an open `Collapsible` no longer clips.
+- **The greeting's avatar flies up into the header's profile** as the conversation begins
+  (Bloom's `avatar-flight`: `useAvatarFlights`, `AvatarAnchor`, `AvatarFlightLayer`), across the
+  main and conversation sheets. `AgentProfile`'s new `avatarHidden` keeps the header's avatar
+  waiting for it. Needs a Bloom with `avatar-flight` (after 10.3).
+- **`AliaChatSheet` opens the conversation in a second sheet stacked over the main one.** The
+  main sheet stays on the greeting, the suggestions and the composer; the first turn (typed or a
+  suggestion) opens a fresh conversation sheet on top, whose back button (and the menu's Clear)
+  closes just that sheet, back to the main screen. A phone gets sheets flush with the screen
+  edges, with the composer clearing the home indicator; from tablet width (768 px) they float.
+  `AliaChatContent` gains `onStart` (hand an empty chat's first turn to the host) and
+  `initialTurn` (a turn sent once on mount).
+- **The empty chat looks and behaves like the Alia app's, from the same code.** The avatar sits
+  beside the greeting (`AliaWelcomeMessage`, now just the greeting: always side by side, no
+  `hideMark`, no suggestions) and the header shows Alia's profile only once there is a
+  conversation. The suggestions are one-line rows **over the composer** (`ComposerSuggestions`),
+  and from two typed characters they become matches with the typed part highlighted, arrows /
+  Enter / Escape through the composer's `onKeyPress`. The app now draws its greeting and its
+  suggestions with these same components and only supplies its API's data.
+- **Several agents in one turn.** A delegated agent's answer (`alia.agent`) is now its own
+  message with its name and avatar, placed before Alia's reply as the app places it, so a turn
+  with Lumi, Atlas and Sol shows three speakers. Before, every answer was merged into one message
+  under the last agent's name. Alia's reply is dropped when she said nothing after handing over.
+- **A delegated agent shows its 3D avatar.** The speaker line of an agent's message is Bloom's
+  `AgentAvatar`, not an image (an agent's account has none): the character comes from the agent's
+  id (`agentCharacter(id)`, exported), so the same agent looks the same everywhere and two agents
+  in a turn are told apart. The app draws its agents' messages with the same avatar.
+- **Agents are bubbles, and the header holds the team.** As in Bloom's multi-agent chat, a
+  delegated agent's reply is a tinted bubble with its avatar and name beneath it. Once agents have
+  answered, the header profile stacks Alia with up to two of them and names them together
+  ("Alia + Lumi + Atlas"). `headerLeading` / `actions` receive `agents` in their state
+  (`AliaChatState`, `AliaChatAgent`), and `AliaChatHeader` takes `agents`.
+- **The row under every reply is Bloom's multi-agent one**: helpful, unhelpful and copy as 22px
+  tiles with 12px icons (read aloud is a fourth tile where the host reads), replacing the
+  `AiChatFeedbackRow`. New label keys `helpful` and `unhelpful`.
+- **Built on Bloom's `agent-reply`** (peer `@oxy.so/bloom ^10.1.1`): replies, their identity line and
+  action tiles, and the header profile are Bloom's `AgentReply`, `AgentReplyBubble`,
+  `AgentReplyIdentity`, `AgentReplyActions` and `AgentProfile`, the pieces `MultiAgentChat` is made
+  of, not copies. Pressing the profile makes every avatar in it wave.
+- **Questions are asked above the composer, not in the thread.** What Alia asks in her last turn
+  (`askUserQuestion`) docks above the composer as Bloom's `Questionnaire`, with a dismiss; typing a
+  reply answers just as well. The thread keeps the questions as plain lines (`AskedQuestions`).
+  **Breaking:** `QuestionCard` is now the docked questionnaire (`onSubmit` required, new
+  `onDismiss`) and no longer draws a read-only variant; the `onAnswerQuestions` prop of the message
+  list is gone. `pendingQuestions` joins `@alia.onl/sdk/tools`.
+- **The voice bar is Bloom's voice controls.** `VoiceControls` draws Bloom's `@oxy.so/bloom/voice`
+  `VoiceControls` (microphone and end) under the status text, instead of `CallControls`, which is
+  made for a dark call stage and lost its captions on the chat's light surface.
+- **The header is back, the profile, share and a menu.** Bloom's `PageHeader` with a back button at
+  its start, and at its end share and a three-dots menu (Bloom's `DropdownMenu`, aligned to its
+  button) holding Clear and the host's rows. Over the empty chat there is no bar: nothing to do
+  there. In the sheet, back returns to the main screen (a fresh chat) and the sheet stays open.
+  **Breaking:** `AliaChatHeader` / `AliaChatSheet` / `AliaChatScreen` lose `onClose`; they take
+  `onBack` (screen), `onShare` and `headerMenu`; the labels `close` becomes `back`, `share`,
+  `more`.
+- **The chat follows Bloom's theme, not the system's scheme.** `AliaMarkdown` and the sheet read
+  the app's resolved mode: a person who chose light on a dark OS got white text on a light surface.
+- **Every icon is Bloom's.** The voice button is `RiVolumeUpLine` (it was Entypo); the app's clock,
+  robot and connector glyphs are `RiTimeLine`, `RiRobot2Line`, `RiPlugLine` and the SVG generator
+  is gone; `@expo/vector-icons` is no longer a peer of the SDK.
+- **Greeting.** The avatar (88px) above the text, both centred; `max-w-xs`, so it always sets in two lines; more room above than below. The Alia app draws the same.
+- Peer `@oxy.so/bloom ^10.2.1` (scrollbar, pill groups, header scrim, voice controls).
+- **Breaking:** `WelcomeSuggestion { id, title, description }` becomes `AliaSuggestion { id, text }`
+  (`text` is what is shown and what is sent). New optional props on the sheet, screen and content:
+  `suggestionMatches` and `onSuggestionQuery(query)`, so a host can search as the person types.
+  New exports: `ComposerSuggestions`, `useComposerSuggestions`, `useSuggestionQuery`,
+  `composerCompletions`, `Completion`, `AliaSuggestion`.
+
 ## 12.0.0
 
 Breaking: Bloom 10 peer; the `header` render prop replaces the breadcrumb path (`title`, `actions`)

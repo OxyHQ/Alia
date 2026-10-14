@@ -9,7 +9,11 @@ export type AliaAvatarState = 'idle' | 'thinking' | 'working' | 'writing';
  * eyes, nothing on its head. It is `blue_beret` with the hat taken off and the paint changed,
  * so Bloom retargets that preset's animation onto it; change it here and nowhere else.
  */
-const ALIA_AVATAR: AvatarCharacter = { preset: 'blue_beret', accessory: 'none', color: 'orchid' };
+export const ALIA_AVATAR: AvatarCharacter = {
+  preset: 'blue_beret',
+  accessory: 'none',
+  color: 'orchid',
+};
 
 const BUSY: ReadonlySet<AliaAvatarState> = new Set(['thinking', 'working']);
 

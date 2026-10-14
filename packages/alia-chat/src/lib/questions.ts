@@ -4,7 +4,7 @@
 // call: it is stored with the message, survives a reload, and is answered by the person's
 // next message. Pure functions, no React Native, so a host's models and tests can use them.
 
-import type { ToolInvocation } from '../types';
+import type { ChatMessage, ToolInvocation } from '../types';
 
 /** The tool's name on the wire. */
 export const ASK_USER_QUESTION_TOOL = 'askUserQuestion';
@@ -75,4 +75,18 @@ export function formatAnswers(questions: AskedQuestion[], answers: QuestionAnswe
       return `${q.question}\n→ ${parts.join(', ')}`;
     })
     .join('\n\n');
+}
+
+/**
+ * What Alia asked in her last turn and the person has not answered yet: the questions of the
+ * last message when it is hers and finished. A message after them, typed or sent from the card,
+ * is the answer, so nothing is pending then.
+ */
+export function pendingQuestions(
+  messages: readonly Pick<ChatMessage, 'role' | 'toolInvocations'>[],
+  isStreaming: boolean,
+): AskedQuestion[] {
+  const last = messages.at(-1);
+  if (isStreaming || last?.role !== 'assistant') return [];
+  return (last.toolInvocations ?? []).flatMap((invocation) => askedQuestions(invocation) ?? []);
 }

@@ -25,6 +25,34 @@ export function conversationsForHistory(
   );
 }
 
+/**
+ * The sidebar's flat list of chats: the ones filed nowhere (not in a project, not in a folder, not
+ * an agent's thread), pinned first, then favourites, then the rest by recency. No date buckets and
+ * no folders: an ordinary chat is a row, not a place.
+ */
+export function flatConversations({
+  conversations,
+  projects,
+  folders,
+  pinnedIds,
+  favoriteIds,
+}: {
+  conversations: readonly Conversation[];
+  projects: readonly { readonly conversationIds: readonly string[] }[];
+  folders: readonly { readonly conversationIds: readonly string[] }[];
+  pinnedIds: readonly string[];
+  favoriteIds: readonly string[];
+}): Conversation[] {
+  const pinned = new Set(pinnedIds);
+  const favorite = new Set(favoriteIds);
+  const inFolder = new Set(folders.flatMap((folder) => folder.conversationIds));
+  const rank = (conversation: Conversation) =>
+    pinned.has(conversation.id) ? 0 : favorite.has(conversation.id) ? 1 : 2;
+  return conversationsForHistory(conversations, projects)
+    .filter((conversation) => !inFolder.has(conversation.id))
+    .sort((a, b) => rank(a) - rank(b) || b.updatedAt.getTime() - a.updatedAt.getTime());
+}
+
 /** The primary sidebar rows that are routes, keyed by the first path segment they own. */
 const ROUTE_ITEMS = [
   'agents',
