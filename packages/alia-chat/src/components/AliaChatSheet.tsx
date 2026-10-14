@@ -3,7 +3,7 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
 import { useColorScheme, View } from 'react-native';
 import type { AliaChatLabels } from '../lib/labels';
 import type { VoiceSessionComponent } from '../types';
-import { AliaChatContent } from './AliaChatContent';
+import { AliaChatContent, type AliaChatContentProps } from './AliaChatContent';
 import { AliaChatHeader } from './AliaChatHeader';
 import type { WelcomeSuggestion } from './AliaWelcomeMessage';
 
@@ -90,6 +90,22 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       return true;
     }, [stopChat]);
 
+    // The top padding clears the 28px drag handle, which Bloom floats over the content instead
+    // of reserving room for. Stable, so the chat's memoised header only re-renders when it must.
+    const header = useCallback<NonNullable<AliaChatContentProps['header']>>(
+      ({ hasMessages, clear, markState }) => (
+        <View className="pt-8">
+          <AliaChatHeader
+            markState={markState}
+            hasMessages={hasMessages}
+            onClear={clear}
+            onClose={handleDismiss}
+          />
+        </View>
+      ),
+      [handleDismiss],
+    );
+
     return (
       <BottomSheet
         ref={sheetRef}
@@ -113,12 +129,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
           onStopReady={registerChatStop}
           // The top padding clears the 28px drag handle, which Bloom floats over the content
           // instead of reserving room for.
-          title={null}
-          headerLeading={({ hasMessages, clear }) => (
-            <View className="pt-8">
-              <AliaChatHeader hasMessages={hasMessages} onClear={clear} onClose={handleDismiss} />
-            </View>
-          )}
+          header={header}
         />
       </BottomSheet>
     );

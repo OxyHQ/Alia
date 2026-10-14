@@ -8,7 +8,7 @@
  *
  *     bun scripts/setup-character-runtime.mjs
  */
-import { cpSync, existsSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +21,19 @@ const target = join(APP_ROOT, 'public', 'bloom-character');
 if (!existsSync(join(source, 'runtime.mjs'))) {
   console.error(`@oxy.so/bloom ships no character runtime at ${source}`);
   process.exit(1);
+}
+// `integrity.json` records the hashes of the engine files, so equal manifests mean the same
+// runtime: skip the 11 MB copy (and the file churn Metro would watch) on every start.
+const manifest = (dir) => {
+  try {
+    return readFileSync(join(dir, 'integrity.json'), 'utf8');
+  } catch {
+    return null;
+  }
+};
+if (manifest(source) !== null && manifest(source) === manifest(target)) {
+  console.log(`character runtime up to date -> ${target}`);
+  process.exit(0);
 }
 rmSync(target, { recursive: true, force: true });
 cpSync(source, target, { recursive: true });

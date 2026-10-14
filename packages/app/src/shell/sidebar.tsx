@@ -673,7 +673,8 @@ function useSidebarProps() {
 
   const props = {
     logo: {
-      icon: <AliaAvatar size={26} />,
+      // A still thumbnail: a permanent 26px spot should not hold a live 3D renderer on every page.
+      icon: <AliaAvatar size={26} portrait />,
       wordmark: 'Alia',
       onPress: () => {
         closeNav?.();

@@ -154,11 +154,7 @@ const UserBubble = React.memo(function UserBubble({
             <AiChatMessageLine block>
               <View className="flex-row flex-wrap gap-2">
                 {images.map((imgUrl) => (
-                  <View
-                    key={imgUrl}
-                    className="rounded-xl overflow-hidden"
-                    style={{ width: 120, height: 120 }}
-                  >
+                  <View key={imgUrl} className="size-[120px] overflow-hidden rounded-xl">
                     <ExpoImage
                       source={{ uri: imgUrl }}
                       className="w-full h-full"

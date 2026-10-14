@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { WEB_ORIGIN } from './web-origin';
 
 /**
  * Where Bloom's 3D character runtime (`AgentAvatar`) is served from.
@@ -10,4 +11,4 @@ import { Platform } from 'react-native';
 export const CHARACTER_RUNTIME_URL =
   Platform.OS === 'web'
     ? '/bloom-character/runtime.mjs'
-    : 'https://alia.onl/bloom-character/runtime.mjs';
+    : `${WEB_ORIGIN}/bloom-character/runtime.mjs`;

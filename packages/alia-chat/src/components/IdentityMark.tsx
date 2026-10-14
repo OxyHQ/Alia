@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
+import type { AliaAvatarState } from './AliaAvatar';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -13,7 +14,8 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 
-export type IdentityMarkState = 'idle' | 'thinking' | 'working' | 'writing';
+/** What the mark is doing: the same states as the avatar's. */
+export type IdentityMarkState = AliaAvatarState;
 
 export interface IdentityMarkProps {
   /** Width & height in px. Default 24. */
