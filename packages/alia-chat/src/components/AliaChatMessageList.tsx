@@ -21,7 +21,7 @@ import {
   AgentReplyBubble,
   AgentReplyIdentity,
 } from '@oxy.so/bloom/agent-reply';
-import { agentCharacter } from '../lib/agent-character';
+import { readAgentCharacter } from '../lib/agent-character';
 import { useAfterDelay } from '../lib/use-after-delay';
 import { Collapsible } from '@oxy.so/bloom/collapsible';
 import { ALIA_AVATAR } from './AliaAvatar';
@@ -201,7 +201,7 @@ function ReplyBody({
 }) {
   const identity = (
     <AgentReplyIdentity
-      character={agent ? agentCharacter(agent.id) : ALIA_AVATAR}
+      character={agent ? readAgentCharacter(agent.character) : ALIA_AVATAR}
       name={agent?.name ?? 'Alia'}
       thinking={thinking}
       reasoning={reasoning}

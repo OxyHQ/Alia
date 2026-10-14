@@ -148,7 +148,7 @@ vi.mock('@alia.onl/sdk', async () => ({
       : (content as { type: string; image_url?: { url: string } }[])
           .filter((part) => part.type === 'image_url')
           .map((part) => part.image_url?.url ?? ''),
-  agentCharacter: () => ({}),
+  readAgentCharacter: () => ({}),
   PlanPreviewCard: await stub('PlanPreviewCard')(),
 }));
 vi.mock('@/features/chat/model/work-log', () => ({
@@ -157,7 +157,6 @@ vi.mock('@/features/chat/model/work-log', () => ({
   webSearchLog: () => null,
 }));
 vi.mock('@/features/chat/model/task-utils', () => ({ getToolPillLabel: (name: string) => name }));
-vi.mock('@/shared/domain/agent-color', () => ({ agentTint: () => '#000' }));
 vi.mock('@/shared/api/client', () => ({ default: { patch: async () => ({}) } }));
 vi.mock('@/shared/platform/useColorScheme', () => ({ useColorScheme: () => ({ colors: {} }) }));
 // Stable across renders, as the real hook's `t` is (see `use-translation.ts`).

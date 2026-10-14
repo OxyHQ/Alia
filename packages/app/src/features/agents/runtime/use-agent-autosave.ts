@@ -1,3 +1,5 @@
+import { readAgentCharacter } from '@alia.onl/sdk';
+import type { AvatarCharacter } from '@oxy.so/bloom/agent-avatar';
 import { errorStatus, errorMessage as getErrorMessage } from '@/shared/api/error-utils';
 import { useUpdateAgent } from '@/features/agents/runtime/use-agents';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -54,16 +56,17 @@ export interface AgentDraft {
   archetypeConfig: ArchetypeConfig;
   /** `publisher/model`, or `null` for the server's default. */
   modelId: string | null;
+  /** What the agent looks like: a Bloom avatar character, written whole. */
+  character: AvatarCharacter;
 }
 
 /**
- * The three fields that belong to the agent's Oxy bot ACCOUNT rather than to
+ * The two fields that belong to the agent's Oxy bot ACCOUNT rather than to
  * its Alia row, so they are written to a different service by a different call.
  */
 export interface IdentityDraft {
   name: string;
   handle: string;
-  color: string | null;
 }
 
 /** The draft an agent opens with. Seeded once; see {@link AgentDraft}. */
@@ -82,6 +85,7 @@ export function agentDraftFrom(agent: Agent): AgentDraft {
     archetype: agent.archetype || 'general',
     archetypeConfig: agent.archetypeConfig || {},
     modelId: agent.modelId ?? null,
+    character: readAgentCharacter(agent.character),
   };
 }
 
@@ -151,6 +155,7 @@ export function useAgentDraftAutosave(agent: Agent) {
             archetype: next.archetype,
             archetypeConfig: next.archetypeConfig,
             modelId: next.modelId,
+            character: next.character,
           },
         });
         toast.success(t('agents.autoSaved'), { id: SAVE_TOAST_ID });
@@ -177,16 +182,15 @@ export function useAgentDraftAutosave(agent: Agent) {
 }
 
 /**
- * The bot account's half: the NAME, the HANDLE and the COLOUR, saved to Oxy.
+ * The bot account's half: the NAME and the HANDLE, saved to Oxy.
  *
  * Two writes, two services — not one call that fans out, because a failed
  * rename must not take the tagline with it and a failed tagline must not roll
  * back a rename. `updateAccount` sweeps Oxy's own identity caches, so the
  * profile surfaces do not serve the old name for a TTL afterwards.
  *
- * The colour belongs on this side of that split for the same reason the name
- * does: it is the agent's identity, it lives in `User.color` on the bot
- * account, and Alia stores no column for it.
+ * What the agent LOOKS like is not on this side: it is a character, Alia's own, written with the rest
+ * of the row (`AgentDraft.character`). The account's `User.color` is left as it is.
  */
 export function useAgentIdentityAutosave(agent: Agent) {
   const { t } = useTranslation();
@@ -194,13 +198,10 @@ export function useAgentIdentityAutosave(agent: Agent) {
   const [identity, setIdentity] = useState<IdentityDraft>(() => ({
     name: agent.name ?? '',
     handle: agent.handle ?? '',
-    color: agent.color,
   }));
 
   /** What Oxy last confirmed, so a rejected rename can be put back. */
   const savedHandle = useRef(agent.handle ?? '');
-  /** The colour Oxy already holds, so a save only carries one that CHANGED. */
-  const savedColor = useRef(agent.color);
 
   const saveIdentity = useCallback(
     async (next: IdentityDraft): Promise<void> => {
@@ -261,14 +262,8 @@ export function useAgentIdentityAutosave(agent: Agent) {
           // re-sending the current one on every keystroke of the NAME field
           // would ask Oxy to re-check a handle nobody touched.
           ...(handleChanged && { username: trimmed }),
-          // Same rule as the handle, for a different reason: `color` is
-          // absent-means-unchanged on `UpdateAccountInput`, so sending the
-          // current one on every keystroke of the NAME field would write a
-          // value nobody touched.
-          ...(next.color !== savedColor.current && next.color !== null && { color: next.color }),
         });
         savedHandle.current = trimmed;
-        savedColor.current = next.color;
         toast.success(t('agents.autoSaved'), { id: SAVE_TOAST_ID });
       } catch (error: unknown) {
         toast.dismiss(SAVE_TOAST_ID);

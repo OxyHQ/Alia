@@ -8,7 +8,6 @@ import { Label } from '@oxy.so/bloom/label';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Switch } from '@oxy.so/bloom/switch';
 import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
-import { Textarea } from '@oxy.so/bloom/textarea';
 import { View } from 'react-native';
 
 /** How the agent is listed and who may use it, plus the bots it answers on. */
@@ -17,12 +16,12 @@ export function AgentSettingsPanel({
   onEdit,
   telegram,
 }: {
-  draft: Pick<AgentDraft, 'category' | 'tagline' | 'description' | 'price' | 'access'>;
+  draft: Pick<AgentDraft, 'category' | 'price' | 'access'>;
   onEdit: (patch: Partial<AgentDraft>) => void;
   telegram: AgentTelegramBots;
 }) {
   const { t } = useTranslation();
-  const { category, tagline, description, price, access } = draft;
+  const { category, price, access } = draft;
 
   return (
     <>
@@ -42,28 +41,6 @@ export function AgentSettingsPanel({
             </Chip>
           ))}
         </ChipRow>
-      </View>
-
-      {/* Tagline */}
-      <View className="gap-1.5">
-        <Label>{t('agents.listing.tagline')}</Label>
-        <Input
-          label={t('agents.listing.taglinePlaceholder')}
-          value={tagline}
-          onChangeText={(text) => onEdit({ tagline: text })}
-          placeholder={t('agents.listing.taglinePlaceholder')}
-        />
-      </View>
-
-      {/* Description */}
-      <View className="gap-1.5">
-        <Label>{t('agents.listing.description')}</Label>
-        <Textarea
-          value={description}
-          onChangeText={(text) => onEdit({ description: text })}
-          placeholder={t('agents.listing.descriptionPlaceholder')}
-          autoResize
-        />
       </View>
 
       {/* Price — in CREDITS, a whole number: the API takes an integer

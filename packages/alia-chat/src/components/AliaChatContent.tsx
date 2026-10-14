@@ -58,6 +58,8 @@ function participatingAgents(messages: readonly ChatMessage[]): AliaChatAgent[] 
 export interface AliaChatAgent {
   id: string;
   name: string;
+  /** Its look, as the server stores it (JSON); absent, the default look. */
+  character?: unknown;
 }
 
 /** What the chat tells its header and actions: whether there is a conversation to clear, and who took part. */
@@ -122,6 +124,8 @@ export interface AliaChatContentProps {
    * the conversation in a new sheet over this one. Omitted, the chat sends it itself.
    */
   onStart?: (turn: AliaTurn) => void;
+  /** The agents the host knows, with their look: a delegation's thinking avatar is drawn from them. */
+  agents?: UseAliaChatOptions['agents'];
   /**
    * The avatar flights this chat takes part in, when a sheet shares them across its chats (the
    * greeting's avatar flies into a header in another sheet). Omitted, the chat has its own.
@@ -179,6 +183,7 @@ function AliaChatContentBody({
   voiceSession: VoiceSession,
   bottomInset = 0,
   onStart,
+  agents: knownAgents,
   flights: sharedFlights,
   initialTurn,
   onStopReady,
@@ -197,7 +202,7 @@ function AliaChatContentBody({
     [onError],
   );
   // ── Chat ──
-  const chatOptions: UseAliaChatOptions = { apiUrl, model, clientContext };
+  const chatOptions: UseAliaChatOptions = { apiUrl, model, clientContext, agents: knownAgents };
   const { messages, setMessages, send, isStreaming, stop, clear } = useAliaChat(chatOptions);
   const agents = useMemo(() => participatingAgents(messages), [messages]);
   // What Alia asked in her last turn and the person has not answered: asked above the composer,

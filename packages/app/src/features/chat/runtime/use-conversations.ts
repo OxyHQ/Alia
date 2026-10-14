@@ -74,15 +74,13 @@ export interface Message {
   /**
    * Agent delegation metadata, when agent mode delegates to a specialist agent.
    *
-   * `color` is the agent's own — `User.color` on its Oxy bot account — and is
-   * what its `IdentityMark` is painted in. Absent means the identity lookup
-   * resolved nothing, which is ordinary traffic rather than an error, and
-   * `agentTint` falls back to the theme.
+   * `character` is the agent's look as the server stores it (JSON), parsed
+   * where it is drawn; absent, the default look.
    */
   agentInfo?: {
     id: string;
     name: string;
-    color?: string | null;
+    character?: unknown;
     handle: string;
   };
   audioUrl?: string;

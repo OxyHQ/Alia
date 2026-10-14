@@ -114,7 +114,13 @@ export async function postAgentMessage(input: AgentOutreachInput): Promise<Agent
   }
 
   const messageId = `${AGENT_OUTREACH_MESSAGE_ID_PREFIX}${randomUUID()}`;
-  const agentInfo = { id: agent._id, name, color: agent.color, handle: agent.handle ?? '' };
+  const agentInfo = {
+    id: agent._id,
+    name,
+    color: agent.color,
+    character: agent.character,
+    handle: agent.handle ?? '',
+  };
   // Appended at the end: `seq` is the position the client renders by, and a
   // row without one would render at the TOP. A concurrent turn may take the
   // same seq, so the append is retried on exactly that conflict.

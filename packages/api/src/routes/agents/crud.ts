@@ -1,3 +1,8 @@
+import {
+  agentCharacterFor,
+  parseAgentCharacter,
+  type AgentCharacter,
+} from '../../domain/agent-character.js';
 import { Router } from 'express';
 import { resolveModel } from '../../lib/chat-core.js';
 import { ModelNotFoundError } from '../../lib/models/errors.js';
@@ -423,9 +428,17 @@ async function refuseUnknownModel(
   }
 }
 
+/** A character as a client writes it: the shape is checked here, the ids by the client that draws them. */
+const characterSchema = z
+  .unknown()
+  .refine((value) => parseAgentCharacter(value) !== null, { message: 'Invalid character' })
+  .transform((value) => parseAgentCharacter(value) as AgentCharacter);
+
 const createAgentSchema = z
   .object({
     oxyAccountId: z.string().min(1),
+    /** What the agent looks like; absent, one is picked for it (`agentCharacterFor`). */
+    character: characterSchema.optional(),
     tagline: z.string().min(1).max(200),
     description: z.string().min(1).max(5000),
     category: z.string().min(1).max(100),
@@ -473,6 +486,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
     const agent = await createAgent(getDb(), {
       oxyAccountId: data.oxyAccountId,
       ownerOxyAccountId: verdict.ownerAccountId,
+      character: data.character ?? agentCharacterFor(data.oxyAccountId),
       tagline: data.tagline,
       description: data.description,
       authorOxyUserId: req.user.id,
@@ -520,6 +534,8 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
  */
 const updateAgentSchema = z
   .object({
+    /** The agent's look, replaced whole. */
+    character: characterSchema.optional(),
     tagline: z.string().min(1).max(200).optional(),
     description: z.string().min(1).max(5000).optional(),
     category: z.string().min(1).max(100).optional(),

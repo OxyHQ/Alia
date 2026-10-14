@@ -16,7 +16,7 @@ export { VoiceModeIcon } from './components/VoiceModeIcon';
 export { AmbientField, PARALLAX_DURATION, PARALLAX_EASE } from './components/AmbientField';
 export type { AmbientFieldProps } from './components/AmbientField';
 export { ALIA_AVATAR, AliaAvatar } from './components/AliaAvatar';
-export { agentCharacter } from './lib/agent-character';
+export { DEFAULT_AGENT_CHARACTER, readAgentCharacter } from './lib/agent-character';
 export type { AliaAvatarProps, AliaAvatarState } from './components/AliaAvatar';
 export { IdentityMark } from './components/IdentityMark';
 export type { IdentityMarkProps, IdentityMarkState } from './components/IdentityMark';

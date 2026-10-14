@@ -55,7 +55,7 @@ vi.mock('@oxy.so/bloom/agent-reply', () => ({
 }));
 vi.mock('../../src/components/AliaAvatar', () => ({ ALIA_AVATAR: { preset: 'alia' } }));
 vi.mock('../../src/lib/agent-character', () => ({
-  agentCharacter: (id: string) => ({ id }),
+  readAgentCharacter: (value: unknown) => ({ value }),
 }));
 
 import { AliaChatHeader } from '../../src/components/AliaChatHeader';
@@ -93,14 +93,22 @@ describe('AliaChatHeader', () => {
     expect(team()).toEqual(['Alia']);
   });
 
-  it('joins the agents that answered to Alia, with their own characters', () => {
-    const agents = ['lumi', 'atlas'].map((id) => ({ id, name: id.toUpperCase() }));
+  it('joins the agents that answered to Alia, each drawn with the look it has', () => {
+    const agents = ['lumi', 'atlas'].map((id) => ({
+      id,
+      name: id.toUpperCase(),
+      character: { shape: 'heart', color: id },
+    }));
     render(<AliaChatHeader hasMessages agents={agents} onClear={vi.fn()} />);
 
     expect(team()).toEqual(['Alia', 'LUMI', 'ATLAS']);
     expect(
       seen.profiles.at(-1)?.agents.map((agent) => (agent as { avatar?: unknown }).avatar),
-    ).toEqual([{ preset: 'alia' }, { id: 'lumi' }, { id: 'atlas' }]);
+    ).toEqual([
+      { preset: 'alia' },
+      { value: { shape: 'heart', color: 'lumi' } },
+      { value: { shape: 'heart', color: 'atlas' } },
+    ]);
   });
 
   it('runs the host action when the profile is pressed, and is inert without one', () => {

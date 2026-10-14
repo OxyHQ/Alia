@@ -50,6 +50,8 @@ export interface AliaChatScreenProps {
   welcomeSubtitle?: string;
   /** Welcome screen suggestions */
   welcomeSuggestions?: AliaSuggestion[];
+  /** The agents the host knows, with their look: a delegation's thinking avatar is drawn from them until the agent answers. */
+  agents?: AliaChatContentProps['agents'];
   /** What the host found for the typed text, shown over the composer (see `onSuggestionQuery`). */
   suggestionMatches?: AliaSuggestion[];
   /** The typed text, once typing has settled, for the host to search suggestions with. */
@@ -74,6 +76,7 @@ export function AliaChatScreen({
   welcomeGreeting,
   welcomeSubtitle,
   welcomeSuggestions,
+  agents,
   suggestionMatches,
   onSuggestionQuery,
   isDarkMode,
@@ -120,6 +123,7 @@ export function AliaChatScreen({
           welcomeGreeting={welcomeGreeting}
           welcomeSubtitle={welcomeSubtitle}
           welcomeSuggestions={welcomeSuggestions}
+          agents={agents}
           suggestionMatches={suggestionMatches}
           onSuggestionQuery={onSuggestionQuery}
           isDarkMode={isDarkMode}

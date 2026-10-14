@@ -213,6 +213,7 @@ vi.mock('@alia.onl/sdk', async () => {
   return {
     IdentityMark: (props: Record<string, unknown>) =>
       ReactModule.createElement('IdentityMark', props),
+    readAgentCharacter: () => ({ preset: 'blue_beret' }),
   };
 });
 /**
@@ -309,10 +310,13 @@ vi.mock('@/features/agents/ui/agent-connector-grants', async () => {
       ReactModule.createElement('AgentConnectorGrants', props),
   };
 });
-vi.mock('@/shared/domain/agent-colors', () => ({
-  AGENT_SWATCHES: ['blue', 'violet'],
-}));
-vi.mock('@/shared/domain/agent-color', () => ({ agentTint: () => 'rgb(0 0 0)' }));
+vi.mock('@oxy.so/bloom/agent-creator', async () => {
+  const ReactModule = await import('react');
+  return {
+    AgentCreator: (props: Record<string, unknown>) =>
+      ReactModule.createElement('AgentCreator', props),
+  };
+});
 vi.mock('@/shared/platform/useColorScheme', () => ({
   useColorScheme: () => ({ colors: { mutedForeground: 'rgb(113 113 122)' } }),
 }));
@@ -389,6 +393,7 @@ function agentFixture(overrides: Record<string, unknown> = {}): Record<string, u
     oxyAccountId: 'acct-bot',
     name: 'Pepe',
     handle: 'pepe',
+    character: { preset: 'blue_beret' },
     color: 'blue',
     tagline: 'finds things out',
     description: 'a description',

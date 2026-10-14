@@ -1,3 +1,4 @@
+import { TEST_CHARACTER } from './support/agent-character';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { asc, eq, sql } from 'drizzle-orm';
 import {
@@ -109,6 +110,7 @@ describe('Alia stores no identity of its own for an agent', () => {
 function agentValues(overrides: Partial<typeof agents.$inferInsert> = {}) {
   return {
     oxyAccountId: `oxy-bot-researcher-${Math.random().toString(36).slice(2, 10)}`,
+    character: TEST_CHARACTER,
     tagline: 'finds things out',
     description: 'a longer description',
     authorOxyUserId: 'oxy-user-agents',
@@ -130,8 +132,8 @@ function skillValues(overrides: Partial<typeof skills.$inferInsert> = {}) {
 describe('agents', () => {
   it('closes status and archetype, and bounds the rating 0..5', async () => {
     const badStatus = db.execute(sql`
-      insert into ${agents} (id, oxy_account_id, tagline, description, author_oxy_user_id, category, status)
-      values ('ag-badstatus', 'oxy-bot-badstatus', 'T', 'D', 'u', 'c', 'sleeping')
+      insert into ${agents} (id, oxy_account_id, character, tagline, description, author_oxy_user_id, category, status)
+      values ('ag-badstatus', 'oxy-bot-badstatus', '{\"shape\":\"star\",\"color\":\"teal\"}'::jsonb, 'T', 'D', 'u', 'c', 'sleeping')
     `);
     await expect(badStatus).rejects.toSatisfy((error: unknown) => {
       expect(isCheckViolation(error)).toBe(true);
@@ -140,8 +142,8 @@ describe('agents', () => {
     });
 
     const badArchetype = db.execute(sql`
-      insert into ${agents} (id, oxy_account_id, tagline, description, author_oxy_user_id, category, archetype)
-      values ('ag-badarch', 'oxy-bot-badarch', 'T', 'D', 'u', 'c', 'oracle')
+      insert into ${agents} (id, oxy_account_id, character, tagline, description, author_oxy_user_id, category, archetype)
+      values ('ag-badarch', 'oxy-bot-badarch', '{\"shape\":\"star\",\"color\":\"teal\"}'::jsonb, 'T', 'D', 'u', 'c', 'oracle')
     `);
     await expect(badArchetype).rejects.toSatisfy((error: unknown) => {
       expect(isCheckViolation(error)).toBe(true);
@@ -152,8 +154,8 @@ describe('agents', () => {
     // Bounded 0..5. The value is an average of 1..5 review
     // ratings, so anything outside means a non-validating write produced it.
     const badRating = db.execute(sql`
-      insert into ${agents} (id, oxy_account_id, tagline, description, author_oxy_user_id, category, rating)
-      values ('ag-badrating', 'oxy-bot-badrating', 'T', 'D', 'u', 'c', 5.5)
+      insert into ${agents} (id, oxy_account_id, character, tagline, description, author_oxy_user_id, category, rating)
+      values ('ag-badrating', 'oxy-bot-badrating', '{\"shape\":\"star\",\"color\":\"teal\"}'::jsonb, 'T', 'D', 'u', 'c', 5.5)
     `);
     await expect(badRating).rejects.toSatisfy((error: unknown) => {
       expect(isCheckViolation(error)).toBe(true);

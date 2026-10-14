@@ -110,7 +110,7 @@ vi.mock('@alia.onl/sdk', async () => ({
           .map((part) => part.text ?? '')
           .join(''),
   getImagesFromContent: () => [],
-  agentCharacter: () => ({}),
+  readAgentCharacter: () => ({}),
   PlanPreviewCard: () => null,
 }));
 
@@ -183,7 +183,6 @@ vi.mock('@/features/chat/model/work-log', () => ({
   webSearchLog: () => null,
 }));
 vi.mock('@/features/chat/model/task-utils', () => ({ getToolPillLabel: (name: string) => name }));
-vi.mock('@/shared/domain/agent-color', () => ({ agentTint: () => '#000' }));
 const votes = vi.hoisted(() => ({ sent: [] as [string, unknown][], fail: false }));
 vi.mock('@/shared/api/client', () => ({
   default: {

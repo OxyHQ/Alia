@@ -1,3 +1,4 @@
+import { TEST_CHARACTER } from './support/agent-character';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq, sql } from 'drizzle-orm';
@@ -35,6 +36,7 @@ afterAll(async () => closePostgres());
 
 async function agent(owner = `owner-${randomUUID()}`) {
   return createAgent(db, {
+    character: TEST_CHARACTER,
     oxyAccountId: `bot-${randomUUID()}`,
     ownerOxyAccountId: owner,
     tagline: 'reads its own mail',

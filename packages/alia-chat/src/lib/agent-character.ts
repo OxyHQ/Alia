@@ -1,27 +1,28 @@
-import { AVATAR_COLORS, AVATAR_SHAPES, type AvatarCharacter } from '@oxy.so/bloom/agent-avatar';
-
-/** FNV-1a: a stable 32-bit hash, so an agent keeps its look across sessions and devices. */
-function hash(text: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
-}
+import { parseAvatarCharacter, type AvatarCharacter } from '@oxy.so/bloom/agent-avatar';
 
 /**
- * The 3D character an agent appears as. An agent's account carries no avatar, so its body and
- * paint come from its id: the same agent is the same character everywhere, and two agents in a
- * conversation are told apart at a glance. Plain oval eyes, nothing on the head.
+ * The look of an agent whose own is not known: a server that does not send one yet, an agent that
+ * has since been deleted, a stored character this Bloom cannot draw. One neutral character, the same
+ * everywhere, so an unknown look is recognisably "not chosen" and never one that belongs to somebody.
  */
-export function agentCharacter(agentId: string): AvatarCharacter {
-  const h = hash(agentId);
-  return {
-    shape: AVATAR_SHAPES[h % AVATAR_SHAPES.length],
-    eyes: 'oval',
-    eyewear: 'none',
-    accessory: 'none',
-    color: AVATAR_COLORS[Math.floor(h / AVATAR_SHAPES.length) % AVATAR_COLORS.length],
-  };
+export const DEFAULT_AGENT_CHARACTER: AvatarCharacter = {
+  shape: 'rounded_cube',
+  eyes: 'oval',
+  eyewear: 'none',
+  accessory: 'none',
+  color: 'violet',
+};
+
+/**
+ * The character an agent is drawn as, from the JSON the server stores for it
+ * (`agents.character`): Bloom's own parser decides what it can draw, and anything else is the
+ * default look rather than an avatar that fails to render.
+ */
+export function readAgentCharacter(value: unknown): AvatarCharacter {
+  if (value === null || value === undefined) return DEFAULT_AGENT_CHARACTER;
+  try {
+    return parseAvatarCharacter(value);
+  } catch {
+    return DEFAULT_AGENT_CHARACTER;
+  }
 }

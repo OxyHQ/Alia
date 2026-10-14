@@ -56,10 +56,9 @@ export function useGenerateAgent() {
        * This is where the agent's name and handle now live. Alia never sees
        * them again except by reading them back.
        *
-       * There is no avatar step. An agent's likeness is the `IdentityMark`
-       * Alia herself wears, drawn in the account's own `User.color` — a field
-       * `createAccount` cannot carry, so a new agent starts out drawn in the
-       * theme's color and stays that way until Oxy can set one.
+       * The agent's look is not an account field: the API gives the new agent
+       * a character of its own when the row is created, and the editor changes
+       * it.
        */
       const account = await createBotAccount({
         createAccount,

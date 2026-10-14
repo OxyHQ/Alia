@@ -40,7 +40,7 @@ import { arrivedIds } from '@/features/chat/model/timeline';
 import type { ToolInvocation } from '@/shared/contracts/messages';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
 import {
-  agentCharacter,
+  readAgentCharacter,
   getImagesFromContent,
   getTextFromContent,
   PlanPreviewCard,
@@ -454,7 +454,7 @@ const MessageRow = React.memo(function MessageRow({
               {m.agentInfo ? (
                 <View className="flex-row items-center gap-2 mb-0.5">
                   <AgentAvatar
-                    character={agentCharacter(m.agentInfo.id)}
+                    character={readAgentCharacter(m.agentInfo.character)}
                     size={24}
                     label={m.agentInfo.name}
                   />

@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BREAKPOINTS } from '@oxy.so/bloom/styles';
 import type { AliaChatLabels } from '../lib/labels';
 import type { VoiceSessionComponent } from '../types';
-import { AliaChatContent, type AliaTurn } from './AliaChatContent';
+import { AliaChatContent, type AliaChatContentProps, type AliaTurn } from './AliaChatContent';
 import { AliaChatHeader } from './AliaChatHeader';
 import type { AliaSuggestion } from '../types';
 
@@ -36,6 +36,8 @@ export interface AliaChatSheetProps {
   welcomeSubtitle?: string;
   /** Welcome screen suggestions */
   welcomeSuggestions?: AliaSuggestion[];
+  /** The agents the host knows, with their look: a delegation's thinking avatar is drawn from them until the agent answers. */
+  agents?: AliaChatContentProps['agents'];
   /** What the host found for the typed text, shown over the composer (see `onSuggestionQuery`). */
   suggestionMatches?: AliaSuggestion[];
   /** The typed text, once typing has settled, for the host to search suggestions with. */
@@ -70,6 +72,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       welcomeGreeting,
       welcomeSubtitle,
       welcomeSuggestions,
+      agents,
       suggestionMatches,
       onSuggestionQuery,
       isDarkMode,
@@ -176,6 +179,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
             welcomeGreeting={welcomeGreeting}
             welcomeSubtitle={welcomeSubtitle}
             welcomeSuggestions={welcomeSuggestions}
+            agents={agents}
             suggestionMatches={suggestionMatches}
             onSuggestionQuery={onSuggestionQuery}
             onStopReady={registerMainStop}
@@ -197,6 +201,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
             <AliaChatContent
               {...shared}
               initialTurn={conversation.turn}
+              agents={agents}
               onStopReady={registerConversationStop}
               // The bar is the conversation's: back to the main screen, the profile, share and
               // the menu.

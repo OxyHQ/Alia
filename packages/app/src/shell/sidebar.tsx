@@ -36,7 +36,7 @@ import { useFoldersStore, type Folder } from '@/features/projects/runtime/folder
 import { useStore } from '@/features/chat/runtime/global-store';
 import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
 import { useProjectsStore, type Project } from '@/features/projects/runtime/projects-store';
-import { agentCharacter, ALIA_AVATAR, AliaAvatar } from '@alia.onl/sdk';
+import { readAgentCharacter, ALIA_AVATAR, AliaAvatar } from '@alia.onl/sdk';
 import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
 import {
   ConversationSidebar,
@@ -456,7 +456,11 @@ function useSidebarProps() {
             ? shortTime(new Date(agent.lastMessageAt))
             : t('sidebar.noAgentMessages'),
           agents: [
-            { id: agent._id, name: agentDisplayName(agent), avatar: agentCharacter(agent._id) },
+            {
+              id: agent._id,
+              name: agentDisplayName(agent),
+              avatar: readAgentCharacter(agent.character),
+            },
           ],
         })),
     [isAuthenticated, myAgents, searchQuery, t],

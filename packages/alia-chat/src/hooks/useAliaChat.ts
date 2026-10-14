@@ -11,6 +11,11 @@ const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
 
 export interface UseAliaChatOptions {
   /**
+   * The agents the host knows, with their look: a delegation's thinking avatar is drawn from here
+   * until the agent's answer brings its own. Without it (or for an agent it lacks) the default look.
+   */
+  agents?: ReadonlyArray<{ id: string; character?: unknown }>;
+  /**
    * Base URL the hook sends its requests to. Defaults to
    * `EXPO_PUBLIC_ALIA_API_URL`, then `https://api.alia.onl`.
    *
@@ -121,6 +126,8 @@ function waitWithAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> 
  */
 export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn {
   const { apiUrl = API_URL, model, clientContext, accessToken: accessTokenProp } = options;
+  const directoryRef = useRef(new Map<string, { id: string; character?: unknown }>());
+  directoryRef.current = new Map((options.agents ?? []).map((agent) => [agent.id, agent]));
   const requestUrl = '/v1/chat/completions';
 
   const { oxyServices } = useOxy();
@@ -176,7 +183,11 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
    * agent, filled by its answer. Without an open one, an answer makes a message of its own.
    */
   const insertAgentMessage = useCallback(
-    (assistantId: string, agent: { id: string; name: string }, content: string) => {
+    (
+      assistantId: string,
+      agent: { id: string; name: string; character?: unknown },
+      content: string,
+    ) => {
       if (!mountedRef.current) return;
       const id = agentMessageId(assistantId, agent.id);
       setMessages((previous) => {
@@ -185,14 +196,27 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
         if (open && (content === '' || getTextFromContent(open.content) === '')) {
           // Already open: an answer fills it; a second call to the same agent changes nothing.
           if (content === '') return previous;
-          updated = previous.map((message) => (message === open ? { ...open, content } : message));
+          // The answer carries the look the server has now: it replaces the one the call guessed.
+          updated = previous.map((message) =>
+            message === open
+              ? {
+                  ...open,
+                  content,
+                  agentInfo: {
+                    id: agent.id,
+                    name: agent.name,
+                    character: agent.character ?? open.agentInfo?.character,
+                  },
+                }
+              : message,
+          );
         } else {
           const message: ChatMessage = {
             id: open ? `${id}-${previous.length}` : id,
             role: 'assistant',
             content,
             createdAt: Date.now(),
-            agentInfo: { id: agent.id, name: agent.name },
+            agentInfo: { id: agent.id, name: agent.name, character: agent.character },
           };
           const at = previous.findIndex((candidate) => candidate.id === assistantId);
           updated = [...previous];
@@ -397,7 +421,13 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
             flushPendingUpdates(pending);
             // A call to an agent opens the agent's message at once: empty, thinking, until it answers.
             const agent = delegatedAgent(invocation);
-            if (agent) insertAgentMessage(pending.assistantId, agent, '');
+            // The call names the agent; its look is the host's directory's, until the answer brings the server's.
+            if (agent)
+              insertAgentMessage(
+                pending.assistantId,
+                { ...agent, character: directoryRef.current.get(agent.id)?.character },
+                '',
+              );
             return;
           }
           case 'tool_result': {

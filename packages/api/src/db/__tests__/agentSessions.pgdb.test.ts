@@ -1,3 +1,4 @@
+import { TEST_CHARACTER } from './support/agent-character';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { constraintNameOf, isCheckViolation, isUniqueViolation } from '@oxy.so/db';
@@ -31,6 +32,7 @@ afterAll(async () => {
 function agentValues(overrides: Partial<typeof agents.$inferInsert> = {}) {
   return {
     oxyAccountId: `oxy-bot-sess-${Math.random().toString(36).slice(2, 10)}`,
+    character: TEST_CHARACTER,
     tagline: 't',
     description: 'd',
     authorOxyUserId: 'oxy-user-sessions',

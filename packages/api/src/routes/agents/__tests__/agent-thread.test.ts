@@ -25,6 +25,7 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import type { Server } from 'node:http';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TEST_CHARACTER } from '../../../db/__tests__/support/agent-character.js';
 
 const state = vi.hoisted(() => ({
   /** `null` makes `getAccount` reject with a 404, as Oxy does for an unseen account. */
@@ -132,6 +133,7 @@ const AGENT_ROW = {
   _id: 'agent-1',
   id: 'agent-1',
   oxyAccountId: 'acct-bot',
+  character: TEST_CHARACTER,
   tagline: 'finds things out',
   description: 'a description',
   author: 'oxy-owner',
@@ -214,7 +216,7 @@ describe('the route is reachable, and resolves the pair', () => {
       _id: 'agent-1',
       name: 'Pepe',
       handle: 'pepe',
-      color: 'lagoon',
+      character: TEST_CHARACTER,
       tagline: 'finds things out',
       description: 'a description',
     });

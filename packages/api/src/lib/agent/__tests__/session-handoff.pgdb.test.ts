@@ -1,3 +1,4 @@
+import { TEST_CHARACTER } from '../../../db/__tests__/support/agent-character';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 
@@ -151,6 +152,7 @@ async function seedAgent(
   price: number,
 ): Promise<{ _id: string; oxyAccountId: string; price: number }> {
   const agent = await createAgent(db, {
+    character: TEST_CHARACTER,
     oxyAccountId: `oxy-bot-handoff-${SUITE}-${seq++}`,
     ownerOxyAccountId: SUITE,
     tagline: 'runs things',
