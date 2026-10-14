@@ -35,6 +35,9 @@
   **Breaking:** `QuestionCard` is now the docked questionnaire (`onSubmit` required, new
   `onDismiss`) and no longer draws a read-only variant; the `onAnswerQuestions` prop of the message
   list is gone. `pendingQuestions` joins `@alia.onl/sdk/tools`.
+- **The voice bar is Bloom's voice controls.** `VoiceControls` draws Bloom's `@oxy.so/bloom/voice`
+  `VoiceControls` (microphone and end) under the status text, instead of `CallControls`, which is
+  made for a dark call stage and lost its captions on the chat's light surface.
 - **Breaking:** `WelcomeSuggestion { id, title, description }` becomes `AliaSuggestion { id, text }`
   (`text` is what is shown and what is sent). New optional props on the sheet, screen and content:
   `suggestionMatches` and `onSuggestionQuery(query)`, so a host can search as the person types.

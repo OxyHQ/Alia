@@ -1,11 +1,12 @@
 /**
- * Bottom voice control bar that replaces the composer when voice mode is active.
- * Contains status text and Bloom's mute/end call controls.
+ * Bottom voice control bar that replaces the composer when voice mode is active: the status
+ * text over Bloom's own `VoiceControls` (microphone and end), the controls of Bloom's voice
+ * mode, not a call's.
  */
 
-import { CallControls } from '@oxy.so/bloom/call-ui';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Text } from '@oxy.so/bloom/typography';
+import { VoiceControls as BloomVoiceControls, type VoiceState } from '@oxy.so/bloom/voice';
 import { View } from 'react-native';
 import type { RoomState, AgentState } from '../../types';
 
@@ -60,6 +61,13 @@ function getStatusText(
   return '';
 }
 
+/** What Bloom's voice controls call the call's state: the microphone is only live while it is. */
+function voiceStateOf(roomState: RoomState, agentState: AgentState): VoiceState {
+  if (roomState === 'error') return 'error';
+  if (roomState !== 'connected') return 'idle';
+  return agentState === 'idle' ? 'listening' : agentState;
+}
+
 export function VoiceControls({
   roomState,
   agentState,
@@ -84,13 +92,11 @@ export function VoiceControls({
       ) : null}
 
       {roomState === 'connected' ? (
-        <CallControls
+        <BloomVoiceControls
+          state={voiceStateOf(roomState, agentState)}
           muted={isMuted}
           onMutedChange={onToggleMute}
-          onEndCall={onEnd}
-          // TODO(bloom): `CallControls` draws its captions for a dark call stage, so on the
-          // chat's light surface they vanish. The buttons keep their accessible names.
-          labels={{ mute: labels.mute, unmute: labels.unmute, endCall: labels.end }}
+          onEnd={onEnd}
         />
       ) : null}
 

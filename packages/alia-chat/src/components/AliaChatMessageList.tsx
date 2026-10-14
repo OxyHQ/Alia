@@ -202,6 +202,9 @@ function ReplyBody({
     <AgentReply
       identity={<AgentReplyIdentity character={agentCharacter(agent.id)} name={agent.name} />}
       actions={actions}
+      // The thread already pads its content and spaces its messages: the reply starts where
+      // Alia's own text does and sits one thread gap from the message above it.
+      style={{ marginHorizontal: 0, marginTop: 0, maxWidth: '100%' }}
     >
       <AgentReplyBubble>{children}</AgentReplyBubble>
     </AgentReply>
