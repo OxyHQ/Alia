@@ -22,6 +22,8 @@ import {
   AgentReplyIdentity,
 } from '@oxy.so/bloom/agent-reply';
 import { agentCharacter } from '../lib/agent-character';
+import { useAfterDelay } from '../lib/use-after-delay';
+import { Collapsible } from '@oxy.so/bloom/collapsible';
 import { ALIA_AVATAR } from './AliaAvatar';
 import { Button } from '@oxy.so/bloom/button';
 import { useLabels } from '../lib/labels';
@@ -176,6 +178,9 @@ const UserBubble = React.memo(function UserBubble({
   );
 });
 
+/** Alia is shown thinking only once she has for this long: a hand-over to an agent shows no flash of her. */
+const ALIA_THINKING_DELAY_MS = 450;
+
 // ── Assistant Message ──
 
 /**
@@ -315,8 +320,15 @@ const AssistantMessage = React.memo(function AssistantMessage({
 
   // The one who answers is thinking until its reply starts: an agent from the call that sent for it,
   // Alia when no agent is working for her. The avatar is the indicator.
-  const thinking =
-    isLoading && !hasContent && (message.agentInfo ? true : isLastMessage && !agentsWorking);
+  // Alia thinks once she has for a moment: when she hands the turn over at once, only the agent is
+  // shown thinking, not Alia for an instant first.
+  const aliaThinking = useAfterDelay(
+    isLoading && !hasContent && !message.agentInfo && isLastMessage && !agentsWorking,
+    ALIA_THINKING_DELAY_MS,
+  );
+  const thinking = message.agentInfo ? isLoading && !hasContent : aliaThinking;
+  // The reply, its avatar and its reasoning come and go with their height eased, never popped.
+  const showsReply = hasContent || message.isStreaming || thinking;
 
   return (
     <View className="w-full">
@@ -356,7 +368,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
       )}
 
       {/* Message Content */}
-      {(hasContent || message.isStreaming || thinking) && (
+      <Collapsible open={showsReply}>
         <ReplyBody
           agent={message.agentInfo}
           thinking={thinking}
@@ -376,7 +388,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
             <AliaMarkdown content={messageText} />
           )}
         </ReplyBody>
-      )}
+      </Collapsible>
 
       {/* What Alia asked stays in the thread as a record; answering happens above the composer. */}
       {questions.length === 0 ? null : <AskedQuestions questions={questions} />}
@@ -474,39 +486,42 @@ export function AliaChatMessageList({
 
             return (
               <Animated.View key={msg.id} entering={isNewMessage ? chatMessageEnter : undefined}>
-                {msg.role === 'user' ? (
-                  <UserBubble
-                    message={msg}
-                    text={messageText}
-                    isEditing={editingMessageId === msg.id}
-                    editedContent={editingMessageId === msg.id ? editedContent : ''}
-                    onEditedContentChange={setEditedContent}
-                    onSaveEdit={handleSaveEdit}
-                    onCancelEdit={handleCancelEdit}
-                    onStartEdit={handleStartEdit}
-                    onCopy={handleCopy}
-                    copiedMessageId={copiedMessageId}
-                    showEditButton={!!onEditMessage}
-                  />
-                ) : (
-                  <AssistantMessage
-                    message={msg}
-                    messageText={messageText}
-                    isStreamingThis={isStreamingThis}
-                    isLastMessage={isLast}
-                    isLoading={isStreaming}
-                    agentsWorking={agentsWorking}
-                    onReadAloud={onReadAloud}
-                    ttsActiveMessageId={ttsActiveMessageId}
-                    ttsPlaybackState={ttsPlaybackState}
-                    onCopy={handleCopy}
-                    onThumbsUp={onThumbsUp}
-                    onThumbsDown={onThumbsDown}
-                    onApprovePlan={onApprovePlan}
-                    onRejectPlan={onRejectPlan}
-                    renderMarkdown={renderMarkdown}
-                  />
-                )}
+                {/* A new row opens up as it arrives, so what is below it moves with it. */}
+                <Collapsible open appear={isNewMessage}>
+                  {msg.role === 'user' ? (
+                    <UserBubble
+                      message={msg}
+                      text={messageText}
+                      isEditing={editingMessageId === msg.id}
+                      editedContent={editingMessageId === msg.id ? editedContent : ''}
+                      onEditedContentChange={setEditedContent}
+                      onSaveEdit={handleSaveEdit}
+                      onCancelEdit={handleCancelEdit}
+                      onStartEdit={handleStartEdit}
+                      onCopy={handleCopy}
+                      copiedMessageId={copiedMessageId}
+                      showEditButton={!!onEditMessage}
+                    />
+                  ) : (
+                    <AssistantMessage
+                      message={msg}
+                      messageText={messageText}
+                      isStreamingThis={isStreamingThis}
+                      isLastMessage={isLast}
+                      isLoading={isStreaming}
+                      agentsWorking={agentsWorking}
+                      onReadAloud={onReadAloud}
+                      ttsActiveMessageId={ttsActiveMessageId}
+                      ttsPlaybackState={ttsPlaybackState}
+                      onCopy={handleCopy}
+                      onThumbsUp={onThumbsUp}
+                      onThumbsDown={onThumbsDown}
+                      onApprovePlan={onApprovePlan}
+                      onRejectPlan={onRejectPlan}
+                      renderMarkdown={renderMarkdown}
+                    />
+                  )}
+                </Collapsible>
               </Animated.View>
             );
           })}

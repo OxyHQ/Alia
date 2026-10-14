@@ -14,6 +14,10 @@
   turn thinks, "Thinking… ⌃" folds it under the avatar's row, and once the reply starts it is the
   closed "Thought for N seconds" block above it (`ThinkingBlock` draws nothing while it streams, so
   there is one thinking indicator, not two).
+- **No jumps of height, and no flash of the wrong thinker.** A reply, a new row, the reasoning and
+  a thinking agent's avatar open and close with their height eased (Bloom's `Collapsible`, now
+  with `appear`) instead of popping. Alia is shown thinking only once she has for a moment, so a
+  turn she hands to an agent at once shows the agent thinking, not Alia for an instant first.
 - **The greeting's avatar flies up into the header's profile** as the conversation begins
   (Bloom's `avatar-flight`: `useAvatarFlights`, `AvatarAnchor`, `AvatarFlightLayer`), across the
   main and conversation sheets. `AgentProfile`'s new `avatarHidden` keeps the header's avatar
