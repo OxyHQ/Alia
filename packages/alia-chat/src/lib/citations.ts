@@ -1,4 +1,5 @@
 import type { ToolInvocation } from '../types';
+import { domainOf } from './domain';
 
 export interface CitationSource {
   /** The citation number, as it appears in `[n]`. */
@@ -12,14 +13,6 @@ interface PersistedResearchSource {
   id?: unknown;
   url?: unknown;
   title?: unknown;
-}
-
-function domainOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return url;
-  }
 }
 
 /**
@@ -43,8 +36,8 @@ export function extractCitationSources(
     const title =
       typeof raw.title === 'string' && raw.title.trim().length > 0
         ? raw.title.trim()
-        : domainOf(url);
-    byId.set(id, { id, url, title, domain: domainOf(url) });
+        : domainOf(url, { stripWww: true });
+    byId.set(id, { id, url, title, domain: domainOf(url, { stripWww: true }) });
   };
 
   for (const inv of toolInvocations ?? []) {

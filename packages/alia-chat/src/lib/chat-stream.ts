@@ -31,7 +31,12 @@ export type AliaChatStreamEvent =
   | {
       readonly kind: 'agent_answer';
       readonly content: string;
-      readonly agent: { readonly id: string; readonly name: string; readonly avatar: null };
+      readonly agent: {
+        readonly id: string;
+        readonly name: string;
+        /** The agent's look as the server stores it (JSON); absent from a server that does not send it. */
+        readonly character?: unknown;
+      };
     };
 
 export interface AliaChatStreamResult {
@@ -324,7 +329,15 @@ function parseNamedEvent(eventName: string, payload: unknown): AliaChatStreamEve
     case 'alia.agent': {
       assertOnlyKeys(
         body,
-        ['eventVersion', 'agentId', 'agentName', 'agentHandle', 'agentColor', 'content'],
+        [
+          'eventVersion',
+          'agentId',
+          'agentName',
+          'agentHandle',
+          'agentColor',
+          'agentCharacter',
+          'content',
+        ],
         eventName,
       );
       if (body.agentColor !== null) asString(body.agentColor, `${eventName} agentColor`);
@@ -335,7 +348,11 @@ function parseNamedEvent(eventName: string, payload: unknown): AliaChatStreamEve
         agent: {
           id: asString(body.agentId, `${eventName} agentId`),
           name: asString(body.agentName, `${eventName} agentName`),
-          avatar: null,
+          // As the server sent it, parsed where it is drawn (`readAgentCharacter`). Absent from an
+          // older server, null for an agent that could not be read: the default look then.
+          ...(body.agentCharacter === undefined || body.agentCharacter === null
+            ? {}
+            : { character: body.agentCharacter }),
         },
       };
     }

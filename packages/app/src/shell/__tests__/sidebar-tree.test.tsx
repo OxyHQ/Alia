@@ -67,7 +67,12 @@ vi.mock('@oxy.so/services', () => ({
   useOxy: () => ({ isAuthenticated: true, user: { id: 'user-a' }, showBottomSheet: vi.fn() }),
 }));
 
-vi.mock('@alia.onl/sdk', () => ({ AliaAvatar: () => null }));
+vi.mock('@alia.onl/sdk', () => ({
+  AliaAvatar: () => null,
+  ALIA_AVATAR: { preset: 'blue_beret' },
+  readAgentCharacter: (value: unknown) => ({ preset: 'blue_beret', value }),
+}));
+vi.mock('@oxy.so/bloom/agent-avatar', () => ({ AgentAvatar: () => null }));
 vi.mock('@/features/onboarding/ui/invite-dialog', () => ({ InviteDialog: () => null }));
 vi.mock('@/features/projects/ui/project-edit-dialog', () => ({ ProjectEditDialog: () => null }));
 vi.mock('@/features/settings/ui/settings-context', () => ({
@@ -98,7 +103,11 @@ vi.mock('@/features/notifications/runtime/use-notifications', () => ({
 }));
 
 // Glyphs are only handed to Bloom, never drawn here.
-vi.mock('@oxy.so/bloom/icons/RiAddFill', () => ({ RiAddFill: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiDeleteBinLine', () => ({ RiDeleteBinLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiEditLine', () => ({ RiEditLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiFolderLine', () => ({ RiFolderLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiPushpinLine', () => ({ RiPushpinLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiStarLine', () => ({ RiStarLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiAddLine', () => ({ RiAddLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiBookOpenLine', () => ({ RiBookOpenLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiCustomerServiceLine', () => ({ RiCustomerServiceLine: () => null }));
@@ -117,17 +126,17 @@ vi.mock('@oxy.so/bloom/icons/RiTimeLine', () => ({ RiTimeLine: () => null }));
 
 vi.mock('@oxy.so/bloom/ai-chat', () => ({ useAiChatShell: () => null }));
 vi.mock('@oxy.so/bloom/surfaces', () => ({ confirm: vi.fn(async () => true) }));
-vi.mock('@oxy.so/bloom/sidebar', () => ({
-  Sidebar: (props: Record<string, any>) => {
+vi.mock('@oxy.so/bloom/conversation-sidebar', () => ({
+  ConversationSidebar: (props: Record<string, any>) => {
     state.sidebarProps = props;
     const React = require('react');
-    // The tree's own actions and every row's and folder's actions, mounted so
-    // their menus can be pressed.
+    // The tree's own actions and every folder's and row's actions, mounted so their menus can be
+    // pressed, and what sits under the flat list.
     return React.createElement(
       'Sidebar',
       null,
       props.tree?.actions,
-      props.content,
+      props.after,
       ...(props.tree?.folders ?? []).flatMap((folder: any) => [
         React.createElement('Folder', { key: folder.key, folderKey: folder.key }, folder.actions),
         ...folder.items.map((item: any) =>
@@ -239,11 +248,20 @@ async function settle() {
 
 const folderItems = () =>
   Object.fromEntries(
-    (state.sidebarProps!.tree.folders as any[]).map((folder) => [
+    ((state.sidebarProps!.tree?.folders ?? []) as any[]).map((folder) => [
       folder.key,
       folder.items.map((item: any) => item.key),
     ]),
   );
+
+/** The flat list: what the sidebar draws as rows, in order. */
+const flat = () => (state.sidebarProps!.conversations as { id: string }[]).map((row) => row.id);
+const flatRow = (id: string) =>
+  (state.sidebarProps!.conversations as any[]).find((row) => row.id === id);
+/** Runs a context-menu action of a chat of the flat list. */
+const act_ = (id: string, key: string) => state.sidebarProps!.onAction(flatRow(id), key);
+const actionKeys = (id: string) =>
+  (state.sidebarProps!.actions(flatRow(id)) as { key: string }[]).map((a) => a.key);
 
 /** Whether a node is the host-element stand-in `name`. */
 const is = (node: ReactTestInstance, name: string) => (node.type as unknown) === name;
@@ -252,9 +270,6 @@ const is = (node: ReactTestInstance, name: string) => (node.type as unknown) ===
 function menuItem(scope: ReactTestInstance, label: string): ReactTestInstance {
   return scope.find((node) => is(node, 'MenuItem') && node.props.children === label);
 }
-
-const row = (key: string) =>
-  renderer.root.find((node) => is(node, 'Row') && node.props.rowKey === key);
 
 beforeEach(async () => {
   state.storage.clear();
@@ -273,43 +288,55 @@ afterEach(() => {
   act(() => renderer?.unmount());
 });
 
-describe('the sidebar tree', () => {
-  it('puts a pinned chat under Pinned, out of History, and keeps it for this account', async () => {
+describe('the sidebar list', () => {
+  it('lists the chats filed nowhere as one flat list, with no folders of its own', async () => {
     await mount();
-    expect(folderItems()).toEqual({ 'history:today': ['alpha', 'beta'] });
+    expect(flat()).toEqual(['alpha', 'beta']);
+    // Projects and folders are the tree's; with none, it stands empty (it holds "new project").
+    expect(folderItems()).toEqual({});
+    expect(state.sidebarProps!.tree.label).toBe('sidebar.projects');
+  });
 
+  it('puts a pinned chat first and keeps the pin for this account', async () => {
+    await mount();
+    expect(actionKeys('beta')).toContain('pin');
     await act(async () => {
-      menuItem(row('beta'), 'sidebar.pin').props.onPress();
+      act_('beta', 'pin');
     });
     await settle();
 
-    expect(folderItems()).toEqual({ pinned: ['beta'], 'history:today': ['alpha'] });
+    expect(flat()).toEqual(['beta', 'alpha']);
+    expect(flatRow('beta').pinned).toBe(true);
     expect(JSON.parse(state.storage.get('alia-pinned-conversations:user-a')!)).toEqual(['beta']);
-    // The same menu now offers the way back.
+    // The same menu now offers the way back: the label says unpin.
+    const labels = (state.sidebarProps!.actions(flatRow('beta')) as { label: string }[]).map(
+      (a) => a.label,
+    );
+    expect(labels).toContain('sidebar.unpin');
     await act(async () => {
-      menuItem(row('beta'), 'sidebar.unpin').props.onPress();
+      act_('beta', 'pin');
     });
     await settle();
-    expect(folderItems()).toEqual({ 'history:today': ['alpha', 'beta'] });
+    expect(flat()).toEqual(['alpha', 'beta']);
   });
 
-  it('puts a favourite under Favorites and takes it back out', async () => {
+  it('puts a favourite before the rest and takes it back out', async () => {
     await mount();
     await act(async () => {
-      menuItem(row('alpha'), 'sidebar.addFavorite').props.onPress();
+      act_('beta', 'favorite');
     });
     await settle();
-    expect(folderItems()).toEqual({ favorites: ['alpha'], 'history:today': ['beta'] });
-    expect(JSON.parse(state.storage.get('alia-favorite-conversations:user-a')!)).toEqual(['alpha']);
+    expect(flat()).toEqual(['beta', 'alpha']);
+    expect(JSON.parse(state.storage.get('alia-favorite-conversations:user-a')!)).toEqual(['beta']);
 
     await act(async () => {
-      menuItem(row('alpha'), 'sidebar.removeFavorite').props.onPress();
+      act_('beta', 'favorite');
     });
     await settle();
-    expect(folderItems()).toEqual({ 'history:today': ['alpha', 'beta'] });
+    expect(flat()).toEqual(['alpha', 'beta']);
   });
 
-  it('creates a folder from the tree\'s "+" and files a chat in it', async () => {
+  it('creates a folder from the tree\'s "+" and files a chat in it, out of the flat list', async () => {
     await mount();
     await act(async () => {
       menuItem(renderer.root, 'sidebar.newFolder').props.onPress();
@@ -333,24 +360,21 @@ describe('the sidebar tree', () => {
       'Work',
     ]);
 
-    // Filing it takes it out of History and into the folder.
+    // The chat's menu offers the folder; filing it moves it from the list into the folder.
+    expect(actionKeys('alpha')).toContain(`folder:${folder!.id}`);
     await act(async () => {
-      row('alpha')
-        .find((node) => is(node, 'RadioGroup') && node.props.value === '')
-        .props.onValueChange(folder!.id);
+      act_('alpha', `folder:${folder!.id}`);
     });
     await settle();
-    expect(folderItems()).toEqual({
-      [`folder:${folder!.id}`]: ['alpha'],
-      'history:today': ['beta'],
-    });
+    expect(folderItems()).toEqual({ [`folder:${folder!.id}`]: ['alpha'] });
+    expect(flat()).toEqual(['beta']);
   });
 
   it('marks the chat being answered, and shows ghost rows while history loads', async () => {
     useStore.setState({ streamingChatId: 'beta' });
     await mount();
-    expect(row('beta').findAllByType('Spinner' as any)).toHaveLength(1);
-    expect(row('alpha').findAllByType('Spinner' as any)).toHaveLength(0);
+    expect(flatRow('beta').description).toBe('…');
+    expect(flatRow('alpha').description).not.toBe('…');
     act(() => renderer.unmount());
 
     state.isLoading = true;
@@ -358,17 +382,49 @@ describe('the sidebar tree', () => {
     expect(renderer.root.findAllByType('SkeletonBox' as any).length).toBeGreaterThan(0);
   });
 
-  it('lists the agents, each opening its thread by handle', async () => {
-    state.agents = [{ id: 'a1', name: 'Pepe', handle: 'pepe', lastMessageAt: null }];
+  it('lists the agents in the same list, each opening its thread by handle', async () => {
+    state.agents = [{ _id: 'a1', name: 'Pepe', handle: 'pepe', lastMessageAt: null }];
     await mount();
-    expect(folderItems().agents).toEqual(['agent:pepe']);
+    expect(flat()).toEqual(['agent:pepe', 'alpha', 'beta']);
+    expect(flatRow('agent:pepe').title).toBe('Pepe');
+    // An agent has no chat menu.
+    expect(actionKeys('agent:pepe')).toEqual([]);
     act(() => {
-      state.sidebarProps!.onTreeItemPress({ key: 'agent:pepe' });
+      state.sidebarProps!.onSelect('agent:pepe');
     });
     expect(state.push).toHaveBeenCalledWith({
       pathname: '/(app)/[username]',
       params: { username: '@pepe' },
     });
+  });
+
+  it('offers the three tools: search, the agents\' catalogue and "+" straight to a new chat', async () => {
+    await mount();
+    const props = state.sidebarProps as Record<string, any>;
+    expect(typeof props.onQueryChange).toBe('function');
+    act(() => {
+      props.onMarketplace();
+    });
+    expect(state.push).toHaveBeenCalledWith('/(app)/agents');
+    // "+" acts at once: no menu to choose from.
+    expect(props.createOptions).toBeUndefined();
+    act(() => {
+      props.onCreate();
+    });
+    expect(state.replace).toHaveBeenCalledWith('/(app)');
+  });
+
+  it('filters the list by what is typed', async () => {
+    state.agents = [{ _id: 'a1', name: 'Pepe', handle: 'pepe', lastMessageAt: null }];
+    await mount();
+    await act(async () => {
+      state.sidebarProps!.onQueryChange('alp');
+    });
+    expect(flat()).toEqual(['alpha']);
+    await act(async () => {
+      state.sidebarProps!.onQueryChange('pep');
+    });
+    expect(flat()).toEqual(['agent:pepe']);
   });
 
   it('keeps the links in the account menu signed in, so only Settings is a row under the history', async () => {

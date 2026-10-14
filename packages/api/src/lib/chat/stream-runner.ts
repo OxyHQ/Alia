@@ -23,6 +23,8 @@
  * `../streaming-helpers.js`, `../observability/index.js`) match the paths the
  * route used inline so the timeout suite's module mocks keep intercepting them.
  */
+import type { AgentInfo } from '../../domain/conversation.js';
+import type { AgentCharacter } from '../../domain/agent-character.js';
 import type { Response } from 'express';
 import { streamText, type TextStreamPart, type ModelMessage, type ToolSet } from 'ai';
 import type { ResolvedModel } from '../chat-core.js';
@@ -57,6 +59,7 @@ interface DelegateAgentToolOutput {
   agentName: string;
   agentHandle: string;
   agentColor: string | null;
+  agentCharacter: AgentCharacter | null;
   response: string;
 }
 
@@ -100,7 +103,7 @@ export interface ToolInvocation {
 export interface AgentMessage {
   role: 'assistant';
   content: string;
-  agentInfo: { id: string; name: string; color: string | null; handle: string };
+  agentInfo: AgentInfo;
 }
 
 /**
@@ -402,6 +405,7 @@ export async function runStream<TOOLS extends ToolSet>(
             agentName: ar.agentName,
             agentHandle: ar.agentHandle,
             agentColor: ar.agentColor,
+            agentCharacter: ar.agentCharacter,
             content: ar.response,
           })}\n\n`,
         );
@@ -412,6 +416,7 @@ export async function runStream<TOOLS extends ToolSet>(
             id: ar.agentId,
             name: ar.agentName,
             color: ar.agentColor,
+            character: ar.agentCharacter,
             handle: ar.agentHandle,
           },
         });

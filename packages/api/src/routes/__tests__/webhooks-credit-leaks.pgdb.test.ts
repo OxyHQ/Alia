@@ -1,3 +1,4 @@
+import { TEST_CHARACTER } from '../../db/__tests__/support/agent-character';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 
@@ -167,6 +168,7 @@ async function userOwnedBot(
   const agentId = `${SUITE}-agent-${seq++}`;
   await db.insert(agents).values({
     id: agentId,
+    character: TEST_CHARACTER,
     oxyAccountId: opts.agentAccountId ?? `${SUITE}-agent-account-${seq++}`,
     tagline: 'a webhook fixture agent',
     description: 'seeded for the webhook credit suite',

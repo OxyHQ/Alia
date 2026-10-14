@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ToolInvocation } from '../../src/types';
-import { askedQuestions, formatAnswers } from '../../src/lib/questions';
+import { askedQuestions, formatAnswers, pendingQuestions } from '../../src/lib/questions';
 
 const call = (args: unknown, state: ToolInvocation['state'] = 'result'): ToolInvocation => ({
   toolName: 'askUserQuestion',
@@ -54,5 +54,26 @@ describe('formatAnswers', () => {
 
   it('survives an answer that is missing or points past the options', () => {
     expect(formatAnswers(asked!, [{ picked: [9] }])).toBe('Which one?\n→ \n\nWhen?\n→ ');
+  });
+});
+
+describe('pendingQuestions', () => {
+  const asked = (role: 'assistant' | 'user' = 'assistant') => ({
+    role,
+    toolInvocations: [call({ questions: [q] })],
+  });
+
+  it('is what the last message, hers and finished, asked', () => {
+    expect(pendingQuestions([{ role: 'user' }, asked()], false)).toHaveLength(1);
+  });
+
+  it('is nothing while she is still streaming, or once anything follows the question', () => {
+    expect(pendingQuestions([asked()], true)).toEqual([]);
+    expect(pendingQuestions([asked(), { role: 'user' }], false)).toEqual([]);
+  });
+
+  it('is nothing for a last message that asked nothing, or an empty chat', () => {
+    expect(pendingQuestions([{ role: 'assistant' }], false)).toEqual([]);
+    expect(pendingQuestions([], false)).toEqual([]);
   });
 });

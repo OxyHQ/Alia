@@ -66,6 +66,7 @@ import { agentKnowledge, agents, agentSkills } from '../schema/agents';
 import { conversations } from '../schema/chat';
 import { libraryFiles } from '../schema/library';
 import { skills } from '../schema/skills';
+import type { AgentCharacter } from '../../domain/agent-character';
 import type { AgentAccess, AgentArchetype, AgentStatus } from '../../domain/agent';
 import { withoutRetiredGrants } from '../../domain/capability-grants';
 import { escapeLikePattern } from '@oxy.so/utils/sql';
@@ -115,6 +116,8 @@ export interface AgentRecord {
   ownerOxyAccountId: string | null;
   /** Exact Oxy application allowed to invoke this product agent. */
   applicationId: string | null;
+  /** What the agent looks like: a Bloom avatar character, stored whole. */
+  character: AgentCharacter;
   tagline: string;
   description: string;
   author: string;
@@ -208,6 +211,7 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     oxyAccountId: row.oxyAccountId,
     ownerOxyAccountId: row.ownerOxyAccountId,
     applicationId: row.applicationId,
+    character: row.character,
     tagline: row.tagline,
     description: row.description,
     author: row.authorOxyUserId,
@@ -812,6 +816,8 @@ export interface CreateAgentInput {
   ownerOxyAccountId: string;
   /** Restrict invocation to one credential-derived Oxy application id. */
   applicationId?: string | null;
+  /** What the agent looks like. A new agent has one picked (`agentCharacterFor`) when the person did not choose. */
+  character: AgentCharacter;
   tagline: string;
   description: string;
   authorOxyUserId: string;
@@ -849,6 +855,7 @@ export async function createAgent(db: ApiDatabase, input: CreateAgentInput): Pro
         oxyAccountId: input.oxyAccountId,
         ownerOxyAccountId: input.ownerOxyAccountId,
         applicationId: input.applicationId ?? null,
+        character: input.character,
         tagline: input.tagline,
         description: input.description,
         authorOxyUserId: input.authorOxyUserId,
@@ -880,6 +887,8 @@ export async function createAgent(db: ApiDatabase, input: CreateAgentInput): Pro
  * second writer for one value.
  */
 export interface UpdateAgentInput {
+  /** The agent's look, replaced whole: a character is one value, not a set of fields. */
+  character?: AgentCharacter;
   tagline?: string;
   description?: string;
   category?: string;

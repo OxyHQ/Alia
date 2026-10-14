@@ -7,17 +7,8 @@
  * breadcrumb header is Bloom's `AiChatContainer`, the one the app's conversation uses.
  */
 
-import React, {
-  createContext,
-  Suspense,
-  useContext,
-  useState,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { View } from 'react-native';
 import { useAliaChat, type UseAliaChatOptions } from '../hooks/useAliaChat';
 import { useTTS } from '../hooks/useTTS';
 import { useSpeechToText } from '../hooks/useSpeechToText';
@@ -25,18 +16,67 @@ import { useImagePicker } from '../hooks/useImagePicker';
 import { imageUriToDataUrl } from '../lib/image-data-url';
 import { useAmbientWave } from '../hooks/useAmbientWave';
 import { AmbientField } from './AmbientField';
+import { QuestionCard } from './QuestionCard';
+import { pendingQuestions } from '../lib/questions';
 import { AliaChatMessageList } from './AliaChatMessageList';
-import { AliaWelcomeMessage, type WelcomeSuggestion } from './AliaWelcomeMessage';
+import { AliaFlightsProvider, ALIA_TO_PROFILE } from '../lib/flights';
+import { AliaWelcomeMessage } from './AliaWelcomeMessage';
+import { ComposerSuggestions } from './ComposerSuggestions';
+import { useComposerSuggestions, useSuggestionQuery } from '../hooks/useComposerSuggestions';
 import { ComposerLoader } from '@oxy.so/bloom/composer-loader';
 import { AiChatContainer } from '@oxy.so/bloom/ai-chat';
+import {
+  AvatarFlightLayer,
+  useAvatarFlights,
+  type AvatarFlights,
+} from '@oxy.so/bloom/avatar-flight';
 import { ComposerPill, type ComposerPanelAddMenuGroup } from '@oxy.so/bloom/composer-panel';
 import { RiImageLine } from '@oxy.so/bloom/icons';
 import { toast } from '@oxy.so/bloom/toast';
 import { Button } from '@oxy.so/bloom/button';
 import { type AliaChatLabels, AliaChatLabelsProvider, useLabels } from '../lib/labels';
-import { AliaAvatar, type AliaAvatarState } from './AliaAvatar';
+import type { AliaAvatarState } from './AliaAvatar';
 import { VoiceModeIcon } from './VoiceModeIcon';
-import type { ChatMessage, VoiceMessage, VoiceSessionComponent, VoiceSessionState } from '../types';
+import type {
+  AliaSuggestion,
+  ChatMessage,
+  VoiceMessage,
+  VoiceSessionComponent,
+  VoiceSessionState,
+} from '../types';
+
+/** The distinct delegated agents among `messages`, in the order they first answered. */
+function participatingAgents(messages: readonly ChatMessage[]): AliaChatAgent[] {
+  const seen = new Map<string, AliaChatAgent>();
+  for (const { agentInfo } of messages) {
+    if (agentInfo && !seen.has(agentInfo.id)) seen.set(agentInfo.id, agentInfo);
+  }
+  return [...seen.values()];
+}
+
+/** An agent that answered in the conversation, as the header shows it beside Alia. */
+export interface AliaChatAgent {
+  id: string;
+  name: string;
+  /** Its look, as the server stores it (JSON); absent, the default look. */
+  character?: unknown;
+}
+
+/** What the chat tells its header and actions: whether there is a conversation to clear, and who took part. */
+export interface AliaChatState {
+  hasMessages: boolean;
+  clear: () => void;
+  /** What Alia is doing; the header's avatar shows it. */
+  markState: AliaAvatarState;
+  /** The delegated agents that have answered, in the order they first did. */
+  agents: AliaChatAgent[];
+}
+
+/** A turn of the person's: the text, and the photos (`data:` or `https:` URLs) sent with it. */
+export interface AliaTurn {
+  text: string;
+  images?: ReadonlyArray<string>;
+}
 
 export interface AliaChatContentProps {
   clientContext?: string;
@@ -47,7 +87,12 @@ export interface AliaChatContentProps {
   // Welcome message
   welcomeGreeting?: string;
   welcomeSubtitle?: string;
-  welcomeSuggestions?: WelcomeSuggestion[];
+  /** The lines offered over the composer on an empty chat. */
+  welcomeSuggestions?: AliaSuggestion[];
+  /** What the host found for the typed text (see `onSuggestionQuery`). */
+  suggestionMatches?: AliaSuggestion[];
+  /** The typed text, once typing has settled, for the host to search suggestions with. */
+  onSuggestionQuery?: (query: string) => void;
   // Message action callbacks
   onEditMessage?: (messageId: string, newContent: string) => void;
   onThumbsUp?: (messageId: string) => void;
@@ -56,17 +101,11 @@ export interface AliaChatContentProps {
   onRejectPlan?: (planId: string) => void;
   /** Override markdown renderer (app passes CustomMarkdown) */
   renderMarkdown?: (content: string) => React.ReactNode;
-  /** Breadcrumb title beside the brand mark. Default `Alia`; `null` drops the breadcrumb. */
-  title?: string | null;
   /**
-   * Above the breadcrumb row — a back button, a menu, or a whole custom header
-   * (given `title={null}`). A function receives the clear handler.
+   * The chat's top bar. Receives what it needs from the chat: whether there is anything to clear,
+   * how, who took part, and what Alia is doing.
    */
-  headerLeading?:
-    | React.ReactNode
-    | ((state: { hasMessages: boolean; clear: () => void }) => React.ReactNode);
-  /** Right end of the breadcrumb row; receives the clear handler. Replaces Bloom's share/more. */
-  actions?: (state: { hasMessages: boolean; clear: () => void }) => React.ReactNode;
+  header?: (state: AliaChatState) => React.ReactNode;
   /** Dark-mode flag — forwarded to the ambient wave overlay. */
   isDarkMode?: boolean;
   /**
@@ -75,23 +114,29 @@ export interface AliaChatContentProps {
    * from this module. May be a `React.lazy` component.
    */
   voiceSession?: VoiceSessionComponent;
+  /**
+   * Space the composer keeps clear at the bottom edge, in px — the home indicator, when the
+   * chat is flush with the screen (a phone sheet). The ambient background still runs behind it.
+   */
+  bottomInset?: number;
+  /**
+   * Hands the first turn of an empty chat to the host instead of sending it here — a sheet opens
+   * the conversation in a new sheet over this one. Omitted, the chat sends it itself.
+   */
+  onStart?: (turn: AliaTurn) => void;
+  /** The agents the host knows, with their look: a delegation's thinking avatar is drawn from them. */
+  agents?: UseAliaChatOptions['agents'];
+  /**
+   * The avatar flights this chat takes part in, when a sheet shares them across its chats (the
+   * greeting's avatar flies into a header in another sheet). Omitted, the chat has its own.
+   */
+  flights?: AvatarFlights;
+  /** A turn sent once as this chat mounts: the conversation a sheet was opened for. */
+  initialTurn?: AliaTurn;
   /** Internal sheet lifecycle bridge: receives the live request canceller. */
   onStopReady?: (stop: (() => void) | null) => void;
   /** Overrides for the chat's own copy; anything omitted is English. */
   labels?: Partial<AliaChatLabels>;
-}
-
-/** The live state of the chat, read by the avatar wherever the header or welcome draws it. */
-const MarkStateContext = createContext<AliaAvatarState>('idle');
-
-/** Alia's avatar at any size, following the chat's live state. */
-export function AliaChatMark({ size, reactionKey }: { size: number; reactionKey?: number }) {
-  return <AliaAvatar size={size} state={useContext(MarkStateContext)} reactionKey={reactionKey} />;
-}
-
-/** `AiChatContainer`'s `projectIcon` takes a component that is handed its size as `width`. */
-function BreadcrumbMark({ width }: { width?: number }) {
-  return <AliaChatMark size={width ?? 16} />;
 }
 
 /** The add menu: photos are the one attachment the chat API carries (`image_url` parts). */
@@ -125,19 +170,26 @@ function AliaChatContentBody({
   welcomeGreeting,
   welcomeSubtitle,
   welcomeSuggestions,
+  suggestionMatches,
+  onSuggestionQuery,
   onEditMessage,
   onThumbsUp,
   onThumbsDown,
   onApprovePlan,
   onRejectPlan,
   renderMarkdown,
-  title = 'Alia',
-  headerLeading,
-  actions,
+  header,
   isDarkMode,
   voiceSession: VoiceSession,
+  bottomInset = 0,
+  onStart,
+  agents: knownAgents,
+  flights: sharedFlights,
+  initialTurn,
   onStopReady,
 }: AliaChatContentProps) {
+  const ownFlights = useAvatarFlights();
+  const flights = sharedFlights ?? ownFlights;
   const labels = useLabels();
   const addMenuGroups = useMemo(() => addMenu(labels), [labels]);
 
@@ -150,9 +202,46 @@ function AliaChatContentBody({
     [onError],
   );
   // ── Chat ──
-  const chatOptions: UseAliaChatOptions = { apiUrl, model, clientContext };
+  const chatOptions: UseAliaChatOptions = { apiUrl, model, clientContext, agents: knownAgents };
   const { messages, setMessages, send, isStreaming, stop, clear, approvePlan, rejectPlan } =
     useAliaChat(chatOptions);
+  const agents = useMemo(() => participatingAgents(messages), [messages]);
+  // What Alia asked in her last turn and the person has not answered: asked above the composer,
+  // not in the thread. Any later message, typed or sent from the card, is the answer.
+  const lastMessage = messages.at(-1);
+  const questionsAsked = useMemo(
+    () => pendingQuestions(messages, isStreaming),
+    [messages, isStreaming],
+  );
+  const [dismissedQuestionsOf, setDismissedQuestionsOf] = useState<string | null>(null);
+  const asking = questionsAsked.length > 0 && dismissedQuestionsOf !== lastMessage?.id;
+
+  // The first turn of an empty chat goes to the host when it asked for it; every other turn is sent here.
+  const startsElsewhere = onStart !== undefined && messages.length === 0;
+  const firstTurn = messages.length === 0;
+  const submitTurn = useCallback(
+    async (text: string, images?: ReadonlyArray<string>) => {
+      if (startsElsewhere) {
+        // The host's conversation sheet opens first so that the flight, drawn when it launches,
+        // is above it; this chat stays on the greeting, so the avatar can still be measured.
+        onStart({ text, images });
+        await flights.launch([ALIA_TO_PROFILE]);
+        return;
+      }
+      // The greeting leaves with the first turn: measure it before it does.
+      if (firstTurn) await flights.launch([ALIA_TO_PROFILE]);
+      send(text, images ? { images } : undefined);
+    },
+    [startsElsewhere, onStart, firstTurn, flights, send],
+  );
+
+  // The conversation this chat was opened for, sent once.
+  const initialSent = useRef(false);
+  useEffect(() => {
+    if (!initialTurn || initialSent.current) return;
+    initialSent.current = true;
+    send(initialTurn.text, initialTurn.images ? { images: initialTurn.images } : undefined);
+  }, [initialTurn, send]);
 
   useEffect(() => {
     onStopReady?.(stop);
@@ -163,7 +252,9 @@ function AliaChatContentBody({
   const [inputValue, setInputValue] = useState('');
 
   // Picked photos wait here, as tiles above the field, until the turn is sent.
-  const [photos, setPhotos] = useState<Array<{ id: string; name: string; uri: string }>>([]);
+  const [photos, setPhotos] = useState<
+    Array<{ id: string; name: string; uri: string; mimeType?: string }>
+  >([]);
   const { pickImage } = useImagePicker();
 
   const handleAddMenuSelect = useCallback(
@@ -177,11 +268,32 @@ function AliaChatContentBody({
           id: `img-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           name: asset.name,
           uri: asset.uri,
+          mimeType: asset.mimeType,
         })),
       ]);
     },
     [pickImage],
   );
+
+  // Suggestions over the composer on an empty chat, as the Alia app has them.
+  const suggestionQuery = useSuggestionQuery(inputValue, messages.length === 0);
+  useEffect(() => {
+    onSuggestionQuery?.(suggestionQuery);
+  }, [suggestionQuery, onSuggestionQuery]);
+  const handlePickSuggestion = useCallback(
+    (suggestion: AliaSuggestion) => {
+      setInputValue('');
+      submitTurn(suggestion.text);
+    },
+    [submitTurn],
+  );
+  const suggestions = useComposerSuggestions({
+    draft: inputValue,
+    enabled: messages.length === 0,
+    welcome: welcomeSuggestions,
+    matches: suggestionMatches,
+    onPick: handlePickSuggestion,
+  });
 
   const handleSubmit = useCallback(
     async (value: string) => {
@@ -191,8 +303,10 @@ function AliaChatContentBody({
       setInputValue('');
       setPhotos([]);
       try {
-        const images = await Promise.all(pending.map((photo) => imageUriToDataUrl(photo.uri)));
-        send(text, { images });
+        const images = await Promise.all(
+          pending.map((photo) => imageUriToDataUrl(photo.uri, photo.mimeType)),
+        );
+        submitTurn(text, images);
       } catch (err) {
         // Keep the draft: the photos could not be read, nothing was sent.
         setInputValue(value);
@@ -200,7 +314,7 @@ function AliaChatContentBody({
         reportError(err instanceof Error ? err.message : 'Could not attach the photos');
       }
     },
-    [send, photos, reportError],
+    [submitTurn, photos, reportError],
   );
 
   // ── Dictation: the pill's mic toggles it, the transcript lands in the field ──
@@ -238,11 +352,13 @@ function AliaChatContentBody({
     setMessages([...textSnapshotRef.current, ...voiceMessages.map(adaptVoiceMessage)]);
   }, [voiceMessages, setMessages]);
 
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
   const activateVoice = useCallback(() => {
     if (isVoiceActive) return;
-    textSnapshotRef.current = [...messages];
+    textSnapshotRef.current = [...messagesRef.current];
     setIsVoiceActive(true);
-  }, [isVoiceActive, messages]);
+  }, [isVoiceActive]);
 
   // Unmounting the session disconnects the room; the transcript merged above
   // stays in the chat.
@@ -259,11 +375,12 @@ function AliaChatContentBody({
   );
 
   // ── TTS read aloud handler ──
+  const { readAloud } = tts;
   const handleReadAloud = useCallback(
     (messageId: string, text: string) => {
-      tts.readAloud(messageId, text);
+      readAloud(messageId, text);
     },
-    [tts],
+    [readAloud],
   );
 
   // ── Mark state (drives the header brand mark) ──
@@ -285,15 +402,11 @@ function AliaChatContentBody({
   const welcomeComponent = useMemo(() => {
     if (!welcomeGreeting || messages.length > 0) return undefined;
     return (
-      <AliaWelcomeMessage
-        greeting={welcomeGreeting}
-        subtitle={welcomeSubtitle}
-        suggestions={welcomeSuggestions}
-        onSuggestionPress={send}
-        hideMark
-      />
+      <View className="flex-1 items-center justify-center px-4 py-10">
+        <AliaWelcomeMessage greeting={welcomeGreeting} subtitle={welcomeSubtitle} />
+      </View>
     );
-  }, [welcomeGreeting, welcomeSubtitle, welcomeSuggestions, send, messages.length]);
+  }, [welcomeGreeting, welcomeSubtitle, messages.length]);
 
   // ── Ambient wave — one persistent overlay across idle/voice/TTS/STT ──
   const wave = useAmbientWave({
@@ -330,6 +443,17 @@ function AliaChatContentBody({
     [VoiceSession, activateVoice, labels.startVoice],
   );
 
+  const pillAttachments = useMemo(
+    () =>
+      photos.map((photo) => ({
+        id: photo.id,
+        name: photo.name,
+        kind: 'image' as const,
+        src: photo.uri,
+      })),
+    [photos],
+  );
+
   const composer =
     VoiceSession && isVoiceActive ? (
       /* Suspense so the session may be handed to us as a React.lazy import. */
@@ -338,8 +462,24 @@ function AliaChatContentBody({
       </Suspense>
     ) : (
       <>
+        <ComposerSuggestions
+          completions={suggestions.completions}
+          selected={suggestions.selected}
+          onPick={handlePickSuggestion}
+        />
+        {/* Beside the loader, not inside the pill: its light traces the box it wraps. */}
+        {asking ? (
+          <View className="mb-2">
+            <QuestionCard
+              questions={questionsAsked}
+              onSubmit={(message) => send(message)}
+              onDismiss={() => setDismissedQuestionsOf(lastMessage?.id ?? null)}
+            />
+          </View>
+        ) : null}
         <ComposerLoader active={isStreaming}>
           <ComposerPill
+            onKeyPress={suggestions.onKeyPress}
             surface={false}
             frosted={isStreaming}
             value={inputValue}
@@ -351,12 +491,7 @@ function AliaChatContentBody({
             placeholder={labels.placeholder}
             addMenu={addMenuGroups}
             onAddMenuSelect={handleAddMenuSelect}
-            attachments={photos.map((photo) => ({
-              id: photo.id,
-              name: photo.name,
-              kind: 'image' as const,
-              src: photo.uri,
-            }))}
+            attachments={pillAttachments}
             onRemoveAttachment={(id) => setPhotos((prev) => prev.filter((p) => p.id !== id))}
             voiceState={
               stt.isTranscribing ? 'transcribing' : stt.isRecording ? 'recording' : 'idle'
@@ -367,32 +502,44 @@ function AliaChatContentBody({
       </>
     );
 
+  const hasMessages = messages.length > 0;
+  const headerNode = useMemo(
+    () => header?.({ hasMessages, clear, markState, agents }),
+    [header, hasMessages, clear, markState, agents],
+  );
+  const background = useMemo(
+    () => (
+      <AmbientField
+        layout="sheet"
+        waveAmplitude={wave.waveAmplitude}
+        agentState={wave.agentState}
+        intensity={ambientIntensity}
+        isDarkMode={isDarkMode}
+      />
+    ),
+    [wave.waveAmplitude, wave.agentState, ambientIntensity, isDarkMode],
+  );
+
   return (
-    <MarkStateContext.Provider value={markState}>
+    <AliaFlightsProvider value={flights}>
       <AiChatContainer
-        project={title ?? undefined}
-        projectIcon={BreadcrumbMark}
-        header={
-          typeof headerLeading === 'function'
-            ? headerLeading({ hasMessages: messages.length > 0, clear })
-            : headerLeading
+        header={headerNode}
+        composer={
+          bottomInset > 0 ? (
+            <View style={{ paddingBottom: bottomInset }}>{composer}</View>
+          ) : (
+            composer
+          )
         }
-        actions={actions?.({ hasMessages: messages.length > 0, clear })}
-        composer={composer}
         // The thread scrolls behind the header and the composer, which fade in over it — as
         // in the app's conversation. The wave is the container's background layer, between
         // its surface and the turns.
         floatingChrome
-        background={
-          <AmbientField
-            waveAmplitude={wave.waveAmplitude}
-            agentState={wave.agentState}
-            intensity={ambientIntensity}
-            isDarkMode={isDarkMode}
-          />
-        }
+        // The sheet or screen around it owns the fill and the shape; the container adds neither.
+        surface={false}
+        background={background}
       >
-        <View style={styles.body}>
+        <View className="flex-1">
           {/* Welcome or Messages */}
           <AliaChatMessageList
             messages={messages}
@@ -405,25 +552,15 @@ function AliaChatContentBody({
             onThumbsDown={onThumbsDown}
             onApprovePlan={onApprovePlan ?? approvePlan}
             onRejectPlan={onRejectPlan ?? rejectPlan}
-            onAnswerQuestions={(message) => send(message)}
             renderMarkdown={renderMarkdown}
             welcomeComponent={welcomeComponent}
           />
         </View>
       </AiChatContainer>
-    </MarkStateContext.Provider>
+      {sharedFlights ? null : <AvatarFlightLayer flights={ownFlights} />}
+    </AliaFlightsProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    position: 'relative',
-  },
-  body: {
-    flex: 1,
-  },
-});
 
 /** The chat: header, thread and composer, with the host's labels in reach of all of it. */
 export function AliaChatContent({ labels, ...props }: AliaChatContentProps) {

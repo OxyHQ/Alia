@@ -1,4 +1,4 @@
-import type { CitationSource } from '@alia.onl/sdk/tools';
+import { type CitationSource, domainOf as hostOf } from '@alia.onl/sdk/tools';
 
 /**
  * Citations — the `[n]` markers in a research answer, resolved to the sources
@@ -30,13 +30,8 @@ export {
   normalizeCitationMarkers,
 } from '@alia.onl/sdk/tools';
 
-function domainOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return url;
-  }
-}
+/** A source's site as a citation names it: the host without a leading `www.`. */
+const domainOf = (url: string) => hostOf(url, { stripWww: true });
 
 /** One entry of a rendered references section. */
 export interface ReferenceEntry {

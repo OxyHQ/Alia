@@ -9,7 +9,8 @@
  *
  * `color` has no helper here because it needs none that is about IDENTITY: what
  * to do with an unusable value is a RENDERING decision, made once in
- * `src/shared/domain/agent-color.ts` and handed to the mark as a colour.
+ * `src/shared/domain/agent-color.ts` (it themes the agent's page). The agent's
+ * likeness is not a colour: it is its `character`.
  *
  * Every surface therefore needs the same fallback, and it is here rather than
  * inlined at each one: two screens disagreeing about what an unresolved agent

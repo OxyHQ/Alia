@@ -8,6 +8,7 @@ export {
   linkifyCitations,
   normalizeCitationMarkers,
 } from './lib/citations';
+export { domainOf } from './lib/domain';
 export type { CitationSource } from './lib/citations';
 export { getToolDoneLabel, getToolPillLabel } from './lib/task-labels';
 export {
@@ -15,6 +16,7 @@ export {
   askedQuestions,
   formatAnswers,
   isQuestionInvocation,
+  pendingQuestions,
 } from './lib/questions';
 export type { AskedOption, AskedQuestion, QuestionAnswer } from './lib/questions';
 export { toolCallStatus } from './lib/tool-call-status';

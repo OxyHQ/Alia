@@ -1,3 +1,4 @@
+import { TEST_CHARACTER } from '../../../db/__tests__/support/agent-character';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import type { Server } from 'node:http';
@@ -127,6 +128,7 @@ async function balanceOf(id: string): Promise<{ free: number; paid: number }> {
  */
 async function seedAgent(price: number | null = 15): Promise<string> {
   const agent = await createAgent(db, {
+    character: TEST_CHARACTER,
     oxyAccountId: `oxy-bot-goal-${SUITE}-${seq++}`,
     ownerOxyAccountId: SUITE,
     tagline: 'runs things',

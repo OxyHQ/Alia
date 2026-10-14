@@ -1,113 +1,139 @@
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
-import { RiCloseLine, RiDeleteBin6Line } from '@oxy.so/bloom/icons';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@oxy.so/bloom/dropdown-menu';
+import { RiArrowLeftLine, RiDeleteBin6Line, RiMoreFill, RiShare2Line } from '@oxy.so/bloom/icons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { useTheme } from '@oxy.so/bloom/theme';
-import { Text } from '@oxy.so/bloom/typography';
-import { type ReactNode, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { AgentProfile } from '@oxy.so/bloom/agent-reply';
+import { memo, type ReactNode, useMemo } from 'react';
+import { readAgentCharacter } from '../lib/agent-character';
 import { useLabels } from '../lib/labels';
-import { AliaChatMark } from './AliaChatContent';
+import { ALIA_ANCHORS, useAliaFlights } from '../lib/flights';
+import { ALIA_AVATAR } from './AliaAvatar';
+import type { AliaChatAgent } from './AliaChatContent';
 
 export interface AliaChatHeaderProps {
-  /** The chat has messages to clear. */
+  /** The chat has messages: there is something to share and to clear. */
   hasMessages: boolean;
+  /** Delegated agents that have answered: they join Alia in the profile, up to three in all. */
+  agents?: AliaChatAgent[];
+  /** Clears the conversation, from the menu. */
   onClear: () => void;
-  /** Draws the close island; omit where the chat is not dismissible. */
-  onClose?: () => void;
-  /** After the avatar, before the title — a host's back button. */
+  /** Draws the back button at the start of the bar; omit where there is nowhere to go back to. */
+  onBack?: () => void;
+  /** Draws the share button, once there is a conversation; omit where the host cannot share. */
+  onShare?: () => void;
+  /** More rows for the menu (`DropdownMenuItem`s), before Clear. */
+  menu?: ReactNode;
+  /** The host's own start content instead of the back button, e.g. a navigation drawer's menu. */
   leading?: ReactNode;
-  /** The host's own actions, kept before clear and close. */
+  /** The host's own actions, before share and the menu. */
   trailing?: ReactNode;
   /** Pressing Alia's avatar or name. Omitted, the avatar waves. */
   onProfilePress?: () => void;
 }
 
 /**
- * Alia's avatar above a name capsule, the conversation header of Bloom's `MultiAgentChat`.
- *
- * TODO(bloom): `ChatAgentProfile` draws exactly this (a 56px avatar over a 28px capsule
- * of radius 14, `backgroundSecondary` with a hairline border) but is not exported, so
- * this repeats its geometry. Use Bloom's component when it is.
+ * Alia's profile, Bloom's `AgentProfile`: her avatar above a name capsule, joined by the agents
+ * that answered ("Alia + Lumi + Atlas"). Pressing it makes every avatar wave.
  */
-function AliaProfile({ onPress }: { onPress?: () => void }) {
-  const { colors } = useTheme();
-  const [hovered, setHovered] = useState(false);
-  const [reactionKey, setReactionKey] = useState(0);
-
-  // Without a host action the profile is still a button: the avatar waves back.
-  const handlePress = () => {
-    if (onPress) onPress();
-    else setReactionKey((key) => key + 1);
-  };
-
+function AliaProfile({ agents, onPress }: { agents: AliaChatAgent[]; onPress?: () => void }) {
+  const flights = useAliaFlights();
+  const team = useMemo(
+    () => [
+      { id: 'alia', name: 'Alia', avatar: ALIA_AVATAR },
+      ...agents.map((agent) => ({ ...agent, avatar: readAgentCharacter(agent.character) })),
+    ],
+    [agents],
+  );
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Alia"
-      onPress={handlePress}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
-      className="items-center"
-    >
-      <View pointerEvents="none" style={{ marginBottom: -2, zIndex: 1 }}>
-        <AliaChatMark size={56} reactionKey={reactionKey} />
-      </View>
-      <View
-        pointerEvents="none"
-        className="items-center justify-center rounded-[14px] px-2.5 py-1"
-        style={{
-          backgroundColor: hovered ? colors.backgroundTertiary : colors.backgroundSecondary,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: colors.border,
-        }}
-      >
-        <Text numberOfLines={1} className="text-[16px] font-medium leading-5 text-text-primary">
-          Alia
-        </Text>
-      </View>
-    </Pressable>
+    <AgentProfile
+      agents={team}
+      onPress={onPress ?? noop}
+      avatarRef={flights?.anchor(ALIA_ANCHORS.profile)}
+      avatarHidden={flights?.isLanding(ALIA_ANCHORS.profile)}
+    />
   );
 }
 
+const noop = () => undefined;
+
 /**
  * The chat's top bar: Bloom's `PageHeader`, set up as the shell sets it up for the
- * agents' screens (inline, no scrim, no safe area), with Alia's profile as its title.
+ * agents' screens (inline, no scrim, no safe area). Alia's profile is its title only once
+ * there is a conversation: the empty chat already shows the avatar beside its greeting,
+ * so the bar carries just its buttons until then.
  */
-export function AliaChatHeader({
+export const AliaChatHeader = memo(function AliaChatHeader({
   hasMessages,
+  agents = [],
   onClear,
-  onClose,
+  onBack,
+  onShare,
+  menu,
   leading,
   trailing,
   onProfilePress,
 }: AliaChatHeaderProps) {
   const labels = useLabels();
+  // Share and the menu act on a conversation. With none there is nothing for them to do, and a
+  // bar of dimmed buttons over the empty chat is chrome with no job: no bar at all, unless the
+  // host brought content of its own (a back button to somewhere, a drawer's menu).
+  if (!hasMessages && !onBack && leading === undefined && trailing === undefined) return null;
   return (
     <PageHeader
-      leading={leading}
-      title={<AliaProfile onPress={onProfilePress} />}
+      leading={
+        leading ??
+        (onBack ? (
+          <ButtonGroup accessibilityLabel={labels.chatActions}>
+            <ButtonGroupItem
+              iconOnly
+              leadingIcon={RiArrowLeftLine}
+              accessibilityLabel={labels.back}
+              onPress={onBack}
+            />
+          </ButtonGroup>
+        ) : undefined)
+      }
+      title={hasMessages ? <AliaProfile agents={agents} onPress={onProfilePress} /> : undefined}
       titleAlign="center"
       actions={
         <>
           {trailing}
-          <ButtonGroup accessibilityLabel={labels.chatActions}>
-            {hasMessages ? (
-              <ButtonGroupItem
-                iconOnly
-                leadingIcon={RiDeleteBin6Line}
-                accessibilityLabel={labels.clear}
-                onPress={onClear}
-              />
-            ) : null}
-            {onClose ? (
-              <ButtonGroupItem
-                iconOnly
-                leadingIcon={RiCloseLine}
-                accessibilityLabel={labels.close}
-                onPress={onClose}
-              />
-            ) : null}
-          </ButtonGroup>
+          {hasMessages ? (
+            <ButtonGroup accessibilityLabel={labels.chatActions}>
+              {onShare ? (
+                <ButtonGroupItem
+                  iconOnly
+                  leadingIcon={RiShare2Line}
+                  accessibilityLabel={labels.share}
+                  onPress={onShare}
+                />
+              ) : null}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild label={labels.more}>
+                  <ButtonGroupItem
+                    iconOnly
+                    leadingIcon={RiMoreFill}
+                    accessibilityLabel={labels.more}
+                  />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {menu}
+                  <DropdownMenuItem
+                    tone="danger"
+                    leading={<RiDeleteBin6Line width={16} height={16} />}
+                    onPress={onClear}
+                  >
+                    {labels.clear}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </ButtonGroup>
+          ) : null}
         </>
       }
       scrim="none"
@@ -115,4 +141,4 @@ export function AliaChatHeader({
       safeArea={false}
     />
   );
-}
+});

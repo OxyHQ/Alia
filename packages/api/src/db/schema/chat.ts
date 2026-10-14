@@ -12,6 +12,7 @@
  * (`DELETE /conversations/:id`) and never on a timer.
  */
 
+import type { AgentCharacter } from '../../domain/agent-character.js';
 import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
@@ -182,6 +183,12 @@ export const messages = pgTable(
     agentInfoId: text(),
     agentInfoName: text(),
     agentInfoColor: text(),
+    /**
+     * The agent's look when it said this, a Bloom avatar character (`domain/agent-character.ts`).
+     * NULL for an agent that has since been deleted: there is nothing to copy from, and a client draws
+     * its default look. It stands beside `agent_info_color`, which is the ACCOUNT's colour.
+     */
+    agentInfoCharacter: jsonb().$type<AgentCharacter>(),
     agentInfoHandle: text(),
     audioUrl: text(),
     /** The append index within a conversation. Absent on legacy messages. */

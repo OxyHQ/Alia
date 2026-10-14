@@ -33,9 +33,9 @@ describe('ThinkingBlock', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it("leaves the live row to Bloom's own label while it streams", () => {
+  it('draws nothing while it streams: the avatar under the reply is the one thinking', () => {
     mount(true);
-    expect(last()).toMatchObject({ thinking: true, variant: 'stars', label: undefined });
+    expect(seen.props).toHaveLength(0);
   });
 
   it('reads "Reasoning" when the block arrives already finished (history)', () => {

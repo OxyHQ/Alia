@@ -11,6 +11,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const seen = vi.hoisted(() => ({
   props: [] as Array<Record<string, unknown>>,
   parsers: 0,
+  // Bloom's resolved theme: what the app chose, whatever the system's scheme is.
+  themeText: '#102030',
 }));
 
 vi.mock('react-native', () => ({
@@ -18,7 +20,19 @@ vi.mock('react-native', () => ({
   Text: ({ children }: { children?: React.ReactNode }) => children,
   Platform: { OS: 'web', select: (o: Record<string, unknown>) => o.web ?? o.default },
   Linking: { openURL: vi.fn() },
-  useColorScheme: () => 'light',
+  // The SYSTEM says dark; the markdown must not listen.
+  useColorScheme: () => 'dark',
+}));
+vi.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({
+    colors: {
+      text: seen.themeText,
+      backgroundSecondary: '#eeeeee',
+      border: '#cccccc',
+      primary: '#7700ff',
+      textSecondary: '#555555',
+    },
+  }),
 }));
 
 vi.mock('@oxy.so/bloom/code', () => ({ CodeBlock: () => null }));
@@ -82,5 +96,13 @@ describe('AliaMarkdown hands the renderer stable objects', () => {
     // Built once, when the module loaded — never per render.
     expect(seen.parsers).toBe(1);
     expect(first.markdownit).toEqual({ options: { typographer: true } });
+  });
+
+  it("takes its colours from Bloom's theme, not the system's scheme", () => {
+    seen.props.length = 0;
+    act(() => {
+      TestRenderer.create(<AliaMarkdown content="Plain text" />);
+    });
+    expect(JSON.stringify(seen.props.at(-1)?.style)).toContain(seen.themeText);
   });
 });

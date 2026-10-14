@@ -78,6 +78,7 @@ import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
 import { AGENT_ACCESS, AGENT_ARCHETYPES, AGENT_STATUSES } from '../../domain/agent.js';
+import type { AgentCharacter } from '../../domain/agent-character.js';
 import { STORED_OXY_APP_LEVELS, type StoredOxyAppLevel } from '../../domain/agent-oxy-app-level.js';
 import { skills } from './skills';
 import { libraryFiles } from './library';
@@ -124,6 +125,21 @@ export const agents = pgTable(
      * run it; the id is never accepted from a chat request.
      */
     applicationId: text(),
+    /**
+     * What the agent looks like: a Bloom avatar character, stored whole (`shape`, `eyes`, `eyewear`,
+     * `accessory`, a paint, an optional `preset` and `eyeSpacing`).
+     *
+     * It is Alia's, not Oxy's: the bot account owns the name, the handle and the colour of the
+     * ACCOUNT, but what an agent looks like in Alia's chat, sidebar and catalogue is chosen in the
+     * agent editor and read from here. NOT NULL, with no "legacy" shape to fall back on: a new agent
+     * gets one picked by `agentCharacterFor`, and every existing one was given one by the migration.
+     *
+     * Not validated against Bloom's id catalogue here, for the reason `domain/agent-color.ts` gives
+     * for colours: `@oxy.so/bloom` is a React Native package and this service does not depend on it,
+     * so a stored id this copy does not know must not start being refused. The write path checks the
+     * SHAPE (known keys, short ids, a hex paint, a bounded spacing); the client resolves the ids.
+     */
+    character: jsonb().notNull().$type<AgentCharacter>(),
     tagline: text().notNull(),
     description: text().notNull(),
     /**

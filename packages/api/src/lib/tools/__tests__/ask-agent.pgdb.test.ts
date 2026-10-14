@@ -31,6 +31,7 @@
  * `refundReservation`.
  */
 
+import { TEST_CHARACTER } from '../../../db/__tests__/support/agent-character';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { AskAgentResult } from '../ask-agent.js';
@@ -158,6 +159,7 @@ async function seedAgent(input: {
   const systemPrompt = input.systemPrompt ?? `You are ${id} and you answer only about ${id}.`;
   await db.insert(agents).values({
     id,
+    character: TEST_CHARACTER,
     oxyAccountId,
     tagline: input.tagline ?? 'a seeded agent',
     description: 'seeded for the ask-agent suite',

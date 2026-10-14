@@ -82,11 +82,10 @@ vi.mock('@/shared/ui/image', async () => {
   const ReactModule = await import('react');
   return { Image: (props: Record<string, unknown>) => ReactModule.createElement('Image', props) };
 });
-vi.mock('@/shared/ui/action-key-icon', async () => {
+vi.mock('@oxy.so/bloom/icons/RiPlugLine', async () => {
   const ReactModule = await import('react');
   return {
-    ActionKeyIcon: (props: Record<string, unknown>) =>
-      ReactModule.createElement('ActionKeyIcon', props),
+    RiPlugLine: (props: Record<string, unknown>) => ReactModule.createElement('RiPlugLine', props),
   };
 });
 

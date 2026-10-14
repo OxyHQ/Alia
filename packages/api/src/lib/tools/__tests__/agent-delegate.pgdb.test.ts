@@ -26,6 +26,7 @@
  * `canReachAgent` itself are real.
  */
 
+import { TEST_CHARACTER } from '../../../db/__tests__/support/agent-character';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { AgentDelegationResult } from '../agent-delegate.js';
@@ -145,6 +146,7 @@ async function seedAgent(input: {
   const oxyAccountId = uniqueId('bot');
   await db.insert(agents).values({
     id,
+    character: TEST_CHARACTER,
     oxyAccountId,
     tagline: 'a seeded agent',
     description: 'seeded for the delegation suite',

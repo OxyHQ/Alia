@@ -1,6 +1,5 @@
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
 import { useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
 import { useLabels } from '../lib/labels';
 import { AliaMarkdown } from './Markdown';
 
@@ -12,10 +11,11 @@ interface ThinkingBlockProps {
 }
 
 /**
- * A turn's reasoning: Bloom's `AgentThinking` as a disclosure (live while it
- * streams, "Thought for N seconds" once done), with the text set as Markdown.
- * Open and close, the indicator and the chevron are Bloom's; this only counts
- * how long the stream ran, because the message carries no duration.
+ * A turn's reasoning, once it is done: Bloom's `AgentThinking` as a closed disclosure, "Thought
+ * for N seconds", with the text set as Markdown. While the reasoning streams it draws nothing:
+ * the avatar under the reply is the one indicator that the turn is thinking
+ * (`AgentReplyIdentity`), and a second one beside it is noise. It still counts how long the stream
+ * ran, because the message carries no duration.
  */
 export function ThinkingBlock({ text, streaming }: ThinkingBlockProps) {
   const labels = useLabels();
@@ -33,15 +33,11 @@ export function ThinkingBlock({ text, streaming }: ThinkingBlockProps) {
 
   const finishedLabel = seconds ? labels.thoughtFor(seconds) : labels.reasoning;
 
+  if (streaming) return null;
+
   return (
-    <AgentThinking
-      variant="stars"
-      thinking={streaming}
-      label={streaming ? undefined : finishedLabel}
-    >
-      <View style={{ opacity: streaming ? 0.8 : 1 }}>
-        <AliaMarkdown content={text} />
-      </View>
+    <AgentThinking thinking={false} label={finishedLabel}>
+      <AliaMarkdown content={text} />
     </AgentThinking>
   );
 }

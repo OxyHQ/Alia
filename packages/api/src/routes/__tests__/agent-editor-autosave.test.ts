@@ -282,6 +282,7 @@ const VALUE_FOR: Readonly<Record<string, unknown>> = {
   status: 'active',
   scheduleInterval: 60,
   modelId: 'acme/chat-1',
+  character: { shape: 'heart', eyes: 'oval', eyewear: 'none', accessory: 'bow', color: 'pink' },
 };
 
 async function patch(body: unknown): Promise<{ status: number; body: Record<string, unknown> }> {

@@ -110,7 +110,7 @@ vi.mock('@alia.onl/sdk', async () => ({
           .map((part) => part.text ?? '')
           .join(''),
   getImagesFromContent: () => [],
-  IdentityMark: () => null,
+  readAgentCharacter: () => ({}),
   PlanPreviewCard: () => null,
 }));
 
@@ -151,8 +151,8 @@ vi.mock('@/features/chat/ui/cards/agent-task-card', async () => ({
 vi.mock('@/features/chat/ui/welcome-message', async () => ({
   WelcomeMessage: await stub('Welcome')(),
 }));
-vi.mock('@/features/chat/ui/failed-turn-card', async () => ({
-  FailedTurnCard: await stub('FailedTurnCard')(),
+vi.mock('@/features/chat/ui/failed-turn-toast', () => ({
+  useFailedTurnToast: () => {},
 }));
 vi.mock('@/features/chat/ui/message-block-boundary', async () => ({
   MessageBlockBoundary: await stub('Boundary')(),
@@ -183,7 +183,6 @@ vi.mock('@/features/chat/model/work-log', () => ({
   webSearchLog: () => null,
 }));
 vi.mock('@/features/chat/model/task-utils', () => ({ getToolPillLabel: (name: string) => name }));
-vi.mock('@/shared/domain/agent-color', () => ({ agentTint: () => '#000' }));
 const votes = vi.hoisted(() => ({ sent: [] as [string, unknown][], fail: false }));
 vi.mock('@/shared/api/client', () => ({
   default: {

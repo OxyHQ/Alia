@@ -1,3 +1,4 @@
+import { TEST_CHARACTER } from './support/agent-character';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
@@ -39,6 +40,7 @@ afterAll(async () => {
 
 async function seedSession(overrides: Record<string, unknown> = {}) {
   const agent = await createAgent(db, {
+    character: TEST_CHARACTER,
     oxyAccountId: `oxy-bot-lease-${suffix()}`,
     ownerOxyAccountId: OWNER,
     tagline: 't',

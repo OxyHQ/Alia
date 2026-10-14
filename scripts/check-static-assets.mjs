@@ -111,7 +111,7 @@ function resolveAsset(specifier, fromFile) {
   if (specifier.startsWith('.')) return resolve(dirname(fromFile), specifier);
   if (specifier.startsWith('@/')) {
     for (const [packageDir, aliasRoot] of ALIAS_ROOTS) {
-      if (fromFile.startsWith(packageDir + '/')) return join(aliasRoot, specifier.slice(2));
+      if (fromFile.startsWith(`${packageDir}/`)) return join(aliasRoot, specifier.slice(2));
     }
   }
   return null;
