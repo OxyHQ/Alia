@@ -34,7 +34,7 @@
     "ink": "^7.1.0",
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
-    "marked": "^18.0.6",
+    "marked": "^18.1.0",
     "marked-terminal": "^7.3.0",
     "openai": "^6.46.0",
     "qrcode": "^1.5.4",
