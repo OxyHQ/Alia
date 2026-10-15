@@ -192,6 +192,13 @@ export const messages = pgTable(
     agentInfoHandle: text(),
     /** The append index within a conversation. Absent on legacy messages. */
     seq: integer(),
+    /**
+     * A voice call's answer the person talked over: how many milliseconds of it
+     * they heard before interrupting (ADR 0017 §3). The message keeps the whole
+     * answer as generated; this says where the listener cut in. NULL for every
+     * message that was not an interrupted spoken answer.
+     */
+    interruptedAfterMs: integer(),
     createdAt: createdAt(),
   },
   (t) => [

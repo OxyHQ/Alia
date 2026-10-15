@@ -24,7 +24,7 @@
  *   wrong answer that looks like a plausible one.
  */
 
-import { and, desc, eq, gte, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import type { ApiDatabase } from '../index';
 import { chatAnalytics } from '../schema/usage';
 
@@ -184,6 +184,8 @@ export async function findLastUsedModel(
         eq(chatAnalytics.oxyUserId, oxyUserId),
         isNotNull(chatAnalytics.model),
         isNull(chatAnalytics.errorClass),
+        // A voice call's realtime model is computed, never a chat choice (ADR 0017 §2).
+        ne(chatAnalytics.platform, 'voice'),
       ),
     )
     .orderBy(desc(chatAnalytics.createdAt))

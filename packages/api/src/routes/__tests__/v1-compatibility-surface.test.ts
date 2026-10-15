@@ -256,6 +256,17 @@ const aliaChat = surface(aliaChatRouter, '/alia/chat');
  * `/v1/chat/completions` — so, as with `/v1/shows`, the consumer moved in the
  * same change. They are gone (404) rather than `410`: a stub that refused every
  * request for three weeks is not a surface anyone could have depended on.
+ *
+ * ## 14 became 15: `POST /v1/audio/transcriptions` (ADR 0017 §7)
+ *
+ * Not a compatibility route coming back: dictation is Alia's PRODUCT API
+ * (ADR 0010 keeps `/v1/*` permanent for Alia's own surfaces), accepted by the
+ * owner in ADR 0017. It transcribes through Kaana's `audio.transcriptions`,
+ * takes a person's session only (an `oxy_sk_` is refused), and replaces the
+ * on-device recognizer `useSpeechToText` used. Its chain is the ordinary
+ * authenticated one; no new auth mechanism comes with it. The voice call,
+ * `GET /v1/voice/session`, is a WebSocket upgrade outside Express and so not on
+ * this list (`lib/voice/voice-socket.ts`).
  */
 const FROZEN_ROUTES: readonly string[] = [
   'GET /v1',
@@ -270,6 +281,7 @@ const FROZEN_ROUTES: readonly string[] = [
   'GET /v1/models/:modelId',
   'POST /v1/audio/generate',
   'POST /v1/audio/speech',
+  'POST /v1/audio/transcriptions',
   'POST /v1/chat/completions',
   'POST /v1/images/generations',
   'POST /v1/report-usage',
@@ -292,7 +304,7 @@ describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => 
     // removal is what the compatibility window gates and an unrecorded removal
     // is the other way this list stops describing the surface.
     expect(v1.map((e) => e.signature)).toEqual([...FROZEN_ROUTES].sort());
-    expect(FROZEN_ROUTES).toHaveLength(14);
+    expect(FROZEN_ROUTES).toHaveLength(15);
     expect(new Set(FROZEN_ROUTES).size).toBe(FROZEN_ROUTES.length);
   });
 
@@ -360,6 +372,7 @@ const FROZEN_CHAINS: Readonly<Record<string, readonly string[]>> = {
   'GET /v1/chat/completions': CHAT,
   'POST /v1/responses': AUTHENTICATED,
   'POST /v1/audio/speech': AUTHENTICATED,
+  'POST /v1/audio/transcriptions': AUTHENTICATED,
   'POST /v1/audio/generate': AUTHENTICATED,
   'GET /v1/audio/jobs/:jobId': AUTHENTICATED,
   'POST /v1/images/generations': AUTHENTICATED,
@@ -405,14 +418,14 @@ describe('the compatibility surface gains no auth mechanism (#139 ws6, ADR 0004)
 
   it('the one unnamed middleware is the channel-bot pre-auth, and it still compares in constant time', () => {
     /**
-     * `?anonymous` is frozen into ten chains above, so what it IS has to be
+     * `?anonymous` is frozen into eleven chains above, so what it IS has to be
      * asserted somewhere or the freeze pins a shape and not a mechanism. It
      * grants `req.user` from a header, which makes it an auth mechanism reaching
      * the compatibility surface — condition 1 of ADR 0004 — and the only thing
      * standing between that header and a chosen user id is the secret compare.
      */
     const chains = v1.filter((e) => e.chain.includes('?anonymous'));
-    expect(chains).toHaveLength(10);
+    expect(chains).toHaveLength(11);
     // Exactly one distinct unnamed function, and it is first in every chain.
     for (const endpoint of chains) expect(endpoint.chain[0]).toBe('?anonymous');
 

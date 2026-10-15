@@ -28,6 +28,7 @@ export * from './skills';
 export * from './speech';
 export * from './telemetry';
 export * from './usage';
+export * from './voice';
 
 export * from './credit-operations';
 
