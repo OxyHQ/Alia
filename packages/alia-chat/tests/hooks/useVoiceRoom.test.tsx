@@ -38,6 +38,8 @@ const fx = vi.hoisted(() => ({
   clipFailure: null as Error | null,
   /** What `playSpeechClip` rejects with instead of playing, when set. */
   playFailure: null as Error | null,
+  /** Whether a new session reports `onStart` by itself, as a working engine does. */
+  autoStart: true,
 }));
 
 vi.mock('@oxy.so/services/ui/client', () => ({
@@ -69,6 +71,10 @@ vi.mock('../../src/lib/speech-recognition', () => ({
       abort: vi.fn(() => end(session)),
     };
     fx.sessions.push(session);
+    if (fx.autoStart)
+      queueMicrotask(() => {
+        if (!session.ended) handlers.onStart?.();
+      });
     return session;
   },
 }));
@@ -164,6 +170,8 @@ describe('the on-device voice loop', () => {
     fx.token = 'session-token';
     fx.clipFailure = null;
     fx.playFailure = null;
+    fx.autoStart = true;
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
 
   afterEach(async () => {
@@ -467,5 +475,219 @@ describe('the on-device voice loop', () => {
     expect(latest.roomState).toBe('disconnected');
     expect(latest.agentState).toBe('idle');
     expect(latest.messages).toEqual([]);
+  });
+
+  /**
+   * "Listening" is said only while something listens. Reported in production:
+   * Chrome showed "Listening…" forever while every session was aborted and
+   * restarted in silence, and nothing reached the server. Fake timers: the thresholds are seconds, and the level readings
+   * arrive on the engines' 100ms clock.
+   */
+  describe('says listening only when it is', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({
+        toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'],
+      });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    async function advance(ms: number): Promise<void> {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+      });
+    }
+
+    /** The microphone reads `level` for `ms`, one reading per 100ms, as both engines report it. */
+    async function hear(level: number, ms: number): Promise<void> {
+      for (let elapsed = 0; elapsed < ms; elapsed += 100) {
+        const session = [...fx.sessions].reverse().find((candidate) => !candidate.ended);
+        if (session === undefined) return;
+        await act(async () => {
+          session.handlers.onLevel?.(level);
+          await vi.advanceTimersByTimeAsync(100);
+        });
+      }
+    }
+
+    /** The live session ends on its own, after `failure` when one is given. */
+    async function engineEnds(failure?: { code: string; detail?: string }): Promise<void> {
+      await act(async () => {
+        const session = liveSession();
+        if (failure !== undefined)
+          session.handlers.onError(failure as Parameters<typeof session.handlers.onError>[0]);
+        session.ended = true;
+        session.handlers.onEnd();
+      });
+      await advance(0);
+    }
+
+    async function call(
+      options: Partial<Parameters<typeof useVoiceRoom>[0]> = {},
+    ): Promise<ReturnType<typeof controllableSender>> {
+      const sender = controllableSender();
+      await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS, ...options });
+      await act(async () => latest.connect());
+      await advance(0);
+      return sender;
+    }
+
+    it('stays connecting until the recognizer has started, then listens', async () => {
+      fx.autoStart = false;
+      await call();
+      expect(fx.sessions).toHaveLength(1);
+      expect(latest.roomState).toBe('connecting');
+      expect(latest.agentState).toBe('idle');
+      expect(latest.isConnected).toBe(false);
+
+      await act(async () => liveSession().handlers.onStart?.());
+      expect(latest.roomState).toBe('connected');
+      expect(latest.agentState).toBe('listening');
+    });
+
+    it('ends the call, never having said listening, when the recognizer does not start', async () => {
+      fx.autoStart = false;
+      await call();
+      await advance(7_900);
+      expect(latest.roomState).toBe('connecting');
+
+      await advance(100);
+      expect(latest.roomState).toBe('error');
+      expect(latest.errorCode).toBe('recognizer-not-started');
+      expect(latest.error).toBe('Speech recognition did not start — try again');
+      expect(latest.agentState).toBe('idle');
+      expect(fx.sessions.filter((session) => !session.ended)).toHaveLength(0);
+    });
+
+    it('warns that it cannot hear, without ending the call, while the microphone delivers nothing', async () => {
+      await call();
+      await hear(0, 9_800);
+      expect(latest.warningCode).toBeNull();
+
+      await hear(0, 400);
+      expect(latest.warningCode).toBe('no-audio-input');
+      expect(latest.warning).toBe("I can't hear you — if you're speaking, check your microphone");
+      expect(latest.roomState).toBe('connected');
+      expect(latest.agentState).toBe('listening');
+
+      // Sound arrives: the microphone works, and the warning goes.
+      await hear(0.2, 100);
+      expect(latest.warningCode).toBeNull();
+      expect(latest.roomState).toBe('connected');
+    });
+
+    it('does not count the silence of a muted call', async () => {
+      await call();
+      await hear(0, 5_000);
+      await act(async () => latest.toggleMute());
+      await advance(20_000);
+      await act(async () => latest.toggleMute());
+      await advance(0);
+      await hear(0, 5_000);
+      expect(latest.warningCode).toBeNull();
+    });
+
+    it('ends the call when a voice reaches the microphone and the recognizer returns no word', async () => {
+      await call();
+      await hear(0.7, 4_800);
+      expect(latest.roomState).toBe('connected');
+
+      await hear(0.7, 300);
+      expect(latest.roomState).toBe('error');
+      expect(latest.errorCode).toBe('recognizer-unresponsive');
+      expect(console.warn).toHaveBeenCalledWith(
+        '[useVoiceRoom] Voice heard, no words recognized',
+        expect.objectContaining({ loudMs: expect.any(Number) }),
+      );
+    });
+
+    it('keeps listening through loud speech while the recognizer returns words', async () => {
+      await call({ endOfUtteranceMs: 60_000 });
+      await hear(0.7, 4_000);
+      await say('hola');
+      await hear(0.7, 4_000);
+      await say('hola qué tal');
+      await hear(0.7, 4_000);
+      expect(latest.roomState).toBe('connected');
+      expect(latest.errorCode).toBeNull();
+    });
+
+    it('stops restarting a recognizer that keeps ending without listening', async () => {
+      await call();
+      for (let ended = 0; ended < 4; ended += 1) {
+        await engineEnds({ code: 'other', detail: 'bad-grammar' });
+        expect(latest.roomState).toBe('connected');
+      }
+      await engineEnds({ code: 'other', detail: 'bad-grammar' });
+      expect(latest.roomState).toBe('error');
+      expect(latest.errorCode).toBe('speech-failed');
+      expect(fx.sessions).toHaveLength(5);
+      // The engine's words reach the log for diagnosis, with nothing that was said.
+      expect(console.warn).toHaveBeenCalledWith('[useVoiceRoom] Speech recognition error', {
+        code: 'other',
+        detail: 'bad-grammar',
+        listening: true,
+        sessionMs: expect.any(Number),
+        phase: 'listening',
+      });
+    });
+
+    it('stops restarting sessions that end at once with no error at all', async () => {
+      await call();
+      for (let ended = 0; ended < 5; ended += 1) await engineEnds();
+      expect(latest.errorCode).toBe('recognizer-unresponsive');
+    });
+
+    it('lets Chrome time out on silence as often as it likes: that is the person being quiet', async () => {
+      await call();
+      for (let ended = 0; ended < 8; ended += 1) {
+        await advance(8_000);
+        await engineEnds({ code: 'no-speech' });
+      }
+      expect(latest.roomState).toBe('connected');
+      expect(latest.agentState).toBe('listening');
+    });
+
+    it('retries once another recognition cuts it off, and ends the call the third time in a row', async () => {
+      await call();
+      await engineEnds({ code: 'interrupted', detail: 'aborted' });
+      await engineEnds({ code: 'interrupted', detail: 'aborted' });
+      expect(latest.roomState).toBe('connected');
+      expect(fx.sessions.filter((session) => !session.ended)).toHaveLength(1);
+
+      await engineEnds({ code: 'interrupted', detail: 'aborted' });
+      expect(latest.roomState).toBe('error');
+      expect(latest.errorCode).toBe('recognizer-aborted');
+      expect(fx.sessions.filter((session) => !session.ended)).toHaveLength(0);
+    });
+
+    it('starts counting interruptions again once the recognizer has returned words', async () => {
+      await call({ endOfUtteranceMs: 60_000 });
+      await engineEnds({ code: 'interrupted', detail: 'aborted' });
+      await engineEnds({ code: 'interrupted', detail: 'aborted' });
+      await say('hola');
+      await engineEnds({ code: 'interrupted', detail: 'aborted' });
+      expect(latest.roomState).toBe('connected');
+    });
+
+    it('does not count the sessions it ends itself: after each turn, on mute', async () => {
+      const sender = await call();
+      for (let turn = 0; turn < 6; turn += 1) {
+        await say(`pregunta ${turn}`);
+        await advance(PAST_END_OF_UTTERANCE_MS);
+        await act(async () => {
+          sender.turns[turn]!.onText('Vale.');
+          sender.turns[turn]!.resolve();
+        });
+        await advance(0);
+        await act(async () => fx.playbacks[turn]?.finish());
+        await advance(0);
+      }
+      expect(sender.turns).toHaveLength(6);
+      expect(latest.roomState).toBe('connected');
+      expect(latest.agentState).toBe('listening');
+    });
   });
 });

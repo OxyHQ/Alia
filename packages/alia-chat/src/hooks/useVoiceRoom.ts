@@ -7,6 +7,13 @@
  *
  * - **Listening** is on-device speech recognition (`lib/speech-recognition*`).
  *   An utterance ends after `endOfUtteranceMs` without a new word.
+ * - **Listening is only said when it is true.** The call stays `connecting`
+ *   until the recognizer reports that it has started, and it is watched while
+ *   it listens: a recognizer that does not start, keeps ending without
+ *   listening, is cut off by another recognition, or hears loud speech and
+ *   returns no word ends the call with a typed code; a microphone that
+ *   delivers nothing raises `warningCode` (`no-audio-input`) without ending
+ *   it. See TUNING for the thresholds.
  * - **Thinking** sends the utterance through the ordinary chat path — a
  *   `VoiceTurnSender`, by default `POST /v1/chat/completions` marked
  *   `responseMode: 'voice'` — and streams the answer into the transcript.
@@ -121,11 +128,84 @@ const DEFAULT_END_OF_UTTERANCE_MS = 1_100;
 const COMMIT_TIMEOUT_MS = 1_500;
 /** Words needed before talking over the answer counts as an interruption. */
 const BARGE_IN_MIN_WORDS = 2;
-/** A recognizer that keeps ending within this of starting is failing, not idling. */
+
+// ── Is the recognizer really listening? ──
+// The call says "listening" only once a session has started, and every signal
+// below already exists: the session's own start/end/results and the
+// microphone level (`onLevel`, every ~100ms on both engines; 0..1 is -60..0
+// dBFS, `levelFromDbfs`).
+
+/**
+ * How long a session may take to report it has started. Chrome and Safari
+ * start well inside a second; Android first binds its recognition service, a
+ * second or two on a cold device. Past this nothing is hearing the person, and
+ * the call ends (`recognizer-not-started`) instead of reading "Listening".
+ */
+const RECOGNIZER_START_TIMEOUT_MS = 8_000;
+/** A session that ends within this of starting, having heard nothing, did not really listen. */
 const RAPID_END_MS = 400;
-const MAX_RAPID_ENDS = 5;
+/**
+ * Sessions in a row that ended on their own without listening or hearing a
+ * word (never started, ended within `RAPID_END_MS`, or ended on an error)
+ * before the call stops restarting and ends. A session that listened and
+ * timed out on silence (Chrome's `no-speech`) is the person being quiet and
+ * does not count.
+ */
+const MAX_FRUITLESS_SESSIONS = 5;
+/**
+ * Sessions in a row cut off by another recognition (`interrupted`) before the
+ * call ends as `recognizer-aborted`. The first restarts cover a one-off (a
+ * search box's mic in another tab, already done); by the third, something is
+ * taking the recognizer back each time, and restarting again only steals it
+ * back in a loop where neither side hears anything.
+ */
+const MAX_INTERRUPTIONS = 3;
+/**
+ * Below this the microphone is delivering nothing: 0.02 is -58.8 dBFS, under
+ * what a live microphone picks up in a quiet room (breath, a keyboard, the room
+ * itself). A muted, unplugged or wrong input delivers digital silence, 0.
+ */
+const SILENT_LEVEL = 0.02;
+/**
+ * Listening with every reading under `SILENT_LEVEL` this long raises
+ * `no-audio-input`. A WARNING, not the end of the call: a person who is simply
+ * quiet in a very quiet room reads nearly the same, so the call says "if
+ * you're speaking, check your microphone" and keeps listening. It clears the
+ * moment sound arrives.
+ */
+const NO_AUDIO_INPUT_MS = 10_000;
+/**
+ * A reading this loud is a voice, not a room: 0.5 is -30 dBFS. Speech at a
+ * microphone with automatic gain lands around -30..-15 dBFS, and the stream is
+ * noise-suppressed, so steady background noise stays well below it.
+ */
+const SPEECH_LEVEL = 0.5;
+/**
+ * Voice-level sound for this long in total, while listening, with not one
+ * result from the recognizer, ends the call as `recognizer-unresponsive`: the
+ * person is talking and the recognition service is not answering. A working
+ * recognizer returns its first interim words within about a second of speech.
+ * Any result resets it.
+ */
+const UNRESPONSIVE_SPEECH_MS = 5_000;
+/**
+ * Readings arrive every ~100ms; a longer gap between two is a restart between
+ * sessions, and counts as at most this much sound.
+ */
+const MAX_LEVEL_STEP_MS = 250;
 
 // ============== INTERNAL STATE ==============
+
+/** What the level readings have shown since the recognizer last returned anything. */
+interface HealthWatch {
+  lastReadingAt: number | null;
+  /** When the current run of silent readings began. */
+  quietSince: number | null;
+  /** Voice-level sound heard since the last result, in ms. */
+  loudMs: number;
+}
+
+const freshHealth = (): HealthWatch => ({ lastReadingAt: null, quietSince: null, loudMs: 0 });
 
 type Phase = 'off' | 'listening' | 'thinking' | 'speaking';
 
@@ -176,6 +256,8 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
   );
   /** A turn that failed without ending the call: no answer came back. */
   const [turnErrorCode, setTurnErrorCode] = useState<VoiceErrorCode | null>(null);
+  /** Something the person should know while the call goes on: the microphone is silent. */
+  const [warningCode, setWarningCode] = useState<VoiceErrorCode | null>(null);
   /** The clip that could not be made, when that is what ended the call. */
   const [synthesisError, setSynthesisError] = useState<SpeechClipError | null>(null);
   const [messages, setMessagesState] = useState<VoiceMessage[]>([]);
@@ -202,8 +284,21 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
   const draftIdRef = useRef<string | null>(null);
   /** What the call had said when the person cut in; this session's echo of it is not theirs. */
   const echoContextRef = useRef('');
+  /** When the live session was opened, then when it started listening. */
   const sessionStartedAtRef = useRef(0);
-  const rapidEndsRef = useRef(0);
+  /** Whether the live session has reported that it is listening. */
+  const sessionListeningRef = useRef(false);
+  /** Whether the live session has returned any words. */
+  const sessionHeardRef = useRef(false);
+  /** Whether this hook asked the live session to end (stop or abort). */
+  const endRequestedRef = useRef(false);
+  /** Whether the call has heard its recognizer start: until then it is `connecting`. */
+  const connectedRef = useRef(false);
+  const startTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fruitlessSessionsRef = useRef(0);
+  const interruptionsRef = useRef(0);
+  const healthRef = useRef<HealthWatch>(freshHealth());
+  const warningRef = useRef<VoiceErrorCode | null>(null);
   const sessionFailedRef = useRef<SpeechRecognitionFailure | null>(null);
   const msgIdRef = useRef(0);
   const sessionPrefixRef = useRef(`vm-${Date.now().toString(36)}`);
@@ -232,7 +327,8 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
 
   const setAgent = useCallback((phase: Phase) => {
     phaseRef.current = phase;
-    if (!mountedRef.current) return;
+    // Until the recognizer has started, the call is connecting and shows no phase.
+    if (!mountedRef.current || !connectedRef.current) return;
     setAgentStateValue(phase === 'off' ? 'idle' : phase);
     setCurrentSpeaker(phase === 'thinking' || phase === 'speaking' ? 'primary' : null);
   }, []);
@@ -265,9 +361,26 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
   const clearTimers = (): void => {
     if (silenceTimerRef.current !== null) clearTimeout(silenceTimerRef.current);
     if (commitTimerRef.current !== null) clearTimeout(commitTimerRef.current);
+    if (startTimerRef.current !== null) clearTimeout(startTimerRef.current);
     silenceTimerRef.current = null;
     commitTimerRef.current = null;
+    startTimerRef.current = null;
   };
+
+  /** End the live session on purpose: its end is not the recognizer failing. */
+  const endSession = useCallback((how: 'stop' | 'abort'): void => {
+    const session = sessionRef.current;
+    if (session === null) return;
+    endRequestedRef.current = true;
+    if (how === 'stop') session.stop();
+    else session.abort();
+  }, []);
+
+  const warn = useCallback((code: VoiceErrorCode | null) => {
+    if (warningRef.current === code) return;
+    warningRef.current = code;
+    if (mountedRef.current) setWarningCode(code);
+  }, []);
 
   // ============== TEARDOWN ==============
 
@@ -302,15 +415,18 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
   /** Stop everything; the caller decides what state the room is left in. */
   const teardown = useCallback(() => {
     phaseRef.current = 'off';
+    connectedRef.current = false;
     clearTimers();
     committingRef.current = false;
     const turn = turnRef.current;
     if (turn !== null) endTurn(turn);
-    sessionRef.current?.abort();
+    endSession('abort');
     sessionRef.current = null;
     heardRef.current = '';
+    healthRef.current = freshHealth();
+    warn(null);
     levels.reset();
-  }, [endTurn, levels]);
+  }, [endSession, endTurn, levels, warn]);
 
   const fail = useCallback(
     (code: VoiceErrorCode, message: string = VOICE_ERROR_MESSAGES[code]) => {
@@ -437,15 +553,73 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
   const runTurnRef = useRef<(text: string) => void>(() => undefined);
 
   const commitUtterance = useCallback(() => {
-    const session = sessionRef.current;
-    if (session === null || committingRef.current) return;
+    if (sessionRef.current === null || committingRef.current) return;
     committingRef.current = true;
-    session.stop();
+    endSession('stop');
     commitTimerRef.current = setTimeout(() => {
       commitTimerRef.current = null;
-      sessionRef.current?.abort();
+      endSession('abort');
     }, COMMIT_TIMEOUT_MS);
-  }, []);
+  }, [endSession]);
+
+  /** The call is listening for real: the first session has started. */
+  const markConnected = useCallback(() => {
+    if (connectedRef.current || phaseRef.current === 'off') return;
+    connectedRef.current = true;
+    if (!mountedRef.current) return;
+    setRoomState('connected');
+    setAgent(phaseRef.current);
+  }, [setAgent]);
+
+  /**
+   * Judge a level reading while the call listens: a microphone that delivers
+   * nothing raises `no-audio-input`; a voice the recognizer returns no word
+   * for ends the call. Only while LISTENING to the person: while Alia thinks
+   * or speaks the microphone hears her answer, which is no evidence either way.
+   */
+  const watchLevel = useCallback(
+    (level: number) => {
+      const health = healthRef.current;
+      const now = Date.now();
+      const step =
+        health.lastReadingAt === null ? 0 : Math.min(now - health.lastReadingAt, MAX_LEVEL_STEP_MS);
+      health.lastReadingAt = now;
+
+      const watching =
+        phaseRef.current === 'listening' &&
+        turnRef.current === null &&
+        sessionListeningRef.current &&
+        !mutedRef.current &&
+        !committingRef.current;
+      if (!watching) {
+        health.quietSince = null;
+        return;
+      }
+
+      if (level >= SILENT_LEVEL) {
+        health.quietSince = null;
+        if (warningRef.current === 'no-audio-input') warn(null);
+      } else {
+        health.quietSince ??= now;
+        const silentMs = now - health.quietSince;
+        if (silentMs >= NO_AUDIO_INPUT_MS && warningRef.current === null) {
+          console.warn('[useVoiceRoom] Microphone delivers no sound', { silentMs });
+          warn('no-audio-input');
+        }
+      }
+
+      if (level < SPEECH_LEVEL) return;
+      health.loudMs += step;
+      if (health.loudMs >= UNRESPONSIVE_SPEECH_MS) {
+        console.warn('[useVoiceRoom] Voice heard, no words recognized', {
+          loudMs: health.loudMs,
+          fruitlessSessions: fruitlessSessionsRef.current,
+        });
+        fail('recognizer-unresponsive');
+      }
+    },
+    [fail, warn],
+  );
 
   const showDraft = useCallback(
     (transcript: string) => {
@@ -470,14 +644,41 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     heardRef.current = '';
     committingRef.current = false;
     sessionFailedRef.current = null;
+    sessionListeningRef.current = false;
+    sessionHeardRef.current = false;
+    endRequestedRef.current = false;
     echoContextRef.current = '';
     sessionStartedAtRef.current = Date.now();
+
+    // Armed before the session opens: an engine that ends at once clears it in `onEnd`.
+    startTimerRef.current = setTimeout(() => {
+      startTimerRef.current = null;
+      console.warn('[useVoiceRoom] Speech recognition did not start', {
+        waitedMs: RECOGNIZER_START_TIMEOUT_MS,
+        connected: connectedRef.current,
+      });
+      fail('recognizer-not-started');
+    }, RECOGNIZER_START_TIMEOUT_MS);
 
     sessionRef.current = startSpeechRecognition(
       { ...recognizerRef.current, echoCancellation: true },
       {
+        onStart: () => {
+          if (phaseRef.current === 'off') return;
+          if (startTimerRef.current !== null) clearTimeout(startTimerRef.current);
+          startTimerRef.current = null;
+          sessionListeningRef.current = true;
+          sessionStartedAtRef.current = Date.now();
+          markConnected();
+        },
         onResult: ({ transcript }) => {
-          if (phaseRef.current === 'off' || committingRef.current) return;
+          if (phaseRef.current === 'off') return;
+          // Words came back: whatever else is wrong, the recognizer works.
+          sessionHeardRef.current = true;
+          healthRef.current.loudMs = 0;
+          interruptionsRef.current = 0;
+          fruitlessSessionsRef.current = 0;
+          if (committingRef.current) return;
 
           const turn = turnRef.current;
           if (turn !== null) {
@@ -503,9 +704,18 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
         },
         onLevel: (level) => {
           levels.setCapture(mutedRef.current ? 0 : level);
+          watchLevel(level);
         },
         onError: (failure) => {
           if (failure.code === 'no-speech' || failure.code === 'aborted') return;
+          // The engine's own words, for diagnosis; never what was said.
+          console.warn('[useVoiceRoom] Speech recognition error', {
+            code: failure.code,
+            detail: failure.detail ?? null,
+            listening: sessionListeningRef.current,
+            sessionMs: Date.now() - sessionStartedAtRef.current,
+            phase: phaseRef.current,
+          });
           sessionFailedRef.current = failure;
         },
         onEnd: () => {
@@ -517,8 +727,10 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
           heardRef.current = '';
           if (phaseRef.current === 'off') return;
 
+          // Recoverable: the engine's catch-all, and another recognition taking
+          // the recognizer. Both are counted below, never restarted forever.
           const failure = sessionFailedRef.current;
-          if (failure !== null && failure.code !== 'other') {
+          if (failure !== null && failure.code !== 'other' && failure.code !== 'interrupted') {
             fail(speechFailureCode(failure) ?? 'speech-failed');
             return;
           }
@@ -529,25 +741,51 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
             heard !== '' &&
             turnRef.current === null
           ) {
-            rapidEndsRef.current = 0;
             runTurnRef.current(heard);
             return;
           }
 
-          if (Date.now() - sessionStartedAtRef.current < RAPID_END_MS) {
-            rapidEndsRef.current += 1;
-            if (rapidEndsRef.current >= MAX_RAPID_ENDS) {
-              fail(speechFailureCode(failure ?? { code: 'other' }) ?? 'speech-failed');
+          if (failure?.code === 'interrupted') {
+            interruptionsRef.current += 1;
+            if (interruptionsRef.current >= MAX_INTERRUPTIONS) {
+              fail('recognizer-aborted');
               return;
             }
-          } else {
-            rapidEndsRef.current = 0;
+          }
+
+          // A session that ended by itself, without listening or a word, did
+          // not idle: restarting it forever is a call that reads "Listening"
+          // and hears nothing.
+          if (!endRequestedRef.current && !sessionHeardRef.current) {
+            const listened =
+              sessionListeningRef.current &&
+              Date.now() - sessionStartedAtRef.current >= RAPID_END_MS;
+            if (!listened || failure !== null) {
+              fruitlessSessionsRef.current += 1;
+              if (fruitlessSessionsRef.current >= MAX_FRUITLESS_SESSIONS) {
+                console.warn('[useVoiceRoom] Speech recognition keeps ending without listening', {
+                  sessions: fruitlessSessionsRef.current,
+                  code: failure?.code ?? null,
+                  detail: failure?.detail ?? null,
+                });
+                fail(
+                  failure !== null
+                    ? (speechFailureCode(failure) ?? 'speech-failed')
+                    : sessionListeningRef.current
+                      ? 'recognizer-unresponsive'
+                      : 'recognizer-not-started',
+                );
+                return;
+              }
+            } else {
+              fruitlessSessionsRef.current = 0;
+            }
           }
           startListeningRef.current();
         },
       },
     );
-  }, [commitUtterance, endTurn, fail, levels, setAgent, showDraft]);
+  }, [commitUtterance, endTurn, fail, levels, markConnected, setAgent, showDraft, watchLevel]);
   startListeningRef.current = startListening;
 
   // ============== THINKING ==============
@@ -651,7 +889,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
         levels.setPlayback(0);
         // The session that listened through the answer has heard the answer; a
         // fresh one starts the next utterance clean.
-        sessionRef.current?.abort();
+        endSession('abort');
         if (turn.text.trim() === '') {
           updateMessages((previous) => previous.filter((message) => message.id !== assistantId));
           if (mountedRef.current) setTurnErrorCode('no-answer');
@@ -660,7 +898,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
         startListeningRef.current();
       })();
     },
-    [fail, levels, patchMessage, playTurn, queueChunks, setAgent, updateMessages],
+    [endSession, fail, levels, patchMessage, playTurn, queueChunks, setAgent, updateMessages],
   );
   runTurnRef.current = runTurn;
 
@@ -671,6 +909,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     setCallFailure(null);
     setTurnErrorCode(null);
     setSynthesisError(null);
+    warn(null);
     setRoomState('connecting');
 
     if (!isSpeechRecognitionAvailable()) {
@@ -710,11 +949,15 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     }
     recognizerRef.current = { lang: choice.lang, service: choice.service };
 
-    rapidEndsRef.current = 0;
-    setRoomState('connected');
+    fruitlessSessionsRef.current = 0;
+    interruptionsRef.current = 0;
+    healthRef.current = freshHealth();
+    // Still `connecting`: the call is connected, and listening, once the
+    // recognizer says it has started (`markConnected`).
+    connectedRef.current = false;
     setAgent('listening');
     startListeningRef.current();
-  }, [getToken, setAgent]);
+  }, [getToken, setAgent, warn]);
 
   // ============== DISCONNECT ==============
 
@@ -728,6 +971,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     setCallFailure(null);
     setTurnErrorCode(null);
     setSynthesisError(null);
+    setWarningCode(null);
     setIsMuted(false);
     setMessagesState([]);
     setCurrentSpeaker(null);
@@ -746,12 +990,15 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
       committingRef.current = false;
       heardRef.current = '';
       discardDraft();
-      sessionRef.current?.abort();
+      endSession('abort');
       levels.setCapture(0);
+      // Nobody is meant to be heard while muted.
+      healthRef.current.quietSince = null;
+      warn(null);
     } else {
       startListeningRef.current();
     }
-  }, [discardDraft, levels]);
+  }, [discardDraft, endSession, levels, warn]);
 
   // ============== CLEANUP ON UNMOUNT ==============
 
@@ -777,6 +1024,14 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     errorCode: callFailure?.code ?? null,
     turnError: turnErrorCode === null ? null : VOICE_ERROR_MESSAGES[turnErrorCode],
     turnErrorCode,
+    /**
+     * Something wrong that does not end the call, in English: the microphone
+     * has delivered no sound for a while (`no-audio-input`). `null` again as
+     * soon as it does.
+     */
+    warning: warningCode === null ? null : VOICE_ERROR_MESSAGES[warningCode],
+    /** The same, as a code an app can translate. */
+    warningCode,
     /**
      * When the call ended because a clip could not be made: the route's HTTP
      * status and typed code (`SpeechClipError`). `errorCode` says the same as a

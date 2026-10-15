@@ -25,6 +25,14 @@ export type SpeechRecognitionFailureCode =
   | 'no-speech'
   /** The session was aborted on purpose. Never an error to report. */
   | 'aborted'
+  /**
+   * The engine cut the session off without being asked to. On Chrome this is
+   * the `aborted` that follows a `stop()`/`abort()` nobody called: the browser
+   * runs ONE microphone recognition at a time, browser-wide, and a recognition
+   * started anywhere else (another tab, an extension, dictation) aborts ours.
+   * Engines report `aborted` for both; only the engine wrapper knows which.
+   */
+  | 'interrupted'
   /** Recognition is not available on this device or in this browser. */
   | 'unsupported'
   /** Anything else — the engine was busy, interrupted, or said nothing useful. */
@@ -37,6 +45,12 @@ export interface SpeechRecognitionFailure {
 }
 
 export interface SpeechRecognitionHandlers {
+  /**
+   * The engine has started listening (the Web Speech API's `start`, the
+   * native module's `start`). Until it fires, nothing said is being heard: a
+   * caller must not tell the person it is listening before this.
+   */
+  onStart?(): void;
   /**
    * The whole of what this session has heard so far, and whether the engine
    * considers it settled. It is the FULL transcript each time, never a delta:

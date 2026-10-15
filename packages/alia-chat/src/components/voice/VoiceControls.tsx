@@ -41,6 +41,12 @@ export interface VoiceControlsProps {
   isMuted: boolean;
   onToggleMute: () => void;
   onEnd: () => void;
+  /**
+   * Something the person should know while the call listens — the call's
+   * `warning`, e.g. a microphone that delivers no sound. Shown in place of
+   * "Listening…", which it would contradict.
+   */
+  notice?: string | null;
   /** Overrides for any of {@link VOICE_CONTROLS_LABELS}. */
   labels?: Partial<VoiceControlsLabels>;
 }
@@ -49,11 +55,12 @@ function getStatusText(
   roomState: RoomState,
   agentState: AgentState,
   isMuted: boolean,
+  notice: string | null,
   labels: VoiceControlsLabels,
 ): string {
   if (roomState === 'connecting') return labels.connecting;
   if (roomState === 'connected') {
-    if (agentState === 'listening') return isMuted ? labels.muted : labels.listening;
+    if (agentState === 'listening') return isMuted ? labels.muted : (notice ?? labels.listening);
     if (agentState === 'thinking') return labels.thinking;
     if (agentState === 'speaking') return labels.speaking;
     return labels.connected;
@@ -74,10 +81,11 @@ export function VoiceControls({
   isMuted,
   onToggleMute,
   onEnd,
+  notice = null,
   labels: labelOverrides,
 }: VoiceControlsProps) {
   const labels = { ...VOICE_CONTROLS_LABELS, ...labelOverrides };
-  const statusText = getStatusText(roomState, agentState, isMuted, labels);
+  const statusText = getStatusText(roomState, agentState, isMuted, notice, labels);
 
   return (
     <View className="items-center gap-4 pb-6 pt-4">

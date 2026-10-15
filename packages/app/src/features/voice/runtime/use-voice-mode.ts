@@ -140,6 +140,14 @@ export function useVoiceMode({
     if (text !== null) toast.error(text);
   }, [voiceRoom.turnErrorCode, isVoiceActive]);
 
+  // Something the person should fix while the call goes on (a microphone that
+  // delivers no sound): said once each time it starts, and shown in the call
+  // bar in place of "Listening…" for as long as it lasts.
+  const notice = isVoiceActive ? voiceErrorText(t, voiceRoom.warningCode) : null;
+  useEffect(() => {
+    if (notice !== null) toast.warning(notice);
+  }, [notice]);
+
   // The call ends when its screen is no longer on show, or when the
   // conversation or the account it was started for is no longer this one.
   useEffect(() => {
@@ -191,6 +199,8 @@ export function useVoiceMode({
     agentState: voiceRoom.agentState,
     isMuted: voiceRoom.isMuted,
     isConnected: voiceRoom.isConnected,
+    /** What the call bar says instead of "Listening…" while the microphone is silent. */
+    notice,
 
     // Voice loop controls
     toggleMute: voiceRoom.toggleMute,
