@@ -10,6 +10,7 @@
 import React, { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, type TextInput } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
+import { turnActivityState } from '../lib/turn-state';
 import { useAliaChat, type UseAliaChatOptions } from '../hooks/useAliaChat';
 import { useTTS } from '../hooks/useTTS';
 import { useFocusWhenPresented } from '../hooks/useFocusWhenPresented';
@@ -377,12 +378,7 @@ function AliaChatContentBody({
       if (voiceAgentState === 'thinking') return 'thinking';
       return 'idle';
     }
-    if (!isStreaming) return 'idle';
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg?.role === 'assistant' && lastMsg.toolInvocations?.some((t) => t.state === 'call'))
-      return 'working';
-    if (lastMsg?.thinking) return 'thinking';
-    return 'writing';
+    return turnActivityState(messages, isStreaming);
   }, [messages, isStreaming, isVoiceActive, voiceAgentState]);
 
   const { user } = useOxy();

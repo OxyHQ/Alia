@@ -112,6 +112,30 @@ components render. Those events are the product runtime's, not part of the Oxy
 generic inference contract, and this package is written against them on
 purpose: it is a **product** client.
 
+## An "Ask Alia" button with her live avatar
+
+```tsx
+import { AliaAvatarIcon, useAliaActivity } from '@alia.onl/sdk';
+
+<Button icon={AliaAvatarIcon} onPress={openAlia}>Ask Alia</Button>;
+const state = useAliaActivity(); // 'idle' | 'thinking' | 'working' | 'writing'
+```
+
+`AliaAvatarIcon` is a Bloom icon component (`BloomIconComponent`): pass it as `icon` /
+`leadingIcon`. It draws the live 3D avatar at the icon size under its own
+`AgentAvatarProvider` (`ALIA_CHARACTER_RUNTIME_URL`), and plays what Alia is doing.
+
+`useAliaActivity()` is the busiest of two sources, so a button reacts even with the sheet closed:
+
+- a turn running in this app: every `useAliaChat` publishes its lifecycle to a shared store;
+- her runs for the signed-in person elsewhere (background work, another device): the API's
+  `alia:activity` event on the person's `user:<id>` room, over ONE Socket.IO connection per
+  API origin, opened with the Oxy session's token only while someone is signed in and a
+  consumer is mounted, closed with the last one. A run that goes quiet for 90 s is treated as over.
+
+`socket.io-client` is a regular dependency, not a peer: the SDK owns this connection and an
+app should not have to install a transport to use a button.
+
 ## The composer
 
 The sheet, the screen and the Alia app share one composer, `AliaComposer`: Bloom's

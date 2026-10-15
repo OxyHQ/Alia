@@ -295,14 +295,18 @@ export function initSocket(server: http.Server) {
       deliverUserRuntimeMessage(userId, { runId: frame.runId, kind: 'error', message });
     });
 
-    socket.on('subscribe-notifications', () => {
-      // Room is always derived from the authenticated user — any client-supplied
-      // userId is ignored to prevent subscribing to another user's notifications.
+    // Room is always derived from the authenticated user — any client-supplied
+    // userId is ignored to prevent subscribing to another user's room. Two
+    // names, one room: what a client wants from it differs, who may join does not.
+    const joinOwnUserRoom = () => {
       if (!userId) return;
       Promise.resolve(socket.join(`user:${userId}`)).catch((err) =>
-        log.general.warn({ err }, 'socket.join notifications failed'),
+        log.general.warn({ err }, 'socket.join user room failed'),
       );
-    });
+    };
+    socket.on('subscribe-notifications', joinOwnUserRoom);
+    // Alia's live state (`alia:activity`), for every "Ask Alia" button the person has open.
+    socket.on('subscribe-alia-activity', joinOwnUserRoom);
 
     // Agent action approval response from user
     socket.on(
@@ -500,6 +504,27 @@ export interface AudioJobUpdate {
 export function emitAudioJobUpdate(userId: string, data: AudioJobUpdate) {
   if (io) {
     io.to(`user:${userId}`).emit('audio:job-update', data);
+  }
+}
+
+/** What Alia is doing for a person, coarsely: enough to animate her avatar, nothing of the work itself. */
+export type AliaActivityState = 'idle' | 'thinking' | 'working' | 'writing';
+
+export interface AliaActivityEvent {
+  state: AliaActivityState;
+  agentId: string;
+  sessionId: string;
+  timestamp: number;
+}
+
+/**
+ * Tell a person's open surfaces what their agent run is doing, so an "Ask Alia"
+ * button reacts when a run is working in the background. Carries a state, never
+ * content: tool arguments and screenshots stay on the owner-checked agent rooms.
+ */
+export function emitAliaActivity(userId: string, data: AliaActivityEvent) {
+  if (io) {
+    io.to(`user:${userId}`).emit('alia:activity', { eventVersion: 1, ...data });
   }
 }
 

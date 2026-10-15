@@ -101,6 +101,7 @@ vi.mock('../lib/logger.js', () => {
 
 import {
   emitAgentActivity,
+  emitAliaActivity,
   emitApprovalRequest,
   emitApprovalResult,
   emitAudioJobUpdate,
@@ -206,6 +207,27 @@ describe('each product event is emitted under its own name, to its own room', ()
       { event: 'agent-activity', rooms: ['agent-session:sess-ws13'] },
     ]);
     expect(broadcasts[0].payload).toMatchObject({ agentId: 'agent-ws13', type: 'tool_call' });
+  });
+
+  it("Alia's activity, to the person's own room and nobody else's", () => {
+    emitAliaActivity('user-ws13', {
+      state: 'working',
+      agentId: 'agent-ws13',
+      sessionId: 'sess-ws13',
+      timestamp: 1,
+    });
+
+    expect(broadcasts.map((entry) => ({ event: entry.event, rooms: entry.rooms }))).toEqual([
+      { event: 'alia:activity', rooms: ['user:user-ws13'] },
+    ]);
+    // A state, never the work: no content, arguments or screenshots ride on it.
+    expect(broadcasts[0].payload).toEqual({
+      eventVersion: 1,
+      state: 'working',
+      agentId: 'agent-ws13',
+      sessionId: 'sess-ws13',
+      timestamp: 1,
+    });
   });
 
   it('audio job, telegram link and workflow, each on its own room', () => {
