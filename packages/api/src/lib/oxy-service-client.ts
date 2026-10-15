@@ -56,7 +56,11 @@
  * than turn every non-inference development task into a crash.
  */
 
-import { OxyServer, canAttestWorkloadIdentity } from '@oxy.so/core/server';
+import {
+  OxyServer,
+  type ServiceTokenAudience,
+  canAttestWorkloadIdentity,
+} from '@oxy.so/core/server';
 
 import { log } from './logger.js';
 
@@ -113,10 +117,26 @@ export function canAuthenticateAsOxyService(env: NodeJS.ProcessEnv = process.env
 
 /** A short-lived token for Alia's own Oxy identity. */
 export async function oxyServiceToken(): Promise<string> {
+  return requireOxyServiceClient().serviceToken();
+}
+
+/**
+ * A short-lived token Oxy mints for Alia's identity FOR another resource
+ * server: `kaana.ai` is the credential `@kaana.ai/sdk` presents to
+ * https://kaana.ai/v1 (Kaana ADR 0002 decision 6). The same identity as
+ * {@link oxyServiceToken} — the attested task role or the key pair — with its
+ * own audience and its own cache entry, so an `oxy-api` token is never sent to
+ * Kaana nor the reverse.
+ */
+export async function oxyServiceTokenFor(audience: ServiceTokenAudience): Promise<string> {
+  return requireOxyServiceClient().serviceTokenFor(audience);
+}
+
+function requireOxyServiceClient(): OxyServer {
   const oxy = oxyServiceClient();
   if (!oxy)
     throw new Error('Alia has no Oxy service identity: no credential pair and nothing to attest');
-  return oxy.serviceToken();
+  return oxy;
 }
 
 function build(): OxyServer | null {

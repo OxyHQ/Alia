@@ -24,6 +24,8 @@
  * read the same way, with no mapping layer in the transport.
  */
 
+import type { UsageUnit } from '@kaana.ai/contracts';
+
 /* -------------------------------------------------------------------------- */
 /*  Errors                                                                     */
 /* -------------------------------------------------------------------------- */
@@ -127,22 +129,13 @@ export function kaanaErrorOf(
 /*  Money and usage (`public/money.ts`)                                        */
 /* -------------------------------------------------------------------------- */
 
-export type KaanaUsageUnit =
-  | 'input_tokens'
-  | 'cached_input_tokens'
-  | 'output_tokens'
-  | 'reasoning_tokens'
-  | 'requests'
-  | 'images'
-  | 'audio_input_milliseconds'
-  | 'audio_output_milliseconds'
-  | 'video_milliseconds'
-  | 'characters'
-  | 'embeddings'
-  | 'audio_input_tokens'
-  | 'cached_audio_input_tokens'
-  | 'audio_output_tokens'
-  | 'session_milliseconds';
+/**
+ * Every unit Kaana meters, from the published contract rather than a copy: the
+ * restated list missed `input_transcription_milliseconds` (contracts 4.1.0) and
+ * the real SDK stopped satisfying this port. A unit Kaana adds is a dependency
+ * bump, never a silent mismatch.
+ */
+export type KaanaUsageUnit = UsageUnit;
 
 export interface KaanaUsageQuantity {
   unit: KaanaUsageUnit;

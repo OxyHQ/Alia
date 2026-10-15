@@ -33,9 +33,11 @@ a pelo: los paquetes usan vitest.
   las claves de API: Alia, Kaana, Mention). Alia = asistente con API de producto
   **permanente** (`/alia/chat` y `/v1/*`, un solo handler) que usan sus propias
   superficies (app, Codea, Cowork, CLI), otras apps Oxy y terceros vía SDK.
-- **Alia nunca llama ni firma a Kaana:** `Alia -> Oxy -> Kaana` con
-  `OxyInferenceClient` de `@oxy.so/core`. Sin credenciales de proveedor, sin
-  transporte alternativo — `docs/adr/0001-*.md`.
+- **Texto: `Alia -> Oxy -> Kaana`** con `OxyInferenceClient` de `@oxy.so/core`
+  — `docs/adr/0001-*.md`. **Voz y dictado** (ADR 0017): `@kaana.ai/sdk` contra
+  `https://kaana.ai/v1`, construido SOLO en `lib/kaana/transport.ts`, con el
+  token de servicio de Oxy de audiencia `kaana.ai`. Nunca credenciales de
+  proveedor ni claves de Kaana; los límites son de Oxy Console.
 - **Alia no emite ni acepta claves propias.** `alia_sk_*` está retirado: la API
   lo rechaza (`credential_retired`) y sus tablas no existen. La clave de Oxy
   Console usa el contrato app-only de core4.4 publicado/adoptado con scopes
