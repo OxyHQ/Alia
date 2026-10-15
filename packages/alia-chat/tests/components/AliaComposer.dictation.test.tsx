@@ -28,6 +28,9 @@ vi.mock('@oxy.so/bloom/composer-panel', () => ({
     return null;
   },
 }));
+vi.mock('@oxy.so/bloom/composer-loader', () => ({
+  ComposerLoader: ({ children }: React.PropsWithChildren) => children,
+}));
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {

@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const panel = vi.hoisted(() => ({ props: null as Record<string, unknown> | null }));
 const toastError = vi.hoisted(() => vi.fn());
+const loader = vi.hoisted(() => ({ active: null as boolean | null }));
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
@@ -29,6 +30,12 @@ vi.mock('@oxy.so/bloom/composer-panel', () => ({
   ComposerPill: (props: Record<string, unknown>) => {
     panel.props = props;
     return null;
+  },
+}));
+vi.mock('@oxy.so/bloom/composer-loader', () => ({
+  ComposerLoader: ({ active, children }: React.PropsWithChildren<{ active?: boolean }>) => {
+    loader.active = active ?? null;
+    return children;
   },
 }));
 vi.mock('@oxy.so/bloom/typography', async () => {
@@ -61,6 +68,7 @@ vi.mock('../../src/hooks/useDictation', () => ({
 }));
 
 import { AliaComposer } from '../../src/components/AliaComposer';
+import { QuestionCard } from '../../src/components/QuestionCard';
 import { composerTiles } from '../../src/lib/attachment-tiles';
 import type { IntakeItem } from '../../src/hooks/useAttachmentIntake';
 import { DEFAULT_LABELS } from '../../src/lib/labels';
@@ -95,6 +103,7 @@ beforeEach(() => {
   listeners = new Map();
   lookedUp = [];
   panel.props = null;
+  loader.active = null;
   toastError.mockClear();
   const element = {
     addEventListener: (type: string, listener: Listener) => {
@@ -147,6 +156,20 @@ const overlay = () =>
   renderer!.root.findAll(
     (node) => node.type === ('View' as never) && node.props.accessibilityRole === 'alert',
   );
+
+describe('the composer while a turn runs', () => {
+  it('lights the loader around the pill, which hands it its surface and frosts its controls', () => {
+    mount({ busy: true });
+    expect(loader.active).toBe(true);
+    expect(panel.props).toMatchObject({ busy: true, surface: false, frosted: true });
+  });
+
+  it('leaves the loader dark when idle', () => {
+    mount();
+    expect(loader.active).toBe(false);
+    expect(panel.props).toMatchObject({ busy: false, surface: false, frosted: false });
+  });
+});
 
 describe('dropping files on the composer', () => {
   it('listens on its own element, the one the paste target uses', () => {
@@ -327,7 +350,8 @@ describe('a file that could not be read', () => {
     expect(toastError).not.toHaveBeenCalled();
   });
 
-  it('docks the questions Alia asked in the panel, and nothing once there are none', () => {
+  it('asks beside the loader, not through the pill, and nothing once there are none', () => {
+    // The loader's light traces the box it wraps: a question inside it would be ringed too.
     mount({
       questions: {
         items: [{ question: 'Which?', options: [] } as never],
@@ -335,10 +359,12 @@ describe('a file that could not be read', () => {
         onDismiss: () => {},
       },
     });
-    expect(panel.props?.question).toBeDefined();
-
-    mount({ questions: { items: [], onSubmit: () => {}, onDismiss: () => {} } });
+    expect(renderer!.root.findAllByType(QuestionCard)).toHaveLength(1);
     expect(panel.props?.question).toBeUndefined();
+
+    act(() => renderer?.unmount());
+    mount({ questions: { items: [], onSubmit: () => {}, onDismiss: () => {} } });
+    expect(renderer!.root.findAllByType(QuestionCard)).toHaveLength(0);
   });
 
   it('becomes an error tile the user can retry, and a refusal one they cannot', () => {

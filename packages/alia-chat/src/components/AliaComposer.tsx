@@ -19,6 +19,7 @@ import {
   type ComposerPanelAttachment,
   type ComposerPanelPermissionOption,
 } from '@oxy.so/bloom/composer-panel';
+import { ComposerLoader } from '@oxy.so/bloom/composer-loader';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
 import { useAttachmentIntake } from '../hooks/useAttachmentIntake';
@@ -302,47 +303,52 @@ function AliaComposerBody<T extends AliaSuggestion>({
           {labels.dictationRemaining(remainingSeconds)}
         </Text>
       ) : null}
-      <ComposerPill
-        value={value}
-        onValueChange={onValueChange}
-        onSubmit={() => onSubmit()}
-        inputRef={inputRef}
-        busy={busy}
-        onStop={onStop}
-        disabled={disabled || intake.isBusy || !hasContent}
-        placeholder={placeholder ?? labels.placeholder}
-        addMenu={addMenu ?? EMPTY_ADD_MENU}
-        onAddMenuSelect={onAddMenuSelect}
-        permissions={modes ?? NO_MODES}
-        permission={mode}
-        onPermissionChange={onModeChange}
-        voiceState={
-          dictation.isTranscribing
-            ? 'transcribing'
-            : dictation.isRecording || dictation.state === 'requesting-permission'
-              ? 'recording'
-              : 'idle'
-        }
-        onVoiceStateChange={(next) => void handleListeningChange(next === 'recording')}
-        attachments={tiles}
-        onRemoveAttachment={removeTile}
-        // Clears the tile's error and starts its progress again: `intake.retry`
-        // puts the item back to `reading` over the same `File`.
-        onAttachmentRetry={intake.retry}
-        question={
-          questions && questions.items.length > 0 ? (
-            <QuestionCard
-              questions={questions.items}
-              onSubmit={questions.onSubmit}
-              onDismiss={questions.onDismiss}
-            />
-          ) : undefined
-        }
-        status={status}
-        emptyAction={emptyAction}
-        onKeyPress={onKeyPress}
-        labels={panelLabels}
-      />
+      {questions && questions.items.length > 0 ? (
+        // Beside the loader, not through the pill's `question` slot: the light traces the box it
+        // wraps, so a question inside it would be ringed too.
+        <QuestionCard
+          questions={questions.items}
+          onSubmit={questions.onSubmit}
+          onDismiss={questions.onDismiss}
+        />
+      ) : null}
+      <ComposerLoader active={busy}>
+        <ComposerPill
+          value={value}
+          onValueChange={onValueChange}
+          onSubmit={() => onSubmit()}
+          inputRef={inputRef}
+          busy={busy}
+          onStop={onStop}
+          disabled={disabled || intake.isBusy || !hasContent}
+          placeholder={placeholder ?? labels.placeholder}
+          addMenu={addMenu ?? EMPTY_ADD_MENU}
+          onAddMenuSelect={onAddMenuSelect}
+          permissions={modes ?? NO_MODES}
+          permission={mode}
+          onPermissionChange={onModeChange}
+          voiceState={
+            dictation.isTranscribing
+              ? 'transcribing'
+              : dictation.isRecording || dictation.state === 'requesting-permission'
+                ? 'recording'
+                : 'idle'
+          }
+          onVoiceStateChange={(next) => void handleListeningChange(next === 'recording')}
+          attachments={tiles}
+          onRemoveAttachment={removeTile}
+          // Clears the tile's error and starts its progress again: `intake.retry`
+          // puts the item back to `reading` over the same `File`.
+          onAttachmentRetry={intake.retry}
+          status={status}
+          emptyAction={emptyAction}
+          onKeyPress={onKeyPress}
+          labels={panelLabels}
+          // The loader paints the pill's surface behind its light; the controls go frosted over it.
+          surface={false}
+          frosted={busy}
+        />
+      </ComposerLoader>
       <ComposerDropOverlay visible={takesFiles && isDragOver} enabled={acceptsFiles} />
       {accessory ? (
         <View pointerEvents="box-none" className="absolute bottom-full right-0 mb-2">
