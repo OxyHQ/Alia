@@ -1,5 +1,17 @@
 # @alia.onl/sdk
 
+## 17.1.0
+
+- **`AliaAvatarIcon` is her still until she moves.** At icon size it drew Alia through the live 3D
+  runtime, so a header button cost every cold load of the app around it the whole runtime from
+  alia.onl (measured: 31 requests, 16.1 MiB in headless Chromium; Mention's home header). It is now
+  Bloom's `Avatar` with her character and a still made ahead of time (`characterStill`, Bloom
+  10.9.0), a 16 KB PNG in the source: nothing of the runtime loads until she thinks or works, when
+  she goes live and plays her working turn as before, with the still under her until the first
+  frame. Reduced motion keeps her a still. `bun run render:avatar-still` redraws the still with the
+  installed Bloom's runtime; a test fails if `ALIA_AVATAR` changes without it. Peer
+  `@oxy.so/bloom` is `>=10.9.0`.
+
 ## 17.0.2
 
 - **The composer has its loader again.** While a turn runs, the pill is wrapped in Bloom's
