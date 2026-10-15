@@ -64,12 +64,10 @@ async function workspace(req: Request, client: OxyServices, permission: string) 
 
 // Legacy links never read or redeem the retired local credential table.
 router.all('/invites/:token/:action', (_req, res) =>
-  res
-    .status(410)
-    .json({
-      error:
-        'This invitation is no longer available. Ask an organization administrator for access in Oxy.',
-    }),
+  res.status(410).json({
+    error:
+      'This invitation is no longer available. Ask an organization administrator for access in Oxy.',
+  }),
 );
 router.get(
   '/',
@@ -183,12 +181,10 @@ router.post(
       .strict()
       .parse(req.body);
     const { organization } = await workspace(req, client, 'members:invite');
-    res
-      .status(201)
-      .json({
-        membershipScope: 'organization',
-        member: await client.accounts.members.invite(organization.accountId, body),
-      });
+    res.status(201).json({
+      membershipScope: 'organization',
+      member: await client.accounts.members.invite(organization.accountId, body),
+    });
   }),
 );
 router.patch(
