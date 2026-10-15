@@ -40,7 +40,7 @@ import { z } from 'zod';
 import { AttestationError, type WorkloadAuthority } from './attestation.js';
 import type { BrowserService } from './browser-service.js';
 import { actorRoleSchema, browserInputSchema } from './browser/input.js';
-import type { ComputerService } from './computer-service.js';
+import { type ComputerService, requestSignal } from './computer-service.js';
 import { HostError } from './errors.js';
 
 const commandSchema = z
@@ -71,7 +71,14 @@ function queryLimit(req: Request, fallback: number): number {
 type Handler = (req: Request, res: Response) => Promise<unknown>;
 
 const route = (handler: Handler) => (req: Request, res: Response, next: NextFunction) => {
-  handler(req, res).then((data) => res.json({ data }), next);
+  // A caller that hangs up stops waiting in the computer's lease queue.
+  const gone = new AbortController();
+  res.on('close', () => {
+    if (!res.writableFinished) gone.abort();
+  });
+  requestSignal.run(gone.signal, () => {
+    handler(req, res).then((data) => res.json({ data }), next);
+  });
 };
 
 function queryPath(req: Request): string | undefined {
