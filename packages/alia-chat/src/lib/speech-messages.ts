@@ -1,4 +1,5 @@
 import type { SpeechRecognitionFailure } from './speech-recognition-types';
+import type { SpeechClipError } from './speech-synthesis';
 
 /**
  * Every way dictation or a voice call can fail that a person is told about,
@@ -20,7 +21,11 @@ export type VoiceErrorCode =
   | 'not-authenticated'
   | 'turn-failed'
   | 'no-answer'
-  | 'not-played';
+  | 'not-played'
+  | 'synthesis-unavailable'
+  | 'synthesis-limited'
+  | 'synthesis-rejected'
+  | 'synthesis-failed';
 
 /**
  * The English copy for each code — the same sentences dictation and voice mode
@@ -39,8 +44,35 @@ export const VOICE_ERROR_MESSAGES: Readonly<Record<VoiceErrorCode, string>> = {
   'not-authenticated': 'Not authenticated',
   'turn-failed': 'Voice request failed',
   'no-answer': 'No answer came back — try saying it again',
-  'not-played': 'The answer could not be played aloud',
+  'not-played': 'The answer could not be played aloud — it is in the chat',
+  'synthesis-unavailable': "Alia's voice is not available right now — the answer is in the chat",
+  'synthesis-limited': "Alia's voice has reached its limit for now — the answer is in the chat",
+  'synthesis-rejected': "Alia's voice could not read this answer — it is in the chat",
+  'synthesis-failed': "Alia's voice failed — the answer is in the chat",
 };
+
+/**
+ * The code for a clip `/v1/audio/speech` could not make, from the typed code
+ * the route answered with. A failure the route did not name (a network
+ * failure, an unknown code) is `synthesis-failed`.
+ */
+export function synthesisFailureCode(failure: SpeechClipError): VoiceErrorCode {
+  switch (failure.code) {
+    case 'NOT_AUTHENTICATED':
+      return 'not-authenticated';
+    case 'SPEECH_UNAVAILABLE':
+      return 'synthesis-unavailable';
+    case 'SPEECH_LIMIT_REACHED':
+      return 'synthesis-limited';
+    case 'SPEECH_REJECTED':
+    case 'INVALID_REQUEST':
+      return 'synthesis-rejected';
+    case 'SPEECH_PROVIDER_FAILED':
+    case 'SPEECH_GENERATION_FAILED':
+    case null:
+      return 'synthesis-failed';
+  }
+}
 
 /**
  * The code for a recognition failure. `null` for the failures that are not

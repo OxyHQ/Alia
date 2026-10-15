@@ -33,11 +33,23 @@ const fx = vi.hoisted(() => ({
   sessions: [] as FakeSession[],
   clips: [] as Array<{ input: string; voice: string; model: string; signal: AbortSignal }>,
   playbacks: [] as Playback[],
+  token: 'session-token' as string | null,
+  /** What `requestSpeechClip` throws instead of answering, when set. */
+  clipFailure: null as Error | null,
+  /** What `playSpeechClip` rejects with instead of playing, when set. */
+  playFailure: null as Error | null,
 }));
 
 vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({
-    oxyServices: { session: { accessToken: 'session-token' }, createLinkedClient: vi.fn() },
+    oxyServices: {
+      session: {
+        get accessToken() {
+          return fx.token;
+        },
+      },
+      createLinkedClient: vi.fn(),
+    },
   }),
 }));
 
@@ -69,23 +81,26 @@ function end(session: FakeSession): void {
   });
 }
 
-vi.mock('../../src/lib/speech-synthesis', () => ({
+vi.mock('../../src/lib/speech-synthesis', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/lib/speech-synthesis')>()),
   requestSpeechClip: vi.fn(
     async (request: { input: string; voice: string; model: string; signal: AbortSignal }) => {
       fx.clips.push(request);
+      if (fx.clipFailure !== null) throw fx.clipFailure;
       return `clip:${request.input}`;
     },
   ),
-  playSpeechClip: vi.fn(
-    (uri: string, options: { signal: AbortSignal }) =>
-      new Promise<void>((resolve) => {
-        fx.playbacks.push({ uri, signal: options.signal, finish: resolve });
-        options.signal.addEventListener('abort', () => resolve(), { once: true });
-      }),
-  ),
+  playSpeechClip: vi.fn((uri: string, options: { signal: AbortSignal }) => {
+    if (fx.playFailure !== null) return Promise.reject(fx.playFailure);
+    return new Promise<void>((resolve) => {
+      fx.playbacks.push({ uri, signal: options.signal, finish: resolve });
+      options.signal.addEventListener('abort', () => resolve(), { once: true });
+    });
+  }),
 }));
 
 import { useVoiceRoom } from '../../src/hooks/useVoiceRoom';
+import { SpeechClipError } from '../../src/lib/speech-synthesis';
 
 /**
  * Real timers. At 5ms the end of utterance elapsed between two `act` calls on a
@@ -146,6 +161,9 @@ describe('the on-device voice loop', () => {
     fx.sessions = [];
     fx.clips = [];
     fx.playbacks = [];
+    fx.token = 'session-token';
+    fx.clipFailure = null;
+    fx.playFailure = null;
   });
 
   afterEach(async () => {
@@ -334,6 +352,108 @@ describe('the on-device voice loop', () => {
     expect(latest.roomState).toBe('error');
     expect(latest.error).toBe('No microphone found — check your input devices');
     expect(latest.errorCode).toBe('microphone-missing');
+  });
+
+  /** A call whose first answer has started streaming, with nothing spoken yet. */
+  async function answering(): Promise<ReturnType<typeof controllableSender>> {
+    const sender = controllableSender();
+    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS });
+    await act(async () => latest.connect());
+    await say('Hola');
+    await settle(PAST_END_OF_UTTERANCE_MS);
+    await act(async () => sender.turns[0]!.onText('Hola, soy Alia. Te cuento'));
+    await settle();
+    return sender;
+  }
+
+  it.each([
+    [503, 'SPEECH_UNAVAILABLE', 'synthesis-unavailable'],
+    [429, 'SPEECH_LIMIT_REACHED', 'synthesis-limited'],
+    [422, 'SPEECH_REJECTED', 'synthesis-rejected'],
+    [502, 'SPEECH_PROVIDER_FAILED', 'synthesis-failed'],
+    [500, null, 'synthesis-failed'],
+  ] as const)(
+    'a clip the route refuses (%s %s) ends the call as %s once the answer is in the transcript',
+    async (status, code, expected) => {
+      fx.clipFailure = new SpeechClipError('refused', { status, code, requestId: 'req_1' });
+      const sender = await answering();
+
+      // Nothing plays, and the answer keeps streaming: the call is not cut mid-answer.
+      expect(fx.playbacks).toHaveLength(0);
+      expect(sender.turns[0]!.signal.aborted).toBe(false);
+      expect(latest.roomState).toBe('connected');
+
+      await act(async () => {
+        sender.turns[0]!.onText('Hola, soy Alia. Te cuento algo.');
+        sender.turns[0]!.resolve();
+      });
+      await settle();
+
+      expect(latest.roomState).toBe('error');
+      expect(latest.errorCode).toBe(expected);
+      expect(latest.synthesisError).toMatchObject({ status, code, requestId: 'req_1' });
+      expect(latest.messages.at(-1)).toMatchObject({
+        role: 'assistant',
+        content: 'Hola, soy Alia. Te cuento algo.',
+        isStreaming: false,
+      });
+      // The microphone is released: no session is left listening.
+      expect(fx.sessions.filter((session) => !session.ended)).toHaveLength(0);
+    },
+  );
+
+  it('a network failure is a typed synthesis failure too', async () => {
+    fx.clipFailure = new TypeError('Network request failed');
+    const sender = await answering();
+    await act(async () => sender.turns[0]!.resolve());
+    await settle();
+    expect(latest.errorCode).toBe('synthesis-failed');
+    expect(latest.synthesisError).toBeInstanceOf(SpeechClipError);
+    expect(latest.synthesisError).toMatchObject({ status: null, code: null });
+  });
+
+  it('losing the session token mid-call is an explicit not-authenticated end, with no request', async () => {
+    const sender = controllableSender();
+    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS });
+    await act(async () => latest.connect());
+    await say('Hola');
+    await settle(PAST_END_OF_UTTERANCE_MS);
+    fx.token = null;
+    await act(async () => {
+      sender.turns[0]!.onText('Hola. ');
+      sender.turns[0]!.resolve();
+    });
+    await settle();
+    expect(fx.clips).toHaveLength(0);
+    expect(latest.roomState).toBe('error');
+    expect(latest.errorCode).toBe('not-authenticated');
+    expect(latest.synthesisError).toMatchObject({ status: null, code: 'NOT_AUTHENTICATED' });
+  });
+
+  it('a clip the device cannot play ends the call as not-played, without skipping ahead', async () => {
+    fx.playFailure = new Error('decoder error');
+    const sender = await answering();
+    await act(async () => {
+      sender.turns[0]!.onText('Hola, soy Alia. Te cuento algo.');
+      sender.turns[0]!.resolve();
+    });
+    await settle();
+    expect(fx.clips.map((clip) => clip.input)).toEqual(['Hola, soy Alia.']);
+    expect(latest.errorCode).toBe('not-played');
+    expect(latest.error).toBe('The answer could not be played aloud — it is in the chat');
+    expect(latest.synthesisError).toBeNull();
+  });
+
+  it('a new call starts clean after one that could not speak', async () => {
+    fx.clipFailure = new SpeechClipError('refused', { status: 503, code: 'SPEECH_UNAVAILABLE' });
+    const sender = await answering();
+    await act(async () => sender.turns[0]!.resolve());
+    await settle();
+    expect(latest.errorCode).toBe('synthesis-unavailable');
+
+    await act(async () => latest.disconnect());
+    expect(latest.synthesisError).toBeNull();
+    expect(latest.errorCode).toBeNull();
   });
 
   it('disconnect stops everything and clears the transcript', async () => {
