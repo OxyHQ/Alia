@@ -5,6 +5,7 @@ import { restoreOpenerFocus } from '@/features/chat/ui/execution/focus-return';
 import { KeyboardShortcutsDialog } from '@/shell/keyboard-shortcuts-dialog';
 import { useWorkspacePanelChrome, WorkspacePanel } from '@/shell/workspace-panel';
 import { AliaSettingsProvider } from '@/features/settings/ui/alia-settings';
+import { VoiceLabelsProvider } from '@/features/voice/ui/voice-labels-provider';
 import { Sidebar } from '@/shell/sidebar';
 import { useLocalRuntime } from '@/features/local-models/runtime/use-local-runtime';
 import { useNotificationSetup } from '@/features/notifications/runtime/use-notification-setup';
@@ -23,7 +24,8 @@ import { OverlayInertBoundary, PortalOutlet, PortalProvider } from '@oxy.so/bloo
 import { useOxy } from '@oxy.so/services';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { Navigator, Stack, usePathname, useRouter, type Href } from 'expo-router';
-import React, { useEffect, useMemo } from 'react';
+import type React from 'react';
+import { useEffect, useMemo } from 'react';
 import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -207,25 +209,27 @@ export default function AppLayout() {
           the portal goes to the document. Gate: native-portal-host.test.ts */}
       <PortalProvider>
         <AliaSettingsProvider>
-          {/* Hides the app from a screen reader while a portaled modal is up
+          <VoiceLabelsProvider>
+            {/* Hides the app from a screen reader while a portaled modal is up
               (TalkBack otherwise walks the chat behind Settings). */}
-          <OverlayInertBoundary>
-            {Platform.OS === 'web' ? (
-              shell
-            ) : (
-              // Android draws the app edge to edge and Bloom's shell takes no
-              // safe area: without this its frame, the chat header's menu button
-              // and the drawer all start under the status bar, where the system
-              // takes the touch (the button did nothing to a tap on its top two
-              // thirds). The strip above shows the root's background, which is
-              // the shell's own surface colour. The composer keeps the bottom
-              // inset itself (`chat-page-content.tsx`).
-              <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
-            )}
-          </OverlayInertBoundary>
-          <CommandPalette />
-          <KeyboardShortcutsDialog />
-          <PortalOutlet />
+            <OverlayInertBoundary>
+              {Platform.OS === 'web' ? (
+                shell
+              ) : (
+                // Android draws the app edge to edge and Bloom's shell takes no
+                // safe area: without this its frame, the chat header's menu button
+                // and the drawer all start under the status bar, where the system
+                // takes the touch (the button did nothing to a tap on its top two
+                // thirds). The strip above shows the root's background, which is
+                // the shell's own surface colour. The composer keeps the bottom
+                // inset itself (`chat-page-content.tsx`).
+                <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
+              )}
+            </OverlayInertBoundary>
+            <CommandPalette />
+            <KeyboardShortcutsDialog />
+            <PortalOutlet />
+          </VoiceLabelsProvider>
         </AliaSettingsProvider>
       </PortalProvider>
     </AppErrorBoundary>

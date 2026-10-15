@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -156,6 +156,14 @@ vi.mock('@/features/chat/runtime/use-conversations', () => ({
 }));
 
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock('@/features/chat/runtime/use-app-voice', () => ({
+  useAppVoice: () => ({
+    isActive: false,
+    state: null,
+    start: () => undefined,
+    end: () => undefined,
+  }),
+}));
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -274,8 +282,8 @@ describe('the new-chat screen wires the whole conversation', () => {
     // The power level is the app's selection, which the shared composer reads
     // itself; the new-chat screen has no level of its own to hand down.
     expect('selectedModel' in props).toBe(false);
-    // Voice from the new-chat screen opens a conversation in voice mode.
-    expect(typeof props.onVoiceStart).toBe('function');
+    // Voice from the new-chat screen is the SDK's launcher, handing over to a conversation.
+    expect(typeof (props.voice as { start: unknown }).start).toBe('function');
   });
 
   it('names no conversation, because there is not one yet', async () => {

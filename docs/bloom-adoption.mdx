@@ -55,7 +55,7 @@ Paths are under `packages/app/`.
 | Code in the canvas, tool steps and agent sessions | `src/features/chat/ui/canvas/code-renderer.tsx`, `src/features/chat/ui/execution/tool-step.tsx`, `src/features/agents/ui/session/session-event-card.tsx` | `code`: `CodeBlock`, `Pre` | direct reuse |
 | Canvas renderers | `src/features/chat/ui/canvas/` | `chart-cards`, `table`, `field`, `CodeBlock` | composition |
 | Dictation | `AliaComposer` (the SDK's `useDictation`: a recorded clip transcribed by `POST /v1/audio/transcriptions`, language from the host) | `ComposerPanel.listening` / `onListeningChange` | direct reuse |
-| Call | `chat-page-content.tsx` (the composer slot), `src/features/voice/runtime/use-voice-mode.ts`, `src/features/voice/ui/voice-mode-icon.tsx` | none — `VoiceControls` from `@alia.onl/sdk` | not applicable (§2, `call-ui`) |
+| Call | `chat-page-content.tsx` (the composer slot), `src/features/chat/runtime/use-app-voice.ts`, `src/features/voice/ui/voice-mode-icon.tsx` | none — `VoiceControls` from `@alia.onl/sdk` | not applicable (§2, `call-ui`) |
 | Error containment | `src/shell/error-boundary.tsx`, `src/features/chat/ui/message-block-boundary.tsx` | `error-boundary`: `ErrorBoundary` | direct reuse |
 | Dialogs, confirms, toasts | throughout | `surfaces`, `dialog`, `toast`; the hosts are `OxyProvider`'s | direct reuse |
 | Settings | `src/features/settings/ui/` | `settings-modal`, `settings-list`, `field`, `switch`, `select` | direct reuse |

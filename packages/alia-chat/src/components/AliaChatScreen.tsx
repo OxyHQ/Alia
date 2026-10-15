@@ -12,12 +12,13 @@
  * />
  * ```
  *
- * Voice is opt-in — pass `voiceSession={VoiceSession}` from
- * `@alia.onl/sdk/voice` to offer calls. Without it the screen is text-only and
- * `react-native-audio-api` never enters the bundle.
+ * Voice is part of the screen: the button, the call bar, the notices and the transcript in the
+ * thread. `voice={false}` makes it text-only; `voice={{ canStartVoice, onCallEnded, … }}` brings
+ * the host's own callbacks. The call loads on the first one.
  */
 
-import React, { useCallback } from 'react';
+import type React from 'react';
+import { useCallback } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
@@ -27,7 +28,6 @@ import { AliaChatContent, type AliaChatContentProps } from './AliaChatContent';
 import { AliaChatHeader } from './AliaChatHeader';
 import type { AliaSuggestion } from '../types';
 import type { AliaChatLabels } from '../lib/labels';
-import type { VoiceSessionComponent } from '../types';
 
 export interface AliaChatScreenProps {
   /** App context injected into system prompt */
@@ -60,8 +60,8 @@ export interface AliaChatScreenProps {
   onSuggestionQuery?: (query: string) => void;
   /** Dark-mode flag — forwarded to the ambient wave overlay. */
   isDarkMode?: boolean;
-  /** Voice capability — `VoiceSession` from `@alia.onl/sdk/voice`. */
-  voiceSession?: VoiceSessionComponent;
+  /** The chat's voice call: on by default, `false` for text only, an object for the host's callbacks. */
+  voice?: AliaChatContentProps['voice'];
   /** Overrides for the chat's own copy (header, composer, plan, research…); omitted, English. */
   labels?: Partial<AliaChatLabels>;
   /** Where the 3D avatar's runtime is served from; omitted, Alia's shared copy (`ALIA_CHARACTER_RUNTIME_URL`). */
@@ -84,7 +84,7 @@ export function AliaChatScreen({
   suggestionMatches,
   onSuggestionQuery,
   isDarkMode,
-  voiceSession,
+  voice,
   labels,
   characterRuntimeUrl = ALIA_CHARACTER_RUNTIME_URL,
 }: AliaChatScreenProps) {
@@ -133,7 +133,7 @@ export function AliaChatScreen({
             suggestionMatches={suggestionMatches}
             onSuggestionQuery={onSuggestionQuery}
             isDarkMode={isDarkMode}
-            voiceSession={voiceSession}
+            voice={voice}
             labels={labels}
             header={header}
           />

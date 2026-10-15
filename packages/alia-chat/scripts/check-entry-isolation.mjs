@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
- * Guards the root-entry / voice-entry split.
+ * Guards the root entry's dependencies.
  *
  * `@alia.onl/sdk` ships raw source, so a consumer's Metro compiles whatever the
- * root entry can reach. The `./voice` entry exists so a text-chat consumer
- * never compiles the voice call — the turn loop, speech playback and call UI.
- * That split is nominal unless something enforces it: v4.0.0 moved the voice
- * exports out of the root barrel, and a single deep `import` in
- * AliaChatContent quietly put the call back in every text consumer's graph.
+ * root entry can reach. Since 16.0.0 the voice call is part of the conversation
+ * screen (`AliaChatContent`), so the root entry reaches it — but only through
+ * ONE lazy `import()` in `components/voice/AliaVoiceCall.tsx`, so nothing of the
+ * call or its audio engine is evaluated until the first call. This check holds
+ * that the root entry does reach the call that way (and that the walker works),
+ * that `./voice` still reaches it, and the retired modules stay out of both.
  *
  * It was built to keep `livekit-client` (~1.2 MB raw / ~250 KiB gzip) out of
  * text consumers. LiveKit is gone since 8.0.0, and device speech recognition
@@ -135,20 +136,11 @@ for (const retired of RETIRED_MODULES) {
   }
 }
 
-const rootEngine = walk('index.ts', AUDIO_ENGINE);
-if (rootEngine.hits.length > 0) {
-  failures.push(
-    `src/index.ts reaches ${AUDIO_ENGINE}, the voice call's native audio engine. Text-chat ` +
-      `consumers must not need it — move the import behind the ./voice entry.\n` +
-      rootEngine.hits.map((file) => `    ${chainTo(file, rootEngine.importedBy)}`).join('\n'),
-  );
-}
 const voice = walk('voice.ts', AUDIO_ENGINE);
 if (voice.hits.length === 0) {
   failures.push(
     `src/voice.ts no longer reaches ${AUDIO_ENGINE}. Either the call's native engine ` +
-      `was removed or the walker stopped resolving platform files — either way the ` +
-      `root-entry check above is passing for the wrong reason.`,
+      `was removed or the walker stopped resolving platform files.`,
   );
 }
 
@@ -163,19 +155,17 @@ for (const entry of ['index.ts', 'voice.ts']) {
   }
 }
 
-if (root.visited.has(VOICE_LOOP)) {
+if (!root.visited.has(VOICE_LOOP)) {
   failures.push(
-    `src/index.ts reaches the voice call. Text-chat consumers must not compile it — ` +
-      `move the import behind the ./voice entry.\n` +
-      `    ${chainTo(VOICE_LOOP, root.importedBy)}`,
+    `src/index.ts no longer reaches the voice call (hooks/useVoiceRoom.ts). The conversation ` +
+      `screen includes the call; if it was removed or the walker stopped resolving, say so here.`,
   );
 }
 
 if (!voice.visited.has(VOICE_LOOP)) {
   failures.push(
     `src/voice.ts no longer reaches hooks/useVoiceRoom.ts. Either the voice surface was ` +
-      `removed or the walker stopped resolving — either way the root-entry check above ` +
-      `is passing for the wrong reason.`,
+      `removed or the walker stopped resolving.`,
   );
 }
 
@@ -186,7 +176,7 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Entry isolation OK — the voice call and ${AUDIO_ENGINE} are unreachable from ` +
-    `src/index.ts (${root.visited.size} modules walked) and reachable from src/voice.ts; ` +
+  `Entry check OK — the voice call and ${AUDIO_ENGINE} are reachable from src/index.ts ` +
+    `(${root.visited.size} modules walked) and src/voice.ts; ` +
     `${RETIRED_MODULES.join(' and ')} are reachable from neither.`,
 );

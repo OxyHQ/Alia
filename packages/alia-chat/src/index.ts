@@ -3,7 +3,7 @@
 // Reusable chat UI, voice, and streaming components for Oxy apps
 
 // ── Main components ──
-export type { AliaChatAgent, AliaChatState } from './components/AliaChatContent';
+export type { AliaChatAgent, AliaChatState, AliaVoiceOptions } from './components/AliaChatContent';
 export { AliaChatSheet } from './components/AliaChatSheet';
 export type { AliaChatSheetProps, AliaChatSheetRef } from './components/AliaChatSheet';
 export type { AliaTurn } from './components/AliaChatContent';
@@ -13,7 +13,8 @@ export type { AliaChatScreenProps } from './components/AliaChatScreen';
 // ── Chat UI components ──
 export { ALIA_CHARACTER_RUNTIME_URL } from './lib/character-runtime';
 export { DEFAULT_LABELS } from './lib/labels';
-export type { AliaChatLabels } from './lib/labels';
+export { AliaChatLabelsProvider, useLabels } from './lib/labels';
+export type { AliaChatLabels, VoiceBlockReason } from './lib/labels';
 export { VoiceModeIcon } from './components/VoiceModeIcon';
 export { AmbientField, PARALLAX_DURATION, PARALLAX_EASE } from './components/AmbientField';
 export type { AmbientFieldProps } from './components/AmbientField';
@@ -91,12 +92,11 @@ export type {
   PlanStep,
 } from './types';
 
-// ── Voice capability contract (the implementation lives in `./voice`) ──
-export type {
-  VoiceSessionComponent,
-  VoiceSessionProps,
-  VoiceSessionState,
-} from './types';
+// ── Voice: part of the conversation screen; the host brings callbacks (see `AliaVoiceOptions`) ──
+export type { VoiceNotice, VoiceSessionProps, VoiceSessionState } from './types';
+export { AliaVoiceCall } from './components/voice/AliaVoiceCall';
+export { useVoiceLauncher, toastNotice } from './hooks/useVoiceLauncher';
+export type { UseVoiceLauncherOptions, VoiceLauncher } from './hooks/useVoiceLauncher';
 
 // ── UI Primitives (NativeWind) ──
 export { cn, formatFileSize } from './lib/utils';

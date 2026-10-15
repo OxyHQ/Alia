@@ -46,10 +46,21 @@ English). Bloom's own strings follow `BloomProvider`'s `locale`.
 
 Two entry points:
 
-- `@alia.onl/sdk` — text chat, dictation, read-aloud, catalogue, primitives.
-- `@alia.onl/sdk/voice` — `VoiceSession` and `useVoiceRoom`, the voice call.
-  Pass `VoiceSession` to the shell as `voiceSession` to offer calls; leave it
-  out for text-only chat and the call is never compiled.
+- `@alia.onl/sdk` — the conversation screen (`AliaChatScreen`, `AliaChatSheet`,
+  `AliaChatContent`) with its voice call included: the button that opens it, the
+  bar with its honest state, the notices (failure, moved to another device, time
+  limit) and the transcript in the same thread. Also dictation, read-aloud,
+  catalogue, primitives. The call loads on the first call.
+- `@alia.onl/sdk/voice` — the call's parts (`VoiceSession`, `useVoiceRoom`,
+  the audio engine) for a host that builds its own screen.
+
+Voice is on by default; `voice={false}` makes a chat text-only, and
+`voice={{ canStartVoice, onVoiceBlocked, onCallEnded, onNotice, conversationId,
+agentId, owner, isFocused }}` brings what only the host knows (the plan and
+credits gate, what to refresh when a call ends, where notices go, the
+conversation the call belongs to). Its words are `labels.voiceControls`,
+`voiceError`, `voiceEnded`, `voiceEndingSoon` and `voiceBlocked`. A host with its
+own screen uses `useVoiceLauncher` and `AliaVoiceCall`, the same pieces.
 
 ## Speech
 
@@ -72,7 +83,7 @@ transcript content.
 
 On iOS and Android a call needs
 [`react-native-audio-api`](https://github.com/software-mansion/react-native-audio-api)
-(an optional peer of `@alia.onl/sdk/voice`; the root entry never reaches it)
+(a peer of the SDK: the conversation screen includes the call)
 and its config plugin, then a new native build:
 
 ```json
@@ -319,7 +330,7 @@ reason above.
 ```sh
 bun run typecheck       # tsc --noEmit
 bun run test            # vitest
-bun run check:entries   # the root entry must not reach the voice call
+bun run check:entries   # the root entry reaches the call only through its lazy import; no retired modules
 ```
 
 ## Licence
