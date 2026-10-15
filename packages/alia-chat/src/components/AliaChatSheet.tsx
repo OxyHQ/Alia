@@ -9,7 +9,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BREAKPOINTS } from '@oxy.so/bloom/styles';
 import { ALIA_CHARACTER_RUNTIME_URL } from '../lib/character-runtime';
 import type { AliaChatLabels } from '../lib/labels';
-import type { VoiceSessionComponent } from '../types';
 import { AliaChatContent, type AliaChatContentProps, type AliaTurn } from './AliaChatContent';
 import { AliaChatHeader } from './AliaChatHeader';
 import type { AliaSuggestion } from '../types';
@@ -47,12 +46,8 @@ export interface AliaChatSheetProps {
   onSuggestionQuery?: (query: string) => void;
   /** Dark-mode flag — forwarded to the ambient wave overlay (defaults to the sheet's own color scheme). */
   isDarkMode?: boolean;
-  /**
-   * Voice capability — pass `VoiceSession` from `@alia.onl/sdk/voice` to offer
-   * voice calls. Omitted, the sheet is text-only and `react-native-audio-api` never
-   * enters the bundle.
-   */
-  voiceSession?: VoiceSessionComponent;
+  /** The chat's voice call: on by default, `false` for text only, an object for the host's callbacks. */
+  voice?: AliaChatContentProps['voice'];
   /** Overrides for the chat's own copy (header, composer, plan, research…); omitted, English. */
   labels?: Partial<AliaChatLabels>;
   /** Where the 3D avatar's runtime is served from; omitted, Alia's shared copy (`ALIA_CHARACTER_RUNTIME_URL`). */
@@ -86,7 +81,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       suggestionMatches,
       onSuggestionQuery,
       isDarkMode,
-      voiceSession,
+      voice,
       labels,
       characterRuntimeUrl = ALIA_CHARACTER_RUNTIME_URL,
       onShare,
@@ -176,7 +171,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       model,
       apiUrl,
       isDarkMode: isDarkMode ?? isDark,
-      voiceSession,
+      voice,
       bottomInset: detached ? 0 : bottom,
       labels,
     };

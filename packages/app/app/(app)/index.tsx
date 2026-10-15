@@ -1,3 +1,4 @@
+import { useAppVoice } from '@/features/chat/runtime/use-app-voice';
 import { ChatPageContent } from '@/features/chat/ui/chat-page-content';
 import { WelcomeIntro, type WelcomeIntroSlots } from '@/features/chat/ui/welcome-intro';
 import { useModeSelection } from '@/features/chat/ui/composer/power-level-options';
@@ -118,11 +119,14 @@ const ChatPage = () => {
     }
   }, [createConversation, router, t]);
 
+  // The new-chat screen holds no call: after the gate it opens a conversation to hold it.
+  const voice = useAppVoice({ openElsewhere: () => void handleVoiceStart() });
+
   /** The chat, or the welcome inside the same container while it shows. */
   const chat = (intro?: WelcomeIntroSlots) => (
     <ChatPageContent
       intro={intro}
-      onVoiceStart={handleVoiceStart}
+      voice={voice}
       // No `conversationId`, deliberately: this is the new-chat screen,
       // and its absence is what `ChatPageContent` reads to decide which
       // mounted instance's draft is the new chat's. The drawer keeps

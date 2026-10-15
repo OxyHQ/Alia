@@ -8,36 +8,10 @@ import { Loading } from '@oxy.so/bloom/loading';
 import { Text } from '@oxy.so/bloom/typography';
 import { VoiceControls as BloomVoiceControls, type VoiceState } from '@oxy.so/bloom/voice';
 import { View } from 'react-native';
+import { VOICE_CONTROLS_LABELS, type VoiceControlsLabels } from '../../lib/voice-controls-labels';
 import type { RoomState, AgentState, VoiceCallState } from '../../types';
 
-/** Every word the bar shows or announces. An app in another language passes its own. */
-export interface VoiceControlsLabels {
-  connecting: string;
-  reconnecting: string;
-  connected: string;
-  listening: string;
-  muted: string;
-  thinking: string;
-  usingTool: string;
-  speaking: string;
-  mute: string;
-  unmute: string;
-  end: string;
-}
-
-export const VOICE_CONTROLS_LABELS: VoiceControlsLabels = {
-  connecting: 'Connecting...',
-  reconnecting: 'Reconnecting...',
-  connected: 'Connected',
-  listening: 'Listening...',
-  muted: 'Muted',
-  thinking: 'Thinking...',
-  usingTool: 'Working on it...',
-  speaking: 'Speaking...',
-  mute: 'Mute',
-  unmute: 'Unmute',
-  end: 'End',
-};
+export { VOICE_CONTROLS_LABELS, type VoiceControlsLabels };
 
 export interface VoiceControlsProps {
   roomState: RoomState;

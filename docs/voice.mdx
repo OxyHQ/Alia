@@ -11,7 +11,7 @@ no surface uses the browser's or the operating system's speech recognition.
 
 | Feature | Hook | What it does | Route |
 |---|---|---|---|
-| Voice call | `useVoiceRoom` (app: `use-voice-mode.ts`) | A spoken conversation, full duplex, turn detection and barge-in on the server | `GET /v1/voice/session` (WebSocket) |
+| Voice call | `useVoiceRoom` (screen: `VoiceSession` / `useVoiceLauncher`) | A spoken conversation, full duplex, turn detection and barge-in on the server | `GET /v1/voice/session` (WebSocket) |
 | Dictation | `useDictation` (in `AliaComposer`) | The composer's microphone: one recorded clip becomes text in the draft | `POST /v1/audio/transcriptions` |
 | Read aloud | `useTTS` | A message, spoken on request (unchanged) | `POST /v1/audio/speech` |
 
@@ -245,10 +245,15 @@ engine's first captured buffer **and** `input.ready`; `user-speaking`, `thinking
 `ended { reason }`, `error { code }`. Levels come from the real buffers; no state is
 inferred from a timer. Mute stops sending audio.
 
-The app (`use-voice-mode.ts`) opens the call on the conversation on screen with its
-agent, the product voice and `speechLocale()`, refreshes the thread on
-`messages.saved`, and ends the call when the screen loses focus, the conversation or
-the account changes.
+The call is part of the SDK's conversation screen (`AliaChatContent`, so the sheet,
+`AliaChatScreen` and the app alike): the button, the bar, the notices (failure, moved to
+another device, time limit) and the transcript. `VoiceSession` says what happened through
+`labels` and `onNotice`; `useVoiceLauncher` owns the gate (`canStartVoice` /
+`onVoiceBlocked`), the end of a call that stops being the screen's (`owner`, `isFocused`)
+and `onCallEnded`. The app only answers them (`features/chat/runtime/use-app-voice.ts`:
+its API, the voice and `speechLocale()`, plan and credits, what to refresh on
+`messages.saved` and at the end) and supplies the catalogue
+(`features/voice/ui/voice-labels-provider.tsx`).
 
 ## Dictation
 

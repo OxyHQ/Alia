@@ -1,13 +1,15 @@
 /**
  * Shared chat content component used by both AliaChatSheet and AliaChatScreen.
  *
- * Owns the text chat; voice is an injected capability (`voiceSession`) so that
- * nothing here reaches the call or its audio engine at module-evaluation time. Containers
+ * Owns the text chat and its voice call: the button that opens it, the bar that replaces the
+ * composer, the notices and the transcript in the thread. The call loads on the first call, so
+ * nothing here reaches its audio engine at module-evaluation time. Containers
  * only handle layout chrome (sheet modal, full-screen SafeAreaView). The
  * breadcrumb header is Bloom's `AiChatContainer`, the one the app's conversation uses.
  */
 
-import React, { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import type React from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, type TextInput } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import { turnActivityState } from '../lib/turn-state';
@@ -39,14 +41,9 @@ import { Button } from '@oxy.so/bloom/button';
 import { type AliaChatLabels, AliaChatLabelsProvider, useLabels } from '../lib/labels';
 import type { AliaAvatarState } from './AliaAvatar';
 import { VoiceModeIcon } from './VoiceModeIcon';
-import type {
-  AliaAttachment,
-  AliaSuggestion,
-  ChatMessage,
-  VoiceMessage,
-  VoiceSessionComponent,
-  VoiceSessionState,
-} from '../types';
+import { AliaVoiceCall } from './voice/AliaVoiceCall';
+import { useVoiceLauncher, type UseVoiceLauncherOptions } from '../hooks/useVoiceLauncher';
+import type { AliaAttachment, AliaSuggestion, ChatMessage, VoiceMessage } from '../types';
 
 /** The distinct delegated agents among `messages`, in the order they first answered. */
 function participatingAgents(messages: readonly ChatMessage[]): AliaChatAgent[] {
@@ -112,11 +109,13 @@ export interface AliaChatContentProps {
   /** Dark-mode flag — forwarded to the ambient wave overlay. */
   isDarkMode?: boolean;
   /**
-   * Voice capability — pass `VoiceSession` from `@alia.onl/sdk/voice` to offer
-   * voice calls. Omitted, the chat is text-only and no LiveKit code is reachable
-   * from this module. May be a `React.lazy` component.
+   * The chat's voice call. On by default; `false` makes the chat text-only. An object brings
+   * what only the host knows: the gate before a call (`canStartVoice`, `onVoiceBlocked`), what
+   * to refresh when one ends (`onCallEnded`), where its notices go (`onNotice`), the
+   * conversation and agent it speaks in, and the screen/account it belongs to (`owner`,
+   * `isFocused`).
    */
-  voiceSession?: VoiceSessionComponent;
+  voice?: false | AliaVoiceOptions;
   /**
    * Space the composer keeps clear at the bottom edge, in px — the home indicator, when the
    * chat is flush with the screen (a phone sheet). The ambient background still runs behind it.
@@ -147,6 +146,9 @@ export interface AliaChatContentProps {
   /** Overrides for the chat's own copy; anything omitted is English. */
   labels?: Partial<AliaChatLabels>;
 }
+
+/** What a host tells the chat about its voice call (see {@link UseVoiceLauncherOptions}). */
+export type AliaVoiceOptions = Omit<UseVoiceLauncherOptions, 'apiUrl'>;
 
 /** The chat API carries photos (`image_url` parts) and nothing else. */
 const PHOTOS_ONLY = ['image'] as const;
@@ -192,7 +194,7 @@ function AliaChatContentBody({
   renderMarkdown,
   header,
   isDarkMode,
-  voiceSession: VoiceSession,
+  voice: voiceOptions,
   bottomInset = 0,
   onStart,
   agents: knownAgents,
@@ -325,11 +327,15 @@ function AliaChatContentBody({
   // ── TTS ──
   const tts = useTTS({ apiUrl });
 
-  // ── Voice mode state ──
-  // `isVoiceActive` mounts the session; `voiceState` is what the session reports
-  // back, and stays null until the call is under way.
-  const [isVoiceActive, setIsVoiceActive] = useState(false);
-  const [voiceState, setVoiceState] = useState<VoiceSessionState | null>(null);
+  // ── Voice call ──
+  // The launcher owns whether a call is open and what it reports back; the call itself loads
+  // on the first one. The transcript is merged into the thread below.
+  const voiceEnabled = voiceOptions !== false;
+  const launcher = useVoiceLauncher({
+    apiUrl,
+    ...(voiceOptions === false ? {} : voiceOptions),
+  });
+  const { isActive: isVoiceActive, state: voiceState } = launcher;
   const textSnapshotRef = useRef<ChatMessage[]>([]);
 
   // Merge voice messages into chat messages
@@ -341,25 +347,12 @@ function AliaChatContentBody({
 
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  const startLauncher = launcher.start;
   const activateVoice = useCallback(() => {
     if (isVoiceActive) return;
     textSnapshotRef.current = [...messagesRef.current];
-    setIsVoiceActive(true);
-  }, [isVoiceActive]);
-
-  // Unmounting the session disconnects the room; the transcript merged above
-  // stays in the chat.
-  // A call that fails ends the same way a hang-up does, but the person is told why: a
-  // button that silently does nothing reads as broken.
-  const deactivateVoice = useCallback(
-    (error?: string) => {
-      setIsVoiceActive(false);
-      setVoiceState(null);
-      textSnapshotRef.current = [];
-      if (error) reportError(error, labels.voiceFailed);
-    },
-    [reportError, labels.voiceFailed],
-  );
+    startLauncher();
+  }, [isVoiceActive, startLauncher]);
 
   // ── TTS read aloud handler ──
   const { readAloud } = tts;
@@ -412,10 +405,10 @@ function AliaChatContentBody({
   // conversation being read keeps the hook's subtle one, so the text stays easy to read.
   const ambientIntensity = isVoiceActive || messages.length === 0 ? 1 : wave.intensity;
 
-  // ── Voice activate button for empty submit (only if voice was provided) ──
+  // ── Voice activate button for empty submit (unless voice is off) ──
   const voiceActivateButton = useMemo(
     () =>
-      VoiceSession ? (
+      voiceEnabled ? (
         <Button
           iconOnly
           tone="action"
@@ -425,18 +418,15 @@ function AliaChatContentBody({
           leadingIcon={VoiceModeIcon}
         />
       ) : undefined,
-    [VoiceSession, activateVoice, labels.startVoice],
+    [voiceEnabled, activateVoice, labels.startVoice],
   );
 
   const composerRef = useRef<TextInput | null>(null);
   useFocusWhenPresented(presentedProgress, () => composerRef.current?.focus());
 
   const composer =
-    VoiceSession && isVoiceActive ? (
-      /* Suspense so the session may be handed to us as a React.lazy import. */
-      <Suspense fallback={null}>
-        <VoiceSession apiUrl={apiUrl} onStateChange={setVoiceState} onEnd={deactivateVoice} />
-      </Suspense>
+    voiceEnabled && isVoiceActive ? (
+      <AliaVoiceCall {...launcher.sessionProps} />
     ) : (
       <AliaComposer
         apiUrl={apiUrl}

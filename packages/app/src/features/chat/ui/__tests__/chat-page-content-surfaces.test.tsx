@@ -21,20 +21,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * What this file pins is the half that lives in the app: which of the two the
  * screen draws, and that the draft typed or dictated before the call is still
  * there after it. `Composer` is a probe that records it was mounted and what it
- * was handed; the call bar is a probe that records its labels.
+ * was handed; the call bar is a probe.
  */
 
 const mounts = vi.hoisted(() => ({ composer: 0, composerUnmounts: 0, lastValue: '' as string }));
 const dismissed = vi.hoisted(() => ({ fn: vi.fn() }));
-const bar = vi.hoisted(() => ({ labels: null as Record<string, string> | null }));
 
 vi.mock('@alia.onl/sdk/voice', async () => {
-  const ReactModule = await import('react');
   return {
-    VoiceControls: (props: { labels: Record<string, string> }) => {
-      bar.labels = props.labels;
-      return ReactModule.createElement('VoiceControls', props);
-    },
     useAmbientWave: () => ({ waveAmplitude: 0, agentState: 'idle', intensity: 0 }),
   };
 });
@@ -60,6 +54,8 @@ vi.mock('@alia.onl/sdk', async () => {
   const { pendingQuestions } = await import('@alia.onl/sdk/tools');
   return {
     VoiceModeIcon: () => null,
+    // The SDK's call bar (its own tests pin what it says): a probe that records it was drawn.
+    AliaVoiceCall: (props: object) => ReactModule.createElement('VoiceControls', props),
     // The SDK's hook, as far as this screen is concerned: which questions are pending (the
     // pure rule) and a dismissal it hands back. Its own tests pin when a dismissal holds.
     usePendingQuestions: (messages: unknown[], streaming: boolean) => ({
@@ -171,19 +167,15 @@ vi.mock('react-native', async () => {
 
 import { ChatPageContent } from '@/features/chat/ui/chat-page-content';
 
-function voice(isVoiceActive: boolean) {
+function voice(isActive: boolean) {
   return {
-    isVoiceActive,
-    activateVoice: vi.fn(),
-    deactivateVoice: vi.fn(),
-    roomState: isVoiceActive ? 'connected' : 'disconnected',
-    agentState: isVoiceActive ? 'listening' : 'idle',
-    isMuted: false,
-    isConnected: isVoiceActive,
-    toggleMute: vi.fn(),
-    waveAmplitude: 0,
-    captureLevel: 0,
-    playbackLevel: 0,
+    isActive,
+    state: isActive
+      ? { isConnected: true, agentState: 'listening', waveAmplitude: { value: 0 }, messages: [] }
+      : null,
+    start: vi.fn(),
+    end: vi.fn(),
+    sessionProps: { onStateChange: vi.fn(), onEnd: vi.fn() },
   } as const;
 }
 
@@ -204,7 +196,6 @@ beforeEach(() => {
   mounts.composer = 0;
   mounts.composerUnmounts = 0;
   mounts.lastValue = '';
-  bar.labels = null;
   focus.isFocused = true;
 });
 
@@ -249,17 +240,6 @@ describe('a call replaces dictation', () => {
       renderer.update(screen(false));
     });
     expect(mounts.lastValue).toBe('dictado a medias');
-  });
-
-  it("labels the call bar in the app's language", () => {
-    act(() => {
-      create(screen(true));
-    });
-    expect(bar.labels).toMatchObject({
-      listening: 't:voice.controls.listening',
-      mute: 't:voice.controls.mute',
-      end: 't:voice.controls.end',
-    });
   });
 });
 

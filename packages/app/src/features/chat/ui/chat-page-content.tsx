@@ -6,20 +6,16 @@ import { useAliaComposer } from '@/features/chat/ui/composer/use-alia-composer';
 import { useComposerSuggestions } from '@/features/chat/ui/composer/composer-suggestions';
 import { useCreditWarnings } from '@/features/chat/runtime/use-credit-warnings';
 import { useLocalModelsInvite } from '@/features/chat/runtime/use-local-models-invite';
-import { useEntitlements } from '@/features/billing/runtime/use-billing';
-import { useCredits } from '@/features/billing/runtime/use-credits';
 import { useRecordSuggestionUsage, type Suggestion } from '@/features/chat/runtime/use-suggestions';
 import { Button } from '@oxy.so/bloom/button';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
-import { useRouter } from 'expo-router';
 import { useScreenOnShow } from '@/shared/platform/use-screen-on-show';
 import type { AliaAttachment } from '@alia.onl/sdk';
 import type { AgentActivityState } from '@/features/chat/runtime/use-agent-activity';
 import type { FailedTurn } from '@/features/chat/runtime/use-streaming-chat';
 import type { SendOptions } from '@/shared/contracts/chat-turn';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import type { useVoiceMode } from '@/features/voice/runtime/use-voice-mode';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { useTurnEdit } from '@/features/chat/runtime/use-turn-edit';
 import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
@@ -30,8 +26,15 @@ import type { ThreadMessage } from '@/features/chat/model/thread-history';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
 import type { Message } from '@/features/chat/model/chat';
 import { useTTS } from '@/features/voice/runtime/use-tts';
-import { AliaComposer, AmbientField, usePendingQuestions, VoiceModeIcon } from '@alia.onl/sdk';
-import { VoiceControls, useAmbientWave } from '@alia.onl/sdk/voice';
+import {
+  AliaComposer,
+  AliaVoiceCall,
+  AmbientField,
+  usePendingQuestions,
+  VoiceModeIcon,
+  type VoiceLauncher,
+} from '@alia.onl/sdk';
+import { useAmbientWave } from '@alia.onl/sdk/voice';
 import { AiChatMobileHeader, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
 import { useAuth } from '@oxy.so/services';
@@ -90,8 +93,6 @@ import { KeyboardSafeAreaFloor } from '@/shared/platform/keyboard';
  * one MEANS, and the toast that says it happened.
  */
 
-type VoiceState = ReturnType<typeof useVoiceMode>;
-
 interface ChatPageContentProps {
   messages: Message[];
   isLoading: boolean;
@@ -118,7 +119,7 @@ interface ChatPageContentProps {
   turnOptionsOf?: (userMessageId: string) => SendOptions | undefined;
   disabled?: boolean;
   conversationLoading?: boolean;
-  voice?: VoiceState;
+  voice?: VoiceLauncher;
   agentActivity?: AgentActivityState | null;
   /** The agent this thread belongs to, for the title when the chat has none. */
   agentName?: string;
@@ -154,8 +155,6 @@ interface ChatPageContentProps {
    */
   failedTurn?: FailedTurn | null;
   onRetryTurn?: () => void;
-  /** Start voice mode where this screen has no voice session of its own (the new-chat screen). */
-  onVoiceStart?: () => void;
   /** The power level this chat sends with (a conversation remembers its own). */
   selectedModel?: string | null;
   onModelChange?: (level: string) => void;
@@ -203,7 +202,6 @@ export const ChatPageContent = ({
   onRetryTurn,
   selectedModel,
   onModelChange,
-  onVoiceStart,
   intro,
   headerActions,
 }: ChatPageContentProps) => {
@@ -244,7 +242,8 @@ export const ChatPageContent = ({
   useLocalModelsInvite(intro === undefined);
   useCreditWarnings(intro === undefined);
 
-  const isVoiceActive = voice?.isVoiceActive ?? false;
+  const isVoiceActive = voice?.isActive ?? false;
+  const voiceState = voice?.state ?? null;
   // The text is the draft's too: a draft handed over by another route, or
   // handed back by a send that failed, is simply there.
   const inputValue = composer.text;
@@ -257,12 +256,12 @@ export const ChatPageContent = ({
   // across idle, voice, read-aloud and dictation (STT is read inside
   // useAmbientWave from the SDK store).
   const wave = useAmbientWave({
-    voice: voice
+    voice: voiceState
       ? {
-          isActive: voice.isVoiceActive,
-          isConnected: voice.isConnected,
-          agentState: voice.agentState,
-          waveAmplitude: voice.waveAmplitude,
+          isActive: isVoiceActive,
+          isConnected: voiceState.isConnected,
+          agentState: voiceState.agentState,
+          waveAmplitude: voiceState.waveAmplitude,
         }
       : undefined,
     isTTSPlaying: ttsPlaybackState === 'playing',
@@ -306,60 +305,22 @@ export const ChatPageContent = ({
   const jumpToEnd = useCallback(() => threadRef.current?.scrollToEnd({ animated: false }), []);
 
   /**
-   * Voice mode, from the send slot while the composer is empty — as it was
-   * before the composer became Bloom's panel. It needs an account, a plan
-   * with voice, and credits.
+   * Voice mode, from the send slot while the composer is empty. The gate (an
+   * account, a plan with voice, credits) and what is said when it holds are the
+   * SDK's launcher's; the app answers it in `useAppVoice`.
    */
-  const { data: entitlements } = useEntitlements();
-  const { data: creditsInfo } = useCredits();
-  const router = useRouter();
-  const handleVoiceActivate = useCallback(() => {
-    if (!isAuthenticated) {
-      signIn().catch(() => {});
-      return;
-    }
-    if (!entitlements?.features['voice-mode']) {
-      toast.info(t('subscribe.featureRequiresPlan', { feature: t('modes.voiceMode') }));
-      router.push('/(biglayout)/subscribe');
-      return;
-    }
-    if (creditsInfo && creditsInfo.credits <= 0) {
-      toast.error(t('usageLimit.outOfCreditsTitle'));
-      return;
-    }
-    if (voice) voice.activateVoice();
-    else onVoiceStart?.();
-  }, [isAuthenticated, signIn, entitlements, creditsInfo, t, router, voice, onVoiceStart]);
-  /** The call bar's words, in the app's language. */
-  const voiceControlLabels = useMemo(
-    () => ({
-      connecting: t('voice.controls.connecting'),
-      reconnecting: t('voice.controls.reconnecting'),
-      connected: t('voice.controls.connected'),
-      listening: t('voice.controls.listening'),
-      muted: t('voice.controls.muted'),
-      thinking: t('voice.controls.thinking'),
-      usingTool: t('voice.controls.usingTool'),
-      speaking: t('voice.controls.speaking'),
-      mute: t('voice.controls.mute'),
-      unmute: t('voice.controls.unmute'),
-      end: t('voice.controls.end'),
-    }),
-    [t],
-  );
-  const voiceAction =
-    voice || onVoiceStart ? (
-      // Alia's voice button: its own glyph (as it has always been), in the
-      // composer's action tone.
-      <Button
-        iconOnly
-        size="md"
-        tone="action"
-        leadingIcon={VoiceModeIcon}
-        accessibilityLabel={t('modes.voiceMode')}
-        onPress={handleVoiceActivate}
-      />
-    ) : undefined;
+  const voiceAction = voice ? (
+    // Alia's voice button: its own glyph (as it has always been), in the
+    // composer's action tone.
+    <Button
+      iconOnly
+      size="md"
+      tone="action"
+      leadingIcon={VoiceModeIcon}
+      accessibilityLabel={t('modes.voiceMode')}
+      onPress={voice.start}
+    />
+  ) : undefined;
 
   useEffect(() => {
     useStore.getState().setGhostMode(false);
@@ -496,16 +457,7 @@ export const ChatPageContent = ({
       composer={
         isVoiceActive && voice ? (
           <View style={{ paddingBottom: insets.bottom }}>
-            <VoiceControls
-              roomState={voice.roomState}
-              agentState={voice.agentState}
-              isMuted={voice.isMuted}
-              onToggleMute={voice.toggleMute}
-              onEnd={voice.deactivateVoice}
-              notice={voice.notice}
-              callState={voice.callState}
-              labels={voiceControlLabels}
-            />
+            <AliaVoiceCall {...voice.sessionProps} />
           </View>
         ) : (
           // A fragment, as in the template: the footer's gap spaces the pill
@@ -589,7 +541,7 @@ export const ChatPageContent = ({
         isLoading={isLoading}
         conversationLoading={conversationLoading}
         bottomPadding={0}
-        voiceAgentState={voice?.agentState}
+        voiceAgentState={voiceState?.agentState}
         historyMessages={historyMessages}
         isLoadingHistory={isLoadingHistory}
         activeConversationId={conversationId}

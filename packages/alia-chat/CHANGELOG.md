@@ -1,5 +1,33 @@
 # @alia.onl/sdk
 
+## 16.0.0
+
+Voice is part of the conversation screen. The sheet, `AliaChatScreen` and the Alia app now run
+the same call, with the same words and the same behaviour, instead of each orchestrating it.
+
+- **Breaking: the `voiceSession` prop is gone** from `AliaChatContent`, `AliaChatScreen` and
+  `AliaChatSheet`, together with the `VoiceSessionComponent` type. Voice is on by default; pass
+  `voice={false}` for a text-only chat. `voice={{ ... }}` (`AliaVoiceOptions`) brings the host's
+  part: `canStartVoice` (answers `'sign-in' | 'plan-required' | 'credits-exhausted' | null`;
+  the SDK tells the person, `onVoiceBlocked` adds navigation or sign-in), `onCallEnded` (refresh
+  credits and the thread), `onNotice` (default: Bloom's toast), `conversationId`, `agentId`,
+  `locale`, `voice` (`'male' | 'female'`), `onMessagesSaved`, `owner` and `isFocused` (a live
+  call ends when the screen is no longer on show or the account/conversation changes) and
+  `openElsewhere` (a screen with no conversation to hold the call opens one and hands over).
+- **Breaking: `VoiceSessionProps.onEnd` takes no argument.** `VoiceSession` itself says why a
+  call failed (`labels.voiceError(code)`), that it ended without failing
+  (`labels.voiceEnded(reason)`: moved to another device, time limit, silence, credits, server
+  shutdown; a hang-up says nothing) and, once, that it is about to end
+  (`labels.voiceEndingSoon`, also shown in the bar), through `onNotice`. New `onMessagesSaved`
+  and `onNotice` props.
+- **Breaking: labels.** `voiceFailed` is replaced by `voiceControls`, `voiceEnded`,
+  `voiceEndingSoon` and `voiceBlocked`. `AliaChatLabelsProvider` and `useLabels` are exported.
+- **New:** `useVoiceLauncher` (the host side of a call: gate, state, ownership), `AliaVoiceCall`
+  (the call bar, loaded on its first use), `toastNotice`, `VoiceNotice`, `VoiceBlockReason`.
+- **Breaking: `react-native-audio-api` is a required peer** (it was optional): the conversation
+  screen includes the call. It is still only evaluated on the first call (one lazy `import()`),
+  and `check:entries` now holds that, not the old isolation.
+
 ## 15.3.0
 
 - **The composer is Bloom's `ComposerPill`.** `AliaComposer` (the sheet's, the screen's and the

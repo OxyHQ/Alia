@@ -1,6 +1,11 @@
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
 import { VOICE_ERROR_MESSAGES, type VoiceErrorCode } from './speech-messages';
 import { englishWorkLog, type Translate } from './work-log-copy';
+import { VOICE_CONTROLS_LABELS, type VoiceControlsLabels } from './voice-controls-labels';
+import type { VoiceCloseReason } from './voice-protocol';
+
+/** Why a call could not be opened; the host's `canStartVoice` answers with one. */
+export type VoiceBlockReason = 'sign-in' | 'plan-required' | 'credits-exhausted';
 
 /** Every string the chat UI draws itself. Bloom's own copy follows `BloomProvider locale`. */
 export interface AliaChatLabels {
@@ -15,7 +20,14 @@ export interface AliaChatLabels {
   addMenuGroup: string;
   addPhotos: string;
   startVoice: string;
-  voiceFailed: string;
+  /** The call bar's words (status, mute, end). */
+  voiceControls: VoiceControlsLabels;
+  /** Why a call ended without failing; `null` for a hang-up (the person knows). */
+  voiceEnded: (reason: VoiceCloseReason) => string | null;
+  /** Said once, and shown in the bar, when the call is about to reach its time limit. */
+  voiceEndingSoon: string;
+  /** Why a call was not opened, told instead of a button that silently does nothing. */
+  voiceBlocked: (reason: VoiceBlockReason) => string;
   /** The field's accessible name. */
   composerMessage: string;
   /** The add button's accessible name. */
@@ -74,6 +86,20 @@ export interface AliaChatLabels {
   // Research
 }
 
+const ENDED_ENGLISH: Partial<Record<VoiceCloseReason, string>> = {
+  'call-moved-elsewhere': 'The call continues on your other device',
+  'max-duration': 'The call reached its time limit',
+  'idle-timeout': 'The call ended after two minutes of silence',
+  'credits-exhausted': 'The call ended: you ran out of credits',
+  'server-shutdown': 'The call ended while Alia was updating — start a new one',
+};
+
+const BLOCKED_ENGLISH: Record<VoiceBlockReason, string> = {
+  'sign-in': 'Sign in to use voice',
+  'plan-required': 'Voice mode needs a paid plan',
+  'credits-exhausted': "You've run out of credits",
+};
+
 export const DEFAULT_LABELS: AliaChatLabels = {
   clear: 'Clear',
   back: 'Back',
@@ -84,7 +110,10 @@ export const DEFAULT_LABELS: AliaChatLabels = {
   addMenuGroup: 'Add',
   addPhotos: 'Photos',
   startVoice: 'Start voice',
-  voiceFailed: "Couldn't start the voice call",
+  voiceControls: VOICE_CONTROLS_LABELS,
+  voiceEnded: (reason) => ENDED_ENGLISH[reason] ?? null,
+  voiceEndingSoon: 'One minute left in this call',
+  voiceBlocked: (reason) => BLOCKED_ENGLISH[reason],
   composerMessage: 'Message',
   composerAddMenu: 'Add to chat',
   composerModes: 'Power level',

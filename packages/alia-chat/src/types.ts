@@ -1,4 +1,3 @@
-import type { ComponentType } from 'react';
 import type { SharedValue } from 'react-native-reanimated';
 import type { VoiceErrorCode } from './lib/speech-messages';
 import type { VoiceCloseReason } from './lib/voice-protocol';
@@ -173,18 +172,21 @@ export interface VoiceSessionProps {
   locale?: string;
   /** Which of the product's two voices answers. */
   voice?: 'male' | 'female';
+  /** Alia stored messages of the call in the conversation: refresh the thread. */
+  onMessagesSaved?: (conversationId: string, messageIds: readonly string[]) => void;
+  /**
+   * What the call tells the person, in the chat's language (`labels`): a failure, a call moved
+   * to another device, the time limit near. Omitted, Bloom's toast.
+   */
+  onNotice?: (notice: VoiceNotice) => void;
   /** Called on every room, agent, or transcript change. */
   onStateChange: (state: VoiceSessionState) => void;
-  /**
-   * The call is over — the user ended it, it errored, or the room dropped. When it
-   * failed, say why, so the shell can tell the person instead of silently going back.
-   */
-  onEnd: (error?: string) => void;
+  /** The call is over: hung up, failed, ended by the server or dropped. The person was told why. */
+  onEnd: () => void;
 }
 
-/**
- * The voice capability handed to `AliaChatScreen` / `AliaChatSheet`. Pass
- * `VoiceSession` from `@alia.onl/sdk/voice` to enable voice calls; leave it out
- * and the chat is text-only, with the audio engine absent from the module graph.
- */
-export type VoiceSessionComponent = ComponentType<VoiceSessionProps>;
+/** Something the call tells the person: a failure, how it ended, or that it is about to end. */
+export interface VoiceNotice {
+  kind: 'error' | 'info' | 'warning';
+  text: string;
+}

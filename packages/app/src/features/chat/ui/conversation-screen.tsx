@@ -23,7 +23,7 @@ import type { AliaAttachment } from '@alia.onl/sdk';
 import { useThreadHistory } from '@/features/chat/runtime/use-thread-history';
 import { useThreadWindow, type ThreadSearchHit } from '@/features/chat/runtime/use-thread-search';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { useVoiceMode } from '@/features/voice/runtime/use-voice-mode';
+import { useAppVoice } from '@/features/chat/runtime/use-app-voice';
 import { useModelStore } from '@/features/chat/runtime/model-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import type { Message } from '@/features/chat/model/chat';
@@ -308,10 +308,10 @@ export const ConversationScreen = ({
    * nothing is saved when the call ends.
    */
   // And it is this conversation's, this account's and this screen's: it ends
-  // when any of the three stops being true (see `use-voice-mode.ts`).
+  // when any of the three stops being true (the SDK's `useVoiceLauncher`).
   const { user } = useOxy();
   const isFocused = useScreenOnShow();
-  const voice = useVoiceMode({
+  const voice = useAppVoice({
     conversationId,
     ...(agentId === undefined ? {} : { agentId }),
     owner: `${user?.id ?? 'guest'}:${conversationId}`,
@@ -321,17 +321,17 @@ export const ConversationScreen = ({
   // Auto-activate voice when navigated with startVoice (once only)
   const voiceAutoStartedRef = useRef(false);
   useEffect(() => {
-    if (startVoice && !voiceAutoStartedRef.current && voice.roomState === 'disconnected') {
+    if (startVoice && !voiceAutoStartedRef.current && !voice.isActive) {
       voiceAutoStartedRef.current = true;
-      voice.activateVoice();
+      voice.start();
     }
-  }, [startVoice, voice.roomState]);
+  }, [startVoice, voice]);
 
   // Sound effects for voice mode (thinking, tool calls, connect/disconnect)
   useVoiceSoundEffects({
-    isVoiceActive: voice.isVoiceActive,
-    agentState: voice.agentState,
-    isConnected: voice.isConnected,
+    isVoiceActive: voice.isActive,
+    agentState: voice.state?.agentState ?? 'idle',
+    isConnected: voice.state?.isConnected ?? false,
   });
 
   // Check both instanceof AND name — Hermes can break instanceof for Error subclasses

@@ -91,7 +91,7 @@ export function useSoundEffects(enabled: boolean = false, sounds: SoundSources =
 
 /**
  * Hook that automatically triggers sound effects based on voice state changes.
- * Wire this into the conversation page alongside useVoiceMode.
+ * Wire this into the conversation page from the launcher's state (`useVoiceLauncher`).
  */
 export function useVoiceSoundEffects({
   isVoiceActive,
