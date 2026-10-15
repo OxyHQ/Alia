@@ -41,6 +41,7 @@ export function useGenerateAgent() {
       archetype: AgentArchetype,
       /** The new agent's `publisher/model`, or `null` for the server's default. */
       modelId: string | null = null,
+      options: { startWithoutCapabilities?: boolean } = {},
     ): Promise<GeneratedAgent> => {
       // Step 1: AI generates agent config from prompt. `suggestedUsername` is a
       // PROPOSAL — Oxy owns the handle namespace and resolves collisions.
@@ -104,7 +105,7 @@ export function useGenerateAgent() {
         description: config.description,
         category: config.category,
         tags: config.tags,
-        capabilityGrants: config.capabilityGrants,
+        capabilityGrants: options.startWithoutCapabilities ? [] : config.capabilityGrants,
         systemPrompt: config.systemPrompt,
         modelId,
         isPublished: false,
