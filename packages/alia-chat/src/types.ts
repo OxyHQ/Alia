@@ -9,6 +9,20 @@ export interface AliaSuggestion {
   text: string;
 }
 
+// ── Composer Types ──
+
+/** A file in the composer's draft, on its way into a turn. */
+export interface AliaAttachment {
+  id: string;
+  /** A `data:` URL once read; a picker's `blob:`/`file:` URI for a photo not yet read. */
+  uri: string;
+  type: 'image' | 'document';
+  name: string;
+  size: number;
+  mimeType: string;
+  isLoading?: boolean;
+}
+
 // ── Chat Message Types ──
 
 export interface ResearchSource {

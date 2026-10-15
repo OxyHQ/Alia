@@ -8,7 +8,8 @@ import {
   useComposerDraftStore,
 } from '@/features/chat/runtime/composer-draft-store';
 import { useStreamingChat } from '@/features/chat/runtime/use-streaming-chat';
-import type { Attachment, SendOptions } from '@/shared/contracts/chat-turn';
+import type { SendOptions } from '@/shared/contracts/chat-turn';
+import type { AliaAttachment } from '@alia.onl/sdk';
 import {
   ConversationNotFoundError,
   useClearConversation,
@@ -330,7 +331,7 @@ export function useChatConversation({
   const sendMessage = useCallback(
     async (
       content: string,
-      attachments?: Attachment[],
+      attachments?: AliaAttachment[],
       options?: SendOptions,
     ): Promise<boolean> => {
       if ((!content.trim() && !attachments?.length) || isLoading) return false;
@@ -369,7 +370,7 @@ export function useChatConversation({
   const createNewConversation = useCallback(
     async (
       initialMessage: string,
-      attachments?: Attachment[],
+      attachments?: AliaAttachment[],
       options?: SendOptions,
     ): Promise<boolean> => {
       if (!initialMessage.trim() && !attachments?.length) return false;
@@ -428,7 +429,7 @@ export function useChatConversation({
       messageId: string,
       newContent: EditedContent,
       options?: SendOptions,
-      attachments?: Attachment[],
+      attachments?: AliaAttachment[],
     ): Promise<boolean> => {
       // Truncate to messages before the edited one, then re-send.
       // setMessages eagerly syncs messagesRef so append reads truncated history.

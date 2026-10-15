@@ -8,33 +8,32 @@
  */
 
 import React, { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { View } from 'react-native';
+import { View, type TextInput } from 'react-native';
+import type { SharedValue } from 'react-native-reanimated';
 import { useAliaChat, type UseAliaChatOptions } from '../hooks/useAliaChat';
 import { useTTS } from '../hooks/useTTS';
-import { useSpeechToText } from '../hooks/useSpeechToText';
+import { useFocusWhenPresented } from '../hooks/useFocusWhenPresented';
+import { usePendingQuestions } from '../hooks/usePendingQuestions';
 import { useImagePicker } from '../hooks/useImagePicker';
 import { imageUriToDataUrl } from '../lib/image-data-url';
 import { useAmbientWave } from '../hooks/useAmbientWave';
 import { AmbientField } from './AmbientField';
-import { QuestionCard } from './QuestionCard';
 import { getAccountDisplayName } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services/ui/client';
 import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
 import { ALIA_CHARACTER_RUNTIME_URL } from '../lib/character-runtime';
-import { pendingQuestions } from '../lib/questions';
 import { AliaChatMessageList } from './AliaChatMessageList';
 import { AliaFlightsProvider, ALIA_TO_PROFILE } from '../lib/flights';
 import { AliaWelcomeMessage } from './AliaWelcomeMessage';
-import { ComposerSuggestions } from './ComposerSuggestions';
+import { AliaComposer } from './AliaComposer';
 import { useComposerSuggestions, useSuggestionQuery } from '../hooks/useComposerSuggestions';
-import { ComposerLoader } from '@oxy.so/bloom/composer-loader';
 import { AiChatContainer } from '@oxy.so/bloom/ai-chat';
 import {
   AvatarFlightLayer,
   useAvatarFlights,
   type AvatarFlights,
 } from '@oxy.so/bloom/avatar-flight';
-import { ComposerPill, type ComposerPanelAddMenuGroup } from '@oxy.so/bloom/composer-panel';
+import type { ComposerPanelAddMenuGroup } from '@oxy.so/bloom/composer-panel';
 import { RiImageLine } from '@oxy.so/bloom/icons';
 import { toast } from '@oxy.so/bloom/toast';
 import { Button } from '@oxy.so/bloom/button';
@@ -42,6 +41,7 @@ import { type AliaChatLabels, AliaChatLabelsProvider, useLabels } from '../lib/l
 import type { AliaAvatarState } from './AliaAvatar';
 import { VoiceModeIcon } from './VoiceModeIcon';
 import type {
+  AliaAttachment,
   AliaSuggestion,
   ChatMessage,
   VoiceMessage,
@@ -137,6 +137,12 @@ export interface AliaChatContentProps {
   flights?: AvatarFlights;
   /** A turn sent once as this chat mounts: the conversation a sheet was opened for. */
   initialTurn?: AliaTurn;
+  /**
+   * The `animatedProgress` of the Bloom sheet this chat is in. The composer takes focus (and on
+   * native opens the keyboard) once it reads `1`, so the person can type as soon as the sheet is
+   * up. Omitted, the chat is not in a sheet and focus is left alone.
+   */
+  presentedProgress?: SharedValue<number>;
   /** Internal sheet lifecycle bridge: receives the live request canceller. */
   onStopReady?: (stop: (() => void) | null) => void;
   /** Overrides for the chat's own copy; anything omitted is English. */
@@ -144,6 +150,9 @@ export interface AliaChatContentProps {
   /** Where the 3D avatar's runtime is served from; omitted, Alia's shared copy (`ALIA_CHARACTER_RUNTIME_URL`). */
   characterRuntimeUrl?: string;
 }
+
+/** The chat API carries photos (`image_url` parts) and nothing else. */
+const PHOTOS_ONLY = ['image'] as const;
 
 /** The add menu: photos are the one attachment the chat API carries (`image_url` parts). */
 function addMenu(labels: AliaChatLabels): ComposerPanelAddMenuGroup[] {
@@ -192,6 +201,7 @@ function AliaChatContentBody({
   agents: knownAgents,
   flights: sharedFlights,
   initialTurn,
+  presentedProgress,
   onStopReady,
 }: AliaChatContentProps) {
   const ownFlights = useAvatarFlights();
@@ -212,15 +222,7 @@ function AliaChatContentBody({
   const { messages, setMessages, send, isStreaming, stop, clear, approvePlan, rejectPlan } =
     useAliaChat(chatOptions);
   const agents = useMemo(() => participatingAgents(messages), [messages]);
-  // What Alia asked in her last turn and the person has not answered: asked above the composer,
-  // not in the thread. Any later message, typed or sent from the card, is the answer.
-  const lastMessage = messages.at(-1);
-  const questionsAsked = useMemo(
-    () => pendingQuestions(messages, isStreaming),
-    [messages, isStreaming],
-  );
-  const [dismissedQuestionsOf, setDismissedQuestionsOf] = useState<string | null>(null);
-  const asking = questionsAsked.length > 0 && dismissedQuestionsOf !== lastMessage?.id;
+  const asked = usePendingQuestions(messages, isStreaming);
 
   // The first turn of an empty chat goes to the host when it asked for it; every other turn is sent here.
   const startsElsewhere = onStart !== undefined && messages.length === 0;
@@ -258,9 +260,7 @@ function AliaChatContentBody({
   const [inputValue, setInputValue] = useState('');
 
   // Picked photos wait here, as tiles above the field, until the turn is sent.
-  const [photos, setPhotos] = useState<
-    Array<{ id: string; name: string; uri: string; mimeType?: string }>
-  >([]);
+  const [photos, setPhotos] = useState<AliaAttachment[]>([]);
   const { pickImage } = useImagePicker();
 
   const handleAddMenuSelect = useCallback(
@@ -272,8 +272,10 @@ function AliaChatContentBody({
         ...prev,
         ...assets.map((asset) => ({
           id: `img-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          type: 'image' as const,
           name: asset.name,
           uri: asset.uri,
+          size: asset.size,
           mimeType: asset.mimeType,
         })),
       ]);
@@ -322,24 +324,6 @@ function AliaChatContentBody({
     },
     [submitTurn, photos, reportError],
   );
-
-  // ── Dictation: the pill's mic toggles it, the transcript lands in the field ──
-  const stt = useSpeechToText();
-  useEffect(() => {
-    if (stt.error) reportError(stt.error);
-  }, [stt.error, reportError]);
-  const sttRef = useRef(stt);
-  sttRef.current = stt;
-  const handleListeningChange = useCallback(async (listening: boolean) => {
-    const current = sttRef.current;
-    if (listening) {
-      if (!current.isRecording && !current.isTranscribing) current.startRecording();
-      return;
-    }
-    if (!current.isRecording) return;
-    const text = await current.stopAndTranscribe();
-    if (text) setInputValue((prev) => (prev ? `${prev} ${text}` : text));
-  }, []);
 
   // ── TTS ──
   const tts = useTTS({ apiUrl });
@@ -452,16 +436,8 @@ function AliaChatContentBody({
     [VoiceSession, activateVoice, labels.startVoice],
   );
 
-  const pillAttachments = useMemo(
-    () =>
-      photos.map((photo) => ({
-        id: photo.id,
-        name: photo.name,
-        kind: 'image' as const,
-        src: photo.uri,
-      })),
-    [photos],
-  );
+  const composerRef = useRef<TextInput | null>(null);
+  useFocusWhenPresented(presentedProgress, () => composerRef.current?.focus());
 
   const composer =
     VoiceSession && isVoiceActive ? (
@@ -470,45 +446,32 @@ function AliaChatContentBody({
         <VoiceSession apiUrl={apiUrl} onStateChange={setVoiceState} onEnd={deactivateVoice} />
       </Suspense>
     ) : (
-      <>
-        <ComposerSuggestions
-          completions={suggestions.completions}
-          selected={suggestions.selected}
-          onPick={handlePickSuggestion}
-        />
-        {/* Beside the loader, not inside the pill: its light traces the box it wraps. */}
-        {asking ? (
-          <View className="mb-2">
-            <QuestionCard
-              questions={questionsAsked}
-              onSubmit={(message) => send(message)}
-              onDismiss={() => setDismissedQuestionsOf(lastMessage?.id ?? null)}
-            />
-          </View>
-        ) : null}
-        <ComposerLoader active={isStreaming}>
-          <ComposerPill
-            onKeyPress={suggestions.onKeyPress}
-            surface={false}
-            frosted={isStreaming}
-            value={inputValue}
-            onValueChange={setInputValue}
-            onSubmit={handleSubmit}
-            busy={isStreaming}
-            onStop={stop}
-            emptyAction={voiceActivateButton}
-            placeholder={labels.placeholder}
-            addMenu={addMenuGroups}
-            onAddMenuSelect={handleAddMenuSelect}
-            attachments={pillAttachments}
-            onRemoveAttachment={(id) => setPhotos((prev) => prev.filter((p) => p.id !== id))}
-            voiceState={
-              stt.isTranscribing ? 'transcribing' : stt.isRecording ? 'recording' : 'idle'
-            }
-            onVoiceStateChange={(next) => void handleListeningChange(next === 'recording')}
-          />
-        </ComposerLoader>
-      </>
+      <AliaComposer
+        inputRef={composerRef}
+        disableKeyboardAvoidance
+        onKeyPress={suggestions.onKeyPress}
+        suggestions={{ ...suggestions, onPick: handlePickSuggestion }}
+        // Asked beside the field, not in the thread: the card docks above the composer.
+        questions={{
+          items: asked.questions,
+          onSubmit: (message) => send(message),
+          onDismiss: asked.dismiss,
+        }}
+        value={inputValue}
+        onValueChange={setInputValue}
+        onSubmit={() => void handleSubmit(inputValue)}
+        busy={isStreaming}
+        onStop={stop}
+        emptyAction={voiceActivateButton}
+        placeholder={labels.placeholder}
+        addMenu={addMenuGroups}
+        onAddMenuSelect={handleAddMenuSelect}
+        attachments={photos}
+        onAddAttachment={(photo) => setPhotos((prev) => [...prev, photo])}
+        onRemoveAttachment={(id) => setPhotos((prev) => prev.filter((p) => p.id !== id))}
+        attachmentKinds={PHOTOS_ONLY}
+        onError={onError}
+      />
     );
 
   const hasMessages = messages.length > 0;

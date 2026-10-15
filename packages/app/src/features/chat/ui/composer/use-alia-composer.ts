@@ -1,6 +1,5 @@
 import { useComposerAddMenu } from '@/features/chat/ui/composer/add-menu';
-import type { Attachment } from '@/features/chat/ui/composer/types';
-import type { ComposerProps } from '@/features/chat/ui/composer/composer';
+import type { AliaAttachment, AliaComposerProps } from '@alia.onl/sdk';
 import { usePowerLevelSelector } from '@/features/chat/ui/composer/power-level-options';
 import {
   buildTurnSelection,
@@ -27,7 +26,7 @@ import { useCallback, useMemo } from 'react';
  * Alia's composer, configured once for every screen that asks Alia something:
  * the chat, Automations, and the screens that create an agent or a skill.
  *
- * It returns the props the shared `Composer` (Bloom's `ComposerPanel`) takes
+ * It returns the props the SDK's `AliaComposer` (Bloom's `ComposerPanel`) takes
  * beyond the draft itself — the power-level selector (the panel's mode pill),
  * the add menu, the attachments — plus the per-turn choices a send
  * carries (connector and skills), so every screen offers the same controls
@@ -67,8 +66,8 @@ export interface AliaComposerOptions {
   onModelChange?: (level: string) => void;
 }
 
-export type AliaComposerProps = Pick<
-  ComposerProps,
+export type AliaComposerHostProps = Pick<
+  AliaComposerProps,
   | 'attachments'
   | 'onAddAttachment'
   | 'onRemoveAttachment'
@@ -92,7 +91,8 @@ export function useAliaComposer({
   const address = useDraftAddress(target);
   const { attachments, mcpServerId: connectorId, skillNames } = draft;
   const addAttachment = useCallback(
-    (attachment: Attachment) => useComposerDraftStore.getState().addAttachment(address, attachment),
+    (attachment: AliaAttachment) =>
+      useComposerDraftStore.getState().addAttachment(address, attachment),
     [address],
   );
   const removeAttachment = useCallback(
@@ -175,7 +175,7 @@ export function useAliaComposer({
    * Working as an agent and deep research are capabilities the turn may use,
    * switched on in the add menu; they run at the level the pill shows.
    */
-  const props: AliaComposerProps = promptOnly
+  const props: AliaComposerHostProps = promptOnly
     ? onModelOverride
       ? { modes: levels.modes, mode: levels.mode, onModeChange: levels.onModeChange }
       : {}

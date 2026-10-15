@@ -1,4 +1,5 @@
-import { Composer } from '@/features/chat/ui/composer/composer';
+import { AliaComposer } from '@alia.onl/sdk';
+import { useComposerHost } from '@/features/chat/ui/composer/use-composer-host';
 import { useAliaComposer } from '@/features/chat/ui/composer/use-alia-composer';
 import { buildMessageContent } from '@/features/chat/model/attachment-utils';
 import { reportDroppedAttachments } from '@/features/chat/runtime/use-chat-conversation';
@@ -25,6 +26,7 @@ const SUGGESTIONS = ['brief', 'remind', 'topic', 'review'] as const;
 export default function AutomationsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const composerHost = useComposerHost();
   const createConversation = useCreateConversation();
   const composer = useAliaComposer({
     draft: 'surface:automations',
@@ -77,7 +79,8 @@ export default function AutomationsScreen() {
         {t('pages.automations.description')}
       </Muted>
 
-      <Composer
+      <AliaComposer
+        {...composerHost}
         {...composer.props}
         value={composer.text}
         onValueChange={composer.setText}

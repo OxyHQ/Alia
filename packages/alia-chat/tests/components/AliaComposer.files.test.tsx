@@ -38,30 +38,28 @@ vi.mock('@oxy.so/bloom/typography', async () => {
       ReactModule.createElement('Text', props, children),
   };
 });
+vi.mock('@oxy.so/bloom/item', () => ({ Item: () => null }));
+vi.mock('@oxy.so/bloom/questionnaire', () => ({ Questionnaire: () => null }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: toastError } }));
-vi.mock('@/shared/platform/keyboard', () => ({
+vi.mock('../../src/lib/keyboard', () => ({
   KeyboardAvoidingView: ({ children }: React.PropsWithChildren) => children,
 }));
-vi.mock('@/shared/i18n/use-translation', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) =>
-      options?.name ? `${key}:${String(options.name)}` : key,
-  }),
-}));
-vi.mock('@/features/voice/runtime/use-speech-to-text', () => ({
+vi.mock('../../src/hooks/useSpeechToText', () => ({
   useSpeechToText: () => ({
     isRecording: false,
     isTranscribing: false,
     error: null,
+    errorCode: null,
     startRecording: vi.fn(),
     stopAndTranscribe: vi.fn(async () => null),
   }),
 }));
 
-import { Composer } from '../composer';
-import { composerTiles } from '../attachment-tiles';
-import type { IntakeItem } from '../use-attachment-intake';
-import type { Attachment } from '../types';
+import { AliaComposer } from '../../src/components/AliaComposer';
+import { composerTiles } from '../../src/lib/attachment-tiles';
+import type { IntakeItem } from '../../src/hooks/useAttachmentIntake';
+import { DEFAULT_LABELS } from '../../src/lib/labels';
+import type { AliaAttachment } from '../../src/types';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -132,10 +130,10 @@ function fire(type: string, files: File[] = []) {
   return event;
 }
 
-function mount(props: Partial<React.ComponentProps<typeof Composer>> = {}) {
+function mount(props: Partial<React.ComponentProps<typeof AliaComposer>> = {}) {
   act(() => {
     renderer = create(
-      <Composer value="" onValueChange={() => {}} onSubmit={() => {}} {...props} />,
+      <AliaComposer value="" onValueChange={() => {}} onSubmit={() => {}} {...props} />,
     );
   });
 }
@@ -155,7 +153,7 @@ describe('dropping files on the composer', () => {
   });
 
   it('draws the drop hint while a file is over it, and takes the file', () => {
-    const added: Attachment[] = [];
+    const added: AliaAttachment[] = [];
     mount({ attachments: [], onAddAttachment: (a) => added.push(a) });
 
     fire('dragenter');
@@ -172,12 +170,12 @@ describe('dropping files on the composer', () => {
   });
 
   it('takes nothing while a turn is running, and says so', () => {
-    const added: Attachment[] = [];
+    const added: AliaAttachment[] = [];
     mount({ busy: true, attachments: [], onAddAttachment: (a) => added.push(a) });
 
     fire('dragenter');
     expect(overlay()[0]?.findByType('Text' as never).props.children).toBe(
-      'composer.dropUnavailable',
+      DEFAULT_LABELS.dropUnavailable,
     );
     fire('drop', [new File(['x'], 'a.pdf', { type: 'application/pdf' })]);
 
@@ -233,7 +231,7 @@ describe('a message that is only a file', () => {
 
 describe('a file that could not be read', () => {
   it('stays as an error tile, not a toast, and is read again on retry', () => {
-    const added: Attachment[] = [];
+    const added: AliaAttachment[] = [];
     mount({ attachments: [], onAddAttachment: (a) => added.push(a) });
 
     fire('drop', [new File(['png'], 'cat.png', { type: 'image/png' })]);
@@ -242,7 +240,10 @@ describe('a file that could not be read', () => {
     expect(toastError).not.toHaveBeenCalled();
     const tiles = panel.props?.attachments as Array<Record<string, unknown>>;
     expect(tiles).toHaveLength(1);
-    expect(tiles[0]).toMatchObject({ name: 'cat.png', error: 'composer.readFailed:cat.png' });
+    expect(tiles[0]).toMatchObject({
+      name: 'cat.png',
+      error: DEFAULT_LABELS.fileReadFailed('cat.png'),
+    });
     // Bloom's own tile type: the intake's flag stays on this side.
     expect('retryable' in tiles[0]!).toBe(false);
     // A failed read is not work in progress: it does not hold send back.
@@ -285,19 +286,57 @@ describe('a file that could not be read', () => {
 
     fire('drop', [new File([], 'empty.png', { type: 'image/png' })]);
 
-    expect(toastError).toHaveBeenCalledWith('composer.fileEmpty:empty.png');
+    expect(toastError).toHaveBeenCalledWith(DEFAULT_LABELS.fileEmpty('empty.png'));
     expect(panel.props?.attachments).toEqual([]);
   });
 
   it('names the retry button in the user’s language', () => {
     mount({ attachments: [], onAddAttachment: () => {} });
 
-    expect((panel.props?.labels as Record<string, string>).retry).toBe('composer.retryShort');
+    expect((panel.props?.labels as Record<string, string>).retry).toBe(
+      DEFAULT_LABELS.composerRetry,
+    );
+  });
+
+  it('refuses, with a sentence, a kind of file the surface cannot send', () => {
+    const added: AliaAttachment[] = [];
+    mount({
+      attachments: [],
+      onAddAttachment: (a) => added.push(a),
+      attachmentKinds: ['image'],
+    });
+
+    fire('drop', [new File(['%PDF'], 'notes.pdf', { type: 'application/pdf' })]);
+
+    expect(added).toEqual([]);
+    expect(toastError).toHaveBeenCalledWith(DEFAULT_LABELS.fileUnsupported('notes.pdf'));
+  });
+
+  it('says a refusal where the host asked, not in a toast', () => {
+    const onError = vi.fn();
+    mount({ attachments: [], onAddAttachment: () => {}, onError });
+
+    fire('drop', [new File([], 'empty.png', { type: 'image/png' })]);
+
+    expect(onError).toHaveBeenCalledWith(DEFAULT_LABELS.fileEmpty('empty.png'));
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it('docks the questions Alia asked in the panel, and nothing once there are none', () => {
+    mount({
+      questions: {
+        items: [{ question: 'Which?', options: [] } as never],
+        onSubmit: () => {},
+        onDismiss: () => {},
+      },
+    });
+    expect(panel.props?.question).toBeDefined();
+
+    mount({ questions: { items: [], onSubmit: () => {}, onDismiss: () => {} } });
+    expect(panel.props?.question).toBeUndefined();
   });
 
   it('becomes an error tile the user can retry, and a refusal one they cannot', () => {
-    const t = (key: string, options?: Record<string, unknown>) =>
-      options?.name ? `${key}:${String(options.name)}` : key;
     const items: IntakeItem[] = [
       {
         id: 'r',
@@ -329,20 +368,20 @@ describe('a file that could not be read', () => {
       },
     ];
 
-    expect(composerTiles([], items, t)).toEqual([
+    expect(composerTiles([], items, DEFAULT_LABELS)).toEqual([
       { id: 'r', name: 'cat.png', kind: 'image', progress: 50 },
       {
         id: 'f',
         name: 'dog.png',
         kind: 'image',
-        error: 'composer.readFailed:dog.png',
+        error: DEFAULT_LABELS.fileReadFailed('dog.png'),
         retryable: true,
       },
       {
         id: 'x',
         name: 'huge.png',
         kind: 'document',
-        error: 'composer.fileTooLarge:huge.png',
+        error: DEFAULT_LABELS.fileTooLarge('huge.png', '20 MB'),
         retryable: false,
       },
     ]);

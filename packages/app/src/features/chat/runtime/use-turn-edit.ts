@@ -1,7 +1,8 @@
 import { useCallback, useRef } from 'react';
 import { getTextFromContent } from '@alia.onl/sdk/content';
 import type { Message } from '@/features/chat/runtime/use-conversations';
-import type { Attachment, SendOptions } from '@/shared/contracts/chat-turn';
+import type { SendOptions } from '@/shared/contracts/chat-turn';
+import type { AliaAttachment } from '@alia.onl/sdk';
 import {
   useComposerDraft,
   useComposerDraftStore,
@@ -19,7 +20,7 @@ export interface TurnEditOptions {
     messageId: string,
     text: string,
     options?: SendOptions,
-    attachments?: Attachment[],
+    attachments?: AliaAttachment[],
   ) => Promise<boolean>;
 }
 
@@ -80,7 +81,11 @@ export function useTurnEdit({ target, messages, turnOptionsOf, onEditMessage }: 
 
   /** Send `text` in place of the question being edited. The caller has cleared the draft. */
   const submit = useCallback(
-    async (text: string, options?: SendOptions, attachments?: Attachment[]): Promise<boolean> => {
+    async (
+      text: string,
+      options?: SendOptions,
+      attachments?: AliaAttachment[],
+    ): Promise<boolean> => {
       if (editing === undefined || onEditMessage === undefined) return false;
       const address = useComposerDraftStore.getState().address(target);
       const sent = await onEditMessage(editing.messageId, text, options, attachments);

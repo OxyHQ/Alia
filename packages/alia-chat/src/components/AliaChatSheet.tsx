@@ -3,6 +3,7 @@ import { BottomSheet, type BottomSheetRef } from '@oxy.so/bloom/bottom-sheet';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useWindowDimensions, View } from 'react-native';
+import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BREAKPOINTS } from '@oxy.so/bloom/styles';
 import type { AliaChatLabels } from '../lib/labels';
@@ -88,6 +89,9 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
   ) => {
     // Bloom's resolved mode, not the system's scheme.
     const { isDark } = useTheme();
+    // How far each sheet is presented (0 closed, 1 up): its chat takes the composer's focus at 1.
+    const mainProgress = useSharedValue(0);
+    const conversationProgress = useSharedValue(0);
     const mainRef = useRef<BottomSheetRef>(null);
     const conversationRef = useRef<BottomSheetRef>(null);
     // Each sheet's chat registers its own canceller; closing a sheet stops its own turn.
@@ -172,6 +176,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
           detached={detached}
           scrollable={false}
           manualActivation
+          animatedProgress={mainProgress}
           onDismissAttempt={onMainDismissAttempt}
           onDismiss={() => setConversation(null)}
           style={sheetStyle}
@@ -186,6 +191,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
             agents={agents}
             suggestionMatches={suggestionMatches}
             onSuggestionQuery={onSuggestionQuery}
+            presentedProgress={mainProgress}
             onStopReady={registerMainStop}
             onStart={startConversation}
           />
@@ -198,6 +204,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
             detached={detached}
             scrollable={false}
             manualActivation
+            animatedProgress={conversationProgress}
             onDismissAttempt={onConversationDismissAttempt}
             onDismiss={() => setConversation(null)}
             style={sheetStyle}
@@ -205,6 +212,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
             <AliaChatContent
               {...shared}
               initialTurn={conversation.turn}
+              presentedProgress={conversationProgress}
               agents={agents}
               onStopReady={registerConversationStop}
               // The bar is the conversation's: back to the main screen, the profile, share and

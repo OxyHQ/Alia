@@ -22,7 +22,7 @@
 /**
  * The largest file the composer will take.
  *
- * An attached image is not uploaded anywhere — `src/features/chat/model/attachment-utils.ts`
+ * An attached image is not uploaded anywhere — the app's `attachment-utils.ts`
  * inlines it into the request as a `data:` URL — so its bytes are carried in
  * memory as a base64 string roughly a third larger than the file, twice over
  * while the request is built. 20 MiB is the point past which that stops being
@@ -33,7 +33,7 @@ export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 export type IntakeKind = 'image' | 'document';
 
 /** Why a file was turned away. Each one has its own sentence to the user. */
-export type IntakeRefusal = 'empty' | 'too-large';
+export type IntakeRefusal = 'empty' | 'too-large' | 'unsupported';
 
 export type IntakeVerdict =
   | { accepted: true; kind: IntakeKind }

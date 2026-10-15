@@ -4,7 +4,8 @@ import { AgentHeaderActions } from '@/features/agents/ui/detail/agent-header-act
 import { AgentIdentitySummary } from '@/features/agents/ui/detail/agent-identity-summary';
 import { AgentReviewsSection } from '@/features/agents/ui/detail/agent-reviews-section';
 import { AgentThreadsList } from '@/features/agents/ui/detail/agent-threads-list';
-import { Composer } from '@/features/chat/ui/composer/composer';
+import { AliaComposer } from '@alia.onl/sdk';
+import { useComposerHost } from '@/features/chat/ui/composer/use-composer-host';
 import { ActivityGrid } from '@/features/agents/ui/detail/activity-grid';
 import { agentDisplayName, agentHandle } from '@/features/agents/model/identity';
 import { CAPABILITY_FAMILIES } from '@/features/chat/model/capability-families';
@@ -38,6 +39,7 @@ export function grantedFamilyLabels(grants: readonly string[]): string[] {
 export function AgentDetail({ agent }: { agent: Agent }) {
   const router = useRouter();
   const { t } = useTranslation();
+  const composerHost = useComposerHost();
   const { user } = useOxy();
   const isLargeScreen = useIsLargeScreen();
   const { data: agentThreads = [] } = useAgentThreads(agent._id);
@@ -111,7 +113,8 @@ export function AgentDetail({ agent }: { agent: Agent }) {
 
           {/* The task for this agent, written in the app's composer. */}
           {actions.showHireInput && (
-            <Composer
+            <AliaComposer
+              {...composerHost}
               value={actions.taskInput}
               onValueChange={actions.setTaskInput}
               onSubmit={actions.handleHireSubmit}

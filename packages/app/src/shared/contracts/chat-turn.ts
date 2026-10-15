@@ -8,17 +8,6 @@
  * other (the chat renders voice's controls), so both read the contract.
  */
 
-/** A file picked in the composer, on its way into a turn. */
-export interface Attachment {
-  id: string;
-  uri: string;
-  type: 'image' | 'document';
-  name: string;
-  size: number;
-  mimeType: string;
-  isLoading?: boolean;
-}
-
 export interface SendOptions {
   /** `null` explicitly withholds MCP tools; omission preserves legacy callers. */
   mcpServerId?: string | null;

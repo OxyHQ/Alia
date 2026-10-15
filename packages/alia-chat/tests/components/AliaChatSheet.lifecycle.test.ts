@@ -84,3 +84,22 @@ describe('AliaChatSheet avatar flights', () => {
     );
   });
 });
+
+describe('AliaChatSheet focus', () => {
+  it("hands each sheet's presented progress to its own chat, and Bloom's sheet reports it", () => {
+    expect(source).toMatch(/animatedProgress=\{mainProgress\}/);
+    expect(source).toMatch(/presentedProgress=\{mainProgress\}/);
+    expect(source).toMatch(/animatedProgress=\{conversationProgress\}/);
+    expect(source).toMatch(/presentedProgress=\{conversationProgress\}/);
+  });
+
+  it('focuses the composer field when the sheet is up, and uses no timer to wait for it', () => {
+    expect(content).toMatch(
+      /useFocusWhenPresented\(presentedProgress, \(\) => composerRef\.current\?\.focus\(\)\)/,
+    );
+    expect(content).toMatch(/inputRef=\{composerRef\}/);
+    expect(read('../hooks/useFocusWhenPresented.ts')).not.toMatch(
+      /setTimeout|requestAnimationFrame/,
+    );
+  });
+});

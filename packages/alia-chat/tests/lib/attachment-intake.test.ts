@@ -8,7 +8,7 @@ import {
   intakeKind,
   nextDragDepth,
   readFraction,
-} from '../attachment-intake';
+} from '../../src/lib/attachment-intake';
 
 /**
  * The rules a file passes on its way into the composer, and the count that
@@ -125,7 +125,7 @@ describe('how far a read has got', () => {
 
 describe('the module itself', () => {
   const source = readFileSync(
-    fileURLToPath(new URL('../attachment-intake.ts', import.meta.url)),
+    fileURLToPath(new URL('../../src/lib/attachment-intake.ts', import.meta.url)),
     'utf8',
   )
     .replace(/\/\*[\s\S]*?\*\//g, '')

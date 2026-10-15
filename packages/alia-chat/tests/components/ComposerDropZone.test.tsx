@@ -30,11 +30,8 @@ vi.mock('@oxy.so/bloom/typography', async () => {
   };
 });
 
-vi.mock('@/shared/i18n/use-translation', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
-}));
-
-import { ComposerDropOverlay, useComposerDropTarget } from '../drop-zone';
+import { DEFAULT_LABELS } from '../../src/lib/labels';
+import { ComposerDropOverlay, useComposerDropTarget } from '../../src/components/ComposerDropZone';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -238,7 +235,7 @@ describe('the overlay', () => {
     });
     const text = tree === undefined ? undefined : nodes(tree, 'Text')[0];
 
-    expect(text?.props.children).toBe('composer.dropUnavailable');
+    expect(text?.props.children).toBe(DEFAULT_LABELS.dropUnavailable);
     act(() => tree?.unmount());
   });
 });
