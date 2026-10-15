@@ -1,5 +1,28 @@
 # @alia.onl/sdk
 
+## Unreleased
+
+A voice call says "Listening…" only while something listens.
+
+- **`useVoiceRoom` stays `connecting` until the recognizer has started** (`roomState` is
+  `'connected'` and `agentState` `'listening'` from the first session's start, not from
+  `connect()`), and a session that does not start within 8 s ends the call as
+  `recognizer-not-started`.
+- **An `aborted` nobody asked for is a failure.** Chrome runs one microphone recognition per
+  browser and a new one aborts the live one, in any tab; the engines now report that as the
+  failure code `interrupted` (only the abort the caller asked for stays silent), and a call cut
+  off three times in a row ends as `recognizer-aborted` instead of restarting forever. The web
+  engine serializes its own sessions, so a page never aborts itself.
+- **The call watches itself while it listens:** voice-level sound for 5 s with no word back ends
+  it as `recognizer-unresponsive`; five sessions in a row that end without listening end it with
+  their error's code; a microphone silent for 10 s raises **`warning` / `warningCode`**
+  (`no-audio-input`) without ending the call. Recognizer errors are logged as a structured
+  `console.warn`, never with the transcript.
+- **`VoiceErrorCode` gains** `recognizer-not-started`, `recognizer-unresponsive`,
+  `recognizer-aborted` and `no-audio-input` (an app with its own translations adds them);
+  `VoiceControls` takes a `notice` it shows in place of "Listening…". Dictation reports an
+  interrupted session as `recognizer-aborted` too.
+
 ## 13.1.1
 
 - **The avatar flights load the runtime too.** 13.1.0 mounted the character runtime provider inside

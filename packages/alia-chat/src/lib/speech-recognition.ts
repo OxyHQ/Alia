@@ -16,6 +16,26 @@
  * stream is the honest level the dictation trace and the voice field move to.
  * The stream is never recorded or sent anywhere.
  *
+ * ## One recognition at a time
+ *
+ * Chrome runs ONE microphone recognition per browser: starting a session
+ * aborts whichever one was live, in this tab or any other
+ * (`SpeechRecognitionManagerImpl::StartSession`: "If there is another session
+ * using the microphone, abort that"). Two consequences, both handled here:
+ *
+ * - Our own sessions are serialized. A new one aborts the page's live session
+ *   and waits for its `end` before it opens anything, so this page never
+ *   preempts itself (a restart racing the previous session's end, dictation and
+ *   a call) and the aborted session knows the abort was ours.
+ * - An `aborted` nobody here asked for is someone else taking the recognizer.
+ *   It is reported as `interrupted` instead of being dropped: dropped, a caller
+ *   that restarts on `end` would steal the recognizer back, be aborted again,
+ *   and sit "listening" forever with nothing heard.
+ *
+ * The `getUserMedia` stream beside the recognizer is not such a conflict:
+ * Chromium aborts a recognition for another recognition or a revoked
+ * permission, never for another capture of the same microphone.
+ *
  * ## Support
  *
  * Chromium browsers and Safari implement it (Chrome as `webkitSpeechRecognition`
@@ -63,6 +83,7 @@ interface WebSpeechRecognition {
   continuous: boolean;
   interimResults: boolean;
   maxAlternatives: number;
+  onstart: (() => void) | null;
   onresult: ((event: WebSpeechResultEvent) => void) | null;
   onerror: ((event: WebSpeechErrorEvent) => void) | null;
   onend: (() => void) | null;
@@ -137,6 +158,20 @@ function mediaFailure(error: unknown): SpeechRecognitionFailure {
       return { code: 'other', detail: name || 'getUserMedia failed' };
   }
 }
+
+/**
+ * The page's live session. A new session aborts it and waits for its end
+ * before starting (see "One recognition at a time").
+ */
+let liveSession: { abort(): void; readonly ended: Promise<void> } | null = null;
+
+/**
+ * How long a new session waits for the previous one's `end` after aborting it.
+ * Chrome ends an aborted session within a tick; a session still waiting on
+ * `getUserMedia` (a permission prompt nobody answers) would never end, and the
+ * new one is not held hostage to it.
+ */
+const PREVIOUS_SESSION_END_TIMEOUT_MS = 1_000;
 
 function recognitionFailure(event: WebSpeechErrorEvent): SpeechRecognitionFailure {
   const map: Record<string, SpeechRecognitionFailureCode> = {
@@ -219,6 +254,15 @@ export function startSpeechRecognition(
   let stopMeter: (() => void) | null = null;
   let ended = false;
   let stopRequested: 'stop' | 'abort' | null = null;
+  let markEnded: () => void = () => undefined;
+  const session = {
+    abort: () => abort(),
+    ended: new Promise<void>((resolve) => {
+      markEnded = resolve;
+    }),
+  };
+  const previous = liveSession;
+  liveSession = session;
 
   const release = (): void => {
     stopMeter?.();
@@ -231,6 +275,8 @@ export function startSpeechRecognition(
     if (ended) return;
     ended = true;
     release();
+    if (liveSession === session) liveSession = null;
+    markEnded();
     handlers.onLevel?.(0);
     handlers.onEnd();
   };
@@ -241,11 +287,30 @@ export function startSpeechRecognition(
     finish();
   };
 
+  function abort(): void {
+    if (ended) return;
+    stopRequested = 'abort';
+    if (recognition === null) return;
+    recognition.abort();
+  }
+
   void (async () => {
     const Recognition = recognitionConstructor();
     if (Recognition === null) {
       fail({ code: 'unsupported' });
       return;
+    }
+
+    if (previous !== null) {
+      previous.abort();
+      await Promise.race([
+        previous.ended,
+        new Promise<void>((resolve) => setTimeout(resolve, PREVIOUS_SESSION_END_TIMEOUT_MS)),
+      ]);
+      if (stopRequested !== null) {
+        finish();
+        return;
+      }
     }
 
     const media = globalThis.navigator?.mediaDevices;
@@ -271,6 +336,10 @@ export function startSpeechRecognition(
     instance.continuous = true;
     instance.interimResults = true;
     instance.maxAlternatives = 1;
+    instance.onstart = () => {
+      if (ended) return;
+      handlers.onStart?.();
+    };
     instance.onresult = (event) => {
       if (ended) return;
       handlers.onResult(transcriptOf(event.results));
@@ -278,7 +347,13 @@ export function startSpeechRecognition(
     instance.onerror = (event) => {
       if (ended) return;
       const failure = recognitionFailure(event);
-      if (failure.code === 'aborted') return;
+      if (failure.code === 'aborted') {
+        // Ours (a `stop()`/`abort()` here, or the next session taking over) is
+        // no error. Anyone else's is the recognizer being taken away.
+        if (stopRequested !== null) return;
+        handlers.onError({ code: 'interrupted', detail: event.error });
+        return;
+      }
       handlers.onError(failure);
     };
     instance.onend = finish;
@@ -298,11 +373,6 @@ export function startSpeechRecognition(
       stopRequested = 'stop';
       recognition?.stop();
     },
-    abort() {
-      if (ended) return;
-      stopRequested = 'abort';
-      if (recognition === null) return;
-      recognition.abort();
-    },
+    abort,
   };
 }

@@ -1763,7 +1763,11 @@
       "synthesis-unavailable": "Alia's voice is not available right now — the answer is in the chat",
       "synthesis-limited": "Alia's voice has reached its limit for now — the answer is in the chat",
       "synthesis-rejected": "Alia's voice could not read this answer — it is in the chat",
-      "synthesis-failed": "Alia's voice failed — the answer is in the chat"
+      "synthesis-failed": "Alia's voice failed — the answer is in the chat",
+      "recognizer-not-started": "Speech recognition did not start — try again",
+      "recognizer-unresponsive": "The browser's or device's speech recognition is not responding — the microphone hears you, but no words come back",
+      "recognizer-aborted": "The browser or system cut speech recognition off — close other tabs or apps using the microphone or dictation, then try again",
+      "no-audio-input": "I can't hear you — if you're speaking, check your microphone"
     },
     "controls": {
       "connecting": "Connecting…",

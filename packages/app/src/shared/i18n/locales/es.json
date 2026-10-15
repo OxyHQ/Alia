@@ -1763,7 +1763,11 @@
       "synthesis-unavailable": "La voz de Alia no está disponible ahora mismo: la respuesta está en el chat",
       "synthesis-limited": "La voz de Alia ha llegado a su límite por ahora: la respuesta está en el chat",
       "synthesis-rejected": "La voz de Alia no pudo leer esta respuesta: la tienes en el chat",
-      "synthesis-failed": "Falló la voz de Alia: la respuesta está en el chat"
+      "synthesis-failed": "Falló la voz de Alia: la respuesta está en el chat",
+      "recognizer-not-started": "El reconocimiento de voz no ha arrancado: inténtalo de nuevo",
+      "recognizer-unresponsive": "El reconocimiento de voz del navegador o del dispositivo no responde: el micrófono te oye, pero no llega ninguna palabra",
+      "recognizer-aborted": "El navegador o el sistema ha cortado el reconocimiento de voz: cierra otras pestañas o apps que usen el micrófono o el dictado y vuelve a intentarlo",
+      "no-audio-input": "No te oigo: si estás hablando, revisa el micrófono"
     },
     "controls": {
       "connecting": "Conectando…",

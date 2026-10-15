@@ -25,7 +25,11 @@ export type VoiceErrorCode =
   | 'synthesis-unavailable'
   | 'synthesis-limited'
   | 'synthesis-rejected'
-  | 'synthesis-failed';
+  | 'synthesis-failed'
+  | 'recognizer-not-started'
+  | 'recognizer-unresponsive'
+  | 'recognizer-aborted'
+  | 'no-audio-input';
 
 /**
  * The English copy for each code — the same sentences dictation and voice mode
@@ -49,6 +53,12 @@ export const VOICE_ERROR_MESSAGES: Readonly<Record<VoiceErrorCode, string>> = {
   'synthesis-limited': "Alia's voice has reached its limit for now — the answer is in the chat",
   'synthesis-rejected': "Alia's voice could not read this answer — it is in the chat",
   'synthesis-failed': "Alia's voice failed — the answer is in the chat",
+  'recognizer-not-started': 'Speech recognition did not start — try again',
+  'recognizer-unresponsive':
+    "The browser's or device's speech recognition is not responding — the microphone hears you, but no words come back",
+  'recognizer-aborted':
+    'The browser or system cut speech recognition off — close other tabs or apps using the microphone or dictation, then try again',
+  'no-audio-input': "I can't hear you — if you're speaking, check your microphone",
 };
 
 /**
@@ -96,6 +106,8 @@ export function speechFailureCode(failure: SpeechRecognitionFailure): VoiceError
       return 'speech-network';
     case 'language-not-supported':
       return 'speech-language';
+    case 'interrupted':
+      return 'recognizer-aborted';
     case 'other':
       return 'speech-failed';
   }

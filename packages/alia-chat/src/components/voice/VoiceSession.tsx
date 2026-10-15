@@ -24,6 +24,7 @@ export function VoiceSession({ apiUrl, onStateChange, onEnd }: VoiceSessionProps
     agentState,
     isMuted,
     error,
+    warning,
     messages,
     isConnected,
     connect,
@@ -71,6 +72,7 @@ export function VoiceSession({ apiUrl, onStateChange, onEnd }: VoiceSessionProps
       isMuted={isMuted}
       onToggleMute={toggleMute}
       onEnd={onEnd}
+      notice={warning}
     />
   );
 }

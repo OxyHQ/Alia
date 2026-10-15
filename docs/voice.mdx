@@ -72,6 +72,60 @@ Google service; Safari and iOS use Apple's, on-device where the device supports
 it; Android uses the device's recognition service, on-device where installed.
 Accuracy is the engine's too, and varies by browser, device and language.
 
+## When listening fails
+
+A call says **"Listening…" only while something is listening**, and when
+listening does not work it ends with a reason or warns — never a bar that reads
+"Listening…" over a recognizer that hears nothing (which is what production
+showed on Chrome: no text, no request, no error anywhere).
+
+**Starting.** The call stays `roomState: 'connecting'` (the bar's "Connecting…"
+and spinner) until the recognizer reports that it has started: the Web Speech
+API's `start` event, `expo-speech-recognition`'s `start` (`onStart` in the
+contract). Every later session — after each turn, after each restart — is held
+to the same deadline.
+
+**One recognition at a time (Chrome).** Chrome runs one microphone recognition
+per *browser*: starting one aborts whichever was live, in any tab
+(`SpeechRecognitionManagerImpl::StartSession` — "If there is another session
+using the microphone, abort that"). So an `aborted` nobody here asked for means
+another tab, an extension or dictation took the recognizer. It used to be
+dropped, and the loop restarted on `end`, took the recognizer back, was aborted
+again — "Listening…" forever with nothing heard. Now:
+
+- The engine wrappers report an `aborted` that follows no `stop()`/`abort()` of
+  theirs as `interrupted`; only the abort we asked for is silent.
+- The web engine serializes its own sessions: a new one aborts the page's live
+  session and waits for its `end` before it starts, so the page never preempts
+  itself (a restart racing the previous end, dictation and a call).
+- The `getUserMedia` stream beside the recognizer (permission, device errors,
+  level meter) is **not** a cause: Chromium aborts a recognition for another
+  recognition or a revoked permission, never for another capture of the same
+  microphone. It stays, because the level it measures is what the checks below
+  read.
+
+**While listening** (`useVoiceRoom`, constants in its TUNING section; levels are
+`onLevel`'s 0..1 = -60..0 dBFS, read every ~100ms on both engines):
+
+| Signal | Threshold | Result |
+|---|---|---|
+| No `start` after the session opened | 8 s (`RECOGNIZER_START_TIMEOUT_MS`): browsers start in under a second, Android binds its service in one or two | Call ends: `recognizer-not-started` |
+| Cut off by another recognition (`interrupted`), in a row, no words between | 3rd time (`MAX_INTERRUPTIONS`): the first restarts cover a one-off, the third is a tug of war | Call ends: `recognizer-aborted` |
+| Sessions that end by themselves without listening or a word (never started, ended within 400 ms, or on an error such as `other`) | 5 in a row (`MAX_FRUITLESS_SESSIONS`) | Call ends with the error's code, or `recognizer-unresponsive` / `recognizer-not-started` |
+| Voice-level sound (≥ 0.5, -30 dBFS: speech under automatic gain; the stream is noise-suppressed) with not one result | 5 s in total (`UNRESPONSIVE_SPEECH_MS`): a working recognizer returns words within about a second | Call ends: `recognizer-unresponsive` |
+| Every reading under 0.02 (-58.8 dBFS: digital silence; a live microphone in a quiet room reads above it) | 10 s (`NO_AUDIO_INPUT_MS`) | **Warning**, the call goes on: `warningCode: 'no-audio-input'` |
+
+The silent microphone is a warning and not the end of the call because a person
+who is simply quiet in a very quiet room reads almost the same: the call says
+"if you're speaking, check your microphone" (a toast, and the bar shows it in
+place of "Listening…") and clears it the moment sound arrives. The level checks
+run only while the call listens to the person — while Alia thinks or speaks,
+the microphone hears her answer — and not while muted. Chrome ending a session
+after listening to silence (`no-speech`) is the person being quiet and never
+counts. Every recognizer error is a structured `console.warn` (`code`, the
+engine's `detail`, whether the session had started, its age, the phase) and
+never carries what was said.
+
 ## Answering: the chat path
 
 A spoken turn **is a chat turn**. In the app, `use-voice-mode.ts` hands each

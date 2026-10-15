@@ -104,9 +104,10 @@ describe('on-device recognition on iOS and Android', () => {
     expect(events.onLevel.mock.calls.map(([level]) => level)).toEqual([0.5, 0]);
   });
 
-  it('maps errors, stays quiet about aborts, and ends once — detaching every listener', () => {
+  it('maps errors, stays quiet about aborts it asked for, and ends once — detaching every listener', () => {
     const events = handlers();
-    startSpeechRecognition({ lang: 'en-US' }, events);
+    const session = startSpeechRecognition({ lang: 'en-US' }, events);
+    session.abort();
     native.emit('error', { error: 'aborted', message: '' });
     native.emit('error', { error: 'service-not-allowed', message: 'denied' });
     native.emit('end', null);
@@ -115,6 +116,23 @@ describe('on-device recognition on iOS and Android', () => {
     expect(events.onError).toHaveBeenCalledWith({ code: 'not-allowed', detail: 'denied' });
     expect(events.onEnd).toHaveBeenCalledTimes(1);
     for (const set of native.listeners.values()) expect(set.size).toBe(0);
+  });
+
+  it('says when it has started listening', () => {
+    const events = { ...handlers(), onStart: vi.fn() };
+    startSpeechRecognition({ lang: 'en-US' }, events);
+    expect(events.onStart).not.toHaveBeenCalled();
+    native.emit('start', null);
+    expect(events.onStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports an abort nobody here asked for as an interruption', () => {
+    const events = handlers();
+    startSpeechRecognition({ lang: 'en-US' }, events);
+    native.emit('error', { error: 'aborted', message: '' });
+    native.emit('end', null);
+    expect(events.onError).toHaveBeenCalledWith({ code: 'interrupted', detail: 'aborted' });
+    expect(events.onEnd).toHaveBeenCalledTimes(1);
   });
 
   it('asks for permission once and reports a refusal', async () => {

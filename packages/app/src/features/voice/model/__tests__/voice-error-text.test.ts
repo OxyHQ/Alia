@@ -27,6 +27,10 @@ const EVERY_CODE: Record<VoiceErrorCode, true> = {
   'synthesis-limited': true,
   'synthesis-rejected': true,
   'synthesis-failed': true,
+  'recognizer-not-started': true,
+  'recognizer-unresponsive': true,
+  'recognizer-aborted': true,
+  'no-audio-input': true,
 };
 
 describe('voice errors in the app’s languages', () => {

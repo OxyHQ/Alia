@@ -167,6 +167,8 @@ export function startSpeechRecognition(
   }
   const ExpoSpeechRecognitionModule = module;
   let ended = false;
+  /** Whether this session's end was asked for here; an `aborted` that was not is reported. */
+  let stopRequested = false;
   /**
    * Finals already delivered. Android's continuous mode starts a new segment
    * after every final result, so the utterance is the settled segments plus
@@ -176,6 +178,10 @@ export function startSpeechRecognition(
   let settled = '';
 
   const subscriptions = [
+    ExpoSpeechRecognitionModule.addListener('start', () => {
+      if (ended) return;
+      handlers.onStart?.();
+    }),
     ExpoSpeechRecognitionModule.addListener('result', (event) => {
       if (ended) return;
       const current = event.results[0]?.transcript ?? '';
@@ -186,7 +192,12 @@ export function startSpeechRecognition(
     ExpoSpeechRecognitionModule.addListener('error', (event) => {
       if (ended) return;
       const code = failureOf(event.error);
-      if (code === 'aborted') return;
+      if (code === 'aborted') {
+        // Our own stop/abort is no error; one nobody here asked for is the
+        // system taking the recognizer away.
+        if (!stopRequested) handlers.onError({ code: 'interrupted', detail: event.error });
+        return;
+      }
       handlers.onError({ code, detail: event.message });
     }),
     ExpoSpeechRecognitionModule.addListener('end', () => finish()),
@@ -227,10 +238,12 @@ export function startSpeechRecognition(
   return {
     stop() {
       if (ended) return;
+      stopRequested = true;
       ExpoSpeechRecognitionModule.stop();
     },
     abort() {
       if (ended) return;
+      stopRequested = true;
       ExpoSpeechRecognitionModule.abort();
     },
   };
