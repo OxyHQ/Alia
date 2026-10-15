@@ -200,8 +200,8 @@ export function convertToAISDKMessages(
  * shapes a client replays: Alia's `toolInvocations` (with their results) and
  * OpenAI `tool_calls` (whose results arrive as `role: "tool"` messages).
  *
- * What `ToolPipeline.forUser` reads to keep the apps a conversation opened
- * open on its next turn (`lib/tool-budget.ts`).
+ * What `ToolPipeline.forUser` reads to keep the tools a conversation used
+ * loaded on its next turn (`lib/tool-budget.ts`).
  */
 export function priorToolCallsOf(
   messages: readonly ChatMessage[],

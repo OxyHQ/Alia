@@ -56,7 +56,7 @@ import type {
 
 import { buildOxyInferenceClientForServiceToken, getOxyInferenceClient } from './oxy-inference.js';
 import type { AliaInferenceSurface } from './product-seam.js';
-import { fitControlledInput } from './request-budget.js';
+import { fitControlledInput, type ModelInputLimits } from './request-budget.js';
 import { assertToolCountWithinLimit } from './tool-limit.js';
 import type { OxyInferenceTarget } from '../models/power-levels.js';
 
@@ -110,6 +110,12 @@ export interface KaanaModelOptions {
    */
   readonly reasoningEffort?: 'low' | 'medium' | 'high';
   readonly surface: AliaInferenceSurface;
+  /**
+   * The model's window and output limits from Oxy's catalogue, when the turn
+   * runs on an exact model. The request input budget is derived from them
+   * (`request-budget.ts`); absent (a power level) it is the server's limit.
+   */
+  readonly inputLimits?: ModelInputLimits | null;
   readonly oxyUserId?: string | null;
   /** Verified inbound product service token; absent keeps Alia's own credential lane. */
   readonly serviceToken?: string;
@@ -460,7 +466,7 @@ function translateWithinLimit(
       ...(translation.toolChoice === undefined ? {} : { toolChoice: translation.toolChoice }),
       ...(responseFormat === undefined ? {} : { responseFormat }),
     },
-    { surface: options.surface, model },
+    { surface: options.surface, model, limits: options.inputLimits },
   );
   return { ...translation, messages: fitted.messages };
 }

@@ -1,11 +1,11 @@
 /**
  * The production turn that failed, end to end through the REAL Kaana adapter,
- * the real app router and the real result truncation — only the Oxy client is
+ * the real tool loader and the real result truncation — only the Oxy client is
  * replaced, and it records the bytes Alia would POST.
  *
  * Production, 2026-10-11 10:43–10:44: a chat turn carried a history in which
  * the previous turn had called `getEmailContext` and three `readEmail`s; the
- * model opened Inbox with `useApps` (26 → 47 tools) and read one more email.
+ * model loaded Inbox's tools with `loadTools` (26 → 47 tools) and read one more email.
  * Every result was already bounded to 20k characters, but the request — system
  * prompt, history, results and 47 schemas — was over Oxy's 126_976-byte input
  * budget, and the edge refused it (`context_length_exceeded`) before any
@@ -69,10 +69,10 @@ vi.mock('../oxy-inference.js', () => ({
 }));
 
 const { kaanaLanguageModel } = await import('../kaana-language-model.js');
-const { budgetTools, USE_APPS_TOOL } = await import('../../tool-budget.js');
+const { budgetTools, LOAD_TOOLS_TOOL } = await import('../../tool-budget.js');
 const { wrapToolsWithTruncation } = await import('../../tools/result-truncation.js');
 const {
-  DEFAULT_REQUEST_INPUT_BUDGET_BYTES,
+  SERVER_REQUEST_INPUT_LIMIT_BYTES,
   OMITTED_TOOL_RESULT_NOTE,
   RequestInputBudgetExceededError,
 } = await import('../request-budget.js');
@@ -220,7 +220,7 @@ describe('the production turn (getEmailContext + 4 readEmail, 47 tools) now fits
       tools: { ...core, ...inbox, ...mention },
       sources: { oxy_service: { ...inbox, ...mention }, mcp: {}, integration: {} },
     });
-    expect(budgeted.activeToolNames()).toHaveLength(26); // 25 core + useApps
+    expect(budgeted.activeToolNames()).toHaveLength(26); // 25 core + loadTools
 
     // The previous turn's results, as the truncation wrapper bounded them.
     const run = async (name: string, args: Record<string, unknown>) =>
@@ -282,7 +282,13 @@ describe('the production turn (getEmailContext + 4 readEmail, 47 tools) now fits
 
     oxy.script.push(
       {
-        toolCalls: [{ id: 'c-apps', name: USE_APPS_TOOL, arguments: '{"apps":["inbox"]}' }],
+        toolCalls: [
+          {
+            id: 'c-apps',
+            name: LOAD_TOOLS_TOOL,
+            arguments: JSON.stringify({ names: Object.keys(inbox) }),
+          },
+        ],
       },
       {
         toolCalls: [{ id: 'c-e4', name: 'oxy_inbox__readEmail', arguments: '{"id":"e4"}' }],
@@ -309,7 +315,7 @@ describe('the production turn (getEmailContext + 4 readEmail, 47 tools) now fits
     expect(oxy.requests).toHaveLength(3);
     for (const request of oxy.requests) {
       expect(oxyControlledInputBudget(request)).toBeLessThanOrEqual(
-        DEFAULT_REQUEST_INPUT_BUDGET_BYTES,
+        SERVER_REQUEST_INPUT_LIMIT_BYTES,
       );
       expect(oxyControlledInputBudget(request)).toBeLessThan(OXY_CEILING);
     }

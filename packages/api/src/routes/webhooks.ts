@@ -538,6 +538,7 @@ export async function processAgentBotMessage(
       isDirectSession: false,
       actsForPerson: speakerIsOwner,
       requesterAccountId: speakerAccountId,
+      inputLimits: resolved.catalogue,
       agentMode: false,
       toolsEnabled: true,
       webSearch: true,

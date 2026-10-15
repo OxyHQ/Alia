@@ -864,7 +864,7 @@ export class VoiceCall {
       if (continues && response) {
         await Promise.all(response.pending);
         if (this.isClosed || this.upstream !== upstream) return;
-        // An app opened by `useApps` joins the session before the model goes on.
+        // Tools loaded by `loadTools` join the session before the model goes on.
         const active = this.turn?.activeToolNames() ?? [];
         if (this.turn && active.join('\n') !== this.sentToolNames.join('\n')) {
           this.sentToolNames = active;

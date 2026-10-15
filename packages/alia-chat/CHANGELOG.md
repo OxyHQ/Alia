@@ -1,5 +1,11 @@
 # @alia.onl/sdk
 
+## 17.0.1
+
+- The task labels follow the API's tool loader: `loadTools` ("Loading tools" / "Loaded tools")
+  replaces `useApps`, which the API no longer has. A conversation stored with `useApps` calls
+  still replays; the call just shows its raw name.
+
 ## 17.0.0
 
 One conversation runtime. The sheet, `AliaChatScreen` and the Alia app are frames around the

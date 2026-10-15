@@ -157,13 +157,14 @@ per-application list replaces the `/v1` wildcard on both mounts — by changing
 the pinned test on purpose, not by widening `lib/cors-origins.ts`. Issue #244
 closed on that decision.
 
-## Tool budget and the app router
+## Tool budget and the tool loader
 
 One inference request carries at most **128 tools**: the Oxy edge's `tools`
 maximum (`OxyHQServices packages/api/src/schemas/inferenceEdge.schemas.ts`),
 which mirrors OpenAI's own per-request maximum. Alia names it once,
 `MAX_TOOLS_PER_INFERENCE_REQUEST` in `lib/inference/tool-limit.ts`, and fits
-inside it; the limit does not grow.
+inside it; the limit does not grow. Their definitions also share the request's
+byte budget with the conversation (next section).
 
 It is enforced twice:
 
@@ -178,65 +179,92 @@ It is enforced twice:
   (`invalid_request`, `param: "tools"`, not retryable) and a log naming the
   tool families. The edge's 400 is unreachable from Alia.
 
-When a turn's tools fit, nothing changes. When they do not, connected apps —
-each Oxy service (`oxy_<app>__*`), each MCP server (`mcp_<server>__*`) and each
-OAuth integration — are **opened on demand by the model**:
+When a turn's tools fit (count AND bytes), nothing changes. When they do not,
+the tools of connected apps — each Oxy service (`oxy_<app>__*`), each MCP
+server (`mcp_<server>__*`) and each OAuth integration — are **deferred and
+loaded by the model, one tool at a time**:
 
 1. The first step sends the core tools (clock, built-ins and artifacts, memory
    and messaging, runtime primitives, skills, agent tools, and every tool the
-   client sent) plus one tool, `useApps({ apps, close? })`. The system prompt's
-   **Apps** section lists every app the turn could open, with its tool count
-   and what it covers — the subject words of its own tool names (`inbox —
-   Inbox (11 tools): email, mailbox, thread…`), derived, never a list kept in
-   Alia. The section tells the model its access is real, that a request in
-   any language or by any synonym maps to an app by meaning, and that it must
-   open the app before saying it cannot reach something the app covers. A
-   routed turn omits the "Connected Oxy Services" tool-name list, which named
-   tools that were not yet in the request.
-2. `useApps` marks apps open; from the next step their real tools are in the
-   request (AI SDK `prepareStep` → `activeTools`). The model then calls them
-   directly. The full tool set stays registered, so execution, authorization,
-   approvals, the runtime policy, result truncation and tool-name mapping are
-   exactly those of a direct call — there is no proxy tool.
-3. An app that would push the request past 128 is not opened; the result names
-   it and the model can `close` another and ask again.
+   client sent) plus one tool, `loadTools({ names?, query?, limit?, unload? })`.
+   The system prompt's **Tools from the person's apps** section is the
+   catalogue: every app with its tool count, what it covers (the subject words
+   of its own tool names, derived, never a list kept in Alia) and the **name of
+   every tool** — the prefix once per app, no definitions. It tells the model
+   its access is real, that a request in any language or by any synonym maps to
+   an app by meaning, and that it must load tools before saying it cannot reach
+   something an app covers. A routed turn omits the "Connected Oxy Services"
+   tool-name list, which named tools that were not yet in the request.
+2. `loadTools` marks tools loaded; from the next step their real definitions
+   are in the request (AI SDK `prepareStep` → `activeTools`). The model loads
+   by **exact name** (the full name, or the bare part under the app's prefix
+   when it is unambiguous) or by **intent**: `query` ranks every deferred tool
+   by name words, app words and description and loads the best `limit`
+   (default 5, at most 10). The model then calls the tools directly. The full
+   tool set stays registered, so execution, authorization, approvals, the
+   runtime policy, result truncation and tool-name mapping are exactly those of
+   a direct call — there is no proxy tool.
+3. The unit is the tool, never the app: Mention's 94 tools are not "too big to
+   open", the model loads the five a request needs. The result is meant to be
+   acted on: `loaded` (with each description), `alreadyLoaded`, `unloaded`,
+   `unknown` (with `didYouMean`), `notLoaded` with a reason (`tool_limit` /
+   `size_limit`: unload something and ask again, with `unloadCandidates`;
+   `picks_fill_request`: the person's picks hold the room; `too_large`: it can
+   never fit on this model), `capacity` (tools and definition bytes in use and
+   allowed) and a `hint` in words.
 
-Open before the model asks, in this order and counted first:
+Loaded before the model asks, in this order and counted first:
 
 - **Explicit picks** — the composer's connector pick (`mcpServerId`), a whole
-  MCP server. A pick may also be one exact tool name (`pickedApps`); that tool
-  alone is activated. No surface sends a single-tool pick today. Picks are
-  never dropped: if they do not fit, the turn is refused `400 invalid_request`,
-  `param: "tools"`, naming them.
-- **Sticky apps** — apps opened or used earlier in the conversation, read from
-  the history the client replays (`toolInvocations` / `tool_calls`), most
-  recent first, while they fit. No column stores them: the replayed history is
-  already the conversation's record of which tools the model has used.
+  MCP server. A pick may also be one exact tool name (`pickedApps`). A pick's
+  tools are loaded while they fit and the model cannot unload them; what does
+  not fit stays in the catalogue and loadable by name. A pick never fails the
+  turn.
+- **Sticky tools** — tools the model called earlier in the conversation, read
+  from the history the client replays (`toolInvocations` / `tool_calls`), most
+  recent first, while they fit. A tool that was loaded and never called, or
+  unloaded later (`loadTools` results are replayed), is not sticky. No column
+  stores them.
 
 A client's own tools are never deferred. More than 128 of them is refused
 before credits are reserved (`lib/chat/request-context.ts`), and a set whose
-always-sent tools leave no room for the router is refused by the assembler with
+always-sent tools leave no room for the loader is refused by the assembler with
 the same typed error.
 
 ## Request input budget
 
-One inference request's input is also bounded in **bytes**. The Oxy edge
-refuses an Alia completion whose controlled input — UTF-8 bytes of
+One inference request's input is bounded in **bytes**. The Oxy edge refuses an
+Alia completion whose controlled input — UTF-8 bytes of
 `JSON.stringify({ input, tools, toolChoice, responseFormat })` plus 256, plus 32
 per message, plus 32 per tool — is over 126_976
 (`maxControlledCompletionInputBudget`, OxyHQServices
 `packages/api/src/config/inferenceEconomicPolicy.ts`; measured by
 `controlledInputBudget` in `packages/api/src/services/inferenceInternalPilot.ts`).
-Bytes are a worst-case token bound, so the request can never exceed the
-128Ki-token route context. The limit is Oxy's and deliberate; Alia fits inside
-it.
+Bytes are a worst-case token bound (a token is never less than one byte), so a
+request of N bytes is at most N tokens.
 
-`lib/inference/request-budget.ts` holds the ceiling: 4 KiB below Oxy's, 122_880
-bytes, lowered (never raised) with `ALIA_INFERENCE_INPUT_BUDGET_BYTES`. The Kaana
-adapter measures every model step of every surface — chat, `/v1`, tasks, the
-runner, delegation, bots, triggers and background derivations all reach Oxy
-through it — exactly as Oxy will, and when the request is over, shrinks only
-what is sent, in this order, until it fits:
+**One function computes the budget**: `requestInputBudgetBytes(model)` in
+`lib/inference/request-budget.ts`. It is derived, not declared:
+
+- the **model's window**: the catalogue's `maxContextTokens` less the room for
+  the answer (`maxOutputTokens`, at most half the window), read as bytes — the
+  pessimistic reading, which can never overflow the window. `getAIModel` passes
+  the resolved model's catalogue entry to the Kaana adapter
+  (`inputLimits`) and `ToolPipeline.forUser` receives the same (`inputLimits`);
+- the **server's limit**: Oxy's 126_976 less a 4 KiB margin (122_880), the
+  binding constraint for any model with a window of ~128K or more;
+- optionally lowered (never raised) by `ALIA_INFERENCE_INPUT_BUDGET_BYTES`.
+
+A power level (`auto`, `instant`, …) has no catalogue entry — Oxy picks the
+model per request — so its budget is the server's limit. The tool definitions
+may take half of the budget (`TOOL_DEFINITIONS_SHARE`); the tool loader keeps
+what it sends within `toolDefinitionsBudgetBytes(budget)`. No other file holds
+a byte constant.
+
+The Kaana adapter measures every model step of every surface — chat, `/v1`,
+tasks, the runner, delegation, bots, triggers and background derivations all
+reach Oxy through it — exactly as Oxy will, and when the request is over,
+shrinks only what is sent, in this order, until it fits:
 
 1. **Older tool results**, oldest first, in this turn and in history: their
    content becomes `[result omitted to fit context — call the tool again if
@@ -248,13 +276,22 @@ what is sent, in this order, until it fits:
 3. **The latest step's results**, oldest first, never the newest.
 
 The AI SDK's messages and what the turn persists are untouched; each step is
-fitted again. Tool definitions are the app router's to bound: the active
-schemas may take at most half the budget (61_440 bytes by default), and a set
-over that — even under 128 tools — is routed behind `useApps` exactly as a
-count overflow is. If a request still cannot fit (a pasted message larger than
-the budget), it is not sent: the step fails with a typed
-`context_length_exceeded` (`RequestInputBudgetExceededError`, not retryable),
-the edge's own code, and a log of the measured sizes — never the content.
+fitted again. If a request still cannot fit (a pasted message larger than the
+budget), it is not sent: the step fails with a typed `context_length_exceeded`
+(`RequestInputBudgetExceededError`, not retryable), the edge's own code, and a
+log of the measured sizes — never the content.
+
+**The server limit is Oxy configuration, and it is what makes the shrink above
+fire in production.** `maxControlledCompletionInputBudget` is 126_976 for the
+`alia-kaana` pilot whatever the route behind it: a model with a 1M window is
+metered as if it had 128K. Alia's side is now correct for every window; the
+remaining cost of that constant is that long conversations on a large-window
+model are shrunk (old tool results omitted, oldest turns dropped) at ~123 KB.
+If that is not wanted, the change is in OxyHQServices
+`inferenceEconomicPolicy.ts` (derive the ceiling from the route's
+`maxContextTokens`, or raise it for `alia-kaana`) and then
+`OXY_CONTROLLED_COMPLETION_INPUT_CEILING_BYTES` here follows it — a one-line
+change plus its test. Alia does not raise it on its own.
 
 ## Persistence and failure
 

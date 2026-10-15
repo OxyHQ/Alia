@@ -37,7 +37,7 @@
  * partition assertions vacuous for them.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ToolSet } from 'ai';
 import {
   CAPABILITY_FAMILIES,
@@ -242,12 +242,19 @@ const INSTANCE_TOOLS: Readonly<Record<string, string>> = {
 };
 
 beforeEach(() => {
+  // The messaging family includes the WhatsApp tools, which exist only where a
+  // gateway is configured (`whatsAppGatewayConfigured`): this suite is about the
+  // vocabulary, so it runs where the gateway exists.
+  vi.stubEnv('WHATSAPP_GATEWAY_URL', 'https://whatsapp-gateway.example.test');
+  vi.stubEnv('WHATSAPP_GATEWAY_SECRET', 'synthetic-secret');
   asked.mcp = [];
   asked.integration = [];
   asked.oxy_service = [];
   asked.oxy_context = [];
   asked.agent = [];
 });
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe('an agent reaches exactly what it was granted', () => {
   it('withholds automation creation when there is no live user session', async () => {

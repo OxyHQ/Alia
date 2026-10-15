@@ -135,7 +135,7 @@ export async function composeVoiceInstructions(input: {
 export interface VoiceTurnContext {
   /** Every tool the call may run. */
   readonly tools: ToolSet;
-  /** The tools the session currently carries (routing may open more with `useApps`). */
+  /** The tools the session currently carries (routing may load more with `loadTools`). */
   activeToolNames(): string[];
   /** The instructions for a session opened now, from this history. */
   instructions(history: readonly HistoryMessage[]): Promise<string>;

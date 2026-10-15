@@ -157,6 +157,7 @@ export async function runAgentTurn(input: {
     actsForPerson: false,
     // Whoever asked: the agent's Oxy tools reach its owner's apps only for them.
     requesterAccountId: payerOxyUserId,
+    inputLimits: resolved.catalogue,
     agentMode: false,
     toolsEnabled: true,
     webSearch: true,

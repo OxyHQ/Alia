@@ -144,7 +144,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'packages/api/src/lib/tools/result-truncation.ts':
     'POLICY: ToolSet -> ToolSet, wrapping results. Gathers nothing.',
   'packages/api/src/lib/tool-budget.ts':
-    'POLICY: fits the ONE assembled set to the per-request tool budget. Registers it whole plus the one `useApps` router tool it owns; gathers from no source.',
+    'POLICY: fits the ONE assembled set to the per-request tool budget. Registers it whole plus the one `loadTools` tool it owns; gathers from no source.',
 };
 
 /**

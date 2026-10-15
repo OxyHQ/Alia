@@ -261,8 +261,10 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
             agentMode: agentRuntimeEnabled,
             requestId,
             oxyApprovals,
-            // The apps this conversation already opened stay open (`lib/tool-budget.ts`).
+            // The tools this conversation already used stay loaded (`lib/tool-budget.ts`).
             priorToolCalls: priorToolCallsOf(messages),
+            // The tool definitions' share of the request is the model's (`request-budget.ts`).
+            inputLimits: ctx.resolved.catalogue,
             editorToolDefinitions: body.tools,
             sseEmitter,
             webSearch,

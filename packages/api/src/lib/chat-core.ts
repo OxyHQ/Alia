@@ -197,6 +197,7 @@ export function getAIModel(
       : { onInferenceRequest: options.onInferenceRequest }),
     modelId: resolved.modelId,
     surface,
+    inputLimits: resolved.catalogue,
     ...(oxyUserId === undefined ? {} : { oxyUserId }),
     ...(serviceToken === undefined ? {} : { serviceToken }),
     ...(options.reasoningEffort == null ? {} : { reasoningEffort: options.reasoningEffort }),

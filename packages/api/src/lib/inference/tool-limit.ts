@@ -25,7 +25,7 @@
  *
  *  1. `lib/tool-budget.ts`, called by `ToolPipeline.forUser`, never hands a
  *     turn more than this many DIRECT tools. What does not fit is deferred
- *     behind `searchTools`/`callTool`, never dropped.
+ *     behind `loadTools` (one tool at a time), never dropped.
  *  2. {@link assertToolCountWithinLimit}, at the Kaana adapter, refuses any
  *     request that still carries more — a path that bypassed the assembler, a
  *     future caller — with a typed error and a log naming the families, BEFORE
