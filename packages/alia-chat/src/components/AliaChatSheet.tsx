@@ -64,7 +64,12 @@ export interface AliaChatSheetProps {
 }
 
 export interface AliaChatSheetRef {
-  present: () => void;
+  /**
+   * Opens the sheet. Given a `turn`, the conversation opens over it with that message already
+   * sent (an "ask Alia about this" button: a profile, a post, a file); without one, the sheet
+   * opens on its welcome, with the composer focused.
+   */
+  present: (turn?: AliaTurn) => void;
   dismiss: () => void;
 }
 
@@ -137,8 +142,14 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
 
     useImperativeHandle(
       ref,
-      () => ({ present: () => mainRef.current?.present(), dismiss: handleDismiss }),
-      [handleDismiss],
+      () => ({
+        present: (turn) => {
+          mainRef.current?.present();
+          if (turn) startConversation(turn);
+        },
+        dismiss: handleDismiss,
+      }),
+      [handleDismiss, startConversation],
     );
 
     // Closing the main sheet (a drag, backdrop press, Back or Escape) closes what is stacked on it.
