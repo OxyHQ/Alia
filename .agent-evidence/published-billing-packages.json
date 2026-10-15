@@ -1,0 +1,39 @@
+{
+  "sources": {
+    "oxy": "602d7ea41434c580737c6af6f82449b454e2a1fc",
+    "Peable": "470db87fd0a3f1a7dc22ac28cba604f477486b30"
+  },
+  "purpose": "Published owning SDK packages; fresh registry downloads compared byte-for-byte with source build artifacts.",
+  "packages": {
+    "@oxy.so/contracts": {
+      "version": "4.15.0",
+      "sha256": "c982775fd571fd814442edda399d8a7bbb0ce279b07dc78a00c404d1755cf56c",
+      "integrity": "sha512-bSinclCR1uWh5b87wOfivwWRNmJq6w0REetVWF8dWT0nWPScrt6IZLCklq8ZxSrjrbjd24TM9mzU7w1P8Hy9Sg=="
+    },
+    "@oxy.so/core": {
+      "version": "4.9.0",
+      "sha256": "c7e9910ac28b5b37c20603bcdea33b59af1f753d4f4412f0d4d1571bd4963e5f",
+      "integrity": "sha512-lCEVyeUfDkChKbSNQau/W/1s00J/meoFbWbC/8V50jY+acmvQQcymajy8S86OmK5EfgJXy3BSZ6+EC09esi/Kw=="
+    },
+    "@oxy.so/services": {
+      "version": "11.4.0",
+      "sha256": "4147a4228f242968d7ad5cbf66b1e0f1d9feaa11ac35e501962396d13e240a5c",
+      "integrity": "sha512-qCZBz9eOJmZpoIeoNEzgjzlb515ro9E+jOFNqdOO3eWN27EAiPBlKYMF/Tf0RLdBO2PRdLU8mAYd4gy8rgbulw=="
+    },
+    "@peable.to/contracts": {
+      "version": "0.1.0",
+      "sha256": "1f8cb7df5410fd3ad68b90057f7bc6c7892018c6d55d1a12c58a8904244ce635",
+      "integrity": "sha512-plGdQ0rLT/you4j08OK7DI0QRv20dxVam8MgVz0PMear554WYZ+fF9AD90ld6ST5RpJqt07SMbF2WBB9oEf98w=="
+    },
+    "@peable.to/shared-types": {
+      "version": "0.3.4-oxy-one.0",
+      "sha256": "7a7718995254b94df8753c2740d5b945749900cc044ab694f26f642ead50f4a6",
+      "integrity": "sha512-JF4+RmAYtMYkmrtOcW2Xo6FYOGMdHXvOA7Jx517zDNfttQqTtj3a1uuyC+Ko+R0CviPUgQQxqaGlEmbgVQxabw=="
+    },
+    "@peable.to/sdk": {
+      "version": "0.2.7-oxy-one.1",
+      "sha256": "381a650963d5306b4445cd6249832830850754e3f67a4106eeef80235c780eff",
+      "integrity": "sha512-0deqObvvzXQu3fMEtykG7m4Jhs3Zd7vBb1lMVMO9k44XSvuahUL4hDl3VafKgJjEEvxEsCFpoJ0ZXuMA6ve0BA=="
+    }
+  }
+}
