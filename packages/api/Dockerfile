@@ -59,6 +59,7 @@ WORKDIR /build
 # bunfig.toml carries `linker = "hoisted"`, which the install below relies on so
 # runtime deps land in the root node_modules the runtime stage copies.
 COPY package.json bun.lock bunfig.toml ./
+COPY vendor/display/ ./vendor/display/
 # All workspace manifests (required so bun can resolve the workspace graph).
 # Directory structure is preserved.
 COPY packages/api/package.json ./packages/api/

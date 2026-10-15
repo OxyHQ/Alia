@@ -1,3 +1,4 @@
+import { useDisplayPrice } from '@oxy.so/services';
 import {
   useCancelSubscription,
   useCreateCheckout,
@@ -38,6 +39,7 @@ interface BillingSectionProps {
 }
 
 export function BillingSection({ success }: BillingSectionProps) {
+  const display = useDisplayPrice();
   const router = useRouter();
   const { data: creditsInfo, isLoading, refetch } = useCredits();
   const { data: subscription, refetch: refetchSubscription } = useSubscription();
@@ -197,7 +199,7 @@ export function BillingSection({ success }: BillingSectionProps) {
   const plan = isSubscribed
     ? {
         badge: t('settings.account.currentPlan'),
-        title: `${subscription.plan.name} ${dollars(subscription.plan.price)}${t('credits.perMonth')}`,
+        title: `${subscription.plan.name} ${display.formatUsd(subscription.plan.price)}${t('credits.perMonth')}`,
         description: `${t('billing.creditsPerMonth', {
           count: subscription.plan.creditsPerMonth.toLocaleString(),
         })} · ${renewal}`,

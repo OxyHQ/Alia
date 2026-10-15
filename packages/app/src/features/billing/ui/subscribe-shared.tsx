@@ -1,3 +1,4 @@
+import { DisplayCurrencySelector, useDisplayPrice } from '@oxy.so/services';
 import { Announcement } from '@oxy.so/bloom/announcement';
 import { Button } from '@oxy.so/bloom/button';
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@oxy.so/bloom/card';
@@ -22,7 +23,8 @@ import {
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import type React from 'react';
+import { useEffect } from 'react';
 import { View } from 'react-native';
 import Animated, {
   Easing,
@@ -99,6 +101,7 @@ export function BillingToggle({
   // wrapper is what lets a centred parent centre it.
   return (
     <View>
+      <DisplayCurrencySelector />
       <SegmentedControl
         type="radio"
         label={t('subscribe.billingPeriod')}
@@ -155,6 +158,9 @@ function OdometerDigit({ digit }: { digit: string }) {
 }
 
 function SlotPrice({ cents }: { cents: number }) {
+  const display = useDisplayPrice();
+  if (display.currency !== 'USD')
+    return <Text variant="display-4-bold">{display.formatUsd(cents)}</Text>;
   const chars = formatPrice(cents).split('');
   return (
     <View className="flex-row items-center">
@@ -266,6 +272,7 @@ function TierName({ tier, t }: { tier: PricingTier; t: Translate }) {
 /** Price, credits and the action — the part of a tier that is not its features. */
 function TierSummary({ tier, props }: { tier: PricingTier; props: PlanGridProps }) {
   const { billingPeriod, t, isComped, loadingPlanId, onSubscribe } = props;
+  const display = useDisplayPrice();
   const price = billingPeriod === 'annual' ? Math.round(tier.annualPrice / 12) : tier.monthlyPrice;
   const button = getButtonState(
     tier,
@@ -287,9 +294,14 @@ function TierSummary({ tier, props }: { tier: PricingTier; props: PlanGridProps 
             <SlotPrice cents={price} />
             <Muted>{t('subscribe.perMonth')}</Muted>
           </View>
+          {display.currency !== 'USD' && (
+            <Muted>
+              {formatPrice(price)} USD{t('subscribe.perMonth')}
+            </Muted>
+          )}
           {billingPeriod === 'annual' ? (
             <AnimatedSubtext
-              text={`${formatPrice(tier.annualPrice)}${t('subscribe.perYear')}`}
+              text={`${display.formatUsd(tier.annualPrice)}${t('subscribe.perYear')}`}
               billingPeriod={billingPeriod}
             />
           ) : null}
