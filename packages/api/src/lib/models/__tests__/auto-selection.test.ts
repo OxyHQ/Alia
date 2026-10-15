@@ -6,7 +6,7 @@ import {
   blendedPrice,
   selectDefaultModelId,
   selectFeatured,
-  selectSpeechModelId,
+  rankSpeechModelIds,
   selectUtilityModelId,
 } from '../auto-selection.js';
 import type { CatalogueModel } from '../catalogue.js';
@@ -147,7 +147,7 @@ describe('selectUtilityModelId', () => {
   });
 });
 
-describe('selectSpeechModelId', () => {
+describe('rankSpeechModelIds', () => {
   const speech = (id: string, perMChar: string | null, overrides: Partial<CatalogueModel> = {}) =>
     model(id, {
       outputModalities: ['audio'],
@@ -157,31 +157,62 @@ describe('selectSpeechModelId', () => {
       ...overrides,
     });
 
-  it('is the cheapest speech model by its per-character price', () => {
+  it('orders speech models cheapest per character first, the unpriced last', () => {
     expect(
-      selectSpeechModelId([
+      rankSpeechModelIds([
         model('a/chat'),
         speech('b/voice-dear', '80'),
-        speech('c/voice-cheap', '15'),
         speech('d/voice-unpriced', null),
+        speech('c/voice-cheap', '15'),
       ]),
-    ).toBe('c/voice-cheap');
-    expect(selectSpeechModelId([model('a/chat')])).toBeNull();
+    ).toEqual(['c/voice-cheap', 'b/voice-dear', 'd/voice-unpriced']);
+    expect(rankSpeechModelIds([model('a/chat')])).toEqual([]);
+  });
+
+  it('treats a missing, unparseable or negative price as no price, and a free one as priced', () => {
+    expect(
+      rankSpeechModelIds([
+        speech('a/voice-nan', 'not-a-number'),
+        speech('b/voice-negative', '-1'),
+        speech('c/voice-absent', null, { characterPricePerM: undefined }),
+        speech('z/voice-free', '0'),
+        speech('y/voice-priced', '30'),
+      ]),
+    ).toEqual([
+      'z/voice-free',
+      'y/voice-priced',
+      'a/voice-nan',
+      'b/voice-negative',
+      'c/voice-absent',
+    ]);
+  });
+
+  it('is the same order whatever order the catalogue lists them in', () => {
+    const models = [
+      speech('b/voice', '40'),
+      speech('a/voice', '40'),
+      speech('d/unpriced', null),
+      speech('C/unpriced', null),
+      speech('e/cheap', '10'),
+    ];
+    const expected = ['e/cheap', 'a/voice', 'b/voice', 'C/unpriced', 'd/unpriced'];
+    expect(rankSpeechModelIds(models)).toEqual(expected);
+    expect(rankSpeechModelIds([...models].reverse())).toEqual(expected);
   });
 
   it('does not rank speech by a token price it is not billed by', () => {
     // A token price on a speech model must not beat a character-priced one.
     expect(
-      selectSpeechModelId([
+      rankSpeechModelIds([
         speech('a/voice-tokens', null, { pricing: { inputPerMTok: '0.1', outputPerMTok: '0.1' } }),
         speech('z/voice-chars', '40'),
       ]),
-    ).toBe('z/voice-chars');
+    ).toEqual(['z/voice-chars', 'a/voice-tokens']);
   });
 
-  it('never picks an audio model that cannot answer a speech request', () => {
+  it('never offers an audio model that cannot answer a speech request', () => {
     expect(
-      selectSpeechModelId([
+      rankSpeechModelIds([
         // Audio chat: declares chat_completions only.
         speech('a/audio-chat', '1', {
           inputModalities: ['audio', 'text'],
@@ -199,11 +230,7 @@ describe('selectSpeechModelId', () => {
         speech('x/text-to-speech', '15'),
         speech('y/declared-speech', '40', { apiFormats: ['audio_speech'] }),
       ]),
-    ).toBe('x/text-to-speech');
-  });
-
-  it('breaks a price tie on the id', () => {
-    expect(selectSpeechModelId([speech('b/voice', '40'), speech('a/voice', '40')])).toBe('a/voice');
+    ).toEqual(['x/text-to-speech', 'y/declared-speech']);
   });
 });
 

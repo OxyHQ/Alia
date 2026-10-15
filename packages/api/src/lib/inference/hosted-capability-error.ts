@@ -1,8 +1,4 @@
-export type KaanaUnavailableCapability =
-  | 'audio_generation'
-  | 'image_generation'
-  | 'speech_synthesis'
-  | 'embedding';
+export type KaanaUnavailableCapability = 'audio_generation' | 'image_generation' | 'embedding';
 
 /** Fail-closed, provider-neutral refusal for a modality Kaana does not expose. */
 export class KaanaCapabilityUnavailableError extends Error {

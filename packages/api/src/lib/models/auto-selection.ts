@@ -180,25 +180,46 @@ export function selectUtilityModelId(models: readonly CatalogueModel[]): string 
 }
 
 /**
- * Per-million-character price, or `Infinity` when unpriced: speech is priced
- * by the characters it reads, not by tokens, so the token blend says nothing
- * about it.
+ * Per-million-character price, or `null` when the model has none Alia can
+ * rank by: speech is priced by the characters it reads, not by tokens, so the
+ * token blend says nothing about it. A missing, unparseable or negative price
+ * is no price.
  */
-function characterPrice(model: CatalogueModel): number {
-  const price = Number(model.characterPricePerM ?? Number.NaN);
-  return Number.isFinite(price) ? price : Number.POSITIVE_INFINITY;
+function characterPrice(model: CatalogueModel): number | null {
+  if (model.characterPricePerM === undefined || model.characterPricePerM === null) return null;
+  const price = Number(model.characterPricePerM);
+  return Number.isFinite(price) && price >= 0 ? price : null;
+}
+
+/** Code-point order: the same on every host, unlike `localeCompare`. */
+function byIdCodePoints(a: CatalogueModel, b: CatalogueModel): number {
+  if (a.id === b.id) return 0;
+  return a.id < b.id ? -1 : 1;
 }
 
 /**
- * The cheapest speech model by its published per-character price, for spoken
- * answers; ties, and unpriced models, break on the id.
+ * Every speech model, in the order spoken answers try them. The first is the
+ * one used; the rest are what `synthesizeSpeech` falls back to when a model
+ * refuses the request itself.
+ *
+ * Explicit and total, so the same catalogue always gives the same order:
+ *
+ * 1. Priced before unpriced — a published per-character price is the only cost
+ *    signal there is, so a model without one is tried only after every priced
+ *    model.
+ * 2. Among priced models, the cheaper per character first.
+ * 3. Equal prices, and the unpriced among themselves, by id in code-point
+ *    order — never by the catalogue's listing order or the host's locale.
  */
-export function selectSpeechModelId(models: readonly CatalogueModel[]): string | null {
-  return (
-    [...models.filter(isSpeechCapable)].sort((a, b) => {
-      const delta = characterPrice(a) - characterPrice(b);
-      if (delta !== 0 && !Number.isNaN(delta)) return delta < 0 ? -1 : 1;
-      return a.id.localeCompare(b.id);
-    })[0]?.id ?? null
-  );
+export function rankSpeechModelIds(models: readonly CatalogueModel[]): string[] {
+  return models
+    .filter(isSpeechCapable)
+    .map((model) => ({ model, price: characterPrice(model) }))
+    .sort((a, b) => {
+      if (a.price !== null && b.price !== null && a.price !== b.price) return a.price - b.price;
+      if (a.price === null && b.price !== null) return 1;
+      if (a.price !== null && b.price === null) return -1;
+      return byIdCodePoints(a.model, b.model);
+    })
+    .map(({ model }) => model.id);
 }

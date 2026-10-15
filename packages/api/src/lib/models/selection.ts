@@ -21,7 +21,7 @@ import { log } from '../logger.js';
 import {
   selectDefaultModelId,
   selectFeatured,
-  selectSpeechModelId,
+  rankSpeechModelIds,
   selectUtilityModelId,
   type ModelUsage,
 } from './auto-selection.js';
@@ -114,11 +114,14 @@ export async function getUtilityModelId(): Promise<string> {
   return id;
 }
 
-/** The model for spoken answers. */
-export async function getSpeechModelId(): Promise<string> {
-  const id = selectSpeechModelId(await listCatalogueModels());
-  if (id === null) throw new NoModelAvailableError('speech');
-  return id;
+/**
+ * The models for spoken answers, in the order they are tried
+ * (`rankSpeechModelIds`): the first answers, the rest are the fallbacks.
+ */
+export async function getSpeechModelIds(): Promise<string[]> {
+  const ids = rankSpeechModelIds(await listCatalogueModels());
+  if (ids.length === 0) throw new NoModelAvailableError('speech');
+  return ids;
 }
 
 /** Test seam. */

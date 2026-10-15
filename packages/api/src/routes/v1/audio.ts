@@ -1,8 +1,7 @@
 import { Router, type Request, type Response } from 'express';
-import { OxyInferenceError } from '@oxy.so/core/inference';
 import { z } from 'zod';
 import { findMessageAudioUrl, setMessageAudioUrl } from '../../db/chat/messageRepository.js';
-import { synthesizeSpeech } from '../../lib/synthesize-speech.js';
+import { SpeechSynthesisError, synthesizeSpeech } from '../../lib/synthesize-speech.js';
 import { deleteS3Objects, uploadToS3 } from '../../lib/s3.js';
 
 import { getDb } from '../../db/index.js';
@@ -12,7 +11,6 @@ import {
   type KaanaUnavailableCapability,
 } from '../../lib/inference/hosted-capability-error.js';
 import { log } from '../../lib/logger.js';
-import { sanitizeMessage } from '../../lib/errors/index.js';
 import { storedMediaUrl } from '../../lib/stored-media.js';
 
 const router = Router();
@@ -25,6 +23,47 @@ function unavailable(res: Response, capability: KaanaUnavailableCapability): Res
       message: error.message,
       type: 'server_error',
       retryable: false,
+    },
+  });
+}
+
+/**
+ * One structured record per failed speech request: what failed and where, the
+ * model(s) tried and Oxy's request id — never the text, the user or a
+ * credential.
+ */
+function logSpeechFailure(
+  error: SpeechSynthesisError,
+  request: { voice: string; inputChars: number },
+): void {
+  const record = {
+    code: error.code,
+    reason: error.reason,
+    status: error.httpStatus,
+    retryable: error.retryable,
+    upstreamCode: error.upstreamCode,
+    upstreamStatus: error.upstreamStatus,
+    requestId: error.requestId,
+    param: error.param,
+    models: error.models,
+    voice: request.voice,
+    inputChars: request.inputChars,
+  };
+  if (error.code === 'SPEECH_REJECTED' || error.code === 'SPEECH_LIMIT_REACHED')
+    log.speech.warn(record, 'Speech synthesis failed');
+  else log.speech.error(record, 'Speech synthesis failed');
+}
+
+function speechFailure(res: Response, error: SpeechSynthesisError): Response {
+  if (error.retryAfterMs !== undefined)
+    res.setHeader('Retry-After', String(Math.ceil(error.retryAfterMs / 1000)));
+  return res.status(error.httpStatus).json({
+    error: {
+      code: error.code,
+      message: error.message,
+      retryable: error.retryable,
+      ...(error.requestId === undefined ? {} : { requestId: error.requestId }),
+      ...(error.retryAfterMs === undefined ? {} : { retryAfterMs: error.retryAfterMs }),
     },
   });
 }
@@ -62,10 +101,12 @@ router.post('/speech', async (req: Request, res: Response) => {
     if (!res.writableEnded) controller.abort();
   };
   res.on('close', abort);
+  const request = { voice: body.voice, inputChars: body.input.length };
   let key: string | undefined;
+  let stage: 'synthesis' | 'storage' | 'attachment' = 'synthesis';
   try {
     if (storedMediaUrl(req, 'speech-readiness', userId) === null)
-      return unavailable(res, 'speech_synthesis');
+      throw new SpeechSynthesisError('SPEECH_UNAVAILABLE', { reason: 'storage_unavailable' });
     if (body.conversationId !== undefined && body.messageId !== undefined) {
       const cached = await findMessageAudioUrl(
         getDb(),
@@ -88,11 +129,13 @@ router.post('/speech', async (req: Request, res: Response) => {
       signal: controller.signal,
     });
     controller.signal.throwIfAborted();
+    stage = 'storage';
     key = await uploadToS3(speech.audio, 'speech.mp3', `tts/${userId}`, 'speech');
     controller.signal.throwIfAborted();
     const audioUrl = storedMediaUrl(req, key, userId);
     if (audioUrl === null) throw new Error('Speech playback is unavailable');
     if (body.conversationId !== undefined && body.messageId !== undefined) {
+      stage = 'attachment';
       const updated = await setMessageAudioUrl(
         getDb(),
         userId,
@@ -106,24 +149,21 @@ router.post('/speech', async (req: Request, res: Response) => {
   } catch (error: unknown) {
     if (key !== undefined)
       await deleteS3Objects([key]).catch(() => {
-        log.general.error('Speech object cleanup failed');
+        log.speech.error('Speech object cleanup failed');
       });
     if (controller.signal.aborted) return;
-    if (error instanceof OxyInferenceError) {
-      if (error.retryAfterMs !== undefined)
-        res.setHeader('Retry-After', String(Math.ceil(error.retryAfterMs / 1000)));
-      return res.status(error.status).json({
-        error: {
-          code: error.code,
-          message: sanitizeMessage(error.message),
-          requestId: error.requestId,
-          retryable: error.retryable,
-          retryAfterMs: error.retryAfterMs,
-        },
-      });
+    if (error instanceof SpeechSynthesisError) {
+      logSpeechFailure(error, request);
+      return speechFailure(res, error);
     }
-    log.general.error(
-      { errorName: error instanceof Error ? error.name : 'unknown' },
+    log.speech.error(
+      {
+        code: 'SPEECH_GENERATION_FAILED',
+        stage,
+        errorName: error instanceof Error ? error.name : 'unknown',
+        voice: request.voice,
+        inputChars: request.inputChars,
+      },
       'Speech generation failed',
     );
     return res.status(502).json({

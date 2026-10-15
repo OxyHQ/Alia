@@ -1,5 +1,4 @@
 import { EventEmitter } from 'node:events';
-import { OxyInferenceError } from '@oxy.so/core/inference';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const H = vi.hoisted(() => ({
@@ -10,11 +9,16 @@ const H = vi.hoisted(() => ({
   find: vi.fn(),
   save: vi.fn(),
   link: vi.fn(),
+  logError: vi.fn(),
+  logWarn: vi.fn(),
 }));
 vi.mock('../../../lib/product-credit-access.js', () => ({
   readConfiguredProductCreditSnapshot: H.snapshot,
 }));
-vi.mock('../../../lib/synthesize-speech.js', () => ({ synthesizeSpeech: H.synthesizeSpeech }));
+vi.mock('../../../lib/synthesize-speech.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../lib/synthesize-speech.js')>()),
+  synthesizeSpeech: H.synthesizeSpeech,
+}));
 vi.mock('../../../lib/s3.js', () => ({ uploadToS3: H.upload, deleteS3Objects: H.remove }));
 vi.mock('../../../lib/stored-media.js', () => ({ storedMediaUrl: H.link }));
 vi.mock('../../../db/chat/messageRepository.js', () => ({
@@ -23,8 +27,11 @@ vi.mock('../../../db/chat/messageRepository.js', () => ({
 }));
 vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock('../../../db/notifications/audioJobRepository.js', () => ({ findAudioJobStatus: vi.fn() }));
-vi.mock('../../../lib/logger.js', () => ({ log: { general: { error: vi.fn() } } }));
+vi.mock('../../../lib/logger.js', () => ({
+  log: { speech: { error: H.logError, warn: H.logWarn }, general: { error: vi.fn() } },
+}));
 const { default: audioRouter } = await import('../audio.js');
+const { SpeechSynthesisError } = await import('../../../lib/synthesize-speech.js');
 interface RouteLayer {
   route?: {
     path?: string;
@@ -130,33 +137,102 @@ describe('speech synthesis boundary', () => {
     expect(res.statusCode).toBe(404);
     expect(H.synthesizeSpeech).not.toHaveBeenCalled();
   });
-  it('preserves provider rate limits and never retries a paid request', async () => {
+  it('answers a limit with its typed code and wait, logs it, and never retries a paid request', async () => {
     H.synthesizeSpeech.mockRejectedValue(
-      new OxyInferenceError({
-        status: 429,
-        code: 'rate_limited',
-        message: 'Capacity unavailable',
-        requestId: 'req_limit',
+      new SpeechSynthesisError('SPEECH_LIMIT_REACHED', {
+        reason: 'refused',
         retryable: true,
         retryAfterMs: 1500,
+        upstreamCode: 'rate_limited',
+        upstreamStatus: 429,
+        requestId: 'req_limit',
+        models: ['acme/voice'],
       }),
     );
     const res = response();
     await handler()({ user: { id: 'u1' }, body }, res, undefined);
     expect(res.statusCode).toBe(429);
     expect(res.headers['Retry-After']).toBe('2');
-    expect(res.body).toMatchObject({
-      error: { code: 'rate_limited', requestId: 'req_limit', retryAfterMs: 1500 },
+    expect(res.body).toEqual({
+      error: {
+        code: 'SPEECH_LIMIT_REACHED',
+        message: expect.any(String),
+        retryable: true,
+        requestId: 'req_limit',
+        retryAfterMs: 1500,
+      },
     });
     expect(H.synthesizeSpeech).toHaveBeenCalledTimes(1);
     expect(H.upload).not.toHaveBeenCalled();
+    expect(H.logWarn).toHaveBeenCalledWith(
+      {
+        code: 'SPEECH_LIMIT_REACHED',
+        reason: 'refused',
+        status: 429,
+        retryable: true,
+        upstreamCode: 'rate_limited',
+        upstreamStatus: 429,
+        requestId: 'req_limit',
+        param: undefined,
+        models: ['acme/voice'],
+        voice: 'female',
+        inputChars: 4,
+      },
+      'Speech synthesis failed',
+    );
+  });
+  it.each([
+    ['SPEECH_UNAVAILABLE', 'no_speech_model', 503, 'error'],
+    ['SPEECH_REJECTED', 'refused', 422, 'warn'],
+    ['SPEECH_PROVIDER_FAILED', 'transport', 502, 'error'],
+  ] as const)('answers %s with its own status and logs it', async (code, reason, status, level) => {
+    H.synthesizeSpeech.mockRejectedValue(new SpeechSynthesisError(code, { reason }));
+    const res = response();
+    await handler()({ user: { id: 'u1' }, body }, res, undefined);
+    expect(res.statusCode).toBe(status);
+    expect(res.body).toMatchObject({ error: { code, retryable: false } });
+    const logged = level === 'error' ? H.logError : H.logWarn;
+    expect(logged).toHaveBeenCalledWith(
+      expect.objectContaining({ code, reason, status }),
+      'Speech synthesis failed',
+    );
+  });
+  it('answers and logs an unconfigured storage as unavailable speech, before egress', async () => {
+    H.link.mockReturnValue(null);
+    const res = response();
+    await handler()({ user: { id: 'u1' }, body }, res, undefined);
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toMatchObject({ error: { code: 'SPEECH_UNAVAILABLE', retryable: false } });
+    expect(H.synthesizeSpeech).not.toHaveBeenCalled();
+    expect(H.logError).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'SPEECH_UNAVAILABLE', reason: 'storage_unavailable' }),
+      'Speech synthesis failed',
+    );
+  });
+  it('never logs the text, the user or the conversation', async () => {
+    const input = 'Mi número secreto es 1234';
+    H.synthesizeSpeech.mockRejectedValue(
+      new SpeechSynthesisError('SPEECH_REJECTED', { reason: 'refused', param: 'input' }),
+    );
+    await handler()({ user: { id: 'u1' }, body: { ...body, input } }, response(), undefined);
+    H.synthesizeSpeech.mockRejectedValue(new Error(input));
+    await handler()({ user: { id: 'u1' }, body: { ...body, input } }, response(), undefined);
+    const logged = JSON.stringify([...H.logWarn.mock.calls, ...H.logError.mock.calls]);
+    expect(H.logWarn).toHaveBeenCalledTimes(1);
+    expect(H.logError).toHaveBeenCalledTimes(1);
+    for (const secret of [input, '1234', 'u1', 'c1', 'm1']) expect(logged).not.toContain(secret);
   });
   it('removes generated storage when the message disappears before attachment', async () => {
     H.save.mockResolvedValue(0);
     const res = response();
     await handler()({ user: { id: 'u1' }, body }, res, undefined);
     expect(res.statusCode).toBe(502);
+    expect(res.body).toMatchObject({ error: { code: 'SPEECH_GENERATION_FAILED' } });
     expect(H.remove).toHaveBeenCalledWith(['test/audio/u1/speech.mp3']);
+    expect(H.logError).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'SPEECH_GENERATION_FAILED', stage: 'attachment' }),
+      'Speech generation failed',
+    );
   });
   it('cancels synthesis when its client disconnects', async () => {
     const res = response();
@@ -168,6 +244,7 @@ describe('speech synthesis boundary', () => {
     expect(H.upload).not.toHaveBeenCalled();
     expect(res.body).toBeUndefined();
     expect(res.listenerCount('close')).toBe(0);
+    expect(H.logError).not.toHaveBeenCalled();
   });
 });
 
