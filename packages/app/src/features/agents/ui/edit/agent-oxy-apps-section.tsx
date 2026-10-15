@@ -1,3 +1,4 @@
+import { Linking } from 'react-native';
 import type { AgentOxyApps, OxyAppLevel } from '@/features/agents/runtime/use-agent-oxy-apps';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import {
@@ -28,13 +29,18 @@ export function AgentOxyAppsSection({ oxyApps }: { oxyApps: AgentOxyApps }) {
   const { t } = useTranslation();
   const { apps, status, setLevel } = oxyApps;
   if (status === 'hidden' || status === 'loading') return null;
-  if (status === 'ready' && apps.length === 0) return null;
 
   return (
     <SettingsListGroup
       title={t('agents.oxyApps.title')}
       footer={status === 'failed' ? t('agents.oxyApps.loadFailed') : t('agents.oxyApps.footer')}
     >
+      <SettingsListItem
+        title={t('agents.templates.organizationAccess')}
+        description={t('agents.templates.organizationAccessHint')}
+        accessibilityRole="link"
+        onPress={() => void Linking.openURL('https://accounts.oxy.so/agency')}
+      />
       {apps.map((app) => (
         <SettingsListItem
           key={app.appId}

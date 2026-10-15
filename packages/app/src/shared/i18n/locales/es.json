@@ -1608,6 +1608,24 @@
           "download": "Descargó un archivo"
         }
       }
+    },
+    "templates": {
+      "title": "Empezar con una plantilla",
+      "hint": "Elige un punto de partida editable o describe tu agente abajo. Las plantillas no conceden acceso.",
+      "communication": {
+        "label": "Comunicación",
+        "description": "Prepara publicaciones para revisarlas en Schedio.",
+        "access": "Después de crearlo, elige el acceso a Schedio en Apps de Oxy. Para una organización, elige sus recursos concretos en Accounts → Agency. Tú revisas y publicas en Schedio.",
+        "prompt": "Ayúdame a preparar comunicaciones. Pregunta por el público, mensaje, tono y destinos deseados. Consulta únicamente la cuenta de Schedio delegada explícitamente y sus destinos conectados. Prepara un borrador mediante Schedio, reutilizando la clave de idempotencia al reintentar. Muestra el borrador y su enlace de revisión en Schedio. Nunca lo apruebes, programes ni publiques. Si falta acceso a una cuenta o destino, explica qué debe elegir su propietario en el editor o en Accounts Agency; nunca inventes resultados de publicación. Conserva el contenido en su aplicación de origen y utiliza referencias. Estas instrucciones se pueden editar; los permisos se eligen por separado."
+      },
+      "materials": {
+        "label": "Materiales",
+        "description": "Detecta recogidas pendientes y propone transportes para confirmar.",
+        "access": "Después de crearlo, elige Mercaria → Ver en Apps de Oxy. Para una organización, selecciona sus recursos concretos en Accounts → Agency. Confirma transporte, pagador y precio en Mercaria y Moovo.",
+        "prompt": "Ayúdame a coordinar materiales donados. Consulta listPendingMaterialPickups de Mercaria para la cuenta delegada explícitamente y recorre su paginación. Considera únicamente reservas aceptadas; las entregadas o canceladas no son recogidas pendientes. Usa referencias a reservas y ofertas; no copies direcciones privadas a publicaciones ni memoria. Si una reserva ya tiene referencia a un transporte de Moovo, pide revisar ese transporte antes de proponer otra contratación. Para las demás reservas, propone transporte o recogida personal con el enlace de Mercaria y el identificador de reserva. Los datos que falten de recogida, destino, contacto y paquete se completan en el formulario de transporte; las instrucciones libres no son coordenadas. La persona debe elegir quién paga, revisar el presupuesto vigente y autorizar y contratar explícitamente en Mercaria/Moovo. Nunca contrates, pagues ni afirmes que se ha pagado. Editar estas instrucciones no concede permisos."
+      },
+      "organizationAccess": "Elegir acceso a organizaciones y recursos",
+      "organizationAccessHint": "Abre Accounts Agency para elegir la cuenta, aplicación y recursos concretos que puede utilizar este agente."
     }
   },
   "authorize": {

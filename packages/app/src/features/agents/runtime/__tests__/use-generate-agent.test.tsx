@@ -20,7 +20,14 @@ vi.mock('@/features/agents/runtime/use-agents', () => ({
 }));
 vi.mock('@/shared/api/client', () => ({
   default: {
-    post: async () => ({ data: { suggestedUsername: 'scout', name: 'Scout', tagline: 't' } }),
+    post: async () => ({
+      data: {
+        suggestedUsername: 'scout',
+        name: 'Scout',
+        tagline: 't',
+        capabilityGrants: ['web', 'computer'],
+      },
+    }),
   },
 }));
 vi.mock('@/shared/api/routes', () => ({
@@ -56,6 +63,17 @@ beforeEach(() => {
 });
 
 describe('useGenerateAgent', () => {
+  it('starts template agents with no local capabilities even if generated prose requests them', async () => {
+    await hook()('editable materials instructions', 'general', null, {
+      startWithoutCapabilities: true,
+    });
+    expect(created.bodies[0].capabilityGrants).toEqual([]);
+    expect(created.bodies[0]).not.toHaveProperty('oxyApps');
+  });
+  it('preserves the existing custom creator capability selection', async () => {
+    await hook()('a research scout', 'general');
+    expect(created.bodies[0].capabilityGrants).toEqual(['web', 'computer']);
+  });
   it('creates the agent with the model picked for it', async () => {
     await hook()('a research scout', 'general', 'acme/chat-1');
     expect(created.bodies[0]).toMatchObject({ oxyAccountId: 'acct-1', modelId: 'acme/chat-1' });
