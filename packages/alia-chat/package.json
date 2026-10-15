@@ -1,6 +1,6 @@
 {
   "name": "@alia.onl/sdk",
-  "version": "18.1.0",
+  "version": "17.1.0",
   "description": "Alia AI chat SDK — the conversation runtime, chat UI, voice calls and dictation for Oxy apps",
   "main": "src/index.ts",
   "react-native": "src/index.ts",

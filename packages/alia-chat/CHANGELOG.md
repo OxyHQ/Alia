@@ -1,6 +1,6 @@
 # @alia.onl/sdk
 
-## 18.1.0
+## 17.1.0
 
 - **`AliaAvatarIcon` is her still until she moves.** At icon size it drew Alia through the live 3D
   runtime, so a header button cost every cold load of the app around it the whole runtime from
