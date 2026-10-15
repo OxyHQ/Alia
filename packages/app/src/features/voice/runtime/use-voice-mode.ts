@@ -1,51 +1,39 @@
 /**
  * Voice mode for the open conversation.
  *
- * A call is the conversation, spoken. Each thing the person says is sent with
- * the screen's own `sendMessage` — the same `/alia/chat` turn a typed message
- * is, with the conversation, the agent, the model and every tool it has — and
- * marked `responseMode: 'voice'` so the answer is meant to be heard. So a
- * call's turns land in the thread as ordinary messages, persisted by the server
- * like any other, and nothing has to be merged into or saved from the screen
- * when the call ends. The SDK's `useVoiceRoom` does the listening (on the
- * device) and the speaking (`/v1/audio/speech`, sentence by sentence).
+ * A call is a realtime speech-to-speech session that Alia holds with Kaana
+ * (`/v1/voice/session`, ADR 0017), opened for THIS conversation and its agent.
+ * Alia stores both sides of the transcript in the conversation as the call
+ * goes, and tells the open screen over the notifications socket
+ * (`conversation:message`); `messages.saved` also refreshes the cached thread.
+ * Nothing is sent through the screen's `sendMessage`, and nothing is recognized
+ * on the device.
  *
  * A call belongs to one conversation of one account, on the screen that shows
  * it. When the screen stops being the one on show (another route pushed over
  * it, the drawer's next chat), the conversation it speaks to changes, or the
- * account does, the call ENDS: the microphone is released and the controls go
- * with it. It never follows the person to another conversation, where its
- * turns would land in a thread they did not start it in, and it never keeps
- * listening behind a screen that has no controls to stop it.
+ * account does, the call ENDS (`session.end`): the microphone is released and
+ * the controls go with it.
+ *
+ * A call opened on another device or tab takes this one over; this side then
+ * ends with `call-moved-elsewhere`, which is said as information, not as an
+ * error.
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/shared/api/query-keys';
 import { useVoiceRoom } from '@/features/voice/runtime/use-voice-room';
-import { useAudioLevelMonitor, useAudioLevels, type VoiceTurnSender } from '@alia.onl/sdk/voice';
+import { useAudioLevelMonitor, useAudioLevels } from '@alia.onl/sdk/voice';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { voiceErrorText } from '@/features/voice/model/voice-error-text';
-import type { SendOptions } from '@/shared/contracts/chat-turn';
-import type { AliaAttachment } from '@alia.onl/sdk';
-
-/**
- * The call ended because the turn could not be sent at all. `sendMessage` has
- * already said so — a toast, or the usage-limit dialog — so voice mode ends the
- * call without saying it a second time.
- */
-const TURN_NOT_SENT = 'voice-turn-not-sent';
+import { voiceEndedText, voiceErrorText } from '@/features/voice/model/voice-error-text';
 
 interface UseVoiceModeOptions {
-  /** The conversation's own send — `useChatConversation().sendMessage`. */
-  sendMessage: (
-    content: string,
-    attachments?: AliaAttachment[],
-    options?: SendOptions,
-  ) => Promise<boolean>;
-  /** Stops the turn streaming now; how talking over an answer cancels it. */
-  stopGeneration: () => void;
+  /** The conversation the call speaks in, and is stored in. */
+  conversationId: string;
+  /** The conversation's agent; omitted, Alia. */
+  agentId?: string;
   onDeactivate?: () => void;
   /**
    * Whose call it would be: the conversation and the account, as one key
@@ -57,8 +45,8 @@ interface UseVoiceModeOptions {
 }
 
 export function useVoiceMode({
-  sendMessage,
-  stopGeneration,
+  conversationId,
+  agentId,
   onDeactivate,
   owner,
   isFocused,
@@ -70,44 +58,19 @@ export function useVoiceMode({
   /** The owner the live call was started for; `null` while there is none. */
   const callOwnerRef = useRef<string | null>(null);
 
-  /**
-   * Whether this activation ever reached a room.
-   *
-   * `disconnected` is not only how a call ENDS, it is also where every call
-   * STARTS: `activateVoice` flips `isVoiceActive` and asks the room to connect,
-   * and until that connect lands the room still reports `disconnected`. So the
-   * unexpected-disconnection effect below needs something to tell "we have not
-   * connected yet" from "we were connected and lost it".
-   *
-   * It used to ask `voiceStartIndexRef.current > 0` — the count of text
-   * messages on screen when the call began. That is a fact about the
-   * TRANSCRIPT, not about the room, and it reads as zero for a call started
-   * from an empty chat, which is the ordinary way to start one. Those calls
-   * could never auto-deactivate. This asks the room instead.
-   */
-  const hasConnectedRef = useRef(false);
+  const onMessagesSaved = useCallback(
+    (savedIn: string) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(savedIn) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
+    },
+    [queryClient],
+  );
 
-  // Read at call time: the loop calls these long after the render that built it.
-  const sendRef = useRef(sendMessage);
-  sendRef.current = sendMessage;
-  const stopRef = useRef(stopGeneration);
-  stopRef.current = stopGeneration;
-
-  const sendTurn = useCallback<VoiceTurnSender>(async ({ text, signal, onText }) => {
-    const cancel = (): void => stopRef.current();
-    signal.addEventListener('abort', cancel, { once: true });
-    try {
-      const sent = await sendRef.current(text, undefined, {
-        responseMode: 'voice',
-        onAnswerText: onText,
-      });
-      if (!sent && !signal.aborted) throw new Error(TURN_NOT_SENT);
-    } finally {
-      signal.removeEventListener('abort', cancel);
-    }
-  }, []);
-
-  const voiceRoom = useVoiceRoom(sendTurn);
+  const voiceRoom = useVoiceRoom({
+    conversationId,
+    ...(agentId === undefined ? {} : { agentId }),
+    onMessagesSaved,
+  });
   const { captureLevel, playbackLevel } = useAudioLevelMonitor(
     voiceRoom.room,
     voiceRoom.isConnected,
@@ -119,31 +82,36 @@ export function useVoiceMode({
     isConnected: voiceRoom.isConnected,
   });
 
-  // Auto-deactivate on error or connection failure
-  useEffect(() => {
-    if (!isVoiceActive) return;
-    if (voiceRoom.error) {
-      if (voiceRoom.error !== TURN_NOT_SENT) {
-        toast.error(voiceErrorText(t, voiceRoom.errorCode) ?? t('voice.connectionFailed'));
-      }
-      deactivateVoice();
-    } else if (voiceRoom.roomState === 'error') {
-      toast.error(t('voice.connectionFailed'));
-      deactivateVoice();
-    }
-  }, [voiceRoom.error, voiceRoom.errorCode, voiceRoom.roomState, isVoiceActive]);
+  const deactivateVoice = useCallback(() => {
+    voiceRoom.disconnect();
+    setIsVoiceActive(false);
+    callOwnerRef.current = null;
 
-  // A turn that went wrong without ending the call: say so, keep listening.
-  useEffect(() => {
-    if (!isVoiceActive) return;
-    const text = voiceErrorText(t, voiceRoom.turnErrorCode);
-    if (text !== null) toast.error(text);
-  }, [voiceRoom.turnErrorCode, isVoiceActive]);
+    // The call used credits per minute, and its transcript is in the thread.
+    queryClient.invalidateQueries({ queryKey: queryKeys.credits.info });
+    queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) });
 
-  // Something the person should fix while the call goes on (a microphone that
-  // delivers no sound): said once each time it starts, and shown in the call
-  // bar in place of "Listening…" for as long as it lasts.
-  const notice = isVoiceActive ? voiceErrorText(t, voiceRoom.warningCode) : null;
+    onDeactivate?.();
+  }, [voiceRoom, queryClient, conversationId, onDeactivate]);
+
+  // A call that failed says why, in the app's language, and ends.
+  useEffect(() => {
+    if (!isVoiceActive || voiceRoom.errorCode === null) return;
+    toast.error(voiceErrorText(t, voiceRoom.errorCode) ?? t('voice.connectionFailed'));
+    deactivateVoice();
+  }, [voiceRoom.errorCode, isVoiceActive]);
+
+  // A call that ended on its own (moved to another device, the time limit, the
+  // credits) says so as information; a hang-up says nothing.
+  useEffect(() => {
+    if (!isVoiceActive || voiceRoom.endedReason === null) return;
+    const text = voiceEndedText(t, voiceRoom.endedReason);
+    if (text !== null) toast.info(text);
+    deactivateVoice();
+  }, [voiceRoom.endedReason, isVoiceActive]);
+
+  // The call is about to reach its time limit: said once, and shown in the bar.
+  const notice = isVoiceActive && voiceRoom.endingSoonMs !== null ? t('voice.endingSoon') : null;
   useEffect(() => {
     if (notice !== null) toast.warning(notice);
   }, [notice]);
@@ -155,38 +123,12 @@ export function useVoiceMode({
     if (!isFocused || owner !== callOwnerRef.current) deactivateVoice();
   }, [isFocused, owner, isVoiceActive]);
 
-  // Auto-deactivate on unexpected disconnection
-  useEffect(() => {
-    if (!isVoiceActive) return;
-    if (voiceRoom.roomState === 'connected') {
-      hasConnectedRef.current = true;
-      return;
-    }
-    if (voiceRoom.roomState === 'disconnected' && hasConnectedRef.current) {
-      deactivateVoice();
-    }
-  }, [voiceRoom.roomState, isVoiceActive]);
-
   const activateVoice = useCallback(() => {
     if (isVoiceActive || voiceRoom.roomState === 'connecting' || !isFocused) return;
-
     callOwnerRef.current = owner;
-    hasConnectedRef.current = false;
     setIsVoiceActive(true);
-    voiceRoom.connect();
-  }, [isVoiceActive, voiceRoom.roomState, voiceRoom, isFocused, owner]);
-
-  const deactivateVoice = useCallback(() => {
-    voiceRoom.disconnect();
-    setIsVoiceActive(false);
-    hasConnectedRef.current = false;
-    callOwnerRef.current = null;
-
-    // Every turn and every spoken answer was billed per call.
-    queryClient.invalidateQueries({ queryKey: queryKeys.credits.info });
-
-    onDeactivate?.();
-  }, [voiceRoom, queryClient, onDeactivate]);
+    void voiceRoom.connect();
+  }, [isVoiceActive, voiceRoom, isFocused, owner]);
 
   return {
     // Voice state
@@ -194,15 +136,16 @@ export function useVoiceMode({
     activateVoice,
     deactivateVoice,
 
-    // Voice loop state (for controls & overlay)
+    // The call's state (for controls & overlay)
+    callState: voiceRoom.callState,
     roomState: voiceRoom.roomState,
     agentState: voiceRoom.agentState,
     isMuted: voiceRoom.isMuted,
     isConnected: voiceRoom.isConnected,
-    /** What the call bar says instead of "Listening…" while the microphone is silent. */
+    /** What the call bar says instead of "Listening…" while the call is about to end. */
     notice,
 
-    // Voice loop controls
+    // Controls
     toggleMute: voiceRoom.toggleMute,
 
     // Audio visualization

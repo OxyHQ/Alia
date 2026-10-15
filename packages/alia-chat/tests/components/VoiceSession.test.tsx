@@ -62,7 +62,7 @@ describe('VoiceSession', () => {
   it('still says something when the room failed without a reason', () => {
     const onEnd = mount({ roomState: 'error', error: null });
 
-    expect(onEnd).toHaveBeenCalledWith(VOICE_ERROR_MESSAGES['turn-failed']);
+    expect(onEnd).toHaveBeenCalledWith(VOICE_ERROR_MESSAGES['realtime-failed']);
   });
 
   it('does not end a call that has not been placed yet', () => {

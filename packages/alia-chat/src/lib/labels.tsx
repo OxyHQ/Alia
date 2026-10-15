@@ -42,6 +42,8 @@ export interface AliaChatLabels {
   dropUnavailable: string;
   /** Why dictation failed, in the host's language. */
   voiceError: (code: VoiceErrorCode) => string;
+  /** Over the composer in the last 30 s of a dictation's five minutes. */
+  dictationRemaining: (seconds: number) => string;
   // Welcome
   /** The empty chat's greeting for a signed-out visitor. */
   greeting: string;
@@ -99,6 +101,7 @@ export const DEFAULT_LABELS: AliaChatLabels = {
   dropHint: 'Drop files here to attach them',
   dropUnavailable: "Files can't be attached right now",
   voiceError: (code) => VOICE_ERROR_MESSAGES[code],
+  dictationRemaining: (seconds) => `${seconds}s of dictation left`,
   greeting: "Hi, what's on your mind?",
   greetingNamed: (name) => `Hi ${name}, what's on your mind?`,
   copy: 'Copy',

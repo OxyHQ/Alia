@@ -70,7 +70,7 @@ function play(
 
 describe('the level curve, shared with dictation', () => {
   /**
-   * The dictation control. `useSpeechToText` used to inline
+   * The dictation control. Dictation's hook used to inline
    * `Math.min(1, Math.max(0, (metering + 60) / 60))`; it now calls
    * `levelFromDbfs`. If those two ever disagree anywhere on the range a
    * recorder can report, dictation has silently changed — which is a
@@ -180,12 +180,15 @@ const WAVE_SOURCE = readFileSync(
 );
 /**
  * Dictation's level is measured where the microphone is opened: in the web
- * recognizer, on an analyser over the stream. (Native reports the recognizer's
- * own volume scale, which is not dBFS and is mapped in
- * `speech-recognition.native.ts`.)
+ * recorder, on an analyser over the stream (frames → `levelFromFrames`), and in
+ * the native recorder, from `expo-audio`'s metering in dBFS (`levelFromDbfs`).
  */
 const STT_SOURCE = readFileSync(
-  fileURLToPath(new URL('../../alia-chat/src/lib/speech-recognition.ts', import.meta.url)),
+  fileURLToPath(new URL('../../alia-chat/src/lib/dictation-recorder.ts', import.meta.url)),
+  'utf8',
+);
+const STT_NATIVE_SOURCE = readFileSync(
+  fileURLToPath(new URL('../../alia-chat/src/lib/dictation-recorder.native.ts', import.meta.url)),
   'utf8',
 );
 
@@ -219,8 +222,10 @@ describe('the read-aloud player', () => {
 
 describe('both sources reach the field the same way', () => {
   it('leaves neither with a curve or a time constant of its own', () => {
-    expect(STT_SOURCE).toContain('levelFromDbfs(20 * Math.log10(rms))');
+    expect(STT_SOURCE).toContain('levelFromFrames(');
     expect(STT_SOURCE).not.toContain('+ 60) / 60');
+    expect(STT_NATIVE_SOURCE).toContain('levelFromDbfs(status.metering)');
+    expect(STT_NATIVE_SOURCE).not.toContain('+ 60) / 60');
     expect(WAVE_SOURCE).toContain('LEVEL_ATTACK_MS : LEVEL_RELEASE_MS');
   });
 });

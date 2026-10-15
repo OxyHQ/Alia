@@ -38,12 +38,22 @@
     "plugins": [
       "expo-router",
       "expo-localization",
-      "expo-audio",
       [
-        "expo-speech-recognition",
+        "expo-audio",
         {
-          "microphonePermission": "Allow Alia to hear what you dictate and what you say in voice calls.",
-          "speechRecognitionPermission": "Allow Alia to turn your speech into text."
+          "microphonePermission": "Allow Alia to hear what you dictate and what you say in voice calls."
+        }
+      ],
+      [
+        "react-native-audio-api",
+        {
+          "iosMicrophonePermission": "Allow Alia to hear what you dictate and what you say in voice calls.",
+          "iosBackgroundMode": false,
+          "androidForegroundService": false,
+          "androidPermissions": [
+            "android.permission.RECORD_AUDIO",
+            "android.permission.MODIFY_AUDIO_SETTINGS"
+          ]
         }
       ],
       "expo-font",

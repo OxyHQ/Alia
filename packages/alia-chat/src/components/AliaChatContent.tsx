@@ -2,7 +2,7 @@
  * Shared chat content component used by both AliaChatSheet and AliaChatScreen.
  *
  * Owns the text chat; voice is an injected capability (`voiceSession`) so that
- * nothing here reaches `livekit-client` at module-evaluation time. Containers
+ * nothing here reaches the call or its audio engine at module-evaluation time. Containers
  * only handle layout chrome (sheet modal, full-screen SafeAreaView). The
  * breadcrumb header is Bloom's `AiChatContainer`, the one the app's conversation uses.
  */
@@ -439,6 +439,7 @@ function AliaChatContentBody({
       </Suspense>
     ) : (
       <AliaComposer
+        apiUrl={apiUrl}
         inputRef={composerRef}
         disableKeyboardAvoidance
         onKeyPress={suggestions.onKeyPress}

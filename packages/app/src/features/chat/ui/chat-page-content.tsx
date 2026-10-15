@@ -334,10 +334,12 @@ export const ChatPageContent = ({
   const voiceControlLabels = useMemo(
     () => ({
       connecting: t('voice.controls.connecting'),
+      reconnecting: t('voice.controls.reconnecting'),
       connected: t('voice.controls.connected'),
       listening: t('voice.controls.listening'),
       muted: t('voice.controls.muted'),
       thinking: t('voice.controls.thinking'),
+      usingTool: t('voice.controls.usingTool'),
       speaking: t('voice.controls.speaking'),
       mute: t('voice.controls.mute'),
       unmute: t('voice.controls.unmute'),
@@ -501,6 +503,7 @@ export const ChatPageContent = ({
               onToggleMute={voice.toggleMute}
               onEnd={voice.deactivateVoice}
               notice={voice.notice}
+              callState={voice.callState}
               labels={voiceControlLabels}
             />
           </View>

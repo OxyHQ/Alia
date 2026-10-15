@@ -1,6 +1,6 @@
 import { useTTS } from '@/features/voice/runtime/use-tts';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { useSTTStore } from '@alia.onl/sdk';
+import { useDictationStore } from '@alia.onl/sdk';
 import type { AiChatTurnAction } from '@oxy.so/bloom/ai-chat';
 import {
   ContextMenu,
@@ -87,7 +87,7 @@ export function useReadAloud(blocked: boolean) {
   const owns = owner === self.current && activeMessageId !== null;
 
   // A call or a dictation began: whatever is being read stops, wherever.
-  const dictating = useSTTStore((s) => s.isRecording);
+  const dictating = useDictationStore((s) => s.isRecording);
   const busy = blocked || dictating;
   useEffect(() => {
     if (busy) stopReadingAloud();

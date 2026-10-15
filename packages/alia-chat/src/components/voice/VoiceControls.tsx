@@ -8,15 +8,17 @@ import { Loading } from '@oxy.so/bloom/loading';
 import { Text } from '@oxy.so/bloom/typography';
 import { VoiceControls as BloomVoiceControls, type VoiceState } from '@oxy.so/bloom/voice';
 import { View } from 'react-native';
-import type { RoomState, AgentState } from '../../types';
+import type { RoomState, AgentState, VoiceCallState } from '../../types';
 
 /** Every word the bar shows or announces. An app in another language passes its own. */
 export interface VoiceControlsLabels {
   connecting: string;
+  reconnecting: string;
   connected: string;
   listening: string;
   muted: string;
   thinking: string;
+  usingTool: string;
   speaking: string;
   mute: string;
   unmute: string;
@@ -25,10 +27,12 @@ export interface VoiceControlsLabels {
 
 export const VOICE_CONTROLS_LABELS: VoiceControlsLabels = {
   connecting: 'Connecting...',
+  reconnecting: 'Reconnecting...',
   connected: 'Connected',
   listening: 'Listening...',
   muted: 'Muted',
   thinking: 'Thinking...',
+  usingTool: 'Working on it...',
   speaking: 'Speaking...',
   mute: 'Mute',
   unmute: 'Unmute',
@@ -42,11 +46,15 @@ export interface VoiceControlsProps {
   onToggleMute: () => void;
   onEnd: () => void;
   /**
-   * Something the person should know while the call listens — the call's
-   * `warning`, e.g. a microphone that delivers no sound. Shown in place of
-   * "Listening…", which it would contradict.
+   * Something the person should know while the call listens — e.g. that the
+   * call is about to reach its time limit. Shown in place of "Listening…".
    */
   notice?: string | null;
+  /**
+   * The call's full state, when the host has it: a tool running reads as such
+   * rather than as "Thinking…".
+   */
+  callState?: VoiceCallState;
   /** Overrides for any of {@link VOICE_CONTROLS_LABELS}. */
   labels?: Partial<VoiceControlsLabels>;
 }
@@ -57,10 +65,13 @@ function getStatusText(
   isMuted: boolean,
   notice: string | null,
   labels: VoiceControlsLabels,
+  callState: VoiceCallState | undefined,
 ): string {
   if (roomState === 'connecting') return labels.connecting;
+  if (roomState === 'reconnecting') return labels.reconnecting;
   if (roomState === 'connected') {
     if (agentState === 'listening') return isMuted ? labels.muted : (notice ?? labels.listening);
+    if (callState?.kind === 'using-tool') return labels.usingTool;
     if (agentState === 'thinking') return labels.thinking;
     if (agentState === 'speaking') return labels.speaking;
     return labels.connected;
@@ -82,10 +93,11 @@ export function VoiceControls({
   onToggleMute,
   onEnd,
   notice = null,
+  callState,
   labels: labelOverrides,
 }: VoiceControlsProps) {
   const labels = { ...VOICE_CONTROLS_LABELS, ...labelOverrides };
-  const statusText = getStatusText(roomState, agentState, isMuted, notice, labels);
+  const statusText = getStatusText(roomState, agentState, isMuted, notice, labels, callState);
 
   return (
     <View className="items-center gap-4 pb-6 pt-4">
@@ -110,7 +122,11 @@ export function VoiceControls({
         />
       ) : null}
 
-      {roomState === 'connecting' ? <Loading accessibilityLabel={labels.connecting} /> : null}
+      {roomState === 'connecting' || roomState === 'reconnecting' ? (
+        <Loading
+          accessibilityLabel={roomState === 'connecting' ? labels.connecting : labels.reconnecting}
+        />
+      ) : null}
     </View>
   );
 }

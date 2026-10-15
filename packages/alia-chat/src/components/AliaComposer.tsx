@@ -20,8 +20,9 @@ import {
   type ComposerPanelPermissionOption,
 } from '@oxy.so/bloom/composer-panel';
 import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
 import { useAttachmentIntake } from '../hooks/useAttachmentIntake';
-import { useSpeechToText } from '../hooks/useSpeechToText';
+import { useDictation } from '../hooks/useDictation';
 import type { Completion } from '../lib/suggestions';
 import { composerTiles, intakeError } from '../lib/attachment-tiles';
 import type { IntakeKind } from '../lib/attachment-intake';
@@ -121,6 +122,8 @@ export interface AliaComposerProps<T extends AliaSuggestion = AliaSuggestion> {
   inputRef?: RefObject<TextInput | null>;
   /** Dictation's language, a BCP-47 tag; omitted, the platform's own. */
   speechLanguage?: string;
+  /** Alia's API, which transcribes dictation; omitted, `EXPO_PUBLIC_ALIA_API_URL` or production. */
+  apiUrl?: string;
   /** Where a refused file or a failed dictation is said; omitted, Bloom's toast. */
   onError?: (message: string) => void;
   /** The composer's copy, over whatever labels are already in reach. */
@@ -153,6 +156,7 @@ function AliaComposerBody<T extends AliaSuggestion>({
   disableKeyboardAvoidance = false,
   inputRef,
   speechLanguage,
+  apiUrl,
   onError,
 }: Omit<AliaComposerProps<T>, 'labels'>) {
   const labels = useLabels();
@@ -221,25 +225,52 @@ function AliaComposerBody<T extends AliaSuggestion>({
     [intake, removeAttachment],
   );
 
-  const stt = useSpeechToText({ lang: speechLanguage });
+  // The draft at the moment the transcription lands, not when the mic was pressed.
+  const draftRef = useRef(value);
+  draftRef.current = value;
+  const insertDictation = useCallback(
+    (text: string) => {
+      const draft = draftRef.current;
+      onValueChange(draft === '' ? text : `${draft} ${text}`);
+    },
+    [onValueChange],
+  );
+  const dictation = useDictation({
+    lang: speechLanguage,
+    ...(apiUrl === undefined ? {} : { apiUrl }),
+    onText: insertDictation,
+  });
   // Said once per failure: a host re-rendering with new labels is not a new failure.
-  const sayVoiceError = useRef((code: VoiceErrorCode) => report(labels.voiceError(code)));
-  sayVoiceError.current = (code) => report(labels.voiceError(code));
+  const sayVoiceError = useRef<(code: VoiceErrorCode, retry: (() => void) | null) => void>(
+    () => undefined,
+  );
+  sayVoiceError.current = (code, retry) => {
+    const message = labels.voiceError(code);
+    if (onError || retry === null) report(message);
+    else toast.error(message, { action: { label: labels.composerRetry, onClick: retry } });
+  };
+  const {
+    errorCode: dictationError,
+    canRetry: dictationCanRetry,
+    retry: retryDictation,
+  } = dictation;
   useEffect(() => {
-    if (stt.errorCode !== null) sayVoiceError.current(stt.errorCode);
-  }, [stt.errorCode]);
+    if (dictationError !== null)
+      sayVoiceError.current(dictationError, dictationCanRetry ? () => void retryDictation() : null);
+  }, [dictationError, dictationCanRetry, retryDictation]);
 
   const handleListeningChange = useCallback(
     async (next: boolean) => {
       if (next) {
-        if (!disabled && !busy && !stt.isTranscribing) stt.startRecording();
+        if (!disabled && !busy && !dictation.isTranscribing) void dictation.start();
         return;
       }
-      const text = await stt.stopAndTranscribe();
-      if (text !== null) onValueChange(value === '' ? text : `${value} ${text}`);
+      await dictation.stop();
     },
-    [disabled, busy, stt, value, onValueChange],
+    [disabled, busy, dictation],
   );
+  const remainingSeconds =
+    dictation.remainingMs === null ? null : Math.ceil(dictation.remainingMs / 1000);
 
   const hasContent = value.trim() !== '' || attachments.length > 0;
   const panelLabels = useMemo(
@@ -262,6 +293,15 @@ function AliaComposerBody<T extends AliaSuggestion>({
     // The transcript's column (Bloom's `AgentChat`: 768 at most, centred), so
     // the composer and the conversation share one edge.
     <View id={hostId} className="w-full max-w-[768px] self-center">
+      {remainingSeconds !== null ? (
+        <Text
+          className="mb-1 self-center text-sm text-text-secondary"
+          accessibilityLiveRegion="polite"
+          aria-live="polite"
+        >
+          {labels.dictationRemaining(remainingSeconds)}
+        </Text>
+      ) : null}
       <ComposerPanel
         value={value}
         onValueChange={onValueChange}
@@ -276,7 +316,13 @@ function AliaComposerBody<T extends AliaSuggestion>({
         permissions={modes ?? NO_MODES}
         permission={mode}
         onPermissionChange={onModeChange}
-        voiceState={stt.isTranscribing ? 'transcribing' : stt.isRecording ? 'recording' : 'idle'}
+        voiceState={
+          dictation.isTranscribing
+            ? 'transcribing'
+            : dictation.isRecording || dictation.state === 'requesting-permission'
+              ? 'recording'
+              : 'idle'
+        }
         onVoiceStateChange={(next) => void handleListeningChange(next === 'recording')}
         attachments={tiles}
         onRemoveAttachment={removeTile}

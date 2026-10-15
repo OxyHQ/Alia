@@ -54,15 +54,17 @@ export type { UseAliaChatOptions, UseAliaChatReturn } from './hooks/useAliaChat'
 export { AliaChatStreamError } from './lib/chat-stream';
 export type { AliaChatFailure } from './lib/chat-stream';
 
-// ── Text-to-speech / speech-to-text (no livekit) ──
+// ── Read aloud and dictation (no call, no audio engine) ──
 export { useTTS } from './hooks/useTTS';
 export type { UseTTSOptions } from './hooks/useTTS';
-export { useSpeechToText, useSTTStore } from './hooks/useSpeechToText';
+export { useDictation, useDictationStore } from './hooks/useDictation';
+export type { UseDictationOptions, DictationState } from './hooks/useDictation';
+export { DictationError, requestTranscription } from './lib/dictation';
+export type { DictationErrorCode, TranscriptionResult } from './lib/dictation';
 export { VOICE_ERROR_MESSAGES } from './lib/speech-messages';
 export type { VoiceErrorCode } from './lib/speech-messages';
 export { SpeechClipError } from './lib/speech-synthesis';
 export type { SpeechClipErrorCode } from './lib/speech-synthesis';
-export type { UseSTTOptions } from './hooks/useSpeechToText';
 
 // ── Model catalogue (GET /catalogue) ──
 // Exported so a consumer building its own picker reads the real models the

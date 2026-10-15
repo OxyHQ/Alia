@@ -51,7 +51,7 @@ function statusOf(props: Partial<VoiceControlsProps>): string | null {
 }
 
 describe('the call bar', () => {
-  it('says connecting, with no controls, until the recognizer has started', () => {
+  it('says connecting, with no controls, until the call can prove it listens', () => {
     expect(statusOf({ roomState: 'connecting', agentState: 'idle' })).toBe('Connecting...');
   });
 

@@ -355,10 +355,7 @@ export function useStreamingChat(
           // pre-send snapshot here. `prev` is always the queue's own truth.
           setMessagesAndRef((prev) => prev.filter((m) => m.id !== assistantMessage.id));
         }
-        // A retry is pressed on screen, long after the call that asked for this
-        // turn may have moved on: it gets the options, not the live listener.
-        const { onAnswerText: _listener, ...retryOptions } = options ?? {};
-        retryRef.current = { message, options: retryOptions, userMessageId: userMessage.id };
+        retryRef.current = { message, options, userMessageId: userMessage.id };
         setFailedTurn({
           userMessageId: userMessage.id,
           anchorMessageId: partial ? assistantMessage.id : userMessage.id,
@@ -498,7 +495,6 @@ export function useStreamingChat(
             ...(agentMode && { agentMode: true }),
             ...(deepResearchMode && { deepResearch: true }),
             ...(options?.mcpServerId === undefined ? {} : { mcpServerId: options.mcpServerId }),
-            ...(options?.responseMode === undefined ? {} : { responseMode: options.responseMode }),
           }),
           signal: controller.signal,
         });
@@ -622,8 +618,6 @@ export function useStreamingChat(
          */
         const sse = createSseFrameReader();
         let lastHapticAt = 0;
-        /** The answer so far, for `options.onAnswerText`. */
-        let answerText = '';
 
         while (true) {
           const { done, value } = await reader.read();
@@ -1059,10 +1053,6 @@ export function useStreamingChat(
 
                   pendingContentRef.current += delta.content;
                   scheduleFlush();
-                  if (options?.onAnswerText !== undefined) {
-                    answerText += delta.content;
-                    options.onAnswerText(answerText);
-                  }
                 }
               }
 

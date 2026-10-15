@@ -6,17 +6,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * What the conversation screen stands on and speaks through: the ambient field
  * behind it, and the composer or the call bar in front.
  *
- * ## A call and dictation never listen at the same time
+ * ## A call and dictation never record at the same time
  *
- * Both recognize speech on the device, and there is one microphone and — on
- * iOS and Android — one recognizer module for the whole process. So the rule is
- * structural rather than a lock: dictation lives in the composer
- * (`useSpeechToText` inside `Composer`), and a call REPLACES the composer with
- * the call bar. Starting a call therefore unmounts the composer, and an
- * unmounted `useSpeechToText` aborts its recognizer, stops its microphone track
- * and clears the shared dictation state (pinned in the SDK's
- * `useSpeechToText.test.tsx`). During the call there is no composer and so no
- * way to start dictating; ending it brings the composer back.
+ * Both take the microphone — dictation records a clip for Kaana to transcribe,
+ * a call streams it to Alia's realtime session — and there is one microphone.
+ * So the rule is structural rather than a lock: dictation lives in the composer
+ * (`useDictation` inside `Composer`), and a call REPLACES the composer with the
+ * call bar. Starting a call therefore unmounts the composer, and an unmounted
+ * `useDictation` cancels its recording, releases the microphone and clears the
+ * shared dictation state (pinned in the SDK's `useDictation.test.tsx`). During
+ * the call there is no composer and so no way to start dictating; ending it
+ * brings the composer back.
  *
  * What this file pins is the half that lives in the app: which of the two the
  * screen draws, and that the draft typed or dictated before the call is still
@@ -220,7 +220,7 @@ describe('a call replaces dictation', () => {
     act(() => {
       renderer.update(screen(true));
     });
-    // Unmounted, not hidden: an unmounted `useSpeechToText` is what lets go of the microphone.
+    // Unmounted, not hidden: an unmounted `useDictation` is what lets go of the microphone.
     expect(mounts.composerUnmounts).toBe(1);
     expect(renderer.root.findAllByType('Composer' as never)).toHaveLength(0);
     expect(renderer.root.findAllByType('VoiceControls' as never)).toHaveLength(1);

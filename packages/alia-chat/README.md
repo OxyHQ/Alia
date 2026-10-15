@@ -53,31 +53,39 @@ Two entry points:
 
 ## Speech
 
-Dictation (`useSpeechToText`) and the voice call (`useVoiceRoom`) recognize
-speech **on the device**: the Web Speech API in browsers that have it (Chromium
-and Safari — not Firefox, where `useSpeechToText().isSupported` is `false`), and
-[`expo-speech-recognition`](https://github.com/jamsch/expo-speech-recognition)
-on iOS and Android. No audio is sent to Alia; whether the platform's recognizer
-uses a network service of its own is the platform's (Chrome's does).
+Nothing is recognized on the device. Speech is recognized by Kaana, through
+Alia (Alia ADR 0017):
 
-On native, add `expo-speech-recognition` (a peer dependency, like `expo-audio`:
-the root entry's mic button reaches it) and its config plugin to your app, then
-make a new native build:
+- **Dictation** (`useDictation`, the composer's mic) records a clip — the
+  browser's `MediaRecorder`, or the `expo-audio` recorder on iOS and Android —
+  and, when the person stops, sends it to `POST /v1/audio/transcriptions`.
+  The text arrives once, never partially. Five minutes per clip. Free on every
+  Alia plan.
+- **A voice call** (`useVoiceRoom`, `VoiceSession`) is a realtime
+  speech-to-speech session: a WebSocket to Alia's `GET /v1/voice/session`
+  carrying PCM16 24 kHz audio both ways. Turn detection and barge-in are the
+  model's; tools run in Alia; the transcript is stored in the conversation.
+  Voice calls need a paid Alia plan and use credits per minute.
+
+Audio reaches Alia, Kaana and the model's provider; Alia logs no audio and no
+transcript content.
+
+On iOS and Android a call needs
+[`react-native-audio-api`](https://github.com/software-mansion/react-native-audio-api)
+(an optional peer of `@alia.onl/sdk/voice`; the root entry never reaches it)
+and its config plugin, then a new native build:
 
 ```json
-["expo-speech-recognition", {
-  "microphonePermission": "Allow $(PRODUCT_NAME) to hear what you dictate and say in voice calls.",
-  "speechRecognitionPermission": "Allow $(PRODUCT_NAME) to turn your speech into text."
+["react-native-audio-api", {
+  "iosMicrophonePermission": "Allow $(PRODUCT_NAME) to hear what you dictate and say in voice calls.",
+  "iosBackgroundMode": false,
+  "androidForegroundService": false,
+  "androidPermissions": ["android.permission.RECORD_AUDIO"]
 }]
 ```
 
-A voice call is a turn loop, not a realtime session: it listens until the
-person pauses, sends what they said through the ordinary chat path
-(`POST /v1/chat/completions` with `responseMode: "voice"`, or your own
-`sendTurn`), and speaks the answer sentence by sentence through
-`POST /v1/audio/speech` in the product voice (`male` / `female`). Talking over
-the answer interrupts it. Pass `lang` to both hooks to follow your app's
-language.
+Dictation needs only `expo-audio` (already a peer). Pass `lang` to both hooks
+(`speechLanguage` to `AliaComposer`) to follow your app's language.
 
 ## Use
 
