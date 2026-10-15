@@ -88,7 +88,7 @@ async function mount() {
   await act(async () => {
     renderer = create(
       <QueryClientProvider client={client}>
-        <AliaRuntimeProvider chatUrl="http://test.invalid/chat" host={host}>
+        <AliaRuntimeProvider apiUrl="http://test.invalid" host={host}>
           <Probe />
         </AliaRuntimeProvider>
       </QueryClientProvider>,

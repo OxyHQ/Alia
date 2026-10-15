@@ -31,6 +31,7 @@ import {
   processMessage,
   threadSeamIds,
   turnTimings,
+  ALIA_API_ROUTES,
 } from '@alia.onl/sdk/model';
 import { useOpenThought, type OpenThought } from '@/features/chat/runtime/use-open-thought';
 import { isWebInvocation, taskListLog, webSearchLog } from '@/features/chat/model/work-log';
@@ -694,7 +695,7 @@ export const ChatInterface = React.memo(function ChatInterface({
    * The conversation each history message belongs to, as the id a row's own
    * actions address.
    *
-   * A vote goes to `/conversations/:id/messages/:id/vote`, and it used to
+   * A vote goes to `/v1/conversations/:id/messages/:id/vote`, and it used to
    * take the id of the stretch on screen — right for a live message and wrong for every history one, which
    * belongs to a conversation that ended. It would have written to a
    * conversation that does not contain the message, and failed quietly.
@@ -858,7 +859,7 @@ export const ChatInterface = React.memo(function ChatInterface({
       else delete votesRef.current[messageId];
       voteInFlightRef.current.add(messageId);
       apiClient
-        .patch(`/conversations/${conversationId}/messages/${messageId}/vote`, {
+        .patch(ALIA_API_ROUTES.conversations.vote(conversationId, messageId), {
           vote: newVote,
         })
         .then(() => toast.success(t('chat.thanksFeedback')))

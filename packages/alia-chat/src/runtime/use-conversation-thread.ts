@@ -118,10 +118,8 @@ export function useConversationThread({
   }, [conversationQueryError, queryClient, host]);
 
   /**
-   * The product runtime, not the compatibility surface: turns go to
-   * `/alia/chat`, the route the Alia app, its sheet and its screens all use.
-   * `/v1/chat/completions` is the same handler kept for EXTERNAL callers (ADR
-   * 0004); no first-party client names it.
+   * Turns go to `/v1/chat/completions`, Alia's product API: the same handler `/alia/chat` mounts,
+   * on the one surface that answers a browser from any Oxy app's origin (see `routes.ts`).
    */
   const {
     messages,

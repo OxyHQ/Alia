@@ -15,8 +15,6 @@ import { offlineConversations } from '@/features/chat/runtime/offline-conversati
 import { AliaRuntimeProvider, useComposerDraftStore } from '@alia.onl/sdk/runtime';
 import { fetch as expoFetch } from 'expo/fetch';
 import { useAliaHost } from '@/features/chat/runtime/use-alia-host';
-import { API_ROUTES } from '@/shared/api/routes';
-import { generateAPIUrl } from '@/shared/api/generate-api-url';
 import config from '@/shared/platform/config';
 import { useAccountLifecycle } from '@/shell/account-lifecycle';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
@@ -210,7 +208,6 @@ export default function AppLayout() {
           — the sidebar's list and the open thread — reads the same conversations through it. */}
       <AliaRuntimeProvider
         apiUrl={config.apiUrl}
-        chatUrl={generateAPIUrl(API_ROUTES.chat.alia)}
         offline={offlineConversations}
         // The streaming fetch: React Native's own cannot read a body as it arrives.
         streamFetch={expoFetch as unknown as typeof fetch}

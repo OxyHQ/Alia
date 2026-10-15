@@ -67,7 +67,7 @@ const render = () =>
   act(async () => {
     const tree = (
       <QueryClientProvider client={client}>
-        <AliaRuntimeProvider chatUrl="http://test.invalid/chat" host={host}>
+        <AliaRuntimeProvider apiUrl="http://test.invalid" host={host}>
           <Probe />
         </AliaRuntimeProvider>
       </QueryClientProvider>

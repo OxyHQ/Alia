@@ -8,6 +8,7 @@ import { errorCode, errorMessage as getErrorMessage, errorName, errorStatus } fr
 import { agentMessageId, buildOutboundMessages, isAgentMessageOf } from './message-history';
 import { aliaQueryKeys } from './query-keys';
 import { createRandomUuid } from './random-uuid';
+import { API_ROUTES } from './routes';
 import { createSseFrameReader } from './sse-frame-reader';
 import { hasUsableStreamOutput, type StreamOutputEvidence } from './stream-outcome';
 import { failureDetail, readAliaMeta, type FailedTurn } from './turn-failure';
@@ -132,7 +133,7 @@ export function useConversationStream({
   agentId,
   clientContext,
 }: UseConversationStreamOptions = {}) {
-  const { chatUrl, streamFetch, host } = useAliaRuntime();
+  const { apiUrl, streamFetch, host } = useAliaRuntime();
   const labels = useLabels();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -488,10 +489,10 @@ export function useConversationStream({
 
         // Authentication, the preflight refresh and the single 401 replay belong
         // to the linked Oxy client; this layer never reads or writes a bearer.
-        linked = oxyServices.createLinkedClient({ baseURL: new URL(chatUrl).origin });
+        linked = oxyServices.createLinkedClient({ baseURL: apiUrl });
         const response = await linked.client.requestAuthenticatedResponse({
           method: 'POST',
-          url: chatUrl,
+          url: API_ROUTES.chat,
           headers: {
             Accept: 'text/event-stream',
             'Content-Type': 'application/json',
@@ -1269,7 +1270,7 @@ export function useConversationStream({
       }
     },
     [
-      chatUrl,
+      apiUrl,
       streamFetch,
       host,
       labels,

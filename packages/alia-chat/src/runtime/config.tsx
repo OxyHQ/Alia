@@ -88,10 +88,8 @@ export interface AliaRuntimeHost {
 }
 
 export interface AliaRuntimeConfig {
-  /** Alia's API origin; the conversation routes (`/conversations`) hang off it. */
+  /** Alia's API origin. Every route the SDK calls hangs off it, under `/v1` (`routes.ts`). */
   apiUrl: string;
-  /** The turn route, absolute. Omitted, `${apiUrl}/alia/chat`. */
-  chatUrl: string;
   /** The offline copy of the conversations, when the host keeps one. */
   offline: OfflineConversationStore | null;
   /**
@@ -109,7 +107,6 @@ export interface AliaRuntimeProviderProps extends Partial<Omit<AliaRuntimeConfig
 
 const DEFAULT_CONFIG: AliaRuntimeConfig = {
   apiUrl: ALIA_API_URL,
-  chatUrl: `${ALIA_API_URL}/alia/chat`,
   offline: null,
   streamFetch: undefined,
   host: {},
@@ -126,7 +123,6 @@ const AliaRuntimeContext = createContext<AliaRuntimeConfig>(DEFAULT_CONFIG);
  */
 export function AliaRuntimeProvider({
   apiUrl,
-  chatUrl,
   offline,
   streamFetch,
   host,
@@ -137,13 +133,11 @@ export function AliaRuntimeProvider({
     const nextApiUrl = apiUrl ?? parent.apiUrl;
     return {
       apiUrl: nextApiUrl,
-      // A host that changes only `apiUrl` moves the turn route with it.
-      chatUrl: chatUrl ?? (apiUrl === undefined ? parent.chatUrl : `${nextApiUrl}/alia/chat`),
       offline: offline === undefined ? parent.offline : offline,
       streamFetch: streamFetch ?? parent.streamFetch,
       host: host === undefined ? parent.host : { ...parent.host, ...host },
     };
-  }, [apiUrl, chatUrl, offline, streamFetch, host, parent]);
+  }, [apiUrl, offline, streamFetch, host, parent]);
   return <AliaRuntimeContext.Provider value={value}>{children}</AliaRuntimeContext.Provider>;
 }
 

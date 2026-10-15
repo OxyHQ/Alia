@@ -8,12 +8,13 @@ renamed, deleted and cleared through the same hooks, a turn is the same stream, 
 conversation started in one surface is the same conversation in the others. The runtime is the
 app's, moved and generalised (`src/runtime`).
 
-- **Breaking: the sheet and the screen have conversations.** Turns go to `POST /alia/chat`
-  (not `/v1/chat/completions`) and are stored. A web build on an origin Alia does not enumerate
-  must use the consumer-backend path (README). Native is unaffected.
+- **Breaking: the sheet and the screen have conversations.** Turns are stored, and the SDK
+  speaks only to `/v1` (`POST /v1/chat/completions`, `/v1/conversations`): bearer, no cookies,
+  public CORS, so it works from every Oxy app's web origin with no backend in between. The API
+  gained `/v1/conversations` (the same router as `/conversations`, behind a person's session
+  only) for this. The consumer-backend relay the README used to document is no longer needed.
 - **Breaking: `useAliaChat`, `UseAliaChatOptions`, `UseAliaChatReturn`, `AliaChatStreamError`,
-  `AliaChatFailure` are removed.** No SDK surface calls `/v1/chat/completions` any more; that
-  route stays Alia's public API for third parties with their own UI. Use `useConversationThread`.
+  `AliaChatFailure` are removed.** Use `useConversationThread`.
 - **Breaking: the `agents` prop is gone** from the sheet, the screen and `AliaChatContent`
   (the pre-opened agent message of a delegation is the thread's agent run now).
 - **Breaking: `model`** is sent as given (a power level — `auto`, `instant`, `medium`, `high`,

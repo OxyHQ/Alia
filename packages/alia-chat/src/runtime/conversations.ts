@@ -14,6 +14,7 @@ import { type OfflineConversationStore, useAliaRuntime } from './config';
 import { errorMessage as getErrorMessage, errorStatus } from './error-utils';
 import { normalizeConversationMessages } from './message-history';
 import { aliaQueryKeys } from './query-keys';
+import { API_ROUTES } from './routes';
 import { createRandomUuid } from './random-uuid';
 import type { Conversation, ConversationsInfiniteData, ConversationsPage, Message } from './types';
 
@@ -26,21 +27,6 @@ type ApiConversation = Omit<Conversation, 'createdAt' | 'updatedAt' | 'messages'
 
 const PAGE_SIZE = 20;
 const FIVE_MINUTES = 1000 * 60 * 5;
-
-/** The routes the conversation runtime calls. */
-export const CONVERSATION_ROUTES = {
-  list: '/conversations',
-  save: '/conversations',
-  create: '/conversations/new',
-  get: (id: string) => `/conversations/${id}`,
-  remove: (id: string) => `/conversations/${id}`,
-  /**
-   * Empty a thread without removing it: every message goes, the row and its
-   * title stay. A sub-resource DELETE rather than a `/clear` verb, because
-   * what is being deleted is the message collection and nothing else.
-   */
-  clearMessages: (id: string) => `/conversations/${id}/messages`,
-} as const;
 
 /** A stable signal for a URL whose server-side conversation no longer exists. */
 export class ConversationNotFoundError extends Error {
@@ -132,7 +118,7 @@ async function fetchConversationsPage(
       conversations: ApiConversation[];
       nextCursor: string | null;
       hasMore: boolean;
-    }>(CONVERSATION_ROUTES.list, {
+    }>(API_ROUTES.conversations.list, {
       params: { limit: PAGE_SIZE, ...(pageParam ? { cursor: pageParam } : {}) },
     });
     return {
@@ -183,7 +169,7 @@ export function useConversations() {
 
 async function fetchConversation(client: ConversationsClient, id: string): Promise<Conversation> {
   try {
-    const { data } = await client.api.get<ApiConversation>(CONVERSATION_ROUTES.get(id));
+    const { data } = await client.api.get<ApiConversation>(API_ROUTES.conversations.get(id));
     return {
       ...data,
       createdAt: new Date(data.createdAt),
@@ -307,7 +293,7 @@ export function useSaveConversation() {
       const lastMessage = messageText(messages[messages.length - 1]).slice(0, 100) || undefined;
 
       try {
-        const { data } = await client.api.post<ApiConversation>(CONVERSATION_ROUTES.save, {
+        const { data } = await client.api.post<ApiConversation>(API_ROUTES.conversations.save, {
           conversationId: id,
           messages,
           ...(title && { title }),
@@ -400,7 +386,7 @@ export function useDeleteConversation() {
     retry: 1,
     mutationFn: async (id: string) => {
       try {
-        await client.api.delete(CONVERSATION_ROUTES.remove(id));
+        await client.api.delete(API_ROUTES.conversations.remove(id));
       } catch (error: unknown) {
         // If unauthorized, delete from the offline copy
         if (errorStatus(error) === 401) {
@@ -461,7 +447,7 @@ export function useClearConversation() {
     retry: 1,
     mutationFn: async (id: string) => {
       try {
-        await client.api.delete(CONVERSATION_ROUTES.clearMessages(id));
+        await client.api.delete(API_ROUTES.conversations.clearMessages(id));
       } catch (error: unknown) {
         // If unauthorized, clear the offline copy — the same branch a delete takes.
         if (errorStatus(error) === 401) {
@@ -515,7 +501,7 @@ export function useCreateConversation() {
   return useMutation({
     mutationFn: async (params?: { agentId?: string }): Promise<Conversation> => {
       try {
-        const { data } = await client.api.post<ApiConversation>(CONVERSATION_ROUTES.create, {
+        const { data } = await client.api.post<ApiConversation>(API_ROUTES.conversations.create, {
           ...(params?.agentId && { agentId: params.agentId }),
         });
         return {

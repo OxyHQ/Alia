@@ -61,7 +61,12 @@ const INDEX_SOURCE = codeOfFile(fileURLToPath(new URL('../../index.ts', import.m
 /** The origin #244 probed as "a consumer nobody enumerated". */
 const FOREIGN_ORIGIN = 'https://customer.example';
 
-const MOUNTS = { chat: '/alia/chat', v1: '/v1/chat/completions' } as const;
+const MOUNTS = {
+  chat: '/alia/chat',
+  v1: '/v1/chat/completions',
+  conversations: '/v1/conversations',
+  cookieEraConversations: '/conversations',
+} as const;
 
 let server: Server;
 let base: string;
@@ -91,10 +96,15 @@ interface Answer {
   readonly allowCredentials: string | null;
 }
 
-async function preflight(mount: string, origin: string | undefined): Promise<Answer> {
+async function preflight(
+  mount: string,
+  origin: string | undefined,
+  method = 'POST',
+  requestHeaders = 'authorization,content-type',
+): Promise<Answer> {
   const headers: Record<string, string> = {
-    'Access-Control-Request-Method': 'POST',
-    'Access-Control-Request-Headers': 'authorization,content-type',
+    'Access-Control-Request-Method': method,
+    'Access-Control-Request-Headers': requestHeaders,
   };
   if (origin !== undefined) headers.Origin = origin;
   const response = await fetch(`${base}${mount}`, { method: 'OPTIONS', headers });
@@ -184,6 +194,29 @@ describe('the browser-origin policy at the two chat mounts (#244)', () => {
         allowCredentials: null,
       });
     }
+  });
+
+  it('answers * to an Oxy app’s origin on the turn route and the conversations the SDK calls', async () => {
+    // `@alia.onl/sdk` runs on the web origin of every Oxy app. These two are everything it calls,
+    // with the headers and methods it sends; a foreign origin must read the answer.
+    const homiio = 'https://homiio.com';
+    for (const mount of [MOUNTS.v1, MOUNTS.conversations, `${MOUNTS.conversations}/c1`]) {
+      for (const method of ['GET', 'POST', 'PATCH', 'DELETE']) {
+        expect(
+          await preflight(mount, homiio, method, 'authorization,content-type,x-device-info'),
+        ).toEqual({ status: 200, allowOrigin: '*', allowCredentials: null });
+      }
+    }
+  });
+
+  it('keeps the cookie-era conversations closed to an Oxy app’s origin', async () => {
+    // The reason the SDK is on `/v1`: this answers Alia's own origins only.
+    expect(
+      (await preflight(MOUNTS.cookieEraConversations, 'https://homiio.com')).allowOrigin,
+    ).toBeNull();
+    expect((await preflight(MOUNTS.cookieEraConversations, 'https://alia.onl')).allowOrigin).toBe(
+      'https://alia.onl',
+    );
   });
 
   it('leaves a request with no Origin header alone at /alia/chat', async () => {

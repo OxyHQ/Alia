@@ -7,6 +7,7 @@
  * code that only reads conversations, and the runtime re-exports all of it.
  */
 
+export { API_ROUTES as ALIA_API_ROUTES } from './routes';
 export { englishCopy } from '../lib/copy';
 export type { Translate } from '../lib/copy';
 export * from './thread/conversation-export';

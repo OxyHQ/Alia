@@ -125,7 +125,7 @@ describe('useClearConversation', () => {
       await api.mutateAsync('c1');
     });
 
-    expect(http.requests).toEqual(['DELETE /conversations/c1/messages']);
+    expect(http.requests).toEqual(['DELETE /v1/conversations/c1/messages']);
   });
 
   it('empties the cached thread and drops its preview on success, keeping the row', async () => {
@@ -179,8 +179,8 @@ describe('useClearConversation', () => {
     // Tried, retried, and refused both times — and the cache is exactly as it
     // was seeded: a cleared cache under a failed clear is the bug's mirror.
     expect(http.requests).toEqual([
-      'DELETE /conversations/c1/messages',
-      'DELETE /conversations/c1/messages',
+      'DELETE /v1/conversations/c1/messages',
+      'DELETE /v1/conversations/c1/messages',
     ]);
     expect(client.getQueryData(queryKeys.conversations.detail('c1'))).toEqual(THREAD);
     const list = client.getQueryData<{ pages: { conversations: Conversation[] }[] }>(

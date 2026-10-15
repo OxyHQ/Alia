@@ -82,11 +82,7 @@ async function mount(options: Parameters<typeof useConversationStream>[0] = {}) 
   await act(async () => {
     renderer = create(
       <QueryClientProvider client={client}>
-        <AliaRuntimeProvider
-          apiUrl="http://api.test"
-          chatUrl="http://api.test/alia/chat"
-          host={host}
-        >
+        <AliaRuntimeProvider apiUrl="http://api.test" host={host}>
           <Probe options={options} />
         </AliaRuntimeProvider>
       </QueryClientProvider>,
@@ -113,7 +109,7 @@ afterEach(async () => {
 });
 
 describe('the request a turn makes', () => {
-  it('goes to the product route with the conversation, the agent, the level and the host’s modes', async () => {
+  it('goes to the product API with the conversation, the agent, the level and the host’s modes', async () => {
     harness.responses.push([content('hi'), done]);
     await mount({ conversationId: 'c1', agentId: 'a1', model: 'high' });
     await act(async () => {
@@ -124,7 +120,7 @@ describe('the request a turn makes', () => {
     });
 
     const [request] = harness.requests;
-    expect(request?.url).toBe('http://api.test|http://api.test/alia/chat');
+    expect(request?.url).toBe('http://api.test|/v1/chat/completions');
     expect(request?.headers['X-Device-Info']).toBe(JSON.stringify({ platformOS: 'test' }));
     expect(request?.body).toMatchObject({
       stream: true,

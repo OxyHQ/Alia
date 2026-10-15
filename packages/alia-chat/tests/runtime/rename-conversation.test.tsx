@@ -113,7 +113,7 @@ describe('useRenameConversation', () => {
       await api.mutateAsync({ id: 'c1', title: 'Peru' });
     });
 
-    expect(http.requests).toEqual(['GET /conversations/c1', 'POST /conversations']);
+    expect(http.requests).toEqual(['GET /v1/conversations/c1', 'POST /v1/conversations']);
     expect(http.posted).toHaveLength(1);
     expect(http.posted[0].conversationId).toBe('c1');
     expect(http.posted[0].title).toBe('Peru');

@@ -441,7 +441,7 @@ describe('a reply', () => {
     const r = await mount();
     await press(buttons(r, 'chat.like')[1]);
 
-    expect(votes.sent).toEqual([['/conversations/c1/messages/a2/vote', { vote: 'up' }]]);
+    expect(votes.sent).toEqual([['/v1/conversations/c1/messages/a2/vote', { vote: 'up' }]]);
     expect(toasts.success).toEqual(['chat.thanksFeedback']);
   });
 
