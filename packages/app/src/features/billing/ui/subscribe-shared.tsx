@@ -237,6 +237,8 @@ function getButtonState(
 }
 
 interface PlanGridProps {
+  canCheckout?: (planId: string) => boolean;
+  managedInOxy?: boolean;
   tiers: PricingTier[];
   billingPeriod: BillingPeriod;
   currentPlanId?: string | null;
@@ -314,7 +316,13 @@ function TierSummary({ tier, props }: { tier: PricingTier; props: PlanGridProps 
         size="sm"
         className="w-full"
         onPress={() => onSubscribe(tier.id)}
-        disabled={button.disabled || isComped || !!loadingPlanId}
+        disabled={
+          button.disabled ||
+          props.managedInOxy ||
+          isComped ||
+          !!loadingPlanId ||
+          (!props.hasActiveSubscription && props.canCheckout?.(tier.id) === false)
+        }
         loading={loadingPlanId === tier.id}
       >
         {t(button.label)}

@@ -1,3 +1,5 @@
+import { useCredits } from '@/features/billing/runtime/use-credits';
+import { Button } from '@oxy.so/bloom/button';
 import {
   BillingToggle,
   InfoBanners,
@@ -12,6 +14,7 @@ import {
   useCancelSubscription,
   useChangePlan,
   useCreateSubscriptionCheckout,
+  useProductCheckoutOptions,
   useSubscription,
   useSubscriptionPlans,
   type SubscriptionPlan,
@@ -57,6 +60,14 @@ export default function SubscribeScreen() {
   const isWideLayout = width >= 900;
   const { t } = useTranslation();
 
+  const checkoutOptions = useProductCheckoutOptions();
+  const { data: credits } = useCredits();
+  const nativePlan =
+    checkoutOptions.data?.currentPlan ??
+    (credits?.productAllowance?.source === 'oxy_product' &&
+    Date.parse(credits.productAllowance.periodEnd) > Date.now()
+      ? credits.productAllowance
+      : null);
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
   const [loadingPlanId, setLoadingPlanId] = useState<string>();
   const [isMounted, setIsMounted] = useState(false);
@@ -71,7 +82,30 @@ export default function SubscribeScreen() {
   const changePlanMutation = useChangePlan();
   const cancelMutation = useCancelSubscription();
 
-  const tiers = useMemo(() => buildTiers(apiPlans, t), [apiPlans, t]);
+  const tiers = useMemo(
+    () =>
+      buildTiers(
+        apiPlans.map((plan) => {
+          const declared = checkoutOptions.data?.plans.find(
+            (item) => item.planId === plan.id && item.billingPeriod === 'monthly',
+          );
+          const annual = checkoutOptions.data?.plans.find(
+            (item) => item.planId === plan.id && item.billingPeriod === 'annual',
+          );
+          return {
+            ...plan,
+            ...(declared
+              ? { monthlyPrice: declared.price.amountMinorUnits, currency: declared.price.currency }
+              : {}),
+            ...(annual
+              ? { annualPrice: annual.price.amountMinorUnits, currency: annual.price.currency }
+              : {}),
+          };
+        }),
+        t,
+      ),
+    [apiPlans, t, checkoutOptions.data],
+  );
 
   const isPaymentSuccess = isMounted && success === 'true';
 
@@ -79,14 +113,10 @@ export default function SubscribeScreen() {
     setIsMounted(true);
   }, []);
 
-  // Show success toast and redirect once the subscription is confirmed.
+  // The return URL requests a refresh; it is not proof of payment.
   useCheckoutConfirmation({
     enabled: isPaymentSuccess,
     refetchSubscription,
-    onConfirmed: () => {
-      toast.success(t('subscribe.paymentSuccess'));
-      setTimeout(() => router.replace('/(biglayout)/subscribe'), 100);
-    },
   });
 
   const executePlanChange = async (planId: string) => {
@@ -115,7 +145,7 @@ export default function SubscribeScreen() {
     }
 
     const targetTier = tiers.find((tier) => tier.id === planId);
-    if (!targetTier) return;
+    if (!targetTier || nativePlan) return;
 
     const hasActiveSub =
       subscription && (subscription.status === 'active' || subscription.status === 'trialing');
@@ -166,14 +196,12 @@ export default function SubscribeScreen() {
       return;
     }
 
-    // No subscription → Stripe Checkout
+    // No subscription → the declared product checkout owned by Oxy and Peable
     setLoadingPlanId(planId);
     try {
       const { url } = await checkoutMutation.mutateAsync({
         planId,
         billingPeriod,
-        successUrl: Linking.createURL('/(biglayout)/subscribe?success=true'),
-        cancelUrl: Linking.createURL('/(biglayout)/subscribe'),
       });
 
       if (url) {
@@ -194,6 +222,14 @@ export default function SubscribeScreen() {
             <BillingToggle value={billingPeriod} onChange={setBillingPeriod} t={t} />
           </View>
 
+          {nativePlan && (
+            <View className="items-center pb-6">
+              <Button onPress={() => Linking.openURL('https://accounts.oxy.so/payments')}>
+                {t('billing.manageOxySubscription')}
+              </Button>
+            </View>
+          )}
+
           {plansLoading && tiers.length === 0 ? (
             <View className="py-16">
               <Loading size="lg" />
@@ -206,13 +242,22 @@ export default function SubscribeScreen() {
             />
           ) : (
             <PlanGrid
+              canCheckout={(planId) =>
+                checkoutOptions.data?.available === true &&
+                checkoutOptions.data.plans.some(
+                  (item) => item.planId === planId && item.billingPeriod === billingPeriod,
+                )
+              }
               tiers={tiers}
               billingPeriod={billingPeriod}
-              currentPlanId={subscription?.plan?.planId}
+              managedInOxy={!!nativePlan}
+              currentPlanId={nativePlan?.planId ?? subscription?.plan?.planId}
               currentBillingPeriod={subscription?.plan?.billingPeriod}
               cancelAtPeriodEnd={subscription?.cancelAtPeriodEnd}
               isComped={subscription?.isComped}
-              hasActiveSubscription={!!subscription && subscription.status === 'active'}
+              hasActiveSubscription={
+                !!nativePlan || (!!subscription && subscription.status === 'active')
+              }
               onSubscribe={handleSubscribe}
               loadingPlanId={loadingPlanId}
               isWideLayout={isWideLayout}

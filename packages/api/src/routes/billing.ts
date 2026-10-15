@@ -1,3 +1,4 @@
+import { configuredProductCheckout } from '../lib/product-credit-contract';
 import { effectiveCreditPlan, readCurrentProductAllowance } from '../lib/product-credit-read-model';
 import { Router, type Request, type Response } from 'express';
 import Stripe from 'stripe';
@@ -37,6 +38,14 @@ import { log } from '../lib/logger.js';
 import { getSafeErrorMessage } from '../lib/errors/sanitize.js';
 
 const router = Router();
+router.get('/product-checkout', (_req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    return res.json(configuredProductCheckout());
+  } catch {
+    return res.status(503).json({ error: 'product_checkout_unconfigured' });
+  }
+});
 
 /**
  * Stripe is an optional dependency of the deployment: without its key the
@@ -374,6 +383,15 @@ const createSubscriptionSchema = z.object({
 });
 
 router.post('/checkout/subscription', authenticateToken, async (req: Request, res: Response) => {
+  // Once an individual offer is explicitly mapped, its financial writes belong
+  // exclusively to Oxy. Keep legacy management/webhooks for existing records.
+  try {
+    if (configuredProductCheckout().plans.some((plan) => plan.planId === req.body?.planId))
+      return res.status(409).json({ error: 'use_oxy_product_checkout' });
+  } catch {
+    return res.status(503).json({ error: 'product_checkout_unconfigured' });
+  }
+
   try {
     const { planId, billingPeriod, successUrl, cancelUrl } = createSubscriptionSchema.parse(
       req.body,
@@ -548,6 +566,8 @@ const changePlanSchema = z.object({
 
 router.post('/subscription/change-plan', authenticateToken, async (req: Request, res: Response) => {
   try {
+    if (configuredProductCheckout().plans.some((plan) => plan.planId === req.body?.planId))
+      return res.status(409).json({ error: 'use_oxy_product_checkout' });
     const { planId, billingPeriod } = changePlanSchema.parse(req.body);
     const userId = req.user!.id;
 

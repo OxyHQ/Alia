@@ -92,13 +92,13 @@
     "expo-modules-jsi": "57.0.1",
     "react-native-safe-area-context": "5.7.0",
     "lightningcss": "1.30.1",
-    "@oxy.so/core": "file:./vendor/display/oxy.so-core-4.5.0-2d2017636.tgz",
-    "@oxy.so/contracts": "file:./vendor/display/oxy.so-contracts-4.12.0-2d2017636.tgz",
+    "@oxy.so/core": "file:vendor/display/oxy.so-core-4.5.0-5a50b20d3.tgz",
+    "@oxy.so/contracts": "file:vendor/display/oxy.so-contracts-4.12.0-5a50b20d3.tgz",
     "@oxy.so/protocol": "1.2.2",
-    "@oxy.so/services": "file:./vendor/display/oxy.so-services-11.2.0-2d2017636.tgz",
+    "@oxy.so/services": "file:vendor/display/oxy.so-services-11.2.0-5a50b20d3.tgz",
     "@oxy.so/mcp": "1.1.0",
-    "@peable.to/contracts": "file:./vendor/display/peable.to-contracts-0.1.0-12ecc129.tgz",
-    "@peable.to/shared-types": "file:./vendor/display/peable.to-shared-types-0.3.4-oxy-one.0-12ecc129.tgz",
-    "@peable.to/sdk": "file:./vendor/display/peable.to-sdk-0.2.7-oxy-one.0-12ecc129.tgz"
+    "@peable.to/contracts": "file:vendor/display/peable.to-contracts-0.1.0-4ec784e4c.tgz",
+    "@peable.to/shared-types": "file:vendor/display/peable.to-shared-types-0.3.4-oxy-one.0-4ec784e4c.tgz",
+    "@peable.to/sdk": "file:vendor/display/peable.to-sdk-0.2.7-oxy-one.0-4ec784e4c.tgz"
   }
 }

@@ -7,6 +7,7 @@ import type { Executor } from '../db/index';
 import {
   productCreditAdapterSchema,
   productCreditPlanId,
+  selectProductCreditGrant,
   type ProductCreditSnapshot,
 } from './product-credit-contract';
 export {
@@ -47,14 +48,8 @@ export async function reserveProductCreditAllocation(
   now = new Date(Math.max(+now, Date.now()));
   if (+now - Date.parse(access.evaluatedAt) > 10000 || Date.parse(access.evaluatedAt) > +now + 1000)
     throw new Error('Product credit authority unavailable');
-  const grants = snapshot.grants.filter(
-    (g) =>
-      g.origin === 'bundle' &&
-      g.benefit.kind === 'quota' &&
-      g.benefit.key === adapter.quotaKey &&
-      g.benefit.unit === adapter.unit,
-  );
-  if (grants.length > 1) throw new Error('Overlapping product allocation policy is unconfigured');
+  const selection = selectProductCreditGrant({ adapter, snapshot }, userId, now);
+  const grants = selection ? [selection.grant] : [];
   // Missing/revoked/canceled sources cannot admit another turn. Retain history and reservations.
   await tx
     .update(productCreditAllocations)
@@ -136,9 +131,10 @@ export function isProductAllocationAuthorized(
 ) {
   const freshGrant =
     refreshed && productCreditPlanId(refreshed, userId, now)
-      ? refreshed.snapshot.grants.find((g) => g.id === held.id)
+      ? selectProductCreditGrant(refreshed, userId, now)?.grant
       : undefined;
   return (
+    freshGrant?.id === held.id &&
     freshGrant?.benefit.kind === 'quota' &&
     freshGrant.benefit.included === held.included &&
     freshGrant.sourceSegmentId === held.segmentId &&

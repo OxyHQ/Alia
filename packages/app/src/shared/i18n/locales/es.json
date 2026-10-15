@@ -611,6 +611,7 @@
   "billing": {
     "title": "Facturación",
     "subtitle": "Administra tu suscripción y métodos de pago",
+    "paymentPending": "La confirmación del pago sigue pendiente.",
     "paymentSuccess": "¡Pago exitoso! Tus créditos han sido añadidos.",
     "currentBalance": "Saldo actual",
     "credits": "créditos",
@@ -645,7 +646,8 @@
     "aboutHours": "Aproximadamente {{count}} horas",
     "customAmountPlaceholder": "Cantidad personalizada",
     "buy": "Comprar",
-    "customAmount": "Cantidad personalizada"
+    "customAmount": "Cantidad personalizada",
+    "manageOxySubscription": "Gestionar o renovar en Oxy"
   },
   "library": {
     "title": "Biblioteca",
