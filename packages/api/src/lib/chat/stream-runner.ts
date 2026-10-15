@@ -30,6 +30,7 @@ import { streamText, type TextStreamPart, type ModelMessage, type ToolSet } from
 import type { ResolvedModel } from '../chat-core.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
+import { AliaError, AliaErrorCode } from '../errors/error-codes.js';
 import { recordEvent } from '../observability/index.js';
 import {
   writeTextChunk,
@@ -144,6 +145,10 @@ export interface RunStreamResult {
   toolCallCount: number;
 }
 
+/** The closing turn of the tools-disabled synthesis pass. */
+const SYNTHESIS_REQUEST =
+  'Answer my last request now, in the language I wrote it in, using the tool results above. Do not call any tool.';
+
 /**
  * Drive one streaming provider attempt to completion. Throws (propagating to
  * the provider loop's catch) on every `error` chunk the tool-free synthesis
@@ -179,6 +184,32 @@ export async function runStream<TOOLS extends ToolSet>(
   const invalidToolCallIds = new Set<string>();
 
   /**
+   * Reasoning is relayed VERBATIM.
+   *
+   * A reasoning delta is a token fragment, and a token carries its own leading
+   * space ("The", " user", " is"). Trimming each fragment glued the words back
+   * together ("Theuser isasking") on every client, which only concatenates what
+   * it is sent. Only an empty fragment is skipped.
+   *
+   * Two reasoning blocks of one turn (one per model step) are joined with a
+   * paragraph break, announced by the block's own `reasoning-start`, so the
+   * end of one step's thought never runs into the start of the next.
+   */
+  let reasoningBlocksSeen = 0;
+  let reasoningSeparatorOwed = false;
+  const writeReasoning = (text: string): void => {
+    if (text === '') return;
+    const content = reasoningSeparatorOwed ? `\n\n${text}` : text;
+    reasoningSeparatorOwed = false;
+    res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content })}\n\n`);
+    log.v1.debug({ reasoningBytes: sizeForLog(content) }, 'Reasoning chunk (provider)');
+  };
+  const openReasoningBlock = (): void => {
+    reasoningSeparatorOwed = reasoningBlocksSeen > 0;
+    reasoningBlocksSeen += 1;
+  };
+
+  /**
    * Turn completed tool results into the user-facing answer the original
    * request was for.
    *
@@ -199,6 +230,10 @@ export async function runStream<TOOLS extends ToolSet>(
     const followUpMessages: ModelMessage[] = [
       ...baseConfig.messages,
       ...completed.flatMap(toolRoundTrip),
+      // The history ends on a tool result. A model with no tools to call and no
+      // user turn after that result has nothing asking it to speak, and a
+      // reasoning model then spends the pass thinking and ends with no text.
+      { role: 'user', content: SYNTHESIS_REQUEST } satisfies ModelMessage,
     ];
 
     const retryAbort = new AbortController();
@@ -222,6 +257,15 @@ export async function runStream<TOOLS extends ToolSet>(
             hasStreamedText = true;
             assistantResponse += filtered;
           }
+        } else if (retryChunk.type === 'reasoning-start') {
+          openReasoningBlock();
+        } else if (retryChunk.type === 'reasoning-delta') {
+          writeReasoning(retryChunk.text);
+        } else if (retryChunk.type === 'error') {
+          // `fullStream` reports a failure as a part, it does not throw. Dropping
+          // it here turned every upstream refusal of the synthesis pass into
+          // "produced no assistant answer" and lost the actual cause.
+          throw retryChunk.error ?? new Error('The tool-result synthesis stream failed');
         }
       }
       return hasStreamedText;
@@ -267,14 +311,7 @@ export async function runStream<TOOLS extends ToolSet>(
     } else if (chunk.type === 'reasoning-delta') {
       sse.ensureHeaders();
       state.hasStreamedContent = true;
-
-      const reasoningText = chunk.text.trim();
-      if (reasoningText) {
-        res.write(
-          `event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content: reasoningText })}\n\n`,
-        );
-        log.v1.debug({ reasoningBytes: sizeForLog(reasoningText) }, 'Reasoning chunk (provider)');
-      }
+      writeReasoning(chunk.text);
     } else if (chunk.type === 'tool-call') {
       // Neither this call nor the `tool-error` that follows it reaches the person.
       if (isInvalidToolCall(chunk)) {
@@ -438,12 +475,11 @@ export async function runStream<TOOLS extends ToolSet>(
       log.v1.debug('Stream started');
     } else if (chunk.type === 'start-step') {
       log.v1.debug('Step started');
-    } else if (
-      chunk.type === 'text-start' ||
-      chunk.type === 'text-end' ||
-      chunk.type === 'reasoning-start' ||
-      chunk.type === 'reasoning-end'
-    ) {
+    } else if (chunk.type === 'reasoning-start') {
+      openReasoningBlock();
+    } else if (chunk.type === 'reasoning-end') {
+      // The block's text already went out delta by delta; nothing is buffered.
+    } else if (chunk.type === 'text-start' || chunk.type === 'text-end') {
       // Text generation lifecycle events - no action needed
     } else if (
       chunk.type === 'tool-input-start' ||
@@ -515,16 +551,30 @@ export async function runStream<TOOLS extends ToolSet>(
           { toolResultCount: toolInvocations.filter((t) => t.state === 'result').length },
           'Stream finished after tool results without an answer; synthesizing without tools',
         );
+        let synthesisFailure: unknown;
         try {
           if (await synthesizeCompletedToolResults()) {
             finishReason = 'stop';
           }
         } catch (synthesisError) {
           log.v1.error({ err: synthesisError }, 'Tool result synthesis failed');
+          synthesisFailure = synthesisError;
         }
 
         if (!hasStreamedText) {
-          throw new Error('Tool result synthesis produced no assistant answer');
+          // The real cause when the pass failed (its classification decides the
+          // client's code: timeout, budget, provider); a typed error of its own
+          // when it ran to the end and the model simply never wrote an answer.
+          throw (
+            synthesisFailure ??
+            new AliaError({
+              code: AliaErrorCode.EMPTY_RESPONSE,
+              message:
+                'Tool result synthesis produced no assistant answer: the model finished the final tools-disabled pass without any text',
+              retryable: true,
+              reason: 'provider_unavailable',
+            })
+          );
         }
       }
 

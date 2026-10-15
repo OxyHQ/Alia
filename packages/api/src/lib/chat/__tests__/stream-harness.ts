@@ -40,7 +40,10 @@ function streamOf(chunks: readonly object[]): AsyncIterable<TextStreamPart<ToolS
 }
 
 /** Run one stream through `runStream` with inert defaults. */
-export async function runChunks(chunks: readonly object[]) {
+export async function runChunks(
+  chunks: readonly object[],
+  baseConfig: RunStreamParams['baseConfig'] = { messages: [] },
+) {
   const { res, written } = responseDouble();
   const agentMessages: RunStreamParams['agentMessages'] = [];
   const outcome = await runStream({
@@ -50,7 +53,7 @@ export async function runChunks(chunks: readonly object[]) {
     requestId: 'req-1',
     modelId: 'acme/chat-1',
     resolved: { modelId: 'acme/chat-1' } as unknown as RunStreamParams['resolved'],
-    baseConfig: { messages: [] },
+    baseConfig,
     toolNameMapping: new Map(),
     agentMessages,
     toolCallCount: 0,

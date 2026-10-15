@@ -43,10 +43,8 @@ describe('a turn that ends at a question', () => {
   });
 
   it('control: any other tool with no text still demands an answer', async () => {
-    // The synthesis pass cannot run against the double, so the turn fails — which is
-    // exactly the path the question must NOT take.
-    await expect(runChunks(turn('webSearch'))).rejects.toThrow(
-      /synthesis produced no assistant answer/,
-    );
+    // The synthesis pass cannot run against the double (no model), so the turn
+    // fails — which is exactly the path the question must NOT take.
+    await expect(runChunks(turn('webSearch'))).rejects.toThrow();
   });
 });
