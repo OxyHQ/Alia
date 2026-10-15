@@ -673,6 +673,20 @@
       "when": 1792054078325,
       "tag": "0095_skill_registry_sync_state",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1792055722893,
+      "tag": "0096_central_organization_references",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1792055749396,
+      "tag": "0097_retire_local_organization_identity",
+      "breakpoints": true
     }
   ]
 }

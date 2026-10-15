@@ -11,7 +11,7 @@
  * an entry measures the wrong column or retention.
  *
  * The active registry covers API usage, notifications, moderation, OAuth state
- * and organization invites. Retention rules whose tables have since been
+ * and OAuth sessions. Retention rules whose tables have since been
  * dropped (hosted-provider telemetry, auth health counters, routing logs,
  * legacy trigger runs) have no entry because there is nothing left to sweep.
  *
@@ -43,7 +43,6 @@ import type { ExpirySweepTarget } from '@oxy.so/db/expiry';
 import { moderationEvents, moderationOutboxes } from './schema/moderation';
 import { audioJobs, notifications } from './schema/notifications';
 import { MCP_OAUTH_STATE_TTL_SECONDS, mcpOauthStates, oauthStates } from './schema/integrations';
-import { organizationInvites } from './schema/organizations';
 import { emailOutreachDecisions } from './schema/proactive';
 import { apiKeyUsage } from './schema/telemetry';
 
@@ -110,29 +109,6 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
     retentionSeconds: 0,
     reason:
       'Inbound dedupe claims; the claim must outlive every redelivery of its event and nothing after.',
-  },
-  {
-    table: organizationInvites,
-    /**
-     * **The only entry in this registry measuring a NON-ZERO retention from a
-     * DEADLINE column, and both ways of "correcting" it destroy data.**
-     *
-     * The rule: `{expiresAt: 1}, expireAfterSeconds: 30 days` — a row leaves 30 days
-     * AFTER its own expiry. Every other `expires_at` target here
-     * (`cache_entries`, and the two moderation tables) is retention ZERO, so the
-     * pattern a reader arrives with is the wrong one:
-     *
-     *  - retention 0 by analogy deletes an invitation the moment it expires,
-     *    losing the window where the UI can say "this invitation expired" instead
-     *    of 404ing somebody who followed a link from their inbox;
-     *  - measuring from `created_at` instead deletes LIVE invitations, because
-     *    `expires_at` is required with no default and the caller chooses it — a
-     *    31-day-old invite with a 60-day expiry is still valid.
-     */
-    column: organizationInvites.expiresAt,
-    retentionSeconds: 30 * DAY,
-    reason:
-      'Invitations are kept 30 days past their own expiry so an expired link reads as expired rather than missing.',
   },
   {
     table: mcpOauthStates,

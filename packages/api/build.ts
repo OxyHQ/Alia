@@ -123,6 +123,20 @@ await esbuild.build({
   logLevel: 'info',
 });
 
+// Reviewed organization mapping is an ECS one-shot; the runtime image has no src/ directory.
+await esbuild.build({
+  entryPoints: ['src/scripts/backfill-workspace-organizations.ts'],
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'esm',
+  outfile: 'dist/scripts/backfill-workspace-organizations.js',
+  plugins: [externalizeNodeModules],
+  sourcemap: false,
+  minify: false,
+  logLevel: 'info',
+});
+
 // Copy prompts directory to dist
 try {
   await cp('prompts', 'dist/prompts', { recursive: true });

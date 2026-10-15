@@ -104,12 +104,12 @@ const REQUIRED_UNIQUES: readonly UniqueRequirement[] = [
   {
     table: 'organization_members',
     constraint: 'organization_members_org_user_key',
-    note: 'One account, one membership. `acceptInvite` decides "you are already a member" from an `ON CONFLICT DO NOTHING RETURNING` against exactly this index, so losing it seats a second membership on every replayed invitation link, with no error anywhere.',
+    note: 'Frozen historical membership evidence preserves its original uniqueness; live authority belongs to Oxy.',
   },
   {
-    table: 'organization_invites',
-    constraint: 'organization_invites_token_key',
-    note: 'The token is the bearer credential that joins an organization; two rows sharing one is two organizations behind one link.',
+    table: 'organizations',
+    constraint: 'organizations_oxy_account_key',
+    note: 'One Alia workspace per canonical organization; legacy invitation secrets are retired.',
   },
   { table: 'conversations', constraint: 'conversations_oxy_user_conversation_id_key' },
   {
