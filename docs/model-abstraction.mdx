@@ -243,9 +243,13 @@ returned as a short-lived playback link. See the
 [speech recovery record](./runbooks/speech-recovery-2026-09-13.md) for rollout
 history.
 
-Hosted image generation, transcription, voice sessions and embeddings do not
-yet have a Kaana capability seam. Those routes fail closed with HTTP 503 and
-`KAANA_CAPABILITY_UNAVAILABLE` before provider selection, billing or egress.
+Voice calls and dictation reach Kaana through the `@kaana.ai/sdk` port in
+`lib/kaana/` (ADR 0017): their realtime and transcription models are computed
+from Kaana's catalogue by capability and price (`lib/models/voice-models.ts`),
+and power levels never choose them ([Voice](./voice.mdx)). Hosted image
+generation and embeddings do not yet have a Kaana capability seam. Those routes
+fail closed with HTTP 503 and `KAANA_CAPABILITY_UNAVAILABLE` before provider
+selection, billing or egress.
 
 ## Names on the product surface
 

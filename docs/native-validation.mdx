@@ -387,7 +387,8 @@ Each fix was rebuilt, installed and looked at again on the phone.
 
 ### 8.4 Also seen, not fixed here
 
-- Dictation, and the agent page's Chat: followed up in §8.6.
+- The agent page's Chat: followed up in §8.6. (Dictation was followed up there
+  too; on-device recognition has since been removed, see §8.6 and §9.)
 - The model names carry their publisher twice ("DeepSeek: DeepSeek V4 Pro
   0813") and some publishers are raw ids ("qwen", "mistralai") — catalogue data,
   the same on the web.
@@ -403,6 +404,12 @@ out beyond the welcome (§8.1); tablets and three-button navigation.
 
 Same phone, same day, on `fix/608-device-qa` merged forward to `d3a60b33`,
 built as in §8.
+
+> **Superseded (ADR 0017).** Dictation no longer uses the device's recognizer:
+> it records a clip and transcribes it through Kaana (`useDictation`,
+> `POST /v1/audio/transcriptions`). `chooseSpeechRecognizer`,
+> `expo-speech-recognition` and the two gates named below were removed with it.
+> The paragraph is kept as the record of what the phone showed.
 
 **Dictation.** Asked at run time (a probe build, not committed), the phone has
 exactly one recognition service, Android System Intelligence
@@ -512,3 +519,22 @@ session's evidence, not in the repository.
 
 The test chat this pass created was deleted from the app afterwards.
 
+## 9. Voice through Kaana: to validate
+
+ADR 0017 phase 1 built calls and dictation against a fake upstream. Before the
+phase-4 release, each line below is checked on real hardware, against the local
+fake (`ALIA_VOICE_FAKE_UPSTREAM=1` on a developer API) and then against Kaana,
+and recorded here. **None of it has been done yet.** The build needs a new native
+binary: `react-native-audio-api` (0.13.6) comes in, `expo-speech-recognition` goes
+out.
+
+| Gate | Device | Result |
+|---|---|---|
+| Capture reaches the API (`input.ready`), "Listening…" only after it | Pixel 8a (USB), iPhone (Mac), Chrome, Safari, Firefox | not run |
+| Playback of the answer, no gaps at 24 kHz | same | not run |
+| Echo: speaker at full volume, Alia does not hear herself | same | not run |
+| Android AEC: 0.13.6 opens the default input preset, not `VOICE_COMMUNICATION`; if echo leaks, the fallback is an Expo module of Alia's own over `AudioRecord(VOICE_COMMUNICATION)` | Pixel 8a | not run |
+| Chrome AEC with Web Audio playback; fallback: an `RTCPeerConnection` loopback | Chrome | not run |
+| Barge-in while Alia speaks: playback stops, the stored answer is marked with the heard ms | all | not run |
+| Bluetooth headset; the first seconds of a call while AEC converges | Pixel 8a, iPhone | not run |
+| Dictation: record, the remaining time in the last 30 s, text in the draft; latency end to end | all | not run |

@@ -1,184 +1,301 @@
 ---
 title: "Voice"
-description: "Dictation and voice calls: recognized on the device, answered through chat, spoken through Oxy speech."
+description: "Voice calls are a realtime speech-to-speech session through Kaana; dictation is Kaana transcription; read-aloud is Oxy speech."
 order: 5
 ---
 
 # Voice
 
-Alia has two voice features, and both run the same way since `@alia.onl/sdk`
-8.0.0: **the device listens, the chat path answers, Oxy speaks.**
+Since `@alia.onl/sdk` 15.0.0 ([ADR 0017](./adr/0017-voice-is-a-realtime-session-through-kaana.md)),
+no surface uses the browser's or the operating system's speech recognition.
 
-| Feature | Hook | What it does |
-|---|---|---|
-| Dictation | `useSpeechToText` | The composer's mic: speech becomes text in the draft |
-| Voice call | `useVoiceRoom` (app: `use-voice-mode.ts`) | A spoken conversation: listen → answer → speak, with barge-in |
-| Read aloud | `useTTS` | A message, spoken on request |
+| Feature | Hook | What it does | Route |
+|---|---|---|---|
+| Voice call | `useVoiceRoom` (app: `use-voice-mode.ts`) | A spoken conversation, full duplex, turn detection and barge-in on the server | `GET /v1/voice/session` (WebSocket) |
+| Dictation | `useDictation` (in `AliaComposer`) | The composer's microphone: one recorded clip becomes text in the draft | `POST /v1/audio/transcriptions` |
+| Read aloud | `useTTS` | A message, spoken on request (unchanged) | `POST /v1/audio/speech` |
 
-## Why it is built this way
+## Status (ADR 0017 phase 1)
 
-Until #477 dictation posted audio to `POST /v1/voice/transcribe` and a call opened
-a LiveKit room from `POST /v1/voice/token`; both reached speech providers
-directly. Alia's only inference path is `Alia -> Oxy -> Kaana`
-([ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md)), and Oxy serves
-chat and speech synthesis but **no transcription and no realtime session**. The
-two routes answered `503` from the cut-over on, and are removed. Adding those
-capabilities to Oxy and Kaana is cross-repository work; recognizing speech on the
-device needs none of it.
+Alia's part is built and tested against a **port** of `@kaana.ai/sdk`
+(`packages/api/src/lib/kaana/port.ts`, the signatures of Kaana ADR 0002) and a
+contract-faithful fake (`lib/kaana/fake.ts`). `lib/kaana/transport.ts` is the one
+place the client is constructed, and today it answers `null`: until
+`@kaana.ai/sdk` 1.0.0 is published and Kaana serves `kaana.ai/v1/realtime` and
+`/v1/audio/transcriptions`, a call ends `realtime-unavailable` and dictation answers
+`TRANSCRIPTION_UNAVAILABLE` — typed, never a stand-in. On a developer machine,
+`ALIA_VOICE_FAKE_UPSTREAM=1` (ignored by any deployed task) serves both from the
+fake in its scripted mode — a small energy detector plays the provider and answers
+with a tone — so capture, playback, echo cancellation and barge-in can be checked
+on a real device.
 
-Retiring the LiveKit room, cohost and the voice-minutes allowance is a product
-decision, recorded in [ADR 0013](./adr/0013-voice-runs-on-the-device-livekit-and-cohost-are-retired.md).
+What production still needs, outside Alia, is in [What is left](#what-is-left).
 
-## Listening: on the device
+## A call
 
-`packages/alia-chat/src/lib/speech-recognition*.ts` is one contract with two
-engines, picked by the bundler:
+```text
+app / SDK ──WSS /v1/voice/session──▶ Alia API ──@kaana.ai/sdk realtime.connect──▶ kaana.ai/v1/realtime ──▶ provider
+  PCM16 24 kHz binary frames             │  instructions, tools, memory,
+  + Alia's JSON events                   │  tool execution, persistence,
+                                         │  credits, typed errors
+```
 
-- **Web** (`speech-recognition.ts`): the browser's Web Speech API
-  (`SpeechRecognition` / `webkitSpeechRecognition`). Chromium browsers and Safari
-  have it; **Firefox does not**, and dictation says so instead of failing
-  (`useSpeechToText().isSupported === false`, and the voice call refuses to start).
-  A `getUserMedia` stream is opened beside the recognizer for the permission
-  prompt, precise device errors and the level meter; it is never recorded.
-- **iOS / Android** (`speech-recognition.native.ts`): `expo-speech-recognition`
-  (Apple's Speech framework, Android's `SpeechRecognizer`), continuous with
-  interim results and punctuation, and iOS voice processing (echo cancellation)
-  during calls. It is a native module: the app lists its config plugin in
-  `app.json`, which writes `NSSpeechRecognitionUsageDescription`,
-  `NSMicrophoneUsageDescription`, `RECORD_AUDIO` and the Android recognizer
-  visibility query — **it needs a new native build**.
+Alia is the only client of the Kaana session. The device sends microphone audio and
+receives the answer's audio, transcripts and a few events for the call UI; it never
+sees an instruction, a tool schema, tool arguments or a tool result. Alia connects
+under its service token (`aud: kaana.ai`) with the person as delegated attribution
+(`onBehalfOfUserId`): lane `service_token`, relationship `alia-kaana`.
 
-The language is the app's (`packages/app/src/features/voice/model/speech-locale.ts`): `i18n.locale`,
-widened to a regional tag from the device's locales when it is bare.
+### The socket
 
-**Which recognizer, on Android** (`chooseSpeechRecognizer`, run once before a
-dictation or a call starts). Android may have several recognition services — on
-a Pixel, Android System Intelligence (on-device, only the languages whose packs
-are installed) and Google's speech services — and `SpeechRecognizer` answers a
-language it cannot do only by failing. So each service is asked which languages
-it recognizes, the default first; the first that has the language (or another
-region of it: `es-US` for `es-ES`) is used, under its own spelling of the tag.
-When services answer and none has the language, dictation says so without
-opening the microphone. When every service answers with no language at all,
-the default is still tried, and if it refuses, the message is "speech
-recognition is not available on this device", not "does not support this
-language" — which is what a Pixel with no speech services and no language pack
-showed (`docs/native-validation.mdx` §8.4). iOS and the web have one recognizer
-and go straight to it.
+`lib/voice/voice-socket.ts` mounts `GET /v1/voice/session` with `ws` in `noServer`
+mode on the shared HTTP server, exactly as `lib/mcp-relay.ts` does, so socket.io's
+handshake is never stomped. The protocol is `lib/voice/protocol.ts` (the SDK keeps its
+own copy in `src/lib/voice-protocol.ts`; `VOICE_PROTOCOL_VERSION` makes a mismatch a
+refusal):
 
-**Privacy, stated plainly.** No audio reaches Alia. What the platform's
-recognizer does is the platform's: Chrome's Web Speech API streams audio to a
-Google service; Safari and iOS use Apple's, on-device where the device supports
-it; Android uses the device's recognition service, on-device where installed.
-Accuracy is the engine's too, and varies by browser, device and language.
+```text
+client: auth { token }                       an Oxy session of Alia's own apps
+alia:   auth.ok
+client: session.start { protocol: 1, conversationId, agentId?, voice, locale }
+        | session.resume { protocol: 1, voiceSessionId, afterSeq }
+alia:   session.accepted { voiceSessionId, callId }     still connecting
+alia:   session.ready { model, maxDurationMs, … }       Kaana created the session
+client: <binary PCM16 24 kHz mono, ~40 ms frames>
+alia:   input.ready                                     the first frame was appended
+alia:   user.speech_started / user.speech_stopped, transcript.delta|done { role },
+        <binary [u8 n][item id][PCM16]>, assistant.audio_done, assistant.done,
+        tool.started / tool.finished { name }, approval.requested, messages.saved,
+        session.warning { ending-soon }, session.reconnecting, session.resumed,
+        error { code, retryable, reference }, session.closed { reason }
+client: playback.interrupted { itemId, playedMs }, session.end, auth { token } (refresh)
+```
 
-## When listening fails
+Every event after `session.accepted` carries `seq`, which is what a resume replays
+from. **Only a person's session is accepted**; an `oxy_sk_` machine credential is
+refused with `credential-not-supported` (third parties are a later decision).
 
-A call says **"Listening…" only while something is listening**, and when
-listening does not work it ends with a reason or warns — never a bar that reads
-"Listening…" over a recognizer that hears nothing (which is what production
-showed on Chrome: no text, no request, no error anywhere).
+### Opening, in order
 
-**Starting.** The call stays `roomState: 'connecting'` (the bar's "Connecting…"
-and spinner) until the recognizer reports that it has started: the Web Speech
-API's `start` event, `expo-speech-recognition`'s `start` (`onStart` in the
-contract). Every later session — after each turn, after each restart — is held
-to the same deadline.
+`lib/voice/call.ts` (`VoiceCall.open`):
 
-**One recognition at a time (Chrome).** Chrome runs one microphone recognition
-per *browser*: starting one aborts whichever was live, in any tab
-(`SpeechRecognitionManagerImpl::StartSession` — "If there is another session
-using the microphone, abort that"). So an `aborted` nobody here asked for means
-another tab, an extension or dictation took the recognizer. It used to be
-dropped, and the loop restarted on `end`, took the recognizer back, was aborted
-again — "Listening…" forever with nothing heard. Now:
+1. The turn's inputs from the identity — memory, Oxy profile, entitlements and the
+   agent — through `prefetchTurnInputs` (`lib/chat/turn-inputs.ts`), the same reads
+   a typed turn makes (extracted from `buildChatRequestContext`).
+2. **`voice-mode` is enforced by the server** (`plan-required`), not only by the app.
+3. The agent: a person's own or a public one (`loadTurnAgent`); a product's agent is
+   refused (`agent-unavailable`) — it is reached through its application's lane.
+4. The realtime model, computed (below). No candidate: `realtime-unavailable`.
+5. The first credit block (below). Refused: `credits-exhausted`.
+6. **One call per person** (below): this call takes over any other.
+7. The conversation's stored messages, the tools and the instructions.
+8. Kaana. The client stays `connecting` until `session.created` (`session.ready`).
 
-- The engine wrappers report an `aborted` that follows no `stop()`/`abort()` of
-  theirs as `interrupted`; only the abort we asked for is silent.
-- The web engine serializes its own sessions: a new one aborts the page's live
-  session and waits for its `end` before it starts, so the page never preempts
-  itself (a restart racing the previous end, dictation and a call).
-- The `getUserMedia` stream beside the recognizer (permission, device errors,
-  level meter) is **not** a cause: Chromium aborts a recognition for another
-  recognition or a revoked permission, never for another capture of the same
-  microphone. It stays, because the level it measures is what the checks below
-  read.
+### The model is computed; power levels do not choose it
 
-**While listening** (`useVoiceRoom`, constants in its TUNING section; levels are
-`onLevel`'s 0..1 = -60..0 dBFS, read every ~100ms on both engines):
+`rankRealtimeCandidates` (`lib/models/voice-models.ts`) reads Kaana's catalogue at
+open: a `conversation` session over `websocket`, tools, audio in and out, and the
+model's own input transcription (`capabilities.realtime.inputAudioTranscription`, the
+catalogue flag Kaana's phase 1 adds — see [What is left](#what-is-left)); the session
+language (the app's, matched on its primary subtag when the model lists no regional
+tag); a voice of the product gender (`male` | `female`) that speaks it; active. The
+cheapest estimated minute first, then the newest release. The upstream voice id is
+sent to Kaana and never shown or returned. The open is tried on at most two
+candidates, and only when the model itself refused (`model_not_found`,
+`unsupported_modality`, `no_route_available`, `invalid_request` on `voice`/`config`);
+authentication, credit and rate refusals fail at once. The served revision
+(`session.created`) is what the call is priced with and what `chat_analytics`
+records (`platform: 'voice'`, never anybody's default chat model). Model and publisher
+names may be shown; the operator never.
 
-| Signal | Threshold | Result |
-|---|---|---|
-| No `start` after the session opened | 8 s (`RECOGNIZER_START_TIMEOUT_MS`): browsers start in under a second, Android binds its service in one or two | Call ends: `recognizer-not-started` |
-| Cut off by another recognition (`interrupted`), in a row, no words between | 3rd time (`MAX_INTERRUPTIONS`): the first restarts cover a one-off, the third is a tug of war | Call ends: `recognizer-aborted` |
-| Sessions that end by themselves without listening or a word (never started, ended within 400 ms, or on an error such as `other`) | 5 in a row (`MAX_FRUITLESS_SESSIONS`) | Call ends with the error's code, or `recognizer-unresponsive` / `recognizer-not-started` |
-| Voice-level sound (≥ 0.5, -30 dBFS: speech under automatic gain; the stream is noise-suppressed) with not one result | 5 s in total (`UNRESPONSIVE_SPEECH_MS`): a working recognizer returns words within about a second | Call ends: `recognizer-unresponsive` |
-| Every reading under 0.02 (-58.8 dBFS: digital silence; a live microphone in a quiet room reads above it) | 10 s (`NO_AUDIO_INPUT_MS`) | **Warning**, the call goes on: `warningCode: 'no-audio-input'` |
+The person's power level still governs the inference a tool runs during the call.
 
-The silent microphone is a warning and not the end of the call because a person
-who is simply quiet in a very quiet room reads almost the same: the call says
-"if you're speaking, check your microphone" (a toast, and the bar shows it in
-place of "Listening…") and clears it the moment sound arrives. The level checks
-run only while the call listens to the person — while Alia thinks or speaks,
-the microphone hears her answer — and not while muted. Chrome ending a session
-after listening to silence (`no-speech`) is the person being quiet and never
-counts. Every recognizer error is a structured `console.warn` (`code`, the
-engine's `detail`, whether the session had started, its age, the phase) and
-never carries what was said.
+### What the session is opened with
 
-## Answering: the chat path
+- **Instructions:** `SystemPromptBuilder.buildMeasured({ responseMode: 'voice' })` —
+  `prompts/voice.md` and no question card — plus the recent conversation as one text
+  section (never one billable item per message) and the session language
+  (`lib/voice/turn.ts`). Within the contract's 32 768 characters: the history shrinks
+  first, then the recalled memories go; if the base prompt alone does not fit, the
+  call refuses to open (`realtime-rejected`) rather than cut it.
+- **Memory per actor:** an Alia call has the person's memory and the
+  `saveUserMemory` family; an agent's call has `agent_memory_documents` and its
+  `memory` tool. Memories are recalled at open.
+- **Tools:** `ToolPipeline.forUser` with the person on the socket as
+  `requesterAccountId`, so an agent's `oxy_*` tools reach its owner's apps only when
+  the owner is the one talking (ADR 0015). Serialized with
+  `asSchema(...).jsonSchema`, at most 128, starting from the routed active set; a
+  `useApps` call widens the session with `session.update { tools }`.
+- **Turn detection:** `server_vad` with `createResponse` and `interruptResponse` (the
+  one mode every provider accepts); `inputAudioTranscription { language }`; PCM16
+  24 kHz both ways.
+- **Limits** (Alia product rules, not capacity): 30 min, 2 min idle, 500 responses,
+  no text items, audio bytes for 30 min each way.
 
-A spoken turn **is a chat turn**. In the app, `use-voice-mode.ts` hands each
-utterance to the conversation screen's own `sendMessage` — `POST /alia/chat` with
-the open conversation, its agent, the chosen model and every tool — so a call's
-turns land in the thread as ordinary messages, persisted by the server. The SDK's
-default sender (`createAliaVoiceTurnSender`) makes the same request `useAliaChat`
-does, on `/v1/chat/completions`.
+### Tools run in Alia
 
-Every voice turn carries `responseMode: "voice"`. The API layers
-`prompts/voice.md` over the turn's prompt (`SystemPromptBuilder` chooses prompts by
-surface, never by model): short, conversational, nothing that reads badly
-aloud. Routing, tools and billing are those of a typed turn.
+On a complete `tool_call`, `runTool` (`lib/voice/tool-bridge.ts`) executes the tool
+by name in Alia, bounded by 60 s; the result goes back as
+`conversation.item.create { function_call_output }`, then `response.create`. A failure,
+unknown tool, bad arguments or timeout is a typed tool error the model reads — never
+an invented result. The client gets `tool.started` / `tool.finished` with the tool's
+name, for the call UI. An action that needs the person's OK files its card in the
+conversation, as in chat, and the call is told (`approval.requested`).
 
-## Speaking: Oxy speech, sentence by sentence
+### Barge-in
 
-Answers are spoken through `POST /v1/audio/speech` — the same route read-aloud
-uses (`lib/speech-synthesis.ts` is shared) — in the product voice, `male` or
-`female`; no upstream voice name is ever sent or shown. The loop synthesizes the
-first sentence as soon as it has streamed, gathers later sentences into fuller
-chunks, and fetches the next clip while the current one plays. Markdown, code and
-links are stripped from what is spoken, not from the transcript.
+The provider detects the turns. On `input_audio.speech_started` Alia forwards
+`user.speech_started`; the client flushes its playback and reports how many
+milliseconds of the current item it actually played (`playback.interrupted`); Alia
+sends `conversation.item.truncate { audioEndMs }`, so the model remembers what was
+heard. There is no end-of-utterance timer and no echo heuristic anywhere.
 
-**Barge-in.** The microphone stays open while Alia thinks and speaks. When the
-person says two or more words that are not the answer echoing back
-(`isInterruption` in `lib/voice-text.ts`), the turn is aborted — playback stops
-and the chat request is cancelled — and what they are saying becomes the next
-utterance.
+### Transcripts become messages
 
-## When speech fails
+Each exchange is appended as it completes (`appendConversationMessages`,
+`lib/conversation-saver.ts`, the next `seq`, retried on a concurrent append): the
+person's words from the session's own input transcription, and the answer from its
+output transcript with the tool round trips. An interrupted answer is stored whole,
+with `messages.interrupted_after_ms` = what was heard. A response with no output
+stores nothing. The open client is told twice: `messages.saved` on the call's socket
+and `conversation:message` on socket.io, which appends to the open thread. The first
+words of a new conversation title it.
 
-A call that cannot speak **ends, and says why** — it never listens on in
-silence. When a clip cannot be made or played, the turn stops speaking (no
-later sentence is played out of order), the answer finishes streaming into the
-thread — the chat request is not cancelled, so the written answer is whole —
-and then the call ends with a `VoiceErrorCode` the app says in its own
-language (`voice.errors.*`):
+### One call per person
 
-| Route answer (`error.code`) | Status | Call ends with |
-|---|---|---|
-| `SPEECH_UNAVAILABLE` — no inference client, no speech model, no route, storage not set up, Oxy refusing Alia's authority | 503 | `synthesis-unavailable` |
-| `SPEECH_LIMIT_REACHED` — rate limit, quota, spending limit, balance (`Retry-After` when Oxy gave one) | 429 | `synthesis-limited` |
-| `SPEECH_REJECTED` — the model refused the voice, the speed or the text | 422 | `synthesis-rejected` |
-| `SPEECH_PROVIDER_FAILED` — upstream error, timeout (504), transport, not MP3 | 502 / 504 | `synthesis-failed` |
-| `SPEECH_GENERATION_FAILED` — storing or attaching the clip failed | 502 | `synthesis-failed` |
-| 401, or no session token on the device (no request is made) | — | `not-authenticated` |
-| The device could not play the clip | — | `not-played` |
+`voice_calls` (`db/schema/voice.ts`, migration `0094_voice_calls`, pre phase) with a
+partial unique index on `oxy_user_id WHERE status = 'active'`.
+`lib/voice/call-registry.ts`:
+
+- A start takes over in one transaction under
+  `pg_advisory_xact_lock(hashtextextended('alia:voice-call:' || user, 0))`: the
+  active row ends `moved_elsewhere` (live lease or not) and the new one is inserted.
+- Same task: the old call is hung up directly. Another task: `takeover` on the Redis
+  channel `alia:voice-call`. Without Redis, the 10 s lease renewal that matches no
+  active row hangs the old call up — the worst overlap is one renewal, and it is
+  billed.
+- The old call stores its messages, closes its Kaana session and announces `ended`;
+  the new call waits for it at most 2 s before reading the conversation.
+- The old device ends with `session.closed { reason: 'call-moved-elsewhere' }`, a
+  reason, not an error. Dictation is not a call. A resume is the same call.
+
+### Reconnection and ending
+
+- **Client ↔ Alia:** a dropped socket keeps the call for 30 s and the last 500 events;
+  `session.resume { afterSeq }` replays them. Sticky routing on the ALB brings the
+  resume to the task that holds the call; elsewhere it is `resume-unavailable`.
+- **Alia ↔ Kaana:** `RealtimeSession.resume()` within Kaana's window; if that fails, or
+  Kaana's task shuts down, a new session under the same call with fresh instructions
+  from the stored messages (twice at most). The client shows `reconnecting`, never
+  `listening`.
+- A call ends on hang-up, the screen losing focus or changing conversation or account,
+  `call-moved-elsewhere`, `max-duration` (with a warning a minute before),
+  `idle-timeout`, `credits-exhausted`, a typed error, or `server-shutdown`. Each
+  closes the Kaana session (which settles exactly once), stores what is left, settles
+  the credits and ends the row.
+
+### Typed failures
+
+Every failure is `error { code, retryable, reference }` and then `session.closed` — the
+realtime `failTurn`. Never a spoken "sorry", never text Alia did not hear. Kaana's
+errors are recognized by their public `code` (`kaanaErrorOf`), so the real SDK's
+classes and the fake's read the same:
+
+| Error | `VoiceErrorCode` |
+|---|---|
+| unavailable, no model, Alia's credential refused | `realtime-unavailable` |
+| rate, balance, spend, quota | `realtime-limited` |
+| invalid or permission | `realtime-rejected` |
+| provider failure, lost connection, contract violation | `realtime-failed` |
+| Alia's own | `plan-required`, `credits-exhausted`, `not-authenticated`, `credential-not-supported`, `agent-unavailable`, `resume-unavailable`, `invalid-request` |
+| the device (SDK) | `mic-denied`, `mic-unavailable`, `connection-lost`, `voice-unavailable` |
+
+The app says each in its own language (`voice.errors.*`, `voice.ended.*`).
+
+### Credits
+
+A call is a paid-plan feature (`voice-mode`) and costs credits per minute at the
+**real cost** of the model that serves it: its catalogue price applied to the units
+Kaana measures (`session_milliseconds`, audio tokens, the in-session transcription),
+converted with `creditsForCost` (`lib/voice/credits.ts`). A block of five minutes is
+held at open, the next one a minute before the held one runs out; a refused block
+ends the call with `credits-exhausted` after the answer being spoken. At the end the
+call is settled from Kaana's measured total. Silence costs too on a session-time
+model; the idle timeout bounds it. Alia sets **no** concurrency or spend cap of its
+own: those are the Alia app's policy in Oxy Console. No `voice-minutes` allowance
+returns (ADR 0013, ADR 0005).
+
+### The client
+
+`useVoiceRoom` (`@alia.onl/sdk/voice`) runs the socket (`src/lib/voice-call.ts`) over
+an audio-engine seam (`src/lib/voice-audio-engine*.ts`):
+
+- **Web:** `getUserMedia` with echo cancellation, noise suppression and gain control;
+  an `AudioWorklet` that downsamples to 24 kHz PCM16 and a second that plays a
+  jitter-buffered queue, in one `AudioContext`. Firefox now has calls.
+- **iOS / Android:** `react-native-audio-api` (0.13.6), capture and playback in one
+  engine; iOS session `playAndRecord` in `voiceChat` mode. **It needs a new native
+  build** (config plugin in `app.json`), and Android's echo cancellation is not
+  engaged by this version (no `voiceCommunication` input preset) — a release gate
+  (below).
+
+States are honest: `connecting` → `listening` **only** after `session.ready`, the
+engine's first captured buffer **and** `input.ready`; `user-speaking`, `thinking`,
+`using-tool`, `speaking` (when the first frame actually plays), `reconnecting`,
+`ended { reason }`, `error { code }`. Levels come from the real buffers; no state is
+inferred from a timer. Mute stops sending audio.
+
+The app (`use-voice-mode.ts`) opens the call on the conversation on screen with its
+agent, the product voice and `speechLocale()`, refreshes the thread on
+`messages.saved`, and ends the call when the screen loses focus, the conversation or
+the account changes.
+
+## Dictation
+
+`POST /v1/audio/transcriptions` (`routes/v1/audio.ts`, `lib/voice/transcribe.ts`):
+multipart `file`, `language`, `durationMs`. Batch, not a streaming session. The model
+is computed — `audio_transcriptions`, the clip's media type, the language, the cheapest
+per audio millisecond — and tried at most three times, only on a model refusal.
+
+- **Free on every plan**, the free one included: no plan feature, no credits (its cost
+  is Alia's internal cost centre, ADR 0005). A person's session only; an `oxy_sk_` is
+  refused (`CREDENTIAL_NOT_SUPPORTED`). Bounded by the 5-minute clip, Kaana's 20 MiB
+  and the `/v1` rate limit.
+- Typed answers: `TRANSCRIPTION_UNAVAILABLE` 503, `TRANSCRIPTION_LIMITED` 429,
+  `TRANSCRIPTION_REJECTED` 422, `TRANSCRIPTION_FAILED` 502, `CLIP_TOO_LONG` 413,
+  `INVALID_REQUEST` 400. Never partial or invented text.
+- The clip lives in memory for the one request; nothing is stored.
+
+`useDictation`: web `MediaRecorder` (`audio/webm;codecs=opus`, or `audio/mp4` on
+Safari) with a real level meter; native the `expo-audio` recorder (m4a → `audio/mp4`).
+States `idle` → `requesting-permission` → `recording` (only once the recorder started)
+→ `transcribing` → `idle`, or `error { code }`. The remaining time shows in the last
+30 s and the recording stops at 5 minutes. A failed transcription keeps the clip for
+one retry. Dictation and a call never record together: the call bar replaces the
+composer.
+
+## Read aloud
+
+Unchanged by ADR 0017: `POST /v1/audio/speech` in the product voice, `male` or
+`female` (no upstream voice name is ever sent or shown), through
+`lib/synthesize-speech.ts`. A call no longer uses it: the realtime model speaks.
+
+### When speech fails
+
+The route answers a typed code with a provider-neutral, fixed message:
+
+| Route answer (`error.code`) | Status |
+|---|---|
+| `SPEECH_UNAVAILABLE` — no inference client, no speech model, no route, storage not set up, Oxy refusing Alia's authority | 503 |
+| `SPEECH_LIMIT_REACHED` — rate limit, quota, spending limit, balance (`Retry-After` when Oxy gave one) | 429 |
+| `SPEECH_REJECTED` — the model refused the voice, the speed or the text | 422 |
+| `SPEECH_PROVIDER_FAILED` — upstream error, timeout (504), transport, not MP3 | 502 / 504 |
+| `SPEECH_GENERATION_FAILED` — storing or attaching the clip failed | 502 |
 
 The route's message is provider-neutral and fixed per code; Oxy's `requestId`
 travels with it. On the device, `requestSpeechClip` throws a `SpeechClipError`
 that keeps the HTTP `status`, the typed `code` (`null` for a network failure or
-a code the SDK does not know), `retryable` and `requestId`; `useVoiceRoom`
-exposes the one that ended the call as `synthesisError`.
+a code the SDK does not know), `retryable` and `requestId`.
 
 **Server side**, `lib/synthesize-speech.ts` is the only caller of the inference
 client for speech and the only reader of its error type; the route and the show
@@ -193,12 +310,11 @@ structured `speech` log record — `code`, `reason`, `status`, Oxy's
 the product voice and the input's length — and never the text, the user or the
 conversation. Each fallback is a `warn` record of the same kind.
 
-## A clip is made once
+### A clip is made once
 
 Speech is paid per character, so `POST /v1/audio/speech` never synthesizes the
 same thing twice for the same person (`lib/speech-clips.ts`). A reply read aloud
-again — here or after a reload — and every sentence a call says again ("Claro.")
-are answered from storage, without calling Oxy.
+again — here or after a reload — is answered from storage, without calling Oxy.
 
 **The key.** `speech_clips.cache_key` is a SHA-256 of
 `[key version, oxy user id, speech model, voice, speed, "mp3", exact text]`.
@@ -239,8 +355,9 @@ left, so the next request is a hit.
   thread intact and can be repeated.
 - A clip unused for 30 days (`SPEECH_CLIP_RETENTION_DAYS`; every hit restarts
   the clock) is deleted by an hourly sweep on the leader task. This is what
-  collects voice-call sentences, which no saved message asks for, and the clips
-  `messages.audio_url` held, which `0093` hands to the sweep already expired.
+  collects the sentences the retired on-device call loop had read aloud, which no
+  saved message asks for, and the clips `messages.audio_url` held, which `0093`
+  hands to the sweep already expired.
 - Alia has no account-erasure path today. When it has one, a person's clips are
   their `speech_clips` rows and the objects under `<env>/tts/<oxy user id>/`;
   the sweep bounds them meanwhile.
@@ -256,30 +373,35 @@ the product voice and the input's length — never the text, the user or the
 conversation. Each sweep logs `Speech clip sweep complete` with the clips and
 objects removed, the empty runs included.
 
-## When a call ends on its own
+## Privacy
 
-A call belongs to one conversation of one account, on the screen showing it
-(`use-voice-mode.ts`). It ends — recognizer stopped, microphone released —
-when that screen is covered by another route (the native stack keeps it
-mounted), when the screen moves to another conversation, or when the account
-changes. It never follows the person into another thread.
+**Audio now reaches Alia, Kaana and the serving provider** — for a call, the
+microphone stream; for dictation, the recorded clip. Alia logs no audio and no
+transcript content (codes, sizes, durations and model ids only). The browser's and
+the operating system's recognizers are no longer used: Chrome no longer sends a
+dictation to Google's recognizer.
 
-Dictation and a call never listen together: the call bar replaces the
-composer, which owns dictation, and an unmounted `useSpeechToText` aborts its
-recognizer and clears `useSTTStore`. The draft survives the call.
+## What is left
 
-Errors reach the app as a `VoiceErrorCode` beside the SDK's English sentence,
-and the app says them in its own language (`voice.errors.*`).
+Outside Alia, before calls and dictation can be switched on in production
+(ADR 0017 §6):
 
-## Entitlements and billing
-
-The app gates calls on the plan's `voice-mode` capability, as before. The
-`voice-minutes` allowance is retired: it was an Alia-local count of LiveKit
-session minutes in `voice_call_usage`, whose only writer left with the LiveKit
-route, so it enforced nothing. Migration `0074_voice_minutes_retired` (post
-phase) removes the feature rows and drops the table, and
-`GET /billing/voice-usage` is gone. The same migration removes the
-`voice-cohost` feature, a second realtime voice in the LiveKit room that the
-on-device call does not have. Each voice turn and each spoken sentence is
-billed per call by Oxy like any other chat or speech request
-([ADR 0005](./adr/0005-product-entitlements-versus-financial-ledger.md)).
+- **Kaana phase 1:** enable and meter `inputAudioTranscription` inside realtime
+  sessions (today refused) and publish the catalogue flag that says a realtime model
+  does it (Alia reads `capabilities.realtime.inputAudioTranscription`; rename here if
+  Kaana chooses another name); publish `audio` (voices with `gender`, languages) for
+  realtime models; `capabilities.realtime` from Kaana's inventory; measure an upload's
+  duration before the grant.
+- **Oxy phase 2:** grant terms for `alia-kaana` `realtime_session` and
+  `audio_transcriptions`; session concurrency and spend as Console policy; the
+  transcription hold from the measured duration; service tokens with `aud: kaana.ai`.
+- **Kaana phase 3 / oxy-infra:** `/v1/realtime` and `/v1/audio/transcriptions`
+  public and `@kaana.ai/sdk` 1.0.0 published; ALB cookie stickiness and a
+  deregistration delay of at least 31 min on Alia's target group; WebSocket idle
+  timeouts that cover a 30-minute call.
+- **Alia phase 4:** the one-line switch in `lib/kaana/transport.ts` and the types from
+  `@kaana.ai/contracts`; then the release gates: Chrome echo cancellation with Web
+  Audio playback (fallback: an `RTCPeerConnection` loopback), Android echo
+  cancellation with `react-native-audio-api` (fallback: a small Expo module of Alia's
+  own over `AudioRecord(VOICE_COMMUNICATION)`), iOS on a Mac, dictation latency end to
+  end — recorded in [Native validation](./native-validation.mdx#9-voice-through-kaana-to-validate).
