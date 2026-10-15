@@ -305,8 +305,8 @@ with `requesterAccountId` = the authenticated person on the socket. So an agent'
 
 - **Schemas.** Each tool is serialized with `asSchema(tool.inputSchema).jsonSchema`,
   the pattern of `lib/tool-budget.ts:430-450`. The set is limited to 128 tools
-  (`KC:…/realtime.ts:140`) and starts from the routed active set (`useApps` routing,
-  `lib/tool-budget.ts:466-575`). When the model calls `useApps`, Alia widens the set
+  (`KC:…/realtime.ts:140`) and starts from the routed active set (`loadTools` routing,
+  `lib/tool-budget.ts`; ADR text written when the router was `useApps`). When the model calls `loadTools`, Alia widens the set
   with `session.update { tools }`.
 - **Execution, in Alia only.** On a complete `tool_call`, Alia runs
   `tools[name].execute(args, { toolCallId, abortSignal })`. The precedent is

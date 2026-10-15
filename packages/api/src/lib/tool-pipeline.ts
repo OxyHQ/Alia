@@ -80,6 +80,7 @@ import {
   ASK_USER_QUESTION_TOOL,
   createSuggestNewConversationTool,
 } from './tools/index.js';
+import { whatsAppGatewayConfigured } from './tools/whatsapp.js';
 import { getWeatherTool } from './tools/weather.js';
 import { getMarketQuoteTool } from './tools/market.js';
 import { getFairCoinTool } from './tools/faircoin.js';
@@ -119,6 +120,7 @@ import {
   type PriorToolCall,
   type ToolRouting,
 } from './tool-budget.js';
+import { requestInputBudgetBytes, type ModelInputLimits } from './inference/request-budget.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -302,10 +304,18 @@ export interface ForUserOptions {
    */
   pickedApps?: readonly string[];
   /**
-   * The tool calls already in this conversation, oldest first, so an app the
-   * conversation opened stays open (`lib/tool-budget.ts`, "sticky apps").
+   * The tool calls already in this conversation, oldest first, so a tool the
+   * conversation used stays loaded (`lib/tool-budget.ts`, "sticky tools").
    */
   priorToolCalls?: readonly PriorToolCall[];
+  /**
+   * The model this turn runs on, as the catalogue describes it (`catalogue` of
+   * the resolved model; absent for a power level). The request input budget —
+   * and the share of it the tool definitions may take — is derived from it
+   * (`inference/request-budget.ts`), so a smaller-window model gets fewer tools
+   * loaded rather than a request it cannot take.
+   */
+  inputLimits?: ModelInputLimits | null;
 }
 
 export interface ForUserResult {
@@ -397,6 +407,7 @@ export class ToolPipeline {
       toolScope = 'standard',
       pickedApps = [],
       priorToolCalls = [],
+      inputLimits,
     } = opts;
 
     const toolNameMapping = new Map<string, string>();
@@ -454,7 +465,11 @@ export class ToolPipeline {
       // Exactly authorized steps are few, but the budget is not a matter of
       // expectation: this set goes through the same router as every other.
       return withBudget(
-        budgetTools({ tools, sources: { oxy_service: oxyServiceTools, mcp: {}, integration: {} } }),
+        budgetTools({
+          tools,
+          sources: { oxy_service: oxyServiceTools, mcp: {}, integration: {} },
+          inputBudgetBytes: requestInputBudgetBytes(inputLimits),
+        }),
         toolNameMapping,
       );
     }
@@ -555,7 +570,7 @@ export class ToolPipeline {
           });
         }
       }
-      if (grants.allows('messaging'))
+      if (grants.allows('messaging')) {
         Object.assign(aliaTools, {
           /**
            * ONE name. It was `sendTelegram` here and `sendTelegramMessage` on the
@@ -564,10 +579,16 @@ export class ToolPipeline {
            * wins, and it is the one `lib/agent/tool-router.ts` already maps.
            */
           sendTelegramMessage: createSendTelegramTool(userId),
-          getWhatsAppChats: createGetWhatsAppChatsTool(userId),
-          getWhatsAppMessages: createGetWhatsAppMessagesTool(userId),
-          sendWhatsAppMessage: createSendWhatsAppMessageTool(userId),
         });
+        // Only where a gateway exists: without one every call fails, and a tool
+        // the model is shown is a tool it keeps trying.
+        if (whatsAppGatewayConfigured())
+          Object.assign(aliaTools, {
+            getWhatsAppChats: createGetWhatsAppChatsTool(userId),
+            getWhatsAppMessages: createGetWhatsAppMessagesTool(userId),
+            sendWhatsAppMessage: createSendWhatsAppMessageTool(userId),
+          });
+      }
       if (grants.allows('automation')) {
         if (isDirectSession) {
           aliaTools.createAutomation = createAutomationTool(userId, accessToken);
@@ -757,7 +778,8 @@ export class ToolPipeline {
      * the wrapped one.
      *
      * One request carries at most 128 tools (`inference/tool-limit.ts`). When
-     * this set is larger, connected apps are opened on demand — `useApps`, then
+     * this set is larger, connected apps' tools are loaded on demand, one tool
+     * at a time — `loadTools`, then
      * `prepareStep` → `activeTools` — instead of being sent all at once or
      * dropped. The composer's connector pick is the person's explicit choice
      * and is active from the first step.
@@ -774,6 +796,7 @@ export class ToolPipeline {
         sources: { oxy_service: oxyServiceTools, mcp: mcpTools, integration: integrationTools },
         pins: [...new Set(pins)],
         priorToolCalls,
+        inputBudgetBytes: requestInputBudgetBytes(inputLimits),
       }),
       toolNameMapping,
     );

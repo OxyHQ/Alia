@@ -83,6 +83,8 @@ interface ExecutableTool {
 }
 
 let grantAutonomy: OxyToolAutonomy = 'read_only';
+/** When set, Oxy refuses the capability map with this status and its internal reason. */
+let capabilityMapRefusal: number | null = null;
 let fetchMock: ReturnType<typeof vi.fn>;
 
 const ownerRoot = {
@@ -94,6 +96,7 @@ const ownerRoot = {
 
 beforeEach(() => {
   grantAutonomy = 'read_only';
+  capabilityMapRefusal = null;
   fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
     const json = (body: unknown, status = 200) => Response.json(body, { status });
@@ -105,6 +108,8 @@ beforeEach(() => {
       return json({ service: { applicationId: 'alia-app', credentialId: 'alia-credential' } });
     }
     if (url.endsWith('/capabilities/capability-map')) {
+      if (capabilityMapRefusal !== null)
+        return json({ error: 'requester_lacks_grant_owner_authority' }, capabilityMapRefusal);
       return json({
         assignments: [
           {
@@ -268,6 +273,50 @@ describe('an agent running with nobody present', () => {
       'oxy_inbox__searchEmails',
       'oxy_inbox__sendEmail',
     ]);
+  });
+});
+
+describe("when Oxy refuses the owner's capability map (403 requester_lacks_grant_owner_authority)", () => {
+  /**
+   * Production 2026-10-14: `buildOxyServiceTools` threw from `agentAssignments`
+   * and its outer catch returned `{}` — the whole Oxy load died, the agent's own
+   * account included, and the log carried Oxy's raw reason.
+   */
+  beforeEach(() => {
+    capabilityMapRefusal = 403;
+  });
+
+  it("keeps the agent's own account and the other identity's tools", async () => {
+    const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: true, self: true }));
+    expect(Object.keys(tools).sort()).toEqual([
+      'oxy_apps__status',
+      'self_inbox__searchEmails',
+      'self_inbox__sendEmail',
+    ]);
+  });
+
+  it('tells the model the owner’s apps are unavailable — typed, never Oxy’s reason', async () => {
+    const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: true, self: false }));
+    expect(Object.keys(tools)).toEqual(['oxy_apps__status']);
+    const status = tools.oxy_apps__status as unknown as ExecutableTool;
+    const answer = await status.execute({});
+    expect(answer).toMatchObject({ error: 'oxy_app_unavailable' });
+    expect(JSON.stringify(answer)).not.toMatch(/requester_lacks|403|grant_owner/);
+    expect(status.description).not.toMatch(/requester_lacks|403/);
+  });
+
+  it('does not touch an agent that has no owner-apps identity — the control', async () => {
+    const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: false, self: true }));
+    expect(Object.keys(tools).sort()).toEqual([
+      'self_inbox__searchEmails',
+      'self_inbox__sendEmail',
+    ]);
+  });
+
+  it('the same agent with the refusal lifted gets its owner’s tools back — the control', async () => {
+    capabilityMapRefusal = null;
+    const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: true, self: false }));
+    expect(Object.keys(tools)).toEqual(['oxy_inbox__searchEmails']);
   });
 });
 

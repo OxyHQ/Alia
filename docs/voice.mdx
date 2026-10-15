@@ -125,7 +125,7 @@ The person's power level still governs the inference a tool runs during the call
   `requesterAccountId`, so an agent's `oxy_*` tools reach its owner's apps only when
   the owner is the one talking (ADR 0015). Serialized with
   `asSchema(...).jsonSchema`, at most 128, starting from the routed active set; a
-  `useApps` call widens the session with `session.update { tools }`.
+  `loadTools` call widens the session with `session.update { tools }`.
 - **Turn detection:** `server_vad` with `createResponse` and `interruptResponse` (the
   one mode every provider accepts); `inputAudioTranscription { language }`; PCM16
   24 kHz both ways.

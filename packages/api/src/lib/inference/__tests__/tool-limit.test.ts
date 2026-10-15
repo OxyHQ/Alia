@@ -53,7 +53,7 @@ const { kaanaLanguageModel } = await import('../kaana-language-model.js');
 const { ToolLimitExceededError, MAX_TOOLS_PER_INFERENCE_REQUEST, toolFamilyCounts } = await import(
   '../tool-limit.js'
 );
-const { budgetTools, USE_APPS_TOOL } = await import('../../tool-budget.js');
+const { budgetTools, LOAD_TOOLS_TOOL } = await import('../../tool-budget.js');
 const { toAliaError } = await import('../../errors/failover-error.js');
 
 const model = () =>
@@ -158,7 +158,7 @@ function productionMix() {
 }
 
 describe('the production turn, end to end', () => {
-  it('opens Mention on request and runs its tool directly, never sending more than 128', async () => {
+  it('loads the Mention tool asked for and runs it directly, never sending more than 128', async () => {
     const { tools, oxyServices } = productionMix();
     expect(Object.keys(tools)).toHaveLength(143);
     const budgeted = budgetTools({
@@ -169,7 +169,11 @@ describe('the production turn, end to end', () => {
     oxy.script.push(
       {
         toolCalls: [
-          { id: 'c1', name: USE_APPS_TOOL, arguments: JSON.stringify({ apps: ['mention'] }) },
+          {
+            id: 'c1',
+            name: LOAD_TOOLS_TOOL,
+            arguments: JSON.stringify({ names: ['oxy_mention__createPost'] }),
+          },
         ],
       },
       {
@@ -197,12 +201,11 @@ describe('the production turn, end to end', () => {
     for (const names of sent)
       expect(names.length).toBeLessThanOrEqual(MAX_TOOLS_PER_INFERENCE_REQUEST);
 
-    // Step 1: the router and the core, no Mention.
-    expect(sent[0]).toContain(USE_APPS_TOOL);
+    // Step 1: the loader and the core, no Mention.
+    expect(sent[0]).toContain(LOAD_TOOLS_TOOL);
     expect(sent[0].filter((name) => name.startsWith('oxy_mention__'))).toEqual([]);
-    // Step 2: exactly Mention's 93 joined.
-    expect(sent[1].filter((name) => name.startsWith('oxy_mention__'))).toHaveLength(93);
-    expect(sent[1].filter((name) => !sent[0].includes(name))).toHaveLength(93);
+    // Step 2: exactly the one tool asked for joined — not its 93-tool app.
+    expect(sent[1].filter((name) => !sent[0].includes(name))).toEqual(['oxy_mention__createPost']);
 
     // The model called the REAL tool, and its own execute ran with its input.
     expect(oxyServices.oxy_mention__createPost.execute).toHaveBeenCalledTimes(1);
@@ -211,7 +214,7 @@ describe('the production turn, end to end', () => {
       expect.anything(),
     );
     expect(result.steps.flatMap((step) => step.toolCalls.map((call) => call.toolName))).toEqual([
-      USE_APPS_TOOL,
+      LOAD_TOOLS_TOOL,
       'oxy_mention__createPost',
     ]);
     expect(result.text).toBe('Posted.');

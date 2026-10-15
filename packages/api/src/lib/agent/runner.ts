@@ -445,6 +445,8 @@ async function driveAgentSession(
     appCatalogPrompt,
   } = await ToolPipeline.forUser({
     userId: session.oxyUserId,
+    // The model the agent runs on bounds how many tool definitions a request carries.
+    inputLimits: (await resolveStoredModel(agent.modelId).catch(() => null))?.catalogue ?? null,
     isDirectSession: false,
     // The run belongs to the account that started the session.
     actsForPerson: true,
@@ -667,7 +669,7 @@ async function driveAgentSession(
           messages,
           tools: allActions, // ALL actions always registered (KV-cache stability)
           // What each request SENDS is bounded by the per-request tool budget:
-          // an app `useApps` opened in an earlier iteration stays open, because
+          // a tool `loadTools` loaded in an earlier iteration stays loaded, because
           // the routing state lives for the whole run (`lib/tool-budget.ts`).
           ...toolRouting,
           temperature: 0.3,

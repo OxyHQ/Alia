@@ -20,7 +20,8 @@ import aliaHello from './fixtures/alia-hello-21-tools.json';
 import toolChain from './fixtures/oxy-measured-tool-chain.json';
 import {
   controlledInputBytes,
-  DEFAULT_REQUEST_INPUT_BUDGET_BYTES,
+  SERVER_REQUEST_INPUT_LIMIT_BYTES,
+  modelInputBudgetBytes,
   fitControlledInput,
   OMITTED_TOOL_RESULT_NOTE,
   OXY_CONTROLLED_COMPLETION_INPUT_CEILING_BYTES,
@@ -78,20 +79,57 @@ describe('the measurement is Oxy’s, byte for byte', () => {
 /*  Configuration                                                             */
 /* -------------------------------------------------------------------------- */
 
-describe('the ceiling is configured in one place', () => {
-  it('defaults below Oxy’s 126_976 with a 4KiB margin', () => {
+describe('the budget is computed in one place, from the model and the server', () => {
+  it('with no model it is Oxy’s 126_976 less a 4KiB margin', () => {
     expect(OXY_CONTROLLED_COMPLETION_INPUT_CEILING_BYTES).toBe(126_976);
-    expect(DEFAULT_REQUEST_INPUT_BUDGET_BYTES).toBe(122_880);
-    expect(requestInputBudgetBytes({})).toBe(122_880);
-    expect(toolDefinitionsBudgetBytes({})).toBe(61_440);
+    expect(SERVER_REQUEST_INPUT_LIMIT_BYTES).toBe(122_880);
+    expect(requestInputBudgetBytes(null, {})).toBe(122_880);
+    expect(requestInputBudgetBytes(undefined, {})).toBe(122_880);
+    expect(requestInputBudgetBytes({ contextWindow: null, maxOutput: null }, {})).toBe(122_880);
+    expect(toolDefinitionsBudgetBytes(122_880)).toBe(61_440);
   });
 
-  it('an env override may lower it, never raise it past the default', () => {
-    expect(requestInputBudgetBytes({ [REQUEST_INPUT_BUDGET_ENV]: '100000' })).toBe(100_000);
-    expect(requestInputBudgetBytes({ [REQUEST_INPUT_BUDGET_ENV]: '126976' })).toBe(122_880);
-    expect(requestInputBudgetBytes({ [REQUEST_INPUT_BUDGET_ENV]: '1000' })).toBe(122_880);
-    expect(requestInputBudgetBytes({ [REQUEST_INPUT_BUDGET_ENV]: 'lots' })).toBe(122_880);
-    expect(toolDefinitionsBudgetBytes({ [REQUEST_INPUT_BUDGET_ENV]: '100000' })).toBe(50_000);
+  it('a large-window model is bound by the server, not by its window', () => {
+    expect(requestInputBudgetBytes({ contextWindow: 1_000_000, maxOutput: 64_000 }, {})).toBe(
+      122_880,
+    );
+    expect(requestInputBudgetBytes({ contextWindow: 131_072, maxOutput: 8_192 }, {})).toBe(122_880);
+  });
+
+  it('a small-window model is bound by its window, less the answer it may produce', () => {
+    // 32_768 tokens: a byte is at most a token, so 32_768 - 4_096 bytes can never overflow it.
+    expect(requestInputBudgetBytes({ contextWindow: 32_768, maxOutput: 4_096 }, {})).toBe(28_672);
+    expect(modelInputBudgetBytes({ contextWindow: 32_768 })).toBe(32_768);
+    // The answer's room is never more than half the window.
+    expect(modelInputBudgetBytes({ contextWindow: 10_000, maxOutput: 50_000 })).toBe(5_000);
+    expect(modelInputBudgetBytes({ contextWindow: 0 })).toBeNull();
+    expect(modelInputBudgetBytes(null)).toBeNull();
+  });
+
+  it('the tools take a fixed share of whatever the budget is', () => {
+    expect(toolDefinitionsBudgetBytes(28_672)).toBe(14_336);
+  });
+
+  it('an env override may lower it, never raise it past the derived budget', () => {
+    const env = (value: string) => ({ [REQUEST_INPUT_BUDGET_ENV]: value });
+    expect(requestInputBudgetBytes(null, env('100000'))).toBe(100_000);
+    expect(requestInputBudgetBytes(null, env('126976'))).toBe(122_880);
+    expect(requestInputBudgetBytes(null, env('1000'))).toBe(122_880);
+    expect(requestInputBudgetBytes(null, env('lots'))).toBe(122_880);
+    // Above the MODEL's budget is above the derived budget too.
+    expect(requestInputBudgetBytes({ contextWindow: 32_768 }, env('100000'))).toBe(32_768);
+    expect(requestInputBudgetBytes({ contextWindow: 32_768 }, env('20000'))).toBe(20_000);
+  });
+
+  it('fitControlledInput derives its budget from the model it is given', () => {
+    const messages: InferenceMessage[] = [
+      { role: 'system', content: [{ type: 'text', text: 'You are Alia.' }] },
+      { role: 'user', content: [{ type: 'text', text: 'x'.repeat(40_000) }] },
+    ];
+    expect(fitControlledInput({ messages, tools: [] }).budgetBytes).toBe(122_880);
+    expect(() =>
+      fitControlledInput({ messages, tools: [] }, { limits: { contextWindow: 32_768 } }),
+    ).toThrow(RequestInputBudgetExceededError);
   });
 });
 

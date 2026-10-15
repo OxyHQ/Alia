@@ -145,8 +145,8 @@ export interface SystemPromptOptions {
   /** Autonomy runtime context */
   autonomyRuntime?: AutonomyRuntimeContext | null;
   /**
-   * The Apps section from `ToolPipeline.forUser` (`appCatalogPrompt`): the
-   * connected apps this turn may open with `useApps` when its tools do not all
+   * The tool catalogue section from `ToolPipeline.forUser` (`appCatalogPrompt`): the
+   * connected apps' tools this turn may load with `loadTools` when they do not all
    * fit in one request. Empty when they do.
    */
   appCatalog?: string;
@@ -289,11 +289,11 @@ export class SystemPromptBuilder {
     }
 
     /**
-     * 3. The connected apps this turn can open (`lib/tool-budget.ts`).
+     * 3. The connected apps' tools this turn can load (`lib/tool-budget.ts`).
      *
      * Ungated by session kind: it describes tools the assembler already
      * authorized for THIS turn, so whoever the turn is for may know they exist —
-     * and without it an app that is not open yet is invisible to the model.
+     * and without it a tool that is not loaded yet is invisible to the model.
      */
     if (appCatalog) systemMessage += appCatalog;
 

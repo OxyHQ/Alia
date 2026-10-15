@@ -3,8 +3,17 @@ import { z } from 'zod';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 
-const WHATSAPP_GATEWAY_URL = process.env.WHATSAPP_GATEWAY_URL;
-const WHATSAPP_GATEWAY_SECRET = process.env.WHATSAPP_GATEWAY_SECRET;
+/**
+ * Whether this deployment runs a WhatsApp gateway at all.
+ *
+ * The three WhatsApp tools are offered only when it does: a tool whose backend
+ * is not configured fails on every call, and the model — told it exists — keeps
+ * calling it. Read at call time rather than at import, so the answer is the
+ * environment's now.
+ */
+export function whatsAppGatewayConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
+  return Boolean(env.WHATSAPP_GATEWAY_URL && env.WHATSAPP_GATEWAY_SECRET);
+}
 
 interface WhatsAppChatSummary {
   name?: string;
@@ -22,6 +31,7 @@ interface WhatsAppMessageSummary {
 }
 
 async function gatewayFetch<T = unknown>(path: string, options?: RequestInit): Promise<T> {
+  const { WHATSAPP_GATEWAY_URL, WHATSAPP_GATEWAY_SECRET } = process.env;
   if (!WHATSAPP_GATEWAY_URL || !WHATSAPP_GATEWAY_SECRET) {
     throw new Error('WhatsApp gateway not configured');
   }

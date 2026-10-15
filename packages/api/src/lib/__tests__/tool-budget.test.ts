@@ -1,5 +1,5 @@
 /**
- * The per-request tool budget and the app router (`lib/tool-budget.ts`).
+ * The per-request tool budget and the tool loader (`lib/tool-budget.ts`).
  *
  * The production failure (2026-09-30, Ref
  * `chatcmpl-f9ff8f2a-ace7-4b64-935f-038b56c79540`): a turn assembled 143 tools —
@@ -12,7 +12,7 @@
  * DOES fit, a history with nothing in it.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { asSchema, tool, type Tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 
@@ -56,13 +56,16 @@ vi.mock('../tools/mcp.js', () => ({
 vi.mock('../tools/integrations.js', () => ({ buildIntegrationTools: vi.fn(async () => ({})) }));
 vi.mock('../tools/ask-agent.js', () => ({ buildAskAgentTool: vi.fn(async () => ({})) }));
 
-const { budgetTools, stickyAppsFrom, appsOf, coversOf, sentToolBytes, USE_APPS_TOOL } =
+const { budgetTools, stickyToolsFrom, appsOf, coversOf, sentToolBytes, LOAD_TOOLS_TOOL } =
   await import('../tool-budget.js');
 const { ToolPipeline } = await import('../tool-pipeline.js');
 const { ToolLimitExceededError, MAX_TOOLS_PER_INFERENCE_REQUEST } = await import(
   '../inference/tool-limit.js'
 );
 const { SystemPromptBuilder } = await import('../system-prompt-builder.js');
+const { requestInputBudgetBytes, toolDefinitionsBudgetBytes } = await import(
+  '../inference/request-budget.js'
+);
 const { priorToolCallsOf } = await import('../message-converter.js');
 
 /* -------------------------------------------------------------------------- */
@@ -135,19 +138,35 @@ function productionTurn() {
   return { tools, sources: { oxy_service: oxy, mcp: {}, integration: {} } };
 }
 
-async function openApps(
+/** Call `loadTools` the way the AI SDK does. */
+async function load(
   budgeted: ReturnType<typeof budgetTools>,
-  input: { apps: string[]; close?: string[] },
+  input: { names?: string[]; query?: string; limit?: number; unload?: string[] },
 ) {
-  const useApps = budgeted.tools[USE_APPS_TOOL];
-  return (await useApps.execute?.(
+  const loadTools = budgeted.tools[LOAD_TOOLS_TOOL];
+  return (await loadTools.execute?.(
     input as never,
     { toolCallId: 't', messages: [] } as never,
-  )) as Record<string, unknown>;
+  )) as Record<string, any>;
 }
+
+const activeOf = (budgeted: ReturnType<typeof budgetTools>) =>
+  budgeted.routing.prepareStep?.().activeTools ?? [];
 
 const mentionNames = (names: readonly string[]) =>
   names.filter((name) => name.startsWith('oxy_mention__'));
+
+/** `count` tools of `bytes` description bytes each, so a set can be too heavy to send whole. */
+function heavy(prefix: string, label: string, count: number, bytes: number): ToolSet {
+  const tools: ToolSet = {};
+  for (let n = 0; n < count; n += 1)
+    tools[`${prefix}__action${String(n).padStart(2, '0')}`] = tool({
+      description: `[${label}] ${'x'.repeat(bytes)}`,
+      inputSchema: z.object({ text: z.string() }),
+      execute: vi.fn(async () => ({ ok: true })),
+    });
+  return tools;
+}
 
 /* -------------------------------------------------------------------------- */
 /*  The budget                                                                */
@@ -160,15 +179,15 @@ describe('the production mix fits the budget without losing a tool', () => {
     expect(Object.keys(tools).length).toBeGreaterThan(MAX_TOOLS_PER_INFERENCE_REQUEST);
   });
 
-  it('sends at most 128 on the first step: core tools, the router, and no app tools', () => {
+  it('sends at most 128 on the first step: core tools, the loader, and no app tools', () => {
     const turn = productionTurn();
     const budgeted = budgetTools(turn);
-    const first = budgeted.routing.prepareStep?.().activeTools ?? [];
+    const first = activeOf(budgeted);
 
     expect(first.length).toBeLessThanOrEqual(MAX_TOOLS_PER_INFERENCE_REQUEST);
     expect(budgeted.routing.activeTools).toEqual(first);
     for (const name of Object.keys(core(24))) expect(first).toContain(name);
-    expect(first).toContain(USE_APPS_TOOL);
+    expect(first).toContain(LOAD_TOOLS_TOOL);
     expect(first.filter((name) => name.startsWith('oxy_'))).toEqual([]);
   });
 
@@ -183,72 +202,245 @@ describe('the production mix fits the budget without losing a tool', () => {
     expect(Object.keys(budgeted.tools)).toHaveLength(144);
   });
 
-  it('lists every app in the catalog with its tool count', () => {
+  it('lists every app with its tool count and EVERY tool name, but no definition', () => {
     const budgeted = budgetTools(productionTurn());
-    expect(budgeted.appCatalogPrompt).toContain('## Apps');
+    expect(budgeted.appCatalogPrompt).toContain("## Tools from the person's apps");
     expect(budgeted.appCatalogPrompt).toContain('- mention — Mention (93 tools)');
     expect(budgeted.appCatalogPrompt).toContain('- noted — Noted (12 tools)');
     expect(budgeted.appCatalogPrompt).toContain('- inbox — Inbox (11 tools): email, ');
     expect(budgeted.appCatalogPrompt).toContain('- mercaria — Mercaria (3 tools)');
-    expect(budgeted.tools[USE_APPS_TOOL].description).toContain('mention (Mention');
+    for (const name of Object.keys(productionOxyServices())) {
+      const [, action] = name.split('__');
+      expect(budgeted.appCatalogPrompt).toContain(action);
+    }
+    // The prefix is said once per app, not once per tool.
+    expect(budgeted.appCatalogPrompt).toContain('prefix `oxy_mention__`');
+    expect(budgeted.appCatalogPrompt).not.toContain('oxy_mention__action01');
+    // A definition would carry the tool's description.
+    expect(budgeted.appCatalogPrompt).not.toContain('[Mention] action 1.');
   });
 });
 
-describe('useApps opens an app from the next step', () => {
-  it('activates exactly Mention\'s 93 tools after useApps(["mention"])', async () => {
+describe('loadTools loads the tools asked for, from the next step', () => {
+  it('loads exactly the named tools and nothing else of their app', async () => {
     const budgeted = budgetTools(productionTurn());
-    const before = budgeted.routing.prepareStep?.().activeTools ?? [];
+    const before = activeOf(budgeted);
 
-    const result = await openApps(budgeted, { apps: ['mention'] });
-    const after = budgeted.routing.prepareStep?.().activeTools ?? [];
+    const result = await load(budgeted, {
+      names: ['oxy_mention__createPost', 'oxy_inbox__readEmail'],
+    });
+    const after = activeOf(budgeted);
 
-    expect(result).toMatchObject({ opened: ['mention'], openApps: ['mention'] });
-    expect(mentionNames(before)).toEqual([]);
-    expect(mentionNames(after)).toHaveLength(93);
-    // Exactly Mention's: nothing else joined, and nothing that was there left.
-    expect(after.filter((name) => !before.includes(name)).sort()).toEqual(
-      mentionNames(Object.keys(productionOxyServices())).sort(),
-    );
+    expect(result.loaded.map((entry: { name: string }) => entry.name)).toEqual([
+      'oxy_mention__createPost',
+      'oxy_inbox__readEmail',
+    ]);
+    expect(after.filter((name) => !before.includes(name)).sort()).toEqual([
+      'oxy_inbox__readEmail',
+      'oxy_mention__createPost',
+    ]);
     expect(before.every((name) => after.includes(name))).toBe(true);
-    expect(after.length).toBeLessThanOrEqual(MAX_TOOLS_PER_INFERENCE_REQUEST);
+    expect(result.note).toMatch(/next step/);
   });
 
-  it('refuses an app that would exceed the budget, says so, and opens what fits', async () => {
+  it('accepts the bare name the catalogue lists under the app prefix', async () => {
     const budgeted = budgetTools(productionTurn());
-    await openApps(budgeted, { apps: ['mention'] }); // 24 + 1 + 93 = 118
-
-    const result = await openApps(budgeted, { apps: ['noted', 'mercaria'] });
-
-    // noted would make 130; mercaria makes 121 — the requested order, then what fits.
-    expect(result.opened).toEqual(['mercaria']);
-    expect(result.didNotFit).toEqual([{ app: 'noted', tools: 12 }]);
-    expect(String(result.hint)).toContain('close');
-    expect((budgeted.routing.prepareStep?.().activeTools ?? []).length).toBe(121);
+    const result = await load(budgeted, { names: ['createPost', 'READEMAIL'] });
+    expect(result.loaded.map((entry: { name: string }) => entry.name)).toEqual([
+      'oxy_mention__createPost',
+      'oxy_inbox__readEmail',
+    ]);
   });
 
-  it('closing an app makes room for another in the same call', async () => {
+  it('says what it already had instead of loading it twice', async () => {
     const budgeted = budgetTools(productionTurn());
-    await openApps(budgeted, { apps: ['mention'] });
-
-    const result = await openApps(budgeted, { apps: ['noted'], close: ['mention'] });
-    const active = budgeted.routing.prepareStep?.().activeTools ?? [];
-
-    expect(result).toMatchObject({ closed: ['mention'], opened: ['noted'] });
-    expect(mentionNames(active)).toEqual([]);
-    expect(active.filter((name) => name.startsWith('oxy_noted__'))).toHaveLength(12);
+    await load(budgeted, { names: ['oxy_inbox__readEmail'] });
+    const again = await load(budgeted, { names: ['oxy_inbox__readEmail', 'builtin0'] });
+    expect(again.loaded).toEqual([]);
+    expect(again.alreadyLoaded).toEqual(['oxy_inbox__readEmail', 'builtin0']);
+    expect(activeOf(budgeted).filter((name) => name === 'oxy_inbox__readEmail')).toHaveLength(1);
   });
 
-  it('names an unknown app instead of guessing', async () => {
+  it('names an unknown tool with the nearest ones instead of guessing', async () => {
     const budgeted = budgetTools(productionTurn());
-    const result = await openApps(budgeted, { apps: ['nope', 'Noted'] });
-    expect(result.unknown).toEqual(['nope']);
-    // Resolved by label as well as id.
-    expect(result.opened).toEqual(['noted']);
+    const result = await load(budgeted, { names: ['nope', 'Email'] });
+    expect(result.unknown[0]).toEqual({ name: 'nope' });
+    expect(result.unknown[1].didYouMean).toContain('oxy_inbox__readEmail');
+    expect(result.loaded).toEqual([]);
+    expect(activeOf(budgeted).filter((name) => name.startsWith('oxy_'))).toEqual([]);
+  });
+
+  it('asks for something when called with nothing', async () => {
+    const result = await load(budgetTools(productionTurn()), {});
+    expect(String(result.hint)).toMatch(/Nothing was asked/);
+  });
+
+  it('never carries more than a request can, however much is asked for', async () => {
+    const budgeted = budgetTools(productionTurn());
+    await load(budgeted, { names: Object.keys(productionOxyServices()) });
+    expect(activeOf(budgeted).length).toBeLessThanOrEqual(MAX_TOOLS_PER_INFERENCE_REQUEST);
+  });
+});
+
+describe('an app too big to send whole is still fully usable (the useApps loop)', () => {
+  /**
+   * Production 2026-10: `useApps(["mention"])` answered `didNotFit` forever.
+   * Mention has 94 tools, the core already took ~25.8KB of a 61_440-byte
+   * definitions budget, and the old design opened WHOLE apps only.
+   */
+  const mention = heavy('oxy_mention', 'Mention', 94, 700);
+  const turn = {
+    tools: { ...core(27), ...mention },
+    sources: { oxy_service: mention, mcp: {}, integration: {} },
+  };
+
+  it('the whole app really exceeds the definitions budget — the premise', () => {
+    const bytes = Object.entries(mention).reduce(
+      (sum, [name, built]) => sum + sentToolBytes(name, built),
+      0,
+    );
+    expect(bytes).toBeGreaterThan(61_440);
+  });
+
+  it('loads the tools the request needs, whatever the size of their app', async () => {
+    const budgeted = budgetTools(turn);
+    const result = await load(budgeted, {
+      names: ['oxy_mention__action03', 'oxy_mention__action41'],
+    });
+    expect(result.loaded).toHaveLength(2);
+    expect(result.notLoaded).toBeUndefined();
+    expect(mentionNames(activeOf(budgeted))).toEqual([
+      'oxy_mention__action03',
+      'oxy_mention__action41',
+    ]);
+  });
+
+  it('keeps loading until the budget is reached, then says what to close', async () => {
+    const budgeted = budgetTools(turn);
+    const result = await load(budgeted, { names: Object.keys(mention) });
+
+    expect(result.loaded.length).toBeGreaterThan(10);
+    expect(result.loaded.length).toBeLessThan(94);
+    expect(result.notLoaded.length).toBe(94 - result.loaded.length);
+    expect(result.notLoaded[0]).toMatchObject({ reason: 'size_limit' });
+    // Actionable: names what to unload, and how much room is left.
+    expect(result.unloadCandidates.length).toBeGreaterThan(0);
+    expect(String(result.hint)).toMatch(/Unload tools you are done with/);
+    expect(result.capacity.definitionBytes).toBeLessThanOrEqual(result.capacity.maxDefinitionBytes);
+
+    // Unloading makes room for exactly what was refused.
+    const refused = result.notLoaded[0].name as string;
+    const retry = await load(budgeted, {
+      unload: result.unloadCandidates.slice(0, 3),
+      names: [refused],
+    });
+    expect(retry.unloaded).toHaveLength(3);
+    expect(retry.loaded.map((entry: { name: string }) => entry.name)).toEqual([refused]);
+    const bytes = budgeted
+      .activeToolNames()
+      .reduce((sum, name) => sum + sentToolBytes(name, budgeted.tools[name]), 0);
+    expect(bytes).toBeLessThanOrEqual(61_440);
+  });
+
+  it('a tool that can never fit says so instead of asking to close others', async () => {
+    const giant = { ...heavy('oxy_giant', 'Giant', 1, 70_000), ...mention };
+    const budgeted = budgetTools({
+      tools: { ...core(27), ...giant },
+      sources: { oxy_service: giant, mcp: {}, integration: {} },
+    });
+    const result = await load(budgeted, { names: ['oxy_giant__action00'] });
+    expect(result.notLoaded).toEqual([
+      { name: 'oxy_giant__action00', reason: 'too_large', bytes: expect.any(Number) },
+    ]);
+    expect(String(result.hint)).toMatch(/cannot be loaded on this model/);
+    expect(result.unloadCandidates).toBeUndefined();
+  });
+
+  it('refuses by count with its own reason when the 128 limit is what binds', async () => {
+    const oxy = family('oxy_app', 'App', 110);
+    const budgeted = budgetTools({
+      tools: { ...core(20), ...oxy },
+      sources: { oxy_service: oxy, mcp: {}, integration: {} },
+    });
+    const result = await load(budgeted, { names: Object.keys(oxy) });
+    expect(result.loaded).toHaveLength(107);
+    expect(result.notLoaded.map((entry: { reason: string }) => entry.reason)).toEqual([
+      'tool_limit',
+      'tool_limit',
+      'tool_limit',
+    ]);
+  });
+});
+
+describe('the definitions budget is derived from the model', () => {
+  const mention = heavy('oxy_mention', 'Mention', 94, 700);
+  const turn = {
+    tools: { ...core(27), ...mention },
+    sources: { oxy_service: mention, mcp: {}, integration: {} },
+  };
+  const loadedFor = async (inputBudgetBytes: number) => {
+    const budgeted = budgetTools({ ...turn, inputBudgetBytes });
+    await load(budgeted, { names: Object.keys(mention) });
+    return mentionNames(activeOf(budgeted)).length;
+  };
+
+  it('a larger request budget lets more definitions in, a smaller one fewer', async () => {
+    const small = await loadedFor(
+      requestInputBudgetBytes({ contextWindow: 32_768, maxOutput: 4_096 }),
+    );
+    const server = await loadedFor(requestInputBudgetBytes({ contextWindow: 1_000_000 }));
+    expect(small).toBeLessThan(server);
+    expect(server).toBeGreaterThan(0);
+  });
+
+  it('the tools take their share of the model-derived budget, not a fixed byte count', () => {
+    const budget = requestInputBudgetBytes({ contextWindow: 1_000_000 });
+    expect(budget).toBe(122_880);
+    const budgeted = budgetTools({ ...turn, inputBudgetBytes: budget });
+    const bytes = budgeted
+      .activeToolNames()
+      .reduce((sum, name) => sum + sentToolBytes(name, budgeted.tools[name]), 0);
+    expect(bytes).toBeLessThanOrEqual(toolDefinitionsBudgetBytes(budget));
+  });
+});
+
+describe('loadTools finds tools by intent', () => {
+  it('loads the best matches for a query, by tool name first', async () => {
+    const budgeted = budgetTools(productionTurn());
+    const result = await load(budgeted, { query: 'read an email' });
+    const names = result.loaded.map((entry: { name: string }) => entry.name);
+    expect(names[0]).toBe('oxy_inbox__readEmail');
+    expect(names.every((name: string) => name.startsWith('oxy_inbox__'))).toBe(true);
+    expect(result.searched).toMatchObject({ query: 'read an email' });
+    expect(activeOf(budgeted)).toContain('oxy_inbox__readEmail');
+  });
+
+  it('a query for an app loads its tools up to `limit`, never the whole app', async () => {
+    const budgeted = budgetTools(productionTurn());
+    const result = await load(budgeted, { query: 'noted', limit: 4 });
+    expect(result.loaded).toHaveLength(4);
+    expect(result.loaded.every((e: { name: string }) => e.name.startsWith('oxy_noted__'))).toBe(
+      true,
+    );
+  });
+
+  it('says so when nothing matches, and loads nothing', async () => {
+    const budgeted = budgetTools(productionTurn());
+    const result = await load(budgeted, { query: 'zzzqqq' });
+    expect(result.loaded).toEqual([]);
+    expect(result.searched.matches).toEqual([]);
+    expect(String(result.hint)).toMatch(/No tool matches/);
+  });
+
+  it('matches plurals and the app name', async () => {
+    const budgeted = budgetTools(productionTurn());
+    const result = await load(budgeted, { query: 'mailboxes inbox', limit: 2 });
+    expect(result.loaded[0].name).toBe('oxy_inbox__listMailboxes');
   });
 });
 
 describe("a turn that fits keeps today's behaviour", () => {
-  it('a small account is not routed: every tool, every step, no router tool', () => {
+  it('a small account is not routed: every tool, every step, no loader tool', () => {
     const oxy = family('oxy_noted', 'Noted', 12);
     const tools = { ...core(24), ...oxy };
     const budgeted = budgetTools({
@@ -259,7 +451,7 @@ describe("a turn that fits keeps today's behaviour", () => {
     expect(budgeted.tools).toBe(tools);
     expect(budgeted.routing).toEqual({});
     expect(budgeted.appCatalogPrompt).toBe('');
-    expect(budgeted.tools[USE_APPS_TOOL]).toBeUndefined();
+    expect(budgeted.tools[LOAD_TOOLS_TOOL]).toBeUndefined();
   });
 
   it("routes at 129 and not at 128 — the threshold is the edge's own", () => {
@@ -275,41 +467,40 @@ describe("a turn that fits keeps today's behaviour", () => {
   });
 });
 
-describe('explicit picks are active from the first step and never dropped', () => {
-  it('a picked app is open before the model asks, and cannot be closed', async () => {
+describe('explicit picks are loaded from the first step and never unloaded', () => {
+  it('a picked app is loaded before the model asks, and cannot be unloaded', async () => {
     const budgeted = budgetTools({ ...productionTurn(), pins: ['mention'] });
     const first = budgeted.routing.activeTools ?? [];
     expect(mentionNames(first)).toHaveLength(93);
 
-    const result = await openApps(budgeted, { apps: [], close: ['mention'] });
-    expect(result.keptOpen).toEqual(['mention']);
-    expect(mentionNames(budgeted.routing.prepareStep?.().activeTools ?? [])).toHaveLength(93);
+    const result = await load(budgeted, { unload: ['oxy_mention__createPost'] });
+    expect(result.keptLoaded).toEqual(['oxy_mention__createPost']);
+    expect(mentionNames(activeOf(budgeted))).toHaveLength(93);
   });
 
-  it('a picked single tool activates that tool alone, not its app', () => {
+  it('a picked single tool loads that tool alone, not its app', () => {
     const budgeted = budgetTools({ ...productionTurn(), pins: ['oxy_mention__createPost'] });
+    expect(mentionNames(budgeted.routing.activeTools ?? [])).toEqual(['oxy_mention__createPost']);
+  });
+
+  it('picks that do not all fit never fail the turn: what fits loads, the rest stays loadable', async () => {
+    // 24 + 1 + 93 + 12 = 130: the old design refused this with a typed 400.
+    const budgeted = budgetTools({ ...productionTurn(), pins: ['mention', 'noted'] });
     const first = budgeted.routing.activeTools ?? [];
-    expect(mentionNames(first)).toEqual(['oxy_mention__createPost']);
+    expect(first.length).toBeLessThanOrEqual(MAX_TOOLS_PER_INFERENCE_REQUEST);
+    expect(mentionNames(first)).toHaveLength(93);
+    const missing = Object.keys(productionOxyServices()).filter(
+      (name) => name.startsWith('oxy_noted__') && !first.includes(name),
+    );
+    expect(missing.length).toBeGreaterThan(0);
+    // ...and a missing one is still named in the catalogue and loadable.
+    expect(budgeted.appCatalogPrompt).toContain('- noted — Noted (12 tools)');
+    const result = await load(budgeted, { names: [missing[0]] });
+    expect(result.notLoaded?.[0]).toMatchObject({ name: missing[0], reason: 'picks_fill_request' });
+    expect(result.unloadCandidates ?? []).toEqual([]);
   });
 
-  it('picks that do not fit are refused with a typed error naming them', () => {
-    // 24 + 1 + 93 + 12 = 130.
-    const refuse = () => budgetTools({ ...productionTurn(), pins: ['mention', 'noted'] });
-    expect(refuse).toThrow(ToolLimitExceededError);
-    expect(refuse).toThrow(/noted \(12 tools\)/);
-    try {
-      refuse();
-    } catch (error) {
-      expect(error).toMatchObject({
-        code: 'invalid_request',
-        status: 400,
-        param: 'tools',
-        retryable: false,
-      });
-    }
-  });
-
-  it('picks that fit are all honoured — the control', () => {
+  it('picks that all fit are all loaded — the control', () => {
     const budgeted = budgetTools({ ...productionTurn(), pins: ['mention', 'mercaria'] });
     const first = budgeted.routing.activeTools ?? [];
     expect(mentionNames(first)).toHaveLength(93);
@@ -317,37 +508,49 @@ describe('explicit picks are active from the first step and never dropped', () =
   });
 });
 
-describe('apps opened earlier in the conversation stay open', () => {
-  it('reopens apps from replayed useApps results and from direct calls', () => {
+describe('tools used earlier in the conversation stay loaded', () => {
+  it('reloads the tools the history called, and only those', () => {
     const budgeted = budgetTools({
       ...productionTurn(),
       priorToolCalls: [
-        {
-          toolName: USE_APPS_TOOL,
-          args: { apps: ['noted'] },
-          result: { opened: ['noted'], alreadyOpen: [] },
-        },
+        { toolName: 'oxy_noted__action01', args: {} },
         { toolName: 'oxy_inbox__readEmail', args: { text: 'x' } },
       ],
     });
     const first = budgeted.routing.activeTools ?? [];
-    expect(first.filter((name) => name.startsWith('oxy_noted__'))).toHaveLength(12);
-    expect(first.filter((name) => name.startsWith('oxy_inbox__'))).toHaveLength(11);
+    expect(first).toEqual(expect.arrayContaining(['oxy_noted__action01', 'oxy_inbox__readEmail']));
+    // Only what was used: the rest of their apps is not dragged in.
+    expect(first.filter((name) => name.startsWith('oxy_noted__'))).toHaveLength(1);
+    expect(first.filter((name) => name.startsWith('oxy_inbox__'))).toHaveLength(1);
     expect(mentionNames(first)).toEqual([]);
-    expect(budgeted.appCatalogPrompt).toMatch(/^- noted — Noted \(12 tools\).*\[open\]$/m);
   });
 
-  it('an app closed later in the conversation stays closed', () => {
-    const apps = appsOf(productionTurn().tools, productionTurn().sources);
+  it('a tool loaded but never called is not sticky', () => {
+    const budgeted = budgetTools({
+      ...productionTurn(),
+      priorToolCalls: [
+        {
+          toolName: LOAD_TOOLS_TOOL,
+          args: { names: ['oxy_noted__action01'] },
+          result: { loaded: [{ name: 'oxy_noted__action01' }] },
+        },
+      ],
+    });
+    expect(budgeted.routing.activeTools).not.toContain('oxy_noted__action01');
+  });
+
+  it('a tool unloaded later in the conversation stays unloaded', () => {
+    const deferred = new Set(['oxy_noted__a', 'oxy_inbox__b']);
     expect(
-      stickyAppsFrom(apps, [
-        { toolName: USE_APPS_TOOL, result: { opened: ['noted'] } },
-        { toolName: USE_APPS_TOOL, result: { opened: [], closed: ['noted'] } },
+      stickyToolsFrom(deferred, [
+        { toolName: 'oxy_noted__a' },
+        { toolName: 'oxy_inbox__b' },
+        { toolName: LOAD_TOOLS_TOOL, result: { unloaded: ['oxy_noted__a'] } },
       ]),
-    ).toEqual([]);
+    ).toEqual(['oxy_inbox__b']);
   });
 
-  it('opens nothing for a conversation with no history — the control', () => {
+  it('loads nothing for a conversation with no history — the control', () => {
     const first = budgetTools(productionTurn()).routing.activeTools ?? [];
     expect(first.filter((name) => name.startsWith('oxy_'))).toEqual([]);
   });
@@ -360,10 +563,10 @@ describe('apps opened earlier in the conversation stay open', () => {
         toolInvocations: [
           {
             toolCallId: 'a',
-            toolName: USE_APPS_TOOL,
+            toolName: LOAD_TOOLS_TOOL,
             state: 'result',
-            args: { apps: ['noted'] },
-            result: { opened: ['noted'] },
+            args: { names: ['oxy_noted__action01'] },
+            result: { loaded: [{ name: 'oxy_noted__action01' }] },
           },
         ],
       },
@@ -380,7 +583,11 @@ describe('apps opened earlier in the conversation stay open', () => {
       { role: 'tool', tool_call_id: 'b', content: '{"ok":true}' },
     ]);
     expect(calls).toEqual([
-      { toolName: USE_APPS_TOOL, args: { apps: ['noted'] }, result: { opened: ['noted'] } },
+      {
+        toolName: LOAD_TOOLS_TOOL,
+        args: { names: ['oxy_noted__action01'] },
+        result: { loaded: [{ name: 'oxy_noted__action01' }] },
+      },
       { toolName: 'oxy_inbox__searchEmails', args: { text: 'x' }, result: { ok: true } },
     ]);
   });
@@ -397,7 +604,7 @@ describe('what can never be deferred', () => {
     ).toThrow(ToolLimitExceededError);
   });
 
-  it('127 core tools still fit beside the router — the control', () => {
+  it('127 core tools still fit beside the loader — the control', () => {
     const oxy = family('oxy_noted', 'Noted', 12);
     const budgeted = budgetTools({
       tools: { ...core(127), ...oxy },
@@ -453,22 +660,22 @@ describe('ToolPipeline.forUser applies the budget on every path it serves', () =
     expect(Object.keys(result.tools).length).toBeGreaterThan(MAX_TOOLS_PER_INFERENCE_REQUEST);
     expect(first.length).toBeLessThanOrEqual(MAX_TOOLS_PER_INFERENCE_REQUEST);
     expect(first).toContain('getCurrentDate');
-    expect(first).toContain(USE_APPS_TOOL);
+    expect(first).toContain(LOAD_TOOLS_TOOL);
     expect(first.filter((name) => name.startsWith('oxy_'))).toEqual([]);
     for (const name of Object.keys(productionOxyServices()))
       expect(result.tools[name]).toBeDefined();
     expect(result.appCatalogPrompt).toContain('- mention — Mention (93 tools)');
   });
 
-  it("a small account keeps today's set exactly — no router, no routing", async () => {
+  it("a small account keeps today's set exactly — no loader, no routing", async () => {
     sources.oxy = family('oxy_noted', 'Noted', 12);
     const result = await forUser();
     expect(result.routing).toEqual({});
-    expect(result.tools[USE_APPS_TOOL]).toBeUndefined();
+    expect(result.tools[LOAD_TOOLS_TOOL]).toBeUndefined();
     expect(Object.keys(result.tools)).toContain('oxy_noted__action00');
   });
 
-  it('pre-activates the connector picked in the composer menu (mcpServerId)', async () => {
+  it('loads the connector picked in the composer menu (mcpServerId)', async () => {
     sources.mcp = family('mcp_github', 'GitHub', 20);
     const result = await forUser({ mcpServerId: 'srv-github' });
     const first = result.activeToolNames();
@@ -479,14 +686,14 @@ describe('ToolPipeline.forUser applies the budget on every path it serves', () =
     expect(first.length).toBeLessThanOrEqual(MAX_TOOLS_PER_INFERENCE_REQUEST);
   });
 
-  it('without a pick the same connector waits to be opened — the control', async () => {
+  it('without a pick the same connector waits to be loaded — the control', async () => {
     sources.mcp = family('mcp_github', 'GitHub', 20);
     const result = await forUser();
     expect(result.activeToolNames().filter((name) => name.startsWith('mcp_github__'))).toEqual([]);
     expect(result.appCatalogPrompt).toContain('- mcp_github — GitHub (20 tools)');
   });
 
-  it('pre-activates a single picked tool, and only that tool', async () => {
+  it('loads a single picked tool, and only that tool', async () => {
     const result = await forUser({ pickedApps: ['oxy_mention__createPost'] });
     expect(mentionNames(result.activeToolNames())).toEqual(['oxy_mention__createPost']);
   });
@@ -504,13 +711,51 @@ describe('ToolPipeline.forUser applies the budget on every path it serves', () =
     );
   });
 
-  it('keeps apps the conversation opened, from the replayed history', async () => {
+  it('keeps the tools the conversation used, from the replayed history', async () => {
     const result = await forUser({
-      priorToolCalls: [
-        { toolName: USE_APPS_TOOL, args: { apps: ['mention'] }, result: { opened: ['mention'] } },
-      ],
+      priorToolCalls: [{ toolName: 'oxy_mention__createPost', args: {}, result: { ok: true } }],
     });
-    expect(mentionNames(result.activeToolNames())).toHaveLength(93);
+    expect(mentionNames(result.activeToolNames())).toEqual(['oxy_mention__createPost']);
+  });
+
+  describe('WhatsApp tools need a WhatsApp gateway', () => {
+    const WHATSAPP = ['getWhatsAppChats', 'getWhatsAppMessages', 'sendWhatsAppMessage'];
+
+    afterEach(() => vi.unstubAllEnvs());
+
+    it('does not offer them where no gateway is configured (production: "WhatsApp gateway not configured")', async () => {
+      sources.oxy = family('oxy_noted', 'Noted', 3);
+      vi.stubEnv('WHATSAPP_GATEWAY_URL', '');
+      vi.stubEnv('WHATSAPP_GATEWAY_SECRET', '');
+      const result = await forUser();
+      for (const name of WHATSAPP) expect(result.tools[name]).toBeUndefined();
+      // The neighbouring messaging tool is unaffected.
+      expect(result.tools.sendTelegramMessage).toBeDefined();
+    });
+
+    it('needs both the URL and the secret', async () => {
+      sources.oxy = family('oxy_noted', 'Noted', 3);
+      vi.stubEnv('WHATSAPP_GATEWAY_URL', 'https://wa.example.test');
+      vi.stubEnv('WHATSAPP_GATEWAY_SECRET', '');
+      expect((await forUser()).tools.getWhatsAppChats).toBeUndefined();
+    });
+
+    it('offers all three where the gateway exists — the control', async () => {
+      sources.oxy = family('oxy_noted', 'Noted', 3);
+      vi.stubEnv('WHATSAPP_GATEWAY_URL', 'https://wa.example.test');
+      vi.stubEnv('WHATSAPP_GATEWAY_SECRET', 'secret');
+      const result = await forUser();
+      for (const name of WHATSAPP) expect(result.tools[name]).toBeDefined();
+    });
+  });
+
+  it('derives the definitions budget from the model the turn runs on', async () => {
+    sources.oxy = heavy('oxy_mention', 'Mention', 94, 700);
+    const roomy = await forUser({ inputLimits: { contextWindow: 1_000_000 } });
+    const tight = await forUser({ inputLimits: { contextWindow: 40_000, maxOutput: 8_000 } });
+    const bytes = (turn: typeof roomy) =>
+      turn.activeToolNames().reduce((sum, name) => sum + sentToolBytes(name, turn.tools[name]), 0);
+    expect(bytes(tight)).toBeLessThanOrEqual(bytes(roomy));
   });
 });
 
@@ -518,25 +763,26 @@ describe('ToolPipeline.forUser applies the budget on every path it serves', () =
 /*  The model is told                                                         */
 /* -------------------------------------------------------------------------- */
 
-describe('the system prompt carries the app catalog', () => {
-  it('appends the Apps section when the turn is routed', async () => {
+describe('the system prompt carries the tool catalogue', () => {
+  it('appends the catalogue section when the turn is routed', async () => {
     const { appCatalogPrompt } = budgetTools(productionTurn());
     const prompt = await SystemPromptBuilder.build({
       isDirectUserSession: false,
       appCatalog: appCatalogPrompt,
     });
-    expect(prompt).toContain('## Apps');
-    expect(prompt).toContain('useApps');
+    expect(prompt).toContain("## Tools from the person's apps");
+    expect(prompt).toContain('loadTools');
     expect(prompt).toContain('- mention — Mention (93 tools)');
+    expect(prompt).not.toContain('useApps');
   });
 
   it('does not list Oxy tool names as present when the turn is routed', async () => {
-    // Those names are not in the tool list until the app is opened; a weak model
-    // reading them there concludes they do not exist, and refuses.
+    // Those names are not in the tool list until loaded; a weak model reading
+    // them there concludes they exist and calls them, or refuses.
     const { appCatalogPrompt } = budgetTools(productionTurn());
     const direct = { isDirectUserSession: true, userId: 'u1', accessToken: 'tok' } as const;
     const routed = await SystemPromptBuilder.build({ ...direct, appCatalog: appCatalogPrompt });
-    expect(routed).toContain('## Apps');
+    expect(routed).toContain("## Tools from the person's apps");
     expect(routed).not.toContain('## Oxy apps');
 
     // The control: a turn that fits keeps the fragment.
@@ -546,15 +792,15 @@ describe('the system prompt carries the app catalog', () => {
 
   it('says nothing about apps when nothing is routed — the control', async () => {
     const prompt = await SystemPromptBuilder.build({ isDirectUserSession: false, appCatalog: '' });
-    expect(prompt).not.toContain('## Apps');
+    expect(prompt).not.toContain("## Tools from the person's apps");
   });
 });
 
 /* -------------------------------------------------------------------------- */
-/*  The catalog says what each app covers                                     */
+/*  The catalogue says what each app covers                                   */
 /* -------------------------------------------------------------------------- */
 
-describe('the catalog says what each app covers', () => {
+describe('the catalogue says what each app covers', () => {
   it("derives an app's subjects from its own tool names, verbs dropped", () => {
     const covers = coversOf(
       INBOX_TOOLS.map((name) => `oxy_inbox__${name}`),
@@ -594,26 +840,25 @@ describe('the catalog says what each app covers', () => {
     expect(coversOf(many).length).toBeLessThanOrEqual(8);
   });
 
-  it('lists what Inbox covers in the catalog and in the useApps description', () => {
+  it('lists what Inbox covers in the catalogue', () => {
     const budgeted = budgetTools(productionTurn());
     const line = budgeted.appCatalogPrompt.split('\n').find((row) => row.startsWith('- inbox'));
     expect(line).toMatch(/^- inbox — Inbox \(11 tools\): email, .*mailbox/);
-    expect(budgeted.tools[USE_APPS_TOOL].description).toMatch(/inbox \(Inbox: email, [^)]*\)/);
     const turn = productionTurn();
     expect(appsOf(turn.tools, turn.sources).find((app) => app.id === 'inbox')?.covers[0]).toBe(
       'email',
     );
   });
 
-  it('tells the model its access is real and that useApps comes before any refusal', () => {
+  it('tells the model its access is real and that loading comes before any refusal', () => {
     const { appCatalogPrompt } = budgetTools(productionTurn());
     expect(appCatalogPrompt).toContain('you DO have access');
     expect(appCatalogPrompt).toMatch(/in any language, by any name, synonym or brand/);
     expect(appCatalogPrompt).toMatch(
-      /Never say you cannot access[^\n]*until you have opened that app/,
+      /Never say you cannot access[^\n]*until you have loaded its tools/,
     );
-    expect(budgetTools(productionTurn()).tools[USE_APPS_TOOL].description).toMatch(
-      /BEFORE saying you cannot access/,
+    expect(budgetTools(productionTurn()).tools[LOAD_TOOLS_TOOL].description).toMatch(
+      /BEFORE saying you cannot do something/,
     );
   });
 
@@ -630,7 +875,7 @@ describe('the catalog says what each app covers', () => {
       sources: { oxy_service: oxy, mcp: {}, integration: {} },
     });
     expect(budgeted.appCatalogPrompt).toMatch(
-      /^- skyline — Skyline \(3 tools\): weather, forecast, radar, alert$/m,
+      /^- skyline — Skyline \(3 tools\): weather, forecast, radar, alert\n {2}tools \(prefix `oxy_skyline__`\): getForecast, getWeatherRadar, listWeatherAlerts$/m,
     );
   });
 });
@@ -640,16 +885,6 @@ describe('the catalog says what each app covers', () => {
 /* -------------------------------------------------------------------------- */
 
 describe('tool definitions are budgeted in bytes as well as in count', () => {
-  /** An app whose `count` tools each carry a large schema. */
-  function heavy(prefix: string, label: string, count: number, bytes: number): ToolSet {
-    const tools: ToolSet = {};
-    for (let n = 0; n < count; n += 1)
-      tools[`${prefix}__action${n}`] = tool({
-        description: `[${label}] ${'x'.repeat(bytes)}`,
-        inputSchema: z.object({ text: z.string() }),
-      });
-    return tools;
-  }
   const turn = (apps: ToolSet) => ({
     tools: { ...core(10), ...apps },
     sources: { oxy_service: apps, mcp: {}, integration: {} },
@@ -669,39 +904,23 @@ describe('tool definitions are budgeted in bytes as well as in count', () => {
   it('a small set under both limits is not routed — the control', () => {
     const budgeted = budgetTools(turn(heavy('oxy_docs', 'Docs', 10, 100)));
     expect(budgeted.routing).toEqual({});
-    expect(budgeted.tools[USE_APPS_TOOL]).toBeUndefined();
+    expect(budgeted.tools[LOAD_TOOLS_TOOL]).toBeUndefined();
   });
 
   it('fewer than 128 tools whose schemas are over the bytes budget are routed', () => {
     // 40 tools × ~2.1KB ≈ 85KB: well under 128 tools, over the 61_440-byte half.
     const budgeted = budgetTools(turn(heavy('oxy_docs', 'Docs', 40, 2_000)));
-    const first = budgeted.routing.prepareStep?.().activeTools ?? [];
-    expect(first).toContain(USE_APPS_TOOL);
+    const first = activeOf(budgeted);
+    expect(first).toContain(LOAD_TOOLS_TOOL);
     expect(first.filter((name) => name.startsWith('oxy_docs__'))).toEqual([]);
     expect(budgeted.appCatalogPrompt).toContain('- docs — Docs (40 tools)');
   });
 
-  it('useApps refuses an app that would push the definitions past the bytes budget, and says why', async () => {
-    const budgeted = budgetTools(
-      turn({
-        ...heavy('oxy_docs', 'Docs', 20, 2_000),
-        ...heavy('oxy_wiki', 'Wiki', 20, 2_000),
-      }),
-    );
-    const opened = await openApps(budgeted, { apps: ['docs', 'wiki'] });
-    expect(opened.opened).toEqual(['docs']);
-    expect(opened.didNotFit).toEqual([{ app: 'wiki', tools: 20 }]);
-    expect(String(opened.hint)).toContain('bytes of tool definitions');
-    const active = budgeted.activeToolNames();
-    const bytes = active.reduce((sum, name) => sum + sentToolBytes(name, budgeted.tools[name]), 0);
-    expect(bytes).toBeLessThanOrEqual(61_440);
-  });
-
-  it('honours an explicit bytes budget', () => {
+  it('honours an explicit request budget', () => {
     const apps = heavy('oxy_docs', 'Docs', 10, 100);
     expect(budgetTools(turn(apps)).routing).toEqual({});
     expect(
-      budgetTools({ ...turn(apps), definitionBytesBudget: 1_000 }).tools[USE_APPS_TOOL],
+      budgetTools({ ...turn(apps), inputBudgetBytes: 2_000 }).tools[LOAD_TOOLS_TOOL],
     ).toBeDefined();
   });
 });

@@ -40,7 +40,7 @@ function parametersOf(built: Tool): Record<string, unknown> {
 /**
  * The session's tool definitions: the named tools, in the given order, at most
  * {@link KAANA_MAX_REALTIME_TOOLS}. The order is the routed active set
- * (`lib/tool-budget.ts`), so what is cut is what routing put last.
+ * (`lib/tool-budget.ts`), so what is cut is what loading put last.
  */
 export function toRealtimeTools(tools: ToolSet, names: readonly string[]): KaanaToolDefinition[] {
   const definitions: KaanaToolDefinition[] = [];

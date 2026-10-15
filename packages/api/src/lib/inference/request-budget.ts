@@ -52,10 +52,19 @@
  * Only what is SENT shrinks: the AI SDK's own messages, and what the turn
  * persists, are untouched, and the next step is fitted again from scratch.
  *
- * Tool DEFINITIONS are not shrunk here. Which tools a step sends is the app
- * router's decision (`lib/tool-budget.ts`), and it already keeps the active
+ * Tool DEFINITIONS are not shrunk here. Which tools a step sends is the tool
+ * loader's decision (`lib/tool-budget.ts`), and it already keeps the active
  * schemas within {@link toolDefinitionsBudgetBytes}; dropping a schema here
- * would hide a tool from the model behind the router's back.
+ * would hide a tool from the model behind the loader's back.
+ *
+ * ## One place computes the budget
+ *
+ * {@link requestInputBudgetBytes} is the only function that says how large a
+ * request may be, and it is derived rather than declared: from the context
+ * window of the model the turn runs on (the Oxy catalogue's
+ * `maxContextTokens`, less the output the model may produce) and from the limit
+ * the server imposes (Oxy's ceiling, below). Both the fit here and the tool
+ * loader's share of it read this function, so they cannot drift apart.
  *
  * If the request still does not fit, it is not sent: the step fails with a
  * typed {@link RequestInputBudgetExceededError} — `context_length_exceeded`,
@@ -82,6 +91,11 @@ import { log } from '../logger.js';
  * `maxControlledCompletionInputBudget` of the `alia-kaana` relationship in
  * OxyHQServices `packages/api/src/config/inferenceEconomicPolicy.ts`. A request
  * one byte over is refused by the edge.
+ *
+ * This is the SERVER's limit, a property of Oxy's pilot configuration and not
+ * of any model: it is the same 126_976 whether the route behind it has a 128K
+ * or a 1M window, so for a large-window model it is the binding constraint.
+ * Raising it is a change to Oxy's `inferenceEconomicPolicy.ts`, never to Alia.
  */
 export const OXY_CONTROLLED_COMPLETION_INPUT_CEILING_BYTES = 126_976;
 
@@ -95,50 +109,100 @@ export const OXY_CONTROLLED_COMPLETION_INPUT_CEILING_BYTES = 126_976;
  */
 export const REQUEST_INPUT_SAFETY_MARGIN_BYTES = 4_096;
 
-/** The default budget: 122_880 bytes. */
-export const DEFAULT_REQUEST_INPUT_BUDGET_BYTES =
+/** The most the server accepts, less the margin: 122_880 bytes. */
+export const SERVER_REQUEST_INPUT_LIMIT_BYTES =
   OXY_CONTROLLED_COMPLETION_INPUT_CEILING_BYTES - REQUEST_INPUT_SAFETY_MARGIN_BYTES;
 
 /**
  * Overrides the budget, in bytes. Only LOWER values take effect: a budget above
- * Oxy's ceiling would only move the refusal to the edge, so it is ignored.
+ * what the model and the server allow would only move the refusal elsewhere,
+ * so it is ignored.
  */
 export const REQUEST_INPUT_BUDGET_ENV = 'ALIA_INFERENCE_INPUT_BUDGET_BYTES';
 
 /** Below this an override would refuse ordinary turns; it is ignored. */
 const MIN_REQUEST_INPUT_BUDGET_BYTES = 16_384;
 
-/** The request input budget in force, in bytes. */
-export function requestInputBudgetBytes(env: NodeJS.ProcessEnv = process.env): number {
+/**
+ * What the catalogue says about the model a turn runs on. Both are in tokens
+ * and either may be unknown: a power level (Oxy picks the model per request)
+ * and a local model carry neither.
+ */
+export interface ModelInputLimits {
+  readonly contextWindow?: number | null;
+  readonly maxOutput?: number | null;
+}
+
+/**
+ * How many bytes of input fit the model's window.
+ *
+ * Oxy bounds a request in BYTES because a UTF-8 byte is a worst-case bound on a
+ * token (one token is never less than one byte of the text that made it). So a
+ * request of N bytes is at most N tokens, and the window less the room the
+ * answer may take, read as bytes, is a budget that can never overflow it. It
+ * is deliberately the pessimistic reading: text averages several bytes per
+ * token, and the server ceiling is what binds a 128K-window model anyway.
+ *
+ * The answer's room is the model's own `maxOutput`, never more than half the
+ * window; when the catalogue does not say, nothing is reserved.
+ */
+export function modelInputBudgetBytes(model: ModelInputLimits | null | undefined): number | null {
+  const window = model?.contextWindow;
+  if (window == null || !Number.isFinite(window) || window <= 0) return null;
+  const output = model?.maxOutput;
+  const reserved =
+    output == null || !Number.isFinite(output) || output <= 0
+      ? 0
+      : Math.min(Math.floor(output), Math.floor(window / 2));
+  return Math.max(1, Math.floor(window) - reserved);
+}
+
+/**
+ * The request input budget for a turn, in bytes: the smaller of what the
+ * server accepts ({@link SERVER_REQUEST_INPUT_LIMIT_BYTES}) and what the model's
+ * window allows ({@link modelInputBudgetBytes}), lowered further by
+ * `ALIA_INFERENCE_INPUT_BUDGET_BYTES` when that is set.
+ *
+ * With no model information (a power level, a local model, a background call
+ * with no turn) the server's limit is the budget.
+ */
+export function requestInputBudgetBytes(
+  model?: ModelInputLimits | null,
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const derived = Math.min(
+    SERVER_REQUEST_INPUT_LIMIT_BYTES,
+    modelInputBudgetBytes(model) ?? SERVER_REQUEST_INPUT_LIMIT_BYTES,
+  );
   const raw = env[REQUEST_INPUT_BUDGET_ENV];
-  if (raw === undefined || raw.trim() === '') return DEFAULT_REQUEST_INPUT_BUDGET_BYTES;
+  if (raw === undefined || raw.trim() === '') return derived;
   const value = Number(raw);
-  if (
-    Number.isInteger(value) &&
-    value >= MIN_REQUEST_INPUT_BUDGET_BYTES &&
-    value <= DEFAULT_REQUEST_INPUT_BUDGET_BYTES
-  )
+  if (Number.isInteger(value) && value >= MIN_REQUEST_INPUT_BUDGET_BYTES && value <= derived)
     return value;
   log.providers.warn(
     {
       env: REQUEST_INPUT_BUDGET_ENV,
       min: MIN_REQUEST_INPUT_BUDGET_BYTES,
-      max: DEFAULT_REQUEST_INPUT_BUDGET_BYTES,
+      max: derived,
     },
-    'Ignoring an out-of-range request input budget override; using the default',
+    'Ignoring an out-of-range request input budget override; using the derived budget',
   );
-  return DEFAULT_REQUEST_INPUT_BUDGET_BYTES;
+  return derived;
 }
 
 /**
- * How much of the request the active tool definitions may take: half.
- *
- * The other half is the conversation — the system prompt, the latest user
- * message and the step chain — which this file can shrink only so far. The app
- * router (`lib/tool-budget.ts`) keeps the schemas it sends within this.
+ * The share of the request the tool definitions may take. The rest is the
+ * conversation — the system prompt, the history, the latest message and the
+ * step chain — which {@link fitControlledInput} can shrink only so far.
  */
-export function toolDefinitionsBudgetBytes(env: NodeJS.ProcessEnv = process.env): number {
-  return Math.floor(requestInputBudgetBytes(env) / 2);
+export const TOOL_DEFINITIONS_SHARE = 0.5;
+
+/**
+ * How much of a request of `inputBudgetBytes` the active tool definitions may
+ * take. The tool loader (`lib/tool-budget.ts`) keeps what it sends within this.
+ */
+export function toolDefinitionsBudgetBytes(inputBudgetBytes: number): number {
+  return Math.floor(inputBudgetBytes * TOOL_DEFINITIONS_SHARE);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -247,7 +311,12 @@ export interface FittedInput {
 export interface FitContext {
   readonly surface?: string;
   readonly model?: string;
-  /** Defaults to {@link requestInputBudgetBytes}. */
+  /**
+   * The model's limits, from which the budget is derived
+   * ({@link requestInputBudgetBytes}).
+   */
+  readonly limits?: ModelInputLimits | null;
+  /** Overrides the derived budget; tests and callers that already computed it. */
   readonly budgetBytes?: number;
 }
 
@@ -258,7 +327,7 @@ export interface FitContext {
  * Deterministic: the same input and budget always give the same messages.
  */
 export function fitControlledInput(input: ControlledInput, context: FitContext = {}): FittedInput {
-  const budgetBytes = context.budgetBytes ?? requestInputBudgetBytes();
+  const budgetBytes = context.budgetBytes ?? requestInputBudgetBytes(context.limits);
   const measuredBytes = controlledInputBytes(input);
   if (measuredBytes <= budgetBytes) {
     return {

@@ -186,6 +186,7 @@ export async function runAliaTask(
       listAliaTaskAuthorizationsForRun(getDb(), automation.id, data.runId),
     ]);
     const { tools, routing, appCatalogPrompt } = await ToolPipeline.forUser({
+      inputLimits: resolved.catalogue,
       userId: data.userId,
       isDirectSession: false,
       // Alia acts for the task's owner, who asked for it.
