@@ -123,3 +123,32 @@ describe('billing without STRIPE_SECRET_KEY', () => {
     expect(res.body).toEqual({ error: 'billing_unavailable' });
   });
 });
+
+it('refuses legacy financial writes for an explicitly declared native annual plan before contacting a provider', async () => {
+  const previous = process.env.ALIA_OXY_PRODUCT_CREDIT_ADAPTER;
+  process.env.ALIA_OXY_PRODUCT_CREDIT_ADAPTER = JSON.stringify({
+    productId: 'alia',
+    quotaKey: 'credits',
+    unit: 'alia_credit',
+    combination: 'maximum',
+    planId: 'go',
+    individualOffers: [
+      { offerId: 'pro-year', offerVersion: 1, planId: 'pro', billingPeriod: 'annual' },
+    ],
+  });
+  try {
+    for (const path of ['/checkout/subscription', '/subscription/change-plan']) {
+      const res = makeRes();
+      await handlerFor(path)(
+        { user: { id: 'u1' }, body: { planId: 'pro', billingPeriod: 'annual' } },
+        res,
+      );
+      expect(res.statusCode).toBe(409);
+      expect(res.body).toEqual({ error: 'use_oxy_product_checkout' });
+    }
+    expect(getOrCreateUserCredits).not.toHaveBeenCalled();
+  } finally {
+    if (previous === undefined) delete process.env.ALIA_OXY_PRODUCT_CREDIT_ADAPTER;
+    else process.env.ALIA_OXY_PRODUCT_CREDIT_ADAPTER = previous;
+  }
+});

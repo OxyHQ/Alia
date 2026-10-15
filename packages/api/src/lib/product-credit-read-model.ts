@@ -3,7 +3,11 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '../db/index';
 import { productCreditAllocations } from '../db/schema/product-credit-allocations';
 import { isProductAllocationAuthorized } from './product-credit-allocations';
-import { productCreditPlanId, type ProductCreditSnapshot } from './product-credit-contract';
+import {
+  productCreditPlanId,
+  selectProductCreditGrant,
+  type ProductCreditSnapshot,
+} from './product-credit-contract';
 import { readConfiguredProductCreditSnapshot } from './product-credit-access';
 import { USAGE_WINDOW_CREDITS } from './usage-window';
 
@@ -25,18 +29,9 @@ export function productAllowanceReadModel(
 ) {
   const planId = productCreditPlanId(input, userId, now);
   if (!planId || !input) return null;
-  const grant = input.snapshot.grants.find(
-    (g) =>
-      g.origin === 'bundle' &&
-      g.benefit.kind === 'quota' &&
-      g.benefit.key === input.adapter.quotaKey &&
-      g.benefit.unit === input.adapter.unit &&
-      Date.parse(g.period.start) <= +now &&
-      Date.parse(g.period.end) > +now,
-  );
+  const grant = selectProductCreditGrant(input, userId, now)?.grant;
   if (
-    !grant ||
-    grant.benefit.kind !== 'quota' ||
+    grant?.benefit.kind !== 'quota' ||
     (held &&
       (held.userId !== userId ||
         !held.active ||
@@ -46,7 +41,7 @@ export function productAllowanceReadModel(
   const consumed = held?.consumed ?? 0,
     reserved = held?.reserved ?? 0;
   return {
-    source: 'oxy_one' as const,
+    source: grant.origin === 'bundle' ? ('oxy_one' as const) : ('oxy_product' as const),
     planId,
     offerId: grant.offerId,
     offerVersion: grant.offerVersion,
@@ -63,20 +58,14 @@ export async function readCurrentProductAllowance(userId: string, accessToken?: 
     () => undefined,
   );
   if (!input || !productCreditPlanId(input, userId)) return null;
-  const grants = input.snapshot.grants.filter(
-    (g) =>
-      g.origin === 'bundle' &&
-      g.benefit.kind === 'quota' &&
-      g.benefit.key === input.adapter.quotaKey &&
-      g.benefit.unit === input.adapter.unit,
-  );
-  if (grants.length !== 1) return null;
+  const selected = selectProductCreditGrant(input, userId);
+  if (!selected) return null;
   const [held] = await getDb()
     .select()
     .from(productCreditAllocations)
     .where(
       and(
-        eq(productCreditAllocations.id, grants[0].id),
+        eq(productCreditAllocations.id, selected.grant.id),
         eq(productCreditAllocations.userId, userId),
       ),
     );

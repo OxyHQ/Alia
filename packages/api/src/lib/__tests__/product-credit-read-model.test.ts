@@ -114,3 +114,38 @@ it('subtracts consumption and holds only for immutable eligible source', () => {
     productAllowanceReadModel(account, fixture(), { ...held, offerVersion: 2 }, now),
   ).toBeNull();
 });
+
+it('accepts only declared individual offers and never adds their allowance to a bundle', () => {
+  const input = fixture();
+  input.adapter.individualOffers = [{ offerId: 'paid-pro', offerVersion: 2, planId: 'max' }];
+  const individual = {
+    ...input.snapshot.grants[0],
+    id: 'paid',
+    sourceSegmentId: 'paid-segment',
+    offerId: 'paid-pro',
+    offerVersion: 2,
+    origin: 'individual' as const,
+    benefit: {
+      ...input.snapshot.grants[0].benefit,
+      kind: 'quota' as const,
+      key: 'credits',
+      unit: 'alia_credit',
+      included: 20000,
+      combination: 'maximum' as const,
+    },
+  };
+  input.snapshot.grants.push(individual);
+  input.snapshot.access.quotas[0].grantIds.push('paid');
+  input.snapshot.access.quotas[0].included = 20000;
+  expect(productAllowanceReadModel(account, input, undefined, now)).toMatchObject({
+    source: 'oxy_product',
+    planId: 'max',
+    included: 20000,
+    remaining: 20000,
+  });
+  input.snapshot.grants = [{ ...individual, offerVersion: 3 }];
+  input.snapshot.access.quotas[0].grantIds = ['paid'];
+  expect(productAllowanceReadModel(account, input, undefined, now)).toBeNull();
+  input.snapshot.grants = [{ ...individual, revokedAt: now.toISOString() }];
+  expect(() => productAllowanceReadModel(account, input, undefined, now)).toThrow();
+});
