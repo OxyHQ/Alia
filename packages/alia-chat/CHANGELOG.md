@@ -1,5 +1,14 @@
 # @alia.onl/sdk
 
+## 15.5.0
+
+- **Replies are set by Bloom's `Markdown`.** `AliaMarkdown` is a thin wrapper over
+  `@oxy.so/bloom/markdown` at its chat reading size (`lg`, 16/28): the parser, the streaming
+  behaviour and the colours are Bloom's. `react-native-markdown-display` — and with it
+  `markdown-it` and the `linkify-it` ReDoS advisory — is no longer a dependency, so apps stop
+  installing it. `AliaMarkdown` loses its `colors` and `fontFamily` props (nothing used them: the
+  text follows the app's Bloom theme) and gains `streaming`. Peer `@oxy.so/bloom` is `>=10.7.0`.
+
 ## 15.4.0
 
 - **New leaf entry `@alia.onl/sdk/avatar`.** `AliaAvatarIcon`, `AliaAvatar`, `ALIA_AVATAR` and

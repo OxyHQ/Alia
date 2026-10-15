@@ -37,7 +37,7 @@ export function ThinkingBlock({ text, streaming }: ThinkingBlockProps) {
 
   return (
     <AgentThinking thinking={false} label={finishedLabel}>
-      <AliaMarkdown content={text} />
+      <AliaMarkdown content={text} streaming={streaming} />
     </AgentThinking>
   );
 }

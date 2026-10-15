@@ -371,7 +371,9 @@ const AssistantMessage = React.memo(function AssistantMessage({
           agent={message.agentInfo}
           thinking={thinking}
           reasoning={
-            thinking && hasThinking ? <AliaMarkdown content={message.thinking!} /> : undefined
+            thinking && hasThinking ? (
+              <AliaMarkdown content={message.thinking!} streaming={message.isStreaming} />
+            ) : undefined
           }
           actions={replyActions}
         >
@@ -383,7 +385,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
           ) : renderMarkdown ? (
             renderMarkdown(citedText)
           ) : (
-            <AliaMarkdown content={citedText} />
+            <AliaMarkdown content={citedText} streaming={message.isStreaming} />
           )}
         </ReplyBody>
       </Collapsible>

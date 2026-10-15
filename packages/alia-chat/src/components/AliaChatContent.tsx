@@ -7,7 +7,8 @@
  * breadcrumb header is Bloom's `AiChatContainer`, the one the app's conversation uses.
  */
 
-import React, { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import type React from 'react';
+import { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, type TextInput } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import { turnActivityState } from '../lib/turn-state';

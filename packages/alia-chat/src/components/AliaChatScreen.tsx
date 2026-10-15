@@ -17,7 +17,8 @@
  * `react-native-audio-api` never enters the bundle.
  */
 
-import React, { useCallback } from 'react';
+import type React from 'react';
+import { useCallback } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
