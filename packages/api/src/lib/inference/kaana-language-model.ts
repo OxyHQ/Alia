@@ -58,10 +58,12 @@ import { buildOxyInferenceClientForServiceToken, getOxyInferenceClient } from '.
 import type { AliaInferenceSurface } from './product-seam.js';
 import { fitControlledInput } from './request-budget.js';
 import { assertToolCountWithinLimit } from './tool-limit.js';
+import { retryTransport, withTransportRetry } from './transport-retry.js';
 import type { OxyInferenceTarget } from '../models/power-levels.js';
 
 /** One text block per response, because the contract streams one channel of it. */
 const TEXT_BLOCK_ID = 'kaana-text';
+const REASONING_BLOCK_ID = 'kaana-reasoning';
 
 /**
  * The AI SDK `providerMetadata` namespace this adapter writes under.
@@ -617,10 +619,13 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
 
       const translation = translateWithinLimit(options, call);
       let completion: OxyInferenceResponse;
+      const generateSignal = call.abortSignal ?? AbortSignal.timeout(120_000);
       try {
-        completion = await client.respond(
-          requestFor(options, call, translation),
-          requestOptions(options, call.abortSignal ?? AbortSignal.timeout(120_000)),
+        // One key for every attempt: see transport-retry.ts.
+        const generateOptions = requestOptions(options, generateSignal);
+        completion = await retryTransport(
+          () => client.respond(requestFor(options, call, translation), generateOptions),
+          generateSignal,
         );
       } catch (error) {
         if (
@@ -659,9 +664,13 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
 
       const translation = translateWithinLimit(options, call);
       const signal = call.abortSignal ?? AbortSignal.timeout(120_000);
-      const events = client.stream(
-        requestFor(options, call, translation),
-        requestOptions(options, signal),
+      // One Idempotency-Key for every attempt (a retry must never open a second
+      // reservation), and no attempt once output left. See transport-retry.ts.
+      const streamOptions = requestOptions(options, signal);
+      const events = withTransportRetry(
+        () => client.stream(requestFor(options, call, translation), streamOptions),
+        (event) => event.type === 'delta' || event.type === 'tool_call',
+        signal,
       );
 
       /**
@@ -707,6 +716,12 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
         async start(controller) {
           controller.enqueue({ type: 'stream-start', warnings: translation.warnings });
           let emittedToolCalls = 0;
+
+          const closeReasoning = (): void => {
+            if (!reasoningOpen) return;
+            controller.enqueue({ type: 'reasoning-end', id: REASONING_BLOCK_ID });
+            reasoningOpen = false;
+          };
 
           const closeCall = (
             id: string,
@@ -756,16 +771,20 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
                 case 'delta': {
                   if (event.channel === 'reasoning') {
                     if (!reasoningOpen) {
-                      controller.enqueue({ type: 'reasoning-start', id: TEXT_BLOCK_ID });
+                      controller.enqueue({ type: 'reasoning-start', id: REASONING_BLOCK_ID });
                       reasoningOpen = true;
                     }
+                    // Verbatim: a delta's leading space is part of the text.
                     controller.enqueue({
                       type: 'reasoning-delta',
-                      id: TEXT_BLOCK_ID,
+                      id: REASONING_BLOCK_ID,
                       delta: event.text,
                     });
                     break;
                   }
+                  // The thought is over once the answer starts; leaving its block
+                  // open until the end of the stream interleaves the two.
+                  closeReasoning();
                   if (!textOpen) {
                     controller.enqueue({ type: 'text-start', id: TEXT_BLOCK_ID });
                     textOpen = true;
@@ -857,7 +876,7 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
             finishReason = { unified: 'error', raw: undefined };
           }
 
-          if (reasoningOpen) controller.enqueue({ type: 'reasoning-end', id: TEXT_BLOCK_ID });
+          closeReasoning();
           if (textOpen) controller.enqueue({ type: 'text-end', id: TEXT_BLOCK_ID });
 
           /**
