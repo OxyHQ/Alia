@@ -12,7 +12,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { c as createTar } from 'tar';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { importSkillsFromGitHub, parseGitHubSource, sourceUrl } from '../github.js';
+
+vi.mock('../../logger.js', () => ({
+  log: { general: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
+}));
+import {
+  GitHubRateLimitError,
+  importSkillsFromGitHub,
+  parseGitHubSource,
+  rateLimitWaitMs,
+  sourceUrl,
+} from '../github.js';
 
 const COMMIT = 'a'.repeat(40);
 
@@ -49,6 +59,8 @@ function stubGitHub(tarball: Buffer): void {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+  vi.useRealTimers();
 });
 
 describe('parseGitHubSource', () => {
@@ -146,6 +158,103 @@ describe('importSkillsFromGitHub', () => {
     await expect(importSkillsFromGitHub('anthropics/skills')).rejects.toThrow(
       /does not exist, or is private/,
     );
+  });
+});
+
+describe('rate limits', () => {
+  const limited = (headers: Record<string, string>, status = 403) =>
+    new Response('limited', { status, headers });
+
+  it('reads Retry-After in seconds, then as a date, then X-RateLimit-Reset', () => {
+    expect(rateLimitWaitMs(limited({ 'retry-after': '7' }))).toBe(7000);
+    expect(
+      rateLimitWaitMs(
+        limited({ 'retry-after': 'Thu, 15 Oct 2026 10:00:30 GMT' }),
+        Date.parse('Thu, 15 Oct 2026 10:00:00 GMT'),
+      ),
+    ).toBe(30_000);
+    expect(
+      rateLimitWaitMs(
+        limited({ 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1000' }),
+        400_000,
+      ),
+    ).toBe(600_000);
+    // Told nothing: a minute, not a guess of zero.
+    expect(rateLimitWaitMs(limited({}))).toBe(60_000);
+  });
+
+  it('sleeps through a short Retry-After and then succeeds', async () => {
+    vi.useFakeTimers();
+    const tarball = await repositoryTarball({ 'skills/pdf/SKILL.md': document('pdf') });
+    let calls = 0;
+    vi.stubGlobal('fetch', async () => {
+      calls += 1;
+      return calls === 1
+        ? limited({ 'retry-after': '3' }, 429)
+        : new Response(new Uint8Array(tarball), { status: 200 });
+    });
+
+    const pending = importSkillsFromGitHub('anthropics/skills');
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(2);
+    await expect(pending).resolves.toMatchObject({ commit: COMMIT });
+    expect(calls).toBe(2);
+  });
+
+  it('does not wait out a long limit: it says when to come back', async () => {
+    const fetchMock = vi.fn(async () =>
+      limited({
+        'x-ratelimit-remaining': '0',
+        'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 1800),
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const error = await importSkillsFromGitHub('anthropics/skills').catch((e) => e);
+
+    expect(error).toBeInstanceOf(GitHubRateLimitError);
+    expect(error.retryAfterMs).toBeGreaterThan(1_700_000);
+    expect(error.message).toMatch(/rate limiting/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('authenticated and conditional requests', () => {
+  it('sends GITHUB_TOKEN when the environment has one, and none otherwise', async () => {
+    const tarball = await repositoryTarball({ 'skills/pdf/SKILL.md': document('pdf') });
+    const seen: Array<Record<string, string>> = [];
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      seen.push(init.headers as Record<string, string>);
+      return new Response(new Uint8Array(tarball), { status: 200 });
+    });
+
+    vi.stubEnv('GITHUB_TOKEN', 'ghp_test');
+    await importSkillsFromGitHub('anthropics/skills');
+    vi.stubEnv('GITHUB_TOKEN', '');
+    await importSkillsFromGitHub('anthropics/skills');
+
+    expect(seen[0].authorization).toBe('Bearer ghp_test');
+    expect(seen[1].authorization).toBeUndefined();
+  });
+
+  it('returns the archive ETag, and a 304 for it means nothing changed', async () => {
+    const tarball = await repositoryTarball({ 'skills/pdf/SKILL.md': document('pdf') });
+    const headersSeen: Array<Record<string, string>> = [];
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      const headers = init.headers as Record<string, string>;
+      headersSeen.push(headers);
+      return headers['if-none-match'] === '"v1"'
+        ? new Response(null, { status: 304 })
+        : new Response(new Uint8Array(tarball), { status: 200, headers: { etag: '"v1"' } });
+    });
+
+    const first = await importSkillsFromGitHub('anthropics/skills', {});
+    expect(first).toMatchObject({ etag: '"v1"' });
+
+    const second = await importSkillsFromGitHub('anthropics/skills', { ifNoneMatch: '"v1"' });
+    expect(second).toEqual({ notModified: true });
+    expect(headersSeen[1]['if-none-match']).toBe('"v1"');
   });
 });
 

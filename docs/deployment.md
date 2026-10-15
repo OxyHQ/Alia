@@ -236,6 +236,14 @@ A NEW secret is written to SSM FIRST and only then bound in the task definition:
 naming a parameter that does not exist registers fine and then cannot start. The full
 procedure is oxy-infra `docs/runbooks/46-app-secrets-in-ssm.md`.
 
+`GITHUB_TOKEN` (optional, a read-only fine-grained token for public repositories) is read
+by the skill registry sync and skill imports (`lib/skills/github.ts`). Without it GitHub
+allows 60 requests an hour per shared egress address; the sync copes anyway (stored ETags
+in `skill_registry_sync_state`, 304 for an unchanged repository, `Retry-After` honoured,
+last good catalogue kept), but a token is the fix for the quota itself. It does not exist
+in `/oxy/alia/` today: the owner creates the parameter first, then binds it in the task
+definition, per the order above.
+
 `/oxy/alia/INTEGRATIONS_SECRET` and `/oxy/alia/TOKEN_ENCRYPTION_KEY` are bound by BOTH
 `alia` and `alia-integrations` — one parameter each, so a rotation reaches both services
 and both must be rolled. Deploys verify only the name and type of
