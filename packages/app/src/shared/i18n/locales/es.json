@@ -1188,7 +1188,9 @@
       "iosTitle": "Muy pronto",
       "iosDescription": "La app de iOS está en camino.",
       "googlePlay": "Disponible en Google Play"
-    }
+    },
+    "paymentReview": "El pago necesita revisión en Peable. No vuelvas a enviar fondos.",
+    "reviewPayment": "Revisar el pago en Peable"
   },
   "usageLimit": {
     "outOfCreditsTitle": "Sin créditos",

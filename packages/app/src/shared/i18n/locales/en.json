@@ -1188,7 +1188,9 @@
       "googlePlay": "Get it on Google Play",
       "iosTitle": "Coming soon",
       "iosDescription": "The iOS app is on the way."
-    }
+    },
+    "paymentReview": "Payment needs review in Peable. Do not send funds again.",
+    "reviewPayment": "Review payment in Peable"
   },
   "usageLimit": {
     "outOfCreditsTitle": "Out of credits",
