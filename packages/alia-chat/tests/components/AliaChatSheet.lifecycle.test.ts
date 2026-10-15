@@ -122,3 +122,12 @@ describe('the character runtime', () => {
     expect(content).not.toMatch(/AgentAvatarProvider/);
   });
 });
+
+describe('AliaChatSheet.present(turn)', () => {
+  it('opens the main sheet and, given a turn, starts the conversation over it', () => {
+    expect(source).toMatch(
+      /present: \(turn\) => \{\s*mainRef\.current\?\.present\(\);\s*if \(turn\) startConversation\(turn\);/,
+    );
+    expect(source).toMatch(/present: \(turn\?: AliaTurn\) => void;/);
+  });
+});

@@ -6,6 +6,7 @@
 export type { AliaChatAgent, AliaChatState } from './components/AliaChatContent';
 export { AliaChatSheet } from './components/AliaChatSheet';
 export type { AliaChatSheetProps, AliaChatSheetRef } from './components/AliaChatSheet';
+export type { AliaTurn } from './components/AliaChatContent';
 export { AliaChatScreen } from './components/AliaChatScreen';
 export type { AliaChatScreenProps } from './components/AliaChatScreen';
 

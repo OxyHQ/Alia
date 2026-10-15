@@ -1,5 +1,12 @@
 # @alia.onl/sdk
 
+## 15.2.0
+
+- **`AliaChatSheetRef.present(turn?)`.** Given a turn (`{ text, images? }`), the conversation opens
+  over the sheet with that message already sent: the "ask Alia about this" button of a profile, a
+  post or a file (the way X opens a conversation with Grok about a post). Without a turn nothing
+  changes. `AliaTurn` is exported.
+
 ## 15.0.0
 
 A voice call is a realtime speech-to-speech session through Alia and Kaana, and the composer's
