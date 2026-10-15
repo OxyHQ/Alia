@@ -104,6 +104,28 @@ and `lib/sse-emitter.ts` — the API's own writers, imported across the workspac
 boundary — so a change to what this route emits fails that package's tests in
 the same commit rather than in a consumer's logs later.
 
+## The client runtime
+
+One conversation runtime serves every first-party client: the bottom sheet and `AliaChatScreen`
+from `@alia.onl/sdk`, and the Alia app. It lives in `packages/alia-chat/src/runtime` and is
+layered so each layer depends only on the ones before it:
+
+1. **Transport** — `api.ts` (REST over the signed-in Oxy client: token, refresh and the single
+   401 replay are Oxy's) and `use-conversation-stream.ts` (the `/alia/chat` SSE stream).
+2. **Model and state** — `types.ts`, `thread/*` (what a list of messages becomes: timeline,
+   thought steps and sources, tool cards, day lines, export), `turn-failure.ts` and
+   `usage-limit-error.ts` (a turn that did not answer is a typed error that keeps the person's
+   turn with a retry, never a filler message), React Query keys and cache (`conversations.ts`),
+   and the zustand stores (`composer-draft-store.ts`, `conversation-store.ts`).
+3. **Hooks** — `useConversations`, `useConversation`, `useConversationThread`
+   (send/edit/regenerate/retry/stop/clear), `useStartConversation`, `useTurnEdit`.
+
+What differs between the sheet and the app is only the `AliaRuntimeHost` they pass to
+`AliaRuntimeProvider` (navigation, credits, memory, artifacts panel, agent rows). A voice call
+always lives in a conversation: the open one, or one made when the call starts, opening on the
+screen that shows it (`lib/voice-call-request.ts`). The full API, with examples for both, is in
+`packages/alia-chat/README.md`.
+
 ## Browser origins and `@alia.onl/sdk`
 
 The two mounts differ in who a browser may be. `/alia/chat` takes Alia's

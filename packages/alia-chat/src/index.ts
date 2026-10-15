@@ -65,18 +65,6 @@ export type { VoiceErrorCode } from './lib/speech-messages';
 export { SpeechClipError } from './lib/speech-synthesis';
 export type { SpeechClipErrorCode } from './lib/speech-synthesis';
 
-// ── Model catalogue (GET /catalogue) ──
-// Exported so a consumer building its own picker reads the real models the
-// server offers; the SDK itself ships no model identifier.
-export {
-  fetchCatalogue,
-  parseCatalogue,
-  resolveSelection,
-  resolveModelId,
-  clearCatalogueCache,
-} from './lib/catalogue';
-export type { Catalogue, CatalogueEntry, ModelSelection, ReasoningEffort } from './lib/catalogue';
-
 // ── Types ──
 export type {
   AliaAttachment,

@@ -16,8 +16,15 @@ app's, moved and generalised (`src/runtime`).
   route stays Alia's public API for third parties with their own UI. Use `useConversationThread`.
 - **Breaking: the `agents` prop is gone** from the sheet, the screen and `AliaChatContent`
   (the pre-opened agent message of a delegation is the thread's agent run now).
-- **Breaking: `model`** is sent as given (a power level or `publisher/model`) instead of being
-  checked against `GET /catalogue` first; `resolveModelId` stays exported for hosts that want it.
+- **Breaking: `model`** is sent as given (a power level — `auto`, `instant`, `medium`, `high`,
+  `xhigh`, `pro`, `ultra` — or an exact `publisher/model`) instead of being checked against
+  `GET /catalogue` first. The catalogue helpers (`fetchCatalogue`, `parseCatalogue`,
+  `resolveSelection`, `resolveModelId`, `clearCatalogueCache` and their types) are removed: the
+  SDK itself no longer reads the catalogue, and people choose power levels, not model names.
+- **Changed: the header's Clear starts a new conversation** in the sheet and the screen (the
+  thread empties and the next turn opens a fresh conversation); nothing is deleted, the old one
+  stays in the list. Deleting or emptying a stored conversation is `useDeleteConversation` /
+  `useClearConversation`.
 - **Breaking: `ChatMessage` is the runtime `Message`:** `createdAt` is an ISO string, and a
   `ToolInvocation` always has a `toolCallId`. Agent answers use the server's ids
   (`<reply id>-agent-<n>`).

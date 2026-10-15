@@ -45,13 +45,17 @@ The chat's own copy is English. Pass `labels` to `AliaChatSheet` or
 `AliaChatScreen` to translate it (`AliaChatLabels`; anything omitted stays
 English). Bloom's own strings follow `BloomProvider`'s `locale`.
 
-Two entry points:
+Entry points:
 
 - `@alia.onl/sdk` — the conversation screen (`AliaChatScreen`, `AliaChatSheet`,
   `AliaChatContent`) with its voice call included: the button that opens it, the
   bar with its honest state, the notices (failure, moved to another device, time
   limit) and the transcript in the same thread. Also dictation, read-aloud,
-  catalogue, primitives. The call loads on the first call.
+  the conversation runtime, primitives. The call loads on the first call.
+- `@alia.onl/sdk/runtime` — the conversation data layer alone (hooks, cache, stores,
+  `AliaRuntimeProvider`), for a sidebar or a test that must not load the chat UI.
+- `@alia.onl/sdk/model` — the conversation as pure data (the records, the timeline, the thought
+  panel's steps and sources, tool cards, the markdown export): no React, no Oxy client.
 - `@alia.onl/sdk/voice` — the call's parts (`VoiceSession`, `useVoiceRoom`,
   the audio engine) for a host that builds its own screen.
 
@@ -319,8 +323,7 @@ consumer-application credential for these routes yet — that is Oxy Application
 in [#244](https://github.com/OxyHQ/Alia/issues/244).
 
 `model` is a power level (`auto`, `instant`, `medium`, `high`, `xhigh`, `pro`, `ultra`) or an
-exact `publisher/model` from `GET /catalogue`; it is sent as given, and omitted the server's
-default answers. The SDK ships no model identifier of its own.
+exact `publisher/model`; it is sent as given, and omitted the server's default answers. The SDK ships no model identifier of its own.
 
 ## Scripts
 

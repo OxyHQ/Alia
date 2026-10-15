@@ -28,7 +28,7 @@ const DETACHED_FROM = BREAKPOINTS.md;
 export interface AliaChatSheetProps {
   /** App context injected into system prompt */
   clientContext?: string;
-  /** Kaana routing profile. Checked against `GET /catalogue`; omitted, the build's preference is used. */
+  /** The power level (`auto`, `instant`, `medium`, `high`, `xhigh`, `pro`, `ultra`) or an exact `publisher/model` every turn is sent with; omitted, the server picks. */
   model?: string;
   /** API URL override */
   apiUrl?: string;
