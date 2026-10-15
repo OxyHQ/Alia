@@ -472,11 +472,17 @@ describe('the product runtime still runs the check (#139 ws6)', () => {
     // Plans differ only by credits (ADR 0012). The prefetch still runs — the
     // usage window and plan features read it — but no model is refused on it.
     // Canonical form (`__tests__/support/source-code.ts`): layout-independent.
+    // The read lives in `turn-inputs.ts` since ADR 0017: a voice call reads the
+    // same inputs from an identity, and the chat context still calls it.
     const context = codeOfFile(path.join(API_SRC, 'lib/chat/request-context.ts'));
+    const inputs = codeOfFile(path.join(API_SRC, 'lib/chat/turn-inputs.ts'));
     expect(context).toContain(snippet('export async function buildChatRequestContext'));
-    expect(context).toContain(snippet('req.user ? getUserEntitlements(req.user.id)'));
-    expect(context).not.toContain('allowedModelIds');
-    expect(context).not.toContain('MODEL_NOT_IN_PLAN');
+    expect(context).toContain(snippet('prefetchTurnInputs({'));
+    expect(inputs).toContain(snippet('getUserEntitlements(oxyUserId)'));
+    for (const file of [context, inputs]) {
+      expect(file).not.toContain('allowedModelIds');
+      expect(file).not.toContain('MODEL_NOT_IN_PLAN');
+    }
   });
 
   it('is reached from the entrypoint both chat surfaces share', () => {
