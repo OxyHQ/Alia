@@ -41,7 +41,7 @@
  * agent that can name another's id still cannot talk to it.
  */
 
-import type { AgentCharacter } from '../../domain/agent-character.js';
+import type { AvatarCharacter } from '@oxy.so/contracts';
 import { tool } from 'ai';
 import { z } from 'zod';
 import type { ToolSet } from 'ai';
@@ -73,7 +73,7 @@ export interface AskAgentResult {
   agentHandle: string;
   agentColor: string | null;
   /** The agent's look, a Bloom avatar character; null when the agent could not be read. */
-  agentCharacter: AgentCharacter | null;
+  agentCharacter: AvatarCharacter | null;
   response: string;
   tokensUsed: number;
   /** What the answer cost the payer. The calling model is told, so it can stop. */

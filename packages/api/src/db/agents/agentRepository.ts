@@ -66,7 +66,7 @@ import { agentKnowledge, agents, agentSkills } from '../schema/agents';
 import { conversations } from '../schema/chat';
 import { libraryFiles } from '../schema/library';
 import { skills } from '../schema/skills';
-import type { AgentCharacter } from '../../domain/agent-character';
+import type { AvatarCharacter } from '@oxy.so/contracts';
 import type { AgentAccess, AgentArchetype, AgentStatus } from '../../domain/agent';
 import { withoutRetiredGrants } from '../../domain/capability-grants';
 import { escapeLikePattern } from '@oxy.so/utils/sql';
@@ -117,7 +117,7 @@ export interface AgentRecord {
   /** Exact Oxy application allowed to invoke this product agent. */
   applicationId: string | null;
   /** What the agent looks like: a Bloom avatar character, stored whole. */
-  character: AgentCharacter;
+  character: AvatarCharacter;
   tagline: string;
   description: string;
   author: string;
@@ -816,8 +816,8 @@ export interface CreateAgentInput {
   ownerOxyAccountId: string;
   /** Restrict invocation to one credential-derived Oxy application id. */
   applicationId?: string | null;
-  /** What the agent looks like. A new agent has one picked (`agentCharacterFor`) when the person did not choose. */
-  character: AgentCharacter;
+  /** What the agent looks like. A new agent has one picked (`avatarCharacterFor`) when the person did not choose. */
+  character: AvatarCharacter;
   tagline: string;
   description: string;
   authorOxyUserId: string;
@@ -888,7 +888,7 @@ export async function createAgent(db: ApiDatabase, input: CreateAgentInput): Pro
  */
 export interface UpdateAgentInput {
   /** The agent's look, replaced whole: a character is one value, not a set of fields. */
-  character?: AgentCharacter;
+  character?: AvatarCharacter;
   tagline?: string;
   description?: string;
   category?: string;

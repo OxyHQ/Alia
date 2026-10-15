@@ -1,8 +1,4 @@
-import {
-  agentCharacterFor,
-  parseAgentCharacter,
-  type AgentCharacter,
-} from '../../domain/agent-character.js';
+import { avatarCharacterFor, parseAvatarCharacter, type AvatarCharacter } from '@oxy.so/contracts';
 import { Router } from 'express';
 import { resolveModel } from '../../lib/chat-core.js';
 import { ModelNotFoundError } from '../../lib/models/errors.js';
@@ -26,6 +22,7 @@ import {
   loadAgentForActor,
   refusalMessage,
   refusalStatus,
+  setAgentAccountCharacter,
   verifyAgentAccount,
   type AgentAccountRefusal,
 } from '../../lib/agent-account.js';
@@ -431,13 +428,13 @@ async function refuseUnknownModel(
 /** A character as a client writes it: the shape is checked here, the ids by the client that draws them. */
 const characterSchema = z
   .unknown()
-  .refine((value) => parseAgentCharacter(value) !== null, { message: 'Invalid character' })
-  .transform((value) => parseAgentCharacter(value) as AgentCharacter);
+  .refine((value) => parseAvatarCharacter(value) !== null, { message: 'Invalid character' })
+  .transform((value) => parseAvatarCharacter(value) as AvatarCharacter);
 
 const createAgentSchema = z
   .object({
     oxyAccountId: z.string().min(1),
-    /** What the agent looks like; absent, one is picked for it (`agentCharacterFor`). */
+    /** What the agent looks like; absent, one is picked for it (`avatarCharacterFor`). */
     character: characterSchema.optional(),
     tagline: z.string().min(1).max(200),
     description: z.string().min(1).max(5000),
@@ -483,10 +480,29 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
     });
     if (!verdict.permitted) return answerRefusal(res, verdict.refusal);
 
+    /**
+     * The account is the source of the look: an agent made without choosing one takes the one its
+     * bot account was born with, and a look the person chose is put on the account first, so the
+     * two never differ and every other app draws what this one stores.
+     */
+    const character = data.character ?? verdict.character ?? avatarCharacterFor(data.oxyAccountId);
+    if (data.character !== undefined) {
+      try {
+        await setAgentAccountCharacter({
+          accessToken: req.accessToken,
+          oxyAccountId: data.oxyAccountId,
+          character,
+        });
+      } catch (error: unknown) {
+        log.agents.warn({ err: error, oxyAccountId: data.oxyAccountId }, 'Oxy refused the look');
+        return res.status(502).json({ error: 'Could not set the agent’s look on its account' });
+      }
+    }
+
     const agent = await createAgent(getDb(), {
       oxyAccountId: data.oxyAccountId,
       ownerOxyAccountId: verdict.ownerAccountId,
-      character: data.character ?? agentCharacterFor(data.oxyAccountId),
+      character,
       tagline: data.tagline,
       description: data.description,
       authorOxyUserId: req.user.id,
@@ -586,6 +602,21 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
         data.status !== undefined)
     ) {
       return res.status(400).json({ error: 'Product-agent policy is managed internally' });
+    }
+
+    // The look lives on the Oxy account too, and every other app draws it from there: change it
+    // there first, so a refusal leaves the agent as it was.
+    if (data.character !== undefined) {
+      try {
+        await setAgentAccountCharacter({
+          accessToken: req.accessToken,
+          oxyAccountId: loaded.agent.oxyAccountId,
+          character: data.character,
+        });
+      } catch (error: unknown) {
+        log.agents.warn({ err: error, agentId: id }, 'Oxy refused the look');
+        return res.status(502).json({ error: 'Could not set the agent’s look on its account' });
+      }
     }
 
     const { skills, knowledge, ...columns } = data;

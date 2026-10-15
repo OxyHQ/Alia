@@ -88,10 +88,10 @@ export interface AgentInfo {
   color: string | null;
   /**
    * The agent's look when it said this, a Bloom avatar character stored as the JSON object it is
-   * (`domain/agent-character.ts`); null when the agent is gone. Opaque here: a domain module imports
-   * nothing, and this one only carries it.
+   * (`AvatarCharacter` in `@oxy.so/contracts`); null when the agent is gone. Opaque here: a domain
+   * module imports nothing, and this one only carries it.
    */
-  character: Readonly<Record<string, string | number | undefined>> | null;
+  character: object | null;
   handle: string;
 }
 
