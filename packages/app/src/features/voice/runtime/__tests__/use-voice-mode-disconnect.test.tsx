@@ -282,11 +282,11 @@ describe('useVoiceMode — a call speaks through the conversation', () => {
       harness.api.activateVoice();
     });
     harness.setRoomState('connected');
-    room.turnError = 'The answer could not be played aloud';
-    room.turnErrorCode = 'not-played';
+    room.turnError = 'No answer came back — try saying it again';
+    room.turnErrorCode = 'no-answer';
     harness.setRoomState('connected');
 
-    expect(toasts.error).toHaveBeenCalledWith('t:voice.errors.not-played');
+    expect(toasts.error).toHaveBeenCalledWith('t:voice.errors.no-answer');
     expect(harness.api.isVoiceActive).toBe(true);
   });
 });
@@ -304,6 +304,26 @@ describe('useVoiceMode — what the person is told, in their language', () => {
     expect(toasts.error).toHaveBeenCalledWith('t:voice.errors.microphone-denied');
     expect(harness.api.isVoiceActive).toBe(false);
   });
+
+  it.each(['synthesis-unavailable', 'synthesis-limited', 'not-authenticated', 'not-played'])(
+    'ends a call whose voice cannot speak (%s) and says why, translated',
+    (code) => {
+      const harness = mountFromEmptyChat();
+      act(() => {
+        harness.api.activateVoice();
+      });
+      harness.setRoomState('connected');
+      // The SDK ends the call once the unspoken answer is in the thread.
+      room.error = 'English sentence the app does not show';
+      room.errorCode = code;
+      harness.setRoomState('error');
+
+      expect(toasts.error).toHaveBeenCalledWith(`t:voice.errors.${code}`);
+      expect(toasts.error).toHaveBeenCalledTimes(1);
+      expect(harness.api.isVoiceActive).toBe(false);
+      expect(room.disconnectCalls).toBe(1);
+    },
+  );
 
   it('says the connection failed, translated, when the room fails without a reason', () => {
     const harness = mountFromEmptyChat();

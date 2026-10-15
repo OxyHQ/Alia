@@ -1759,7 +1759,11 @@
       "not-authenticated": "Inicia sesión para usar la voz",
       "turn-failed": "No se pudo enviar lo que dijiste",
       "no-answer": "No llegó ninguna respuesta: prueba a decirlo otra vez",
-      "not-played": "No se pudo reproducir la respuesta en voz alta"
+      "not-played": "No se pudo reproducir la respuesta en voz alta: la tienes en el chat",
+      "synthesis-unavailable": "La voz de Alia no está disponible ahora mismo: la respuesta está en el chat",
+      "synthesis-limited": "La voz de Alia ha llegado a su límite por ahora: la respuesta está en el chat",
+      "synthesis-rejected": "La voz de Alia no pudo leer esta respuesta: la tienes en el chat",
+      "synthesis-failed": "Falló la voz de Alia: la respuesta está en el chat"
     },
     "controls": {
       "connecting": "Conectando…",
