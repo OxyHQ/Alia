@@ -117,7 +117,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 import { ThoughtPanel } from '@/features/chat/ui/thought-panel';
-import type { Message } from '@alia.onl/sdk/runtime';
+import { type Message } from '@alia.onl/sdk/model';
 import { useUIStore, type ThoughtScope } from '@/features/chat/runtime/ui-store';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

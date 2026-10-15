@@ -9,8 +9,8 @@ import {
   marketChart,
   type FairCoinCardData,
   type MarketCardData,
-} from '@/features/chat/model/tool-cards';
-import type { ToolInvocation } from '@/shared/contracts/messages';
+} from '../../../src/runtime/thread/tool-cards';
+import type { ToolInvocation } from '../../../src/runtime/types';
 
 /**
  * The cards a tool result draws, as the data Bloom's `LineChartCard`, `Card`

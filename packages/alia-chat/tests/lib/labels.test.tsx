@@ -39,7 +39,7 @@ describe('chat labels', () => {
     expect(labels.clear).toBe('Borrar');
     expect(labels.thoughtFor(4)).toBe('Pensó 4 s');
     expect(labels.back).toBe(DEFAULT_LABELS.back);
-    expect(labels.workLog).toBe(DEFAULT_LABELS.workLog);
+    expect(labels.t).toBe(DEFAULT_LABELS.t);
   });
 
   it('pluralise the counts the way the defaults promise', () => {
@@ -47,15 +47,15 @@ describe('chat labels', () => {
   });
 
   it('carry an English work log whose plurals follow the count', () => {
-    expect(DEFAULT_LABELS.workLog('chat.bloom.sourceCount', { count: 1 })).toBe('1 source');
-    expect(DEFAULT_LABELS.workLog('chat.bloom.sourceCount', { count: 0 })).toBe('0 sources');
-    expect(DEFAULT_LABELS.workLog('chat.bloom.resultCount', { count: 4 })).toBe('4 results');
-    expect(DEFAULT_LABELS.workLog('tasks.tool.done.shellExec')).toBe('Ran command');
+    expect(DEFAULT_LABELS.t('chat.bloom.sourceCount', { count: 1 })).toBe('1 source');
+    expect(DEFAULT_LABELS.t('chat.bloom.sourceCount', { count: 0 })).toBe('0 sources');
+    expect(DEFAULT_LABELS.t('chat.bloom.resultCount', { count: 4 })).toBe('4 results');
+    expect(DEFAULT_LABELS.t('tasks.tool.done.shellExec')).toBe('Ran command');
   });
 
   it('let a host bring its own work-log translator', () => {
-    const labels = read({ workLog: (key) => `es:${key}` });
+    const labels = read({ t: (key) => `es:${key}` });
 
-    expect(labels.workLog('chat.bloom.visited')).toBe('es:chat.bloom.visited');
+    expect(labels.t('chat.bloom.visited')).toBe('es:chat.bloom.visited');
   });
 });

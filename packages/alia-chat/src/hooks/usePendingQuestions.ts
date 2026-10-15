@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { type AskedQuestion, pendingQuestions } from '../lib/questions';
-import type { ChatMessage } from '../types';
+import type { Message } from '../runtime/types';
 
 /**
  * What Alia asked in her last turn and the person has not answered: asked above the composer,
@@ -8,7 +8,7 @@ import type { ChatMessage } from '../types';
  * puts the card away until she asks again.
  */
 export function usePendingQuestions(
-  messages: readonly Pick<ChatMessage, 'id' | 'role' | 'toolInvocations'>[],
+  messages: readonly Pick<Message, 'id' | 'role' | 'toolInvocations'>[],
   isStreaming: boolean,
 ): { questions: AskedQuestion[]; dismiss: () => void } {
   const asked = useMemo(() => pendingQuestions(messages, isStreaming), [messages, isStreaming]);

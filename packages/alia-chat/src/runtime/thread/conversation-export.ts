@@ -1,5 +1,5 @@
-import type { Message } from '@alia.onl/sdk/runtime';
-import { extractSources } from '@/features/chat/model/thought-utils';
+import type { Message } from '../types';
+import { extractSources } from './thought-utils';
 
 /**
  * A conversation as a Markdown document.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { extractCitationSources, linkifyCitations } from '../../src/lib/citations';
-import type { ToolInvocation } from '../../src/types';
+import type { ToolInvocation } from '../../src/runtime/types';
 
 const research: ToolInvocation = {
   toolCallId: 'r1',

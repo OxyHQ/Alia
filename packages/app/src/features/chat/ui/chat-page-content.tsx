@@ -20,7 +20,8 @@ import {
   VoiceModeIcon,
   usePendingQuestions,
 } from '@alia.onl/sdk';
-import { type FailedTurn, type Message, useTurnEdit } from '@alia.onl/sdk/runtime';
+import { type FailedTurn, type Message, type ThreadMessage } from '@alia.onl/sdk/model';
+import { useTurnEdit } from '@alia.onl/sdk/runtime';
 import type { AgentActivityState } from '@/features/chat/runtime/use-agent-activity';
 import type { SendOptions } from '@/shared/contracts/chat-turn';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -29,7 +30,6 @@ import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { Text } from '@oxy.so/bloom/typography';
 import { useFoldersStore } from '@/features/projects/runtime/folders-store';
 import { useProjectsStore } from '@/features/projects/runtime/projects-store';
-import type { ThreadMessage } from '@/features/chat/model/thread-history';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
 import { useTTS } from '@/features/voice/runtime/use-tts';
 import { useAmbientWave } from '@alia.onl/sdk/voice';

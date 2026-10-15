@@ -6,7 +6,7 @@
  * so we process messages differently for each.
  */
 
-import { TITLE_STRIP_RE } from '@/shared/format/title-tags';
+import { TITLE_STRIP_RE } from './title-tags';
 
 export type Platform = 'app' | 'telegram';
 

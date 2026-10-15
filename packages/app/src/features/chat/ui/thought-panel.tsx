@@ -1,10 +1,13 @@
 import { FilesAndSources } from '@/features/chat/ui/execution/files-and-sources';
 import { restoreOpenerFocus } from '@/features/chat/ui/execution/focus-return';
 import { ToolStep } from '@/features/chat/ui/execution/tool-step';
-import type { Message } from '@alia.onl/sdk/runtime';
-import { useTranslation } from '@/shared/i18n/use-translation';
-import { useUIStore, type ThoughtTab } from '@/features/chat/runtime/ui-store';
 import {
+  type AuditEntry,
+  type Message,
+  type OutputFile,
+  type Source,
+  type ThoughtStep,
+  type TurnLifecycle,
   auditText,
   buildAuditTimeline,
   buildSteps,
@@ -17,12 +20,9 @@ import {
   toolCallText,
   toolLabel,
   turnLifecycle,
-  type AuditEntry,
-  type OutputFile,
-  type Source,
-  type ThoughtStep,
-  type TurnLifecycle,
-} from '@/features/chat/model/thought-utils';
+} from '@alia.onl/sdk/model';
+import { useTranslation } from '@/shared/i18n/use-translation';
+import { useUIStore, type ThoughtTab } from '@/features/chat/runtime/ui-store';
 import { getToolIcon } from '@/features/chat/model/tool-registry';
 import {
   AgentLogRow,

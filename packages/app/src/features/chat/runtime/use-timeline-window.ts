@@ -1,19 +1,19 @@
 import {
+  type Message,
   TAIL,
   TOP,
+  type TimelineAnchor,
+  type TimelinePosition,
   collapseToTail,
   pinAnchor,
   resolveStart,
   revealAbove,
   sameTimelineShape,
   timelinePositions,
-  type TimelineAnchor,
-  type TimelinePosition,
-} from '@/features/chat/model/timeline';
+} from '@alia.onl/sdk/model';
 import type { AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import type { Message } from '@alia.onl/sdk/runtime';
 
 /**
  * The list, handed back as the SAME array for as long as only what its

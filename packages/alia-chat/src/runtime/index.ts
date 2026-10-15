@@ -59,17 +59,6 @@ export type { StartConversationOptions } from './use-start-conversation';
 export { useTurnEdit } from './use-turn-edit';
 export { buildMessageContent } from './attachment-utils';
 export type { BuiltMessageContent, DroppedAttachment } from './attachment-utils';
-export { UsageLimitError } from './usage-limit-error';
-export type { UsageLimitDetails, UsageLimitType } from './usage-limit-error';
-export { failureDetail } from './turn-failure';
-export type { FailedTurn } from './turn-failure';
-export type {
-  Conversation,
-  ConversationsInfiniteData,
-  ConversationsPage,
-  Message,
-  MessageContent,
-  PendingApproval,
-  PendingApprovalResult,
-  SendOptions,
-} from './types';
+
+// The conversation as data (also the leaf entry `@alia.onl/sdk/model`).
+export * from './model';

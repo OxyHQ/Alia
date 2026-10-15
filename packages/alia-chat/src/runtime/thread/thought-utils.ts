@@ -1,6 +1,6 @@
-import type { ToolInvocation } from '@/shared/contracts/messages';
-import { getToolLabel } from '@alia.onl/sdk';
-import type { FailedTurn, Message } from '@alia.onl/sdk/runtime';
+import { getToolLabel } from '../../lib/tool-registry';
+import type { FailedTurn } from '../turn-failure';
+import type { Message, ToolInvocation } from '../types';
 
 export interface Source {
   title: string;
@@ -584,7 +584,7 @@ export function buildAuditTimeline(
  * How a single tool call reads in an execution row (`running`, `done`, `error`,
  * `interrupted`). One definition, the SDK's, so its chat and this app agree.
  */
-export { type ToolCallStatus, toolCallStatus } from '@alia.onl/sdk/tools';
+export { type ToolCallStatus, toolCallStatus } from '../../tools';
 
 /** Upper bound on the text an expanded row prints for one side of a call. */
 const TOOL_TEXT_LIMIT = 4000;

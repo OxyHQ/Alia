@@ -21,8 +21,8 @@ import {
 import { formatRelativeTime } from '@/shared/format/relative-time';
 import { queryKeys } from '@/shared/api/query-keys';
 import { ALIA_AVATAR, AliaAvatar, readAgentCharacter } from '@alia.onl/sdk';
+import { type Conversation } from '@alia.onl/sdk/model';
 import {
-  type Conversation,
   useConversationStore,
   useConversations,
   useDeleteConversation,

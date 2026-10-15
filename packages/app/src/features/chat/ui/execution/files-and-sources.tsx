@@ -1,5 +1,5 @@
 import { useTranslation } from '@/shared/i18n/use-translation';
-import type { OutputFile, Source } from '@/features/chat/model/thought-utils';
+import { type OutputFile, type Source } from '@alia.onl/sdk/model';
 import {
   Accordion,
   AccordionContent,

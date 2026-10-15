@@ -8,4 +8,4 @@ export function formatDuration(ms: number): string {
 }
 
 // The words for a tool — one definition, the SDK's, so its chat and this app name a call alike.
-export { getToolDoneLabel, getToolPillLabel } from '@alia.onl/sdk/tools';
+export { getToolDoneLabel, getToolPillLabel } from '../../tools';

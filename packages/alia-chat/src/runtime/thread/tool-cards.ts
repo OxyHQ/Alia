@@ -1,4 +1,4 @@
-import type { ToolInvocation } from '@/shared/contracts/messages';
+import type { AutomationTrigger, ToolInvocation } from '../types';
 
 /**
  * The cards a tool result draws inside the assistant turn, as data.
@@ -379,5 +379,5 @@ export interface ScheduledTaskCardData {
   id: string;
   objective: string;
   enabled: boolean;
-  trigger: import('@/shared/contracts/automations').AutomationTrigger;
+  trigger: AutomationTrigger;
 }

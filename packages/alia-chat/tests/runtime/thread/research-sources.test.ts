@@ -14,10 +14,9 @@ import { describe, expect, it, vi } from 'vitest';
  * `getToolLabel` is stubbed for the reason `thought-utils.test.ts` gives: the
  * SDK's root entry reaches React Native, which vitest cannot parse.
  */
-vi.mock('@alia.onl/sdk', () => ({ getToolLabel: (toolName: string) => toolName }));
 
 const { buildSteps, extractSources, mergeSources, researchSourcesToSources } = await import(
-  '@/features/chat/model/thought-utils'
+  '../../../src/runtime/thread/thought-utils'
 );
 type ToolInvocation = NonNullable<Parameters<typeof extractSources>[0]>[number];
 

@@ -4,7 +4,7 @@
 // call: it is stored with the message, survives a reload, and is answered by the person's
 // next message. Pure functions, no React Native, so a host's models and tests can use them.
 
-import type { ChatMessage, ToolInvocation } from '../types';
+import type { Message, ToolInvocation } from '../runtime/types';
 
 /** The tool's name on the wire. */
 export const ASK_USER_QUESTION_TOOL = 'askUserQuestion';
@@ -83,7 +83,7 @@ export function formatAnswers(questions: AskedQuestion[], answers: QuestionAnswe
  * is the answer, so nothing is pending then.
  */
 export function pendingQuestions(
-  messages: readonly Pick<ChatMessage, 'role' | 'toolInvocations'>[],
+  messages: readonly Pick<Message, 'role' | 'toolInvocations'>[],
   isStreaming: boolean,
 ): AskedQuestion[] {
   const last = messages.at(-1);

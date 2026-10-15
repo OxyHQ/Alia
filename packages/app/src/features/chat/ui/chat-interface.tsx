@@ -18,12 +18,22 @@ import {
   getTextFromContent,
   readAgentCharacter,
 } from '@alia.onl/sdk';
-import type { FailedTurn, Message } from '@alia.onl/sdk/runtime';
-import { cardOf } from '@/features/chat/model/tool-cards';
+import {
+  type FailedTurn,
+  type Message,
+  type ThreadMessage,
+  type ToolInvocation,
+  arrivedIds,
+  cardOf,
+  daySeparators,
+  formatElapsed,
+  getToolPillLabel,
+  processMessage,
+  threadSeamIds,
+  turnTimings,
+} from '@alia.onl/sdk/model';
 import { useOpenThought, type OpenThought } from '@/features/chat/runtime/use-open-thought';
-import { getToolPillLabel } from '@/features/chat/model/task-utils';
 import { isWebInvocation, taskListLog, webSearchLog } from '@/features/chat/model/work-log';
-import { daySeparators } from '@/features/chat/model/message-days';
 import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
 import { AgentProgress } from '@oxy.so/bloom/agent-progress';
 import { ChatDateHeader } from '@oxy.so/bloom/chat-screen';
@@ -37,13 +47,8 @@ import { queryKeys } from '@/shared/api/query-keys';
 import type { AgentActivityState } from '@/features/chat/runtime/use-agent-activity';
 import { useTimelineShape, useTimelineWindow } from '@/features/chat/runtime/use-timeline-window';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { processMessage } from '@/features/chat/model/message-processor';
 import { useStore, type ChatIdState } from '@/features/chat/runtime/global-store';
 import { useUIStore, type ThoughtScope } from '@/features/chat/runtime/ui-store';
-import { formatElapsed, turnTimings } from '@/features/chat/model/thought-utils';
-import { threadSeamIds, type ThreadMessage } from '@/features/chat/model/thread-history';
-import { arrivedIds } from '@/features/chat/model/timeline';
-import type { ToolInvocation } from '@/shared/contracts/messages';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
 import { askedQuestions, isQuestionInvocation } from '@alia.onl/sdk/tools';
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';

@@ -5,7 +5,7 @@ import {
   threadSeamIds,
   type ThreadPage,
   type WireThreadMessage,
-} from '../thread-history';
+} from '../../../src/runtime/thread/thread-history';
 
 /**
  * The history above the live conversation, and where the joins are.

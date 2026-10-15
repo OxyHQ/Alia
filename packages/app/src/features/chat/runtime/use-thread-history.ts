@@ -4,7 +4,7 @@ import apiClient from '@/shared/api/client';
 import { API_ROUTES } from '@/shared/api/routes';
 import { queryKeys } from '@/shared/api/query-keys';
 import { errorStatus } from '@/shared/api/error-utils';
-import { threadHistory, type ThreadPage } from '@/features/chat/model/thread-history';
+import { type ThreadPage, threadHistory } from '@alia.onl/sdk/model';
 
 /**
  * Everything said in this thread before the conversation on screen, a page at

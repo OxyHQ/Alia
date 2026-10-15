@@ -6,9 +6,9 @@ import {
   type ReferenceEntry,
 } from '@/features/research/model/citations';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import type { ToolInvocation } from '@/shared/contracts/messages';
-import { useColorScheme } from '@/shared/platform/useColorScheme';
 import { AliaMarkdown, type RenderCodeBlock } from '@alia.onl/sdk';
+import { type ToolInvocation } from '@alia.onl/sdk/model';
+import { useColorScheme } from '@/shared/platform/useColorScheme';
 import { CodeBlock } from '@oxy.so/bloom/code';
 import * as Clipboard from 'expo-clipboard';
 import { fontFamilies } from '@oxy.so/bloom/fonts';

@@ -1,5 +1,5 @@
 import { useComposerAddMenu } from '@/features/chat/ui/composer/add-menu';
-import type { AliaAttachment, AliaComposerProps } from '@alia.onl/sdk';
+import { type AliaAttachment, type AliaComposerProps } from '@alia.onl/sdk';
 import {
   type DraftTarget,
   useComposerDraft,

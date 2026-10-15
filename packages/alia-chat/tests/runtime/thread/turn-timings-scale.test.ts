@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
  */
 vi.mock('@alia.onl/sdk', () => ({ getToolLabel: (name: string) => name }));
 
-import { turnTiming, turnTimings } from '@/features/chat/model/thought-utils';
+import { turnTiming, turnTimings } from '../../../src/runtime/thread/thought-utils';
 
 /**
  * What a long thread costs to draw, and the answer being the same either way.

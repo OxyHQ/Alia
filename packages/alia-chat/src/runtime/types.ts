@@ -137,3 +137,22 @@ export interface SendOptions {
    */
   skillNames?: string[];
 }
+
+/** A resource an automation acts on or listens to. */
+export interface AutomationResource {
+  appId: string;
+  effectiveAccountId: string;
+  resourceType: string;
+  resourceId: string;
+}
+
+/** What starts a scheduled task. */
+export type AutomationTrigger =
+  | { type: 'manual' }
+  | {
+      type: 'event';
+      appId: string | null;
+      eventType: string | null;
+      resource?: AutomationResource | null;
+    }
+  | { type: 'schedule'; cron: string | null; timezone: string | null };

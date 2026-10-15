@@ -3,14 +3,14 @@ import { ChatPageContent } from '@/features/chat/ui/chat-page-content';
 import { ThreadSearch } from '@/features/chat/ui/thread-search';
 import { UsageLimitDialog } from '@/features/billing/ui/usage-limit-dialog';
 import { deliverMarkdownFile } from '@/features/chat/runtime/conversation-share';
-import {
-  buildConversationMarkdown,
-  exportFilename,
-} from '@/features/chat/model/conversation-export';
-import type { AliaAttachment } from '@alia.onl/sdk';
+import { type AliaAttachment } from '@alia.onl/sdk';
 import {
   type Message,
   UsageLimitError,
+  buildConversationMarkdown,
+  exportFilename,
+} from '@alia.onl/sdk/model';
+import {
   useConversation,
   useConversationThread,
   useCreateConversation,

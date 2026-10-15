@@ -51,7 +51,8 @@ import type { AliaAvatarState } from './AliaAvatar';
 import { VoiceModeIcon } from './VoiceModeIcon';
 import { AliaVoiceCall } from './voice/AliaVoiceCall';
 import { useVoiceLauncher, type UseVoiceLauncherOptions } from '../hooks/useVoiceLauncher';
-import type { AliaAttachment, AliaSuggestion, ChatMessage, VoiceMessage } from '../types';
+import type { AliaAttachment, AliaSuggestion, VoiceMessage } from '../types';
+import type { Message } from '../runtime/types';
 
 /** A photo handed over as a `data:` URL, as the composer would hold it. */
 function dataUrlAttachment(url: string, index: number): AliaAttachment {
@@ -67,7 +68,7 @@ function dataUrlAttachment(url: string, index: number): AliaAttachment {
 }
 
 /** The distinct delegated agents among `messages`, in the order they first answered. */
-function participatingAgents(messages: readonly ChatMessage[]): AliaChatAgent[] {
+function participatingAgents(messages: readonly Message[]): AliaChatAgent[] {
   const seen = new Map<string, AliaChatAgent>();
   for (const { agentInfo } of messages) {
     if (agentInfo && !seen.has(agentInfo.id)) seen.set(agentInfo.id, agentInfo);
@@ -200,7 +201,7 @@ function addMenu(labels: AliaChatLabels): ComposerPanelAddMenuGroup[] {
 }
 
 /** Adapt a voice message into the chat message format. */
-function adaptVoiceMessage(vm: VoiceMessage): ChatMessage {
+function adaptVoiceMessage(vm: VoiceMessage): Message {
   return {
     id: vm.id,
     role: vm.role,
@@ -412,7 +413,7 @@ function AliaConversationView({
     ...(voiceOptions === false ? {} : voiceOptions),
   });
   const { isActive: isVoiceActive, state: voiceState } = launcher;
-  const textSnapshotRef = useRef<ChatMessage[]>([]);
+  const textSnapshotRef = useRef<Message[]>([]);
 
   // Merge voice messages into chat messages
   const voiceMessages = voiceState?.messages;

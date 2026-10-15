@@ -1,4 +1,4 @@
-import type { Message } from '@alia.onl/sdk/runtime';
+import type { Message } from '../types';
 
 /**
  * The history of a thread: everything said before the stretch on screen.

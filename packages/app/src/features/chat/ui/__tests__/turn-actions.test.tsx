@@ -267,7 +267,7 @@ const { ChatInterface } = await import('@/features/chat/ui/chat-interface');
 const { useConversationThread, useTurnEdit, useComposerDraftStore } = await import(
   '@alia.onl/sdk/runtime'
 );
-const { timelinePositions } = await import('@/features/chat/model/timeline');
+const { timelinePositions } = await import('@alia.onl/sdk/runtime');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 

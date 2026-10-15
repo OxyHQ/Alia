@@ -13,7 +13,7 @@ import {
   resolveStart,
   revealAbove,
   sameTimelineShape,
-} from '../timeline';
+} from '../../../src/runtime/thread/timeline';
 
 /** `count` row ids, oldest first. */
 const ids = (count: number) => Array.from({ length: count }, (_, i) => `m${i}`);

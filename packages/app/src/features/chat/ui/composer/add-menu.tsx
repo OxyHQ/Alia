@@ -19,7 +19,7 @@ import { useDocumentPicker } from '@/shared/platform/use-document-picker';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { classifyIntake, MAX_ATTACHMENT_BYTES } from '@alia.onl/sdk/tools';
 import type { TurnSelectionOptions } from '@/features/chat/model/turn-selection';
-import type { AliaAttachment } from '@alia.onl/sdk';
+import { type AliaAttachment } from '@alia.onl/sdk';
 
 /**
  * The plus button's menu, as DATA.

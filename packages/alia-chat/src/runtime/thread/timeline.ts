@@ -1,4 +1,4 @@
-import type { Message } from '@alia.onl/sdk/runtime';
+import type { Message } from '../types';
 
 /**
  * The chat timeline as data: which rows are mounted, which just arrived, and

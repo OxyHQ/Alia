@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { conversationsForHistory } from '../sidebar-history';
-import type { Conversation } from '@alia.onl/sdk/runtime';
+import { type Conversation } from '@alia.onl/sdk/model';
 
 /**
  * What the sidebar's History is allowed to list.

@@ -10,11 +10,10 @@ import { describe, expect, it, vi } from 'vitest';
  * STRUCTURE, which is what this file is for; the one thing it must not do is
  * stub `thought-utils` itself.
  */
-vi.mock('@alia.onl/sdk', () => ({ getToolLabel: (toolName: string) => toolName }));
 
 const { buildSteps, extractSources, turnLifecycle, buildAuditTimeline, auditText, toolLabel } =
-  await import('@/features/chat/model/thought-utils');
-const { translator } = await import('@/shared/testing/translate');
+  await import('../../../src/runtime/thread/thought-utils');
+const { englishCopy } = await import('../../../src/lib/copy');
 type LifecycleMessage = Parameters<typeof turnLifecycle>[0];
 type ToolInvocation = NonNullable<Parameters<typeof extractSources>[0]>[number];
 
@@ -379,18 +378,14 @@ describe('buildAuditTimeline', () => {
 });
 
 /**
- * The Activity tab in the reader's language.
- *
- * Its rows were built here in English — "Plan approved", "3 steps",
- * "Research: synthesizing" — so a Spanish reader read English. The timeline
- * now says WHAT to show and the panel translates it; these read the result
- * through the shipped catalogs.
+ * The Activity tab's words. The timeline says WHAT to show and the panel translates it; these
+ * read the result through the SDK's English. (The same rows in Spanish are pinned in the app,
+ * against the app's own catalogue.)
  */
 describe('the audit timeline’s words', () => {
-  const es = translator('es');
-  const en = translator('en');
+  const en = englishCopy;
 
-  it('names an approved plan and counts its steps, in either language', () => {
+  it('names an approved plan and counts its steps', () => {
     const [entry] = buildAuditTimeline([
       {
         id: 'a1',
@@ -401,8 +396,6 @@ describe('the audit timeline’s words', () => {
     ]);
     expect(auditText(entry!.label, en)).toBe('Plan approved');
     expect(auditText(entry!.description, en)).toBe('3 steps');
-    expect(auditText(entry!.label, es)).toBe('Plan aprobado');
-    expect(auditText(entry!.description, es)).toBe('3 pasos');
   });
 
   it('names a research phase it knows, and any other as researching — never the raw token', () => {
@@ -416,10 +409,10 @@ describe('the audit timeline’s words', () => {
             researchProgress: { phase: value, isComplete: false },
           } as never,
         ])[0]!.label,
-        es,
+        en,
       );
-    expect(phase('synthesizing')).toBe('Investigación: sintetizando hallazgos');
-    expect(phase('something_new')).toBe('Investigando');
+    expect(phase('synthesizing')).toBe('Research: synthesizing findings');
+    expect(phase('something_new')).toBe('Researching');
   });
 
   it('keeps what the conversation said as it was', () => {
@@ -433,14 +426,14 @@ describe('the audit timeline’s words', () => {
         ],
       },
     ]);
-    expect(auditText(entry!.label, es)).toBe('Buscando en la web');
-    expect(auditText(entry!.description, es)).toBe('lluvia en Lugo');
+    expect(auditText(entry!.label, en)).toBe('Searching the web');
+    expect(auditText(entry!.description, en)).toBe('lluvia en Lugo');
   });
 
-  it('asks the catalog only for tools it has words for', () => {
-    // `constructor` would resolve to `Object.prototype.constructor` inside
-    // i18n-js; an unknown name goes to the SDK label (the identity here).
-    expect(toolLabel('constructor', es)).toBe('constructor');
-    expect(toolLabel('someServerTool', es)).toBe('someServerTool');
+  it('asks the catalogue only for tools it has words for', () => {
+    // `constructor` would resolve to `Object.prototype.constructor` in a plain lookup; an
+    // unknown name goes to the SDK label.
+    expect(toolLabel('constructor', en)).toBe('constructor');
+    expect(toolLabel('someServerTool', en)).toBe('someServerTool');
   });
 });

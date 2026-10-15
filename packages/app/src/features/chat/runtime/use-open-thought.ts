@@ -1,7 +1,6 @@
 import { rememberOpener } from '@/features/chat/ui/execution/focus-return';
 import { useUIStore, type ThoughtScope, type ThoughtTab } from '@/features/chat/runtime/ui-store';
-import type { ThreadMessage } from '@/features/chat/model/thread-history';
-import type { Message as ConversationMessage } from '@alia.onl/sdk/runtime';
+import { type Message as ConversationMessage, type ThreadMessage } from '@alia.onl/sdk/model';
 import { useCallback, useEffect, useRef } from 'react';
 
 export type OpenThought = (messageId: string, tab?: ThoughtTab, opener?: unknown) => void;

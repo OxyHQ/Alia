@@ -35,7 +35,7 @@ import { askedQuestions, isQuestionInvocation } from '../lib/questions';
 import { extractCitationSources, linkifyCitations } from '../lib/citations';
 import { chatMessageEnter } from '../animations';
 import { getTextFromContent, getImagesFromContent } from '../lib/content-utils';
-import type { ChatMessage } from '../types';
+import type { Message } from '../runtime/types';
 
 // Resolve expo-image once at module load (optional peer dep)
 type ExpoImageProps = {
@@ -55,7 +55,7 @@ try {
 type PlaybackState = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
 
 export interface AliaChatMessageListProps {
-  messages: ChatMessage[];
+  messages: Message[];
   isStreaming: boolean;
   onReadAloud?: (messageId: string, text: string) => void;
   ttsActiveMessageId?: string | null;
@@ -87,7 +87,7 @@ const UserBubble = React.memo(function UserBubble({
   copiedMessageId,
   showEditButton,
 }: {
-  message: ChatMessage;
+  message: Message;
   text: string;
   isEditing: boolean;
   editedContent: string;
@@ -185,7 +185,7 @@ function ReplyBody({
   actions,
   children,
 }: {
-  agent: ChatMessage['agentInfo'];
+  agent: Message['agentInfo'];
   thinking: boolean;
   /** What the model has reasoned so far: the thinking avatar folds it under its row. */
   reasoning: React.ReactNode;
@@ -240,7 +240,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
   onRejectPlan,
   renderMarkdown,
 }: {
-  message: ChatMessage;
+  message: Message;
   messageText: string;
   isStreamingThis: boolean;
   isLastMessage: boolean;
@@ -275,8 +275,8 @@ const AssistantMessage = React.memo(function AssistantMessage({
   const toolInvocations = message.toolInvocations;
   const researchProgress = message.researchProgress;
   const webLog = useMemo(
-    () => webSearchLog(toolInvocations, researchProgress, { t: labels.workLog }),
-    [toolInvocations, researchProgress, labels.workLog],
+    () => webSearchLog(toolInvocations, researchProgress, { t: labels.t }),
+    [toolInvocations, researchProgress, labels.t],
   );
   // The questions Alia asked, kept in the thread as a record. They are answered above the
   // composer (`AliaChatContent`), where the person is about to type.
@@ -290,8 +290,8 @@ const AssistantMessage = React.memo(function AssistantMessage({
     );
     return tasks.length === 0 || isStreamingThis
       ? null
-      : taskListLog(tasks, false, { t: labels.workLog });
-  }, [toolInvocations, isStreamingThis, labels.workLog]);
+      : taskListLog(tasks, false, { t: labels.t });
+  }, [toolInvocations, isStreamingThis, labels.t]);
 
   const isThisPlaying = ttsActiveMessageId === message.id && ttsPlaybackState === 'playing';
   const isThisPaused = ttsActiveMessageId === message.id && ttsPlaybackState === 'paused';

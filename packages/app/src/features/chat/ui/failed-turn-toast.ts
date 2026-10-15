@@ -1,5 +1,5 @@
 import { useTranslation } from '@/shared/i18n/use-translation';
-import type { FailedTurn } from '@alia.onl/sdk/runtime';
+import { type FailedTurn } from '@alia.onl/sdk/model';
 import { toast } from '@oxy.so/bloom/toast';
 import { useEffect, useRef } from 'react';
 

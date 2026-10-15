@@ -30,6 +30,16 @@ app's, moved and generalised (`src/runtime`).
   shows another conversation, loses focus or changes account.
 - **Who owns the open conversation:** a host that navigates (`runtime.openConversation`, or one
   from an outer `AliaRuntimeProvider`) decides; with none, `AliaChatContent` keeps its own.
+- **Breaking: `labels.workLog` is `labels.t`, and `englishWorkLog` is `englishCopy`.** One translator
+  keyed like the Alia app's catalogue asks for every string that is not a fixed `labels` field
+  (the work log, the thread, the thought panel…); the app hands its own `t` in, a host without one
+  reads English (`src/lib/copy-en.ts`).
+- **Breaking: `ChatMessage` is `Message`** (and `ToolInvocation` always has a `toolCallId`).
+- **New leaf entries.** `@alia.onl/sdk/model` is the conversation as pure data — the records and
+  what a list of messages becomes before anything draws it (`timelinePositions`, `buildSteps`,
+  `extractSources`, `cardOf`, `daySeparators`, `buildConversationMarkdown`…), no React, no Oxy
+  client. `@alia.onl/sdk/runtime` is the data layer (hooks, cache, stores) and re-exports the model.
+  `check:entries` holds both leaves free of the UI and the call.
 - **New peer: `@tanstack/react-query`** (the runtime's cache; `OxyProvider` already mounts it).
 - **New:** `AliaRuntimeProvider` / `useAliaRuntime` (`apiUrl`, `chatUrl`, `offline`, `streamFetch`,
   and `host: AliaRuntimeHost`: navigation, `onUsage`, `onArtifact`, `onToolResult`, `onContext`,

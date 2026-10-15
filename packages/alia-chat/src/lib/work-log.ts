@@ -8,12 +8,12 @@ import {
 } from '@oxy.so/bloom/icons';
 import type { TaskListChip, TaskListStep, TaskListTask } from '@oxy.so/bloom/task-list';
 import type { WebSearchBrand, WebSearchSource, WebSearchStep } from '@oxy.so/bloom/web-search';
-import type { ToolInvocation } from '../types';
+import type { ToolInvocation } from '../runtime/types';
 import { extractCitationSources } from './citations';
 import { domainOf } from './domain';
 import { getToolDoneLabel, getToolPillLabel } from './task-labels';
 import { toolCallStatus } from './tool-call-status';
-import { englishWorkLog, type Translate } from './work-log-copy';
+import { englishCopy, type Translate } from './copy';
 
 /**
  * A turn's tool calls, as the two Bloom logs draw them.
@@ -32,7 +32,7 @@ import { englishWorkLog, type Translate } from './work-log-copy';
 
 /** What a host can swap: the words, and where a site's icon is served from. */
 export interface WorkLogOptions {
-  /** Translator for the log's words (see `work-log-copy.ts`). Default: English. */
+  /** Translator for the log's words (see `copy.ts`). Default: English. */
   t?: Translate;
   /** The URL of a site's cached icon, or nothing for Bloom's quiet dot. */
   faviconUrl?: (url: string) => string | null | undefined;
@@ -154,7 +154,7 @@ function webStep(
   live: LiveResearch | undefined,
   options: WorkLogOptions,
 ): MappedStep {
-  const t = options.t ?? englishWorkLog;
+  const t = options.t ?? englishCopy;
   const arrived = inv.state !== 'partial-call';
   const ok = succeeded(inv);
   const res = resultOf(inv);
@@ -256,7 +256,7 @@ export function webSearchLog(
   research: LiveResearch | undefined,
   options: WorkLogOptions = {},
 ): WebSearchLog {
-  const t = options.t ?? englishWorkLog;
+  const t = options.t ?? englishCopy;
   const web = (invocations ?? []).filter(isWebInvocation);
   const mapped = web.map((inv) => webStep(inv, research, options));
 
@@ -333,7 +333,7 @@ export function taskListLog(
   live: boolean,
   options: WorkLogOptions = {},
 ): TaskListLog {
-  const t = options.t ?? englishWorkLog;
+  const t = options.t ?? englishCopy;
   let revealed = 0;
   let open = true;
   const tasks = (invocations ?? [])

@@ -1,4 +1,4 @@
-import type { VoiceErrorCode } from '@alia.onl/sdk';
+import { type VoiceErrorCode } from '@alia.onl/sdk';
 import type { VoiceCloseReason } from '@alia.onl/sdk/voice';
 
 /**

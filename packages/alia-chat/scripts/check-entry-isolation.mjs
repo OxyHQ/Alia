@@ -176,6 +176,41 @@ if (drawn.length > 0 || runtime.hits.length > 0 || runtime.visited.has(VOICE_LOO
   );
 }
 
+// `@alia.onl/sdk/model` is the conversation as pure data: it can be read from anywhere, so
+// nothing it reaches may need React, a native module or the Oxy client.
+const MODEL_FORBIDDEN = [
+  'react',
+  'react-native',
+  '@oxy.so/services',
+  '@oxy.so/bloom',
+  '@tanstack/react-query',
+  'zustand',
+  'expo-file-system',
+];
+const model = walk('runtime/model.ts', MODEL_FORBIDDEN[0], { exact: true });
+if (model.visited.size < 8) {
+  failures.push(
+    `Only ${model.visited.size} modules reachable from src/runtime/model.ts — the walker is broken.`,
+  );
+}
+// Positive control: the runtime entry, which re-exports the model, does reach React and zustand.
+for (const needle of ['react', 'zustand']) {
+  if (walk('runtime/index.ts', needle).hits.length === 0) {
+    failures.push(
+      `src/runtime/index.ts no longer reaches ${needle} — the model check proves nothing.`,
+    );
+  }
+}
+for (const forbidden of MODEL_FORBIDDEN) {
+  const { hits, importedBy } = walk('runtime/model.ts', forbidden);
+  if (hits.length > 0) {
+    failures.push(
+      `src/runtime/model.ts reaches ${forbidden}. The model is a pure leaf entry (@alia.onl/sdk/model).\n` +
+        hits.map((file) => `    ${chainTo(file, importedBy)}`).join('\n'),
+    );
+  }
+}
+
 if (!root.visited.has(VOICE_LOOP)) {
   failures.push(
     `src/index.ts no longer reaches the voice call (hooks/useVoiceRoom.ts). The conversation ` +

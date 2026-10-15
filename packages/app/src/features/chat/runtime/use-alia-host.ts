@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
-import type { AliaRuntimeHost, AliaUsageFrame } from '@alia.onl/sdk/runtime';
+import { type Message } from '@alia.onl/sdk/model';
+import { type AliaRuntimeHost, type AliaUsageFrame } from '@alia.onl/sdk/runtime';
 import * as Haptics from 'expo-haptics';
 import { usePathname, useRouter } from 'expo-router';
 import { useMemo, useRef } from 'react';
@@ -14,7 +15,6 @@ import { USER_MEMORY_QUERY_KEY } from '@/features/memory/runtime/use-user-data';
 import { acquireNotificationsSocket } from '@/features/notifications/runtime/notifications-socket';
 import { queryKeys } from '@/shared/api/query-keys';
 import { collectDeviceInfo } from '@/shared/platform/device-info';
-import type { Message } from '@alia.onl/sdk/runtime';
 
 /** Server tools that mutate the user's memory document (see packages/api `lib/tools/user-memory.ts`). */
 const MEMORY_WRITING_TOOLS = new Set([

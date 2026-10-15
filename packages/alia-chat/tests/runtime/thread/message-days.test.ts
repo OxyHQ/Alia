@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { daySeparators } from '../message-days';
+import { daySeparators } from '../../../src/runtime/thread/message-days';
 
 /**
  * Whether the line lands where the READER's midnight is.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { flatConversations, groupHistory, sidebarSections } from '../sidebar-history';
-import type { Conversation } from '@alia.onl/sdk/runtime';
+import { type Conversation } from '@alia.onl/sdk/model';
 
 /**
  * Where a chat sits in the sidebar's tree, and which day of History it is under.

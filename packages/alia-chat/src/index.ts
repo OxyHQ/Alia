@@ -79,8 +79,6 @@ export type { Catalogue, CatalogueEntry, ModelSelection, ReasoningEffort } from 
 
 // ── Types ──
 export type {
-  ChatMessage,
-  ToolInvocation,
   AliaAttachment,
   AliaSuggestion,
   ResearchProgress,

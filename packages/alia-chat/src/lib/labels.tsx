@@ -1,6 +1,6 @@
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
 import { VOICE_ERROR_MESSAGES, type VoiceErrorCode } from './speech-messages';
-import { englishWorkLog, type Translate } from './work-log-copy';
+import { englishCopy, type Translate } from './copy';
 import { VOICE_CONTROLS_LABELS, type VoiceControlsLabels } from './voice-controls-labels';
 import type { VoiceCloseReason } from './voice-protocol';
 
@@ -81,8 +81,8 @@ export interface AliaChatLabels {
   reasoning: string;
   thoughtFor: (seconds: number) => string;
   // The turn's work log
-  /** The words of the tool log, keyed as the Alia app keys them (see `work-log-copy.ts`). */
-  workLog: Translate;
+  /** The words that are not one fixed field (the thread, its cards, the work log), keyed as the Alia app keys them (see `copy.ts`). */
+  t: Translate;
   // Conversations (the runtime's own words: toasts and the errors it raises)
   /** A conversation's title until it has one. */
   newChat: string;
@@ -164,7 +164,7 @@ export const DEFAULT_LABELS: AliaChatLabels = {
   planCancelled: 'Plan cancelled',
   reasoning: 'Reasoning',
   thoughtFor: (seconds) => `Thought for ${seconds} seconds`,
-  workLog: englishWorkLog,
+  t: englishCopy,
   newChat: 'New chat',
   sendFailed: "Your message couldn't be sent",
   signInRequired: 'Sign in to keep chatting',

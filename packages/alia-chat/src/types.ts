@@ -57,9 +57,6 @@ export interface PendingPlan {
   rejected: boolean;
 }
 
-/** A message of the thread, and a tool the model called in it: the conversation runtime's records. */
-export type { Message as ChatMessage, ToolInvocation } from './runtime/types';
-
 // ── Voice Types ──
 
 /**

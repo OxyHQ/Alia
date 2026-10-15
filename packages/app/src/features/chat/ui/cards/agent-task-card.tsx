@@ -1,6 +1,6 @@
 import type { AgentActivityState } from '@/features/chat/runtime/use-agent-activity';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { getToolPillLabel } from '@/features/chat/model/task-utils';
+import { getToolPillLabel } from '@alia.onl/sdk/model';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { AgentProgress } from '@oxy.so/bloom/agent-progress';
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';

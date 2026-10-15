@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { cardOf } from '@/features/chat/model/tool-cards';
+import { cardOf } from '@alia.onl/sdk/model';
 import { codeOfFile } from '@/shared/testing/source-code';
 import { fixtureConversation, parseFixtureId } from '../conversation';
 

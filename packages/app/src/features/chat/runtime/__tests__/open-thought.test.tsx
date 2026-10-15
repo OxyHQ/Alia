@@ -38,7 +38,7 @@ vi.mock('@oxy.so/bloom/ai-chat', async () => {
 import { TurnStatusLine } from '@/features/chat/ui/turn-status-line';
 import { thoughtScopeFor, useOpenThought } from '@/features/chat/runtime/use-open-thought';
 import { useUIStore, type ThoughtScope } from '@/features/chat/runtime/ui-store';
-import type { ThreadMessage } from '@/features/chat/model/thread-history';
+import { type ThreadMessage } from '@alia.onl/sdk/model';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
