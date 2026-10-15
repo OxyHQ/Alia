@@ -37,7 +37,7 @@ import { findConnectedAccountForChannel } from '../db/integrations/connectedAcco
 import { getStatusCode } from './errors/index.js';
 import { findLinkedBotUser, findSystemBot } from '../db/integrations/botRepository.js';
 import { sendChannelMessage } from './channels/outbound.js';
-import { webPush, VAPID_PUBLIC_KEY } from './web-push.js';
+import { webPush, VAPID_PUBLIC_KEY, isUnrecoverableSubscriptionError } from './web-push.js';
 import { getIO } from '../socket.js';
 import { log } from './logger.js';
 import type { ChannelId } from './channels/types.js';
@@ -309,13 +309,12 @@ async function deliverWebPush(userId: string, notification: NotificationRow): Pr
           payload,
         );
       } catch (error: unknown) {
-        const statusCode = getStatusCode(error);
-        if (statusCode === 410 || statusCode === 404) {
-          // Subscription expired or invalid — deactivate
+        if (isUnrecoverableSubscriptionError(error)) {
+          // Expired, or created under a VAPID key we no longer sign with: deactivate
           await deactivateWebPushSubscriptionById(getDb(), sub.id);
           log.general.info(
-            { userId, endpoint: sub.endpoint },
-            'Web push subscription expired, deactivated',
+            { userId, endpoint: sub.endpoint, statusCode: getStatusCode(error) },
+            'Web push subscription unusable, deactivated',
           );
         } else {
           log.general.warn(

@@ -35,6 +35,7 @@ import {
   isValidUsername,
   stripDisallowedUsernameCharacters,
 } from '@oxy.so/contracts';
+import { getErrorStatus } from '@oxy.so/core';
 import type { Executor } from '../db/index.js';
 import {
   findAgentByOxyAccountId,
@@ -201,7 +202,12 @@ export async function findAgentByOxyHandle(
     if (typeof profile.id !== 'string' || profile.id === '') return null;
     accountId = profile.id;
   } catch (error: unknown) {
-    log.general.warn({ err: error, username }, 'Oxy could not resolve an agent handle');
+    // "No such handle" is the caller's typo, not a fault: Oxy answers 404
+    // `Profile not found`, and that is the same null as any other miss. Only
+    // what is NOT a plain not-found (Oxy down, auth, 5xx) is worth a warning.
+    if (getErrorStatus(error) !== 404) {
+      log.general.warn({ err: error, username }, 'Oxy could not resolve an agent handle');
+    }
     return null;
   }
 
