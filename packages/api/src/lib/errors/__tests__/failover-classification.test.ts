@@ -125,3 +125,26 @@ describe('a permission refusal is placed where it came from', () => {
     expect(classifyError(refusal(403))).toBe('auth');
   });
 });
+
+describe('a request over the Oxy input budget', () => {
+  const budgetRefusal = (
+    code: 'context_length_exceeded' | 'request_too_large' | 'invalid_request',
+  ) =>
+    new OxyInferenceError({
+      code,
+      message: 'The controlled input exceeds the internal pilot budget',
+      retryable: false,
+      requestId: 'req-budget',
+      status: 502,
+    });
+
+  it.each(['context_length_exceeded', 'request_too_large', 'invalid_request'] as const)(
+    'is CONTEXT_TOO_LONG whichever code (%s) carries it, and says what to do',
+    (code) => {
+      const error = toAliaError(budgetRefusal(code));
+      expect(classifyError(budgetRefusal(code))).toBe('context_length');
+      expect(error).toMatchObject({ code: AliaErrorCode.CONTEXT_TOO_LONG, retryable: false });
+      expect(error.userMessage).toMatch(/new conversation|shorten/i);
+    },
+  );
+});

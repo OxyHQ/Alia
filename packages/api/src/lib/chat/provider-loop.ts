@@ -59,7 +59,11 @@ import { runTextToolFallback } from './text-tool-fallback.js';
 import type { ToolRouting } from '../tool-budget.js';
 
 /** Terminal model-response errors that need no route-level substitution. */
-const TERMINAL_STREAM_ERRORS: Set<FailoverReason> = new Set(['format', 'content_filter']);
+const TERMINAL_STREAM_ERRORS: Set<FailoverReason> = new Set([
+  'format',
+  'context_length',
+  'content_filter',
+]);
 
 /**
  * Mutable state shared between the route and the hosted attempt. The route's
