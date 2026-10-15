@@ -36,7 +36,7 @@
   "dependencies": {
     "clsx": "^2.1.1",
     "react-native-markdown-display": "^7.0.2",
-    "socket.io-client": "^4.8.3",
+    "socket.io-client": "^4.8.4",
     "tailwind-merge": "^3.7.0",
     "zustand": "^5.0.15"
   },
@@ -76,8 +76,8 @@
     }
   },
   "devDependencies": {
-    "@types/react-test-renderer": "^19.1.0",
-    "react-test-renderer": "19.2.3",
+    "@types/react-test-renderer": "^19.3.0",
+    "react-test-renderer": "19.3.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10",
     "react-native-audio-api": "0.13.6",
