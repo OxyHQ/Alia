@@ -1,5 +1,61 @@
 # @alia.onl/sdk
 
+## 18.0.0
+
+One thread, one conversation screen. The Alia app's thread — its turns, cards, work log, thought
+panel, history, search and scroll window — moves into the SDK, and `AliaChatContent` becomes the
+whole conversation: the bottom sheet, `AliaChatScreen` and the app are frames around it. What the
+app keeps is what is its own: the sidebar, the right panel, the column layout that mounts them,
+its routes and its callbacks.
+
+- **Breaking: the sheet and the screen draw the app's thread.** `AliaChatMessageList` and
+  `ThinkingBlock` are gone, with the avatar-identity reply they drew. The turns are Bloom's AI Chat
+  turns (`AliaThread`, `ThreadRow`), with copy, like/dislike, read aloud, regenerate, edit, the
+  long-press menu, day lines, tool cards, the "Worked for…" line and the failed turn's toast with
+  Retry. `renderMarkdown`, `onEditMessage`, `onThumbsUp`, `onThumbsDown`, `onApprovePlan` and
+  `onRejectPlan` are removed from `AliaChatContent`: the thread edits in the composer, votes through
+  the API (`PATCH /v1/conversations/:id/messages/:id/vote`) and answers plans itself.
+- **Breaking: `AliaChatContent`'s `header` is `chrome`.** `chrome(state)` returns
+  `{ header, title, project, actions }`, the whole of what the container draws around the thread
+  (the breadcrumb included). `AliaChatState.clear` is `startOver`; it also carries `conversationId`,
+  `clearMessages`, `openSearch` and `getMessages`. `AliaVoiceOptions` loses `isFocused` (the chat
+  has one, for the ambient field too) and gains `sounds`.
+- **New: what a host brings to `AliaChatContent`.** `threadHandle` (an agent's permanent thread:
+  history above, search, jump), `ephemeral` (ghost mode), `model` + `onModelChange` +
+  `deviceModels` (the power-level selector: the seven levels from `buildPowerLevelOptions`, then
+  the person's own devices), `addMenu` (the host's rows; photos by default), `composerStatus`,
+  `surface`, `layout`, `isFocused`, `bottomInset` (now gives way to the keyboard,
+  `KeyboardSafeAreaFloor`), `onSignInRequired`, `renderUsageLimit`, `onSuggestionPicked`.
+  `AliaSuggestion.template` marks a line with blanks to fill.
+- **New: where the work of a turn is read.** `ThoughtPanel` draws the selection of
+  `useThoughtStore` (`open`, `setTab`, `sync`, `close`); the host places it. `AliaRuntimeHost`
+  gains `showThought(opening)` (return `false` to decline an automatic opening), `openAutomation`
+  (a scheduled-task card is a link only where the host says where it goes) and `faviconUrl`.
+  `AliaChatSheet` opens it in a sheet over the conversation. `FilesAndSources` takes
+  `outputActions` (`canOpen`/`open`): asking whether a file opens no longer opens it.
+- **New: the weather, market and FairCoin cards are the SDK's.** Their tools are in the pipeline
+  every Alia surface calls and the numbers travel in the message, so any surface that draws Alia's
+  reply draws them.
+- **New: `AliaRuntimeProvider speech`** (`voice`, `tone`, `language`) for read-aloud, dictation and
+  calls; `useTTS` takes its `apiUrl` and preferences from it.
+- **New: the thread's data layer, in `@alia.onl/sdk/runtime`.** `useThreadHistory`,
+  `useThreadSearch`, `useThreadWindow`, `useAgentActivity` (and `applyActivityEvent` /
+  `hydrateActivity` in `/model`), `useThoughtStore`, `aliaQueryKeys.threads`,
+  `AliaApi.patch`, `ConversationThread`, `AgentRun` (`useConversationThread` now
+  returns `agentRun`), and `useConversation(undefined)`. The agent routes are Alia's own clients'
+  (outside `/v1`).
+- **New: `@alia.onl/sdk/model`** also carries the power levels (`POWER_LEVELS`,
+  `resolveModeSelection`…) and `triggerLabel` / `cronLabel`.
+- **Changed: `AliaChatScreen`'s ambient field takes the whole screen's shape** (`layout="screen"`, the default); the sheet keeps its smaller one (`layout="sheet"`).
+- **Changed: `labels.locale`** (the language `labels.t` speaks, for dates, days and prices). The
+  chat's English covers every key the thread asks for (`tests/lib/copy-keys.test.ts` reads the
+  source and fails on one it lacks).
+- **Changed: `AliaMarkdown` defaults its body face to Bloom's** (`MARKDOWN_BODY` is gone), and
+  `ReplyMarkdown` — rich blocks, references list, code card — is the reply's renderer.
+- **New peers:** `expo-web-browser`, `react-native-css`; `expo-clipboard` is no longer optional.
+- **Fixed:** the thought panel asked "can this file open?" by opening it, once per output, while
+  rendering.
+
 ## 17.1.0
 
 - **New leaf entry `@alia.onl/sdk/avatar`.** `AliaAvatarIcon`, `AliaAvatar`, `ALIA_AVATAR` and

@@ -696,7 +696,7 @@ function stampToMs(stamp: string | undefined): number | null {
  * started the turn. Both are scans. That is the right shape for the execution
  * panel, which asks about a single message a person has opened.
  *
- * The thread asks about all of them. `chat-interface.tsx` called it once per
+ * The thread asks about all of them. The thread once called it once per
  * row, inside the render, with the WHOLE list as the second argument — so
  * drawing n messages cost O(n²) comparisons, and it paid that on every render.
  * The list re-renders roughly twenty times a second while an answer streams,

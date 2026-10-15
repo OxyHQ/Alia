@@ -5,6 +5,8 @@ const read = (file: string) =>
   readFileSync(new URL(`../../src/components/${file}`, import.meta.url), 'utf8');
 const source = read('AliaChatSheet.tsx');
 const content = read('AliaChatContent.tsx');
+// What the person does with the composer — sending, the first turn, the initial one — is its hook's.
+const composer = read('../hooks/useChatComposer.ts');
 
 describe('AliaChatSheet request lifecycle wiring', () => {
   it('stops both chats when the imperative dismiss begins', () => {
@@ -46,8 +48,25 @@ describe('AliaChatSheet stacking', () => {
 
   it("hands an empty chat's first turn to the host and sends the initial turn once", () => {
     expect(content).toMatch(/onStart\?: \(turn: AliaTurn\) => void/);
-    expect(content).toMatch(/if \(startsElsewhere\) \{[\s\S]*?onStart\(\{ text, \.\.\.\(images/);
-    expect(content).toMatch(/initialSent\.current = true/);
+    expect(composer).toMatch(/if \(startsElsewhere\) \{[\s\S]*?onStart\(\{ text, \.\.\.\(images/);
+    expect(composer).toMatch(/initialSent\.current = true/);
+  });
+});
+
+describe('AliaChatSheet thought sheet', () => {
+  it("opens a turn's work in a third sheet over the conversation when the reader asks", () => {
+    expect(source).toMatch(
+      /showThought: \(opening\) => \{\s*if \(opening === 'automatic'\) return false;\s*thoughtRef\.current\?\.present\(\);\s*return true;/,
+    );
+    expect(source).toMatch(/<ThoughtPanel onClose=\{closeThought\} \/>/);
+    expect(source).toMatch(/runtime,\s*bottomInset/);
+  });
+
+  it('closes with the sheet it is over, and drops the selection with it', () => {
+    expect(source).toMatch(
+      /const closeThought = useCallback\(\(\) => \{\s*useThoughtStore\.getState\(\)\.close\(\);\s*thoughtRef\.current\?\.dismiss\(\);/,
+    );
+    expect(source.match(/closeThought\(\);/g)?.length).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -59,10 +78,10 @@ describe('AliaChatSheet avatar flights', () => {
   });
 
   it('launches the greeting avatar into the header with the first turn, once the conversation sheet is open', () => {
-    expect(content).toMatch(
+    expect(composer).toMatch(
       /onStart\(\{ text, \.\.\.\(images\.length > 0 \? \{ images \} : \{\}\) \}\);\s*await flights\.launch\(\[ALIA_TO_PROFILE\]\)/,
     );
-    expect(content).toMatch(
+    expect(composer).toMatch(
       /if \(firstTurn\) await flights\.launch\(\[ALIA_TO_PROFILE\]\);\s*await sendTurn\(/,
     );
   });
@@ -94,10 +113,10 @@ describe('AliaChatSheet focus', () => {
   });
 
   it('focuses the composer field when the sheet is up, and uses no timer to wait for it', () => {
-    expect(content).toMatch(
-      /useFocusWhenPresented\(presentedProgress, \(\) => composerRef\.current\?\.focus\(\)\)/,
+    expect(composer).toMatch(
+      /useFocusWhenPresented\(presentedProgress, \(\) => inputRef\.current\?\.focus\(\)\)/,
     );
-    expect(content).toMatch(/inputRef=\{composerRef\}/);
+    expect(content).toMatch(/inputRef=\{composer\.inputRef\}/);
     expect(read('../hooks/useFocusWhenPresented.ts')).not.toMatch(
       /setTimeout|requestAnimationFrame/,
     );

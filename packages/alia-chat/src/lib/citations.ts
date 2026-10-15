@@ -87,7 +87,7 @@ export function normalizeCitationMarkers(text: string, knownIds?: Iterable<numbe
 
 /**
  * The accessible name of one citation: what a screen reader says for the
- * link, and what `CustomMarkdown` puts in the link's title.
+ * link, and what `ReplyMarkdown` puts in the link's title.
  */
 export function citationLabel(source: CitationSource): string {
   return `Source ${source.id}: ${source.title}`;
@@ -112,4 +112,81 @@ export function linkifyCitations(text: string, sources: CitationSource[]): strin
     const title = citationLabel(source).replace(/"/g, "'");
     return `[${n}](${source.url} "${title}")`;
   });
+}
+
+/** One entry of a rendered references section. */
+export interface ReferenceEntry {
+  id: number;
+  title: string;
+  url: string;
+  domain: string;
+}
+
+/**
+ * Where the references section starts: the API writes `## References` after a
+ * rule; the heading is matched loosely so an older answer, or one
+ * written in Spanish by the model itself, splits the same way.
+ */
+const REFERENCES_HEADING_RE =
+  /(?:^|\n)(?:---\s*\n+)?#{1,3}\s*(?:References|Referencias|Sources|Fuentes)\s*:?\s*(?:\n|$)/i;
+
+/** `[n] [Title](url)` (new) or `[n] Title` + a URL line (legacy). */
+const REFERENCE_LINE_RE = /^\s*\[(\d{1,3})\]\s*(.*)$/;
+// The title may carry escaped brackets (`React \[Wikipedia\]`), which the
+// API writes for a title that contains them.
+const MARKDOWN_LINK_RE = /^\[((?:\\.|[^\]\\])*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)\s*$/;
+const URL_RE = /https?:\/\/[^\s)]+/;
+
+/**
+ * Split an answer into its body and the entries of its references section.
+ *
+ * `references` is `null` when the section is absent or none of its lines
+ * parse, in which case the caller renders the whole text as Markdown and
+ * nothing is lost. Known sources fill in a title or URL a legacy line lacks.
+ */
+export function splitReferences(
+  text: string,
+  sources: CitationSource[] = [],
+): { body: string; references: ReferenceEntry[] | null } {
+  const match = REFERENCES_HEADING_RE.exec(text);
+  if (!match) return { body: text, references: null };
+
+  const body = text.slice(0, match.index).replace(/\s+$/, '');
+  const section = text.slice(match.index + match[0].length);
+  const byId = new Map(sources.map((s) => [s.id, s]));
+
+  const entries: ReferenceEntry[] = [];
+  let current: { id: number; rest: string } | null = null;
+  const flush = () => {
+    if (!current) return;
+    const known = byId.get(current.id);
+    const rest = current.rest.trim();
+    const link = MARKDOWN_LINK_RE.exec(rest);
+    let url = link ? link[2] : (URL_RE.exec(rest)?.[0] ?? known?.url ?? '');
+    let title = link ? link[1] : rest.replace(URL_RE, '').replace(/\s+/g, ' ').trim();
+    if (!url && known) url = known.url;
+    if (!title) title = known?.title ?? (url ? domainOf(url, { stripWww: true }) : '');
+    if (url)
+      entries.push({
+        id: current.id,
+        title: title.replace(/\\([[\]])/g, '$1'),
+        url,
+        domain: domainOf(url, { stripWww: true }),
+      });
+    current = null;
+  };
+
+  for (const line of section.split('\n')) {
+    const m = REFERENCE_LINE_RE.exec(line);
+    if (m) {
+      flush();
+      current = { id: Number(m[1]), rest: m[2] };
+    } else if (current && line.trim().length > 0) {
+      // A legacy entry's URL sits on the indented line after the title.
+      current.rest += ` ${line.trim()}`;
+    }
+  }
+  flush();
+
+  return entries.length > 0 ? { body, references: entries } : { body: text, references: null };
 }

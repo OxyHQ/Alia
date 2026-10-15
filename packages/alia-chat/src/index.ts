@@ -3,10 +3,18 @@
 // Reusable chat UI, voice, and streaming components for Oxy apps
 
 // ── Main components ──
-export type { AliaChatAgent, AliaChatState, AliaVoiceOptions } from './components/AliaChatContent';
+export { AliaChatContent } from './components/AliaChatContent';
+export type {
+  AliaChatAgent,
+  AliaChatChrome,
+  AliaChatContentProps,
+  AliaChatState,
+} from './components/AliaChatContent';
+export type { AliaAddMenu } from './lib/add-menu';
+export type { AliaVoiceOptions } from './hooks/useChatVoice';
 export { AliaChatSheet } from './components/AliaChatSheet';
 export type { AliaChatSheetProps, AliaChatSheetRef } from './components/AliaChatSheet';
-export type { AliaTurn } from './components/AliaChatContent';
+export type { AliaTurn } from './hooks/useChatComposer';
 export { AliaChatScreen } from './components/AliaChatScreen';
 export type { AliaChatScreenProps } from './components/AliaChatScreen';
 
@@ -28,6 +36,16 @@ export { IdentityMark } from './components/IdentityMark';
 export type { IdentityMarkProps, IdentityMarkState } from './components/IdentityMark';
 export { AliaMarkdown } from './components/Markdown';
 export type { AliaMarkdownProps, RenderCodeBlock } from './components/Markdown';
+export { ReplyMarkdown } from './components/ReplyMarkdown';
+export { AliaThread } from './components/thread/AliaThread';
+export type { AliaThreadProps, NewConversationOfferProps } from './components/thread/AliaThread';
+export { ThoughtPanel } from './components/thought/ThoughtPanel';
+export type { ThoughtPanelProps } from './components/thought/ThoughtPanel';
+export type { OutputActions } from './components/thought/FilesAndSources';
+export { CanvasComponent } from './components/canvas/CanvasComponent';
+export { restoreOpenerFocus } from './lib/focus-return';
+export { buildPowerLevelOptions, POWER_LEVEL_ICONS } from './lib/power-level-options';
+export type { DeviceModel } from './lib/power-level-options';
 export { AliaWelcomeMessage } from './components/AliaWelcomeMessage';
 export { PlanPreviewCard } from './components/PlanPreviewCard';
 export { AskedQuestions, QuestionCard } from './components/QuestionCard';

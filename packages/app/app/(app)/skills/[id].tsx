@@ -1,4 +1,4 @@
-import { CustomMarkdown } from '@/features/chat/ui/markdown';
+import { ReplyMarkdown } from '@alia.onl/sdk';
 import { SkillCover } from '@/features/skills/ui/skill-cover';
 import {
   useInstallSkill,
@@ -233,7 +233,7 @@ export default function SkillDetailScreen() {
           {skill.publisher ? (
             <Muted>{t('skills.untrusted', { publisher: skill.publisher })}</Muted>
           ) : null}
-          {version ? <CustomMarkdown content={version.body} /> : null}
+          {version ? <ReplyMarkdown content={version.body} /> : null}
         </View>
 
         <View className="gap-2">

@@ -1,7 +1,6 @@
 import { AgentPanel } from '@/features/chat/ui/workspace/agent-panel';
-import { CanvasComponent } from '@/features/chat/ui/canvas/canvas-component';
 import { CreditsLimits } from '@/features/chat/ui/workspace/credits-limits';
-import { ThoughtPanel } from '@/features/chat/ui/thought-panel';
+import { CanvasComponent, type OutputActions, ThoughtPanel } from '@alia.onl/sdk';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useLibraryStore } from '@/features/library/runtime/library-store';
 import { canSaveImage, imageFilename, saveImage } from '@/features/chat/runtime/save-image';
@@ -98,7 +97,7 @@ export function WorkspacePanel({ width }: { width: number | '100%' }) {
       return (
         <View className="h-full min-h-0" style={{ width }}>
           {kind === 'thought' ? (
-            <ThoughtPanel />
+            <ThoughtPanelSlot />
           ) : kind === 'credits' ? (
             <CreditsLimits />
           ) : (
@@ -111,6 +110,26 @@ export function WorkspacePanel({ width }: { width: number | '100%' }) {
     default:
       return <CodePanel width={width} style={style} artifacts={artifacts} />;
   }
+}
+
+/**
+ * The thought panel in the right slot. Closing it empties the slot, and a generated file opens in
+ * the canvas only while the canvas holds its artifact — the runtime adds one per generated file
+ * under the invocation's id, and nothing persists it, so a reloaded thread lists the file by name
+ * and offers no press, rather than a press that opens an empty canvas.
+ */
+function ThoughtPanelSlot() {
+  const setRightPanel = useUIStore((s) => s.setRightPanel);
+  const artifacts = useUIStore((s) => s.canvasArtifacts);
+  const outputActions = useMemo<OutputActions>(
+    () => ({
+      canOpen: (output) => artifacts.some((artifact) => artifact.id === output.id),
+      open: () => setRightPanel('canvas'),
+    }),
+    [artifacts, setRightPanel],
+  );
+  const close = useCallback(() => setRightPanel(null), [setRightPanel]);
+  return <ThoughtPanel onClose={close} outputActions={outputActions} />;
 }
 
 function lineCount(text: string): number {

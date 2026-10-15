@@ -96,19 +96,21 @@ export function AliaChatScreen({
   // keyboard's height minus the inset: the composer sits on the keyboard, not
   // one inset above it. (Its parent-relative layout would read as zero overlap
   // this deep in a host's tree, which is why the offset is measured.)
-  const header = useCallback<NonNullable<AliaChatContentProps['header']>>(
-    ({ hasMessages, clear, agents: answered }) => (
-      <AliaChatHeader
-        hasMessages={hasMessages}
-        agents={answered}
-        onClear={clear}
-        onBack={onBack}
-        onShare={onShare}
-        menu={headerMenu}
-        leading={headerLeft}
-        trailing={headerRight}
-      />
-    ),
+  const chrome = useCallback<NonNullable<AliaChatContentProps['chrome']>>(
+    ({ hasMessages, startOver, agents: answered }) => ({
+      header: (
+        <AliaChatHeader
+          hasMessages={hasMessages}
+          agents={answered}
+          onClear={startOver}
+          onBack={onBack}
+          onShare={onShare}
+          menu={headerMenu}
+          leading={headerLeft}
+          trailing={headerRight}
+        />
+      ),
+    }),
     [onBack, onShare, headerMenu, headerLeft, headerRight],
   );
 
@@ -131,7 +133,7 @@ export function AliaChatScreen({
             isDarkMode={isDarkMode}
             voice={voice}
             labels={labels}
-            header={header}
+            chrome={chrome}
           />
         </KeyboardAvoidingView>
       </View>

@@ -1,5 +1,5 @@
-import { useComposerAddMenu } from '@/features/chat/ui/composer/add-menu';
-import { type AliaAttachment, type AliaComposerProps } from '@alia.onl/sdk';
+import { type ComposerAddMenu, useComposerAddMenu } from '@/features/chat/ui/composer/add-menu';
+import type { AliaAttachment, AliaComposerProps } from '@alia.onl/sdk';
 import {
   type DraftTarget,
   useComposerDraft,
@@ -78,6 +78,86 @@ export type AliaComposerHostProps = Pick<
   | 'onAddMenuSelect'
 >;
 
+/**
+ * The plus button's menu for the composer that edits `target`'s draft: attachments, the
+ * capabilities a turn may use (web search, deep research, agent, ghost), the person's skills and
+ * connected apps. What each row means is the app's — plan gates, the router, the library — so the
+ * SDK chat is handed the rows (`addMenu`) rather than drawing rows of its own.
+ */
+export function useComposerMenu({
+  target,
+  locked = false,
+  offerGhost = false,
+}: {
+  target: DraftTarget;
+  /** A turn is streaming or the composer is closed: nothing may be attached. */
+  locked?: boolean;
+  /** Offer ghost mode: only before anything in the conversation is saved. */
+  offerGhost?: boolean;
+}): ComposerAddMenu {
+  const { t } = useTranslation();
+  const draft = useComposerDraft(target);
+  const address = useDraftAddress(target);
+  const { mcpServerId: connectorId, skillNames } = draft;
+  const addAttachment = useCallback(
+    (attachment: AliaAttachment) =>
+      useComposerDraftStore.getState().addAttachment(address, attachment),
+    [address],
+  );
+  const webSearch = useModelStore((s) => s.webSearch);
+  const setWebSearch = useModelStore((s) => s.setWebSearch);
+  const { active: modeActive, toggle: toggleMode } = useCapabilityModes();
+  const { installed } = useMcpServers();
+  const { data: installedSkills = [] } = useInstalledSkills();
+
+  /**
+   * The connector and the skills chosen for the NEXT message, kept in the draft. Per turn:
+   * choosing none is the normal case, since Alia can load a skill on its own when a request
+   * matches; this is for saying "use this one" out loud.
+   */
+  const updateTurn = useComposerDraftStore((state) => state.updateTurn);
+  const turnSelection = useMemo(
+    () =>
+      buildTurnSelection({
+        installedSkills,
+        installedConnectors: installed,
+        selectedSkillNames: skillNames,
+        selectedConnectorId: connectorId,
+      }),
+    [installedSkills, installed, skillNames, connectorId],
+  );
+
+  // Withholds three tools rather than rewording a prompt: an off switch the model cannot overrule
+  // (see `src/features/chat/runtime/model-store.ts`).
+  const toggleWebSearch = useCallback(() => {
+    const next = !webSearch;
+    setWebSearch(next);
+    toast.info(next ? t('modes.searchOn') : t('modes.searchOff'));
+  }, [webSearch, setWebSearch, t]);
+
+  return useComposerAddMenu({
+    addAttachment,
+    canAttach: !locked,
+    modes: modeActive,
+    toggleMode,
+    webSearch,
+    onToggleWebSearch: toggleWebSearch,
+    onOpenCanvas: () => useUIStore.getState().setRightPanel('canvas'),
+    offerGhost,
+    turnSelection,
+    onToggleSkill: (name: string) =>
+      updateTurn(address, (turn) => ({
+        ...turn,
+        skillNames: toggleSkillName(turn.skillNames, name),
+      })),
+    onToggleConnector: (id: string) =>
+      updateTurn(address, (turn) => ({
+        ...turn,
+        mcpServerId: toggleConnectorId(turn.mcpServerId, id),
+      })),
+  });
+}
+
 export function useAliaComposer({
   draft: target,
   locked = false,
@@ -105,37 +185,6 @@ export function useAliaComposer({
   );
   const selectedLevel = useModelStore((s) => s.selectedLevel);
   const setSelectedLevel = useModelStore((s) => s.setSelectedLevel);
-  const webSearch = useModelStore((s) => s.webSearch);
-  const setWebSearch = useModelStore((s) => s.setWebSearch);
-  const { active: modeActive, toggle: toggleMode } = useCapabilityModes();
-  const { installed } = useMcpServers();
-  const { data: installedSkills = [] } = useInstalledSkills();
-
-  /**
-   * The connector and the skills chosen for the NEXT message, kept in the
-   * draft. Per turn: choosing none is the normal case, since Alia can load a
-   * skill on its own when a request matches; this is for saying "use this
-   * one" out loud.
-   */
-  const updateTurn = useComposerDraftStore((state) => state.updateTurn);
-  const turnSelection = useMemo(
-    () =>
-      buildTurnSelection({
-        installedSkills,
-        installedConnectors: installed,
-        selectedSkillNames: skillNames,
-        selectedConnectorId: connectorId,
-      }),
-    [installedSkills, installed, skillNames, connectorId],
-  );
-
-  // Withholds three tools rather than rewording a prompt: an off switch the
-  // model cannot overrule (see `src/features/chat/runtime/model-store.ts`).
-  const toggleWebSearch = useCallback(() => {
-    const next = !webSearch;
-    setWebSearch(next);
-    toast.info(next ? t('modes.searchOn') : t('modes.searchOff'));
-  }, [webSearch, setWebSearch, t]);
 
   // The power levels (and the person's own device models), as Bloom's mode
   // pill takes them (`power-level-options.ts`). A screen that keeps its own
@@ -148,27 +197,7 @@ export function useAliaComposer({
     { devices: !promptOnly },
   );
 
-  const addMenu = useComposerAddMenu({
-    addAttachment,
-    canAttach: !locked,
-    modes: modeActive,
-    toggleMode,
-    webSearch,
-    onToggleWebSearch: toggleWebSearch,
-    onOpenCanvas: () => useUIStore.getState().setRightPanel('canvas'),
-    offerGhost,
-    turnSelection,
-    onToggleSkill: (name: string) =>
-      updateTurn(address, (turn) => ({
-        ...turn,
-        skillNames: toggleSkillName(turn.skillNames, name),
-      })),
-    onToggleConnector: (id: string) =>
-      updateTurn(address, (turn) => ({
-        ...turn,
-        mcpServerId: toggleConnectorId(turn.mcpServerId, id),
-      })),
-  });
+  const addMenu = useComposerMenu({ target, locked, offerGhost });
 
   /**
    * The mode selector is the power level: how much power this turn gets.

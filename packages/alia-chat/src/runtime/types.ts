@@ -114,6 +114,12 @@ export interface Conversation {
   messages: Message[];
 }
 
+/** The run a delegated agent started for a turn: its session is `turnId`, in the agent's own room. */
+export interface AgentRun {
+  turnId: string;
+  agentId: string;
+}
+
 /** One page of the paginated conversation list. */
 export interface ConversationsPage {
   conversations: Conversation[];

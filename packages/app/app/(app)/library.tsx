@@ -1,4 +1,4 @@
-import { FileCard } from '@/features/chat/ui/file-card';
+import { FileCard } from '@/features/library/ui/file-card';
 import { useDocumentPicker } from '@/shared/platform/use-document-picker';
 import { useImagePicker } from '@/shared/platform/use-image-picker';
 import { useTranslation } from '@/shared/i18n/use-translation';

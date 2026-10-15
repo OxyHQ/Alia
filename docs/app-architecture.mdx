@@ -35,7 +35,7 @@ packages/app/
 ```
 
 The features are `chat`, `voice`, `agents`, `automations` (tasks included),
-`research`, `memory`, `library`, `projects`, `shows`, `skills`, `connections`,
+`memory`, `library`, `projects`, `shows`, `skills`, `connections`,
 `local-models`, `billing`, `onboarding`, `notifications` and `settings`. A
 test sits in `__tests__/` beside the layer it mainly tests.
 
@@ -48,17 +48,37 @@ the shell. Between features, only these edges exist:
 | --- | --- |
 | shell | agents, chat, library, notifications, onboarding, projects, settings |
 | settings | billing, chat, connections, library, local-models, memory |
-| automations | agents, chat |
+| automations | agents |
 | agents | chat, library |
-| chat | billing, connections, library, local-models, memory, notifications, projects, research, skills, voice |
-| voice | memory |
+| chat | billing, connections, local-models, memory, notifications, projects, skills, voice |
 | shows | notifications |
 
 Every other feature imports only `shared/`. The graph has no cycle. When two
 features need the same type, it goes to `shared/contracts` rather than one
-reaching into the other: the chat draws an automation's trigger label from
-`shared/contracts/automations.ts`, and voice and the chat both send a turn
-shaped by `shared/contracts/chat-turn.ts`.
+reaching into the other: voice and the chat both send a turn shaped by
+`shared/contracts/chat-turn.ts`. What a conversation draws — the thread, its
+cards, the thought panel, the work log, the composer's levels, the voice call —
+is not an app feature at all: it is the SDK's (see the chat's section below).
+
+## The chat is the SDK's; this is what the app keeps
+
+A conversation is drawn by `@alia.onl/sdk` (`AliaChatContent`, the same screen the bottom sheet
+mounts: [the chat runtime](./chat-runtime.mdx#the-conversation-screen-is-the-sdks-too)). What stays
+in `src/features/chat` is only what is the app's:
+
+| Where | What | Why it is the app's |
+| --- | --- | --- |
+| `ui/conversation-screen.tsx` | the one screen behind `/`, `/c/:id` and `/@agent`: which power level and devices, the add menu, the project crumb, the usage dialog, toasts of the account | it composes the app's data (stores, plans, router) into the SDK screen's slots |
+| `ui/conversation-actions.tsx`, `ui/chat-header-actions.tsx` | search, export, clear, delete, agent terminal, the panel toggle | the right panel, the router and where an export goes |
+| `ui/chat-labels-provider.tsx` | the catalogue (`t`, `locale`) and the composer's and the call's words | the app translates; the SDK ships English |
+| `ui/chat-workspace.tsx` | the keyboard frame and the container of the screens that are not a conversation (intro, loading) | layout |
+| `ui/welcome-intro.tsx` | the signed-out intro | a route concern |
+| `ui/workspace/*` | credits and limits, the agent panel, the agent terminal | the right panel's contents |
+| `ui/composer/add-menu.tsx`, `use-alia-composer.ts` | the add menu's rows and the composers of the screens that create an agent, a skill or a task | capabilities, skills, connectors, entitlements and the library are the app's |
+| `ui/composer/power-level-options.ts` | which devices are connected | the app knows its devices; the levels are the SDK's |
+| `runtime/ui-store.ts` | the right panel, the sidebar, the canvas, the agent run it shows, the panel width | layout; what the thread selected (the thought panel's turn) is the SDK's `useThoughtStore` |
+| `runtime/use-alia-host.ts`, `use-alia-speech.ts`, `use-app-voice-options.ts` | what the app tells the SDK about itself | navigation, credits, memory, plan gates |
+| `runtime/*` stores (`global-store`, `model-store`, …), `model/*` | the app's own state and pure helpers (capabilities, turn selection, context usage) | the app's |
 
 ## The gate
 

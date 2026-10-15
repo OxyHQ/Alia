@@ -1,323 +1,139 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type React from 'react';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { APP_ROOT } from '@/shared/testing/app-root';
 
 /**
  * The new-chat screen is a chat, not a preview of one.
  *
- * `app/(app)/index.tsx` renders the same `ChatPageContent` as
- * `src/features/chat/ui/conversation-screen.tsx`, but it used to hand it seven props out
- * of the set the screen knows how to use — and the missing ones were all the
- * ones that matter when something goes wrong. A first turn could not be
- * stopped once it started. A first turn that FAILED drew nothing at all: no
- * error card, no retry, just a thread that quietly stopped growing. A plan
- * that asked for approval had no approve and no reject. The agent's offer of a
- * fresh thread had no answer. The gap read as "the first message is flaky",
- * because the second message onwards was sent from `/c/:id`, where every one
- * of those is wired.
+ * It used to hand its content seven props out of the set the conversation screen knew how to use
+ * — and the missing ones were all the ones that matter when something goes wrong: a first turn
+ * could not be stopped, a failed one drew no retry, a plan had no approve, the agent's offer of a
+ * fresh thread had no answer. In ghost mode the WHOLE conversation happens on this screen, so
+ * those capabilities were missing for its entire life.
  *
- * Ghost mode is why this is not merely a first-turn cosmetic. A ghost turn is
- * never persisted, so it never navigates: the WHOLE conversation happens on
- * this screen, and every one of those capabilities was missing for its entire
- * life.
- *
- * So this file pins the wiring itself rather than any behaviour downstream of
- * it: `ChatPageContent` is stubbed and captures the props it was handed, and
- * `useChatConversation` returns identifiable handlers, so each assertion is
- * "the screen passed the hook's own X" and cannot be satisfied by a screen
- * that passes something of its own invention. What each handler then DOES is
- * the hook's contract, pinned in `src/features/chat/runtime/__tests__/`.
- *
- * The absence of `conversationId` is pinned here too, in the same breath. It
- * is not an oversight to be tidied up by a later reader: `ChatPageContent`
- * uses it to name the draft its composer edits, and the drawer keeps every
- * visited chat mounted, so naming an id here would hand this screen's draft
- * to some persisted conversation.
+ * The cure is structural rather than a longer prop list: `/`, `/c/:id` and `/@agent` are three
+ * doors onto ONE `ConversationScreen`, which mounts the SDK's conversation (`AliaChatContent`,
+ * the same one the bottom sheet mounts) and brings the app around it. So this file pins the doors:
+ * the new-chat route names no conversation (that absence is what makes its first turn create
+ * one, and what keeps its draft its own), shows the intro to the signed-out and the chat after,
+ * and the other two routes mount the very same screen.
  */
 
-/** What the mocked hook hands back. Identity is the assertion, so every handler is its own fn. */
-const chat = vi.hoisted(() => ({
-  messages: [] as unknown[],
-  isLoading: false,
-  conversationLoading: false,
-  scrollViewRef: { current: null },
-  sendMessage: vi.fn(async () => true),
-  createNewConversation: vi.fn(async () => true),
-  editMessage: vi.fn(async () => true),
-  regenerateMessage: vi.fn(async () => true),
-  stopGeneration: vi.fn(),
-  clearConversation: vi.fn(async () => true),
-  approvePlan: vi.fn(),
-  rejectPlan: vi.fn(),
-  suggestedNewConversation: null as string | null,
-  dismissSuggestedNewConversation: vi.fn(),
-  failedTurn: null as unknown,
-  retryFailedTurn: vi.fn(async () => true),
-  ensureConversation: vi.fn(async () => 'made' as string | undefined),
+const auth = vi.hoisted(() => ({ isAuthenticated: true, isAuthResolved: true }));
+const captured = vi.hoisted(() => ({
+  screen: [] as Record<string, unknown>[],
+  dismiss: null as null | (() => void),
 }));
 
-/** Whether the person has ghost mode on, read through the global store's selector. */
-const ui = vi.hoisted(() => ({ ghostMode: false, setChatId: () => {} }));
-
-/** The props the screen handed `ChatPageContent` on its last render. */
-const captured = vi.hoisted(() => ({ props: null as Record<string, unknown> | null }));
-
-/**
- * The subject is the wiring, so the content is a stub that records it. Rendering
- * the real `ChatPageContent` would pull the composer, the thread list, voice and
- * the whole design system into a runner that has no native viewport, and would
- * let a missing prop hide behind a component that happens to tolerate it.
- */
-vi.mock('@/features/chat/ui/chat-page-content', async () => {
+vi.mock('@oxy.so/services', () => ({ useAuth: () => auth }));
+vi.mock('@/shared/i18n/use-translation', () => ({
+  useTranslation: () => ({ t: (key: string) => key, locale: 'en' }),
+}));
+vi.mock('expo-router/head', () => ({ default: () => null }));
+vi.mock('@oxy.so/bloom/ai-chat', () => ({ AiChatMobileHeader: () => null }));
+vi.mock('@/features/chat/ui/chat-workspace', async () => {
   const ReactModule = await import('react');
   return {
-    ChatPageContent: (props: Record<string, unknown>) => {
-      captured.props = props;
-      return ReactModule.createElement('ChatPageContent', null);
+    ChatWorkspace: ({ children }: { children: React.ReactNode }) =>
+      ReactModule.createElement('ChatWorkspace', null, children),
+  };
+});
+vi.mock('@/features/chat/ui/conversation-screen', async () => {
+  const ReactModule = await import('react');
+  return {
+    ConversationScreen: (props: Record<string, unknown>) => {
+      captured.screen.push(props);
+      return ReactModule.createElement('ConversationScreen', null);
     },
   };
 });
-
-vi.mock('react-native', async () => {
-  const ReactModule = await import('react');
-  return {
-    View: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('View', props, children),
-  };
-});
-
-/**
- * Reanimated drives the rise the chat makes as the intro leaves. None of it is
- * under test, and its real module wants a worklet runtime, so the shared value
- * is a plain box and the animated view is a host element.
- */
-vi.mock('react-native-reanimated', async () => {
-  const ReactModule = await import('react');
-  const AnimatedView = ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-    ReactModule.createElement('AnimatedView', props, children);
-  return {
-    default: { View: AnimatedView },
-    Easing: { bezier: () => 'ease' },
-    useAnimatedStyle: (build: () => unknown) => build(),
-    useSharedValue: (initial: number) => ({ value: initial }),
-    withDelay: (_delay: number, animation: unknown) => animation,
-    withTiming: (to: number) => to,
-  };
-});
-
-vi.mock('expo-router', () => ({
-  useLocalSearchParams: () => ({}),
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-}));
-vi.mock('expo-router/head', async () => {
-  const ReactModule = await import('react');
-  return {
-    default: ({ children }: React.PropsWithChildren) =>
-      ReactModule.createElement('Head', null, children),
-  };
-});
-
-// Signed in and resolved, so the welcome intro never mounts over the chat: it
-// is a different screen's question, and it would latch this one behind an
-// animation that never finishes in a runner with no clock.
-vi.mock('@oxy.so/services', () => ({
-  useAuth: () => ({ isAuthenticated: true, isAuthResolved: true }),
-}));
-
 vi.mock('@/features/chat/ui/welcome-intro', async () => {
   const ReactModule = await import('react');
-  return { WelcomeIntro: () => ReactModule.createElement('WelcomeIntro', null) };
-});
-
-vi.mock('@/features/chat/runtime/global-store', () => {
-  const useStore = (selector: (s: typeof ui) => unknown) => selector(ui);
-  return { useStore };
-});
-
-const setSelectedLevel = vi.hoisted(() => vi.fn());
-vi.mock('@/features/chat/runtime/model-store', () => {
-  const state = {
-    selectedLevel: 'high',
-    setSelectedLevel,
-  };
   return {
-    useModelStore: (selector: (s: typeof state) => unknown) => selector(state),
-  };
-});
-
-vi.mock('@/features/chat/ui/composer/power-level-options', () => ({
-  useModeSelection: (stored: string) => ({ shown: stored, send: stored, source: 'requested' }),
-}));
-vi.mock('@alia.onl/sdk/runtime', () => ({
-  useConversationThread: () => chat,
-  useCreateConversation: () => ({ mutateAsync: vi.fn(async () => ({ id: 'c1' })) }),
-}));
-
-vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
-const voiceOptions = vi.hoisted(() => ({ current: null as null | Record<string, unknown> }));
-vi.mock('@/features/chat/runtime/use-app-voice', () => ({
-  useAppVoice: (options: Record<string, unknown>) => {
-    voiceOptions.current = options;
-    return {
-      isActive: false,
-      state: null,
-      start: () => undefined,
-      end: () => undefined,
-    };
-  },
-}));
-vi.mock('@/shared/i18n/use-translation', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
-}));
-vi.mock('@oxy.so/bloom/content-panel', async () => {
-  const ReactModule = await import('react');
-  return {
-    ContentPanel: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('ContentPanel', props, children),
+    WelcomeIntro: ({
+      onDismissed,
+      children,
+    }: {
+      onDismissed: () => void;
+      children: (slots: {
+        background: React.ReactNode;
+        content: React.ReactNode;
+      }) => React.ReactNode;
+    }) => {
+      captured.dismiss = onDismissed;
+      return ReactModule.createElement(
+        'WelcomeIntro',
+        null,
+        children({ background: null, content: ReactModule.createElement('IntroWords') }),
+      );
+    },
   };
 });
 
 import ChatPage from '../index';
 
-/** Mount the route and return the props the screen handed the chat content. */
-async function mount(): Promise<Record<string, unknown>> {
-  await act(async () => {
-    create(<ChatPage />);
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
+function mount() {
+  let renderer: ReturnType<typeof create> | undefined;
+  act(() => {
+    renderer = create(<ChatPage />);
   });
-  if (captured.props === null) throw new Error('ChatPageContent was never rendered');
-  return captured.props;
+  if (renderer === undefined) throw new Error('the page did not render');
+  return renderer;
 }
 
-const FAILED_TURN = {
-  id: 'turn-1',
-  content: 'what is the capital of Peru',
-  error: 'the model never answered',
-};
-
 beforeEach(() => {
-  captured.props = null;
-  ui.ghostMode = false;
-  chat.suggestedNewConversation = null;
-  chat.failedTurn = null;
-  chat.stopGeneration.mockClear();
-  chat.retryFailedTurn.mockClear();
-  chat.dismissSuggestedNewConversation.mockClear();
+  auth.isAuthenticated = true;
+  auth.isAuthResolved = true;
+  captured.screen = [];
+  captured.dismiss = null;
 });
 
-describe('the new-chat screen wires the whole conversation', () => {
-  it('connects stop, so a running first turn can be cancelled', async () => {
-    const props = await mount();
+describe('the new-chat route', () => {
+  it('mounts the conversation screen and names no conversation, because there is not one yet', () => {
+    const renderer = mount();
 
-    // The hook's own abort, not a stand-in: a screen that passed something of
-    // its own would leave the real stream running.
-    expect(props.onStop).toBe(chat.stopGeneration);
-
-    (props.onStop as () => void)();
-    expect(chat.stopGeneration).toHaveBeenCalledTimes(1);
+    expect(renderer.root.findAllByType('ConversationScreen' as never)).toHaveLength(1);
+    // Not an oversight to be tidied up by a later reader: the absence is what makes the first
+    // turn create the conversation, and the drawer keeps every visited chat mounted, so naming an
+    // id here would hand this screen's draft to some persisted conversation.
+    expect(captured.screen.at(-1)).toEqual({});
   });
 
-  it('passes a failed turn through, with its retry', async () => {
-    chat.failedTurn = FAILED_TURN;
-    const props = await mount();
+  it('shows the intro to the signed-out, and the chat once it has been answered', () => {
+    auth.isAuthenticated = false;
+    const renderer = mount();
 
-    // Without both of these the failure is invisible: the thread simply stops,
-    // with nothing said and nothing to press.
-    expect(props.failedTurn).toBe(FAILED_TURN);
-    expect(props.onRetryTurn).toBe(chat.retryFailedTurn);
+    expect(renderer.root.findAllByType('IntroWords' as never)).toHaveLength(1);
+    expect(renderer.root.findAllByType('ConversationScreen' as never)).toHaveLength(0);
 
-    (props.onRetryTurn as () => void)();
-    expect(chat.retryFailedTurn).toHaveBeenCalledTimes(1);
+    act(() => captured.dismiss?.());
+
+    expect(renderer.root.findAllByType('ConversationScreen' as never)).toHaveLength(1);
   });
 
-  it('carries no failed turn when nothing has failed', async () => {
-    const props = await mount();
+  it('waits to know who is signed in rather than flashing the intro at someone who is', () => {
+    auth.isAuthenticated = false;
+    auth.isAuthResolved = false;
+    const renderer = mount();
 
-    expect(props.failedTurn).toBeNull();
+    expect(renderer.root.findAllByType('IntroWords' as never)).toHaveLength(0);
   });
+});
 
-  it('gives a plan both of its answers', async () => {
-    const props = await mount();
+describe('the three doors onto one chat', () => {
+  const route = (file: string) => readFileSync(join(APP_ROOT, 'app/(app)', file), 'utf8');
 
-    expect(props.onApprovePlan).toBe(chat.approvePlan);
-    expect(props.onRejectPlan).toBe(chat.rejectPlan);
-  });
-
-  it('offers the fresh-thread suggestion and answers it', async () => {
-    chat.suggestedNewConversation = 'this is getting long';
-    const props = await mount();
-
-    expect(props.suggestedNewConversation).toBe('this is getting long');
-    expect(props.onDismissNewConversation).toBe(chat.dismissSuggestedNewConversation);
-  });
-
-  /**
-   * The offer's primary button says the offer will be acted on, so it has to
-   * be. On this screen "a new conversation" is the cheapest act there is —
-   * nothing is persisted and the thread is local — so accepting stops whatever
-   * is streaming and empties it, which is what `clearConversation` does when
-   * there is no conversation id. Wiring accept to `dismiss` would leave the
-   * card's two buttons doing the same thing while only one of them said so.
-   */
-  it('acts on the offer rather than only retiring the card', async () => {
-    chat.suggestedNewConversation = 'this is getting long';
-    const props = await mount();
-
-    await act(async () => {
-      (props.onAcceptNewConversation as () => void)();
-    });
-
-    expect(chat.dismissSuggestedNewConversation).toHaveBeenCalledTimes(1);
-    expect(chat.clearConversation).toHaveBeenCalledTimes(1);
-  });
-
-  it('reports the conversation load state', async () => {
-    const props = await mount();
-
-    expect(props.conversationLoading).toBe(chat.conversationLoading);
-  });
-
-  it('still passes everything it already passed', async () => {
-    const props = await mount();
-
-    expect(props.messages).toBe(chat.messages);
-    expect(props.isLoading).toBe(chat.isLoading);
-    // The power level is the app's selection, which the shared composer reads
-    // itself; the new-chat screen has no level of its own to hand down.
-    expect('selectedModel' in props).toBe(false);
-    // Voice from the new-chat screen is the SDK's launcher, handing over to a conversation.
-    expect(typeof (props.voice as { start: unknown }).start).toBe('function');
-  });
-
-  it('makes the conversation a call lives in with the thread’s own, after the gate', async () => {
-    await mount();
-
-    // The new-chat screen has no conversation; the call is made one by the hook the whole screen
-    // runs on — the rule the sheet and the conversation screen share.
-    expect(voiceOptions.current).toEqual({ resolveConversation: chat.ensureConversation });
-  });
-
-  it('names no conversation, because there is not one yet', async () => {
-    const props = await mount();
-
-    // `ChatPageContent` names its composer's draft by this prop; absent, it
-    // is the new chat's. An id here would give this screen's draft away.
-    expect(props.conversationId).toBeUndefined();
-    expect('conversationId' in props).toBe(false);
-  });
-
-  it('sends a ghost turn into this screen rather than persisting it', async () => {
-    ui.ghostMode = true;
-    const props = await mount();
-
-    // The reason the missing props were not merely a first-turn defect: a
-    // ghost conversation never leaves this screen, so it lived its whole life
-    // without stop, retry or plan answers.
-    expect(props.onSubmit).toBe(chat.sendMessage);
-  });
-
-  it('turns an ordinary first message into a conversation', async () => {
-    const props = await mount();
-
-    expect(props.onSubmit).toBe(chat.createNewConversation);
-  });
+  it.each(['index.tsx', 'c/[id]/index.tsx', '[username].tsx'])(
+    '%s mounts the conversation screen and draws no thread of its own',
+    (file) => {
+      const source = route(file);
+      expect(source).toContain("from '@/features/chat/ui/conversation-screen'");
+      expect(source).not.toMatch(/AliaThread|ThreadRow|useConversationThread/);
+    },
+  );
 });

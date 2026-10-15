@@ -152,7 +152,7 @@ vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
     DropdownMenuItem: host('MenuItem'),
   };
 });
-vi.mock('@/features/chat/ui/file-card', async () => {
+vi.mock('@/features/library/ui/file-card', async () => {
   const ReactModule = await import('react');
   return {
     FileCard: (props: Record<string, unknown>) => ReactModule.createElement('FileCard', props),

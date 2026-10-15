@@ -1,71 +1,67 @@
 /**
- * Shared chat content component used by both AliaChatSheet and AliaChatScreen.
+ * The conversation: header, thread and composer, with its voice call. The one screen of the
+ * bottom sheet, `AliaChatScreen` and the Alia app — they are frames around this.
  *
- * Owns the text chat and its voice call: the button that opens it, the bar that replaces the
- * composer, the notices and the transcript in the thread. The call loads on the first call, so
- * nothing here reaches its audio engine at module-evaluation time. Containers
- * only handle layout chrome (sheet modal, full-screen SafeAreaView). The
- * breadcrumb header is Bloom's `AiChatContainer`, the one the app's conversation uses.
+ * It is the top of three layers, each depending only on the one before it: the runtime
+ * (`useConversationThread`, the stream, the cache), the hooks that turn it into what a person does
+ * (`useChatComposer`, `useChatVoice`, `useThreadView`), and this, which draws it — the thread
+ * (`AliaThread`) and the agent's history behind it, the composer with its levels, suggestions and
+ * questions, and the voice call: the button that opens it, the bar that replaces the composer, the
+ * notices and the transcript in the thread. The call loads on the first call, so nothing here
+ * reaches its audio engine at module-evaluation time.
+ *
+ * What a host brings is data and places: the conversation to show, the chrome around it
+ * (`chrome`), its rows in the add menu, its words (`labels`), where the thought panel and a
+ * scheduled task open (`runtime`), and a few gates (`voice`, `onSignInRequired`,
+ * `renderUsageLimit`).
  */
 
-import type React from 'react';
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { View, type TextInput } from 'react-native';
-import type { SharedValue } from 'react-native-reanimated';
-import { turnActivityState } from '../lib/turn-state';
-import { useTTS } from '../hooks/useTTS';
-import { useFocusWhenPresented } from '../hooks/useFocusWhenPresented';
-import { usePendingQuestions } from '../hooks/usePendingQuestions';
-import { useImagePicker } from '../hooks/useImagePicker';
-import { imageUriToDataUrl } from '../lib/image-data-url';
-import { AliaRuntimeProvider, type AliaRuntimeHost, useAliaRuntime } from '../runtime/config';
-import {
-  useComposerDraft,
-  useComposerDraftStore,
-  useDraftAddress,
-} from '../runtime/composer-draft-store';
-import { aliaQueryKeys } from '../runtime/query-keys';
-import { useConversationThread } from '../runtime/use-conversation-thread';
-import { useQueryClient } from '@tanstack/react-query';
-import { useAmbientWave } from '../hooks/useAmbientWave';
-import { AmbientField } from './AmbientField';
 import { getAccountDisplayName } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services/ui/client';
-import { AliaChatMessageList } from './AliaChatMessageList';
-import { AliaFlightsProvider, ALIA_TO_PROFILE } from '../lib/flights';
-import { AliaWelcomeMessage } from './AliaWelcomeMessage';
-import { AliaComposer } from './AliaComposer';
-import { useComposerSuggestions, useSuggestionQuery } from '../hooks/useComposerSuggestions';
-import { AiChatContainer } from '@oxy.so/bloom/ai-chat';
+import { AiChatContainer, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import {
   AvatarFlightLayer,
-  useAvatarFlights,
   type AvatarFlights,
+  useAvatarFlights,
 } from '@oxy.so/bloom/avatar-flight';
-import type { ComposerPanelAddMenuGroup } from '@oxy.so/bloom/composer-panel';
-import { RiImageLine } from '@oxy.so/bloom/icons';
-import { toast } from '@oxy.so/bloom/toast';
 import { Button } from '@oxy.so/bloom/button';
+import { ScrollToBottomButton } from '@oxy.so/bloom/chat-screen';
+import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { useQueryClient } from '@tanstack/react-query';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View } from 'react-native';
+import type { SharedValue } from 'react-native-reanimated';
+import { useAmbientWave } from '../hooks/useAmbientWave';
+import { useAtBottom } from '../hooks/useAtBottom';
+import { type AliaTurn, useChatComposer } from '../hooks/useChatComposer';
+import { type AliaVoiceOptions, useChatVoice } from '../hooks/useChatVoice';
+import { usePendingQuestions } from '../hooks/usePendingQuestions';
+import { usePhotosMenu } from '../hooks/usePhotosMenu';
+import { useThreadView } from '../hooks/useThreadView';
+import { useTTS } from '../hooks/useTTS';
+import type { AliaAddMenu } from '../lib/add-menu';
+import { AliaFlightsProvider } from '../lib/flights';
+import { KeyboardSafeAreaFloor } from '../lib/keyboard';
 import { type AliaChatLabels, AliaChatLabelsProvider, useLabels } from '../lib/labels';
+import { type DeviceModel, buildPowerLevelOptions } from '../lib/power-level-options';
+import { type AliaRuntimeHost, AliaRuntimeProvider, useAliaRuntime } from '../runtime/config';
+import { useCreateConversation } from '../runtime/conversations';
+import { aliaQueryKeys } from '../runtime/query-keys';
+import type { Message } from '../runtime/types';
+import { useAgentActivity } from '../runtime/use-agent-activity';
+import { useConversationThread } from '../runtime/use-conversation-thread';
+import { UsageLimitError } from '../runtime/usage-limit-error';
+import type { AliaSuggestion } from '../types';
 import type { AliaAvatarState } from './AliaAvatar';
+import { AliaComposer } from './AliaComposer';
+import { AliaWelcomeMessage } from './AliaWelcomeMessage';
+import { AmbientField } from './AmbientField';
+import { AliaThread } from './thread/AliaThread';
+import { ThreadSearch } from './thread/ThreadSearch';
 import { VoiceModeIcon } from './VoiceModeIcon';
 import { AliaVoiceCall } from './voice/AliaVoiceCall';
-import { useVoiceLauncher, type UseVoiceLauncherOptions } from '../hooks/useVoiceLauncher';
-import type { AliaAttachment, AliaSuggestion, VoiceMessage } from '../types';
-import type { Message } from '../runtime/types';
-
-/** A photo handed over as a `data:` URL, as the composer would hold it. */
-function dataUrlAttachment(url: string, index: number): AliaAttachment {
-  const mimeType = /^data:([^;,]+)/.exec(url)?.[1] ?? 'image/jpeg';
-  return {
-    id: `turn-photo-${index}`,
-    type: 'image',
-    name: `photo-${index + 1}`,
-    uri: url,
-    size: 0,
-    mimeType,
-  };
-}
 
 /** The distinct delegated agents among `messages`, in the order they first answered. */
 function participatingAgents(messages: readonly Message[]): AliaChatAgent[] {
@@ -84,27 +80,39 @@ export interface AliaChatAgent {
   character?: unknown;
 }
 
-/** What the chat tells its header and actions: whether there is a conversation to clear, and who took part. */
+/** What the chat tells its chrome: whether there is a conversation to act on, who took part, what Alia is doing. */
 export interface AliaChatState {
+  /** The conversation open, or `undefined` before the first turn creates one. */
+  conversationId: string | undefined;
   hasMessages: boolean;
-  clear: () => void;
+  /** Begin a new conversation. Nothing is deleted: the old one stays in the list. */
+  startOver: () => void;
+  /** Empty the open conversation, on the server and on screen. */
+  clearMessages: () => Promise<unknown>;
   /** What Alia is doing; the header's avatar shows it. */
   markState: AliaAvatarState;
   /** The delegated agents that have answered, in the order they first did. */
   agents: AliaChatAgent[];
+  /** Search what was said in the agent's thread. Present only on a thread (`threadHandle`). */
+  openSearch: (() => void) | undefined;
+  /** The conversation as it stands now, for an export. Read when called, not when rendered. */
+  getMessages: () => readonly Message[];
 }
 
-/** A turn of the person's: the text, and the photos (`data:` or `https:` URLs) sent with it. */
-export interface AliaTurn {
-  text: string;
-  images?: ReadonlyArray<string>;
+/** What the container draws around the thread. */
+export interface AliaChatChrome {
+  /** The top bar. */
+  header?: ReactNode;
+  /** The crumb of the container's breadcrumb row. */
+  title?: string;
+  /** The project the chat is filed under, in the breadcrumb. */
+  project?: string;
+  /** The chat's own actions, at the end of the breadcrumb row. */
+  actions?: ReactNode;
 }
 
 export interface AliaChatContentProps {
-  clientContext?: string;
-  /** The power level (or `publisher/model`) every turn is sent with; omitted, the server's default. */
-  model?: string;
-  apiUrl?: string;
+  // ── Which conversation ──
   /**
    * The conversation to show. Given, the host owns which one is open (a route) and learns of a new
    * one through `onConversationChange`; omitted, the chat keeps its own — unless the host
@@ -112,14 +120,39 @@ export interface AliaChatContentProps {
    * creates its conversation with the first turn, or the first call.
    */
   conversationId?: string;
-  /** The agent whose thread this is; omitted, Alia's own. */
+  /** The agent whose conversation this is; omitted, Alia's own. */
   agentId?: string;
+  /**
+   * The handle of the agent's permanent thread, when this conversation is the active stretch of
+   * one: the conversations behind it are paged in above, and the thread can be searched. Omitted,
+   * the chat is one conversation with nothing behind it.
+   */
+  threadHandle?: string;
   /** The chat opened a conversation (a new one, from a first turn or a call) or left it (`undefined`). */
   onConversationChange?: (conversationId: string | undefined) => void;
   /** The host's side of the conversation runtime: navigation, artifacts, credits… */
   runtime?: AliaRuntimeHost;
-  /** Error handler (e.g. toast) */
-  onError?: (message: string) => void;
+  /**
+   * Nothing is stored: the first turn is sent without creating a conversation, so the whole chat
+   * lives on this screen (ghost mode).
+   */
+  ephemeral?: boolean;
+  apiUrl?: string;
+  /** App context injected into the system prompt. */
+  clientContext?: string;
+  // ── The power level ──
+  /**
+   * The power level (`auto`, `instant`, `medium`, `high`, `xhigh`, `pro`, `ultra`) or exact
+   * `publisher/model` every turn is sent with; omitted, the server's default.
+   */
+  model?: string;
+  /** Makes the level selectable in the composer: the person picked `model`. Omitted, no selector. */
+  onModelChange?: (model: string) => void;
+  /** Models on the person's own devices, offered after the levels in the selector. */
+  deviceModels?: readonly DeviceModel[];
+  // ── Words ──
+  /** Overrides for the chat's own copy; anything omitted is English. */
+  labels?: Partial<AliaChatLabels>;
   /** The empty chat's greeting; omitted, Alia greets the signed-in person by name (`labels`). */
   welcomeGreeting?: string;
   welcomeSubtitle?: string;
@@ -129,34 +162,57 @@ export interface AliaChatContentProps {
   suggestionMatches?: AliaSuggestion[];
   /** The typed text, once typing has settled, for the host to search suggestions with. */
   onSuggestionQuery?: (query: string) => void;
-  // Message action callbacks
-  onEditMessage?: (messageId: string, newContent: string) => void;
-  onThumbsUp?: (messageId: string) => void;
-  onThumbsDown?: (messageId: string) => void;
-  onApprovePlan?: (planId: string) => void;
-  onRejectPlan?: (planId: string) => void;
-  /** Override markdown renderer (app passes CustomMarkdown) */
-  renderMarkdown?: (content: string) => React.ReactNode;
+  /** A suggestion was picked (before it is sent, or put in the composer if it is a template). */
+  onSuggestionPicked?: (suggestion: AliaSuggestion) => void;
+  // ── The frame ──
   /**
-   * The chat's top bar. Receives what it needs from the chat: whether there is anything to clear,
-   * how, who took part, and what Alia is doing.
+   * What the container draws around the thread, from what the chat knows (who took part, whether
+   * there is anything to clear, whether it is a searchable thread).
    */
-  header?: (state: AliaChatState) => React.ReactNode;
+  chrome?: (state: AliaChatState) => AliaChatChrome;
+  /** The container draws its own surface (the card of a page), instead of leaving the fill to the frame around it. */
+  surface?: boolean;
   /** Dark-mode flag — forwarded to the ambient wave overlay. */
   isDarkMode?: boolean;
+  /** The ambient field's shape: the whole `screen` (default) or a `sheet`'s smaller one. */
+  layout?: 'screen' | 'sheet';
+  /**
+   * Whether the screen holding the chat is the one on show. A screen kept mounted under another
+   * pauses its ambient field, and a live call ends when it is not. Default `true`.
+   */
+  isFocused?: boolean;
+  /**
+   * Space the composer keeps clear at the bottom edge, in px — the home indicator, when the chat
+   * is flush with the screen. It gives way to the keyboard. The ambient background still runs
+   * behind it.
+   */
+  bottomInset?: number;
+  // ── The composer ──
+  /** The host's rows in the add menu. Omitted, the menu offers photos. */
+  addMenu?: AliaAddMenu;
+  /** The tab on the composer's top edge (the project the chat is filed under). Replaced by the edit strip while a question is rewritten. */
+  composerStatus?: ReactNode;
+  /** Error handler (e.g. toast) */
+  onError?: (message: string) => void;
+  /**
+   * The person is signed out and sent a turn: the host asks them to sign in. The draft stays in
+   * the composer. Omitted, the turn is sent and the server's refusal is told.
+   */
+  onSignInRequired?: () => void;
+  /**
+   * The turn was refused for the person's usage limit: the composer is closed until `dismiss`,
+   * and this draws what the host says about it (a dialog).
+   */
+  renderUsageLimit?: (limit: { error: UsageLimitError; dismiss: () => void }) => ReactNode;
   /**
    * The chat's voice call. On by default; `false` makes the chat text-only. An object brings
    * what only the host knows: the gate before a call (`canStartVoice`, `onVoiceBlocked`), what
-   * to refresh when one ends (`onCallEnded`), where its notices go (`onNotice`), the
-   * screen it belongs to (`isFocused`). The call always lives in the chat's conversation, made
-   * when it starts if the chat has none.
+   * to refresh when one ends (`onCallEnded`), where its notices go (`onNotice`), the sounds it
+   * plays. The call always lives in the chat's conversation, made when it starts if the chat has
+   * none.
    */
   voice?: false | AliaVoiceOptions;
-  /**
-   * Space the composer keeps clear at the bottom edge, in px — the home indicator, when the
-   * chat is flush with the screen (a phone sheet). The ambient background still runs behind it.
-   */
-  bottomInset?: number;
+  // ── The sheet's ──
   /**
    * Hands the first turn of an empty chat to the host instead of sending it here — a sheet opens
    * the conversation in a new sheet over this one. Omitted, the chat sends it itself.
@@ -177,70 +233,47 @@ export interface AliaChatContentProps {
   presentedProgress?: SharedValue<number>;
   /** Internal sheet lifecycle bridge: receives the live request canceller. */
   onStopReady?: (stop: (() => void) | null) => void;
-  /** Overrides for the chat's own copy; anything omitted is English. */
-  labels?: Partial<AliaChatLabels>;
 }
-
-/** What a host tells the chat about its voice call (see {@link UseVoiceLauncherOptions}). */
-export type AliaVoiceOptions = Omit<
-  UseVoiceLauncherOptions,
-  'apiUrl' | 'conversationId' | 'agentId' | 'accountId' | 'resolveConversation'
->;
 
 /** The chat API carries photos (`image_url` parts) and nothing else. */
 const PHOTOS_ONLY = ['image'] as const;
 
-/** The add menu: photos are the one attachment the chat API carries (`image_url` parts). */
-function addMenu(labels: AliaChatLabels): ComposerPanelAddMenuGroup[] {
-  return [
-    {
-      label: labels.addMenuGroup,
-      rows: [{ id: 'photos', label: labels.addPhotos, icon: RiImageLine }],
-    },
-  ];
-}
-
-/** Adapt a voice message into the chat message format. */
-function adaptVoiceMessage(vm: VoiceMessage): Message {
-  return {
-    id: vm.id,
-    role: vm.role,
-    content: vm.content,
-    toolInvocations: vm.toolInvocations,
-    createdAt: new Date().toISOString(),
-    source: 'voice' as const,
-    speaker: vm.speaker,
-  };
-}
+/** No live conversation while the thread looks at a moment of its past, as ONE array. */
+const NO_MESSAGES: Message[] = [];
 
 /** The conversation view: everything of `AliaChatContentProps` that is not about which conversation is open. */
 type ConversationViewProps = Omit<
   AliaChatContentProps,
-  'labels' | 'onConversationChange' | 'runtime' | 'conversationId'
+  'labels' | 'onConversationChange' | 'runtime' | 'conversationId' | 'apiUrl'
 > & { conversationId: string | undefined };
 
 function AliaConversationView({
   clientContext,
   model,
-  apiUrl,
+  onModelChange,
+  deviceModels,
   conversationId,
   agentId,
+  threadHandle,
+  ephemeral = false,
   onError,
   welcomeGreeting,
   welcomeSubtitle,
   welcomeSuggestions,
   suggestionMatches,
   onSuggestionQuery,
-  onEditMessage,
-  onThumbsUp,
-  onThumbsDown,
-  onApprovePlan,
-  onRejectPlan,
-  renderMarkdown,
-  header,
+  onSuggestionPicked,
+  chrome,
+  surface = false,
   isDarkMode,
-  voice: voiceOptions,
+  layout = 'screen',
+  isFocused = true,
   bottomInset = 0,
+  addMenu,
+  composerStatus,
+  onSignInRequired,
+  renderUsageLimit,
+  voice: voiceOptions,
   onStart,
   flights: sharedFlights,
   initialTurn,
@@ -250,7 +283,10 @@ function AliaConversationView({
   const ownFlights = useAvatarFlights();
   const flights = sharedFlights ?? ownFlights;
   const labels = useLabels();
-  const addMenuGroups = useMemo(() => addMenu(labels), [labels]);
+  const { t } = labels;
+  const runtime = useAliaRuntime();
+  const queryClient = useQueryClient();
+  const { user, isAuthenticated } = useOxy();
 
   // A failure reaches the host's handler when it has one, and Bloom's toast otherwise.
   const reportError = useCallback(
@@ -260,213 +296,92 @@ function AliaConversationView({
     },
     [onError],
   );
-  // ── Chat ──
+
+  // ── The conversation ──
   const thread = useConversationThread({ conversationId, agentId, model, clientContext });
   const {
     messages,
     setMessages,
-    isLoading: isStreaming,
+    isLoading,
+    conversationLoading,
+    error,
+    clearError,
     stopGeneration: stop,
     startOver,
+    clearConversation,
     approvePlan,
     rejectPlan,
-    sendMessage,
-    createNewConversation,
+    suggestedNewConversation,
+    dismissSuggestedNewConversation,
+    agentRun,
+    failedTurn,
+    retryFailedTurn,
   } = thread;
   const agents = useMemo(() => participatingAgents(messages), [messages]);
-  const asked = usePendingQuestions(messages, isStreaming);
+  const asked = usePendingQuestions(messages, isLoading);
+  const view = useThreadView(threadHandle, conversationId);
+  const agentActivity = useAgentActivity(agentRun?.turnId ?? null, agentRun?.agentId);
 
-  // A turn goes into the open conversation; with none open, it creates one and is sent from it.
-  const sendTurn = useCallback(
-    (text: string, attachments?: AliaAttachment[]) =>
-      conversationId ? sendMessage(text, attachments) : createNewConversation(text, attachments),
-    [conversationId, sendMessage, createNewConversation],
-  );
-
-  // The first turn of an empty chat goes to the host when it asked for it; every other turn is sent here.
-  const startsElsewhere = onStart !== undefined && messages.length === 0;
-  const firstTurn = messages.length === 0;
-  const submitTurn = useCallback(
-    async (text: string, attachments: AliaAttachment[] = []) => {
-      if (startsElsewhere) {
-        const images = await Promise.all(
-          attachments.map((photo) => imageUriToDataUrl(photo.uri, photo.mimeType)),
-        );
-        // The host's conversation sheet opens first so that the flight, drawn when it launches,
-        // is above it; this chat stays on the greeting, so the avatar can still be measured.
-        onStart({ text, ...(images.length > 0 ? { images } : {}) });
-        await flights.launch([ALIA_TO_PROFILE]);
-        return;
-      }
-      // The greeting leaves with the first turn: measure it before it does.
-      if (firstTurn) await flights.launch([ALIA_TO_PROFILE]);
-      await sendTurn(text, attachments);
-    },
-    [startsElsewhere, onStart, firstTurn, flights, sendTurn],
-  );
-
-  // The conversation this chat was opened for, sent once.
-  const initialSent = useRef(false);
-  useEffect(() => {
-    if (!initialTurn || initialSent.current) return;
-    initialSent.current = true;
-    void sendTurn(initialTurn.text, initialTurn.images?.map(dataUrlAttachment));
-  }, [initialTurn, sendTurn]);
+  // The turn was refused for the usage limit: the composer is closed until the host's dialog is
+  // dismissed. Name as well as class — Hermes can break `instanceof` for Error subclasses.
+  const usageLimit =
+    error instanceof UsageLimitError || error?.name === 'UsageLimitError'
+      ? (error as UsageLimitError)
+      : null;
+  const closed = usageLimit !== null;
 
   useEffect(() => {
     onStopReady?.(stop);
     return () => onStopReady?.(null);
   }, [onStopReady, stop]);
 
-  // ── Input state: the composer's draft, per conversation (shared with every other surface) ──
-  const draftTarget = conversationId ?? null;
-  const draft = useComposerDraft(draftTarget);
-  const draftAddress = useDraftAddress(draftTarget);
-  const inputValue = draft.text;
-  const photos = draft.attachments;
-  const setInputValue = useCallback(
-    (text: string) => useComposerDraftStore.getState().setText(draftAddress, text),
-    [draftAddress],
-  );
-  const { pickImage } = useImagePicker();
-
-  const handleAddMenuSelect = useCallback(
-    async (rowId: string) => {
-      if (rowId !== 'photos') return;
-      const assets = await pickImage();
-      if (!assets?.length) return;
-      const store = useComposerDraftStore.getState();
-      for (const asset of assets) {
-        store.addAttachment(draftAddress, {
-          id: `img-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          type: 'image' as const,
-          name: asset.name,
-          uri: asset.uri,
-          size: asset.size,
-          mimeType: asset.mimeType,
-        });
-      }
-    },
-    [pickImage, draftAddress],
-  );
-
-  // Suggestions over the composer on an empty chat, as the Alia app has them.
-  const suggestionQuery = useSuggestionQuery(inputValue, messages.length === 0);
-  useEffect(() => {
-    onSuggestionQuery?.(suggestionQuery);
-  }, [suggestionQuery, onSuggestionQuery]);
-  const handlePickSuggestion = useCallback(
-    (suggestion: AliaSuggestion) => {
-      setInputValue('');
-      void submitTurn(suggestion.text);
-    },
-    [submitTurn, setInputValue],
-  );
-  const suggestions = useComposerSuggestions({
-    draft: inputValue,
-    enabled: messages.length === 0,
-    welcome: welcomeSuggestions,
-    matches: suggestionMatches,
-    onPick: handlePickSuggestion,
+  // ── What the person does: write, send, rewrite, call ──
+  const composer = useChatComposer({
+    conversationId,
+    thread,
+    ephemeral,
+    closed,
+    onWrite: view.backToLatest,
+    onStart,
+    flights,
+    initialTurn,
+    onSignInRequired,
+    reportError,
+    welcomeSuggestions,
+    suggestionMatches,
+    onSuggestionQuery,
+    onSuggestionPicked,
+    presentedProgress,
   });
-
-  const handleSubmit = useCallback(
-    async (value: string) => {
-      const text = value.trim();
-      if ((!text && photos.length === 0) || isStreaming) return;
-      // The send keeps the attachments until it has gone; a send that fails hands the draft back.
-      useComposerDraftStore.getState().clear(draftAddress);
-      try {
-        await submitTurn(text, photos);
-      } catch (err) {
-        // Nothing was sent (the photos could not be read): keep the draft.
-        useComposerDraftStore
-          .getState()
-          .restore(draftAddress, { text: value, attachments: photos });
-        reportError(err instanceof Error ? err.message : 'Could not attach the photos');
-      }
-    },
-    [submitTurn, photos, isStreaming, draftAddress, reportError],
-  );
-
-  // ── TTS ──
-  const tts = useTTS({ apiUrl });
-
-  // ── Voice call ──
-  // The launcher owns whether a call is open and what it reports back; the call itself loads
-  // on the first one. The transcript is merged into the thread below.
-  const voiceEnabled = voiceOptions !== false;
-  const { user } = useOxy();
-  const queryClient = useQueryClient();
-  const refreshConversation = useCallback(
-    (id: string) =>
-      void queryClient.invalidateQueries({ queryKey: aliaQueryKeys.conversations.detail(id) }),
-    [queryClient],
-  );
-  const launcher = useVoiceLauncher({
-    apiUrl,
+  const voice = useChatVoice({
+    options: voiceOptions,
     conversationId,
     agentId,
-    accountId: user?.id ?? null,
-    resolveConversation: thread.ensureConversation,
-    onMessagesSaved: refreshConversation,
-    ...(voiceOptions === false ? {} : voiceOptions),
+    isFocused,
+    ensureConversation: thread.ensureConversation,
+    messages,
+    setMessages,
+    isLoading,
   });
-  const { isActive: isVoiceActive, state: voiceState } = launcher;
-  const textSnapshotRef = useRef<Message[]>([]);
-
-  // Merge voice messages into chat messages
-  const voiceMessages = voiceState?.messages;
-  useEffect(() => {
-    if (!voiceMessages) return;
-    setMessages([...textSnapshotRef.current, ...voiceMessages.map(adaptVoiceMessage)]);
-  }, [voiceMessages, setMessages]);
-
-  const messagesRef = useRef(messages);
-  messagesRef.current = messages;
-  const startLauncher = launcher.start;
-  const activateVoice = useCallback(() => {
-    if (isVoiceActive) return;
-    textSnapshotRef.current = [...messagesRef.current];
-    void startLauncher();
-  }, [isVoiceActive, startLauncher]);
-
-  // ── TTS read aloud handler ──
-  const { readAloud } = tts;
-  const handleReadAloud = useCallback(
-    (messageId: string, text: string) => {
-      readAloud(messageId, text);
-    },
-    [readAloud],
+  const photosMenu = usePhotosMenu(composer.address);
+  const menu = addMenu ?? photosMenu;
+  const modes = useMemo(
+    () => (onModelChange ? buildPowerLevelOptions(t, deviceModels ?? []) : undefined),
+    [onModelChange, t, deviceModels],
   );
 
-  // ── Mark state (drives the header brand mark) ──
-  const voiceAgentState = voiceState?.agentState;
-  const markState = useMemo<AliaAvatarState>(() => {
-    if (isVoiceActive) {
-      if (voiceAgentState === 'speaking') return 'writing';
-      if (voiceAgentState === 'thinking') return 'thinking';
-      return 'idle';
-    }
-    return turnActivityState(messages, isStreaming);
-  }, [messages, isStreaming, isVoiceActive, voiceAgentState]);
+  // ── The way back to the newest turn ──
+  const threadRef = useRef<AiChatThreadHandle | null>(null);
+  const { isAtBottom, onScroll } = useAtBottom();
+  const jumpToEnd = useCallback(() => threadRef.current?.scrollToEnd({ animated: false }), []);
 
-  const greeting =
-    welcomeGreeting ?? (user ? labels.greetingNamed(getAccountDisplayName(user)) : labels.greeting);
-  const welcomeComponent = useMemo(() => {
-    if (messages.length > 0) return undefined;
-    return (
-      <View className="flex-1 items-center justify-center px-4 py-10">
-        <AliaWelcomeMessage greeting={greeting} subtitle={welcomeSubtitle} />
-      </View>
-    );
-  }, [greeting, welcomeSubtitle, messages.length]);
-
-  // ── Ambient wave — one persistent overlay across idle/voice/TTS/STT ──
+  // ── The ambient wave — one persistent overlay across idle, voice, read-aloud and dictation ──
+  const tts = useTTS({ apiUrl: runtime.apiUrl, ...runtime.speech });
+  const { state: voiceState } = voice;
   const wave = useAmbientWave({
     voice: voiceState
       ? {
-          isActive: isVoiceActive,
+          isActive: voice.isActive,
           isConnected: voiceState.isConnected,
           agentState: voiceState.agentState,
           waveAmplitude: voiceState.waveAmplitude,
@@ -474,124 +389,255 @@ function AliaConversationView({
       : undefined,
     isTTSPlaying: tts.playbackState === 'playing',
     ttsWaveAmplitude: tts.ttsWaveAmplitude,
-    isGenerating: isStreaming,
+    isGenerating: isLoading,
   });
-
   // The welcome and a call are the field's moments, so they get the intro's full strength; a
   // conversation being read keeps the hook's subtle one, so the text stays easy to read.
-  const ambientIntensity = isVoiceActive || messages.length === 0 ? 1 : wave.intensity;
-
-  // ── Voice activate button for empty submit (unless voice is off) ──
-  const voiceActivateButton = useMemo(
-    () =>
-      voiceEnabled ? (
-        <Button
-          iconOnly
-          tone="action"
-          size="md"
-          accessibilityLabel={labels.startVoice}
-          onPress={activateVoice}
-          leadingIcon={VoiceModeIcon}
-        />
-      ) : undefined,
-    [voiceEnabled, activateVoice, labels.startVoice],
-  );
-
-  const composerRef = useRef<TextInput | null>(null);
-  useFocusWhenPresented(presentedProgress, () => composerRef.current?.focus());
-
-  const composer =
-    voiceEnabled && isVoiceActive ? (
-      <AliaVoiceCall {...launcher.sessionProps} />
-    ) : (
-      <AliaComposer
-        apiUrl={apiUrl}
-        inputRef={composerRef}
-        disableKeyboardAvoidance
-        onKeyPress={suggestions.onKeyPress}
-        suggestions={{ ...suggestions, onPick: handlePickSuggestion }}
-        // Asked beside the field, not in the thread: the card docks above the composer.
-        questions={{
-          items: asked.questions,
-          onSubmit: (message) => void sendTurn(message),
-          onDismiss: asked.dismiss,
-        }}
-        value={inputValue}
-        onValueChange={setInputValue}
-        onSubmit={() => void handleSubmit(inputValue)}
-        busy={isStreaming}
-        onStop={stop}
-        emptyAction={voiceActivateButton}
-        placeholder={labels.placeholder}
-        addMenu={addMenuGroups}
-        onAddMenuSelect={handleAddMenuSelect}
-        attachments={photos}
-        onAddAttachment={(photo) =>
-          useComposerDraftStore.getState().addAttachment(draftAddress, photo)
-        }
-        onRemoveAttachment={(id) =>
-          useComposerDraftStore.getState().removeAttachment(draftAddress, id)
-        }
-        attachmentKinds={PHOTOS_ONLY}
-        onError={onError}
-      />
-    );
-
-  const hasMessages = messages.length > 0;
-  const headerNode = useMemo(
-    () => header?.({ hasMessages, clear: startOver, markState, agents }),
-    [header, hasMessages, startOver, markState, agents],
-  );
+  const ambientIntensity = voice.isActive || composer.firstTurn ? 1 : wave.intensity;
   const background = useMemo(
     () => (
       <AmbientField
-        layout="sheet"
+        layout={layout}
         waveAmplitude={wave.waveAmplitude}
         agentState={wave.agentState}
         intensity={ambientIntensity}
         isDarkMode={isDarkMode}
+        // A screen kept mounted under another does not keep animating back there.
+        paused={!isFocused}
       />
     ),
-    [wave.waveAmplitude, wave.agentState, ambientIntensity, isDarkMode],
+    [layout, wave.waveAmplitude, wave.agentState, ambientIntensity, isDarkMode, isFocused],
   );
 
+  // ── The greeting of an empty chat ──
+  const greeting =
+    welcomeGreeting ??
+    (isAuthenticated && user
+      ? labels.greetingNamed(getAccountDisplayName(user, labels.locale))
+      : labels.greeting);
+  const welcome = useMemo(
+    () => <AliaWelcomeMessage greeting={greeting} subtitle={welcomeSubtitle} />,
+    [greeting, welcomeSubtitle],
+  );
+
+  // ── The agent's offer to start the next stretch fresh ──
+  const createConversation = useCreateConversation();
+  /**
+   * Take the agent up on its offer: start the next stretch of this thread.
+   *
+   * The agent cannot do this — its tool emits one frame and writes nothing — so the act is the
+   * person's, here. A new conversation with the same agent becomes the most recent, which is the
+   * one the thread calls active, so re-reading the thread is what moves the screen onto it. On a
+   * chat that is not a thread there is nothing to continue: the offer empties the chat, which is
+   * "start a new conversation" on a screen that has no thread.
+   */
+  const acceptNewConversation = useCallback(() => {
+    dismissSuggestedNewConversation();
+    if (agentId === undefined || threadHandle === undefined) {
+      void startOver();
+      return;
+    }
+    createConversation.mutate(
+      { agentId },
+      {
+        onSuccess: () => {
+          void queryClient.invalidateQueries({ queryKey: aliaQueryKeys.threads.all(threadHandle) });
+          // And the history with it: the stretch that was live becomes history the moment a new
+          // one is active, and the pages held were fetched before its last turns existed.
+          void queryClient.invalidateQueries({
+            queryKey: aliaQueryKeys.threads.messages(threadHandle),
+          });
+        },
+      },
+    );
+  }, [
+    agentId,
+    threadHandle,
+    createConversation,
+    queryClient,
+    dismissSuggestedNewConversation,
+    startOver,
+  ]);
+  const newConversationOffer = useMemo(
+    () =>
+      suggestedNewConversation === null
+        ? undefined
+        : {
+            reason: suggestedNewConversation,
+            onAccept: acceptNewConversation,
+            onDismiss: dismissSuggestedNewConversation,
+          },
+    [suggestedNewConversation, acceptNewConversation, dismissSuggestedNewConversation],
+  );
+
+  // ── The chrome ──
+  const latestMessages = useRef(messages);
+  latestMessages.current = messages;
+  const hasMessages = messages.length > 0;
+  const state = useMemo<AliaChatState>(
+    () => ({
+      conversationId,
+      hasMessages,
+      startOver,
+      clearMessages: clearConversation,
+      markState: voice.markState,
+      agents,
+      openSearch: threadHandle === undefined ? undefined : view.openSearch,
+      getMessages: () => latestMessages.current,
+    }),
+    [
+      conversationId,
+      hasMessages,
+      startOver,
+      clearConversation,
+      voice.markState,
+      agents,
+      threadHandle,
+      view.openSearch,
+    ],
+  );
+  const frame = useMemo(() => chrome?.(state) ?? {}, [chrome, state]);
+
+  // ── The composer ──
+  const { editing, edit } = composer;
+  const voiceButton = voice.enabled ? (
+    <Button
+      iconOnly
+      tone="action"
+      size="md"
+      accessibilityLabel={labels.startVoice}
+      onPress={voice.activate}
+      leadingIcon={VoiceModeIcon}
+    />
+  ) : undefined;
+  const status: ReactNode =
+    editing !== undefined ? (
+      // What is happening while a question is rewritten, and the way out of it. Drawn as the
+      // status tab it replaces: the thread scrolls behind the composer, and a strip without the
+      // tab's surface printed its words over the transcript's.
+      <View className="mx-7 h-[34px] flex-row items-center gap-2 rounded-t-2xl bg-background-tertiary-default px-2 py-1">
+        <RiEditLine size="sm" />
+        <Text className="flex-1 text-xs text-muted-foreground" numberOfLines={1}>
+          {t('composer.editingMessage')}
+        </Text>
+        <Button appearance="subtle" tone="accent" size="xs" onPress={edit.cancel}>
+          {t('composer.cancelEdit')}
+        </Button>
+      </View>
+    ) : (
+      composerStatus
+    );
+
+  const composerNode = (
+    <>
+      {voice.enabled && voice.isActive ? (
+        <AliaVoiceCall {...voice.launcher.sessionProps} />
+      ) : (
+        <AliaComposer
+          // A different account is a different composer: reads in flight for the last one are
+          // aborted rather than landing here.
+          key={composer.address.account ?? ''}
+          apiUrl={runtime.apiUrl}
+          speechLanguage={runtime.speech.language}
+          inputRef={composer.inputRef}
+          disableKeyboardAvoidance
+          onKeyPress={composer.onKeyPress}
+          suggestions={composer.suggestions}
+          // Asked beside the field, not in the thread: the card docks above the composer.
+          questions={{
+            items: asked.questions,
+            onSubmit: (message) => void composer.sendTurn(message, undefined, composer.turnOptions),
+            onDismiss: asked.dismiss,
+          }}
+          value={composer.text}
+          onValueChange={composer.setText}
+          onSubmit={() => void composer.submit(composer.text)}
+          busy={isLoading}
+          disabled={closed}
+          onStop={stop}
+          emptyAction={voiceButton}
+          accessory={
+            <ScrollToBottomButton
+              visible={!isAtBottom}
+              onPress={jumpToEnd}
+              accessibilityLabel={t('chat.bloom.scrollToLatest')}
+            />
+          }
+          placeholder={
+            closed
+              ? t('usageLimit.inputDisabledPlaceholder')
+              : editing !== undefined
+                ? t('composer.editPlaceholder')
+                : labels.placeholder
+          }
+          status={status}
+          // The mode selector is the power level: how much power this turn gets.
+          {...(modes === undefined
+            ? {}
+            : { modes, mode: model ?? 'auto', onModeChange: onModelChange })}
+          addMenu={menu.groups}
+          onAddMenuSelect={menu.onSelect}
+          attachments={composer.photos}
+          onAddAttachment={composer.addAttachment}
+          onRemoveAttachment={composer.removeAttachment}
+          attachmentKinds={addMenu === undefined ? PHOTOS_ONLY : undefined}
+          onError={onError}
+        />
+      )}
+      {bottomInset > 0 ? <KeyboardSafeAreaFloor inset={bottomInset} /> : null}
+    </>
+  );
+
+  const showsPast = view.jumped;
   return (
     <AliaFlightsProvider value={flights}>
       <AiChatContainer
-        header={headerNode}
-        composer={
-          bottomInset > 0 ? (
-            <View style={{ paddingBottom: bottomInset }}>{composer}</View>
-          ) : (
-            composer
-          )
-        }
-        // The thread scrolls behind the header and the composer, which fade in over it — as
-        // in the app's conversation. The wave is the container's background layer, between
-        // its surface and the turns.
+        header={frame.header}
+        title={frame.title}
+        project={frame.project}
+        actions={frame.actions}
+        composer={composerNode}
+        // The thread scrolls behind the header and the composer, which fade in over it. The wave
+        // is the container's background layer, between its surface and the turns.
         floatingChrome
-        // The sheet or screen around it owns the fill and the shape; the container adds neither.
-        surface={false}
+        // A frame that owns the fill and the shape (a sheet, a screen) leaves the surface off.
+        surface={surface}
         background={background}
       >
-        <View className="flex-1">
-          {/* Welcome or Messages */}
-          <AliaChatMessageList
-            messages={messages}
-            isStreaming={isStreaming}
-            onReadAloud={handleReadAloud}
-            ttsActiveMessageId={tts.activeMessageId}
-            ttsPlaybackState={tts.playbackState}
-            onEditMessage={onEditMessage}
-            onThumbsUp={onThumbsUp}
-            onThumbsDown={onThumbsDown}
-            onApprovePlan={onApprovePlan ?? approvePlan}
-            onRejectPlan={onRejectPlan ?? rejectPlan}
-            renderMarkdown={renderMarkdown}
-            welcomeComponent={welcomeComponent}
-          />
-        </View>
+        <AliaThread
+          // Nothing live under a window: it is a view of the past, and the conversation being
+          // streamed into is not below it in the thread.
+          messages={showsPast ? NO_MESSAGES : messages}
+          conversationId={conversationId}
+          isLoading={isLoading}
+          conversationLoading={conversationLoading}
+          history={view.history}
+          focusCursor={view.focusCursor}
+          failedTurn={failedTurn}
+          onRetryTurn={retryFailedTurn}
+          onRegenerate={composer.regenerate}
+          onStartEdit={edit.start}
+          onApprovePlan={approvePlan}
+          onRejectPlan={rejectPlan}
+          newConversationOffer={newConversationOffer}
+          agentActivity={agentRun === null ? null : agentActivity}
+          call={voice.isActive ? { agentState: voice.agentState } : undefined}
+          empty={welcome}
+          threadRef={threadRef}
+          onScroll={onScroll}
+        />
+        {!showsPast ? null : (
+          <View className="absolute inset-x-0 top-16 z-10 items-center" pointerEvents="box-none">
+            <Button appearance="outline" tone="neutral" size="sm" onPress={view.backToLatest}>
+              {t('chat.backToLatest')}
+            </Button>
+          </View>
+        )}
+        {!view.searchOpen || threadHandle === undefined ? null : (
+          <ThreadSearch handle={threadHandle} onJump={view.jump} onClose={view.closeSearch} />
+        )}
       </AiChatContainer>
+      {usageLimit === null ? null : renderUsageLimit?.({ error: usageLimit, dismiss: clearError })}
       {sharedFlights ? null : <AvatarFlightLayer flights={ownFlights} />}
     </AliaFlightsProvider>
   );
@@ -638,11 +684,7 @@ export function AliaChatContent({
   return (
     <AliaChatLabelsProvider labels={labels}>
       <AliaRuntimeProvider apiUrl={apiUrl ?? parent.apiUrl} host={host}>
-        <AliaConversationView
-          {...props}
-          apiUrl={apiUrl ?? parent.apiUrl}
-          conversationId={controlledId ?? ownId}
-        />
+        <AliaConversationView {...props} conversationId={controlledId ?? ownId} />
       </AliaRuntimeProvider>
     </AliaChatLabelsProvider>
   );

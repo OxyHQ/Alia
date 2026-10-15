@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { type Message } from '@alia.onl/sdk/model';
-import { type AliaRuntimeHost, type AliaUsageFrame } from '@alia.onl/sdk/runtime';
+import type { Message } from '@alia.onl/sdk/model';
+import type { AliaRuntimeHost, AliaUsageFrame } from '@alia.onl/sdk/runtime';
+import { resolveFaviconUrl } from '@clarity.surf/sdk';
 import * as Haptics from 'expo-haptics';
 import { usePathname, useRouter } from 'expo-router';
 import { useMemo, useRef } from 'react';
@@ -95,6 +96,16 @@ export function useAliaHost(): AliaRuntimeHost {
       onAgentTurn: ({ turnId, agentId, conversationId }) =>
         useUIStore.getState().openAgentPanel(turnId, agentId, conversationId),
       onTurnPreview: previewAgentRow,
+      // The work of a turn is read in the right panel. A running turn's first tool opens it only
+      // while nothing else is open: a reader who has the canvas up keeps it.
+      showThought: (opening) => {
+        const ui = useUIStore.getState();
+        if (opening === 'automatic' && ui.rightPanel !== null) return false;
+        ui.setRightPanel('thought');
+        return true;
+      },
+      openAutomation: (id) => router.push({ pathname: '/(app)/automations/[id]', params: { id } }),
+      faviconUrl: resolveFaviconUrl,
       // An agent wrote into THIS conversation on its own (a result, a check-in).
       subscribeConversationMessages: (conversationId, listener) => {
         const { socket, release } = acquireNotificationsSocket();

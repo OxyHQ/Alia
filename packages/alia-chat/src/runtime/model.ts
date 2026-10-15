@@ -8,8 +8,11 @@
  */
 
 export { API_ROUTES as ALIA_API_ROUTES } from './routes';
+export * from './power-levels';
 export { englishCopy } from '../lib/copy';
 export type { Translate } from '../lib/copy';
+export * from './thread/agent-activity';
+export * from './thread/automation-labels';
 export * from './thread/conversation-export';
 export * from './thread/message-days';
 export * from './thread/message-processor';
@@ -21,6 +24,7 @@ export * from './thread/tool-cards';
 export { failureDetail } from './turn-failure';
 export type { FailedTurn } from './turn-failure';
 export type {
+  AgentRun,
   AutomationResource,
   AutomationTrigger,
   Conversation,

@@ -13,6 +13,7 @@ import { createSseFrameReader } from './sse-frame-reader';
 import { hasUsableStreamOutput, type StreamOutputEvidence } from './stream-outcome';
 import { failureDetail, readAliaMeta, type FailedTurn } from './turn-failure';
 import type {
+  AgentRun,
   Conversation,
   ConversationsInfiniteData,
   Message,
@@ -154,9 +155,11 @@ export function useConversationStream({
    * was.
    */
   const [suggestedNewConversation, setSuggestedNewConversation] = useState<string | null>(null);
+  /** The run a delegated agent started for this conversation (`alia.agent_turn`), or `null`. */
+  const [agentRun, setAgentRun] = useState<AgentRun | null>(null);
   /**
    * The turn that got no answer, drawn in the thread with an error and a
-   * retry — or `null`. See `src/features/chat/ui/turn-failure.ts` for why a
+   * retry — or `null`. See `turn-failure.ts` for why a
    * failure is kept rather than rolled back, and what the server persisted
    * (nothing) that makes a plain re-send safe.
    */
@@ -281,6 +284,7 @@ export function useConversationStream({
     setError(null);
     setConversationTitle(null);
     setSuggestedNewConversation(null);
+    setAgentRun(null);
     setFailedTurn(null);
     retryRef.current = null;
     turnOptionsRef.current.clear();
@@ -622,7 +626,7 @@ export function useConversationStream({
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         /**
-         * Frame reassembly lives in `src/features/chat/runtime/sse-frame-reader.ts`.
+         * Frame reassembly lives in `sse-frame-reader.ts`.
          *
          * It used to be loose variables here, and that is how the bug happened:
          * `buffer` was declared outside the read loop and survived a chunk
@@ -892,11 +896,12 @@ export function useConversationStream({
                   }
                   case 'alia.agent_turn': {
                     if (parsed.turnId) {
-                      host.onAgentTurn?.({
+                      const run = {
                         turnId: String(parsed.turnId),
                         agentId: String(parsed.agentId ?? agentId ?? ''),
-                        conversationId: conversationId ?? null,
-                      });
+                      };
+                      setAgentRun(run);
+                      host.onAgentTurn?.({ ...run, conversationId: conversationId ?? null });
                     }
                     continue;
                   }
@@ -1372,6 +1377,7 @@ export function useConversationStream({
     rejectPlan,
     suggestedNewConversation,
     dismissSuggestedNewConversation,
+    agentRun,
     failedTurn,
     retryFailedTurn,
     clearFailedTurn,

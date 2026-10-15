@@ -20,6 +20,8 @@ export type {
   AliaTurnRequest,
   AliaUsageFrame,
   OfflineConversationStore,
+  SpeechPreferences,
+  ThoughtOpening,
 } from './config';
 export { AliaApiError, useAliaApi } from './api';
 export type { AliaApi, AliaApiRequest, AliaApiResult } from './api';
@@ -37,6 +39,7 @@ export {
 } from './conversations';
 export { useConversationThread, mergeEditedContent } from './use-conversation-thread';
 export type {
+  ConversationThread,
   EditedContent,
   UseConversationThreadOptions,
 } from './use-conversation-thread';
@@ -54,6 +57,17 @@ export type {
   DraftAddress,
   DraftTarget,
 } from './composer-draft-store';
+export { useAgentActivity } from './use-agent-activity';
+export type { UseAgentActivityResult } from './use-agent-activity';
+export { useThoughtStore } from './thought-store';
+export type {
+  ThoughtScope,
+  ThoughtScopeStatus,
+  ThoughtSelection,
+  ThoughtTab,
+} from './thought-store';
+export { useThreadHistory } from './use-thread-history';
+export { useThreadSearch, useThreadWindow } from './use-thread-search';
 export { useStartConversation } from './use-start-conversation';
 export type { StartConversationOptions } from './use-start-conversation';
 export { useTurnEdit } from './use-turn-edit';

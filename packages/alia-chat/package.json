@@ -1,6 +1,7 @@
 {
   "name": "@alia.onl/sdk",
-  "version": "17.1.0",
+  "version": "18.0.0",
+  "description": "Alia AI chat SDK \u2014 the conversation runtime, chat UI, voice calls and dictation for Oxy apps",
   "main": "src/index.ts",
   "react-native": "src/index.ts",
   "source": "src/index.ts",
@@ -61,6 +62,8 @@
     "nativewind": "^5.0.0-preview.3",
     "expo-clipboard": "^57.0.0",
     "expo-file-system": "^57.0.0",
+    "expo-web-browser": "^57.0.0",
+    "react-native-css": "^3.0.7",
     "react-native-audio-api": "^0.13.6"
   },
   "peerDependenciesMeta": {

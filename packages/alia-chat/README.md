@@ -1,8 +1,8 @@
 # @alia.onl/sdk
 
-Alia's chat SDK for React Native and Expo apps built on Oxy: the chat sheet and
-screen, the streaming hook, speech in and out, and the primitives they are made
-of. It renders inside the one `OxyProvider` your app already mounts and sends
+Alia's chat SDK for React Native and Expo apps built on Oxy: the conversation (the chat sheet,
+the screen, the thread, the thought panel and the composer), the streaming hook, speech in and
+out, and the primitives they are made of. It renders inside the one `OxyProvider` your app already mounts and sends
 the signed-in user's Oxy session with every request; it never holds a token of
 its own.
 
@@ -18,8 +18,10 @@ bun add @alia.onl/sdk
 ```
 
 `react`, `react-native`, `@oxy.so/core`, `@oxy.so/services`, `@tanstack/react-query`
-(the conversation runtime's cache; `OxyProvider` mounts the client) and the Expo modules
-listed under `peerDependencies` in `package.json` are yours to install. Metro
+(the conversation runtime's cache; `OxyProvider` mounts the client), `react-native-css`
+(the thread's images take `className`) and the Expo modules listed under `peerDependencies` in
+`package.json` — among them `expo-clipboard` and `expo-web-browser`, which the thread's copy
+button and its sources use — are yours to install. Metro
 must resolve package `exports` (`resolver.unstable_enablePackageExports = true`,
 the default in Expo SDK 53+), because every icon import is a subpath.
 
@@ -48,7 +50,7 @@ English). Bloom's own strings follow `BloomProvider`'s `locale`.
 Entry points:
 
 - `@alia.onl/sdk` — the conversation screen (`AliaChatScreen`, `AliaChatSheet`,
-  `AliaChatContent`) with its voice call included: the button that opens it, the
+  `AliaChatContent`, the thread `AliaThread`, the work panel `ThoughtPanel`) with its voice call included: the button that opens it, the
   bar with its honest state, the notices (failure, moved to another device, time
   limit) and the transcript in the same thread. Also dictation, read-aloud,
   the conversation runtime, primitives. The call loads on the first call.
@@ -60,9 +62,10 @@ Entry points:
   the audio engine) for a host that builds its own screen.
 
 Voice is on by default; `voice={false}` makes a chat text-only, and
-`voice={{ canStartVoice, onVoiceBlocked, onCallEnded, onNotice, isFocused }}` brings
+`voice={{ canStartVoice, onVoiceBlocked, onCallEnded, onNotice, sounds }}` brings
 what only the host knows (the plan and credits gate, what to refresh when a call
-ends, where notices go). The conversation a call lives in is the chat's own. Its words are `labels.voiceControls`,
+ends, where notices go, the cues it plays). Whether the screen holding the call is the one on
+show is `isFocused` of the chat. The conversation a call lives in is the chat's own. Its words are `labels.voiceControls`,
 `voiceError`, `voiceEnded`, `voiceEndingSoon` and `voiceBlocked`. A host with its
 own screen uses `useVoiceLauncher` and `AliaVoiceCall`, the same pieces.
 
@@ -147,13 +150,52 @@ const state = useAliaActivity(); // 'idle' | 'thinking' | 'working' | 'writing'
 `socket.io-client` is a regular dependency, not a peer: the SDK owns this connection and an
 app should not have to install a transport to use a button.
 
+## The thread
+
+The sheet, the screen and the Alia app draw ONE thread, `AliaThread` (inside `AliaChatContent`),
+and nothing else draws turns: Bloom's AI Chat turns with their reveal, the feedback row and the
+long-press menu; the reply's Markdown with its rich blocks, its code card and its references;
+the work log (`WebSearch`, `TaskList`) and the "Worked for…" line; tool cards; the questions Alia
+asked; plan approval; the failed turn's toast with its Retry; day lines; the window over a long
+history with the scroll that goes with it; and the card of an agent's run. What a frame adds is
+around it, never in it (`tests/components/thread/one-thread.test.tsx` mounts it both ways and
+holds the rows equal, and fails if anything else imports Bloom's thread).
+
+An agent's permanent thread is `threadHandle`: the conversations behind the open one are paged in
+above it, the thread can be searched (`state.openSearch`), and a hit opens the stretch around it.
+Those routes (`/agents/thread/:handle/…`) answer Alia's own origins only, as `/conversations` did
+before `/v1`: an embedding Oxy app has no agents of its own and passes no handle.
+
+### The work panel, and where it goes
+
+A turn that used tools has a "Worked for…" line; pressing it selects the turn (`useThoughtStore`)
+and asks the host to show it (`runtime.showThought`). `ThoughtPanel` — steps, sources, activity —
+draws the selection wherever the host puts it: the Alia app's right panel, the sheet's own sheet
+over the conversation. A host without `showThought` has no panel, and the line is plain text. A
+running turn's first tool opens the panel by itself (`showThought('automatic')`) unless the host
+declines because something else is open. A file the turn generated opens where the host keeps its
+files (`ThoughtPanel`'s `outputActions`).
+
+### Cards: why weather, market and FairCoin are the SDK's
+
+The weather, market quote and FairCoin price cards are the thread's. Their tools
+(`getWeather`, `getMarketQuote`, `getFairCoin`) are in the pipeline every Alia surface calls, and
+the card's numbers travel in the message itself (the whole of every range is in the snapshot, so a
+thread reopened next month shows the figures it was answered with). So any surface that draws
+Alia's reply draws them. The scheduled-task card is the same card with one difference: it points at
+a screen of the host's, so it is a link only where `runtime.openAutomation` says where it goes.
+
 ## The composer
 
 The sheet, the screen and the Alia app share one composer, `AliaComposer`: Bloom's
 `ComposerPill` with files by paste and drop (read with real progress, retried, refused with a
 sentence), dictation, suggestions over the field and Alia's questions docked above it.
 `AliaChatSheet` and `AliaChatScreen` render it with photos, voice and suggestions, and
-`AliaChatSheet` focuses it once the sheet has presented. To build your own surface, mount it and
+`AliaChatSheet` focuses it once the sheet has presented. The conversation also owns the draft
+(per conversation and account), sending, rewriting a question already sent, the questions Alia
+asked and the power-level selector: give `AliaChatContent` an `onModelChange` and the composer
+offers the seven levels (`auto` … `ultra`) with `deviceModels` of the person's own after them;
+give it an `addMenu` (rows and what pressing one does) and that menu replaces the photos one. To build your own surface, mount it and
 pass what the surface has:
 
 ```tsx
@@ -187,7 +229,15 @@ Everything that is a conversation lives in `src/runtime`, in layers that depend 
 | Transport | Alia's REST API over the signed-in person's Oxy client (token, refresh and the single 401 replay are Oxy's); the turn's SSE stream | `useAliaApi`, `AliaApiError` |
 | Model and state | the records, React Query keys and the cached lists; zustand stores for the composer drafts and the hand-off of a first message | `Message`, `Conversation`, `aliaQueryKeys`, `useComposerDraftStore`, `useConversationStore` |
 | Hooks | `useConversations` (the list, paginated), `useConversation` (one, with its history), `useCreateConversation`, `useRenameConversation`, `useDeleteConversation`, `useClearConversation`, and `useConversationThread`: the live thread of one conversation — messages, `sendMessage`, `createNewConversation`, `editMessage`, `regenerateMessage`, `retryFailedTurn`, `stopGeneration`, `clearConversation`, `startOver`, `ensureConversation` | `use…` |
-| UI | `AliaChatContent` (the conversation screen), `AliaChatScreen`, `AliaChatSheet` | components |
+| UI | `AliaChatContent` (the conversation screen), `AliaChatScreen`, `AliaChatSheet`, `AliaThread`, `ThoughtPanel` | components |
+
+Between the hooks and the components are the hooks of what a person does with a conversation —
+`useChatComposer` (the draft, send, edit, suggestions), `useChatVoice` (the call and its
+transcript in the thread), `useThreadView` (the present or a moment of an agent's thread),
+`useOpenThought`, `useReadAloud`, `useMessageVote` — each used by exactly one layer above it.
+
+An agent's thread and runs (`useThreadHistory`, `useThreadSearch`, `useThreadWindow`,
+`useAgentActivity`) read the agent routes through the same API and cache.
 
 A turn goes to `POST {apiUrl}/v1/chat/completions`; conversations to `{apiUrl}/v1/conversations`.
 `apiUrl` defaults to `EXPO_PUBLIC_ALIA_API_URL`, then `https://api.alia.onl`. A failure to
@@ -210,12 +260,17 @@ const host: AliaRuntimeHost = {
   onUsage: (frame) => updateCredits(frame.credits_remaining),
   onArtifact: (artifact) => rightPanel.show(artifact),
   turnRequest: () => ({ webSearch: composerMenu.webSearch, agentMode: composerMenu.agentMode }),
+  // where the work of a turn is read; return false to decline an automatic opening
+  showThought: (opening) => (opening === 'automatic' && panel.isOpen ? false : panel.show('thought')),
+  openAutomation: (id) => router.push(`/automations/${id}`), // a scheduled-task card is a link
+  faviconUrl: (url) => favicons.of(url), // the work log's source icons
 };
 
 <AliaRuntimeProvider
   apiUrl="https://api.alia.onl"
   offline={accountScopedStore}  // optional: where a 401-ed session keeps its conversations
   streamFetch={expoFetch}       // optional: a fetch that can stream a body on native
+  speech={{ voice: 'female', tone: 'brief', language: 'es-ES' }} // read-aloud, dictation, calls
   host={host}                   // memoise it
 >
   {children}
@@ -230,10 +285,14 @@ The sheet and the Alia app differ ONLY in what they put there:
 
 // The Alia app: its route owns the conversation, its sidebar reads the same list.
 <AliaChatContent
+  surface                       // the container draws the page's card
   conversationId={id}
-  onConversationChange={(next) => router.replace(next ? `/c/${next}` : '/')}
-  runtime={host}
+  threadHandle={handle}         // an agent's thread: history above, search
   model={powerLevel}
+  onModelChange={setPowerLevel} // the composer offers the levels
+  addMenu={{ groups, onSelect }} // the host's rows
+  chrome={(chat) => ({ header, title, project, actions: <Actions chat={chat} /> })}
+  renderUsageLimit={({ error, dismiss }) => <UsageLimitDialog error={error} onDismiss={dismiss} />}
 />
 function Sidebar() {
   const { data } = useConversations(); // the very query the thread keeps up to date
@@ -271,6 +330,8 @@ every Oxy app, on that app's own origin, with nothing to configure and no backen
 
 `apiUrl` defaults to `EXPO_PUBLIC_ALIA_API_URL`, then `https://api.alia.onl`. `routes.ts` holds
 the paths, and `tests/runtime/v1-only.test.ts` fails if the transport builds a URL outside `/v1`.
+The one exception is the agent routes (`AGENT_ROUTES`: an agent's thread and its runs), which only
+Alia's own clients use.
 
 `model` is a power level (`auto`, `instant`, `medium`, `high`, `xhigh`, `pro`, `ultra`) or an
 exact `publisher/model`; it is sent as given, and omitted the server's default answers. The SDK

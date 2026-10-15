@@ -3,7 +3,7 @@ import {
   isDeviceModelId,
   isPowerLevel,
   type PowerLevel,
-} from '@/features/chat/model/power-levels';
+} from '@alia.onl/sdk/model';
 
 /** What `migrateModelState` returns; the store's persisted half. */
 export interface PersistedModelState {

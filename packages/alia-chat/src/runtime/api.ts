@@ -38,6 +38,7 @@ export interface AliaApiRequest {
 export interface AliaApi {
   get<T>(path: string, request?: AliaApiRequest): Promise<AliaApiResult<T>>;
   post<T>(path: string, body?: unknown, request?: AliaApiRequest): Promise<AliaApiResult<T>>;
+  patch<T>(path: string, body?: unknown, request?: AliaApiRequest): Promise<AliaApiResult<T>>;
   delete<T>(path: string, request?: AliaApiRequest): Promise<AliaApiResult<T>>;
 }
 
@@ -81,7 +82,7 @@ export interface LinkableOxy {
 /** Build the API over an Oxy client for `apiUrl`. Exposed for tests and for non-React callers. */
 export function createAliaApi(oxyServices: LinkableOxy, apiUrl: string): AliaApi {
   async function send<T>(
-    method: 'GET' | 'POST' | 'DELETE',
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
     path: string,
     request: AliaApiRequest = {},
   ): Promise<AliaApiResult<T>> {
@@ -109,6 +110,7 @@ export function createAliaApi(oxyServices: LinkableOxy, apiUrl: string): AliaApi
   return {
     get: (path, request) => send('GET', path, request),
     post: (path, body, request) => send('POST', path, { ...request, body: body ?? {} }),
+    patch: (path, body, request) => send('PATCH', path, { ...request, body: body ?? {} }),
     delete: (path, request) => send('DELETE', path, request),
   };
 }

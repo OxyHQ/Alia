@@ -5,7 +5,7 @@
  * and memory across repeated conversation switches.
  *
  * The page is `/__fixtures/:id` from `fixtures/` — the chat page
- * (`ChatPageContent`) under the real `(app)` layout, fed by
+ * (the SDK's `AliaThread`) under the real `(app)` layout, fed by
  * `fixtures/conversation.ts` instead of the API. It exists only in a build
  * made with `EXPO_PUBLIC_ALIA_FIXTURES=1`, exported here into `dist-fixtures/`
  * so it can never be mistaken for, or served as, the production export. Every

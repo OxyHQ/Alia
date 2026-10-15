@@ -5,6 +5,7 @@ import {
   type ScrollViewProps,
   KeyboardAvoidingView as RNKeyboardAvoidingView,
   type KeyboardAvoidingViewProps as RNKeyboardAvoidingViewProps,
+  View,
 } from 'react-native';
 
 // Accept native-only props so shared components don't cause TS errors
@@ -40,4 +41,12 @@ export { KeyboardAwareScrollView, KeyboardAvoidingView };
 // No-op provider on web — keyboard-controller is native-only
 export function KeyboardProvider({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
+}
+
+/**
+ * The room under a bottom-anchored control for the system's bottom bar. The web's keyboard resizes
+ * the page rather than covering it, so that room never has to give way to it (see the native file).
+ */
+export function KeyboardSafeAreaFloor({ inset }: { inset: number }) {
+  return <View style={{ height: inset }} />;
 }

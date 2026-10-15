@@ -1,12 +1,12 @@
 /**
  * `/__fixtures/:id` — the chat page, fed a generated conversation.
  *
- * Fixtures build only (`fixtures/entry.tsx`). It renders `ChatPageContent`, the
- * same public entry point `/c/:id` renders through `ConversationScreen`, with
- * the conversation from `fixtures/conversation.ts` in place of the one the API
- * would return. Everything under it — the shell, the thread, the composer, the
- * rows, the cards — is the production component tree, so the harness measures
- * whatever that tree currently is, before and after a refactor of it.
+ * Fixtures build only (`fixtures/entry.tsx`). It renders the SDK's `AliaThread`, the
+ * thread `/c/:id` renders through `ConversationScreen` and `AliaChatContent`, in the same container
+ * and with the conversation from `fixtures/conversation.ts` in place of the one the API would
+ * return (the conversation's own runtime is a network client, so the thread is fed directly).
+ * Everything under it — the shell, the thread, the rows, the cards — is the production component
+ * tree, so the harness measures whatever that tree currently is, before and after a refactor of it.
  *
  * The route name starts with `__`, which `(app)/_layout.tsx` already treats as
  * a chat route: it composes its own container, as the real chat pages do.
@@ -27,9 +27,12 @@
  *     browser back/forward onto a foreign entry, not a chat switch.
  */
 import { ChatHeaderActions } from '@/features/chat/ui/chat-header-actions';
-import { ChatPageContent } from '@/features/chat/ui/chat-page-content';
+import { KeyboardFrame } from '@/features/chat/ui/chat-workspace';
 import { fixtureConversation, fixtureReply } from '../../../conversation';
-import { type Message } from '@alia.onl/sdk/model';
+import { AliaComposer, AliaThread } from '@alia.onl/sdk';
+import type { Message } from '@alia.onl/sdk/model';
+import { useComposerDraft, useComposerDraftStore, useTurnEdit } from '@alia.onl/sdk/runtime';
+import { AiChatContainer, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
@@ -143,7 +146,6 @@ export default function FixtureChatPage() {
     }, [id, stream]),
   );
 
-  const onSubmit = useCallback(async () => false, []);
   const onStop = useCallback(() => {}, []);
   /**
    * The chat's own menu and a turn's edit, acting on the fixture's thread, so
@@ -156,22 +158,55 @@ export default function FixtureChatPage() {
     setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, content: text } : m)));
     return true;
   }, []);
-  const headerActions = useMemo(
+  const actions = useMemo(
     () => <ChatHeaderActions onExport={onExport} onClear={onClear} />,
     [onExport, onClear],
   );
 
+  // The thread is the SDK's, as the sheet and the app draw it; around it only the pieces a fixture
+  // needs to be reached by the QA sweep: the container, the composer and a turn's edit.
+  const draft = useComposerDraft(id);
+  const edit = useTurnEdit({ target: id, messages, onEditMessage });
+  const threadRef = useRef<AiChatThreadHandle | null>(null);
+  const setText = useCallback(
+    (text: string) => {
+      const store = useComposerDraftStore.getState();
+      store.setText(store.address(id), text);
+    },
+    [id],
+  );
+  const submit = useCallback(async () => {
+    const text = draft.text.trim();
+    if (text === '') return;
+    const store = useComposerDraftStore.getState();
+    store.clear(store.address(id));
+    if (edit.editing !== undefined) await edit.submit(text);
+  }, [draft.text, edit, id]);
+
   return (
-    <ChatPageContent
-      messages={messages}
-      isLoading={isLoading}
-      onSubmit={onSubmit}
-      onStop={onStop}
-      conversationLoading={false}
-      conversationId={id}
-      conversationTitle={conversation.title}
-      headerActions={headerActions}
-      onEditMessage={onEditMessage}
-    />
+    <KeyboardFrame>
+      <AiChatContainer
+        title={conversation.title}
+        actions={actions}
+        floatingChrome
+        composer={
+          <AliaComposer
+            value={draft.text}
+            onValueChange={setText}
+            onSubmit={() => void submit()}
+            onStop={onStop}
+            disableKeyboardAvoidance
+          />
+        }
+      >
+        <AliaThread
+          messages={messages}
+          conversationId={id}
+          isLoading={isLoading}
+          threadRef={threadRef}
+          onStartEdit={edit.start}
+        />
+      </AiChatContainer>
+    </KeyboardFrame>
   );
 }

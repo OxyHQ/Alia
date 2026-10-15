@@ -92,12 +92,11 @@ vi.mock('@/features/chat/ui/workspace/agent-terminal', async () => {
   return { AgentTerminal: host('AgentTerminal') };
 });
 vi.mock('@/features/chat/ui/workspace/agent-panel', () => ({ AgentPanel: () => null }));
-vi.mock('@/features/chat/ui/canvas/canvas-component', async () => {
+vi.mock('@alia.onl/sdk', async () => {
   const { host } = await import('@/shared/testing/panel-bloom-stubs');
-  return { CanvasComponent: host('CanvasPreview') };
+  return { CanvasComponent: host('CanvasPreview'), ThoughtPanel: () => null };
 });
 vi.mock('@/features/chat/ui/workspace/credits-limits', () => ({ CreditsLimits: () => null }));
-vi.mock('@/features/chat/ui/thought-panel', () => ({ ThoughtPanel: () => null }));
 
 const library = vi.hoisted(() => ({
   files: [] as Record<string, unknown>[],

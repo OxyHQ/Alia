@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -75,9 +75,8 @@ vi.mock('@/features/chat/ui/workspace/agent-terminal', async () => {
   return { AgentTerminal: host('AgentTerminal') };
 });
 vi.mock('@/features/chat/ui/workspace/agent-panel', () => ({ AgentPanel: () => null }));
-vi.mock('@/features/chat/ui/canvas/canvas-component', () => ({ CanvasComponent: () => null }));
+vi.mock('@alia.onl/sdk', () => ({ CanvasComponent: () => null, ThoughtPanel: () => null }));
 vi.mock('@/features/chat/ui/workspace/credits-limits', () => ({ CreditsLimits: () => null }));
-vi.mock('@/features/chat/ui/thought-panel', () => ({ ThoughtPanel: () => null }));
 vi.mock('@/features/library/runtime/library-store', () => ({
   useLibraryStore: (select: (s: Record<string, unknown>) => unknown) =>
     select({ files: [], loadFiles: async () => {} }),
