@@ -20,6 +20,8 @@
 import React, { useCallback } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
+import { ALIA_CHARACTER_RUNTIME_URL } from '../lib/character-runtime';
 import { KeyboardAvoidingView } from '../lib/keyboard';
 import { AliaChatContent, type AliaChatContentProps } from './AliaChatContent';
 import { AliaChatHeader } from './AliaChatHeader';
@@ -84,7 +86,7 @@ export function AliaChatScreen({
   isDarkMode,
   voiceSession,
   labels,
-  characterRuntimeUrl,
+  characterRuntimeUrl = ALIA_CHARACTER_RUNTIME_URL,
 }: AliaChatScreenProps) {
   const insets = useSafeAreaInsets();
   // The screen owns the whole window, so it keeps its composer out of both
@@ -114,28 +116,29 @@ export function AliaChatScreen({
   );
 
   return (
-    <View
-      className="flex-1 bg-background-full"
-      style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
-    >
-      <KeyboardAvoidingView behavior="padding" automaticOffset style={{ flex: 1 }}>
-        <AliaChatContent
-          clientContext={clientContext}
-          model={model}
-          apiUrl={apiUrl}
-          welcomeGreeting={welcomeGreeting}
-          welcomeSubtitle={welcomeSubtitle}
-          welcomeSuggestions={welcomeSuggestions}
-          agents={agents}
-          suggestionMatches={suggestionMatches}
-          onSuggestionQuery={onSuggestionQuery}
-          isDarkMode={isDarkMode}
-          voiceSession={voiceSession}
-          labels={labels}
-          characterRuntimeUrl={characterRuntimeUrl}
-          header={header}
-        />
-      </KeyboardAvoidingView>
-    </View>
+    <AgentAvatarProvider runtimeUrl={characterRuntimeUrl}>
+      <View
+        className="flex-1 bg-background-full"
+        style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
+      >
+        <KeyboardAvoidingView behavior="padding" automaticOffset style={{ flex: 1 }}>
+          <AliaChatContent
+            clientContext={clientContext}
+            model={model}
+            apiUrl={apiUrl}
+            welcomeGreeting={welcomeGreeting}
+            welcomeSubtitle={welcomeSubtitle}
+            welcomeSuggestions={welcomeSuggestions}
+            agents={agents}
+            suggestionMatches={suggestionMatches}
+            onSuggestionQuery={onSuggestionQuery}
+            isDarkMode={isDarkMode}
+            voiceSession={voiceSession}
+            labels={labels}
+            header={header}
+          />
+        </KeyboardAvoidingView>
+      </View>
+    </AgentAvatarProvider>
   );
 }

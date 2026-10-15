@@ -103,3 +103,22 @@ describe('AliaChatSheet focus', () => {
     );
   });
 });
+
+describe('the character runtime', () => {
+  const screen = read('AliaChatScreen.tsx');
+
+  it('wraps the sheets AND the flight layer: an avatar drawn outside it would ask the host for /bloom-character/runtime.mjs', () => {
+    const open = source.indexOf('<AgentAvatarProvider');
+    const close = source.indexOf('</AgentAvatarProvider>');
+    expect(open).toBeGreaterThan(-1);
+    expect(source.indexOf('<BottomSheet', open)).toBeGreaterThan(open);
+    const flights = source.indexOf('<AvatarFlightLayer', open);
+    expect(flights).toBeGreaterThan(open);
+    expect(flights).toBeLessThan(close);
+  });
+
+  it('is mounted once, by the two entry points, never by the chat they share', () => {
+    expect(screen.match(/<AgentAvatarProvider/g)).toHaveLength(1);
+    expect(content).not.toMatch(/AgentAvatarProvider/);
+  });
+});

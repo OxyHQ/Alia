@@ -1,3 +1,4 @@
+import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
 import { AvatarFlightLayer, useAvatarFlights } from '@oxy.so/bloom/avatar-flight';
 import { BottomSheet, type BottomSheetRef } from '@oxy.so/bloom/bottom-sheet';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
@@ -6,6 +7,7 @@ import { useWindowDimensions, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BREAKPOINTS } from '@oxy.so/bloom/styles';
+import { ALIA_CHARACTER_RUNTIME_URL } from '../lib/character-runtime';
 import type { AliaChatLabels } from '../lib/labels';
 import type { VoiceSessionComponent } from '../types';
 import { AliaChatContent, type AliaChatContentProps, type AliaTurn } from './AliaChatContent';
@@ -81,7 +83,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       isDarkMode,
       voiceSession,
       labels,
-      characterRuntimeUrl,
+      characterRuntimeUrl = ALIA_CHARACTER_RUNTIME_URL,
       onShare,
       headerMenu,
     },
@@ -166,11 +168,12 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       voiceSession,
       bottomInset: detached ? 0 : bottom,
       labels,
-      characterRuntimeUrl,
     };
 
+    // The provider wraps the sheets AND the flight layer: both draw avatars, and an avatar drawn
+    // outside it would fall back to the host's own `/bloom-character/runtime.mjs`.
     return (
-      <>
+      <AgentAvatarProvider runtimeUrl={characterRuntimeUrl}>
         <BottomSheet
           ref={mainRef}
           detached={detached}
@@ -233,7 +236,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
           </BottomSheet>
         ) : null}
         <AvatarFlightLayer flights={flights} />
-      </>
+      </AgentAvatarProvider>
     );
   },
 );
