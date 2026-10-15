@@ -14,9 +14,9 @@ import { markdownToTelegramHtml, stripMarkdown } from '../channels/telegram-form
 export function createSendTelegramTool(userId: string) {
   return tool({
     description:
-      'Send a message to user\'s Telegram. Use ONLY when user explicitly requests (e.g., "send me X on Telegram", "remind me via Telegram").',
+      'Send a message to the user\'s Telegram. ONLY when they explicitly ask ("send me X on Telegram").',
     inputSchema: z.object({
-      message: z.string().describe('Complete message to send to user on Telegram'),
+      message: z.string().describe('The complete message'),
     }),
     execute: async ({ message }) => {
       try {

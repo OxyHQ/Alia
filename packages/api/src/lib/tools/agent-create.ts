@@ -33,8 +33,7 @@ import { accountCategoryChoices, isOfferedAccountCategory } from '../account-cat
 export const createAgentTool = (userId: string, accessToken: string | undefined) =>
   tool({
     description:
-      'Create a new AI agent. Use when the user asks to create, build, or make a custom agent, assistant, or specialist. ' +
-      'Create immediately with reasonable defaults inferred from the request — do not ask multiple clarifying questions.',
+      'Create an AI agent when the user asks to create, build or make a custom agent, assistant or specialist. Create at once with defaults inferred from the request; do not ask clarifying questions.',
 
     inputSchema: z.object({
       /**
@@ -49,35 +48,26 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
       name: z
         .string()
         .describe(
-          'A GIVEN NAME for the agent, as you would name a person — "Claudio", "Nadia", "Bruno", ' +
-            '"Xiomara". Never a job title: not "Community Manager", not "Support Bot". Prefer the ' +
-            'distinctive over the ordinary. One or two words.',
+          'A GIVEN NAME, as for a person — "Claudio", "Nadia", "Xiomara". Never a job title: not ' +
+            '"Community Manager", not "Support Bot". Distinctive over ordinary; one or two words.',
         ),
-      description: z
-        .string()
-        .describe('What this agent does and how it should behave (1-3 sentences)'),
+      description: z.string().describe('What it does and how it behaves (1-3 sentences)'),
       category: z
         .enum(['Assistant', 'Creative', 'Developer', 'Research', 'Business', 'Education'])
         .optional()
-        .default('Assistant')
-        .describe('Agent category'),
+        .default('Assistant'),
       systemPrompt: z
         .string()
         .optional()
-        .describe('Detailed system prompt. If omitted, auto-generated from name and description.'),
+        .describe('Detailed system prompt; generated from name and description if omitted.'),
       capabilityGrants: z
         .array(z.enum(FIXED_CAPABILITY_FAMILIES))
         .optional()
         .describe(
-          'What the agent may reach. Pick only the families its purpose needs — an ' +
-            'agent gets NOTHING it was not granted. The four row-at-a-time families ' +
-            "(MCP connectors, Oxy services, integrations, and the owner's own agents) " +
-            'are granted a row at a time in the agent editor and cannot be chosen here.',
+          'What the agent may reach. Pick only what its purpose needs: it gets NOTHING it was not granted. ' +
+            "MCP connectors, Oxy services, integrations and the owner's agents are granted in the agent editor, not here.",
         ),
-      tags: z
-        .array(z.string())
-        .optional()
-        .describe('Tags for discoverability (3-5 lowercase tags)'),
+      tags: z.array(z.string()).optional().describe('3-5 lowercase tags'),
       /**
        * Free text, so it is described rather than enumerated — the offered ids
        * are checked in `execute`, because a model asked for a closed vocabulary
@@ -87,18 +77,13 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
         .string()
         .optional()
         .describe(
-          `What the agent is ABOUT, for its account in the wider Oxy graph. Exactly one of: ` +
-            `${accountCategoryChoices}. This is the SUBJECT and "category" above is the KIND of ` +
-            `agent: answer each on its own, they need not agree. Omit it entirely if none fits — ` +
-            `no category is better than a wrong one.`,
+          `The SUBJECT the agent is about ("category" is its KIND; they need not agree). Exactly one of: ` +
+            `${accountCategoryChoices}. Omit if none fits: none beats a wrong one.`,
         ),
       color: z
         .enum(AGENT_COLORS)
         .optional()
-        .describe(
-          'The agent has no picture — it is drawn as a glyph in this colour — so pick the one ' +
-            'that suits what it does.',
-        ),
+        .describe('Colour of its glyph (it has no picture); pick one that suits what it does.'),
     }),
 
     execute: async ({

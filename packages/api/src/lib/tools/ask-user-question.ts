@@ -40,7 +40,7 @@ const QuestionSchema = z.object({
     .array(OptionSchema)
     .min(2)
     .max(4)
-    .describe('2-4 distinct choices. Never add "Other": the person can always type their own.'),
+    .describe('2-4 distinct choices; never add "Other" (they can type their own)'),
   multiSelect: z
     .boolean()
     .default(false)
@@ -52,13 +52,11 @@ export type AskedQuestion = z.infer<typeof QuestionSchema>;
 export function createAskUserQuestionTool() {
   return tool({
     description:
-      'Put 1-4 questions to the person as a card of tappable options (2-4 each) INSTEAD of writing the question in your reply. ' +
-      'Use it whenever you need them to choose between options or supply a detail you cannot look up or sensibly default: ' +
-      'which of several approaches, a missing detail, a preference. ' +
-      'The card ends YOUR TURN: write at most one short sentence before calling this, nothing after it, and never ask the same thing in prose too. ' +
-      'The answers arrive as the next message. Call it once per turn, and not again for something they already answered. ' +
-      'Do not use it for something a tool can find out, something a sensible default settles (answer and state the assumption), ' +
-      'or open-ended and conversational questions with no discrete options.',
+      'Put 1-4 questions to the person as a card of tappable options (2-4 each) INSTEAD of writing the question in your reply, ' +
+      'whenever they must choose between options or supply a detail you cannot look up or sensibly default. ' +
+      'The card ends YOUR TURN: at most one short sentence before calling this, nothing after it, and never also ask in prose. ' +
+      'Their answers arrive as the next message. Once per turn, and not again for something already answered. ' +
+      'Not for what a tool can find out, what a sensible default settles (answer and state the assumption), or open-ended and conversational questions with no discrete options.',
     inputSchema: z.object({
       questions: z.array(QuestionSchema).min(1).max(MAX_QUESTIONS),
     }),

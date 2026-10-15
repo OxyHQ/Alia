@@ -21,9 +21,9 @@ export interface PlanStep {
 export function createPlanPreviewTool(onPlan: (steps: PlanStep[]) => void) {
   return tool({
     description:
-      'Show the user a step-by-step plan ONLY when the task will require calling 3+ other tools (e.g. web search → file generation → follow-up search). ' +
-      'NEVER use for: greetings, simple questions, brainstorming, creative writing, conversations, advice, explanations, single-tool tasks, or any request you can answer directly. ' +
-      'When in doubt, do NOT show a plan — just respond.',
+      'Show the user a step-by-step plan ONLY when the task needs 3+ other tool calls. ' +
+      'NEVER for greetings, simple questions, brainstorming, creative writing, conversation, advice, explanations, single-tool tasks or anything you can answer directly. ' +
+      'When in doubt, just respond.',
     inputSchema: z.object({
       steps: z
         .array(

@@ -38,13 +38,10 @@ import { automationScheduleError, reloadAutomationSchedule } from './trigger-eng
 
 export const automationResourceSchema = z
   .object({
-    appId: z.string().min(1).describe('Stable Oxy app identifier, such as inbox or noted'),
-    effectiveAccountId: z.string().min(1).describe('Exact Oxy account that owns the public action'),
-    resourceType: z.string().min(1).describe('Resource kind declared by the app catalogue'),
-    resourceId: z
-      .string()
-      .min(1)
-      .describe('Exact resource identifier within the effective account'),
+    appId: z.string().min(1).describe('Oxy app id, e.g. inbox'),
+    effectiveAccountId: z.string().min(1).describe('Owning Oxy account id'),
+    resourceType: z.string().min(1),
+    resourceId: z.string().min(1),
   })
   .strict();
 
@@ -121,9 +118,7 @@ export const createAutomationSchema = z
     trigger: automationTriggerSchema,
     actorSelection: automationActorSelectionSchema
       .default({ mode: 'alia' })
-      .describe(
-        'Who is responsible. Omit for Alia, the default; name an agent only when the user asked for one of their agents',
-      ),
+      .describe('Omit for Alia; an agent only if the user asked for one of theirs'),
     executionMode: z
       .enum(['observe', 'execute'])
       .default('observe')
@@ -131,9 +126,7 @@ export const createAutomationSchema = z
     actions: z
       .array(automationActionSchema)
       .default([])
-      .describe(
-        'Ordered connected-app effects. Leave empty for reminders, research, and assistant responses',
-      ),
+      .describe('Ordered connected-app effects; empty for reminders, research and replies'),
     inputs: z.record(z.string(), z.unknown()).default({}),
     resources: z.array(automationResourceSchema).default([]),
     dataFlow: z

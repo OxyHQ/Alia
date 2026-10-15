@@ -83,52 +83,6 @@ const CONTINUATION_PROMPTS = [
 // ── System Prompt Builder ──
 
 /**
- * The session primitives this agent WAS GRANTED, described in the prompt.
- *
- * Derived from the same grants `buildRuntimeTools` reads, so the prompt cannot
- * promise an action the tool set withheld. It used to be a fixed "You have 5
- * actions" list, which was true only while every agent got all five — under
- * deny-by-default it would tell an agent with no browser to browse, and the
- * model would spend steps calling a tool that is not there.
- *
- * `plan` is always listed because it is ungranted: it is how a run ends.
- */
-function actionLines(
-  agent: HydratedAgent,
-  options: { automation: boolean; outreach: boolean },
-): string {
-  const grants = readCapabilityGrants(agent.capabilityGrants);
-  const lines: string[] = [];
-  if (grants.allows('browser')) {
-    lines.push(
-      "**browser** — Research the web: search for a query, read a public URL's main text with goto, and read the current page again with get_text. Pages come back as extracted text; you cannot click, type or take screenshots.",
-    );
-  }
-  lines.push(
-    "**plan** — Create and update your task plan, or signal completion. Your plan persists as a checklist. Update it as you make progress. Call plan(action='complete', result='...') when done.",
-  );
-  if (grants.allows('memory')) {
-    lines.push(
-      '**memory** — Your own long-term memory of this person (MEMORY.md, memory/<topic>.md). Read it when you need detail; save what will still matter in a later conversation.',
-    );
-  }
-  if (!options.automation && grants.allows('delegation')) {
-    lines.push('**delegate** — Hire a specialist agent for a subtask outside your expertise.');
-  }
-  if (options.outreach) {
-    lines.push(
-      '**sendMessageToUser** — Write to the person in your conversation with them; they are notified. Only for something they would want to know now. Your final result is delivered to them anyway, so do not repeat it.',
-    );
-    lines.push(
-      '**scheduleFollowUp** — Schedule yourself to come back to this at a given time, with a note for your future self.',
-    );
-  }
-  return `You have ${lines.length} action${lines.length === 1 ? '' : 's'}:\n\n${lines
-    .map((line, i) => `${i + 1}. ${line}`)
-    .join('\n\n')}`;
-}
-
-/**
  * The agent's remit, plus the PROTOCOL of an autonomous run.
  *
  * ## The remit chain moved out, and the protocol stopped being conditional
@@ -145,32 +99,25 @@ function actionLines(
  * opening `You are ${name}.` — the identity guard prepended above this says
  * exactly that, and one fact wants one owner.
  *
+ * No `## Actions` list either: the tool schema already describes every tool the
+ * agent was handed, and nothing else, so a prose copy could only repeat it or
+ * promise one that was withheld. Memory is last in the message because it is the
+ * only part that changes between runs.
+ *
  * No `## Capabilities` section. It listed `agent.capabilities` — the eight
  * decorative tool ids the generator wrote — so what the model read was
  * `web-browsing, memory` while the actual tool set was decided somewhere
  * else entirely and could contradict it in either direction. What the agent
  * can do is the tools it was handed, each with its own description.
  */
-function buildSystemPrompt(
-  agent: HydratedAgent,
-  config: AgentSessionConfig,
-  options: { automation: boolean; outreach: boolean },
-): string {
+export function buildSystemPrompt(agent: HydratedAgent, config: AgentSessionConfig): string {
   return `${agentRemitPrompt(agent)}
 
-## Actions
-
-${actionLines(agent, options)}
-
 ## How to Work
-- For multi-step tasks, create a plan with the plan action. For simple questions, respond directly.
-- Execute your plan step by step. Update the plan after each step.
+- Multi-step task: create a plan with the plan action, execute it step by step, update it after each step. Simple question: respond directly.
 - When done, call plan with action='complete' and your final result.
-- When an action fails, analyze the error and adjust. Do not repeat the same failed action.
-
-## Budget
-- Maximum ${config.maxSteps} steps. Be efficient.
-- Use actions only when necessary — think before acting.`;
+- When an action fails, analyze the error and adjust; don't repeat the same failed action.
+- At most ${config.maxSteps} steps. Be efficient: act only when necessary.`;
 }
 
 // ── Context Builder (Manus KV-cache optimization) ──
@@ -564,7 +511,7 @@ async function driveAgentSession(
   const memorySection = grantsMemory
     ? await agentMemoryPromptSection(session.oxyUserId, agent._id)
     : '';
-  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, { automation: Boolean(session.automationRunId), outreach: !session.parentSessionId })}${memorySection}${agentIdentityPrompt(Object.keys(allActions))}${appCatalogPrompt}`;
+  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config)}${agentIdentityPrompt(Object.keys(allActions))}${appCatalogPrompt}${memorySection}`;
 
   // Persisted every step, so a resumed run keeps counting against the SAME
   // budget instead of starting a fresh one.

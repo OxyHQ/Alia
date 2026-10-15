@@ -41,7 +41,7 @@ interface HistoryPoint {
 
 export const getFairCoinTool = tool({
   description:
-    'Consultar el precio y el estado de la red de FairCoin (FAIR). Devuelve una tarjeta que la app dibuja; no repitas las series en el texto.',
+    'FairCoin (FAIR) price and network status. Returns a card the app draws; do not repeat its series in the text.',
   inputSchema: z.object({}),
   execute: async () => {
     const [priceRes, ...historyRes] = await Promise.all([

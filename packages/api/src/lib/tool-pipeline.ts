@@ -711,7 +711,16 @@ export class ToolPipeline {
           ).catch(bulkFailure('agent'))
         : {},
     ]);
-    Object.assign(aliaTools, mcpTools, integrationTools, oxyServiceTools, ownAgentTools);
+    // The four sources come from rows in no promised order. Sorted by name, the
+    // tool list — which leads the request — is the same bytes turn after turn,
+    // so a provider's prefix cache can serve it.
+    Object.assign(
+      aliaTools,
+      byName(mcpTools),
+      byName(integrationTools),
+      byName(oxyServiceTools),
+      byName(ownAgentTools),
+    );
 
     // Skills: `loadSkill` and `readSkillFile`. Present for API-key callers too: a skill reaches the
     // model only through the candidate set `lib/skills/runtime.ts` already
@@ -769,6 +778,10 @@ export class ToolPipeline {
       toolNameMapping,
     );
   }
+}
+
+function byName(tools: ToolSet): ToolSet {
+  return Object.fromEntries(Object.entries(tools).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }
 
 /**

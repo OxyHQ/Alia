@@ -51,13 +51,10 @@ type ChartPoint = [number, number];
 
 export const getMarketQuoteTool = tool({
   description:
-    'Consultar el precio de una criptomoneda y su histórico. Devuelve una tarjeta que la app dibuja; no repitas la serie en el texto. No sirve para acciones ni índices bursátiles.',
+    'Cryptocurrency price and history. Returns a card the app draws; do not repeat the series in the text. Not for stocks or indices.',
   inputSchema: z.object({
-    coin: z.string().describe("Nombre o símbolo, por ejemplo 'bitcoin', 'BTC' o 'ethereum'."),
-    currency: z
-      .string()
-      .default('usd')
-      .describe("Moneda de cotización en ISO, por ejemplo 'usd' o 'eur'."),
+    coin: z.string().describe("Name or symbol, e.g. 'bitcoin', 'BTC'."),
+    currency: z.string().default('usd').describe("ISO quote currency, e.g. 'usd', 'eur'."),
   }),
   execute: async ({ coin, currency }) => {
     const hit = await resolveCoin(coin);
