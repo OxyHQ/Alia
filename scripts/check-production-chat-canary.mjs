@@ -13,11 +13,12 @@ const requireText = (source, value, message) => {
   if (!source.includes(value)) failures.push(message);
 };
 requireText(workflow, "if: github.ref == 'refs/heads/main'", 'workflow is not main-only');
-requireText(
-  workflow,
-  'environment: production',
-  'workflow does not use the protected production environment',
-);
+// An environment changes the OIDC subject to one the deploy role does not
+// trust: the canary could never assume it.
+if (/^\s+environment:/m.test(workflow))
+  failures.push(
+    'workflow runs in an environment, whose OIDC subject oxy-github-deploy does not trust',
+  );
 requireText(
   workflow,
   'QA_USER_ID: ${{ vars.ALIA_CANARY_OXY_USER_ID }}',

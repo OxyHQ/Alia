@@ -26,8 +26,13 @@ concurrency:
 
 jobs:
   canary:
+    # Main only, and NO `environment:`. A job in an environment presents the
+    # OIDC subject `repo:OxyHQ/Alia:environment:<name>`, which
+    # oxy-github-deploy does not trust (it trusts `ref:refs/heads/main`), so the
+    # canary died at `Could not assume role with OIDC` on every run. The
+    # `production` environment held no rule and no variable; the QA identity is
+    # a repository variable, writable by repository admins only.
     if: github.ref == 'refs/heads/main'
-    environment: production
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
