@@ -500,6 +500,7 @@ export const ChatPageContent = ({
               isMuted={voice.isMuted}
               onToggleMute={voice.toggleMute}
               onEnd={voice.deactivateVoice}
+              notice={voice.notice}
               labels={voiceControlLabels}
             />
           </View>
