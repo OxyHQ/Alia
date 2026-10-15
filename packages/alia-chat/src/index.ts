@@ -50,11 +50,67 @@ export {
 } from './lib/questions';
 export type { AskedOption, AskedQuestion, QuestionAnswer } from './lib/questions';
 
-// ── Chat hook ──
-export { useAliaChat } from './hooks/useAliaChat';
-export type { UseAliaChatOptions, UseAliaChatReturn } from './hooks/useAliaChat';
-export { AliaChatStreamError } from './lib/chat-stream';
-export type { AliaChatFailure } from './lib/chat-stream';
+// ── Conversation runtime: the one data layer under the sheet, the screen and the Alia app ──
+export { AliaRuntimeProvider, useAliaRuntime } from './runtime/config';
+export type {
+  AliaArtifact,
+  AliaRuntimeConfig,
+  AliaRuntimeHost,
+  AliaRuntimeProviderProps,
+  AliaTurnRequest,
+  AliaUsageFrame,
+  OfflineConversationStore,
+} from './runtime/config';
+export { AliaApiError, useAliaApi } from './runtime/api';
+export type { AliaApi, AliaApiRequest, AliaApiResult } from './runtime/api';
+export { aliaQueryKeys } from './runtime/query-keys';
+export {
+  ConversationNotFoundError,
+  useClearConversation,
+  useConversation,
+  useConversations,
+  useCreateConversation,
+  useDeleteConversation,
+  usePrefetchConversation,
+  useRenameConversation,
+  useSaveConversation,
+} from './runtime/conversations';
+export { useConversationThread, mergeEditedContent } from './runtime/use-conversation-thread';
+export type {
+  EditedContent,
+  UseConversationThreadOptions,
+} from './runtime/use-conversation-thread';
+export type { SendOutcome } from './runtime/use-conversation-stream';
+export { useConversationStore } from './runtime/conversation-store';
+export type { PendingInitialMessage } from './runtime/conversation-store';
+export {
+  releaseAttachments,
+  useComposerDraft,
+  useComposerDraftStore,
+  useDraftAddress,
+} from './runtime/composer-draft-store';
+export type {
+  ComposerDraft,
+  DraftAddress,
+  DraftTarget,
+} from './runtime/composer-draft-store';
+export { useTurnEdit } from './runtime/use-turn-edit';
+export { buildMessageContent } from './runtime/attachment-utils';
+export type { BuiltMessageContent, DroppedAttachment } from './runtime/attachment-utils';
+export { UsageLimitError } from './runtime/usage-limit-error';
+export type { UsageLimitDetails, UsageLimitType } from './runtime/usage-limit-error';
+export { failureDetail } from './runtime/turn-failure';
+export type { FailedTurn } from './runtime/turn-failure';
+export type {
+  Conversation,
+  ConversationsInfiniteData,
+  ConversationsPage,
+  Message,
+  MessageContent,
+  PendingApproval,
+  PendingApprovalResult,
+  SendOptions,
+} from './runtime/types';
 
 // ── Read aloud and dictation (no call, no audio engine) ──
 export { useTTS } from './hooks/useTTS';

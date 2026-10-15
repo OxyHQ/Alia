@@ -6,7 +6,7 @@ import { acquireActivitySocket } from '../lib/activity-socket';
 import { ALIA_API_URL } from '../lib/api-url';
 
 export interface UseAliaActivityOptions {
-  /** The API the activity socket connects to. Defaults like `useAliaChat`'s `apiUrl`. */
+  /** The API the activity socket connects to. Defaults to the runtime's `apiUrl`. */
   apiUrl?: string;
 }
 
@@ -14,7 +14,7 @@ export interface UseAliaActivityOptions {
  * What Alia is doing right now, for any surface that wants to show it — an "Ask Alia" button's
  * avatar, a status dot. It is the busiest of:
  *
- * - a turn running in this app (`useAliaChat`, so the sheet drives every button), and
+ * - a turn running in this app (`useConversationThread`, so every chat drives every button), and
  * - her runs for the signed-in person elsewhere, reported by the server over one shared socket
  *   (background work, another device), connected only while someone is signed in AND using this.
  */

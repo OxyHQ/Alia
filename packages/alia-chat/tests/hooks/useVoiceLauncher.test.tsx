@@ -48,10 +48,10 @@ beforeEach(() => {
 });
 
 describe('useVoiceLauncher', () => {
-  it('opens a call and hands the session everything it needs', () => {
+  it('opens a call and hands the session everything it needs', async () => {
     const onMessagesSaved = vi.fn();
     const h = mount({ conversationId: 'c1', agentId: 'a1', apiUrl: 'https://x', onMessagesSaved });
-    act(() => h.api.start());
+    await act(async () => h.api.start());
 
     expect(h.api.isActive).toBe(true);
     expect(h.api.sessionProps).toMatchObject({
@@ -62,30 +62,30 @@ describe('useVoiceLauncher', () => {
     });
   });
 
-  it('does not open a call the host blocks, and says why', () => {
+  it('does not open a call the host blocks, and says why', async () => {
     const onVoiceBlocked = vi.fn();
     const h = mount({ canStartVoice: () => 'plan-required', onVoiceBlocked });
-    act(() => h.api.start());
+    await act(async () => h.api.start());
 
     expect(h.api.isActive).toBe(false);
     expect(toasts.info).toHaveBeenCalledWith(DEFAULT_LABELS.voiceBlocked('plan-required'));
     expect(onVoiceBlocked).toHaveBeenCalledWith('plan-required');
   });
 
-  it('says out of credits as an error, in the host language', () => {
+  it('says out of credits as an error, in the host language', async () => {
     const h = mount(
       { canStartVoice: () => 'credits-exhausted' },
       { voiceBlocked: (r) => `t:${r}` },
     );
-    act(() => h.api.start());
+    await act(async () => h.api.start());
 
     expect(toasts.error).toHaveBeenCalledWith('t:credits-exhausted');
   });
 
-  it('sends its notices to the host when it has a home for them', () => {
+  it('sends its notices to the host when it has a home for them', async () => {
     const onNotice = vi.fn();
     const h = mount({ canStartVoice: () => 'sign-in', onNotice });
-    act(() => h.api.start());
+    await act(async () => h.api.start());
 
     expect(onNotice).toHaveBeenCalledWith({
       kind: 'info',
@@ -94,55 +94,88 @@ describe('useVoiceLauncher', () => {
     expect(toasts.info).not.toHaveBeenCalled();
   });
 
-  it('hands over, after the gate, when the call lives on another screen', () => {
-    const openElsewhere = vi.fn();
-    const h = mount({ openElsewhere, canStartVoice: () => null });
-    act(() => h.api.start());
+  it('lives in the open conversation without making another', async () => {
+    const resolveConversation = vi.fn(async () => 'made');
+    const h = mount({ conversationId: 'c1', resolveConversation });
+    await act(async () => h.api.start());
 
-    expect(openElsewhere).toHaveBeenCalledOnce();
+    expect(resolveConversation).not.toHaveBeenCalled();
+    expect(h.api.sessionProps.conversationId).toBe('c1');
+  });
+
+  it('makes the conversation the call lives in when none is open, after the gate', async () => {
+    const resolveConversation = vi.fn(async () => 'made');
+    const blocked = mount({ resolveConversation, canStartVoice: () => 'sign-in' });
+    await act(async () => blocked.api.start());
+    expect(resolveConversation).not.toHaveBeenCalled();
+
+    const h = mount({ resolveConversation });
+    await act(async () => h.api.start());
+    expect(resolveConversation).toHaveBeenCalledOnce();
+    expect(h.api.isActive).toBe(true);
+    expect(h.api.sessionProps.conversationId).toBe('made');
+  });
+
+  it('does not open a call whose conversation could not be made', async () => {
+    const h = mount({ resolveConversation: async () => undefined });
+    await act(async () => h.api.start());
+
     expect(h.api.isActive).toBe(false);
   });
 
-  it('tells the host when the call ends, however it ended', () => {
+  it('keeps a call whose screen then shows the conversation it made', async () => {
+    const h = mount({ resolveConversation: async () => 'made' });
+    await act(async () => h.api.start());
+    h.set({ conversationId: 'made' });
+
+    expect(h.api.isActive).toBe(true);
+  });
+
+  it('tells the host when the call ends, however it ended', async () => {
     const onCallEnded = vi.fn();
     const h = mount({ onCallEnded });
-    act(() => h.api.start());
+    await act(async () => h.api.start());
     act(() => h.api.sessionProps.onEnd());
 
     expect(h.api.isActive).toBe(false);
     expect(onCallEnded).toHaveBeenCalledOnce();
   });
 
-  it('ends the call when another route covers its screen', () => {
-    const h = mount({ owner: 'u:c1' });
-    act(() => h.api.start());
+  it('ends the call when another route covers its screen', async () => {
+    const h = mount({ conversationId: 'c1' });
+    await act(async () => h.api.start());
     h.set({ isFocused: false });
 
     expect(h.api.isActive).toBe(false);
   });
 
-  it.each([
-    ['conversation', 'u:c2'],
-    ['account', 'v:c1'],
-  ])('ends the call when the %s changes', (_, owner) => {
-    const h = mount({ owner: 'u:c1' });
-    act(() => h.api.start());
-    h.set({ owner });
+  it('ends the call when the screen moves to another conversation', async () => {
+    const h = mount({ conversationId: 'c1' });
+    await act(async () => h.api.start());
+    h.set({ conversationId: 'c2' });
 
     expect(h.api.isActive).toBe(false);
   });
 
-  it('keeps a call whose screen, conversation and account are unchanged', () => {
-    const h = mount({ owner: 'u:c1' });
-    act(() => h.api.start());
-    h.set({ owner: 'u:c1', isFocused: true });
+  it('ends the call when the account changes', async () => {
+    const h = mount({ conversationId: 'c1', accountId: 'u' });
+    await act(async () => h.api.start());
+    h.set({ accountId: 'v' });
+
+    expect(h.api.isActive).toBe(false);
+  });
+
+  it('keeps a call whose screen, conversation and account are unchanged', async () => {
+    const h = mount({ conversationId: 'c1', accountId: 'u' });
+    await act(async () => h.api.start());
+    h.set({ isFocused: true });
 
     expect(h.api.isActive).toBe(true);
   });
 
-  it('does not start a call from a screen that is not on show', () => {
+  it('does not start a call from a screen that is not on show', async () => {
     const h = mount({ isFocused: false });
-    act(() => h.api.start());
+    await act(async () => h.api.start());
 
     expect(h.api.isActive).toBe(false);
   });

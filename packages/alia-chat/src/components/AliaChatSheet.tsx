@@ -38,8 +38,6 @@ export interface AliaChatSheetProps {
   welcomeSubtitle?: string;
   /** Welcome screen suggestions */
   welcomeSuggestions?: AliaSuggestion[];
-  /** The agents the host knows, with their look: a delegation's thinking avatar is drawn from them until the agent answers. */
-  agents?: AliaChatContentProps['agents'];
   /** What the host found for the typed text, shown over the composer (see `onSuggestionQuery`). */
   suggestionMatches?: AliaSuggestion[];
   /** The typed text, once typing has settled, for the host to search suggestions with. */
@@ -77,7 +75,6 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       welcomeGreeting,
       welcomeSubtitle,
       welcomeSuggestions,
-      agents,
       suggestionMatches,
       onSuggestionQuery,
       isDarkMode,
@@ -197,7 +194,6 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
             welcomeGreeting={welcomeGreeting}
             welcomeSubtitle={welcomeSubtitle}
             welcomeSuggestions={welcomeSuggestions}
-            agents={agents}
             suggestionMatches={suggestionMatches}
             onSuggestionQuery={onSuggestionQuery}
             presentedProgress={mainProgress}
@@ -222,7 +218,6 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
               {...shared}
               initialTurn={conversation.turn}
               presentedProgress={conversationProgress}
-              agents={agents}
               onStopReady={registerConversationStop}
               // The bar is the conversation's: back to the main screen, the profile, share and
               // the menu.
@@ -230,7 +225,6 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
                 <View className="pt-8">
                   <AliaChatHeader
                     hasMessages
-                    agents={agents}
                     onClear={closeConversation}
                     onBack={closeConversation}
                     onShare={onShare}

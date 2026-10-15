@@ -83,6 +83,21 @@ export interface AliaChatLabels {
   // The turn's work log
   /** The words of the tool log, keyed as the Alia app keys them (see `work-log-copy.ts`). */
   workLog: Translate;
+  // Conversations (the runtime's own words: toasts and the errors it raises)
+  /** A conversation's title until it has one. */
+  newChat: string;
+  /** A turn could not be sent and the composer got its text back. */
+  sendFailed: string;
+  /** The session ended mid-request. */
+  signInRequired: string;
+  conversationSaveFailed: string;
+  conversationDeleteFailed: string;
+  conversationCreateFailed: string;
+  conversationClearFailed: string;
+  /** An attachment of a kind the chat API does not carry was left out of the turn. */
+  attachmentNotSent: (name: string) => string;
+  /** A photo whose bytes could not be read was left out of the turn. */
+  attachmentUnreadable: (name: string) => string;
   // Research
 }
 
@@ -150,6 +165,15 @@ export const DEFAULT_LABELS: AliaChatLabels = {
   reasoning: 'Reasoning',
   thoughtFor: (seconds) => `Thought for ${seconds} seconds`,
   workLog: englishWorkLog,
+  newChat: 'New chat',
+  sendFailed: "Your message couldn't be sent",
+  signInRequired: 'Sign in to keep chatting',
+  conversationSaveFailed: 'Failed to save conversation',
+  conversationDeleteFailed: 'Failed to delete conversation',
+  conversationCreateFailed: 'Failed to create conversation',
+  conversationClearFailed: "The conversation couldn't be cleared",
+  attachmentNotSent: (name) => `${name} wasn't sent — only photos can be sent`,
+  attachmentUnreadable: (name) => `${name} couldn't be read and wasn't sent`,
 };
 
 const LabelsContext = createContext<AliaChatLabels>(DEFAULT_LABELS);

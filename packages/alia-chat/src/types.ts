@@ -57,37 +57,8 @@ export interface PendingPlan {
   rejected: boolean;
 }
 
-export interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string | Array<{ type: string; [key: string]: unknown }>;
-  toolInvocations?: ToolInvocation[];
-  createdAt: number;
-  /** Extended thinking / reasoning content */
-  thinking?: string;
-  /** Deep research progress metadata */
-  researchProgress?: ResearchProgress;
-  /** Plan preview data (pending approval) */
-  pendingPlan?: PendingPlan;
-  /** Message origin: text chat or voice */
-  source?: 'text' | 'voice';
-  /** Speaker identity in voice mode */
-  speaker?: 'primary';
-  /** Whether a voice transcript is still streaming */
-  isStreaming?: boolean;
-  /** Delegated agent identity */
-  /** `character` is the agent's look as the server stores it (JSON), parsed where it is drawn. */
-  agentInfo?: { id: string; name: string; character?: unknown };
-}
-
-export interface ToolInvocation {
-  toolName: string;
-  state: 'call' | 'partial-call' | 'result';
-  args?: Record<string, unknown>;
-  result?: unknown;
-  /** OpenAI-format tool call ID for matching calls to results */
-  toolCallId?: string;
-}
+/** A message of the thread, and a tool the model called in it: the conversation runtime's records. */
+export type { Message as ChatMessage, ToolInvocation } from './runtime/types';
 
 // ── Voice Types ──
 

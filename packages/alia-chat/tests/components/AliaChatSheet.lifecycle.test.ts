@@ -46,7 +46,7 @@ describe('AliaChatSheet stacking', () => {
 
   it("hands an empty chat's first turn to the host and sends the initial turn once", () => {
     expect(content).toMatch(/onStart\?: \(turn: AliaTurn\) => void/);
-    expect(content).toMatch(/if \(startsElsewhere\) \{[\s\S]*?onStart\(\{ text, images \}\)/);
+    expect(content).toMatch(/if \(startsElsewhere\) \{[\s\S]*?onStart\(\{ text, \.\.\.\(images/);
     expect(content).toMatch(/initialSent\.current = true/);
   });
 });
@@ -60,10 +60,10 @@ describe('AliaChatSheet avatar flights', () => {
 
   it('launches the greeting avatar into the header with the first turn, once the conversation sheet is open', () => {
     expect(content).toMatch(
-      /onStart\(\{ text, images \}\);\s*await flights\.launch\(\[ALIA_TO_PROFILE\]\)/,
+      /onStart\(\{ text, \.\.\.\(images\.length > 0 \? \{ images \} : \{\}\) \}\);\s*await flights\.launch\(\[ALIA_TO_PROFILE\]\)/,
     );
     expect(content).toMatch(
-      /if \(firstTurn\) await flights\.launch\(\[ALIA_TO_PROFILE\]\);\s*send\(/,
+      /if \(firstTurn\) await flights\.launch\(\[ALIA_TO_PROFILE\]\);\s*await sendTurn\(/,
     );
   });
 
