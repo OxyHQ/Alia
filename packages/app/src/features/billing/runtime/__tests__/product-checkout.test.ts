@@ -1,4 +1,13 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { createElement } from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+const rendered: ReactTestRenderer[] = [];
+afterEach(() => {
+  act(() => {
+    for (const view of rendered.splice(0)) view.unmount();
+  });
+});
 const state = vi.hoisted(() => ({
   account: '11111111-1111-4111-8111-111111111111',
   session: 'session-a',
@@ -76,7 +85,15 @@ beforeEach(() => {
   state.sources.mockResolvedValue([]);
 });
 function checkout() {
-  return useCreateSubscriptionCheckout() as unknown as {
+  let result!: ReturnType<typeof useCreateSubscriptionCheckout>;
+  function Probe() {
+    result = useCreateSubscriptionCheckout();
+    return null;
+  }
+  act(() => {
+    rendered.push(create(createElement(Probe)));
+  });
+  return result as unknown as {
     mutationFn(input: {
       planId: string;
       billingPeriod: 'monthly' | 'annual';
@@ -104,13 +121,11 @@ it('serializes durable keys across simultaneous retries and scopes them by accou
   ).not.toBe(results[0]);
 });
 it('uses official authenticated checkout with the same key after a lost reply, and display currency changes no authorization amount', async () => {
-  state.start
-    .mockRejectedValueOnce(new Error('lost reply'))
-    .mockResolvedValue({
-      state: 'pending',
-      intentId: 'intent',
-      checkoutUrl: 'https://checkout.peable.to/s/actual?secret=test',
-    });
+  state.start.mockRejectedValueOnce(new Error('lost reply')).mockResolvedValue({
+    state: 'pending',
+    intentId: 'intent',
+    checkoutUrl: 'https://checkout.peable.to/s/actual?secret=test',
+  });
   await expect(checkout().mutationFn({ planId: 'pro', billingPeriod: 'annual' })).rejects.toThrow(
     'lost reply',
   );

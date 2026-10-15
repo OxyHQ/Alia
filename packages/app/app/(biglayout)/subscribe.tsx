@@ -1,3 +1,4 @@
+import { useBillingActionScope } from '@/features/billing/runtime/use-billing-action-scope';
 import { useCredits } from '@/features/billing/runtime/use-credits';
 import { Button } from '@oxy.so/bloom/button';
 import {
@@ -23,10 +24,11 @@ import { useTranslation } from '@/shared/i18n/use-translation';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
 import { Loading } from '@oxy.so/bloom/loading';
+import { Text } from '@oxy.so/bloom/typography';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
-import { useAuth } from '@oxy.so/services';
+import { useAuth, useOxy } from '@oxy.so/services';
 import * as Linking from 'expo-linking';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -53,6 +55,11 @@ function buildTiers(apiPlans: SubscriptionPlan[], t: (key: string) => string): P
 // ─── Main Screen ─────────────────────────────────────────────────────
 
 export default function SubscribeScreen() {
+  const { user, activeSessionId, isAuthenticated } = useOxy();
+  return <SubscribeContent key={`${user?.id}:${activeSessionId}:${isAuthenticated}`} />;
+}
+function SubscribeContent() {
+  const captureScope = useBillingActionScope();
   const router = useRouter();
   const { success } = useLocalSearchParams();
   const { isAuthenticated, signIn } = useAuth();
@@ -70,6 +77,7 @@ export default function SubscribeScreen() {
       : null);
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
   const [loadingPlanId, setLoadingPlanId] = useState<string>();
+  const [paymentReview, setPaymentReview] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
   const {
@@ -120,10 +128,14 @@ export default function SubscribeScreen() {
   });
 
   const executePlanChange = async (planId: string) => {
+    const isCurrent = captureScope();
+    if (!isCurrent()) return;
     setLoadingPlanId(planId);
     try {
       const result = await changePlanMutation.mutateAsync({ planId, billingPeriod });
+      if (!isCurrent()) return;
       await refetchSubscription();
+      if (!isCurrent()) return;
       toast.success(
         t(
           result.direction === 'upgrade'
@@ -132,18 +144,20 @@ export default function SubscribeScreen() {
         ),
       );
     } catch (error: unknown) {
-      toast.error(getErrorMessage(error) || t('subscribe.failedPlanChange'));
+      if (isCurrent()) toast.error(getErrorMessage(error) || t('subscribe.failedPlanChange'));
     } finally {
-      setLoadingPlanId(undefined);
+      if (isCurrent()) setLoadingPlanId(undefined);
     }
   };
 
   const handleSubscribe = async (planId: string) => {
+    const isCurrent = captureScope();
     if (!isAuthenticated) {
       signIn().catch(() => {});
       return;
     }
 
+    if (!isCurrent()) return;
     const targetTier = tiers.find((tier) => tier.id === planId);
     if (!targetTier || nativePlan) return;
 
@@ -160,16 +174,18 @@ export default function SubscribeScreen() {
         confirmLabel: t('subscribe.confirmDowngrade'),
         destructive: true,
       });
-      if (ok) {
+      if (ok && isCurrent()) {
         setLoadingPlanId(planId);
         try {
           await cancelMutation.mutateAsync();
+          if (!isCurrent()) return;
           await refetchSubscription();
+          if (!isCurrent()) return;
           toast.success(t('subscribe.downgradeSuccess'));
         } catch (error: unknown) {
-          toast.error(getErrorMessage(error) || t('subscribe.failedPlanChange'));
+          if (isCurrent()) toast.error(getErrorMessage(error) || t('subscribe.failedPlanChange'));
         } finally {
-          setLoadingPlanId(undefined);
+          if (isCurrent()) setLoadingPlanId(undefined);
         }
       }
       return;
@@ -189,7 +205,7 @@ export default function SubscribeScreen() {
           }),
           confirmLabel: t('subscribe.confirmDowngrade'),
         });
-        if (ok) await executePlanChange(planId);
+        if (ok && isCurrent()) await executePlanChange(planId);
       } else {
         await executePlanChange(planId);
       }
@@ -197,6 +213,7 @@ export default function SubscribeScreen() {
     }
 
     // No subscription → the declared product checkout owned by Oxy and Peable
+    setPaymentReview(false);
     setLoadingPlanId(planId);
     try {
       const { url } = await checkoutMutation.mutateAsync({
@@ -204,13 +221,24 @@ export default function SubscribeScreen() {
         billingPeriod,
       });
 
-      if (url) {
+      if (url && isCurrent()) {
         await Linking.openURL(url);
       }
     } catch (error: unknown) {
-      toast.error(getErrorMessage(error) || t('subscribe.failedCheckout'));
+      if (isCurrent()) {
+        const needsReview =
+          error instanceof Error &&
+          (error.message === 'PAYMENT_REVIEW_REQUIRED' ||
+            ('code' in error && error.code === 'PAYMENT_REVIEW_REQUIRED'));
+        setPaymentReview(needsReview);
+        toast.error(
+          needsReview
+            ? t('subscribe.paymentReview')
+            : getErrorMessage(error) || t('subscribe.failedCheckout'),
+        );
+      }
     } finally {
-      setLoadingPlanId(undefined);
+      if (isCurrent()) setLoadingPlanId(undefined);
     }
   };
 
@@ -222,6 +250,14 @@ export default function SubscribeScreen() {
             <BillingToggle value={billingPeriod} onChange={setBillingPeriod} t={t} />
           </View>
 
+          {paymentReview && (
+            <View className="items-center gap-2 pb-6">
+              <Text>{t('subscribe.paymentReview')}</Text>
+              <Button onPress={() => Linking.openURL('https://peable.to')}>
+                {t('subscribe.reviewPayment')}
+              </Button>
+            </View>
+          )}
           {nativePlan && (
             <View className="items-center pb-6">
               <Button onPress={() => Linking.openURL('https://accounts.oxy.so/payments')}>

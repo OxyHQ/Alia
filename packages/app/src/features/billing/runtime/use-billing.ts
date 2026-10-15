@@ -1,3 +1,4 @@
+import { useBillingActionScope } from './use-billing-action-scope';
 import { type ProductPlanCatalogue, oxyAccountIdSchema } from '@oxy.so/contracts';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOxy, useDisplayCurrency } from '@oxy.so/services';
@@ -328,6 +329,7 @@ export function useProductCheckoutOptions() {
 }
 
 export function useCreateSubscriptionCheckout() {
+  const captureScope = useBillingActionScope();
   const { oxyServices, user, activeSessionId } = useOxy();
   const { currency } = useDisplayCurrency();
   return useMutation({
@@ -338,8 +340,14 @@ export function useCreateSubscriptionCheckout() {
       planId: string;
       billingPeriod: 'monthly' | 'annual';
     }) => {
+      const isCurrent = captureScope();
+      const assertCurrent = () => {
+        if (!isCurrent()) throw new Error('Account changed');
+      };
+      assertCurrent();
       if (!user?.id || !activeSessionId) throw new Error('Sign in to continue');
       const { data } = await apiClient.get<ProductCheckoutConfig>('/billing/product-checkout');
+      assertCurrent();
       const binding = data.plans.find(
         (item) => item.planId === planId && item.billingPeriod === billingPeriod,
       );
@@ -352,20 +360,26 @@ export function useCreateSubscriptionCheckout() {
         binding.offerVersion,
       );
       const idempotencyKey = await getProductCheckoutKey(key);
-      const result = await authenticatedApiCall(oxyServices, activeSessionId, () =>
-        oxyServices.billing.startProductPlanCheckout({
+      assertCurrent();
+      const result = await authenticatedApiCall(oxyServices, activeSessionId, () => {
+        assertCurrent();
+        return oxyServices.billing.startProductPlanCheckout({
           expectedSubjectAccountId: oxyAccountIdSchema.parse(user.id),
           productId,
           offerId: binding.offerId,
           offerVersion: binding.offerVersion,
           idempotencyKey,
-        }),
-      );
+        });
+      });
+      assertCurrent();
       if (result.state === 'closed' || result.state === 'fulfilled')
         await clearProductCheckoutKey(key);
+      assertCurrent();
       if (result.state === 'unconfigured') throw new Error('This subscription is unavailable');
       if (result.state === 'closed')
-        throw new Error('Checkout closed. Please request a new quote.');
+        throw new Error(
+          'Checkout is closed. If funds were sent, check its status in Peable before paying again.',
+        );
       if (result.state === 'fulfilled') return { state: result.state };
       if (!result.checkoutUrl)
         throw new Error('Checkout is pending. Retry to continue the same payment.');
