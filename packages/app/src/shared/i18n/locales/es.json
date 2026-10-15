@@ -2430,6 +2430,8 @@
     "signIn": "¿Ya tienes cuenta? Inicia sesión"
   },
   "orgInvite": {
+    "unavailableTitle": "Esta invitación ya no está disponible",
+    "unavailableDescription": "Pide a una persona administradora de la organización que te dé acceso en Oxy.",
     "thisOrganization": "esta organización",
     "role": {
       "owner": "propietario",

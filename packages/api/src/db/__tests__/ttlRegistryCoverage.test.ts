@@ -17,12 +17,12 @@ import * as schema from '../schema';
  * ## The record is CLOSED
  *
  * {@link DECLARED_TTLS} is the whole subject: thirteen declarations, each read
- * off its source schema — eight live, and five whose table has since been
- * dropped, kept in {@link TTLS_RETIRED_WITH_THEIR_TABLE}.
+ * off its source schema — seven live, five dropped, and one retained as
+ * immutable evidence after organization authority moved to Oxy.
  *
  * **The record must not shrink.** Every live row is a retention requirement on
  * the Postgres sweep. The only way a row leaves the live record is with its
- * table, into the retired list, which asserts the table is gone. Every
+ * table, or when its table is frozen as immutable evidence. Both are asserted. Every
  * assertion below is a check on `EXPIRY_TARGETS` and the drizzle schema as they
  * are today — a dropped table, a repointed sweep column or an altered retention
  * is red.
@@ -154,6 +154,10 @@ const DECLARED_TTLS: readonly DeclaredTtl[] = [
     expireAfterSeconds: 90 * 24 * 60 * 60,
     retiredBy: 'S2 providers + telemetry — api_key_usage',
   },
+];
+
+/** Retained immutable audit evidence. No runtime invitation or expiry writer remains. */
+const TTLS_FROZEN_AS_EVIDENCE: readonly DeclaredTtl[] = [
   {
     model: 'OrganizationInvite',
     collection: 'organizationinvites',
@@ -163,7 +167,7 @@ const DECLARED_TTLS: readonly DeclaredTtl[] = [
      * it was deleted. The collection name was MEASURED, not derived — see
      * {@link MODEL_TO_TABLE} for why nothing computes one from the other.
      *
-     * **The LAST live TTL declaration in this service, and the only one measured
+     * **The former live TTL declaration measured
      * from a deadline with a NON-ZERO retention.** Every other `expires_at` TTL
      * here — `moderation_outboxes`, `moderation_events`, `oauth_states` — is
      * retention 0, so the pattern a reader arrives with deletes an invitation the
@@ -173,7 +177,7 @@ const DECLARED_TTLS: readonly DeclaredTtl[] = [
      */
     path: 'expiresAt',
     expireAfterSeconds: 30 * 24 * 60 * 60,
-    retiredBy: 'S9 organizations — organization_invites',
+    retiredBy: 'S9 organizations — organization_invites; frozen by canonical Oxy cutover',
   },
 ];
 
@@ -195,7 +199,6 @@ const DECLARED_TTLS: readonly DeclaredTtl[] = [
  */
 const MODEL_TO_TABLE: Readonly<Record<string, string>> = {
   ApiKeyUsage: 'api_key_usage',
-  OrganizationInvite: 'organization_invites',
   McpOAuthState: 'mcp_oauth_states',
   OAuthState: 'oauth_states',
   Notification: 'notifications',
@@ -323,11 +326,14 @@ describe('every declared TTL rule has a matching expiry-sweep target', () => {
      *
      * EXACT rather than a floor, in the direction that matters: the record is
      * CLOSED, and each live row is a retention requirement, so a missing one is
-     * a rule silently deleted. 13 = 8 live + 5 retired with their table.
+     * a rule silently deleted. 13 = 7 live + 5 dropped + 1 immutable evidence table.
      */
-    expect(DECLARED_TTLS.length).toBe(8);
+    expect(DECLARED_TTLS.length).toBe(7);
+    expect(TTLS_FROZEN_AS_EVIDENCE.length).toBe(1);
     expect(TTLS_RETIRED_WITH_THEIR_TABLE.length).toBe(5);
-    expect(DECLARED_TTLS.length + TTLS_RETIRED_WITH_THEIR_TABLE.length).toBe(13);
+    expect(
+      DECLARED_TTLS.length + TTLS_RETIRED_WITH_THEIR_TABLE.length + TTLS_FROZEN_AS_EVIDENCE.length,
+    ).toBe(13);
     expect(tables.size).toBeGreaterThanOrEqual(5);
   });
 
@@ -335,7 +341,7 @@ describe('every declared TTL rule has a matching expiry-sweep target', () => {
     // A repeated model or collection would let one rule stand in for another
     // while the count above still read 13 — across BOTH lists, so a rule
     // cannot be live and retired at once.
-    const all = [...DECLARED_TTLS, ...TTLS_RETIRED_WITH_THEIR_TABLE];
+    const all = [...DECLARED_TTLS, ...TTLS_RETIRED_WITH_THEIR_TABLE, ...TTLS_FROZEN_AS_EVIDENCE];
     const models = all.map((t) => t.model);
     expect(new Set(models).size).toBe(models.length);
     const collections = all.map((t) => t.collection);
@@ -379,6 +385,27 @@ describe('every declared TTL rule has a matching expiry-sweep target', () => {
         `DROP TABLE "${ttl.table}";`,
       );
     }
+  });
+
+  it('retains retired invitation evidence without a sweeper, writer, or reusable token', () => {
+    expect(TTLS_FROZEN_AS_EVIDENCE.map((ttl) => ttl.model)).toEqual(['OrganizationInvite']);
+    expect(tables.has('organization_invites')).toBe(true);
+    expect(
+      EXPIRY_TARGETS.some((target) => getTableName(target.table) === 'organization_invites'),
+    ).toBe(false);
+    const pre = readFileSync(
+      path.join(__dirname, '../../../drizzle/0096_central_organization_references.sql'),
+      'utf8',
+    );
+    const post = readFileSync(
+      path.join(__dirname, '../../../drizzle/0097_retire_local_organization_identity.sql'),
+      'utf8',
+    );
+    expect(pre).toContain(
+      'CREATE TRIGGER organization_invites_retired BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON organization_invites FOR EACH STATEMENT EXECUTE FUNCTION alia_reject_organization_evidence_write()',
+    );
+    expect(post).toContain('ALTER TABLE "organization_invites" DROP COLUMN "token"');
+    expect(post).not.toContain('DROP TRIGGER organization_invites_retired');
   });
 
   it('maps nothing that the record does not name', () => {

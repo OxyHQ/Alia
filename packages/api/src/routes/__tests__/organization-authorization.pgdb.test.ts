@@ -1,716 +1,354 @@
-/**
- * Who may do what inside an organization, driven as real HTTP against the real
- * router and a real Postgres.
- *
- * ## Why this is a route test and not a repository test
- *
- * The authorization matrix lives in `routes/organization.ts`. The repository
- * answers one question — "what is this account's role here" — and every gate is
- * the ROUTE comparing that answer against a set: any member may read, an
- * owner-or-admin may administer, only the owner may delete the organization or
- * change a role. A repository test cannot see a route that asks the wrong
- * question, and the wrong question is the whole failure: an `admin` who can
- * delete the organization, or a `member` who can revoke invitations, is a
- * privilege escalation that returns 200 and looks like a working feature.
- *
- * The router is MOUNTED rather than its handlers imported, so a path registered
- * above it would be seen here. It is driven over a socket for the same reason.
- *
- * ## The database is real
- *
- * The gates read `organization_members`, so a mocked repository would be a test
- * of the mock's role table. The rows are seeded through the same repository the
- * routes use, and torn down by id — the pg suite shares ONE database across
- * files running in parallel, so a blanket delete here would wipe a sibling's
- * fixtures.
- */
-
-import { TEST_CHARACTER } from '../../db/__tests__/support/agent-character';
-import express, { type Express, type NextFunction, type Request, type Response } from 'express';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
-import { and, eq, inArray } from 'drizzle-orm';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-
-/**
- * The authenticated account is whatever `x-test-user` says.
- *
- * Mocked at the middleware module rather than by minting a real Oxy token: what
- * is under test is the role comparison, and a real token would make every
- * assertion depend on an identity service being reachable. `oxyClient` is
- * mocked in the same factory because `lib/oxy-user-hydration.ts` reads it from
- * here, and the member-list routes call it.
- */
+/** Real router + Postgres + canonical SDK over HTTP; only the outer verified-login boundary is mocked. */
+import { createServer, type Server } from 'node:http';
+import express, { type Request, type Response, type NextFunction } from 'express';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
 vi.mock('../../middleware/auth.js', () => ({
   authenticateToken: (req: Request, _res: Response, next: NextFunction) => {
     const id = req.headers['x-test-user'];
-    if (typeof id === 'string' && id !== '') req.user = { id };
+    if (typeof id === 'string') {
+      req.user = { id };
+      req.accessToken = req.headers.authorization?.slice(7);
+    }
     next();
   },
   oxyClient: {
-    /**
-     * Answers a profile for the BOT ACCOUNTS only.
-     *
-     * An agent's name is Oxy's now, so the shared-agents route resolves one —
-     * and an empty answer would leave that assertion reading `undefined`
-     * whether the route hydrated or not. Every OTHER id keeps resolving to
-     * nothing, which is what the member-list cases were calibrated against:
-     * widening this to all ids changes the member response shape and takes
-     * seven unrelated cases with it.
-     */
-    users: {
-      getMany: (ids: string[]) =>
-        Promise.resolve(
-          ids
-            .filter((id) => id.startsWith('oxy-bot-'))
-            .map((id) => ({ id, username: id, name: { displayName: `name:${id}` } })),
-        ),
-    },
+    users: { getMany: async () => [] },
     assets: { publicUrl: (id: string) => `https://cloud.oxy.so/${id}` },
   },
 }));
-
-const { closePostgres, connectPostgres } = await import('../../db/index.js');
-const { createInvite, createOrganization, findMemberRole, findOrganizationById } = await import(
-  '../../db/organizations/organizationRepository.js'
+const { connectPostgres, closePostgres } = await import('../../db/index.js');
+const { createOrganization } = await import('../../db/organizations/organizationRepository.js');
+const { organizations } = await import('../../db/schema/organizations.js');
+const router = (await import('../organization.js')).default;
+const { organizationDirectory, withOrganizationSession } = await import(
+  '../../lib/organization-access.js'
 );
-const { organizationAgents, organizationMembers, organizations } = await import(
-  '../../db/schema/organizations.js'
-);
-const { agents } = await import('../../db/schema/agents.js');
-const organizationRouter = (await import('../organization.js')).default;
-const { log } = await import('../../lib/logger.js');
-
-type Db = ReturnType<typeof connectPostgres>;
-
-let db: NonNullable<Db>;
+let db: NonNullable<ReturnType<typeof connectPostgres>>;
+let api: Server;
+let oxy: Server;
 let base: string;
-let server: Server;
-
-const OWNER = 'orgauth-owner';
-const ADMIN = 'orgauth-admin';
-const MEMBER = 'orgauth-member';
-const OUTSIDER = 'orgauth-outsider';
-
-const created: string[] = [];
-
+let workspaceId: string;
+let upstreamStatus = 200;
+let removed = false;
+let revoked: string | undefined;
+const seen: { path: string; authorization?: string; body: Record<string, unknown> }[] = [];
+const grants: Record<string, string[]> = {
+  owner: [
+    'account:read',
+    'account:update',
+    'account:delete',
+    'members:read',
+    'members:invite',
+    'members:update',
+    'members:remove',
+    'billing:read',
+    'billing:manage',
+    'apps:read',
+    'apps:update',
+  ],
+  admin: [
+    'account:read',
+    'account:update',
+    'members:read',
+    'members:invite',
+    'members:update',
+    'members:remove',
+    'billing:read',
+    'apps:read',
+    'apps:update',
+  ],
+  editor: ['account:read', 'members:read', 'billing:read', 'apps:read', 'apps:update'],
+  billing: ['account:read', 'billing:read', 'billing:manage', 'apps:read'],
+  viewer: ['account:read', 'members:read', 'apps:read'],
+  developer: ['account:read', 'apps:read'],
+  outsider: [],
+};
+const token = (role: string) =>
+  `${Buffer.from('{"alg":"none","typ":"JWT"}').toString('base64url')}.${Buffer.from(JSON.stringify({ sub: role, exp: 4102444800 })).toString('base64url')}.unsigned`;
+function organization(id: string) {
+  return {
+    accountId: id === 'redirect' ? 'canonical' : id,
+    name: `Canonical ${id}`,
+    username: null,
+    organizationType: 'business',
+    avatar: null,
+    legalName: null,
+    websiteUrl: null,
+    countryCode: null,
+    aliases: [],
+    verifiedDomains: [],
+    claimStatus: 'claimed',
+    status: id === 'hidden' ? 'suppressed' : 'active',
+    mergedIntoAccountId: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+function node(id: string, role: string) {
+  return {
+    accountId: id,
+    kind: 'organization',
+    relationship: 'member',
+    callerMembership: {
+      status: removed ? 'removed' : 'active',
+      role,
+      permissions: (grants[role] ?? []).filter((p) => p !== revoked),
+    },
+  };
+}
+async function listen(server: Server) {
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const a = server.address();
+  if (!a || typeof a === 'string') throw new Error('socket missing');
+  return `http://127.0.0.1:${a.port}`;
+}
 beforeAll(async () => {
   const connected = connectPostgres(process.env.DATABASE_URL);
-  if (!connected) throw new Error('DATABASE_URL is not set; vitest.pg.globalSetup.ts must run.');
+  if (!connected) throw new Error('Postgres required');
   db = connected;
-
-  // The 404 and 403 paths are the expected outcome here, and each one the router
-  // catches is a stack trace on every CI run. Only this file's registry is
-  // touched — vitest isolates module registries per file.
-  vi.spyOn(log.organization, 'error').mockImplementation(() => undefined);
-  vi.spyOn(log.organization, 'info').mockImplementation(() => undefined);
-
-  const app: Express = express();
-  app.use(express.json());
-  app.use('/organization', organizationRouter);
-  server = await new Promise((resolve) => {
-    const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
+  const row = await createOrganization(db, 'canonical');
+  workspaceId = row.id;
+  await db
+    .update(organizations)
+    .set({ creditsPaid: 37, stripeCustomerId: 'cus_preserved' })
+    .where(eq(organizations.id, row.id));
+  oxy = createServer(async (req, res) => {
+    const parts: Buffer[] = [];
+    for await (const part of req) parts.push(part);
+    const body = parts.length ? JSON.parse(Buffer.concat(parts).toString()) : {};
+    const path = req.url ?? '';
+    seen.push({ path, authorization: req.headers.authorization, body });
+    res.setHeader('content-type', 'application/json');
+    res.statusCode = upstreamStatus;
+    if (upstreamStatus !== 200) {
+      res.end(JSON.stringify({ message: 'unavailable' }));
+      return;
+    }
+    const role =
+      Object.keys(grants).find((role) => req.headers.authorization === `Bearer ${token(role)}`) ??
+      'outsider';
+    if (path === '/organizations/batch')
+      res.end(
+        JSON.stringify({
+          items: body.ids
+            .filter((id: string) => id !== 'missing')
+            .map((id: string) => ({ requestedAccountId: id, organization: organization(id) })),
+          missingIds: body.ids.filter((id: string) => id === 'missing'),
+        }),
+      );
+    else if (path === '/accounts')
+      res.end(JSON.stringify({ accounts: [node('canonical', role), node('not-local', role)] }));
+    else if (path.includes('/members'))
+      res.end(
+        JSON.stringify(
+          req.method === 'GET'
+            ? { members: [] }
+            : { member: { _id: 'member-1', role: body.role }, success: true },
+        ),
+      );
+    else res.end(JSON.stringify({ account: node(path.split('/').pop() ?? '', role) }));
   });
-  base = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
+  process.env.OXY_API_URL = await listen(oxy);
+  const app = express();
+  app.use(express.json());
+  app.use('/organization', router);
+  api = createServer(app);
+  base = await listen(api);
 });
-
 afterAll(async () => {
-  vi.restoreAllMocks();
-  await new Promise<void>((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())));
+  await Promise.all([
+    new Promise<void>((resolve, reject) => api.close((e) => (e ? reject(e) : resolve()))),
+    new Promise<void>((resolve, reject) => oxy.close((e) => (e ? reject(e) : resolve()))),
+  ]);
   await closePostgres();
+  delete process.env.OXY_API_URL;
 });
-
-afterEach(async () => {
-  if (created.length === 0) return;
-  await db.delete(organizations).where(inArray(organizations.id, [...created]));
-  created.length = 0;
+beforeEach(() => {
+  seen.length = 0;
+  upstreamStatus = 200;
+  removed = false;
+  revoked = undefined;
 });
-
-interface Answer {
-  readonly status: number;
-  readonly body: Record<string, unknown>;
-}
-
-async function call(
-  method: string,
-  path: string,
-  as: string | null,
-  body?: unknown,
-): Promise<Answer> {
-  const res = await fetch(`${base}${path}`, {
+async function call(method: string, path: string, role: string | null, body?: unknown) {
+  const response = await fetch(`${base}/organization${path}`, {
     method,
     headers: {
       'content-type': 'application/json',
-      ...(as === null ? {} : { 'x-test-user': as }),
+      ...(role ? { 'x-test-user': role, authorization: `Bearer ${token(role)}` } : {}),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  const text = await res.text();
   return {
-    status: res.status,
-    body: text === '' ? {} : (JSON.parse(text) as Record<string, unknown>),
+    status: response.status,
+    body: (await response.json()) as {
+      organization: Record<string, unknown>;
+      organizations: unknown[];
+      membershipScope?: string;
+      agents: unknown[];
+    },
   };
 }
-
-let slugCounter = 0;
-
-/** An organization with an owner, an admin and an ordinary member. */
-async function aStaffedOrganization(): Promise<string> {
-  slugCounter += 1;
-  const organization = await createOrganization(db, {
-    name: 'Acme',
-    slug: `orgauth-slug-${String(slugCounter)}`,
-    ownerId: OWNER,
-  });
-  if (!organization) throw new Error('fixture organization was refused');
-  created.push(organization.id);
-  await db.insert(organizationMembers).values([
-    { organizationId: organization.id, oxyUserId: ADMIN, role: 'admin' },
-    { organizationId: organization.id, oxyUserId: MEMBER, role: 'member' },
-  ]);
-  return organization.id;
-}
-
-describe('reading an organization requires membership, of any role', () => {
-  it('serves every member and refuses everyone else', async () => {
-    const id = await aStaffedOrganization();
-
-    for (const account of [OWNER, ADMIN, MEMBER]) {
-      expect((await call('GET', `/organization/${id}`, account)).status, account).toBe(200);
-      expect((await call('GET', `/organization/${id}/members`, account)).status, account).toBe(200);
-      expect((await call('GET', `/organization/${id}/agents`, account)).status, account).toBe(200);
+describe('Oxy permission authority', () => {
+  it('permits readers but withholds financial fields from viewer/developer and refuses absent membership', async () => {
+    for (const role of ['owner', 'admin', 'editor', 'billing', 'viewer', 'developer']) {
+      const result = await call('GET', `/${workspaceId}`, role);
+      expect(result.status, role).toBe(200);
+      expect(result.body.organization).toMatchObject({
+        _id: workspaceId,
+        oxyAccountId: 'canonical',
+        name: 'Canonical canonical',
+        membershipScope: 'organization',
+      });
+      if (['viewer', 'developer'].includes(role)) {
+        expect(result.body.organization.credits).toBeUndefined();
+        expect(result.body.organization.stripeCustomerId).toBeUndefined();
+      } else expect(result.body.organization.credits).toEqual({ paid: 37 });
     }
-
-    // 403, not 404: the caller learns nothing about whether the organization
-    // exists.
-    expect((await call('GET', `/organization/${id}`, OUTSIDER)).status).toBe(403);
-    expect((await call('GET', `/organization/${id}/members`, OUTSIDER)).status).toBe(403);
-    expect((await call('GET', `/organization/${id}/agents`, OUTSIDER)).status).toBe(403);
+    expect((await call('GET', `/${workspaceId}`, 'outsider')).status).toBe(403);
+    expect((await call('GET', `/${workspaceId}`, null)).status).toBe(401);
   });
-
-  it('lists only the caller own organizations', async () => {
-    const id = await aStaffedOrganization();
-
-    const mine = await call('GET', '/organization', MEMBER);
-    const theirs = await call('GET', '/organization', OUTSIDER);
-
-    const listed = (mine.body.organizations as { _id: string }[]).map((o) => o._id);
-    expect(listed).toContain(id);
-    expect((theirs.body.organizations as { _id: string }[]).map((o) => o._id)).not.toContain(id);
-  });
-
-  it('serves the nested credits and settings the console reads', async () => {
-    // `use-workspace.ts` reads `org.credits?.paid ?? 0` and `org._id`. A flat row
-    // renders every balance as zero and makes `org._id === other._id` true for
-    // every pair — both silent.
-    const id = await aStaffedOrganization();
-
-    const answer = await call('GET', '/organization', OWNER);
-    const listed = (answer.body.organizations as Record<string, unknown>[]).find(
-      (o) => o._id === id,
-    );
-
-    expect(listed?._id).toBe(id);
-    expect(listed?.credits).toEqual({ paid: 0 });
-    expect(listed?.settings).toEqual({ billingEmail: null, apiCallLimit: null });
-    expect(listed?.role).toBe('owner');
-    expect(listed?.memberCount).toBe(3);
-  });
-});
-
-describe('administering an organization requires owner or admin', () => {
-  it('lets an admin update it, and refuses an ordinary member', async () => {
-    const id = await aStaffedOrganization();
-
-    expect((await call('PATCH', `/organization/${id}`, ADMIN, { name: 'Renamed' })).status).toBe(
-      200,
-    );
-    expect((await call('PATCH', `/organization/${id}`, MEMBER, { name: 'Nope' })).status).toBe(403);
-    expect((await call('PATCH', `/organization/${id}`, OUTSIDER, { name: 'Nope' })).status).toBe(
-      403,
-    );
-
-    expect((await findOrganizationById(db, id))?.name).toBe('Renamed');
-  });
-
-  it('lets an admin issue and list invitations, and refuses a member', async () => {
-    const id = await aStaffedOrganization();
-
-    const issued = await call('POST', `/organization/${id}/members`, ADMIN, { role: 'member' });
-    expect(issued.status).toBe(201);
-    const invite = issued.body.invite as Record<string, unknown>;
-    // The console reads `_id`, `token` and `inviteUrl` off exactly this shape.
-    expect(typeof invite._id).toBe('string');
-    expect(typeof invite.token).toBe('string');
-    expect(invite.inviteUrl).toContain(String(invite.token));
-
-    const listed = await call('GET', `/organization/${id}/invites`, ADMIN);
-    expect(listed.status).toBe(200);
-    const rows = listed.body.invites as Record<string, unknown>[];
-    expect(rows).toHaveLength(1);
-    // The list identifies the invitation — `_id` is what a revoke names — and
-    // does NOT carry the token. That token is a live join-link for the whole
-    // organization; the create response above is the one place it is handed out.
-    expect(rows[0]?._id).toBe(invite._id);
-    expect(rows[0]).not.toHaveProperty('token');
-
+  it('uses exact original concurrent bearers; public identity never forwards auth', async () => {
+    await Promise.all([
+      call('GET', `/${workspaceId}`, 'owner'),
+      call('GET', `/${workspaceId}`, 'viewer'),
+    ]);
     expect(
-      (await call('POST', `/organization/${id}/members`, MEMBER, { role: 'member' })).status,
-    ).toBe(403);
-    expect((await call('GET', `/organization/${id}/invites`, MEMBER)).status).toBe(403);
-  });
-
-  it('refuses an invitation offering OWNERSHIP, whoever asks', async () => {
-    // The role set is narrower than the membership one by design: an invitation
-    // cannot mint an owner. Refused by the schema too, but this is the route
-    // saying no before a row is attempted.
-    const id = await aStaffedOrganization();
-
-    const answer = await call('POST', `/organization/${id}/members`, OWNER, { role: 'owner' });
-
-    expect(answer.status).toBe(400);
-  });
-});
-
-describe('only the owner may delete the organization or change a role', () => {
-  it('refuses an ADMIN, which is the escalation worth naming', async () => {
-    const id = await aStaffedOrganization();
-
-    expect((await call('DELETE', `/organization/${id}`, ADMIN)).status).toBe(403);
-    expect(await findOrganizationById(db, id)).not.toBeNull();
-  });
-
-  it('refuses an admin changing a role, and lets the owner do it', async () => {
-    const id = await aStaffedOrganization();
-    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body.members as {
-      _id: string;
-      role: string;
-      oxyUserId: string;
-    }[];
-    const target = members.find((m) => m.oxyUserId === MEMBER);
-    if (!target) throw new Error('the fixture member is missing from the list');
-
+      seen
+        .filter((r) => r.path.startsWith('/accounts/'))
+        .map((r) => r.authorization)
+        .sort(),
+    ).toEqual([`Bearer ${token('owner')}`, `Bearer ${token('viewer')}`].sort());
     expect(
-      (await call('PATCH', `/organization/${id}/members/${target._id}`, ADMIN, { role: 'admin' }))
-        .status,
-    ).toBe(403);
-    expect(await findMemberRole(db, id, MEMBER)).toBe('member');
-
-    expect(
-      (await call('PATCH', `/organization/${id}/members/${target._id}`, OWNER, { role: 'admin' }))
-        .status,
-    ).toBe(200);
-    expect(await findMemberRole(db, id, MEMBER)).toBe('admin');
+      seen.filter((r) => r.path.startsWith('/organizations/')).every((r) => !r.authorization),
+    ).toBe(true);
   });
-
-  it('refuses the owner demoting THEMSELVES, with a 400 that says why', async () => {
-    /**
-     * Reachable today by one PATCH: the route's only check is that the caller is
-     * the owner, and nothing stopped them naming their own membership row. The
-     * organization was then unadministerable forever — this route and
-     * `DELETE /organization/:id` both require `owner`, and no route can grant it.
-     *
-     * A 400 rather than the 404 the statement-level exclusion alone would give:
-     * the member exists and the caller may administer them, so the refusal is
-     * about WHICH member, and it reads the same as the delete route's refusal one
-     * route down.
-     */
-    const id = await aStaffedOrganization();
-    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body.members as {
-      _id: string;
-      oxyUserId: string;
-    }[];
-    const own = members.find((m) => m.oxyUserId === OWNER);
-    if (!own) throw new Error('the owner is missing from their own member list');
-
-    const answer = await call('PATCH', `/organization/${id}/members/${own._id}`, OWNER, {
-      role: 'admin',
-    });
-
-    expect(answer.status).toBe(400);
-    expect(answer.body.error).toBe('Cannot change the role of the organization owner');
-    expect(await findMemberRole(db, id, OWNER)).toBe('owner');
-    // And the organization is still administerable, which is the property that
-    // was actually at risk.
-    expect((await call('PATCH', `/organization/${id}`, OWNER, { name: 'Still Ours' })).status).toBe(
-      200,
-    );
-  });
-
-  it('still lets the owner change an ADMIN role, which the refusal must not break', async () => {
-    // The positive control at the route: a refusal that also blocked ordinary
-    // role changes would pass every assertion above.
-    const id = await aStaffedOrganization();
-    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body.members as {
-      _id: string;
-      oxyUserId: string;
-    }[];
-    const target = members.find((m) => m.oxyUserId === ADMIN);
-    if (!target) throw new Error('the fixture admin is missing');
-
-    expect(
-      (await call('PATCH', `/organization/${id}/members/${target._id}`, OWNER, { role: 'member' }))
-        .status,
-    ).toBe(200);
-    expect(await findMemberRole(db, id, ADMIN)).toBe('member');
-  });
-
-  it('lets the owner delete it', async () => {
-    // The positive control: without it every refusal above passes on a route
-    // that refuses everybody.
-    const id = await aStaffedOrganization();
-
-    expect((await call('DELETE', `/organization/${id}`, OWNER)).status).toBe(200);
-    expect(await findOrganizationById(db, id)).toBeNull();
-  });
-});
-
-/**
- * Nobody sets their own role.
- *
- * On a membership table mass assignment is privilege escalation rather than
- * merely IDOR, so this is checked as a property of the surface rather than left
- * to the reading of each handler. Three independent things have to hold, and any
- * one of them alone would be a single edit away from failing:
- *
- *  1. no route spreads `req.body` into a row — the create takes four named
- *     fields and `role` is not one of them;
- *  2. the only route that writes a role requires the caller to BE the owner;
- *  3. the role it may write is `'admin' | 'member'` by TYPE, in the zod schema
- *     AND in `updateNonOwnerMemberRole`'s signature, so `owner` cannot be minted even by
- *     the owner.
- */
-describe('a caller cannot set their own role', () => {
-  it('refuses a member promoting themselves, and an admin promoting themselves', async () => {
-    const id = await aStaffedOrganization();
-    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body.members as {
-      _id: string;
-      oxyUserId: string;
-    }[];
-    const asMember = members.find((m) => m.oxyUserId === MEMBER);
-    const asAdmin = members.find((m) => m.oxyUserId === ADMIN);
-    if (!asMember || !asAdmin) throw new Error('the fixture membership is incomplete');
-
+  it('splits billing/settings permissions and honors live revocations', async () => {
     expect(
       (
-        await call('PATCH', `/organization/${id}/members/${asMember._id}`, MEMBER, {
-          role: 'admin',
+        await call('PATCH', `/${workspaceId}`, 'billing', {
+          settings: { billingEmail: 'finance@example.com' },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await call('PATCH', `/${workspaceId}`, 'billing', { settings: { apiCallLimit: 10 } }))
+        .status,
+    ).toBe(403);
+    expect(
+      (
+        await call('PATCH', `/${workspaceId}`, 'admin', {
+          settings: { billingEmail: 'finance@example.com' },
         })
       ).status,
     ).toBe(403);
     expect(
-      (await call('PATCH', `/organization/${id}/members/${asAdmin._id}`, ADMIN, { role: 'admin' }))
+      (await call('PATCH', `/${workspaceId}`, 'viewer', { settings: { apiCallLimit: 10 } })).status,
+    ).toBe(403);
+    revoked = 'account:update';
+    expect(
+      (await call('PATCH', `/${workspaceId}`, 'owner', { settings: { apiCallLimit: 10 } })).status,
+    ).toBe(403);
+    removed = true;
+    expect((await call('GET', `/${workspaceId}`, 'owner')).status).toBe(403);
+  });
+  it('lists through one membership forest and one bounded directory call', async () => {
+    const result = await call('GET', '/', 'viewer');
+    expect(result.status).toBe(200);
+    expect(result.body.organizations).toHaveLength(1);
+    expect(seen.map((r) => r.path)).toEqual(['/accounts', '/organizations/batch']);
+  });
+  it('rejects independent name/logo/owner writes and non-admin registration', async () => {
+    expect((await call('POST', '/', 'owner', { name: 'Independent company' })).status).toBe(400);
+    expect((await call('POST', '/', 'viewer', { oxyAccountId: 'new-company' })).status).toBe(403);
+    expect((await call('POST', '/', 'owner', { oxyAccountId: 'registered-company' })).status).toBe(
+      201,
+    );
+    expect((await call('POST', '/', 'owner', { oxyAccountId: 'registered-company' })).status).toBe(
+      409,
+    );
+    expect(
+      (
+        await call('PATCH', `/${workspaceId}`, 'owner', {
+          name: 'Renamed',
+          image: 'local',
+          ownerId: 'person',
+        })
+      ).status,
+    ).toBe(400);
+    expect((await call('POST', `/${workspaceId}/logo`, 'owner', {})).status).toBe(410);
+  });
+  it('keeps deletion from erasing billing and historical relationships', async () => {
+    expect((await call('DELETE', `/${workspaceId}`, 'viewer')).status).toBe(403);
+    expect((await call('DELETE', `/${workspaceId}`, 'owner')).status).toBe(409);
+    const [row] = await db.select().from(organizations).where(eq(organizations.id, workspaceId));
+    expect(row).toMatchObject({ creditsPaid: 37, stripeCustomerId: 'cus_preserved' });
+  });
+  it('forwards membership operations to Oxy with organization-global semantics and no owner invitations', async () => {
+    expect(
+      (
+        await call('POST', `/${workspaceId}/members`, 'viewer', {
+          usernameOrEmail: 'colleague',
+          role: 'admin',
+        })
+      ).status,
+    ).toBe(403);
+    const result = await call('POST', `/${workspaceId}/members`, 'admin', {
+      usernameOrEmail: 'colleague',
+      role: 'viewer',
+    });
+    expect(result.status).toBe(201);
+    expect(result.body.membershipScope).toBe('organization');
+    expect(seen.find((r) => r.path === '/accounts/canonical/members')?.body).toEqual({
+      usernameOrEmail: 'colleague',
+      role: 'viewer',
+    });
+    expect(
+      (
+        await call('POST', `/${workspaceId}/members`, 'owner', {
+          usernameOrEmail: 'colleague',
+          role: 'owner',
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (await call('PATCH', `/${workspaceId}/members/member-1`, 'admin', { role: 'editor' })).status,
+    ).toBe(200);
+    expect((await call('DELETE', `/${workspaceId}/members/member-1`, 'admin')).status).toBe(200);
+  });
+  it('rejects retired link redemption and refuses viewers sharing agents', async () => {
+    for (const action of ['info', 'accept', 'decline'])
+      expect(
+        (await call(action === 'info' ? 'GET' : 'POST', `/invites/old-secret/${action}`, 'owner'))
+          .status,
+      ).toBe(410);
+    expect(
+      (await call('POST', `/${workspaceId}/agents`, 'viewer', { agentId: 'someone-elses-agent' }))
         .status,
     ).toBe(403);
-
-    expect(await findMemberRole(db, id, MEMBER)).toBe('member');
-    expect(await findMemberRole(db, id, ADMIN)).toBe('admin');
+    expect((await call('GET', `/${workspaceId}/agents`, 'viewer')).body.agents).toEqual([]);
   });
-
-  it('refuses `owner` as a role, even from the owner', async () => {
-    // The one caller who passes the permission gate still cannot mint a second
-    // owner: the value set is narrower than the membership one.
-    const id = await aStaffedOrganization();
-    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body.members as {
-      _id: string;
-      oxyUserId: string;
-    }[];
-    const target = members.find((m) => m.oxyUserId === MEMBER);
-    if (!target) throw new Error('the fixture member is missing');
-
-    const answer = await call('PATCH', `/organization/${id}/members/${target._id}`, OWNER, {
-      role: 'owner',
-    });
-
-    // The zod enum answers first, with a 400.
-    expect(answer.status).toBe(400);
-    expect(await findMemberRole(db, id, MEMBER)).toBe('member');
-    /**
-     * And the count is asserted, not just the one role, because this is the
-     * assertion that survives the validator being widened.
-     *
-     * `organization_members_one_owner_key` is the backstop underneath the enum:
-     * measured with the enum widened by one word, this request answers 500
-     * instead of 200 and the second owner is refused by the database, so the
-     * organization still has exactly one. Before the index it answered 200 and
-     * minted one.
-     */
-    const owners = await db
-      .select()
-      .from(organizationMembers)
-      .where(
-        and(eq(organizationMembers.organizationId, id), eq(organizationMembers.role, 'owner')),
-      );
-    expect(owners).toHaveLength(1);
+  it('fails closed on upstream outage', async () => {
+    upstreamStatus = 503;
+    expect(
+      (await call('PATCH', `/${workspaceId}`, 'owner', { settings: { apiCallLimit: 20 } })).status,
+    ).toBe(503);
   });
-
-  it('ignores a role smuggled into the CREATE body', async () => {
-    /**
-     * `createOrganization` takes four named fields; nothing spreads the request.
-     * The creator is seated `owner` because the repository says so, and a body
-     * asking for something else changes neither the organization nor the seat.
-     */
-    slugCounter += 1;
-    const slug = `orgauth-slug-${String(slugCounter)}`;
-    const answer = await call('POST', '/organization', OUTSIDER, {
-      name: 'Smuggled',
-      slug,
-      ownerId: OWNER,
-      credits: { paid: 9999 },
-      creditsPaid: 9999,
-      stripeCustomerId: 'cus_evil',
-    });
-
-    expect(answer.status).toBe(201);
-    const organization = answer.body.organization as Record<string, unknown>;
-    created.push(organization.id as string);
-    expect(organization.ownerId).toBe(OUTSIDER);
-    expect(organization.credits).toEqual({ paid: 0 });
-    expect(organization.stripeCustomerId).toBeNull();
-    expect(await findMemberRole(db, organization.id as string, OUTSIDER)).toBe('owner');
-    expect(await findMemberRole(db, organization.id as string, OWNER)).toBeNull();
-  });
-});
-
-describe('removing a member', () => {
-  it('lets an admin remove an ordinary member but never the owner', async () => {
-    const id = await aStaffedOrganization();
-    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body.members as {
-      _id: string;
-      oxyUserId: string;
-    }[];
-    const ordinary = members.find((m) => m.oxyUserId === MEMBER);
-    const owner = members.find((m) => m.oxyUserId === OWNER);
-    if (!ordinary || !owner) throw new Error('the fixture membership is incomplete');
-
-    expect((await call('DELETE', `/organization/${id}/members/${owner._id}`, ADMIN)).status).toBe(
-      400,
+  it('deduplicates >100 identities and respects suppression/missing/redirects', async () => {
+    const ids = [
+      ...Array.from({ length: 201 }, (_, i) => `company-${i}`),
+      'company-0',
+      'hidden',
+      'missing',
+      'redirect',
+    ];
+    const result = await withOrganizationSession(token('owner'), (client) =>
+      organizationDirectory(client, ids),
     );
-    expect(await findMemberRole(db, id, OWNER)).toBe('owner');
-
-    expect(
-      (await call('DELETE', `/organization/${id}/members/${ordinary._id}`, ADMIN)).status,
-    ).toBe(200);
-    expect(await findMemberRole(db, id, MEMBER)).toBeNull();
-  });
-
-  it('refuses a member id belonging to ANOTHER organization', async () => {
-    /**
-     * The cross-tenant write: checking that the caller administers the
-     * organization in the URL and then looking the member up by id alone. End to end, because the fix has to hold at the route the request
-     * actually reaches.
-     */
-    const mine = await aStaffedOrganization();
-    const theirs = await aStaffedOrganization();
-    const theirMembers = (await call('GET', `/organization/${theirs}/members`, OWNER)).body
-      .members as { _id: string; oxyUserId: string }[];
-    const victim = theirMembers.find((m) => m.oxyUserId === MEMBER);
-    if (!victim) throw new Error('the second organization has no ordinary member');
-
-    expect(
-      (await call('DELETE', `/organization/${mine}/members/${victim._id}`, OWNER)).status,
-    ).toBe(404);
-    expect(
-      (await call('PATCH', `/organization/${mine}/members/${victim._id}`, OWNER, { role: 'admin' }))
-        .status,
-    ).toBe(404);
-
-    expect(await findMemberRole(db, theirs, MEMBER)).toBe('member');
-  });
-});
-
-/**
- * Listing the agents an organization shares.
- *
- * ## This is the ONLY exercise `findAgentsByIds` has anywhere
- *
- * `agentRepository.ts` is 775 lines that nothing called until this router did,
- * and its own pgdb suite imports `findAgentById` (ten call sites) and **not**
- * `findAgentsByIds` — measured, not assumed. A repository function with no
- * caller and no test is indistinguishable from one that does not work.
- *
- * Worse, the obvious test does not reach it: the function early-returns `[]` for
- * an empty id list without touching the database, so a fixture with no shared
- * agents exercises the guard and never the query. That is the same
- * empty-result-set blindness that let the `.populate()` fault reach production
- * one directory over. The fixture here is deliberately NON-EMPTY.
- *
- * The seed goes in with the schema rather than through a repository because
- * creating agents belongs to another slice; this asserts the READ its route
- * performs.
- */
-describe('the agents an organization shares', () => {
-  const FIRST = '01900000-0000-7000-8000-0000000000a1';
-  const SECOND = '01900000-0000-7000-8000-0000000000a2';
-
-  async function seedAgent(id: string, oxyAccountId: string): Promise<void> {
-    await db.insert(agents).values({
-      id,
-      character: TEST_CHARACTER,
-      oxyAccountId,
-      ownerOxyAccountId: 'oxy-project-orgauth-internal',
-      applicationId: `internal-app-${id}`,
-      tagline: 'a tagline',
-      description: 'a description',
-      authorOxyUserId: OWNER,
-      category: 'general',
-    });
-  }
-
-  afterEach(async () => {
-    await db.delete(agents).where(inArray(agents.id, [FIRST, SECOND]));
-  });
-
-  it('serves the shared agents, most recently shared FIRST', async () => {
-    const id = await aStaffedOrganization();
-    await seedAgent(FIRST, 'oxy-bot-orgauth-first');
-    await seedAgent(SECOND, 'oxy-bot-orgauth-second');
-    expect(
-      (await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST })).status,
-    ).toBe(200);
-    expect(
-      (await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: SECOND })).status,
-    ).toBe(200);
-    // Two shares written in the same millisecond tie on `created_at`, and an
-    // ordering assertion over a tie cannot fail.
-    await db
-      .update(organizationAgents)
-      .set({ createdAt: new Date('2026-01-01T00:00:00Z') })
-      .where(eq(organizationAgents.agentId, FIRST));
-    await db
-      .update(organizationAgents)
-      .set({ createdAt: new Date('2026-02-01T00:00:00Z') })
-      .where(eq(organizationAgents.agentId, SECOND));
-
-    const listed = await call('GET', `/organization/${id}/agents`, MEMBER);
-
-    expect(listed.status).toBe(200);
-    const served = listed.body.agents as { _id: string; id: string; name: string }[];
-    /**
-     * The ORDER is the route's, not the query's. `listSharedAgentIds` sorts by
-     * when the agent was SHARED — the join row's timestamp rather than the
-     * agent's — while
-     * `findAgentsByIds` is an `inArray` with no `ORDER BY` at all, so Postgres may
-     * answer in any order. Serving that directly reshuffles the list on an
-     * unrelated day: nobody reports it and nobody can reproduce it.
-     */
-    expect(served.map((a) => a.id)).toEqual([SECOND, FIRST]);
-    // `_id` beside `id`, the shape `res.json({ agent })` has always answered.
-    expect(served.map((a) => a._id)).toEqual([SECOND, FIRST]);
-    // The NAME comes from Oxy, keyed by the bot account — so this also asserts
-    // that the route hydrated at all, which a bare id ordering could not.
-    expect(served.map((a) => a.name)).toEqual([
-      'name:oxy-bot-orgauth-second',
-      'name:oxy-bot-orgauth-first',
-    ]);
-    expect(served.every((agent) => !('applicationId' in agent))).toBe(true);
-    expect(served.every((agent) => !('ownerOxyAccountId' in agent))).toBe(true);
-  });
-
-  it('drops a share whose agent no longer exists, rather than serving a null', async () => {
-    /**
-     * `organization_agents.agent_id` carries no foreign key — `agents` was a
-     * later batch — so a share can outlive its agent. `findAgentsByIds` answers
-     * with the agents that exist, and this is what says so.
-     */
-    const id = await aStaffedOrganization();
-    await seedAgent(FIRST, 'oxy-bot-orgauth-first');
-    await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST });
-    await db.insert(organizationAgents).values({
-      organizationId: id,
-      agentId: '01900000-0000-7000-8000-0000000000ff',
-      addedBy: OWNER,
-    });
-
-    const served = (await call('GET', `/organization/${id}/agents`, MEMBER)).body.agents as {
-      id: string;
-    }[];
-
-    expect(served.map((a) => a.id)).toEqual([FIRST]);
-  });
-
-  it('refuses to share an agent that does not exist', async () => {
-    const id = await aStaffedOrganization();
-
-    const answer = await call('POST', `/organization/${id}/agents`, ADMIN, {
-      agentId: '01900000-0000-7000-8000-0000000000fe',
-    });
-
-    expect(answer.status).toBe(404);
-  });
-
-  it('lets an admin share and unshare, and refuses an ordinary member', async () => {
-    const id = await aStaffedOrganization();
-    await seedAgent(FIRST, 'oxy-bot-orgauth-first');
-
-    expect(
-      (await call('POST', `/organization/${id}/agents`, MEMBER, { agentId: FIRST })).status,
-    ).toBe(403);
-    expect((await call('DELETE', `/organization/${id}/agents/${FIRST}`, MEMBER)).status).toBe(403);
-
-    expect(
-      (await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST })).status,
-    ).toBe(200);
-    // Idempotent.
-    expect(
-      (await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST })).status,
-    ).toBe(200);
-    expect((await call('DELETE', `/organization/${id}/agents/${FIRST}`, ADMIN)).status).toBe(200);
-    // And the second removal finds nothing to remove.
-    expect((await call('DELETE', `/organization/${id}/agents/${FIRST}`, ADMIN)).status).toBe(404);
-  });
-});
-
-describe('an invitation link is redeemable by whoever holds it', () => {
-  it('previews, accepts once, and refuses the replay', async () => {
-    const id = await aStaffedOrganization();
-    const invite = await createInvite(db, {
-      organizationId: id,
-      role: 'admin',
-      token: 'orgauth-token-flow',
-      invitedBy: OWNER,
-      expiresAt: new Date(Date.now() + 86_400_000),
-    });
-    expect(invite.token).toBe('orgauth-token-flow');
-
-    const info = await call('GET', '/organization/invites/orgauth-token-flow/info', OUTSIDER);
-    expect(info.status).toBe(200);
-    const preview = info.body.invite as { organization: Record<string, unknown> };
-    // The projection `name`, `slug`, `image` and no more: anyone holding a token reaches this endpoint.
-    expect(Object.keys(preview.organization).sort()).toEqual(['_id', 'image', 'name', 'slug']);
-
-    const accepted = await call(
-      'POST',
-      '/organization/invites/orgauth-token-flow/accept',
-      OUTSIDER,
-    );
-    expect(accepted.status).toBe(200);
-    expect(await findMemberRole(db, id, OUTSIDER)).toBe('admin');
-
-    // Single-use: the second redemption of the same link finds nothing.
-    const replay = await call(
-      'POST',
-      '/organization/invites/orgauth-token-flow/accept',
-      'orgauth-stranger',
-    );
-    expect(replay.status).toBe(404);
-    expect(await findMemberRole(db, id, 'orgauth-stranger')).toBeNull();
-  });
-
-  it('answers 400 when the holder is already a member', async () => {
-    const id = await aStaffedOrganization();
-    await createInvite(db, {
-      organizationId: id,
-      role: 'admin',
-      token: 'orgauth-token-dup',
-      invitedBy: OWNER,
-      expiresAt: new Date(Date.now() + 86_400_000),
-    });
-
-    const answer = await call('POST', '/organization/invites/orgauth-token-dup/accept', MEMBER);
-
-    expect(answer.status).toBe(400);
-    // Not upgraded to the invited role by a link they did not need.
-    expect(await findMemberRole(db, id, MEMBER)).toBe('member');
+    expect(seen.map((r) => (r.body.ids as string[]).length)).toEqual([100, 100, 4]);
+    expect(result.size).toBe(202);
+    expect(result.get('redirect')?.accountId).toBe('canonical');
+    expect(result.has('hidden')).toBe(false);
+    expect(result.has('missing')).toBe(false);
   });
 });

@@ -95,6 +95,8 @@ Beside these, the API reaches the person's Oxy apps through Oxy's capability tic
 (`packages/alia-computer-host`, its own EC2 Spot instance) over the internal network
 ([actors](./actors.mdx#the-agents-computer)).
 
+Organization identity and membership belong to Oxy; [Alia workspaces](./central-organizations.md) retain product settings, sharing and historical references.
+
 PostgreSQL is Alia's only product store: conversations, messages, agents, organizations, skills and the rest. Under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md), every hosted inference call crosses the published Oxy inference client and Oxy calls Kaana; only a user's explicitly connected local runtime stays outside that hop.
 
 | App | Stack | Purpose |
