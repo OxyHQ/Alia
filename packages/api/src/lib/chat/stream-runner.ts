@@ -24,7 +24,7 @@
  * route used inline so the timeout suite's module mocks keep intercepting them.
  */
 import type { AgentInfo } from '../../domain/conversation.js';
-import type { AgentCharacter } from '../../domain/agent-character.js';
+import type { AvatarCharacter } from '@oxy.so/contracts';
 import type { Response } from 'express';
 import { streamText, type TextStreamPart, type ModelMessage, type ToolSet } from 'ai';
 import type { ResolvedModel } from '../chat-core.js';
@@ -59,7 +59,7 @@ interface DelegateAgentToolOutput {
   agentName: string;
   agentHandle: string;
   agentColor: string | null;
-  agentCharacter: AgentCharacter | null;
+  agentCharacter: AvatarCharacter | null;
   response: string;
 }
 

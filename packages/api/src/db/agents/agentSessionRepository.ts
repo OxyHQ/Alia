@@ -44,7 +44,7 @@
  * typed to accept.
  */
 
-import type { AgentCharacter } from '../../domain/agent-character';
+import type { AvatarCharacter } from '@oxy.so/contracts';
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from 'drizzle-orm';
 import type { Executor } from '../index';
 import {
@@ -140,7 +140,7 @@ export interface AgentSessionAgentRef {
   _id: string;
   oxyAccountId: string;
   /** What the agent looks like, so a task card draws it as the editor shows it. */
-  character: AgentCharacter;
+  character: AvatarCharacter;
 }
 
 /** A session as the task listings render it. See the file comment. */

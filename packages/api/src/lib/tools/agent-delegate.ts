@@ -52,7 +52,7 @@
  * model has decided anything.
  */
 
-import type { AgentCharacter } from '../../domain/agent-character.js';
+import type { AvatarCharacter } from '@oxy.so/contracts';
 import { tool } from 'ai';
 import { z } from 'zod';
 import { getDb } from '../../db/index.js';
@@ -70,7 +70,7 @@ export interface AgentDelegationResult {
   /** The agent's Bloom colour preset key, for the glyph a client draws. */
   agentColor: string | null;
   /** The agent's look, a Bloom avatar character; null when the agent could not be read. */
-  agentCharacter: AgentCharacter | null;
+  agentCharacter: AvatarCharacter | null;
   response: string;
   tokensUsed: number;
   error?: string;

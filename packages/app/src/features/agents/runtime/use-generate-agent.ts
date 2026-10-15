@@ -56,9 +56,9 @@ export function useGenerateAgent() {
        * This is where the agent's name and handle now live. Alia never sees
        * them again except by reading them back.
        *
-       * The agent's look is not an account field: the API gives the new agent
-       * a character of its own when the row is created, and the editor changes
-       * it.
+       * Oxy gives the bot account a look of its own when it is minted, and the
+       * API takes that look for the new agent when its row is created, so the
+       * account and the agent start out the same; the editor changes both.
        */
       const account = await createBotAccount({
         createAccount,

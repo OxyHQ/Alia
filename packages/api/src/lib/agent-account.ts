@@ -63,7 +63,7 @@
 
 import { OxyServices } from '@oxy.so/core';
 import { resolveAccountDelegationAccess } from '@oxy.so/core/session';
-import type { AccountCategoryId } from '@oxy.so/contracts';
+import type { AccountCategoryId, AvatarCharacter } from '@oxy.so/contracts';
 import type { Executor } from '../db/index.js';
 import { findAgentById, type AgentRecord } from '../db/agents/agentRepository.js';
 import {
@@ -93,7 +93,15 @@ export type AgentAccountRefusal =
  * grant, and the compiler would not mind.
  */
 export type AgentAccountVerdict =
-  | { readonly permitted: true; readonly ownerAccountId: string }
+  | {
+      readonly permitted: true;
+      readonly ownerAccountId: string;
+      /**
+       * The look the bot account already carries (every bot has one from birth). An agent created
+       * without choosing one is given THIS, so the account and the agent never start out different.
+       */
+      readonly character?: AvatarCharacter;
+    }
   | { readonly permitted: false; readonly refusal: AgentAccountRefusal };
 
 /**
@@ -223,7 +231,11 @@ export async function verifyAgentAccount(params: {
   }
   return remember(
     key,
-    { permitted: true, ownerAccountId: node.parentAccountId },
+    {
+      permitted: true,
+      ownerAccountId: node.parentAccountId,
+      ...(node.account.character !== undefined && { character: node.account.character }),
+    },
     access.hasStanding,
   );
 }
@@ -361,6 +373,11 @@ export async function createAgentBotAccount(params: {
    * is offered exactly one, so the head is trivially right.
    */
   accountCategories?: AccountCategoryId[];
+  /**
+   * The bot's 3D look, set at creation like the colour: the account is born with the look its
+   * agent will have. Omitted, Oxy picks one from the handle.
+   */
+  character?: AvatarCharacter;
 }): Promise<{ oxyAccountId: string; username: string }> {
   const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
   oxy.session.setAccessToken(params.accessToken);
@@ -391,6 +408,7 @@ export async function createAgentBotAccount(params: {
         ...(params.accountCategories !== undefined && {
           accountCategories: params.accountCategories,
         }),
+        ...(params.character !== undefined && { character: params.character }),
       });
       return { oxyAccountId: node.accountId, username: candidate };
     } catch (error: unknown) {
@@ -402,6 +420,24 @@ export async function createAgentBotAccount(params: {
     }
   }
   throw new Error(`could not mint a bot account: ${USERNAME_ATTEMPTS} usernames were all taken`);
+}
+
+/**
+ * Put an agent's look on its Oxy account, replacing the whole character.
+ *
+ * Oxy is where the look is read by every other app (a post, a profile, a chat), so a change made
+ * here has to reach it. Done BEFORE the agent row is written, so a failure leaves nothing half
+ * changed. The caller's own token, because changing a bot account's look is `account:update`:
+ * the owner's, and an admin's.
+ */
+export async function setAgentAccountCharacter(params: {
+  accessToken: string;
+  oxyAccountId: string;
+  character: AvatarCharacter;
+}): Promise<void> {
+  const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
+  oxy.session.setAccessToken(params.accessToken);
+  await oxy.accounts.update(params.oxyAccountId, { character: params.character });
 }
 
 function isConflict(error: unknown): boolean {

@@ -24,7 +24,7 @@
  * rather than narrowed to a string anywhere it is merely being moved.
  */
 
-import type { AgentCharacter } from '../../domain/agent-character';
+import type { AvatarCharacter } from '@oxy.so/contracts';
 import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import type {
   AgentInfo,
@@ -50,7 +50,7 @@ export interface MessageRow {
   readonly agentInfoId: string | null;
   readonly agentInfoName: string | null;
   readonly agentInfoColor: string | null;
-  readonly agentInfoCharacter: AgentCharacter | null;
+  readonly agentInfoCharacter: AvatarCharacter | null;
   readonly agentInfoHandle: string | null;
   readonly seq: number | null;
   readonly interruptedAfterMs: number | null;

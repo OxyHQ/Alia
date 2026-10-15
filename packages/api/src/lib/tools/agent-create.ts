@@ -1,4 +1,4 @@
-import { agentCharacterFor } from '../../domain/agent-character.js';
+import { avatarCharacterFor } from '@oxy.so/contracts';
 import { tool } from 'ai';
 import { z } from 'zod';
 import { getDb } from '../../db/index.js';
@@ -139,6 +139,9 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
         const finalSystemPrompt = systemPrompt || description;
 
         const username = suggestAgentUsername(name) ?? fallbackAgentUsername();
+        // Picked from the handle, so the same agent always looks the same; the person changes it in
+        // the editor. The account is born with it and the agent row stores the same look.
+        const character = avatarCharacterFor(username);
 
         const account = await createAgentBotAccount({
           accessToken,
@@ -159,6 +162,7 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
            * that one is checked in code and this one is not.
            */
           color: color ?? agentColorFor(username),
+          character,
           /**
            * Dropped rather than corrected when the taxonomy does not recognise
            * it, and OMITTED rather than sent empty: absent means "no categories"
@@ -175,9 +179,7 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
           // directly under this caller's personal account. Store that authority
           // explicitly; `author` remains listing metadata only.
           ownerOxyAccountId: userId,
-          // Picked from the handle, so the same agent always looks the same; the person changes it
-          // in the editor.
-          character: agentCharacterFor(username),
+          character,
           tagline,
           description,
           authorOxyUserId: userId,

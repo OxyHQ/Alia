@@ -77,7 +77,9 @@ vi.mock('../../middleware/auth.js', () => ({
  * BODY, and a real verdict would only add an Oxy double between the request and
  * the assertion.
  */
+const accountLook = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock('../../lib/agent-account.js', () => ({
+  setAgentAccountCharacter: accountLook,
   loadAgentForActor: vi.fn(async () => ({ ok: true, agent: AGENT_ROW })),
   verifyAgentAccount: vi.fn(async () => ({ permitted: true })),
   refusalMessage: () => 'refused',
@@ -348,6 +350,10 @@ describe('the editor and the route agree on what a save contains', () => {
       200,
     );
     expect(repository.updateAgent).toHaveBeenCalledTimes(1);
+    // The look is the Oxy account's too: every other app draws the bot from there.
+    expect(accountLook).toHaveBeenCalledWith(
+      expect.objectContaining({ character: VALUE_FOR.character }),
+    );
 
     /**
      * Reached the repository, not merely survived the schema. The route renames
