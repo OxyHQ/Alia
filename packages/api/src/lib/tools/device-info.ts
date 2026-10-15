@@ -20,21 +20,8 @@ export interface DeviceInfo {
  */
 export const createGetDeviceInfoTool = (deviceInfo: DeviceInfo | null) =>
   tool({
-    description: `Obtiene información sobre el dispositivo del usuario.
-
-CUÁNDO USAR: Úsala cuando el usuario haga preguntas relacionadas con:
-- Su dispositivo móvil o teléfono
-- Problemas técnicos que requieran conocer las especificaciones del dispositivo
-- Compatibilidad de apps o características con su dispositivo
-- Consultas sobre su sistema operativo, modelo de teléfono, o RAM
-
-EJEMPLOS de cuándo usar:
-- "¿Qué teléfono tengo?"
-- "¿Cuánta RAM tiene mi dispositivo?"
-- "¿Mi teléfono es compatible con...?"
-- "¿Qué versión de Android/iOS tengo?"
-
-NO USAR para preguntas generales que no requieran información del dispositivo.`,
+    description:
+      "The user's device: model, OS and version, RAM. Use only when they ask about their own device or whether something works on it.",
 
     inputSchema: z.object({}),
 

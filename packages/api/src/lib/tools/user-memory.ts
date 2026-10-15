@@ -47,24 +47,24 @@ type InitiatedBy = (typeof INITIATED_BY)[number];
 export const saveUserMemoryTool = (oxyUserId: string, opts?: { initiatedBy?: InitiatedBy }) =>
   tool({
     description:
-      'Save NEW user information for future conversations, without asking. Use ALWAYS when user shares: preferences, personal info, goals, experiences, or anything they want remembered — not one-off facts or conversational asides. To change something already remembered — especially to rename it — use updateUserMemory instead; this tool keys off the title, so saving under a new title leaves the old memory behind as a duplicate.',
+      'Save NEW user information for future conversations, without asking: preferences, personal info, goals, experiences, anything they want remembered — not one-off facts or asides. To change or rename something already remembered use updateUserMemory: this tool keys off the title, so a new title leaves the old memory behind as a duplicate.',
 
     inputSchema: z.object({
       title: z
         .string()
         .describe(
-          'Short, human-readable label (e.g. "Food", "Occupation", a person\'s name) — NOT a snake_case key',
+          'Short human-readable label (e.g. "Food", a person\'s name), not a snake_case key',
         ),
-      summary: z.string().describe('1-2 sentence description of what to remember'),
+      summary: z.string().describe('1-2 sentences to remember'),
       type: z
         .enum(MEMORY_TYPES)
         .describe(
-          "profile = a fact about the user themself; topic = a subject/interest/project; person = someone in the user's life",
+          'profile = about the user; topic = a subject, interest or project; person = someone in their life',
         ),
       initiatedBy: z
         .enum(INITIATED_BY)
         .describe(
-          '"user" when the user explicitly asked you to remember or save this; "assistant" when you decided to capture it yourself from something they mentioned in passing',
+          '"user" if they explicitly asked you to remember it; "assistant" if you chose to capture it from something they mentioned in passing',
         ),
     }),
 
@@ -156,23 +156,16 @@ export const saveUserMemoryTool = (oxyUserId: string, opts?: { initiatedBy?: Ini
 export const updateUserMemoryTool = (oxyUserId: string) =>
   tool({
     description:
-      'Change a memory that already exists: correct it, reword it, re-classify it, or rename its title. Use this — never saveUserMemory — whenever the user refers to something you already remember.',
+      'Change an existing memory: correct, reword, re-classify or rename it. Use this, never saveUserMemory, whenever the user refers to something you already remember.',
 
     inputSchema: z.object({
-      currentTitle: z
-        .string()
-        .describe('The title of the memory to change, exactly as it is stored today'),
-      title: z.string().optional().describe('New title. Omit to keep the current one'),
-      summary: z
-        .string()
-        .optional()
-        .describe('New 1-2 sentence description. Omit to keep the current one'),
+      currentTitle: z.string().describe('Current title, exactly as stored'),
+      title: z.string().optional().describe('New title; omit to keep'),
+      summary: z.string().optional().describe('New 1-2 sentences; omit to keep'),
       type: z
         .enum(MEMORY_TYPES)
         .optional()
-        .describe(
-          "New grouping: profile = a fact about the user themself; topic = a subject/interest/project; person = someone in the user's life. Omit to keep the current one",
-        ),
+        .describe('New grouping (profile, topic, person); omit to keep'),
     }),
 
     execute: async ({ currentTitle, title, summary, type }) => {
@@ -280,12 +273,10 @@ export const updateUserMemoryTool = (oxyUserId: string) =>
 export const forgetUserMemoryTool = (oxyUserId: string) =>
   tool({
     description:
-      'Forget something you remember about the user, when they ask you to forget it, stop remembering it, or say it is no longer true and should go. Pass the exact title of the memory. Confirm to them what you forgot. Never use it on your own initiative.',
+      'Forget a memory when the user asks you to forget it or says it is no longer true. Pass its exact title and confirm what you forgot. Never on your own initiative.',
 
     inputSchema: z.object({
-      title: z
-        .string()
-        .describe('The title of the memory to forget, exactly as it is stored today'),
+      title: z.string().describe('Title of the memory, exactly as stored'),
     }),
 
     execute: async ({ title }) => {
@@ -326,21 +317,15 @@ export const updateUserPreferencesTool = (oxyUserId: string) =>
       'Update user communication preferences: language, tone, response length, interests.',
 
     inputSchema: z.object({
-      language: z
-        .string()
-        .optional()
-        .describe('Preferred language as BCP 47 locale code (e.g., "en-US", "es-ES", "fr-FR")'),
+      language: z.string().optional().describe('BCP 47 locale code, e.g. "es-ES"'),
       tone: z
         .string()
         .optional()
         .describe(
-          'Personality style ("alia", "brief", "chill", "sweet") or freeform tone (e.g., "formal", "casual")',
+          'Personality style ("alia", "brief", "chill", "sweet") or a freeform tone ("formal")',
         ),
-      responseLength: z
-        .enum(['short', 'medium', 'long'])
-        .optional()
-        .describe('Preferred response length'),
-      interests: z.array(z.string()).optional().describe('List of user interests or topics'),
+      responseLength: z.enum(['short', 'medium', 'long']).optional().describe('Response length'),
+      interests: z.array(z.string()).optional().describe('Interests or topics'),
     }),
 
     execute: async ({ language, tone, responseLength, interests }) => {
@@ -395,10 +380,10 @@ export const updateUserContextTool = (oxyUserId: string) =>
     description: 'Update user context: occupation, location, timezone, bio.',
 
     inputSchema: z.object({
-      occupation: z.string().optional().describe('User occupation/profession'),
-      location: z.string().optional().describe('User location (city, country)'),
-      timezone: z.string().optional().describe('User timezone'),
-      bio: z.string().optional().describe('User bio or general description'),
+      occupation: z.string().optional().describe('Occupation'),
+      location: z.string().optional().describe('City, country'),
+      timezone: z.string().optional().describe('Timezone'),
+      bio: z.string().optional().describe('Short bio'),
     }),
 
     execute: async ({ occupation, location, timezone, bio }) => {

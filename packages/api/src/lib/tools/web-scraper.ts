@@ -53,7 +53,7 @@ export async function readWebPage(url: string) {
 
 export const webScraperTool = tool({
   description:
-    'Read the indexed main content and citation metadata for a public web page. Clarity performs safe fetching and extraction. Pages that only render with JavaScript or need interaction may not be readable.',
+    'Read the main content and citation metadata of a public web page. Pages that need JavaScript or interaction may be unreadable.',
   inputSchema: z.object({
     url: z.string().url().describe('The public URL to read'),
     extractLinks: z

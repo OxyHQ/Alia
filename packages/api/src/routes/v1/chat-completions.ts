@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { Router, Request, Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { safeRefund } from '../../lib/credits-manager.js';
 import { handleDeepResearch } from '../../lib/chat-modes/deep-research-handler.js';
 import { oxyApprovalGate } from '../../lib/agent/action-review.js';
@@ -326,10 +326,10 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       recalledMemories,
       skills,
       linkedAgent,
-      agentMode: agentRuntimeEnabled,
       autonomyRuntime,
       responseMode,
       appCatalog: appCatalogPrompt,
+      toolNames: Object.keys(allTools ?? {}),
       askUserQuestion: Boolean(allTools?.[ASK_USER_QUESTION_TOOL]),
     });
     const systemMessage = systemPrompt.text;

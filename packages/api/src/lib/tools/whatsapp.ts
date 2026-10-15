@@ -49,7 +49,7 @@ async function gatewayFetch<T = unknown>(path: string, options?: RequestInit): P
 export function createGetWhatsAppChatsTool(userId: string) {
   return tool({
     description:
-      "Get the user's recent WhatsApp conversations. Returns chat names, unread counts, and last message previews.",
+      "The user's recent WhatsApp chats: names, JIDs, unread counts, last-message previews.",
     inputSchema: z.object({}),
     execute: async () => {
       try {
@@ -90,8 +90,7 @@ export function createGetWhatsAppChatsTool(userId: string) {
  */
 export function createGetWhatsAppMessagesTool(userId: string) {
   return tool({
-    description:
-      'Get recent messages from a specific WhatsApp chat. First use getWhatsAppChats to find the chat name and JID.',
+    description: 'Recent messages of one WhatsApp chat. Get its JID from getWhatsAppChats first.',
     inputSchema: z.object({
       jid: z
         .string()
@@ -133,7 +132,7 @@ export function createGetWhatsAppMessagesTool(userId: string) {
 export function createSendWhatsAppMessageTool(userId: string) {
   return tool({
     description:
-      'Send a WhatsApp message. Use ONLY when the user explicitly asks to send a message on WhatsApp. First use getWhatsAppChats to find the recipient JID.',
+      'Send a WhatsApp message. ONLY when the user explicitly asks. Get the recipient JID from getWhatsAppChats first.',
     inputSchema: z.object({
       jid: z
         .string()

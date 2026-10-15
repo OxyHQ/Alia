@@ -15,7 +15,7 @@ const MAX_RESULTS = 10;
 export const createSearchAgentsTool = () =>
   tool({
     description:
-      'Search for available AI agents that can help with a specific task. Returns a list of matching agents with their tagline, category and tags. Use this when agent mode is active to find specialists.',
+      'Find specialist agents for a task (tagline, category, tags). If none fits, handle the task yourself.',
 
     inputSchema: z.object({
       query: z

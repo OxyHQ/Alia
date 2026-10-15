@@ -197,7 +197,6 @@ describe('a turn that belongs to an agent', () => {
         index: '\n\n## Skills\n- private-skill: user-only instructions',
         active: '# ACTIVE SKILLS\n\nDo the private thing.',
       },
-      agentMode: true,
     });
 
     expect(message).not.toContain('Private Person');
@@ -205,8 +204,6 @@ describe('a turn that belongs to an agent', () => {
     expect(message).not.toContain('Private fact');
     expect(message).not.toContain('privatePreference');
     expect(message).not.toContain('privateContext');
-    expect(message).not.toContain('sendTelegramMessage');
-    expect(message).not.toContain('AGENT MODE');
   });
 
   it('discloses only the prompt families the owner explicitly granted, and memory as its own', async () => {
@@ -216,7 +213,6 @@ describe('a turn that belongs to an agent', () => {
       oxyUser: { name: { full: 'Still Private' } },
       recalledMemories: [{ title: 'Granted recall', summary: 'may be used' }],
       userMemory: { memories: [{ title: 'Granted fact', summary: 'may also be used' }] },
-      agentMode: true,
     });
 
     // Memory is per actor: the `memory` grant reaches the agent's OWN memory of
@@ -229,8 +225,6 @@ describe('a turn that belongs to an agent', () => {
       userMemory: { memories: [{ title: 'Granted fact', summary: 'may also be used' }] },
     });
     expect(withoutRecall).not.toContain('Granted fact');
-    expect(message).toContain('sendTelegramMessage');
-    expect(message).toContain('AGENT MODE');
     // A profile/name is not one of Alia's grant families. It remains withheld
     // until a resource-specific delegation authority exists for it.
     expect(message).not.toContain('Still Private');

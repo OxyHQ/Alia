@@ -62,9 +62,9 @@ async function geocode(place: string): Promise<GeocodeHit | null> {
 
 export const getWeatherTool = tool({
   description:
-    'Consultar el tiempo actual y la previsión de una ubicación. Devuelve una tarjeta que la app dibuja; no repitas todos los datos en el texto.',
+    'Current weather and forecast for a place. Returns a card the app draws; do not repeat its data in the text.',
   inputSchema: z.object({
-    location: z.string().describe("Ciudad o lugar, por ejemplo 'Barcelona' o 'Ciudad de México'."),
+    location: z.string().describe("City or place, e.g. 'Barcelona'."),
   }),
   execute: async ({ location }) => {
     const place = await geocode(location);

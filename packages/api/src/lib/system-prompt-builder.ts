@@ -38,6 +38,13 @@ const SPOKEN_ANSWER_PROMPT = 'voice';
 
 /** The rule for asking the person through `askUserQuestion`; see `SystemPromptOptions.askUserQuestion`. */
 const ASK_USER_QUESTION_PROMPT = 'ask-user-question';
+
+/**
+ * Cowork's rules for its own `browser_action` client tool. The client names the
+ * tool, so the rules are loaded only for a turn whose tool set carries it.
+ */
+const COWORK_BROWSER_PROMPT = 'cowork-browser';
+const COWORK_BROWSER_TOOL = 'browser_action';
 import { log } from './logger.js';
 import { agentPromptName, type HydratedAgent } from './agent-identity.js';
 import { readCapabilityGrants } from '../domain/capability-grants.js';
@@ -115,8 +122,12 @@ export interface SystemPromptOptions {
   skills?: { index: string; active: string; agentScoped?: boolean } | null;
   /** Linked agent (for archetype prompt injection) */
   linkedAgent?: HydratedAgent | null;
-  /** Whether agent mode is active */
-  agentMode?: boolean;
+  /**
+   * The names of the tools registered for THIS turn, the client's own included.
+   * Prompt text that names a tool is loaded only when the tool is in this list,
+   * so the prompt never describes a tool the model was not given.
+   */
+  toolNames?: readonly string[];
   /**
    * `'voice'` when the turn was spoken in a voice call and will be read aloud.
    * Layers `prompts/voice.md` over the base prompt; see `SPOKEN_ANSWER_PROMPT`.
@@ -149,23 +160,21 @@ export class SystemPromptBuilder {
   /**
    * Build the complete system message from all layers.
    *
-   * Layer order (bottom-up):
-   *   0. Identity guard (prepended LAST — sits at the absolute top so no skill,
-   *      agent, or downstream fragment can override it). The ONLY layer that
-   *      says who the assistant is, and the only one that carries an agent's
-   *      remit rule.
-   *   1. Selected skills / agent remit (prepended — wrap the base prompt)
-   *   2. Base prompt (the style profile for the chosen model, plus `base.md`) —
-   *      how to answer, never who is answering
-   *   3. Date injection
-   *   4. Autonomy fragment
-   *   5. Recalled memories
-   *   6. User profile & communication tools hint
-   *   7. Oxy service description + context
-   *   8. Agent mode hint
-   *   9. User memory (facts, preferences, context), then the person's
-   *      learned writing style
-   *  10. Skills index (name and description of each installed skill)
+   * Layer order, top to bottom. STATIC first, so a provider's prefix cache
+   * can serve the head of the message; per-turn content last.
+   *
+   *   0. Identity guard (the ONLY layer that says who the assistant is, and the
+   *      only one that carries an agent's remit rule) — nothing below can
+   *      override it
+   *   1. Agent remit, then the skills selected for this message
+   *   2. Surface prompt + `base.md`, then the client-tool, spoken-answer and
+   *      question-card layers — how to answer, never who is answering
+   *   3. Oxy apps description, then the Apps catalogue
+   *   4. Skills index
+   *   -- volatile from here --
+   *   5. Date, autonomy fragment, recalled memories
+   *   6. The person's name and inbox context, memory, learned writing style,
+   *      and an agent's own memory
    */
   static async build(opts: SystemPromptOptions): Promise<string> {
     return (await SystemPromptBuilder.buildMeasured(opts)).text;
@@ -191,7 +200,7 @@ export class SystemPromptBuilder {
       recalledMemories,
       skills,
       linkedAgent,
-      agentMode,
+      toolNames,
       autonomyRuntime,
       responseMode,
       appCatalog,
@@ -222,12 +231,16 @@ export class SystemPromptBuilder {
      */
     const mayReadAliaMemory = agentGrants === null;
     const mayReadAgentMemory = agentGrants !== null && agentGrants.allows('memory');
-    const mayUseMessaging = agentGrants === null || agentGrants.allows('messaging');
-    const mayDelegate = agentGrants === null || agentGrants.allows('delegation');
     const mayReadSkills = agentGrants === null || skills?.agentScoped === true;
 
     // 1. Base prompt: the surface's prompt over `base.md`.
     let systemMessage = await loadBasePrompt(SURFACE_PROMPTS[surface], clientContext);
+
+    // 1a. A client tool the surface prompt has rules for, only when it is registered.
+    if (surface === 'cowork' && toolNames?.includes(COWORK_BROWSER_TOOL)) {
+      const browser = await loadPrompt(COWORK_BROWSER_PROMPT);
+      if (browser !== '') systemMessage += `\n\n---\n\n${browser}`;
+    }
 
     // 1b. A spoken answer, when the turn came from a voice call — last of the
     // style layers, because how the answer will be DELIVERED overrides how the
@@ -239,20 +252,72 @@ export class SystemPromptBuilder {
 
     // 1c. How to ask the person, when the card tool is in this turn's tool set —
     // beside the base prompt's Ambiguity and Tools sections it qualifies.
-    if (askUserQuestion && responseMode !== 'voice') {
+    if ((askUserQuestion || toolNames?.includes('askUserQuestion')) && responseMode !== 'voice') {
       const ask = await loadPrompt(ASK_USER_QUESTION_PROMPT);
       if (ask !== '') systemMessage += `\n\n---\n\n${ask}`;
     }
 
-    // 2. Current date
+    /**
+     * Everything above, up to the volatile block below, is the same bytes on
+     * every turn of a conversation (and across conversations that share a
+     * surface, model and tool set), so a provider's prefix cache can serve it.
+     * Per-turn content — the date, the autonomy classification, the person's
+     * name and memory, recalled memories — goes AFTER it, never inside.
+     */
+
+    // 2. Oxy service description (non-blocking). Agent access to Oxy apps is
+    // decided by normalized DelegationGrant assignments in `buildOxyServiceTools`,
+    // not by the person's direct-session context. Until that resolver returns
+    // a prompt-safe projection, exposing the person's Inbox context here
+    // would be a second, ungoverned authorization path.
+    let oxyServiceCtx = '';
+    if (isDirectUserSession && agentGrants === null && userId && accessToken) {
+      try {
+        const [oxyServicePrompt, ctx] = await Promise.all([
+          getOxyServicePromptFragment(userId),
+          getOxyServiceContext(userId, accessToken),
+        ] as const);
+        // A routed turn lists every Oxy app in its Apps section (3) with how
+        // to open it. The fragment names their tools as if they were already
+        // in the tool list, which, while they are not, reads to a weak model
+        // as "those tools do not exist" — and it refuses.
+        if (oxyServicePrompt && !appCatalog) systemMessage += oxyServicePrompt;
+        oxyServiceCtx = ctx;
+      } catch {
+        // Non-critical — don't block chat
+      }
+    }
+
+    /**
+     * 3. The connected apps this turn can open (`lib/tool-budget.ts`).
+     *
+     * Ungated by session kind: it describes tools the assembler already
+     * authorized for THIS turn, so whoever the turn is for may know they exist —
+     * and without it an app that is not open yet is invisible to the model.
+     */
+    if (appCatalog) systemMessage += appCatalog;
+
+    // 4. Skills index: a list of names and descriptions the model reads to decide
+    // whether to call `loadSkill`. Not gated on `isDirectUserSession`:
+    // authorization is an install owned by the caller's account, and a developer
+    // key carries its owner's — so nothing here leaks one account's material
+    // into another's request.
+    if (mayReadSkills && skills?.index) {
+      systemMessage += skills.index;
+      skillsChars += skills.index.length;
+    }
+
+    // ---- Volatile block: changes per turn, so it comes last. ----
+
+    // 5. Current date
     systemMessage += `\n\nToday is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
 
-    // 3. Autonomy fragment
+    // 6. Autonomy fragment
     if (autonomyRuntime) {
       systemMessage += buildAutonomyPromptFragment(autonomyRuntime);
     }
 
-    // 4. Recalled memories from hooks
+    // 7. Recalled memories from hooks
     if (mayReadAliaMemory && recalledMemories?.length) {
       const recalled = memoryDataBlock(
         'Recalled Memories',
@@ -262,50 +327,16 @@ export class SystemPromptBuilder {
       memoryChars += recalled.length;
     }
 
-    // 6. User-specific injections (direct sessions only)
+    // 8. The person (direct sessions only).
     if (isDirectUserSession) {
-      // User name
       const userName = oxyUser?.name?.full || oxyUser?.name?.first || oxyUser?.username;
       if (agentGrants === null && userName) {
         systemMessage += `\n\nThe user's name is ${userName}.`;
       }
-
-      // Communication tools hint
-      if (mayUseMessaging) {
-        systemMessage +=
-          '\n\nYou have `sendTelegramMessage` and WhatsApp tools (`getWhatsAppChats`, `getWhatsAppMessages`, `sendWhatsAppMessage`). Use them when the user asks. For WhatsApp, call getWhatsAppChats first to get chat JIDs.';
-      }
-
-      // Oxy service context (non-blocking). Agent access to Oxy apps is decided
-      // by normalized DelegationGrant assignments in `buildOxyServiceTools`,
-      // not by the person's direct-session context. Until that resolver returns
-      // a prompt-safe projection, exposing the person's Inbox context here
-      // would be a second, ungoverned authorization path.
-      if (agentGrants === null && userId && accessToken) {
-        try {
-          const [oxyServicePrompt, oxyServiceCtx] = await Promise.all([
-            getOxyServicePromptFragment(userId),
-            getOxyServiceContext(userId, accessToken),
-          ] as const);
-          // A routed turn lists every Oxy app in its Apps section (7c) with how
-          // to open it. The fragment names their tools as if they were already
-          // in the tool list, which, while they are not, reads to a weak model
-          // as "those tools do not exist" — and it refuses.
-          if (oxyServicePrompt && !appCatalog) systemMessage += oxyServicePrompt;
-          if (oxyServiceCtx) systemMessage += oxyServiceCtx;
-        } catch {
-          // Non-critical — don't block chat
-        }
-      }
-
-      // Agent mode hint
-      if (agentMode && mayDelegate) {
-        systemMessage +=
-          '\n\nAGENT MODE: You have `searchAgents` and `delegateToAgent` tools. Search for specialist agents, delegate to the best match, and briefly explain why. If no agent fits, handle it yourself.';
-      }
+      if (oxyServiceCtx) systemMessage += oxyServiceCtx;
     }
 
-    // 7. User memory (direct sessions only) — Alia's, as labelled data.
+    // 9. User memory (direct sessions only) — Alia's, as labelled data.
     if (mayReadAliaMemory && userMemory && isDirectUserSession) {
       // Recall chose the relevant memories above; dumping every one here as
       // well defeated it and grew the prompt with the person's whole history.
@@ -342,18 +373,13 @@ export class SystemPromptBuilder {
     }
 
     /**
-     * 7b. The person's learned writing style.
-     *
-     * `style-learning-hook.ts` has built this profile after every chat since it
-     * was written, and `routes/writing-style.ts` lets the person read, edit and
-     * reset it — but nothing ever put it in front of the model, so the whole
-     * feature was a settings screen describing something that did nothing.
+     * 9b. The person's learned writing style.
      *
      * Gated exactly as the memory above is — a direct session, and Alia only
      * (an agent keeps its own memory) — because it IS memory: something learned
-     * about a person from their own messages. A developer key or a product service
-     * token acting for somebody never receives it, for the same reason they
-     * never receive the facts.
+     * about a person from their own messages. A developer key or a product
+     * service token acting for somebody never receives it, for the same reason
+     * they never receive the facts.
      *
      * And additionally on `recallEnabled`, the switch the app shows as "Use in
      * AI responses": a person who turned that off asked for what Alia learned
@@ -374,29 +400,13 @@ export class SystemPromptBuilder {
       if (style !== '') systemMessage += `\n\n${style}`;
     }
 
-    /**
-     * 7c. The connected apps this turn can open (`lib/tool-budget.ts`).
-     *
-     * Ungated by session kind: it describes tools the assembler already
-     * authorized for THIS turn, so whoever the turn is for may know they exist —
-     * and without it an app that is not open yet is invisible to the model.
-     */
-    if (appCatalog) systemMessage += appCatalog;
-
-    // 8. Skills.
-    //
-    // The index is appended as context: a list of names and descriptions the
-    // model reads to decide whether to call `loadSkill`. The selected skills'
-    // instructions are prepended, because the person chose them for this turn.
-    //
-    // Not gated on `isDirectUserSession`, unlike the single prompt this
-    // replaces. Authorization is an install owned by the caller's account, and a
-    // developer key carries its owner's — so there is nothing here that leaks
-    // one account's material into another's request.
-    if (mayReadSkills && skills?.index) {
-      systemMessage += skills.index;
-      skillsChars += skills.index.length;
+    // The agent's OWN memory of this person, under the same grant as the rest.
+    if (linkedAgent && mayReadAgentMemory && userId && isDirectUserSession) {
+      systemMessage += await agentMemoryPromptSection(userId, linkedAgent._id);
     }
+
+    // The skills the person selected for this message are PREPENDED, above the
+    // base prompt, where a skill can shape how the turn is answered.
     if (mayReadSkills && skills?.active) {
       systemMessage = `${skills.active}\n\n---\n\n${systemMessage}`;
       skillsChars += skills.active.length;
@@ -404,28 +414,15 @@ export class SystemPromptBuilder {
     }
 
     /**
-     * 9. The agent's remit (prepended — wraps everything including the skill).
+     * The agent's remit (prepended — wraps everything including the skill).
      *
-     * Unconditional now, where it used to be `systemPrompt || archetype` behind
-     * an `if`. An agent with neither — the default shape of anything created
-     * through `POST /agents` without a prompt — got a NAME from the guard above
-     * and no description of itself anywhere, which is the "it answers
-     * everything" half of the reported bug. {@link agentRemitPrompt} always has
-     * something to say; the guard's remit rule points at what it says.
-     *
-     * Keyed on `linkedAgent` ALONE, where it also asked `isDirectUserSession`.
-     * The guard below never asked — so the two conditions disagreeing produced
-     * exactly the shape this change exists to remove: a turn told it is Claudio
-     * with nothing describing Claudio. Unreachable today, because
-     * `lib/chat/request-context.ts` only resolves an agent for a direct
-     * session, which is why this is a trap removed rather than a behaviour
-     * changed.
+     * Unconditional: an agent with no prompt of its own would otherwise get a
+     * NAME from the guard and no description of itself, which is the "it
+     * answers everything" bug. {@link agentRemitPrompt} always has something to
+     * say; the guard's remit rule points at what it says. Keyed on
+     * `linkedAgent` alone, exactly as the guard below is, so the two cannot
+     * disagree.
      */
-    // The agent's OWN memory of this person, under the same grant as the rest.
-    if (linkedAgent && mayReadAgentMemory && userId && isDirectUserSession) {
-      systemMessage += await agentMemoryPromptSection(userId, linkedAgent._id);
-    }
-
     if (linkedAgent) {
       systemMessage = `${agentRemitPrompt(linkedAgent)}\n\n---\n\n${systemMessage}`;
       log.general.info(

@@ -56,8 +56,8 @@
 import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 import type { CapabilityGrantSet } from '../../domain/capability-grants.js';
-import { BROWSER_ACTIONS, BrowserSession } from './browser-session.js';
-import { TodoManager } from './todo-manager.js';
+import { BROWSER_ACTIONS, type BrowserSession } from './browser-session.js';
+import type { TodoManager } from './todo-manager.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { analyzeThreat, formatThreatSummary } from './threat-detector.js';
@@ -324,7 +324,7 @@ export function buildRuntimeTools(
     const { messageUser, scheduleFollowUp } = ctx.outreach;
     actions.sendMessageToUser = tool({
       description:
-        'Write a message to the person in your conversation with them; they get a notification. Use it only for something they would want to know now: a finding, a change, a question you need answered. Do not use it for progress chatter. Limited to a few per day, and it stops if they have not answered your last messages.',
+        'Write a message to the person in your conversation with them; they get a notification. Use it only for something they would want to know now: a finding, a change, a question you need answered. Do not use it for progress chatter, nor to repeat your final result, which is delivered to them anyway. Limited to a few per day, and it stops if they have not answered your last messages.',
       inputSchema: z.object({
         message: z
           .string()

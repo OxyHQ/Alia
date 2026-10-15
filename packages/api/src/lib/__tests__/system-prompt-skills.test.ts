@@ -53,7 +53,7 @@ describe('the skills index', () => {
 
   it('is appended as context rather than prepended as authority', async () => {
     const prompt = await build({ index: INDEX, active: '' });
-    const base = prompt.indexOf('Today is');
+    const base = prompt.indexOf('# BASE CONTEXT');
     expect(base).toBeGreaterThan(-1);
     expect(prompt.indexOf('## Skills')).toBeGreaterThan(base);
   });

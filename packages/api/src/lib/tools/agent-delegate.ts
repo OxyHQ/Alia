@@ -86,7 +86,7 @@ export interface AgentDelegationResult {
 export const createDelegateToAgentTool = (userId: string, accessToken: string | undefined) =>
   tool({
     description:
-      'Delegate a task to a specific agent by ID. The agent will autonomously process the task and return its response. Use after searchAgents to delegate work to the best-matching agent.',
+      'Delegate a task to an agent by ID (from searchAgents); it works autonomously and returns its response. Pick the best match and briefly tell the user why.',
 
     inputSchema: z.object({
       agentId: z
