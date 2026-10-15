@@ -190,7 +190,6 @@ export const messages = pgTable(
      */
     agentInfoCharacter: jsonb().$type<AgentCharacter>(),
     agentInfoHandle: text(),
-    audioUrl: text(),
     /** The append index within a conversation. Absent on legacy messages. */
     seq: integer(),
     createdAt: createdAt(),

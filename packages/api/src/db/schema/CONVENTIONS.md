@@ -439,6 +439,12 @@ rows; that is how a sibling service carried ghost rows in production for weeks.
 `db/__tests__/ttlRegistryCoverage.test.ts` holds the closed record of declared
 TTL rules and fails when one has no matching registry entry.
 
+**A row that owns a stored OBJECT is not a registry entry, and `speech_clips` is the case.**
+The registry's sweep deletes rows only, and a clip row deleted without its S3 object leaves an
+object nothing can find again. Its retention (30 days unused) is `sweepSpeechClips` in
+`lib/speech-clips.ts`: rows and objects in one transaction, on the same leader gate, started
+beside `startExpirySweeper` in `index.ts`.
+
 **A deadline COLUMN is not a TTL, and `rollback_records` is the case.**
 `rollback_records.expires_at` bounds the rollback WINDOW, not the row's life, so
 these records accumulate and the registry gets no entry. The TTL record cannot

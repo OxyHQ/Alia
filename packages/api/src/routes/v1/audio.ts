@@ -1,8 +1,8 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { findMessageAudioUrl, setMessageAudioUrl } from '../../db/chat/messageRepository.js';
-import { SpeechSynthesisError, synthesizeSpeech } from '../../lib/synthesize-speech.js';
-import { deleteS3Objects, uploadToS3 } from '../../lib/s3.js';
+import { clientMessageExists } from '../../db/chat/messageRepository.js';
+import { obtainSpeechClip, purgeConversationSpeechClips } from '../../lib/speech-clips.js';
+import { SpeechSynthesisError } from '../../lib/synthesize-speech.js';
 
 import { getDb } from '../../db/index.js';
 import { findAudioJobStatus } from '../../db/notifications/audioJobRepository.js';
@@ -87,6 +87,16 @@ const speechBody = z
   })
   .strict();
 
+/**
+ * A clip for this text, in this voice and speed: stored if this person already
+ * had it made, synthesized (and paid for) only if not — `lib/speech-clips.ts`.
+ *
+ * `conversationId` + `messageId` name the saved message being read aloud. The
+ * message must be this person's (404 otherwise, before anything is made), and
+ * the clip then belongs to that conversation, so deleting it takes the clip.
+ * Checked again once the clip is in hand: a conversation deleted while its clip
+ * was being made would otherwise leave that clip behind.
+ */
 router.post('/speech', async (req: Request, res: Response) => {
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -102,55 +112,54 @@ router.post('/speech', async (req: Request, res: Response) => {
   };
   res.on('close', abort);
   const request = { voice: body.voice, inputChars: body.input.length };
-  let key: string | undefined;
-  let stage: 'synthesis' | 'storage' | 'attachment' = 'synthesis';
+  const message =
+    body.conversationId !== undefined && body.messageId !== undefined
+      ? { conversationId: body.conversationId, messageId: body.messageId }
+      : null;
+  const messageGone = async () =>
+    message !== null &&
+    !(await clientMessageExists(getDb(), userId, message.conversationId, message.messageId));
+  let stage: 'clip' | 'attachment' = 'clip';
   try {
     if (storedMediaUrl(req, 'speech-readiness', userId) === null)
       throw new SpeechSynthesisError('SPEECH_UNAVAILABLE', { reason: 'storage_unavailable' });
-    if (body.conversationId !== undefined && body.messageId !== undefined) {
-      const cached = await findMessageAudioUrl(
-        getDb(),
-        userId,
-        body.conversationId,
-        body.messageId,
-      );
-      if (cached === undefined)
-        return res.status(404).json({ error: { message: 'Message not found', retryable: false } });
-    }
+    if (await messageGone())
+      return res.status(404).json({ error: { message: 'Message not found', retryable: false } });
     // Standalone speech historically admits every authenticated user without
     // an Alia credit operation. Bundle presence must not change that policy.
     // Voice-call chat turns and show episodes retain their own existing metering.
-    const speech = await synthesizeSpeech({
+    const clip = await obtainSpeechClip(getDb(), {
+      userId,
       input: body.input,
       voice: body.voice,
-      format: 'mp3',
-      userId,
       ...(body.speed === undefined ? {} : { speed: body.speed }),
+      conversationId: message?.conversationId ?? null,
       signal: controller.signal,
     });
-    controller.signal.throwIfAborted();
-    stage = 'storage';
-    key = await uploadToS3(speech.audio, 'speech.mp3', `tts/${userId}`, 'speech');
-    controller.signal.throwIfAborted();
-    const audioUrl = storedMediaUrl(req, key, userId);
-    if (audioUrl === null) throw new Error('Speech playback is unavailable');
-    if (body.conversationId !== undefined && body.messageId !== undefined) {
+    log.speech.info(
+      {
+        cache: clip.cache,
+        inflight: clip.inflight,
+        model: clip.model,
+        voice: request.voice,
+        inputChars: request.inputChars,
+      },
+      'Speech clip served',
+    );
+    if (message !== null) {
       stage = 'attachment';
-      const updated = await setMessageAudioUrl(
-        getDb(),
-        userId,
-        body.conversationId,
-        body.messageId,
-        key,
-      );
-      if (updated !== 1) throw new Error('Message was removed during speech generation');
+      if (await messageGone()) {
+        await purgeConversationSpeechClips(getDb(), userId, message.conversationId);
+        throw new Error('Message was removed during speech generation');
+      }
     }
-    return res.json({ audioUrl, requestId: speech.requestId });
+    const audioUrl = storedMediaUrl(req, clip.objectKey, userId);
+    if (audioUrl === null) throw new Error('Speech playback is unavailable');
+    return res.json({
+      audioUrl,
+      ...(clip.requestId === undefined ? {} : { requestId: clip.requestId }),
+    });
   } catch (error: unknown) {
-    if (key !== undefined)
-      await deleteS3Objects([key]).catch(() => {
-        log.speech.error('Speech object cleanup failed');
-      });
     if (controller.signal.aborted) return;
     if (error instanceof SpeechSynthesisError) {
       logSpeechFailure(error, request);

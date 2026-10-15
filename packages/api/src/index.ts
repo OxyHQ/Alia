@@ -7,6 +7,7 @@ import { runBootGuards } from './lib/boot-guards.js';
 import { createInternalCors } from './lib/cors-origins.js';
 import { startExpirySweeper, stopExpirySweeper } from './db/expirySweeper.js';
 import { isTriggerLeader } from './lib/trigger-engine.js';
+import { startSpeechClipSweeper, stopSpeechClipSweeper } from './lib/speech-clips.js';
 import { log } from './lib/logger.js';
 import { isAbortError, isFatalError, isTransientNetworkError } from './lib/error-classification.js';
 
@@ -388,6 +389,13 @@ server.listen(PORT, '0.0.0.0', () => {
   startExpirySweeper(isTriggerLeader);
 
   /**
+   * Spoken clips nobody has used for a month go, rows and objects together
+   * (`lib/speech-clips.ts`). Its own sweep rather than an `EXPIRY_TARGETS` row,
+   * because that one deletes rows only. Same leader gate, same reason.
+   */
+  startSpeechClipSweeper(isTriggerLeader);
+
+  /**
    * The trigger engine, the moderation-outbox dispatcher and both queues.
    *
    * Started unconditionally: every one of them reads Postgres or self-gates on
@@ -465,6 +473,7 @@ const shutdown = async (signal: string) => {
     // Stop sweeping before the pool closes, so a sweep in flight is not cut off
     // mid-statement by the handle disappearing underneath it.
     stopExpirySweeper();
+    stopSpeechClipSweeper();
 
     // Close the Postgres pool last: it is the store every ported route reads, so
     // it stays open until everything that could still be using it has stopped.

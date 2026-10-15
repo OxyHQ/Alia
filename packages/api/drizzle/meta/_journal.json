@@ -645,6 +645,20 @@
       "when": 1791978880533,
       "tag": "0091_agent_character_required",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1792038308427,
+      "tag": "0092_speech_clips",
+      "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1792038320516,
+      "tag": "0093_drop_message_audio_url",
+      "breakpoints": true
     }
   ]
 }

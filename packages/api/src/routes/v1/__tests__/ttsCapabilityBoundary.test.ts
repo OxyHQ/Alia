@@ -1,16 +1,25 @@
 import { EventEmitter } from 'node:events';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+interface ClipRow {
+  cacheKey: string;
+  oxyUserId: string;
+  conversationId: string | null;
+  objectKey: string;
+}
+
 const H = vi.hoisted(() => ({
   snapshot: vi.fn(),
   synthesizeSpeech: vi.fn(),
+  candidates: vi.fn(),
   upload: vi.fn(),
   remove: vi.fn(),
-  find: vi.fn(),
-  save: vi.fn(),
+  exists: vi.fn(),
   link: vi.fn(),
   logError: vi.fn(),
   logWarn: vi.fn(),
+  logInfo: vi.fn(),
+  clips: new Map<string, ClipRow>(),
 }));
 vi.mock('../../../lib/product-credit-access.js', () => ({
   readConfiguredProductCreditSnapshot: H.snapshot,
@@ -18,17 +27,43 @@ vi.mock('../../../lib/product-credit-access.js', () => ({
 vi.mock('../../../lib/synthesize-speech.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../lib/synthesize-speech.js')>()),
   synthesizeSpeech: H.synthesizeSpeech,
+  speechModelCandidates: H.candidates,
 }));
 vi.mock('../../../lib/s3.js', () => ({ uploadToS3: H.upload, deleteS3Objects: H.remove }));
 vi.mock('../../../lib/stored-media.js', () => ({ storedMediaUrl: H.link }));
-vi.mock('../../../db/chat/messageRepository.js', () => ({
-  findMessageAudioUrl: H.find,
-  setMessageAudioUrl: H.save,
+vi.mock('../../../db/chat/messageRepository.js', () => ({ clientMessageExists: H.exists }));
+/** The clip index, in memory: `db/__tests__/speechClips.pgdb.test.ts` holds the SQL to the same rules. */
+vi.mock('../../../db/chat/speechClipRepository.js', () => ({
+  findSpeechClips: async (_db: unknown, user: string, keys: readonly string[]) =>
+    [...H.clips.values()].filter((row) => row.oxyUserId === user && keys.includes(row.cacheKey)),
+  touchSpeechClip: async (_db: unknown, user: string, key: string, conversation: string | null) => {
+    const row = H.clips.get(key);
+    if (row?.oxyUserId === user) row.conversationId ??= conversation;
+  },
+  indexSpeechClip: async (_db: unknown, clip: Omit<ClipRow, 'conversationId'>) => {
+    const standing = H.clips.get(clip.cacheKey);
+    if (standing) return standing.objectKey;
+    H.clips.set(clip.cacheKey, { ...clip, conversationId: null });
+    return clip.objectKey;
+  },
+  deleteConversationSpeechClips: async (_db: unknown, user: string, conversation: string) => {
+    const gone = [...H.clips.values()].filter(
+      (row) => row.oxyUserId === user && row.conversationId === conversation,
+    );
+    for (const row of gone) H.clips.delete(row.cacheKey);
+    return gone.map((row) => row.objectKey);
+  },
+  deleteStaleSpeechClips: vi.fn(),
 }));
-vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
+vi.mock('../../../db/index.js', () => ({
+  getDb: vi.fn(() => ({ transaction: (work: (tx: unknown) => unknown) => work({}) })),
+}));
 vi.mock('../../../db/notifications/audioJobRepository.js', () => ({ findAudioJobStatus: vi.fn() }));
 vi.mock('../../../lib/logger.js', () => ({
-  log: { speech: { error: H.logError, warn: H.logWarn }, general: { error: vi.fn() } },
+  log: {
+    speech: { error: H.logError, warn: H.logWarn, info: H.logInfo },
+    general: { error: vi.fn() },
+  },
 }));
 const { default: audioRouter } = await import('../audio.js');
 const { SpeechSynthesisError } = await import('../../../lib/synthesize-speech.js');
@@ -69,12 +104,14 @@ function response() {
 const body = { input: 'Hola', voice: 'female', speed: 1.15, conversationId: 'c1', messageId: 'm1' };
 beforeEach(() => {
   vi.clearAllMocks();
-  H.find.mockResolvedValue(null);
-  H.save.mockResolvedValue(1);
+  H.clips.clear();
+  H.exists.mockResolvedValue(true);
+  H.candidates.mockResolvedValue(['acme/voice']);
   H.synthesizeSpeech.mockResolvedValue({
     audio: Buffer.from('ID3'),
     format: 'mp3',
     requestId: 'req_tts',
+    model: 'acme/voice',
   });
   H.upload.mockResolvedValue('test/audio/u1/speech.mp3');
   H.remove.mockResolvedValue(1);
@@ -88,7 +125,7 @@ describe('speech synthesis boundary', () => {
     expect(H.synthesizeSpeech).not.toHaveBeenCalled();
     expect(H.upload).not.toHaveBeenCalled();
   });
-  it('returns playable stored audio and only updates the authenticated user’s message', async () => {
+  it('returns playable stored audio, kept for the authenticated user’s conversation', async () => {
     const res = response();
     await handler()({ user: { id: 'u1' }, body }, res, undefined);
     expect(res.statusCode).toBe(200);
@@ -104,9 +141,55 @@ describe('speech synthesis boundary', () => {
       speed: 1.15,
       signal: expect.any(AbortSignal),
     });
-    expect(H.save).toHaveBeenCalledWith({}, 'u1', 'c1', 'm1', 'test/audio/u1/speech.mp3');
+    expect(H.exists).toHaveBeenCalledWith(expect.anything(), 'u1', 'c1', 'm1');
+    expect([...H.clips.values()]).toEqual([
+      {
+        cacheKey: expect.stringMatching(/^[0-9a-f]{64}$/),
+        oxyUserId: 'u1',
+        conversationId: 'c1',
+        objectKey: 'test/audio/u1/speech.mp3',
+      },
+    ]);
+    expect(H.link).toHaveBeenLastCalledWith(expect.anything(), 'test/audio/u1/speech.mp3', 'u1');
     expect(H.remove).not.toHaveBeenCalled();
     expect(res.listenerCount('close')).toBe(0);
+  });
+  it('answers a repeated request from storage, without synthesizing or paying again', async () => {
+    await handler()({ user: { id: 'u1' }, body }, response(), undefined);
+    const res = response();
+    await handler()({ user: { id: 'u1' }, body }, res, undefined);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ audioUrl: 'https://api.alia.test/media?signed' });
+    expect(H.synthesizeSpeech).toHaveBeenCalledTimes(1);
+    expect(H.upload).toHaveBeenCalledTimes(1);
+    expect(H.logInfo.mock.calls.map(([record]) => record)).toEqual([
+      { cache: 'miss', inflight: false, model: 'acme/voice', voice: 'female', inputChars: 4 },
+      { cache: 'hit', inflight: false, model: 'acme/voice', voice: 'female', inputChars: 4 },
+    ]);
+  });
+  it.each([
+    ['another voice', { voice: 'male' }],
+    ['another speed', { speed: 0.9 }],
+    ['other text', { input: 'Hola.' }],
+  ])('synthesizes again for %s', async (_label, patch) => {
+    await handler()({ user: { id: 'u1' }, body }, response(), undefined);
+    await handler()({ user: { id: 'u1' }, body: { ...body, ...patch } }, response(), undefined);
+    expect(H.synthesizeSpeech).toHaveBeenCalledTimes(2);
+  });
+  it('never answers one person with another’s clip', async () => {
+    await handler()({ user: { id: 'u1' }, body }, response(), undefined);
+    await handler()({ user: { id: 'u2' }, body }, response(), undefined);
+    expect(H.synthesizeSpeech).toHaveBeenCalledTimes(2);
+    expect(H.synthesizeSpeech.mock.calls[1]?.[0]).toMatchObject({ userId: 'u2' });
+  });
+  it('serves voice mode’s repeated sentence, with no message, from storage', async () => {
+    const sentence = { input: 'Claro.', voice: 'male' };
+    await handler()({ user: { id: 'u1' }, body: sentence }, response(), undefined);
+    const res = response();
+    await handler()({ user: { id: 'u1' }, body: sentence }, res, undefined);
+    expect(res.statusCode).toBe(200);
+    expect(H.synthesizeSpeech).toHaveBeenCalledTimes(1);
+    expect(H.exists).not.toHaveBeenCalled();
   });
   it.each([
     { input: '' },
@@ -131,7 +214,7 @@ describe('speech synthesis boundary', () => {
     );
   });
   it('does not generate audio for another user’s message', async () => {
-    H.find.mockResolvedValue(undefined);
+    H.exists.mockResolvedValue(false);
     const res = response();
     await handler()({ user: { id: 'u1' }, body }, res, undefined);
     expect(res.statusCode).toBe(404);
@@ -222,13 +305,23 @@ describe('speech synthesis boundary', () => {
     expect(H.logError).toHaveBeenCalledTimes(1);
     for (const secret of [input, '1234', 'u1', 'c1', 'm1']) expect(logged).not.toContain(secret);
   });
-  it('removes generated storage when the message disappears before attachment', async () => {
-    H.save.mockResolvedValue(0);
+  it('logs a served clip as a hit or a miss, without the text, the user or the conversation', async () => {
+    const input = 'Mi número secreto es 1234';
+    await handler()({ user: { id: 'u1' }, body: { ...body, input } }, response(), undefined);
+    await handler()({ user: { id: 'u1' }, body: { ...body, input } }, response(), undefined);
+    expect(H.logInfo).toHaveBeenCalledTimes(2);
+    expect(H.logInfo.mock.calls.map(([record]) => record.cache)).toEqual(['miss', 'hit']);
+    const logged = JSON.stringify(H.logInfo.mock.calls);
+    for (const secret of [input, '1234', 'u1', 'c1', 'm1']) expect(logged).not.toContain(secret);
+  });
+  it('removes the conversation’s clips when its message disappears during synthesis', async () => {
+    H.exists.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
     const res = response();
     await handler()({ user: { id: 'u1' }, body }, res, undefined);
     expect(res.statusCode).toBe(502);
     expect(res.body).toMatchObject({ error: { code: 'SPEECH_GENERATION_FAILED' } });
     expect(H.remove).toHaveBeenCalledWith(['test/audio/u1/speech.mp3']);
+    expect(H.clips.size).toBe(0);
     expect(H.logError).toHaveBeenCalledWith(
       expect.objectContaining({ code: 'SPEECH_GENERATION_FAILED', stage: 'attachment' }),
       'Speech generation failed',

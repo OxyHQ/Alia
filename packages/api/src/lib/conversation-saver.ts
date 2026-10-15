@@ -257,20 +257,15 @@ export async function saveConversation(params: SaveConversationParams): Promise<
 }
 
 /**
- * What a person attached to their stored messages — a vote, a generated clip —
- * by client id, so a rewrite puts it back instead of deleting it with the row.
+ * The votes a person put on their stored messages, by client id, so a rewrite
+ * puts them back instead of deleting them with the row.
  */
-function feedbackById(
-  stored: readonly MessageRow[],
-): Map<string, Pick<NewMessage, 'vote' | 'audioUrl'>> {
-  const byId = new Map<string, Pick<NewMessage, 'vote' | 'audioUrl'>>();
+function feedbackById(stored: readonly MessageRow[]): Map<string, Pick<NewMessage, 'vote'>> {
+  const byId = new Map<string, Pick<NewMessage, 'vote'>>();
   for (const row of stored) {
     if (row.clientMessageId === null || byId.has(row.clientMessageId)) continue;
-    if (row.vote === null && row.audioUrl === null) continue;
-    byId.set(row.clientMessageId, {
-      ...(row.vote === null ? {} : { vote: row.vote as MessageVote }),
-      ...(row.audioUrl === null ? {} : { audioUrl: row.audioUrl }),
-    });
+    if (row.vote === null) continue;
+    byId.set(row.clientMessageId, { vote: row.vote as MessageVote });
   }
   return byId;
 }

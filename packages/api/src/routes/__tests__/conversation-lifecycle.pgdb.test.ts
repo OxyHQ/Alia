@@ -40,8 +40,19 @@ vi.mock('../../lib/logger.js', () => {
   };
 });
 
+/** Storage, recorded: a deleted conversation's clips must leave it. */
+const removedObjects = vi.hoisted(() => [] as string[]);
+vi.mock('../../lib/s3.js', () => ({
+  uploadToS3: vi.fn(),
+  deleteS3Objects: vi.fn(async (keys: readonly string[]) => {
+    removedObjects.push(...keys);
+    return keys.length;
+  }),
+}));
+
 import { closePostgres, connectPostgres, type ApiDatabase } from '../../db/index.js';
 import { conversations, messages } from '../../db/schema/chat.js';
+import { speechClips } from '../../db/schema/speech.js';
 import conversationsRouter from '../conversations.js';
 
 let db: ApiDatabase;
@@ -154,8 +165,28 @@ async function storedConversations() {
 beforeEach(async () => {
   await db.delete(messages).where(sql`${messages.oxyUserId} in (${ALICE.id}, ${BOB.id})`);
   await db.delete(conversations).where(sql`${conversations.oxyUserId} in (${ALICE.id}, ${BOB.id})`);
+  await db.delete(speechClips).where(sql`${speechClips.oxyUserId} in (${ALICE.id}, ${BOB.id})`);
+  removedObjects.length = 0;
   vi.clearAllMocks();
 });
+
+/** A clip read aloud from `conversationId`, as `lib/speech-clips.ts` indexes one. */
+async function storeClip(oxyUserId: string, conversationId: string, name: string) {
+  await db.insert(speechClips).values({
+    cacheKey: `${oxyUserId}-${name}`,
+    oxyUserId,
+    conversationId,
+    objectKey: `test/tts/${oxyUserId}/${name}.mp3`,
+  });
+}
+
+async function storedClips() {
+  return db
+    .select({ oxyUserId: speechClips.oxyUserId, conversationId: speechClips.conversationId })
+    .from(speechClips)
+    .where(sql`${speechClips.oxyUserId} in (${ALICE.id}, ${BOB.id})`)
+    .orderBy(speechClips.oxyUserId, speechClips.conversationId);
+}
 
 /* -------------------------------------------------------------------------- */
 /*  The arc                                                                    */
@@ -238,6 +269,32 @@ describe('a conversation is created, filled, read back and destroyed (#139 ws6)'
     // The floor: ten rows were really written, so the equality is not comparing
     // two empty arrays.
     expect((await storedMessages(ALICE.id)).length).toBe(10);
+  });
+
+  it('takes what was read aloud from a conversation with it, deleted or cleared', async () => {
+    for (const id of ['spoken', 'kept']) {
+      await call('post', '/', {
+        user: ALICE,
+        body: { conversationId: id, messages: [{ role: 'assistant', content: 'Hola' }] },
+      });
+    }
+    await storeClip(ALICE.id, 'spoken', 'a');
+    await storeClip(ALICE.id, 'kept', 'b');
+    await storeClip(BOB.id, 'spoken', 'c');
+
+    const removed = await call('delete', '/:id', { user: ALICE, params: { id: 'spoken' } });
+    expect(removed.status).toBe(200);
+    expect(removedObjects).toEqual([`test/tts/${ALICE.id}/a.mp3`]);
+    // Another person's clip under the same conversation id is theirs, and stays.
+    expect(await storedClips()).toEqual([
+      { oxyUserId: ALICE.id, conversationId: 'kept' },
+      { oxyUserId: BOB.id, conversationId: 'spoken' },
+    ]);
+
+    const cleared = await call('delete', '/:id/messages', { user: ALICE, params: { id: 'kept' } });
+    expect(cleared.status).toBe(200);
+    expect(removedObjects).toEqual([`test/tts/${ALICE.id}/a.mp3`, `test/tts/${ALICE.id}/b.mp3`]);
+    expect(await storedClips()).toEqual([{ oxyUserId: BOB.id, conversationId: 'spoken' }]);
   });
 
   it('404s a delete of something that is not there, rather than reporting success', async () => {
@@ -358,7 +415,7 @@ describe('POST / takes a whitelist, never the body (#139 ws6)', () => {
     expect(row.conversationId).toBe('conv-whitelist');
     expect(row.seq).toBe(0);
     expect(row.vote).toBeNull();
-    expect(row.audioUrl).toBeNull();
+    expect(row).not.toHaveProperty('audioUrl');
     // The one client-supplied identifier that IS taken, so the assertions above
     // are not just describing a message that failed to save.
     expect(row.clientMessageId).toBe('client-1');

@@ -52,7 +52,6 @@ export interface MessageRow {
   readonly agentInfoColor: string | null;
   readonly agentInfoCharacter: AgentCharacter | null;
   readonly agentInfoHandle: string | null;
-  readonly audioUrl: string | null;
   readonly seq: number | null;
   readonly createdAt: Date;
 }
@@ -81,7 +80,6 @@ export interface StoredMessage {
   readonly vote?: MessageVote;
   readonly toolInvocations?: ToolInvocation[];
   readonly agentInfo?: AgentInfo;
-  readonly audioUrl?: string;
   readonly seq?: number;
   readonly createdAt: Date;
 }
@@ -114,7 +112,6 @@ export function toStoredMessage(row: MessageRow): StoredMessage {
             handle: row.agentInfoHandle ?? '',
           },
         }),
-    ...(row.audioUrl === null ? {} : { audioUrl: row.audioUrl }),
     ...(row.seq === null ? {} : { seq: row.seq }),
     createdAt: row.createdAt,
   };
@@ -132,10 +129,9 @@ export interface NewMessage {
   /**
    * Carried over by `saveConversation`'s rewrite from the row it replaces, so
    * deleting and reinserting a thread does not erase what a person did to it.
-   * No route reads either from a request body.
+   * No route reads it from a request body.
    */
   readonly vote?: MessageVote;
-  readonly audioUrl?: string;
   readonly seq?: number;
   readonly createdAt?: Date;
 }
@@ -155,7 +151,6 @@ function toInsert(message: NewMessage): typeof messages.$inferInsert {
     agentInfoCharacter: message.agentInfo?.character ?? null,
     agentInfoHandle: message.agentInfo?.handle ?? null,
     vote: message.vote ?? null,
-    audioUrl: message.audioUrl ?? null,
     seq: message.seq ?? null,
     ...(message.createdAt === undefined ? {} : { createdAt: message.createdAt }),
   };
@@ -701,41 +696,20 @@ export async function voteMessage(
   return row;
 }
 
-/** The cached audio for one client-identified message, if it has any. */
-export async function findMessageAudioUrl(
-  db: ApiDatabase,
-  oxyUserId: string,
-  conversationId: string,
-  clientMessageId: string,
-): Promise<string | null | undefined> {
-  const [row] = await db
-    .select({ audioUrl: messages.audioUrl })
-    .from(messages)
-    .where(
-      and(
-        eq(messages.oxyUserId, oxyUserId),
-        eq(messages.conversationId, conversationId),
-        eq(messages.clientMessageId, clientMessageId),
-      ),
-    );
-  return row?.audioUrl;
-}
-
 /**
- * Attach a generated audio URL to one client-identified message.
+ * Whether this person holds this client-identified message in this thread.
  *
- * `updateOne` in the source, so at most one row: same deterministic pick as
- * {@link voteMessage}, for the same reason.
+ * Scoped to the owner in the WHERE, so somebody else's message answers exactly
+ * like one that does not exist.
  */
-export async function setMessageAudioUrl(
+export async function clientMessageExists(
   db: ApiDatabase,
   oxyUserId: string,
   conversationId: string,
   clientMessageId: string,
-  audioUrl: string,
-): Promise<number> {
-  const target = db
-    .select({ id: messages.id })
+): Promise<boolean> {
+  const [row] = await db
+    .select({ one: sql<number>`1` })
     .from(messages)
     .where(
       and(
@@ -744,11 +718,8 @@ export async function setMessageAudioUrl(
         eq(messages.clientMessageId, clientMessageId),
       ),
     )
-    .orderBy(sql`${messages.seq} asc nulls first`, asc(messages.createdAt))
     .limit(1);
-
-  const result = await db.update(messages).set({ audioUrl }).where(inArray(messages.id, target));
-  return result.count;
+  return row !== undefined;
 }
 
 // ---------------------------------------------------------------------------

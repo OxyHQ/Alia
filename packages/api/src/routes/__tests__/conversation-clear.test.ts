@@ -19,7 +19,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
  *   `deleteConversation` reaches the repository — because clearing is
  *   emptying a thread, not removing it;
  * - a thread the caller does not own answers 404 and reaches NO delete, and
- *   answers the same 404 as one that is not there at all.
+ *   answers the same 404 as one that is not there at all;
+ * - what was read aloud from the thread goes FIRST, outside the transaction
+ *   (storage cannot join it), so a storage failure leaves the thread intact
+ *   and the clear can be repeated.
  *
  * The database is mocked at the repository boundary; `conversation-lifecycle
  * .pgdb.test.ts` is where the real ownership scoping of these statements is
@@ -36,6 +39,8 @@ let sequence: string[] = [];
 let matched = 1;
 /** Set to throw from the message delete, to model a clear that fails halfway. */
 let deleteFailure: Error | null = null;
+/** Set to throw from the clip purge, to model storage refusing. */
+let purgeFailure: Error | null = null;
 
 /** The one transaction handle the mocked `getDb().transaction` hands out. */
 const TX = { kind: 'tx' } as const;
@@ -115,6 +120,14 @@ vi.mock('../../db/chat/messageRepository.js', async () => {
   };
 });
 
+vi.mock('../../lib/speech-clips.js', () => ({
+  purgeConversationSpeechClips: async (_db: unknown, oxyUserId: string, conversationId: string) => {
+    sequence.push(`purgeClips:${oxyUserId}:${conversationId}`);
+    if (purgeFailure) throw purgeFailure;
+    return 1;
+  },
+}));
+
 import conversationsRouter from '../conversations.js';
 
 let server: Server;
@@ -141,6 +154,7 @@ beforeEach(() => {
   sequence = [];
   matched = 1;
   deleteFailure = null;
+  purgeFailure = null;
 });
 
 const clear = (id: string) => fetch(`${base}/conversations/${id}/messages`, { method: 'DELETE' });
@@ -154,6 +168,7 @@ describe('DELETE /conversations/:id/messages', () => {
     // Both statements ran on the transaction handle, scoped to THIS user, and
     // the ownership answer came first: the delete is conditional on it.
     expect(sequence).toEqual([
+      `purgeClips:${USER_ID}:${CONVERSATION_ID}`,
       'tx:begin',
       `clearPreview:tx:${USER_ID}:${CONVERSATION_ID}`,
       `deleteMessages:tx:${USER_ID}:${CONVERSATION_ID}`,
@@ -178,6 +193,7 @@ describe('DELETE /conversations/:id/messages', () => {
     expect(await response.json()).toEqual({ error: 'Conversation not found' });
     // The guard is the preview reset matching zero rows; no delete follows it.
     expect(sequence).toEqual([
+      `purgeClips:${USER_ID}:${CONVERSATION_ID}`,
       'tx:begin',
       `clearPreview:tx:${USER_ID}:${CONVERSATION_ID}`,
       'tx:commit',
@@ -205,11 +221,22 @@ describe('DELETE /conversations/:id/messages', () => {
     // The failure propagated out of the transaction rather than being swallowed
     // into a 200 — which is what would leave a thread emptied on one side only.
     expect(sequence).toEqual([
+      `purgeClips:${USER_ID}:${CONVERSATION_ID}`,
       'tx:begin',
       `clearPreview:tx:${USER_ID}:${CONVERSATION_ID}`,
       `deleteMessages:tx:${USER_ID}:${CONVERSATION_ID}`,
       'tx:rollback',
     ]);
+  });
+
+  it('leaves the thread untouched when its clips cannot be deleted', async () => {
+    purgeFailure = new Error('storage is down');
+
+    const response = await clear(CONVERSATION_ID);
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: 'Failed to clear conversation' });
+    expect(sequence).toEqual([`purgeClips:${USER_ID}:${CONVERSATION_ID}`]);
   });
 
   it('does not shadow DELETE /conversations/:id, which still removes the row', async () => {
@@ -219,6 +246,7 @@ describe('DELETE /conversations/:id/messages', () => {
     // The whole-thread delete is a different route with a different shape: the
     // row goes, and it runs on the root handle exactly as before.
     expect(sequence).toEqual([
+      `purgeClips:${USER_ID}:${CONVERSATION_ID}`,
       `deleteConversation:${USER_ID}:${CONVERSATION_ID}`,
       `deleteMessages:root:${USER_ID}:${CONVERSATION_ID}`,
     ]);

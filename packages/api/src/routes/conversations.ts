@@ -2,7 +2,7 @@ import { parseAgentCharacter } from '../domain/agent-character.js';
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { getDb } from '../db/index.js';
-import { storedMediaUrl } from '../lib/stored-media.js';
+import { purgeConversationSpeechClips } from '../lib/speech-clips.js';
 import {
   clearConversationPreview,
   createConversation,
@@ -322,21 +322,7 @@ router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response
       lastMessage: conversation.lastMessage,
       source: conversation.source,
       agentId: conversation.agentId,
-      /**
-       * `audioUrl` is a stored KEY, and a key is not an address.
-       *
-       * This is where the read-aloud 403 came from: the speech endpoint was
-       * corrected on its own, and a message loaded with its conversation went
-       * on handing the player the storage address until it stopped being one.
-       * A message whose audio cannot be addressed drops the field rather than
-       * carrying something unfetchable.
-       */
-      messages: rows.map(toStoredMessage).map((message) => {
-        if (message.audioUrl === undefined) return message;
-        const link = storedMediaUrl(req, message.audioUrl, userId);
-        const { audioUrl: _stored, ...rest } = message;
-        return link === null ? rest : { ...rest, audioUrl: link };
-      }),
+      messages: rows.map(toStoredMessage),
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
     });
@@ -473,6 +459,14 @@ router.patch(
  * A stream still writing into this thread is NOT this route's concern: the
  * client stops it before asking, and a turn that lands after the clear is a
  * new turn in an empty thread, which is what a person who kept typing wanted.
+ *
+ * ## The clips spoken from it go first
+ *
+ * What was read aloud is what was said, so `purgeConversationSpeechClips` runs
+ * before the rows go: if storage refuses, the request fails with the thread
+ * intact and can be repeated, instead of emptying the thread and keeping its
+ * audio. It is scoped to the caller, so on a 404 it has removed nothing of
+ * anybody else's.
  */
 router.delete('/:id/messages', authenticateToken, async (req: Request, res: Response) => {
   try {
@@ -482,6 +476,7 @@ router.delete('/:id/messages', authenticateToken, async (req: Request, res: Resp
     const userId = req.user.id;
     const conversationId = String(req.params.id);
 
+    await purgeConversationSpeechClips(getDb(), userId, conversationId);
     const matched = await getDb().transaction(async (tx) => {
       const found = await clearConversationPreview(tx, userId, conversationId);
       if (found === 0) return 0;
@@ -513,8 +508,11 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
      * messages are removed here or not at all, and the messages are removed even
      * when no conversation row matched, which is how orphans left by an earlier
      * failure get cleared.
+     *
+     * The clips spoken from it go first, for the reason the clear above gives.
      */
     const conversationId = String(req.params.id);
+    await purgeConversationSpeechClips(getDb(), req.user.id, conversationId);
     const [removed] = await Promise.all([
       deleteConversation(getDb(), req.user.id, conversationId),
       deleteMessages(getDb(), req.user.id, conversationId),
