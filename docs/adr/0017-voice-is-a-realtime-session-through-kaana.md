@@ -2,7 +2,8 @@
 
 *La voz es una sesión realtime de voz a voz servida por Kaana; el dictado es transcripción de Kaana.*
 
-**Status:** Proposed
+**Status:** Proposed. The owner answered the first draft's questions on 2026-10-15;
+the answers are decisions here, not open points (see "Owner's answers").
 
 **Date:** 2026-10-15
 
@@ -42,6 +43,18 @@ reopen them:
 4. Read-aloud stays on `/v1/audio/speech`.
 5. The composer's microphone (dictation, not the voice mode) transcribes with a Kaana
    transcription model and stops using the browser's or the OS's recognizer.
+6. (Answers to this record's first draft.) Build directly on `@kaana.ai/sdk`, no
+   shortcut through the current edge. **One active voice call per person**: a call
+   opened elsewhere takes over and the old one hangs up. **Kaana serves whatever
+   concurrency it is asked for**; per-app concurrency and spend limits are the app's
+   configuration in Oxy Console, applied by Oxy's policy, never constants of Alia or
+   Kaana. Call duration (30 min) and idle timeout stay Alia product rules. **Kaana
+   enables and charges `inputAudioTranscription` inside the realtime session**, as
+   OpenAI and xAI do. Voice mode stays in the paid plans (go/pro/max/ultra) and
+   consumes credits per minute; **dictation is free on every plan**, the free one
+   included. 5 min per dictation clip; the power level does not pick the realtime
+   model; `/v1/voice/session` serves Alia's own apps only at first; sticky routing on
+   the ALB and a drain window on deploys.
 
 ### What voice is today
 
@@ -204,7 +217,9 @@ session (`O:services/inferenceEdge.service.ts:1123-1131`), and `?model=` takes a
 session open:
 
 1. `capabilities.realtime.sessionKinds` contains `conversation` and `transports`
-   contains `websocket`; `capabilities.tools` is `true`; audio in and out.
+   contains `websocket`; `capabilities.tools` is `true`; audio in and out; and the
+   model transcribes its input inside the session (the catalogue flag Kaana adds in
+   phase 1, §6), because the person's words become messages (§3).
 2. `audio.languages` covers the session language: the app's
    (`packages/app/src/features/voice/model/speech-locale.ts`), matched on its primary
    subtag when no regional tag is listed.
@@ -233,11 +248,17 @@ starts) receive the conversation's level, or `auto`, exactly as in a typed turn.
 **Opening.** The client sends `session.start { conversationId, agentId?, voice,
 locale }` as its first frame, after authenticating on the socket the way
 `lib/mcp-relay.ts:86-121` does (first message carries the Oxy session token). Browsers
-cannot set headers on a WebSocket. Alia then runs, before dialling Kaana:
+cannot set headers on a WebSocket. **Only a person's Oxy session from Alia's own apps
+is accepted** (the app and the Alia surfaces built on `@alia.onl/sdk`). An `oxy_sk_`
+machine credential (ADR 0010) is refused with `credential_not_supported`; opening the
+route to third parties is a later, separate decision. Alia then runs, before dialling
+Kaana:
 
 - authentication, account and conversation ownership, the agent (`loadTurnAgent`);
 - **`voice-mode` entitlement, now enforced by the server** (today only
   `chat-page-content.tsx:321`), and a credit reservation (§5);
+- **the one-call rule** (§3a): this call becomes the person's only active call, and
+  any other is hung up;
 - the turn inputs, **extracted from `buildChatRequestContext`**
   (`lib/chat/request-context.ts:745-1076`) into a function that takes an identity
   instead of `req`/`res`: user memory, recalled memories, skills, Oxy profile,
@@ -313,15 +334,15 @@ with `requesterAccountId` = the authenticated person on the socket. So an agent'
 - **The assistant side** is the provider's output transcript (`transcript.done`,
   `source: output_audio`, `KC:…/realtime.ts:508-530`). An interrupted answer is stored
   whole, marked interrupted with the heard milliseconds.
-- **The person's side.** Kaana refuses input transcription inside a conversation
-  (`K:docs/realtime.md:723-731`). **Alia transcribes the person's committed speech
-  itself**: it slices the PCM it forwarded between `speech_started.audioStartMs` and
-  `speech_stopped.audioEndMs`, wraps it as `audio/wav`, and calls
-  `audio.transcriptions.create` with the dictation model (§7). Results are async and
-  off the latency path. They are billed per audio millisecond and are independent of
-  which realtime model serves. If Kaana later prices input transcription inside a
-  session, this becomes a config field. That needs its own record, because it changes
-  the units.
+- **The person's side** is the session's own input transcription: Alia opens the
+  session with `config.inputAudioTranscription { language }`
+  (`KC:packages/contracts/src/public/realtime.ts:105-110`) and stores each
+  `transcript.done` with `source: input_audio` (`:508-530`). The transcription model
+  is "the deployment's own" (`:102`); Alia does not choose it. **Kaana refuses this
+  today** (`K:docs/realtime.md:723-731`, `K:internal/provider/openairealtime/wire.go:342`).
+  The owner's decision is that Kaana enables it and charges it inside the session, as
+  OpenAI and xAI do. That is Kaana phase-1 work (§6), and Alia does no transcription
+  of its own during a call.
 - **Persistence.** Each pair is appended as it completes (not at the end of the call)
   with `saveConversation` (`lib/conversation-saver.ts:141`, append-only by `seq`):
   user message, assistant message, tool round trips (`lib/chat/tool-calls.ts:21-52`).
@@ -335,13 +356,15 @@ the Kaana session (`close()` settles exactly once, `KA:693`) and reaches the cli
 - the person hangs up;
 - the screen loses focus, changes conversation or changes account (the rule of
   `use-voice-mode.ts:143-148`);
+- **the person opened a call elsewhere** (`call-moved-elsewhere`, §3a);
 - `max_duration` or `idle_timeout`;
 - credits run out (§5);
 - a typed error;
-- Alia shutdown (SIGTERM: sessions close with `server_shutdown`, mirroring
-  `K:internal/realtime/manager.go:158-163`).
+- Alia shutdown after the drain window (`server_shutdown`, §3b).
 
-**Limits Alia signs:**
+**Limits.** Duration and idle time are **Alia product rules**, the same for every
+call. They are not capacity limits: capacity and spend belong to the app's policy in
+Oxy Console (§5).
 
 | Limit | Value |
 |---|---|
@@ -358,11 +381,87 @@ conversation starts from the persisted messages.
 
 - **Client ↔ Alia.** When the socket drops, Alia keeps the Kaana session for a 30 s
   grace window and buffers events, bounded. The client resumes with
-  `session.resume { voiceSessionId, afterSeq }`. A resume that lands on another Alia
-  task fails `resume_unavailable`, and the client says so and offers a new call;
-  sticky routing is an infra question (§7).
+  `session.resume { voiceSessionId, afterSeq }`. **Sticky routing on the ALB** (§3b)
+  brings the resume to the task that holds the session. If it lands elsewhere anyway
+  (the task died), it fails `resume_unavailable`, and the client says so and offers a
+  new call. A resume continues the same call row and is never a takeover (§3a).
 - **Alia ↔ Kaana.** Alia calls `RealtimeSession.resume()` within Kaana's window
-  (`KA:692`). The client shows `reconnecting` meanwhile, never `listening`.
+  (`KA:692`). If the Kaana task itself is shutting down (`server_shutdown`,
+  `K:internal/realtime/manager.go:158-163`), resume cannot work: resume is per task.
+  Alia then opens a new Kaana session with fresh instructions from the persisted
+  messages, under the same call. The client shows `reconnecting` meanwhile, never
+  `listening`.
+
+#### 3a. One active call per person
+
+**Rule.** A person has at most one active voice call, across devices and tabs. A new
+`session.start` from the same person **takes over**:
+
+1. The previous call hangs up with `session.closed { reason: 'call-moved-elsewhere' }`.
+   Its device shows that state; it is not an error.
+2. The conversation continues in the new call. If the new call opens the same
+   conversation, its instructions include everything the old call persisted.
+
+Dictation is not a call and is not affected. A `session.resume` is the same call, not
+a new one.
+
+**Authority is PostgreSQL**, Alia's only required store (`docs/deployment.md:27-31`).
+A table `voice_calls` holds the following columns:
+
+- `id`
+- `oxy_user_id`
+- `conversation_id`
+- `agent_id`
+- `holder_task`
+- `status`, either `active` or `ended`
+- `end_reason`
+- `lease_expires_at`
+- `started_at` and `ended_at`
+
+A partial unique index on `(oxy_user_id) WHERE status = 'active'` makes two active
+rows for one person impossible.
+
+**Takeover runs in one transaction.** It takes
+`pg_advisory_xact_lock(hashtextextended('alia:voice-call:' || user, 0))`, the
+per-user lock idiom of `lib/product-credit-allocations.ts:44`. It ends the active row
+(`end_reason = 'moved_elsewhere'`), whether its lease is live or expired, and inserts
+the new one. Then:
+
+- **The old call is on the same task.** The task finds the old call in its in-memory
+  registry and hangs it up directly.
+- **The old call is on another task.** The new task publishes `{ callId }` on a Redis
+  channel, the cross-task pattern of `lib/inference/user-runtime-bridge.ts:202-222`.
+  The holding task receives it and hangs up within milliseconds.
+- **Without Redis, or if the message is lost**, the lease still decides. Every
+  holding task renews its calls' leases every 10 s with
+  `UPDATE voice_calls … WHERE id = $1 AND status = 'active'`. Zero rows updated means
+  the call was taken over, and the holder hangs up. So the worst overlap without Redis
+  is one renewal interval. A crashed task's rows simply stop renewing; an expired
+  lease never blocks a new call.
+
+**Hanging up on takeover.** The old holder flushes its pending messages
+(`saveConversation`), closes its Kaana session (settling once) and publishes
+`voice-call:ended { callId }`. The new call waits for that message for at most 2 s
+before it builds its instructions, so the last exchange of the old call is in them.
+If the message does not arrive, it proceeds: the person is already talking on the new
+device.
+
+#### 3b. Sticky routing and drains
+
+- **Sticky routing.** Alia's target group on the shared ALB uses load-balancer cookie
+  stickiness, so a client's `session.resume` reaches the task holding its call. The
+  client keeps and resends the ALB cookie on the WebSocket upgrade; React Native's
+  WebSocket takes headers, and browsers send it as a cookie. This is an oxy-infra
+  change.
+- **Drain window.** On deploy, a task leaves the target group and keeps serving its
+  open sockets for the target group's deregistration delay, set **≥ 31 min** (the
+  longest call plus margin). Only then does it receive SIGTERM. New calls go to new
+  tasks. A call still open at SIGTERM ends with `server_shutdown`. This is an
+  oxy-infra change too.
+- **The cost.** An old task can run its code for up to 31 min after a deploy, while
+  migrations have already run (a push to `main` deploys with migrations). Voice code
+  must stay compatible with the schema of the next migration, the same rule as for
+  any rolling deploy, but for longer.
 
 **Failures are typed.** Every failure becomes `error { code, retryable, reference }`
 followed by `session.closed`, the realtime counterpart of `failTurn`
@@ -431,7 +530,7 @@ APIs. It is not a return to the OS recognizer.
 | `using-tool` | While a tool runs (display name only) |
 | `speaking` | When the first answer frame is actually playing, not when it is received |
 | `reconnecting` | During a resume |
-| `ended { reason }` | After `session.closed` |
+| `ended { reason }` | After `session.closed`; `call-moved-elsewhere` is a reason, not an error |
 | `error { code }` | After a typed error |
 
 The level meter reads the real captured and played buffers. No state is inferred from
@@ -442,40 +541,73 @@ a timer.
 - **Oxy and Kaana.** A session is one Kaana request: one grant at open and one
   settlement at close, from Kaana's measured units (`KA:257-288,427`). Alia's lane is
   `service_token` / `alia-kaana` / `internal_metered` (`KA:122,310-317`).
-- **Alia credits follow real cost** (ADR 0012), per minute in effect. At open Alia
-  reserves a block worth N minutes at the computed model's catalogue price
-  (`reserveCredits`, `lib/credits-manager.ts:150`). It settles each block from the
-  units Kaana reports on `response.done` / `session.closed`, at the price of the
-  revision that served (`finalizeCredits`, `:366`), and reserves the next block before
-  the current one runs out. A refused reservation ends the call with
-  `credits-exhausted` at a sentence boundary. It never cuts mid-word if the provider
-  allows `response.cancel` after the current item. Under xAI's `session_milliseconds`,
-  silence costs too, so a call that is open but quiet spends credits. The idle timeout
-  (2 min) bounds that.
+- **Voice mode is a paid-plan feature.** `voice-mode` is enabled on go, pro, max and
+  ultra (`internal/providers/lib/seed-features.ts:248-256,414,458,510,571`) and not on
+  the free plan. The API checks it at `session.start`, not only the app. No
+  `voice-minutes` allowance returns (ADR 0013, ADR 0005).
+- **A call consumes credits per minute.** The rate is the real cost of a minute on
+  the model that serves the call (ADR 0012: credits follow real cost; `creditsForCost`,
+  `lib/credits-manager.ts:79`), so it is not a constant of Alia. At open Alia reserves
+  a block of minutes (`reserveCredits`, `:150`). It settles each block from the units
+  Kaana reports on `response.done` / `session.closed`, including the in-session input
+  transcription, at the price of the revision that served (`finalizeCredits`, `:366`).
+  It reserves the next block before the current one runs out. A refused reservation
+  ends the call with `credits-exhausted` after the current spoken item, never
+  mid-word. Under xAI's `session_milliseconds`, silence costs too; the idle timeout
+  (2 min) bounds it. The call UI can show an estimate of the minutes the balance
+  buys.
 - **Inference that a tool causes** is charged by its own path, as in a typed turn.
-  Transcription of the person's speech (§3) and dictation (§7) are charged per audio
-  millisecond at their model's price.
-- **`voice-mode` stays the plan capability** that gates calls, now checked by the API
-  at `session.start`, not only by the app. No `voice-minutes` allowance returns (ADR
-  0013, ADR 0005): a per-plan voice limit, if wanted, is computed from Oxy-recorded
-  usage.
+- **Dictation is free on every plan, the free plan included** (§7). It needs no plan
+  feature and charges no credits. Its cost is attributed to Alia's internal cost
+  centre, as ADR 0005 requires of free usage. Abuse is bounded by the 5-min clip and
+  by the per-user rate limit the `/v1` routes already apply (`apiKeyRateLimit`,
+  `routes/chat.ts:41-47`).
+- **Oxy and Kaana.** A call is one Kaana request: one grant at open and one settlement
+  at close, from Kaana's measured units (`KA:257-288,427`). Alia's lane is
+  `service_token` / `alia-kaana` / `internal_metered` (`KA:122,310-317`).
+- **Capacity and spend are the app's configuration, not Alia's or Kaana's.** Kaana is
+  a provider and serves the concurrency it is asked for. Alia sets no global cap of
+  its own; its only rule is one call per person (§3a). The limits that apply to a
+  realtime grant are those Oxy evaluates in `authorizations` from the **Alia app's
+  policy in Oxy Console** (`KA:257-288` and the table at `KA:566-575`):
+  - **concurrent realtime sessions** for the app (and per credential, if set);
+  - **spend limits and budgets** for the account, the app and the credential
+    (`evaluateSpendingLimits`, `O:services/spendingLimit.service.ts:141`; Console
+    `billing/budgets`, `application-budgets-section.tsx`);
+  - **rate limits** per credential and per app (`O:middleware/machineCredential.ts:347-361`);
+  - **allowed models and price caps** from the routing policy
+    (`resolveEffectiveRoutingPolicy`, `O:services/inferenceRoutingPolicy.service.ts:965`).
+
+  Their values for the Alia app are set in Console. Today two of them are constants in
+  code, and both stop being so in Oxy's phase-2 work: the internal relationship's
+  `maxConcurrentRequests: 32` (`O:config/inferenceEconomicPolicy.ts:182`) and the
+  edge's 16 sessions per credential per task
+  (`O:services/inferenceRealtime.service.ts:155-160`, deleted with the edge). A
+  realtime session holds its concurrency slot for its whole life, so session
+  concurrency is configured apart from the request concurrency of text.
 - **What changes in Oxy** (Kaana ADR 0002 phase 2, in the grant, not in the old edge):
-  - The `alia-kaana` relationship admits `realtime_session` with `kind: conversation`
-    and `audio_transcriptions`, each under its own terms. This is the counterpart of
-    #1701's `speech` block (`O:config/inferenceEconomicPolicy.ts:127-141,224-239`).
-  - A **separate concurrency pool for sessions**. Today one session holds one of the 32
-    concurrent text slots for its lifetime (`O:config/inferenceEconomicPolicy.ts:166-184`),
-    and the edge caps 16 sessions per credential per task.
-  - `maxPricePerRequest` per session sized from the signed limits.
-  - A ceiling for transcription sized from `audioInputMilliseconds`
+  - The `alia-kaana` relationship admits `realtime_session` (`kind: conversation`,
+    with input transcription) and `audio_transcriptions`, each under its own terms.
+    This is the counterpart of #1701's `speech` block
+    (`O:config/inferenceEconomicPolicy.ts:127-141,224-239`).
+  - The app-policy fields above become Console configuration: session concurrency,
+    and the relationship's concurrency and spend that are code today.
+  - A transcription hold sized from the measured `audioInputMilliseconds`
     (`KC:packages/contracts/src/internal/grant.ts:126-127`).
 - **What changes in Kaana:**
+  - **Enable and meter `inputAudioTranscription` inside realtime sessions**, which it
+    refuses today (`K:docs/realtime.md:723-731`). This needs a contract decision on its
+    units: the ASR model's audio is reported beside the session model's units without
+    double-counting the same audio, under the unit rule
+    (`KC:packages/contracts/src/public/money.ts:110-114`). The catalogue also needs a
+    flag saying a realtime model transcribes its input (§2).
   - Publish `capabilities.realtime` from its own inventory. Today it is Oxy metadata
     the inventory cannot carry (`K:docs/realtime.md:743-748`).
   - Publish `audio` (voices with `gender`, `languages`) for **realtime** models too,
     not only for speech models. ADR 0002 decision 9 says "each voice model", and
     realtime voices are still a free string (`K:internal/contract/realtime.go:241`).
   - Measure an upload's duration before asking for the grant (§7).
+  - No concurrency constant of Kaana's own bounds Alia's sessions.
 
 ### 6. Sequencing against the Kaana SDK cut
 
@@ -493,10 +625,10 @@ fake upstream that speaks the public realtime schemas.
 | Phase | Repo | Work |
 |---|---|---|
 | **0** | Alia | This ADR (proposed). On acceptance, a note at the top of ADR 0013, and `docs/voice.mdx` rewritten when the code lands. |
-| **1** | Kaana | In ADR 0002 phase 1 (contracts 4.0.0): `audio` capabilities (voices with `gender`, languages) for realtime models; `capabilities.realtime` from Kaana's inventory; the definition of how `audioInputMilliseconds` is measured for an upload (container probe, refuse when unknown); a decision on input transcription inside sessions (§7, question 3). |
-| **1** | Alia, in parallel | **API:** extract the turn inputs from `buildChatRequestContext`; `lib/voice/` (session orchestrator, tool bridge with JSON-schema serialization and executor by name, `session.update` widening, transcript persistence, rolling credit blocks, typed errors); `GET /v1/voice/session` (`noServer` upgrade); `POST /v1/audio/transcriptions` (Alia product API, multipart, §7); realtime and transcription model computation in `lib/models/`; an upstream interface with a contract-faithful fake. **SDK** `@alia.onl/sdk` 14.0.0: `useVoiceRoom` over the socket with an audio-engine seam (web `AudioWorklet`; native `react-native-audio-api`), and `useDictation`. **App:** native build with `react-native-audio-api`; Pixel 8a validation of capture, playback and AEC against a local fake. |
-| **2** | Oxy | In ADR 0002 phase 2: grant terms for `alia-kaana` `realtime_session` and `audio_transcriptions`, the session concurrency pool, per-session and per-millisecond ceilings. |
-| **3** | Kaana / oxy-infra | In ADR 0002 phase 3: `/v1/realtime` and `/v1/audio/transcriptions` public. The end-to-end canary includes an `alia-kaana` realtime session with a tool call, and a transcription. Infra confirms the WebSocket idle timeouts cover a 30-min call (pings every 20 s, `K:internal/realtime/manager.go:62-65`). |
+| **1** | Kaana | In ADR 0002 phase 1 (contracts 4.0.0): `audio` capabilities (voices with `gender`, languages) for realtime models; `capabilities.realtime` from Kaana's inventory; the definition of how `audioInputMilliseconds` is measured for an upload (container probe, refuse when unknown); **`inputAudioTranscription` enabled and metered inside realtime sessions** (units rule, adapters for OpenAI and xAI, a catalogue flag), per the owner's decision (§5). |
+| **1** | Alia, in parallel | **API:** extract the turn inputs from `buildChatRequestContext`; `lib/voice/` (session orchestrator, tool bridge with JSON-schema serialization and executor by name, `session.update` widening, transcript persistence, rolling credit blocks, typed errors, the one-call rule with `voice_calls`, its migration and the Redis takeover channel, §3a); `GET /v1/voice/session` (`noServer` upgrade); `POST /v1/audio/transcriptions` (Alia product API, multipart, §7); realtime and transcription model computation in `lib/models/`; an upstream interface with a contract-faithful fake. **SDK** `@alia.onl/sdk` 14.0.0: `useVoiceRoom` over the socket with an audio-engine seam (web `AudioWorklet`; native `react-native-audio-api`), and `useDictation`. **App:** native build with `react-native-audio-api`; Pixel 8a validation of capture, playback and AEC against a local fake. |
+| **2** | Oxy | In ADR 0002 phase 2: grant terms for `alia-kaana` `realtime_session` and `audio_transcriptions`; session concurrency and spend as app policy configured in Console (no code constants); the transcription hold from the measured duration. The Alia app's values set in Console. |
+| **3** | Kaana / oxy-infra | In ADR 0002 phase 3: `/v1/realtime` and `/v1/audio/transcriptions` public. The end-to-end canary includes an `alia-kaana` realtime session with a tool call and input transcription, and a file transcription. **oxy-infra:** load-balancer cookie stickiness and a deregistration delay ≥ 31 min on Alia's target group (§3b); WebSocket idle timeouts cover a 30-min call (pings every 20 s, `K:internal/realtime/manager.go:62-65`). |
 | **4** | Alia | Together with ADR 0016 (Alia's switch to `@kaana.ai/sdk`): the upstream becomes `realtime.connect` and transcription becomes `audio.transcriptions.create`. API deploy first (`test:pg` locally: a push to `main` deploys with migrations); then the SDK 14.0.0 and app release that **deletes on-device recognition** (below). App binaries already installed keep the old loop, which still works on `/alia/chat` + `/v1/audio/speech`. |
 | **5** | Alia | Remove what the old binaries needed once their share is negligible (the `responseMode: 'voice'` path stays: it is public product API, and the session reuses its prompt layer). Docs. |
 
@@ -550,8 +682,12 @@ Why:
    (`KC:packages/contracts/src/public/audioFormats.ts:28-37`);
 4. ordered cheapest per audio millisecond.
 
-At most three attempts, and only on model refusals, as speech does. The same
-selection serves the person's side of a call (§3).
+At most three attempts, and only on model refusals, as speech does. Calls do not use
+this path: their transcript comes from the session itself (§3).
+
+**Free on every plan.** Dictation needs no plan feature and charges no credits, the
+free plan included (§5). The route uses the `/v1` middleware chain with its per-user
+rate limit (`routes/chat.ts:41-47`). The 5-min clip bounds a single request.
 
 **What Kaana and Oxy lack today, and how the new contract solves it.** Oxy refused to
 mount transcription because no cost ceiling exists before the audio is decoded
@@ -592,7 +728,7 @@ needs `audio_transcriptions` terms in the grant (§5). The old pilot's
 | `recording` | Only once the recorder reports it started; levels from the real recorder |
 | `transcribing` | While the upload and transcription run |
 | `idle` | Text inserted |
-| `error { code }` | `mic-denied`, `mic-unavailable`, `too-long`, `transcription-unavailable`, `transcription-limited`, `transcription-rejected`, `transcription-failed`, `not-authenticated`, `credits-exhausted` |
+| `error { code }` | `mic-denied`, `mic-unavailable`, `too-long`, `transcription-unavailable`, `transcription-limited`, `transcription-rejected`, `transcription-failed`, `not-authenticated` |
 
 A failed transcription keeps the clip in memory for one retry and never inserts
 partial or invented text. Dictation and a call still never record together (the rule
@@ -605,15 +741,21 @@ of `docs/voice.mdx:150-152`).
   to Google's recognizer. **Audio now reaches Alia and Kaana and the provider.**
   `docs/voice.mdx`'s privacy section is rewritten to say so. Alia logs no audio and no
   transcript content, the rule of `K:docs/realtime.md:783`.
-- Alia holds a long-lived socket per call. API tasks must drain sessions on deploy,
-  and **every push to `main` deploys**, so calls in progress end with
-  `server_shutdown` on each deploy unless drain is long enough.
+- Alia holds a long-lived socket per call. **Every push to `main` deploys**, so old
+  tasks linger up to the 31-min drain window, running old code against an
+  already-migrated schema. Calls still open at SIGTERM end with `server_shutdown`.
+- One call per person is enforced in PostgreSQL. Without Redis, a takeover can
+  overlap the old call by up to one lease renewal (10 s), and that overlap is billed.
+- Alia sets no global concurrency or spend cap for voice. Those limits are the Alia
+  app's Console policy, and **if Console leaves them unset, voice is bounded only by
+  credits and the one-call rule.**
 - A call costs per minute, silence included on xAI. Credits are reserved in blocks,
-  and the UI can show an estimate of minutes left.
+  and the UI can show an estimate of minutes left. Free-plan users have no calls but
+  have dictation, whose cost Alia absorbs.
 - The realtime model is computed, so the person's power level never makes a call
   "smarter". Hard work goes through tools that run at that level.
-- The persisted user transcript is a separate, cheap transcription and can differ
-  slightly from what the realtime model understood.
+- Calls depend on Kaana enabling in-session input transcription. A model without it
+  is not a candidate (§2).
 - `@alia.onl/sdk` 14.0.0 is breaking: `useSpeechToText` is replaced by
   `useDictation`, `useVoiceRoom` changes shape and the peer
   `expo-speech-recognition` is dropped. `react-native-audio-api` becomes a native peer
@@ -632,15 +774,21 @@ in the client, Alia could not gate or charge, and Kaana has neither ephemeral to
 nor a sideband.
 
 **Ship sooner on the current Oxy edge (`api.oxy.so/v1/realtime`)** with a raw
-WebSocket in Alia and a #1701-style `realtime` block in Oxy's pilot. Not chosen:
+WebSocket in Alia and a #1701-style `realtime` block in Oxy's pilot. Rejected by the
+owner (2026-10-15):
 
 - It adds a consumer and a pilot patch that ADR 0002 deletes.
 - It gives no dictation, since the edge has no transcription.
 - It inherits the edge's 16-session cap.
 
-It remains the fastest path if the owner wants calls before ADR 0002 phase 3. It
-would then be one upstream file in Alia, replaced in the same commit that adopts the
-SDK (question 1).
+**Alia transcribes the person's speech itself** (slicing the forwarded PCM by
+`speech_started`/`speech_stopped` and sending it to batch transcription). This was the
+first draft's proposal. Rejected by the owner: Kaana enables input transcription
+inside the session.
+
+**A global cap on voice calls in Alia, or a per-session USD ceiling chosen by Alia.**
+Rejected by the owner: Kaana serves the concurrency asked of it, and capacity and
+spend are the app's Console policy.
 
 **Keep the turn loop and only replace on-device recognition with Kaana
 transcription.** Rejected by the owner's decision: turn detection and barge-in stay
@@ -672,32 +820,40 @@ None of these checks exists yet. Each is part of the phase that introduces the c
   `packages/alia-chat/scripts/check-entry-isolation.mjs` extended to
   `react-native-audio-api`.
 - **The server gates `voice-mode`:** an API test that `session.start` without it
-  closes with `plan-required`.
+  closes with `plan-required`. A test that dictation succeeds on the free plan and
+  charges no credits.
+- **One call per person:** a `test:pg` test that two concurrent takeovers for one
+  person leave exactly one active row (the partial unique index), and that a holder
+  whose lease update touches no row hangs up with `call-moved-elsewhere`.
+- **Only Alia's apps:** an API test that an `oxy_sk_` credential on
+  `/v1/voice/session` is refused.
+- **No capacity constants in Alia:** code review. No check prevents someone from
+  adding a voice concurrency cap in Alia.
 - **Honest `listening`:** an SDK test that `listening` is not entered before
   `session.created`, the first captured buffer and the first acknowledged append.
 - **Real-audio validation** (Pixel 8a, iOS on a Mac, Chrome, Safari, Firefox):
   recorded in `docs/native-validation.mdx` before the phase-4 release. Code review is
   the only guard that it happened.
 
-## Open questions for the owner
+## Owner's answers (2026-10-15)
 
-1. **Timing.** Wait for ADR 0002 phase 3, the recommendation, or ship calls earlier on
-   the current edge as a throwaway upstream plus an Oxy pilot patch?
-2. **Concurrency and ceilings.** How many simultaneous voice calls should
-   `alia-kaana` admit, as a pool separate from the 32 text slots? What is the
-   per-session USD ceiling (30 min ≈ USD 2.40 at xAI's rate; Oxy's worst-case sizing
-   triples it)?
-3. **The person's transcript.** Accept Alia's separate batch transcription of each
-   utterance, or ask Kaana to define pricing for input transcription inside a session
-   (`K:docs/realtime.md:723-731`)?
-4. **Plans.** Which plans keep `voice-mode`, and is dictation free or charged per
-   millisecond (cents per hour) like everything else?
-5. **Durations.** 30 min per call and 5 min per dictation clip: right defaults?
-6. **Power levels and realtime.** Should a level ever pick the realtime model, for
-   example `instant` → a mini model? That needs Kaana to give realtime lines a
-   `powerClass`.
-7. **Third parties.** Is `/v1/voice/session` open to `oxy_sk_` machine credentials
-   (ADR 0010), or to user sessions only at first?
-8. **Infra.** Sticky routing for Alia's WebSocket on the shared ALB, so a client
-   resume lands on the task holding the session, and a deploy drain window long enough
-   for calls.
+The first draft asked eight questions. The owner answered them, and the answers are
+in the decision above:
+
+| # | Question | Answer | Where |
+|---|---|---|---|
+| 1 | Timing | Directly on `@kaana.ai/sdk`; no shortcut through the current edge | §6 |
+| 2 | Concurrency and ceilings | No global cap in Alia. **One active call per person**, and a new call takes over. Kaana serves the concurrency asked of it. Per-app concurrency and spend are Console policy that Oxy applies at the grant. Duration and idle time stay Alia rules | §3, §3a, §5 |
+| 3 | The person's transcript | Kaana enables and charges `inputAudioTranscription` inside the session; no batch transcription in Alia | §3, §5, §6 |
+| 4 | Plans | Voice on go/pro/max/ultra, credits per minute. Dictation free on every plan | §5, §7 |
+| 5 | Durations | 30 min per call, 5 min per dictation clip | §3, §7 |
+| 6 | Power levels | The level does not pick the realtime model | §2 |
+| 7 | Third parties | `/v1/voice/session` serves Alia's own apps only at first | §3 |
+| 8 | Infra | Sticky routing on the ALB and a drain window on deploys | §3b |
+
+**Still to settle, outside Alia:**
+
+- **Kaana's input-transcription units.** How Kaana reports the ASR audio beside the
+  session's units without breaking the unit rule.
+- **The Alia app's Console values** for session concurrency and spend. The values are
+  Oxy's, and Console must offer the fields first (§5).
