@@ -23,7 +23,9 @@ compatibility_date = "2026-08-24"
 
 workers_dev = false
 
-# The Worker hands every request to the asset binding unchanged. `expo export --platform web` emits ONE
+# The Worker hands every request to the asset binding and only touches headers
+# (`worker/index.js`): CORS on `/bloom-character/`, a year-long immutable cache
+# on content-hashed names. `expo export --platform web` emits ONE
 # `index.html` plus hashed assets — a client-routed SPA, not per-route static
 # HTML — so the fallback below is what makes a deep link work.
 #
