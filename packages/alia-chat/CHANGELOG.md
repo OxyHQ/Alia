@@ -1,5 +1,15 @@
 # @alia.onl/sdk
 
+## 15.3.0
+
+- **The composer is Bloom's `ComposerPill`.** `AliaComposer` (the sheet's, the screen's and the
+  Alia app's one composer) was built on `ComposerPanel` in 13.2.0, which changed the sheet's
+  look. It is the pill again — the compact composer the sheet always had — carrying everything the
+  app needed from the panel: the power-level picker (`modes` → the pill's `permissions`), the
+  docked questions and the status tab. Requires `@oxy.so/bloom` >= 10.6.0, where the pill takes
+  them. No prop of `AliaComposer` changes.
+- The 13.1.1 note under 13.2.0 below (the avatar flights load the runtime) shipped in 13.2.0.
+
 ## 15.2.1
 
 - **The shipped source compiles under `noUnusedLocals`.** The package ships its `.tsx` source, so a

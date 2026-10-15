@@ -25,7 +25,7 @@ import {
  *
  * Alia's users choose how much power a turn gets, never which hosted model
  * answers it: Oxy picks the model of the chosen level for every request. The
- * selector is `ComposerPanel`'s mode pill — Bloom's own radio menu of a label,
+ * selector is `ComposerPill`'s mode picker — Bloom's own radio menu of a label,
  * a short description and an icon per mode — so the seven levels read the same
  * way every Bloom mode selector does. Models running on the person's OWN
  * devices follow the levels: that is their machine, not a model Alia offers.

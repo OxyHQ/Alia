@@ -14,7 +14,7 @@ import {
   type TextInputKeyPressEventData,
 } from 'react-native';
 import {
-  ComposerPanel,
+  ComposerPill,
   type ComposerPanelAddMenuGroup,
   type ComposerPanelAttachment,
   type ComposerPanelPermissionOption,
@@ -41,10 +41,10 @@ import { QuestionCard } from './QuestionCard';
 
 /**
  * Alia's composer: the ONE composer of the sheet, the screen and the Alia app, Bloom's
- * `ComposerPanel` plus everything Alia puts around it.
+ * `ComposerPill` plus everything Alia puts around it.
  *
- * Everything the panel draws is Bloom's: the prompt, the add menu, the mode selector (the
- * panel's permission pill, which is the host's power-level selector), the mic, send / stop, the
+ * Everything the pill draws is Bloom's: the prompt, the add menu, the mode selector (the
+ * pill's permission picker, which is the host's power-level selector), the mic, send / stop, the
  * attachment tiles and the status tab. What this adds is what every Alia surface needs the same
  * way: files arriving by paste and drop (read with real progress, retried, refused with a
  * sentence), dictation, the suggestions over the field, and the questions Alia asked docked
@@ -302,7 +302,7 @@ function AliaComposerBody<T extends AliaSuggestion>({
           {labels.dictationRemaining(remainingSeconds)}
         </Text>
       ) : null}
-      <ComposerPanel
+      <ComposerPill
         value={value}
         onValueChange={onValueChange}
         onSubmit={() => onSubmit()}
