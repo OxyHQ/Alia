@@ -19,3 +19,31 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
 }
 
 export { webPush };
+
+/**
+ * Whether a push service's refusal means THIS subscription can never be
+ * delivered to again, so it must be deactivated rather than retried.
+ *
+ * - `404`/`410`: the browser dropped the subscription.
+ * - `401`/`403` with a VAPID complaint: the subscription was created under a
+ *   different application server key than the one that signs today (a rotated
+ *   `VAPID_*` pair). FCM answers "the VAPID credentials in the authorization
+ *   header do not correspond to the credentials used to create the
+ *   subscriptions". Nothing server-side fixes it; only the client subscribing
+ *   again does, and that happens once the old row stops being listed as active.
+ *   Left active, every notification to that user re-sent the same doomed
+ *   request and logged a warning each time.
+ *
+ * A bare `401`/`403` without that message is not enough: it can be a transient
+ * misconfiguration on OUR side that a deploy fixes, and deactivating on it
+ * would silently drop every user's subscription.
+ */
+export function isUnrecoverableSubscriptionError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const { statusCode, body } = error as { statusCode?: unknown; body?: unknown };
+  if (statusCode === 404 || statusCode === 410) return true;
+  if (statusCode === 401 || statusCode === 403) {
+    return typeof body === 'string' && /vapid/i.test(body);
+  }
+  return false;
+}
