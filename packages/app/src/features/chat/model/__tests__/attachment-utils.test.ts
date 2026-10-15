@@ -44,9 +44,9 @@ vi.mock('expo-file-system', () => ({
 }));
 
 import { buildMessageContent } from '@/features/chat/model/attachment-utils';
-import type { Attachment } from '@/shared/contracts/chat-turn';
+import type { AliaAttachment } from '@alia.onl/sdk';
 
-function attachment(over: Partial<Attachment> & { id: string }): Attachment {
+function attachment(over: Partial<AliaAttachment> & { id: string }): AliaAttachment {
   return {
     uri: 'data:image/png;base64,AAA',
     type: 'image',
@@ -54,7 +54,7 @@ function attachment(over: Partial<Attachment> & { id: string }): Attachment {
     size: 10,
     mimeType: 'image/png',
     ...over,
-  } as Attachment;
+  } as AliaAttachment;
 }
 
 /** Stands in for the browser reading a `blob:` URL back into bytes. */

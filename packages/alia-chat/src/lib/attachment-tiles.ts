@@ -1,7 +1,8 @@
 import type { ComposerPanelAttachment } from '@oxy.so/bloom/composer-panel';
-import { MAX_ATTACHMENT_BYTES } from '@/features/chat/model/attachment-intake';
-import type { IntakeItem } from './use-attachment-intake';
-import type { Attachment } from './types';
+import type { IntakeItem } from '../hooks/useAttachmentIntake';
+import type { AliaAttachment } from '../types';
+import { MAX_ATTACHMENT_BYTES } from './attachment-intake';
+import type { AliaChatLabels } from './labels';
 
 /**
  * The composer's tiles: landed files, then the ones the intake still holds.
@@ -20,30 +21,32 @@ export interface ComposerTile extends ComposerPanelAttachment {
   retryable?: boolean;
 }
 
-type Translate = (key: string, options?: Record<string, unknown>) => string;
+/** The words a tile and a refusal use. */
+type TileLabels = Pick<
+  AliaChatLabels,
+  'composerUntitled' | 'fileReadFailed' | 'fileTooLarge' | 'fileEmpty' | 'fileUnsupported'
+>;
 
 /** Why an intake item is not an attachment, or `undefined` while it is being read. */
-export function intakeError(item: IntakeItem, t: Translate): string | undefined {
-  const name = item.name || t('composer.untitled');
+export function intakeError(item: IntakeItem, labels: TileLabels): string | undefined {
+  const name = item.name || labels.composerUntitled;
   switch (item.status) {
     case 'reading':
       return undefined;
     case 'failed':
-      return t('composer.readFailed', { name });
+      return labels.fileReadFailed(name);
     case 'refused':
+      if (item.refusal === 'unsupported') return labels.fileUnsupported(name);
       return item.refusal === 'too-large'
-        ? t('composer.fileTooLarge', {
-            name,
-            limit: `${Math.round(MAX_ATTACHMENT_BYTES / (1024 * 1024))} MB`,
-          })
-        : t('composer.fileEmpty', { name });
+        ? labels.fileTooLarge(name, `${Math.round(MAX_ATTACHMENT_BYTES / (1024 * 1024))} MB`)
+        : labels.fileEmpty(name);
   }
 }
 
 export function composerTiles(
-  attachments: readonly Attachment[],
+  attachments: readonly AliaAttachment[],
   items: readonly IntakeItem[],
-  t: Translate,
+  labels: TileLabels,
 ): ComposerTile[] {
   return [
     ...attachments.map((a) => ({
@@ -55,7 +58,7 @@ export function composerTiles(
     ...items.map((item): ComposerTile => {
       const tile: ComposerTile = {
         id: item.id,
-        name: item.name || t('composer.untitled'),
+        name: item.name || labels.composerUntitled,
         kind: item.kind === 'image' ? 'image' : 'document',
       };
       if (item.status === 'reading') {
@@ -63,7 +66,7 @@ export function composerTiles(
         tile.progress = item.fraction === null ? 0 : Math.round(item.fraction * 100);
         return tile;
       }
-      tile.error = intakeError(item, t);
+      tile.error = intakeError(item, labels);
       tile.retryable = item.status === 'failed';
       return tile;
     }),

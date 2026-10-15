@@ -26,7 +26,14 @@ export type { AliaMarkdownProps, RenderCodeBlock } from './components/Markdown';
 export { AliaWelcomeMessage } from './components/AliaWelcomeMessage';
 export { PlanPreviewCard } from './components/PlanPreviewCard';
 export { AskedQuestions, QuestionCard } from './components/QuestionCard';
+export { AliaComposer } from './components/AliaComposer';
+export type {
+  AliaComposerProps,
+  AliaComposerQuestions,
+  AliaComposerSuggestions,
+} from './components/AliaComposer';
 export { ComposerSuggestions } from './components/ComposerSuggestions';
+export { usePendingQuestions } from './hooks/usePendingQuestions';
 export { useComposerSuggestions, useSuggestionQuery } from './hooks/useComposerSuggestions';
 export { composerCompletions } from './lib/suggestions';
 export type { Completion } from './lib/suggestions';
@@ -70,6 +77,7 @@ export type { Catalogue, CatalogueEntry, ModelSelection, ReasoningEffort } from 
 export type {
   ChatMessage,
   ToolInvocation,
+  AliaAttachment,
   AliaSuggestion,
   ResearchProgress,
   ResearchSource,

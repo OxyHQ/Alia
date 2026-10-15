@@ -1,4 +1,5 @@
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
+import { VOICE_ERROR_MESSAGES, type VoiceErrorCode } from './speech-messages';
 import { englishWorkLog, type Translate } from './work-log-copy';
 
 /** Every string the chat UI draws itself. Bloom's own copy follows `BloomProvider locale`. */
@@ -15,6 +16,32 @@ export interface AliaChatLabels {
   addPhotos: string;
   startVoice: string;
   voiceFailed: string;
+  /** The field's accessible name. */
+  composerMessage: string;
+  /** The add button's accessible name. */
+  composerAddMenu: string;
+  /** The mode selector's accessible name (the host's power levels). */
+  composerModes: string;
+  /** The dictation button's accessible name. */
+  composerVoice: string;
+  composerSend: string;
+  composerStop: string;
+  /** A tile's remove button. */
+  composerRemove: string;
+  /** Bloom names a retry button "<this> <file name>". */
+  composerRetry: string;
+  /** What a tile without a file name is called. */
+  composerUntitled: string;
+  fileReadFailed: (name: string) => string;
+  fileTooLarge: (name: string, limit: string) => string;
+  fileEmpty: (name: string) => string;
+  /** A file of a kind the chat cannot send (a document, where only photos go). */
+  fileUnsupported: (name: string) => string;
+  /** Over the composer while a file is dragged onto it. */
+  dropHint: string;
+  dropUnavailable: string;
+  /** Why dictation failed, in the host's language. */
+  voiceError: (code: VoiceErrorCode) => string;
   // Welcome
   /** The empty chat's greeting for a signed-out visitor. */
   greeting: string;
@@ -56,6 +83,22 @@ export const DEFAULT_LABELS: AliaChatLabels = {
   addPhotos: 'Photos',
   startVoice: 'Start voice',
   voiceFailed: "Couldn't start the voice call",
+  composerMessage: 'Message',
+  composerAddMenu: 'Add to chat',
+  composerModes: 'Power level',
+  composerVoice: 'Dictate',
+  composerSend: 'Send message',
+  composerStop: 'Stop generating',
+  composerRemove: 'Remove',
+  composerRetry: 'Retry',
+  composerUntitled: 'untitled',
+  fileReadFailed: (name) => `${name} could not be read — select to try again`,
+  fileTooLarge: (name, limit) => `${name} is larger than ${limit} and was not attached`,
+  fileEmpty: (name) => `${name} is empty — folders can't be attached`,
+  fileUnsupported: (name) => `${name} can't be sent here — only photos can`,
+  dropHint: 'Drop files here to attach them',
+  dropUnavailable: "Files can't be attached right now",
+  voiceError: (code) => VOICE_ERROR_MESSAGES[code],
   greeting: "Hi, what's on your mind?",
   greetingNamed: (name) => `Hi ${name}, what's on your mind?`,
   copy: 'Copy',
@@ -87,7 +130,10 @@ export function AliaChatLabelsProvider({
   labels?: Partial<AliaChatLabels>;
   children: ReactNode;
 }) {
-  const value = useMemo(() => ({ ...DEFAULT_LABELS, ...labels }), [labels]);
+  // Over whatever labels are already in reach, so a part that takes its own `labels` (the
+  // composer) refines the chat's copy instead of resetting it to English.
+  const inherited = useContext(LabelsContext);
+  const value = useMemo(() => ({ ...inherited, ...labels }), [inherited, labels]);
   return <LabelsContext.Provider value={value}>{children}</LabelsContext.Provider>;
 }
 

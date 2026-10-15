@@ -1,4 +1,5 @@
-import { Composer } from '@/features/chat/ui/composer/composer';
+import { AliaComposer } from '@alia.onl/sdk';
+import { useComposerHost } from '@/features/chat/ui/composer/use-composer-host';
 import { useAliaComposer } from '@/features/chat/ui/composer/use-alia-composer';
 import { errorMessage as getErrorMessage } from '@/shared/api/error-utils';
 import { useGenerateAgent } from '@/features/agents/runtime/use-generate-agent';
@@ -56,6 +57,7 @@ const ARCHETYPE_OPTIONS: ArchetypeOption[] = [
 export default function CreateAgentScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const composerHost = useComposerHost();
   const generateAgent = useGenerateAgent();
 
   const [inputValue, setInputValue] = useState('');
@@ -160,7 +162,8 @@ export default function CreateAgentScreen() {
           generating greys send rather than offering a stop, and with no
           `onStop` Bloom draws no stop control at all.
         */}
-        <Composer
+        <AliaComposer
+          {...composerHost}
           {...composer.props}
           value={inputValue}
           onValueChange={setInputValue}

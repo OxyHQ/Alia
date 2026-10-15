@@ -4,8 +4,8 @@ import {
   readFraction,
   type IntakeKind,
   type IntakeRefusal,
-} from '@/features/chat/model/attachment-intake';
-import type { Attachment } from './types';
+} from '../lib/attachment-intake';
+import type { AliaAttachment } from '../types';
 
 /**
  * The composer's own file intake: the queue between "the user handed us a
@@ -15,7 +15,7 @@ import type { Attachment } from './types';
  *
  * This is the first thing to know, and it decides everything below. Nothing in
  * Alia uploads an attachment. A picked file becomes a `uri` and sits in the
- * store until the message is sent, at which point `src/features/chat/model/attachment-utils.ts`
+ * store until the message is sent, at which point the host's send
  * inlines the images into the request body as `data:` URLs and drops the
  * documents on the floor. There is no endpoint, no `FormData`, no XHR — so
  * there are no bytes in flight to measure and nothing an abort could stop.
@@ -131,10 +131,17 @@ export interface AttachmentIntake {
 }
 
 export interface AttachmentIntakeOptions {
-  addAttachment: (attachment: Attachment) => void;
+  addAttachment: (attachment: AliaAttachment) => void;
+  /**
+   * What the host's send can carry. Omitted, both; a file of a kind left out is refused
+   * (`unsupported`) instead of landing as a tile the send would drop.
+   */
+  kinds?: readonly IntakeKind[];
   /** Swapped out by the tests; the real one is `startFileRead`. */
   startRead?: StartRead;
 }
+
+const BOTH_KINDS: readonly IntakeKind[] = ['image', 'document'];
 
 /** Ids that cannot collide, without a `Math.random()` anywhere near progress. */
 let sequence = 0;
@@ -142,6 +149,7 @@ const nextId = (prefix: string) => `${prefix}-${Date.now()}-${++sequence}`;
 
 export function useAttachmentIntake({
   addAttachment,
+  kinds = BOTH_KINDS,
   startRead = startFileRead,
 }: AttachmentIntakeOptions): AttachmentIntake {
   const [items, setItems] = React.useState<IntakeItem[]>([]);
@@ -257,7 +265,12 @@ export function useAttachmentIntake({
           size: file.size,
         });
         const id = nextId('intake');
-        if (!verdict.accepted) {
+        const refusal = !verdict.accepted
+          ? verdict.refusal
+          : kinds.includes(verdict.kind)
+            ? undefined
+            : ('unsupported' as const);
+        if (refusal !== undefined) {
           // A file that silently fails to attach is the worst of the three
           // outcomes: the user sends the message believing the picture went
           // with it. The row names the file, because a drop is usually a batch
@@ -270,10 +283,11 @@ export function useAttachmentIntake({
             kind: 'document',
             status: 'refused',
             fraction: null,
-            refusal: verdict.refusal,
+            refusal,
           });
           continue;
         }
+        if (!verdict.accepted) continue;
         if (verdict.kind === 'document') {
           /*
            * A document never gets read. `buildMessageContent` filters the
@@ -320,7 +334,7 @@ export function useAttachmentIntake({
       // the batch above as a ghost that never finishes.
       for (const start of starts) start();
     },
-    [addAttachment, begin],
+    [addAttachment, begin, kinds],
   );
 
   const cancel = React.useCallback(

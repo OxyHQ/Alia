@@ -18,7 +18,8 @@ import {
   useDeleteConversation,
 } from '@/features/chat/runtime/use-conversations';
 import { useVoiceSoundEffects } from '@/shared/platform/use-sound-effects';
-import type { Attachment, SendOptions } from '@/shared/contracts/chat-turn';
+import type { SendOptions } from '@/shared/contracts/chat-turn';
+import type { AliaAttachment } from '@alia.onl/sdk';
 import { useThreadHistory } from '@/features/chat/runtime/use-thread-history';
 import { useThreadWindow, type ThreadSearchHit } from '@/features/chat/runtime/use-thread-search';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -294,7 +295,7 @@ export const ConversationScreen = ({
    * that would be a lie.
    */
   const handleSubmit = useCallback(
-    (value: string, attachments?: Attachment[], options?: SendOptions) => {
+    (value: string, attachments?: AliaAttachment[], options?: SendOptions) => {
       setJumpedTo(null);
       return sendMessage(value, attachments, options);
     },

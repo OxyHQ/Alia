@@ -85,10 +85,11 @@ vi.mock('@/features/chat/ui/composer/use-alia-composer', () => ({
     clearTurn: () => {},
   }),
 }));
-vi.mock('@/features/chat/ui/composer/composer', async () => {
+vi.mock('@alia.onl/sdk', async () => {
   const ReactModule = await import('react');
   return {
-    Composer: (props: Record<string, unknown>) => ReactModule.createElement('Composer', props),
+    AliaComposer: (props: Record<string, unknown>) =>
+      ReactModule.createElement('AliaComposer', props),
   };
 });
 
@@ -127,7 +128,7 @@ vi.mock('@/shared/api/client', () => ({
 }));
 
 import CreateAgentScreen from '../../../../../app/(app)/agents/create';
-import { Composer } from '@/features/chat/ui/composer/composer';
+import { AliaComposer } from '@alia.onl/sdk';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -474,10 +475,10 @@ describe('the create screen', () => {
     const root = created.root;
 
     act(() => {
-      root.findByType(Composer).props.onValueChange('an agent that helps');
+      root.findByType(AliaComposer).props.onValueChange('an agent that helps');
     });
     await act(async () => {
-      root.findByType(Composer).props.onSubmit();
+      root.findByType(AliaComposer).props.onSubmit();
     });
   }
 
@@ -559,10 +560,10 @@ describe('the handle a created agent gets', () => {
     const root = created.root;
 
     act(() => {
-      root.findByType(Composer).props.onValueChange('an agent that helps');
+      root.findByType(AliaComposer).props.onValueChange('an agent that helps');
     });
     await act(async () => {
-      root.findByType(Composer).props.onSubmit();
+      root.findByType(AliaComposer).props.onSubmit();
     });
   }
 

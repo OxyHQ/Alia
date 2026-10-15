@@ -1,6 +1,42 @@
 # @alia.onl/sdk
 
-## Unreleased
+## 13.2.0
+
+One composer for the sheet, the screen and the Alia app: the app's composer moved here and the
+app consumes it.
+
+- **`AliaComposer`** (exported) is Bloom's `ComposerPanel` plus what every Alia surface needs the
+  same way: files by paste and drop (read with real progress, retried, refused with a sentence),
+  dictation, the suggestions over the field and the questions Alia asked, docked above it. What
+  differs per surface is a prop: `addMenu` / `onAddMenuSelect`, `modes` / `mode` /
+  `onModeChange` (a power-level selector), `attachments` / `onAddAttachment` /
+  `onRemoveAttachment` (a composer given no `onAddAttachment` takes no paste or drop),
+  `attachmentKinds` (`['image']` refuses a document with a sentence), `suggestions`, `questions`,
+  `status`, `emptyAction`, `accessory`, `onKeyPress`, `speechLanguage`, `labels`, `onError`.
+  `AliaChatContent` (so the sheet and the screen) renders it with photos, voice and suggestions;
+  a host gets today's behaviour with no setup.
+- **The sheet's composer is the panel, not the pill.** The pill has no mode selector, status tab
+  or question slot, which the Alia app needs; the sheet and the app now draw the same card. The
+  agent-working light (`ComposerLoader`) is not drawn around it, as in the app: a turn in flight
+  is its stop control and the thread's thinking line.
+- **Photos are `AliaAttachment`s** (exported type): the chat's picked photos wait as the same
+  tiles a dropped or pasted image becomes, with the same remove and error states.
+- **`AliaChatLabels` gains** `composerMessage`, `composerAddMenu`, `composerModes`,
+  `composerVoice`, `composerSend`, `composerStop`, `composerRemove`, `composerRetry`,
+  `composerUntitled`, `fileReadFailed`, `fileTooLarge`, `fileEmpty`, `fileUnsupported`,
+  `dropHint`, `dropUnavailable` and `voiceError(code)`, all with English defaults. A nested
+  `AliaChatLabelsProvider` now refines the labels already in reach instead of resetting them.
+- **`usePendingQuestions(messages, isStreaming)`** (exported) is the "asked above the composer,
+  put away until she asks again" rule both the chat and the app used to keep a copy of.
+- **`classifyIntake` / `MAX_ATTACHMENT_BYTES`** (from `@alia.onl/sdk/tools`) are the rules a file
+  passes to be attached.
+- **The sheet focuses its composer once it has presented.** `AliaChatSheet` hands each sheet's
+  `animatedProgress` (Bloom's own "fully presented" signal, no timer) to its chat, whose composer
+  takes focus when it reads `1`: the person can type at once and the keyboard opens on native. It
+  focuses once per `present()` for the main sheet and for the conversation sheet over it; dragging
+  a sheet part-way and letting go does not take the focus again. `AliaChatContent` takes
+  `presentedProgress` for a host that builds its own sheet; the screen and the app's own screens
+  pass none and keep their focus. Not verified on a device.
 
 A voice call that cannot speak ends and says why, instead of listening on in silence:
 

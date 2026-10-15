@@ -25,23 +25,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const mounts = vi.hoisted(() => ({ composer: 0, composerUnmounts: 0, lastValue: '' as string }));
+const dismissed = vi.hoisted(() => ({ fn: vi.fn() }));
 const bar = vi.hoisted(() => ({ labels: null as Record<string, string> | null }));
-
-vi.mock('@/features/chat/ui/composer/composer', async () => {
-  const ReactModule = await import('react');
-  return {
-    Composer: (props: { value: string; onValueChange: (v: string) => void }) => {
-      ReactModule.useEffect(() => {
-        mounts.composer += 1;
-        return () => {
-          mounts.composerUnmounts += 1;
-        };
-      }, []);
-      mounts.lastValue = props.value;
-      return ReactModule.createElement('Composer', props);
-    },
-  };
-});
 
 vi.mock('@alia.onl/sdk/voice', async () => {
   const ReactModule = await import('react');
@@ -72,11 +57,25 @@ vi.mock('@/features/chat/ui/chat-workspace', async () => {
 vi.mock('@/features/chat/ui/chat-interface', () => ({ ChatInterface: () => null }));
 vi.mock('@alia.onl/sdk', async () => {
   const ReactModule = await import('react');
+  const { pendingQuestions } = await import('@alia.onl/sdk/tools');
   return {
     VoiceModeIcon: () => null,
-    ComposerSuggestions: () => null,
-    QuestionCard: (props: Record<string, unknown>) =>
-      ReactModule.createElement('QuestionCard', props),
+    // The SDK's hook, as far as this screen is concerned: which questions are pending (the
+    // pure rule) and a dismissal it hands back. Its own tests pin when a dismissal holds.
+    usePendingQuestions: (messages: unknown[], streaming: boolean) => ({
+      questions: pendingQuestions(messages as never, streaming),
+      dismiss: dismissed.fn,
+    }),
+    AliaComposer: (props: { value: string; onValueChange: (v: string) => void }) => {
+      ReactModule.useEffect(() => {
+        mounts.composer += 1;
+        return () => {
+          mounts.composerUnmounts += 1;
+        };
+      }, []);
+      mounts.lastValue = props.value;
+      return ReactModule.createElement('Composer', props);
+    },
     AmbientField: (props: Record<string, unknown>) =>
       ReactModule.createElement('AmbientField', props),
   };
@@ -322,10 +321,14 @@ describe("Alia's questions", () => {
       },
     ],
   };
-  const question = (renderer: ReactTestRenderer) =>
-    renderer.root.findByType('Composer' as never).props.question as
-      | { props: { onSubmit: (message: string) => void; onDismiss: () => void } }
-      | undefined;
+  const question = (renderer: ReactTestRenderer) => {
+    const questions = renderer.root.findByType('Composer' as never).props.questions as {
+      items: unknown[];
+      onSubmit: (message: string) => void;
+      onDismiss: () => void;
+    };
+    return questions.items.length > 0 ? questions : undefined;
+  };
   const withMessages = (messages: unknown[], extra: Record<string, unknown> = {}) =>
     React.createElement(ChatPageContent, {
       ...(screen(false).props as unknown as Record<string, unknown>),
@@ -342,20 +345,25 @@ describe("Alia's questions", () => {
 
     const card = question(renderer);
     expect(card).toBeDefined();
-    card?.props.onSubmit('A');
+    card?.onSubmit('A');
     expect(onSubmit).toHaveBeenCalledWith('A', undefined, expect.anything());
   });
 
-  it('go away when dismissed, while she is still answering, or once anything follows them', () => {
+  it('are put away through the SDK hook, which keeps them away until she asks again', () => {
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(withMessages([asked]));
     });
-    act(() => question(renderer)?.props.onDismiss());
-    expect(question(renderer)).toBeUndefined();
 
+    act(() => question(renderer)?.onDismiss());
+
+    expect(dismissed.fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('are not asked while she is still answering, or once anything follows them', () => {
+    let renderer!: ReactTestRenderer;
     act(() => {
-      renderer.update(withMessages([asked], { isLoading: true }));
+      renderer = create(withMessages([asked], { isLoading: true }));
     });
     expect(question(renderer)).toBeUndefined();
 
@@ -363,19 +371,5 @@ describe("Alia's questions", () => {
       renderer.update(withMessages([asked, { id: 'u2', role: 'user', content: 'A' }]));
     });
     expect(question(renderer)).toBeUndefined();
-  });
-
-  it('come back with the next question after one was dismissed', () => {
-    let renderer!: ReactTestRenderer;
-    act(() => {
-      renderer = create(withMessages([asked]));
-    });
-    act(() => question(renderer)?.props.onDismiss());
-    act(() => {
-      renderer.update(
-        withMessages([asked, { id: 'u2', role: 'user', content: 'x' }, { ...asked, id: 'a2' }]),
-      );
-    });
-    expect(question(renderer)).toBeDefined();
   });
 });

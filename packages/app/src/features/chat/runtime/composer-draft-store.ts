@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
-import type { Attachment } from '@/shared/contracts/chat-turn';
+import type { AliaAttachment } from '@alia.onl/sdk';
 
 /**
  * What a composer is holding before it is sent: the text, the attachments and
@@ -60,7 +60,7 @@ export interface DraftAddress {
 
 export interface ComposerDraft {
   text: string;
-  attachments: Attachment[];
+  attachments: AliaAttachment[];
   /** The connector chosen for the next turn. */
   mcpServerId: string | null;
   /** The skills chosen for the next turn. */
@@ -111,7 +111,7 @@ export function releaseAttachmentUri(uri: string | undefined): void {
   URL.revokeObjectURL(uri);
 }
 
-export function releaseAttachments(attachments: readonly Attachment[]): void {
+export function releaseAttachments(attachments: readonly AliaAttachment[]): void {
   for (const attachment of attachments) releaseAttachmentUri(attachment.uri);
 }
 
@@ -127,7 +127,7 @@ interface DraftStoreState {
   address: (target: DraftTarget) => DraftAddress;
 
   setText: (address: DraftAddress, text: string) => void;
-  addAttachment: (address: DraftAddress, attachment: Attachment) => void;
+  addAttachment: (address: DraftAddress, attachment: AliaAttachment) => void;
   /** Takes the tile away and releases its URL. */
   removeAttachment: (address: DraftAddress, id: string) => void;
   /** Change the turn's connector and skills, from what the draft holds now. */

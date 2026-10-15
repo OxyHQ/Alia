@@ -55,8 +55,8 @@ vi.mock('@/features/chat/ui/composer/use-alia-composer', () => ({
     };
   },
 }));
-vi.mock('@/features/chat/ui/composer/composer', () => ({
-  Composer: (props: Record<string, unknown>) => {
+vi.mock('@alia.onl/sdk', () => ({
+  AliaComposer: (props: Record<string, unknown>) => {
     composerProps.current = props;
     return null;
   },

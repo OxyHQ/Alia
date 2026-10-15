@@ -6,9 +6,9 @@ import {
   type AttachmentIntake,
   type ReadHandlers,
   type StartRead,
-} from '../use-attachment-intake';
-import { MAX_ATTACHMENT_BYTES } from '@/features/chat/model/attachment-intake';
-import type { Attachment } from '../types';
+} from '../../src/hooks/useAttachmentIntake';
+import { MAX_ATTACHMENT_BYTES } from '../../src/lib/attachment-intake';
+import type { AliaAttachment } from '../../src/types';
 
 /**
  * The queue between "the user handed us a file" and "the strip has it".
@@ -40,7 +40,7 @@ type StartedRead = {
 
 let renderer: ReactTestRenderer | null = null;
 let started: StartedRead[] = [];
-let added: Attachment[] = [];
+let added: AliaAttachment[] = [];
 let intake: AttachmentIntake;
 
 const startRead: StartRead = (source, handlers) => {

@@ -1,4 +1,5 @@
-import { Composer } from '@/features/chat/ui/composer/composer';
+import { AliaComposer } from '@alia.onl/sdk';
+import { useComposerHost } from '@/features/chat/ui/composer/use-composer-host';
 import { useAliaComposer } from '@/features/chat/ui/composer/use-alia-composer';
 import { useCreateSkill, useGenerateSkillDraft } from '@/features/skills/runtime/use-skills';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -20,6 +21,7 @@ import { ScrollView } from 'react-native';
 export default function CreateSkillScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const composerHost = useComposerHost();
   const locale = useI18nStore((state) => state.locale);
   const [prompt, setPrompt] = useState('');
 
@@ -63,7 +65,8 @@ export default function CreateSkillScreen() {
 
         {/* The chat's own composer: describing a skill is the same gesture as
           asking Alia anything. The ten-character floor stays in the handler. */}
-        <Composer
+        <AliaComposer
+          {...composerHost}
           {...composer.props}
           value={prompt}
           onValueChange={setPrompt}

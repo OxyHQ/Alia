@@ -17,9 +17,9 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useImagePicker, type ImagePickerAsset } from '@/shared/platform/use-image-picker';
 import { useDocumentPicker } from '@/shared/platform/use-document-picker';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { classifyIntake, MAX_ATTACHMENT_BYTES } from '@/features/chat/model/attachment-intake';
+import { classifyIntake, MAX_ATTACHMENT_BYTES } from '@alia.onl/sdk/tools';
 import type { TurnSelectionOptions } from '@/features/chat/model/turn-selection';
-import type { Attachment } from './types';
+import type { AliaAttachment } from '@alia.onl/sdk';
 
 /**
  * The plus button's menu, as DATA.
@@ -92,7 +92,7 @@ function ConnectorMark({ icon }: { icon?: string }) {
 
 export interface ComposerAddMenuOptions {
   /** A picked file becomes an attachment. The composer owns the list. */
-  addAttachment: (attachment: Attachment) => void;
+  addAttachment: (attachment: AliaAttachment) => void;
   /**
    * Whether a file can be attached to the next turn at all.
    *

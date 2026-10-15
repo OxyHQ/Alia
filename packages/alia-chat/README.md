@@ -112,6 +112,37 @@ components render. Those events are the product runtime's, not part of the Oxy
 generic inference contract, and this package is written against them on
 purpose: it is a **product** client.
 
+## The composer
+
+The sheet, the screen and the Alia app share one composer, `AliaComposer`: Bloom's
+`ComposerPanel` with files by paste and drop (read with real progress, retried, refused with a
+sentence), dictation, suggestions over the field and Alia's questions docked above it.
+`AliaChatSheet` and `AliaChatScreen` render it with photos, voice and suggestions, and
+`AliaChatSheet` focuses it once the sheet has presented. To build your own surface, mount it and
+pass what the surface has:
+
+```tsx
+import { AliaComposer } from '@alia.onl/sdk';
+
+<AliaComposer
+  value={draft}
+  onValueChange={setDraft}
+  onSubmit={send}
+  busy={isStreaming}
+  onStop={stop}
+  modes={powerLevels} // the mode selector; omit to hide it
+  mode={level}
+  onModeChange={setLevel}
+  addMenu={groups} // the add menu's rows, and what pressing one does
+  onAddMenuSelect={onAdd}
+  attachments={files} // omit `onAddAttachment` and the composer takes no paste or drop
+  onAddAttachment={addFile}
+  onRemoveAttachment={removeFile}
+  attachmentKinds={['image']} // what your send carries; others are refused with a sentence
+  labels={{ composerSend: 'Enviar' }} // anything omitted is English
+/>;
+```
+
 ## Which endpoint the SDK calls, and why
 
 The hook sends its turns to `POST {apiUrl}/v1/chat/completions`, with `apiUrl`

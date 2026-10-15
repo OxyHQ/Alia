@@ -205,9 +205,16 @@ vi.mock('react-native-svg', async () => {
  * (Bloom 4.25), so the panel now imports the insets hook — and the real
  * package reaches into `react-native` itself, which node cannot parse.
  */
-vi.mock('react-native-safe-area-context', async () =>
-  (await import('@/shared/testing/native-module-stubs')).safeAreaModule(),
-);
+vi.mock('react-native-safe-area-context', async () => {
+  const ReactModule = await import('react');
+  const through = ({ children }: React.PropsWithChildren) =>
+    ReactModule.createElement(ReactModule.Fragment, null, children);
+  return {
+    useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+    SafeAreaView: through,
+    SafeAreaProvider: through,
+  };
+});
 
 import { ComposerPanel } from '@oxy.so/bloom/composer-panel';
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';

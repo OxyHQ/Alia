@@ -27,7 +27,8 @@ import { useAudioLevelMonitor, useAudioLevels, type VoiceTurnSender } from '@ali
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { voiceErrorText } from '@/features/voice/model/voice-error-text';
-import type { Attachment, SendOptions } from '@/shared/contracts/chat-turn';
+import type { SendOptions } from '@/shared/contracts/chat-turn';
+import type { AliaAttachment } from '@alia.onl/sdk';
 
 /**
  * The call ended because the turn could not be sent at all. `sendMessage` has
@@ -40,7 +41,7 @@ interface UseVoiceModeOptions {
   /** The conversation's own send — `useChatConversation().sendMessage`. */
   sendMessage: (
     content: string,
-    attachments?: Attachment[],
+    attachments?: AliaAttachment[],
     options?: SendOptions,
   ) => Promise<boolean>;
   /** Stops the turn streaming now; how talking over an answer cancels it. */

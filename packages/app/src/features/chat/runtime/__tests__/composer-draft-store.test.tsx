@@ -8,7 +8,7 @@ import {
   type ComposerDraft,
   type DraftTarget,
 } from '../composer-draft-store';
-import type { Attachment } from '@/shared/contracts/chat-turn';
+import type { AliaAttachment } from '@alia.onl/sdk';
 
 /**
  * A draft belongs to one account and one composer (#608 §4).
@@ -37,7 +37,7 @@ afterEach(() => {
 const store = () => useComposerDraftStore.getState();
 const draftOf = (target: DraftTarget) => store().drafts[target ?? ''];
 
-function picture(id: string, uri = `blob:http://app/${id}`): Attachment {
+function picture(id: string, uri = `blob:http://app/${id}`): AliaAttachment {
   return { id, uri, type: 'image', name: `${id}.png`, size: 1, mimeType: 'image/png' };
 }
 

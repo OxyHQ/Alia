@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Attachment } from '@/shared/contracts/chat-turn';
+import type { AliaAttachment } from '@alia.onl/sdk';
 
 export type ChatIdState = {
   id: string;
@@ -17,7 +17,7 @@ export type MessageContent = string | Array<{ type: string; [key: string]: unkno
 export interface PendingInitialMessage {
   content: MessageContent;
   text: string;
-  attachments: Attachment[];
+  attachments: AliaAttachment[];
   mcpServerId: string | null;
   /** The skills chosen for that message, carried across the screen hand-off. */
   skillNames: string[];

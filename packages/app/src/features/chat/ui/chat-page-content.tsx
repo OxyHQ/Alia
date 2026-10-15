@@ -1,7 +1,7 @@
 import { ChatInterface } from '@/features/chat/ui/chat-interface';
 import { ChatWorkspace } from '@/features/chat/ui/chat-workspace';
 import type { WelcomeIntroSlots } from '@/features/chat/ui/welcome-intro';
-import { Composer } from '@/features/chat/ui/composer/composer';
+import { useComposerHost } from '@/features/chat/ui/composer/use-composer-host';
 import { useAliaComposer } from '@/features/chat/ui/composer/use-alia-composer';
 import { useComposerSuggestions } from '@/features/chat/ui/composer/composer-suggestions';
 import { useCreditWarnings } from '@/features/chat/runtime/use-credit-warnings';
@@ -14,7 +14,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { useRouter } from 'expo-router';
 import { useScreenOnShow } from '@/shared/platform/use-screen-on-show';
-import type { Attachment } from '@/features/chat/ui/composer/types';
+import type { AliaAttachment } from '@alia.onl/sdk';
 import type { AgentActivityState } from '@/features/chat/runtime/use-agent-activity';
 import type { FailedTurn } from '@/features/chat/runtime/use-streaming-chat';
 import type { SendOptions } from '@/shared/contracts/chat-turn';
@@ -30,8 +30,7 @@ import type { ThreadMessage } from '@/features/chat/model/thread-history';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
 import type { Message } from '@/features/chat/model/chat';
 import { useTTS } from '@/features/voice/runtime/use-tts';
-import { AmbientField, ComposerSuggestions, QuestionCard, VoiceModeIcon } from '@alia.onl/sdk';
-import { pendingQuestions } from '@alia.onl/sdk/tools';
+import { AliaComposer, AmbientField, usePendingQuestions, VoiceModeIcon } from '@alia.onl/sdk';
 import { VoiceControls, useAmbientWave } from '@alia.onl/sdk/voice';
 import { AiChatMobileHeader, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
@@ -96,7 +95,11 @@ type VoiceState = ReturnType<typeof useVoiceMode>;
 interface ChatPageContentProps {
   messages: Message[];
   isLoading: boolean;
-  onSubmit: (value: string, attachments?: Attachment[], options?: SendOptions) => Promise<boolean>;
+  onSubmit: (
+    value: string,
+    attachments?: AliaAttachment[],
+    options?: SendOptions,
+  ) => Promise<boolean>;
   onStop?: () => void;
   /**
    * Send a rewritten question in place of the one sent: the thread is cut back
@@ -107,7 +110,7 @@ interface ChatPageContentProps {
     messageId: string,
     text: string,
     options?: SendOptions,
-    attachments?: Attachment[],
+    attachments?: AliaAttachment[],
   ) => Promise<boolean>;
   /** Ask for a reply again; `fallback` is used when its question's options are unknown. */
   onRegenerateMessage?: (assistantMessageId: string, fallback?: SendOptions) => Promise<boolean>;
@@ -206,6 +209,7 @@ export const ChatPageContent = ({
 }: ChatPageContentProps) => {
   const { isAuthenticated, signIn } = useAuth();
   const { t } = useTranslation();
+  const composerHost = useComposerHost();
   const isMainScreen = messages.length === 0;
   // The same composer every screen that asks Alia something uses.
   // This screen's draft: its conversation, or the new-chat screen's own.
@@ -445,14 +449,8 @@ export const ChatPageContent = ({
   });
   const { onKeyPress: onSuggestionKeyPress } = suggestions;
   // What Alia asked in her last turn: asked above the composer, where the person is about to
-  // type, not in the thread. A later message, typed or sent from the card, is the answer.
-  const questionsAsked = useMemo(
-    () => pendingQuestions(messages, isLoading),
-    [messages, isLoading],
-  );
-  const lastMessageId = messages.at(-1)?.id;
-  const [dismissedQuestionsOf, setDismissedQuestionsOf] = useState<string | null>(null);
-  const asking = questionsAsked.length > 0 && dismissedQuestionsOf !== lastMessageId;
+  // type, not in the thread.
+  const asked = usePendingQuestions(messages, isLoading);
   const cancelEdit = edit.cancel;
   const handleComposerKeyPress = useCallback(
     (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
@@ -509,25 +507,18 @@ export const ChatPageContent = ({
           // A fragment, as in the template: the footer's gap spaces the pill
           // and the status bar.
           <>
-            <ComposerSuggestions
-              completions={suggestions.completions}
-              selected={suggestions.selected}
-              onPick={handlePickSuggestion}
-            />
-            <Composer
+            <AliaComposer
+              {...composerHost}
               // A different account is a different composer: reads in flight
               // for the last one are aborted rather than landing here.
               key={composer.address.account ?? ''}
               onKeyPress={handleComposerKeyPress}
-              question={
-                asking ? (
-                  <QuestionCard
-                    questions={questionsAsked}
-                    onSubmit={(message) => void onSubmit(message, undefined, turnOptions)}
-                    onDismiss={() => setDismissedQuestionsOf(lastMessageId ?? null)}
-                  />
-                ) : undefined
-              }
+              suggestions={{ ...suggestions, onPick: handlePickSuggestion }}
+              questions={{
+                items: asked.questions,
+                onSubmit: (message) => void onSubmit(message, undefined, turnOptions),
+                onDismiss: asked.dismiss,
+              }}
               inputRef={composerInputRef}
               value={inputValue}
               onValueChange={setInputValue}

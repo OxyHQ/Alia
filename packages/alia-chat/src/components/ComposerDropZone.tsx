@@ -1,5 +1,5 @@
-import { dragCarriesFiles, nextDragDepth } from '@/features/chat/model/attachment-intake';
-import { useTranslation } from '@/shared/i18n/use-translation';
+import { dragCarriesFiles, nextDragDepth } from '../lib/attachment-intake';
+import { useLabels } from '../lib/labels';
 import { Text } from '@oxy.so/bloom/typography';
 import React from 'react';
 import { Platform, View } from 'react-native';
@@ -141,7 +141,7 @@ export function useComposerDropTarget({
  * with people who do both.
  */
 export function ComposerDropOverlay({ visible, enabled }: { visible: boolean; enabled: boolean }) {
-  const { t } = useTranslation();
+  const labels = useLabels();
   if (!visible) return null;
   return (
     <View
@@ -152,7 +152,7 @@ export function ComposerDropOverlay({ visible, enabled }: { visible: boolean; en
       className="absolute inset-0 z-20 items-center justify-center rounded-[26px] border-2 border-dashed border-primary bg-background/90"
     >
       <Text className="text-sm font-medium text-foreground">
-        {t(enabled ? 'composer.dropHint' : 'composer.dropUnavailable')}
+        {enabled ? labels.dropHint : labels.dropUnavailable}
       </Text>
     </View>
   );
@@ -182,7 +182,7 @@ export function ComposerDropOverlay({ visible, enabled }: { visible: boolean; en
  *
  * The old handler filtered `item.type.indexOf('image')`, so pasting a PDF
  * pasted its NAME. The intake queue classifies and refuses on its own terms
- * (`src/features/chat/model/attachment-intake.ts`) and says so in the strip, which is a better
+ * (`lib/attachment-intake.ts`) and says so in the strip, which is a better
  * answer than a silent drop — and it is the same answer a dropped PDF already
  * got, which is the point: one queue, one set of rules, whichever gesture the
  * file arrived by.

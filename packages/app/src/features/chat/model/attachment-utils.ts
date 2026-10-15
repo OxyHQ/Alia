@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
-import type { Attachment } from '@/shared/contracts/chat-turn';
+import type { AliaAttachment } from '@alia.onl/sdk';
 
 export type MessageContentPart =
   | { type: 'text'; text: string }
@@ -92,7 +92,7 @@ async function inlineObjectUrl(uri: string, mimeType?: string): Promise<string> 
  */
 export async function buildMessageContent(
   text: string,
-  attachments: Attachment[],
+  attachments: AliaAttachment[],
 ): Promise<BuiltMessageContent> {
   const dropped: DroppedAttachment[] = [];
 
