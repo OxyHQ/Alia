@@ -120,7 +120,7 @@ components render. Those events are the product runtime's, not part of the Oxy
 generic inference contract, and this package is written against them on
 purpose: it is a **product** client.
 
-## An "Ask Alia" button with her live avatar
+## An "Ask Alia" button with her avatar
 
 ```tsx
 import { AliaAvatarIcon, useAliaActivity } from '@alia.onl/sdk';
@@ -130,8 +130,12 @@ const state = useAliaActivity(); // 'idle' | 'thinking' | 'working' | 'writing'
 ```
 
 `AliaAvatarIcon` is a Bloom icon component (`BloomIconComponent`): pass it as `icon` /
-`leadingIcon`. It draws the live 3D avatar at the icon size under its own
-`AgentAvatarProvider` (`ALIA_CHARACTER_RUNTIME_URL`), and plays what Alia is doing.
+`leadingIcon`. At rest it is her **still**, a picture made ahead of time and shipped in the source
+(`src/lib/alia-avatar-still.generated.ts`, Bloom `Avatar`'s `characterStill`), so a header that
+shows her fetches nothing of the 3D runtime. While she thinks or works she goes live under its own
+`AgentAvatarProvider` (`ALIA_CHARACTER_RUNTIME_URL`) and plays her working turn; reduced motion
+keeps her a still. Change `ALIA_AVATAR` and run `bun run render:avatar-still` (a test fails until
+you do); run it too when a Bloom upgrade changes how the runtime draws her.
 
 `useAliaActivity()` is the busiest of two sources, so a button reacts even with the sheet closed:
 
