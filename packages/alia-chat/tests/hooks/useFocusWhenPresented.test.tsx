@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import type { SharedValue } from 'react-native-reanimated';
 import { afterEach, describe, expect, it, vi } from 'vitest';

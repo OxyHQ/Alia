@@ -1,13 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { View, Pressable, Platform } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  withSequence,
-  cancelAnimation,
-} from 'react-native-reanimated';
+import { View, Platform } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { TaskList } from '@oxy.so/bloom/task-list';
 import { Text } from '@oxy.so/bloom/typography';
@@ -41,7 +34,6 @@ import { AskedQuestions } from './QuestionCard';
 import { askedQuestions, isQuestionInvocation } from '../lib/questions';
 import { extractCitationSources, linkifyCitations } from '../lib/citations';
 import { chatMessageEnter } from '../animations';
-import { getToolLabel, getToolActiveLabel, getResearchActiveLabel } from '../lib/tool-registry';
 import { getTextFromContent, getImagesFromContent } from '../lib/content-utils';
 import type { ChatMessage } from '../types';
 

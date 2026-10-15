@@ -1,5 +1,13 @@
 # @alia.onl/sdk
 
+## 15.2.1
+
+- **The shipped source compiles under `noUnusedLocals`.** The package ships its `.tsx` source, so a
+  consumer's own `tsc` (an app with `noUnusedLocals`/`noUnusedParameters`, such as the Oxy website)
+  type-checks it and failed on eight unused imports in `AliaChatMessageList` (`Pressable` and the
+  reanimated worklet helpers, left behind by the work-log move). They are gone, and the SDK's
+  tsconfig now turns the two flags on so it cannot regress.
+
 ## 15.2.0
 
 - **`AliaChatSheetRef.present(turn?)`.** Given a turn (`{ text, images? }`), the conversation opens
