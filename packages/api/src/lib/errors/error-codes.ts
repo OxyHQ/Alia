@@ -21,6 +21,8 @@ export type FailoverReason =
   | 'auth'
   | 'timeout'
   | 'format'
+  /** The request's input is larger than the model/route accepts; shortening it is the fix. */
+  | 'context_length'
   | 'content_filter'
   | 'provider_unavailable'
   /**
@@ -73,6 +75,8 @@ export enum AliaErrorCode {
   INVALID_REQUEST = 'INVALID_REQUEST',
   /** Content blocked by safety/moderation filter */
   CONTENT_FILTERED = 'CONTENT_FILTERED',
+  /** The model finished a turn (after its tools ran) without writing any answer */
+  EMPTY_RESPONSE = 'EMPTY_RESPONSE',
 }
 
 // ============== DEFAULT HTTP STATUS MAPPING ==============
@@ -89,6 +93,7 @@ const DEFAULT_HTTP_STATUS: Record<AliaErrorCode, number> = {
   [AliaErrorCode.TIMEOUT]: 408,
   [AliaErrorCode.INVALID_REQUEST]: 400,
   [AliaErrorCode.CONTENT_FILTERED]: 400,
+  [AliaErrorCode.EMPTY_RESPONSE]: 502,
 };
 
 // ============== DEFAULT USER MESSAGES ==============
@@ -104,7 +109,7 @@ const DEFAULT_USER_MESSAGES: Record<AliaErrorCode, string> = {
   [AliaErrorCode.MODEL_UNAVAILABLE]:
     'The requested model is temporarily unavailable. Please try a different model.',
   [AliaErrorCode.CONTEXT_TOO_LONG]:
-    'Your message is too long for this model. Please shorten it and try again.',
+    'This conversation is too long for the model to read in one go. Start a new conversation or shorten your message, then try again.',
   [AliaErrorCode.FALLBACK_EXHAUSTED]:
     'All available models are currently busy. Please try again in a few moments.',
   [AliaErrorCode.CREDITS_INSUFFICIENT]:
@@ -115,6 +120,8 @@ const DEFAULT_USER_MESSAGES: Record<AliaErrorCode, string> = {
   [AliaErrorCode.INVALID_REQUEST]: 'Invalid request. Please check your input and try again.',
   [AliaErrorCode.CONTENT_FILTERED]:
     'Your request was filtered by our safety system. Please revise your message.',
+  [AliaErrorCode.EMPTY_RESPONSE]:
+    'Alia used her tools but could not write the answer. Please try again.',
 };
 
 // ============== ALIA ERROR CLASS ==============

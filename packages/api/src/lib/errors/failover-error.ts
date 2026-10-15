@@ -27,8 +27,8 @@ const OXY_ERROR_REASONS: Record<InferenceErrorCode, FailoverReason> = {
   insufficient_scope: 'auth',
   model_not_found: 'model_not_found',
   unsupported_modality: 'format',
-  context_length_exceeded: 'format',
-  request_too_large: 'format',
+  context_length_exceeded: 'context_length',
+  request_too_large: 'context_length',
   output_limit_exceeded: 'format',
   idempotency_conflict: 'format',
   insufficient_balance: 'billing',
@@ -53,6 +53,8 @@ const OXY_ERROR_REASONS: Record<InferenceErrorCode, FailoverReason> = {
 
 // ============== REGEX PATTERNS ==============
 
+/** The Oxy edge's refusal of a request whose controlled input is over its budget. */
+const INPUT_BUDGET_RE = /controlled input exceeds|exceeds the (internal )?(pilot|input) budget/i;
 const TIMEOUT_HINT_RE = /timeout|timed out|deadline exceeded|context deadline exceeded/i;
 const ABORT_TIMEOUT_RE = /request was aborted|request aborted/i;
 const RATE_LIMIT_RE = /rate.?limit|too many requests/i;
@@ -293,6 +295,11 @@ export function classifyError(err: unknown): FailoverReason {
     ) {
       return 'model_not_found';
     }
+    // The edge words its input ceiling in its own terms ("The controlled input
+    // exceeds the internal pilot budget"), and has answered it under codes that
+    // read as a malformed request. Whatever the code, a request over the budget
+    // is fixed by sending less, which is the one thing the person can act on.
+    if (INPUT_BUDGET_RE.test(err.message)) return 'context_length';
     return OXY_ERROR_REASONS[err.code];
   }
 
@@ -446,6 +453,10 @@ const REASON_TO_ERROR: Record<FailoverReason, ReasonMapping> = {
   },
   format: {
     code: AliaErrorCode.INVALID_REQUEST,
+    retryable: false,
+  },
+  context_length: {
+    code: AliaErrorCode.CONTEXT_TOO_LONG,
     retryable: false,
   },
   content_filter: {
