@@ -270,7 +270,7 @@ export function WelcomeIntro({
             style={headlineStyle}
           >
             {/* Typeface matches the chat greeting in
-                src/features/chat/ui/welcome-message.tsx — Text's own font-sans, no
+                the SDK's AliaWelcomeMessage — Text's own font-sans, no
                 display face. Editorial size stays. */}
             <Text className="text-center text-4xl font-light text-foreground md:text-5xl">
               {headline.slice(0, typed)}

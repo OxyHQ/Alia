@@ -112,7 +112,7 @@ const AgentThreadPage = () => {
    * value — so the thread adopts the recipe instead of tinting one icon with
    * it. `useColorScheme().colors` reads Bloom's `useTheme()`, which is context,
    * so Alia's own components follow it too: the welcome mark comes out in the
-   * agent's colour with `welcome-message.tsx` untouched, and that it needed no
+   * agent's colour with the SDK's `AliaWelcomeMessage` untouched, and that it needed no
    * touching is the evidence the scope reaches what it claims to.
    *
    * ONE scope, and it wraps the SCREEN rather than the layout. Mention puts a

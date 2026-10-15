@@ -1,31 +1,17 @@
-import { useAppVoice } from '@/features/chat/runtime/use-app-voice';
-import { ChatPageContent } from '@/features/chat/ui/chat-page-content';
-import { WelcomeIntro, type WelcomeIntroSlots } from '@/features/chat/ui/welcome-intro';
-import { useModeSelection } from '@/features/chat/ui/composer/power-level-options';
-import { useConversationThread } from '@alia.onl/sdk/runtime';
-import { useStore } from '@/features/chat/runtime/global-store';
-import { useModelStore } from '@/features/chat/runtime/model-store';
+import { ChatWorkspace } from '@/features/chat/ui/chat-workspace';
+import { ConversationScreen } from '@/features/chat/ui/conversation-screen';
+import { WelcomeIntro } from '@/features/chat/ui/welcome-intro';
 import { useAuth } from '@oxy.so/services';
 import { useTranslation } from '@/shared/i18n/use-translation';
+import { AiChatMobileHeader } from '@oxy.so/bloom/ai-chat';
 import Head from 'expo-router/head';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
+/**
+ * The new-chat screen: the conversation screen with no conversation yet. Its first turn creates
+ * one, and the route is replaced by that conversation's.
+ */
 const ChatPage = () => {
-  // The store holds the power level the user chose; `useModeSelection` decides
-  // what a request may carry. They differ only when the choice is a device that
-  // is not connected, and sending it would be a 400. On the FIRST turn too: the
-  // level is part of every request this screen sends.
-  const selectedLevel = useModelStore((s) => s.selectedLevel);
-  const selection = useModeSelection(selectedLevel);
-
-  const ghostMode = useStore((state) => state.ghostMode);
-
-  // No conversation is open on the new-chat screen.
-  const setChatId = useStore((state) => state.setChatId);
-  useEffect(() => {
-    setChatId(null);
-  }, [setChatId]);
-
   const { t } = useTranslation();
   const { isAuthenticated, isAuthResolved } = useAuth();
 
@@ -50,114 +36,30 @@ const ChatPage = () => {
   }
   const handleIntroDismissed = useCallback(() => setIntroState('done'), []);
 
-  /**
-   * The whole of the hook, because the whole of it applies here.
-   *
-   * This screen used to take seven of these and leave the rest on the floor,
-   * which read as "the first turn is a lesser turn": it could not be stopped
-   * once it started, a failure left no card and no way to retry, a plan asked
-   * for approval nobody could give, and the offer of a fresh thread had no
-   * answer. In ghost mode that is not the first turn of anything — nothing is
-   * ever persisted, so the ENTIRE conversation happens on this screen with
-   * those capabilities missing. `conversation-screen.tsx` is the reference for
-   * what a chat can do; the only honest difference here is that there is no
-   * conversation id yet.
-   */
-  const {
-    messages,
-    isLoading,
-    conversationLoading,
-    sendMessage,
-    createNewConversation,
-    ensureConversation,
-    stopGeneration,
-    clearConversation,
-    approvePlan,
-    rejectPlan,
-    suggestedNewConversation,
-    dismissSuggestedNewConversation,
-    failedTurn,
-    retryFailedTurn,
-    editMessage,
-    regenerateMessage,
-    turnOptionsOf,
-  } = useConversationThread({
-    model: selection.send,
-  });
-
-  const handleSubmit = ghostMode ? sendMessage : createNewConversation;
-
-  /**
-   * Taking the agent up on its offer of a fresh start, on the screen where a
-   * fresh start is the cheapest thing there is.
-   *
-   * On `conversation-screen.tsx` accepting means creating the NEXT stretch of
-   * an agent's thread — a persisted conversation, a handle to re-read. None of
-   * that applies here: this screen is already the empty one, and nothing has
-   * been written yet in ghost mode by design. So accepting stops whatever is
-   * streaming and empties the thread, which is genuinely "start a new
-   * conversation" on a screen that has no id.
-   *
-   * It is not simply `dismiss`. The card's primary button says the offer will
-   * be acted on, and a button that only retires the card it sits in would be a
-   * control with nothing behind it — the offer already has a second button for
-   * that.
-   */
-  const handleAcceptNewConversation = useCallback(() => {
-    dismissSuggestedNewConversation();
-    void clearConversation();
-  }, [dismissSuggestedNewConversation, clearConversation]);
-
-  // The call lives in a conversation, made after the gate when none is open: the same rule as the
-  // sheet and the screen. The host opens it (this route is replaced by the conversation's) and the
-  // call opens there.
-  const voice = useAppVoice({ resolveConversation: ensureConversation });
-
-  /** The chat, or the welcome inside the same container while it shows. */
-  const chat = (intro?: WelcomeIntroSlots) => (
-    <ChatPageContent
-      intro={intro}
-      voice={voice}
-      // No `conversationId`, deliberately: this is the new-chat screen,
-      // and its absence is what `ChatPageContent` reads to decide which
-      // mounted instance's draft is the new chat's. The drawer keeps
-      // every visited chat alive, so naming an id here would hand this
-      // screen's draft to a persisted conversation.
-      messages={messages}
-      isLoading={isLoading}
-      conversationLoading={conversationLoading}
-      onSubmit={handleSubmit}
-      onStop={stopGeneration}
-      onEditMessage={editMessage}
-      onRegenerateMessage={regenerateMessage}
-      turnOptionsOf={turnOptionsOf}
-      onApprovePlan={approvePlan}
-      onRejectPlan={rejectPlan}
-      suggestedNewConversation={suggestedNewConversation}
-      onAcceptNewConversation={handleAcceptNewConversation}
-      onDismissNewConversation={dismissSuggestedNewConversation}
-      failedTurn={failedTurn}
-      onRetryTurn={retryFailedTurn}
-    />
-  );
-
   return (
     <>
-      <>
-        <Head>
-          <title>Alia \ Oxy</title>
-          <meta name="description" content={t('landing.metaDescription')} />
-          <link rel="canonical" href="https://alia.onl/" />
-          <meta property="og:title" content="Alia \ Oxy" />
-          <meta property="og:description" content={t('landing.metaDescription')} />
-          <meta property="og:image" content="https://alia.onl/og-image-default.png" />
-        </Head>
-        {introState === 'showing' ? (
-          <WelcomeIntro onDismissed={handleIntroDismissed}>{(intro) => chat(intro)}</WelcomeIntro>
-        ) : (
-          chat()
-        )}
-      </>
+      <Head>
+        <title>Alia \ Oxy</title>
+        <meta name="description" content={t('landing.metaDescription')} />
+        <link rel="canonical" href="https://alia.onl/" />
+        <meta property="og:title" content="Alia \ Oxy" />
+        <meta property="og:description" content={t('landing.metaDescription')} />
+        <meta property="og:image" content="https://alia.onl/og-image-default.png" />
+      </Head>
+      {introState === 'showing' ? (
+        <WelcomeIntro onDismissed={handleIntroDismissed}>
+          {(intro) => (
+            <ChatWorkspace
+              header={<AiChatMobileHeader title="Alia" />}
+              background={intro.background}
+            >
+              {intro.content}
+            </ChatWorkspace>
+          )}
+        </WelcomeIntro>
+      ) : (
+        <ConversationScreen />
+      )}
     </>
   );
 };

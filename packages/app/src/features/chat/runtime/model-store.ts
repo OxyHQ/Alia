@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { DEFAULT_POWER_LEVEL, type PowerLevel } from '@/features/chat/model/power-levels';
+import { DEFAULT_POWER_LEVEL, type PowerLevel } from '@alia.onl/sdk/model';
 import { migrateModelState } from './model-store-migration';
 
 /**

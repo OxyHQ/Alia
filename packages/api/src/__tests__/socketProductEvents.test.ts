@@ -281,8 +281,9 @@ describe('each product event is emitted under its own name, to its own room', ()
 // ===========================================================================
 
 /**
- * Every `socket.on('<name>', …)` in `packages/app`, minus the three names
- * Socket.IO itself owns.
+ * Every `socket.on('<name>', …)` in `packages/app` and in the SDK it mounts
+ * (`packages/alia-chat`: the agent run's feed and the activity socket now live
+ * there), minus the three names Socket.IO itself owns.
  *
  * Read off disk deliberately: a list written here would be a list that agrees
  * with the API by construction, and the failure this guards is precisely the two
@@ -290,6 +291,7 @@ describe('each product event is emitted under its own name, to its own room', ()
  */
 function appSocketListeners(): { names: string[]; filesScanned: number } {
   const appRoot = path.resolve(import.meta.dirname, '../../../app');
+  const sdkRoot = path.resolve(import.meta.dirname, '../../../alia-chat');
   const names = new Set<string>();
   let filesScanned = 0;
 
@@ -321,6 +323,7 @@ function appSocketListeners(): { names: string[]; filesScanned: number } {
 
   walk(path.join(appRoot, 'src'));
   walk(path.join(appRoot, 'app'));
+  walk(path.join(sdkRoot, 'src'));
 
   for (const transport of ['connect', 'disconnect', 'connect_error']) names.delete(transport);
   return { names: [...names].sort(), filesScanned };
@@ -338,7 +341,7 @@ describe('every socket event the app listens for is one the API emits', () => {
 
   it('emits every name the app binds, and the census can tell a miss from a hit', () => {
     /**
-     * Driving all six emitters plus the notification service once, and reading
+     * Driving every `socket.ts` emitter plus the notification service once, and reading
      * the union of the names they produced. This is what the app must find.
      */
     broadcasts.length = 0;
@@ -353,6 +356,7 @@ describe('every socket event the app listens for is one the API emits', () => {
     });
     emitApprovalResult('s', { requestId: 'r', decision: 'approved' });
     emitAgentActivity('a', { type: 'system', content: '', timestamp: 1, sessionId: 's' });
+    emitAliaActivity('u', { state: 'working', agentId: 'a', sessionId: 's', timestamp: 1 });
     emitAudioJobUpdate('u', { jobId: 'j', status: 'completed' });
     emitTelegramLinked('t', {});
     emitApprovalsChanged('u');

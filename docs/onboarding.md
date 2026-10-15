@@ -105,7 +105,8 @@ Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_
 | `app/_layout.tsx` | Root layout: OxyProvider, fonts, theme, auth setup | App-wide providers |
 | `app/(app)/_layout.tsx` | Main drawer layout: sidebar, screens, store hydration | Adding a new screen |
 | `app/(app)/c/[id]/index` | Chat conversation screen | Chat UI changes |
-| `src/features/chat/ui/chat-interface.tsx` | Core chat UI: messages, input, streaming display | Chat UX changes |
+| `packages/alia-chat/src/components/AliaChatContent.tsx`, `thread/AliaThread.tsx` | The conversation screen (thread, composer, voice) the sheet and the app share | Chat UX changes |
+| `src/features/chat/ui/conversation-screen.tsx` | The app around that screen: levels, add menu, breadcrumb, account dialogs | Chat wiring in the app |
 | `src/features/*/runtime/*-store.ts` | Zustand stores, each in the feature that owns it (see State Management below) | Client state changes |
 | `packages/alia-chat/src/runtime/conversations.ts` | TanStack Query hooks for conversation CRUD (the SDK's; the app and the sheet share them) | Conversation data layer |
 | `src/shared/api/client.ts` | API client with auth token injection | API communication |
@@ -121,7 +122,7 @@ What happens when a user sends a message:
 Frontend                            Backend
 --------                            -------
 1. User types message
-2. chat-interface.tsx calls
+2. AliaChatContent (the SDK's conversation screen) calls
    POST /v1/chat/completions ──────> 3. Auth middleware sets req.user
    with SSE streaming                4. Workspace/org middleware
                                      5. autonomy beforeChat (classify, recall, retrieve)

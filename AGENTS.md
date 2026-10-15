@@ -66,6 +66,11 @@ a pelo: los paquetes usan vitest.
   `{ mode: 'alia' }`: nunca exijas un agente para una tarea. Las de Alia usan su
   autoridad permanente de Oxy y la cola `alia-tasks` —
   `docs/proactive-intelligence.md`.
+- **La conversación es del SDK (ADR 0018).** El hilo, sus tarjetas, el panel de pensamiento, el
+  compositor con su selector de nivel y la llamada de voz los dibuja `AliaChatContent`
+  (`packages/alia-chat`), el mismo que monta el bottom sheet. La app solo pone lo suyo (sidebar,
+  right panel, layout, rutas, callbacks de host) por props y slots; no copies un componente de
+  conversación a `packages/app`. `one-thread.test.tsx` lo comprueba.
 - **Memoria por actor.** Un turno de agente nunca recibe la memoria de Alia ni
   sus herramientas (`saveUserMemory`…); el agente usa `agent_memory_documents`.
 - **Un fallo de inferencia es un error tipado** (`failTurn`), antes o después de

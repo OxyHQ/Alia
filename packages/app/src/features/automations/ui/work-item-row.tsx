@@ -2,7 +2,7 @@ import { AutomationCard } from '@/features/automations/ui/automation-card';
 import { TaskCard } from '@/features/automations/ui/task-card';
 import type { AutomationDefinition } from '@/shared/contracts/automations';
 import type { WorkItem } from '@/features/automations/model/work-items';
-import { useAgentActivity } from '@/features/chat/runtime/use-agent-activity';
+import { useAgentActivity } from '@alia.onl/sdk/runtime';
 import type { TaskSession } from '@/features/automations/runtime/use-tasks';
 
 /** Wrapper that subscribes to real-time activity for a single active task */

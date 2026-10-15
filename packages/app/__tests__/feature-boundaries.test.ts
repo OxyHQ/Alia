@@ -54,21 +54,18 @@ const ALLOWED: Record<string, readonly string[]> = {
     'shows',
   ],
   settings: ['billing', 'chat', 'connections', 'library', 'local-models', 'memory'],
-  automations: ['agents', 'chat'],
+  automations: ['agents'],
   agents: ['chat', 'library'],
   chat: [
     'billing',
     'connections',
-    'library',
     'local-models',
     'memory',
     'notifications',
     'projects',
-    'research',
     'skills',
     'voice',
   ],
-  voice: ['memory'],
   shows: ['notifications'],
 };
 

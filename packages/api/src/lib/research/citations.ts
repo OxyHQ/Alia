@@ -8,9 +8,9 @@
  * `[n]` into a link when `n` names a known source, so every other spelling is
  * a marker the reader sees raw.
  *
- * The app carries a twin of this function (`packages/app/src/features/research/model/citations.ts`)
+ * The SDK carries a twin of this function (`packages/alia-chat/src/lib/citations.ts`)
  * for messages persisted before the API normalised its output. The two must
- * agree; the app's tests pin the same cases.
+ * agree; the SDK's tests pin the same cases.
  */
 
 /** `【1†L1-L3】`, `【5†source】`, `【7】` — the bracketed form with an optional `†` tail. */

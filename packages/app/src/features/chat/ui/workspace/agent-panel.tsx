@@ -4,7 +4,7 @@ import {
   type AgentActivityEvent,
   type AgentSource,
   type PlanProgress,
-} from '@/features/chat/runtime/use-agent-activity';
+} from '@alia.onl/sdk/runtime';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import {

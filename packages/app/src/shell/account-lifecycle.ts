@@ -1,7 +1,7 @@
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { queryKeys as oxyQueryKeys } from '@oxy.so/services';
-import { useConversationStore } from '@alia.onl/sdk/runtime';
+import { useConversationStore, useThoughtStore } from '@alia.onl/sdk/runtime';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { useLibraryStore } from '@/features/library/runtime/library-store';
@@ -21,7 +21,7 @@ import { advanceAccountEpoch } from '@/shared/state/account-epoch';
  *
  *  - Every store that holds an account's data goes back to its initial state:
  *    the memory document, the library, the shows, the thought panel (it
- *    carries a conversation's messages), the canvas, the agent panel, and the
+ *    carries a conversation's messages; it is the SDK's), the canvas, the agent panel, and the
  *    first message queued for a conversation that was just created. The
  *    sidebar collapse and the panel width are the device's, and stay.
  *  - The epoch advances, so a read still in flight for the previous account
@@ -47,6 +47,8 @@ export function resetAccountSession(queryClient: QueryClient, next: string | nul
     true,
   );
   useStore.setState(useStore.getInitialState(), true);
+  // The thought panel carries a conversation's messages.
+  useThoughtStore.setState(useThoughtStore.getInitialState(), true);
   // The first message queued for a conversation that was just created, and which row streams.
   useConversationStore.setState(useConversationStore.getInitialState(), true);
   useUserDataStore.setState(useUserDataStore.getInitialState(), true);

@@ -1,5 +1,5 @@
 import { agentDisplayName } from '@/features/agents/model/identity';
-import type { AgentActivityState } from '@/features/chat/runtime/use-agent-activity';
+import type { AgentActivityState } from '@alia.onl/sdk/runtime';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import type { TaskAgentRef, TaskSession } from '@/features/automations/runtime/use-tasks';
 import { formatDuration, getToolPillLabel } from '@alia.onl/sdk/model';

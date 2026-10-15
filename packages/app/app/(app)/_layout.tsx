@@ -1,20 +1,21 @@
 import { ShellPageHeader, type PageHeaderOptions } from '@/shell/page-chrome';
 import { CommandPalette } from '@/shell/command-palette';
 import { AppErrorBoundary } from '@/shell/error-boundary';
-import { restoreOpenerFocus } from '@/features/chat/ui/execution/focus-return';
 import { KeyboardShortcutsDialog } from '@/shell/keyboard-shortcuts-dialog';
 import { useWorkspacePanelChrome, WorkspacePanel } from '@/shell/workspace-panel';
 import { AliaSettingsProvider } from '@/features/settings/ui/alia-settings';
-import { VoiceLabelsProvider } from '@/features/voice/ui/voice-labels-provider';
+import { ChatLabelsProvider } from '@/features/chat/ui/chat-labels-provider';
 import { Sidebar } from '@/shell/sidebar';
 import { useLocalRuntime } from '@/features/local-models/runtime/use-local-runtime';
 import { useNotificationSetup } from '@/features/notifications/runtime/use-notification-setup';
 import { useWelcomeSuggestions } from '@/features/chat/runtime/use-suggestions';
 import i18n from '@/shared/i18n';
 import { offlineConversations } from '@/features/chat/runtime/offline-conversations';
-import { AliaRuntimeProvider, useComposerDraftStore } from '@alia.onl/sdk/runtime';
+import { restoreOpenerFocus } from '@alia.onl/sdk';
+import { AliaRuntimeProvider, useComposerDraftStore, useThoughtStore } from '@alia.onl/sdk/runtime';
 import { fetch as expoFetch } from 'expo/fetch';
 import { useAliaHost } from '@/features/chat/runtime/use-alia-host';
+import { useAliaSpeech } from '@/features/chat/runtime/use-alia-speech';
 import config from '@/shared/platform/config';
 import { useAccountLifecycle } from '@/shell/account-lifecycle';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
@@ -62,8 +63,14 @@ export default function AppLayout() {
   const rightPanel = useUIStore((state) => state.rightPanel);
   const setRightPanel = useUIStore((state) => state.setRightPanel);
   const rightPanelWidth = useUIStore((state) => state.rightPanelWidth);
+  // A closed panel has no turn selected: the thread selects, the panel only shows (the SDK's
+  // `useThoughtStore`), and this is where closing it by any door ends the selection.
+  useEffect(() => {
+    if (rightPanel === null) useThoughtStore.getState().close();
+  }, [rightPanel]);
   const panelChrome = useWorkspacePanelChrome();
   const aliaHost = useAliaHost();
+  const speech = useAliaSpeech();
 
   // Prefetch welcome suggestions so they're ready before any chat screen mounts
   useWelcomeSuggestions();
@@ -211,6 +218,7 @@ export default function AppLayout() {
         offline={offlineConversations}
         // The streaming fetch: React Native's own cannot read a body as it arrives.
         streamFetch={expoFetch as unknown as typeof fetch}
+        speech={speech}
         host={aliaHost}
       >
         {/* Bloom's native portal: the settings modal, a tooltip and the media
@@ -222,7 +230,7 @@ export default function AppLayout() {
           the portal goes to the document. Gate: native-portal-host.test.ts */}
         <PortalProvider>
           <AliaSettingsProvider>
-            <VoiceLabelsProvider>
+            <ChatLabelsProvider>
               {/* Hides the app from a screen reader while a portaled modal is up
               (TalkBack otherwise walks the chat behind Settings). */}
               <OverlayInertBoundary>
@@ -234,15 +242,15 @@ export default function AppLayout() {
                   // and the drawer all start under the status bar, where the system
                   // takes the touch (the button did nothing to a tap on its top two
                   // thirds). The strip above shows the root's background, which is
-                  // the shell's own surface colour. The composer keeps the bottom
-                  // inset itself (`chat-page-content.tsx`).
+                  // the shell's own surface colour. The chat keeps the bottom
+                  // inset itself (`conversation-screen.tsx`).
                   <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
                 )}
               </OverlayInertBoundary>
               <CommandPalette />
               <KeyboardShortcutsDialog />
               <PortalOutlet />
-            </VoiceLabelsProvider>
+            </ChatLabelsProvider>
           </AliaSettingsProvider>
         </PortalProvider>
       </AliaRuntimeProvider>

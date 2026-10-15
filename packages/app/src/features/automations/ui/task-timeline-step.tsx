@@ -1,4 +1,4 @@
-import type { PlanItem } from '@/features/chat/runtime/use-agent-activity';
+import type { PlanItem } from '@alia.onl/sdk/runtime';
 import { Badge } from '@oxy.so/bloom/badge';
 import { RiCheckboxBlankCircleLine } from '@oxy.so/bloom/icons/RiCheckboxBlankCircleLine';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';

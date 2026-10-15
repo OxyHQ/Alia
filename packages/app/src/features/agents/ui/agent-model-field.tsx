@@ -12,11 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@oxy.so/bloom/select';
-import {
-  isPowerLevel,
-  POWER_LEVELS,
-  DEFAULT_POWER_LEVEL,
-} from '@/features/chat/model/power-levels';
+import { isPowerLevel, POWER_LEVELS, DEFAULT_POWER_LEVEL } from '@alia.onl/sdk/model';
 import { useTranslation } from '@/shared/i18n/use-translation';
 
 /**

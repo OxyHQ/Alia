@@ -23,7 +23,7 @@ vi.mock('@/shared/i18n', () => ({ default: { t: (k: string) => k } }));
 vi.mock('react-native', () => ({ Platform: { OS: 'web' } }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-import { useConversationStore } from '@alia.onl/sdk/runtime';
+import { useConversationStore, useThoughtStore } from '@alia.onl/sdk/runtime';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { useLibraryStore } from '@/features/library/runtime/library-store';
@@ -42,15 +42,14 @@ function seedAccountA(client: QueryClient) {
     sidebarOpen: false,
     rightPanelWidth: 480,
     rightPanel: 'thought',
-    thoughtMessageId: 'm1',
-    thoughtScope: {
-      conversationId: 'c1',
-      messages: [message],
-      status: 'ready',
-      isLoading: false,
-      failedTurn: null,
-    },
     canvasArtifacts: [{ id: 'a1' } as never],
+  });
+  useThoughtStore.getState().open('m1', {
+    conversationId: 'c1',
+    messages: [message],
+    status: 'ready',
+    isLoading: false,
+    failedTurn: null,
   });
   useConversationStore.setState({
     pendingInitialMessage: {
@@ -73,7 +72,7 @@ function seedAccountA(client: QueryClient) {
 function expectNothingOfA() {
   const ui = useUIStore.getState();
   expect(ui.rightPanel).toBeNull();
-  expect(ui.thoughtScope).toBeNull();
+  expect(useThoughtStore.getState().selection).toBeNull();
   expect(ui.canvasArtifacts).toEqual([]);
   expect(useConversationStore.getState().pendingInitialMessage).toBeNull();
   expect(useStore.getState().ghostMode).toBe(false);

@@ -121,10 +121,53 @@ layered so each layer depends only on the ones before it:
    (send/edit/regenerate/retry/stop/clear), `useStartConversation`, `useTurnEdit`.
 
 What differs between the sheet and the app is only the `AliaRuntimeHost` they pass to
-`AliaRuntimeProvider` (navigation, credits, memory, artifacts panel, agent rows). A voice call
+`AliaRuntimeProvider` (navigation, credits, memory, artifacts panel, agent rows, where the work of
+a turn is shown) and what they put around the conversation (see below). A voice call
 always lives in a conversation: the open one, or one made when the call starts, opening on the
 screen that shows it (`lib/voice-call-request.ts`). The full API, with examples for both, is in
 `packages/alia-chat/README.md`.
+
+### The conversation screen is the SDK's too
+
+The bottom sheet, `AliaChatScreen` and the Alia app are frames around ONE screen, `AliaChatContent`
+(`packages/alia-chat/src/components`). Above the runtime it has two more layers:
+
+4. **Hooks of what a person does** — `useChatComposer` (the draft, sending, rewriting a sent
+   question, suggestions, the field's keys), `useChatVoice` (the call, its sounds and its
+   transcript in the thread), `useThreadView` (the present or a moment of an agent's thread),
+   `useOpenThought`, `useReadAloud`, `useMessageVote`, `useThreadRows`, `useTimelineWindow`.
+5. **UI** — `AliaThread` (the turns: Bloom's AI Chat turns, the work log, cards, the failed
+   turn's toast, day lines, the window over a long history), `ThoughtPanel`, the composer, the
+   voice call bar, `AliaChatContent` itself.
+
+What the app keeps is what only it has: the sidebar (which reads the runtime's lists), the right
+panel and the column layout that mounts them, its routes, and its callbacks. They reach the screen
+through data and places, never through a second implementation: `conversationId`, `threadHandle`,
+`model`/`onModelChange`/`deviceModels`, `addMenu`, `chrome`, `voice`, `renderUsageLimit`, and the
+host members `showThought`, `openAutomation`, `faviconUrl`. `packages/app/src/features/chat` is the
+inventory of that (see `docs/app-architecture.mdx`), and
+`packages/alia-chat/tests/components/thread/one-thread.test.tsx` holds that the sheet and the app
+draw the same rows and that nothing else imports Bloom's thread.
+
+**The work of a turn** has two halves with a seam between them. The thread selects a turn
+(`useThoughtStore`: message, tab and the conversation it belongs to) and tells the host
+(`showThought('pressed' | 'automatic')`); the host decides where `ThoughtPanel` is drawn (the app:
+its right panel; the sheet: a sheet over the conversation) and tears the selection down when it
+closes. A host without `showThought` has no panel and the "Worked for…" line is plain text.
+
+**Tool cards** — weather, market quote, FairCoin price, scheduled task — are the SDK's, not the
+app's. The tools behind them (`getWeather`, `getMarketQuote`, `getFairCoin`) are part of the
+pipeline every Alia surface calls (`lib/tool-pipeline.ts`, on the `web` grant), and the card's
+numbers are in the stored message, so a surface that draws Alia's reply draws them. The one
+difference is the scheduled task: it points at a screen only the host has, so it is a link only
+where the host passes `openAutomation`.
+
+**Power levels** (ADR 0014) are the SDK's: `POWER_LEVELS`, `buildPowerLevelOptions` and the
+selector in the composer, on every surface that lets the person choose. Which of the person's own
+devices run a model (`local/…`) is the host's, handed in as `deviceModels`. The add menu stays
+the host's: web search, deep research, agent mode, skills and connected apps are rows with plan
+gates, a router and a library behind them, so the SDK offers the slot (`addMenu`) and photos by
+default.
 
 ## Browser origins and `@alia.onl/sdk`
 
