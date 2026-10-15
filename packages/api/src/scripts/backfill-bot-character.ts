@@ -98,7 +98,17 @@ async function main(): Promise<void> {
     await closePostgres();
   }
 
-  log.general.info({ apply, ...report }, 'backfill-bot-character finished');
+  log.general.info(
+    {
+      apply,
+      agents: report.agents,
+      alreadyHadOne: report.alreadyHadOne,
+      missing: report.missing,
+      written: report.written,
+      failed: report.failed.length,
+    },
+    'backfill-bot-character finished',
+  );
   process.stdout.write(
     `${JSON.stringify({ mode: apply ? 'apply' : 'dry-run', ...report }, null, 2)}\n`,
   );
