@@ -1,5 +1,14 @@
 # @alia.onl/sdk
 
+## 13.1.1
+
+- **The avatar flights load the runtime too.** 13.1.0 mounted the character runtime provider inside
+  the chat, but the sheet's avatar-flight layer (the avatar that flies from the welcome into the
+  header) is drawn outside it, so it asked the host for its own `/bloom-character/runtime.mjs` and got
+  the app's HTML back ("Expected a JavaScript-or-Wasm module script but the server responded with
+  a MIME type of text/html"). `AliaChatSheet` and `AliaChatScreen` now wrap everything they draw in the
+  provider, once; `AliaChatContent` no longer mounts one (it is not an entry point on its own).
+
 ## 13.2.0
 
 One composer for the sheet, the screen and the Alia app: the app's composer moved here and the

@@ -20,8 +20,6 @@ import { useAmbientWave } from '../hooks/useAmbientWave';
 import { AmbientField } from './AmbientField';
 import { getAccountDisplayName } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services/ui/client';
-import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
-import { ALIA_CHARACTER_RUNTIME_URL } from '../lib/character-runtime';
 import { AliaChatMessageList } from './AliaChatMessageList';
 import { AliaFlightsProvider, ALIA_TO_PROFILE } from '../lib/flights';
 import { AliaWelcomeMessage } from './AliaWelcomeMessage';
@@ -147,8 +145,6 @@ export interface AliaChatContentProps {
   onStopReady?: (stop: (() => void) | null) => void;
   /** Overrides for the chat's own copy; anything omitted is English. */
   labels?: Partial<AliaChatLabels>;
-  /** Where the 3D avatar's runtime is served from; omitted, Alia's shared copy (`ALIA_CHARACTER_RUNTIME_URL`). */
-  characterRuntimeUrl?: string;
 }
 
 /** The chat API carries photos (`image_url` parts) and nothing else. */
@@ -535,16 +531,10 @@ function AliaChatContentBody({
 }
 
 /** The chat: header, thread and composer, with the host's labels in reach of all of it. */
-export function AliaChatContent({
-  labels,
-  characterRuntimeUrl = ALIA_CHARACTER_RUNTIME_URL,
-  ...props
-}: AliaChatContentProps) {
+export function AliaChatContent({ labels, ...props }: AliaChatContentProps) {
   return (
-    <AgentAvatarProvider runtimeUrl={characterRuntimeUrl}>
-      <AliaChatLabelsProvider labels={labels}>
-        <AliaChatContentBody {...props} />
-      </AliaChatLabelsProvider>
-    </AgentAvatarProvider>
+    <AliaChatLabelsProvider labels={labels}>
+      <AliaChatContentBody {...props} />
+    </AliaChatLabelsProvider>
   );
 }
