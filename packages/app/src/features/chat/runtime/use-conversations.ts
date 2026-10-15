@@ -83,7 +83,6 @@ export interface Message {
     character?: unknown;
     handle: string;
   };
-  audioUrl?: string;
   /**
    * When the message was written, ISO — what the date separators are derived
    * from, in the reader's own timezone.

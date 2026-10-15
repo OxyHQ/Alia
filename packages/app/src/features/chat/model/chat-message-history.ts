@@ -85,8 +85,7 @@ function isEmptyAssistantPlaceholder(message: Message | undefined): boolean {
     message.content === '' &&
     !message.thinking &&
     !message.toolInvocations?.length &&
-    !message.agentInfo &&
-    !message.audioUrl
+    !message.agentInfo
   );
 }
 

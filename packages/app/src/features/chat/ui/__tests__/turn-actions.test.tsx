@@ -427,8 +427,8 @@ describe('a reply', () => {
     const r = await mount();
     await press(buttons(r, 'chat.readAloud')[1]);
 
-    // Stored, so the clip is kept on the message for the next press.
-    expect(audio.readAloud).toEqual([['a2', 'second answer', 'c1', undefined]]);
+    // Stored, so the clip is filed under its conversation.
+    expect(audio.readAloud).toEqual([['a2', 'second answer', 'c1']]);
     const stopButton = buttons(r, 'chat.stopReading');
     expect(stopButton).toHaveLength(1);
     expect(stopButton[0].props.accessibilityState).toMatchObject({ selected: true });
@@ -441,14 +441,14 @@ describe('a reply', () => {
     expect(buttons(r, 'chat.readAloud')).toHaveLength(2);
   });
 
-  it('reads a reply the server does not hold yet without asking to store the clip on it', async () => {
+  it('reads a reply the server does not hold yet without filing the clip under its conversation', async () => {
     chat.messages[3] = { ...chat.messages[3], unsaved: true } as (typeof chat.messages)[number];
     const r = await mount();
     await press(buttons(r, 'chat.readAloud')[1]);
 
     // With the conversation id the route would look the message up, answer
     // 404, and nothing would be read.
-    expect(audio.readAloud).toEqual([['a2', 'second answer', undefined, undefined]]);
+    expect(audio.readAloud).toEqual([['a2', 'second answer', undefined]]);
   });
 
   it('votes on a stored reply by the id it is drawn under', async () => {

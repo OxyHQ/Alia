@@ -230,12 +230,7 @@ type MessageRowProps = {
   handleCopyMessage: (content: string) => Promise<boolean>;
   /** This reply's read-aloud, as a primitive so only its own row re-renders. */
   readAloudState: ReadAloudState;
-  onReadAloud: (
-    messageId: string,
-    text: string,
-    audioUrl?: string,
-    conversationId?: string,
-  ) => void;
+  onReadAloud: (messageId: string, text: string, conversationId?: string) => void;
   /** A call or a dictation holds the audio. */
   readAloudBlocked: boolean;
   /** Given only to the one reply that may be regenerated. */
@@ -343,7 +338,7 @@ const MessageRow = React.memo(function MessageRow({
           icon: reading ? RiStopFill : RiVolumeUpLine,
           active: reading,
           disabled: readAloudBlocked && !reading,
-          onPress: () => onReadAloud(m.id, messageText, m.audioUrl, storedIn),
+          onPress: () => onReadAloud(m.id, messageText, storedIn),
         };
   const regenerateAction: AiChatTurnAction | null =
     onRegenerate === undefined || m.isStreaming || isLoading

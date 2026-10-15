@@ -1,6 +1,18 @@
 # @alia.onl/sdk
 
-## Unreleased
+## 14.0.0
+
+Read-aloud asks the server every time, and the server answers a clip it already made from storage:
+a message read aloud twice, or a sentence voice mode says again, is synthesized and paid for once.
+
+- **Breaking: `useTTS().readAloud(messageId, text, conversationId?)`** loses its fourth argument,
+  `audioUrl`. A message no longer carries a stored clip of its own: `POST /v1/audio/speech` finds
+  the clip by its text, voice, speed and speech model, for the signed-in person, and answers a
+  stored one at once. There is no "play the stored link, remake it if it has gone" path any more.
+- **Breaking: `ChatMessage.audioUrl` is removed.** `GET /conversations/:id` no longer sends it.
+- `requestSpeechClip`'s `conversationId` + `messageId` now file the clip under that conversation,
+  so deleting or clearing the conversation deletes it. The route still answers 404 for a message
+  the person does not hold, and `requestId` is present only when the clip was made by that request.
 
 A voice call says "Listening…" only while something listens.
 

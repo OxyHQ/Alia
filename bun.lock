@@ -62,7 +62,7 @@
     },
     "packages/alia-chat": {
       "name": "@alia.onl/sdk",
-      "version": "13.1.0",
+      "version": "14.0.0",
       "dependencies": {
         "clsx": "^2.1.1",
         "react-native-markdown-display": "^7.0.2",
