@@ -17,6 +17,10 @@ import { imageUriToDataUrl } from '../lib/image-data-url';
 import { useAmbientWave } from '../hooks/useAmbientWave';
 import { AmbientField } from './AmbientField';
 import { QuestionCard } from './QuestionCard';
+import { getAccountDisplayName } from '@oxy.so/core';
+import { useOxy } from '@oxy.so/services/ui/client';
+import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
+import { ALIA_CHARACTER_RUNTIME_URL } from '../lib/character-runtime';
 import { pendingQuestions } from '../lib/questions';
 import { AliaChatMessageList } from './AliaChatMessageList';
 import { AliaFlightsProvider, ALIA_TO_PROFILE } from '../lib/flights';
@@ -84,7 +88,7 @@ export interface AliaChatContentProps {
   apiUrl?: string;
   /** Error handler (e.g. toast) */
   onError?: (message: string) => void;
-  // Welcome message
+  /** The empty chat's greeting; omitted, Alia greets the signed-in person by name (`labels`). */
   welcomeGreeting?: string;
   welcomeSubtitle?: string;
   /** The lines offered over the composer on an empty chat. */
@@ -137,6 +141,8 @@ export interface AliaChatContentProps {
   onStopReady?: (stop: (() => void) | null) => void;
   /** Overrides for the chat's own copy; anything omitted is English. */
   labels?: Partial<AliaChatLabels>;
+  /** Where the 3D avatar's runtime is served from; omitted, Alia's shared copy (`ALIA_CHARACTER_RUNTIME_URL`). */
+  characterRuntimeUrl?: string;
 }
 
 /** The add menu: photos are the one attachment the chat API carries (`image_url` parts). */
@@ -399,14 +405,17 @@ function AliaChatContentBody({
     return 'writing';
   }, [messages, isStreaming, isVoiceActive, voiceAgentState]);
 
+  const { user } = useOxy();
+  const greeting =
+    welcomeGreeting ?? (user ? labels.greetingNamed(getAccountDisplayName(user)) : labels.greeting);
   const welcomeComponent = useMemo(() => {
-    if (!welcomeGreeting || messages.length > 0) return undefined;
+    if (messages.length > 0) return undefined;
     return (
       <View className="flex-1 items-center justify-center px-4 py-10">
-        <AliaWelcomeMessage greeting={welcomeGreeting} subtitle={welcomeSubtitle} />
+        <AliaWelcomeMessage greeting={greeting} subtitle={welcomeSubtitle} />
       </View>
     );
-  }, [welcomeGreeting, welcomeSubtitle, messages.length]);
+  }, [greeting, welcomeSubtitle, messages.length]);
 
   // ── Ambient wave — one persistent overlay across idle/voice/TTS/STT ──
   const wave = useAmbientWave({
@@ -563,10 +572,16 @@ function AliaChatContentBody({
 }
 
 /** The chat: header, thread and composer, with the host's labels in reach of all of it. */
-export function AliaChatContent({ labels, ...props }: AliaChatContentProps) {
+export function AliaChatContent({
+  labels,
+  characterRuntimeUrl = ALIA_CHARACTER_RUNTIME_URL,
+  ...props
+}: AliaChatContentProps) {
   return (
-    <AliaChatLabelsProvider labels={labels}>
-      <AliaChatContentBody {...props} />
-    </AliaChatLabelsProvider>
+    <AgentAvatarProvider runtimeUrl={characterRuntimeUrl}>
+      <AliaChatLabelsProvider labels={labels}>
+        <AliaChatContentBody {...props} />
+      </AliaChatLabelsProvider>
+    </AgentAvatarProvider>
   );
 }

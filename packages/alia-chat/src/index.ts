@@ -10,6 +10,7 @@ export { AliaChatScreen } from './components/AliaChatScreen';
 export type { AliaChatScreenProps } from './components/AliaChatScreen';
 
 // ── Chat UI components ──
+export { ALIA_CHARACTER_RUNTIME_URL } from './lib/character-runtime';
 export { DEFAULT_LABELS } from './lib/labels';
 export type { AliaChatLabels } from './lib/labels';
 export { VoiceModeIcon } from './components/VoiceModeIcon';
