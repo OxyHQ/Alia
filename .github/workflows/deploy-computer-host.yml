@@ -47,6 +47,10 @@ jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04-arm
+    # A backstop against GitHub's 6-hour default, deliberately loose: two cold
+    # ARM64 image builds (the workspace one carries a browser) plus the bounded
+    # health poll below (60 x 5s).
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
 

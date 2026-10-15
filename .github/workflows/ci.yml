@@ -86,8 +86,8 @@ concurrency:
 # a release or calls `gh`. `actions/cache` is authorised by the cache service
 # rather than by this scope, so restore and save are unaffected.
 #
-# `deploy-frontends.yml` deliberately does NOT get one from this change: it
-# deploys and consumes secrets, so scoping it down needs its own verification.
+# `deploy-frontends.yml` has its own `contents: read` since 2026-10: wrangler
+# authenticates with the Cloudflare credentials, never with this token.
 permissions:
   contents: read
 
@@ -204,6 +204,13 @@ jobs:
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-deploy-ecs-image.sh
           bash .github/scripts/test-resolve-ecr-platform-digest.sh
+
+      # The deploys run on `workflow_run` of CI and decide what to release in
+      # deploy-scope.sh: main's head only, and only what changed since the last
+      # release. Its "do not release" answers are the ones that can lose a
+      # commit, so each is driven both ways against a stubbed `gh`.
+      - name: Verify the deploy scope decision
+        run: bash .github/scripts/test-deploy-scope.sh
 
       # `check-static-assets.mjs` runs in `Frontend Typecheck` and goes green
       # when the tree is sound — which is indistinguishable from going green
@@ -625,8 +632,23 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Warm from the layers deploy-aws.yml (and refresh-build-cache.yml) write
+      # to the `alia` scope on main: same Dockerfile, same linux/arm64. READ
+      # ONLY — there is no `--cache-to` here, so a pull request never writes a
+      # scope a production build reads. A miss is just the cold build this was.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      # buildx's gha cache needs the Actions runtime token and cache URL, which
+      # GitHub gives to JavaScript actions and NOT to `run:` steps.
+      - name: Expose the Actions cache to buildx
+        uses: crazy-max/ghaction-github-runtime@v4
+
       - name: Build the API image
-        run: docker build -f packages/api/Dockerfile -t alia-api:ci .
+        run: |
+          docker buildx build \
+            --cache-from type=gha,scope=alia \
+            --load \
+            -f packages/api/Dockerfile -t alia-api:ci .
 
       - name: Smoke the API image under its Bun runtime
         env:
@@ -665,8 +687,21 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Read-only, as in `api-image` above. No deploy writes a scope for this
+      # image, so it reads `alia`, built on the same pinned oven/bun base from
+      # the same repository root; whatever does not match is the cold build
+      # this was before.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Expose the Actions cache to buildx
+        uses: crazy-max/ghaction-github-runtime@v4
+
       - name: Build the computer-host image
-        run: docker build -f packages/alia-computer-host/Dockerfile -t alia-computer-host:ci .
+        run: |
+          docker buildx build \
+            --cache-from type=gha,scope=alia \
+            --load \
+            -f packages/alia-computer-host/Dockerfile -t alia-computer-host:ci .
 
       - name: Smoke the computer-host image under its Bun runtime
         env:

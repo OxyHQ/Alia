@@ -110,16 +110,23 @@ describe('deploy-integrations.yml', () => {
    * `runMigrations` takes NO lock — it reads the ledger's high-water mark outside
    * its transaction, so two concurrent runners both attempt the same DDL and the
    * loser exits 1 on an already-applied statement. The package assigns that
-   * interlock to the caller, and for this deploy the caller is the workflow-level
-   * concurrency group.
+   * interlock to the caller, and for this deploy the caller is the `deploy`
+   * job's concurrency group.
    *
    * `cancel-in-progress: false` is the half that reads like a missed
    * optimisation and is the opposite: cancelling between `run-task` and its
    * exit-code check orphans a live migration task and reports nothing.
    */
-  it('carries the workflow-level interlock the migrator requires', () => {
-    expect(workflow).toMatch(/^concurrency:$/m);
-    expect(workflow).toMatch(/^\s+cancel-in-progress: false$/m);
+  it('carries the interlock the migrator requires, on the job that migrates', () => {
+    // Job level since the trigger became `workflow_run` (see deploy-aws.yml's
+    // `deploy` job). `deploy` is the first job, so the first `steps:` is its.
+    const header = workflow.slice(
+      workflow.indexOf('\n  deploy:\n'),
+      workflow.indexOf('\n    steps:'),
+    );
+    expect(header).toContain('runs-on: ubuntu-24.04-arm');
+    expect(header).toMatch(/^ {4}concurrency:$/m);
+    expect(header).toMatch(/^ {6}cancel-in-progress: false$/m);
   });
 
   /**
@@ -129,7 +136,7 @@ describe('deploy-integrations.yml', () => {
    */
   it('serialises against itself, not against the API deploy', () => {
     const groupOf = (text: string): string => {
-      const match = text.match(/^concurrency:$(?:\n(?:\s*#.*)?)*?\n\s+group:\s*(\S+)/m);
+      const match = text.match(/^ {4}concurrency:$(?:\n(?:\s*#.*)?)*?\n\s+group:\s*(\S+)/m);
       if (!match) throw new Error('no concurrency group found');
       return match[1];
     };

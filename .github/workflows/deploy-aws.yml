@@ -3,36 +3,56 @@
 name: Deploy to AWS
 
 on:
-  push:
+  # After CI passes on a push to main, never alongside it. Until 2026-10 this ran
+  # on `push`, in parallel with CI, so a commit whose CI went red still reached
+  # production and every merge held two runners building the same image at once.
+  # The `scope` job below owns the guards and the path scope `push` used to give:
+  # only main's current head is released, and only when something other than
+  # docs changed since the last commit this workflow released.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
+  # Releases main's head on demand, and still only once CI succeeded for it
+  # (`deploy-scope.sh gate` checks that, once, and refuses otherwise).
   workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
 
-concurrency:
-  # Serialize production rollouts. Two overlapping runs each register a task
-  # definition revision and then call update-service; interleaved, the older
-  # image wins and the newer run still reports success. Never cancel in
-  # progress: an interrupted run leaves an unmonitored rollout in ECS.
-  group: deploy-alia-backend
-  cancel-in-progress: false
-
 env:
   AWS_REGION: us-west-2
   ECR_REGISTRY: 237343248947.dkr.ecr.us-west-2.amazonaws.com
   APP: alia
   CLUSTER: oxy-cluster
+  # The commit under release: the one CI tested on `workflow_run`, main's head on
+  # a dispatch. Not `github.sha`, which on `workflow_run` is whatever main's head
+  # was when CI finished. Not named DEPLOY_SHA: deploy-ecs-image.sh reads that
+  # name to arm a head guard script this repository does not carry.
+  RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
   deploy:
-    # workflow_dispatch can be run against arbitrary refs; only deploys from the
-    # protected main branch may assume the AWS deploy role.
-    if: github.ref == 'refs/heads/main'
+    needs: scope
+    # `scope` admits only a commit CI passed on a push to main in this repository,
+    # still main's head, with something to release. The ref check stays as well:
+    # only the protected main branch may assume the AWS deploy role.
+    if: github.ref == 'refs/heads/main' && needs.scope.outputs.api == 'true'
+    # On the JOB, not the workflow, and that placement is the point. Every CI run
+    # on main starts a run of this workflow, and they arrive in CI's finishing
+    # order, not push order. A workflow-level group would let a run for an OLDER
+    # commit queue behind the running release and displace a newer one pending
+    # there (GitHub keeps only the most recent pending run per group). Here only
+    # a run `scope` has already judged to be main's head ever enters the lane.
+    #
+    # Serialize production rollouts. Two overlapping runs each register a task
+    # definition revision and then call update-service; interleaved, the older
+    # image wins and the newer run still reports success. Never cancel in
+    # progress: an interrupted run leaves an unmonitored rollout in ECS.
+    concurrency:
+      group: deploy-alia-backend
+      cancel-in-progress: false
     runs-on: ubuntu-24.04-arm
     # The backstop, and deliberately loose — the tight bound is on the build
     # step, which is where the hangs actually happen.
@@ -63,6 +83,8 @@ jobs:
     timeout-minutes: 105
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_SHA }}
 
       - name: Configure AWS credentials (OIDC, no stored keys)
         uses: aws-actions/configure-aws-credentials@v4
@@ -125,7 +147,7 @@ jobs:
         # hold on the concurrency group.
         timeout-minutes: 15
         env:
-          COMMIT_TAG: ${{ github.sha }}
+          COMMIT_TAG: ${{ env.RELEASE_SHA }}
           DOCKERFILE: ${{ steps.reviewed.outputs.dockerfile }}
           CONTEXT: ${{ steps.reviewed.outputs.context }}
           SOURCE_TREE: ${{ steps.reviewed.outputs.source_tree }}
@@ -145,7 +167,7 @@ jobs:
             --cache-to type=gha,scope=$APP,mode=max,ignore-error=true \
             -f "$DOCKERFILE" \
             ${TARGET:+--target "$TARGET"} \
-            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.revision=$RELEASE_SHA" \
             --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
             --label "io.oxy.source.tree=$SOURCE_TREE" \
             --label "io.oxy.build-inputs.sha256=$BUILD_INPUTS_SHA256" \
@@ -373,7 +395,7 @@ jobs:
       # Recount before reasoning from a number here. The previous one went stale
       # without anything failing, which is how it survived.
       #
-      # The interlock the migrator requires is the workflow-level `concurrency`
+      # The interlock the migrator requires is the `deploy` job's `concurrency`
       # group above. `runMigrations` takes no lock — it reads the ledger's high
       # water mark outside its transaction, so two concurrent runners both
       # attempt the same DDL and the loser exits 1 on an already-applied
@@ -475,3 +497,56 @@ jobs:
             exit 0
           fi
           bash .github/scripts/deploy-ecs-image.sh
+
+      # The scope job's base for the next release: the last commit this workflow
+      # actually rolled out, as an Actions cache key (its content is irrelevant).
+      # Only a successful rollout reaches this step, and it runs on main only, so
+      # no pull request can move it. Lost or evicted, the next run releases.
+      - name: Write the release marker
+        run: printf '%s\n' "$RELEASE_SHA" >"$RUNNER_TEMP/release-marker"
+      - name: Record this release for the next scope decision
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/release-marker
+          key: alia-release-api-${{ env.RELEASE_SHA }}
+
+  # Decides, OUTSIDE the release lane, whether `deploy` runs at all: the trigger
+  # guards, main's head, and the path scope. See deploy-scope.sh for why each is
+  # needed once the trigger is `workflow_run`. Defined after `deploy` only so
+  # that `deploy` stays the first job in the file, which deployWorkflow.test.ts
+  # relies on to slice the job's header.
+  scope:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Job level: no OIDC token here, and `actions: read` (CI's runs for a manual
+    # release, the release marker) reaches no other job.
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      api: ${{ steps.api.outputs.api }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          sparse-checkout: .github/scripts
+      - name: Release only CI-green main head
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/deploy-scope.sh gate
+      # The `paths-ignore` this workflow had on `push`: everything but Markdown
+      # and docs/ ships in the API image or its deploy.
+      - name: Decide whether anything the API ships changed
+        id: api
+        if: steps.gate.outputs.current == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/deploy-scope.sh target api exclude '(\.md$|^docs/)' alia-release-api-

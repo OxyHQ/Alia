@@ -269,9 +269,18 @@ describe('deploy-aws.yml migration wiring', () => {
    * optimisation and is the opposite: cancelling between `run-task` and its
    * exit-code check orphans a live migration task and reports nothing.
    */
-  it('carries the workflow-level interlock the migrator requires', () => {
-    expect(workflow).toMatch(/^concurrency:$/m);
-    expect(workflow).toMatch(/^\s+cancel-in-progress: false$/m);
+  it('carries the interlock the migrator requires, on the job that migrates', () => {
+    // Job level since the trigger became `workflow_run` (see the `deploy` job's
+    // comment): the block must sit in the `deploy` job's own header, before its
+    // steps. `deploy` is the first job in the file, so the first `steps:` is its.
+    const header = workflow.slice(
+      workflow.indexOf('\n  deploy:\n'),
+      workflow.indexOf('\n    steps:'),
+    );
+    expect(header).toContain('runs-on: ubuntu-24.04-arm');
+    expect(header).toMatch(/^ {4}concurrency:$/m);
+    expect(header).toMatch(/^ {6}group: \S+$/m);
+    expect(header).toMatch(/^ {6}cancel-in-progress: false$/m);
   });
 
   /**

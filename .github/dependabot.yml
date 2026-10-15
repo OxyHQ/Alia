@@ -5,16 +5,29 @@ updates:
   # only a bun.lock, so this is the `bun` ecosystem.
   - package-ecosystem: bun
     directory: /
+    # Weekly, and on a day of its own: the org shares 20 concurrent Actions
+    # jobs, and every version-update PR runs the full CI. Security updates do
+    # not wait for this schedule.
     schedule:
-      interval: daily
+      interval: weekly
+      day: "tuesday"
     groups:
       # First-party SDKs get their own PR and it auto-merges
-      # (.github/workflows/automerge-first-party.yml). Keep it the FIRST group.
+      # (.github/workflows/automerge-first-party.yml). Keep it the FIRST group:
+      # a dependency joins the first group that matches it.
       oxy-platform:
         patterns:
           - "@oxy.so/*"
           - "@alia.onl/*"
           - "@clarity.surf/*"
+      # Everything else that is minor or patch, as ONE pull request. Majors
+      # still arrive one per dependency, for a person to read.
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
     labels:
       - dependencies
     open-pull-requests-limit: 10
@@ -23,5 +36,12 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
     labels:
       - dependencies
