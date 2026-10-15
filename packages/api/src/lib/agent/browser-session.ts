@@ -27,6 +27,7 @@ import { validateUrl } from '../tools/sandbox.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { clarityClient } from '../clarity-client.js';
+import { describeClarityFailure, readClarityDocument } from '../clarity-read.js';
 
 const MAX_CONTENT_CHARS = 12_000;
 
@@ -42,15 +43,19 @@ export class BrowserSession {
   private currentUrl = '';
 
   /** Run one browser action. Errors come back as text the model can act on. */
-  async execute(action: BrowserAction, params: BrowserParams): Promise<string> {
+  async execute(
+    action: BrowserAction,
+    params: BrowserParams,
+    signal?: AbortSignal,
+  ): Promise<string> {
     try {
       switch (action) {
         case 'search':
           return await this.search(params.query || '');
         case 'goto':
-          return await this.goto(params.url || '');
+          return await this.goto(params.url || '', signal);
         case 'get_text':
-          return await this.getText();
+          return await this.getText(signal);
         default:
           return `Unknown browser action: ${String(action)}. Use search, goto or get_text.`;
       }
@@ -78,31 +83,29 @@ export class BrowserSession {
   }
 
   /** Read a URL through Clarity and make it the current page. */
-  private async goto(url: string): Promise<string> {
+  private async goto(url: string, signal?: AbortSignal): Promise<string> {
     if (!url) return 'Error: url is required for goto action';
 
     const check = await validateUrl(url);
     if (!check.valid) return `Error: URL blocked — ${check.reason}`;
 
     this.currentUrl = url;
-    return await this.read(url);
+    return await this.read(url, signal);
   }
 
   /** The current page's text, read again. */
-  private async getText(): Promise<string> {
+  private async getText(signal?: AbortSignal): Promise<string> {
     if (!this.currentUrl) return 'No page loaded. Use goto first.';
-    return await this.read(this.currentUrl);
+    return await this.read(this.currentUrl, signal);
   }
 
-  private async read(url: string): Promise<string> {
-    const resolution = await clarityClient().indexing.resolve({ urls: [url], waitMs: 8_000 });
-    const item = resolution.data[0];
-    const document = item?.document;
-    const content = document?.content?.trim();
-    if (!document || !content) {
-      return item?.operationId
-        ? `Clarity is still indexing ${url}. Try get_text again shortly, or search for another source.`
-        : `Clarity could not extract readable text from ${url}. Search for another source.`;
+  private async read(url: string, signal?: AbortSignal): Promise<string> {
+    const read = await readClarityDocument(url, { signal });
+    if (!read.ok) return describeClarityFailure(read, url);
+    const document = read.document;
+    const content = document.content?.trim();
+    if (!content) {
+      return `Clarity could not extract readable text from ${url}. Search for another source.`;
     }
     return `# ${document.title || document.canonicalUrl}\nURL: ${document.canonicalUrl}\n\n${truncate(content, MAX_CONTENT_CHARS)}`;
   }

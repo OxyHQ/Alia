@@ -162,8 +162,8 @@ export function buildRuntimeTools(
         url: z.string().optional().describe('URL for goto action'),
         query: z.string().optional().describe('Search query (search action)'),
       }),
-      execute: async ({ action, url, query }) => {
-        const result = await browserSession.execute(action, { url, query });
+      execute: async ({ action, url, query }, { abortSignal }) => {
+        const result = await browserSession.execute(action, { url, query }, abortSignal);
 
         // Track sources from browser navigation and content extraction
         if (eventStream && (action === 'goto' || action === 'get_text') && url) {
