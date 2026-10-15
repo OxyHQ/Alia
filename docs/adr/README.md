@@ -21,6 +21,7 @@ An ADR records a decision that is **in force now**, the context that forced it, 
 | [0013](./0013-voice-runs-on-the-device-livekit-and-cohost-are-retired.md) | Voice runs on the device; LiveKit, cohost and voice minutes are retired | Accepted | 2026-09-24 |
 | [0014](./0014-people-choose-power-levels-not-models.md) | People choose power levels, not models | Accepted | 2026-10-01 |
 | [0015](./0015-actors-and-identities.md) | Actors and identities: Alia and agents, for the person and as themselves | Accepted | 2026-10-06 |
+| [0017](./0017-voice-is-a-realtime-session-through-kaana.md) | Voice is a realtime speech-to-speech session through Kaana; dictation is Kaana transcription | Proposed (supersedes 0013 §1–3 when accepted) | 2026-10-15 |
 
 Companion document: [the compatibility window and sunset criteria](../migration/compatibility-window.md), which binds ADR 0002, ADR 0003 and ADR 0004 to measurable removal gates — for paths (a) and (c); path (b) left the window under ADR 0010.
 
@@ -33,6 +34,8 @@ ADR 0012 is the owner's decision that Alia has no models of its own: a person pi
 ADR 0014 is the owner's later decision that people choose a **power level** (Oxy's routing profiles `auto` … `ultra`), never a model by name. Oxy picks the model of the level; Alia sends the level and reads back which model ran. It supersedes ADR 0012's "no Auto that is not a model" and its model picker, by a note at the top of that record.
 
 ADR 0015 is the owner's actor model: **Alia** (one for everybody, the default actor, acting for the person in all their Oxy apps without grants) and **agents** (personas with their own Oxy bot account, acting for their owner within per-app levels or as themselves). It is the decision behind [Actors: Alia and agents](../actors.mdx). ADR 0011 was written when background runs and outreach were agent-only; a note at the top of that record says how ADR 0015 and the Alia-task work extend it.
+
+ADR 0017 is the owner's decision of 2026-10-15 that voice calls run on realtime speech-to-speech models served by Kaana, with turn detection and barge-in on the server, and that dictation is transcribed by a Kaana model; on-device recognition goes. The device talks to Alia over Alia's own WebSocket and Alia holds the Kaana session, so tools, memory and the owner's data stay in Alia. It is proposed and builds on Kaana ADR 0002 (`kaana.ai/v1`, `@kaana.ai/sdk`); number 0016 is reserved by that record for Alia's adoption of `@kaana.ai/sdk`. When accepted, a note at the top of ADR 0013 records what it supersedes.
 
 ## Conventions
 
