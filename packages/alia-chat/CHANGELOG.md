@@ -1,5 +1,13 @@
 # @alia.onl/sdk
 
+## 15.4.0
+
+- **New leaf entry `@alia.onl/sdk/avatar`.** `AliaAvatarIcon`, `AliaAvatar`, `ALIA_AVATAR` and
+  `useAliaActivity` without the chat: an app draws Alia's live avatar on a header button and keeps
+  the conversation UI behind a lazy import, instead of putting the whole SDK in its entry bundle.
+  `check:entries` holds the leaf free of the sheet, the composer, the markdown renderer and the
+  voice call. The root entry still exports the same four.
+
 ## 15.3.0
 
 - **The composer is Bloom's `ComposerPill`.** `AliaComposer` (the sheet's, the screen's and the

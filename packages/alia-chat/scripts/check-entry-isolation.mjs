@@ -122,7 +122,7 @@ if (root.visited.size < MIN_MODULES_FROM_ROOT) {
 }
 
 for (const retired of RETIRED_MODULES) {
-  for (const entry of ['index.ts', 'voice.ts']) {
+  for (const entry of ['index.ts', 'voice.ts', 'avatar.ts']) {
     const result = walk(entry, retired);
     if (result.hits.length > 0) {
       failures.push(
@@ -152,7 +152,7 @@ if (voice.hits.length === 0) {
   );
 }
 
-for (const entry of ['index.ts', 'voice.ts']) {
+for (const entry of ['index.ts', 'voice.ts', 'avatar.ts']) {
   const { hits, importedBy } = walk(entry, SERVICES_ROOT, { exact: true });
   if (hits.length > 0) {
     failures.push(
@@ -177,6 +177,30 @@ if (!voice.visited.has(VOICE_LOOP)) {
       `removed or the walker stopped resolving — either way the root-entry check above ` +
       `is passing for the wrong reason.`,
   );
+}
+
+/**
+ * The avatar leaf stays a leaf: reaching the conversation UI from it would put the whole chat in
+ * the entry bundle of every app that only wants her face on a button.
+ */
+const avatar = walk('avatar.ts', RETIRED_MODULES[0]);
+if (avatar.visited.size < 5) {
+  failures.push(
+    `Only ${avatar.visited.size} modules reachable from src/avatar.ts — the walker is broken or the entry was gutted.`,
+  );
+}
+for (const heavy of [
+  path.join(SRC, 'components', 'AliaChatContent.tsx'),
+  path.join(SRC, 'components', 'AliaChatSheet.tsx'),
+  path.join(SRC, 'components', 'Markdown.tsx'),
+  path.join(SRC, 'hooks', 'useVoiceRoom.ts'),
+]) {
+  if (avatar.visited.has(heavy)) {
+    failures.push(
+      `src/avatar.ts reaches ${path.relative(SRC, heavy)}: ${chainTo(heavy, avatar.importedBy)}. ` +
+        'The avatar entry must not reach the chat.',
+    );
+  }
 }
 
 if (failures.length > 0) {
