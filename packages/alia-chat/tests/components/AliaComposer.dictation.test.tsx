@@ -23,7 +23,7 @@ vi.mock('react-native', async () => {
   };
 });
 vi.mock('@oxy.so/bloom/composer-panel', () => ({
-  ComposerPanel: (props: Record<string, unknown>) => {
+  ComposerPill: (props: Record<string, unknown>) => {
     panel.props = props;
     return null;
   },

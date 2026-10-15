@@ -216,7 +216,7 @@ vi.mock('react-native-safe-area-context', async () => {
   };
 });
 
-import { ComposerPanel } from '@oxy.so/bloom/composer-panel';
+import { ComposerPanel, ComposerPill } from '@oxy.so/bloom/composer-panel';
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -236,12 +236,17 @@ afterEach(() => {
  * asked of it: the real provider otherwise waits on persisted storage this
  * runner does not have, and renders nothing while it waits.
  */
-function mount(props: Partial<React.ComponentProps<typeof ComposerPanel>>) {
+/** The pill is Alia's composer; the model menu below is the PANEL's own, so that one test names it. */
+function mount(
+  props: Partial<React.ComponentProps<typeof ComposerPanel>> &
+    Partial<React.ComponentProps<typeof ComposerPill>>,
+  Composer: React.ElementType = ComposerPill,
+) {
   let next: ReactTestRenderer | undefined;
   act(() => {
     next = create(
       <BloomThemeProvider defaultMode="light" awaitHydration={false}>
-        <ComposerPanel {...props} />
+        <Composer {...props} />
       </BloomThemeProvider>,
     );
   });
@@ -404,22 +409,25 @@ describe('the model menu keys by id, never by the name it draws', () => {
     // reports `id`, and this is the difference being pinned — a lineup keyed
     // on display names would report the label instead.
     const onModelChange = vi.fn();
-    const r = mount({
-      value: 'hola',
-      providers: [
-        {
-          id: 'publisher:acme',
-          name: 'Acme',
-          models: [
-            { id: 'acme/fast', name: 'Automatic' },
-            { id: 'acme/deep', name: 'Deep thinking' },
-          ],
-        },
-      ],
-      model: 'acme/fast',
-      onModelChange,
-      effortLevels: [],
-    });
+    const r = mount(
+      {
+        value: 'hola',
+        providers: [
+          {
+            id: 'publisher:acme',
+            name: 'Acme',
+            models: [
+              { id: 'acme/fast', name: 'Automatic' },
+              { id: 'acme/deep', name: 'Deep thinking' },
+            ],
+          },
+        ],
+        model: 'acme/fast',
+        onModelChange,
+        effortLevels: [],
+      },
+      ComposerPanel,
+    );
     // The chip names the CHOSEN model, which is the first thing the id
     // contract buys: an id with no row would show as itself.
     const chip = r.root

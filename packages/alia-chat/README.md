@@ -147,7 +147,7 @@ app should not have to install a transport to use a button.
 ## The composer
 
 The sheet, the screen and the Alia app share one composer, `AliaComposer`: Bloom's
-`ComposerPanel` with files by paste and drop (read with real progress, retried, refused with a
+`ComposerPill` with files by paste and drop (read with real progress, retried, refused with a
 sentence), dictation, suggestions over the field and Alia's questions docked above it.
 `AliaChatSheet` and `AliaChatScreen` render it with photos, voice and suggestions, and
 `AliaChatSheet` focuses it once the sheet has presented. To build your own surface, mount it and

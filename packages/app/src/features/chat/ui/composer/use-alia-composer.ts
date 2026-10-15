@@ -26,7 +26,7 @@ import { useCallback, useMemo } from 'react';
  * Alia's composer, configured once for every screen that asks Alia something:
  * the chat, Automations, and the screens that create an agent or a skill.
  *
- * It returns the props the SDK's `AliaComposer` (Bloom's `ComposerPanel`) takes
+ * It returns the props the SDK's `AliaComposer` (Bloom's `ComposerPill`) takes
  * beyond the draft itself — the power-level selector (the panel's mode pill),
  * the add menu, the attachments — plus the per-turn choices a send
  * carries (connector and skills), so every screen offers the same controls
