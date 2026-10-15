@@ -141,7 +141,7 @@ ${citationInstructions}
 
 ## Guidelines
 - Use the user's preferred language when known.
-- If a question is ambiguous, ask a clarifying question before guessing.
+- If a question is ambiguous in a way that changes the answer, ask for the missing detail before guessing.
 - When information is outdated or conflicting across sources, flag it explicitly.`;
 }
 

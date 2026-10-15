@@ -40,7 +40,7 @@ const QuestionSchema = z.object({
     .array(OptionSchema)
     .min(2)
     .max(4)
-    .describe('2-4 distinct choices. Never add "Other": the person can always type their own.'),
+    .describe('2-4 distinct choices; never add "Other" (they can type their own)'),
   multiSelect: z
     .boolean()
     .default(false)
@@ -52,12 +52,11 @@ export type AskedQuestion = z.infer<typeof QuestionSchema>;
 export function createAskUserQuestionTool() {
   return tool({
     description:
-      'Ask the person 1-4 clarifying questions, each with 2-4 options, when the request is ambiguous in a way that changes the result ' +
-      'and you cannot reasonably choose for them (which of several approaches, a missing detail you cannot look up, a preference). ' +
-      'The questions appear as a card and YOUR TURN ENDS: write at most one short sentence before calling this, nothing after it. ' +
-      'The answers arrive as the next message. ' +
-      'NEVER use it for something you can find out with a tool, something a sensible default settles, ' +
-      'or more than once for the same request. When in doubt, answer and state the assumption you made.',
+      'Put 1-4 questions to the person as a card of tappable options (2-4 each) INSTEAD of writing the question in your reply, ' +
+      'whenever they must choose between options or supply a detail you cannot look up or sensibly default. ' +
+      'The card ends YOUR TURN: at most one short sentence before calling this, nothing after it, and never also ask in prose. ' +
+      'Their answers arrive as the next message. Once per turn, and not again for something already answered. ' +
+      'Not for what a tool can find out, what a sensible default settles (answer and state the assumption), or open-ended and conversational questions with no discrete options.',
     inputSchema: z.object({
       questions: z.array(QuestionSchema).min(1).max(MAX_QUESTIONS),
     }),

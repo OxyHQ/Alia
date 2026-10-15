@@ -190,8 +190,10 @@ describe("one owner for the assistant's name", () => {
     expect(files).toContain('prompts/base.md');
     expect(files.filter((f) => f.startsWith('prompts/')).sort()).toEqual([
       'prompts/alia-telegram.md',
+      'prompts/ask-user-question.md',
       'prompts/base.md',
       'prompts/codea.md',
+      'prompts/cowork-browser.md',
       'prompts/cowork.md',
       'prompts/general.md',
       'prompts/voice.md',

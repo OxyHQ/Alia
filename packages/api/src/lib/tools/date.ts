@@ -6,7 +6,7 @@ import { z } from 'zod';
  * Returns the current date and time in Spanish locale format
  */
 export const getCurrentDateTool = tool({
-  description: 'Obtener la fecha y hora actual.',
+  description: "Current time and timezone. Today's date is already in the system prompt.",
   inputSchema: z.object({}),
   execute: async () => {
     const now = new Date();

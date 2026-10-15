@@ -68,7 +68,7 @@ export const createSuggestNewConversationTool = (
 
   return tool({
     description:
-      'Suggest to the person that the conversation continue in a NEW one, when the subject has clearly changed and carrying the current context forward no longer helps. It only SUGGESTS: it does not start anything, and the person decides. Use it at most once, and not at all if the current subject is still open.',
+      'Suggest continuing in a NEW conversation when the subject has clearly changed and the old context no longer helps. It only suggests; the person decides. At most once, and not while the current subject is still open.',
 
     inputSchema: z.object({
       reason: z

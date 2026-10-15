@@ -334,6 +334,17 @@ function translatePrompt(
 }
 
 /**
+ * A tool's parameter schema as it goes on the wire.
+ *
+ * The AI SDK stamps every schema with `$schema` (the JSON-Schema dialect). No
+ * provider needs it, and it is re-sent in every tool of every request.
+ */
+export function wireToolParameters(schema: Record<string, unknown>): Record<string, unknown> {
+  const { $schema: _dialect, ...rest } = schema;
+  return rest;
+}
+
+/**
  * Tool definitions and the choice, in the contract's vocabulary.
  *
  * The AI SDK's `inputSchema` is JSON Schema and the contract's `parameters` is
@@ -358,7 +369,7 @@ function translateTools(
       type: 'function',
       name: tool.name,
       ...(tool.description === undefined ? {} : { description: tool.description }),
-      parameters: tool.inputSchema as Record<string, unknown>,
+      parameters: wireToolParameters(tool.inputSchema as Record<string, unknown>),
       ...(tool.strict === undefined ? {} : { strict: tool.strict }),
     });
   }

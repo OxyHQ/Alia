@@ -19,11 +19,9 @@ import { getErrorMessage } from '../errors/index.js';
 export function createDeepResearchTool(userId: string) {
   return tool({
     description:
-      'Run a thorough multi-source research on a topic. Use this when the user asks for deep research, ' +
-      'comprehensive analysis, or when the question requires consulting multiple web sources for an accurate, ' +
-      'well-cited answer. Returns a detailed report with inline citations and references.',
+      'Thorough multi-source web research, returned as a report with inline citations. Use it when the user asks for deep research or comprehensive analysis, or the question needs several sources.',
     inputSchema: z.object({
-      query: z.string().describe('The research question or topic to investigate thoroughly'),
+      query: z.string().describe('The research question or topic'),
     }),
     execute: async ({ query }) => {
       // The research question is the user's own prompt, restated by the model.
