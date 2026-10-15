@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useOxy } from '@oxy.so/services/ui/client';
 import type { ChatMessage, ToolInvocation } from '../types';
 import { getTextFromContent, type MessageContent } from '../lib/content-utils';
@@ -7,7 +7,9 @@ import { agentMessageId, delegatedAgent } from '../lib/delegation';
 import { streamAliaChat } from '../lib/chat-transport';
 import type { AliaChatStreamEvent } from '../lib/chat-stream';
 
-const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
+import { ALIA_API_URL } from '../lib/api-url';
+import { useAliaActivityStore } from '../lib/activity-store';
+import { turnActivityState } from '../lib/turn-state';
 
 export interface UseAliaChatOptions {
   /**
@@ -129,7 +131,7 @@ function waitWithAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> 
  * handler during its recorded compatibility window.
  */
 export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn {
-  const { apiUrl = API_URL, model, clientContext, accessToken: accessTokenProp } = options;
+  const { apiUrl = ALIA_API_URL, model, clientContext, accessToken: accessTokenProp } = options;
   const directoryRef = useRef(new Map<string, { id: string; character?: unknown }>());
   directoryRef.current = new Map((options.agents ?? []).map((agent) => [agent.id, agent]));
   const requestUrl = '/v1/chat/completions';
@@ -146,6 +148,15 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  // The turn's lifecycle, published for every "Ask Alia" button (`useAliaActivity`).
+  const activitySource = useId();
+  const activity = turnActivityState(messages, isStreaming);
+  useEffect(() => {
+    const { setLocal } = useAliaActivityStore.getState();
+    setLocal(activitySource, activity);
+    return () => setLocal(activitySource, 'idle');
+  }, [activitySource, activity]);
 
   const updateAssistant = useCallback(
     (assistantId: string, updater: (message: ChatMessage) => Partial<ChatMessage>) => {

@@ -1,5 +1,19 @@
 # @alia.onl/sdk
 
+## 14.1.0
+
+An "Ask Alia" button can show her live avatar and react to what she is doing.
+
+- **`AliaAvatarIcon`**: a Bloom icon component (`icon={AliaAvatarIcon}`) that draws the live avatar
+  at the icon size under its own `AgentAvatarProvider` on `ALIA_CHARACTER_RUNTIME_URL`, not interactive.
+- **`useAliaActivity()`** returns `'idle' | 'thinking' | 'working' | 'writing'`, the busiest of the
+  turns running in this app (`useAliaChat` now publishes its lifecycle to a shared store) and the
+  server's `alia:activity` events for the signed-in person (one shared `socket.io-client` connection
+  per API origin, none while signed out, closed with the last consumer). New dependency:
+  `socket.io-client`. Needs the API that emits `alia:activity` (an older API simply never sends it:
+  buttons then follow local turns only).
+- The header mark and the buttons read a turn from one function (`turnActivityState`).
+
 ## 14.0.0
 
 Read-aloud asks the server every time, and the server answers a clip it already made from storage:

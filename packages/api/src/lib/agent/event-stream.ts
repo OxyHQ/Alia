@@ -13,7 +13,12 @@
  *     not grow one unbounded session value
  */
 
-import { emitAgentActivity, type AgentActivityEvent } from '../../socket.js';
+import {
+  emitAgentActivity,
+  emitAliaActivity,
+  type AgentActivityEvent,
+  type AliaActivityState,
+} from '../../socket.js';
 import { getDb } from '../../db/index.js';
 import {
   appendEventStreamEntries,
@@ -60,6 +65,30 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
+/**
+ * The state an entry puts a run in, or null when it leaves it as it was (a
+ * screenshot or a source found is still the same work). A run ends on
+ * `complete` or `error`; one that dies without either is covered by the
+ * client's own quiet timeout.
+ */
+function aliaStateFor(type: EventType): AliaActivityState | null {
+  switch (type) {
+    case 'thinking':
+    case 'observation':
+    case 'user_message':
+      return 'thinking';
+    case 'action':
+      return 'working';
+    case 'response':
+      return 'writing';
+    case 'complete':
+    case 'error':
+      return 'idle';
+    default:
+      return null;
+  }
+}
+
 /** Batch size for flushing to PostgreSQL. */
 const FLUSH_BATCH_SIZE = 10;
 
@@ -70,13 +99,31 @@ export class EventStream {
   /** Optionally wire up Socket.IO emission for real-time UI */
   private agentId?: string;
   private sessionId?: string;
+  /** Whose run this is: the person whose open surfaces hear what Alia is doing. */
+  private userId?: string;
+  private aliaState: AliaActivityState = 'idle';
 
   /** Pending entries not yet flushed to PostgreSQL. */
   private pendingFlush: EventStreamEntry[] = [];
 
-  constructor(opts?: { agentId?: string; sessionId?: string }) {
+  constructor(opts?: { agentId?: string; sessionId?: string; userId?: string }) {
     this.agentId = opts?.agentId;
     this.sessionId = opts?.sessionId;
+    this.userId = opts?.userId;
+  }
+
+  /** Tell the person's surfaces when the run's state CHANGES — a tool-heavy run is not a flood. */
+  private publishAliaState(type: EventType): void {
+    const next = aliaStateFor(type);
+    if (!this.userId || !this.agentId || !this.sessionId || next === null) return;
+    if (next === this.aliaState) return;
+    this.aliaState = next;
+    emitAliaActivity(this.userId, {
+      state: next,
+      agentId: this.agentId,
+      sessionId: this.sessionId,
+      timestamp: Date.now(),
+    });
   }
 
   /** Append a new entry. Returns the created entry. */
@@ -124,6 +171,8 @@ export class EventStream {
         data: socketData,
       });
     }
+
+    this.publishAliaState(type);
 
     // Auto-flush when batch is full
     if (this.pendingFlush.length >= FLUSH_BATCH_SIZE) {

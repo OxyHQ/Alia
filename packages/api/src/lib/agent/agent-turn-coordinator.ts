@@ -57,7 +57,11 @@ export class AgentTurnCoordinator {
     });
 
     const todoManager = new TodoManager();
-    const eventStream = new EventStream({ agentId: input.agent._id, sessionId: session._id });
+    const eventStream = new EventStream({
+      agentId: input.agent._id,
+      sessionId: session._id,
+      userId: input.oxyUserId,
+    });
     const browserSession = new BrowserSession();
     let completedResult: string | undefined;
     const runtime: AgentRuntimeContext = {

@@ -329,7 +329,7 @@ async function driveAgentSession(
 
   // ── Initialize core components ──
 
-  const eventStream = new EventStream({ agentId, sessionId });
+  const eventStream = new EventStream({ agentId, sessionId, userId });
   const stateMachine = new AgentStateMachine();
   const todoManager = new TodoManager();
   const browserSession = new BrowserSession();

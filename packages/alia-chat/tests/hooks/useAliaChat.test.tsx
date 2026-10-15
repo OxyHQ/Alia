@@ -17,6 +17,7 @@ vi.mock('../../src/lib/catalogue', () => ({
 }));
 
 import { useAliaChat } from '../../src/hooks/useAliaChat';
+import { selectAliaActivity, useAliaActivityStore } from '../../src/lib/activity-store';
 
 interface RequestConfig {
   readonly method: 'POST';
@@ -127,6 +128,26 @@ describe('useAliaChat request lifecycle', () => {
     expect(session.disposals[0]).toHaveBeenCalledOnce();
 
     await act(async () => renderer.unmount());
+  });
+
+  it("publishes the turn's state for every Ask Alia button, and clears it when the turn ends", async () => {
+    const states: string[] = [];
+    const unsubscribe = useAliaActivityStore.subscribe((state) =>
+      states.push(selectAliaActivity(state)),
+    );
+    createSession(async () => successfulResponse('Respuesta'));
+    const renderer = await renderHarness();
+
+    await act(async () => {
+      current().send('Pregunta');
+    });
+    await waitUntilIdle();
+
+    expect(states).toContain('writing');
+    expect(selectAliaActivity(useAliaActivityStore.getState())).toBe('idle');
+
+    await act(async () => renderer.unmount());
+    unsubscribe();
   });
 
   it('refuses a caller token that is not the surrounding Oxy session', async () => {
