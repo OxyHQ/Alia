@@ -52,8 +52,6 @@ interface ConversationScreenProps {
    * behind it and therefore nothing to re-read.
    */
   threadHandle?: string;
-  /** Open straight into voice, once. */
-  startVoice?: boolean;
 }
 
 /**
@@ -76,7 +74,6 @@ export const ConversationScreen = ({
   agentId,
   agentName,
   threadHandle,
-  startVoice = false,
 }: ConversationScreenProps) => {
   // A conversation keeps its own power level once one is chosen here, and
   // follows the user's standing choice until then. It used to open on a
@@ -320,15 +317,6 @@ export const ConversationScreen = ({
     ...(agentId === undefined ? {} : { agentId }),
     isFocused,
   });
-
-  // Auto-activate voice when navigated with startVoice (once only)
-  const voiceAutoStartedRef = useRef(false);
-  useEffect(() => {
-    if (startVoice && !voiceAutoStartedRef.current && !voice.isActive) {
-      voiceAutoStartedRef.current = true;
-      voice.start();
-    }
-  }, [startVoice, voice]);
 
   // Sound effects for voice mode (thinking, tool calls, connect/disconnect)
   useVoiceSoundEffects({

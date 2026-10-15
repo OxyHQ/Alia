@@ -14,17 +14,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '@oxy.so/bloom/toast';
 import { useLabels, type VoiceBlockReason } from '../lib/labels';
+import { isRequestFor, useVoiceCallRequests } from '../lib/voice-call-request';
 import type { VoiceNotice, VoiceSessionProps, VoiceSessionState } from '../types';
 
 export interface UseVoiceLauncherOptions {
   /** Alia API base URL. */
   apiUrl?: string;
-  /** The conversation the call lives in, when one is open. */
+  /** The conversation open on this screen, which is where the call lives. */
   conversationId?: string;
   /**
    * Called after the gate, when no conversation is open: creates (and shows) the one the call
    * will live in and returns its id, or `undefined` when it could not be made (the call then
-   * does not open). Every call has a conversation, so its transcript has a home.
+   * does not open). Every call has a conversation, so its transcript has a home. The call opens
+   * on the screen that shows that conversation: this one, or the one the host navigates to.
    */
   resolveConversation?: () => Promise<string | undefined>;
   /** Whose call it would be. A live call ends when the account, or the open conversation, changes. */
@@ -91,10 +93,6 @@ export function useVoiceLauncher(options: UseVoiceLauncherOptions = {}): VoiceLa
   } = options;
   const [isActive, setIsActive] = useState(false);
   const [state, setState] = useState<VoiceSessionState | null>(null);
-  /** The conversation the live call was opened in; it stays the call's even if the screen moves. */
-  const [callConversationId, setCallConversationId] = useState<string | undefined>(undefined);
-  /** The account the live call was opened for. */
-  const callAccountRef = useRef<string | null | undefined>(undefined);
   const latest = useRef({
     canStartVoice,
     onVoiceBlocked,
@@ -119,8 +117,6 @@ export function useVoiceLauncher(options: UseVoiceLauncherOptions = {}): VoiceLa
   const end = useCallback(() => {
     setIsActive(false);
     setState(null);
-    setCallConversationId(undefined);
-    callAccountRef.current = undefined;
     latest.current.onCallEnded?.();
   }, []);
 
@@ -137,27 +133,38 @@ export function useVoiceLauncher(options: UseVoiceLauncherOptions = {}): VoiceLa
     }
     // The gate first: a call that may not open must not leave an empty conversation behind.
     const home = conversationId ?? (await latest.current.resolveConversation?.());
-    if (home === undefined && latest.current.resolveConversation) return;
-    callAccountRef.current = accountId;
-    setCallConversationId(home);
-    setIsActive(true);
+    if (home === undefined) return;
+    // The call opens where its conversation is shown (see `useVoiceCallRequests`): here, at once,
+    // when it already is; wherever the host takes the new conversation, when it was just made.
+    useVoiceCallRequests.getState().ask(home, accountId);
   }, [isActive, isFocused, conversationId, accountId, notify]);
 
-  // A call belongs to one account, on the screen that shows it, in the conversation it opened in:
-  // it ends when the screen goes out of focus, the account changes, or the screen moves to another
-  // conversation. (The conversation a call creates for itself is the one the screen then shows.)
-  const shownRef = useRef(conversationId);
+  const request = useVoiceCallRequests((store) => store.request);
   useEffect(() => {
-    const moved = shownRef.current !== conversationId;
-    shownRef.current = conversationId;
-    if (isActive && (!isFocused || callAccountRef.current !== accountId)) end();
-    else if (isActive && moved && conversationId !== callConversationId) end();
-  }, [isActive, isFocused, accountId, conversationId, callConversationId, end]);
+    if (isActive || !isFocused || !isRequestFor(request, conversationId, accountId)) return;
+    useVoiceCallRequests.getState().clear();
+    setIsActive(true);
+  }, [request, isActive, isFocused, conversationId, accountId]);
+
+  // A call belongs to one account and one conversation, on the screen that shows it: it ends when
+  // the screen goes out of focus, the account changes, or the screen moves to another conversation.
+  const openedIn = useRef<{ conversationId: string | undefined; accountId: string | null }>(
+    undefined,
+  );
+  useEffect(() => {
+    if (!isActive) {
+      openedIn.current = undefined;
+      return;
+    }
+    openedIn.current ??= { conversationId, accountId };
+    const call = openedIn.current;
+    if (!isFocused || call.accountId !== accountId || call.conversationId !== conversationId) end();
+  }, [isActive, isFocused, accountId, conversationId, end]);
 
   const sessionProps = useMemo<VoiceSessionProps>(
     () => ({
       ...(apiUrl === undefined ? {} : { apiUrl }),
-      ...(callConversationId === undefined ? {} : { conversationId: callConversationId }),
+      ...(conversationId === undefined ? {} : { conversationId }),
       ...(agentId === undefined ? {} : { agentId }),
       ...(locale === undefined ? {} : { locale }),
       ...(voice === undefined ? {} : { voice }),
@@ -166,7 +173,7 @@ export function useVoiceLauncher(options: UseVoiceLauncherOptions = {}): VoiceLa
       onStateChange: setState,
       onEnd: end,
     }),
-    [apiUrl, callConversationId, agentId, locale, voice, onMessagesSaved, notify, end],
+    [apiUrl, conversationId, agentId, locale, voice, onMessagesSaved, notify, end],
   );
 
   return { isActive, state, start, end, sessionProps };

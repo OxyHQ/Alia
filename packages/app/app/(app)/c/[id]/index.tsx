@@ -4,22 +4,14 @@ import { ConversationApprovalsBanner } from '@/features/agents/ui/agent-approval
 import { ConversationScreen } from '@/features/chat/ui/conversation-screen';
 
 const ChatConversationPage = () => {
-  const { id, agentId, startVoice } = useLocalSearchParams<{
-    id: string;
-    agentId?: string;
-    startVoice?: string;
-  }>();
+  const { id, agentId } = useLocalSearchParams<{ id: string; agentId?: string }>();
 
   // A payment or a deletion Alia (or an agent) asked for in this conversation
   // waits here for the person's OK, as an agent's requests do above its thread.
   return (
     <View className="flex-1 web:z-auto">
       <ConversationApprovalsBanner conversationId={id} />
-      <ConversationScreen
-        conversationId={id}
-        agentId={agentId}
-        startVoice={startVoice === 'true'}
-      />
+      <ConversationScreen conversationId={id} agentId={agentId} />
     </View>
   );
 };

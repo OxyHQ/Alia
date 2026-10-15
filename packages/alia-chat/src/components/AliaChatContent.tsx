@@ -106,7 +106,8 @@ export interface AliaChatContentProps {
   apiUrl?: string;
   /**
    * The conversation to show. Given, the host owns which one is open (a route) and learns of a new
-   * one through `onConversationChange`; omitted, the chat keeps its own: it starts empty and
+   * one through `onConversationChange`; omitted, the chat keeps its own — unless the host
+   * navigates (`runtime.openConversation`), which then decides: the chat starts empty and
    * creates its conversation with the first turn, or the first call.
    */
   conversationId?: string;
@@ -611,24 +612,27 @@ export function AliaChatContent({
 }: AliaChatContentProps) {
   const [ownId, setOwnId] = useState<string | undefined>(undefined);
   const parent = useAliaRuntime();
-  // Opening or leaving a conversation reaches the host's own navigation first, then this chat.
-  const host = useMemo<AliaRuntimeHost>(() => {
-    const own = (id: string | undefined) => {
-      setOwnId(id);
-      onConversationChange?.(id);
-    };
-    return {
+  // Who decides which conversation is open: a host that navigates (a route) does; with none, the
+  // chat does (the sheet). Either way the host hears of it first, then `onConversationChange`.
+  const hostOpens = runtime?.openConversation ?? parent.host.openConversation;
+  const hostCloses = runtime?.closeConversation ?? parent.host.closeConversation;
+  const hostNavigates = hostOpens !== undefined;
+  const host = useMemo<AliaRuntimeHost>(
+    () => ({
       ...runtime,
       openConversation: (id) => {
-        runtime?.openConversation?.(id);
-        own(id);
+        hostOpens?.(id);
+        if (!hostNavigates) setOwnId(id);
+        onConversationChange?.(id);
       },
       closeConversation: () => {
-        runtime?.closeConversation?.();
-        own(undefined);
+        hostCloses?.();
+        if (!hostNavigates) setOwnId(undefined);
+        onConversationChange?.(undefined);
       },
-    };
-  }, [runtime, onConversationChange]);
+    }),
+    [runtime, hostOpens, hostCloses, hostNavigates, onConversationChange],
+  );
 
   return (
     <AliaChatLabelsProvider labels={labels}>

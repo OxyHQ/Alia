@@ -240,9 +240,17 @@ function Sidebar() {
 ### Voice lives in the conversation
 
 A call always has a home. With a conversation open the call lives in it; on a new-chat screen
-the conversation is created when the call starts (after the plan/credits gate) and shown, and
-its transcript is stored there. This is one code path for the sheet, `AliaChatScreen` and the
-Alia app (`useVoiceLauncher`'s `resolveConversation`).
+the conversation is created when the call starts (after the plan/credits gate) and the call
+opens on the screen that shows it. That is one code path for the sheet, `AliaChatScreen` and the
+Alia app (`useVoiceLauncher`'s `resolveConversation` and `useVoiceCallRequests`):
+
+- the sheet has no routes, so the chat itself switches to the new conversation and the call opens
+  in place;
+- the Alia app's new-chat route is replaced by the conversation's (`host.openConversation`), and
+  the call opens on that screen, which takes the pending request.
+
+**Who decides which conversation is open:** the host, when it navigates (it passes
+`runtime.openConversation`, or an outer `AliaRuntimeProvider` has one); otherwise the chat.
 
 ## Where the SDK stands on `/v1/chat/completions`, and the consumer-backend path
 

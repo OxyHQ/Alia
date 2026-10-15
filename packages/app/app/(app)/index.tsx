@@ -2,13 +2,11 @@ import { useAppVoice } from '@/features/chat/runtime/use-app-voice';
 import { ChatPageContent } from '@/features/chat/ui/chat-page-content';
 import { WelcomeIntro, type WelcomeIntroSlots } from '@/features/chat/ui/welcome-intro';
 import { useModeSelection } from '@/features/chat/ui/composer/power-level-options';
-import { useConversationThread, useCreateConversation } from '@alia.onl/sdk/runtime';
+import { useConversationThread } from '@alia.onl/sdk/runtime';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { useModelStore } from '@/features/chat/runtime/model-store';
 import { useAuth } from '@oxy.so/services';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { toast } from '@oxy.so/bloom/toast';
-import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -28,6 +26,7 @@ const ChatPage = () => {
     setChatId(null);
   }, [setChatId]);
 
+  const { t } = useTranslation();
   const { isAuthenticated, isAuthResolved } = useAuth();
 
   /**
@@ -70,6 +69,7 @@ const ChatPage = () => {
     conversationLoading,
     sendMessage,
     createNewConversation,
+    ensureConversation,
     stopGeneration,
     clearConversation,
     approvePlan,
@@ -108,30 +108,10 @@ const ChatPage = () => {
     void clearConversation();
   }, [dismissSuggestedNewConversation, clearConversation]);
 
-  /** Voice from the new-chat screen: a conversation to hold it, opened in voice. */
-  const createConversation = useCreateConversation();
-  const router = useRouter();
-  const { t } = useTranslation();
-  const handleVoiceStart = useCallback(async () => {
-    try {
-      const conversation = await createConversation.mutateAsync({});
-      router.replace({
-        pathname: '/(app)/c/[id]',
-        params: { id: conversation.id, startVoice: 'true' },
-      });
-    } catch {
-      toast.error(t('chat.voiceStartFailed'));
-    }
-  }, [createConversation, router, t]);
-
-  // The call lives in a conversation: the new-chat screen makes one after the gate and opens it
-  // in voice (its route is another screen, so the call starts there).
-  const voice = useAppVoice({
-    resolveConversation: async () => {
-      await handleVoiceStart();
-      return undefined;
-    },
-  });
+  // The call lives in a conversation, made after the gate when none is open: the same rule as the
+  // sheet and the screen. The host opens it (this route is replaced by the conversation's) and the
+  // call opens there.
+  const voice = useAppVoice({ resolveConversation: ensureConversation });
 
   /** The chat, or the welcome inside the same container while it shows. */
   const chat = (intro?: WelcomeIntroSlots) => (

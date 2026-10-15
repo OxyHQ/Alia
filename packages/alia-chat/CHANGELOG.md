@@ -24,7 +24,12 @@ app's, moved and generalised (`src/runtime`).
 - **Breaking: voice.** `openElsewhere` and `owner` are gone from `useVoiceLauncher` and
   `AliaVoiceOptions`; `conversationId` and `agentId` belong to the chat. A call always lives in a
   conversation: the open one, or — on a new-chat screen — one created when the call starts (after
-  the gate) and shown. `start()` is async. New options `resolveConversation` and `accountId`.
+  the gate) and shown, and it opens on the screen that shows that conversation — in place in the
+  sheet, on the destination route in a navigating host (`useVoiceCallRequests`). `start()` is
+  async. New options `resolveConversation` and `accountId`; a live call now ends when the screen
+  shows another conversation, loses focus or changes account.
+- **Who owns the open conversation:** a host that navigates (`runtime.openConversation`, or one
+  from an outer `AliaRuntimeProvider`) decides; with none, `AliaChatContent` keeps its own.
 - **New peer: `@tanstack/react-query`** (the runtime's cache; `OxyProvider` already mounts it).
 - **New:** `AliaRuntimeProvider` / `useAliaRuntime` (`apiUrl`, `chatUrl`, `offline`, `streamFetch`,
   and `host: AliaRuntimeHost`: navigation, `onUsage`, `onArtifact`, `onToolResult`, `onContext`,
