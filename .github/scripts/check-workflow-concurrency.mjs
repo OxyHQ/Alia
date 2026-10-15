@@ -52,13 +52,6 @@ const MAIN_REF = "'refs/heads/main'";
  */
 const EXPECTED = {
   'ci.yml': 'per-commit',
-  'deploy-aws.yml': 'serialised',
-  // Its own group, not the API's: the two deploy different services and migrate
-  // different databases, so sharing one would make each block the other for no
-  // gain. Serialised for the same reason as the API's — and here the group is
-  // additionally the ONLY interlock on the migrator, which takes no lock of its
-  // own and reads the ledger's high-water mark outside its transaction.
-  'deploy-integrations.yml': 'serialised',
   'production-chat-canary.yml': 'serialised',
   // One instance restarted over SSM: two overlapping restarts could leave the
   // unit on the older digest pair.
@@ -72,6 +65,30 @@ const EXPECTED = {
   // and reports nothing about whether it committed.
   'bootstrap-native-product-agents.yml': 'serialised',
   'refresh-build-cache.yml': 'serialised',
+};
+
+/**
+ * The same rules for a JOB-level `concurrency:` block, keyed `<file>#<job>`.
+ *
+ * The deploys run on `workflow_run` of CI, which arrives in CI's finishing
+ * order rather than push order. Their group sits on the release job, behind a
+ * `scope` job that admits only main's current head: a workflow-level group
+ * would let a run for an OLDER commit displace a newer release pending in the
+ * lane (GitHub keeps only the most recent pending run per group). Exact in both
+ * directions, like EXPECTED, and a file listed here must have no workflow-level
+ * block (EXPECTED's exact set enforces that).
+ */
+const EXPECTED_JOBS = {
+  'deploy-aws.yml#deploy': 'serialised',
+  // Its own group, not the API's: the two deploy different services and migrate
+  // different databases, so sharing one would make each block the other for no
+  // gain. Serialised for the same reason as the API's — and here the group is
+  // additionally the ONLY interlock on the migrator, which takes no lock of its
+  // own and reads the ledger's high-water mark outside its transaction.
+  'deploy-integrations.yml#deploy': 'serialised',
+  // One Worker upload at a time per frontend.
+  'deploy-frontends.yml#deploy-app': 'serialised',
+  'deploy-frontends.yml#deploy-canvas': 'serialised',
 };
 
 /** The top-level `concurrency:` block of a workflow, or `null`. */
@@ -90,48 +107,57 @@ function concurrencyOf(text) {
   return block;
 }
 
+/** Every job-level `concurrency:` block of a workflow, as `{ job: block }`. */
+function jobConcurrencyOf(text) {
+  const lines = text.split('\n');
+  const blocks = {};
+  let job = null;
+  for (let i = 0; i < lines.length; i += 1) {
+    const jobStart = lines[i].match(/^ {2}([a-z][a-z0-9-]*):\s*$/);
+    if (jobStart) job = jobStart[1];
+    if (job === null || !/^ {4}concurrency:/.test(lines[i])) continue;
+    const block = {};
+    for (let j = i + 1; j < lines.length; j += 1) {
+      const line = lines[j];
+      // The block ends at the next key of the job (or anything shallower).
+      if (/^ {0,4}\S/.test(line)) break;
+      const entry = line.match(/^ {6}([a-z-]+):\s*(.*)$/);
+      if (entry) block[entry[1]] = entry[2].trim();
+    }
+    blocks[job] = block;
+  }
+  return blocks;
+}
+
 const failures = [];
 const found = [];
+const foundJobs = [];
 
-for (const file of readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f))) {
-  const text = readFileSync(join(WORKFLOWS, file), 'utf8');
-  const block = concurrencyOf(text);
-  if (block === null) continue;
-  found.push(file);
-
+function check(where, block, kind) {
   const group = block.group ?? '';
   const cancel = block['cancel-in-progress'] ?? '';
-  const kind = EXPECTED[file];
-
-  if (kind === undefined) {
-    failures.push(
-      `${file}: has a concurrency block and is not in EXPECTED. Decide what it must do about ` +
-        `\`main\` and add it — a group that cancels main is how a post-merge gate stops running.`,
-    );
-    continue;
-  }
 
   if (kind === 'per-commit') {
     // The property, not the spelling: the group must vary with the COMMIT when
     // the ref is main. Any expression naming both is accepted.
     if (!group.includes('github.sha') && !group.includes('github.run_id')) {
       failures.push(
-        `${file}: group is \`${group}\`, which is the same for every commit on a branch. ` +
+        `${where}: group is \`${group}\`, which is the same for every commit on a branch. ` +
           `Two merges then share a group and the earlier run is cancelled — pending or running.`,
       );
     }
     if (!group.includes(MAIN_REF)) {
-      failures.push(`${file}: group does not mention ${MAIN_REF}, so it cannot vary by branch.`);
+      failures.push(`${where}: group does not mention ${MAIN_REF}, so it cannot vary by branch.`);
     }
     // A literal `true` cancels main. An expression that does not test the ref
     // cannot be conditional on it.
     if (cancel === 'true') {
       failures.push(
-        `${file}: cancel-in-progress is literally \`true\`, which cancels runs of main.`,
+        `${where}: cancel-in-progress is literally \`true\`, which cancels runs of main.`,
       );
     } else if (!cancel.includes(MAIN_REF)) {
       failures.push(
-        `${file}: cancel-in-progress is \`${cancel}\`, which does not depend on the ref. ` +
+        `${where}: cancel-in-progress is \`${cancel}\`, which does not depend on the ref. ` +
           `It must be false for main and true elsewhere.`,
       );
     }
@@ -140,16 +166,51 @@ for (const file of readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f))) {
   if (kind === 'serialised') {
     if (cancel !== 'false') {
       failures.push(
-        `${file}: cancel-in-progress is \`${cancel}\`, expected \`false\`. This workflow serialises ` +
+        `${where}: cancel-in-progress is \`${cancel}\`, expected \`false\`. This workflow serialises ` +
           `production rollouts; cancelling one mid-flight leaves the older image live and reports success.`,
       );
     }
+    if (group === '') {
+      failures.push(`${where}: has no group, so nothing is serialised.`);
+    }
     if (group.includes('github.sha') || group.includes('github.run_id')) {
       failures.push(
-        `${file}: group varies per run, so rollouts no longer serialise and two can race.`,
+        `${where}: group varies per run, so rollouts no longer serialise and two can race.`,
       );
     }
   }
+}
+
+for (const file of readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f))) {
+  const text = readFileSync(join(WORKFLOWS, file), 'utf8');
+
+  for (const [job, block] of Object.entries(jobConcurrencyOf(text))) {
+    const key = `${file}#${job}`;
+    foundJobs.push(key);
+    const kind = EXPECTED_JOBS[key];
+    if (kind === undefined) {
+      failures.push(
+        `${key}: has a job-level concurrency block and is not in EXPECTED_JOBS. Decide what it ` +
+          `must do about \`main\` and add it.`,
+      );
+      continue;
+    }
+    check(key, block, kind);
+  }
+
+  const block = concurrencyOf(text);
+  if (block === null) continue;
+  found.push(file);
+
+  const kind = EXPECTED[file];
+  if (kind === undefined) {
+    failures.push(
+      `${file}: has a concurrency block and is not in EXPECTED. Decide what it must do about ` +
+        `\`main\` and add it — a group that cancels main is how a post-merge gate stops running.`,
+    );
+    continue;
+  }
+  check(file, block, kind);
 }
 
 // Floors and the exact-set assertion. Without these a reader that stopped
@@ -166,6 +227,17 @@ if (found.sort().join(',') !== expected.join(',')) {
   process.exit(1);
 }
 
+const expectedJobs = Object.keys(EXPECTED_JOBS).sort();
+if (foundJobs.sort().join(',') !== expectedJobs.join(',')) {
+  console.error(
+    `check-workflow-concurrency: the set of job-level concurrency blocks changed.\n` +
+      `  found:    ${foundJobs.join(', ') || '(none)'}\n` +
+      `  expected: ${expectedJobs.join(', ')}\n` +
+      `A block that vanished is as interesting as one that appeared.`,
+  );
+  process.exit(1);
+}
+
 if (failures.length > 0) {
   console.error('check-workflow-concurrency: a workflow can cancel a run it must not.\n');
   for (const failure of failures) console.error(`  ${failure}`);
@@ -177,6 +249,6 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `check-workflow-concurrency: OK — ${found.length} workflows with a concurrency block; ` +
-    `main runs to completion in ci.yml, deploys still serialise in deploy-aws.yml.`,
+  `check-workflow-concurrency: OK — ${found.length} workflow-level and ${foundJobs.length} job-level ` +
+    `concurrency blocks; main runs to completion in ci.yml, deploys still serialise.`,
 );

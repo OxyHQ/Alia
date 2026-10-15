@@ -18,50 +18,19 @@
 name: Deploy integrations
 
 on:
-  push:
+  # After CI passes on a push to main, never alongside it — the same trigger and
+  # guards as deploy-aws.yml, owned by the `scope` job below.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-    # Path-filtered, unlike the API deploy, because this image takes a long ARM64
-    # build to produce and almost no commit changes it.
-    #
-    # The list is derived from what `packages/integrations/Dockerfile` actually
-    # COPYs, not from what looks related: the package itself, the root manifest
-    # and lockfile, and every workspace `package.json` (the Dockerfile copies all
-    # of them so `bun install --filter` can resolve the workspace graph). A change
-    # outside these cannot alter the image.
-    #
-    # The escape hatch for the case this reasoning is wrong is `workflow_dispatch`
-    # below, and the cost of being wrong is a stale image rather than a bad one.
-    paths:
-      - 'packages/integrations/**'
-      - 'packages/*/package.json'
-      - 'package.json'
-      - 'bun.lock'
-      - '.github/workflows/deploy-integrations.yml'
-      - '.github/scripts/deploy-ecs-image.sh'
-      # The reviewed-image gate's inputs: the root ignore file is hashed into
-      # the pin, and a re-pin or a gate change must reach the guard here.
-      - '.dockerignore'
-      - '.github/scripts/reviewed-images.json'
-      - '.github/scripts/reviewed-image.py'
+  # The escape hatch for a path scope that turns out wrong. Releases main's head,
+  # and only once CI succeeded for it.
   workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
-
-concurrency:
-  # Its OWN group, not `deploy-alia-backend`. Sharing the API's group would make
-  # an integrations change block an API release and vice versa, for no gain: they
-  # register revisions on different task-definition families, update different
-  # services, and migrate different databases.
-  #
-  # `cancel-in-progress: false` for the same reason the API deploy has it, and it
-  # is load-bearing here too: `runMigrations` takes NO lock — it reads the
-  # ledger's high-water mark outside its transaction — so this group is the only
-  # interlock stopping two runners attempting the same DDL. Cancelling between
-  # `run-task` and its exit-code check would also orphan a live migration task.
-  group: deploy-alia-integrations
-  cancel-in-progress: false
 
 env:
   AWS_REGION: us-west-2
@@ -73,13 +42,41 @@ env:
   APP: alia-integrations
   CLUSTER: oxy-cluster
   MIGRATION_DATABASE: alia_integrations
+  # The commit under release; see the same variable in deploy-aws.yml.
+  RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main'
+    needs: scope
+    if: github.ref == 'refs/heads/main' && needs.scope.outputs.integrations == 'true'
+    # On the job, not the workflow: see the same block in deploy-aws.yml. Only a
+    # run `scope` judged to be main's head enters the lane, so an older commit
+    # whose CI finished last cannot displace a newer pending release.
+    concurrency:
+      # Its OWN group, not `deploy-alia-backend`. Sharing the API's group would make
+      # an integrations change block an API release and vice versa, for no gain: they
+      # register revisions on different task-definition families, update different
+      # services, and migrate different databases.
+      #
+      # `cancel-in-progress: false` for the same reason the API deploy has it, and it
+      # is load-bearing here too: `runMigrations` takes NO lock — it reads the
+      # ledger's high-water mark outside its transaction — so this group is the only
+      # interlock stopping two runners attempting the same DDL. Cancelling between
+      # `run-task` and its exit-code check would also orphan a live migration task.
+      group: deploy-alia-integrations
+      cancel-in-progress: false
     runs-on: ubuntu-24.04-arm
+    # A backstop against GitHub's 6-hour default, deliberately loose. It must sit
+    # ABOVE deploy-ecs-image.sh's own ceiling: MAX_WAIT_SECS (1200s) bounds each
+    # wait, and with RUN_MIGRATIONS plus a post-rollout command the longest chain
+    # is four of them (pre migration, rollout, post migration, rollback) = 80 min.
+    # The rest — this image's ARM64 build included — measured 5-15 minutes a run.
+    # Killing the job inside those 80 minutes would strand an unmonitored rollout.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_SHA }}
 
       - name: Configure AWS credentials (OIDC, no stored keys)
         uses: aws-actions/configure-aws-credentials@v4
@@ -138,7 +135,7 @@ jobs:
       - name: Build and push (linux/arm64)
         id: build
         env:
-          COMMIT_TAG: ${{ github.sha }}
+          COMMIT_TAG: ${{ env.RELEASE_SHA }}
           DOCKERFILE: ${{ steps.reviewed.outputs.dockerfile }}
           CONTEXT: ${{ steps.reviewed.outputs.context }}
           SOURCE_TREE: ${{ steps.reviewed.outputs.source_tree }}
@@ -154,7 +151,7 @@ jobs:
             --platform linux/arm64 \
             -f "$DOCKERFILE" \
             ${TARGET:+--target "$TARGET"} \
-            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.revision=$RELEASE_SHA" \
             --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
             --label "io.oxy.source.tree=$SOURCE_TREE" \
             --label "io.oxy.build-inputs.sha256=$BUILD_INPUTS_SHA256" \
@@ -279,3 +276,61 @@ jobs:
             exit 0
           fi
           bash .github/scripts/deploy-ecs-image.sh
+
+      # The scope job's base for the next release; see the same step in
+      # deploy-aws.yml.
+      - name: Write the release marker
+        run: printf '%s\n' "$RELEASE_SHA" >"$RUNNER_TEMP/release-marker"
+      - name: Record this release for the next scope decision
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/release-marker
+          key: alia-release-integrations-${{ env.RELEASE_SHA }}
+
+  # The trigger guards, main's head and the path scope, decided outside the
+  # release lane (deploy-scope.sh). After `deploy` so that `deploy` stays the
+  # first job in the file.
+  scope:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      integrations: ${{ steps.integrations.outputs.integrations }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          sparse-checkout: .github/scripts
+      - name: Release only CI-green main head
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/deploy-scope.sh gate
+      # Path-scoped, unlike the API deploy, because this image takes a long ARM64
+      # build to produce and almost no commit changes it.
+      #
+      # The list is derived from what `packages/integrations/Dockerfile` actually
+      # COPYs, not from what looks related: the package itself, the root manifest
+      # and lockfile, and every workspace `package.json` (the Dockerfile copies all
+      # of them so `bun install --filter` can resolve the workspace graph), plus
+      # this workflow and the deploy script. The reviewed-image gate's inputs are
+      # in it too: the root ignore file is hashed into the pin, and a re-pin or a
+      # gate change must reach the guard here. A change outside these cannot alter
+      # the image; the cost of this reasoning being wrong is a stale image rather
+      # than a bad one, and `workflow_dispatch` is the escape hatch.
+      - name: Decide whether anything the integrations image ships changed
+        id: integrations
+        if: steps.gate.outputs.current == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SCOPE: '^(packages/integrations/|packages/[^/]+/package\.json$|package\.json$|bun\.lock$|\.github/workflows/deploy-integrations\.yml$|\.github/scripts/deploy-ecs-image\.sh$|\.dockerignore$|\.github/scripts/reviewed-images\.json$|\.github/scripts/reviewed-image\.py$)'
+        run: bash .github/scripts/deploy-scope.sh target integrations include "$SCOPE" alia-release-integrations-

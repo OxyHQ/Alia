@@ -1,42 +1,48 @@
 name: Deploy Frontends
 
 on:
-  workflow_dispatch:
-  push:
+  # After CI passes on a push to main, never alongside it — the same trigger and
+  # guards as deploy-aws.yml, owned by the `scope` job below. Until 2026-10 this
+  # ran on `push`, so a commit whose CI went red still shipped its frontends.
+  #
+  # Neither half waits for the other: the frontends are gated on CI, not on the
+  # API's rollout, exactly as unordered as they were on `push`. Ship both halves
+  # through the pipeline or both by hand (~/Oxy/docs/infra-and-deploys.md).
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-    paths:
-      - '.github/workflows/deploy-frontends.yml'
-      - 'packages/app/**'
-      - 'packages/alia-chat/**'
-      - 'packages/alia-canvas/**'
-      - 'bun.lock'
+  # Releases both frontends from main's head, and only once CI succeeded for it.
+  workflow_dispatch:
+
+# Checkout and the bun cache need nothing more: wrangler authenticates with the
+# Cloudflare credentials below, never with the job token, and the cache is
+# authorised by the Actions runtime rather than by this scope. `scope` adds
+# `actions: read` for itself.
+permissions:
+  contents: read
+
+env:
+  # The commit under release; see the same variable in deploy-aws.yml.
+  RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      app: ${{ steps.changes.outputs.app }}
-      canvas: ${{ steps.changes.outputs.canvas }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@v4
-        id: changes
-        with:
-          filters: |
-            app:
-              - 'packages/app/**'
-              - 'packages/alia-chat/**'
-              - 'bun.lock'
-            canvas:
-              - 'packages/alia-canvas/**'
-              - 'bun.lock'
-
   deploy-app:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.app == 'true' || github.event_name == 'workflow_dispatch'
+    needs: scope
+    if: needs.scope.outputs.app == 'true'
+    # One Worker upload at a time; never cancelled mid-upload. On the job, not
+    # the workflow, so that only a run `scope` judged to be main's head can
+    # queue here and an older commit cannot displace a newer pending release.
+    concurrency:
+      group: deploy-alia-app
+      cancel-in-progress: false
     runs-on: ubuntu-latest
+    # Measured 3-4 minutes; a backstop against the 6-hour default.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_SHA }}
       - uses: oven-sh/setup-bun@v2
         with:
           # The one pin is `packageManager` in package.json; scripts/check-bun-pin.mjs
@@ -91,12 +97,32 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      # The scope job's base for the next release; see the same step in
+      # deploy-aws.yml.
+      - name: Write the release marker
+        run: printf '%s\n' "$RELEASE_SHA" >"$RUNNER_TEMP/release-marker"
+      - name: Record this release for the next scope decision
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/release-marker
+          key: alia-release-app-${{ env.RELEASE_SHA }}
+
   deploy-canvas:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.canvas == 'true' || github.event_name == 'workflow_dispatch'
+    needs: scope
+    if: needs.scope.outputs.canvas == 'true'
+    # One Worker upload at a time; never cancelled mid-upload. On the job, not
+    # the workflow, so that only a run `scope` judged to be main's head can
+    # queue here and an older commit cannot displace a newer pending release.
+    concurrency:
+      group: deploy-alia-canvas
+      cancel-in-progress: false
     runs-on: ubuntu-latest
+    # Measured 3-4 minutes; a backstop against the 6-hour default.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_SHA }}
       - uses: oven-sh/setup-bun@v2
         with:
           # The one pin is `packageManager` in package.json; scripts/check-bun-pin.mjs
@@ -175,3 +201,55 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # The scope job's base for the next release; see the same step in
+      # deploy-aws.yml.
+      - name: Write the release marker
+        run: printf '%s\n' "$RELEASE_SHA" >"$RUNNER_TEMP/release-marker"
+      - name: Record this release for the next scope decision
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/release-marker
+          key: alia-release-canvas-${{ env.RELEASE_SHA }}
+
+  # The trigger guards, main's head and each frontend's path scope, decided
+  # outside the release lanes (deploy-scope.sh). The scopes are the ones the
+  # `detect-changes` paths-filter used on `push`.
+  scope:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      app: ${{ steps.app.outputs.app }}
+      canvas: ${{ steps.canvas.outputs.canvas }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          sparse-checkout: .github/scripts
+      - name: Release only CI-green main head
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/deploy-scope.sh gate
+      - name: Decide whether the app changed
+        id: app
+        if: steps.gate.outputs.current == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/deploy-scope.sh target app include '^(packages/app/|packages/alia-chat/|bun\.lock$)' alia-release-app-
+      - name: Decide whether Canvas changed
+        id: canvas
+        if: steps.gate.outputs.current == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/deploy-scope.sh target canvas include '^(packages/alia-canvas/|bun\.lock$)' alia-release-canvas-

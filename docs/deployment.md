@@ -2,8 +2,13 @@
 
 The API deploys to AWS ECS Fargate in `us-west-2`, behind the shared Oxy ALB, from the
 `linux/arm64` Dockerfile in `packages/api/`. `.github/workflows/deploy-aws.yml` builds,
-pushes to ECR and rolls the service out on a push to `main`, authenticating with OIDC —
-there are no AWS keys in this repository.
+pushes to ECR and rolls the service out once CI has passed on a push to `main`
+(`workflow_run`, never in parallel with CI), authenticating with OIDC — there are no AWS
+keys in this repository. Its `scope` job releases only main's current head, and only when
+something other than Markdown or `docs/` changed since the last release;
+`deploy-integrations.yml` and `deploy-frontends.yml` follow the same pattern with their own
+path scopes (`.github/scripts/deploy-scope.sh`). `workflow_dispatch` releases main's head
+on demand, and still requires CI to have succeeded for it.
 
 Infrastructure — the task definition, the ALB, the target group, ECR, IAM and the SSM
 parameter tree — is owned by `oxy-infra`, not by this repository. What lives here is the
