@@ -136,18 +136,9 @@ export function useTTS(options: UseTTSOptions = {}) {
     reset();
   }, [reset, releasePlayer]);
 
-  /**
-   * Play a stored clip.
-   *
-   * `onUnplayable` is how a caller says "I can make this again". Stored audio
-   * is not permanent — `tts/` objects age out — and a link to something that is
-   * gone fails in the player, not at the request, so the only place to notice
-   * is here. Without a fallback the failure is reported; with one, the caller
-   * gets to rebuild rather than the person getting an error about a button they
-   * pressed twice.
-   */
+  /** Play the clip the route answered with. A clip that will not play is a failure, reported. */
   const playFromUrl = useCallback(
-    (audioUrl: string, _messageId: string, signal: AbortSignal, onUnplayable?: () => void) => {
+    (audioUrl: string, signal: AbortSignal) => {
       releasePlayer();
 
       (async () => {
@@ -199,10 +190,6 @@ export function useTTS(options: UseTTSOptions = {}) {
             if (signal.aborted || playerRef.current !== player) return;
             if (status.error) {
               releasePlayer();
-              if (onUnplayable) {
-                onUnplayable();
-                return;
-              }
               setError(status.error);
               return;
             }
@@ -216,10 +203,6 @@ export function useTTS(options: UseTTSOptions = {}) {
           setPlaybackState('playing');
         } catch {
           if (signal.aborted) return;
-          if (onUnplayable) {
-            onUnplayable();
-            return;
-          }
           setError('Audio playback not available');
         }
       })();
@@ -228,7 +211,7 @@ export function useTTS(options: UseTTSOptions = {}) {
   );
 
   const readAloud = useCallback(
-    async (messageId: string, text: string, conversationId?: string, audioUrl?: string) => {
+    async (messageId: string, text: string, conversationId?: string) => {
       // Read volatile playback state at call time (not via closure) so this
       // callback's identity survives every playback transition. It is passed to
       // memoized message rows — an unstable identity re-renders all of them.
@@ -260,51 +243,29 @@ export function useTTS(options: UseTTSOptions = {}) {
         setPlaybackState('loading');
 
         /**
-         * Ask the server to make it, and play what comes back.
-         *
-         * Hoisted out of the cached branch below so a clip that has aged out of
-         * storage can fall back to it. `playFromUrl` is called WITHOUT a fallback
-         * here: a freshly made clip that will not play is a real failure, and
-         * retrying it would be a loop.
+         * Always ask the route: it answers a clip this person already had made —
+         * same text, voice, speed and model — from storage, without
+         * synthesizing it again, and makes it only when there is none. So a
+         * second press, here or after a reload, costs nothing and plays at once.
+         * `conversationId` (with the message id) files the clip under that
+         * conversation, so deleting the conversation deletes it.
          */
-        const synthesize = async () => {
-          const token = getToken();
-          if (!token) {
-            throw new Error('Not authenticated');
-          }
-
-          const audioUrl = await requestSpeechClip({
-            apiUrl,
-            token,
-            model: voiceModel,
-            input: text,
-            voice: getTTSVoice(),
-            speed: getTTSSpeed(),
-            conversationId,
-            messageId,
-            signal: controller.signal,
-          });
-          playFromUrl(audioUrl, messageId, controller.signal);
-        };
-
-        /**
-         * A stored clip plays straight away, and is remade if it has gone.
-         *
-         * The row keeps its key long after a `tts/` object ages out of storage,
-         * so the link is signed, valid, and points at nothing — a failure only
-         * the player ever sees. Remaking it is cheaper than keeping every clip
-         * forever, and the person notices nothing.
-         */
-        if (audioUrl) {
-          playFromUrl(audioUrl, messageId, controller.signal, () => {
-            void synthesize().catch((e: unknown) => {
-              if (!controller.signal.aborted) setError(errorMessage(e, 'Failed to read aloud'));
-            });
-          });
-          return;
+        const token = getToken();
+        if (!token) {
+          throw new Error('Not authenticated');
         }
-
-        await synthesize();
+        const audioUrl = await requestSpeechClip({
+          apiUrl,
+          token,
+          model: voiceModel,
+          input: text,
+          voice: getTTSVoice(),
+          speed: getTTSSpeed(),
+          conversationId,
+          messageId,
+          signal: controller.signal,
+        });
+        playFromUrl(audioUrl, controller.signal);
       } catch (e: unknown) {
         if (controller.signal.aborted) return;
         console.error('[TTS] Error:', e);

@@ -20,7 +20,11 @@ export interface SpeechClipRequest {
   readonly input: string;
   readonly voice: ProductVoice;
   readonly speed?: number;
-  /** Both or neither: the route stores the clip on that message when given. */
+  /**
+   * Both or neither: the saved message being read aloud. The route answers 404
+   * for one this person does not hold, and files the clip under that
+   * conversation, so deleting the conversation deletes it.
+   */
   readonly conversationId?: string;
   readonly messageId?: string;
   readonly signal: AbortSignal;

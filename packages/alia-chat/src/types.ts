@@ -74,8 +74,6 @@ export interface ChatMessage {
   speaker?: 'primary';
   /** Whether a voice transcript is still streaming */
   isStreaming?: boolean;
-  /** Cached TTS audio URL for read-aloud */
-  audioUrl?: string;
   /** Delegated agent identity */
   /** `character` is the agent's look as the server stores it (JSON), parsed where it is drawn. */
   agentInfo?: { id: string; name: string; character?: unknown };

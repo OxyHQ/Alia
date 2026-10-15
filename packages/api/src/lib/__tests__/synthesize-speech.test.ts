@@ -54,6 +54,7 @@ describe('speech through Oxy', () => {
     const result = await synthesizeSpeech({ ...request, input: 'Hola', speed: 1.15 });
     expect(result.audio).toEqual(Buffer.from([73, 68, 51, 255, 0]));
     expect(result.requestId).toBe('req_test');
+    expect(result.model).toBe('acme/voice-1');
     expect(H.speech).toHaveBeenCalledTimes(1);
     expect(H.speech).toHaveBeenCalledWith(
       {
@@ -115,6 +116,8 @@ describe('a refusal the model answers for falls back to the next speech model', 
       .mockResolvedValueOnce(audio('req_second'));
     const result = await synthesizeSpeech(request);
     expect(result.requestId).toBe('req_second');
+    // The model that answered, so its clip is stored under the right key.
+    expect(result.model).toBe('beta/voice-2');
     expect(modelsCalled()).toEqual(['acme/voice-1', 'beta/voice-2']);
     // Logged without the text or the user.
     expect(H.warn).toHaveBeenCalledWith(

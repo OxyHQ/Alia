@@ -111,20 +111,19 @@ export function useReadAloud(blocked: boolean) {
   const active = useRef(activeMessageId);
   active.current = activeMessageId;
   const toggle = useCallback(
-    (messageId: string, text: string, audioUrl?: string, conversationId?: string) => {
+    (messageId: string, text: string, conversationId?: string) => {
       const wasThis = active.current === messageId;
       stopReadingAloud();
       if (wasThis) return;
       owner = self.current;
       /**
-       * `conversationId` asks the route to STORE the clip on the message,
-       * found by this same id — so the next press, here or after a reload,
-       * plays it without making it again. The caller passes it only for a
-       * message the server holds (`Message.unsaved`): for one it does not, the
-       * route answers 404 and nothing would be read. Without it the clip is
-       * simply made and played.
+       * The route makes a clip once and answers every later press — here or
+       * after a reload — from storage. `conversationId` files it under the
+       * conversation, so deleting that deletes it; the caller passes it only
+       * for a message the server holds (`Message.unsaved`): for one it does
+       * not, the route answers 404 and nothing would be read.
        */
-      void readAloud(messageId, text, conversationId, audioUrl);
+      void readAloud(messageId, text, conversationId);
     },
     [readAloud],
   );

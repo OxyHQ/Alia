@@ -25,6 +25,8 @@ export interface SynthesizedSpeech {
   audio: Buffer;
   format: string;
   requestId: string;
+  /** The speech model that answered: the first candidate, or a fallback. */
+  model: string;
 }
 
 /**
@@ -196,6 +198,18 @@ function fromRefusal(error: OxyInferenceError, models: readonly string[]): Speec
   });
 }
 
+/**
+ * The speech models {@link synthesizeSpeech} tries, in its order — read from the
+ * cached catalogue, so asking costs no inference call. The speech-clip cache
+ * keys a clip by the model that made it, and looks a request up under these.
+ */
+export async function speechModelCandidates(): Promise<string[]> {
+  const candidates = await getSpeechModelIds().catch((cause: unknown) => {
+    throw new SpeechSynthesisError('SPEECH_UNAVAILABLE', { reason: 'no_speech_model', cause });
+  });
+  return candidates.slice(0, MAX_SPEECH_MODEL_ATTEMPTS);
+}
+
 export async function synthesizeSpeech(
   options: SynthesizeSpeechOptions,
 ): Promise<SynthesizedSpeech> {
@@ -204,10 +218,7 @@ export async function synthesizeSpeech(
   const client = getOxyInferenceClient();
   if (client === null)
     throw new SpeechSynthesisError('SPEECH_UNAVAILABLE', { reason: 'not_configured' });
-  const candidates = await getSpeechModelIds().catch((cause: unknown) => {
-    throw new SpeechSynthesisError('SPEECH_UNAVAILABLE', { reason: 'no_speech_model', cause });
-  });
-  const models = candidates.slice(0, MAX_SPEECH_MODEL_ATTEMPTS);
+  const models = await speechModelCandidates();
   const timeout = AbortSignal.timeout(SPEECH_TIMEOUT_MS);
   const signal =
     options.signal === undefined ? timeout : AbortSignal.any([options.signal, timeout]);
@@ -269,7 +280,12 @@ export async function synthesizeSpeech(
         requestId: result.requestId,
         models: [...tried],
       });
-    return { audio: Buffer.from(result.audio), format: 'mp3', requestId: result.requestId };
+    return {
+      audio: Buffer.from(result.audio),
+      format: 'mp3',
+      requestId: result.requestId,
+      model,
+    };
   }
   // `getSpeechModelIds` never answers an empty list, so the loop always returns or throws.
   throw new SpeechSynthesisError('SPEECH_UNAVAILABLE', { reason: 'no_speech_model' });

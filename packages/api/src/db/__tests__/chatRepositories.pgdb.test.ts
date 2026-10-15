@@ -18,14 +18,13 @@ import {
   countMessagesInConversation,
   deleteMessages,
   findLastMessage,
-  findMessageAudioUrl,
+  clientMessageExists,
   insertMessages,
   listMessages,
   listRecentTurns,
   listRecentUserText,
   messageExistsInConversation,
   replaceMessages,
-  setMessageAudioUrl,
   toStoredMessage,
   voteMessage,
 } from '../chat/messageRepository';
@@ -601,7 +600,7 @@ describe('the wire shape', () => {
     expect(plain.content).toBe('plain');
   });
 
-  it('links and reads back a cached audio url by the client id', async () => {
+  it('finds a message by its client id only for its owner', async () => {
     await insertMessages(db, [
       {
         conversationId: 'audio-conv',
@@ -613,20 +612,11 @@ describe('the wire shape', () => {
       },
     ]);
 
-    expect(await findMessageAudioUrl(db, 'audio-user', 'audio-conv', 'am0')).toBeNull();
-    expect(await setMessageAudioUrl(db, 'audio-user', 'audio-conv', 'am0', 'https://x/a.mp3')).toBe(
-      1,
-    );
-    expect(await findMessageAudioUrl(db, 'audio-user', 'audio-conv', 'am0')).toBe(
-      'https://x/a.mp3',
-    );
-
-    // Another account writes nothing and reads nothing: `undefined` is "no such
-    // message", which is what the route turns into a fresh synthesis.
-    expect(
-      await setMessageAudioUrl(db, 'audio-other', 'audio-conv', 'am0', 'https://x/b.mp3'),
-    ).toBe(0);
-    expect(await findMessageAudioUrl(db, 'audio-other', 'audio-conv', 'am0')).toBeUndefined();
+    expect(await clientMessageExists(db, 'audio-user', 'audio-conv', 'am0')).toBe(true);
+    expect(await clientMessageExists(db, 'audio-user', 'audio-conv', 'am1')).toBe(false);
+    expect(await clientMessageExists(db, 'audio-user', 'other-conv', 'am0')).toBe(false);
+    // Another account's message answers exactly like a missing one.
+    expect(await clientMessageExists(db, 'audio-other', 'audio-conv', 'am0')).toBe(false);
   });
 });
 

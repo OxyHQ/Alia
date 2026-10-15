@@ -69,11 +69,7 @@ vi.mock('../logger.js', () => ({
 import { closePostgres, connectPostgres, type ApiDatabase } from '../../db/index.js';
 import { conversations, messages } from '../../db/schema/chat.js';
 import { saveConversation } from '../conversation-saver.js';
-import {
-  findMessageAudioUrl,
-  setMessageAudioUrl,
-  voteMessage,
-} from '../../db/chat/messageRepository.js';
+import { clientMessageExists, voteMessage } from '../../db/chat/messageRepository.js';
 
 let db: ApiDatabase;
 
@@ -353,7 +349,7 @@ describe('saveConversation (append-only)', () => {
  * route both answered 404, until a reload swapped the ids for the server's.
  */
 describe('saveConversation keeps the client’s message ids', () => {
-  it('stores the turn under the ids the client drew it with, and a vote and a clip find it', async () => {
+  it('stores the turn under the ids the client drew it with, and a vote and read-aloud find it', async () => {
     await saveConversation({
       userId: USER,
       conversationId: CONV,
@@ -364,8 +360,7 @@ describe('saveConversation keeps the client’s message ids', () => {
 
     expect((await stored()).map((row) => row.clientMessageId)).toEqual(['u-1', 'a-1']);
     await expect(voteMessage(db, USER, CONV, 'a-1', 'up')).resolves.toEqual({ vote: 'up' });
-    await expect(findMessageAudioUrl(db, USER, CONV, 'a-1')).resolves.toBeNull();
-    await expect(setMessageAudioUrl(db, USER, CONV, 'a-1', 'tts/clip.mp3')).resolves.toBe(1);
+    await expect(clientMessageExists(db, USER, CONV, 'a-1')).resolves.toBe(true);
   });
 
   it('names a delegated agent’s answers after the reply they came with, in order', async () => {
@@ -430,7 +425,7 @@ describe('saveConversation keeps the client’s message ids', () => {
     ]);
   });
 
-  it('keeps a vote and a clip across the rewrite an edit forces', async () => {
+  it('keeps a vote across the rewrite an edit forces', async () => {
     await saveConversation({
       userId: USER,
       conversationId: CONV,
@@ -450,7 +445,6 @@ describe('saveConversation keeps the client’s message ids', () => {
       assistantMessageId: 'a-2',
     });
     await voteMessage(db, USER, CONV, 'a-1', 'down');
-    await setMessageAudioUrl(db, USER, CONV, 'a-1', 'tts/a1.mp3');
     await voteMessage(db, USER, CONV, 'a-2', 'up');
 
     // U2 edited: the client cuts back to it and sends the new version, which
@@ -468,11 +462,11 @@ describe('saveConversation keeps the client’s message ids', () => {
     });
 
     const rows = await stored();
-    expect(rows.map((row) => [row.clientMessageId, row.vote, row.audioUrl])).toEqual([
-      ['u-1', null, null],
-      ['a-1', 'down', 'tts/a1.mp3'],
-      ['u-3', null, null],
-      ['a-3', null, null],
+    expect(rows.map((row) => [row.clientMessageId, row.vote])).toEqual([
+      ['u-1', null],
+      ['a-1', 'down'],
+      ['u-3', null],
+      ['a-3', null],
     ]);
   });
 

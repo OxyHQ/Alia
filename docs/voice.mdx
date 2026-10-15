@@ -193,6 +193,69 @@ structured `speech` log record — `code`, `reason`, `status`, Oxy's
 the product voice and the input's length — and never the text, the user or the
 conversation. Each fallback is a `warn` record of the same kind.
 
+## A clip is made once
+
+Speech is paid per character, so `POST /v1/audio/speech` never synthesizes the
+same thing twice for the same person (`lib/speech-clips.ts`). A reply read aloud
+again — here or after a reload — and every sentence a call says again ("Claro.")
+are answered from storage, without calling Oxy.
+
+**The key.** `speech_clips.cache_key` is a SHA-256 of
+`[key version, oxy user id, speech model, voice, speed, "mp3", exact text]`.
+The person is in it, so a clip is never shared between people: how fast an
+answer comes must not tell one person what another had read aloud. The text is
+taken exactly (no trimming or case folding) and is not stored. The speed is
+rounded to two decimals, and `1` counts as no speed at all — that normalized
+value is also what synthesis is sent, so the key describes the request made.
+
+**The model.** A clip is keyed by the model that made it. Before synthesizing,
+the request is looked up under every model `synthesizeSpeech` would try, in its
+order (from the cached catalogue, no inference call), and the best-ranked stored
+clip answers. A fallback therefore pays once: if the first model always refuses
+this voice or speed, the second model's clip answers every later request. A
+model that has left the candidates is never served; a new first model is used
+for text that has no clip yet.
+
+**A saved message.** `conversationId` + `messageId` must name the person's own
+message (404 before anything is made otherwise). The clip is then filed under
+that conversation — the first conversation that asks claims a clip that has
+none, and it is never moved. `messages.audio_url`, which held one clip per
+message whatever its voice or speed, is gone (`0093_drop_message_audio_url`,
+post phase); the client always asks the route, and a stored clip is an instant
+answer. `requestId` is in the answer only when that request made the clip.
+
+**Two identical requests at once** are joined inside one API task: one
+synthesis, and it is cancelled only when every request waiting for it has gone.
+Across ECS tasks there is no lock: two tasks can each pay once for the same clip
+in the same moment; the index keeps the first object and the other task deletes
+its own. A clip whose synthesis has finished is stored even if the person has
+left, so the next request is a hit.
+
+**Where clips go.**
+
+- Deleting a conversation (`DELETE /conversations/:id`) or clearing it
+  (`DELETE /conversations/:id/messages`) deletes its clips first — rows and
+  objects in one transaction, so if storage refuses the request fails with the
+  thread intact and can be repeated.
+- A clip unused for 30 days (`SPEECH_CLIP_RETENTION_DAYS`; every hit restarts
+  the clock) is deleted by an hourly sweep on the leader task. This is what
+  collects voice-call sentences, which no saved message asks for, and the clips
+  `messages.audio_url` held, which `0093` hands to the sweep already expired.
+- Alia has no account-erasure path today. When it has one, a person's clips are
+  their `speech_clips` rows and the objects under `<env>/tts/<oxy user id>/`;
+  the sweep bounds them meanwhile.
+
+The `speech_clips` row is the truth about its object: only `lib/speech-clips.ts`
+deletes `tts/` objects. The media bucket has no lifecycle rule, and none may be
+added on `tts/` — it would leave rows answering with links to nothing.
+
+**Observability.** Every served clip is one `speech` `info` record, `Speech
+clip served`, with `cache: "hit" | "miss"` (`miss` is a paid synthesis),
+`inflight` (answered by another request's synthesis still running), the model,
+the product voice and the input's length — never the text, the user or the
+conversation. Each sweep logs `Speech clip sweep complete` with the clips and
+objects removed, the empty runs included.
+
 ## When a call ends on its own
 
 A call belongs to one conversation of one account, on the screen showing it
