@@ -19,10 +19,9 @@ import {
   type CatalogTool,
   type ResourceRef,
 } from '@oxy.so/contracts';
-import { tool, type ToolSet } from 'ai';
-import { createInternalCatalogMcpClient } from '@oxy.so/mcp';
-import { z, type ZodTypeAny } from 'zod';
-import { jsonSchemaToZod } from './mcp-schema.js';
+import { jsonSchema, tool, type Schema, type ToolSet } from 'ai';
+import { createInternalCatalogMcpClient, jsonObjectSchemaToZod } from '@oxy.so/mcp';
+import { z } from 'zod';
 import {
   type CatalogActorType,
   catalogToolAllowsActor,
@@ -155,10 +154,39 @@ export interface OxyToolExecutionContext {
   approvals?: OxyApprovalGate;
 }
 
+/**
+ * `@oxy.so/mcp` builds its validators with its own Zod major, so only the shape
+ * Alia uses is named here.
+ */
+interface InputValidator {
+  safeParse(
+    value: unknown,
+  ): { success: true; data: unknown } | { success: false; error: ValidationFailure };
+}
+interface ValidationFailure {
+  issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey>; message: string }>;
+}
+
 interface CompiledTool {
   catalog: AppCapabilityCatalog;
   definition: CatalogTool;
-  inputSchema: ZodTypeAny;
+  /**
+   * The capability's input schema, EXACTLY as the app publishes it in the Oxy
+   * registry, and the one thing the model is shown for this tool.
+   *
+   * It used to be a Zod rebuild of the schema (`jsonSchemaToZod`) that the AI
+   * SDK turned back into JSON Schema. The rebuild dropped what it did not model
+   * — `minimum`/`maximum`, `maxLength`, `pattern`, `format`,
+   * `additionalProperties: false` (it became `passthrough`) — so the model was
+   * told `limit` was any number and extra keys were fine, sent `limit: 500` to
+   * Noted's `searchNotes`, and the app answered 400
+   * `capability_input_schema_mismatch`. The app validates with
+   * `jsonObjectSchemaToZod`; so does {@link CompiledTool.validator}, so a call
+   * the app would refuse never leaves Alia.
+   */
+  inputSchema: Schema<Record<string, unknown>>;
+  /** The app's own validator (`@oxy.so/mcp` `jsonObjectSchemaToZod`) over the same schema. */
+  validator: InputValidator;
   internalCatalogBinding?: CapabilityCatalogBinding;
 }
 interface CatalogDef {
@@ -252,7 +280,11 @@ async function oxyAuthorityFetch(path: string, init: RequestInit = {}): Promise<
     signal: init.signal ?? AbortSignal.timeout(TOOL_TIMEOUT_MS),
   });
   if (!response.ok) {
-    throw new Error(
+    // Oxy answering "no" (or not answering) about AUTHORITY is
+    // `OxyAuthorityUnavailableError`, never a bare Error: the body names Oxy's
+    // internal reason (`requester_lacks_grant_owner_authority`) and belongs in
+    // the log, not in front of the model.
+    throw new OxyAuthorityUnavailableError(
       `Oxy authority error (${response.status}): ${(await response.text()).slice(0, 240)}`,
     );
   }
@@ -298,6 +330,39 @@ function registryAppId(registration: { catalog?: unknown }): string | undefined 
     : undefined;
 }
 
+function compileTool(
+  catalog: AppCapabilityCatalog,
+  definition: CatalogTool,
+  internalCatalogBinding: CapabilityCatalogBinding | undefined,
+): CompiledTool {
+  const validator: InputValidator = jsonObjectSchemaToZod(definition.inputSchema);
+  return {
+    catalog,
+    definition,
+    validator,
+    inputSchema: jsonSchema<Record<string, unknown>>(definition.inputSchema, {
+      validate: (value) => {
+        const parsed = validator.safeParse(value);
+        return parsed.success
+          ? { success: true, value: parsed.data as Record<string, unknown> }
+          : { success: false, error: new Error(describeIssues(parsed.error)) };
+      },
+    }),
+    ...(internalCatalogBinding ? { internalCatalogBinding } : {}),
+  };
+}
+
+/** What was wrong with a call's input, by argument, for the model to correct. */
+function describeIssues(error: ValidationFailure): string {
+  return error.issues
+    .slice(0, 6)
+    .map(
+      (issue) =>
+        `${issue.path.length ? issue.path.map(String).join('.') : 'input'}: ${issue.message}`,
+    )
+    .join('; ');
+}
+
 function compileRegistration(registration: Registration): CatalogDef {
   const catalog = parseRegistryCatalog(registration.catalog);
   let internalCatalogBinding: CapabilityCatalogBinding | undefined;
@@ -323,12 +388,19 @@ function compileRegistration(registration: Registration): CatalogDef {
     displayName: appDisplayName(catalog.appId),
     compiledTools: catalog.tools
       .filter((definition) => definition.exposure.includes('internal'))
-      .map((definition) => ({
-        catalog,
-        definition,
-        inputSchema: jsonSchemaToZod(definition.inputSchema),
-        ...(internalCatalogBinding ? { internalCatalogBinding } : {}),
-      })),
+      .flatMap((definition) => {
+        try {
+          return [compileTool(catalog, definition, internalCatalogBinding)];
+        } catch (error: unknown) {
+          // A schema the app's own validator cannot read is a tool nobody can
+          // call correctly; it costs that tool, not the app's others.
+          log.general.error(
+            { err: error, appId: catalog.appId, tool: definition.name },
+            'Skipping an Oxy capability tool whose input schema does not compile',
+          );
+          return [];
+        }
+      }),
   };
 }
 
@@ -1058,6 +1130,30 @@ function sanitizeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9_]/g, '_');
 }
 
+/**
+ * Stands in for the owner's apps when Oxy would not say which of them this
+ * agent may use. One tool, so the model learns the apps are unavailable from the
+ * same typed answer every Oxy tool gives (`oxy_app_unavailable`) instead of
+ * concluding the person has none connected.
+ */
+export const OXY_APPS_UNAVAILABLE_TOOL = 'oxy_apps__status';
+
+function oxyAppsUnavailableTool() {
+  return declareReadOnly(
+    tool({
+      description:
+        "[Oxy apps] The person's own Oxy apps (mail, notes, posts…) that you work with. They are " +
+        'temporarily unavailable in this conversation: call this to confirm, do not claim you cannot see them.',
+      inputSchema: z.object({}),
+      execute: async () => ({
+        error: 'oxy_app_unavailable',
+        message:
+          "The person's Oxy apps are temporarily unavailable. Oxy could not confirm authority for this action. Do not claim it succeeded or use another route to bypass the check; try again later.",
+      }),
+    }),
+  );
+}
+
 export async function buildOxyServiceTools(
   oxyUserId: string,
   context: OxyToolExecutionContext,
@@ -1076,12 +1172,32 @@ export async function buildOxyServiceTools(
           (entry) => allowed.has(entry.catalog.appId) || allowed.has(`oxy-${entry.catalog.appId}`),
         )
       : allDefs;
+    // The owner's apps for an agent come from ONE capability-map call across
+    // every app, so it fails for all of them or none. When Oxy refuses it (the
+    // requester has no `account:act_as` over the owner — Oxy grants an account
+    // authority over itself only when it is a personal account), the owner's
+    // apps are unavailable for this turn; the agent's own account (`self_*`)
+    // and everything else still load.
+    let forUserUnavailable = false;
+    const forUserAssignments = async (): Promise<Assignment[]> => {
+      try {
+        return await agentAssignments(context);
+      } catch (error: unknown) {
+        if (!(error instanceof OxyAuthorityUnavailableError)) throw error;
+        forUserUnavailable = true;
+        log.general.warn(
+          { err: error, userId: oxyUserId },
+          "Oxy refused the agent's capability map; the owner's apps are unavailable this turn",
+        );
+        return [];
+      }
+    };
     const candidateBindings =
       context.actor.type === 'agent'
         ? [
             ...agentBindings(
               defs,
-              await agentAssignments(context),
+              await forUserAssignments(),
               agentIdentityOf(context).unattendedSessionId !== undefined &&
                 !context.userAccessToken,
             ),
@@ -1158,6 +1274,7 @@ export async function buildOxyServiceTools(
         binding.compiled.definition.effect === 'read' ? declareReadOnly(built) : built,
       );
     }
+    if (forUserUnavailable) tools[OXY_APPS_UNAVAILABLE_TOOL] = oxyAppsUnavailableTool();
     if (
       context.userAccessToken &&
       bindings.some((binding) => binding.compiled.internalCatalogBinding)
@@ -1396,7 +1513,7 @@ export async function resolveReviewedOxyAction(
       sameResource(candidate.resource, input.resource),
   );
   if (!binding) return { ok: false, reason: 'binding_changed' };
-  if (!binding.compiled.inputSchema.safeParse(input.args).success)
+  if (!binding.compiled.validator.safeParse(input.args).success)
     return { ok: false, reason: 'input_invalid' };
 
   return {
