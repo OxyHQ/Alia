@@ -17,9 +17,17 @@ cat >"$work/bin/gh" <<'STUB'
 #!/usr/bin/env bash
 args="$*"
 case "$args" in
-  *"/actions/workflows/"*"/runs"*)
+  *"/actions/workflows/"*"/runs"*"status=success"*)
     [[ "${FAKE_FAIL_CI:-}" == 1 ]] && exit 1
     printf '%s\n' "${FAKE_CI_COUNT:-0}" ;;
+  *"/actions/workflows/"*"/runs"*)
+    # Per-commit CI push runs: FAKE_CI_RUNS_FOR lists the commits that have one.
+    [[ "${FAKE_FAIL_RUNS:-}" == 1 ]] && exit 1
+    sha="$(grep -oE 'head_sha=[0-9a-f]{40}' <<<"$args" | cut -d= -f2)"
+    if [[ " ${FAKE_CI_RUNS_FOR:-} " == *" $sha "* ]]; then echo 1; else echo 0; fi ;;
+  *"/compare/"*".commits[]"*)
+    [[ "${FAKE_FAIL_GATE_COMPARE:-}" == 1 ]] && exit 1
+    printf '%s\n' "$FAKE_GATE_COMPARE" ;;
   *"/git/ref/heads/main"*)
     [[ "${FAKE_FAIL_HEAD:-}" == 1 ]] && exit 1
     printf '%s\n' "$FAKE_HEAD" ;;
@@ -66,7 +74,19 @@ run() {
 
 # gate
 run 0 current=true FAKE_HEAD=$sha -- gate
-run 0 current=false FAKE_HEAD=$newer -- gate
+# main moved on to a commit whose CI runs: hold.
+run 0 current=false FAKE_HEAD=$newer "FAKE_GATE_COMPARE=$(printf 'ahead\n1\n%s' $newer)" \
+  FAKE_CI_RUNS_FOR=$newer -- gate
+run 0 current=false FAKE_HEAD=$newer "FAKE_GATE_COMPARE=$(printf 'ahead\n2\n%s\n%s' $older $newer)" \
+  FAKE_CI_RUNS_FOR=$older -- gate
+# main moved on only by pushes that start no CI (auto-merge): release.
+run 0 current=true FAKE_HEAD=$newer "FAKE_GATE_COMPARE=$(printf 'ahead\n2\n%s\n%s' $older $newer)" \
+  -- gate
+# Anything that cannot prove the newer commits are CI-less: hold or fail.
+run 0 current=false FAKE_HEAD=$newer "FAKE_GATE_COMPARE=$(printf 'diverged\n1\n%s' $newer)" -- gate
+run 0 current=false FAKE_HEAD=$newer "FAKE_GATE_COMPARE=$(printf 'ahead\n250\n%s' $newer)" -- gate
+run 1 '' FAKE_HEAD=$newer FAKE_FAIL_GATE_COMPARE=1 -- gate
+run 1 '' FAKE_HEAD=$newer "FAKE_GATE_COMPARE=$(printf 'ahead\n1\n%s' $newer)" FAKE_FAIL_RUNS=1 -- gate
 run 1 '' FAKE_FAIL_HEAD=1 -- gate
 run 1 '' GITHUB_EVENT_NAME=workflow_dispatch FAKE_CI_COUNT=0 FAKE_HEAD=$sha -- gate
 run 1 '' GITHUB_EVENT_NAME=workflow_dispatch FAKE_FAIL_CI=1 FAKE_HEAD=$sha -- gate
