@@ -224,6 +224,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
               header={({ agents }) => (
                 <View className="pt-8">
                   <AliaChatHeader
+                    agents={agents}
                     hasMessages
                     onClear={closeConversation}
                     onBack={closeConversation}

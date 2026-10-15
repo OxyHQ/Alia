@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useId, useRef } from 'react';
 import { useAliaActivityStore } from '../lib/activity-store';
 import { turnActivityState } from '../lib/turn-state';
-import { type AliaChatLabels, useLabels } from '../lib/labels';
+import { useLabels } from '../lib/labels';
 import { getTextFromContent } from '../lib/content-utils';
 import type { AliaAttachment } from '../types';
 import { buildMessageContent } from './attachment-utils';
