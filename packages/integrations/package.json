@@ -36,7 +36,7 @@
     "@types/express": "^4.17.25",
     "@types/node": "^20.19.43",
     "@types/ws": "^8.18.1",
-    "drizzle-kit": "0.31.10",
+    "drizzle-kit": "0.31.11",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
   }
