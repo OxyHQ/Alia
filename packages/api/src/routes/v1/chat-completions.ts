@@ -16,6 +16,7 @@ import { recordInferenceCorrelation } from '../../lib/observability/inference-co
 import { AliaError, AliaErrorCode } from '../../lib/errors/error-codes.js';
 import { SSEWriter } from '../../lib/chat/sse-writer.js';
 import { buildChatRequestContext } from '../../lib/chat/request-context.js';
+import { ASK_USER_QUESTION_TOOL } from '../../lib/tools/ask-user-question.js';
 import type { AgentMessage } from '../../lib/chat/stream-runner.js';
 import { runProviderLoop, type ChatLoopState } from '../../lib/chat/provider-loop.js';
 import {
@@ -329,6 +330,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       autonomyRuntime,
       responseMode,
       appCatalog: appCatalogPrompt,
+      askUserQuestion: Boolean(allTools?.[ASK_USER_QUESTION_TOOL]),
     });
     const systemMessage = systemPrompt.text;
 

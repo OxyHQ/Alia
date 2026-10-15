@@ -97,6 +97,7 @@ vi.mock('../../../db/chat/messageRepository.js', () => ({
 
 vi.mock('../../../lib/prompt-loader.js', () => ({
   buildSystemPrompt: (...args: any[]) => mockBuildSystemPrompt(...args),
+  loadPrompt: vi.fn(async () => ''),
 }));
 
 vi.mock('../../../lib/token-counter.js', () => ({

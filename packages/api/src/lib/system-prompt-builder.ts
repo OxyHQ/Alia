@@ -35,6 +35,9 @@ const SURFACE_PROMPTS: Readonly<Record<PromptSurface, string>> = {
  * layered over the surface prompt rather than replacing it.
  */
 const SPOKEN_ANSWER_PROMPT = 'voice';
+
+/** The rule for asking the person through `askUserQuestion`; see `SystemPromptOptions.askUserQuestion`. */
+const ASK_USER_QUESTION_PROMPT = 'ask-user-question';
 import { log } from './logger.js';
 import { agentPromptName, type HydratedAgent } from './agent-identity.js';
 import { readCapabilityGrants } from '../domain/capability-grants.js';
@@ -119,6 +122,15 @@ export interface SystemPromptOptions {
    * Layers `prompts/voice.md` over the base prompt; see `SPOKEN_ANSWER_PROMPT`.
    */
   responseMode?: 'voice' | null;
+  /**
+   * Whether `askUserQuestion` is registered for THIS turn (`ASK_USER_QUESTION_TOOL`
+   * in the assembled tool set). Layers `prompts/ask-user-question.md`, which tells
+   * the model to put a choice on the card instead of writing it as prose. Only the
+   * tool's presence may switch it on: a client with no card (developer key, bot,
+   * non-streaming) would otherwise be told to call a tool it does not have. Ignored
+   * for a spoken turn, which cannot draw a card.
+   */
+  askUserQuestion?: boolean;
   /** Autonomy runtime context */
   autonomyRuntime?: AutonomyRuntimeContext | null;
   /**
@@ -183,6 +195,7 @@ export class SystemPromptBuilder {
       autonomyRuntime,
       responseMode,
       appCatalog,
+      askUserQuestion,
     } = opts;
 
     /**
@@ -222,6 +235,13 @@ export class SystemPromptBuilder {
     if (responseMode === 'voice') {
       const spoken = await loadPrompt(SPOKEN_ANSWER_PROMPT);
       if (spoken !== '') systemMessage += `\n\n---\n\n${spoken}`;
+    }
+
+    // 1c. How to ask the person, when the card tool is in this turn's tool set —
+    // beside the base prompt's Ambiguity and Tools sections it qualifies.
+    if (askUserQuestion && responseMode !== 'voice') {
+      const ask = await loadPrompt(ASK_USER_QUESTION_PROMPT);
+      if (ask !== '') systemMessage += `\n\n---\n\n${ask}`;
     }
 
     // 2. Current date
