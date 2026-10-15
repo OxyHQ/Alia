@@ -7,8 +7,6 @@
   composer had before it became `ComposerPill` (15.1.0) and lost it. A question Alia asks sits
   beside the loader instead of inside the pill's `question` slot, so the light does not ring it.
 
-## 18.0.0
-
 ## 15.5.0
 
 - **Replies are set by Bloom's `Markdown`.** `AliaMarkdown` is a thin wrapper over
