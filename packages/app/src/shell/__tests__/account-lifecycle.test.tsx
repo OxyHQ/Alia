@@ -18,16 +18,18 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 vi.mock('@oxy.so/services', () => ({
   queryKeys: { accounts: { all: ['accounts'] }, sessions: { all: ['sessions'] } },
 }));
+vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({}) }));
 vi.mock('@/shared/i18n', () => ({ default: { t: (k: string) => k } }));
 vi.mock('react-native', () => ({ Platform: { OS: 'web' } }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
+import { useConversationStore } from '@alia.onl/sdk/runtime';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { useLibraryStore } from '@/features/library/runtime/library-store';
 import { useUserDataStore } from '@/features/memory/runtime/user-data-store';
 import { useShowStore } from '@/features/shows/runtime/show-store';
-import { offlineConversations } from '@/features/chat/runtime/use-conversations';
+import { offlineConversations } from '@/features/chat/runtime/offline-conversations';
 import { currentAccountEpoch, isCurrentAccountEpoch } from '@/shared/state/account-epoch';
 import { resetAccountSession, useAccountLifecycle } from '@/shell/account-lifecycle';
 
@@ -50,16 +52,17 @@ function seedAccountA(client: QueryClient) {
     },
     canvasArtifacts: [{ id: 'a1' } as never],
   });
-  useStore.setState({
+  useConversationStore.setState({
     pendingInitialMessage: {
+      conversationId: 'c1',
       content: 'hi',
       text: 'hi',
       attachments: [],
       mcpServerId: null,
       skillNames: [],
     },
-    ghostMode: true,
   });
+  useStore.setState({ ghostMode: true });
   useUserDataStore.setState({ memory: { memories: [{ _id: 'x' }] } as never });
   useLibraryStore.setState({ files: [{ _id: 'f1' } as never] });
   useShowStore.setState({ series: [{ id: 's1' } as never] });
@@ -72,7 +75,7 @@ function expectNothingOfA() {
   expect(ui.rightPanel).toBeNull();
   expect(ui.thoughtScope).toBeNull();
   expect(ui.canvasArtifacts).toEqual([]);
-  expect(useStore.getState().pendingInitialMessage).toBeNull();
+  expect(useConversationStore.getState().pendingInitialMessage).toBeNull();
   expect(useStore.getState().ghostMode).toBe(false);
   expect(useUserDataStore.getState().memory).toBeNull();
   expect(useLibraryStore.getState().files).toEqual([]);

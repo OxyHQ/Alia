@@ -1,4 +1,4 @@
-import type { ToolInvocation } from '../types';
+import type { ToolInvocation } from '../runtime/types';
 import { domainOf } from './domain';
 
 export interface CitationSource {

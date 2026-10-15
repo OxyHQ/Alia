@@ -3,34 +3,34 @@ import { ChatPageContent } from '@/features/chat/ui/chat-page-content';
 import { ThreadSearch } from '@/features/chat/ui/thread-search';
 import { UsageLimitDialog } from '@/features/billing/ui/usage-limit-dialog';
 import { deliverMarkdownFile } from '@/features/chat/runtime/conversation-share';
+import { type AliaAttachment } from '@alia.onl/sdk';
 import {
+  type Message,
+  UsageLimitError,
   buildConversationMarkdown,
   exportFilename,
-} from '@/features/chat/model/conversation-export';
-import { UsageLimitError } from '@/features/billing/model/usage-limit-error';
-import { queryKeys } from '@/shared/api/query-keys';
-import { useModeSelection } from '@/features/chat/ui/composer/power-level-options';
-import { useChatConversation } from '@/features/chat/runtime/use-chat-conversation';
-import { useAgentActivity } from '@/features/chat/runtime/use-agent-activity';
+} from '@alia.onl/sdk/model';
 import {
   useConversation,
+  useConversationThread,
   useCreateConversation,
   useDeleteConversation,
-} from '@/features/chat/runtime/use-conversations';
+} from '@alia.onl/sdk/runtime';
+import { queryKeys } from '@/shared/api/query-keys';
+import { useModeSelection } from '@/features/chat/ui/composer/power-level-options';
+import { useAgentActivity } from '@/features/chat/runtime/use-agent-activity';
 import { useVoiceSoundEffects } from '@/shared/platform/use-sound-effects';
 import type { SendOptions } from '@/shared/contracts/chat-turn';
-import type { AliaAttachment } from '@alia.onl/sdk';
 import { useThreadHistory } from '@/features/chat/runtime/use-thread-history';
 import { useThreadWindow, type ThreadSearchHit } from '@/features/chat/runtime/use-thread-search';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useAppVoice } from '@/features/chat/runtime/use-app-voice';
+import { useStore } from '@/features/chat/runtime/global-store';
 import { useModelStore } from '@/features/chat/runtime/model-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
-import type { Message } from '@/features/chat/model/chat';
 import { Button } from '@oxy.so/bloom/button';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
-import { useOxy } from '@oxy.so/services';
 import { usePathname, useRouter } from 'expo-router';
 import { useScreenOnShow } from '@/shared/platform/use-screen-on-show';
 import { useQueryClient } from '@tanstack/react-query';
@@ -52,8 +52,6 @@ interface ConversationScreenProps {
    * behind it and therefore nothing to re-read.
    */
   threadHandle?: string;
-  /** Open straight into voice, once. */
-  startVoice?: boolean;
 }
 
 /**
@@ -76,7 +74,6 @@ export const ConversationScreen = ({
   agentId,
   agentName,
   threadHandle,
-  startVoice = false,
 }: ConversationScreenProps) => {
   // A conversation keeps its own power level once one is chosen here, and
   // follows the user's standing choice until then. It used to open on a
@@ -87,6 +84,11 @@ export const ConversationScreen = ({
   const [conversationLevel, setConversationLevel] = useState<string | null>(null);
   const selectedModel = conversationLevel ?? globalLevel;
   const selection = useModeSelection(selectedModel);
+
+  // The sidebar highlights the open conversation.
+  useEffect(() => {
+    useStore.getState().setChatId({ id: conversationId, from: 'url' });
+  }, [conversationId]);
 
   const {
     messages,
@@ -106,9 +108,9 @@ export const ConversationScreen = ({
     editMessage,
     regenerateMessage,
     turnOptionsOf,
-  } = useChatConversation({
+  } = useConversationThread({
     conversationId,
-    selectedModel: selection.send,
+    model: selection.send,
     agentId,
   });
 
@@ -309,23 +311,12 @@ export const ConversationScreen = ({
    */
   // And it is this conversation's, this account's and this screen's: it ends
   // when any of the three stops being true (the SDK's `useVoiceLauncher`).
-  const { user } = useOxy();
   const isFocused = useScreenOnShow();
   const voice = useAppVoice({
     conversationId,
     ...(agentId === undefined ? {} : { agentId }),
-    owner: `${user?.id ?? 'guest'}:${conversationId}`,
     isFocused,
   });
-
-  // Auto-activate voice when navigated with startVoice (once only)
-  const voiceAutoStartedRef = useRef(false);
-  useEffect(() => {
-    if (startVoice && !voiceAutoStartedRef.current && !voice.isActive) {
-      voiceAutoStartedRef.current = true;
-      voice.start();
-    }
-  }, [startVoice, voice]);
 
   // Sound effects for voice mode (thinking, tool calls, connect/disconnect)
   useVoiceSoundEffects({

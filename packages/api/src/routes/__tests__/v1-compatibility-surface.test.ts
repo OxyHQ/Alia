@@ -267,9 +267,22 @@ const aliaChat = surface(aliaChatRouter, '/alia/chat');
  * authenticated one; no new auth mechanism comes with it. The voice call,
  * `GET /v1/voice/session`, is a WebSocket upgrade outside Express and so not on
  * this list (`lib/voice/voice-socket.ts`).
+ *
+ * ## 15 became 22: the person's conversations (the SDK's door)
+ *
+ * `@alia.onl/sdk` is embedded by every Oxy app on its own web origin, so it can only call a
+ * surface that answers a browser from any origin with a bearer. `/conversations` answers Alia's
+ * own origins alone (cookie-era allowlist), so the SAME router is mounted here too, behind a
+ * person's session (`authenticateToken`) and no other credential — see `routes/v1.ts`. This is
+ * the second addition to the list, after ADR 0017 §7, for the same reason: it is Alia's PRODUCT
+ * API (ADR 0010 keeps `/v1/*` permanent for Alia's own surfaces), not a compatibility route.
  */
 const FROZEN_ROUTES: readonly string[] = [
+  'DELETE /v1/conversations/:id',
+  'DELETE /v1/conversations/:id/messages',
   'GET /v1',
+  'GET /v1/conversations',
+  'GET /v1/conversations/:id',
   'GET /v1/audio/jobs/:jobId',
   'GET /v1/chat/completions',
   'GET /v1/me',
@@ -279,10 +292,13 @@ const FROZEN_ROUTES: readonly string[] = [
   // one-segment id.
   'GET /v1/models/:publisher/:model',
   'GET /v1/models/:modelId',
+  'PATCH /v1/conversations/:id/messages/:messageId/vote',
   'POST /v1/audio/generate',
   'POST /v1/audio/speech',
   'POST /v1/audio/transcriptions',
   'POST /v1/chat/completions',
+  'POST /v1/conversations',
+  'POST /v1/conversations/new',
   'POST /v1/images/generations',
   'POST /v1/report-usage',
   'POST /v1/resolve-model',
@@ -304,7 +320,7 @@ describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => 
     // removal is what the compatibility window gates and an unrecorded removal
     // is the other way this list stops describing the surface.
     expect(v1.map((e) => e.signature)).toEqual([...FROZEN_ROUTES].sort());
-    expect(FROZEN_ROUTES).toHaveLength(15);
+    expect(FROZEN_ROUTES).toHaveLength(22);
     expect(new Set(FROZEN_ROUTES).size).toBe(FROZEN_ROUTES.length);
   });
 
@@ -357,7 +373,20 @@ const CHAT: readonly string[] = [
   'apiKeyRateLimit',
 ];
 
+/**
+ * A person's session and nothing else, in front of the conversations: no application key, no
+ * channel-bot or Telegram secret, no requester assertion. The bots keep `/conversations`.
+ */
+const PERSON: readonly string[] = ['authenticateToken', 'apiKeyRateLimit'];
+
 const FROZEN_CHAINS: Readonly<Record<string, readonly string[]>> = {
+  'DELETE /v1/conversations/:id': PERSON,
+  'DELETE /v1/conversations/:id/messages': PERSON,
+  'GET /v1/conversations': PERSON,
+  'GET /v1/conversations/:id': PERSON,
+  'PATCH /v1/conversations/:id/messages/:messageId/vote': PERSON,
+  'POST /v1/conversations': PERSON,
+  'POST /v1/conversations/new': PERSON,
   // Public: the catalogue is readable without a credential, which is what makes
   // `GET /v1/models` usable as a discovery endpoint.
   'GET /v1': [],
@@ -402,7 +431,10 @@ describe('the compatibility surface gains no auth mechanism (#139 ws6, ADR 0004)
     const authNames = new Set(
       KNOWN_MIDDLEWARE.map(([, name]) => name).filter((name) => name !== 'handleChatCompletions'),
     );
+    // The conversations router carries its own per-route auth (it is the one `/conversations`
+    // mounts); on `/v1` it sits behind PERSON, asserted by the next test.
     const routeLevel = v1
+      .filter((e) => !e.signature.includes('/v1/conversations'))
       .filter((e) => e.own.some((h) => authNames.has(h)))
       .map((e) => `${e.signature} -> ${e.own.join(', ')}`);
     expect(routeLevel).toEqual([]);
@@ -414,6 +446,22 @@ describe('the compatibility surface gains no auth mechanism (#139 ws6, ADR 0004)
       'apiKeyRateLimit',
       'handleChatCompletions',
     ]);
+  });
+
+  it('admits only a person on the conversations: no key, no bot secret, no assertion', () => {
+    const conversations = v1.filter((e) => e.signature.includes('/v1/conversations'));
+    expect(conversations).toHaveLength(7);
+    for (const endpoint of conversations) {
+      // Person auth first, mounted before the channel-bot pre-auth and the blanket lane, so
+      // neither of those can have admitted the request.
+      expect(endpoint.chain).toEqual(['authenticateToken', 'apiKeyRateLimit']);
+      expect(endpoint.chain).not.toContain('?anonymous');
+      expect(endpoint.chain).not.toContain('authenticateTokenOrApiKey');
+    }
+    const v1Source = read('routes/v1.ts');
+    expect(v1Source.indexOf("router.use('/conversations', authenticateToken")).toBeLessThan(
+      v1Source.indexOf("req.headers['x-channel-bot-secret']"),
+    );
   });
 
   it('the one unnamed middleware is the channel-bot pre-auth, and it still compares in constant time', () => {
@@ -788,8 +836,6 @@ const SURFACE_DIFFERENCES: Readonly<Record<string, string>> = {
   'channel-bot-pre-auth':
     'Only /v1 runs the inline channel-bot middleware (routes/v1.ts). It is NOT what admits the integrations service — authenticateTokenOrApiKey dispatches x-channel-bot-secret to authenticateChannelBotSecret itself, so /alia/chat admits the same credential. What the inline copy still changes is the SET it matches against: listChannels() there, getConfiguredChannels() in the middleware, so a channel whose bot secret is set while the rest of its configuration is not authenticates on /v1 alone.',
   cors: 'Only /v1 has the public wildcard CORS policy (index.ts). /alia/chat falls to the Oxy allowlist, which is what a product surface should have.',
-  'sse-socket-tuning':
-    'Only /alia/chat gets socket.setNoDelay(true) and socket.setTimeout(0) (index.ts). /v1 gets the X-Accel-Buffering header alone, so the two surfaces behave differently on a long stream under a slow route.',
 };
 
 describe('the two chat surfaces differ only where it is recorded (#139 ws6, ADR 0004)', () => {
@@ -890,38 +936,26 @@ describe('the two chat surfaces differ only where it is recorded (#139 ws6, ADR 
     expect(SURFACE_DIFFERENCES.cors).toBeDefined();
   });
 
-  it('records the socket-tuning difference, read at the mounts that produce it', () => {
+  it('tunes both chat mounts alike, read at the mount that does it', () => {
+    // The SDK streams every turn through `/v1/chat/completions`, so a long stream there must not
+    // be cut by a socket timeout `/alia/chat` already escapes.
     const index = codeOfFile(path.join(API_SRC, 'index.ts'));
-    const aliaMount = index.indexOf(snippet("app.use('/alia/chat', (_req, res, next)"));
-    const v1Mount = index.indexOf(snippet("app.use('/v1', (_req, res, next)"));
-    expect(aliaMount).toBeGreaterThan(-1);
-    expect(v1Mount).toBeGreaterThan(-1);
-
-    // The product mount does the socket work; the generic one does not. Sliced
-    // at the next `app.use` so each assertion is about its own middleware body.
-    const body = (start: number): string => {
-      const next = index.indexOf('app.use(', start + 1);
-      return index.slice(start, next === -1 ? undefined : next);
-    };
-    expect(body(aliaMount)).toContain(snippet('setTimeout(0)'));
-    expect(body(aliaMount)).toContain(snippet('setNoDelay(true)'));
-    expect(body(v1Mount)).not.toContain(snippet('setTimeout(0)'));
-    expect(body(v1Mount)).not.toContain('setNoDelay');
-    // Both disable proxy buffering, which is the part they do share.
-    expect(body(aliaMount)).toContain('X-Accel-Buffering');
-    expect(body(v1Mount)).toContain('X-Accel-Buffering');
-    expect(SURFACE_DIFFERENCES['sse-socket-tuning']).toBeDefined();
+    const mount = index.indexOf(
+      snippet("app.use(['/alia/chat', '/v1/chat/completions'], (_req, res, next)"),
+    );
+    expect(mount).toBeGreaterThan(-1);
+    const next = index.indexOf('app.use(', mount + 1);
+    const body = index.slice(mount, next === -1 ? undefined : next);
+    expect(body).toContain(snippet('setTimeout(0)'));
+    expect(body).toContain(snippet('setNoDelay(true)'));
+    expect(body).toContain('X-Accel-Buffering');
   });
 
-  it('the record has exactly three entries', () => {
+  it('the record has exactly two entries', () => {
     // The exact count, so the map cannot absorb a fourth difference quietly and
     // cannot shrink to zero while the assertions above keep passing on the
     // entries that remain.
-    expect(Object.keys(SURFACE_DIFFERENCES).sort()).toEqual([
-      'channel-bot-pre-auth',
-      'cors',
-      'sse-socket-tuning',
-    ]);
+    expect(Object.keys(SURFACE_DIFFERENCES).sort()).toEqual(['channel-bot-pre-auth', 'cors']);
     for (const reason of Object.values(SURFACE_DIFFERENCES))
       expect(reason.length).toBeGreaterThan(40);
   });

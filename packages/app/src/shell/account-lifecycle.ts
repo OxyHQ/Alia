@@ -1,6 +1,7 @@
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { queryKeys as oxyQueryKeys } from '@oxy.so/services';
+import { useConversationStore } from '@alia.onl/sdk/runtime';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { useLibraryStore } from '@/features/library/runtime/library-store';
@@ -46,6 +47,8 @@ export function resetAccountSession(queryClient: QueryClient, next: string | nul
     true,
   );
   useStore.setState(useStore.getInitialState(), true);
+  // The first message queued for a conversation that was just created, and which row streams.
+  useConversationStore.setState(useConversationStore.getInitialState(), true);
   useUserDataStore.setState(useUserDataStore.getInitialState(), true);
   useLibraryStore.setState(useLibraryStore.getInitialState(), true);
   useShowStore.setState({ ...useShowStore.getInitialState(), activeGenerations: new Map() }, true);

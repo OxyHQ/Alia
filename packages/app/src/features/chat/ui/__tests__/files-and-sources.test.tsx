@@ -62,7 +62,7 @@ vi.mock('@/shared/i18n/use-translation', () => ({
 }));
 
 import { FilesAndSources } from '@/features/chat/ui/execution/files-and-sources';
-import type { OutputFile, Source } from '@/features/chat/model/thought-utils';
+import { type OutputFile, type Source } from '@alia.onl/sdk/model';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 

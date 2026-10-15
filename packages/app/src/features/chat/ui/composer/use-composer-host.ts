@@ -1,4 +1,4 @@
-import type { AliaChatLabels } from '@alia.onl/sdk';
+import { type AliaChatLabels } from '@alia.onl/sdk';
 import { useMemo } from 'react';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { speechLocale } from '@/features/voice/model/speech-locale';

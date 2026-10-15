@@ -118,7 +118,7 @@ vi.mock('@oxy.so/bloom/typography', async () => {
 
 import { MessageBlockBoundary } from '@/features/chat/ui/message-block-boundary';
 import { ToolResultCard } from '@/features/chat/ui/tool-result-card';
-import type { ToolCard } from '@/features/chat/model/tool-cards';
+import { type ToolCard } from '@alia.onl/sdk/model';
 
 /** What a tool could return that `cardOf` accepts and the weather card cannot read. */
 const MALFORMED = { type: 'weather', data: { place: 'Madrid' } } as unknown as ToolCard;

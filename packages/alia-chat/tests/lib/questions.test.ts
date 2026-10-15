@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { ToolInvocation } from '../../src/types';
+import type { ToolInvocation } from '../../src/runtime/types';
 import { askedQuestions, formatAnswers, pendingQuestions } from '../../src/lib/questions';
 
 const call = (args: unknown, state: ToolInvocation['state'] = 'result'): ToolInvocation => ({
+  toolCallId: 'q1',
   toolName: 'askUserQuestion',
   state,
   args: args as Record<string, unknown>,

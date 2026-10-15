@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -117,7 +117,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 import { ThoughtPanel } from '@/features/chat/ui/thought-panel';
-import type { Message } from '@/features/chat/runtime/use-conversations';
+import { type Message } from '@alia.onl/sdk/model';
 import { useUIStore, type ThoughtScope } from '@/features/chat/runtime/ui-store';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

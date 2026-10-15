@@ -22,5 +22,5 @@ export type { AskedOption, AskedQuestion, QuestionAnswer } from './lib/questions
 export { classifyIntake, MAX_ATTACHMENT_BYTES } from './lib/attachment-intake';
 export { toolCallStatus } from './lib/tool-call-status';
 export type { ToolCallStatus } from './lib/tool-call-status';
-export { englishWorkLog } from './lib/work-log-copy';
-export type { Translate } from './lib/work-log-copy';
+export { englishCopy } from './lib/copy';
+export type { Translate } from './lib/copy';

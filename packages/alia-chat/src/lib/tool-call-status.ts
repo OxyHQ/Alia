@@ -1,4 +1,4 @@
-import type { ToolInvocation } from '../types';
+import type { ToolInvocation } from '../runtime/types';
 
 /**
  * Where a tool call stands:

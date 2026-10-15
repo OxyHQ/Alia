@@ -1,5 +1,11 @@
 import { useComposerAddMenu } from '@/features/chat/ui/composer/add-menu';
-import type { AliaAttachment, AliaComposerProps } from '@alia.onl/sdk';
+import { type AliaAttachment, type AliaComposerProps } from '@alia.onl/sdk';
+import {
+  type DraftTarget,
+  useComposerDraft,
+  useComposerDraftStore,
+  useDraftAddress,
+} from '@alia.onl/sdk/runtime';
 import { usePowerLevelSelector } from '@/features/chat/ui/composer/power-level-options';
 import {
   buildTurnSelection,
@@ -11,12 +17,6 @@ import { useMcpServers } from '@/features/connections/runtime/use-mcp-servers';
 import { useInstalledSkills } from '@/features/skills/runtime/use-skills';
 import type { SendOptions } from '@/shared/contracts/chat-turn';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import {
-  useComposerDraft,
-  useComposerDraftStore,
-  useDraftAddress,
-  type DraftTarget,
-} from '@/features/chat/runtime/composer-draft-store';
 import { useModelStore } from '@/features/chat/runtime/model-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { toast } from '@oxy.so/bloom/toast';

@@ -207,8 +207,9 @@ app.use(
 );
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Optimize SSE routes for real-time streaming
-app.use('/alia/chat', (_req, res, next) => {
+// Optimize SSE routes for real-time streaming. `/v1/chat/completions` is the same handler, and
+// the one the SDK streams every turn through, so it gets the same socket tuning.
+app.use(['/alia/chat', '/v1/chat/completions'], (_req, res, next) => {
   // Disable all buffering for SSE
   res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
 

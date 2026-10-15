@@ -53,36 +53,15 @@ Section (c) of [the compatibility window](./migration/compatibility-window.md) i
 ## Using `@alia.onl/sdk` from your own application
 
 `@alia.onl/sdk` (`packages/alia-chat`) is a **product** client, not a generic one: its
-`useAliaChat` hook parses the `alia.*` stream events above. It nevertheless defaults to
-`POST /v1/chat/completions`, because the product route, `POST /alia/chat`, answers CORS
-preflights only for Alia's own origins (`packages/api/src/lib/cors-origins.ts`) while
-`/v1` answers `*`, and the SDK ships raw source that compiles into your app on your
-origin. Pointing it at `/alia/chat` from a browser would fail your preflight.
+conversation runtime parses the `alia.*` stream events above and stores conversations. It speaks
+only to `/v1` — `POST /v1/chat/completions` for a turn and `/v1/conversations` for the history —
+with the signed-in person's Oxy bearer and no cookies, on a surface with public CORS, so it works
+in the browser of any Oxy app on its own origin. There is nothing to relay or configure.
 
-The supported way to use the SDK from an application outside Alia's origins today is
-**through your own backend**. It receives the SDK's request, calls `POST /alia/chat`
-server-to-server — no `Origin` header, so no CORS decision — forwarding the
-`Authorization: Bearer …` header the SDK attached (the signed-in user's Oxy session, which
-Alia verifies with Oxy exactly as it would for a direct call, and meters to that user), and
-streams the `text/event-stream` body back unchanged. Then:
-
-```tsx
-useAliaChat({ apiUrl: 'https://your-backend.example' });
-```
-
-The hook appends its own paths, so your backend answers `POST /v1/chat/completions` and
-`GET /catalogue` under that base URL. The minimal relay is in
-[`packages/alia-chat/README.md`](../packages/alia-chat/README.md). A
-consumer-application credential for this route is Oxy Applications' to issue
-(`OxyHQ/oxy#972`); the retired `alia_sk_*` keys are refused.
-
-The cost is one more hop in the path of every stream. The shape that removes it is a CORS
-policy for the origins registered on your application in Oxy Console, blocked on that
-registry existing (`OxyHQ/oxy#972`); once it does, the per-application origin list
-replaces the `/v1` wildcard on both mounts (ADR 0010 § 3). The SDK default moving to
-`/alia/chat` in a major is an adoption window rather than a switch and is no longer
-needed to escape a sunset — `/v1/chat/completions` is permanent. Both shapes were recorded
-in [#244](https://github.com/OxyHQ/Alia/issues/244), which closed on that decision.
+`/v1/conversations` admits a person's session only (not an application key or a bot secret): a
+conversation is somebody's private history. Applications that want inference without conversations
+keep using `POST /v1/chat/completions` directly. A consumer-application credential for the
+conversation routes is not planned; the retired `alia_sk_*` keys are refused.
 
 ## Where new integrations go
 

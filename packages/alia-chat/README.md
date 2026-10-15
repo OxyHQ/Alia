@@ -17,7 +17,8 @@ a prebuilt library.
 bun add @alia.onl/sdk
 ```
 
-`react`, `react-native`, `@oxy.so/core`, `@oxy.so/services` and the Expo modules
+`react`, `react-native`, `@oxy.so/core`, `@oxy.so/services`, `@tanstack/react-query`
+(the conversation runtime's cache; `OxyProvider` mounts the client) and the Expo modules
 listed under `peerDependencies` in `package.json` are yours to install. Metro
 must resolve package `exports` (`resolver.unstable_enablePackageExports = true`,
 the default in Expo SDK 53+), because every icon import is a subpath.
@@ -44,21 +45,24 @@ The chat's own copy is English. Pass `labels` to `AliaChatSheet` or
 `AliaChatScreen` to translate it (`AliaChatLabels`; anything omitted stays
 English). Bloom's own strings follow `BloomProvider`'s `locale`.
 
-Two entry points:
+Entry points:
 
 - `@alia.onl/sdk` — the conversation screen (`AliaChatScreen`, `AliaChatSheet`,
   `AliaChatContent`) with its voice call included: the button that opens it, the
   bar with its honest state, the notices (failure, moved to another device, time
   limit) and the transcript in the same thread. Also dictation, read-aloud,
-  catalogue, primitives. The call loads on the first call.
+  the conversation runtime, primitives. The call loads on the first call.
+- `@alia.onl/sdk/runtime` — the conversation data layer alone (hooks, cache, stores,
+  `AliaRuntimeProvider`), for a sidebar or a test that must not load the chat UI.
+- `@alia.onl/sdk/model` — the conversation as pure data (the records, the timeline, the thought
+  panel's steps and sources, tool cards, the markdown export): no React, no Oxy client.
 - `@alia.onl/sdk/voice` — the call's parts (`VoiceSession`, `useVoiceRoom`,
   the audio engine) for a host that builds its own screen.
 
 Voice is on by default; `voice={false}` makes a chat text-only, and
-`voice={{ canStartVoice, onVoiceBlocked, onCallEnded, onNotice, conversationId,
-agentId, owner, isFocused }}` brings what only the host knows (the plan and
-credits gate, what to refresh when a call ends, where notices go, the
-conversation the call belongs to). Its words are `labels.voiceControls`,
+`voice={{ canStartVoice, onVoiceBlocked, onCallEnded, onNotice, isFocused }}` brings
+what only the host knows (the plan and credits gate, what to refresh when a call
+ends, where notices go). The conversation a call lives in is the chat's own. Its words are `labels.voiceControls`,
 `voiceError`, `voiceEnded`, `voiceEndingSoon` and `voiceBlocked`. A host with its
 own screen uses `useVoiceLauncher` and `AliaVoiceCall`, the same pieces.
 
@@ -114,22 +118,10 @@ On iOS and Android its composer rises with the keyboard through
 `react-native-keyboard-controller`, which needs the app wrapped in its
 `KeyboardProvider` (re-exported here).
 
-Or the hook on its own, with your own UI:
-
-```tsx
-import { useAliaChat } from '@alia.onl/sdk';
-
-const { messages, send, isStreaming, stop, error } = useAliaChat({
-  clientContext: 'The user is looking at their order history.',
-});
-```
-
-`useAliaChat` streams a turn as Server-Sent Events and switches on Alia's
-product events — `alia.reasoning`, `alia.tool_result`, `alia.research_progress`,
-`alia.plan_preview`, delegated-agent answers — into `ChatMessage` fields your
-components render. Those events are the product runtime's, not part of the Oxy
-generic inference contract, and this package is written against them on
-purpose: it is a **product** client.
+The sheet, the screen and the Alia app are three frames around ONE conversation runtime
+(see [The conversation runtime](#the-conversation-runtime)): they list, open, create, send,
+stop, retry, edit and clear conversations through the same hooks, and a conversation started in
+one is the same conversation in the others.
 
 ## An "Ask Alia" button with her live avatar
 
@@ -146,7 +138,7 @@ const state = useAliaActivity(); // 'idle' | 'thinking' | 'working' | 'writing'
 
 `useAliaActivity()` is the busiest of two sources, so a button reacts even with the sheet closed:
 
-- a turn running in this app: every `useAliaChat` publishes its lifecycle to a shared store;
+- a turn running in this app: every `useConversationThread` publishes its lifecycle to a shared store;
 - her runs for the signed-in person elsewhere (background work, another device): the API's
   `alia:activity` event on the person's `user:<id>` room, over ONE Socket.IO connection per
   API origin, opened with the Oxy session's token only while someone is signed in and a
@@ -186,144 +178,103 @@ import { AliaComposer } from '@alia.onl/sdk';
 />;
 ```
 
-## Which endpoint the SDK calls, and why
+## The conversation runtime
 
-The hook sends its turns to `POST {apiUrl}/v1/chat/completions`, with `apiUrl`
-defaulting to `EXPO_PUBLIC_ALIA_API_URL` or `https://api.alia.onl`. It also
-reads `GET {apiUrl}/catalogue` once per base URL when a `model` is passed, to
-check that `publisher/model` against the real models the server offers. With no
-`model`, the request carries none and the server's default model answers — the
-SDK ships no model identifier of its own.
+Everything that is a conversation lives in `src/runtime`, in layers that depend only downward:
 
-That is the compatibility surface, not the product route. `POST /alia/chat` is
-the same handler with the same authentication, and it is where Alia's own
-clients go — but the two mounts answer browsers differently:
+| Layer | What | Public names |
+| --- | --- | --- |
+| Transport | Alia's REST API over the signed-in person's Oxy client (token, refresh and the single 401 replay are Oxy's); the turn's SSE stream | `useAliaApi`, `AliaApiError` |
+| Model and state | the records, React Query keys and the cached lists; zustand stores for the composer drafts and the hand-off of a first message | `Message`, `Conversation`, `aliaQueryKeys`, `useComposerDraftStore`, `useConversationStore` |
+| Hooks | `useConversations` (the list, paginated), `useConversation` (one, with its history), `useCreateConversation`, `useRenameConversation`, `useDeleteConversation`, `useClearConversation`, and `useConversationThread`: the live thread of one conversation — messages, `sendMessage`, `createNewConversation`, `editMessage`, `regenerateMessage`, `retryFailedTurn`, `stopGeneration`, `clearConversation`, `startOver`, `ensureConversation` | `use…` |
+| UI | `AliaChatContent` (the conversation screen), `AliaChatScreen`, `AliaChatSheet` | components |
 
-| Preflight | `access-control-allow-origin` |
-| --- | --- |
-| `OPTIONS /alia/chat` from `https://alia.onl` or `https://console.alia.onl` | that origin, with credentials |
-| `OPTIONS /alia/chat` from an origin Alia does not enumerate | **absent** |
-| `OPTIONS /v1/chat/completions` from anywhere | `*` |
+A turn goes to `POST {apiUrl}/v1/chat/completions`; conversations to `{apiUrl}/v1/conversations`.
+`apiUrl` defaults to `EXPO_PUBLIC_ALIA_API_URL`, then `https://api.alia.onl`. A failure to
+answer is a typed error that keeps the person's turn in the thread with a retry (`FailedTurn`),
+never a filler message; running out of credits or hitting a rate limit is a `UsageLimitError`.
 
-`/alia/chat` takes Alia's exact-origin allowlist (`packages/api/src/lib/cors-origins.ts`);
-`/v1` is public CORS. Because this package compiles into *your* app on *your*
-origin, defaulting the hook to `/alia/chat` would fail every consumer's
-preflight on web. So it stays on `/v1/chat/completions`, which is Alia's
-**permanent product API** — it does not sunset
-([ADR 0010](https://github.com/OxyHQ/Alia/blob/main/docs/adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md)).
-Generic model access is a different product, Kaana through Oxy; this package
-is written against Alia's, and the credential a consumer presents is an Oxy
-one — the signed-in user's session today. A change of default to `/alia/chat`
-would be a semver-major of this package, would reach only consumers who upgrade
-**and** rebuild, and is not needed to escape a sunset; it is taken only if the
-per-application origin policy below makes it worthwhile
-([#244](https://github.com/OxyHQ/Alia/issues/244), closed on that decision).
+### Configure it once: `AliaRuntimeProvider`
 
-Native apps are not subject to CORS at all — React Native sends no `Origin`
-header — so the table above is about web builds and the backend path below.
-
-## Using the SDK from your own product: the consumer-backend path
-
-The supported way for an application outside Alia's origins to use this SDK
-today is to put your own backend between the SDK and Alia. Your backend
-receives the SDK's request, calls Alia's product route server-to-server — a
-server sends no `Origin` header, so `/alia/chat` answers it on its credential
-alone — and streams the SSE body back unchanged. Then point the hook at that
-backend:
+Providers nest and merge, so the sheet works with no provider at all and the Alia app mounts
+one above its routes. Everything is optional.
 
 ```tsx
-useAliaChat({ apiUrl: 'https://your-backend.example' });
+import { AliaRuntimeProvider, type AliaRuntimeHost } from '@alia.onl/sdk';
+
+const host: AliaRuntimeHost = {
+  // navigation: the runtime created or chose a conversation / the open one is gone
+  openConversation: (id) => router.push(`/c/${id}`),
+  closeConversation: () => router.replace('/'),
+  // what only the host can show: credits, an artifact panel, a haptic tick
+  onUsage: (frame) => updateCredits(frame.credits_remaining),
+  onArtifact: (artifact) => rightPanel.show(artifact),
+  turnRequest: () => ({ webSearch: composerMenu.webSearch, agentMode: composerMenu.agentMode }),
+};
+
+<AliaRuntimeProvider
+  apiUrl="https://api.alia.onl"
+  offline={accountScopedStore}  // optional: where a 401-ed session keeps its conversations
+  streamFetch={expoFetch}       // optional: a fetch that can stream a body on native
+  host={host}                   // memoise it
+>
+  {children}
+</AliaRuntimeProvider>;
 ```
 
-The hook keeps its paths, so your backend answers
-`POST /v1/chat/completions` and `GET /catalogue` under whatever base URL you
-give it. Nothing about the stream changes: the SDK's parser reads the bytes Alia
-wrote.
+The sheet and the Alia app differ ONLY in what they put there:
 
-**Which credential.** The SDK attaches the signed-in user's Oxy access token as
-`Authorization: Bearer …` on the request your backend receives. Forward that
-header as it is. `POST /alia/chat` authenticates with
-`authenticateTokenOrApiKey` (`packages/api/src/routes/chat.ts`,
-`packages/api/src/middleware/auth.ts`), which accepts an Oxy session token —
-verified with Oxy, the same way it would be if the browser had called Alia
-directly — and the turn is metered to that user's Alia entitlement, the same as
-a direct call. The other credentials the middleware recognises are
-Alia-internal. There is no consumer-application credential for this route yet — that is Oxy Applications' to issue (OxyHQ/oxy#972).
+```tsx
+// The sheet: nothing to configure; the chat keeps its own conversation.
+<AliaChatSheet ref={sheet} />
 
-A minimal relay, Node 18+ and Express:
-
-```ts
-import express from 'express';
-
-const ALIA = 'https://api.alia.onl';
-const app = express();
-app.use(express.json({ limit: '1mb' }));
-
-/** Relay one request to Alia and stream the answer back unchanged. */
-async function relay(
-  req: express.Request,
-  res: express.Response,
-  method: 'GET' | 'POST',
-  path: string,
-): Promise<void> {
-  const controller = new AbortController();
-  req.on('close', () => controller.abort());
-
-  const authorization = req.get('authorization');
-  const upstream = await fetch(`${ALIA}${path}`, {
-    method,
-    headers: {
-      ...(authorization ? { Authorization: authorization } : {}),
-      Accept: req.get('accept') ?? 'application/json',
-      ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}),
-    },
-    body: method === 'POST' ? JSON.stringify(req.body) : undefined,
-    signal: controller.signal,
-  });
-
-  res.status(upstream.status);
-  res.setHeader('Content-Type', upstream.headers.get('content-type') ?? 'application/json');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('X-Accel-Buffering', 'no'); // keep proxies from buffering the SSE stream
-  res.flushHeaders();
-
-  if (upstream.body === null) {
-    res.end();
-    return;
-  }
-  try {
-    for await (const chunk of upstream.body) res.write(chunk);
-  } catch (error) {
-    if (!controller.signal.aborted) throw error;
-  } finally {
-    res.end();
-  }
+// The Alia app: its route owns the conversation, its sidebar reads the same list.
+<AliaChatContent
+  conversationId={id}
+  onConversationChange={(next) => router.replace(next ? `/c/${next}` : '/')}
+  runtime={host}
+  model={powerLevel}
+/>
+function Sidebar() {
+  const { data } = useConversations(); // the very query the thread keeps up to date
+  …
 }
-
-// The SDK's turn: answered by Alia's PRODUCT route, server-to-server.
-app.post('/v1/chat/completions', (req, res) => relay(req, res, 'POST', '/alia/chat'));
-
-// The SDK's model check. Without this the hook still works — an unreadable
-// catalogue leaves the requested identifier alone — but it never learns what
-// the server offers.
-app.get('/catalogue', (req, res) => relay(req, res, 'GET', '/catalogue'));
-
-app.listen(3000);
 ```
 
-The request body the SDK sends is `{ model?, messages, stream: true }` and the
-response Alia writes is `text/event-stream`; the relay forwards both without
-reading them. CORS between your web app and your backend is yours to configure,
-as it would be for any of your own routes.
+### Voice lives in the conversation
 
-**The trade-off.** This is one more hop, and one more process in the path of a
-stream. Some consumers will not want it, which is why it is documented as the
-path that works today rather than chosen as the only one. The other two shapes
-— a CORS policy on `/alia/chat` for registered consumer origins, and the SDK
-default moving to `/alia/chat` in a major — are recorded in #244: the first is
-blocked on Oxy Applications carrying an origin registry (OxyHQ/oxy#972), and
-the second is an adoption window rather than a switch, for the raw-source
-reason above.
+A call always has a home. With a conversation open the call lives in it; on a new-chat screen
+the conversation is created when the call starts (after the plan/credits gate) and the call
+opens on the screen that shows it. That is one code path for the sheet, `AliaChatScreen` and the
+Alia app (`useVoiceLauncher`'s `resolveConversation` and `useVoiceCallRequests`):
+
+- the sheet has no routes, so the chat itself switches to the new conversation and the call opens
+  in place;
+- the Alia app's new-chat route is replaced by the conversation's (`host.openConversation`), and
+  the call opens on that screen, which takes the pending request.
+
+**Who decides which conversation is open:** the host, when it navigates (it passes
+`runtime.openConversation`, or an outer `AliaRuntimeProvider` has one); otherwise the chat.
+
+## Which API the SDK calls
+
+The SDK is Alia's product client and speaks **only to `/v1`**, Alia's product API: a bearer of
+the signed-in person's Oxy session, no cookies, and public CORS — so it works in the browser of
+every Oxy app, on that app's own origin, with nothing to configure and no backend in between.
+
+- A turn: `POST {apiUrl}/v1/chat/completions` — the same handler `/alia/chat` mounts, with every
+  `alia.*` stream event, `conversationId` and the stored history.
+- Conversations: `{apiUrl}/v1/conversations` (list, open, create, save, rename, delete, clear,
+  vote). A person's session only: an application key or a bot secret is refused, because a
+  conversation is somebody's private history.
+- Dictation, read-aloud and the voice call: `/v1/audio/*` and `/v1/voice/session`.
+
+`apiUrl` defaults to `EXPO_PUBLIC_ALIA_API_URL`, then `https://api.alia.onl`. `routes.ts` holds
+the paths, and `tests/runtime/v1-only.test.ts` fails if the transport builds a URL outside `/v1`.
+
+`model` is a power level (`auto`, `instant`, `medium`, `high`, `xhigh`, `pro`, `ultra`) or an
+exact `publisher/model`; it is sent as given, and omitted the server's default answers. The SDK
+ships no model identifier of its own.
 
 ## Scripts
 

@@ -5,8 +5,10 @@ import responsesRouter from './v1/responses.js';
 import modelsRouter from './v1/models.js';
 import audioRouter from './v1/audio.js';
 import imagesRouter from './v1/images.js';
+import conversationsRouter from './conversations.js';
 import {
   authenticateRequesterAssertion,
+  authenticateToken,
   authenticateTokenOrApiKey,
   oxyClient,
 } from '../middleware/auth.js';
@@ -28,6 +30,27 @@ router.get('/', (_req, res) => {
 
 // Public routes (no auth required)
 router.use('/models', modelsRouter);
+
+/**
+ * The person's conversations, on the product API — the one the SDK talks to.
+ *
+ * `@alia.onl/sdk` is embedded by every Oxy app, on their own web origins, so it can only call
+ * a surface with public CORS (this one: `cors({ origin: '*' })` in `index.ts`, bearer and no
+ * cookies). The SAME router `/conversations` mounts, so there is one implementation and one
+ * set of rules; only the door differs.
+ *
+ * ## Persons only
+ *
+ * A conversation is somebody's private history, so this door admits a person's Oxy session (a
+ * user bearer, or a service token acting for a person under an acting-as grant — both are
+ * `authenticateToken`) and nothing else: no `oxy_sk_` application key (it is already refused
+ * for every route but the two chat ones), no channel-bot or Telegram secret (those bots keep
+ * the server-to-server `/conversations`), no requester assertion. The owner's data only with
+ * the owner present: a third party's key has no owner present to speak for. It is mounted
+ * BEFORE the inline channel-bot middleware and the blanket `authenticateTokenOrApiKey` below
+ * for exactly that reason.
+ */
+router.use('/conversations', authenticateToken, apiKeyRateLimit, conversationsRouter);
 
 // Channel bot auth: validates x-channel-bot-secret against registered channels
 // and sets req.user from x-oxy-user-id for trusted bot services.

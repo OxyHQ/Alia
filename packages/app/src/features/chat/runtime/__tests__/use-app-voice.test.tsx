@@ -25,6 +25,7 @@ vi.mock('@alia.onl/sdk', () => ({
 }));
 vi.mock('@oxy.so/services', () => ({
   useAuth: () => ({ isAuthenticated: host.isAuthenticated, signIn: host.signIn }),
+  useOxy: () => ({ user: { id: 'u1' } }),
 }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: host.push }) }));
 vi.mock('@/features/billing/runtime/use-billing', () => ({
@@ -75,6 +76,7 @@ describe('useAppVoice', () => {
       locale: 'es-ES',
       voice: 'male',
       conversationId: 'conv-1',
+      accountId: 'u1',
     });
   });
 

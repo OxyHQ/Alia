@@ -6,7 +6,7 @@ type Sources = Readonly<Record<string, AliaAvatarState>>;
 /**
  * What Alia is doing, from every place that can know. Two sources feed it and neither owns it:
  *
- * - `local`: the turns running in THIS app, one entry per `useAliaChat` instance (the sheet);
+ * - `local`: the turns running in THIS app, one entry per `useConversationThread` instance;
  * - `remote`: runs the server reports for the person, one entry per agent session, so a button
  *   reacts to work that is not in any open chat.
  *

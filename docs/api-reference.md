@@ -99,13 +99,10 @@ allowlist in `packages/api/src/lib/cors-origins.ts` plus `WEB_URL`, mounted in
 credentials, one from a loopback dev origin the same, and one from any other origin gets
 no `access-control-allow-origin` at all. `/v1/*` answers `*` instead. A request with no
 `Origin` header — a server, a native app, `curl` — is never subject to either. The policy
-is pinned by `packages/api/src/middleware/__tests__/chat-origin-policy.test.ts`, and it is
-why `@alia.onl/sdk`, a product client that compiles into apps on origins Alia does not
-enumerate, still defaults to `/v1/chat/completions`. **An external product using the SDK
-goes through its own backend**: `useAliaChat({ apiUrl })` at the consumer's backend, which
-calls `POST /alia/chat` server-to-server with the user's Oxy token forwarded and streams
-the SSE body back unchanged — `packages/alia-chat/README.md` has the relay, and #244 the
-two other shapes and why neither is available yet.
+is pinned by `packages/api/src/middleware/__tests__/chat-origin-policy.test.ts`. That is why
+`@alia.onl/sdk`, embedded by every Oxy app on its own web origin, speaks only to `/v1`
+(`POST /v1/chat/completions`, `/v1/conversations`): the same handler and the same router, on the
+surface any origin may read. `/v1/conversations` admits a person's session alone.
 
 The SSE contract, with each event's emitting line and exact payload fields, is in
 [the chat runtime page](./chat-runtime.mdx). Two corrections worth carrying here, because
@@ -122,6 +119,7 @@ earlier revisions of this page had both wrong:
 | Mount | Owner module |
 |---|---|
 | `/conversations` | `routes/conversations.ts` |
+| `/v1/conversations` | `routes/conversations.ts` (the same router, mounted in `routes/v1.ts` behind a person's session only; the SDK's door) |
 | `/memory` | `routes/memory.ts` |
 | `/library` | `routes/library.ts` |
 | `/writing-style` | `routes/writing-style.ts` |

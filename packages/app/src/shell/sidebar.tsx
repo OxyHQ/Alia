@@ -20,13 +20,15 @@ import {
 } from '@/features/agents/model/identity';
 import { formatRelativeTime } from '@/shared/format/relative-time';
 import { queryKeys } from '@/shared/api/query-keys';
+import { ALIA_AVATAR, AliaAvatar, readAgentCharacter } from '@alia.onl/sdk';
+import { type Conversation } from '@alia.onl/sdk/model';
 import {
-  prefetchConversation,
+  useConversationStore,
   useConversations,
   useDeleteConversation,
+  usePrefetchConversation,
   useRenameConversation,
-  type Conversation,
-} from '@/features/chat/runtime/use-conversations';
+} from '@alia.onl/sdk/runtime';
 import { useMyAgents } from '@/features/agents/runtime/use-my-agents';
 import { useUnreadCount } from '@/features/notifications/runtime/use-notifications';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -36,7 +38,6 @@ import { useFoldersStore, type Folder } from '@/features/projects/runtime/folder
 import { useStore } from '@/features/chat/runtime/global-store';
 import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
 import { useProjectsStore, type Project } from '@/features/projects/runtime/projects-store';
-import { readAgentCharacter, ALIA_AVATAR, AliaAvatar } from '@alia.onl/sdk';
 import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
 import {
   ConversationSidebar,
@@ -122,9 +123,10 @@ function useSidebarProps() {
   const shell = useAiChatShell();
   const settings = useAliaSettings();
   const queryClient = useQueryClient();
+  const prefetchConversation = usePrefetchConversation();
   const { t } = useTranslation();
   const chatId = useStore((state) => state.chatId);
-  const streamingChatId = useStore((state) => state.streamingChatId);
+  const streamingChatId = useConversationStore((state) => state.streamingConversationId);
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError, isLoading } =
     useConversations();
   const { data: myAgents } = useMyAgents();
@@ -191,11 +193,11 @@ function useSidebarProps() {
           );
         }
       }
-      prefetchConversation(queryClient, id);
+      prefetchConversation(id);
       closeNav?.();
       router.replace(`/(app)/c/${id}`);
     },
-    [router, queryClient, conversations, closeNav],
+    [router, queryClient, prefetchConversation, conversations, closeNav],
   );
 
   /**
@@ -354,7 +356,7 @@ function useSidebarProps() {
         key: conv.id,
         label: conv.title || t('sidebar.newConversation'),
         meta: shortTime(conv.updatedAt),
-        onPrefetch: () => prefetchConversation(queryClient, conv.id),
+        onPrefetch: () => prefetchConversation(conv.id),
         actions:
           streaming && menu ? (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -369,7 +371,7 @@ function useSidebarProps() {
       };
     },
     [
-      queryClient,
+      prefetchConversation,
       t,
       isAuthenticated,
       streamingChatId,

@@ -163,7 +163,9 @@ describe('what the per-route middleware on /alia/chat adds', () => {
     // (`server.timeout` is 0, so node calls `socket.setTimeout(0)` itself), and
     // the reason it was not deleted is that deleting a redundant safety net on a
     // dead surface buys nothing and costs the next reader the measurement.
-    expect(boot).toContain(snippet("app.use('/alia/chat', (_req, res, next) => {"));
+    expect(boot).toContain(
+      snippet("app.use(['/alia/chat', '/v1/chat/completions'], (_req, res, next) => {"),
+    );
     expect(boot).toContain(snippet('res.socket.setNoDelay(true)'));
     expect(boot).toContain(snippet('res.socket.setTimeout(0)'));
     expect(new http.Server().timeout).toBe(0);

@@ -30,7 +30,7 @@ vi.mock('@oxy.so/bloom/icons/RiSparklingLine', () => ({ RiSparklingLine: () => n
 vi.mock('@oxy.so/bloom/icons/RiStarFill', () => ({ RiStarFill: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiTeamLine', () => ({ RiTeamLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiTimerLine', () => ({ RiTimerLine: () => null }));
-vi.mock('@/features/chat/runtime/use-conversations', () => ({
+vi.mock('@alia.onl/sdk/runtime', () => ({
   useConversations: () => ({ data: undefined }),
 }));
 vi.mock('@/shared/i18n/use-translation', () => ({

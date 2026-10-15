@@ -53,17 +53,14 @@ const chat = vi.hoisted(() => ({
   dismissSuggestedNewConversation: vi.fn(),
   failedTurn: null as unknown,
   retryFailedTurn: vi.fn(async () => true),
+  ensureConversation: vi.fn(async () => 'made' as string | undefined),
 }));
 
 /** Whether the person has ghost mode on, read through the global store's selector. */
-const ui = vi.hoisted(() => ({ ghostMode: false }));
+const ui = vi.hoisted(() => ({ ghostMode: false, setChatId: () => {} }));
 
 /** The props the screen handed `ChatPageContent` on its last render. */
 const captured = vi.hoisted(() => ({ props: null as Record<string, unknown> | null }));
-
-vi.mock('@/features/chat/runtime/use-chat-conversation', () => ({
-  useChatConversation: () => chat,
-}));
 
 /**
  * The subject is the wiring, so the content is a stub that records it. Rendering
@@ -133,7 +130,7 @@ vi.mock('@/features/chat/ui/welcome-intro', async () => {
 });
 
 vi.mock('@/features/chat/runtime/global-store', () => {
-  const useStore = (selector: (s: { ghostMode: boolean }) => unknown) => selector(ui);
+  const useStore = (selector: (s: typeof ui) => unknown) => selector(ui);
   return { useStore };
 });
 
@@ -151,18 +148,23 @@ vi.mock('@/features/chat/runtime/model-store', () => {
 vi.mock('@/features/chat/ui/composer/power-level-options', () => ({
   useModeSelection: (stored: string) => ({ shown: stored, send: stored, source: 'requested' }),
 }));
-vi.mock('@/features/chat/runtime/use-conversations', () => ({
+vi.mock('@alia.onl/sdk/runtime', () => ({
+  useConversationThread: () => chat,
   useCreateConversation: () => ({ mutateAsync: vi.fn(async () => ({ id: 'c1' })) }),
 }));
 
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+const voiceOptions = vi.hoisted(() => ({ current: null as null | Record<string, unknown> }));
 vi.mock('@/features/chat/runtime/use-app-voice', () => ({
-  useAppVoice: () => ({
-    isActive: false,
-    state: null,
-    start: () => undefined,
-    end: () => undefined,
-  }),
+  useAppVoice: (options: Record<string, unknown>) => {
+    voiceOptions.current = options;
+    return {
+      isActive: false,
+      state: null,
+      start: () => undefined,
+      end: () => undefined,
+    };
+  },
 }));
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -284,6 +286,14 @@ describe('the new-chat screen wires the whole conversation', () => {
     expect('selectedModel' in props).toBe(false);
     // Voice from the new-chat screen is the SDK's launcher, handing over to a conversation.
     expect(typeof (props.voice as { start: unknown }).start).toBe('function');
+  });
+
+  it('makes the conversation a call lives in with the thread’s own, after the gate', async () => {
+    await mount();
+
+    // The new-chat screen has no conversation; the call is made one by the hook the whole screen
+    // runs on — the rule the sheet and the conversation screen share.
+    expect(voiceOptions.current).toEqual({ resolveConversation: chat.ensureConversation });
   });
 
   it('names no conversation, because there is not one yet', async () => {

@@ -32,7 +32,7 @@ import type { AliaChatLabels } from '../lib/labels';
 export interface AliaChatScreenProps {
   /** App context injected into system prompt */
   clientContext?: string;
-  /** Kaana routing profile. Checked against `GET /catalogue`; omitted, the build's preference is used. */
+  /** The power level (`auto`, `instant`, `medium`, `high`, `xhigh`, `pro`, `ultra`) or an exact `publisher/model` every turn is sent with; omitted, the server picks. */
   model?: string;
   /** API URL override */
   apiUrl?: string;
@@ -52,8 +52,6 @@ export interface AliaChatScreenProps {
   welcomeSubtitle?: string;
   /** Welcome screen suggestions */
   welcomeSuggestions?: AliaSuggestion[];
-  /** The agents the host knows, with their look: a delegation's thinking avatar is drawn from them until the agent answers. */
-  agents?: AliaChatContentProps['agents'];
   /** What the host found for the typed text, shown over the composer (see `onSuggestionQuery`). */
   suggestionMatches?: AliaSuggestion[];
   /** The typed text, once typing has settled, for the host to search suggestions with. */
@@ -80,7 +78,6 @@ export function AliaChatScreen({
   welcomeGreeting,
   welcomeSubtitle,
   welcomeSuggestions,
-  agents,
   suggestionMatches,
   onSuggestionQuery,
   isDarkMode,
@@ -129,7 +126,6 @@ export function AliaChatScreen({
             welcomeGreeting={welcomeGreeting}
             welcomeSubtitle={welcomeSubtitle}
             welcomeSuggestions={welcomeSuggestions}
-            agents={agents}
             suggestionMatches={suggestionMatches}
             onSuggestionQuery={onSuggestionQuery}
             isDarkMode={isDarkMode}

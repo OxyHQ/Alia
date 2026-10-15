@@ -1,12 +1,9 @@
 export type AutomationAutonomy = 'read_only' | 'draft' | 'execute_on_request' | 'autonomous';
 export type AutomationExecutionMode = 'observe' | 'execute';
 
-export interface AutomationResource {
-  appId: string;
-  effectiveAccountId: string;
-  resourceType: string;
-  resourceId: string;
-}
+// The trigger of a scheduled task is drawn in the chat thread (its card), so the SDK owns the type.
+export type { AutomationResource, AutomationTrigger } from '@alia.onl/sdk/runtime';
+import { type AutomationResource, type AutomationTrigger } from '@alia.onl/sdk/model';
 
 export interface AutomationAction {
   id: string;
@@ -16,16 +13,6 @@ export interface AutomationAction {
   input: Record<string, unknown>;
   limits: Array<{ key: string; value: number | boolean }>;
 }
-
-export type AutomationTrigger =
-  | { type: 'manual' }
-  | {
-      type: 'event';
-      appId: string | null;
-      eventType: string | null;
-      resource?: AutomationResource | null;
-    }
-  | { type: 'schedule'; cron: string | null; timezone: string | null };
 
 /** Who is responsible for a task: Alia by default, or one or more of the person's agents. */
 export type AutomationActorSelection =

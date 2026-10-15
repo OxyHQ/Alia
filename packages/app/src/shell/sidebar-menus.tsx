@@ -1,4 +1,4 @@
-import type { Conversation } from '@/features/chat/runtime/use-conversations';
+import { type Conversation } from '@alia.onl/sdk/model';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import type { Folder } from '@/features/projects/runtime/folders-store';
 import type { Project } from '@/features/projects/runtime/projects-store';

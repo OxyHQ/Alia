@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -31,8 +31,7 @@ const draft = vi.hoisted(() => ({
   options: [] as unknown[],
 }));
 const composerProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
-const pending = vi.hoisted(() => ({ set: vi.fn(), clear: vi.fn() }));
-const mutateAsync = vi.hoisted(() => vi.fn(async () => ({ id: 'conv-1' })));
+const start = vi.hoisted(() => vi.fn(async (..._args: unknown[]) => true));
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
@@ -55,39 +54,16 @@ vi.mock('@/features/chat/ui/composer/use-alia-composer', () => ({
     };
   },
 }));
+vi.mock('@alia.onl/sdk/runtime', () => ({ useStartConversation: () => start }));
 vi.mock('@alia.onl/sdk', () => ({
   AliaComposer: (props: Record<string, unknown>) => {
     composerProps.current = props;
     return null;
   },
 }));
-vi.mock('@/features/chat/model/attachment-utils', () => ({
-  buildMessageContent: vi.fn(async (text: string) => ({
-    content: [
-      { type: 'text', text },
-      { type: 'image_url', image_url: { url: 'data:image/png;base64,AA' } },
-    ],
-    dropped: [],
-  })),
-}));
-vi.mock('@/features/chat/runtime/use-chat-conversation', () => ({
-  reportDroppedAttachments: vi.fn(),
-}));
-vi.mock('@/features/chat/runtime/use-conversations', () => ({
-  useCreateConversation: () => ({ mutateAsync, isPending: false }),
-}));
-vi.mock('@/features/chat/runtime/global-store', () => ({
-  useStore: {
-    getState: () => ({
-      setPendingInitialMessage: pending.set,
-      clearPendingInitialMessage: pending.clear,
-    }),
-  },
-}));
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
-vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn() } }));
 vi.mock('@oxy.so/bloom/typography', () => ({ Text: () => null, Muted: () => null }));
 vi.mock('@oxy.so/bloom/settings-list', () => ({
@@ -103,8 +79,8 @@ let renderer: ReactTestRenderer | null = null;
 beforeEach(() => {
   draft.options = [];
   draft.clearDraft.mockClear();
-  pending.set.mockClear();
-  mutateAsync.mockClear();
+  start.mockClear();
+  start.mockResolvedValue(true);
 });
 afterEach(() => {
   act(() => renderer?.unmount());
@@ -122,22 +98,18 @@ describe('automations', () => {
       (composerProps.current?.onSubmit as () => void)();
     });
 
-    expect(pending.set).toHaveBeenCalledWith({
-      content: [
-        { type: 'text', text: 'every morning, summarise this' },
-        { type: 'image_url', image_url: { url: 'data:image/png;base64,AA' } },
-      ],
-      text: 'every morning, summarise this',
+    // The whole draft goes to the chat it starts: text, files, connector and skills.
+    expect(start).toHaveBeenCalledWith('every morning, summarise this', {
       attachments: draft.attachments,
-      mcpServerId: 'mcp-1',
-      skillNames: ['brief'],
+      options: { mcpServerId: 'mcp-1', skillNames: ['brief'] },
+      draft: 'surface:automations',
     });
     // Emptied once the conversation exists, not before: a failed create keeps it.
     expect(draft.clearDraft).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the draft when the conversation could not be created', async () => {
-    mutateAsync.mockRejectedValueOnce(new Error('offline'));
+    start.mockResolvedValueOnce(false);
     act(() => {
       renderer = create(<AutomationsScreen />);
     });
@@ -147,6 +119,5 @@ describe('automations', () => {
     });
 
     expect(draft.clearDraft).not.toHaveBeenCalled();
-    expect(pending.clear).toHaveBeenCalled();
   });
 });

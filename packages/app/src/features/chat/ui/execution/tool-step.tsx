@@ -1,5 +1,5 @@
 import { useTranslation } from '@/shared/i18n/use-translation';
-import type { Source, ToolCallStatus } from '@/features/chat/model/thought-utils';
+import { type Source, type ToolCallStatus } from '@alia.onl/sdk/model';
 import { Chip } from '@oxy.so/bloom/chip';
 import { CodeBlock } from '@oxy.so/bloom/code';
 import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';

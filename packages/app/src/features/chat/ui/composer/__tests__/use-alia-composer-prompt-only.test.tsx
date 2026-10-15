@@ -12,6 +12,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * agent's level.
  */
 
+vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({}) }));
+
 const addMenu = vi.hoisted(() => ({ options: [] as Array<{ canAttach: boolean }> }));
 
 vi.mock('@/features/chat/ui/composer/add-menu', () => ({

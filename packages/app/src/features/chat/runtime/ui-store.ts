@@ -2,8 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { ContextUsage } from '@/features/chat/model/context-usage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Message } from '@/features/chat/runtime/use-conversations';
-import type { FailedTurn } from '@/features/chat/ui/turn-failure';
+import { type FailedTurn, type Message } from '@alia.onl/sdk/model';
 
 export type RightPanel = 'credits' | 'thought' | 'canvas' | 'gallery' | 'agent' | null;
 

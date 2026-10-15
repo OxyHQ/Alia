@@ -8,8 +8,8 @@ const APP = join(__dirname, '..', '..', '..', '..');
 /** Every file a source-reading test in this package pins through `codeOfFile`. */
 const PINNED = [
   'index.web.tsx',
-  'src/features/chat/runtime/use-chat-conversation.ts',
-  'src/features/chat/runtime/use-conversations.ts',
+  'src/features/chat/runtime/use-alia-host.ts',
+  'src/shell/sidebar.tsx',
 ];
 
 describe('the canonical source form', () => {

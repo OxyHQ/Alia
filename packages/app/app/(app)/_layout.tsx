@@ -11,8 +11,11 @@ import { useLocalRuntime } from '@/features/local-models/runtime/use-local-runti
 import { useNotificationSetup } from '@/features/notifications/runtime/use-notification-setup';
 import { useWelcomeSuggestions } from '@/features/chat/runtime/use-suggestions';
 import i18n from '@/shared/i18n';
-import { useComposerDraftStore } from '@/features/chat/runtime/composer-draft-store';
-import { offlineConversations } from '@/features/chat/runtime/use-conversations';
+import { offlineConversations } from '@/features/chat/runtime/offline-conversations';
+import { AliaRuntimeProvider, useComposerDraftStore } from '@alia.onl/sdk/runtime';
+import { fetch as expoFetch } from 'expo/fetch';
+import { useAliaHost } from '@/features/chat/runtime/use-alia-host';
+import config from '@/shared/platform/config';
 import { useAccountLifecycle } from '@/shell/account-lifecycle';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
 import { useFoldersStore } from '@/features/projects/runtime/folders-store';
@@ -60,6 +63,7 @@ export default function AppLayout() {
   const setRightPanel = useUIStore((state) => state.setRightPanel);
   const rightPanelWidth = useUIStore((state) => state.rightPanelWidth);
   const panelChrome = useWorkspacePanelChrome();
+  const aliaHost = useAliaHost();
 
   // Prefetch welcome suggestions so they're ready before any chat screen mounts
   useWelcomeSuggestions();
@@ -88,9 +92,9 @@ export default function AppLayout() {
     loadFavorites(userId);
     loadPinned(userId);
     // Composer drafts too: another account's half-written message and files
-    // are not this one's (`src/features/chat/runtime/composer-draft-store.ts`).
+    // are not this one's (the SDK's `composer-draft-store`).
     useComposerDraftStore.getState().bindAccount(userId);
-    // And the offline copy of the conversations (`use-conversations.ts`).
+    // And the offline copy of the conversations (`offline-conversations.ts`).
     offlineConversations.bind(userId);
   }, [userId, loadProjects, loadFolders, loadFavorites, loadPinned]);
 
@@ -200,38 +204,48 @@ export default function AppLayout() {
 
   return (
     <AppErrorBoundary>
-      {/* Bloom's native portal: the settings modal, a tooltip and the media
+      {/* The conversation runtime is the SDK's; this is what the app tells it. Everything below
+          — the sidebar's list and the open thread — reads the same conversations through it. */}
+      <AliaRuntimeProvider
+        apiUrl={config.apiUrl}
+        offline={offlineConversations}
+        // The streaming fetch: React Native's own cannot read a body as it arrives.
+        streamFetch={expoFetch as unknown as typeof fetch}
+        host={aliaHost}
+      >
+        {/* Bloom's native portal: the settings modal, a tooltip and the media
           gallery draw themselves through it, and without a provider and an
           outlet they draw nothing at all — Settings did not open on Android
           (docs/native-validation.mdx). The outlet sits INSIDE the settings
           provider, because what it renders reads its context from there: the
           settings pages call `useAliaSettings()`. On web both are no-ops and
           the portal goes to the document. Gate: native-portal-host.test.ts */}
-      <PortalProvider>
-        <AliaSettingsProvider>
-          <VoiceLabelsProvider>
-            {/* Hides the app from a screen reader while a portaled modal is up
+        <PortalProvider>
+          <AliaSettingsProvider>
+            <VoiceLabelsProvider>
+              {/* Hides the app from a screen reader while a portaled modal is up
               (TalkBack otherwise walks the chat behind Settings). */}
-            <OverlayInertBoundary>
-              {Platform.OS === 'web' ? (
-                shell
-              ) : (
-                // Android draws the app edge to edge and Bloom's shell takes no
-                // safe area: without this its frame, the chat header's menu button
-                // and the drawer all start under the status bar, where the system
-                // takes the touch (the button did nothing to a tap on its top two
-                // thirds). The strip above shows the root's background, which is
-                // the shell's own surface colour. The composer keeps the bottom
-                // inset itself (`chat-page-content.tsx`).
-                <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
-              )}
-            </OverlayInertBoundary>
-            <CommandPalette />
-            <KeyboardShortcutsDialog />
-            <PortalOutlet />
-          </VoiceLabelsProvider>
-        </AliaSettingsProvider>
-      </PortalProvider>
+              <OverlayInertBoundary>
+                {Platform.OS === 'web' ? (
+                  shell
+                ) : (
+                  // Android draws the app edge to edge and Bloom's shell takes no
+                  // safe area: without this its frame, the chat header's menu button
+                  // and the drawer all start under the status bar, where the system
+                  // takes the touch (the button did nothing to a tap on its top two
+                  // thirds). The strip above shows the root's background, which is
+                  // the shell's own surface colour. The composer keeps the bottom
+                  // inset itself (`chat-page-content.tsx`).
+                  <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
+                )}
+              </OverlayInertBoundary>
+              <CommandPalette />
+              <KeyboardShortcutsDialog />
+              <PortalOutlet />
+            </VoiceLabelsProvider>
+          </AliaSettingsProvider>
+        </PortalProvider>
+      </AliaRuntimeProvider>
     </AppErrorBoundary>
   );
 }

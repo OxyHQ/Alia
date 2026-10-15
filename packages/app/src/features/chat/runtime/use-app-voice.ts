@@ -11,8 +11,8 @@
 import { useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@oxy.so/services';
-import { useVoiceLauncher, type VoiceBlockReason, type VoiceLauncher } from '@alia.onl/sdk';
+import { useAuth, useOxy } from '@oxy.so/services';
+import { type VoiceBlockReason, type VoiceLauncher, useVoiceLauncher } from '@alia.onl/sdk';
 import config from '@/shared/platform/config';
 import { queryKeys } from '@/shared/api/query-keys';
 import { speechLocale } from '@/features/voice/model/speech-locale';
@@ -25,24 +25,25 @@ export interface UseAppVoiceOptions {
   conversationId?: string;
   /** The conversation's agent; omitted, Alia. */
   agentId?: string;
-  /** The account and the conversation, as one key: a call ends when it changes. */
-  owner?: string;
   /** Whether the screen holding the call is the one on show. */
   isFocused?: boolean;
-  /** The new-chat screen has no conversation to hold a call: it opens one and hands over. */
-  openElsewhere?: () => void;
+  /**
+   * Makes the conversation a call lives in when none is open (the new-chat screen), after the
+   * gate; see `useVoiceLauncher`.
+   */
+  resolveConversation?: () => Promise<string | undefined>;
 }
 
 export function useAppVoice({
   conversationId,
   agentId,
-  owner,
   isFocused,
-  openElsewhere,
+  resolveConversation,
 }: UseAppVoiceOptions = {}): VoiceLauncher {
   const queryClient = useQueryClient();
   const router = useRouter();
   const { isAuthenticated, signIn } = useAuth();
+  const { user } = useOxy();
   const { data: entitlements } = useEntitlements();
   const { data: creditsInfo } = useCredits();
   const voicePref = useUserDataStore((s) => s.memory?.preferences?.voice);
@@ -83,9 +84,9 @@ export function useAppVoice({
     apiUrl: config.apiUrl,
     ...(conversationId === undefined ? {} : { conversationId }),
     ...(agentId === undefined ? {} : { agentId }),
-    ...(owner === undefined ? {} : { owner }),
+    accountId: user?.id ?? null,
     ...(isFocused === undefined ? {} : { isFocused }),
-    ...(openElsewhere === undefined ? {} : { openElsewhere }),
+    ...(resolveConversation === undefined ? {} : { resolveConversation }),
     locale: speechLocale(),
     voice: voicePref === 'male' ? 'male' : 'female',
     canStartVoice,

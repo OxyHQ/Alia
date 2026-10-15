@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { VoiceErrorCode } from '@alia.onl/sdk';
+import { type VoiceErrorCode } from '@alia.onl/sdk';
 import type { VoiceCloseReason } from '@alia.onl/sdk/voice';
 import en from '@/shared/i18n/locales/en.json';
 import es from '@/shared/i18n/locales/es.json';

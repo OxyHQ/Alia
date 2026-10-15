@@ -1,5 +1,69 @@
 # @alia.onl/sdk
 
+## 17.0.0
+
+One conversation runtime. The sheet, `AliaChatScreen` and the Alia app are frames around the
+same data layer and the same conversation screen: conversations are persisted, listed, opened,
+renamed, deleted and cleared through the same hooks, a turn is the same stream, and a
+conversation started in one surface is the same conversation in the others. The runtime is the
+app's, moved and generalised (`src/runtime`).
+
+- **Breaking: the sheet and the screen have conversations.** Turns are stored, and the SDK
+  speaks only to `/v1` (`POST /v1/chat/completions`, `/v1/conversations`): bearer, no cookies,
+  public CORS, so it works from every Oxy app's web origin with no backend in between. The API
+  gained `/v1/conversations` (the same router as `/conversations`, behind a person's session
+  only) for this. The consumer-backend relay the README used to document is no longer needed.
+- **Breaking: `useAliaChat`, `UseAliaChatOptions`, `UseAliaChatReturn`, `AliaChatStreamError`,
+  `AliaChatFailure` are removed.** Use `useConversationThread`.
+- **Breaking: the `agents` prop is gone** from the sheet, the screen and `AliaChatContent`
+  (the pre-opened agent message of a delegation is the thread's agent run now).
+- **Breaking: `model`** is sent as given (a power level — `auto`, `instant`, `medium`, `high`,
+  `xhigh`, `pro`, `ultra` — or an exact `publisher/model`) instead of being checked against
+  `GET /catalogue` first. The catalogue helpers (`fetchCatalogue`, `parseCatalogue`,
+  `resolveSelection`, `resolveModelId`, `clearCatalogueCache` and their types) are removed: the
+  SDK itself no longer reads the catalogue, and people choose power levels, not model names.
+- **Changed: the header's Clear starts a new conversation** in the sheet and the screen (the
+  thread empties and the next turn opens a fresh conversation); nothing is deleted, the old one
+  stays in the list. Deleting or emptying a stored conversation is `useDeleteConversation` /
+  `useClearConversation`.
+- **Breaking: `ChatMessage` is the runtime `Message`:** `createdAt` is an ISO string, and a
+  `ToolInvocation` always has a `toolCallId`. Agent answers use the server's ids
+  (`<reply id>-agent-<n>`).
+- **Breaking: voice.** `openElsewhere` and `owner` are gone from `useVoiceLauncher` and
+  `AliaVoiceOptions`; `conversationId` and `agentId` belong to the chat. A call always lives in a
+  conversation: the open one, or — on a new-chat screen — one created when the call starts (after
+  the gate) and shown, and it opens on the screen that shows that conversation — in place in the
+  sheet, on the destination route in a navigating host (`useVoiceCallRequests`). `start()` is
+  async. New options `resolveConversation` and `accountId`; a live call now ends when the screen
+  shows another conversation, loses focus or changes account.
+- **Who owns the open conversation:** a host that navigates (`runtime.openConversation`, or one
+  from an outer `AliaRuntimeProvider`) decides; with none, `AliaChatContent` keeps its own.
+- **Breaking: `labels.workLog` is `labels.t`, and `englishWorkLog` is `englishCopy`.** One translator
+  keyed like the Alia app's catalogue asks for every string that is not a fixed `labels` field
+  (the work log, the thread, the thought panel…); the app hands its own `t` in, a host without one
+  reads English (`src/lib/copy-en.ts`).
+- **Breaking: `ChatMessage` is `Message`** (and `ToolInvocation` always has a `toolCallId`).
+- **New leaf entries.** `@alia.onl/sdk/model` is the conversation as pure data — the records and
+  what a list of messages becomes before anything draws it (`timelinePositions`, `buildSteps`,
+  `extractSources`, `cardOf`, `daySeparators`, `buildConversationMarkdown`…), no React, no Oxy
+  client. `@alia.onl/sdk/runtime` is the data layer (hooks, cache, stores) and re-exports the model.
+  `check:entries` holds both leaves free of the UI and the call.
+- **New peer: `@tanstack/react-query`** (the runtime's cache; `OxyProvider` already mounts it).
+- **New:** `AliaRuntimeProvider` / `useAliaRuntime` (`apiUrl`, `chatUrl`, `offline`, `streamFetch`,
+  and `host: AliaRuntimeHost`: navigation, `onUsage`, `onArtifact`, `onToolResult`, `onContext`,
+  `onAgentTurn`, `onTurnPreview`, `turnRequest`, `deviceInfo`, `subscribeConversationMessages`),
+  `useConversations`, `useConversation`, `usePrefetchConversation`, `useCreateConversation`,
+  `useRenameConversation`, `useDeleteConversation`, `useClearConversation`, `useSaveConversation`,
+  `useConversationThread`, `useTurnEdit`, `useComposerDraftStore` (+ `useComposerDraft`,
+  `useDraftAddress`), `useConversationStore`, `aliaQueryKeys`, `useAliaApi`, `AliaApiError`,
+  `buildMessageContent`, `UsageLimitError`, `FailedTurn`; `AliaChatContent` takes
+  `conversationId`, `onConversationChange`, `agentId` and `runtime`.
+- **New labels:** `newChat`, `sendFailed`, `signInRequired`, `conversationSaveFailed`,
+  `conversationDeleteFailed`, `conversationCreateFailed`, `conversationClearFailed`,
+  `attachmentNotSent`, `attachmentUnreadable`.
+- The composer's text and photos are the shared per-conversation draft (they survive closing the
+  sheet and failed sends restore them).
+
 ## 16.0.0
 
 Voice is part of the conversation screen. The sheet, `AliaChatScreen` and the Alia app now run

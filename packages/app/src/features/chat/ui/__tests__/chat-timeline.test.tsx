@@ -156,7 +156,10 @@ vi.mock('@/features/chat/model/work-log', () => ({
   taskListLog: () => ({ tasks: [], revealed: 0 }),
   webSearchLog: () => null,
 }));
-vi.mock('@/features/chat/model/task-utils', () => ({ getToolPillLabel: (name: string) => name }));
+vi.mock('@alia.onl/sdk/model', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@alia.onl/sdk/model')>()),
+  getToolPillLabel: (name: string) => name,
+}));
 vi.mock('@/shared/api/client', () => ({ default: { patch: async () => ({}) } }));
 vi.mock('@/shared/platform/useColorScheme', () => ({ useColorScheme: () => ({ colors: {} }) }));
 // Stable across renders, as the real hook's `t` is (see `use-translation.ts`).
@@ -201,7 +204,7 @@ for (const icon of [
 }
 
 const { ChatInterface } = await import('@/features/chat/ui/chat-interface');
-const { timelinePositions } = await import('@/features/chat/model/timeline');
+const { timelinePositions } = await import('@alia.onl/sdk/model');
 type Props = React.ComponentProps<typeof ChatInterface>;
 type Message = Props['messages'][number];
 

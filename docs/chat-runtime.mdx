@@ -104,6 +104,28 @@ and `lib/sse-emitter.ts` — the API's own writers, imported across the workspac
 boundary — so a change to what this route emits fails that package's tests in
 the same commit rather than in a consumer's logs later.
 
+## The client runtime
+
+One conversation runtime serves every first-party client: the bottom sheet and `AliaChatScreen`
+from `@alia.onl/sdk`, and the Alia app. It lives in `packages/alia-chat/src/runtime` and is
+layered so each layer depends only on the ones before it:
+
+1. **Transport** — `api.ts` (REST over the signed-in Oxy client: token, refresh and the single
+   401 replay are Oxy's) and `use-conversation-stream.ts` (the `/v1/chat/completions` SSE stream).
+2. **Model and state** — `types.ts`, `thread/*` (what a list of messages becomes: timeline,
+   thought steps and sources, tool cards, day lines, export), `turn-failure.ts` and
+   `usage-limit-error.ts` (a turn that did not answer is a typed error that keeps the person's
+   turn with a retry, never a filler message), React Query keys and cache (`conversations.ts`),
+   and the zustand stores (`composer-draft-store.ts`, `conversation-store.ts`).
+3. **Hooks** — `useConversations`, `useConversation`, `useConversationThread`
+   (send/edit/regenerate/retry/stop/clear), `useStartConversation`, `useTurnEdit`.
+
+What differs between the sheet and the app is only the `AliaRuntimeHost` they pass to
+`AliaRuntimeProvider` (navigation, credits, memory, artifacts panel, agent rows). A voice call
+always lives in a conversation: the open one, or one made when the call starts, opening on the
+screen that shows it (`lib/voice-call-request.ts`). The full API, with examples for both, is in
+`packages/alia-chat/README.md`.
+
 ## Browser origins and `@alia.onl/sdk`
 
 The two mounts differ in who a browser may be. `/alia/chat` takes Alia's
@@ -114,17 +136,21 @@ preflight from an origin Alia does not enumerate gets no
 header — a server, a native app — is subject to neither. The policy is pinned
 by `packages/api/src/middleware/__tests__/chat-origin-policy.test.ts`.
 
-That is why `@alia.onl/sdk`, a product client that switches on the `alia.*`
-events above, still sends its turns to `/v1/chat/completions`: it ships raw
-source and compiles into apps on their own origins. An external product uses
-it through its own backend today — `useAliaChat({ apiUrl })` at that backend,
-which calls `POST /alia/chat` server-to-server with the user's Oxy token
-forwarded and relays the SSE body unchanged (`packages/alia-chat/README.md`).
+`@alia.onl/sdk` is a product client that switches on the `alia.*` events above, and it is
+embedded by every Oxy app on that app's own web origin. So it speaks **only to `/v1`** — a bearer
+of the person's Oxy session, no cookies, public CORS: turns go to `POST /v1/chat/completions` (the
+handler `/alia/chat` mounts) and conversations to `/v1/conversations`. The conversations router is
+the same one `/conversations` mounts, behind a person's session alone: an application key, a
+channel-bot or Telegram secret or a requester assertion is refused, because a conversation is
+somebody's private history. `tests/runtime/v1-only.test.ts` in the SDK fails on any URL the
+transport builds outside `/v1`, and `v1-conversations-auth.test.ts` and `chat-origin-policy.test.ts`
+in the API pin the door and the preflight. `/conversations` and `/alia/chat` keep serving Alia's own
+clients (the integrations service uses `/conversations` with its channel-bot secret).
 
 Neither mount is going away. Under
 [ADR 0010](./adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md)
 `/v1/*` is Alia's permanent product API, so the SDK's consumers are not sitting
-on a surface with a removal gate. What the relay is waiting on is the origin
+on a surface with a removal gate. What a per-application origin policy is waiting on is the origin
 registry: a third-party application's browser origins are registered on its
 application in Oxy Console (OxyHQ/oxy#972), and once that exists the
 per-application list replaces the `/v1` wildcard on both mounts — by changing

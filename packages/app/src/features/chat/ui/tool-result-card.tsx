@@ -1,10 +1,5 @@
 import { triggerLabel } from '@/shared/contracts/automations';
 import {
-  degrees,
-  faircoinChart,
-  forecastWeekday,
-  formatPrice,
-  marketChart,
   type FairCoinCardData,
   type MarketCardData,
   type PriceChart,
@@ -12,7 +7,12 @@ import {
   type TemperatureUnit,
   type ToolCard,
   type WeatherCardData,
-} from '@/features/chat/model/tool-cards';
+  degrees,
+  faircoinChart,
+  forecastWeekday,
+  formatPrice,
+  marketChart,
+} from '@alia.onl/sdk/model';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { AiChatMessageLine } from '@oxy.so/bloom/ai-chat';
 import { Badge } from '@oxy.so/bloom/badge';

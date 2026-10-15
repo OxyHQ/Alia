@@ -2,7 +2,7 @@ import { agentDisplayName } from '@/features/agents/model/identity';
 import type { AgentActivityState } from '@/features/chat/runtime/use-agent-activity';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import type { TaskAgentRef, TaskSession } from '@/features/automations/runtime/use-tasks';
-import { formatDuration, getToolPillLabel } from '@/features/chat/model/task-utils';
+import { formatDuration, getToolPillLabel } from '@alia.onl/sdk/model';
 import { Badge, type BadgeIcon } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { Card, CardFooter } from '@oxy.so/bloom/card';

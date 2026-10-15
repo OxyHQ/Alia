@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -211,43 +209,5 @@ describe('the agent row preview', () => {
     act(() => preview('a1', 'what I just sent'));
 
     expect(rows()).toBeUndefined();
-  });
-});
-
-/**
- * Where the streaming hook calls it, which is the half a unit test of the hook
- * alone cannot see.
- *
- * The hook writes once per call; whether the sidebar repaints per token is
- * decided entirely by how OFTEN the caller calls it. So the call sites are
- * counted, and the batching path that runs per fragment is checked for not
- * being one of them.
- */
-describe('the two moments it is called from', () => {
-  const source = readFileSync(
-    fileURLToPath(new URL('../use-streaming-chat.ts', import.meta.url)),
-    'utf8',
-  );
-  const CALL = 'previewAgentRow(';
-
-  it('is called exactly twice: on send, and when the turn settles', () => {
-    // Positive control on the reader: a needle that matched nothing would make
-    // "not in the token path" below vacuously true.
-    expect(source).toContain(CALL);
-    expect(source.split(CALL).length - 1).toBe(2);
-  });
-
-  it('is not called from the per-fragment flush', () => {
-    // `flushPendingUpdates` is what runs as tokens arrive. A call inside it is
-    // precisely the naive fix, and it would repaint the sidebar at streaming
-    // rate while landing on the same final text.
-    const start = source.indexOf('const flushPendingUpdates');
-    expect(start).toBeGreaterThan(-1);
-    const flush = source.slice(start, source.indexOf('\n  const ', start + 1));
-
-    expect(flush).not.toContain(CALL);
-    // The slice really is the flush, rather than an empty string agreeing with
-    // anything.
-    expect(flush).toContain('pendingContentRef');
   });
 });

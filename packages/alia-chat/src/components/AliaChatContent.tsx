@@ -13,12 +13,20 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, type TextInput } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import { turnActivityState } from '../lib/turn-state';
-import { useAliaChat, type UseAliaChatOptions } from '../hooks/useAliaChat';
 import { useTTS } from '../hooks/useTTS';
 import { useFocusWhenPresented } from '../hooks/useFocusWhenPresented';
 import { usePendingQuestions } from '../hooks/usePendingQuestions';
 import { useImagePicker } from '../hooks/useImagePicker';
 import { imageUriToDataUrl } from '../lib/image-data-url';
+import { AliaRuntimeProvider, type AliaRuntimeHost, useAliaRuntime } from '../runtime/config';
+import {
+  useComposerDraft,
+  useComposerDraftStore,
+  useDraftAddress,
+} from '../runtime/composer-draft-store';
+import { aliaQueryKeys } from '../runtime/query-keys';
+import { useConversationThread } from '../runtime/use-conversation-thread';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAmbientWave } from '../hooks/useAmbientWave';
 import { AmbientField } from './AmbientField';
 import { getAccountDisplayName } from '@oxy.so/core';
@@ -43,10 +51,24 @@ import type { AliaAvatarState } from './AliaAvatar';
 import { VoiceModeIcon } from './VoiceModeIcon';
 import { AliaVoiceCall } from './voice/AliaVoiceCall';
 import { useVoiceLauncher, type UseVoiceLauncherOptions } from '../hooks/useVoiceLauncher';
-import type { AliaAttachment, AliaSuggestion, ChatMessage, VoiceMessage } from '../types';
+import type { AliaAttachment, AliaSuggestion, VoiceMessage } from '../types';
+import type { Message } from '../runtime/types';
+
+/** A photo handed over as a `data:` URL, as the composer would hold it. */
+function dataUrlAttachment(url: string, index: number): AliaAttachment {
+  const mimeType = /^data:([^;,]+)/.exec(url)?.[1] ?? 'image/jpeg';
+  return {
+    id: `turn-photo-${index}`,
+    type: 'image',
+    name: `photo-${index + 1}`,
+    uri: url,
+    size: 0,
+    mimeType,
+  };
+}
 
 /** The distinct delegated agents among `messages`, in the order they first answered. */
-function participatingAgents(messages: readonly ChatMessage[]): AliaChatAgent[] {
+function participatingAgents(messages: readonly Message[]): AliaChatAgent[] {
   const seen = new Map<string, AliaChatAgent>();
   for (const { agentInfo } of messages) {
     if (agentInfo && !seen.has(agentInfo.id)) seen.set(agentInfo.id, agentInfo);
@@ -80,8 +102,22 @@ export interface AliaTurn {
 
 export interface AliaChatContentProps {
   clientContext?: string;
+  /** The power level (or `publisher/model`) every turn is sent with; omitted, the server's default. */
   model?: string;
   apiUrl?: string;
+  /**
+   * The conversation to show. Given, the host owns which one is open (a route) and learns of a new
+   * one through `onConversationChange`; omitted, the chat keeps its own — unless the host
+   * navigates (`runtime.openConversation`), which then decides: the chat starts empty and
+   * creates its conversation with the first turn, or the first call.
+   */
+  conversationId?: string;
+  /** The agent whose thread this is; omitted, Alia's own. */
+  agentId?: string;
+  /** The chat opened a conversation (a new one, from a first turn or a call) or left it (`undefined`). */
+  onConversationChange?: (conversationId: string | undefined) => void;
+  /** The host's side of the conversation runtime: navigation, artifacts, credits… */
+  runtime?: AliaRuntimeHost;
   /** Error handler (e.g. toast) */
   onError?: (message: string) => void;
   /** The empty chat's greeting; omitted, Alia greets the signed-in person by name (`labels`). */
@@ -112,8 +148,8 @@ export interface AliaChatContentProps {
    * The chat's voice call. On by default; `false` makes the chat text-only. An object brings
    * what only the host knows: the gate before a call (`canStartVoice`, `onVoiceBlocked`), what
    * to refresh when one ends (`onCallEnded`), where its notices go (`onNotice`), the
-   * conversation and agent it speaks in, and the screen/account it belongs to (`owner`,
-   * `isFocused`).
+   * screen it belongs to (`isFocused`). The call always lives in the chat's conversation, made
+   * when it starts if the chat has none.
    */
   voice?: false | AliaVoiceOptions;
   /**
@@ -126,8 +162,6 @@ export interface AliaChatContentProps {
    * the conversation in a new sheet over this one. Omitted, the chat sends it itself.
    */
   onStart?: (turn: AliaTurn) => void;
-  /** The agents the host knows, with their look: a delegation's thinking avatar is drawn from them. */
-  agents?: UseAliaChatOptions['agents'];
   /**
    * The avatar flights this chat takes part in, when a sheet shares them across its chats (the
    * greeting's avatar flies into a header in another sheet). Omitted, the chat has its own.
@@ -148,7 +182,10 @@ export interface AliaChatContentProps {
 }
 
 /** What a host tells the chat about its voice call (see {@link UseVoiceLauncherOptions}). */
-export type AliaVoiceOptions = Omit<UseVoiceLauncherOptions, 'apiUrl'>;
+export type AliaVoiceOptions = Omit<
+  UseVoiceLauncherOptions,
+  'apiUrl' | 'conversationId' | 'agentId' | 'accountId' | 'resolveConversation'
+>;
 
 /** The chat API carries photos (`image_url` parts) and nothing else. */
 const PHOTOS_ONLY = ['image'] as const;
@@ -164,22 +201,30 @@ function addMenu(labels: AliaChatLabels): ComposerPanelAddMenuGroup[] {
 }
 
 /** Adapt a voice message into the chat message format. */
-function adaptVoiceMessage(vm: VoiceMessage): ChatMessage {
+function adaptVoiceMessage(vm: VoiceMessage): Message {
   return {
     id: vm.id,
     role: vm.role,
     content: vm.content,
     toolInvocations: vm.toolInvocations,
-    createdAt: Date.now(),
+    createdAt: new Date().toISOString(),
     source: 'voice' as const,
     speaker: vm.speaker,
   };
 }
 
-function AliaChatContentBody({
+/** The conversation view: everything of `AliaChatContentProps` that is not about which conversation is open. */
+type ConversationViewProps = Omit<
+  AliaChatContentProps,
+  'labels' | 'onConversationChange' | 'runtime' | 'conversationId'
+> & { conversationId: string | undefined };
+
+function AliaConversationView({
   clientContext,
   model,
   apiUrl,
+  conversationId,
+  agentId,
   onError,
   welcomeGreeting,
   welcomeSubtitle,
@@ -197,12 +242,11 @@ function AliaChatContentBody({
   voice: voiceOptions,
   bottomInset = 0,
   onStart,
-  agents: knownAgents,
   flights: sharedFlights,
   initialTurn,
   presentedProgress,
   onStopReady,
-}: AliaChatContentProps) {
+}: ConversationViewProps) {
   const ownFlights = useAvatarFlights();
   const flights = sharedFlights ?? ownFlights;
   const labels = useLabels();
@@ -217,29 +261,48 @@ function AliaChatContentBody({
     [onError],
   );
   // ── Chat ──
-  const chatOptions: UseAliaChatOptions = { apiUrl, model, clientContext, agents: knownAgents };
-  const { messages, setMessages, send, isStreaming, stop, clear, approvePlan, rejectPlan } =
-    useAliaChat(chatOptions);
+  const thread = useConversationThread({ conversationId, agentId, model, clientContext });
+  const {
+    messages,
+    setMessages,
+    isLoading: isStreaming,
+    stopGeneration: stop,
+    startOver,
+    approvePlan,
+    rejectPlan,
+    sendMessage,
+    createNewConversation,
+  } = thread;
   const agents = useMemo(() => participatingAgents(messages), [messages]);
   const asked = usePendingQuestions(messages, isStreaming);
+
+  // A turn goes into the open conversation; with none open, it creates one and is sent from it.
+  const sendTurn = useCallback(
+    (text: string, attachments?: AliaAttachment[]) =>
+      conversationId ? sendMessage(text, attachments) : createNewConversation(text, attachments),
+    [conversationId, sendMessage, createNewConversation],
+  );
 
   // The first turn of an empty chat goes to the host when it asked for it; every other turn is sent here.
   const startsElsewhere = onStart !== undefined && messages.length === 0;
   const firstTurn = messages.length === 0;
   const submitTurn = useCallback(
-    async (text: string, images?: ReadonlyArray<string>) => {
+    async (text: string, attachments: AliaAttachment[] = []) => {
       if (startsElsewhere) {
+        const images = await Promise.all(
+          attachments.map((photo) => imageUriToDataUrl(photo.uri, photo.mimeType)),
+        );
         // The host's conversation sheet opens first so that the flight, drawn when it launches,
         // is above it; this chat stays on the greeting, so the avatar can still be measured.
-        onStart({ text, images });
+        onStart({ text, ...(images.length > 0 ? { images } : {}) });
         await flights.launch([ALIA_TO_PROFILE]);
         return;
       }
       // The greeting leaves with the first turn: measure it before it does.
       if (firstTurn) await flights.launch([ALIA_TO_PROFILE]);
-      send(text, images ? { images } : undefined);
+      await sendTurn(text, attachments);
     },
-    [startsElsewhere, onStart, firstTurn, flights, send],
+    [startsElsewhere, onStart, firstTurn, flights, sendTurn],
   );
 
   // The conversation this chat was opened for, sent once.
@@ -247,19 +310,24 @@ function AliaChatContentBody({
   useEffect(() => {
     if (!initialTurn || initialSent.current) return;
     initialSent.current = true;
-    send(initialTurn.text, initialTurn.images ? { images: initialTurn.images } : undefined);
-  }, [initialTurn, send]);
+    void sendTurn(initialTurn.text, initialTurn.images?.map(dataUrlAttachment));
+  }, [initialTurn, sendTurn]);
 
   useEffect(() => {
     onStopReady?.(stop);
     return () => onStopReady?.(null);
   }, [onStopReady, stop]);
 
-  // ── Input state ──
-  const [inputValue, setInputValue] = useState('');
-
-  // Picked photos wait here, as tiles above the field, until the turn is sent.
-  const [photos, setPhotos] = useState<AliaAttachment[]>([]);
+  // ── Input state: the composer's draft, per conversation (shared with every other surface) ──
+  const draftTarget = conversationId ?? null;
+  const draft = useComposerDraft(draftTarget);
+  const draftAddress = useDraftAddress(draftTarget);
+  const inputValue = draft.text;
+  const photos = draft.attachments;
+  const setInputValue = useCallback(
+    (text: string) => useComposerDraftStore.getState().setText(draftAddress, text),
+    [draftAddress],
+  );
   const { pickImage } = useImagePicker();
 
   const handleAddMenuSelect = useCallback(
@@ -267,19 +335,19 @@ function AliaChatContentBody({
       if (rowId !== 'photos') return;
       const assets = await pickImage();
       if (!assets?.length) return;
-      setPhotos((prev) => [
-        ...prev,
-        ...assets.map((asset) => ({
+      const store = useComposerDraftStore.getState();
+      for (const asset of assets) {
+        store.addAttachment(draftAddress, {
           id: `img-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           type: 'image' as const,
           name: asset.name,
           uri: asset.uri,
           size: asset.size,
           mimeType: asset.mimeType,
-        })),
-      ]);
+        });
+      }
     },
-    [pickImage],
+    [pickImage, draftAddress],
   );
 
   // Suggestions over the composer on an empty chat, as the Alia app has them.
@@ -290,9 +358,9 @@ function AliaChatContentBody({
   const handlePickSuggestion = useCallback(
     (suggestion: AliaSuggestion) => {
       setInputValue('');
-      submitTurn(suggestion.text);
+      void submitTurn(suggestion.text);
     },
-    [submitTurn],
+    [submitTurn, setInputValue],
   );
   const suggestions = useComposerSuggestions({
     draft: inputValue,
@@ -305,23 +373,20 @@ function AliaChatContentBody({
   const handleSubmit = useCallback(
     async (value: string) => {
       const text = value.trim();
-      if (!text && photos.length === 0) return;
-      const pending = photos;
-      setInputValue('');
-      setPhotos([]);
+      if ((!text && photos.length === 0) || isStreaming) return;
+      // The send keeps the attachments until it has gone; a send that fails hands the draft back.
+      useComposerDraftStore.getState().clear(draftAddress);
       try {
-        const images = await Promise.all(
-          pending.map((photo) => imageUriToDataUrl(photo.uri, photo.mimeType)),
-        );
-        submitTurn(text, images);
+        await submitTurn(text, photos);
       } catch (err) {
-        // Keep the draft: the photos could not be read, nothing was sent.
-        setInputValue(value);
-        setPhotos(pending);
+        // Nothing was sent (the photos could not be read): keep the draft.
+        useComposerDraftStore
+          .getState()
+          .restore(draftAddress, { text: value, attachments: photos });
         reportError(err instanceof Error ? err.message : 'Could not attach the photos');
       }
     },
-    [submitTurn, photos, reportError],
+    [submitTurn, photos, isStreaming, draftAddress, reportError],
   );
 
   // ── TTS ──
@@ -331,12 +396,24 @@ function AliaChatContentBody({
   // The launcher owns whether a call is open and what it reports back; the call itself loads
   // on the first one. The transcript is merged into the thread below.
   const voiceEnabled = voiceOptions !== false;
+  const { user } = useOxy();
+  const queryClient = useQueryClient();
+  const refreshConversation = useCallback(
+    (id: string) =>
+      void queryClient.invalidateQueries({ queryKey: aliaQueryKeys.conversations.detail(id) }),
+    [queryClient],
+  );
   const launcher = useVoiceLauncher({
     apiUrl,
+    conversationId,
+    agentId,
+    accountId: user?.id ?? null,
+    resolveConversation: thread.ensureConversation,
+    onMessagesSaved: refreshConversation,
     ...(voiceOptions === false ? {} : voiceOptions),
   });
   const { isActive: isVoiceActive, state: voiceState } = launcher;
-  const textSnapshotRef = useRef<ChatMessage[]>([]);
+  const textSnapshotRef = useRef<Message[]>([]);
 
   // Merge voice messages into chat messages
   const voiceMessages = voiceState?.messages;
@@ -351,7 +428,7 @@ function AliaChatContentBody({
   const activateVoice = useCallback(() => {
     if (isVoiceActive) return;
     textSnapshotRef.current = [...messagesRef.current];
-    startLauncher();
+    void startLauncher();
   }, [isVoiceActive, startLauncher]);
 
   // ── TTS read aloud handler ──
@@ -374,7 +451,6 @@ function AliaChatContentBody({
     return turnActivityState(messages, isStreaming);
   }, [messages, isStreaming, isVoiceActive, voiceAgentState]);
 
-  const { user } = useOxy();
   const greeting =
     welcomeGreeting ?? (user ? labels.greetingNamed(getAccountDisplayName(user)) : labels.greeting);
   const welcomeComponent = useMemo(() => {
@@ -437,7 +513,7 @@ function AliaChatContentBody({
         // Asked beside the field, not in the thread: the card docks above the composer.
         questions={{
           items: asked.questions,
-          onSubmit: (message) => send(message),
+          onSubmit: (message) => void sendTurn(message),
           onDismiss: asked.dismiss,
         }}
         value={inputValue}
@@ -450,8 +526,12 @@ function AliaChatContentBody({
         addMenu={addMenuGroups}
         onAddMenuSelect={handleAddMenuSelect}
         attachments={photos}
-        onAddAttachment={(photo) => setPhotos((prev) => [...prev, photo])}
-        onRemoveAttachment={(id) => setPhotos((prev) => prev.filter((p) => p.id !== id))}
+        onAddAttachment={(photo) =>
+          useComposerDraftStore.getState().addAttachment(draftAddress, photo)
+        }
+        onRemoveAttachment={(id) =>
+          useComposerDraftStore.getState().removeAttachment(draftAddress, id)
+        }
         attachmentKinds={PHOTOS_ONLY}
         onError={onError}
       />
@@ -459,8 +539,8 @@ function AliaChatContentBody({
 
   const hasMessages = messages.length > 0;
   const headerNode = useMemo(
-    () => header?.({ hasMessages, clear, markState, agents }),
-    [header, hasMessages, clear, markState, agents],
+    () => header?.({ hasMessages, clear: startOver, markState, agents }),
+    [header, hasMessages, startOver, markState, agents],
   );
   const background = useMemo(
     () => (
@@ -517,11 +597,53 @@ function AliaChatContentBody({
   );
 }
 
-/** The chat: header, thread and composer, with the host's labels in reach of all of it. */
-export function AliaChatContent({ labels, ...props }: AliaChatContentProps) {
+/**
+ * The chat: header, thread and composer, with the host's labels in reach of all of it.
+ *
+ * It is a conversation view over the shared runtime. The conversation open in it is the host's
+ * when `conversationId` is given, and its own otherwise.
+ */
+export function AliaChatContent({
+  labels,
+  conversationId: controlledId,
+  onConversationChange,
+  runtime,
+  apiUrl,
+  ...props
+}: AliaChatContentProps) {
+  const [ownId, setOwnId] = useState<string | undefined>(undefined);
+  const parent = useAliaRuntime();
+  // Who decides which conversation is open: a host that navigates (a route) does; with none, the
+  // chat does (the sheet). Either way the host hears of it first, then `onConversationChange`.
+  const hostOpens = runtime?.openConversation ?? parent.host.openConversation;
+  const hostCloses = runtime?.closeConversation ?? parent.host.closeConversation;
+  const hostNavigates = hostOpens !== undefined;
+  const host = useMemo<AliaRuntimeHost>(
+    () => ({
+      ...runtime,
+      openConversation: (id) => {
+        hostOpens?.(id);
+        if (!hostNavigates) setOwnId(id);
+        onConversationChange?.(id);
+      },
+      closeConversation: () => {
+        hostCloses?.();
+        if (!hostNavigates) setOwnId(undefined);
+        onConversationChange?.(undefined);
+      },
+    }),
+    [runtime, hostOpens, hostCloses, hostNavigates, onConversationChange],
+  );
+
   return (
     <AliaChatLabelsProvider labels={labels}>
-      <AliaChatContentBody {...props} />
+      <AliaRuntimeProvider apiUrl={apiUrl ?? parent.apiUrl} host={host}>
+        <AliaConversationView
+          {...props}
+          apiUrl={apiUrl ?? parent.apiUrl}
+          conversationId={controlledId ?? ownId}
+        />
+      </AliaRuntimeProvider>
     </AliaChatLabelsProvider>
   );
 }

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { selectAliaActivity, useAliaActivityStore } from '../../src/lib/activity-store';
 import { turnActivityState } from '../../src/lib/turn-state';
-import type { ChatMessage } from '../../src/types';
+import type { Message } from '../../src/runtime/types';
 
 const now = () => selectAliaActivity(useAliaActivityStore.getState());
 const store = () => useAliaActivityStore.getState();
@@ -46,8 +46,8 @@ describe('activity store', () => {
 });
 
 describe('turnActivityState', () => {
-  const assistant = (extra: Partial<ChatMessage>): ChatMessage =>
-    ({ id: 'a', role: 'assistant', content: '', createdAt: 0, ...extra }) as ChatMessage;
+  const assistant = (extra: Partial<Message>): Message =>
+    ({ id: 'a', role: 'assistant', content: '', createdAt: 0, ...extra }) as Message;
 
   it('reads a turn from its messages', () => {
     expect(turnActivityState([assistant({})], false)).toBe('idle');

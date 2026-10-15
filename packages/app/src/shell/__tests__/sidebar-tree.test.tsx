@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import React from 'react';
+import type React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -82,7 +82,10 @@ vi.mock('@/features/settings/ui/settings-context', () => ({
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
-vi.mock('@/features/chat/runtime/use-conversations', () => ({
+// The conversation store is the SDK's own (the sidebar reads which row streams from it); the
+// hooks that talk to the API are stubbed.
+vi.mock('@alia.onl/sdk/runtime', async () => ({
+  ...(await import('../../../../alia-chat/src/runtime/conversation-store')),
   useConversations: () => ({
     data: state.isLoading ? undefined : { pages: [{ conversations: state.conversations }] },
     fetchNextPage: vi.fn(),
@@ -91,7 +94,7 @@ vi.mock('@/features/chat/runtime/use-conversations', () => ({
     isFetchNextPageError: false,
     isLoading: state.isLoading,
   }),
-  prefetchConversation: vi.fn(),
+  usePrefetchConversation: () => vi.fn(),
   useDeleteConversation: () => ({ mutateAsync: vi.fn() }),
   useRenameConversation: () => ({ mutate: vi.fn() }),
 }));
@@ -221,6 +224,7 @@ vi.mock('@oxy.so/bloom/typography', async () => {
 import { Sidebar } from '../sidebar';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
 import { useFoldersStore } from '@/features/projects/runtime/folders-store';
+import { useConversationStore } from '@alia.onl/sdk/runtime';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
 import { useProjectsStore } from '@/features/projects/runtime/projects-store';
@@ -277,7 +281,8 @@ beforeEach(async () => {
   state.conversations = [chat('alpha'), chat('beta')];
   state.isLoading = false;
   state.agents = [];
-  useStore.setState({ streamingChatId: null, chatId: null });
+  useStore.setState({ chatId: null });
+  useConversationStore.setState({ streamingConversationId: null });
   await useProjectsStore.getState().loadProjects('user-a');
   await useFoldersStore.getState().loadFolders('user-a');
   await usePinnedStore.getState().loadPinned('user-a');
@@ -371,7 +376,7 @@ describe('the sidebar list', () => {
   });
 
   it('marks the chat being answered, and shows ghost rows while history loads', async () => {
-    useStore.setState({ streamingChatId: 'beta' });
+    useConversationStore.setState({ streamingConversationId: 'beta' });
     await mount();
     expect(flatRow('beta').description).toBe('…');
     expect(flatRow('alpha').description).not.toBe('…');

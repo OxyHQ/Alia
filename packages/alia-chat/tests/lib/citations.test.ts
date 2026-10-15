@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { extractCitationSources, linkifyCitations } from '../../src/lib/citations';
-import type { ToolInvocation } from '../../src/types';
+import type { ToolInvocation } from '../../src/runtime/types';
 
 const research: ToolInvocation = {
+  toolCallId: 'r1',
   toolName: 'deepResearch',
   state: 'result',
   result: { sources: [{ id: 1, url: 'https://a.test/x', title: 'A "quoted" title' }] },

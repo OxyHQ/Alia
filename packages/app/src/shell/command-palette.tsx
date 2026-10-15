@@ -14,7 +14,7 @@ import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { RiStarFill } from '@oxy.so/bloom/icons/RiStarFill';
 import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import { RiTimerLine } from '@oxy.so/bloom/icons/RiTimerLine';
-import { useConversations } from '@/features/chat/runtime/use-conversations';
+import { useConversations } from '@alia.onl/sdk/runtime';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';

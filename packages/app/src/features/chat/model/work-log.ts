@@ -1,13 +1,13 @@
 import { resolveFaviconUrl } from '@clarity.surf/sdk';
-import type { ToolInvocation } from '@/shared/contracts/messages';
 import {
-  isWebInvocation,
   type LiveResearch,
   type TaskListLog,
-  taskListLog as sdkTaskListLog,
   type WebSearchLog,
+  isWebInvocation,
+  taskListLog as sdkTaskListLog,
   webSearchLog as sdkWebSearchLog,
 } from '@alia.onl/sdk';
+import { type ToolInvocation } from '@alia.onl/sdk/model';
 import type { Translate } from '@alia.onl/sdk/tools';
 
 /**

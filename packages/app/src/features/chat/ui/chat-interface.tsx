@@ -11,12 +11,30 @@ import {
 import { MessageBlockBoundary } from '@/features/chat/ui/message-block-boundary';
 import { ToolResultCard } from '@/features/chat/ui/tool-result-card';
 import { TurnStatusLine } from '@/features/chat/ui/turn-status-line';
-import type { FailedTurn } from '@/features/chat/ui/turn-failure';
-import { cardOf } from '@/features/chat/model/tool-cards';
+import {
+  AskedQuestions,
+  PlanPreviewCard,
+  getImagesFromContent,
+  getTextFromContent,
+  readAgentCharacter,
+} from '@alia.onl/sdk';
+import {
+  type FailedTurn,
+  type Message,
+  type ThreadMessage,
+  type ToolInvocation,
+  arrivedIds,
+  cardOf,
+  daySeparators,
+  formatElapsed,
+  getToolPillLabel,
+  processMessage,
+  threadSeamIds,
+  turnTimings,
+  ALIA_API_ROUTES,
+} from '@alia.onl/sdk/model';
 import { useOpenThought, type OpenThought } from '@/features/chat/runtime/use-open-thought';
-import { getToolPillLabel } from '@/features/chat/model/task-utils';
 import { isWebInvocation, taskListLog, webSearchLog } from '@/features/chat/model/work-log';
-import { daySeparators } from '@/features/chat/model/message-days';
 import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
 import { AgentProgress } from '@oxy.so/bloom/agent-progress';
 import { ChatDateHeader } from '@oxy.so/bloom/chat-screen';
@@ -28,24 +46,11 @@ import { CustomMarkdown } from '@/features/chat/ui/markdown';
 import apiClient from '@/shared/api/client';
 import { queryKeys } from '@/shared/api/query-keys';
 import type { AgentActivityState } from '@/features/chat/runtime/use-agent-activity';
-import type { Message } from '@/features/chat/runtime/use-conversations';
 import { useTimelineShape, useTimelineWindow } from '@/features/chat/runtime/use-timeline-window';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { processMessage } from '@/features/chat/model/message-processor';
 import { useStore, type ChatIdState } from '@/features/chat/runtime/global-store';
 import { useUIStore, type ThoughtScope } from '@/features/chat/runtime/ui-store';
-import { formatElapsed, turnTimings } from '@/features/chat/model/thought-utils';
-import { threadSeamIds, type ThreadMessage } from '@/features/chat/model/thread-history';
-import { arrivedIds } from '@/features/chat/model/timeline';
-import type { ToolInvocation } from '@/shared/contracts/messages';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
-import {
-  readAgentCharacter,
-  getImagesFromContent,
-  getTextFromContent,
-  PlanPreviewCard,
-  AskedQuestions,
-} from '@alia.onl/sdk';
 import { askedQuestions, isQuestionInvocation } from '@alia.onl/sdk/tools';
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
 import {
@@ -690,7 +695,7 @@ export const ChatInterface = React.memo(function ChatInterface({
    * The conversation each history message belongs to, as the id a row's own
    * actions address.
    *
-   * A vote goes to `/conversations/:id/messages/:id/vote`, and it used to
+   * A vote goes to `/v1/conversations/:id/messages/:id/vote`, and it used to
    * take the id of the stretch on screen — right for a live message and wrong for every history one, which
    * belongs to a conversation that ended. It would have written to a
    * conversation that does not contain the message, and failed quietly.
@@ -854,7 +859,7 @@ export const ChatInterface = React.memo(function ChatInterface({
       else delete votesRef.current[messageId];
       voteInFlightRef.current.add(messageId);
       apiClient
-        .patch(`/conversations/${conversationId}/messages/${messageId}/vote`, {
+        .patch(ALIA_API_ROUTES.conversations.vote(conversationId, messageId), {
           vote: newVote,
         })
         .then(() => toast.success(t('chat.thanksFeedback')))

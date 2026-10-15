@@ -1,9 +1,9 @@
-import type { ChatMessage } from '../types';
+import type { Message } from '../runtime/types';
 import type { AliaAvatarState } from '../components/AliaAvatar';
 
 /** What a chat turn is doing, from its messages: the one reading the header mark and every button share. */
 export function turnActivityState(
-  messages: ReadonlyArray<ChatMessage>,
+  messages: ReadonlyArray<Message>,
   isStreaming: boolean,
 ): AliaAvatarState {
   if (!isStreaming) return 'idle';

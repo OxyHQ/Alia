@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ToolInvocation } from '../../src/types';
+import type { ToolInvocation } from '../../src/runtime/types';
 
 /*
  * The icons are the real Bloom modules' names, stubbed only because `react-native` does not

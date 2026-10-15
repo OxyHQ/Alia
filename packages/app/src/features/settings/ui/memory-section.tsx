@@ -1,7 +1,7 @@
 import { generateAPIUrl } from '@/shared/api/generate-api-url';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useUserData } from '@/features/memory/runtime/use-user-data';
-import { useComposerDraftStore } from '@/features/chat/runtime/composer-draft-store';
+import { useComposerDraftStore } from '@alia.onl/sdk/runtime';
 import { useUserDataStore } from '@/features/memory/runtime/user-data-store';
 import { Button } from '@oxy.so/bloom/button';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
@@ -25,7 +25,8 @@ import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth, useOxy } from '@oxy.so/services';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import type React from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SettingsPreferenceSelect } from './preference-select';
 import { RememberingAgentsSection } from './agent-memory-section';
