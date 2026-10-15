@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  *
  * Bloom's `AiChatAssistantMessage` / `AiChatUserMessage` and their feedback and
  * action rows are mounted for real — only the thread's scroll view is a host —
- * and the presses go through `useChatConversation`, with nothing below it but
+ * and the presses go through `useConversationThread`, with nothing below it but
  * the streaming hook's `append`. So "regenerate" is asserted by WHICH prompt
  * reached `append` with WHICH options, an edit by the draft it leaves in the
  * composer and the turn it sends, copy by what Bloom's own button then shows,
@@ -203,15 +203,15 @@ vi.mock('@/features/chat/runtime/ui-store', () => {
   return { useUIStore };
 });
 
-// ---- below useChatConversation: the streaming hook's `append`, and no more ---
+// ---- below useConversationThread: the streaming hook's `append`, and no more ---
 const chat = vi.hoisted(() => ({
   messages: [] as { id: string; role: string; content: unknown }[],
   appended: [] as { message: { role: string; content: unknown }; options: unknown }[],
   setTo: null as unknown,
   turnOptions: {} as Record<string, unknown>,
 }));
-vi.mock('@/features/chat/runtime/use-streaming-chat', () => ({
-  useStreamingChat: () => ({
+vi.mock('../../../../../../alia-chat/src/runtime/use-conversation-stream', () => ({
+  useConversationStream: () => ({
     messages: chat.messages,
     append: async (message: { role: string; content: unknown }, options?: unknown) => {
       chat.appended.push({ message, options });
@@ -238,13 +238,8 @@ vi.mock('@/features/chat/runtime/use-streaming-chat', () => ({
 vi.mock('@/features/chat/runtime/global-store', () => {
   const state = {
     chatId: { id: 'c1', from: 'url' },
-    pendingInitialMessage: null,
-    setStreamingChatId: () => {},
-    streamingChatId: null,
     setChatId: () => {},
     setBottomChatHeightHandler: () => {},
-    clearPendingInitialMessage: () => {},
-    setPendingInitialMessage: () => {},
   };
   const useStore = Object.assign((select: (s: typeof state) => unknown) => select(state), {
     getState: () => state,
@@ -252,33 +247,26 @@ vi.mock('@/features/chat/runtime/global-store', () => {
   return { useStore };
 });
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: () => {}, replace: () => {} }) }));
-vi.mock('@/features/chat/runtime/use-conversations', () => ({
+vi.mock('../../../../../../alia-chat/src/runtime/conversations', () => ({
   ConversationNotFoundError: class ConversationNotFoundError extends Error {},
   useConversation: () => ({ data: undefined, isLoading: false, isFetching: false }),
   useCreateConversation: () => ({ mutateAsync: async () => ({}) }),
   useDeleteConversation: () => ({ mutateAsync: async () => {} }),
   useClearConversation: () => ({ mutateAsync: async () => {} }),
 }));
-vi.mock('@/features/chat/model/attachment-utils', () => ({
+vi.mock('../../../../../../alia-chat/src/runtime/attachment-utils', () => ({
   buildMessageContent: async (text: string) => ({ content: text, dropped: [] }),
 }));
-vi.mock('@/shared/api/generate-api-url', () => ({
-  generateAPIUrl: () => 'http://test.invalid/chat',
-}));
-vi.mock('@/shared/i18n', () => ({ default: { t: (k: string) => k } }));
-vi.mock('@/features/notifications/runtime/notifications-socket', () => ({
-  acquireNotificationsSocket: () => ({
-    socket: { on: () => {}, off: () => {} },
-    release: () => {},
-  }),
+vi.mock('@oxy.so/services/ui/client', () => ({
+  useOxy: () => ({ user: { id: 'me' }, isAuthenticated: true }),
 }));
 
 const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
 const { BloomThemeProvider } = await import('@oxy.so/bloom/theme');
 const { ChatInterface } = await import('@/features/chat/ui/chat-interface');
-const { useChatConversation } = await import('@/features/chat/runtime/use-chat-conversation');
-const { useTurnEdit } = await import('@/features/chat/runtime/use-turn-edit');
-const { useComposerDraftStore } = await import('@/features/chat/runtime/composer-draft-store');
+const { useConversationThread, useTurnEdit, useComposerDraftStore } = await import(
+  '@alia.onl/sdk/runtime'
+);
 const { timelinePositions } = await import('@/features/chat/model/timeline');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -291,13 +279,11 @@ const THREAD = [
 ];
 
 const harness = vi.hoisted(() => ({
-  edit: null as null | ReturnType<
-    typeof import('@/features/chat/runtime/use-turn-edit').useTurnEdit
-  >,
+  edit: null as null | ReturnType<typeof import('@alia.onl/sdk/runtime').useTurnEdit>,
 }));
 
 function Harness({ callActive = false }: { callActive?: boolean }) {
-  const api = useChatConversation({ conversationId: 'c1' });
+  const api = useConversationThread({ conversationId: 'c1' });
   const edit = useTurnEdit({
     target: 'c1',
     messages: api.messages,

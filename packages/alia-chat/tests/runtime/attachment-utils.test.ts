@@ -43,8 +43,8 @@ vi.mock('expo-file-system', () => ({
   EncodingType: { Base64: 'base64' },
 }));
 
-import { buildMessageContent } from '@/features/chat/model/attachment-utils';
-import type { AliaAttachment } from '@alia.onl/sdk';
+import { buildMessageContent } from '../../src/runtime/attachment-utils';
+import type { AliaAttachment } from '../../src/types';
 
 function attachment(over: Partial<AliaAttachment> & { id: string }): AliaAttachment {
   return {

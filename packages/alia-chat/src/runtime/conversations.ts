@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services/ui/client';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useLabels } from '../lib/labels';
 import { type AliaApi, useAliaApi } from './api';
 import { type OfflineConversationStore, useAliaRuntime } from './config';
@@ -234,7 +234,7 @@ export function useConversation(id: string) {
 export function usePrefetchConversation(): (id: string) => void {
   const queryClient = useQueryClient();
   const client = useConversationsClient();
-  return (id) => prefetchConversation(queryClient, client, id);
+  return useCallback((id) => prefetchConversation(queryClient, client, id), [queryClient, client]);
 }
 
 export function prefetchConversation(

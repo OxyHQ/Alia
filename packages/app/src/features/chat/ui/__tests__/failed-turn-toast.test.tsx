@@ -15,7 +15,7 @@ vi.mock('@/shared/i18n/use-translation', () => ({
 }));
 
 import { FAILED_TURN_TOAST_ID, useFailedTurnToast } from '@/features/chat/ui/failed-turn-toast';
-import type { FailedTurn } from '@/features/chat/ui/turn-failure';
+import type { FailedTurn } from '@alia.onl/sdk/runtime';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 

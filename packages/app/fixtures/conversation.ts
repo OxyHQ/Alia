@@ -14,7 +14,7 @@
  * network — the images are inline SVG data URIs and every link is inert text
  * the harness never follows.
  */
-import type { Message } from '@/features/chat/model/chat';
+import type { Message } from '@alia.onl/sdk/runtime';
 
 /** Seeded PRNG (mulberry32): small, fast, and the same on every engine. */
 function prng(seed: number) {

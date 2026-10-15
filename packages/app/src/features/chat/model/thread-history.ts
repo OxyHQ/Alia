@@ -1,4 +1,4 @@
-import type { Message } from '@/features/chat/model/chat';
+import type { Message } from '@alia.onl/sdk/runtime';
 
 /**
  * The history of a thread: everything said before the stretch on screen.

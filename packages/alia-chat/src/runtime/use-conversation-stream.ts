@@ -339,6 +339,8 @@ export function useConversationStream({
        * read as. The flag is remembered here and answered when the stream ends.
        */
       let syntheticTail: { retryable: boolean; detail?: string } | null = null;
+      /** The reply's text as the model produced it: what the host previews when the turn settles. */
+      let replyText = '';
 
       /**
        * Keep the person's turn, and hang the failure on it.
@@ -1017,6 +1019,7 @@ export function useConversationStream({
                     host.onOutput?.();
                   }
 
+                  replyText += delta.content;
                   pendingContentRef.current += delta.content;
                   scheduleFlush();
                 }
@@ -1258,15 +1261,11 @@ export function useConversationStream({
         settleAssistant(controller?.signal.aborted === true ? 'cancelled' : 'completed');
         setIsLoading(false);
         /*
-         * The answer replaces your own line in the sidebar — after the flush, so
-         * the last batched fragment is part of what it reads, and once per turn
-         * rather than once per token.
+         * The answer replaces your own line in the sidebar — once per turn rather
+         * than once per token. Read from what this turn received, not from the
+         * rendered messages, which have not caught up with the last batched flush.
          */
-        const settled = messagesRef.current;
-        const reply = settled[settled.length - 1];
-        if (reply?.role === 'assistant' && typeof reply.content === 'string') {
-          host.onTurnPreview?.(agentId, reply.content);
-        }
+        if (replyText !== '') host.onTurnPreview?.(agentId, replyText);
       }
     },
     [

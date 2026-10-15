@@ -1,7 +1,6 @@
 import type { ToolInvocation } from '@/shared/contracts/messages';
-import type { Message } from '@/features/chat/runtime/use-conversations';
-import type { FailedTurn } from '@/features/chat/ui/turn-failure';
 import { getToolLabel } from '@alia.onl/sdk';
+import type { FailedTurn, Message } from '@alia.onl/sdk/runtime';
 
 export interface Source {
   title: string;

@@ -11,7 +11,14 @@ import {
 import { MessageBlockBoundary } from '@/features/chat/ui/message-block-boundary';
 import { ToolResultCard } from '@/features/chat/ui/tool-result-card';
 import { TurnStatusLine } from '@/features/chat/ui/turn-status-line';
-import type { FailedTurn } from '@/features/chat/ui/turn-failure';
+import {
+  AskedQuestions,
+  PlanPreviewCard,
+  getImagesFromContent,
+  getTextFromContent,
+  readAgentCharacter,
+} from '@alia.onl/sdk';
+import type { FailedTurn, Message } from '@alia.onl/sdk/runtime';
 import { cardOf } from '@/features/chat/model/tool-cards';
 import { useOpenThought, type OpenThought } from '@/features/chat/runtime/use-open-thought';
 import { getToolPillLabel } from '@/features/chat/model/task-utils';
@@ -28,7 +35,6 @@ import { CustomMarkdown } from '@/features/chat/ui/markdown';
 import apiClient from '@/shared/api/client';
 import { queryKeys } from '@/shared/api/query-keys';
 import type { AgentActivityState } from '@/features/chat/runtime/use-agent-activity';
-import type { Message } from '@/features/chat/runtime/use-conversations';
 import { useTimelineShape, useTimelineWindow } from '@/features/chat/runtime/use-timeline-window';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { processMessage } from '@/features/chat/model/message-processor';
@@ -39,13 +45,6 @@ import { threadSeamIds, type ThreadMessage } from '@/features/chat/model/thread-
 import { arrivedIds } from '@/features/chat/model/timeline';
 import type { ToolInvocation } from '@/shared/contracts/messages';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
-import {
-  readAgentCharacter,
-  getImagesFromContent,
-  getTextFromContent,
-  PlanPreviewCard,
-  AskedQuestions,
-} from '@alia.onl/sdk';
 import { askedQuestions, isQuestionInvocation } from '@alia.onl/sdk/tools';
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
 import {

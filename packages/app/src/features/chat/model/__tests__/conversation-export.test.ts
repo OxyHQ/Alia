@@ -20,7 +20,7 @@ import {
   exportFilename,
   localDate,
 } from '@/features/chat/model/conversation-export';
-import type { Message } from '@/features/chat/runtime/use-conversations';
+import type { Message } from '@alia.onl/sdk/runtime';
 
 /** Noon on 10 September 2026, local time, so the date never straddles midnight in UTC. */
 const EXPORTED_AT = new Date(2026, 8, 10, 12, 0, 0);

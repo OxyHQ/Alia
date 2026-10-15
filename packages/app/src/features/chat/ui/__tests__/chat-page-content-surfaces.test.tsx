@@ -111,7 +111,7 @@ vi.mock('@/features/chat/runtime/use-local-models-invite', () => ({
 vi.mock('@/features/projects/runtime/folders-store', () => ({
   useFoldersStore: (select: (state: { folders: never[] }) => unknown) => select({ folders: [] }),
 }));
-vi.mock('@/features/chat/runtime/use-turn-edit', () => ({
+vi.mock('@alia.onl/sdk/runtime', () => ({
   useTurnEdit: () => ({ editing: undefined, start: undefined, cancel: vi.fn(), submit: vi.fn() }),
 }));
 vi.mock('@oxy.so/bloom/typography', () => ({ Text: () => null }));

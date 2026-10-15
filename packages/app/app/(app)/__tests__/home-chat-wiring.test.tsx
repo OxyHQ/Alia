@@ -56,14 +56,10 @@ const chat = vi.hoisted(() => ({
 }));
 
 /** Whether the person has ghost mode on, read through the global store's selector. */
-const ui = vi.hoisted(() => ({ ghostMode: false }));
+const ui = vi.hoisted(() => ({ ghostMode: false, setChatId: () => {} }));
 
 /** The props the screen handed `ChatPageContent` on its last render. */
 const captured = vi.hoisted(() => ({ props: null as Record<string, unknown> | null }));
-
-vi.mock('@/features/chat/runtime/use-chat-conversation', () => ({
-  useChatConversation: () => chat,
-}));
 
 /**
  * The subject is the wiring, so the content is a stub that records it. Rendering
@@ -133,7 +129,7 @@ vi.mock('@/features/chat/ui/welcome-intro', async () => {
 });
 
 vi.mock('@/features/chat/runtime/global-store', () => {
-  const useStore = (selector: (s: { ghostMode: boolean }) => unknown) => selector(ui);
+  const useStore = (selector: (s: typeof ui) => unknown) => selector(ui);
   return { useStore };
 });
 
@@ -151,7 +147,8 @@ vi.mock('@/features/chat/runtime/model-store', () => {
 vi.mock('@/features/chat/ui/composer/power-level-options', () => ({
   useModeSelection: (stored: string) => ({ shown: stored, send: stored, source: 'requested' }),
 }));
-vi.mock('@/features/chat/runtime/use-conversations', () => ({
+vi.mock('@alia.onl/sdk/runtime', () => ({
+  useConversationThread: () => chat,
   useCreateConversation: () => ({ mutateAsync: vi.fn(async () => ({ id: 'c1' })) }),
 }));
 

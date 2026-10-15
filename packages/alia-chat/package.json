@@ -9,6 +9,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./content": "./src/lib/content-utils.ts",
+    "./runtime": "./src/runtime/index.ts",
     "./tools": "./src/tools.ts",
     "./voice": "./src/voice.ts",
     "./package.json": "./package.json"

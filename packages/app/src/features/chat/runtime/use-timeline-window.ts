@@ -13,7 +13,7 @@ import {
 import type { AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import type { Message } from '@/features/chat/runtime/use-conversations';
+import type { Message } from '@alia.onl/sdk/runtime';
 
 /**
  * The list, handed back as the SAME array for as long as only what its

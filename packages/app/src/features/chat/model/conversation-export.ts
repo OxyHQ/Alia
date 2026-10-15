@@ -1,4 +1,4 @@
-import type { Message } from '@/features/chat/runtime/use-conversations';
+import type { Message } from '@alia.onl/sdk/runtime';
 import { extractSources } from '@/features/chat/model/thought-utils';
 
 /**

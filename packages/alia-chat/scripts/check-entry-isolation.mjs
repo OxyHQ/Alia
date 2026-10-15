@@ -123,7 +123,7 @@ if (root.visited.size < MIN_MODULES_FROM_ROOT) {
 }
 
 for (const retired of RETIRED_MODULES) {
-  for (const entry of ['index.ts', 'voice.ts']) {
+  for (const entry of ['index.ts', 'voice.ts', 'runtime/index.ts']) {
     const result = walk(entry, retired);
     if (result.hits.length > 0) {
       failures.push(
@@ -144,7 +144,7 @@ if (voice.hits.length === 0) {
   );
 }
 
-for (const entry of ['index.ts', 'voice.ts']) {
+for (const entry of ['index.ts', 'voice.ts', 'runtime/index.ts']) {
   const { hits, importedBy } = walk(entry, SERVICES_ROOT, { exact: true });
   if (hits.length > 0) {
     failures.push(
@@ -153,6 +153,27 @@ for (const entry of ['index.ts', 'voice.ts']) {
         hits.map((file) => `    ${chainTo(file, importedBy)}`).join('\n'),
     );
   }
+}
+
+// `@alia.onl/sdk/runtime` is the data layer alone: nothing it reaches draws, and nothing in it
+// reaches the call or its audio engine.
+const runtime = walk('runtime/index.ts', AUDIO_ENGINE);
+const drawn = [...runtime.visited].filter((file) =>
+  path.relative(SRC, file).startsWith(`components${path.sep}`),
+);
+if (runtime.visited.size < 10) {
+  failures.push(
+    `Only ${runtime.visited.size} modules reachable from src/runtime/index.ts — the walker is broken.`,
+  );
+}
+if (drawn.length > 0 || runtime.hits.length > 0 || runtime.visited.has(VOICE_LOOP)) {
+  failures.push(
+    `src/runtime/index.ts reaches the UI or the voice call. The runtime is a leaf entry ` +
+      `(@alia.onl/sdk/runtime) and nothing it imports may draw.\n` +
+      [...drawn, ...runtime.hits]
+        .map((file) => `    ${chainTo(file, runtime.importedBy)}`)
+        .join('\n'),
+  );
 }
 
 if (!root.visited.has(VOICE_LOOP)) {

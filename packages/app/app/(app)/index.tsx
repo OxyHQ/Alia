@@ -2,16 +2,15 @@ import { useAppVoice } from '@/features/chat/runtime/use-app-voice';
 import { ChatPageContent } from '@/features/chat/ui/chat-page-content';
 import { WelcomeIntro, type WelcomeIntroSlots } from '@/features/chat/ui/welcome-intro';
 import { useModeSelection } from '@/features/chat/ui/composer/power-level-options';
-import { useChatConversation } from '@/features/chat/runtime/use-chat-conversation';
+import { useConversationThread, useCreateConversation } from '@alia.onl/sdk/runtime';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { useModelStore } from '@/features/chat/runtime/model-store';
 import { useAuth } from '@oxy.so/services';
-import { useCreateConversation } from '@/features/chat/runtime/use-conversations';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { toast } from '@oxy.so/bloom/toast';
 import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 const ChatPage = () => {
   // The store holds the power level the user chose; `useModeSelection` decides
@@ -22,6 +21,12 @@ const ChatPage = () => {
   const selection = useModeSelection(selectedLevel);
 
   const ghostMode = useStore((state) => state.ghostMode);
+
+  // No conversation is open on the new-chat screen.
+  const setChatId = useStore((state) => state.setChatId);
+  useEffect(() => {
+    setChatId(null);
+  }, [setChatId]);
 
   const { isAuthenticated, isAuthResolved } = useAuth();
 
@@ -76,8 +81,8 @@ const ChatPage = () => {
     editMessage,
     regenerateMessage,
     turnOptionsOf,
-  } = useChatConversation({
-    selectedModel: selection.send,
+  } = useConversationThread({
+    model: selection.send,
   });
 
   const handleSubmit = ghostMode ? sendMessage : createNewConversation;
@@ -119,8 +124,14 @@ const ChatPage = () => {
     }
   }, [createConversation, router, t]);
 
-  // The new-chat screen holds no call: after the gate it opens a conversation to hold it.
-  const voice = useAppVoice({ openElsewhere: () => void handleVoiceStart() });
+  // The call lives in a conversation: the new-chat screen makes one after the gate and opens it
+  // in voice (its route is another screen, so the call starts there).
+  const voice = useAppVoice({
+    resolveConversation: async () => {
+      await handleVoiceStart();
+      return undefined;
+    },
+  });
 
   /** The chat, or the welcome inside the same container while it shows. */
   const chat = (intro?: WelcomeIntroSlots) => (

@@ -1,7 +1,7 @@
 import { FilesAndSources } from '@/features/chat/ui/execution/files-and-sources';
 import { restoreOpenerFocus } from '@/features/chat/ui/execution/focus-return';
 import { ToolStep } from '@/features/chat/ui/execution/tool-step';
-import type { Message } from '@/features/chat/runtime/use-conversations';
+import type { Message } from '@alia.onl/sdk/runtime';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useUIStore, type ThoughtTab } from '@/features/chat/runtime/ui-store';
 import {

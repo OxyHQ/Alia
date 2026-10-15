@@ -29,7 +29,7 @@
 import { ChatHeaderActions } from '@/features/chat/ui/chat-header-actions';
 import { ChatPageContent } from '@/features/chat/ui/chat-page-content';
 import { fixtureConversation, fixtureReply } from '../../../conversation';
-import type { Message } from '@/features/chat/model/chat';
+import type { Message } from '@alia.onl/sdk/runtime';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 

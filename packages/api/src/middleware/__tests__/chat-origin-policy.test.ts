@@ -12,13 +12,14 @@ import { codeOfFile, snippet } from '../../__tests__/support/source-code.js';
 /**
  * The browser-origin policy of the two chat mounts, pinned — issue #244.
  *
- * `@alia.onl/sdk` is a PRODUCT client (it parses `alia.*` events) that still
- * defaults to `POST /v1/chat/completions`, and the reason is a CORS difference
- * between two mounts of the same handler: `/alia/chat` answers preflights only
- * for Alia's own origins, while `/v1` answers `*`. The SDK ships raw source and
- * compiles into consumer apps on origins Alia does not enumerate, so pointing
- * it at `/alia/chat` would block every consumer browser. #244 records that
- * table, measured against production on 2026-08-19:
+ * `@alia.onl/sdk` is a PRODUCT client (it parses `alia.*` events). Until 17.0.0 it
+ * defaulted to `POST /v1/chat/completions` because of a CORS difference between
+ * two mounts of the same handler: `/alia/chat` answers preflights only for
+ * Alia's own origins, while `/v1` answers `*`. Since 17.0.0 it speaks to the
+ * product routes like the Alia app, so a WEB build on an origin Alia does not
+ * enumerate has to go through its own backend (native has no `Origin` and is
+ * unaffected). #244 records that table, measured against production on
+ * 2026-08-19:
  *
  * | preflight                                          | allow-origin |
  * | -------------------------------------------------- | ------------ |
@@ -33,7 +34,7 @@ import { codeOfFile, snippet } from '../../__tests__/support/source-code.js';
  * is one of the recorded differences that makes `/alia/chat` a product surface
  * rather than a second generic one (`routes/__tests__/v1-compatibility-surface.test.ts`,
  * `SURFACE_DIFFERENCES.cors`). The supported way for an external product to use
- * the SDK today is the consumer-backend path — `useAliaChat({ apiUrl })` at the
+ * the SDK today is the consumer-backend path — `apiUrl` pointed at the
  * consumer's own backend, which calls `/alia/chat` server-to-server, where there
  * is no `Origin` header and the last case below is the one that applies.
  *

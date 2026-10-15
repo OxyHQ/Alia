@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readAliaMeta } from '@/features/chat/ui/turn-failure';
+import { readAliaMeta } from '../../src/runtime/turn-failure';
 
 /**
  * How a stream chunk is told apart from an answer.

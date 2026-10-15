@@ -100,10 +100,10 @@ credentials, one from a loopback dev origin the same, and one from any other ori
 no `access-control-allow-origin` at all. `/v1/*` answers `*` instead. A request with no
 `Origin` header — a server, a native app, `curl` — is never subject to either. The policy
 is pinned by `packages/api/src/middleware/__tests__/chat-origin-policy.test.ts`, and it is
-why `@alia.onl/sdk`, a product client that compiles into apps on origins Alia does not
-enumerate, still defaults to `/v1/chat/completions`. **An external product using the SDK
-goes through its own backend**: `useAliaChat({ apiUrl })` at the consumer's backend, which
-calls `POST /alia/chat` server-to-server with the user's Oxy token forwarded and streams
+why a web build of `@alia.onl/sdk` on an origin Alia does not enumerate cannot call the
+product routes the SDK uses since 17.0.0 (`/alia/chat`, `/conversations`). **An external
+product using the SDK on the web goes through its own backend**: `apiUrl` at the consumer's
+backend, which calls `POST /alia/chat` server-to-server with the user's Oxy token forwarded and streams
 the SSE body back unchanged — `packages/alia-chat/README.md` has the relay, and #244 the
 two other shapes and why neither is available yet.
 

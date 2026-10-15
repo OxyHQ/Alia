@@ -53,11 +53,12 @@ Section (c) of [the compatibility window](./migration/compatibility-window.md) i
 ## Using `@alia.onl/sdk` from your own application
 
 `@alia.onl/sdk` (`packages/alia-chat`) is a **product** client, not a generic one: its
-`useAliaChat` hook parses the `alia.*` stream events above. It nevertheless defaults to
-`POST /v1/chat/completions`, because the product route, `POST /alia/chat`, answers CORS
-preflights only for Alia's own origins (`packages/api/src/lib/cors-origins.ts`) while
-`/v1` answers `*`, and the SDK ships raw source that compiles into your app on your
-origin. Pointing it at `/alia/chat` from a browser would fail your preflight.
+conversation runtime parses the `alia.*` stream events above and stores conversations. Since
+17.0.0 it speaks only to the product routes (`POST /alia/chat`, `/conversations`), the same ones
+the Alia app uses; `POST /v1/chat/completions` stays the public API for callers with their own
+UI and no conversations, and no SDK surface calls it. The product routes answer CORS preflights
+only for Alia's own origins (`packages/api/src/lib/cors-origins.ts`) while `/v1` answers `*`, so
+a **web** build on another origin cannot call them from the browser (native is unaffected).
 
 The supported way to use the SDK from an application outside Alia's origins today is
 **through your own backend**. It receives the SDK's request, calls `POST /alia/chat`
@@ -67,11 +68,11 @@ Alia verifies with Oxy exactly as it would for a direct call, and meters to that
 streams the `text/event-stream` body back unchanged. Then:
 
 ```tsx
-useAliaChat({ apiUrl: 'https://your-backend.example' });
+<AliaChatSheet apiUrl="https://your-backend.example" />
 ```
 
-The hook appends its own paths, so your backend answers `POST /v1/chat/completions` and
-`GET /catalogue` under that base URL. The minimal relay is in
+The SDK appends its own paths, so your backend forwards `POST /alia/chat` and the
+`/conversations` routes under that base URL. The minimal relay is in
 [`packages/alia-chat/README.md`](../packages/alia-chat/README.md). A
 consumer-application credential for this route is Oxy Applications' to issue
 (`OxyHQ/oxy#972`); the retired `alia_sk_*` keys are refused.

@@ -1,5 +1,3 @@
-import * as FileSystem from 'expo-file-system';
-import { Platform } from 'react-native';
 import type { AliaAttachment } from '../types';
 
 export type MessageContentPart =
@@ -27,51 +25,6 @@ export interface DroppedAttachment {
    * `unreadable` — an image whose bytes could not be read off the device.
    */
   reason: 'unsupported' | 'unreadable';
-}
-
-/** A URL the request body can carry: the bytes are IN it. */
-function isInlineData(uri: string): boolean {
-  return uri.startsWith('data:');
-}
-
-/**
- * Read a browser object URL back into an inline one.
- *
- * On web both Expo pickers hand back `URL.createObjectURL(file)` — see
- * `expo-image-picker`'s `readFile` and `expo-document-picker`'s
- * `ExpoDocumentPicker.web.js`. A `blob:` URL is a handle into THIS tab's
- * memory: it means nothing to the API, nothing to Kaana and nothing to the
- * model, and it cannot be dereferenced from anywhere but the page that minted
- * it.
- *
- * The conversion that existed was gated on `Platform.OS !== 'web'`, so every
- * image picked in a browser was sent as `blob:http://…` and arrived as a
- * string the model could not open. Native was fine; web has been sending
- * unusable references.
- */
-async function inlineObjectUrl(uri: string, mimeType?: string): Promise<string> {
-  const response = await fetch(uri);
-  const blob = await response.blob();
-
-  return await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error ?? new Error('read failed'));
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result !== 'string') {
-        reject(new Error('unexpected reader result'));
-        return;
-      }
-      // `readAsDataURL` already stamps the blob's own type. It is only absent
-      // when the blob has none, and then the attachment's is the better guess.
-      resolve(
-        result.startsWith('data:application/octet-stream') && mimeType
-          ? result.replace('data:application/octet-stream', `data:${mimeType}`)
-          : result,
-      );
-    };
-    reader.readAsDataURL(blob);
-  });
 }
 
 /**
@@ -109,30 +62,20 @@ export async function buildMessageContent(
 
   const parts: MessageContentPart[] = [{ type: 'text', text }];
 
+  // The readers need the platform's file access, loaded on the first attachment: a turn of plain
+  // text (and everything that imports this module) never touches it.
+  const { imageUriToDataUrl } = await import('../lib/image-data-url');
   for (const att of usable) {
-    let url = att.uri;
-
-    if (!isInlineData(url)) {
-      try {
-        url =
-          Platform.OS === 'web'
-            ? await inlineObjectUrl(att.uri, att.mimeType)
-            : // Native file URIs (`file://`) are read off the filesystem.
-              `data:${att.mimeType || 'image/jpeg'};base64,${await FileSystem.readAsStringAsync(
-                att.uri,
-                {
-                  encoding: FileSystem.EncodingType.Base64,
-                },
-              )}`;
-      } catch {
-        // Reported rather than skipped. A picture that did not arrive is worth
-        // a sentence; it used to be a `continue`.
-        dropped.push({ name: att.name, reason: 'unreadable' });
-        continue;
-      }
+    try {
+      parts.push({
+        type: 'image_url',
+        image_url: { url: await imageUriToDataUrl(att.uri, att.mimeType) },
+      });
+    } catch {
+      // Reported rather than skipped. A picture that did not arrive is worth
+      // a sentence; it used to be a `continue`.
+      dropped.push({ name: att.name, reason: 'unreadable' });
     }
-
-    parts.push({ type: 'image_url', image_url: { url } });
   }
 
   // Every image failed to read, so the parts array is a text part and nothing

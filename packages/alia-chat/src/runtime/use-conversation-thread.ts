@@ -7,7 +7,7 @@ import { turnActivityState } from '../lib/turn-state';
 import { type AliaChatLabels, useLabels } from '../lib/labels';
 import { getTextFromContent } from '../lib/content-utils';
 import type { AliaAttachment } from '../types';
-import { buildMessageContent, type DroppedAttachment } from './attachment-utils';
+import { buildMessageContent } from './attachment-utils';
 import { useAliaRuntime } from './config';
 import { releaseAttachments, useComposerDraftStore } from './composer-draft-store';
 import { useConversationStore } from './conversation-store';
@@ -19,6 +19,7 @@ import {
   useDeleteConversation,
 } from './conversations';
 import { aliaQueryKeys } from './query-keys';
+import { reportDroppedAttachments, useStartConversation } from './use-start-conversation';
 import { useConversationStream } from './use-conversation-stream';
 import type { Message, SendOptions } from './types';
 
@@ -74,36 +75,6 @@ function isEmptyContent(content: MessageContent | undefined): boolean {
   if (content === undefined || content === null) return true;
   if (typeof content === 'string') return !content.trim();
   return content.length === 0;
-}
-
-/**
- * Say which attachments the turn went without.
- *
- * `buildMessageContent` used to drop them in silence: a document was filtered
- * out by `a.type === 'image'`, and an image whose bytes would not read was a
- * bare `continue`. The composer had already shown both as attached, so the
- * turn left with the person believing the file went with it — the visible
- * state and the real capability disagreeing, which is the failure #608 §1.6
- * names.
- *
- * A toast rather than a blocked send: the message itself is fine and worth
- * sending, and refusing the whole turn over a file the format cannot carry
- * would be a worse trade. What matters is that nobody finds out by noticing
- * the answer ignored their PDF.
- */
-export function reportDroppedAttachments(
-  dropped: DroppedAttachment[] | undefined,
-  labels: Pick<AliaChatLabels, 'attachmentNotSent' | 'attachmentUnreadable'>,
-): void {
-  if (dropped === undefined || dropped.length === 0) return;
-
-  for (const attachment of dropped) {
-    toast.error(
-      attachment.reason === 'unsupported'
-        ? labels.attachmentNotSent(attachment.name)
-        : labels.attachmentUnreadable(attachment.name),
-    );
-  }
 }
 
 export function useConversationThread({
@@ -345,51 +316,11 @@ export function useConversationThread({
     [isLoading, append, conversationId, host, labels],
   );
 
+  const startConversation = useStartConversation({ agentId });
   const createNewConversation = useCallback(
-    async (
-      initialMessage: string,
-      attachments?: AliaAttachment[],
-      options?: SendOptions,
-    ): Promise<boolean> => {
-      if (!initialMessage.trim() && !attachments?.length) return false;
-      const draft = useComposerDraftStore.getState().address(null);
-
-      // If there are attachments, build multi-part content and store it as pending.
-      // The raw text and attachments ride along so a failed send can restore them.
-      const pendingAttachments = attachments ?? [];
-      const built = pendingAttachments.length
-        ? await buildMessageContent(initialMessage, pendingAttachments)
-        : null;
-      const content = built ? built.content : initialMessage;
-      reportDroppedAttachments(built?.dropped, labels);
-      try {
-        // Create conversation on backend and get the ID
-        const newConversation = await createConversationMutation.mutateAsync({ agentId });
-
-        // Queued for THAT conversation, then shown: the thread that opens sends it.
-        useConversationStore.getState().setPendingInitialMessage({
-          conversationId: newConversation.id,
-          content,
-          text: initialMessage,
-          attachments: pendingAttachments,
-          mcpServerId: options?.mcpServerId ?? null,
-          skillNames: options?.skillNames ?? [],
-        });
-        host.openConversation?.(newConversation.id);
-        return true;
-      } catch {
-        // useCreateConversation.onError already shows the toast. Hand the
-        // composer back what it was holding.
-        useComposerDraftStore.getState().restore(draft, {
-          text: initialMessage,
-          attachments: pendingAttachments,
-          mcpServerId: options?.mcpServerId ?? null,
-          skillNames: options?.skillNames ?? [],
-        });
-        return false;
-      }
-    },
-    [host, labels, createConversationMutation, agentId],
+    (text: string, attachments?: AliaAttachment[], options?: SendOptions) =>
+      startConversation(text, { attachments, options }),
+    [startConversation],
   );
 
   /**

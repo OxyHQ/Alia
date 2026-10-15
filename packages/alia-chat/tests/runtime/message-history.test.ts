@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { Message } from '@/features/chat/runtime/use-conversations';
-import { buildOutboundMessages, normalizeConversationMessages } from '../chat-message-history';
+import type { Message } from '../../src/runtime/types';
+import {
+  buildOutboundMessages,
+  normalizeConversationMessages,
+} from '../../src/runtime/message-history';
 
 function message(id: string, role: Message['role'], content: string): Message {
   return { id, role, content };

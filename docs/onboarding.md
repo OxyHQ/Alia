@@ -107,7 +107,7 @@ Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_
 | `app/(app)/c/[id]/index` | Chat conversation screen | Chat UI changes |
 | `src/features/chat/ui/chat-interface.tsx` | Core chat UI: messages, input, streaming display | Chat UX changes |
 | `src/features/*/runtime/*-store.ts` | Zustand stores, each in the feature that owns it (see State Management below) | Client state changes |
-| `src/features/chat/runtime/use-conversations.ts` | TanStack Query hook for conversation CRUD | Conversation data layer |
+| `packages/alia-chat/src/runtime/conversations.ts` | TanStack Query hooks for conversation CRUD (the SDK's; the app and the sheet share them) | Conversation data layer |
 | `src/shared/api/client.ts` | API client with auth token injection | API communication |
 | `src/shared/api/routes.ts` | All API route constants | Adding/renaming endpoints |
 
@@ -171,7 +171,7 @@ Each store lives in the `runtime/` of the feature that owns it (`packages/app/sr
 
 Use for data fetched from the API that needs caching, refetching, and stale management.
 
-- `use-conversations.ts` -- conversation list and CRUD
+- the SDK's `runtime/conversations.ts` -- conversation list and CRUD
 - API calls go through `src/shared/api/client.ts` which auto-attaches the OxyHQ JWT
 
 **Rule of thumb**: if the data comes from the server, use TanStack Query. If it is purely UI state or needs synchronous access, use a Zustand store.

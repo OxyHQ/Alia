@@ -114,12 +114,12 @@ preflight from an origin Alia does not enumerate gets no
 header — a server, a native app — is subject to neither. The policy is pinned
 by `packages/api/src/middleware/__tests__/chat-origin-policy.test.ts`.
 
-That is why `@alia.onl/sdk`, a product client that switches on the `alia.*`
-events above, still sends its turns to `/v1/chat/completions`: it ships raw
-source and compiles into apps on their own origins. An external product uses
-it through its own backend today — `useAliaChat({ apiUrl })` at that backend,
-which calls `POST /alia/chat` server-to-server with the user's Oxy token
-forwarded and relays the SSE body unchanged (`packages/alia-chat/README.md`).
+`@alia.onl/sdk` is a product client that switches on the `alia.*` events above. Since 17.0.0
+its conversation runtime (`packages/alia-chat/src/runtime`, the one the Alia app also runs) sends
+turns to `/alia/chat` and keeps conversations at `/conversations`; it no longer calls
+`/v1/chat/completions`. A web build on an origin Alia does not enumerate uses it through its own
+backend — `apiUrl` pointed at that backend, which calls Alia server-to-server with the user's Oxy
+token forwarded and relays the SSE body unchanged (`packages/alia-chat/README.md`).
 
 Neither mount is going away. Under
 [ADR 0010](./adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md)

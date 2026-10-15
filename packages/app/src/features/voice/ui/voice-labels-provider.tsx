@@ -1,4 +1,4 @@
-import { AliaChatLabelsProvider, type AliaChatLabels } from '@alia.onl/sdk';
+import { type AliaChatLabels, AliaChatLabelsProvider } from '@alia.onl/sdk';
 import { useMemo, type ReactNode } from 'react';
 import { voiceEndedText, voiceErrorText } from '@/features/voice/model/voice-error-text';
 import { useTranslation } from '@/shared/i18n/use-translation';
