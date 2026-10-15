@@ -18,6 +18,10 @@
  *   the person says a few words that are not the answer echoing back, the turn
  *   is aborted — playback stops, the chat request is cancelled — and what they
  *   are saying becomes the next utterance.
+ * - **A voice that cannot speak ends the call.** When a clip cannot be made
+ *   (`synthesisError`, typed from the route's code) or played, the turn stops
+ *   speaking, its answer finishes streaming into the transcript, and the call
+ *   ends with the reason as `errorCode` — never a call that listens on, mute.
  *
  * It replaced a LiveKit room (`POST /v1/voice/token`) whose realtime model and
  * transcription called providers directly; Alia's only inference path is
@@ -43,11 +47,17 @@ import type {
 } from '../lib/speech-recognition-types';
 import {
   speechFailureCode,
+  synthesisFailureCode,
   VOICE_ERROR_MESSAGES,
   type VoiceErrorCode,
 } from '../lib/speech-messages';
 import { defaultSpeechLanguage } from '../lib/speech-language';
-import { playSpeechClip, requestSpeechClip, type ProductVoice } from '../lib/speech-synthesis';
+import {
+  playSpeechClip,
+  requestSpeechClip,
+  SpeechClipError,
+  type ProductVoice,
+} from '../lib/speech-synthesis';
 import { VoiceLevelChannel, type VoiceLevelSource } from '../lib/voice-levels';
 import {
   createAliaVoiceTurnSender,
@@ -133,7 +143,15 @@ interface ActiveTurn {
   closed: boolean;
   /** Wakes the player when a clip is queued or the answer ends. */
   wake: (() => void) | null;
-  synthesisFailed: boolean;
+  /**
+   * Why this turn stopped speaking: a clip that could not be made (`synthesis`
+   * holds what the route said) or one the device could not play. The call ends
+   * with `code` once the answer has finished streaming.
+   */
+  speechFailure: {
+    readonly code: VoiceErrorCode;
+    readonly synthesis: SpeechClipError | null;
+  } | null;
 }
 
 // ============== HOOK ==============
@@ -156,8 +174,10 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
   const [callFailure, setCallFailure] = useState<{ code: VoiceErrorCode; message: string } | null>(
     null,
   );
-  /** A turn that failed without ending the call: no answer, or no audio for it. */
+  /** A turn that failed without ending the call: no answer came back. */
   const [turnErrorCode, setTurnErrorCode] = useState<VoiceErrorCode | null>(null);
+  /** The clip that could not be made, when that is what ended the call. */
+  const [synthesisError, setSynthesisError] = useState<SpeechClipError | null>(null);
   const [messages, setMessagesState] = useState<VoiceMessage[]>([]);
   const [currentSpeaker, setCurrentSpeaker] = useState<'primary' | 'user' | null>(null);
 
@@ -307,11 +327,23 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
 
   // ============== SPEAKING ==============
 
+  /** The first reason a turn could not speak is the one the call ends with. */
+  const stopSpeaking = useCallback(
+    (turn: ActiveTurn, code: VoiceErrorCode, synthesis: SpeechClipError | null) => {
+      turn.speechFailure ??= { code, synthesis };
+    },
+    [],
+  );
+
   const synthesize = useCallback(
     (turn: ActiveTurn, text: string): Promise<string | null> => {
       const token = getToken();
       if (token === null) {
-        turn.synthesisFailed = true;
+        const failure = new SpeechClipError(VOICE_ERROR_MESSAGES['not-authenticated'], {
+          status: null,
+          code: 'NOT_AUTHENTICATED',
+        });
+        stopSpeaking(turn, synthesisFailureCode(failure), failure);
         return Promise.resolve(null);
       }
       const { apiUrl: url, speechModel: model, voicePref: voice } = configRef.current;
@@ -323,17 +355,28 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
         voice,
         signal: turn.controller.signal,
       }).catch((caught: unknown) => {
-        if (!turn.controller.signal.aborted) {
-          console.error('[useVoiceRoom] Speech synthesis failed:', caught);
-          turn.synthesisFailed = true;
-        }
+        if (turn.controller.signal.aborted) return null;
+        const failure =
+          caught instanceof SpeechClipError
+            ? caught
+            : new SpeechClipError(errorMessage(caught, 'TTS failed'), { status: null, code: null });
+        console.error('[useVoiceRoom] Speech synthesis failed:', {
+          status: failure.status,
+          code: failure.code,
+          requestId: failure.requestId,
+        });
+        stopSpeaking(turn, synthesisFailureCode(failure), failure);
         return null;
       });
     },
-    [getToken],
+    [getToken, stopSpeaking],
   );
 
-  /** Play the turn's clips in order as they arrive, fetching one ahead. */
+  /**
+   * Play the turn's clips in order as they arrive, fetching one ahead. Returns
+   * early, without skipping to a later sentence, once a clip cannot be made or
+   * played.
+   */
   const playTurn = useCallback(
     async (turn: ActiveTurn): Promise<void> => {
       const signal = turn.controller.signal;
@@ -352,18 +395,25 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
 
         const uri = await item.clip;
         if (signal.aborted) return;
-        if (uri === null) continue;
+        if (uri === null) {
+          setAgent('thinking');
+          levels.setPlayback(0);
+          return;
+        }
         turn.speaking = `${turn.speaking} ${item.text}`;
         setAgent('speaking');
         try {
           await playSpeechClip(uri, { signal, onLevel: (level) => levels.setPlayback(level) });
         } catch (caught: unknown) {
+          if (signal.aborted) return;
           console.error('[useVoiceRoom] Playback failed:', caught);
-          turn.synthesisFailed = true;
+          stopSpeaking(turn, 'not-played', null);
+          setAgent('thinking');
+          return;
         }
       }
     },
-    [levels, setAgent, synthesize],
+    [levels, setAgent, stopSpeaking, synthesize],
   );
 
   const queueChunks = useCallback((turn: ActiveTurn, final: boolean) => {
@@ -545,7 +595,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
         clips: [],
         closed: false,
         wake: null,
-        synthesisFailed: false,
+        speechFailure: null,
       };
       turnRef.current = turn;
       setAgent('thinking');
@@ -588,6 +638,15 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
         await playing;
         if (signal.aborted || turnRef.current !== turn) return;
 
+        // The answer is in the transcript; a call that cannot say it ends here,
+        // rather than listening on in silence.
+        const speechFailure = turn.speechFailure;
+        if (speechFailure !== null) {
+          if (mountedRef.current) setSynthesisError(speechFailure.synthesis);
+          fail(speechFailure.code);
+          return;
+        }
+
         turnRef.current = null;
         levels.setPlayback(0);
         // The session that listened through the answer has heard the answer; a
@@ -596,8 +655,6 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
         if (turn.text.trim() === '') {
           updateMessages((previous) => previous.filter((message) => message.id !== assistantId));
           if (mountedRef.current) setTurnErrorCode('no-answer');
-        } else if (turn.synthesisFailed) {
-          if (mountedRef.current) setTurnErrorCode('not-played');
         }
         setAgent('listening');
         startListeningRef.current();
@@ -613,6 +670,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     if (phaseRef.current !== 'off') return;
     setCallFailure(null);
     setTurnErrorCode(null);
+    setSynthesisError(null);
     setRoomState('connecting');
 
     if (!isSpeechRecognitionAvailable()) {
@@ -669,6 +727,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     setAgentStateValue('idle');
     setCallFailure(null);
     setTurnErrorCode(null);
+    setSynthesisError(null);
     setIsMuted(false);
     setMessagesState([]);
     setCurrentSpeaker(null);
@@ -718,6 +777,12 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     errorCode: callFailure?.code ?? null,
     turnError: turnErrorCode === null ? null : VOICE_ERROR_MESSAGES[turnErrorCode],
     turnErrorCode,
+    /**
+     * When the call ended because a clip could not be made: the route's HTTP
+     * status and typed code (`SpeechClipError`). `errorCode` says the same as a
+     * `VoiceErrorCode` an app can translate.
+     */
+    synthesisError,
     messages,
     currentSpeaker,
     connect,

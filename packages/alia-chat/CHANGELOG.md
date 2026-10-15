@@ -1,5 +1,21 @@
 # @alia.onl/sdk
 
+## Unreleased
+
+A voice call that cannot speak ends and says why, instead of listening on in silence:
+
+- **`requestSpeechClip` throws a `SpeechClipError`** (exported) with the route's HTTP `status`,
+  its typed `code` (`SPEECH_UNAVAILABLE`, `SPEECH_LIMIT_REACHED`, `SPEECH_REJECTED`,
+  `SPEECH_PROVIDER_FAILED`, `SPEECH_GENERATION_FAILED`, `INVALID_REQUEST`, `NOT_AUTHENTICATED`, or
+  `null`), `retryable` and `requestId`. An empty token is `NOT_AUTHENTICATED` without a request.
+- **`useVoiceRoom` ends the call when a clip cannot be made or played**, after the answer has
+  finished streaming into the transcript, with `errorCode` `synthesis-unavailable`,
+  `synthesis-limited`, `synthesis-rejected`, `synthesis-failed`, `not-authenticated` (no session
+  token) or `not-played`; `synthesisError` is the `SpeechClipError` behind it. A turn no longer
+  skips a sentence it could not speak, and `turnErrorCode` is no longer `not-played`.
+- `VoiceErrorCode` gains the four `synthesis-*` codes; an app that translates every code needs
+  their sentences.
+
 ## 13.1.0
 
 The chat works in any app without host setup it did not document in code:

@@ -101,8 +101,43 @@ person says two or more words that are not the answer echoing back
 and the chat request is cancelled — and what they are saying becomes the next
 utterance.
 
-If speech synthesis is unavailable the call carries on: the answer is in the
-thread, and the call reports that it could not be played aloud.
+## When speech fails
+
+A call that cannot speak **ends, and says why** — it never listens on in
+silence. When a clip cannot be made or played, the turn stops speaking (no
+later sentence is played out of order), the answer finishes streaming into the
+thread — the chat request is not cancelled, so the written answer is whole —
+and then the call ends with a `VoiceErrorCode` the app says in its own
+language (`voice.errors.*`):
+
+| Route answer (`error.code`) | Status | Call ends with |
+|---|---|---|
+| `SPEECH_UNAVAILABLE` — no inference client, no speech model, no route, storage not set up, Oxy refusing Alia's authority | 503 | `synthesis-unavailable` |
+| `SPEECH_LIMIT_REACHED` — rate limit, quota, spending limit, balance (`Retry-After` when Oxy gave one) | 429 | `synthesis-limited` |
+| `SPEECH_REJECTED` — the model refused the voice, the speed or the text | 422 | `synthesis-rejected` |
+| `SPEECH_PROVIDER_FAILED` — upstream error, timeout (504), transport, not MP3 | 502 / 504 | `synthesis-failed` |
+| `SPEECH_GENERATION_FAILED` — storing or attaching the clip failed | 502 | `synthesis-failed` |
+| 401, or no session token on the device (no request is made) | — | `not-authenticated` |
+| The device could not play the clip | — | `not-played` |
+
+The route's message is provider-neutral and fixed per code; Oxy's `requestId`
+travels with it. On the device, `requestSpeechClip` throws a `SpeechClipError`
+that keeps the HTTP `status`, the typed `code` (`null` for a network failure or
+a code the SDK does not know), `retryable` and `requestId`; `useVoiceRoom`
+exposes the one that ended the call as `synthesisError`.
+
+**Server side**, `lib/synthesize-speech.ts` is the only caller of the inference
+client for speech and the only reader of its error type; the route and the show
+pipeline see a `SpeechSynthesisError`. It tries the speech models in the
+catalogue's order ([Model abstraction](./model-abstraction.mdx)) and moves to
+the next — at most three, within one 60-second budget — only when the model
+itself refused (`invalid_request`, `unsupported_modality`, `model_not_found`,
+`no_route_available`, `commercial_permission_denied`); every other refusal,
+authentication and credit above all, fails at once. Each failed request is one
+structured `speech` log record — `code`, `reason`, `status`, Oxy's
+`upstreamCode` / `upstreamStatus` / `requestId` / `param`, the models tried,
+the product voice and the input's length — and never the text, the user or the
+conversation. Each fallback is a `warn` record of the same kind.
 
 ## When a call ends on its own
 

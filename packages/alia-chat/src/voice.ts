@@ -22,6 +22,8 @@ export type {
 export type { VoiceLevelSource } from './lib/voice-levels';
 export { VOICE_ERROR_MESSAGES } from './lib/speech-messages';
 export type { VoiceErrorCode } from './lib/speech-messages';
+export { SpeechClipError } from './lib/speech-synthesis';
+export type { SpeechClipErrorCode } from './lib/speech-synthesis';
 export { useAudioLevelMonitor } from './hooks/useAudioLevelMonitor';
 export { useAudioLevels } from './hooks/useAudioLevels';
 export { useAmbientWave } from './hooks/useAmbientWave';

@@ -1759,7 +1759,11 @@
       "not-authenticated": "Sign in to use voice",
       "turn-failed": "Voice request failed",
       "no-answer": "No answer came back — try saying it again",
-      "not-played": "The answer could not be played aloud"
+      "not-played": "The answer could not be played aloud — it is in the chat",
+      "synthesis-unavailable": "Alia's voice is not available right now — the answer is in the chat",
+      "synthesis-limited": "Alia's voice has reached its limit for now — the answer is in the chat",
+      "synthesis-rejected": "Alia's voice could not read this answer — it is in the chat",
+      "synthesis-failed": "Alia's voice failed — the answer is in the chat"
     },
     "controls": {
       "connecting": "Connecting…",

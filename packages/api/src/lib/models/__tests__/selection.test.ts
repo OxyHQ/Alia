@@ -21,7 +21,7 @@ vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
 const {
   getDefaultModelId,
   getFeaturedModelIds,
-  getSpeechModelId,
+  getSpeechModelIds,
   getUtilityModelId,
   resetModelSelectionCache,
   NoModelAvailableError,
@@ -81,7 +81,7 @@ describe('live selection', () => {
     aggregateModelTurnsSince.mockResolvedValue([]);
     await expect(getDefaultModelId(null)).rejects.toBeInstanceOf(NoModelAvailableError);
     await expect(getUtilityModelId()).rejects.toBeInstanceOf(NoModelAvailableError);
-    await expect(getSpeechModelId()).rejects.toBeInstanceOf(NoModelAvailableError);
+    await expect(getSpeechModelIds()).rejects.toBeInstanceOf(NoModelAvailableError);
   });
 
   it('picks utility and speech from the catalogue', async () => {
@@ -93,6 +93,6 @@ describe('live selection', () => {
       model('v/voice', { outputModalities: ['audio'], tools: false }),
     ]);
     expect(await getUtilityModelId()).toBe('a/cheap');
-    expect(await getSpeechModelId()).toBe('v/voice');
+    expect(await getSpeechModelIds()).toEqual(['v/voice']);
   });
 });

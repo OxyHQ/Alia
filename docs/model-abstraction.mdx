@@ -161,13 +161,20 @@ The selection rules are pure functions over the catalogue and usage data
 - **Utility model** — titles, summaries, compaction, suggestions, soul, style
   refinement, planner, verifier and other internal calls use the cheapest
   stable chat-usable model with a context window of at least 32k tokens.
-- **Speech model** — the cheapest catalogue model that answers `/v1/audio/speech` —
+- **Speech models** — every catalogue model that answers `/v1/audio/speech` —
   text in, audio out, `audio_speech` among its declared formats when Oxy
-  declares any, and no realtime sessions — ranked by its per-character price
-  (speech is billed by the characters it reads, not by tokens); ties and
-  unpriced models break on the id. An audio chat model or a realtime voice
-  model also produces audio but cannot answer a speech request, so neither is
-  chosen.
+  declares any, and no realtime sessions — in one explicit order
+  (`rankSpeechModelIds`): priced before unpriced (a missing, unparseable or
+  negative per-character price is no price; speech is billed by the characters
+  it reads, not by tokens), then cheapest per character, then the id in
+  code-point order, so the same catalogue always gives the same order. The
+  first answers; when it refuses the request itself (`invalid_request`,
+  `unsupported_modality`, `model_not_found`, `no_route_available`,
+  `commercial_permission_denied`), the next is tried, up to three
+  (`synthesize-speech.ts`). Authentication, scope, balance, quota, spending,
+  provider-credential, content and retryable refusals are never retried on
+  another model. An audio chat model or a realtime voice model also produces
+  audio but cannot answer a speech request, so neither is offered.
 
 Stored choices hold a power level, a real model id or `NULL`:
 `agents.model_id`, `agent_threads.model_id`, a bot's default/preferred model and
@@ -229,8 +236,10 @@ grant; `plans.model_ids` no longer exists.
 
 Text chat uses the Kaana seam. Speech uses the typed
 `OxyInferenceClient.speech` operation with delegated user identity and the
-computed speech model. MP3 output is stored privately and returned as a
-short-lived playback link. See the
+computed speech models, called only from `lib/synthesize-speech.ts`, which
+turns the client's refusals into Alia's own `SPEECH_*` codes
+([Voice](./voice.mdx#when-speech-fails)). MP3 output is stored privately and
+returned as a short-lived playback link. See the
 [speech recovery record](./runbooks/speech-recovery-2026-09-13.md) for rollout
 history.
 

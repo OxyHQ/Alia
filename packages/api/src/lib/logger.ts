@@ -162,6 +162,7 @@ export const log = {
   tools: createLogger('tools'),
   v1: createLogger('v1'),
   models: createLogger('models'),
+  speech: createLogger('speech'),
   canvas: createLogger('canvas'),
   agents: createLogger('agents'),
   triggers: createLogger('triggers'),

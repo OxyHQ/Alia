@@ -50,6 +50,8 @@ export type { UseTTSOptions } from './hooks/useTTS';
 export { useSpeechToText, useSTTStore } from './hooks/useSpeechToText';
 export { VOICE_ERROR_MESSAGES } from './lib/speech-messages';
 export type { VoiceErrorCode } from './lib/speech-messages';
+export { SpeechClipError } from './lib/speech-synthesis';
+export type { SpeechClipErrorCode } from './lib/speech-synthesis';
 export type { UseSTTOptions } from './hooks/useSpeechToText';
 
 // ── Model catalogue (GET /catalogue) ──
