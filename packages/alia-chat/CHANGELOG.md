@@ -1,5 +1,12 @@
 # @alia.onl/sdk
 
+## 17.0.2
+
+- **The composer has its loader again.** While a turn runs, the pill is wrapped in Bloom's
+  `ComposerLoader` (the light that laps its rim) with `surface={false}` and `frosted`, as the
+  composer had before it became `ComposerPill` (15.1.0) and lost it. A question Alia asks sits
+  beside the loader instead of inside the pill's `question` slot, so the light does not ring it.
+
 ## 18.0.0
 
 One thread, one conversation screen. The Alia app's thread — its turns, cards, work log, thought
