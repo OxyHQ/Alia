@@ -17,17 +17,21 @@ no surface uses the browser's or the operating system's speech recognition.
 
 ## Status (ADR 0017 phase 1)
 
-Alia's part is built and tested against a **port** of `@kaana.ai/sdk`
-(`packages/api/src/lib/kaana/port.ts`, the signatures of Kaana ADR 0002) and a
-contract-faithful fake (`lib/kaana/fake.ts`). `lib/kaana/transport.ts` is the one
-place the client is constructed, and today it answers `null`: until
-`@kaana.ai/sdk` 1.0.0 is published and Kaana serves `kaana.ai/v1/realtime` and
-`/v1/audio/transcriptions`, a call ends `realtime-unavailable` and dictation answers
-`TRANSCRIPTION_UNAVAILABLE` — typed, never a stand-in. On a developer machine,
-`ALIA_VOICE_FAKE_UPSTREAM=1` (ignored by any deployed task) serves both from the
-fake in its scripted mode — a small energy detector plays the provider and answers
-with a tone — so capture, playback, echo cancellation and barge-in can be checked
-on a real device.
+Alia's part is built against a **port** of `@kaana.ai/sdk`
+(`packages/api/src/lib/kaana/port.ts`, the signatures of Kaana ADR 0002), which the
+real `Kaana` class of `@kaana.ai/sdk` 1.0.1 satisfies structurally (the typecheck is
+the proof), and tested against a contract-faithful fake (`lib/kaana/fake.ts`).
+`lib/kaana/transport.ts` is the one place the client is constructed: the real SDK,
+whose credential is Alia's Oxy service token with `aud: kaana.ai`
+(`oxyServiceTokenFor`, @oxy.so/core 4.9.1), minted from the same identity as every
+other Alia call to Oxy. A process with no Oxy service identity has no client, and
+then a call ends `realtime-unavailable` and dictation answers
+`TRANSCRIPTION_UNAVAILABLE` — typed, never a stand-in. So does every call while
+Kaana's public API is off (`KAANA_PUBLIC_API_ENABLED`, oxy-infra runbook 48). On a
+developer machine, `ALIA_VOICE_FAKE_UPSTREAM=1` (ignored by any deployed task)
+serves both from the fake in its scripted mode — a small energy detector plays the
+provider and answers with a tone — so capture, playback, echo cancellation and
+barge-in can be checked on a real device.
 
 What production still needs, outside Alia, is in [What is left](#what-is-left).
 
@@ -404,8 +408,8 @@ Outside Alia, before calls and dictation can be switched on in production
   public and `@kaana.ai/sdk` 1.0.0 published; ALB cookie stickiness and a
   deregistration delay of at least 31 min on Alia's target group; WebSocket idle
   timeouts that cover a 30-minute call.
-- **Alia phase 4:** the one-line switch in `lib/kaana/transport.ts` and the types from
-  `@kaana.ai/contracts`; then the release gates: Chrome echo cancellation with Web
+- **Alia phase 4:** the switch in `lib/kaana/transport.ts` is done (usage units now come
+  from `@kaana.ai/contracts`); left are the release gates: Chrome echo cancellation with Web
   Audio playback (fallback: an `RTCPeerConnection` loopback), Android echo
   cancellation with `react-native-audio-api` (fallback: a small Expo module of Alia's
   own over `AudioRecord(VOICE_COMMUNICATION)`), iOS on a Mac, dictation latency end to
