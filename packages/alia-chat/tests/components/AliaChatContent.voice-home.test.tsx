@@ -56,7 +56,28 @@ vi.mock('@oxy.so/bloom/avatar-flight', () => ({
 vi.mock('@oxy.so/bloom/icons', () => ({ RiImageLine: () => null }));
 vi.mock('@oxy.so/bloom/composer-panel', () => ({}));
 vi.mock('../../src/components/AmbientField', () => ({ AmbientField: () => null }));
-vi.mock('../../src/components/AliaChatMessageList', () => ({ AliaChatMessageList: () => null }));
+vi.mock('../../src/components/thread/AliaThread', () => ({ AliaThread: () => null }));
+vi.mock('../../src/components/thread/ThreadSearch', () => ({ ThreadSearch: () => null }));
+vi.mock('../../src/runtime/use-agent-activity', () => ({ useAgentActivity: () => ({}) }));
+vi.mock('../../src/hooks/useThreadView', () => ({
+  useThreadView: () => ({
+    history: undefined,
+    focusCursor: null,
+    jumped: false,
+    jump: () => {},
+    backToLatest: () => {},
+    searchOpen: false,
+    openSearch: () => {},
+    closeSearch: () => {},
+  }),
+}));
+vi.mock('../../src/lib/power-level-options', () => ({ buildPowerLevelOptions: () => [] }));
+vi.mock('../../src/hooks/useSoundEffects', () => ({ useVoiceSoundEffects: () => {} }));
+vi.mock('../../src/lib/keyboard', () => ({ KeyboardSafeAreaFloor: () => null }));
+vi.mock('@oxy.so/bloom/chat-screen', () => ({ ScrollToBottomButton: () => null }));
+vi.mock('@oxy.so/bloom/typography', () => ({ Text: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiEditLine', () => ({ RiEditLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiImageLine', () => ({ RiImageLine: () => null }));
 vi.mock('../../src/components/AliaWelcomeMessage', () => ({ AliaWelcomeMessage: () => null }));
 vi.mock('../../src/components/AliaComposer', () => ({
   // The mic button the chat offers an empty composer.

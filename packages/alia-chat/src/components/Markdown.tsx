@@ -3,13 +3,12 @@ import { View, Text, Platform, Linking } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import Markdown, { MarkdownIt, type ASTNode } from 'react-native-markdown-display';
 import { CodeBlock } from '@oxy.so/bloom/code';
+import { fontFamilies } from '@oxy.so/bloom/fonts';
 import type { AliaColors } from '../theme';
 
 // Hardcoded fallback colors for standalone SDK usage (when no color override is passed).
 // The main app always passes resolved colors via the `colors` prop.
-/** The body text of a reply: its bubble sets its padding from these. */
-export const MARKDOWN_BODY = { fontSize: 16, lineHeight: 28 } as const;
-const BODY_TEXT = MARKDOWN_BODY;
+const BODY_TEXT = { fontSize: 16, lineHeight: 28 } as const;
 const HEADING_TEXT = { fontSize: 16, lineHeight: 22 } as const;
 const MONO_FONT = Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' })!;
 
@@ -325,16 +324,24 @@ function codeLanguage(node: ASTNode): string | undefined {
   return language === '' ? undefined : language;
 }
 
+/**
+ * The body face, which `react-native-markdown-display` cannot inherit on native.
+ *
+ * It is driven by RN STYLE OBJECTS and supports no `className`, so NativeWind's `--font-sans`
+ * cannot reach the `<Text>` elements it renders. And Bloom's app-wide native default — the
+ * `Text.defaultProps` mutation in its `FontLoader.native.tsx` — does not apply: React 19 drops
+ * `defaultProps` under the automatic JSX runtime Expo compiles to. So the family is handed over
+ * explicitly, taken from Bloom's own token so it has one owner. `fontFamilies.sans` is a CSS
+ * STACK and RN's `fontFamily` takes a single family, hence the leading entry. Web is left
+ * undefined on purpose: there the cascade from `html` already carries `--bloom-font-sans`, and
+ * naming a family would override Bloom instead of complementing it.
+ */
+const BODY_FONT = Platform.OS === 'web' ? undefined : fontFamilies.sans.split(',')[0].trim();
+
 export interface AliaMarkdownProps {
   /**
-   * The sans family for body text, as a SINGLE family name — RN's `fontFamily`
-   * takes one, not a CSS stack.
-   *
-   * Omitted, body text inherits: correct on web, where Bloom's
-   * `--bloom-font-sans` reaches it through the cascade. On native nothing is
-   * inherited (see `createStyles`), so a native caller that wants Bloom's face
-   * has to pass it — this renderer takes RN style objects, so it cannot
-   * read Bloom's token itself.
+   * The sans family for body text, as a SINGLE family name — RN's `fontFamily` takes one, not a
+   * CSS stack. Omitted, Bloom's own (see `BODY_FONT`).
    */
   fontFamily?: string;
   content: string;
@@ -459,7 +466,7 @@ const MarkdownBlock = React.memo(ParsedMarkdown);
 export function AliaMarkdown({
   content,
   colors: colorOverrides,
-  fontFamily,
+  fontFamily = BODY_FONT,
   renderCodeBlock,
 }: AliaMarkdownProps) {
   // Bloom's theme, which follows the app's chosen mode, not the system's scheme: a person who

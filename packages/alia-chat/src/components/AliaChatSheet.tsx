@@ -1,7 +1,15 @@
 import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
 import { AvatarFlightLayer, useAvatarFlights } from '@oxy.so/bloom/avatar-flight';
 import { BottomSheet, type BottomSheetRef } from '@oxy.so/bloom/bottom-sheet';
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useWindowDimensions, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
@@ -9,8 +17,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BREAKPOINTS } from '@oxy.so/bloom/styles';
 import { ALIA_CHARACTER_RUNTIME_URL } from '../lib/character-runtime';
 import type { AliaChatLabels } from '../lib/labels';
-import { AliaChatContent, type AliaChatContentProps, type AliaTurn } from './AliaChatContent';
+import type { AliaRuntimeHost } from '../runtime/config';
+import { useThoughtStore } from '../runtime/thought-store';
+import type { AliaTurn } from '../hooks/useChatComposer';
+import { AliaChatContent, type AliaChatContentProps } from './AliaChatContent';
 import { AliaChatHeader } from './AliaChatHeader';
+import { ThoughtPanel } from './thought/ThoughtPanel';
 import type { AliaSuggestion } from '../types';
 
 /**
@@ -21,6 +33,9 @@ import type { AliaSuggestion } from '../types';
  * `borderRadius` in `style` below when that lands.
  */
 const SHEET_RADIUS = 40;
+
+/** How much of the screen's height the sheet of a turn's work takes. */
+const THOUGHT_SHEET_HEIGHT = 0.7;
 
 /** The sheet floats (detached) from tablet width up; on a phone it is flush with the screen edges. */
 const DETACHED_FROM = BREAKPOINTS.md;
@@ -125,12 +140,32 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       return true;
     }, []);
 
+    // What a turn did — its steps, its sources, its reasoning — opens in a sheet over the
+    // conversation when the reader asks for it. A turn that begins using tools does not open one by
+    // itself: on a phone that would cover the answer being written.
+    const thoughtRef = useRef<BottomSheetRef>(null);
+    const closeThought = useCallback(() => {
+      useThoughtStore.getState().close();
+      thoughtRef.current?.dismiss();
+    }, []);
+    const runtime = useMemo<AliaRuntimeHost>(
+      () => ({
+        showThought: (opening) => {
+          if (opening === 'automatic') return false;
+          thoughtRef.current?.present();
+          return true;
+        },
+      }),
+      [],
+    );
+
     const handleDismiss = useCallback(() => {
       conversationStopRef.current?.();
       mainStopRef.current?.();
       conversationRef.current?.dismiss();
       mainRef.current?.dismiss();
-    }, []);
+      closeThought();
+    }, [closeThought]);
 
     useImperativeHandle(
       ref,
@@ -149,10 +184,11 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       mainStopRef.current?.();
       conversationStopRef.current?.();
       conversationRef.current?.dismiss();
+      closeThought();
       return true;
-    }, []);
+    }, [closeThought]);
 
-    const { width } = useWindowDimensions();
+    const { width, height } = useWindowDimensions();
     const detached = width >= DETACHED_FROM;
     // Flush with the screen edge the sheet runs behind the home indicator: the composer clears it.
     const { bottom } = useSafeAreaInsets();
@@ -162,13 +198,33 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
 
     // The avatars fly between the two sheets: one controller, one layer.
     const flights = useAvatarFlights();
+    // The conversation's bar: back to the main screen, the profile, share and the menu.
+    const conversationChrome = useCallback<NonNullable<AliaChatContentProps['chrome']>>(
+      ({ agents }) => ({
+        header: (
+          <View className="pt-8">
+            <AliaChatHeader
+              agents={agents}
+              hasMessages
+              onClear={closeConversation}
+              onBack={closeConversation}
+              onShare={onShare}
+              menu={headerMenu}
+            />
+          </View>
+        ),
+      }),
+      [closeConversation, onShare, headerMenu],
+    );
     const shared = {
       flights,
+      layout: 'sheet' as const,
       clientContext,
       model,
       apiUrl,
       isDarkMode: isDarkMode ?? isDark,
       voice,
+      runtime,
       bottomInset: detached ? 0 : bottom,
       labels,
     };
@@ -219,23 +275,21 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
               initialTurn={conversation.turn}
               presentedProgress={conversationProgress}
               onStopReady={registerConversationStop}
-              // The bar is the conversation's: back to the main screen, the profile, share and
-              // the menu.
-              header={({ agents }) => (
-                <View className="pt-8">
-                  <AliaChatHeader
-                    agents={agents}
-                    hasMessages
-                    onClear={closeConversation}
-                    onBack={closeConversation}
-                    onShare={onShare}
-                    menu={headerMenu}
-                  />
-                </View>
-              )}
+              chrome={conversationChrome}
             />
           </BottomSheet>
         ) : null}
+        <BottomSheet
+          ref={thoughtRef}
+          detached={detached}
+          scrollable={false}
+          onDismiss={() => useThoughtStore.getState().close()}
+          style={sheetStyle}
+        >
+          <View style={{ height: height * THOUGHT_SHEET_HEIGHT }}>
+            <ThoughtPanel onClose={closeThought} />
+          </View>
+        </BottomSheet>
         <AvatarFlightLayer flights={flights} />
       </AgentAvatarProvider>
     );
