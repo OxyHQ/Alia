@@ -257,7 +257,7 @@ interface MatrixRow {
  * `db/__tests__/uniqueConstraints.pgdb.test.ts`, and the ledger row's file
  * went with the directory.
  */
-const REMOVED_ROW_COUNT = 170;
+const REMOVED_ROW_COUNT = 171;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);

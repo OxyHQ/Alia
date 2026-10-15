@@ -7,6 +7,12 @@ the answers are decisions here, not open points (see "Owner's answers").
 
 **Date:** 2026-10-15
 
+**Implementation:** phase 1 (Alia) is built and tested on branch `feat/voice-realtime`,
+against a port of `@kaana.ai/sdk` and a contract-faithful fake; at the owner's request it
+also carries the phase-4 cut of on-device recognition (`@alia.onl/sdk` 15.0.0). Not
+switched on: phases 1–3 of Kaana and Oxy are pending. See "Implementation status" at the
+end.
+
 **Supersedes, when accepted:** [ADR 0013](./0013-voice-runs-on-the-device-livekit-and-cohost-are-retired.md)
 decisions 1 ("the device listens"), 2 ("a call is a loop of chat turns") and 3 ("Oxy
 speaks", for calls only), and its "Kept: dictation (`useSpeechToText`)". ADR 0013's
@@ -857,3 +863,50 @@ in the decision above:
   session's units without breaking the unit rule.
 - **The Alia app's Console values** for session concurrency and spend. The values are
   Oxy's, and Console must offer the fields first (§5).
+
+## Implementation status
+
+Updated 2026-10-15.
+
+| Phase | Repo | State |
+|---|---|---|
+| 0 | Alia | Done: this record, the note on ADR 0013, `docs/voice.mdx` rewritten. |
+| 1 | Kaana | Pending: input transcription inside sessions and its catalogue flag, `audio` and `capabilities.realtime` for realtime models, the upload's measured duration. |
+| 1 | Alia | **Done** (`feat/voice-realtime`): `lib/kaana/{port,transport,fake}.ts`; `lib/chat/turn-inputs.ts` (extracted from `buildChatRequestContext`); `lib/voice/` (`call.ts` the session, `tool-bridge.ts`, `turn.ts`, `credits.ts`, `call-registry.ts`, `errors.ts`, `protocol.ts`, `voice-socket.ts`, `transcribe.ts`); `lib/models/voice-models.ts`; `GET /v1/voice/session`; `POST /v1/audio/transcriptions`; migration `0094_voice_calls` (pre phase: `voice_calls`, `messages.interrupted_after_ms`). SDK 15.0.0: `useVoiceRoom` over the socket with the audio-engine seam (web `AudioWorklet`, native `react-native-audio-api`), `useDictation`. App wired. Pixel 8a validation not run (`docs/native-validation.mdx` §9). |
+| 2 | Oxy | Pending. |
+| 3 | Kaana / oxy-infra | Pending. |
+| 4 | Alia | The deletion of on-device recognition is **done early**, with phase 1, at the owner's request (no browser or OS recognizer anywhere; `expo-speech-recognition` in `removed-dependencies-stay-removed.test.ts`). Left: the one-line switch in `lib/kaana/transport.ts`, the types from `@kaana.ai/contracts`, the release gates. Until then a call ends `realtime-unavailable` and dictation answers `TRANSCRIPTION_UNAVAILABLE`, so the app release that carries SDK 15 waits for the switch. |
+| 5 | Alia | Pending. |
+
+**Choices this record left open, made in phase 1** (the simplest coherent with it):
+
+- `realtime.connect(open)` carries no model, which travels on the URL
+  (`?model=`): the port passes it beside the frame as `model`.
+- The catalogue flag for in-session input transcription is read as
+  `capabilities.realtime.inputAudioTranscription` until Kaana names it.
+- Turn detection is always `server_vad` (the catalogue says nothing about
+  `semantic_vad`).
+- A reviewed action files its card in the conversation, as in chat; the call
+  UI is told (`approval.requested`) and the call does not wait on it. Tools
+  that need an SSE surface (question card, plan preview, new-conversation chip)
+  are not offered in a call.
+- Messages of a call are appended by `seq` (`appendConversationMessages`), not
+  through `saveConversation`, which reconciles a client's history the call does
+  not have. The heard milliseconds of an interrupted answer are a column,
+  `messages.interrupted_after_ms`, kept across a later rewrite.
+- A product's agent is refused in a call (`agent-unavailable`): it is reached
+  through its application's lane, which a person's socket is not.
+- A resume replays the call's JSON events; assistant audio sent while the socket
+  was away is not replayed.
+- An unpriced realtime model is held at the initial reservation per block and
+  settled at the minimum, logged (the `calculateCredits` rule).
+- Dictation takes a person's session only (an `oxy_sk_` is refused); its 5-minute
+  bound is the recorder's `durationMs` plus Kaana's 20 MiB, until Kaana's measured
+  duration is in the grant.
+- `@alia.onl/sdk` is 15.0.0, not 14.0.0: 14.0.0 had already shipped (#752).
+- `react-native-audio-api` 0.13.6 has neither `iosVoiceProcessing` nor an Android
+  `voiceCommunication` preset: iOS uses the `playAndRecord` session in `voiceChat`
+  mode; Android's echo cancellation is the release gate of §4, with this record's
+  fallback.
+- During a call the app shows the thread as the server stores it
+  (`messages.saved`, `conversation:message`), not a live client transcript.

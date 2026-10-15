@@ -56,6 +56,8 @@ import { initChannels } from './lib/channels/index.js';
 import { initSocket } from './socket.js';
 // MCP relay for local MCP tool calls via WebSocket
 import { initMcpRelay, shutdownMcpRelay } from './lib/mcp-relay.js';
+// Voice calls: `GET /v1/voice/session`, a WebSocket of its own (ADR 0017)
+import { initVoiceSessions, shutdownVoiceSessions } from './lib/voice/voice-socket.js';
 
 // Bun loads `.env` from the working directory before any module runs; the
 // package scripts (`bun run dev`, `bun run start`) run from packages/api, so
@@ -104,6 +106,9 @@ server.on('connection', (socket) => {
 
 initSocket(server).on('connection', (socket) => activity?.observeSocket(socket));
 initMcpRelay(server, (socket, headers) => {
+  activity?.observeWebSocket(socket, { headers, activityType: 'ai' });
+});
+initVoiceSessions(server, (socket, headers) => {
   activity?.observeWebSocket(socket, { headers, activityType: 'ai' });
 });
 
@@ -449,6 +454,10 @@ const shutdown = async (signal: string) => {
   forceTimeout.unref();
 
   try {
+    // Calls still open after the deploy's drain window end `server-shutdown`:
+    // first, while Postgres and Redis can still store and announce their end.
+    await shutdownVoiceSessions();
+
     // Close Socket.IO connections
     const { getIO } = await import('./socket.js');
     const io = getIO();

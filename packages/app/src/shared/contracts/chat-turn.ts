@@ -1,11 +1,9 @@
 /**
- * What a chat turn is sent with — the shapes the chat runtime takes and the
- * voice call hands it.
+ * What a chat turn is sent with — the shape the chat runtime takes and the
+ * screens hand it.
  *
- * They live here rather than in the chat's runtime because voice drives the
- * same send: a spoken turn is an ordinary turn with `responseMode: 'voice'`.
- * Voice reading them from the chat would make the two features import each
- * other (the chat renders voice's controls), so both read the contract.
+ * A voice call no longer sends chat turns (it is a realtime session Alia holds,
+ * ADR 0017), so nothing here is voice's.
  */
 
 export interface SendOptions {
@@ -21,17 +19,4 @@ export interface SendOptions {
    * system prompt, which is what the format is for.
    */
   skillNames?: string[];
-  /**
-   * `'voice'` when the turn was spoken in a voice call: the API answers it
-   * with its voice response profile — short, conversational, nothing that
-   * cannot be read aloud. Omitted for every typed turn.
-   */
-  responseMode?: 'voice';
-  /**
-   * Called with the whole answer so far each time real content arrives, before
-   * it is batched for rendering. Voice mode speaks from this: it needs every
-   * fragment the moment it lands, and the final text before `append` resolves,
-   * neither of which the rendered message list guarantees.
-   */
-  onAnswerText?: (answerSoFar: string) => void;
 }

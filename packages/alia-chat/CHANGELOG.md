@@ -1,5 +1,70 @@
 # @alia.onl/sdk
 
+## 15.0.0
+
+A voice call is a realtime speech-to-speech session through Alia and Kaana, and the composer's
+microphone is transcribed by a Kaana model (Alia ADR 0017). Nothing is recognized by the browser
+or the operating system any more, anywhere in the SDK.
+
+- **Breaking: `useVoiceRoom` is a call over Alia's `GET /v1/voice/session` WebSocket.** It sends
+  the microphone as PCM16 24 kHz frames and plays the answer's PCM16 frames; turn detection and
+  barge-in are the model's, on the server, and tools, memory and the stored transcript are Alia's.
+  New options: `conversationId` (where the transcript is stored; omitted, each call starts a
+  conversation of its own), `agentId`, `voicePreference`, `lang`, `onMessagesSaved` (refresh the
+  thread), `onApprovalRequested`, and the test seams `createAudioEngine` / `openSocket`. Gone:
+  `sendTurn`, `chatModel`, `model`, `endOfUtteranceMs`, `bargeIn`, `synthesisError`, `turnError`,
+  `turnErrorCode`, `warning`, `warningCode`.
+- **Honest states.** `callState` (`VoiceCallState`) is `connecting` → `listening` (only once the
+  session is ready upstream, the microphone delivered a buffer AND Alia acknowledged the first
+  appended audio) → `user-speaking` → `thinking` → `using-tool` → `speaking` (only when the first
+  answer frame is PLAYING) → … → `ended { reason }` or `error { code }`, plus `reconnecting`
+  while a dropped socket resumes within the session's resume window or Alia re-opens the session
+  upstream. `roomState` (now with `reconnecting`) and `agentState` are its coarse projections;
+  `endedReason` says why a call ended — `call-moved-elsewhere` (the person opened a call
+  elsewhere) is a reason, not an error. `endingSoonMs`, `model` (the serving model's name; never
+  the operator) are new.
+- **Barge-in:** when the server hears the person start speaking, the playback queue is flushed and
+  Alia is told how many milliseconds of the answer were actually heard, so the model remembers
+  what was said, not what it generated.
+- **The audio engine** (`createVoiceAudioEngine`, `VoiceAudioEngine`): web is `getUserMedia` with
+  echo cancellation, noise suppression and gain control plus two `AudioWorklet`s (capture to
+  24 kHz PCM16, jitter-buffered playback) in one `AudioContext` — Firefox gets calls. iOS and
+  Android use **`react-native-audio-api`** (new optional peer, `^0.13.6`), capture and playback in
+  one native stack; iOS runs `playAndRecord` in mode `voiceChat` (voice processing). **A host app
+  needs a new native build** with the library's config plugin. On Android the library exposes no
+  `voiceCommunication` input preset yet, so platform echo cancellation is a gate to measure on
+  device (ADR 0017 §4).
+- **Breaking: `useSpeechToText` and `useSTTStore` are replaced by `useDictation` and
+  `useDictationStore`.** Dictation records a clip (`MediaRecorder` on web, Opus/WebM or MP4 on
+  Safari; the `expo-audio` recorder on iOS/Android, m4a sent as `audio/mp4`) and transcribes it with
+  `POST /v1/audio/transcriptions` when the person stops. States: `idle`, `requesting-permission`,
+  `recording` (only once the recorder started; levels are the recorder's), `transcribing`,
+  `error`. The text arrives through `onText`, never partially; a failed transcription keeps the
+  clip for one `retry()`. Clips stop by themselves at five minutes, and `remainingMs` counts the
+  last 30 s. `requestTranscription` and `DictationError` are exported. Dictation works in Firefox
+  now.
+- **`AliaComposer`** dictates with `useDictation`: the transcription is appended to the draft the
+  person has when it arrives, a failure is said with a Retry that re-sends the same clip, and the
+  time left shows over the composer in the last 30 s. New prop `apiUrl`; new label
+  `dictationRemaining`.
+- **Breaking: `VoiceErrorCode` is rewritten.** The recognizer's codes (`speech-*`,
+  `microphone-*`, `recognizer-*`, `no-audio-input`, `turn-failed`, `no-answer`, `not-played`,
+  `synthesis-*`) are gone. It is now Alia's call codes (`not-authenticated`,
+  `credential-not-supported`, `plan-required`, `credits-exhausted`, `agent-unavailable`,
+  `invalid-request`, `resume-unavailable`, `realtime-unavailable`, `realtime-limited`,
+  `realtime-rejected`, `realtime-failed`), the device's (`mic-denied`, `mic-unavailable`,
+  `connection-lost`, `voice-unavailable`) and dictation's (`too-long`,
+  `transcription-unavailable`, `transcription-limited`, `transcription-rejected`,
+  `transcription-failed`). An app with its own translations replaces its keys.
+- **Removed:** `createAliaVoiceTurnSender` and the `VoiceTurn*` types, the device recognizers
+  (`speech-recognition*`, `chooseSpeechRecognizer`), `isInterruption` and the rest of
+  `voice-text`, and the **`expo-speech-recognition` peer** — a host app removes it and its config
+  plugin. Read-aloud (`useTTS`, `/v1/audio/speech`) is unchanged.
+- `VoiceSession` takes `conversationId`, `agentId`, `locale` and `voice`; `VoiceControls` takes
+  `callState` and shows `reconnecting` and `usingTool` (new labels).
+- The `./voice` entry still holds the call: `scripts/check-entry-isolation.mjs` now also proves the
+  root entry never reaches `react-native-audio-api` (nor `expo-speech-recognition`).
+
 ## 14.1.0
 
 An "Ask Alia" button can show her live avatar and react to what she is doing.

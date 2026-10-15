@@ -10,7 +10,7 @@ import {
   Easing,
   type SharedValue,
 } from 'react-native-reanimated';
-import { useSTTStore } from './useSpeechToText';
+import { useDictationStore } from './useDictation';
 import { LEVEL_ATTACK_MS, LEVEL_RELEASE_MS } from '../lib/audio-level';
 import type { AgentState } from '../types';
 
@@ -95,8 +95,8 @@ export function useAmbientWave({
   // travel takes about three times as long. Tuning the constant moves both, by
   // different amounts. They are shared because one number should tune one
   // feel, not because the two are interchangeable.
-  const sttIsRecording = useSTTStore((s) => s.isRecording);
-  const sttMetering = useSTTStore((s) => s.metering);
+  const sttIsRecording = useDictationStore((s) => s.isRecording);
+  const sttMetering = useDictationStore((s) => s.metering);
   const stt = useSharedValue(0);
   useAnimatedReaction(
     () => (sttIsRecording ? Math.max(0.08, sttMetering) : -1),

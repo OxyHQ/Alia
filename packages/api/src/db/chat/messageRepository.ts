@@ -53,6 +53,7 @@ export interface MessageRow {
   readonly agentInfoCharacter: AgentCharacter | null;
   readonly agentInfoHandle: string | null;
   readonly seq: number | null;
+  readonly interruptedAfterMs: number | null;
   readonly createdAt: Date;
 }
 
@@ -81,6 +82,8 @@ export interface StoredMessage {
   readonly toolInvocations?: ToolInvocation[];
   readonly agentInfo?: AgentInfo;
   readonly seq?: number;
+  /** A spoken answer the person talked over: the milliseconds they heard. */
+  readonly interruptedAfterMs?: number;
   readonly createdAt: Date;
 }
 
@@ -113,6 +116,7 @@ export function toStoredMessage(row: MessageRow): StoredMessage {
           },
         }),
     ...(row.seq === null ? {} : { seq: row.seq }),
+    ...(row.interruptedAfterMs === null ? {} : { interruptedAfterMs: row.interruptedAfterMs }),
     createdAt: row.createdAt,
   };
 }
@@ -133,6 +137,8 @@ export interface NewMessage {
    */
   readonly vote?: MessageVote;
   readonly seq?: number;
+  /** A voice call's interrupted answer (`messages.interrupted_after_ms`); also carried over. */
+  readonly interruptedAfterMs?: number;
   readonly createdAt?: Date;
 }
 
@@ -152,6 +158,7 @@ function toInsert(message: NewMessage): typeof messages.$inferInsert {
     agentInfoHandle: message.agentInfo?.handle ?? null,
     vote: message.vote ?? null,
     seq: message.seq ?? null,
+    interruptedAfterMs: message.interruptedAfterMs ?? null,
     ...(message.createdAt === undefined ? {} : { createdAt: message.createdAt }),
   };
 }

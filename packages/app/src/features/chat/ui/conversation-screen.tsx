@@ -303,17 +303,17 @@ export const ConversationScreen = ({
   );
 
   /**
-   * A call speaks through this conversation's own send, so its turns are
-   * ordinary turns of it — persisted by the server as they happen, which is
-   * why nothing is saved when the call ends.
+   * A call is a realtime session Alia holds for THIS conversation and its
+   * agent; Alia stores its transcript in the conversation as it goes, so
+   * nothing is saved when the call ends.
    */
   // And it is this conversation's, this account's and this screen's: it ends
   // when any of the three stops being true (see `use-voice-mode.ts`).
   const { user } = useOxy();
   const isFocused = useScreenOnShow();
   const voice = useVoiceMode({
-    sendMessage: handleSubmit,
-    stopGeneration,
+    conversationId,
+    ...(agentId === undefined ? {} : { agentId }),
     owner: `${user?.id ?? 'guest'}:${conversationId}`,
     isFocused,
   });

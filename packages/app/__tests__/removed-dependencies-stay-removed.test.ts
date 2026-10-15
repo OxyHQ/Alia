@@ -6,7 +6,8 @@ import { APP_ROOT } from '@/shared/testing/app-root';
 
 /**
  * Twelve packages left the app manifest, and stay gone — seventeen since the
- * LiveKit call transport followed them.
+ * LiveKit call transport followed them, eighteen since device speech
+ * recognition did (ADR 0017).
  *
  * They were removed by an import-based audit (#608 §11) that checked
  * every manifest entry against the specifiers the source really imports AND
@@ -50,13 +51,17 @@ const REMOVED = [
   ['@babel/plugin-transform-react-', 'jsx'],
   ['es', 'build'],
   ['patch-', 'package'],
-  // The LiveKit call transport, retired when voice moved onto the device:
-  // recognition is `expo-speech-recognition`, speech is `/v1/audio/speech`.
+  // The LiveKit call transport, retired when voice moved onto the device.
   ['livekit-', 'client'],
   ['@livekit/react-', 'native'],
   ['@livekit/react-native-', 'webrtc'],
   ['@livekit/react-native-expo-', 'plugin'],
   ['@config-plugins/react-native-', 'webrtc'],
+  // The device's speech recognizer, retired by ADR 0017: a call is a realtime
+  // session through Alia and Kaana (`react-native-audio-api` plays and
+  // captures), and dictation is transcribed by Kaana. No surface recognizes
+  // speech on the device.
+  ['expo-speech-', 'recognition'],
 ].map((parts) => parts.join(''));
 
 /** Every source file of the app, minus the installed packages and this gate. */
@@ -129,6 +134,18 @@ describe('the dependencies the audit removed', () => {
     }
 
     expect(offenders).toEqual([]);
+  });
+
+  it('are not Expo config plugins of the app', () => {
+    const config = JSON.parse(readFileSync(join(APP, 'app.json'), 'utf8')) as {
+      expo: { plugins: Array<string | [string, unknown]> };
+    };
+    const plugins = config.expo.plugins.map((plugin) =>
+      typeof plugin === 'string' ? plugin : plugin[0],
+    );
+    // Positive control: the read found the plugin list.
+    expect(plugins).toContain('expo-router');
+    expect(plugins.filter((name) => REMOVED.includes(name))).toEqual([]);
   });
 
   it('would catch a reference if one came back', () => {

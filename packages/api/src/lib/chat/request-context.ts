@@ -37,22 +37,25 @@ import {
  */
 import { redactUnsafeDetail } from '../errors/sanitize.js';
 import { getDb } from '../../db/index.js';
-import { findUserMemory, type UserMemoryProfile } from '../../db/memory/userMemoryRepository.js';
+import type { UserMemoryProfile } from '../../db/memory/userMemoryRepository.js';
 import { getOrCreateUserCredits } from '../user-credits-helpers.js';
 import { reserveCredits, refundReservation, type CreditReservation } from '../credits-manager.js';
 import { getUserEntitlements, type Entitlements } from '../plan-access.js';
+import {
+  buildTurnSkills,
+  EMPTY_SKILL_RUNTIME,
+  prefetchTurnInputs,
+  recallTurnMemories,
+} from './turn-inputs.js';
 import { readUsageWindow, secondsUntilReset, type UsageWindow } from '../usage-window.js';
 import {
   PROMPT_SURFACES,
   type OxyUserProfile,
   type PromptSurface,
 } from '../system-prompt-builder.js';
-import { oxyClient } from '../../middleware/auth.js';
-import { findAgentSkills } from '../../db/agents/agentRepository.js';
-import { buildSkillRuntime, type SkillRuntime } from '../skills/runtime.js';
-import { runBeforeChatHooks } from '../hooks/index.js';
+import type { SkillRuntime } from '../skills/runtime.js';
 import { log } from '../logger.js';
-import { loadTurnAgent, refusalMessage, refusalStatus } from '../agent-account.js';
+import { refusalMessage, refusalStatus } from '../agent-account.js';
 import type { HydratedAgent } from '../agent-identity.js';
 import { findMcpServerForUser } from '../../db/integrations/mcpServerRepository.js';
 import { runAutonomyBeforeChat, type AutonomyRuntimeContext } from '../autonomy/runtime.js';
@@ -742,7 +745,14 @@ export async function buildChatRequestContext(
   const preStreamStart = Date.now();
 
   const creditAccountId = req.user?.id;
-  const [creditResult, userMemory, oxyUser, entitlements, turnAgent] = await Promise.all([
+  /**
+   * The person's memory, profile, entitlements and the turn's agent are the
+   * turn's INPUTS, read from an identity by `lib/chat/turn-inputs.ts` — the
+   * same reads a voice call makes (ADR 0017 §3). The agent is the one this
+   * TURN is for, named by the request rather than inferred; `loadTurnAgent`
+   * owns the authorisation and an unresolvable selector is never `none`.
+   */
+  const [creditResult, { userMemory, oxyUser, entitlements, turnAgent }] = await Promise.all([
     // Credits: sequential pair (getOrCreate → reserve), parallel with everything else
     // Skip for internal service requests (no credits charged)
     /**
@@ -792,54 +802,13 @@ export async function buildChatRequestContext(
           window: null as UsageWindow | null,
         }),
 
-    // User memory
-    req.user
-      ? findUserMemory(getDb(), req.user.id)
-          .then((m) => m ?? null)
-          .catch(() => null)
-      : Promise.resolve(null),
-
-    // User profile from Oxy (HTTP call - add 5s timeout to prevent hanging)
-    isDirectUserSession && creditAccountId !== undefined
-      ? Promise.race<OxyUserProfile | null>([
-          oxyClient.users.get(creditAccountId),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
-        ]).catch(() => null)
-      : Promise.resolve<OxyUserProfile | null>(null),
-
-    // User entitlements (plan window, features) — parallelized to avoid sequential delay
-    req.user ? getUserEntitlements(req.user.id).catch(() => null) : Promise.resolve(null),
-
-    /**
-     * The agent this TURN is for, named by the request rather than inferred.
-     *
-     * `body.agentId` is what the client has been sending all along and nothing
-     * read; the thread-id lookup that stood here could not match and never once
-     * resolved an agent. {@link loadTurnAgent} owns the authorisation — see its
-     * docblock for why a published agent needs none and a draft needs
-     * `account:act_as`.
-     *
-     * Resolved ONCE, here, and read from the context by everything downstream:
-     * the system prompt, the tool set and the escalation branch all name the
-     * same agent, and three lookups of one id are three chances to disagree.
-     */
-    requestedAgentId !== undefined && req.user
-      ? loadTurnAgent(getDb(), {
-          agentId: requestedAgentId,
-          oxyUserId: req.user.id,
-          accessToken: req.accessToken,
-          applicationId: req.serviceApp?.appId,
-        }).catch((err: unknown) => {
-          /**
-           * A repository failure is not permission to substitute another
-           * identity. It is surfaced through the same retryable refusal as an
-           * unavailable identity lookup; the important invariant here is that
-           * an explicit selector can never become `kind: 'none'`.
-           */
-          log.v1.warn({ err, agentId: requestedAgentId }, 'Could not resolve the turn agent');
-          return { kind: 'resolution_unavailable' } as const;
-        })
-      : Promise.resolve({ kind: 'none' } as const),
+    prefetchTurnInputs({
+      oxyUserId: req.user?.id,
+      accessToken: req.accessToken,
+      isDirectUserSession,
+      requestedAgentId,
+      applicationId: req.serviceApp?.appId,
+    }),
   ]);
 
   log.v1.info({ durationMs: Date.now() - preStreamStart }, 'Pre-stream setup complete');
@@ -1041,39 +1010,24 @@ export async function buildChatRequestContext(
    * withhold a person's own skills from their own API key for no reason.
    */
   const skills = req.user?.id
-    ? await buildSkillRuntime({
-        db: getDb(),
+    ? await buildTurnSkills({
         oxyUserId: req.user.id,
-        selectedNames: selectedSkillNames,
-        agentSkillIds: linkedAgent
-          ? (await findAgentSkills(getDb(), linkedAgent.id)).map((ref) => ref._id)
-          : [],
-        // Linking a skill to an agent is the explicit grant. A person's other
-        // installed skills are not inherited by every agent they talk to.
-        includeUserInstalled: linkedAgent === null,
-      }).catch((err) => {
-        log.v1.warn({ err }, 'Skill runtime unavailable for this turn');
-        return null;
+        linkedAgent,
+        selectedSkillNames,
       })
     : null;
 
   log.v1.info({ provider: resolved.provider, modelId }, 'Using provider');
 
-  let recalledMemories: Array<{ title: string; summary: string }> | undefined;
-  if (req.user?.id) {
-    const hookResult = await runBeforeChatHooks({
-      userId: req.user.id,
-      conversationId,
-      messages,
-      model: modelId,
-      skillNames: selectedSkillNames ?? undefined,
-      platform: 'app' as const,
-      metadata: {},
-    }).catch(() => null);
-    recalledMemories = hookResult?.metadata?.recalledMemories as
-      | Array<{ title: string; summary: string }>
-      | undefined;
-  }
+  const recalledMemories = req.user?.id
+    ? await recallTurnMemories({
+        oxyUserId: req.user.id,
+        conversationId,
+        messages,
+        modelId,
+        selectedSkillNames,
+      })
+    : undefined;
 
   return {
     body,
@@ -1094,14 +1048,7 @@ export async function buildChatRequestContext(
     clientContext,
     userMemory,
     oxyUser,
-    skills: skills ?? {
-      index: '',
-      active: '',
-      tools: {},
-      agentScoped: false,
-      candidateIds: [],
-      activated: () => [],
-    },
+    skills: skills ?? EMPTY_SKILL_RUNTIME,
     entitlements,
     linkedAgent,
     inferenceServiceToken,

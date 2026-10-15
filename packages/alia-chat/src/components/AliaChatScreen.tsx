@@ -14,7 +14,7 @@
  *
  * Voice is opt-in — pass `voiceSession={VoiceSession}` from
  * `@alia.onl/sdk/voice` to offer calls. Without it the screen is text-only and
- * `livekit-client` never enters the bundle.
+ * `react-native-audio-api` never enters the bundle.
  */
 
 import React, { useCallback } from 'react';

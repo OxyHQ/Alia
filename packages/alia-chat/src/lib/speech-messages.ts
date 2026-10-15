@@ -1,120 +1,54 @@
-import type { SpeechRecognitionFailure } from './speech-recognition-types';
-import type { SpeechClipError } from './speech-synthesis';
+import type { VoiceServerErrorCode } from './voice-protocol';
 
 /**
  * Every way dictation or a voice call can fail that a person is told about,
- * as a stable code.
+ * as a stable code (ADR 0017 §3, §7).
  *
- * The hooks expose the code beside the English sentence (`errorCode` /
- * `turnErrorCode` next to `error` / `turnError`) so an app can say it in its
- * own language; the sentence stays for a consumer that has no translations.
+ * - **Alia's**, sent by `/v1/voice/session` when it ends a call:
+ *   `VoiceServerErrorCode` (`plan-required`, `credits-exhausted`,
+ *   `realtime-*`, …).
+ * - **The device's:** `mic-denied`, `mic-unavailable`, `connection-lost`, and
+ *   `voice-unavailable` where this platform has no audio engine for a call.
+ * - **Dictation's** (`POST /v1/audio/transcriptions`): `too-long` and
+ *   `transcription-*`, beside the shared `mic-*` and `not-authenticated`.
+ *
+ * The hooks expose the code beside the English sentence so an app can say it in
+ * its own language; the sentence stays for a consumer with no translations.
+ * Nothing here is a recognizer's: speech is recognized by Kaana, never by the
+ * browser or the operating system.
  */
 export type VoiceErrorCode =
-  | 'speech-unsupported'
-  | 'microphone-denied'
-  | 'microphone-busy'
-  | 'microphone-missing'
-  | 'speech-network'
-  | 'speech-language'
-  | 'speech-failed'
+  | VoiceServerErrorCode
+  | 'mic-denied'
+  | 'mic-unavailable'
+  | 'connection-lost'
   | 'voice-unavailable'
-  | 'not-authenticated'
-  | 'turn-failed'
-  | 'no-answer'
-  | 'not-played'
-  | 'synthesis-unavailable'
-  | 'synthesis-limited'
-  | 'synthesis-rejected'
-  | 'synthesis-failed'
-  | 'recognizer-not-started'
-  | 'recognizer-unresponsive'
-  | 'recognizer-aborted'
-  | 'no-audio-input';
+  | 'too-long'
+  | 'transcription-unavailable'
+  | 'transcription-limited'
+  | 'transcription-rejected'
+  | 'transcription-failed';
 
-/**
- * The English copy for each code — the same sentences dictation and voice mode
- * used when they recorded through `expo-audio` and LiveKit, so moving
- * recognition onto the device did not change what an error says.
- */
+/** The English copy for each code. */
 export const VOICE_ERROR_MESSAGES: Readonly<Record<VoiceErrorCode, string>> = {
-  'speech-unsupported': 'Speech recognition is not available on this device or browser',
-  'microphone-denied': 'Microphone permission required',
-  'microphone-busy': 'Microphone is in use by another application',
-  'microphone-missing': 'No microphone found — check your input devices',
-  'speech-network': 'Speech recognition needs a network connection',
-  'speech-language': 'Speech recognition does not support this language',
-  'speech-failed': 'Speech recognition failed',
-  'voice-unavailable': 'Voice is not available on this device',
   'not-authenticated': 'Not authenticated',
-  'turn-failed': 'Voice request failed',
-  'no-answer': 'No answer came back — try saying it again',
-  'not-played': 'The answer could not be played aloud — it is in the chat',
-  'synthesis-unavailable': "Alia's voice is not available right now — the answer is in the chat",
-  'synthesis-limited': "Alia's voice has reached its limit for now — the answer is in the chat",
-  'synthesis-rejected': "Alia's voice could not read this answer — it is in the chat",
-  'synthesis-failed': "Alia's voice failed — the answer is in the chat",
-  'recognizer-not-started': 'Speech recognition did not start — try again',
-  'recognizer-unresponsive':
-    "The browser's or device's speech recognition is not responding — the microphone hears you, but no words come back",
-  'recognizer-aborted':
-    'The browser or system cut speech recognition off — close other tabs or apps using the microphone or dictation, then try again',
-  'no-audio-input': "I can't hear you — if you're speaking, check your microphone",
+  'credential-not-supported': 'Voice is only available when you are signed in to Alia',
+  'plan-required': 'Voice mode needs a paid plan',
+  'credits-exhausted': "You've run out of credits for this call",
+  'agent-unavailable': 'This agent is not available for a call',
+  'invalid-request': 'The call could not be started',
+  'resume-unavailable': 'The call could not be picked up again — start a new one',
+  'realtime-unavailable': 'Voice is not available right now — try again later',
+  'realtime-limited': 'Voice has reached its limit for now — try again later',
+  'realtime-rejected': 'The call could not be started with these settings',
+  'realtime-failed': 'The call failed — try again',
+  'mic-denied': 'Microphone permission required',
+  'mic-unavailable': 'The microphone could not be used — check your input devices',
+  'connection-lost': 'The connection was lost',
+  'voice-unavailable': 'Voice is not available on this device or browser',
+  'too-long': 'That dictation was too long — five minutes at most',
+  'transcription-unavailable': 'Dictation is not available right now',
+  'transcription-limited': 'Dictation has reached its limit for now — try again later',
+  'transcription-rejected': 'That recording could not be transcribed',
+  'transcription-failed': 'Dictation failed — try again',
 };
-
-/**
- * The code for a clip `/v1/audio/speech` could not make, from the typed code
- * the route answered with. A failure the route did not name (a network
- * failure, an unknown code) is `synthesis-failed`.
- */
-export function synthesisFailureCode(failure: SpeechClipError): VoiceErrorCode {
-  switch (failure.code) {
-    case 'NOT_AUTHENTICATED':
-      return 'not-authenticated';
-    case 'SPEECH_UNAVAILABLE':
-      return 'synthesis-unavailable';
-    case 'SPEECH_LIMIT_REACHED':
-      return 'synthesis-limited';
-    case 'SPEECH_REJECTED':
-    case 'INVALID_REQUEST':
-      return 'synthesis-rejected';
-    case 'SPEECH_PROVIDER_FAILED':
-    case 'SPEECH_GENERATION_FAILED':
-    case null:
-      return 'synthesis-failed';
-  }
-}
-
-/**
- * The code for a recognition failure. `null` for the failures that are not
- * errors: `aborted` is a stop the caller asked for, and `no-speech` is a
- * silence the caller recovers from.
- */
-export function speechFailureCode(failure: SpeechRecognitionFailure): VoiceErrorCode | null {
-  switch (failure.code) {
-    case 'aborted':
-    case 'no-speech':
-      return null;
-    case 'unsupported':
-      return 'speech-unsupported';
-    case 'not-allowed':
-      return 'microphone-denied';
-    case 'audio-capture':
-      return failure.detail === 'NotReadableError' || failure.detail === 'TrackStartError'
-        ? 'microphone-busy'
-        : 'microphone-missing';
-    case 'network':
-      return 'speech-network';
-    case 'language-not-supported':
-      return 'speech-language';
-    case 'interrupted':
-      return 'recognizer-aborted';
-    case 'other':
-      return 'speech-failed';
-  }
-}
-
-/** The English copy a person sees when listening fails; `null` as for `speechFailureCode`. */
-export function speechFailureMessage(failure: SpeechRecognitionFailure): string | null {
-  const code = speechFailureCode(failure);
-  return code === null ? null : VOICE_ERROR_MESSAGES[code];
-}

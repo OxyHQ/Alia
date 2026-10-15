@@ -10,14 +10,17 @@
  * AliaChatContent quietly put the call back in every text consumer's graph.
  *
  * It was built to keep `livekit-client` (~1.2 MB raw / ~250 KiB gzip) out of
- * text consumers. LiveKit is gone since 8.0.0 — the call runs on the device —
- * and this now also holds that line from both entries.
+ * text consumers. LiveKit is gone since 8.0.0, and device speech recognition
+ * (`expo-speech-recognition`) since 15.0.0; both stay out of both entries.
+ * Since 15.0.0 the call's audio engine is `react-native-audio-api`, a native
+ * module a text consumer must never have to install or build.
  *
  * This walks the real import graph from each entry and asserts:
- *   - neither entry reaches `livekit-client`
- *   - `src/index.ts` cannot reach the voice loop (`hooks/useVoiceRoom.ts`)
- *   - `src/voice.ts` still can (otherwise the voice surface has been gutted and
- *     the previous assertion would pass for the wrong reason)
+ *   - neither entry reaches `livekit-client` or `expo-speech-recognition`
+ *   - `src/index.ts` cannot reach the voice call (`hooks/useVoiceRoom.ts`) nor
+ *     its audio engine (`react-native-audio-api`)
+ *   - `src/voice.ts` still reaches both (otherwise the voice surface has been
+ *     gutted and the previous assertions would pass for the wrong reason)
  *
  * It also holds that neither entry imports the `@oxy.so/services` ROOT barrel:
  * that barrel re-exports every sign-in panel and the Commons QR encoder, and
@@ -32,7 +35,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src');
-const RETIRED_MODULE = 'livekit-client';
+const RETIRED_MODULES = ['livekit-client', 'expo-speech-recognition'];
+const AUDIO_ENGINE = 'react-native-audio-api';
 const SERVICES_ROOT = '@oxy.so/services';
 const VOICE_LOOP = path.join(SRC, 'hooks', 'useVoiceRoom.ts');
 /** Below this, the walker itself is broken and a "pass" would be meaningless. */
@@ -107,8 +111,7 @@ function chainTo(file, importedBy) {
   return chain.join(' -> ');
 }
 
-const root = walk('index.ts', RETIRED_MODULE);
-const voice = walk('voice.ts', RETIRED_MODULE);
+const root = walk('index.ts', RETIRED_MODULES[0]);
 const failures = [];
 
 if (root.visited.size < MIN_MODULES_FROM_ROOT) {
@@ -118,17 +121,35 @@ if (root.visited.size < MIN_MODULES_FROM_ROOT) {
   );
 }
 
-for (const [entry, result] of [
-  ['src/index.ts', root],
-  ['src/voice.ts', voice],
-]) {
-  if (result.hits.length > 0) {
-    failures.push(
-      `${entry} reaches ${RETIRED_MODULE}, which the SDK no longer depends on. ` +
-        `Voice runs on the device (lib/speech-recognition*, hooks/useVoiceRoom.ts).\n` +
-        result.hits.map((file) => `    ${chainTo(file, result.importedBy)}`).join('\n'),
-    );
+for (const retired of RETIRED_MODULES) {
+  for (const entry of ['index.ts', 'voice.ts']) {
+    const result = walk(entry, retired);
+    if (result.hits.length > 0) {
+      failures.push(
+        `src/${entry} reaches ${retired}, which the SDK no longer depends on. ` +
+          `A call is a realtime session through Alia (hooks/useVoiceRoom.ts) and dictation ` +
+          `is transcribed by Alia (hooks/useDictation.ts).\n` +
+          result.hits.map((file) => `    ${chainTo(file, result.importedBy)}`).join('\n'),
+      );
+    }
   }
+}
+
+const rootEngine = walk('index.ts', AUDIO_ENGINE);
+if (rootEngine.hits.length > 0) {
+  failures.push(
+    `src/index.ts reaches ${AUDIO_ENGINE}, the voice call's native audio engine. Text-chat ` +
+      `consumers must not need it — move the import behind the ./voice entry.\n` +
+      rootEngine.hits.map((file) => `    ${chainTo(file, rootEngine.importedBy)}`).join('\n'),
+  );
+}
+const voice = walk('voice.ts', AUDIO_ENGINE);
+if (voice.hits.length === 0) {
+  failures.push(
+    `src/voice.ts no longer reaches ${AUDIO_ENGINE}. Either the call's native engine ` +
+      `was removed or the walker stopped resolving platform files — either way the ` +
+      `root-entry check above is passing for the wrong reason.`,
+  );
 }
 
 for (const entry of ['index.ts', 'voice.ts']) {
@@ -144,7 +165,7 @@ for (const entry of ['index.ts', 'voice.ts']) {
 
 if (root.visited.has(VOICE_LOOP)) {
   failures.push(
-    `src/index.ts reaches the voice loop. Text-chat consumers must not compile it — ` +
+    `src/index.ts reaches the voice call. Text-chat consumers must not compile it — ` +
       `move the import behind the ./voice entry.\n` +
       `    ${chainTo(VOICE_LOOP, root.importedBy)}`,
   );
@@ -165,7 +186,7 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Entry isolation OK — the voice loop is unreachable from src/index.ts ` +
-    `(${root.visited.size} modules walked) and reachable from src/voice.ts; ` +
-    `${RETIRED_MODULE} is reachable from neither.`,
+  `Entry isolation OK — the voice call and ${AUDIO_ENGINE} are unreachable from ` +
+    `src/index.ts (${root.visited.size} modules walked) and reachable from src/voice.ts; ` +
+    `${RETIRED_MODULES.join(' and ')} are reachable from neither.`,
 );

@@ -1,8 +1,8 @@
 /**
  * A voice call's live levels, as React state at ~20fps.
  *
- * `useVoiceRoom` writes the microphone level (from the recognizer) and the
- * playback level (from the clip being spoken) into a `VoiceLevelSource`; this
+ * `useVoiceRoom` writes the microphone level (from the captured buffers) and the
+ * playback level (from the answer being played) into a `VoiceLevelSource`; this
  * reads them on a clock so a wave can follow them without rendering once per
  * audio buffer. It used to put Web Audio analysers on a LiveKit room's tracks;
  * the signature kept its shape — `room` is now the level source `useVoiceRoom`

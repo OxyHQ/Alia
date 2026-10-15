@@ -659,6 +659,13 @@
       "when": 1792038320516,
       "tag": "0093_drop_message_audio_url",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1792043019350,
+      "tag": "0094_voice_calls",
+      "breakpoints": true
     }
   ]
 }

@@ -4225,6 +4225,7 @@
       "domain": "product-api",
       "kind": "dependency",
       "currentPath": "packages/alia-chat/src/hooks/useSpeechToText.ts",
+      "removedIn": "alia-adr-0017-voice-realtime",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-alia-product",

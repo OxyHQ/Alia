@@ -46,6 +46,11 @@ owner's apps nor the agent's own mailbox (which may hold mail about the owner).
 | Automation stage | its exact preauthorized steps only | — |
 | Somebody else on the agent | never | not in this phase |
 
+A voice call is a turn like any other here: its tools are assembled with the
+person on the call's socket as the requester, and run in Alia, never on the
+device ([Voice](./voice.mdx#tools-run-in-alia)). An agent's call has the agent's
+memory, never Alia's.
+
 - Detail: [Agents → Oxy apps: for the person and as itself](./agents.md#oxy-apps-for-the-person-and-as-itself).
 - Code: `ownerIsPresent` in `lib/tool-pipeline.ts` (the one place this is decided),
   `lib/tools/oxy-services.ts` (both toolsets, `agentIdentityPrompt`),

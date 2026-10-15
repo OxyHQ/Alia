@@ -256,16 +256,103 @@ export async function saveConversation(params: SaveConversationParams): Promise<
   }
 }
 
+/** One message a voice call appends (ADR 0017 §3). */
+export interface AppendedMessage {
+  /** The client id the message is stored under. */
+  readonly id: string;
+  readonly role: 'user' | 'assistant';
+  readonly content: string;
+  readonly toolInvocations?: ToolInvocation[];
+  /** A spoken answer the person talked over: how much of it they heard. */
+  readonly interruptedAfterMs?: number;
+}
+
+/** Retries on the one conflict a concurrent append produces. */
+const MAX_APPEND_ATTEMPTS = 4;
+
 /**
- * The votes a person put on their stored messages, by client id, so a rewrite
- * puts them back instead of deleting them with the row.
+ * Append messages at the END of a conversation, without the client's history.
+ *
+ * `saveConversation` reconciles the CLIENT's view of a thread with what is
+ * stored, which is the right writer for a turn the client sent. A voice call
+ * has no such view: the server is the only one that saw the exchange, so it
+ * appends — the next `seq` after the last stored message, retried on exactly
+ * the conflict a concurrent append claiming the same `seq` produces (the
+ * `postAgentMessage` and Alia-outreach precedent). Each exchange is appended
+ * as it completes, so the thread survives a dropped call.
+ *
+ * The conversation row is upserted first, so a call opened in a conversation
+ * that did not exist yet creates it, owned by the person.
  */
-function feedbackById(stored: readonly MessageRow[]): Map<string, Pick<NewMessage, 'vote'>> {
-  const byId = new Map<string, Pick<NewMessage, 'vote'>>();
+export async function appendConversationMessages(params: {
+  readonly userId: string;
+  readonly conversationId: string;
+  readonly messages: readonly AppendedMessage[];
+  readonly agentId?: string;
+  readonly titleOnInsert: string;
+}): Promise<void> {
+  const { userId, conversationId, messages } = params;
+  if (messages.length === 0) return;
+  const last = [...messages].reverse().find((message) => message.content.trim() !== '');
+  await upsertConversation(getDb(), {
+    oxyUserId: userId,
+    conversationId,
+    ...(last ? { lastMessage: last.content.slice(0, 100) } : {}),
+    titleOnInsert: params.titleOnInsert,
+    source: 'app',
+    ...(params.agentId ? { agentId: params.agentId } : {}),
+  });
+  for (let attempt = 1; ; attempt++) {
+    const [stored, count] = await Promise.all([
+      findLastMessage(getDb(), userId, conversationId),
+      countMessages(getDb(), userId, conversationId),
+    ]);
+    // A legacy thread without `seq` continues after its last position.
+    const next = stored?.seq == null ? count : stored.seq + 1;
+    try {
+      await insertMessages(
+        getDb(),
+        messages.map((message, index) => ({
+          conversationId,
+          oxyUserId: userId,
+          clientMessageId: message.id,
+          role: message.role,
+          content: message.content,
+          seq: next + index,
+          createdAt: new Date(),
+          ...(message.toolInvocations && message.toolInvocations.length > 0
+            ? { toolInvocations: message.toolInvocations }
+            : {}),
+          ...(message.interruptedAfterMs === undefined
+            ? {}
+            : { interruptedAfterMs: Math.round(message.interruptedAfterMs) }),
+        })),
+      );
+      return;
+    } catch (err) {
+      if (attempt >= MAX_APPEND_ATTEMPTS || !isUniqueViolation(err, APPEND_SEQ_INDEX)) throw err;
+    }
+  }
+}
+
+/**
+ * The votes a person put on their stored messages — and how much of a spoken
+ * answer they heard — by client id, so a rewrite puts them back instead of
+ * deleting them with the row.
+ */
+function feedbackById(
+  stored: readonly MessageRow[],
+): Map<string, Pick<NewMessage, 'vote' | 'interruptedAfterMs'>> {
+  const byId = new Map<string, Pick<NewMessage, 'vote' | 'interruptedAfterMs'>>();
   for (const row of stored) {
     if (row.clientMessageId === null || byId.has(row.clientMessageId)) continue;
-    if (row.vote === null) continue;
-    byId.set(row.clientMessageId, { vote: row.vote as MessageVote });
+    if (row.vote === null && row.interruptedAfterMs === null) continue;
+    byId.set(row.clientMessageId, {
+      ...(row.vote === null ? {} : { vote: row.vote as MessageVote }),
+      // What a voice call recorded about an answer it spoke: the client's echo
+      // of the message never carries it, so a rewrite keeps it from the row.
+      ...(row.interruptedAfterMs === null ? {} : { interruptedAfterMs: row.interruptedAfterMs }),
+    });
   }
   return byId;
 }

@@ -9,7 +9,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type http from 'http';
 import { log } from './logger.js';
-import { oxyClient } from '../middleware/auth.js';
+import { authenticateSocketToken } from './socket-session-auth.js';
 
 interface LocalTool {
   name: string;
@@ -101,7 +101,7 @@ export function initMcpRelay(
         if (msg.type !== 'auth') return;
         clearTimeout(authTimer);
 
-        const id = await validateToken(msg.token);
+        const id = await authenticateSocketToken(msg.token);
         if (!id) {
           ws.send(JSON.stringify({ type: 'auth-error', error: 'Invalid token' }));
           ws.close(4003, 'Forbidden');
@@ -230,57 +230,6 @@ export function callLocalTool(
 
     client.ws.send(JSON.stringify({ type: 'tool-call', callId, serverId, toolName, args }));
   });
-}
-
-/**
- * Validate an Oxy access token and return the user ID.
- *
- * The retired `alia_sk_*` developer keys are not a lane here: one reaches
- * `authSocket()` like any other string and is refused, because it is not a
- * JWT carrying an Oxy session.
- */
-async function validateToken(token: string | undefined): Promise<string | null> {
-  if (!token || typeof token !== 'string') return null;
-
-  // Oxy access token — the SDK owns the session, exactly as it does for the
-  // Express routes (`middleware/auth.ts`) and socket.io (`socket.ts`).
-  //
-  // `authSocket()` is the SDK's WEBSOCKET lane, so it is the one this connection
-  // belongs in: it decodes the token without trusting a single claim, REQUIRES a
-  // `sessionId`, validates that session against Oxy server-side, and takes the
-  // identity off the validated session — refusing a live session paired with
-  // someone else's `userId` claim. None of that is restated here. The only thing
-  // the relay contributes is where its handshake token lives: it arrives in the
-  // first `auth` message rather than in a header, because a browser-style
-  // WebSocket cannot set one.
-  //
-  // What this replaces was a hand-rolled `fetch` of the Oxy API's `/me` with the
-  // bearer, reading `_id || id` off the body. That endpoint does not exist —
-  // `api.oxy.so` answers 404 `NOT_FOUND` for `/me`, the route being `/users/me`
-  // — so `response.ok` was never true and this lane refused EVERY caller. It is
-  // the only lane: Cowork sends `oxy.getAccessToken()`.
-  //
-  // `authError` and the id read are BOTH kept, and neither is dead: on a refusal
-  // the SDK calls back with the error and never populates `data`, so today
-  // either alone would refuse. The callback is the documented contract; the read
-  // is what a caller has to do anyway. Mutation-tested — dropping both at once,
-  // which is the naive "decode the JWT and take the claim" implementation, turns
-  // the mismatch case red.
-  const handshake: {
-    handshake: { auth: { token: string } };
-    data?: { userId?: string };
-  } = { handshake: { auth: { token } } };
-
-  let authError: Error | undefined;
-  const authenticate = oxyClient.middleware.socket({
-    debug: process.env.NODE_ENV !== 'production',
-  });
-  await authenticate(handshake, (err) => {
-    authError = err;
-  });
-  if (authError) return null;
-
-  return handshake.data?.userId ?? null;
 }
 
 /**

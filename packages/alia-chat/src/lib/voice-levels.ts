@@ -1,12 +1,16 @@
-import { clampLevel } from './speech-recognition-types';
+/** A level reading clamped to 0..1; anything not a finite number is 0. */
+export function clampLevel(level: number): number {
+  if (!Number.isFinite(level)) return 0;
+  return Math.min(1, Math.max(0, level));
+}
 
 /**
  * The two live levels of a voice call — what the microphone hears and what the
  * call is saying — for whatever draws them.
  *
  * It replaced the LiveKit `Room` that `useAudioLevelMonitor` used to take and
- * put analysers on. The voice loop writes here from the recognizer's level
- * events and the clip player's samples; the monitor subscribes and hands React
+ * put analysers on. The voice call writes here from its audio engine's
+ * captured and played buffers; the monitor subscribes and hands React
  * a throttled copy. Writes are cheap and never render anything by themselves.
  */
 export interface VoiceLevelSource {

@@ -100,7 +100,7 @@ vi.mock('@/features/voice/runtime/use-tts', () => ({
 }));
 
 vi.mock('@alia.onl/sdk', async () => ({
-  useSTTStore: (select: (s: { isRecording: boolean }) => unknown) =>
+  useDictationStore: (select: (s: { isRecording: boolean }) => unknown) =>
     useAudio(() => select({ isRecording: audio.isRecording })),
   getTextFromContent: (content: unknown) =>
     typeof content === 'string'

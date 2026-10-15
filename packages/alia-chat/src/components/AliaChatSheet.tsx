@@ -49,7 +49,7 @@ export interface AliaChatSheetProps {
   isDarkMode?: boolean;
   /**
    * Voice capability — pass `VoiceSession` from `@alia.onl/sdk/voice` to offer
-   * voice calls. Omitted, the sheet is text-only and `livekit-client` never
+   * voice calls. Omitted, the sheet is text-only and `react-native-audio-api` never
    * enters the bundle.
    */
   voiceSession?: VoiceSessionComponent;

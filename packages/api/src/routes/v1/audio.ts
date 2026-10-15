@@ -1,5 +1,13 @@
 import { Router, type Request, type Response } from 'express';
+import multer from 'multer';
 import { z } from 'zod';
+import { KAANA_MAX_TRANSCRIPTION_FILE_BYTES } from '../../lib/kaana/port.js';
+import { getKaanaClient } from '../../lib/kaana/transport.js';
+import {
+  dictationMediaType,
+  TranscriptionError,
+  transcribeDictation,
+} from '../../lib/voice/transcribe.js';
 import { clientMessageExists } from '../../db/chat/messageRepository.js';
 import { obtainSpeechClip, purgeConversationSpeechClips } from '../../lib/speech-clips.js';
 import { SpeechSynthesisError } from '../../lib/synthesize-speech.js';
@@ -185,6 +193,88 @@ router.post('/speech', async (req: Request, res: Response) => {
   } finally {
     res.off('close', abort);
   }
+});
+
+/** The clip is held in memory only, for the one request; never written to disk or stored. */
+const dictationUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: KAANA_MAX_TRANSCRIPTION_FILE_BYTES, files: 1, fields: 4 },
+});
+
+function transcriptionFailure(res: Response, error: TranscriptionError): Response {
+  if (error.retryAfterMs !== undefined)
+    res.setHeader('Retry-After', String(Math.ceil(error.retryAfterMs / 1000)));
+  return res.status(error.httpStatus).json({
+    error: {
+      code: error.code,
+      message: error.message,
+      retryable: error.retryable,
+      ...(error.retryAfterMs === undefined ? {} : { retryAfterMs: error.retryAfterMs }),
+    },
+  });
+}
+
+const dictationFields = z
+  .object({
+    /** BCP 47: the app's language. Omitted lets the model detect it. */
+    language: z
+      .string()
+      .regex(/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/)
+      .max(35)
+      .optional(),
+    /** The recorder's own measurement of the clip. */
+    durationMs: z.coerce.number().int().nonnegative(),
+  })
+  .strict();
+
+/**
+ * Dictation (ADR 0017 §7): the composer's microphone uploads one clip
+ * (multipart `file`, `language`, `durationMs`) and gets its text back.
+ *
+ * Free on every plan: no plan feature and no credits. A person's own session
+ * only — an app-only machine credential is refused, since what is free here is
+ * the person's dictation, not transcription as a service.
+ */
+router.post('/transcriptions', (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId)
+    return res.status(401).json({
+      error: { code: 'NOT_AUTHENTICATED', message: 'Authentication required', retryable: false },
+    });
+  if (req.machineCredential)
+    return res.status(403).json({
+      error: {
+        code: 'CREDENTIAL_NOT_SUPPORTED',
+        message: 'Dictation takes a person’s session.',
+        retryable: false,
+      },
+    });
+  dictationUpload.single('file')(req, res, (uploadError: unknown) => {
+    void (async () => {
+      if (uploadError instanceof multer.MulterError && uploadError.code === 'LIMIT_FILE_SIZE')
+        return transcriptionFailure(res, new TranscriptionError('CLIP_TOO_LONG'));
+      const fields = dictationFields.safeParse(req.body ?? {});
+      const mediaType = dictationMediaType(req.file?.mimetype);
+      if (uploadError || !req.file || !fields.success || mediaType === null)
+        return transcriptionFailure(res, new TranscriptionError('INVALID_REQUEST'));
+      try {
+        const result = await transcribeDictation(getKaanaClient(), userId, {
+          audio: new Uint8Array(req.file.buffer),
+          mediaType,
+          durationMs: fields.data.durationMs,
+          ...(fields.data.language === undefined ? {} : { language: fields.data.language }),
+        });
+        return res.json(result);
+      } catch (error) {
+        if (error instanceof TranscriptionError) return transcriptionFailure(res, error);
+        log.voice.error({ err: error }, 'Dictation failed');
+        return transcriptionFailure(
+          res,
+          new TranscriptionError('TRANSCRIPTION_FAILED', { retryable: true }),
+        );
+      }
+    })();
+  });
 });
 
 router.post('/generate', (req: Request, res: Response) => {

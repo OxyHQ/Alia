@@ -1,46 +1,14 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type {
-  SpeechRecognitionHandlers,
-  SpeechRecognitionOptions,
-} from '../../src/lib/speech-recognition-types';
-import type { VoiceTurn, VoiceTurnSender } from '../../src/lib/voice-turn';
+import { FakeEngine, FakeSocket } from '../support/fake-voice';
 
 /**
- * The voice loop, with its three edges replaced: the recognizer (sessions the
- * test drives by hand), speech synthesis and clip playback. The loop itself —
- * end of utterance, the turn, sentence-by-sentence speech, barge-in, mute — is
- * the real code.
+ * The hook over a call with fake audio and a fake socket: the projections the
+ * bar, the wave and the app read, and the lifecycle (connect, hang up,
+ * unmount). The call itself is `tests/lib/voice-call.test.ts`.
  */
-interface FakeSession {
-  readonly options: SpeechRecognitionOptions;
-  readonly handlers: SpeechRecognitionHandlers;
-  readonly stop: ReturnType<typeof vi.fn>;
-  readonly abort: ReturnType<typeof vi.fn>;
-  ended: boolean;
-}
-
-interface Playback {
-  readonly uri: string;
-  readonly signal: AbortSignal;
-  finish(): void;
-}
-
-const fx = vi.hoisted(() => ({
-  available: true,
-  refusal: null as null | { code: string },
-  sessions: [] as FakeSession[],
-  clips: [] as Array<{ input: string; voice: string; model: string; signal: AbortSignal }>,
-  playbacks: [] as Playback[],
-  token: 'session-token' as string | null,
-  /** What `requestSpeechClip` throws instead of answering, when set. */
-  clipFailure: null as Error | null,
-  /** What `playSpeechClip` rejects with instead of playing, when set. */
-  playFailure: null as Error | null,
-  /** Whether a new session reports `onStart` by itself, as a working engine does. */
-  autoStart: true,
-}));
+const fx = vi.hoisted(() => ({ token: 'session-token' as string | null }));
 
 vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({
@@ -50,89 +18,33 @@ vi.mock('@oxy.so/services/ui/client', () => ({
           return fx.token;
         },
       },
-      createLinkedClient: vi.fn(),
     },
-  }),
-}));
-
-vi.mock('../../src/lib/speech-recognition', () => ({
-  isSpeechRecognitionAvailable: () => fx.available,
-  requestSpeechRecognitionPermission: async () => fx.refusal,
-  chooseSpeechRecognizer: async (lang: string) => ({ lang, silent: false }),
-  startSpeechRecognition: (
-    options: SpeechRecognitionOptions,
-    handlers: SpeechRecognitionHandlers,
-  ) => {
-    const session: FakeSession = {
-      options,
-      handlers,
-      ended: false,
-      stop: vi.fn(() => end(session)),
-      abort: vi.fn(() => end(session)),
-    };
-    fx.sessions.push(session);
-    if (fx.autoStart)
-      queueMicrotask(() => {
-        if (!session.ended) handlers.onStart?.();
-      });
-    return session;
-  },
-}));
-
-function end(session: FakeSession): void {
-  queueMicrotask(() => {
-    if (session.ended) return;
-    session.ended = true;
-    session.handlers.onEnd();
-  });
-}
-
-vi.mock('../../src/lib/speech-synthesis', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/lib/speech-synthesis')>()),
-  requestSpeechClip: vi.fn(
-    async (request: { input: string; voice: string; model: string; signal: AbortSignal }) => {
-      fx.clips.push(request);
-      if (fx.clipFailure !== null) throw fx.clipFailure;
-      return `clip:${request.input}`;
-    },
-  ),
-  playSpeechClip: vi.fn((uri: string, options: { signal: AbortSignal }) => {
-    if (fx.playFailure !== null) return Promise.reject(fx.playFailure);
-    return new Promise<void>((resolve) => {
-      fx.playbacks.push({ uri, signal: options.signal, finish: resolve });
-      options.signal.addEventListener('abort', () => resolve(), { once: true });
-    });
   }),
 }));
 
 import { useVoiceRoom } from '../../src/hooks/useVoiceRoom';
-import { SpeechClipError } from '../../src/lib/speech-synthesis';
-
-/**
- * Real timers. At 5ms the end of utterance elapsed between two `act` calls on a
- * busy runner (a mute landed after the turn was sent, a partial transcript was
- * already final), so the suite failed about one run in five. 100ms keeps every
- * step the test takes inside one utterance.
- */
-const END_OF_UTTERANCE_MS = 100;
-const PAST_END_OF_UTTERANCE_MS = END_OF_UTTERANCE_MS + 50;
 
 let latest: ReturnType<typeof useVoiceRoom>;
 let renderer: TestRenderer.ReactTestRenderer | undefined;
+let sockets: FakeSocket[];
+let engine: FakeEngine;
+let saved: string[][];
 
-/** A sender the test answers by hand, recording every turn it was given. */
-function controllableSender() {
-  const turns: Array<VoiceTurn & { resolve(): void; reject(error: Error): void }> = [];
-  const send: VoiceTurnSender = (turn) =>
-    new Promise<void>((resolve, reject) => {
-      turns.push({ ...turn, resolve, reject });
-    });
-  return { send, turns };
-}
-
-async function mount(options: Parameters<typeof useVoiceRoom>[0]): Promise<void> {
+async function mount(): Promise<void> {
   function Harness() {
-    latest = useVoiceRoom(options);
+    latest = useVoiceRoom({
+      apiUrl: 'https://api.alia.test',
+      conversationId: 'conv-9',
+      voicePreference: 'male',
+      lang: 'en-US',
+      onMessagesSaved: (_conversation, ids) => saved.push([...ids]),
+      createAudioEngine: () => engine,
+      openSocket: (url) => {
+        const socket = new FakeSocket(url);
+        sockets.push(socket);
+        return socket;
+      },
+    });
     return null;
   }
   await act(async () => {
@@ -140,554 +52,195 @@ async function mount(options: Parameters<typeof useVoiceRoom>[0]): Promise<void>
   });
 }
 
-async function settle(ms = 0): Promise<void> {
+const socket = () => sockets.at(-1)!;
+
+async function goLive(): Promise<void> {
   await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, ms));
+    await latest.connect();
+  });
+  act(() => {
+    socket().open();
+    socket().receive({ type: 'auth.ok' });
+    socket().receive({ type: 'session.accepted', voiceSessionId: 'vs', callId: 'c', seq: 0 });
+    socket().receive({
+      type: 'session.ready',
+      model: { id: 'x/realtime', displayName: 'Realtime', publisher: 'X' },
+      maxDurationMs: 1,
+      idleTimeoutMs: 1,
+      resumeWindowMs: 30_000,
+      seq: 1,
+    });
+    engine.capture();
+    socket().receive({ type: 'input.ready', seq: 2 });
   });
 }
 
-const liveSession = (): FakeSession => {
-  const session = [...fx.sessions].reverse().find((candidate) => !candidate.ended);
-  if (session === undefined) throw new Error('no live recognition session');
-  return session;
-};
+beforeEach(() => {
+  fx.token = 'session-token';
+  sockets = [];
+  engine = new FakeEngine();
+  saved = [];
+});
 
-async function say(text: string): Promise<void> {
-  await act(async () => {
-    liveSession().handlers.onResult({ transcript: text, isFinal: false });
-  });
-}
+afterEach(() => {
+  act(() => renderer?.unmount());
+  renderer = undefined;
+});
 
-describe('the on-device voice loop', () => {
-  beforeEach(() => {
-    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    fx.available = true;
-    fx.refusal = null;
-    fx.sessions = [];
-    fx.clips = [];
-    fx.playbacks = [];
-    fx.token = 'session-token';
-    fx.clipFailure = null;
-    fx.playFailure = null;
-    fx.autoStart = true;
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-  });
-
-  afterEach(async () => {
-    await act(async () => renderer?.unmount());
-    renderer = undefined;
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
-  });
-
-  it('listens, sends the utterance through the chat sender, and speaks the answer sentence by sentence in the product voice', async () => {
-    const sender = controllableSender();
-    await mount({
-      sendTurn: sender.send,
-      endOfUtteranceMs: END_OF_UTTERANCE_MS,
-      voicePreference: 'male',
-      lang: 'es-ES',
-    });
-
-    await act(async () => latest.connect());
-    expect(latest.roomState).toBe('connected');
-    expect(latest.agentState).toBe('listening');
-    expect(fx.sessions[0]?.options).toEqual({ lang: 'es-ES', echoCancellation: true });
-
-    await say('¿Qué tiempo hace');
-    await say('¿Qué tiempo hace en Madrid?');
-    expect(latest.messages).toMatchObject([
-      { role: 'user', content: '¿Qué tiempo hace en Madrid?', isStreaming: true },
-    ]);
-
-    await settle(PAST_END_OF_UTTERANCE_MS); // silence → end of utterance → stop → final
-    expect(fx.sessions[0]?.stop).toHaveBeenCalledTimes(1);
-    expect(sender.turns).toHaveLength(1);
-    expect(sender.turns[0]?.text).toBe('¿Qué tiempo hace en Madrid?');
-    expect(sender.turns[0]?.history).toEqual([]);
-    expect(latest.agentState).toBe('thinking');
-
-    // The first sentence is spoken while the rest is still streaming.
-    await act(async () => sender.turns[0]!.onText('Hace sol. Mañana'));
-    await settle();
-    expect(fx.clips.map((clip) => clip.input)).toEqual(['Hace sol.']);
-    expect(fx.clips[0]).toMatchObject({ voice: 'male', model: undefined });
-    expect(fx.playbacks.map((playback) => playback.uri)).toEqual(['clip:Hace sol.']);
-    expect(latest.agentState).toBe('speaking');
-
-    await act(async () => {
-      sender.turns[0]!.onText('Hace sol. Mañana lloverá.');
-      sender.turns[0]!.resolve();
-    });
-    await settle();
-    expect(latest.messages.at(-1)).toMatchObject({
-      role: 'assistant',
-      content: 'Hace sol. Mañana lloverá.',
-      isStreaming: false,
-    });
-
-    await act(async () => fx.playbacks[0]!.finish());
-    await settle();
-    expect(fx.playbacks.map((playback) => playback.uri)).toEqual([
-      'clip:Hace sol.',
-      'clip:Mañana lloverá.',
-    ]);
-    await act(async () => fx.playbacks[1]!.finish());
-    await settle();
-    expect(latest.agentState).toBe('listening');
-    expect(latest.turnError).toBeNull();
-
-    // The next turn carries this one as history.
-    await say('Gracias');
-    await settle(PAST_END_OF_UTTERANCE_MS);
-    expect(sender.turns[1]?.history).toEqual([
-      { role: 'user', content: '¿Qué tiempo hace en Madrid?' },
-      { role: 'assistant', content: 'Hace sol. Mañana lloverá.' },
-    ]);
-  });
-
-  it('lets the person talk over the answer: playback and the chat request stop, and their words become the next turn', async () => {
-    const sender = controllableSender();
-    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS });
-    await act(async () => latest.connect());
-    await say('Cuéntame un cuento');
-    await settle(PAST_END_OF_UTTERANCE_MS);
-    await act(async () => sender.turns[0]!.onText('Había una vez un dragón muy grande. '));
-    await settle();
-    expect(latest.agentState).toBe('speaking');
-    const playback = fx.playbacks[0]!;
-
-    // The answer coming back through the speaker is not an interruption…
-    await say('había una vez un dragón');
-    expect(playback.signal.aborted).toBe(false);
-
-    // …the person saying something new is.
-    await say('había una vez espera para');
-    expect(playback.signal.aborted).toBe(true);
-    expect(sender.turns[0]!.signal.aborted).toBe(true);
-    expect(latest.agentState).toBe('listening');
-    expect(latest.messages.at(-1)).toMatchObject({
-      role: 'user',
-      content: 'espera para',
-      isStreaming: true,
-    });
-    expect(latest.messages.at(-2)).toMatchObject({ role: 'assistant', isStreaming: false });
-
-    await settle(PAST_END_OF_UTTERANCE_MS);
-    expect(sender.turns[1]?.text).toBe('espera para');
-  });
-
-  it('does not cut the answer off when barge-in is disabled', async () => {
-    const sender = controllableSender();
-    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS, bargeIn: false });
-    await act(async () => latest.connect());
-    await say('Hola');
-    await settle(PAST_END_OF_UTTERANCE_MS);
-    await say('espera espera para');
-    expect(sender.turns[0]!.signal.aborted).toBe(false);
-  });
-
-  it('mute drops the half-said utterance and stops listening until unmuted', async () => {
-    const sender = controllableSender();
-    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS });
-    await act(async () => latest.connect());
-    await say('esto no');
-    await act(async () => latest.toggleMute());
-    await settle(PAST_END_OF_UTTERANCE_MS);
-    expect(latest.isMuted).toBe(true);
-    expect(latest.messages).toEqual([]);
-    expect(sender.turns).toHaveLength(0);
-    expect(fx.sessions.filter((session) => !session.ended)).toHaveLength(0);
-
-    await act(async () => latest.toggleMute());
-    expect(fx.sessions.filter((session) => !session.ended)).toHaveLength(1);
-  });
-
-  it('reports a turn with no answer without ending the call', async () => {
-    const sender = controllableSender();
-    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS });
-    await act(async () => latest.connect());
-    await say('Hola');
-    await settle(PAST_END_OF_UTTERANCE_MS);
-    await act(async () => sender.turns[0]!.resolve());
-    await settle();
-    expect(latest.turnError).toBe('No answer came back — try saying it again');
-    expect(latest.turnErrorCode).toBe('no-answer');
-    expect(latest.roomState).toBe('connected');
-    expect(latest.agentState).toBe('listening');
-    expect(latest.messages).toMatchObject([{ role: 'user', content: 'Hola' }]);
-  });
-
-  it('ends the call with the reason when a turn cannot be sent', async () => {
-    const sender = controllableSender();
-    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS });
-    await act(async () => latest.connect());
-    await say('Hola');
-    await settle(PAST_END_OF_UTTERANCE_MS);
-    await act(async () => sender.turns[0]!.reject(new Error("You've run out of credits.")));
-    await settle();
-    expect(latest.error).toBe("You've run out of credits.");
-    expect(latest.errorCode).toBe('turn-failed');
-    expect(latest.roomState).toBe('error');
-  });
-
-  it('refuses to start without the microphone, or where recognition does not exist', async () => {
-    fx.refusal = { code: 'not-allowed' };
-    await mount({ sendTurn: controllableSender().send });
-    await act(async () => latest.connect());
-    expect(latest.roomState).toBe('error');
-    expect(latest.error).toBe('Microphone permission required');
-    expect(latest.errorCode).toBe('microphone-denied');
-    expect(fx.sessions).toHaveLength(0);
-
-    fx.refusal = null;
-    fx.available = false;
-    await act(async () => latest.connect());
-    expect(latest.error).toBe('Voice is not available on this device');
-    expect(latest.errorCode).toBe('voice-unavailable');
-  });
-
-  it('ends the call when the recognizer loses the microphone mid-call', async () => {
-    await mount({ sendTurn: controllableSender().send });
-    await act(async () => latest.connect());
-    await act(async () => {
-      const session = liveSession();
-      session.handlers.onError({ code: 'audio-capture', detail: 'NotFoundError' });
-      session.ended = true;
-      session.handlers.onEnd();
-    });
-    expect(latest.roomState).toBe('error');
-    expect(latest.error).toBe('No microphone found — check your input devices');
-    expect(latest.errorCode).toBe('microphone-missing');
-  });
-
-  /** A call whose first answer has started streaming, with nothing spoken yet. */
-  async function answering(): Promise<ReturnType<typeof controllableSender>> {
-    const sender = controllableSender();
-    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS });
-    await act(async () => latest.connect());
-    await say('Hola');
-    await settle(PAST_END_OF_UTTERANCE_MS);
-    await act(async () => sender.turns[0]!.onText('Hola, soy Alia. Te cuento'));
-    await settle();
-    return sender;
-  }
-
-  it.each([
-    [503, 'SPEECH_UNAVAILABLE', 'synthesis-unavailable'],
-    [429, 'SPEECH_LIMIT_REACHED', 'synthesis-limited'],
-    [422, 'SPEECH_REJECTED', 'synthesis-rejected'],
-    [502, 'SPEECH_PROVIDER_FAILED', 'synthesis-failed'],
-    [500, null, 'synthesis-failed'],
-  ] as const)(
-    'a clip the route refuses (%s %s) ends the call as %s once the answer is in the transcript',
-    async (status, code, expected) => {
-      fx.clipFailure = new SpeechClipError('refused', { status, code, requestId: 'req_1' });
-      const sender = await answering();
-
-      // Nothing plays, and the answer keeps streaming: the call is not cut mid-answer.
-      expect(fx.playbacks).toHaveLength(0);
-      expect(sender.turns[0]!.signal.aborted).toBe(false);
-      expect(latest.roomState).toBe('connected');
-
-      await act(async () => {
-        sender.turns[0]!.onText('Hola, soy Alia. Te cuento algo.');
-        sender.turns[0]!.resolve();
-      });
-      await settle();
-
-      expect(latest.roomState).toBe('error');
-      expect(latest.errorCode).toBe(expected);
-      expect(latest.synthesisError).toMatchObject({ status, code, requestId: 'req_1' });
-      expect(latest.messages.at(-1)).toMatchObject({
-        role: 'assistant',
-        content: 'Hola, soy Alia. Te cuento algo.',
-        isStreaming: false,
-      });
-      // The microphone is released: no session is left listening.
-      expect(fx.sessions.filter((session) => !session.ended)).toHaveLength(0);
-    },
-  );
-
-  it('a network failure is a typed synthesis failure too', async () => {
-    fx.clipFailure = new TypeError('Network request failed');
-    const sender = await answering();
-    await act(async () => sender.turns[0]!.resolve());
-    await settle();
-    expect(latest.errorCode).toBe('synthesis-failed');
-    expect(latest.synthesisError).toBeInstanceOf(SpeechClipError);
-    expect(latest.synthesisError).toMatchObject({ status: null, code: null });
-  });
-
-  it('losing the session token mid-call is an explicit not-authenticated end, with no request', async () => {
-    const sender = controllableSender();
-    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS });
-    await act(async () => latest.connect());
-    await say('Hola');
-    await settle(PAST_END_OF_UTTERANCE_MS);
-    fx.token = null;
-    await act(async () => {
-      sender.turns[0]!.onText('Hola. ');
-      sender.turns[0]!.resolve();
-    });
-    await settle();
-    expect(fx.clips).toHaveLength(0);
-    expect(latest.roomState).toBe('error');
-    expect(latest.errorCode).toBe('not-authenticated');
-    expect(latest.synthesisError).toMatchObject({ status: null, code: 'NOT_AUTHENTICATED' });
-  });
-
-  it('a clip the device cannot play ends the call as not-played, without skipping ahead', async () => {
-    fx.playFailure = new Error('decoder error');
-    const sender = await answering();
-    await act(async () => {
-      sender.turns[0]!.onText('Hola, soy Alia. Te cuento algo.');
-      sender.turns[0]!.resolve();
-    });
-    await settle();
-    expect(fx.clips.map((clip) => clip.input)).toEqual(['Hola, soy Alia.']);
-    expect(latest.errorCode).toBe('not-played');
-    expect(latest.error).toBe('The answer could not be played aloud — it is in the chat');
-    expect(latest.synthesisError).toBeNull();
-  });
-
-  it('a new call starts clean after one that could not speak', async () => {
-    fx.clipFailure = new SpeechClipError('refused', { status: 503, code: 'SPEECH_UNAVAILABLE' });
-    const sender = await answering();
-    await act(async () => sender.turns[0]!.resolve());
-    await settle();
-    expect(latest.errorCode).toBe('synthesis-unavailable');
-
-    await act(async () => latest.disconnect());
-    expect(latest.synthesisError).toBeNull();
-    expect(latest.errorCode).toBeNull();
-  });
-
-  it('disconnect stops everything and clears the transcript', async () => {
-    const sender = controllableSender();
-    await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS });
-    await act(async () => latest.connect());
-    await say('Hola');
-    await settle(PAST_END_OF_UTTERANCE_MS);
-    await act(async () => latest.disconnect());
-    expect(sender.turns[0]!.signal.aborted).toBe(true);
+describe('useVoiceRoom', () => {
+  it('starts disconnected and idle', async () => {
+    await mount();
     expect(latest.roomState).toBe('disconnected');
     expect(latest.agentState).toBe('idle');
-    expect(latest.messages).toEqual([]);
+    expect(latest.callState).toEqual({ kind: 'idle' });
   });
 
-  /**
-   * "Listening" is said only while something listens. Reported in production:
-   * Chrome showed "Listening…" forever while every session was aborted and
-   * restarted in silence, and nothing reached the server. Fake timers: the thresholds are seconds, and the level readings
-   * arrive on the engines' 100ms clock.
-   */
-  describe('says listening only when it is', () => {
-    beforeEach(() => {
-      vi.useFakeTimers({
-        toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'],
+  it('is connecting until it can prove it listens, then connected and listening', async () => {
+    await mount();
+    await act(async () => {
+      await latest.connect();
+    });
+    expect(latest.roomState).toBe('connecting');
+    expect(latest.isConnected).toBe(false);
+    act(() => {
+      socket().open();
+      socket().receive({ type: 'auth.ok' });
+    });
+    expect(socket().events()[1]).toMatchObject({
+      type: 'session.start',
+      conversationId: 'conv-9',
+      voice: 'male',
+      locale: 'en-US',
+    });
+    act(() => {
+      socket().receive({ type: 'session.accepted', voiceSessionId: 'vs', callId: 'c', seq: 0 });
+    });
+    expect(latest.roomState).toBe('connecting');
+    await goLiveRest();
+    expect(latest.roomState).toBe('connected');
+    expect(latest.agentState).toBe('listening');
+    expect(latest.model?.displayName).toBe('Realtime');
+  });
+
+  it('projects speaking and a tool onto the coarse states', async () => {
+    await mount();
+    await goLive();
+    act(() => {
+      socket().receive({ type: 'user.speech_stopped', itemId: 'u', seq: 3 });
+      socket().receive({ type: 'tool.started', callId: 't', name: 'webSearch', seq: 4 });
+    });
+    expect(latest.callState).toEqual({ kind: 'using-tool', tool: 'webSearch' });
+    expect(latest.agentState).toBe('thinking');
+    act(() => {
+      socket().receive({ type: 'tool.finished', callId: 't', name: 'webSearch', ok: true, seq: 5 });
+      socket().receiveAudio('a', new Uint8Array(960));
+      engine.play('a');
+    });
+    expect(latest.agentState).toBe('speaking');
+    expect(latest.currentSpeaker).toBe('primary');
+  });
+
+  it('reports reconnecting as its own room state', async () => {
+    await mount();
+    await goLive();
+    act(() => socket().receive({ type: 'session.reconnecting', seq: 3 }));
+    expect(latest.roomState).toBe('reconnecting');
+    expect(latest.isConnected).toBe(false);
+  });
+
+  it('exposes a call moved elsewhere as an ending reason, never as an error', async () => {
+    await mount();
+    await goLive();
+    act(() => socket().receive({ type: 'session.closed', reason: 'call-moved-elsewhere', seq: 3 }));
+    expect(latest.endedReason).toBe('call-moved-elsewhere');
+    expect(latest.error).toBeNull();
+    expect(latest.errorCode).toBeNull();
+    expect(latest.roomState).toBe('disconnected');
+  });
+
+  it('exposes a typed failure with its English sentence', async () => {
+    await mount();
+    await goLive();
+    act(() => {
+      socket().receive({
+        type: 'error',
+        code: 'realtime-limited',
+        message: 'x',
+        retryable: true,
+        reference: 'r',
+        seq: 3,
       });
+      socket().receive({ type: 'session.closed', reason: 'error', seq: 4 });
     });
+    expect(latest.roomState).toBe('error');
+    expect(latest.errorCode).toBe('realtime-limited');
+    expect(latest.error).toMatch(/limit/);
+  });
 
-    afterEach(() => {
-      vi.useRealTimers();
+  it('passes stored message ids to the host', async () => {
+    await mount();
+    await goLive();
+    act(() =>
+      socket().receive({
+        type: 'messages.saved',
+        conversationId: 'conv-9',
+        messageIds: ['m'],
+        seq: 3,
+      }),
+    );
+    expect(saved).toEqual([['m']]);
+  });
+
+  it('hangs up on disconnect and on unmount', async () => {
+    await mount();
+    await goLive();
+    act(() => latest.disconnect());
+    expect(sockets[0]!.events().at(-1)).toEqual({ type: 'session.end' });
+    expect(latest.roomState).toBe('disconnected');
+    expect(engine.stopped).toBe(true);
+
+    engine = new FakeEngine();
+    await goLive();
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    expect(sockets[1]!.events().at(-1)).toEqual({ type: 'session.end' });
+    expect(engine.stopped).toBe(true);
+  });
+
+  it('mutes by sending no audio', async () => {
+    await mount();
+    await goLive();
+    const sent = socket().audio().length;
+    act(() => latest.toggleMute());
+    expect(latest.isMuted).toBe(true);
+    act(() => engine.capture());
+    expect(socket().audio()).toHaveLength(sent);
+  });
+
+  it('fails as not-authenticated without a session token', async () => {
+    fx.token = null;
+    await mount();
+    await act(async () => {
+      await latest.connect();
     });
-
-    async function advance(ms: number): Promise<void> {
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(ms);
-      });
-    }
-
-    /** The microphone reads `level` for `ms`, one reading per 100ms, as both engines report it. */
-    async function hear(level: number, ms: number): Promise<void> {
-      for (let elapsed = 0; elapsed < ms; elapsed += 100) {
-        const session = [...fx.sessions].reverse().find((candidate) => !candidate.ended);
-        if (session === undefined) return;
-        await act(async () => {
-          session.handlers.onLevel?.(level);
-          await vi.advanceTimersByTimeAsync(100);
-        });
-      }
-    }
-
-    /** The live session ends on its own, after `failure` when one is given. */
-    async function engineEnds(failure?: { code: string; detail?: string }): Promise<void> {
-      await act(async () => {
-        const session = liveSession();
-        if (failure !== undefined)
-          session.handlers.onError(failure as Parameters<typeof session.handlers.onError>[0]);
-        session.ended = true;
-        session.handlers.onEnd();
-      });
-      await advance(0);
-    }
-
-    async function call(
-      options: Partial<Parameters<typeof useVoiceRoom>[0]> = {},
-    ): Promise<ReturnType<typeof controllableSender>> {
-      const sender = controllableSender();
-      await mount({ sendTurn: sender.send, endOfUtteranceMs: END_OF_UTTERANCE_MS, ...options });
-      await act(async () => latest.connect());
-      await advance(0);
-      return sender;
-    }
-
-    it('stays connecting until the recognizer has started, then listens', async () => {
-      fx.autoStart = false;
-      await call();
-      expect(fx.sessions).toHaveLength(1);
-      expect(latest.roomState).toBe('connecting');
-      expect(latest.agentState).toBe('idle');
-      expect(latest.isConnected).toBe(false);
-
-      await act(async () => liveSession().handlers.onStart?.());
-      expect(latest.roomState).toBe('connected');
-      expect(latest.agentState).toBe('listening');
-    });
-
-    it('ends the call, never having said listening, when the recognizer does not start', async () => {
-      fx.autoStart = false;
-      await call();
-      await advance(7_900);
-      expect(latest.roomState).toBe('connecting');
-
-      await advance(100);
-      expect(latest.roomState).toBe('error');
-      expect(latest.errorCode).toBe('recognizer-not-started');
-      expect(latest.error).toBe('Speech recognition did not start — try again');
-      expect(latest.agentState).toBe('idle');
-      expect(fx.sessions.filter((session) => !session.ended)).toHaveLength(0);
-    });
-
-    it('warns that it cannot hear, without ending the call, while the microphone delivers nothing', async () => {
-      await call();
-      await hear(0, 9_800);
-      expect(latest.warningCode).toBeNull();
-
-      await hear(0, 400);
-      expect(latest.warningCode).toBe('no-audio-input');
-      expect(latest.warning).toBe("I can't hear you — if you're speaking, check your microphone");
-      expect(latest.roomState).toBe('connected');
-      expect(latest.agentState).toBe('listening');
-
-      // Sound arrives: the microphone works, and the warning goes.
-      await hear(0.2, 100);
-      expect(latest.warningCode).toBeNull();
-      expect(latest.roomState).toBe('connected');
-    });
-
-    it('does not count the silence of a muted call', async () => {
-      await call();
-      await hear(0, 5_000);
-      await act(async () => latest.toggleMute());
-      await advance(20_000);
-      await act(async () => latest.toggleMute());
-      await advance(0);
-      await hear(0, 5_000);
-      expect(latest.warningCode).toBeNull();
-    });
-
-    it('ends the call when a voice reaches the microphone and the recognizer returns no word', async () => {
-      await call();
-      await hear(0.7, 4_800);
-      expect(latest.roomState).toBe('connected');
-
-      await hear(0.7, 300);
-      expect(latest.roomState).toBe('error');
-      expect(latest.errorCode).toBe('recognizer-unresponsive');
-      expect(console.warn).toHaveBeenCalledWith(
-        '[useVoiceRoom] Voice heard, no words recognized',
-        expect.objectContaining({ loudMs: expect.any(Number) }),
-      );
-    });
-
-    it('keeps listening through loud speech while the recognizer returns words', async () => {
-      await call({ endOfUtteranceMs: 60_000 });
-      await hear(0.7, 4_000);
-      await say('hola');
-      await hear(0.7, 4_000);
-      await say('hola qué tal');
-      await hear(0.7, 4_000);
-      expect(latest.roomState).toBe('connected');
-      expect(latest.errorCode).toBeNull();
-    });
-
-    it('stops restarting a recognizer that keeps ending without listening', async () => {
-      await call();
-      for (let ended = 0; ended < 4; ended += 1) {
-        await engineEnds({ code: 'other', detail: 'bad-grammar' });
-        expect(latest.roomState).toBe('connected');
-      }
-      await engineEnds({ code: 'other', detail: 'bad-grammar' });
-      expect(latest.roomState).toBe('error');
-      expect(latest.errorCode).toBe('speech-failed');
-      expect(fx.sessions).toHaveLength(5);
-      // The engine's words reach the log for diagnosis, with nothing that was said.
-      expect(console.warn).toHaveBeenCalledWith('[useVoiceRoom] Speech recognition error', {
-        code: 'other',
-        detail: 'bad-grammar',
-        listening: true,
-        sessionMs: expect.any(Number),
-        phase: 'listening',
-      });
-    });
-
-    it('stops restarting sessions that end at once with no error at all', async () => {
-      await call();
-      for (let ended = 0; ended < 5; ended += 1) await engineEnds();
-      expect(latest.errorCode).toBe('recognizer-unresponsive');
-    });
-
-    it('lets Chrome time out on silence as often as it likes: that is the person being quiet', async () => {
-      await call();
-      for (let ended = 0; ended < 8; ended += 1) {
-        await advance(8_000);
-        await engineEnds({ code: 'no-speech' });
-      }
-      expect(latest.roomState).toBe('connected');
-      expect(latest.agentState).toBe('listening');
-    });
-
-    it('retries once another recognition cuts it off, and ends the call the third time in a row', async () => {
-      await call();
-      await engineEnds({ code: 'interrupted', detail: 'aborted' });
-      await engineEnds({ code: 'interrupted', detail: 'aborted' });
-      expect(latest.roomState).toBe('connected');
-      expect(fx.sessions.filter((session) => !session.ended)).toHaveLength(1);
-
-      await engineEnds({ code: 'interrupted', detail: 'aborted' });
-      expect(latest.roomState).toBe('error');
-      expect(latest.errorCode).toBe('recognizer-aborted');
-      expect(fx.sessions.filter((session) => !session.ended)).toHaveLength(0);
-    });
-
-    it('starts counting interruptions again once the recognizer has returned words', async () => {
-      await call({ endOfUtteranceMs: 60_000 });
-      await engineEnds({ code: 'interrupted', detail: 'aborted' });
-      await engineEnds({ code: 'interrupted', detail: 'aborted' });
-      await say('hola');
-      await engineEnds({ code: 'interrupted', detail: 'aborted' });
-      expect(latest.roomState).toBe('connected');
-    });
-
-    it('does not count the sessions it ends itself: after each turn, on mute', async () => {
-      const sender = await call();
-      for (let turn = 0; turn < 6; turn += 1) {
-        await say(`pregunta ${turn}`);
-        await advance(PAST_END_OF_UTTERANCE_MS);
-        await act(async () => {
-          sender.turns[turn]!.onText('Vale.');
-          sender.turns[turn]!.resolve();
-        });
-        await advance(0);
-        await act(async () => fx.playbacks[turn]?.finish());
-        await advance(0);
-      }
-      expect(sender.turns).toHaveLength(6);
-      expect(latest.roomState).toBe('connected');
-      expect(latest.agentState).toBe('listening');
-    });
+    expect(latest.errorCode).toBe('not-authenticated');
+    expect(sockets).toHaveLength(0);
   });
 });
+
+async function goLiveRest(): Promise<void> {
+  act(() => {
+    socket().receive({
+      type: 'session.ready',
+      model: { id: 'x/realtime', displayName: 'Realtime', publisher: 'X' },
+      maxDurationMs: 1,
+      idleTimeoutMs: 1,
+      resumeWindowMs: 30_000,
+      seq: 1,
+    });
+  });
+  expect(latest.roomState).toBe('connecting');
+  act(() => engine.capture());
+  expect(latest.roomState).toBe('connecting');
+  act(() => socket().receive({ type: 'input.ready', seq: 2 }));
+}

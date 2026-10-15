@@ -1,5 +1,5 @@
 /**
- * The language to recognize when the caller names none.
+ * The language spoken, when the caller names none (dictation and calls).
  *
  * The browser's own language on web; the runtime's resolved locale on native
  * (Hermes implements `Intl`); `en-US` when neither answers. An app should pass

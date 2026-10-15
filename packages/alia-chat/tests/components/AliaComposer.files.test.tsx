@@ -44,14 +44,19 @@ vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: toastError } }));
 vi.mock('../../src/lib/keyboard', () => ({
   KeyboardAvoidingView: ({ children }: React.PropsWithChildren) => children,
 }));
-vi.mock('../../src/hooks/useSpeechToText', () => ({
-  useSpeechToText: () => ({
+vi.mock('../../src/hooks/useDictation', () => ({
+  useDictation: () => ({
+    state: 'idle',
     isRecording: false,
     isTranscribing: false,
     error: null,
     errorCode: null,
-    startRecording: vi.fn(),
-    stopAndTranscribe: vi.fn(async () => null),
+    remainingMs: null,
+    canRetry: false,
+    start: vi.fn(),
+    stop: vi.fn(async () => null),
+    retry: vi.fn(async () => null),
+    cancel: vi.fn(),
   }),
 }));
 
