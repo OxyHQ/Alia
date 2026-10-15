@@ -26,3 +26,17 @@ export const API_ROUTES = {
     vote: (id: string, messageId: string) => `/v1/conversations/${id}/messages/${messageId}/vote`,
   },
 } as const;
+
+/**
+ * An agent's thread and its runs. These belong to Alia's own clients (the app), which are the only
+ * ones with agents of their own: `agentId`, `threadHandle` and the agent panel are not for an
+ * embedding Oxy app, and these routes answer Alia's origins alone, like `/conversations` does.
+ */
+export const AGENT_ROUTES = {
+  /** A page of the thread, oldest-first, crossing the seams between its conversations. */
+  threadMessages: (handle: string) => `/agents/thread/${encodeURIComponent(handle)}/messages`,
+  /** Everything said in the thread that matches, across every conversation in it. */
+  threadSearch: (handle: string) => `/agents/thread/${encodeURIComponent(handle)}/search`,
+  /** What a run of an agent has done so far, to hydrate the live feed. */
+  sessionStatus: (sessionId: string) => `/agents/sessions/${sessionId}/status`,
+} as const;

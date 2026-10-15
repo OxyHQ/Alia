@@ -1,6 +1,6 @@
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
 import { ALIA_API_URL } from '../lib/api-url';
-import type { Message } from './types';
+import type { AgentRun, Message } from './types';
 
 /**
  * Where a signed-out session keeps its conversations, per account. The host
@@ -42,6 +42,24 @@ export interface AliaTurnRequest {
   deepResearch?: boolean;
 }
 
+/** Why the thread asks its host to show the thought panel. */
+export type ThoughtOpening =
+  /** The reader pressed a turn's "worked for" line or a sources row. */
+  | 'pressed'
+  /** A running turn began using tools; offered only while the host has nothing else open. */
+  | 'automatic';
+
+/**
+ * How the person speaks and likes to be spoken to: read-aloud, dictation and calls all use it.
+ * Each is the server's or the platform's own default when absent.
+ */
+export interface SpeechPreferences {
+  voice?: 'male' | 'female';
+  tone?: 'brief' | 'chill' | 'default';
+  /** The language spoken and dictated, a BCP 47 tag; the platform's own when absent. */
+  language?: string;
+}
+
 /**
  * Everything the conversation runtime needs from the app around it, as typed
  * callbacks. Every member is optional: a host that omits one gets the plain
@@ -70,7 +88,7 @@ export interface AliaRuntimeHost {
   /** What this turn put in the context window (`alia.context`), raw. */
   onContext?: (conversationId: string | null, payload: unknown) => void;
   /** A delegated agent started a run of its own for this turn. */
-  onAgentTurn?: (turn: { turnId: string; agentId: string; conversationId: string | null }) => void;
+  onAgentTurn?: (turn: AgentRun & { conversationId: string | null }) => void;
   /** The agent's row in the host's list, ahead of the server: your line, then her answer. */
   onTurnPreview?: (agentId: string | null | undefined, text: string) => void;
   /**
@@ -81,6 +99,17 @@ export interface AliaRuntimeHost {
     conversationId: string,
     listener: (message: Message) => void,
   ) => () => void;
+  /**
+   * Show where the work of a turn is read — the host's right panel — now that the thread selected
+   * one (`useThoughtStore`; the panel is `ThoughtPanel`). Return `false` to decline an
+   * `automatic` opening because something else is open. A host without it has no thought panel:
+   * the thread draws the "worked for" line as text and never opens one.
+   */
+  showThought?: (opening: ThoughtOpening) => boolean;
+  /** A scheduled-task card in the thread was pressed: show that task. Omitted, the card is not pressable. */
+  openAutomation?: (automationId: string) => void;
+  /** The URL of a site's cached icon for the work log's sources, or nothing for Bloom's quiet dot. */
+  faviconUrl?: (url: string) => string | null | undefined;
   /** The runtime created or chose a conversation: show it. Omitted, the host shows nothing new. */
   openConversation?: (conversationId: string) => void;
   /** The open conversation is gone (deleted elsewhere, or a first send failed): leave it. */
@@ -97,6 +126,8 @@ export interface AliaRuntimeConfig {
    * body; Expo's (`expo/fetch`) can. Omitted, the platform's.
    */
   streamFetch: typeof fetch | undefined;
+  /** How read-aloud, dictation and calls speak; omitted, the server's and the platform's defaults. */
+  speech: SpeechPreferences;
   host: AliaRuntimeHost;
 }
 
@@ -109,6 +140,7 @@ const DEFAULT_CONFIG: AliaRuntimeConfig = {
   apiUrl: ALIA_API_URL,
   offline: null,
   streamFetch: undefined,
+  speech: {},
   host: {},
 };
 
@@ -125,6 +157,7 @@ export function AliaRuntimeProvider({
   apiUrl,
   offline,
   streamFetch,
+  speech,
   host,
   children,
 }: AliaRuntimeProviderProps) {
@@ -135,9 +168,10 @@ export function AliaRuntimeProvider({
       apiUrl: nextApiUrl,
       offline: offline === undefined ? parent.offline : offline,
       streamFetch: streamFetch ?? parent.streamFetch,
+      speech: speech ?? parent.speech,
       host: host === undefined ? parent.host : { ...parent.host, ...host },
     };
-  }, [apiUrl, offline, streamFetch, host, parent]);
+  }, [apiUrl, offline, streamFetch, speech, host, parent]);
   return <AliaRuntimeContext.Provider value={value}>{children}</AliaRuntimeContext.Provider>;
 }
 

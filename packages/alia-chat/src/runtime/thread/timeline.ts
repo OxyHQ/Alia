@@ -4,8 +4,8 @@ import type { Message } from '../types';
  * The chat timeline as data: which rows are mounted, which just arrived, and
  * which facts about the list a streamed token can and cannot change.
  *
- * Everything here is pure. `src/features/chat/runtime/use-timeline-window.ts` holds the state
- * and talks to the thread; `src/features/chat/ui/chat-interface.tsx` draws the rows.
+ * Everything here is pure. `hooks/useTimelineWindow.ts` holds the state
+ * and talks to the thread; `components/thread/AliaThread.tsx` draws the rows.
  *
  * ## Why a paged window and not virtualization
  *

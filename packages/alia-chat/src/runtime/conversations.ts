@@ -201,13 +201,13 @@ async function fetchConversation(client: ConversationsClient, id: string): Promi
 }
 
 /** One conversation with its messages. */
-export function useConversation(id: string) {
+export function useConversation(id: string | undefined) {
   const { isAuthenticated } = useOxy();
   const client = useConversationsClient();
 
   return useQuery({
-    queryKey: aliaQueryKeys.conversations.detail(id),
-    queryFn: () => fetchConversation(client, id),
+    queryKey: aliaQueryKeys.conversations.detail(id ?? ''),
+    queryFn: () => fetchConversation(client, id ?? ''),
     enabled: isAuthenticated && !!id,
     staleTime: FIVE_MINUTES,
     // A missing conversation is deterministic. Retrying only repeats the same

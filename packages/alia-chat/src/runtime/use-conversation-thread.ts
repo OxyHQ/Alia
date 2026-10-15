@@ -133,6 +133,7 @@ export function useConversationThread({
     rejectPlan,
     suggestedNewConversation,
     dismissSuggestedNewConversation,
+    agentRun,
     failedTurn,
     retryFailedTurn: retry,
     clearFailedTurn,
@@ -540,7 +541,11 @@ export function useConversationThread({
     rejectPlan,
     suggestedNewConversation,
     dismissSuggestedNewConversation,
+    agentRun,
     failedTurn,
     retryFailedTurn,
   };
 }
+
+/** What `useConversationThread` hands back: the open conversation and everything that can be done to it. */
+export type ConversationThread = ReturnType<typeof useConversationThread>;

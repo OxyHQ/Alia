@@ -1,3 +1,5 @@
+import { processMessage } from '../runtime/thread/message-processor';
+
 /** A single part of a multi-part chat message content array. */
 export interface ContentPart {
   type: string;
@@ -20,6 +22,14 @@ export function getTextFromContent(content: MessageContent | null | undefined): 
       .join('');
   }
   return String(content || '');
+}
+
+/**
+ * A message's words as the thread draws them: its text parts, without the tags other platforms
+ * use (Telegram's), which a reply written for one can still carry.
+ */
+export function messageText(message: { content: MessageContent | null | undefined }): string {
+  return processMessage(message.content ? getTextFromContent(message.content) : '', 'app').text;
 }
 
 /**

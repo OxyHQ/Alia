@@ -80,9 +80,11 @@ export interface AliaChatLabels {
   // Reasoning
   reasoning: string;
   thoughtFor: (seconds: number) => string;
-  // The turn's work log
+  // The words that are not one fixed field
   /** The words that are not one fixed field (the thread, its cards, the work log), keyed as the Alia app keys them (see `copy.ts`). */
   t: Translate;
+  /** The language `t` speaks, as a BCP 47 tag: dates, days and prices in the thread are formatted in it. */
+  locale: string;
   // Conversations (the runtime's own words: toasts and the errors it raises)
   /** A conversation's title until it has one. */
   newChat: string;
@@ -165,6 +167,7 @@ export const DEFAULT_LABELS: AliaChatLabels = {
   reasoning: 'Reasoning',
   thoughtFor: (seconds) => `Thought for ${seconds} seconds`,
   t: englishCopy,
+  locale: 'en',
   newChat: 'New chat',
   sendFailed: "Your message couldn't be sent",
   signInRequired: 'Sign in to keep chatting',

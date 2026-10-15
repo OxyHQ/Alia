@@ -8,6 +8,8 @@ import type { VoiceCloseReason } from './lib/voice-protocol';
 export interface AliaSuggestion {
   id: string;
   text: string;
+  /** It has blanks to fill: picking it puts it in the composer for the person to finish, instead of sending it. */
+  template?: boolean;
 }
 
 // ── Composer Types ──

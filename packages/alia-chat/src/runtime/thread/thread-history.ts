@@ -11,8 +11,8 @@ import type { Message } from '../types';
  * those seams; this module turns its pages into the list that goes above the
  * live messages, and says where the joins are.
  *
- * Everything here is pure. The scrolling, the fetching and the anchoring live
- * in `src/features/chat/runtime/use-thread-history.ts`; the thread's own anchoring is Bloom's.
+ * Everything here is pure. The fetching lives in `use-thread-history.ts` and
+ * `use-thread-search.ts`; the scrolling and the anchoring are Bloom's `AiChatThread`'s.
  */
 
 /**
@@ -29,6 +29,30 @@ import type { Message } from '../types';
 export interface WireThreadMessage extends Omit<Message, 'id'> {
   id?: string;
   conversationId: string;
+  cursor: string;
+}
+
+/** What is behind the conversation on screen: the rest of an agent's thread. */
+export interface ThreadHistory {
+  /** Everything said before the conversation on screen, oldest first. */
+  messages: ThreadMessage[];
+  /** A page is on its way; the reader is at the top waiting for it. */
+  loading: boolean;
+  /** Ask for the page above. Absent where nothing older remains, which also turns the anchor off. */
+  loadMore?: () => void;
+}
+
+/**
+ * One hit of a search in a thread. `messageId` is the client's id, which a message the server
+ * wrote has none of.
+ */
+export interface ThreadSearchHit {
+  messageId: string | null;
+  conversationId: string;
+  role: string;
+  snippet: string;
+  createdAt: string;
+  /** Where this message is, in the only form that can be asked for. */
   cursor: string;
 }
 
