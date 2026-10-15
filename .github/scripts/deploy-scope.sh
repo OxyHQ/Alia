@@ -9,9 +9,10 @@
 #     finish. An older commit whose CI ends last would roll out over a newer one,
 #     and a run queued for it would DISPLACE a newer release already pending in
 #     the deploy's concurrency group (GitHub cancels a pending run when another
-#     joins the group). So `gate` lets only main's CURRENT head through, and the
-#     workflows run it in a job that sits outside the group. A skipped older
-#     commit is released by the newer head's run, which carries it.
+#     joins the group). So `gate` lets through only the newest commit CI runs
+#     for (normally main's head), and the workflows run it in a job that sits
+#     outside the group. A skipped older commit is released by the newer
+#     commit's run, which carries it.
 #
 #  2. PATH SCOPE. `workflow_run` takes no `paths:` filter, and diffing only the
 #     head commit would lose a skipped older commit that changed something the
@@ -25,7 +26,9 @@
 #
 # Usage:
 #   deploy-scope.sh gate
-#       Writes `current=true|false`. On workflow_dispatch it first requires a
+#       Writes `current=true|false`: true for main's head, or for an older
+#       commit when no commit after it has a CI push run (an auto-merge push
+#       starts none). On workflow_dispatch it first requires a
 #       successful CI run on push to main for RELEASE_SHA, and fails otherwise.
 #   deploy-scope.sh target <name> <include|exclude> <ERE> <marker-prefix>
 #       Writes `<name>=true|false`. `include`: release when a changed path
@@ -70,12 +73,46 @@ cmd_gate() {
   # over a newer one, so this fails the job rather than guessing.
   local head
   head="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
-  if [[ "$head" != "$RELEASE_SHA" ]]; then
-    echo "::notice::main has moved past $RELEASE_SHA (head is $head); the newer head's release carries this commit."
+  if [[ "$head" == "$RELEASE_SHA" ]]; then
+    echo "$RELEASE_SHA is main's head."
+    out current true
+    return
+  fi
+
+  # main moved on. A newer commit carries this one ONLY if it gets a release of
+  # its own, i.e. CI runs on its push. Not every commit does: a pull request
+  # merged by GitHub auto-merge on behalf of `GITHUB_TOKEN`
+  # (automerge-first-party.yml) is pushed by github-actions[bot], and such a
+  # push starts no workflow at all. Measured 2026-10-15: #781 landed that way
+  # seconds after #780, had no CI push run, and #780 was held as stale with
+  # nothing ever coming to carry it.
+  #
+  # So hold only when some commit after this one HAS a CI push run, in any
+  # state. That is also exactly the case ordering needs: a newer commit can only
+  # have been released, and an older one roll out over it, if its CI ran. A run
+  # registered a moment after this check queues its release behind ours.
+  local compare status total newer runs
+  compare="$(gh api "repos/$GITHUB_REPOSITORY/compare/$RELEASE_SHA...$head" \
+    --jq '.status, .total_commits, (.commits[].sha)')"
+  status="$(sed -n 1p <<<"$compare")"
+  total="$(sed -n 2p <<<"$compare")"
+  if [[ "$status" != ahead || ! "$total" =~ ^[0-9]+$ ]] || ((total >= 250)); then
+    # Not a plain descendant, or too many commits to list: hold, as before.
+    echo "::notice::main has moved past $RELEASE_SHA (head is $head, history '$status'); not releasing an older commit."
     out current false
     return
   fi
-  echo "$RELEASE_SHA is main's head."
+  while IFS= read -r newer; do
+    [[ -z "$newer" ]] && continue
+    runs="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/$CI_WORKFLOW/runs" \
+      -f head_sha="$newer" -f event=push -f branch=main --jq '.total_count')"
+    if [[ ! "$runs" =~ ^[0-9]+$ ]] || ((runs > 0)); then
+      echo "::notice::main has moved past $RELEASE_SHA to $newer, whose CI run releases it; this run holds."
+      out current false
+      return
+    fi
+  done < <(sed -n '3,$p' <<<"$compare")
+  echo "::notice::main has moved past $RELEASE_SHA (head is $head), but no newer commit has a CI run of its own; releasing $RELEASE_SHA as the newest CI-tested commit."
   out current true
 }
 
