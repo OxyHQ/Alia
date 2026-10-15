@@ -2,7 +2,7 @@
 
 *La voz es una sesión realtime de voz a voz servida por Kaana; el dictado es transcripción de Kaana.*
 
-**Status:** Proposed. The owner answered the first draft's questions on 2026-10-15;
+**Status:** Accepted by the owner on 2026-10-15. The owner answered the first draft's questions on 2026-10-15;
 the answers are decisions here, not open points (see "Owner's answers").
 
 **Date:** 2026-10-15

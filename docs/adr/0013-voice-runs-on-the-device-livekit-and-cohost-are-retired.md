@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. Its decisions on how a call listens and speaks (§1–3: recognition on the device, the chat route answering, `/v1/audio/speech` speaking) are superseded by [ADR 0017](./0017-voice-is-a-realtime-session-through-kaana.md) (2026-10-15): voice is a realtime speech-to-speech session through Kaana and dictation is Kaana transcription. LiveKit and the cohost stay retired.
 
 ## Date
 
