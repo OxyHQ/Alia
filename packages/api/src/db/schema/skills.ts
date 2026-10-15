@@ -295,3 +295,34 @@ export const skillInstalls = pgTable(
     ),
   ],
 );
+
+/**
+ * What the registry sync remembers about each upstream source between runs.
+ *
+ * A sync that forgets everything downloads whole repositories on every deploy
+ * and every leadership change, and GitHub answers that with rate limits. This
+ * row is what lets the next run ask "has it changed?" instead:
+ *
+ *   - `etag` is the validator of the last archive that synced completely, sent
+ *     as `If-None-Match`; GitHub answers 304 with no body and no quota spent.
+ *   - `commit` is that archive's commit, for the log and the sync report.
+ *   - `rejected_digest` identifies the set of upstream skills refused at that
+ *     commit, so the same refusals are reported once rather than on every run.
+ *   - `retry_after` is when GitHub said to come back, so every task honours
+ *     one task's rate-limit answer.
+ *
+ * `etag` and `commit` move only on a COMPLETE sync of the source. A failed run
+ * writes `last_error` and `retry_after` and leaves the last good pair alone,
+ * and the catalogue rows themselves are never touched by a failure.
+ */
+export const skillRegistrySyncState = pgTable('skill_registry_sync_state', {
+  sourceId: text().primaryKey(),
+  etag: text(),
+  commit: text(),
+  rejectedDigest: text(),
+  lastSuccessAt: timestamptz(),
+  lastAttemptAt: timestamptz(),
+  retryAfter: timestamptz(),
+  lastError: text(),
+  updatedAt: updatedAt(),
+});

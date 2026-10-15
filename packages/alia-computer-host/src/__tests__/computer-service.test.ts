@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { ComputerService } from '../computer-service.js';
+import { ComputerService, requestSignal } from '../computer-service.js';
 import type { HostConfig } from '../config.js';
 import { computerIdentity } from '../isolation.js';
 import { MemoryStore } from '../store.js';
@@ -195,20 +195,87 @@ describe('commands', () => {
     await expect(service.start(ACTOR)).resolves.toMatchObject({ state: 'running' });
   });
 
-  it('serialises an actor: a second call while a command holds the lease is refused as busy', async () => {
+  describe('a second call while the computer is busy', () => {
     let release!: () => void;
-    docker.exec = () =>
-      new Promise((resolve) => {
-        release = () => resolve(ok('done'));
+    let sleeps: number[];
+    let running: Promise<unknown>;
+
+    beforeEach(async () => {
+      sleeps = [];
+      await service.start(ACTOR);
+      docker.exec = () =>
+        new Promise((resolve) => {
+          release = () => resolve(ok('done'));
+        });
+    });
+
+    const withSleep = (sleep: (ms: number) => Promise<void>) => {
+      service = new ComputerService({
+        store,
+        docker: docker.run,
+        config,
+        log: silent,
+        now: () => clock,
+        sleep: async (ms) => {
+          sleeps.push(ms);
+          clock += ms;
+          await sleep(ms);
+        },
       });
-    const running = service.command(ACTOR, { operationId: 'op-1', command: 'sleep 5' });
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    await expect(
-      service.command(ACTOR, { operationId: 'op-2', command: 'date' }),
-    ).rejects.toMatchObject({ code: 'busy' });
-    await expect(service.read(ACTOR, '/workspace/a')).rejects.toMatchObject({ code: 'busy' });
-    release();
-    await expect(running).resolves.toMatchObject({ status: 'succeeded' });
+    };
+
+    it('queues behind the holder and runs once it is free', async () => {
+      withSleep(async () => {
+        docker.exec = async () => ok('second');
+        release();
+      });
+      running = service.command(ACTOR, { operationId: 'op-1', command: 'sleep 5' });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const second = await service.command(ACTOR, { operationId: 'op-2', command: 'date' });
+      expect(second.status).toBe('succeeded');
+      expect(sleeps.length).toBeGreaterThan(0);
+      await expect(running).resolves.toMatchObject({ status: 'succeeded' });
+    });
+
+    it('queues file operations too', async () => {
+      withSleep(async () => release());
+      running = service.command(ACTOR, { operationId: 'op-1', command: 'sleep 5' });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      docker.exec = async () => ok(JSON.stringify({ path: '/workspace/a', text: 'x' }));
+      await expect(service.read(ACTOR, '/workspace/a')).resolves.toBeDefined();
+      await running;
+    });
+
+    it('polls with a growing delay and gives a typed busy error only after the wait', async () => {
+      withSleep(async () => undefined);
+      running = service.command(ACTOR, { operationId: 'op-1', command: 'sleep 5' });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      await expect(service.read(ACTOR, '/workspace/a')).rejects.toMatchObject({
+        status: 409,
+        code: 'busy',
+        message: expect.stringContaining('8 s'),
+      });
+      expect(sleeps.slice(0, 4)).toEqual([100, 200, 400, 800]);
+      expect(sleeps.reduce((a, b) => a + b, 0)).toBe(8_000);
+      release();
+      await running;
+    });
+
+    it('stops waiting when the caller disconnects, without running its command', async () => {
+      withSleep(async () => undefined);
+      running = service.command(ACTOR, { operationId: 'op-1', command: 'sleep 5' });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const gone = new AbortController();
+      const execs = docker.execCalls().length;
+      const queued = requestSignal.run(gone.signal, () => {
+        gone.abort();
+        return service.command(ACTOR, { operationId: 'op-2', command: 'date' });
+      });
+      await expect(queued).rejects.toMatchObject({ code: 'aborted' });
+      expect(docker.execCalls().length).toBe(execs);
+      release();
+      await running;
+    });
   });
 
   it('lets stop pre-empt a running command, which then reads back interrupted', async () => {

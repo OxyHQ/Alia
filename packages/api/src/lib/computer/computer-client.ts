@@ -143,7 +143,7 @@ export interface ComputerClient {
   status(actorId: string): Promise<ComputerStatus>;
   start(actorId: string): Promise<ComputerStatus>;
   stop(actorId: string): Promise<ComputerStatus>;
-  run(actorId: string, input: CommandInput): Promise<CommandReceipt>;
+  run(actorId: string, input: CommandInput, signal?: AbortSignal): Promise<CommandReceipt>;
   list(
     actorId: string,
     path: string,
@@ -273,16 +273,17 @@ export class HttpComputerClient implements ComputerClient {
     body?: unknown,
     timeoutMs = CONTROL_TIMEOUT_MS,
     binary = false,
+    signal?: AbortSignal,
   ): Promise<T> {
     if (this.waker && Date.now() - this.lastContactAt > AWAKE_TRUST_MS && !(await this.healthy())) {
       await this.waker.wake();
     }
     try {
-      return await this.request<T>(method, path, body, timeoutMs, binary);
+      return await this.request<T>(method, path, body, timeoutMs, binary, signal);
     } catch (error) {
       if (!this.waker || !unreachable(error)) throw error;
       await this.waker.wake();
-      return this.request<T>(method, path, body, timeoutMs, binary);
+      return this.request<T>(method, path, body, timeoutMs, binary, signal);
     }
   }
 
@@ -305,6 +306,7 @@ export class HttpComputerClient implements ComputerClient {
     body: unknown,
     timeoutMs: number,
     binary = false,
+    signal?: AbortSignal,
   ): Promise<T> {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const token = await this.bearer(attempt > 0);
@@ -315,7 +317,9 @@ export class HttpComputerClient implements ComputerClient {
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),
         },
         body: body === undefined ? undefined : JSON.stringify(body),
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+          : AbortSignal.timeout(timeoutMs),
       });
       // A restarted host forgets every token; attest once more and retry.
       if (response.status === 401 && attempt === 0) continue;
@@ -364,11 +368,19 @@ export class HttpComputerClient implements ComputerClient {
     return this.call<ComputerStatus>('POST', `${this.actor(actorId)}/computer/stop`);
   }
 
-  run(actorId: string, input: CommandInput) {
+  /** `signal` is the turn's cancellation: it also ends the host's wait for a busy computer. */
+  run(actorId: string, input: CommandInput, signal?: AbortSignal) {
     // The host bounds a command by its own timeout; wait a little longer than
     // that so its receipt, not our abort, is what the agent reads.
     const timeoutMs = ((input.background ? 15 : (input.timeoutSeconds ?? 60)) + 30) * 1000;
-    return this.call<CommandReceipt>('POST', `${this.actor(actorId)}/commands`, input, timeoutMs);
+    return this.call<CommandReceipt>(
+      'POST',
+      `${this.actor(actorId)}/commands`,
+      input,
+      timeoutMs,
+      false,
+      signal,
+    );
   }
 
   list(actorId: string, path: string) {

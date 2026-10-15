@@ -15,10 +15,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const clarity = vi.hoisted(() => ({
   search: vi.fn(),
   resolve: vi.fn(),
+  operationsGet: vi.fn(),
+  byUrl: vi.fn(),
 }));
 
 vi.mock('../../clarity-client.js', () => ({
-  clarityClient: () => ({ search: clarity.search, indexing: { resolve: clarity.resolve } }),
+  clarityClient: () => ({
+    search: clarity.search,
+    indexing: { resolve: clarity.resolve },
+    operations: { get: clarity.operationsGet },
+    documents: { byUrl: clarity.byUrl },
+  }),
 }));
 // DNS is the network's, not this test's: every public name here resolves as
 // public. The private-address case is refused by `validateUrl`'s own IP check,
@@ -68,7 +75,10 @@ describe('the Clarity-only browser', () => {
     expect(first).toContain('hello world');
     expect(again).toBe(first);
     expect(clarity.resolve).toHaveBeenCalledTimes(2);
-    expect(clarity.resolve).toHaveBeenCalledWith({ urls: ['https://example.com/'], waitMs: 8_000 });
+    expect(clarity.resolve).toHaveBeenCalledWith(
+      { urls: ['https://example.com/'], waitMs: 8_000 },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 
   it('refuses a private address before Clarity is asked anything', async () => {
@@ -85,7 +95,24 @@ describe('the Clarity-only browser', () => {
 
     const result = await new BrowserSession().execute('goto', { url: 'https://example.com/app' });
 
-    expect(result).toContain('Clarity could not extract readable text');
+    expect(result).toContain('Clarity could not fetch https://example.com/app');
+  });
+
+  it('waits for a page Clarity has to index instead of telling the model to come back', async () => {
+    clarity.resolve.mockResolvedValue({
+      data: [{ url: 'https://example.com/new', status: 'queued', operationId: 'op-9' }],
+    });
+    clarity.operationsGet.mockResolvedValue({ id: 'op-9', status: 'succeeded' });
+    clarity.byUrl.mockResolvedValue({
+      title: 'New',
+      canonicalUrl: 'https://example.com/new',
+      content: 'fresh text',
+    });
+
+    const result = await new BrowserSession().execute('goto', { url: 'https://example.com/new' });
+
+    expect(result).toContain('fresh text');
+    expect(result).not.toContain('still indexing');
   });
 
   it('answers an action it no longer has with the ones it does', async () => {

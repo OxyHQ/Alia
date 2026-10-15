@@ -19,6 +19,7 @@
  * that a second host, or a restarted one, cannot enter a container another
  * process is already working in.
  */
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 import type { Logger } from 'pino';
 import type { HostConfig } from './config.js';
@@ -48,6 +49,19 @@ import {
 
 const CONTROL_TIMEOUT_MS = 15_000;
 const OPERATION_LEASE_MS = 90_000;
+/** Queueing behind another operation: file and lifecycle calls (the API gives them 15 s). */
+const CONTROL_LEASE_WAIT_MS = 8_000;
+/** Queueing a command: the API allows `timeoutSeconds + 30 s`, so this leaves room to run. */
+const COMMAND_LEASE_WAIT_MS = 20_000;
+const LEASE_POLL_MIN_MS = 100;
+const LEASE_POLL_MAX_MS = 1_000;
+
+/**
+ * The HTTP request being served, as an abort signal that fires when the caller
+ * disconnects. A call queued for the computer's lease stops waiting then,
+ * rather than running a command nobody is listening for.
+ */
+export const requestSignal = new AsyncLocalStorage<AbortSignal>();
 const FILE_TEXT_LIMIT = 256 * 1024;
 export const DOWNLOAD_BYTES_LIMIT = 20 * 1024 * 1024;
 const USAGE_CACHE_MS = 60_000;
@@ -97,6 +111,8 @@ export interface ServiceOptions {
   reservedSlots?: () => Promise<number>;
   /** Activity the container listing cannot see (the browser), for the idle check. */
   extraActivity?: () => Promise<boolean>;
+  /** Test seam for the lease queue's polling delay. */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 export interface HostIdleState {
@@ -315,24 +331,64 @@ export class ComputerService {
 
   // ── Leases ──
 
+  /**
+   * Take the actor's lease, waiting for it. One computer does one thing at a
+   * time, and a second call arriving while the first runs is the normal case
+   * (a model fires several tool calls in a turn), so it queues behind the
+   * holder instead of being refused. The wait is bounded by `waitMs`, which
+   * callers size to fit inside the Alia API's own HTTP timeout, and ends early
+   * when the caller disconnects ({@link requestSignal}). Only a holder that
+   * outlasts the wait is `busy`.
+   */
   private async exclusive<T>(
     identity: ComputerIdentity,
     kind: LeaseOperation,
     ttlMs: number,
     work: (lease: Lease) => Promise<T>,
+    waitMs: number = CONTROL_LEASE_WAIT_MS,
   ): Promise<T> {
-    const lease = await this.options.store.acquireLease(identity.actorHash, kind, ttlMs);
-    if (!lease)
-      throw new HostError(
-        'The computer is busy with another operation; try again shortly',
-        409,
-        'busy',
-      );
+    const signal = requestSignal.getStore();
+    const deadline = this.now() + waitMs;
+    let delay = LEASE_POLL_MIN_MS;
+    let lease = await this.options.store.acquireLease(identity.actorHash, kind, ttlMs);
+    while (!lease) {
+      const remaining = deadline - this.now();
+      if (signal?.aborted) {
+        throw new HostError('The caller went away while waiting for the computer', 499, 'aborted');
+      }
+      if (remaining <= 0) {
+        throw new HostError(
+          `The computer stayed busy with another operation for ${Math.round(waitMs / 1000)} s; try again shortly`,
+          409,
+          'busy',
+        );
+      }
+      await this.sleep(Math.min(delay, remaining), signal);
+      delay = Math.min(delay * 2, LEASE_POLL_MAX_MS);
+      lease = await this.options.store.acquireLease(identity.actorHash, kind, ttlMs);
+    }
+    if (signal?.aborted) {
+      await this.options.store.releaseLease(identity.actorHash, lease.token);
+      throw new HostError('The caller went away while waiting for the computer', 499, 'aborted');
+    }
     try {
       return await work(lease);
     } finally {
       await this.options.store.releaseLease(identity.actorHash, lease.token);
     }
+  }
+
+  private sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    if (this.options.sleep) return this.options.sleep(ms);
+    return new Promise((resolve) => {
+      const timer = setTimeout(done, ms);
+      function done() {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', done);
+        resolve();
+      }
+      signal?.addEventListener('abort', done, { once: true });
+    });
   }
 
   private async running(identity: ComputerIdentity): Promise<string> {
@@ -549,121 +605,127 @@ export class ComputerService {
 
     await store.touch(identity.actorHash);
     const leaseMs = background ? OPERATION_LEASE_MS : (timeoutSeconds + 30) * 1000;
-    return this.exclusive(identity, 'command', leaseMs, async (lease) => {
-      const container = await this.running(identity);
-      if (background) await this.assertUnderQuota(identity, container, 0);
+    return this.exclusive(
+      identity,
+      'command',
+      leaseMs,
+      async (lease) => {
+        const container = await this.running(identity);
+        if (background) await this.assertUnderQuota(identity, container, 0);
 
-      const receipt: CommandReceipt = {
-        actorId: identity.actorHash,
-        operationId: request.operationId,
-        command,
-        cwd,
-        background,
-        status: 'running',
-        exitCode: null,
-        stdout: '',
-        stderr: '',
-        truncated: false,
-        startedAt: new Date(this.now()).toISOString(),
-        completedAt: null,
-      };
-      if (!(await store.insertReceipt(receipt))) {
-        // A concurrent retry of the same operation won the insert first.
-        const existing = await store.getReceipt(identity.actorHash, request.operationId);
-        if (existing) return existing;
-        throw new HostError('The command receipt could not be saved', 500, 'receipt_failed');
-      }
-      const active = await store.getLease(identity.actorHash);
-      if (!active || active.token !== lease.token || active.stopping) {
-        return (
-          (await store.finishReceipt(identity.actorHash, request.operationId, {
-            status: 'interrupted',
-            exitCode: null,
-            stdout: '',
-            stderr: 'Stopped before execution.',
-            truncated: false,
-          })) ?? receipt
-        );
-      }
-
-      if (background) return this.startBackground(identity, container, receipt);
-
-      let result: DockerResult;
-      try {
-        result = await this.options.docker(
-          [
-            'exec',
-            '--user',
-            CONTAINER_USER,
-            '--workdir',
-            cwd,
-            container,
-            '/usr/bin/timeout',
-            '--signal=TERM',
-            '--kill-after=2s',
-            `${timeoutSeconds}s`,
-            '/bin/bash',
-            '--noprofile',
-            '--norc',
-            '-c',
-            command,
-          ],
-          { timeoutMs: (timeoutSeconds + 5) * 1000, maxOutputBytes: DEFAULT_OUTPUT_LIMIT },
-        );
-      } catch {
-        result = {
-          stdout: '',
-          stderr: 'Docker execution was interrupted.',
+        const receipt: CommandReceipt = {
+          actorId: identity.actorHash,
+          operationId: request.operationId,
+          command,
+          cwd,
+          background,
+          status: 'running',
           exitCode: null,
-          timedOut: false,
-          interrupted: true,
+          stdout: '',
+          stderr: '',
           truncated: false,
+          startedAt: new Date(this.now()).toISOString(),
+          completedAt: null,
         };
-      }
+        if (!(await store.insertReceipt(receipt))) {
+          // A concurrent retry of the same operation won the insert first.
+          const existing = await store.getReceipt(identity.actorHash, request.operationId);
+          if (existing) return existing;
+          throw new HostError('The command receipt could not be saved', 500, 'receipt_failed');
+        }
+        const active = await store.getLease(identity.actorHash);
+        if (!active || active.token !== lease.token || active.stopping) {
+          return (
+            (await store.finishReceipt(identity.actorHash, request.operationId, {
+              status: 'interrupted',
+              exitCode: null,
+              stdout: '',
+              stderr: 'Stopped before execution.',
+              truncated: false,
+            })) ?? receipt
+          );
+        }
 
-      // A Docker client that lost its exec cannot cancel it reliably, so the
-      // whole computer stops: nothing unknown keeps running after the lease.
-      if (result.timedOut || result.interrupted) {
-        if (await store.markStopping(identity.actorHash, lease.token, OPERATION_LEASE_MS)) {
-          try {
-            await this.checked(['container', 'stop', '--time', '2', container], 30_000);
-            await this.checked(['container', 'rm', container]);
-          } catch {
-            result.stderr += '\nThe computer could not be confirmed stopped.';
-          } finally {
-            await store.releaseStopped(identity.actorHash, lease.token);
+        if (background) return this.startBackground(identity, container, receipt);
+
+        let result: DockerResult;
+        try {
+          result = await this.options.docker(
+            [
+              'exec',
+              '--user',
+              CONTAINER_USER,
+              '--workdir',
+              cwd,
+              container,
+              '/usr/bin/timeout',
+              '--signal=TERM',
+              '--kill-after=2s',
+              `${timeoutSeconds}s`,
+              '/bin/bash',
+              '--noprofile',
+              '--norc',
+              '-c',
+              command,
+            ],
+            { timeoutMs: (timeoutSeconds + 5) * 1000, maxOutputBytes: DEFAULT_OUTPUT_LIMIT },
+          );
+        } catch {
+          result = {
+            stdout: '',
+            stderr: 'Docker execution was interrupted.',
+            exitCode: null,
+            timedOut: false,
+            interrupted: true,
+            truncated: false,
+          };
+        }
+
+        // A Docker client that lost its exec cannot cancel it reliably, so the
+        // whole computer stops: nothing unknown keeps running after the lease.
+        if (result.timedOut || result.interrupted) {
+          if (await store.markStopping(identity.actorHash, lease.token, OPERATION_LEASE_MS)) {
+            try {
+              await this.checked(['container', 'stop', '--time', '2', container], 30_000);
+              await this.checked(['container', 'rm', container]);
+            } catch {
+              result.stderr += '\nThe computer could not be confirmed stopped.';
+            } finally {
+              await store.releaseStopped(identity.actorHash, lease.token);
+            }
           }
         }
-      }
 
-      const timedOut = result.timedOut || result.exitCode === 124;
-      this.usage.delete(identity.actorHash);
-      const finished = await store.finishReceipt(identity.actorHash, request.operationId, {
-        status: result.interrupted
-          ? 'interrupted'
-          : timedOut
-            ? 'timed_out'
-            : result.exitCode === 0
-              ? 'succeeded'
-              : 'failed',
-        exitCode: result.exitCode,
-        stdout: result.stdout,
-        stderr: result.stderr,
-        truncated: result.truncated,
-      });
-      this.options.log.info(
-        {
-          actor: identity.actorHash,
-          operationId: request.operationId,
-          status: finished?.status ?? 'interrupted',
-          commandBytes: command.length,
-        },
-        'command finished',
-      );
-      return (
-        finished ?? (await store.getReceipt(identity.actorHash, request.operationId)) ?? receipt
-      );
-    });
+        const timedOut = result.timedOut || result.exitCode === 124;
+        this.usage.delete(identity.actorHash);
+        const finished = await store.finishReceipt(identity.actorHash, request.operationId, {
+          status: result.interrupted
+            ? 'interrupted'
+            : timedOut
+              ? 'timed_out'
+              : result.exitCode === 0
+                ? 'succeeded'
+                : 'failed',
+          exitCode: result.exitCode,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          truncated: result.truncated,
+        });
+        this.options.log.info(
+          {
+            actor: identity.actorHash,
+            operationId: request.operationId,
+            status: finished?.status ?? 'interrupted',
+            commandBytes: command.length,
+          },
+          'command finished',
+        );
+        return (
+          finished ?? (await store.getReceipt(identity.actorHash, request.operationId)) ?? receipt
+        );
+      },
+      COMMAND_LEASE_WAIT_MS,
+    );
   }
 
   /**

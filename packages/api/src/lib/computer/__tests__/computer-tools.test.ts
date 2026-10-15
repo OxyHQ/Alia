@@ -65,6 +65,18 @@ describe('the computer tools', () => {
     expect((await call(tools, 'list_computer_files', {})).startsWith(UNTRUSTED_HEADER)).toBe(true);
   });
 
+  it("hand the turn's cancellation to the host call, so a stopped turn stops waiting", async () => {
+    const client = clientDouble();
+    const tools = buildComputerTools({ client, actorId: ACTOR, scope: 's' });
+    const turn = new AbortController();
+    const execute = tools.run_computer_command?.execute;
+    await execute?.(
+      { command: 'ls', operationId: 'a' } as never,
+      { ...callOptions, abortSignal: turn.signal } as ToolExecutionOptions,
+    );
+    expect(client.run).toHaveBeenCalledWith(ACTOR, expect.anything(), turn.signal);
+  });
+
   it("act on THIS agent's computer for THIS person", async () => {
     const client = clientDouble();
     const tools = buildComputerTools({ client, actorId: ACTOR, scope: 's' });

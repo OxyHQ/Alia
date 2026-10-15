@@ -1,7 +1,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 
-import { clarityClient } from '../clarity-client.js';
+import { describeClarityFailure, readClarityDocument } from '../clarity-read.js';
 import { getErrorMessage } from '../errors/index.js';
 import { log } from '../logger.js';
 import { validateUrl } from './sandbox.js';
@@ -9,27 +9,14 @@ import { validateUrl } from './sandbox.js';
 const MAX_CONTENT_CHARS = 8_000;
 
 /** Read one public page through Clarity. Never throws; failures are `{ error }`. */
-export async function readWebPage(url: string) {
+export async function readWebPage(url: string, signal?: AbortSignal) {
   const urlCheck = await validateUrl(url);
   if (!urlCheck.valid) return { error: `URL blocked: ${urlCheck.reason}` };
 
   try {
-    const resolution = await clarityClient().indexing.resolve({ urls: [url], waitMs: 8_000 });
-    const item = resolution.data[0];
-    const document =
-      item?.document ??
-      (item?.status === 'indexed' || item?.status === 'extracted'
-        ? await clarityClient().documents.byUrl(url)
-        : undefined);
-
-    if (!document) {
-      return {
-        error:
-          item?.status === 'queued' && item.operationId
-            ? `Clarity is still indexing this page (operation ${item.operationId})`
-            : 'Clarity could not fetch this page',
-      };
-    }
+    const read = await readClarityDocument(url, { signal });
+    if (!read.ok) return { error: describeClarityFailure(read, url), reason: read.reason };
+    const document = read.document;
 
     const content = (document.content || document.description || '').trim();
     return {
@@ -64,5 +51,5 @@ export const webScraperTool = tool({
         'Retained in the tool input contract. Clarity owns crawl discovery; document reads do not expose raw outgoing-link graphs.',
       ),
   }),
-  execute: async ({ url }) => readWebPage(url),
+  execute: async ({ url }, { abortSignal }) => readWebPage(url, abortSignal),
 });

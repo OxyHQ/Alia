@@ -78,8 +78,22 @@ export class SkillSpecError extends Error {
   }
 }
 
-/** The spec forbids XML tags in `name` and `description`; both are injected into a system prompt. */
-const XML_TAG = /<\/?[a-zA-Z][^>]*>/;
+/**
+ * Markup in a `description`: a closing tag or a self-closing one. Every element
+ * that opens is closed by one of these, and they are what could read as
+ * structure once the description is in a system prompt.
+ *
+ * A lone `<name>` is not markup. It is how people write a placeholder
+ * (`@ai-sdk/harness-<name>`), and refusing it kept a valid upstream skill out of
+ * the catalogue. It stays inert for the model because the index renders angle
+ * brackets as plain characters (`runtime.ts`), which is the defence at the point
+ * the text becomes prompt, rather than a guess here about what authors write.
+ */
+const CLOSING_OR_SELF_CLOSING_TAG = /<\/[a-zA-Z][^>]*>|<[a-zA-Z][^>]*\/>/;
+
+export function containsMarkup(text: string): boolean {
+  return CLOSING_OR_SELF_CLOSING_TAG.test(text);
+}
 
 const KNOWN_KEYS = new Set([
   'name',
@@ -179,7 +193,7 @@ function readDescription(value: unknown): string {
       'description',
     );
   }
-  if (XML_TAG.test(description)) {
+  if (containsMarkup(description)) {
     throw new SkillSpecError('"description" may not contain XML tags', 'description');
   }
   return description;

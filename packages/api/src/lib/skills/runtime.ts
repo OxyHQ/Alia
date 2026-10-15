@@ -159,6 +159,15 @@ export async function buildSkillRuntime(opts: SkillRuntimeOptions): Promise<Skil
 }
 
 /**
+ * A description is the skill author's text, on a line of the system prompt. Its
+ * angle brackets are shown as the typographic ones so nothing in it can be read
+ * as a tag, whether or not `spec.ts` let it through.
+ */
+function plainAngles(text: string): string {
+  return text.replace(/</g, '\u2039').replace(/>/g, '\u203a');
+}
+
+/**
  * Level one.
  *
  * A skill already inlined for this turn is left out: its instructions are
@@ -173,7 +182,7 @@ function renderIndex(candidates: InstalledSkillMetadata[], alreadyActive: Set<st
   let chars = 0;
   let omitted = 0;
   for (const entry of listed.slice(0, MAX_INDEX_ENTRIES)) {
-    const line = `- ${entry.name}: ${entry.description}`;
+    const line = `- ${entry.name}: ${plainAngles(entry.description)}`;
     if (chars + line.length > MAX_INDEX_CHARS) {
       omitted += 1;
       continue;

@@ -666,6 +666,13 @@
       "when": 1792043019350,
       "tag": "0094_voice_calls",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1792054078325,
+      "tag": "0095_skill_registry_sync_state",
+      "breakpoints": true
     }
   ]
 }

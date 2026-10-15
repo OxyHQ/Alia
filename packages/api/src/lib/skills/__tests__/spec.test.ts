@@ -85,6 +85,22 @@ describe('parseSkillDocument', () => {
       );
     });
 
+    it('accepts a lone placeholder such as <name>: it is not markup', () => {
+      const doc = parseSkillDocument(
+        '---\nname: a\ndescription: Add the package @ai-sdk/harness-<name> to the repo.\n---\nbody',
+      );
+      expect(doc.frontmatter.description).toContain('<name>');
+    });
+
+    it('refuses closing and self-closing tags, which would reach the system prompt', () => {
+      expect(() =>
+        parseSkillDocument('---\nname: a\ndescription: "Does stuff</thing>"\n---\nbody'),
+      ).toThrow(/XML tags/);
+      expect(() =>
+        parseSkillDocument('---\nname: a\ndescription: "Does <br/> stuff"\n---\nbody'),
+      ).toThrow(/XML tags/);
+    });
+
     it('refuses XML tags, which would reach the system prompt', () => {
       expect(() =>
         parseSkillDocument('---\nname: a\ndescription: "Does <thing>stuff</thing>"\n---\nbody'),

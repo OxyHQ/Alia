@@ -21,6 +21,16 @@
  * to a person rather than to a build: retried with backoff on the statuses that
  * are worth retrying, and reported as itself otherwise rather than as a generic
  * import failure.
+ *
+ * ## Rate limits are answered, not retried blindly
+ *
+ * A 403/429 carries when GitHub will answer again (`Retry-After`, or
+ * `X-RateLimit-Reset`). A short wait is slept through; a long one is thrown as
+ * a {@link GitHubRateLimitError} carrying it, so the caller can defer instead of
+ * hammering. Requests send `GITHUB_TOKEN` when the environment has one (5000
+ * requests an hour instead of 60 per shared egress address), and an archive is
+ * requested with `If-None-Match`: GitHub answers 304 with no body for an
+ * unchanged repository, which is what a daily sync almost always is.
  */
 
 import {
@@ -100,23 +110,77 @@ function headers(): Record<string, string> {
   };
 }
 
-async function request(url: string, accept?: string): Promise<Response> {
+/** A wait this short is slept through; a longer one is the caller's to schedule. */
+const MAX_INLINE_WAIT_MS = 15_000;
+/** When GitHub rate limits without saying for how long. */
+const DEFAULT_RATE_LIMIT_WAIT_MS = 60_000;
+
+/** GitHub said to come back later. `retryAfterMs` is how much later. */
+export class GitHubRateLimitError extends SkillImportError {
+  constructor(readonly retryAfterMs: number) {
+    super('GitHub is rate limiting this import; try again shortly');
+    this.name = 'GitHubRateLimitError';
+  }
+}
+
+/** How long GitHub asked to wait: `Retry-After` first, then `X-RateLimit-Reset`. */
+export function rateLimitWaitMs(response: Response, now = Date.now()): number {
+  const retryAfter = response.headers.get('retry-after');
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+    const date = Date.parse(retryAfter);
+    if (Number.isFinite(date)) return Math.max(0, date - now);
+  }
+  const reset = Number(response.headers.get('x-ratelimit-reset'));
+  if (
+    response.headers.get('x-ratelimit-remaining') === '0' &&
+    Number.isFinite(reset) &&
+    reset > 0
+  ) {
+    return Math.max(0, reset * 1000 - now);
+  }
+  return DEFAULT_RATE_LIMIT_WAIT_MS;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+interface RequestOptions {
+  accept?: string;
+  /** Sent as `If-None-Match`; a 304 comes back as a response rather than an error. */
+  ifNoneMatch?: string;
+}
+
+async function request(url: string, options: RequestOptions = {}): Promise<Response> {
   let lastStatus = 0;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const response = await fetch(url, {
-      headers: { ...headers(), ...(accept ? { accept } : {}) },
+      headers: {
+        ...headers(),
+        ...(options.accept ? { accept: options.accept } : {}),
+        ...(options.ifNoneMatch ? { 'if-none-match': options.ifNoneMatch } : {}),
+      },
       signal: AbortSignal.timeout(60_000),
     });
-    if (response.ok) return response;
+    if (response.ok || (response.status === 304 && options.ifNoneMatch)) return response;
     lastStatus = response.status;
+
+    if (response.status === 403 || response.status === 429) {
+      const waitMs = rateLimitWaitMs(response);
+      if (waitMs > MAX_INLINE_WAIT_MS || attempt === MAX_ATTEMPTS) {
+        throw new GitHubRateLimitError(waitMs);
+      }
+      log.general.warn({ url, status: response.status, waitMs }, 'GitHub rate limit, waiting');
+      await sleep(waitMs);
+      continue;
+    }
     if (!RETRYABLE_STATUS.has(response.status)) break;
     log.general.warn({ url, status: response.status, attempt }, 'GitHub request failed, retrying');
-    await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
+    const hinted = response.headers.get('retry-after') ? rateLimitWaitMs(response) : 0;
+    await sleep(Math.min(Math.max(hinted, 500 * 2 ** (attempt - 1)), MAX_INLINE_WAIT_MS));
   }
   if (lastStatus === 404)
     throw new SkillImportError('the repository, branch or path does not exist, or is private');
-  if (lastStatus === 403 || lastStatus === 429)
-    throw new SkillImportError('GitHub is rate limiting this import; try again shortly');
   throw new SkillImportError(`GitHub answered ${lastStatus} for ${url}`);
 }
 
@@ -138,12 +202,18 @@ const COMMIT_SHA = /^[0-9a-f]{40}$/;
  */
 export async function fetchRepositoryFiles(
   source: GitHubSource,
-): Promise<{ commit: string; files: RawFile[] }> {
+  options?: { ifNoneMatch?: string },
+): Promise<
+  | { notModified: true }
+  | { notModified: false; commit: string; etag: string | null; files: RawFile[] }
+> {
   const prefix = source.path?.replace(/^\/+|\/+$/g, '');
   const ref = source.ref ?? 'HEAD';
   const response = await request(
     `https://codeload.github.com/${source.owner}/${source.repo}/tar.gz/${encodeURIComponent(ref)}`,
+    { ifNoneMatch: options?.ifNoneMatch },
   );
+  if (response.status === 304) return { notModified: true };
   const declared = Number(response.headers.get('content-length') ?? 0);
   if (declared > MAX_ARCHIVE_BYTES) {
     throw new SkillImportError(`the repository archive is larger than ${MAX_ARCHIVE_BYTES} bytes`);
@@ -170,7 +240,9 @@ export async function fetchRepositoryFiles(
     throw new SkillImportError('GitHub sent an archive that does not say which commit it is');
 
   return {
+    notModified: false,
     commit,
+    etag: response.headers.get('etag'),
     files: files.map((file) => {
       const slash = file.path.indexOf('/');
       return slash === -1 ? file : { ...file, path: file.path.slice(slash + 1) };
@@ -185,8 +257,11 @@ export interface ImportedSkill {
 }
 
 export interface GitHubImport {
+  readonly notModified?: false;
   readonly source: GitHubSource;
   readonly commit: string;
+  /** The archive's validator, to send back as `ifNoneMatch` next time. */
+  readonly etag: string | null;
   readonly skills: ImportedSkill[];
   /** Directories that hold a `SKILL.md` this importer refused, and why. */
   readonly rejected: { directory: string; reason: string }[];
@@ -199,9 +274,20 @@ export interface GitHubImport {
  * a broken one imports the rest and reports it. A single malformed `SKILL.md`
  * failing the whole import would mean a monorepo can never be imported at all.
  */
-export async function importSkillsFromGitHub(input: string | GitHubSource): Promise<GitHubImport> {
+export async function importSkillsFromGitHub(input: string | GitHubSource): Promise<GitHubImport>;
+/** With `ifNoneMatch`, an unchanged repository comes back as `{ notModified: true }`. */
+export async function importSkillsFromGitHub(
+  input: string | GitHubSource,
+  options: { ifNoneMatch?: string },
+): Promise<GitHubImport | { notModified: true }>;
+export async function importSkillsFromGitHub(
+  input: string | GitHubSource,
+  options: { ifNoneMatch?: string } = {},
+): Promise<GitHubImport | { notModified: true }> {
   const source = typeof input === 'string' ? parseGitHubSource(input) : input;
-  const { commit, files } = await fetchRepositoryFiles(source);
+  const fetched = await fetchRepositoryFiles(source, options);
+  if (fetched.notModified) return { notModified: true };
+  const { commit, files, etag } = fetched;
 
   const prefix = source.path?.replace(/^\/+|\/+$/g, '');
   const scoped = prefix
@@ -229,7 +315,7 @@ export async function importSkillsFromGitHub(input: string | GitHubSource): Prom
       `every SKILL.md in that repository was refused: ${rejected.map((r) => `${r.directory || '.'} (${r.reason})`).join('; ')}`,
     );
   }
-  return { source, commit, skills, rejected };
+  return { source, commit, etag, skills, rejected };
 }
 
 /** The link a person follows to read the exact source that was imported. */

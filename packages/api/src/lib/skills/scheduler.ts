@@ -27,13 +27,39 @@ const FIRST_RUN_DELAY_MS = 5 * 60 * 1000;
 let election: LeaderElectionHandle | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
 let firstRun: ReturnType<typeof setTimeout> | null = null;
+let retry: ReturnType<typeof setTimeout> | null = null;
+
+/** Never sooner than this after a rate limit, and never later than the next daily run would be. */
+const MIN_RETRY_MS = 60 * 1000;
+const MAX_RETRY_MS = 6 * 60 * 60 * 1000;
 
 async function runOnce(): Promise<void> {
   // Never throws into a timer: an unhandled rejection here would take the
   // process down for a catalogue that is merely stale.
-  await syncSkillRegistry().catch((err) => {
+  const report = await syncSkillRegistry().catch((err) => {
     log.general.error({ err }, 'Skill registry sync failed');
+    return null;
   });
+  // A rate limit says when to come back; waiting a whole day for a limit that
+  // resets within the hour leaves the catalogue stale for no reason.
+  if (retry) clearTimeout(retry);
+  retry = null;
+  if (report?.retryAt) {
+    const wait = Math.min(
+      Math.max(report.retryAt.getTime() - Date.now(), MIN_RETRY_MS),
+      MAX_RETRY_MS,
+    );
+    retry = setTimeout(() => void runOnce(), wait);
+  }
+}
+
+function clearTimers(): void {
+  if (firstRun) clearTimeout(firstRun);
+  if (timer) clearInterval(timer);
+  if (retry) clearTimeout(retry);
+  firstRun = null;
+  timer = null;
+  retry = null;
 }
 
 export function startSkillRegistrySync(): void {
@@ -44,20 +70,12 @@ export function startSkillRegistrySync(): void {
       firstRun = setTimeout(() => void runOnce(), FIRST_RUN_DELAY_MS);
       timer = setInterval(() => void runOnce(), INTERVAL_MS);
     },
-    onDemoted: () => {
-      if (firstRun) clearTimeout(firstRun);
-      if (timer) clearInterval(timer);
-      firstRun = null;
-      timer = null;
-    },
+    onDemoted: clearTimers,
   });
 }
 
 export async function stopSkillRegistrySync(): Promise<void> {
-  if (firstRun) clearTimeout(firstRun);
-  if (timer) clearInterval(timer);
-  firstRun = null;
-  timer = null;
+  clearTimers();
   await election?.stop();
   election = null;
 }
