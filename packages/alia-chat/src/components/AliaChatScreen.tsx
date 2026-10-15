@@ -62,6 +62,8 @@ export interface AliaChatScreenProps {
   voiceSession?: VoiceSessionComponent;
   /** Overrides for the chat's own copy (header, composer, plan, research…); omitted, English. */
   labels?: Partial<AliaChatLabels>;
+  /** Where the 3D avatar's runtime is served from; omitted, Alia's shared copy (`ALIA_CHARACTER_RUNTIME_URL`). */
+  characterRuntimeUrl?: string;
 }
 
 export function AliaChatScreen({
@@ -82,6 +84,7 @@ export function AliaChatScreen({
   isDarkMode,
   voiceSession,
   labels,
+  characterRuntimeUrl,
 }: AliaChatScreenProps) {
   const insets = useSafeAreaInsets();
   // The screen owns the whole window, so it keeps its composer out of both
@@ -129,6 +132,7 @@ export function AliaChatScreen({
           isDarkMode={isDarkMode}
           voiceSession={voiceSession}
           labels={labels}
+          characterRuntimeUrl={characterRuntimeUrl}
           header={header}
         />
       </KeyboardAvoidingView>

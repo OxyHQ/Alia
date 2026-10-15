@@ -37,3 +37,14 @@ for (const [name, worker] of [
     await assert.rejects(worker.fetch(request, env, ctx), (error) => error === failure);
   });
 }
+
+test('app serves the character runtime to any origin', async () => {
+  const env = { ASSETS: { fetch: async () => new Response('runtime') } };
+  const shared = await appWorker.fetch(
+    new Request('https://example.test/bloom-character/runtime.mjs'),
+    env,
+    {},
+  );
+  assert.equal(shared.headers.get('access-control-allow-origin'), '*');
+  assert.equal(await shared.text(), 'runtime');
+});

@@ -1,5 +1,16 @@
 # @alia.onl/sdk
 
+## 13.1.0
+
+The chat works in any app without host setup it did not document in code:
+
+- **The avatar loads.** The chat mounts Bloom's `AgentAvatarProvider` itself, pointing at Alia's
+  shared runtime (`ALIA_CHARACTER_RUNTIME_URL`, served with CORS open); a host that serves its own
+  passes `characterRuntimeUrl`. Before, an app that had not hosted the 214 MB runtime showed
+  Bloom's "unavailable" state.
+- **The empty chat greets.** With no `welcomeGreeting` it greets the signed-in person by name
+  (`labels.greeting` / `labels.greetingNamed`). Before, it drew nothing.
+
 ## 13.0.0
 
 Fixes found by driving the sheet end to end (the sheet shows plans, links citations, nests lists):

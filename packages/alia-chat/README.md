@@ -25,19 +25,17 @@ the default in Expo SDK 53+), because every icon import is a subpath.
 The chat is built from Bloom (`@oxy.so/bloom`, a peer dependency): mount Bloom's
 `BloomProvider` above it, with the one `KeyboardProvider` your app already has.
 
-Alia's avatar is Bloom's 3D character (`AgentAvatar`), which draws through a
-runtime Bloom ships as static files (about 11 MB). Serve the package's
-`assets/character-runtime/` directory unchanged and give the URL of `runtime.mjs`
-to Bloom's provider, once, near the root:
-
-```tsx
-import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
-
-<AgentAvatarProvider runtimeUrl="/bloom-character/runtime.mjs">…</AgentAvatarProvider>
-```
-
-Without it the avatar shows Bloom's "unavailable" state. Native avatars run in a
+Alia's avatar is Bloom's 3D character (`AgentAvatar`). It draws through a runtime of
+static files (about 214 MB), which the chat loads from Alia's own origin
+(`ALIA_CHARACTER_RUNTIME_URL`, served with CORS open), so the app hosts nothing and mounts
+no avatar provider. An app with a strict CSP allows `https://alia.onl` in `script-src` and
+`connect-src` (and `'wasm-unsafe-eval'`). To serve your own copy instead, serve the Bloom
+package's `assets/character-runtime/` directory unchanged and pass the URL of `runtime.mjs`
+as `characterRuntimeUrl` to `AliaChatSheet` or `AliaChatScreen`; native avatars run in a
 WebView, so there the URL must be absolute and reachable from the device.
+
+The empty chat greets the signed-in person by name ("Hi Nate, what's on your mind?"); pass
+`welcomeGreeting` to say something else, or `labels.greeting` / `labels.greetingNamed` to translate it.
 
 Failures (a voice call that cannot start, a dictation error) are shown with Bloom's `toast`,
 so the app needs a `ToastOutlet` (`OxyProvider` mounts one), or pass `onError` to handle them.

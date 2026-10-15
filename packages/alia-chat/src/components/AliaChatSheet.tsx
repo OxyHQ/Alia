@@ -52,6 +52,8 @@ export interface AliaChatSheetProps {
   voiceSession?: VoiceSessionComponent;
   /** Overrides for the chat's own copy (header, composer, plan, research…); omitted, English. */
   labels?: Partial<AliaChatLabels>;
+  /** Where the 3D avatar's runtime is served from; omitted, Alia's shared copy (`ALIA_CHARACTER_RUNTIME_URL`). */
+  characterRuntimeUrl?: string;
   /** Draws the header's share button once there is a conversation; omitted, no share button. */
   onShare?: () => void;
   /** More rows for the header's menu (`DropdownMenuItem`s from `@oxy.so/bloom/dropdown-menu`). */
@@ -78,6 +80,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       isDarkMode,
       voiceSession,
       labels,
+      characterRuntimeUrl,
       onShare,
       headerMenu,
     },
@@ -159,6 +162,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       voiceSession,
       bottomInset: detached ? 0 : bottom,
       labels,
+      characterRuntimeUrl,
     };
 
     return (

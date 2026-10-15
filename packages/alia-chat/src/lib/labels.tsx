@@ -15,6 +15,11 @@ export interface AliaChatLabels {
   addPhotos: string;
   startVoice: string;
   voiceFailed: string;
+  // Welcome
+  /** The empty chat's greeting for a signed-out visitor. */
+  greeting: string;
+  /** The empty chat's greeting for a named person. */
+  greetingNamed: (name: string) => string;
   // Messages
   copy: string;
   helpful: string;
@@ -51,6 +56,8 @@ export const DEFAULT_LABELS: AliaChatLabels = {
   addPhotos: 'Photos',
   startVoice: 'Start voice',
   voiceFailed: "Couldn't start the voice call",
+  greeting: "Hi, what's on your mind?",
+  greetingNamed: (name) => `Hi ${name}, what's on your mind?`,
   copy: 'Copy',
   helpful: 'Helpful response',
   unhelpful: 'Unhelpful response',
