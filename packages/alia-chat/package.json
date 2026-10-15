@@ -1,6 +1,6 @@
 {
   "name": "@alia.onl/sdk",
-  "version": "17.0.2",
+  "version": "18.1.0",
   "description": "Alia AI chat SDK — the conversation runtime, chat UI, voice calls and dictation for Oxy apps",
   "main": "src/index.ts",
   "react-native": "src/index.ts",
@@ -30,7 +30,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "check:entries": "node scripts/check-entry-isolation.mjs"
+    "check:entries": "node scripts/check-entry-isolation.mjs",
+    "render:avatar-still": "bun scripts/render-avatar-still.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -43,7 +44,7 @@
     "react": "^19.2.3",
     "react-native": "^0.86.0",
     "@expo/vector-icons": "^15.1.1",
-    "@oxy.so/bloom": ">=10.6.0",
+    "@oxy.so/bloom": ">=10.9.0",
     "@oxy.so/core": ">=3.0.0",
     "@oxy.so/services": ">=8.0.0",
     "@tanstack/react-query": "^5.101",
@@ -79,6 +80,7 @@
     "react-test-renderer": "19.2.3",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10",
-    "react-native-audio-api": "0.13.6"
+    "react-native-audio-api": "0.13.6",
+    "playwright-core": "1.64.0"
   }
 }

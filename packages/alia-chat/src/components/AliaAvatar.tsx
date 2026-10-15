@@ -1,21 +1,16 @@
-import { AgentAvatar, type AvatarCharacter } from '@oxy.so/bloom/agent-avatar';
+import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
 import { memo, useEffect, useState } from 'react';
+import { ALIA_AVATAR } from '../lib/alia-character';
+
+export { ALIA_AVATAR };
 
 /** What Alia is doing; the avatar plays a working turn each time it starts to think or work. */
 export type AliaAvatarState = 'idle' | 'thinking' | 'working' | 'writing';
 
-/**
- * Alia's likeness in Bloom's 3D character engine: the six-lobed flower in orchid, plain oval
- * eyes, nothing on its head. It is `blue_beret` with the hat taken off and the paint changed,
- * so Bloom retargets that preset's animation onto it; change it here and nowhere else.
- */
-export const ALIA_AVATAR: AvatarCharacter = {
-  preset: 'blue_beret',
-  accessory: 'none',
-  color: 'orchid',
-};
-
 const BUSY: ReadonlySet<AliaAvatarState> = new Set(['thinking', 'working']);
+
+/** Whether a state is work her avatar shows: thinking or working, not writing. */
+export const aliaIsBusy = (state: AliaAvatarState): boolean => BUSY.has(state);
 
 export interface AliaAvatarProps {
   /** Width and height in px. */
@@ -43,7 +38,7 @@ export const AliaAvatar = memo(function AliaAvatar({
   portrait = false,
 }: AliaAvatarProps) {
   const [workingKey, setWorkingKey] = useState(0);
-  const busy = BUSY.has(state);
+  const busy = aliaIsBusy(state);
   useEffect(() => {
     if (busy) setWorkingKey((key) => key + 1);
   }, [busy]);
