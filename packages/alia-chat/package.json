@@ -25,6 +25,11 @@
     "CHANGELOG.md"
   ],
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OxyHQ/Alia.git",
+    "directory": "packages/alia-chat"
+  },
   "private": false,
   "publishConfig": {
     "access": "public"
