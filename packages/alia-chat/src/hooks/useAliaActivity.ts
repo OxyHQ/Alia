@@ -3,7 +3,7 @@ import { useOxy } from '@oxy.so/services/ui/client';
 import type { AliaAvatarState } from '../components/AliaAvatar';
 import { selectAliaActivity, useAliaActivityStore } from '../lib/activity-store';
 import { acquireActivitySocket } from '../lib/activity-socket';
-import { ALIA_API_URL } from '../lib/api-url';
+import { ALIA_API_URL } from '../lib/origins';
 
 export interface UseAliaActivityOptions {
   /** The API the activity socket connects to. Defaults like `useAliaChat`'s `apiUrl`. */

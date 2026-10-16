@@ -1,5 +1,19 @@
 # @alia.onl/sdk
 
+## 15.8.0
+
+- **The SDK declares its CSP, and the voice call needs no `blob:` script.** In an app with a
+  Content-Security-Policy (Mention) the call failed twice over: `connect-src` lacked
+  `wss://api.alia.onl`, and the worklets were `blob:` URLs that `script-src` blocks
+  (`Failed to load worklet module script`). `@alia.onl/sdk/csp` exports `ALIA_SDK_CSP` and
+  `withAliaSdkCsp()` (`OxyCspExtensions` of `@oxy.so/core`), derived from the same origins the
+  SDK's URLs start from (`lib/origins.ts`); a test fails if the source names an origin it does not
+  declare. The worklets are one plain module, `worklets/voice-processors.js`, taking their numbers
+  as `processorOptions` and served by Alia's web app under its content hash
+  (`https://alia.onl/sdk/voice-worklets/<revision>.js`, CORS open, every revision kept), under the
+  `script-src https://alia.onl` the avatar already needs. The API's URL is defined once (the
+  dictation, read-aloud and voice hooks each had their own copy).
+
 ## 15.7.0
 
 - **`AliaAvatarIcon` is her still until she moves.** At icon size it drew Alia through the live 3D

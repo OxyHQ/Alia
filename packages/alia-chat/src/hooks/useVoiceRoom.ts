@@ -24,8 +24,7 @@ import type { VoiceAudioEngine } from '../lib/voice-audio-engine-types';
 import { VoiceCall, type VoiceCallSnapshot, type VoiceSocketFactory } from '../lib/voice-call';
 import { VoiceLevelChannel, type VoiceLevelSource } from '../lib/voice-levels';
 import type { ProductVoice, VoiceCloseReason } from '../lib/voice-protocol';
-
-const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
+import { ALIA_API_URL } from '../lib/origins';
 
 export interface UseVoiceRoomOptions {
   apiUrl?: string;
@@ -120,7 +119,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     if (live !== undefined && live !== 'ended' && live !== 'error') return;
     const current = optionsRef.current;
     const call = new VoiceCall({
-      apiUrl: current.apiUrl || API_URL,
+      apiUrl: current.apiUrl || ALIA_API_URL,
       getToken,
       conversationId: current.conversationId ?? newConversationId(),
       ...(current.agentId === undefined ? {} : { agentId: current.agentId }),
