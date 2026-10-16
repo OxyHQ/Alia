@@ -3,8 +3,8 @@
  *
  * Each pattern targets a specific threat category with a severity level:
  *   - info:     Logged for awareness, no action taken
- *   - warning:  Requires user approval before execution
- *   - critical: Requires user approval, highlighted as dangerous
+ *   - warning:  Executed, and flagged in the run's events and logs
+ *   - critical: Executed, and flagged as dangerous
  *   - block:    Automatically blocked, never executed
  */
 

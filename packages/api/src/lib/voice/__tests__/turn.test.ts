@@ -12,7 +12,6 @@ const H = vi.hoisted(() => ({
     memoryChars: 0,
     skillsChars: 0,
   })),
-  gate: vi.fn(),
   oxyTools: vi.fn(async () => ({
     oxy_inbox__search: {
       description: 'Search the owner’s inbox',
@@ -33,12 +32,6 @@ vi.mock('../../chat/turn-inputs.js', () => ({
   },
   buildTurnSkills: vi.fn(async () => null),
   recallTurnMemories: vi.fn(async () => [{ title: 'Likes', summary: 'tea' }]),
-}));
-vi.mock('../../agent/action-review.js', () => ({
-  oxyApprovalGate: (target: unknown) => {
-    H.gate(target);
-    return { propose: async () => 'filed' };
-  },
 }));
 vi.mock('../../tool-pipeline.js', () => ({ ToolPipeline: { forUser: H.forUser } }));
 vi.mock('../../system-prompt-builder.js', () => ({
@@ -70,7 +63,6 @@ function input(overrides: Partial<Parameters<typeof buildVoiceTurn>[0]> = {}) {
     oxyUser: null,
     language: 'es',
     history: [],
-    onApprovalRequested: vi.fn(),
     ...overrides,
   };
 }
@@ -97,13 +89,8 @@ describe('the call’s tools', () => {
     });
     // No SSE surface in a call: the question card and plan preview are not built.
     expect(options.sseEmitter).toBeUndefined();
-    expect(H.gate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        oxyUserId: 'stranger',
-        actor: { type: 'agent', agentId: 'agent-1', accountId: 'bot-1' },
-        delivery: { kind: 'present', conversationId: 'conv-1' },
-      }),
-    );
+    // Nothing in a call files an action for the person's OK (ADR 0020 §3).
+    expect(options).not.toHaveProperty('oxyApprovals');
   });
 
   it('an owner’s agent reaches the owner’s apps only when the owner is the one talking', async () => {

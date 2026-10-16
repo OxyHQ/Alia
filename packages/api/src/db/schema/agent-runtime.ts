@@ -1,11 +1,10 @@
-/** Durable product runtime for agent threads, goals, approvals, memory and teams. */
+/** Durable product runtime for agent threads, goals, memory and teams. */
 import { check, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
 
 export const AGENT_THREAD_STATUSES = ['open', 'closed'] as const;
-export const AGENT_THREAD_APPROVAL_MODES = ['ask', 'supervised_auto'] as const;
 /**
  * Where a thread's work runs, as a LABEL on the thread — not a sandbox.
  *
@@ -26,37 +25,6 @@ export const AGENT_GOAL_STATUSES = [
   'completed',
   'cancelled',
 ] as const;
-/**
- * The life of one reviewed action (`lib/agent/action-review.ts`).
- *
- * `pending` → `approved` | `denied` | `expired` | `cancelled`, then, once
- * approved, ONE atomic claim to `executing` and one of `succeeded`, `failed`
- * or `outcome_unknown` (still `executing` after a restart: it may or may not
- * have happened, so it is never run again). `executed` is the pre-0088 name
- * for a spent approval and is kept for the rows that carry it.
- */
-export const AGENT_APPROVAL_STATUSES = [
-  'pending',
-  'approved',
-  'denied',
-  'expired',
-  'cancelled',
-  'executed',
-  'executing',
-  'succeeded',
-  'failed',
-  'outcome_unknown',
-] as const;
-/** Who asked: Alia herself, or an agent (then `agent_id` is set). */
-export const APPROVAL_ACTOR_TYPES = ['alia', 'agent'] as const;
-/** Whose account the action reaches: the person's, or the agent's own. */
-export const APPROVAL_IDENTITY_MODES = ['for_user', 'self'] as const;
-/**
- * How an approved action runs. `direct`: the decision route performs it with
- * the deciding person's bearer (an Oxy app action). `rerun`: a new run of the
- * agent performs it (a runtime tool that needs the agent's machine).
- */
-export const APPROVAL_EXECUTION_MODES = ['direct', 'rerun'] as const;
 export const AGENT_TEAM_ROLES = ['coordinator', 'member'] as const;
 export const COWORK_DEVICE_STATUSES = ['online', 'offline', 'revoked'] as const;
 
@@ -87,9 +55,6 @@ export const agentThreads = pgTable(
     /** The thread's `publisher/model`; null runs the owner's default (ADR 0012). */
     modelId: text(),
     reasoningEffort: text(),
-    approvalMode: text({ enum: AGENT_THREAD_APPROVAL_MODES as unknown as [string, ...string[]] })
-      .notNull()
-      .default('ask'),
     executionTarget: text({ enum: AGENT_EXECUTION_TARGETS as unknown as [string, ...string[]] })
       .notNull()
       .default('sandbox'),
@@ -104,7 +69,6 @@ export const agentThreads = pgTable(
     index('agent_threads_owner_agent_updated_idx').on(t.oxyUserId, t.agentId, t.updatedAt.desc()),
     index('agent_threads_agent_status_created_idx').on(t.agentId, t.status, t.createdAt),
     checkOneOf('agent_threads_status_check', t.status, AGENT_THREAD_STATUSES),
-    checkOneOf('agent_threads_approval_mode_check', t.approvalMode, AGENT_THREAD_APPROVAL_MODES),
     checkOneOf('agent_threads_execution_target_check', t.executionTarget, AGENT_EXECUTION_TARGETS),
     check(
       'agent_threads_cowork_target_check',
@@ -150,66 +114,6 @@ export const agentGoals = pgTable(
       sql`${t.maxTurns} > 0 and ${t.maxTokens} > 0 and ${t.maxDurationSeconds} > 0`,
     ),
     check('agent_goals_criteria_check', sql`jsonb_array_length(${t.criteria}) between 3 and 5`),
-  ],
-);
-
-export const agentApprovalRequests = pgTable(
-  'agent_approval_requests',
-  {
-    id: generatedId(),
-    turnId: text().notNull(),
-    /** NULL for a background run with no thread: an automation, a follow-up. */
-    threadId: text(),
-    oxyUserId: text().notNull(),
-    actorType: text({ enum: APPROVAL_ACTOR_TYPES as unknown as [string, ...string[]] })
-      .notNull()
-      .default('agent'),
-    /** NULL exactly when Alia asked (`actor_type = 'alia'`). */
-    agentId: text(),
-    /** The Alia conversation the request belongs to (a chat, a task's own). */
-    conversationId: text(),
-    identityMode: text({ enum: APPROVAL_IDENTITY_MODES as unknown as [string, ...string[]] }),
-    executionMode: text({ enum: APPROVAL_EXECUTION_MODES as unknown as [string, ...string[]] })
-      .notNull()
-      .default('rerun'),
-    toolName: text().notNull(),
-    riskLevel: text().notNull(),
-    actionHash: text().notNull(),
-    resource: text(),
-    summary: text().notNull(),
-    details: jsonb().$type<Record<string, unknown>>().notNull().default({}),
-    status: text({ enum: AGENT_APPROVAL_STATUSES as unknown as [string, ...string[]] })
-      .notNull()
-      .default('pending'),
-    decidedByOxyUserId: text(),
-    decidedAt: timestamptz(),
-    expiresAt: timestamptz().notNull(),
-    /** The run (or decision) that claimed it: one claim, ever. */
-    executedByTurnId: text(),
-    executionStartedAt: timestamptz(),
-    executionFinishedAt: timestamptz(),
-    /** What happened, for the person: never credentials. */
-    outcome: jsonb().$type<Record<string, unknown>>(),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-  (t) => [
-    uniqueIndex('agent_approval_turn_action_key').on(t.turnId, t.actionHash),
-    index('agent_approval_owner_status_expiry_idx').on(t.oxyUserId, t.status, t.expiresAt),
-    index('agent_approval_executing_started_idx')
-      .on(t.executionStartedAt)
-      .where(sql`${t.status} = 'executing'`),
-    checkOneOf('agent_approval_status_check', t.status, AGENT_APPROVAL_STATUSES),
-    checkOneOf('agent_approval_actor_type_check', t.actorType, APPROVAL_ACTOR_TYPES),
-    checkOneOf('agent_approval_execution_mode_check', t.executionMode, APPROVAL_EXECUTION_MODES),
-    check(
-      'agent_approval_identity_mode_check',
-      sql`${t.identityMode} is null or ${t.identityMode} in ('for_user', 'self')`,
-    ),
-    check(
-      'agent_approval_actor_agent_check',
-      sql`(${t.actorType} = 'agent') = (${t.agentId} is not null)`,
-    ),
   ],
 );
 

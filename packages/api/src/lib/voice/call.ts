@@ -484,7 +484,6 @@ export class VoiceCall {
         oxyUser: inputs.oxyUser,
         language: start.locale,
         history,
-        onApprovalRequested: (toolName) => this.emit({ type: 'approval.requested', toolName }),
       });
       if (this.isClosed) return;
       await this.connect(candidates, history);

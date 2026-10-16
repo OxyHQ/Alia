@@ -173,7 +173,7 @@ export async function dispatchStructuredAutomation(
     triggerType: trigger.kind,
   });
   if (executionPolicyError) {
-    const reason = `“${automation.objective}” needs approval under its ${automation.maximumAutonomy} policy.`;
+    const reason = `“${automation.objective}” does not run on its own under its ${automation.maximumAutonomy} policy.`;
     await notifyNoExecution(automation, trigger, reason);
     return { status: 'denied', reason: executionPolicyError };
   }

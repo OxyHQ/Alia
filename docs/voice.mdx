@@ -68,7 +68,7 @@ client: <binary PCM16 24 kHz mono, ~40 ms frames>
 alia:   input.ready                                     the first frame was appended
 alia:   user.speech_started / user.speech_stopped, transcript.delta|done { role, messageId, itemId },
         <binary [u8 n][item id][PCM16]>, assistant.audio_done, assistant.done,
-        tool.started / tool.finished { messageId, name }, approval.requested, messages.saved,
+        tool.started / tool.finished { messageId, name }, messages.saved,
         session.warning { ending-soon }, session.reconnecting, session.resumed,
         error { code, retryable, reference }, session.closed { reason }
 client: playback.interrupted { itemId, playedMs }, session.end, auth { token } (refresh)
@@ -144,8 +144,8 @@ by name in Alia, bounded by 60 s; the result goes back as
 `conversation.item.create { function_call_output }`, then `response.create`. A failure,
 unknown tool, bad arguments or timeout is a typed tool error the model reads — never
 an invented result. The client gets `tool.started` / `tool.finished` with the tool's
-name, for the call UI. An action that needs the person's OK files its card in the
-conversation, as in chat, and the call is told (`approval.requested`).
+name, for the call UI. Nothing in a call asks for approval (ADR 0020 §3): a tool
+effect runs under the actor's Oxy authority, as in chat.
 
 ### Barge-in
 

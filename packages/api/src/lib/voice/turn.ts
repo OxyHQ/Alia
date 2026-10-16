@@ -14,8 +14,6 @@ import type { UserMemoryProfile } from '../../db/memory/userMemoryRepository.js'
 import { listMessages, toStoredMessage } from '../../db/chat/messageRepository.js';
 import { getDb } from '../../db/index.js';
 import type { MessageContent, ToolInvocation } from '../../domain/conversation.js';
-import { oxyApprovalGate } from '../agent/action-review.js';
-import type { OxyApprovalGate } from '../agent/action-proposal.js';
 import type { HydratedAgent } from '../agent-identity.js';
 import { buildTurnSkills, EMPTY_SKILL_RUNTIME, recallTurnMemories } from '../chat/turn-inputs.js';
 import { realtimeSessionConfigSchema } from '@kaana.ai/contracts';
@@ -155,8 +153,6 @@ export interface VoiceTurnInput {
   readonly oxyUser: OxyUserProfile | null;
   readonly language: string;
   readonly history: readonly HistoryMessage[];
-  /** Told when a tool files an action for the person's OK. */
-  readonly onApprovalRequested: (toolName: string) => void;
 }
 
 /** The default builder: the real prompt, memory, skills and tool pipeline. */
@@ -173,24 +169,6 @@ export async function buildVoiceTurn(input: VoiceTurnInput): Promise<VoiceTurnCo
     }),
   ]);
 
-  const gate = oxyApprovalGate({
-    oxyUserId,
-    actor: linkedAgent
-      ? { type: 'agent', agentId: linkedAgent._id, accountId: linkedAgent.oxyAccountId }
-      : { type: 'alia' },
-    turnId: input.requestId,
-    delivery: { kind: 'present', conversationId },
-  });
-  // The card is filed in the conversation, as in chat; the call UI is told.
-  const oxyApprovals: OxyApprovalGate = {
-    ...gate,
-    propose: async (proposal) => {
-      const filed = await gate.propose(proposal);
-      input.onApprovalRequested(proposal.toolName);
-      return filed;
-    },
-  };
-
   const assembled = await ToolPipeline.forUser({
     userId: oxyUserId,
     accessToken: input.accessToken(),
@@ -200,7 +178,6 @@ export async function buildVoiceTurn(input: VoiceTurnInput): Promise<VoiceTurnCo
     requesterAccountId: oxyUserId,
     agentMode: false,
     requestId: input.requestId,
-    oxyApprovals,
     priorToolCalls: priorToolCallsOf(asChat),
     webSearch: true,
     isLocalRuntime: false,

@@ -56,7 +56,7 @@ one session model. `GET /alia/chat` is a status banner and stays public.
 ## The Alia product runtime
 
 Alia owns conversations, memory and the context graph, agents, tools and
-tool execution, approvals and the R0–R3 risk policy, deep research, background tasks,
+tool execution and the R0–R3 risk policy, deep research, background tasks,
 notifications, Codea and Cowork behaviour, and product entitlements. None of it moves to
 Kaana.
 
@@ -110,9 +110,8 @@ earlier revisions of this page had both wrong:
 
 - `alia.plan_preview` carries `eventVersion`, `planId` and `steps`. It does **not** carry
   `intent` or `confidence`.
-- `alia.approval_request` and `alia.approval_result` are **Socket.IO** events
-  (`packages/api/src/socket.ts:216`, `:231`), not SSE events. Nothing writes them to the
-  HTTP stream.
+- There are no approval events, on SSE or Socket.IO: no agent asks for approval
+  (ADR 0020 §3).
 
 ### Conversations, memory and context
 
@@ -141,7 +140,6 @@ The actor-model routes under `/agents` ([actors](./actors.mdx)):
 | `GET /agents/:id/oxy-apps`, `PUT /agents/:id/oxy-apps/:appId` | An agent's level per Oxy app (Nada · Ver · Ver y actuar); owner only (`routes/agents/oxy-apps.ts`) |
 | `GET\|PUT\|DELETE /agents/:id/memory` | The agent's memory files about the caller (`routes/agents/memory.ts`) |
 | `/agents/:id/computer/*` | The live view of the agent's computer: status, files, receipts, browser screenshot and take-over (`routes/agents/computer.ts`) |
-| `GET /agents/approvals`, `POST /agents/approvals/:approvalId/decision` | Approvals a background run filed (`routes/agents/approvals.ts`) |
 
 ### Structured automations
 
@@ -193,7 +191,7 @@ routes mounted at `packages/api/src/index.ts:194`.
 | `PUT /notifications/email-alerts` | Body `{ agentId: string \| null, enabled: boolean }`; `null` is Alia; an agent's switch is its owner's alone |
 
 **Socket.IO.** Connect at the API origin, emit `subscribe-notifications` with the user id,
-and listen for `notification`, `alia.approval_request` and `alia.approval_result`. The same
+and listen for `notification`. The same
 channel emits cache-invalidation events for conversation and notification lists.
 
 ### Catalogue and analytics

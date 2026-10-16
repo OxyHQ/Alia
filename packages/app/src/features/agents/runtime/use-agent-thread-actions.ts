@@ -16,7 +16,6 @@ async function createThread(agentId: string, title: string): Promise<string> {
   const response = await apiClient.post(API_ROUTES.agents.threads(agentId), {
     title,
     executionTarget: 'sandbox',
-    approvalMode: 'ask',
   });
   return String(response.data.thread.id);
 }

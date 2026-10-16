@@ -1,9 +1,6 @@
 import apiClient from '@/shared/api/client';
 import { API_ROUTES } from '@/shared/api/routes';
-import { generateAPIUrl } from '@/shared/api/generate-api-url';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { useUserData } from '@/features/memory/runtime/use-user-data';
-import { useUserDataStore } from '@/features/memory/runtime/user-data-store';
 import { Button } from '@oxy.so/bloom/button';
 import { RiDownload2Line } from '@oxy.so/bloom/icons/RiDownload2Line';
 import {
@@ -13,9 +10,7 @@ import {
   type SettingsRowData,
 } from '@oxy.so/bloom/settings-modal';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
-import { Switch } from '@oxy.so/bloom/switch';
 import { toast } from '@oxy.so/bloom/toast';
-import { useOxy } from '@oxy.so/services';
 import { useCallback, useEffect, useState } from 'react';
 import { Platform, Share } from 'react-native';
 import { SettingsPreferenceSelect } from './preference-select';
@@ -36,24 +31,8 @@ interface AuditSummary {
   threatDetections: number;
 }
 
-/** `label: null` is the "never" option, whose word is translated. */
-const TIMEOUT_OPTIONS = [
-  { value: 30, label: '30s' },
-  { value: 60, label: '60s' },
-  { value: 120, label: '2min' },
-  { value: 0, label: null },
-];
-
 export function SecuritySection() {
-  const { isAuthenticated, oxyServices } = useOxy();
-  const { memory } = useUserData();
-  const setMemory = useUserDataStore((state) => state.setMemory);
   const { t } = useTranslation();
-  const [saving, setSaving] = useState(false);
-
-  const [requireApproval, setRequireApproval] = useState(true);
-  const [approvalTimeout, setApprovalTimeout] = useState(60);
-  const [autoDenyOnTimeout, setAutoDenyOnTimeout] = useState(true);
 
   const [threats, setThreats] = useState<ThreatEntry[]>([]);
   const [threatsLoading, setThreatsLoading] = useState(true);
@@ -63,18 +42,6 @@ export function SecuritySection() {
   const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
   const [exporting, setExporting] = useState(false);
   const [summary, setSummary] = useState<AuditSummary | null>(null);
-
-  // Load saved preferences
-  useEffect(() => {
-    if (memory?.preferences) {
-      const sp = memory.preferences.securityPreferences;
-      if (sp) {
-        if (typeof sp.requireApproval === 'boolean') setRequireApproval(sp.requireApproval);
-        if (typeof sp.approvalTimeout === 'number') setApprovalTimeout(sp.approvalTimeout);
-        if (typeof sp.autoDenyOnTimeout === 'boolean') setAutoDenyOnTimeout(sp.autoDenyOnTimeout);
-      }
-    }
-  }, [memory]);
 
   // Load threats
   useEffect(() => {
@@ -103,43 +70,6 @@ export function SecuritySection() {
       // silent
     }
   }, []);
-
-  const handleSave = async () => {
-    if (!isAuthenticated) return;
-    setSaving(true);
-    try {
-      const token = oxyServices.session.accessToken;
-      const authHeaders: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (token) authHeaders['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(generateAPIUrl('/memory/preferences'), {
-        method: 'PUT',
-        headers: authHeaders,
-        body: JSON.stringify({
-          ...memory?.preferences,
-          securityPreferences: {
-            requireApproval,
-            approvalTimeout,
-            autoDenyOnTimeout,
-          },
-        }),
-      });
-
-      if (res.ok) {
-        const updated = await res.json();
-        setMemory(updated);
-        toast.success(t('settings.saveSuccess'));
-      } else {
-        toast.error(t('settings.saveFailed'));
-      }
-    } catch {
-      toast.error(t('settings.saveFailed'));
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleExport = async () => {
     setExporting(true);
@@ -203,67 +133,6 @@ export function SecuritySection() {
   return (
     <SettingsGeneralPage
       sections={[
-        {
-          key: 'approval',
-          label: t('settings.security.approvalPreferences'),
-          rows: [
-            {
-              key: 'required',
-              label: t('settings.security.requireApproval'),
-              description: t('settings.security.requireApprovalDesc'),
-              control: (
-                <Switch
-                  accessibilityLabel={t('settings.security.requireApproval')}
-                  checked={requireApproval}
-                  onCheckedChange={setRequireApproval}
-                />
-              ),
-            },
-            {
-              key: 'timeout',
-              label: t('settings.security.approvalTimeout'),
-              control: (
-                <SettingsPreferenceSelect
-                  label={t('settings.security.approvalTimeout')}
-                  value={String(approvalTimeout)}
-                  onChange={(value) => setApprovalTimeout(Number(value))}
-                  items={TIMEOUT_OPTIONS.map((option) => ({
-                    value: String(option.value),
-                    label: option.label ?? t('settings.account.security.never'),
-                  }))}
-                />
-              ),
-            },
-            {
-              key: 'deny',
-              label: t('settings.security.autoDenyOnTimeout'),
-              description: t('settings.security.autoDenyOnTimeoutDesc'),
-              control: (
-                <Switch
-                  accessibilityLabel={t('settings.security.autoDenyOnTimeout')}
-                  checked={autoDenyOnTimeout}
-                  onCheckedChange={setAutoDenyOnTimeout}
-                />
-              ),
-            },
-            {
-              key: 'save',
-              label: t('settings.saveButton'),
-              control: (
-                <Button
-                  size="sm"
-                  appearance="outline"
-                  tone="neutral"
-                  onPress={handleSave}
-                  disabled={saving}
-                  loading={saving}
-                >
-                  {saving ? t('settings.saving') : t('settings.saveButton')}
-                </Button>
-              ),
-            },
-          ],
-        },
         {
           key: 'threats',
           label: t('settings.security.threatLog'),

@@ -61,8 +61,6 @@ import type { TodoManager } from './todo-manager.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { analyzeThreat, formatThreatSummary } from './threat-detector.js';
-import type { ThreatResult } from './threat-detector.js';
-import { requestApproval } from './action-approval.js';
 import { classifyActionRisk, createRollbackRecord } from './governance.js';
 import { isDeclaredReadOnly, isOxyAppTool } from './tool-effects.js';
 import { autonomyFlags } from '../autonomy/flags.js';
@@ -72,7 +70,6 @@ import {
   type AgentSessionRecord,
 } from '../../db/agents/agentSessionRepository.js';
 import type { EventStream } from './event-stream.js';
-import type { ClaimedApproval, DeferredApprovals } from './deferred-approvals.js';
 import { buildAgentMemoryTool } from './agent-memory-runtime.js';
 import { RepeatDetector, repeatedToolCallKey } from './repeat-detector.js';
 import {
@@ -95,11 +92,6 @@ export interface AgentRuntimeContext {
     messageUser: (message: string) => Promise<string>;
     scheduleFollowUp: (at: Date, note: string) => Promise<string>;
   };
-  /**
-   * Present only on a top-level BACKGROUND run: approvals are asked for
-   * asynchronously instead of waited for (`deferred-approvals.ts`).
-   */
-  approvals?: DeferredApprovals;
   /** Present only on a CHAT turn: hand long work to a durable background run. */
   continueInBackground?: (task: string) => Promise<string>;
   todoManager: TodoManager;
@@ -464,8 +456,8 @@ export async function applyRuntimePolicy(
       }
       // A chat turn is the one context with the person present
       // (`continueInBackground` exists only there).
-      // An Oxy app tool is authorized by Oxy and reviews its own payments and
-      // deletions (`oxy-services.ts`); nothing here asks about it a second time.
+      // An Oxy app tool is authorized by Oxy per call; nothing here classifies
+      // it by name.
       const oxyApp = isOxyAppTool(action);
       const risk = classifyActionRisk(name, inputArgs, {
         declaredReadOnly: isDeclaredReadOnly(action),
@@ -473,6 +465,8 @@ export async function applyRuntimePolicy(
         oxyApp,
       });
 
+      // Limits, not approvals: R3 and a blocking threat never run. Nothing
+      // here ever asks the person whether it may act (ADR 0020 §3).
       if (risk.riskLevel === 'R3') {
         eventStream?.append('system_message', `POLICY BLOCKED [R3]: ${risk.reason}`);
         log.agents.warn(
@@ -480,66 +474,6 @@ export async function applyRuntimePolicy(
           'Agent action blocked by governance policy',
         );
         return `Error: Action blocked by policy — ${risk.reason}`;
-      }
-
-      const earlyThreat = analyzeThreat(name, inputArgs);
-      // A threat heuristic never turns an Oxy app call into an approval card
-      // (a *Ver y actuar* agent acts without asking); a blocking match still
-      // blocks it below.
-      const threatAsks = earlyThreat.shouldApprove && !oxyApp;
-      const needsApproval =
-        !earlyThreat.shouldBlock &&
-        autonomyFlags.approvalsEnabled &&
-        (risk.riskLevel === 'R2' || threatAsks);
-      let claimed: ClaimedApproval | null = null;
-      // Nobody is watching a background run: ask the person asynchronously and
-      // let the run carry on, unless they already approved exactly this call —
-      // which is then CLAIMED, once, before it runs.
-      if (needsApproval && ctx.approvals) {
-        const grant = await ctx.approvals.granted(name, inputArgs);
-        if (grant.state === 'already_done') {
-          eventStream?.append('system_message', `APPROVED ACTION ALREADY DONE: ${name}`);
-          return "Error: this exact action was already performed once with the person's approval. Do not repeat it; report what happened.";
-        }
-        if (grant.state === 'none') {
-          eventStream?.append('system_message', `APPROVAL REQUESTED (deferred): ${name}`);
-          return ctx.approvals.request(name, inputArgs, risk.reason);
-        }
-        claimed = grant;
-        eventStream?.append('system_message', `APPROVED EARLIER: ${name}`);
-      } else if (risk.riskLevel === 'R2' && autonomyFlags.approvalsEnabled) {
-        const syntheticThreat: ThreatResult = {
-          threats: [
-            {
-              pattern: {
-                id: `risk-${risk.riskLevel.toLowerCase()}`,
-                category: 'prompt_injection',
-                severity: 'critical',
-                description: risk.reason,
-                pattern: /.*/,
-                tools: [name],
-              },
-              match: name,
-            },
-          ],
-          maxSeverity: 'critical',
-          shouldBlock: false,
-          shouldApprove: true,
-        };
-
-        const approval = await requestApproval({
-          sessionId: session._id,
-          agentId: session.agentId,
-          toolName: name,
-          args: inputArgs,
-          threat: syntheticThreat,
-          timeout: Number(process.env.AUTONOMY_APPROVAL_TIMEOUT_MS || 60_000),
-        });
-
-        if (approval !== 'approved') {
-          eventStream?.append('system_message', `APPROVAL ${approval.toUpperCase()}: ${name}`);
-          return `Error: Action requires approval (${approval}).`;
-        }
       }
 
       const threat = analyzeThreat(name, inputArgs);
@@ -554,49 +488,29 @@ export async function applyRuntimePolicy(
         return `Error: Action blocked by security policy — ${threat.threats[0]?.pattern.description || 'security violation'}`;
       }
 
-      if (threat.shouldApprove && (oxyApp || !ctx.approvals)) {
+      // What used to wait for an approval now runs, flagged where the person
+      // and the logs can see it.
+      if (risk.riskLevel === 'R2') {
+        eventStream?.append('system_message', `POLICY FLAGGED [R2]: ${name} — ${risk.reason}`);
+        log.agents.info(
+          { toolName: name, risk: risk.riskLevel, reason: risk.reason, sessionId: session._id },
+          'Agent action flagged by governance policy',
+        );
+      }
+
+      if (threat.shouldFlag) {
         const summary = formatThreatSummary(threat);
-        if (autonomyFlags.approvalsEnabled && !oxyApp) {
-          const approval = await requestApproval({
-            sessionId: session._id,
-            agentId: session.agentId,
-            toolName: name,
-            args: inputArgs,
-            threat,
-            timeout: Number(process.env.AUTONOMY_APPROVAL_TIMEOUT_MS || 60_000),
-          });
-
-          if (approval !== 'approved') {
-            eventStream?.append(
-              'system_message',
-              `THREAT APPROVAL ${approval.toUpperCase()}: ${summary}`,
-            );
-            return `Error: Action denied (${approval}) — ${threat.threats[0]?.pattern.description || 'security policy'}`;
-          }
-        } else {
-          eventStream?.append(
-            'system_message',
-            `THREAT WARNING: ${summary}. Action allowed but flagged.`,
-          );
-          log.agents.info(
-            { toolName: name, threat: summary, sessionId: session._id },
-            'Agent action flagged by threat detector',
-          );
-        }
+        eventStream?.append(
+          'system_message',
+          `THREAT WARNING: ${summary}. Action allowed but flagged.`,
+        );
+        log.agents.info(
+          { toolName: name, threat: summary, sessionId: session._id },
+          'Agent action flagged by threat detector',
+        );
       }
 
-      let result: unknown;
-      try {
-        result = await originalExecute(input, options);
-      } catch (err: unknown) {
-        // It threw mid-call: whether it happened is unknown, and an approved
-        // action is never run a second time to find out.
-        await claimed?.finish('outcome_unknown', { error: getErrorMessage(err).slice(0, 300) });
-        throw err;
-      }
-      await claimed?.finish('succeeded', {
-        resultPreview: typeof result === 'string' ? result.slice(0, 300) : 'completed',
-      });
+      const result = await originalExecute(input, options);
 
       // Only a write that CAN be undone opens a window; a delegation has no
       // inverse to offer, and a record promising one would lie.

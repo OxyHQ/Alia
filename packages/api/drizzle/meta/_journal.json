@@ -687,6 +687,13 @@
       "when": 1792055749396,
       "tag": "0097_retire_local_organization_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1792160321814,
+      "tag": "0098_retire_agent_approvals",
+      "breakpoints": true
     }
   ]
 }

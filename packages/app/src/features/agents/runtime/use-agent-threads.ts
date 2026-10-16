@@ -8,7 +8,6 @@ export interface AgentThreadSummary {
   title: string;
   status: 'open' | 'closed';
   executionTarget: 'sandbox' | 'cowork';
-  approvalMode: 'ask' | 'supervised_auto';
   updatedAt: string;
 }
 

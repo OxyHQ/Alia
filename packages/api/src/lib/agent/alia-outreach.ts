@@ -112,10 +112,9 @@ async function appendAliaMessage(
 
 /**
  * The task's own conversation, claimed and created if it does not exist yet —
- * before anything is posted into it, so a request filed mid-run (an approval)
- * can already name it.
+ * before anything is posted into it.
  */
-export async function ensureAliaTaskConversation(
+async function ensureAliaTaskConversation(
   input: Pick<AliaTaskMessageInput, 'oxyUserId' | 'automationId' | 'objective' | 'conversationId'>,
 ): Promise<string> {
   const title = input.objective.trim().slice(0, MAX_TITLE_CHARS) || 'Scheduled task';
@@ -161,22 +160,6 @@ export async function postAliaMessage(input: AliaTaskMessageInput): Promise<Alia
   );
 
   return { posted: true, conversationId, messageId };
-}
-
-/**
- * Alia answering in an EXISTING conversation of the person's, outside a turn:
- * what happened to an action they just approved there. No notification — they
- * are the one who pressed the button — and no budget: it is their answer.
- */
-export async function postAliaConversationMessage(input: {
-  readonly oxyUserId: string;
-  readonly conversationId: string;
-  readonly content: string;
-}): Promise<string | null> {
-  const content = input.content.trim().slice(0, MAX_OUTREACH_CHARS);
-  if (!content) return null;
-  if (!(await findConversation(getDb(), input.oxyUserId, input.conversationId))) return null;
-  return appendAliaMessage(input.oxyUserId, input.conversationId, 'Alia', content);
 }
 
 /**

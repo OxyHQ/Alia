@@ -84,8 +84,7 @@ export function startBackgroundServices(): void {
   /**
    * Keep background agent runs from being lost (non-blocking): resume a run
    * whose worker died, fail and refund one that keeps dying, give back the
-   * credits of a session nothing ever picked up, and expire unanswered
-   * approvals. At boot and every minute after — a worker can die at any time,
+   * credits of a session nothing ever picked up. At boot and every minute after — a worker can die at any time,
    * not only across a restart. Not leader-gated; see `run-reaper.ts`.
    */
   startAgentRunReaper();

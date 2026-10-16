@@ -24,7 +24,6 @@ import {
   listLapsedAgentSessionRuns,
   RUNNER_MAX_ATTEMPTS,
 } from '../../db/agents/agentSessionRepository.js';
-import { expireAgentApprovals } from '../../db/agents/agentRuntimeRepository.js';
 import { markAutomationRunForSession } from '../../db/automation/automationDefinitionRepository.js';
 import { safeRefund } from '../credits-manager.js';
 import { log } from '../logger.js';
@@ -32,7 +31,6 @@ import { sendNotification } from '../notification-service.js';
 import { enqueueAgentSession } from '../task-queue.js';
 import { reclaimOrphanedAgentSessions } from './session-handoff.js';
 import { reapAbandonedAliaRuns } from '../alia-task-reaper.js';
-import { reapStuckReviewedActions } from './action-review.js';
 
 const REAP_EVERY_MS = 60_000;
 
@@ -88,18 +86,11 @@ let timer: ReturnType<typeof setInterval> | null = null;
 
 async function sweep(): Promise<void> {
   await reapAgentRuns().catch((err: unknown) => log.agents.error({ err }, '[AgentRun] Reap error'));
-  // Sessions queued and never picked up, and approvals nobody answered: the
-  // same "nothing will ever settle this" event, so the same sweep. Both are
-  // single conditional UPDATEs and safe on every task.
+  // Sessions queued and never picked up: the same "nothing will ever settle
+  // this" event, so the same sweep. A single conditional UPDATE, safe on every
+  // task.
   await reclaimOrphanedAgentSessions().catch((err: unknown) =>
     log.agents.error({ err }, '[AgentSession] Orphan reclaim error'),
-  );
-  await expireAgentApprovals(getDb()).catch((err: unknown) =>
-    log.agents.error({ err }, '[AgentApproval] Expiry error'),
-  );
-  // An approved action a restart left half-run: `outcome_unknown`, never rerun.
-  await reapStuckReviewedActions().catch((err: unknown) =>
-    log.agents.error({ err }, '[AgentApproval] Stuck execution sweep error'),
   );
   // Alia's own task runs have no session to resume; one whose worker vanished
   // is failed and refunded (`alia-task-reaper.ts`).

@@ -5,6 +5,8 @@
 **Status:** Accepted by the owner on 2026-10-15. The owner answered the first draft's questions on 2026-10-15;
 the answers are decisions here, not open points (see "Owner's answers").
 
+**Amended by:** ADR 0020 §3 (2026-10-16) — no agent asks for approval, so approvals, their rows and their events are deleted (`0098_retire_agent_approvals`). A call's tools never send `approval.requested`; nothing in a call waits on, or files, an approval.
+
 **Date:** 2026-10-15
 
 **Implementation:** phase 1 (Alia) is built and tested on branch `feat/voice-realtime`,

@@ -61,7 +61,6 @@
         "customCredits": "{{count}} créditos"
       },
       "security": {
-        "never": "Nunca",
         "severity": {
           "info": "Información",
           "warning": "Aviso",
@@ -467,12 +466,8 @@
       }
     },
     "security": {
-      "approvalPreferences": "Preferencias de aprobación",
-      "approvalTimeout": "Tiempo límite de aprobación",
       "auditExport": "Exportar auditoría",
       "auditExportDesc": "Exporta los registros de actividad de los agentes para cumplimiento normativo",
-      "autoDenyOnTimeout": "Denegar automáticamente al agotarse el tiempo",
-      "autoDenyOnTimeoutDesc": "Deniega automáticamente las acciones marcadas si no respondes a tiempo",
       "blocked": "Bloqueada",
       "exportButton": "Exportar registros",
       "exportFailed": "No se han podido exportar los registros",
@@ -481,8 +476,6 @@
       "format": "Formato",
       "from": "Desde",
       "noThreats": "Todo en orden: no se ha detectado ninguna amenaza",
-      "requireApproval": "Pedir aprobación para las acciones marcadas",
-      "requireApprovalDesc": "Pausa al agente cuando se detecta una acción potencialmente arriesgada",
       "threatLog": "Actividad de amenazas",
       "threatLogDesc": "Eventos de seguridad recientes de tus agentes",
       "threatLogEmpty": "No se han detectado amenazas",
@@ -2299,12 +2292,6 @@
         "one": "Sitios web (1)",
         "other": "Sitios web ({{count}})"
       },
-      "approvalRequired": "Se necesita aprobación",
-      "paymentApprovalRequired": "¿Apruebas este pago?",
-      "deletionApprovalRequired": "¿Apruebas este borrado?",
-      "approvalFailed": "No se pudo registrar tu respuesta. Inténtalo de nuevo.",
-      "approve": "Aprobar",
-      "deny": "Denegar",
       "planSteps": "{{completed}}/{{total}} pasos",
       "stepsLeft": {
         "one": "Queda 1 paso",

@@ -410,7 +410,7 @@ describe('normalized automation dispatch', () => {
     expect(state.createRun).not.toHaveBeenCalled();
   });
 
-  it('does not treat a manual request as approval for a draft definition', async () => {
+  it('does not treat a manual request as permission to run a draft definition', async () => {
     await expect(
       dispatchStructuredAutomation(
         automation({

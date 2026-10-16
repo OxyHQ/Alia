@@ -2,6 +2,15 @@ import { getDb } from '../../db/index.js';
 import { insertRollbackRecord } from '../../db/agents/rollbackRecordRepository.js';
 import { autonomyFlags } from '../autonomy/flags.js';
 
+/**
+ * How an action is classified before it runs. No level asks the person for
+ * approval (ADR 0020 §3: an agent's configuration IS its permission):
+ *
+ *  - R0: autonomous, nothing recorded;
+ *  - R1: runs, with a rollback window when it can be undone;
+ *  - R2: runs, flagged in the run's events and logs;
+ *  - R3: a limit — blocked, never runs.
+ */
 export type RiskLevel = 'R0' | 'R1' | 'R2' | 'R3';
 
 export interface ActionRisk {
@@ -37,8 +46,8 @@ const REVERSIBLE_WRITE_TOOLS = new Set([
 
 const EXTERNAL_IMPACT_TOOLS = new Set([
   // ONE name. `sendTelegram` was the second spelling of this same factory on
-  // the chat path; listing both was what kept the R2 gate honest while they
-  // coexisted, and it is why the collapse did not silently ungate the tool.
+  // the chat path; listing both was what kept the R2 flag honest while they
+  // coexisted, and it is why the collapse did not silently unflag the tool.
   'sendTelegramMessage',
   'sendWhatsAppMessage',
   'sendEmail',
@@ -90,9 +99,8 @@ const R1 = (reason: string, reversible: boolean): ActionRisk => ({
  *
  * `browser` only searches and reads through Clarity, `plan` is internal to the
  * session and `delegate` runs another Alia agent under this session's budget,
- * so none of them needs a person watching. They used to fall through to the
- * unknown-tool default: R2, a 60s wait for an approval nobody could give in a
- * background run, then a denial.
+ * so none of them needs a person watching. Without a case here they would
+ * fall through to the unknown-tool default and be flagged on every call.
  */
 function classifyPrimitive(
   toolName: string,
@@ -153,7 +161,7 @@ function classifyPrimitive(
     // under the agent's own profile but submit nothing on their own. Typing and
     // Enter are how a form is filled and SENT: with the person in the chat they
     // are R1 (they see the turn, and can take the browser over); in a
-    // background run nobody is watching, so they need an approval.
+    // background run nobody is watching, so they are flagged (R2).
     case 'browser_read':
     case 'browser_screenshot':
     case 'browser_scroll':
@@ -201,10 +209,10 @@ export function classifyActionRisk(
     attended?: boolean;
     /**
      * Built from an Oxy app catalog (`isOxyAppTool`). Oxy authorizes each call
-     * itself (the person's bearer, or the agent's level), and the builder sends
-     * a payment or a deletion to the person for review, so neither the name
-     * nor a word in a search query decides anything here: a read is R0 and an
-     * effect is R1, with no rollback window (Oxy keeps the audit).
+     * itself (the person's bearer, or the agent's level, ceiling or `finance`
+     * grant and its limits), so neither the name nor a word in a search query
+     * decides anything here: a read is R0 and an effect is R1, with no rollback
+     * window (Oxy keeps the audit). A payment or a deletion is no exception.
      */
     oxyApp?: boolean;
   } = {},
@@ -214,8 +222,7 @@ export function classifyActionRisk(
       ? R0('Reading an Oxy app is autonomous')
       : {
           riskLevel: 'R1',
-          reason:
-            'An Oxy app effect, authorized by Oxy per call; payments and deletions are reviewed by the person',
+          reason: 'An Oxy app effect, authorized by Oxy per call',
           reversible: false,
           externalImpact: true,
         };
@@ -239,7 +246,7 @@ export function classifyActionRisk(
   if (EXTERNAL_IMPACT_TOOLS.has(toolName)) {
     return {
       riskLevel: 'R2',
-      reason: 'External impact action requires approval',
+      reason: 'External impact action, executed and flagged',
       reversible: false,
       externalImpact: true,
     };
@@ -253,10 +260,10 @@ export function classifyActionRisk(
     return R0('Read-only action is autonomous');
   }
 
-  // Unknown tools default to approval-required.
+  // Unknown tools run, flagged.
   return {
     riskLevel: 'R2',
-    reason: 'Unknown tool defaults to approval-required policy',
+    reason: 'Unknown tool, executed and flagged',
     reversible: false,
     externalImpact: true,
   };

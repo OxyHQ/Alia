@@ -6,7 +6,7 @@ owner set or as itself. Alia, the other actor, needs no agent for anything. The
 map of both is [Actors: Alia and agents](./actors.mdx); this page is the detail
 for agents.
 
-Agents, tools, approvals, the risk policy, deep research and triggers are Alia's own responsibility and stay that way under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md). None of it moves to the Kaana data plane.
+Agents, tools, the risk policy, deep research and triggers are Alia's own responsibility and stay that way under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md). None of it moves to the Kaana data plane.
 
 ## An agent IS an Oxy `bot` account
 
@@ -184,8 +184,8 @@ second paid session beside the answer.
 - `POST /agents/:id/threads` opens an independent thread and its first bounded
   conversation stretch.
 - `GET /agents/:id/threads` lists that person's threads for the agent.
-- `GET|PATCH /agents/threads/:threadId` reads or changes title, lifecycle,
-  approval mode and execution target.
+- `GET|PATCH /agents/threads/:threadId` reads or changes title, lifecycle and
+  execution target.
 - `POST /agents/threads/:threadId/goals` starts explicitly priced work and
   requires `Idempotency-Key`. It is the only paid hire: the legacy
   `POST /agents/:id/hire` is gone. It re-asks `canReachAgent` at goal time, so a
@@ -204,9 +204,6 @@ second paid session beside the answer.
   `lib/agent/run-reaper.ts` (every minute, on every task) re-enqueues the run,
   which RESUMES from its persisted events, plan and step/token counters. After
   `RUNNER_MAX_ATTEMPTS` (3) claims it is failed and refunded instead.
-- Approvals are durable rows (`agent_approval_requests`, Alia's and agents').
-  Socket.IO carries prompts and immediate decisions, while the executing replica
-  observes PostgreSQL as the authority.
 - A completed run moves its goal to `candidate`; `POST
   /agents/threads/:threadId/goals/:goalId/verify` requires evidence for every
   criterion before the goal becomes `completed`.
@@ -507,7 +504,7 @@ Oxy, and its toolset carries both, named apart:
   addendum): the account is the agent's.
 - **`oxy_<app>__<tool>` — its owner's account**, within the level the owner set
   for that app in the editor's "Apps de Oxy" section: **Nada**, **Ver** (reads
-  only) or **Ver y actuar** (reads and effects, no approval). A new agent starts
+  only) or **Ver y actuar** (reads and effects). A new agent starts
   at Nada everywhere.
 
 Each level is ONE Oxy `DelegationGrant` from the owner to the agent's bot over
@@ -533,24 +530,29 @@ last row. Deleting an agent revokes its level grants; its bot account stays.
 
 ## Governance
 
-Risk policy is enforced per action:
+Risk policy is enforced per action. **No level asks for approval**
+([ADR 0020 §3](./adr/0020-every-agent-is-the-same-agent.md): an agent's
+configuration is its permission):
 
 - `R0` read-only: autonomous.
 - `R1` reversible write: autonomous + rollback record.
-- `R2` external/unknown impact: approval required.
-- `R3` destructive: blocked.
+- `R2` external/unknown impact: runs, flagged (`POLICY FLAGGED [R2]` on the run's
+  event stream, and a log line).
+- `R3` destructive: blocked. A limit, not an approval.
+
+The threat detector (`lib/agent/threat-detector.ts`) works the same way: a
+`block` match never runs (`THREAT BLOCKED`); a `warning` or `critical` match runs
+and is flagged (`THREAT WARNING … Action allowed but flagged`).
 
 Risk is classified per call by `classifyActionRisk` (`lib/agent/governance.ts`).
 An **Oxy app tool** is not classified by name: the builder marks it
 (`declareOxyAppTool`), a read is R0 and an effect R1 with no rollback window, and no
-threat heuristic turns it into a card. Oxy authorizes each call (the owner's bearer
-or the agent's level), so an agent at *Ver y actuar* acts without asking, and a
-payment or a deletion is reviewed by the tool itself — see
-[Actors → Approvals](./actors.mdx#approvals-only-payments-and-deletions). R2 below
+word in its arguments makes it R3. Oxy authorizes each call (the owner's bearer, the
+agent's level or ceiling, a `finance` grant and its limits), so a payment or a
+deletion runs like any other effect Oxy allows — see
+[Actors → No agent asks for approval](./actors.mdx#no-agent-asks-for-approval). R2
 is about the agent's runtime tools (its browser typing in the background, a
 connector, an unknown MCP tool).
-
-User approvals are interactive and real-time. `alia.approval_request` and `alia.approval_result` travel over Socket.IO, to the `agent-session:<sessionId>` room (`packages/api/src/socket.ts`) — not over the chat SSE stream. An attended approval waits 60 seconds by default (`lib/agent/action-approval.ts`); a background run never waits (see "Approvals nobody is waiting for" below).
 
 ## Triggers and Proactive Runs
 
@@ -646,27 +648,6 @@ replaces and forgets its files. Writes carry the hash the tool just read, so the
 agent and the person editing the same file never overwrite each other, and every
 write is journaled with origin `agent`. Reads are R0, writes R1 (journaled),
 `forget` R1 without rollback.
-
-### Approvals nobody is waiting for
-
-A top-level background run does not wait for an R2 approval of a runtime tool (or
-one the threat detector asks for). `lib/agent/deferred-approvals.ts` files a
-durable request (`execution_mode = 'rerun'`, `thread_id` may be NULL), tells the
-person in the agent's conversation, and tells the model to carry on.
-`GET /agents/approvals` lists what is pending (Alia's and agents', with `actorType`,
-`conversationId`, `kind` and `hash`); `POST /agents/approvals/:id/decision
-{approved, hash}` answers, only for the person it is for and only from their own
-session. Approving a `rerun` request starts a held, queued run with the exact
-arguments; the policy lets that call through because a granted approval matches its
-hash (agent, person, identity, tool, canonical args) and CLAIMS it first
-(`approved` → `executing`, one conditional UPDATE), then records `succeeded` — or
-`outcome_unknown` if the call threw. The same run never asks again for what it just
-did, and a row a restart left `executing` is made `outcome_unknown` by the reaper,
-so one "yes" covers one action. Interactive chat turns keep the in-process wait.
-
-A payment or a deletion in an Oxy app is a `direct` request instead, by Alia or an
-agent, attended or not: the decision itself performs it, once, with the person's
-bearer (`lib/agent/action-review.ts`). It never reaches the runtime policy above.
 
 The saver keeps an agent-written message the client has not seen yet
 (`keepAgentOutreach`): storage converges on the client's copy for what the

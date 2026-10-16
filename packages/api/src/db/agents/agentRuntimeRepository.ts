@@ -1,11 +1,6 @@
-import { and, desc, eq, gt, inArray, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import type { ApiDatabase, Executor } from '../index.js';
-import {
-  agentApprovalRequests,
-  agentGoals,
-  agentThreads,
-  type AgentGoalCriterion,
-} from '../schema/agent-runtime.js';
+import { agentGoals, agentThreads, type AgentGoalCriterion } from '../schema/agent-runtime.js';
 import { agentSessions } from '../schema/agent-sessions.js';
 
 export type AgentThreadRow = typeof agentThreads.$inferSelect;
@@ -18,7 +13,6 @@ export async function createAgentThread(
     title: string;
     /** The thread's `publisher/model`; null runs the owner's default. */
     modelId?: string | null;
-    approvalMode?: 'ask' | 'supervised_auto';
     executionTarget?: 'sandbox' | 'cowork';
     coworkDeviceId?: string;
     openedByAgentId?: string;
@@ -32,7 +26,6 @@ export async function createAgentThread(
       agentId: input.agentId,
       title: input.title,
       modelId: input.modelId ?? null,
-      approvalMode: input.approvalMode ?? 'ask',
       executionTarget,
       coworkDeviceId: executionTarget === 'cowork' ? input.coworkDeviceId : null,
       openedByAgentId: input.openedByAgentId ?? null,
@@ -66,7 +59,6 @@ export async function updateAgentThread(
   patch: {
     title?: string;
     status?: 'open' | 'closed';
-    approvalMode?: 'ask' | 'supervised_auto';
     executionTarget?: 'sandbox' | 'cowork';
     coworkDeviceId?: string | null;
   },
@@ -112,127 +104,6 @@ export async function createAgentGoal(
     .limit(1);
   if (!existing) throw new Error('agent goal idempotency lookup returned no row');
   return { goal: existing, created: false as const };
-}
-
-export async function findPendingApproval(db: ApiDatabase, oxyUserId: string, approvalId: string) {
-  const [row] = await db
-    .select()
-    .from(agentApprovalRequests)
-    .where(
-      and(
-        eq(agentApprovalRequests.id, approvalId),
-        eq(agentApprovalRequests.oxyUserId, oxyUserId),
-        eq(agentApprovalRequests.status, 'pending'),
-      ),
-    )
-    .limit(1);
-  return row;
-}
-
-export type AgentApprovalRow = typeof agentApprovalRequests.$inferSelect;
-
-export async function createAgentApprovalRequest(
-  db: ApiDatabase,
-  input: {
-    id: string;
-    turnId: string;
-    threadId: string | null;
-    oxyUserId: string;
-    /** Defaults to `agent`; `alia` requires `agentId: null`. */
-    actorType?: 'alia' | 'agent';
-    agentId: string | null;
-    conversationId?: string | null;
-    identityMode?: 'for_user' | 'self' | null;
-    executionMode?: 'direct' | 'rerun';
-    toolName: string;
-    riskLevel: string;
-    actionHash: string;
-    resource?: string;
-    summary: string;
-    details: Record<string, unknown>;
-    expiresAt: Date;
-  },
-): Promise<AgentApprovalRow> {
-  const [inserted] = await db
-    .insert(agentApprovalRequests)
-    .values(input)
-    .onConflictDoNothing({
-      target: [agentApprovalRequests.turnId, agentApprovalRequests.actionHash],
-    })
-    .returning();
-  if (inserted) return inserted;
-  const [existing] = await db
-    .select()
-    .from(agentApprovalRequests)
-    .where(
-      and(
-        eq(agentApprovalRequests.turnId, input.turnId),
-        eq(agentApprovalRequests.actionHash, input.actionHash),
-      ),
-    )
-    .limit(1);
-  if (!existing) throw new Error('approval request conflict did not identify a row');
-  return existing;
-}
-
-export async function findAgentApproval(db: ApiDatabase, approvalId: string) {
-  const [row] = await db
-    .select()
-    .from(agentApprovalRequests)
-    .where(eq(agentApprovalRequests.id, approvalId))
-    .limit(1);
-  return row;
-}
-
-/**
- * The person's answer, once: only a `pending`, unexpired request of THEIRS
- * moves. An approval stays claimable until `usableUntil`; after that it is
- * expired by the sweep and nothing can run it.
- */
-export async function decideAgentApproval(
-  db: ApiDatabase,
-  input: {
-    approvalId: string;
-    oxyUserId: string;
-    approved: boolean;
-    usableUntil?: Date;
-  },
-  now = new Date(),
-): Promise<AgentApprovalRow | undefined> {
-  const [row] = await db
-    .update(agentApprovalRequests)
-    .set({
-      status: input.approved ? 'approved' : 'denied',
-      decidedByOxyUserId: input.oxyUserId,
-      decidedAt: now,
-      updatedAt: now,
-      ...(input.approved && input.usableUntil ? { expiresAt: input.usableUntil } : {}),
-    })
-    .where(
-      and(
-        eq(agentApprovalRequests.id, input.approvalId),
-        eq(agentApprovalRequests.oxyUserId, input.oxyUserId),
-        eq(agentApprovalRequests.status, 'pending'),
-        gt(agentApprovalRequests.expiresAt, now),
-      ),
-    )
-    .returning();
-  return row;
-}
-
-/** Requests nobody answered, and approvals nobody claimed in time. */
-export async function expireAgentApprovals(db: ApiDatabase, now = new Date()): Promise<string[]> {
-  const rows = await db
-    .update(agentApprovalRequests)
-    .set({ status: 'expired', updatedAt: now })
-    .where(
-      and(
-        inArray(agentApprovalRequests.status, ['pending', 'approved']),
-        lt(agentApprovalRequests.expiresAt, now),
-      ),
-    )
-    .returning({ id: agentApprovalRequests.id });
-  return rows.map((row) => row.id);
 }
 
 /**
@@ -358,178 +229,4 @@ export async function verifyAgentGoal(
       .returning();
     return updated;
   });
-}
-
-/**
- * A granted, not yet claimed approval for exactly this action for this person
- * — what lets a background run perform what it asked for earlier. Matched on
- * the action hash, which names the actor, the identity, the tool, the input
- * and the resource, so a different action (or the same one by another actor)
- * is not covered.
- */
-export async function findGrantedApproval(
-  db: ApiDatabase,
-  input: {
-    oxyUserId: string;
-    actionHash: string;
-  },
-  now = new Date(),
-): Promise<AgentApprovalRow | undefined> {
-  const [row] = await db
-    .select()
-    .from(agentApprovalRequests)
-    .where(
-      and(
-        eq(agentApprovalRequests.oxyUserId, input.oxyUserId),
-        eq(agentApprovalRequests.actionHash, input.actionHash),
-        eq(agentApprovalRequests.status, 'approved'),
-        gt(agentApprovalRequests.expiresAt, now),
-      ),
-    )
-    .orderBy(desc(agentApprovalRequests.decidedAt))
-    .limit(1);
-  return row;
-}
-
-/**
- * Whether `turnId` already claimed an approval for this exact action: the run
- * started for one approval must not ask again for what it just did.
- */
-export async function findClaimedApprovalInTurn(
-  db: ApiDatabase,
-  input: { turnId: string; actionHash: string },
-): Promise<AgentApprovalRow | undefined> {
-  const [row] = await db
-    .select()
-    .from(agentApprovalRequests)
-    .where(
-      and(
-        eq(agentApprovalRequests.executedByTurnId, input.turnId),
-        eq(agentApprovalRequests.actionHash, input.actionHash),
-      ),
-    )
-    .limit(1);
-  return row;
-}
-
-/**
- * THE claim: `approved` → `executing`, once. One conditional UPDATE, so two
- * runs, two replicas or two clicks cannot both get the row; `undefined` means
- * somebody else already has it (or it expired, or was never approved).
- */
-export async function claimApprovalExecution(
-  db: ApiDatabase,
-  input: { approvalId: string; turnId: string },
-  now = new Date(),
-): Promise<AgentApprovalRow | undefined> {
-  const [row] = await db
-    .update(agentApprovalRequests)
-    .set({
-      status: 'executing',
-      executedByTurnId: input.turnId,
-      executionStartedAt: now,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(agentApprovalRequests.id, input.approvalId),
-        eq(agentApprovalRequests.status, 'approved'),
-        gt(agentApprovalRequests.expiresAt, now),
-      ),
-    )
-    .returning();
-  return row;
-}
-
-/** How a claimed action ended. Only an `executing` row moves. */
-export async function finishApprovalExecution(
-  db: ApiDatabase,
-  input: {
-    approvalId: string;
-    status: 'succeeded' | 'failed' | 'outcome_unknown';
-    outcome: Record<string, unknown>;
-  },
-  now = new Date(),
-): Promise<boolean> {
-  const updated = await db
-    .update(agentApprovalRequests)
-    .set({
-      status: input.status,
-      outcome: input.outcome,
-      executionFinishedAt: now,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(agentApprovalRequests.id, input.approvalId),
-        eq(agentApprovalRequests.status, 'executing'),
-      ),
-    )
-    .returning({ id: agentApprovalRequests.id });
-  return updated.length > 0;
-}
-
-/**
- * An approved action that can no longer be run as approved — its identity or
- * resource changed, its tool is gone — is closed, so it can never be claimed.
- */
-export async function cancelApprovedAction(
-  db: ApiDatabase,
-  input: { approvalId: string; outcome: Record<string, unknown> },
-  now = new Date(),
-): Promise<boolean> {
-  const updated = await db
-    .update(agentApprovalRequests)
-    .set({ status: 'cancelled', outcome: input.outcome, updatedAt: now })
-    .where(
-      and(
-        eq(agentApprovalRequests.id, input.approvalId),
-        eq(agentApprovalRequests.status, 'approved'),
-      ),
-    )
-    .returning({ id: agentApprovalRequests.id });
-  return updated.length > 0;
-}
-
-/**
- * Claimed actions whose executor vanished (a restart, a killed task) before
- * it recorded how they ended. They may or may not have happened, so they
- * become `outcome_unknown` — terminal: nothing ever runs them again.
- */
-export async function markStuckApprovalExecutions(
-  db: ApiDatabase,
-  startedBefore: Date,
-  now = new Date(),
-): Promise<AgentApprovalRow[]> {
-  return db
-    .update(agentApprovalRequests)
-    .set({
-      status: 'outcome_unknown',
-      outcome: { reason: 'executor_lost' },
-      executionFinishedAt: now,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(agentApprovalRequests.status, 'executing'),
-        lt(agentApprovalRequests.executionStartedAt, startedBefore),
-      ),
-    )
-    .returning();
-}
-
-/** A person's approvals still waiting on them, newest first. */
-export async function listPendingApprovals(db: ApiDatabase, oxyUserId: string, now = new Date()) {
-  return db
-    .select()
-    .from(agentApprovalRequests)
-    .where(
-      and(
-        eq(agentApprovalRequests.oxyUserId, oxyUserId),
-        eq(agentApprovalRequests.status, 'pending'),
-        gt(agentApprovalRequests.expiresAt, now),
-      ),
-    )
-    .orderBy(desc(agentApprovalRequests.createdAt))
-    .limit(100);
 }

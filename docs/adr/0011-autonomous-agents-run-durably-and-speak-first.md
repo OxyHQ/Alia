@@ -4,6 +4,8 @@
 
 Proposed
 
+> **Note (2026-10-16), amended by ADR 0020 §3:** no agent asks for approval, so approvals, their rows and their events are deleted (`0098_retire_agent_approvals`). Decision 3 no longer holds: a background run never files an approval either — an R2 call runs, flagged, and an R3 call is blocked.
+
 > **Note (2026-10-06):** the six decisions below are implemented in code (the
 > Enforcement section names the checks); acceptance is the owner's call, so the
 > status is left as written. Later work extends this record without contradicting

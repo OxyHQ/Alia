@@ -8,7 +8,7 @@ order: 1
 
 `POST /alia/chat` and `POST /v1/chat/completions` enter the same Alia product
 runtime. Alia owns authentication, entitlements, conversations, memory, agents,
-tools, approvals, research, prompts and product stream events. Hosted inference
+tools, research, prompts and product stream events. Hosted inference
 is delegated to Kaana.
 
 ## Identity
@@ -79,9 +79,9 @@ Standard OpenAI-compatible chunks are emitted beside Alia product events. The
 inference contract. Active event families include plan previews, reasoning, tool results, delegated-agent output, agent-session state,
 titles and research progress.
 
-Approval requests/results use the authenticated Socket.IO agent-session room,
-not the HTTP SSE connection. Clients must not wait for them on the completion
-stream.
+There are no approval events on either transport: no agent asks for approval
+(ADR 0020 §3). A tool effect runs under the actor's Oxy authority, or Oxy refuses
+it and the model is told `oxy_app_unavailable`.
 
 ### Reading the stream from a server: `@alia.onl/server`
 
@@ -244,7 +244,7 @@ loaded by the model, one tool at a time**:
    when it is unambiguous) or by **intent**: `query` ranks every deferred tool
    by name words, app words and description and loads the best `limit`
    (default 5, at most 10). The model then calls the tools directly. The full
-   tool set stays registered, so execution, authorization, approvals, the
+   tool set stays registered, so execution, authorization, the
    runtime policy, result truncation and tool-name mapping are exactly those of
    a direct call — there is no proxy tool.
 3. The unit is the tool, never the app: Mention's 94 tools are not "too big to

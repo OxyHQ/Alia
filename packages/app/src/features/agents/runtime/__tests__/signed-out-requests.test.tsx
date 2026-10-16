@@ -6,11 +6,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * "Continue without an account" grants no authenticated endpoint (#608 §3.2).
  *
  * Every hook here reads something that is the account's — its skills and
- * connectors, its library, its pending approvals, an agent's threads, its
- * teams — and each is reachable signed out: the agent editor and the teams page
- * by link, an agent's page and its approvals from the Agents page. Signed out,
- * none of them may send a request, since each could only answer 401 (and the
- * approvals would do it once a minute). Signed in, each asks as before.
+ * connectors, its library, an agent's threads, its teams — and each is
+ * reachable signed out: the agent editor and the teams page by link, an
+ * agent's page from the Agents page. Signed out, none of them may send a
+ * request, since each could only answer 401. Signed in, each asks as before.
  */
 
 const getRequest = vi.hoisted(() => vi.fn(async () => ({ data: {} })));
@@ -29,7 +28,6 @@ vi.mock('@/features/library/runtime/library-store', () => {
 const { useAttachableSkills, useGrantableConnectors, useKnowledgeLibrary } = await import(
   '../use-agent-editor-options'
 );
-const { usePendingAgentApprovals } = await import('../use-agent-approvals');
 const { useAgentThreads } = await import('../use-agent-threads');
 const { useAgentTeams } = await import('../use-agent-teams');
 
@@ -67,7 +65,6 @@ afterEach(() => {
 const hooks: [string, () => unknown][] = [
   ['useAttachableSkills', () => useAttachableSkills()],
   ['useGrantableConnectors', () => useGrantableConnectors('agent-1')],
-  ['usePendingAgentApprovals', () => usePendingAgentApprovals('agent-1')],
   ['useAgentThreads', () => useAgentThreads('agent-1')],
   ['useAgentTeams', () => useAgentTeams()],
 ];

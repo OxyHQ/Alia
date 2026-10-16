@@ -5,17 +5,16 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 /**
  * The product-specific socket events — epic #139 workstream 13, "Preserve
- * notifications and product-specific events" and the wire half of "Preserve
- * approval requests/results".
+ * notifications and product-specific events". Approval events are not among
+ * them: no agent asks for approval (ADR 0020 §3), so none is emitted.
  *
  * ## Why a socket event is the easiest thing in the product to delete by accident
  *
  * Nothing throws when an event nobody is listening for is emitted, and nothing
  * throws when a listener binds a name nobody emits. Renaming
- * `alia.approval_request` to `alia.approvalRequest` on either side compiles,
- * deploys, passes every existing test, and silently removes interactive
- * approvals from the product. The same is true of `notification`,
- * `agent-activity` and `show:progress`.
+ * `agent-activity` to `agent:activity` on either side compiles, deploys,
+ * passes every existing test, and silently removes the live run view from the
+ * product. The same is true of `notification` and `show:progress`.
  *
  * So the required name set is derived from the CONSUMER — the app's own
  * `socket.on(...)` calls, read off disk — rather than written out here from
@@ -102,11 +101,8 @@ vi.mock('../lib/logger.js', () => {
 import {
   emitAgentActivity,
   emitAliaActivity,
-  emitApprovalRequest,
-  emitApprovalResult,
   emitAudioJobUpdate,
   emitTelegramLinked,
-  emitApprovalsChanged,
   emitWorkflowProgress,
   initSocket,
 } from '../socket.js';
@@ -152,46 +148,6 @@ beforeEach(() => {
 // ===========================================================================
 
 describe('each product event is emitted under its own name, to its own room', () => {
-  it('approval request and result, on the agent session room', () => {
-    emitApprovalRequest('sess-ws13', {
-      requestId: 'req-1',
-      agentId: 'agent-ws13',
-      toolName: 'browser',
-      args: { action: 'search', query: 'alia' },
-      description: 'why',
-      severity: 'critical',
-      timeout: 60_000,
-    });
-    emitApprovalResult('sess-ws13', { requestId: 'req-1', decision: 'approved' });
-
-    expect(broadcasts.map((entry) => entry.event)).toEqual([
-      // The legacy spelling has no consumer left in this repo; it is emitted
-      // alongside the namespaced one so an older client keeps working. Recorded
-      // so that dropping it is a deliberate edit rather than a surprise.
-      'agent-approval-request',
-      'alia.approval_request',
-      'agent-approval-result',
-      'alia.approval_result',
-    ]);
-    for (const entry of broadcasts) {
-      expect(entry.rooms).toEqual(['agent-session:sess-ws13']);
-    }
-    // The two spellings are one event: same payload, so they are an alias pair
-    // rather than two events that could drift.
-    expect(broadcasts[0].payload).toEqual(broadcasts[1].payload);
-    expect(broadcasts[1].payload).toMatchObject({
-      eventVersion: 1,
-      requestId: 'req-1',
-      toolName: 'browser',
-      args: { action: 'search', query: 'alia' },
-    });
-    expect(broadcasts[3].payload).toEqual({
-      eventVersion: 1,
-      requestId: 'req-1',
-      decision: 'approved',
-    });
-  });
-
   it('agent activity, to the agent room AND the session room', () => {
     emitAgentActivity('agent-ws13', {
       type: 'tool_call',
@@ -289,6 +245,16 @@ describe('each product event is emitted under its own name, to its own room', ()
  * with the API by construction, and the failure this guards is precisely the two
  * sides disagreeing.
  */
+/** Approval events the API no longer emits: no agent asks for approval (ADR 0020 §3). */
+const RETIRED_APPROVAL_EVENTS = new Set([
+  'alia.approval_request',
+  'alia.approval_result',
+  'agent-approval-request',
+  'agent-approval-result',
+  'agent-approval-decision',
+  'approvals:changed',
+]);
+
 function appSocketListeners(): { names: string[]; filesScanned: number } {
   const appRoot = path.resolve(import.meta.dirname, '../../../app');
   const sdkRoot = path.resolve(import.meta.dirname, '../../../alia-chat');
@@ -336,7 +302,7 @@ describe('every socket event the app listens for is one the API emits', () => {
     expect(filesScanned).toBeGreaterThan(100);
     expect(names.length).toBeGreaterThanOrEqual(5);
     // A positive control on the scanner itself: a name it is KNOWN to find.
-    expect(names).toContain('alia.approval_request');
+    expect(names).toContain('agent-activity');
   });
 
   it('emits every name the app binds, and the census can tell a miss from a hit', () => {
@@ -345,21 +311,10 @@ describe('every socket event the app listens for is one the API emits', () => {
      * the union of the names they produced. This is what the app must find.
      */
     broadcasts.length = 0;
-    emitApprovalRequest('s', {
-      requestId: 'r',
-      agentId: 'a',
-      toolName: 't',
-      args: {},
-      description: '',
-      severity: 'info',
-      timeout: 1,
-    });
-    emitApprovalResult('s', { requestId: 'r', decision: 'approved' });
     emitAgentActivity('a', { type: 'system', content: '', timestamp: 1, sessionId: 's' });
     emitAliaActivity('u', { state: 'working', agentId: 'a', sessionId: 's', timestamp: 1 });
     emitAudioJobUpdate('u', { jobId: 'j', status: 'completed' });
     emitTelegramLinked('t', {});
-    emitApprovalsChanged('u');
     emitWorkflowProgress('e', {});
     const emitted = new Set(broadcasts.map((entry) => entry.event));
     // `notification` and `show:progress` are emitted by their own services
@@ -383,13 +338,21 @@ describe('every socket event the app listens for is one the API emits', () => {
     emitted.add('user-runtime:request');
     emitted.add('user-runtime:abort');
 
-    const unemitted = names.filter((name) => !emitted.has(name));
+    // Retired with approvals (ADR 0020 §3). The SDK's listeners for them are
+    // removed in the SDK's own change; a listener for a retired name is dead
+    // code there, never a name the API must start emitting again.
+    const unemitted = names.filter(
+      (name) => !emitted.has(name) && !RETIRED_APPROVAL_EVENTS.has(name),
+    );
     expect(unemitted).toEqual([]);
+    expect([...emitted].filter((name) => RETIRED_APPROVAL_EVENTS.has(name))).toEqual([]);
 
     // The negative control: the census WOULD report a name the API does not
     // emit. Without it, an empty `unemitted` is also what a broken filter says.
-    expect([...names, 'alia.event_nobody_emits'].filter((name) => !emitted.has(name))).toEqual([
-      'alia.event_nobody_emits',
-    ]);
+    expect(
+      [...names, 'alia.event_nobody_emits'].filter(
+        (name) => !emitted.has(name) && !RETIRED_APPROVAL_EVENTS.has(name),
+      ),
+    ).toEqual(['alia.event_nobody_emits']);
   });
 });

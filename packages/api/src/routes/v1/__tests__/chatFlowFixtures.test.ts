@@ -1002,7 +1002,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     expect(bytes).not.toContain(UPSTREAM_MODEL_ID);
   });
 
-  it('does not emit an approval request over SSE — approvals are a socket surface', async () => {
+  it('emits no approval event — no agent asks for approval (ADR 0020 §3)', async () => {
     const req = recordingReq({
       body: {
         messages: [{ role: 'user', content: 'what day is it' }],
@@ -1014,17 +1014,11 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     const res = recordingRes();
     await run(req, res);
 
-    // `packages/app/src/features/chat/runtime/use-streaming-chat.ts:543` parses
-    // `alia.approval_request` as an SSE case, but the only emitter in the
-    // package is Socket.IO (`src/socket.ts:215`). Recording that here means a
-    // future change that starts emitting it over SSE is a deliberate edit to
-    // this fixture rather than an accident.
-    //
     // The vacuity floor for a negative: the same scan DID find a named event in
     // the assertion above, so "absent" here is absence, not blindness.
     const named = res.raw.filter((frame) => frame.startsWith('event: '));
     expect(named.length).toBeGreaterThan(0);
-    expect(named.filter((frame) => frame.includes('alia.approval'))).toEqual([]);
+    expect(named.filter((frame) => frame.includes('approval'))).toEqual([]);
   });
 
   it('keeps generating after the client disconnects, then notifies', async () => {

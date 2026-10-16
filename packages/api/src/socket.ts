@@ -1,6 +1,6 @@
 import { Server, type Socket } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
-import http from 'http';
+import type http from 'http';
 import { getRedisClient, getRedisSubClient } from './lib/redis.js';
 import { log } from './lib/logger.js';
 import { oxyClient } from './middleware/auth.js';
@@ -312,78 +312,12 @@ export function initSocket(server: http.Server) {
     socket.on('subscribe-notifications', joinOwnUserRoom);
     // Alia's live state (`alia:activity`), for every "Ask Alia" button the person has open.
     socket.on('subscribe-alia-activity', joinOwnUserRoom);
-
-    // Agent action approval response from user
-    socket.on(
-      'agent-approval-response',
-      async (data: {
-        requestId: string;
-        sessionId: string;
-        approved: boolean;
-        alwaysAllow?: boolean;
-      }) => {
-        if (
-          !data?.requestId ||
-          typeof data.requestId !== 'string' ||
-          typeof data.sessionId !== 'string'
-        )
-          return;
-        if (!userId) return;
-
-        const { getPendingApprovalSession, resolveApprovalDecision } = await import(
-          './lib/agent/action-approval.js'
-        );
-        const { decideAgentApproval, findPendingApproval } = await import(
-          './db/agents/agentRuntimeRepository.js'
-        );
-        const { getDb } = await import('./db/index.js');
-
-        // The pending approval is bound to a sessionId at creation time. Reject if
-        // the claimed session does not match the request, or the user does not own it.
-        const durable = await findPendingApproval(getDb(), userId, data.requestId);
-        // A reviewed Oxy action (a payment, a deletion) is decided only through
-        // `POST /agents/approvals/:id/decision`, which performs it.
-        if (durable && durable.executionMode !== 'rerun') return;
-        const boundSessionId = getPendingApprovalSession(data.requestId) ?? durable?.turnId ?? null;
-        if (!boundSessionId || boundSessionId !== data.sessionId) return;
-        if (!(await ownsAgentSession(userId, data.sessionId))) return;
-
-        if (durable) {
-          await decideAgentApproval(getDb(), {
-            approvalId: data.requestId,
-            oxyUserId: userId,
-            approved: !!data.approved,
-          });
-        }
-
-        // Resolve pending approval in-memory and broadcast the decision.
-        resolveApprovalDecision({
-          requestId: data.requestId,
-          approved: !!data.approved,
-          alwaysAllow: data.alwaysAllow || false,
-        });
-
-        // Also mirror to the session room for real-time client updates.
-        io!.to(`agent-session:${data.sessionId}`).emit('agent-approval-decision', {
-          requestId: data.requestId,
-          approved: data.approved,
-          alwaysAllow: data.alwaysAllow || false,
-        });
-      },
-    );
   });
   return io;
 }
 
 export function getIO(): Server | null {
   return io;
-}
-
-/** The person's pending approvals changed: the app refetches its cards. */
-export function emitApprovalsChanged(oxyUserId: string) {
-  if (io) {
-    io.to(`user:${oxyUserId}`).emit('approvals:changed', { eventVersion: 1 });
-  }
 }
 
 export function emitTelegramLinked(token: string, data: any) {
@@ -411,8 +345,7 @@ export interface AgentActivityEvent {
     | 'plan_progress'
     | 'file_change'
     | 'source_found'
-    | 'threat'
-    | 'approval_request';
+    | 'threat';
   content: string;
   timestamp: number;
   sessionId: string;
@@ -437,14 +370,6 @@ export interface AgentActivityEvent {
     files?: string[];
     currentStep?: number;
     maxSteps?: number;
-    approval?: {
-      requestId: string;
-      toolName: string;
-      args: any;
-      description: string;
-      severity: string;
-      timeout: number;
-    };
     taskProgress?: {
       stepIndex: number;
       maxSteps: number;
@@ -456,47 +381,6 @@ export interface AgentActivityEvent {
       lastAction: string | null;
     };
   };
-}
-
-export function emitApprovalRequest(
-  sessionId: string,
-  data: {
-    eventVersion?: number;
-    requestId: string;
-    agentId: string;
-    toolName: string;
-    args: any;
-    description: string;
-    severity: string;
-    timeout: number;
-  },
-) {
-  if (io) {
-    const payload = {
-      eventVersion: data.eventVersion ?? 1,
-      ...data,
-    };
-    io.to(`agent-session:${sessionId}`).emit('agent-approval-request', payload);
-    io.to(`agent-session:${sessionId}`).emit('alia.approval_request', payload);
-  }
-}
-
-export function emitApprovalResult(
-  sessionId: string,
-  data: {
-    eventVersion?: number;
-    requestId: string;
-    decision: 'approved' | 'denied' | 'timeout';
-  },
-) {
-  if (io) {
-    const payload = {
-      eventVersion: data.eventVersion ?? 1,
-      ...data,
-    };
-    io.to(`agent-session:${sessionId}`).emit('agent-approval-result', payload);
-    io.to(`agent-session:${sessionId}`).emit('alia.approval_result', payload);
-  }
 }
 
 export interface AudioJobUpdate {

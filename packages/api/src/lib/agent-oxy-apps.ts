@@ -13,7 +13,7 @@
  *  - `read` (*Ver*): the packages of the app's READ tools, `read_only`. Writes
  *    are refused by Oxy whatever the package says.
  *  - `act` (*Ver y actuar*): every package the app offers on that account, at
- *    `autonomous` — no approval, and also with nobody present (the agent-run
+ *    `autonomous` — with the person present or with nobody present (the agent-run
  *    lane needs `autonomous` for effects).
  *  - `none` (*Nada*): the grant is revoked and the row deleted.
  *

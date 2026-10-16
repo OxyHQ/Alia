@@ -6,7 +6,7 @@ Expo app for web, iOS, and Android.
 
 - Unified streaming chat client for the shared autonomy runtime.
 - Automations UI (backed by `/automations`).
-- Agent activity + approval actions in real time.
+- Agent activity in real time. No agent asks for approval (ADR 0020 §3).
 - Memory, settings, billing, and organization features.
 
 ## Key Runtime Integrations
@@ -19,8 +19,6 @@ runtime (`/v1/chat/completions` is the same handler, kept for other callers):
 - `alia.reasoning`
 - `alia.tool_result`
 - `alia.plan_preview`
-- `alia.approval_request`
-- `alia.approval_result`
 - `alia.research_progress`
 - `alia.model_switch`
 - `alia.agent_turn`
@@ -28,13 +26,11 @@ runtime (`/v1/chat/completions` is the same handler, kept for other callers):
 
 All payloads include `eventVersion: 1`.
 
-### Agent Approval UX
+### Agent Activity
 
-`agent-panel` + `use-agent-activity` handle:
-
-- Approval request display
-- Approve/deny actions
-- Socket emission via `agent-approval-response`
+`agent-panel` + `use-agent-activity` show a run's steps, plan and sources as
+they happen. There is no approval card: an agent's configuration is its
+permission, enforced by Oxy per call.
 
 ### Automations UI
 

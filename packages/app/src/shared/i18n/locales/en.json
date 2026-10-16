@@ -61,7 +61,6 @@
         "customCredits": "{{count}} credits"
       },
       "security": {
-        "never": "Never",
         "severity": {
           "info": "Info",
           "warning": "Warning",
@@ -173,12 +172,6 @@
     "saveSuccess": "Preferences saved successfully",
     "saveFailed": "Failed to save preferences",
     "security": {
-      "approvalPreferences": "Approval Preferences",
-      "requireApproval": "Require approval for flagged actions",
-      "requireApprovalDesc": "Pause agent execution when a potentially risky action is detected",
-      "approvalTimeout": "Approval timeout",
-      "autoDenyOnTimeout": "Auto-deny when timeout expires",
-      "autoDenyOnTimeoutDesc": "Automatically deny flagged actions if you don't respond in time",
       "threatLog": "Threat Activity",
       "threatLogEmpty": "No threats detected",
       "threatLogDesc": "Recent security events from your agents",
@@ -2299,12 +2292,6 @@
         "one": "Websites (1)",
         "other": "Websites ({{count}})"
       },
-      "approvalRequired": "Approval required",
-      "paymentApprovalRequired": "Approve this payment?",
-      "deletionApprovalRequired": "Approve this deletion?",
-      "approvalFailed": "Could not record your answer. Try again.",
-      "approve": "Approve",
-      "deny": "Deny",
       "planSteps": "{{completed}}/{{total}} steps",
       "stepsLeft": {
         "one": "1 step left",

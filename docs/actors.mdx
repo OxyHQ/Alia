@@ -74,60 +74,31 @@ memory, never Alia's.
 - **Risk** (`R0`–`R3`) governs Alia-local tools; Oxy app effects are authorized by
   Oxy per call. See [Agents → Governance](./agents.md#governance).
 
-## Approvals: only payments and deletions
+## No agent asks for approval
 
-The person's request is the authorization. Alia acting for them reads AND acts in
-their Oxy apps with no approval card, and an agent at **Ver y actuar** acts without
-asking. **Ver** never writes: its write tools are never built, and Oxy refuses one
-if called — an agent's write beyond its level is refused, never turned into a card.
+**An actor's configuration is its permission** ([ADR 0020 §3](./adr/0020-every-agent-is-the-same-agent.md)).
+What Alia or an agent may do is decided once — the owner's per-app levels, a
+public agent's ceiling, its families and its limits — and Oxy enforces it on every
+call. Nobody is asked in the chat whether an action may happen, Alia included:
 
-Only an irreversible, high-risk effect waits for the person's explicit OK, for any
-actor, in any surface (a chat, an Alia task, an agent's background run):
+- Alia acting for the person reads AND acts in their Oxy apps, and an agent at
+  **Ver y actuar** acts, in a chat, an Alia task or an agent's background run.
+- **A payment** is bounded by an explicit `finance` grant or ceiling with limits,
+  never by a prompt. Without one, Oxy refuses the ticket and the model receives
+  `oxy_app_unavailable`; nothing is turned into a card.
+- **A deletion** runs like any other effect the actor's authority reaches.
+- **Ver** never writes: its write tools are never built, and Oxy refuses one if
+  called.
 
-| Reviewed | How the catalog says so |
-|---|---|
-| A payment | `effect: 'financial'` |
-| A deletion | invoked as HTTP `DELETE` and `rollback` is not `'supported'` |
+Asking the person a *question* (`askUserQuestion`, missing information, a choice
+between options) is not an approval and stays. The runtime policy's **limits** stay
+too: an R3 action and a blocking threat-detector match never run; what used to wait
+for an approval (R2, a threat warning) runs and is flagged in the run's events and
+logs ([Agents → Governance](./agents.md#governance)).
 
-Read from the catalog's declaration, never from tool names: Inbox's `trashEmail` is
-a `POST` the person can undo for 30 days, so it is not reviewed; Mention's
-`delete-post` is. `reviewKindOf` in `lib/agent/action-proposal.ts` is the rule.
-
-How one runs (`lib/agent/action-review.ts`, after openmuse's `ActionService`):
-
-1. **Prepare.** The tool does not run. It files a proposal (`agent_approval_requests`,
-   `execution_mode = 'direct'`) hashed over the actor, the identity (`for_user` /
-   `self`), the tool and its catalog version, the canonical input and the exact
-   resource. The model is told it is waiting; it has no tool that approves.
-2. **Ask where the person is.** A card in the chat they are in (Alia's or an
-   agent's), a message in an Alia task's own conversation (`postAliaMessage`), or
-   in the agent's thread (`postAgentMessage`). The app shows the cards above the
-   conversation (`ConversationApprovalsBanner`) and above an agent's thread
-   (`AgentApprovalsBanner`).
-3. **Decide.** `POST /agents/approvals/:id/decision {approved, hash}`: only the
-   person the action is for, from their own session (a service acting for them is
-   refused), with the hash they saw, before it expires (24 h).
-4. **Re-bind, claim, run once.** The binding is re-derived now — the agent still
-   theirs, its bot the same account, its level still reaching that resource with
-   that tool, the tool at the same version — and the hash recomputed from those
-   live values; any difference cancels it. Then one conditional UPDATE claims it
-   (`approved` → `executing`) and the winner performs it as a `direct_request` with
-   the decider's bearer, the approval's id as idempotency key. It ends `succeeded`,
-   `failed` or `outcome_unknown` (sent, no answer), and the result is posted where
-   it was asked.
-5. **After a restart** a row still `executing` becomes `outcome_unknown`
-   (`reapStuckReviewedActions`, in the agent run reaper's sweep) and the person is
-   told to check. Nothing leads back to `approved`: an approved action is never run
-   twice.
-
-A surface with nowhere to ask (Telegram, an API-key turn, a delegated child run)
-refuses a reviewed call instead of running it. There are no standing "always allow"
-rules yet: every payment and deletion is asked for.
-
-- Detail: [Agents → Governance](./agents.md#governance).
-- Code: `lib/agent/action-proposal.ts`, `lib/agent/action-review.ts`,
-  `resolveReviewedOxyAction` in `lib/tools/oxy-services.ts`,
-  `routes/agents/approvals.ts`; migration 0088.
+- Code: `buildOxyServiceTools` in `lib/tools/oxy-services.ts` (every Oxy tool calls
+  Oxy for a ticket and runs), `applyRuntimePolicy` in `lib/agent/actions.ts`;
+  migration `0098_retire_agent_approvals` dropped the approval table.
 
 ## Background work: every task has an actor, Alia by default
 
