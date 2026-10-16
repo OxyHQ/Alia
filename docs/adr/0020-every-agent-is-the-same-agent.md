@@ -2,7 +2,7 @@
 
 *Todos los agentes son el mismo agente: Alia, los agentes de las personas y los de las apps comparten una sola base.*
 
-**Status:** Proposed
+**Status:** Accepted
 
 **Date:** 2026-10-16
 
