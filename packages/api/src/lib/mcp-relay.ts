@@ -10,6 +10,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type http from 'http';
 import { log } from './logger.js';
 import { authenticateSocketToken } from './socket-session-auth.js';
+import type { WebSocketRoute } from './websocket-upgrades.js';
 
 interface LocalTool {
   name: string;
@@ -55,29 +56,21 @@ const clients = new Map<string, ConnectedClient>();
 const pendingCalls = new Map<string, PendingCall>();
 let nextCallId = 0;
 
+/** The MCP relay's path on the shared HTTP server. */
+export const MCP_RELAY_PATH = '/ws/mcp';
+
 /**
- * Initialize the MCP relay WebSocket server on the given HTTP server.
+ * The MCP relay, as a route of the upgrade router (`lib/websocket-upgrades.ts`).
+ *
+ * `noServer`: with `{ server, path }` the ws library registers its own global
+ * `server.on('upgrade')` that 400s every other path, stomping socket.io's
+ * handshake on the same socket. The router hands this server its path only.
  */
-export function initMcpRelay(
-  server: http.Server,
+export function mcpRelayRoute(
   observe?: (socket: WebSocket, headers: http.IncomingHttpHeaders) => void,
-): void {
-  // Share the HTTP server without letting `ws` install its own upgrade
-  // listener. With `{ server, path }`, the ws library registers a global
-  // `server.on('upgrade')` that 400s every upgrade whose path doesn't match —
-  // stomping socket.io's already-completed handshake on the same socket. With
-  // `noServer`, we own routing: only `/ws/mcp` upgrades are handled here; every
-  // other path is left untouched so socket.io's engine listener can serve it.
+): WebSocketRoute {
   const relayServer = new WebSocketServer({ noServer: true });
   wss = relayServer;
-
-  server.on('upgrade', (req, socket, head) => {
-    const { pathname } = new URL(req.url ?? '', 'http://internal');
-    if (pathname !== '/ws/mcp') return;
-    relayServer.handleUpgrade(req, socket, head, (ws) => {
-      relayServer.emit('connection', ws, req);
-    });
-  });
 
   relayServer.on('connection', (ws, request) => {
     observe?.(ws, request.headers);
@@ -138,7 +131,15 @@ export function initMcpRelay(
     });
   });
 
-  log.general.info('MCP relay initialized at /ws/mcp');
+  log.general.info(`MCP relay initialized at ${MCP_RELAY_PATH}`);
+  return {
+    path: MCP_RELAY_PATH,
+    handleUpgrade: (request, socket, head) => {
+      relayServer.handleUpgrade(request, socket, head, (ws) => {
+        relayServer.emit('connection', ws, request);
+      });
+    },
+  };
 }
 
 function handleClientMessage(userId: string, msg: RelayMessage): void {

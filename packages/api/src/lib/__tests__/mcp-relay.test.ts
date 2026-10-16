@@ -2,13 +2,14 @@ import http from 'node:http';
 import { WebSocket } from 'ws';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getLocalTools, initMcpRelay, shutdownMcpRelay } from '../mcp-relay.js';
+import { getLocalTools, mcpRelayRoute, shutdownMcpRelay } from '../mcp-relay.js';
+import { routeWebSocketUpgrades } from '../websocket-upgrades.js';
 
 /**
  * The relay's WebSocket handshake, driven end to end against a fake Oxy API.
  *
  * The subject is `validateToken`, and it is exercised through the REAL
- * entrypoint — an `http.Server`, `initMcpRelay()` and a real `ws` client
+ * entrypoint — an `http.Server`, the upgrade router with `mcpRelayRoute()` and a real `ws` client
  * sending `{type:'auth'}` — rather than by exporting the function. A relay that
  * validated perfectly and never called the validator would pass the direct
  * test.
@@ -120,7 +121,10 @@ beforeEach(async () => {
   }
   port = address.port;
 
-  initMcpRelay(server, observeRelay);
+  routeWebSocketUpgrades(server, {
+    socketIoPath: '/socket.io',
+    routes: [mcpRelayRoute(observeRelay)],
+  });
 });
 
 afterEach(async () => {

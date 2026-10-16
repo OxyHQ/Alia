@@ -12,7 +12,8 @@ vi.mock('../environment.js', () => ({ createVoiceEnvironment: vi.fn() }));
 vi.mock('../../socket-session-auth.js', () => ({ authenticateSocketToken: vi.fn() }));
 
 const { log } = await import('../../logger.js');
-const { initVoiceSessions } = await import('../voice-socket.js');
+const { voiceSessionRoute } = await import('../voice-socket.js');
+const { routeWebSocketUpgrades } = await import('../../websocket-upgrades.js');
 const { decodeAssistantAudioFrame, VOICE_SESSION_PATH } = await import('../protocol.js');
 const { harness, pcmBase64, until } = await import('./support.js');
 
@@ -31,9 +32,14 @@ afterEach(async () => {
 async function serve(env = harness().env) {
   const server = http.createServer();
   servers.push(server);
-  initVoiceSessions(server, undefined, {
-    environment: () => env,
-    authenticate: async (token) => (token === 'good-token' ? 'user-1' : null),
+  routeWebSocketUpgrades(server, {
+    socketIoPath: '/socket.io',
+    routes: [
+      voiceSessionRoute(undefined, {
+        environment: () => env,
+        authenticate: async (token) => (token === 'good-token' ? 'user-1' : null),
+      }),
+    ],
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;

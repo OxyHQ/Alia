@@ -1,9 +1,8 @@
 /**
  * `GET /v1/voice/session` — the voice call's WebSocket (ADR 0017 §1, §3).
  *
- * Mounted with `ws` in `noServer` mode on the shared HTTP server, exactly as
- * `lib/mcp-relay.ts` is, so socket.io's handshake on the same server is never
- * stomped: only this path's upgrades are taken here. The protocol is in
+ * A `ws` server in `noServer` mode, handed its path's upgrades by the one
+ * upgrade router (`lib/websocket-upgrades.ts`). The protocol is in
  * `./protocol.ts`; the call itself in `./call.ts`.
  *
  * ## Who may call
@@ -18,6 +17,7 @@ import type http from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { log } from '../logger.js';
 import { authenticateSocketToken } from '../socket-session-auth.js';
+import type { WebSocketRoute } from '../websocket-upgrades.js';
 import { type VoiceCallEnvironment, type VoiceClientSink, VoiceCall } from './call.js';
 import { createVoiceEnvironment } from './environment.js';
 import { VOICE_ERROR_TEXT } from './errors.js';
@@ -232,26 +232,23 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
   });
 }
 
-/** Mount `GET /v1/voice/session` on the shared HTTP server. */
-export function initVoiceSessions(
-  server: http.Server,
+/** `GET /v1/voice/session`, as a route of the upgrade router. */
+export function voiceSessionRoute(
   observe?: (socket: WebSocket, headers: http.IncomingHttpHeaders) => void,
   options: VoiceSocketOptions = {},
-): WebSocketServer {
+): WebSocketRoute {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_BYTES });
-  server.on('upgrade', (req, socket, head) => {
-    const { pathname } = new URL(req.url ?? '', 'http://internal');
-    if (pathname !== VOICE_SESSION_PATH) return;
-    wss.handleUpgrade(req, socket, head, (ws) => {
-      wss.emit('connection', ws, req);
-    });
-  });
   wss.on('connection', (ws: WebSocket, request: http.IncomingMessage) => {
     observe?.(ws, request.headers);
     handleVoiceConnection(ws, options);
   });
   log.voice.info(`Voice sessions at ${VOICE_SESSION_PATH}`);
-  return wss;
+  return {
+    path: VOICE_SESSION_PATH,
+    handleUpgrade: (request, socket, head) => {
+      wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
+    },
+  };
 }
 
 /** Shutdown: every call held here ends `server-shutdown` (after the deploy's drain window). */
