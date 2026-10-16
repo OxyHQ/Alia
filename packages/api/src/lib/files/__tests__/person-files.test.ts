@@ -9,7 +9,13 @@ const files = vi.hoisted(
   () =>
     new Map<
       string,
-      { mime: string; size: number; status?: string; originalName?: string; bytes: Uint8Array }
+      {
+        mime: string;
+        size: number;
+        status?: string;
+        originalName?: string;
+        bytes: Uint8Array<ArrayBuffer>;
+      }
     >(),
 );
 const seen = vi.hoisted(() => ({ tokens: [] as string[], downloads: [] as string[] }));
@@ -57,7 +63,7 @@ import {
 import type { ChatMessage } from '../../message-converter.js';
 
 /** A one-page PDF whose only text is "Rent is 900 EUR". */
-function pdf(text: string): Uint8Array {
+function pdf(text: string): Uint8Array<ArrayBuffer> {
   const stream = `BT /F1 24 Tf 20 100 Td (${text}) Tj ET`;
   return new TextEncoder().encode(
     `%PDF-1.4
