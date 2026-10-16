@@ -11,6 +11,7 @@ vi.mock('../../logger.js', () => {
 vi.mock('../environment.js', () => ({ createVoiceEnvironment: vi.fn() }));
 vi.mock('../../socket-session-auth.js', () => ({ authenticateSocketToken: vi.fn() }));
 
+const { log } = await import('../../logger.js');
 const { initVoiceSessions } = await import('../voice-socket.js');
 const { decodeAssistantAudioFrame, VOICE_SESSION_PATH } = await import('../protocol.js');
 const { harness, pcmBase64, until } = await import('./support.js');
@@ -192,6 +193,20 @@ describe('a call over the socket', () => {
     const lastSeq = Number(first.events.at(-1)!.seq);
     first.ws.terminate();
     await until('closed', () => first.closed !== null);
+    // The drop is logged with its close code: the one trace a device's drop leaves.
+    await until('drop logged', () =>
+      vi
+        .mocked(log.voice.warn)
+        .mock.calls.some(([, message]) => message === 'Voice socket dropped'),
+    );
+    expect(vi.mocked(log.voice.warn)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        closeCode: 1006,
+        closedHere: false,
+        callId: expect.stringMatching(/^vc_/),
+      }),
+      'Voice socket dropped',
+    );
     h.kaana!.session.emit({ type: 'input_audio.speech_started', itemId: 'u1', audioStartMs: 0 });
     await new Promise((resolve) => setTimeout(resolve, 10));
 
