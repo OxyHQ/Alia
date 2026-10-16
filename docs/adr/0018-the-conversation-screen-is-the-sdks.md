@@ -2,7 +2,7 @@
 
 *La pantalla de conversación es del SDK; la app conserva solo su layout.*
 
-**Status:** Accepted
+**Status:** Accepted; amended by 0020 (2026-10-16: any app embeds any agent, and the header's participants are one SDK component)
 
 **Date:** 2026-10-15
 

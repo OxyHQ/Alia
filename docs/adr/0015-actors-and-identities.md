@@ -2,7 +2,7 @@
 
 *Actores e identidades: Alia y los agentes, por la persona y como sí mismos.*
 
-**Status:** Accepted
+**Status:** Accepted; amended by 0020 (2026-10-16: a public agent reaches the person present's own data under its owner's ceiling, and no agent asks for approval, so §2's "only payments and deletes still confirm" no longer holds)
 
 **Date:** 2026-10-06
 
