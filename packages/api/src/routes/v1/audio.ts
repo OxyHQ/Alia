@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
-import { KAANA_MAX_TRANSCRIPTION_FILE_BYTES } from '../../lib/kaana/port.js';
+import { MAX_TRANSCRIPTION_FILE_BYTES } from '@kaana.ai/contracts';
 import { getKaanaClient } from '../../lib/kaana/transport.js';
 import {
   dictationMediaType,
@@ -198,7 +198,7 @@ router.post('/speech', async (req: Request, res: Response) => {
 /** The clip is held in memory only, for the one request; never written to disk or stored. */
 const dictationUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: KAANA_MAX_TRANSCRIPTION_FILE_BYTES, files: 1, fields: 4 },
+  limits: { fileSize: MAX_TRANSCRIPTION_FILE_BYTES, files: 1, fields: 4 },
 });
 
 function transcriptionFailure(res: Response, error: TranscriptionError): Response {

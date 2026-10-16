@@ -141,8 +141,9 @@ describe('a call over the socket', () => {
     // Microphone audio reaches the upstream session; the first append is acknowledged.
     client.ws.send(new Uint8Array(1920), { binary: true });
     await until('input.ready', () => types(client).includes('input.ready'));
-    const session = h.kaana!.session;
-    expect(session.appendedBytes).toBe(1920);
+    const session = h.session();
+    await until('appended', () => h.commands('input_audio.append').length === 1);
+    expect(Buffer.from(h.commands('input_audio.append')[0]!.data, 'base64').byteLength).toBe(1920);
 
     // A tool round trip and a spoken answer.
     session.emit({
@@ -178,7 +179,7 @@ describe('a call over the socket', () => {
     client.send({ type: 'session.end' });
     await until('closed', () => client.closed !== null);
     expect(client.events.at(-1)).toMatchObject({ type: 'session.closed', reason: 'hangup' });
-    expect(session.closeCount).toBe(1);
+    expect(session.closed).toBe(true);
   });
 
   it('resumes a dropped socket on the same call and replays what it missed', async () => {
@@ -213,7 +214,7 @@ describe('a call over the socket', () => {
       }),
       'Voice socket dropped',
     );
-    h.kaana!.session.emit({ type: 'input_audio.speech_started', itemId: 'u1', audioStartMs: 0 });
+    h.session().emit({ type: 'input_audio.speech_started', itemId: 'u1', audioStartMs: 0 });
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     const second = await connect(url);
@@ -227,7 +228,7 @@ describe('a call over the socket', () => {
     });
     await until('resumed', () => types(second).includes('session.resumed'));
     expect(types(second)).toEqual(['auth.ok', 'user.speech_started', 'session.resumed']);
-    expect(h.kaana!.sessions).toHaveLength(1);
+    expect(h.server.sessions).toHaveLength(1);
     second.send({ type: 'session.end' });
     await until('closed', () => second.closed !== null);
   });

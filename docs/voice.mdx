@@ -17,21 +17,20 @@ no surface uses the browser's or the operating system's speech recognition.
 
 ## Status (ADR 0017 phase 1)
 
-Alia's part is built against a **port** of `@kaana.ai/sdk`
-(`packages/api/src/lib/kaana/port.ts`, the signatures of Kaana ADR 0002), which the
-real `Kaana` class of `@kaana.ai/sdk` 1.0.1 satisfies structurally (the typecheck is
-the proof), and tested against a contract-faithful fake (`lib/kaana/fake.ts`).
+Alia reaches Kaana's one canonical API (Kaana ADR 0003) through `@kaana.ai/sdk` 3.0.0
+and `@kaana.ai/contracts` 6.0.0. `packages/api/src/lib/kaana/port.ts` is a narrow port
+whose members are the `Kaana` client's own (function properties, so a mismatch fails
+the typecheck); every shape is the SDK's and the contract's, none restated. It is
+tested against `@kaana.ai/sdk/testing`: the same client against Kaana's own schemas,
+checks and voice catalogue in memory, so a request the tests accept is one Kaana
+accepts.
 `lib/kaana/transport.ts` is the one place the client is constructed: the real SDK,
 whose credential is Alia's Oxy service token with `aud: kaana.ai`
 (`oxyServiceTokenFor`, @oxy.so/core 4.9.1), minted from the same identity as every
 other Alia call to Oxy. A process with no Oxy service identity has no client, and
 then a call ends `realtime-unavailable` and dictation answers
 `TRANSCRIPTION_UNAVAILABLE` — typed, never a stand-in. So does every call while
-Kaana's public API is off (`KAANA_PUBLIC_API_ENABLED`, oxy-infra runbook 48). On a
-developer machine, `ALIA_VOICE_FAKE_UPSTREAM=1` (ignored by any deployed task)
-serves both from the fake in its scripted mode — a small energy detector plays the
-provider and answers with a tone — so capture, playback, echo cancellation and
-barge-in can be checked on a real device.
+Kaana's public API is off (`KAANA_PUBLIC_API_ENABLED`, oxy-infra runbook 48).
 
 What production still needs, outside Alia, is in [What is left](#what-is-left).
 
@@ -99,11 +98,13 @@ refused with `credential-not-supported` (third parties are a later decision).
 
 `rankRealtimeCandidates` (`lib/models/voice-models.ts`) reads Kaana's catalogue at
 open: a `conversation` session over `websocket`, tools, audio in and out, and the
-model's own input transcription (`capabilities.realtime.inputAudioTranscription`, the
-catalogue flag Kaana's phase 1 adds — see [What is left](#what-is-left)); the session
-language (the app's, matched on its primary subtag when the model lists no regional
-tag); a voice of the product gender (`male` | `female`) that speaks it; active. The
-cheapest estimated minute first, then the newest release. The upstream voice id is
+model's own input transcription (`capabilities.realtime.inputAudioTranscription`); a
+voice of the product gender (`male` | `female`); active. The cheapest
+`pricePerMinute` first. No model is chosen or excluded for its language: the person's
+BCP 47 locale is sent as it is (`inputAudioTranscription.language`), and Kaana gives
+every model the language. Nor does Alia set the silence that ends a turn: that is
+Kaana's default (`REALTIME_DEFAULT_SILENCE_DURATION_MS`), the same on every provider.
+The upstream voice id is
 sent to Kaana and never shown or returned. The open is tried on at most two
 candidates, and only when the model itself refused (`model_not_found`,
 `unsupported_modality`, `no_route_available`, `invalid_request` on `voice`/`config`);
@@ -237,12 +238,12 @@ The app says each in its own language (`voice.errors.*`, `voice.ended.*`).
 ### Credits
 
 A call is a paid-plan feature (`voice-mode`) and costs credits per minute at the
-**real cost** of the model that serves it: its catalogue price applied to the units
-Kaana measures (`session_milliseconds`, audio tokens, the in-session transcription),
-converted with `creditsForCost` (`lib/voice/credits.ts`). A block of five minutes is
+**real cost** of the model that serves it: the session's minutes, silence included,
+at its catalogue `pricePerMinute`, converted with `creditsForCost`
+(`lib/voice/credits.ts`). A block of five minutes is
 held at open, the next one a minute before the held one runs out; a refused block
 ends the call with `credits-exhausted` after the answer being spoken. At the end the
-call is settled from Kaana's measured total. Silence costs too on a session-time
+call is settled from the sessions' minutes. Silence costs too on a session-time
 model; the idle timeout bounds it. Alia sets **no** concurrency or spend cap of its
 own: those are the Alia app's policy in Oxy Console. No `voice-minutes` allowance
 returns (ADR 0013, ADR 0005).

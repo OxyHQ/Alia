@@ -19,15 +19,19 @@ vi.mock('../../credits-manager.js', () => ({
   }),
 }));
 
-const { FakeKaana, FakeKaanaError, fakeTranscriptionModel } = await import('../../kaana/fake.js');
+const { createFakeKaana, voiceCatalogue } = await import('@kaana.ai/sdk/testing');
+const { KaanaError } = await import('@kaana.ai/sdk');
 const { dictationMediaType, resetTranscriptionCatalogueForTests, transcribeDictation } =
   await import('../transcribe.js');
 const credits = await import('../../credits-manager.js');
 const { default: audioRouter } = await import('../../../routes/v1/audio.js');
+type KaanaClient = import('../../kaana/port.js').KaanaClient;
+type Upload = import('@kaana.ai/sdk/testing').FakeTranscriptionUpload;
 
 /**
- * Dictation (ADR 0017 §7): one clip, transcribed by a model computed from the
- * catalogue, free on every plan, typed when it fails, never partial.
+ * Dictation (ADR 0017 §7): one clip, transcribed by a model computed from
+ * Kaana's catalogue, free on every plan, typed when it fails, never partial.
+ * Against `@kaana.ai/sdk/testing`: the real client and Kaana's own rules.
  */
 
 beforeEach(() => {
@@ -42,59 +46,91 @@ const clip = (overrides: Partial<Parameters<typeof transcribeDictation>[2]> = {}
   ...overrides,
 });
 
-describe('transcribeDictation', () => {
-  it('uses the cheapest model that takes the media type and the language, for the person', async () => {
-    const dear = fakeTranscriptionModel({ modelId: 't/dear' });
-    const cheap = fakeTranscriptionModel({
-      modelId: 't/cheap',
-      pricing: {
-        priceVersionId: 'p',
-        currency: 'USD',
-        unitPrices: [
-          { unit: 'audio_input_milliseconds', amount: '0.001', per: 60_000, currency: 'USD' },
-        ],
+/** Kaana's transcription models, cheapest minute first. */
+const transcription = voiceCatalogue
+  .filter((model) => model.capabilities.apiFormats?.includes('audio_transcriptions'))
+  .sort((a, b) => Number(a.pricePerMinute!.amount) - Number(b.pricePerMinute!.amount));
+
+/** A fake Kaana whose transcriptions answer `text`, recording every upload. */
+function fakeKaana(text = 'hola mundo') {
+  const uploads: Upload[] = [];
+  const fake = createFakeKaana({
+    models: voiceCatalogue,
+    transcribe: (upload) => {
+      uploads.push(upload);
+      return { text, durationMs: 4_000 };
+    },
+  });
+  return { ...fake, uploads };
+}
+
+/** The client around the fake's, answering every transcription with `error`. */
+function refusing(kaana: KaanaClient, error: (model: string) => Error) {
+  const tried: string[] = [];
+  const client: KaanaClient = {
+    ...kaana,
+    audio: {
+      transcriptions: {
+        create: (async (request) => {
+          tried.push(request.model);
+          throw error(request.model);
+        }) as KaanaClient['audio']['transcriptions']['create'],
       },
-    });
-    const kaana = new FakeKaana({ models: [dear, cheap] });
-    kaana.transcriptText = '  hola mundo  ';
+    },
+  };
+  return { client, tried };
+}
+
+const refusal = (
+  code: 'model_not_found' | 'rate_limited' | 'provider_error',
+  retryAfterMs?: number,
+) =>
+  new KaanaError({
+    code,
+    message: code,
+    status: code === 'model_not_found' ? 404 : code === 'rate_limited' ? 429 : 502,
+    requestId: 'req_1',
+    retryable: code !== 'model_not_found',
+    ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+  });
+
+describe('transcribeDictation', () => {
+  it("uses the cheapest model that takes the media type, for the person, in the person's locale", async () => {
+    const { kaana, server, uploads } = fakeKaana('  hola mundo  ');
+    const cheapest = transcription[0]!;
     const result = await transcribeDictation(kaana, 'user-1', clip());
-    expect(result).toMatchObject({ text: 'hola mundo', model: 't/cheap@2026-09-01' });
-    expect(kaana.transcriptionRequests[0]).toMatchObject({
-      request: { model: 't/cheap', mediaType: 'audio/webm', language: 'es' },
-      options: { onBehalfOfUserId: 'user-1' },
+    expect(result).toMatchObject({
+      text: 'hola mundo',
+      model: `${cheapest.modelId}@${cheapest.currentRevision}`,
     });
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0]).toMatchObject({ mediaType: 'audio/webm', language: 'es-ES' });
+    expect(uploads[0]!.model.modelId).toBe(cheapest.modelId);
+    const upload = server.requests.find((request) => request.method === 'POST');
+    expect(upload?.headers.get('X-Oxy-User-Id')).toBe('user-1');
   });
 
   it('tries at most three models, and only on a model refusal', async () => {
-    const models = ['a', 'b', 'c', 'd'].map((id) => fakeTranscriptionModel({ modelId: `t/${id}` }));
-    const kaana = new FakeKaana({ models });
-    for (const id of ['a', 'b', 'c'])
-      kaana.failTranscription.push({
-        model: `t/${id}`,
-        error: new FakeKaanaError('model_not_found'),
-      });
-    await expect(transcribeDictation(kaana, 'u', clip())).rejects.toMatchObject({
+    const { kaana } = fakeKaana();
+    const gone = refusing(kaana, () => refusal('model_not_found'));
+    await expect(transcribeDictation(gone.client, 'u', clip())).rejects.toMatchObject({
       code: 'TRANSCRIPTION_UNAVAILABLE',
     });
-    expect(kaana.transcriptionRequests).toHaveLength(3);
+    expect(gone.tried).toEqual(transcription.slice(0, 3).map((model) => model.modelId));
 
     resetTranscriptionCatalogueForTests();
-    const limited = new FakeKaana({ models });
-    limited.failTranscription.push({
-      model: '*',
-      error: new FakeKaanaError('rate_limited', { retryAfterMs: 3_000 }),
-    });
-    await expect(transcribeDictation(limited, 'u', clip())).rejects.toMatchObject({
+    const limited = refusing(kaana, () => refusal('rate_limited', 3_000));
+    await expect(transcribeDictation(limited.client, 'u', clip())).rejects.toMatchObject({
       code: 'TRANSCRIPTION_LIMITED',
       retryable: true,
       retryAfterMs: 3_000,
     });
-    expect(limited.transcriptionRequests).toHaveLength(1);
+    expect(limited.tried).toHaveLength(1);
   });
 
   it('refuses a clip over five minutes, and is unavailable without Kaana or a model', async () => {
     await expect(
-      transcribeDictation(new FakeKaana(), 'u', clip({ durationMs: 5 * 60_000 + 3_000 })),
+      transcribeDictation(fakeKaana().kaana, 'u', clip({ durationMs: 5 * 60_000 + 3_000 })),
     ).rejects.toMatchObject({
       code: 'CLIP_TOO_LONG',
       httpStatus: 413,
@@ -103,8 +139,9 @@ describe('transcribeDictation', () => {
       code: 'TRANSCRIPTION_UNAVAILABLE',
       httpStatus: 503,
     });
+    resetTranscriptionCatalogueForTests();
     await expect(
-      transcribeDictation(new FakeKaana({ models: [] }), 'u', clip()),
+      transcribeDictation(createFakeKaana({ models: [] }).kaana, 'u', clip()),
     ).rejects.toMatchObject({ code: 'TRANSCRIPTION_UNAVAILABLE' });
   });
 
@@ -145,8 +182,7 @@ describe('POST /v1/audio/transcriptions', () => {
   }
 
   it('answers the text for a person on any plan, and charges nothing', async () => {
-    const kaana = new FakeKaana();
-    kaana.transcriptText = 'dictado';
+    const { kaana, server: kaanaServer } = fakeKaana('dictado');
     H.kaana = kaana;
     const url = await serve({ id: 'free-user' });
     const response = await fetch(url, {
@@ -156,17 +192,16 @@ describe('POST /v1/audio/transcriptions', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       text: 'dictado',
-      model: 'fake/transcribe@2026-09-01',
+      model: `${transcription[0]!.modelId}@${transcription[0]!.currentRevision}`,
     });
     expect(credits.reserveCredits).not.toHaveBeenCalled();
     expect(credits.finalizeCredits).not.toHaveBeenCalled();
-    expect(kaana.transcriptionRequests[0]?.options?.onBehalfOfUserId).toBe('free-user');
+    const upload = kaanaServer.requests.find((request) => request.method === 'POST');
+    expect(upload?.headers.get('X-Oxy-User-Id')).toBe('free-user');
   });
 
   it('is typed when it fails', async () => {
-    const kaana = new FakeKaana();
-    kaana.failTranscription.push({ model: '*', error: new FakeKaanaError('provider_error') });
-    H.kaana = kaana;
+    H.kaana = refusing(fakeKaana().kaana, () => refusal('provider_error')).client;
     const url = await serve({ id: 'u' });
     const failed = await fetch(url, { method: 'POST', body: form({ durationMs: '1000' }) });
     expect(failed.status).toBe(502);
@@ -201,7 +236,7 @@ describe('POST /v1/audio/transcriptions', () => {
   });
 
   it('takes a person’s session only', async () => {
-    H.kaana = new FakeKaana();
+    H.kaana = fakeKaana().kaana;
     const anonymous = await fetch(await serve(null), {
       method: 'POST',
       body: form({ durationMs: '10' }),

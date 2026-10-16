@@ -6,7 +6,8 @@
  * code — never Kaana's or a provider's words.
  */
 
-import { kaanaErrorOf, type KaanaPublicErrorCode } from '../kaana/port.js';
+import type { PublicErrorCode } from '@kaana.ai/contracts';
+import { KaanaConnectionError, KaanaError, KaanaProtocolError } from '@kaana.ai/sdk';
 import type { VoiceServerErrorCode } from './protocol.js';
 
 export const VOICE_ERROR_TEXT: Readonly<Record<VoiceServerErrorCode, string>> = {
@@ -39,14 +40,14 @@ export class VoiceFailure extends Error {
   }
 }
 
-const LIMITED: ReadonlySet<KaanaPublicErrorCode> = new Set([
+const LIMITED: ReadonlySet<PublicErrorCode> = new Set([
   'rate_limited',
   'insufficient_balance',
   'spending_limit_exceeded',
   'quota_exceeded',
 ]);
 
-const UNAVAILABLE: ReadonlySet<KaanaPublicErrorCode> = new Set([
+const UNAVAILABLE: ReadonlySet<PublicErrorCode> = new Set([
   'no_route_available',
   'service_unavailable',
   'model_not_found',
@@ -54,7 +55,7 @@ const UNAVAILABLE: ReadonlySet<KaanaPublicErrorCode> = new Set([
   'authentication_failed',
 ]);
 
-const FAILED: ReadonlySet<KaanaPublicErrorCode> = new Set([
+const FAILED: ReadonlySet<PublicErrorCode> = new Set([
   'provider_error',
   'provider_timeout',
   'provider_overloaded',
@@ -71,10 +72,9 @@ const FAILED: ReadonlySet<KaanaPublicErrorCode> = new Set([
  */
 export function voiceFailureFromKaana(error: unknown): VoiceFailure {
   if (error instanceof VoiceFailure) return error;
-  const kaana = kaanaErrorOf(error);
-  if (kaana === null || kaana.kind !== 'kaana')
+  if (!(error instanceof KaanaError))
     return new VoiceFailure('realtime-failed', { retryable: true, cause: error });
-  const { code, retryable } = kaana;
+  const { code, retryable } = error;
   if (UNAVAILABLE.has(code))
     return new VoiceFailure('realtime-unavailable', { retryable, cause: error });
   if (LIMITED.has(code)) return new VoiceFailure('realtime-limited', { retryable, cause: error });
@@ -88,18 +88,17 @@ export function voiceFailureFromKaana(error: unknown): VoiceFailure {
  * credit and rate refusals fail at once, as speech does.
  */
 export function isModelRefusal(error: unknown): boolean {
-  const kaana = kaanaErrorOf(error);
-  if (kaana === null || kaana.kind !== 'kaana' || kaana.afterOutput) return false;
+  if (!(error instanceof KaanaError) || error.afterOutput) return false;
   if (
-    kaana.code === 'model_not_found' ||
-    kaana.code === 'unsupported_modality' ||
-    kaana.code === 'no_route_available'
+    error.code === 'model_not_found' ||
+    error.code === 'unsupported_modality' ||
+    error.code === 'no_route_available'
   )
     return true;
   return (
-    kaana.code === 'invalid_request' &&
-    typeof kaana.param === 'string' &&
-    /voice|config/i.test(kaana.param)
+    error.code === 'invalid_request' &&
+    typeof error.param === 'string' &&
+    /voice|config/i.test(error.param)
   );
 }
 
@@ -107,7 +106,7 @@ export function isModelRefusal(error: unknown): boolean {
 export type VoiceFailureUpstream =
   | {
       readonly kind: 'kaana';
-      readonly code: KaanaPublicErrorCode;
+      readonly code: PublicErrorCode;
       readonly param: string | null;
       readonly requestId: string | null;
       readonly status: number | null;
@@ -121,9 +120,10 @@ export type VoiceFailureUpstream =
  * hears (that is {@link VOICE_ERROR_TEXT}).
  */
 export function upstreamOfFailure(failure: VoiceFailure): VoiceFailureUpstream | null {
-  const upstream = kaanaErrorOf(failure.cause);
-  if (upstream === null) return null;
-  if (upstream.kind !== 'kaana') return { kind: upstream.kind };
+  const upstream = failure.cause;
+  if (upstream instanceof KaanaConnectionError) return { kind: 'connection' };
+  if (upstream instanceof KaanaProtocolError) return { kind: 'protocol' };
+  if (!(upstream instanceof KaanaError)) return null;
   return {
     kind: 'kaana',
     code: upstream.code,

@@ -43,21 +43,11 @@ import type { ToolInvocation } from '../../domain/conversation.js';
 import type { HydratedAgent } from '../agent-identity.js';
 import type { PrefetchedTurnInputs, TurnIdentity } from '../chat/turn-inputs.js';
 import type { AppendedMessage } from '../conversation-saver.js';
-import type {
-  KaanaClient,
-  KaanaRealtimeClientEvent,
-  KaanaRealtimeServerEvent,
-  KaanaRealtimeSession,
-  KaanaUsage,
-} from '../kaana/port.js';
+import type { RealtimeServerEvent } from '@kaana.ai/contracts';
+import type { RealtimeClientEventInput, RealtimeSession } from '@kaana.ai/sdk';
+import type { KaanaClient } from '../kaana/port.js';
 import { log } from '../logger.js';
-import {
-  billsSessionTime,
-  rankRealtimeCandidates,
-  type RealtimeCandidate,
-  usdOfUnits,
-  usdPerUnit,
-} from '../models/voice-models.js';
+import { rankRealtimeCandidates, type RealtimeCandidate } from '../models/voice-models.js';
 import type { startCall } from './call-registry.js';
 import { type VoiceCreditDeps, VoiceCreditMeter } from './credits.js';
 import {
@@ -94,17 +84,13 @@ export interface VoiceCallLimits {
   readonly warningBeforeMs: number;
   /** A dropped socket may resume within this. */
   readonly resumeWindowMs: number;
-  /**
-   * How long a pause ends the person's turn (`turnDetection.silenceDurationMs`).
-   * Long enough that a breath between two clauses is not the end of what they
-   * are saying, short enough that the answer still comes at once.
-   */
-  readonly endOfTurnSilenceMs: number;
   /** How long an interrupted answer waits for the client's played milliseconds. */
   readonly interruptWaitMs: number;
   /**
-   * How long a person's turn waits, after its last sign of life, for its final
-   * transcript before what it has is stored (or nothing, when it has none).
+   * How long a person's turn waits, after its last event, for its transcript
+   * before what it has is stored (nothing, when it has none): a transcription
+   * that failed sends no `transcript.done`, and the turn must not hold the
+   * exchange behind it.
    */
   readonly userTranscriptWaitMs: number;
   readonly creditCheckMs: number;
@@ -119,7 +105,6 @@ export const VOICE_CALL_LIMITS: VoiceCallLimits = {
   idleTimeoutMs: 2 * 60_000,
   warningBeforeMs: 60_000,
   resumeWindowMs: 30_000,
-  endOfTurnSilenceMs: 500,
   interruptWaitMs: 1_500,
   userTranscriptWaitMs: 8_000,
   creditCheckMs: 15_000,
@@ -200,13 +185,8 @@ export interface VoiceCallStart {
 /* -------------------------------------------------------------------------- */
 
 /**
- * What the person said in one input item.
- *
- * A provider may send several `transcript.done` for one item: xAI sends a
- * growing transcript at every pause, repeats, and its final one only after the
- * item is committed (measured 2026-10-16). OpenAI commits first and sends one.
- * So the transcript is final at the first `done` after the commit, and until
- * then each `done` replaces the last.
+ * What the person said in one input item: its one `transcript.done`, the final
+ * transcript (Kaana contract set 6.0.0, whatever the provider sends).
  */
 interface UserEntry {
   kind: 'user';
@@ -214,8 +194,6 @@ interface UserEntry {
   messageId: string;
   itemId: string;
   text: string | null;
-  committed: boolean;
-  final: boolean;
   /** Refreshed by every event of the item: stored as it is once this passes. */
   deadline: number;
 }
@@ -249,20 +227,25 @@ interface ToolCallState {
   responseId: string;
 }
 
-interface UpstreamState {
-  readonly session: KaanaRealtimeSession;
-  requestId: string | null;
-  createdAt: number | null;
-  responseUnits: KaanaUsage;
-  closedUnits: KaanaUsage | null;
+/**
+ * Close a session Alia is done with. One that is already gone or detached has
+ * nothing to close: the SDK's `close()` throws then rather than rejecting, so
+ * it is awaited inside the `try`.
+ */
+async function closeQuietly(session: RealtimeSession): Promise<void> {
+  try {
+    await session.close();
+  } catch {
+    // Nothing left to settle from here: Kaana settles the session it closed.
+  }
 }
 
-function addUnits(into: KaanaUsage, units: KaanaUsage): void {
-  for (const { unit, quantity } of units) {
-    const existing = into.find((entry) => entry.unit === unit);
-    if (existing) existing.quantity += quantity;
-    else into.push({ unit, quantity });
-  }
+interface UpstreamState {
+  readonly session: RealtimeSession;
+  requestId: string | null;
+  createdAt: number | null;
+  /** When it ended; the minutes between are what the session costs. */
+  endedAt: number | null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -299,12 +282,9 @@ export class VoiceCall {
   private openedAt: number | null = null;
   private reopens = 0;
   private inputAcknowledged = false;
-  private commandCount = 0;
   private sentToolNames: string[] = [];
 
   private readonly ledger: LedgerEntry[] = [];
-  /** Input items already stored, by item id, with the message they were stored as. */
-  private readonly storedUserItems = new Map<string, string>();
   private currentTurn: TurnEntry | null = null;
   private readonly responses = new Map<string, ResponseState>();
   private readonly toolCalls = new Map<string, ToolCallState>();
@@ -509,7 +489,7 @@ export class VoiceCall {
         linkedAgent: this.linkedAgent,
         userMemory: inputs.userMemory,
         oxyUser: inputs.oxyUser,
-        language: candidates[0]!.language,
+        language: start.locale,
         history,
         onApprovalRequested: (toolName) => this.emit({ type: 'approval.requested', toolName }),
       });
@@ -520,18 +500,11 @@ export class VoiceCall {
     }
   }
 
-  private command(
-    body: DistributiveOmit<KaanaRealtimeClientEvent, 'schemaVersion' | 'requestId' | 'commandId'>,
-  ): void {
+  private command(body: RealtimeClientEventInput): void {
     const upstream = this.upstream;
     if (!upstream || upstream.requestId === null) return;
     try {
-      upstream.session.send({
-        schemaVersion: 1,
-        requestId: upstream.requestId,
-        commandId: `${this.callId}:${++this.commandCount}`,
-        ...body,
-      } as KaanaRealtimeClientEvent);
+      upstream.session.send(body);
     } catch (error) {
       log.voice.warn(
         { err: error, type: body.type, callId: this.callId },
@@ -555,7 +528,7 @@ export class VoiceCall {
     const elapsed = this.openedAt === null ? 0 : this.now() - this.openedAt;
     const remaining = Math.max(1_000, this.limits.maxDurationMs - elapsed);
 
-    let session: KaanaRealtimeSession | null = null;
+    let session: RealtimeSession | null = null;
     for (const [index, candidate] of candidates.entries()) {
       try {
         session = await kaana.realtime.connect(
@@ -570,22 +543,18 @@ export class VoiceCall {
               voice: candidate.voiceId,
               inputAudioFormat: 'pcm16_24khz',
               outputAudioFormat: 'pcm16_24khz',
-              // The only mode every provider accepts; barge-in is the provider's.
-              turnDetection: {
-                type: 'server_vad',
-                createResponse: true,
-                interruptResponse: true,
-                silenceDurationMs: this.limits.endOfTurnSilenceMs,
-              },
-              // The person's words become messages: transcribed inside the session.
-              inputAudioTranscription: { language: candidate.language },
-              ...(tools.length > 0 ? { tools, toolChoice: 'auto' as const } : {}),
+              // Barge-in is the session's; the silence that ends a turn is Kaana's default.
+              turnDetection: { type: 'server_vad', createResponse: true, interruptResponse: true },
+              // The person's words become messages, transcribed inside the session
+              // in the person's own BCP 47 locale.
+              inputAudioTranscription: { language: start.locale },
+              ...(tools.length > 0 ? { tools } : {}),
             },
             limits: sessionLimits(remaining, this.limits.idleTimeoutMs),
             clientSessionId: this.callId,
             labels: { surface: 'alia-voice' },
           },
-          { onBehalfOfUserId: this.oxyUserId, idempotencyKey: `${this.callId}:${this.reopens}` },
+          { onBehalfOfUserId: this.oxyUserId },
         );
         this.candidate = candidate;
         break;
@@ -603,15 +572,14 @@ export class VoiceCall {
     if (!session || !this.candidate) throw new VoiceFailure('realtime-unavailable');
     this.meter?.reprice(this.candidate.usdPerMinute);
     if (this.isClosed) {
-      await session.close().catch(() => undefined);
+      await closeQuietly(session);
       return;
     }
     const upstream: UpstreamState = {
       session,
       requestId: null,
       createdAt: null,
-      responseUnits: [],
-      closedUnits: null,
+      endedAt: null,
     };
     this.upstream = upstream;
     this.inputAcknowledged = false;
@@ -624,7 +592,7 @@ export class VoiceCall {
     try {
       for await (const event of upstream.session) {
         if (this.upstream !== upstream) {
-          if (event.type === 'session.closed') upstream.closedUnits = event.units;
+          if (event.type === 'session.closed') upstream.endedAt ??= this.now();
           continue;
         }
         this.handle(upstream, event);
@@ -663,9 +631,10 @@ export class VoiceCall {
     this.emit({ type: 'session.reconnecting' });
     const previous = this.upstream;
     if (previous) {
+      previous.endedAt ??= this.now();
       this.pastUsd += this.usdOf(previous);
       this.upstream = null;
-      void previous.session.close().catch(() => undefined);
+      void closeQuietly(previous.session);
     }
     // What the old session said is in the new one's instructions.
     this.closeOpenTurn('cancelled');
@@ -679,9 +648,9 @@ export class VoiceCall {
     }
   }
 
-  private handle(upstream: UpstreamState, event: KaanaRealtimeServerEvent): void {
+  private handle(upstream: UpstreamState, event: RealtimeServerEvent): void {
     if (event.type === 'session.closed') {
-      upstream.closedUnits = event.units;
+      upstream.endedAt ??= this.now();
       this.onUpstreamClosed(event.reason);
       return;
     }
@@ -700,18 +669,15 @@ export class VoiceCall {
         this.userEntry(event.itemId);
         this.emit({ type: 'user.speech_stopped', itemId: event.itemId });
         return;
-      case 'input_audio.committed': {
-        const entry = this.userEntry(event.itemId);
-        if (entry) entry.committed = true;
+      case 'input_audio.committed':
+        this.userEntry(event.itemId);
         return;
-      }
       case 'transcript.delta': {
         if (event.source === 'input_audio') {
-          const messageId = this.userMessageId(event.itemId);
           this.emit({
             type: 'transcript.delta',
             role: 'user',
-            messageId,
+            messageId: this.userEntry(event.itemId).messageId,
             itemId: event.itemId,
             text: event.text,
           });
@@ -731,14 +697,11 @@ export class VoiceCall {
       case 'transcript.done': {
         if (event.source === 'input_audio') {
           const entry = this.userEntry(event.itemId);
-          if (entry) {
-            entry.text = event.transcript;
-            if (entry.committed) entry.final = true;
-          }
+          entry.text = event.transcript;
           this.emit({
             type: 'transcript.done',
             role: 'user',
-            messageId: this.userMessageId(event.itemId),
+            messageId: entry.messageId,
             itemId: event.itemId,
             text: event.transcript,
           });
@@ -809,7 +772,7 @@ export class VoiceCall {
 
   private onCreated(
     upstream: UpstreamState,
-    event: Extract<KaanaRealtimeServerEvent, { type: 'session.created' }>,
+    event: Extract<RealtimeServerEvent, { type: 'session.created' }>,
   ): void {
     upstream.requestId = event.requestId;
     upstream.createdAt = this.now();
@@ -836,7 +799,7 @@ export class VoiceCall {
   }
 
   private onUpstreamClosed(
-    reason: Extract<KaanaRealtimeServerEvent, { type: 'session.closed' }>['reason'],
+    reason: Extract<RealtimeServerEvent, { type: 'session.closed' }>['reason'],
   ): void {
     if (this.isClosed) return;
     switch (reason) {
@@ -867,7 +830,7 @@ export class VoiceCall {
 
   private onToolCall(
     upstream: UpstreamState,
-    event: Extract<KaanaRealtimeServerEvent, { type: 'tool_call' }>,
+    event: Extract<RealtimeServerEvent, { type: 'tool_call' }>,
   ): void {
     const state = this.toolCalls.get(event.toolCallId) ?? {
       name: '',
@@ -929,11 +892,10 @@ export class VoiceCall {
 
   private onResponseDone(
     upstream: UpstreamState,
-    event: Extract<KaanaRealtimeServerEvent, { type: 'response.done' }>,
+    event: Extract<RealtimeServerEvent, { type: 'response.done' }>,
   ): void {
     this.activity();
     this.responsesInFlight = Math.max(0, this.responsesInFlight - 1);
-    addUnits(upstream.responseUnits, event.units);
     const response = this.responses.get(event.responseId);
     this.responses.delete(event.responseId);
     this.emit({
@@ -969,13 +931,8 @@ export class VoiceCall {
 
   /* -------------------------------- ledger -------------------------------- */
 
-  /**
-   * The ledger entry of an input item, its deadline refreshed; created on its
-   * first event. `null` once the item is stored: a later event of it (xAI
-   * repeats its final transcript) is never a second message.
-   */
-  private userEntry(itemId: string): UserEntry | null {
-    if (this.storedUserItems.has(itemId)) return null;
+  /** The ledger entry of an input item, its deadline refreshed; created on its first event. */
+  private userEntry(itemId: string): UserEntry {
     const deadline = this.now() + this.limits.userTranscriptWaitMs;
     const existing = this.ledger.find(
       (entry): entry is UserEntry => entry.kind === 'user' && entry.itemId === itemId,
@@ -989,18 +946,11 @@ export class VoiceCall {
       messageId: `voice-${randomUUID()}`,
       itemId,
       text: null,
-      committed: false,
-      final: false,
       deadline,
     };
     this.ledger.push(entry);
     this.scheduleLedger();
     return entry;
-  }
-
-  /** The message an input item is (or was) stored as. */
-  private userMessageId(itemId: string): string {
-    return this.storedUserItems.get(itemId) ?? this.userEntry(itemId)!.messageId;
   }
 
   /** The answer being built: chained responses (tool round trips) are one turn. */
@@ -1040,7 +990,7 @@ export class VoiceCall {
 
   private ready(entry: LedgerEntry, force: boolean): boolean {
     if (force) return true;
-    if (entry.kind === 'user') return entry.final || this.now() >= entry.deadline;
+    if (entry.kind === 'user') return entry.text !== null || this.now() >= entry.deadline;
     if (!entry.done) return false;
     return (
       entry.interruptDeadline === undefined ||
@@ -1053,9 +1003,9 @@ export class VoiceCall {
     if (this.ledgerTimer || this.isClosed) return;
     const deadlines = this.ledger.flatMap((entry) =>
       entry.kind === 'user'
-        ? entry.final
-          ? []
-          : [entry.deadline]
+        ? entry.text === null
+          ? [entry.deadline]
+          : []
         : entry.done &&
             entry.interruptDeadline !== undefined &&
             entry.interruptedAfterMs === undefined
@@ -1077,7 +1027,6 @@ export class VoiceCall {
     while (this.ledger.length > 0 && this.ready(this.ledger[0]!, force)) {
       const entry = this.ledger.shift()!;
       if (entry.kind === 'user') {
-        this.storedUserItems.set(entry.itemId, entry.messageId);
         const text = entry.text?.trim() ?? '';
         if (text !== '') batch.push({ id: entry.messageId, role: 'user', content: text });
         continue;
@@ -1153,31 +1102,15 @@ export class VoiceCall {
     this.idleTimer.unref?.();
   }
 
-  /** What the current upstream session has cost so far, in USD. */
+  /**
+   * What an upstream session has cost so far, in USD: its minutes, silence
+   * included, at the served model's published price per minute.
+   */
   private usdOf(upstream: UpstreamState): number {
-    const pricing = this.candidate?.model.pricing;
-    const units: KaanaUsage = upstream.closedUnits?.length
-      ? upstream.closedUnits
-      : (() => {
-          const running = upstream.responseUnits.map((entry) => ({ ...entry }));
-          // Session time is billed silence included: estimate it until Kaana reports it.
-          if (
-            this.candidate &&
-            billsSessionTime(this.candidate.model) &&
-            upstream.createdAt !== null
-          )
-            addUnits(running, [
-              { unit: 'session_milliseconds', quantity: this.now() - upstream.createdAt },
-            ]);
-          return running;
-        })();
-    const { usd, unpriced } = usdOfUnits(pricing, units);
-    if (unpriced.length > 0)
-      log.voice.warn(
-        { unpriced, callId: this.callId },
-        'Voice usage in units the catalogue does not price',
-      );
-    return usd;
+    const perMinute = this.candidate?.usdPerMinute ?? null;
+    if (perMinute === null || upstream.createdAt === null) return 0;
+    const minutes = ((upstream.endedAt ?? this.now()) - upstream.createdAt) / 60_000;
+    return Math.max(0, minutes) * perMinute;
   }
 
   private runningUsd(): number {
@@ -1226,19 +1159,12 @@ export class VoiceCall {
 
       const upstream = this.upstream;
       if (upstream) {
-        try {
-          // Settles exactly once upstream; bounded so a hung close never holds the call.
-          const units = await Promise.race([
-            upstream.session.close(),
-            new Promise<KaanaUsage>((resolve) => setTimeout(() => resolve([]), 5_000).unref?.()),
-          ]);
-          if (units.length > 0) upstream.closedUnits = units;
-        } catch (error) {
-          log.voice.warn(
-            { err: error, callId: this.callId },
-            'Upstream session did not close cleanly',
-          );
-        }
+        upstream.endedAt ??= this.now();
+        // Settles exactly once upstream; bounded so a hung close never holds the call.
+        await Promise.race([
+          closeQuietly(upstream.session),
+          new Promise((resolve) => setTimeout(resolve, 5_000).unref?.()),
+        ]);
       }
 
       this.closeOpenTurn('cancelled');
@@ -1285,11 +1211,4 @@ export class VoiceCall {
   }
 
   /* --------------------------------- tests -------------------------------- */
-
-  /** For tests: the price the served model puts on one session millisecond. */
-  get sessionMsPrice(): number | null {
-    return usdPerUnit(this.candidate?.model.pricing, 'session_milliseconds');
-  }
 }
-
-type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;

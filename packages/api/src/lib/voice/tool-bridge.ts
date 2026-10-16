@@ -10,9 +10,10 @@
  */
 
 import { asSchema, type Tool, type ToolSet } from 'ai';
-import type { KaanaToolDefinition } from '../kaana/port.js';
-import { KAANA_MAX_REALTIME_TOOLS } from '../kaana/port.js';
-import { log } from '../logger.js';
+import type { RealtimeSessionConfig } from '@kaana.ai/contracts';
+
+/** One tool as the session declares it. */
+type RealtimeToolDefinition = NonNullable<RealtimeSessionConfig['tools']>[number];
 
 /** A tool call that runs longer than this answers the model with a typed tool error. */
 export const VOICE_TOOL_TIMEOUT_MS = 60_000;
@@ -38,20 +39,17 @@ function parametersOf(built: Tool): Record<string, unknown> {
 }
 
 /**
- * The session's tool definitions: the named tools, in the given order, at most
- * {@link KAANA_MAX_REALTIME_TOOLS}. The order is the routed active set
- * (`lib/tool-budget.ts`), so what is cut is what loading put last.
+ * The session's tool definitions: the named tools, in the given order. The
+ * names are the routed active set (`lib/tool-budget.ts`), already within one
+ * request's tool count; a set the contract would not take is refused by the
+ * SDK's own check of the open, with its `param`, never trimmed here.
  */
-export function toRealtimeTools(tools: ToolSet, names: readonly string[]): KaanaToolDefinition[] {
-  const definitions: KaanaToolDefinition[] = [];
+export function toRealtimeTools(
+  tools: ToolSet,
+  names: readonly string[],
+): RealtimeToolDefinition[] {
+  const definitions: RealtimeToolDefinition[] = [];
   for (const name of names) {
-    if (definitions.length >= KAANA_MAX_REALTIME_TOOLS) {
-      log.voice.warn(
-        { dropped: names.length - definitions.length },
-        'Voice tool set over the limit',
-      );
-      break;
-    }
     const built = tools[name];
     if (!built || typeof built.execute !== 'function') continue;
     definitions.push({

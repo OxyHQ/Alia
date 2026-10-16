@@ -6,17 +6,17 @@ vi.mock('../../logger.js', () => {
 });
 
 const { creditsForCost } = await import('../../credits-manager.js');
-const { FakeKaana, FakeKaanaError, fakeRealtimeModel, fakeTranscriptionModel } = await import(
-  '../../kaana/fake.js'
-);
+const { KaanaBillingError, KaanaError } = await import('@kaana.ai/sdk');
 const { decodeAssistantAudioFrame } = await import('../protocol.js');
-const { harness, START, until, pcmBase64, weatherTools } = await import('./support.js');
+const { harness, START, until, pcmBase64, weatherTools, REALTIME, catalogueModel, realtimeModel } =
+  await import('./support.js');
 
 /**
- * A voice call end to end against the contract-faithful Kaana fake (ADR 0017
- * §3): opening in the ADR's order, tools run in Alia, barge-in truncated at
- * what was heard, transcripts persisted as messages, limits, credits per
- * minute and typed failures.
+ * A voice call end to end against `@kaana.ai/sdk/testing`, the real client
+ * against Kaana's own rules and catalogue in memory (ADR 0017 §3): opening in
+ * the ADR's order, tools run in Alia, barge-in truncated at what was heard,
+ * transcripts persisted as messages, limits, credits per minute and typed
+ * failures.
  */
 
 async function opened(options: Parameters<typeof harness>[0] = {}) {
@@ -31,82 +31,74 @@ function wire(h: ReturnType<typeof harness>): string {
   return JSON.stringify(h.sink.events);
 }
 
+/** The catalogue's first voice of a gender on a model. */
+function voiceOf(model: typeof REALTIME, gender: 'female' | 'male'): string {
+  return model.audio!.voices.find((voice) => voice.gender === gender)!.id;
+}
+
 describe('opening', () => {
-  it('opens a conversation with server VAD, barge-in, input transcription and the computed voice', async () => {
+  it('opens a conversation with server VAD, barge-in, input transcription in the locale and the computed voice', async () => {
     const h = await opened();
-    const request = h.kaana!.connectRequests[0]!;
-    expect(request.model).toBe('fake/realtime-voice');
-    expect(request.kind).toBe('conversation');
-    expect(request.config.turnDetection).toEqual({
+    const session = h.session();
+    expect(session.model.modelId).toBe(REALTIME.modelId);
+    const { open } = session;
+    expect(open.kind).toBe('conversation');
+    // Barge-in is the session's; the silence that ends a turn is Kaana's default.
+    expect(open.config.turnDetection).toEqual({
       type: 'server_vad',
       createResponse: true,
       interruptResponse: true,
-      // Alia's rule: half a second of silence ends the person's turn.
-      silenceDurationMs: 500,
     });
-    expect(request.config.inputAudioTranscription).toEqual({ language: 'es' });
-    expect(request.config.voice).toBe('fake-voice-a');
-    expect(request.config.inputAudioFormat).toBe('pcm16_24khz');
-    expect(request.config.outputAudioFormat).toBe('pcm16_24khz');
-    expect(request.config.instructions).toBe('INSTRUCTIONS(0)');
-    expect(request.config.tools?.map((tool) => tool.name)).toEqual(['lookupWeather']);
-    expect(request.config.tools?.[0]?.parameters).toMatchObject({
+    // The person's locale as it is: Kaana gives every model the language.
+    expect(open.config.inputAudioTranscription).toEqual({ language: 'es-ES' });
+    expect(open.config.voice).toBe(voiceOf(REALTIME, 'female'));
+    expect(open.config.inputAudioFormat).toBe('pcm16_24khz');
+    expect(open.config.outputAudioFormat).toBe('pcm16_24khz');
+    expect(open.config.instructions).toBe('INSTRUCTIONS(0)');
+    expect(open.config.tools?.map((tool) => tool.name)).toEqual(['lookupWeather']);
+    expect(open.config.tools?.[0]?.parameters).toMatchObject({
       type: 'object',
       properties: { city: { type: 'string' } },
     });
-    expect(request.limits).toMatchObject({
+    // Auto is the contract's default: never sent.
+    expect(open.config).not.toHaveProperty('toolChoice');
+    expect(open.limits).toMatchObject({
       maxDurationMs: 30 * 60_000,
       idleTimeoutMs: 2 * 60_000,
       maxResponses: 500,
     });
-    // Kaana refuses limits it does not enforce (`limits.maxTextItems`): never sent.
-    expect(request.limits).not.toHaveProperty('maxTextItems');
-    expect(h.kaana!.session.options?.onBehalfOfUserId).toBe('user-1');
+    // The catalogue was read for the person, under Alia's service token.
+    const list = h.server.requests.find(
+      (request) => request.method === 'GET' && request.path.endsWith('/models'),
+    );
+    expect(list?.headers.get('X-Oxy-User-Id')).toBe('user-1');
     expect(h.sink.types().slice(0, 2)).toEqual(['session.accepted', 'session.ready']);
     const ready = h.sink.find('session.ready')[0]!;
-    expect(ready.model.id).toBe('fake/realtime-voice@2026-10-01');
+    expect(ready.model.id).toBe(`${REALTIME.modelId}@${REALTIME.currentRevision}`);
     // The device never sees the instructions, a schema or the upstream voice id.
     expect(wire(h)).not.toContain('INSTRUCTIONS');
     expect(wire(h)).not.toContain('properties');
-    expect(wire(h)).not.toContain('fake-voice-a');
+    expect(wire(h)).not.toContain(voiceOf(REALTIME, 'female'));
     // The one-call rule ran, and the first credit block is held.
     expect(h.startCall).toHaveBeenCalledOnce();
     expect(h.reserve).toHaveBeenCalledOnce();
     await h.call.end('hangup');
   });
 
-  it('acknowledges audio only once it was appended to a created session', async () => {
+  it('forwards audio only into a created session, acknowledging the first frame once', async () => {
     const h = harness();
-    const kaana = h.kaana!;
-    kaana.autoCreate = false;
-    await h.call.open(START);
+    // Before there is a session, a frame goes nowhere.
     h.call.onClientAudio(new Uint8Array(1920));
-    expect(kaana.session.appendCount).toBe(0);
-    expect(h.sink.types()).not.toContain('input.ready');
-    kaana.session.emit({
-      type: 'session.created',
-      model: 'fake/realtime-voice@2026-10-01',
-      kind: 'conversation',
-      config: kaana.session.request.config,
-      limits: {
-        maxDurationMs: 1_800_000,
-        idleTimeoutMs: 120_000,
-        maxInputAudioBytes: 1,
-        maxOutputAudioBytes: 1,
-        maxResponses: 500,
-      },
-      resumeWindowMs: 30_000,
-      startedAt: new Date().toISOString(),
-      expiresAt: new Date().toISOString(),
-    });
+    await h.call.open(START);
     await until('session.ready', () => h.sink.types().includes('session.ready'));
     h.call.onClientAudio(new Uint8Array(1920));
     h.call.onClientAudio(new Uint8Array(1920));
-    expect(kaana.session.appendCount).toBe(2);
+    await until('appended', () => h.commands('input_audio.append').length === 2);
     expect(h.sink.find('input.ready')).toHaveLength(1);
     // A frame over the contract's bound is not forwarded.
     h.call.onClientAudio(new Uint8Array(49_153));
-    expect(kaana.session.appendCount).toBe(2);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(h.commands('input_audio.append')).toHaveLength(2);
     await h.call.end('hangup');
   });
 
@@ -117,7 +109,7 @@ describe('opening', () => {
     expect(h.sink.find('session.closed')[0]?.reason).toBe('error');
     expect(h.reserve).not.toHaveBeenCalled();
     expect(h.startCall).not.toHaveBeenCalled();
-    expect(h.kaana!.connectRequests).toHaveLength(0);
+    expect(h.server.sessions).toHaveLength(0);
     expect(h.sink.closed).toBe(true);
   });
 
@@ -130,7 +122,7 @@ describe('opening', () => {
     });
     expect(h.sink.find('error').map((event) => event.code)).not.toContain('plan-required');
     expect(h.reserve).not.toHaveBeenCalled();
-    expect(h.kaana!.connectRequests).toHaveLength(0);
+    expect(h.server.sessions).toHaveLength(0);
   });
 
   it('refuses when the credits do not cover the first block, without taking over another call', async () => {
@@ -138,7 +130,7 @@ describe('opening', () => {
     await h.call.open(START);
     expect(h.sink.find('error')[0]?.code).toBe('credits-exhausted');
     expect(h.startCall).not.toHaveBeenCalled();
-    expect(h.kaana!.connectRequests).toHaveLength(0);
+    expect(h.server.sessions).toHaveLength(0);
   });
 
   it('refuses an agent it cannot verify, and a product agent, as agent-unavailable', async () => {
@@ -151,41 +143,61 @@ describe('opening', () => {
     });
     await product.call.open({ ...START, agentId: 'agent-2' });
     expect(product.sink.find('error')[0]?.code).toBe('agent-unavailable');
-    expect(product.kaana!.connectRequests).toHaveLength(0);
+    expect(product.server.sessions).toHaveLength(0);
   });
 
   it('is realtime-unavailable without a Kaana client, or with no model that can hold the call', async () => {
-    const none = harness({ kaana: null });
+    const none = harness({ noKaana: true });
     await none.call.open(START);
     expect(none.sink.find('error')[0]?.code).toBe('realtime-unavailable');
 
-    const noRealtime = harness({ models: [fakeTranscriptionModel()] });
+    const noRealtime = harness({ models: [catalogueModel('x-ai/grok-voice-transcribe-2.0')] });
     await noRealtime.call.open(START);
     expect(noRealtime.sink.find('error')[0]?.code).toBe('realtime-unavailable');
     expect(noRealtime.reserve).not.toHaveBeenCalled();
   });
 
-  it('tries the next candidate only when the model itself refused', async () => {
-    const first = fakeRealtimeModel({ modelId: 'fake/cheap' });
-    first.pricing!.unitPrices[0]!.amount = '0.01';
-    const second = fakeRealtimeModel({ modelId: 'fake/dear' });
-    const kaana = new FakeKaana({ models: [second, first] });
-    kaana.failConnect.push({ model: 'fake/cheap', error: new FakeKaanaError('model_not_found') });
-    const h = await opened({ kaana });
-    expect(kaana.connectRequests.map((request) => request.model)).toEqual([
-      'fake/cheap',
-      'fake/dear',
-    ]);
+  it('opens on the cheapest minute, and tries the next candidate only when the model itself refused', async () => {
+    const cheap = realtimeModel('x-ai/voice-cheap', '0.01');
+    const dear = realtimeModel('x-ai/voice-dear', '0.5');
+    const tried: string[] = [];
+    // Kaana answering the cheapest model with its own refusal of the model.
+    const refusing =
+      (refusal: () => Error) => (kaana: import('../../kaana/port.js').KaanaClient) => ({
+        ...kaana,
+        realtime: {
+          connect: (async (request, options) => {
+            tried.push(request.model);
+            if (request.model === cheap.modelId) throw refusal();
+            return kaana.realtime.connect(request, options);
+          }) as typeof kaana.realtime.connect,
+        },
+      });
+    const modelGone = () =>
+      new KaanaError({
+        code: 'model_not_found',
+        message: 'gone',
+        status: 404,
+        requestId: 'req_1',
+        retryable: false,
+      });
+    const h = await opened({ models: [dear, cheap], wrapKaana: refusing(modelGone) });
+    expect(tried).toEqual([cheap.modelId, dear.modelId]);
+    expect(h.session().model.modelId).toBe(dear.modelId);
     await h.call.end('hangup');
 
-    const billing = new FakeKaana({ models: [second, first] });
-    billing.failConnect.push({
-      model: 'fake/cheap',
-      error: new FakeKaanaError('insufficient_balance'),
-    });
-    const refused = harness({ kaana: billing });
+    tried.length = 0;
+    const billing = () =>
+      new KaanaBillingError({
+        code: 'insufficient_balance',
+        message: 'no balance',
+        status: 402,
+        requestId: 'req_2',
+        retryable: false,
+      });
+    const refused = harness({ models: [dear, cheap], wrapKaana: refusing(billing) });
     await refused.call.open(START);
-    expect(billing.connectRequests.map((request) => request.model)).toEqual(['fake/cheap']);
+    expect(tried).toEqual([cheap.modelId]);
     expect(refused.sink.find('error')[0]?.code).toBe('realtime-limited');
     // Nothing was served: every credit held is given back.
     expect(refused.refund).toHaveBeenCalledOnce();
@@ -209,7 +221,7 @@ describe('hanging up while the call opens', () => {
     releaseStart();
     await opening;
     expect(h.finishCall).toHaveBeenCalledWith(h.call.callId, 'hangup');
-    expect(h.kaana!.connectRequests).toHaveLength(0);
+    expect(h.server.sessions).toHaveLength(0);
     expect(h.refund).toHaveBeenCalledOnce();
 
     let releaseReserve: () => void = () => undefined;
@@ -240,7 +252,7 @@ describe('tools run in Alia, never on the device', () => {
   it('executes the call, answers the model and continues the response; the client sees only the name', async () => {
     const execute = vi.fn(async ({ city }: { city: string }) => ({ city, celsius: 19 }));
     const h = await opened({ tools: weatherTools(execute) });
-    const session = h.kaana!.session;
+    const session = h.session();
     session.emit({ type: 'response.created', responseId: 'r1' });
     session.emit({
       type: 'tool_call',
@@ -266,12 +278,12 @@ describe('tools run in Alia, never on the device', () => {
       units: [],
       usageSource: 'provider_reported',
     });
-    await until('response.create', () => session.commands('response.create').length === 1);
+    await until('response.create', () => h.commands('response.create').length === 1);
     expect(execute).toHaveBeenCalledWith(
       { city: 'Madrid' },
       expect.objectContaining({ toolCallId: 'call-1' }),
     );
-    const output = session.commands('conversation.item.create')[0]!;
+    const output = h.commands('conversation.item.create')[0]!;
     expect(output.item).toEqual({
       type: 'function_call_output',
       callId: 'call-1',
@@ -340,7 +352,7 @@ describe('tools run in Alia, never on the device', () => {
       const h = harness({ tools: weatherTools(() => new Promise(() => undefined)) });
       await h.call.open(START);
       await vi.waitFor(() => expect(h.sink.types()).toContain('session.ready'));
-      const session = h.kaana!.session;
+      const session = h.session();
       session.emit({
         type: 'tool_call',
         responseId: 'r1',
@@ -352,10 +364,10 @@ describe('tools run in Alia, never on the device', () => {
       });
       await vi.waitFor(() => expect(h.sink.types()).toContain('tool.started'));
       await vi.advanceTimersByTimeAsync(60_001);
-      await vi.waitFor(() => expect(session.commands('conversation.item.create')).toHaveLength(1));
+      await vi.waitFor(() => expect(h.commands('conversation.item.create')).toHaveLength(1));
       const output = JSON.parse(
-        session.commands('conversation.item.create')[0]!.item.type === 'function_call_output'
-          ? (session.commands('conversation.item.create')[0]!.item as { output: string }).output
+        h.commands('conversation.item.create')[0]!.item.type === 'function_call_output'
+          ? (h.commands('conversation.item.create')[0]!.item as { output: string }).output
           : '{}',
       );
       expect(output.error.type).toBe('tool_timeout');
@@ -370,7 +382,7 @@ describe('tools run in Alia, never on the device', () => {
 describe('barge-in and transcripts', () => {
   it('never adds an answer the person talked over to the one that follows it', async () => {
     const h = await opened();
-    const session = h.kaana!.session;
+    const session = h.session();
     const answer = (
       responseId: string,
       itemId: string,
@@ -419,29 +431,34 @@ describe('barge-in and transcripts', () => {
     expect(new Set(transcripts.map((event) => event.messageId)).size).toBe(2);
   });
 
-  it('stores one message per spoken item, under the id every transcript event names, as xAI sends them', async () => {
+  it('stores one message per spoken item and per answer, under the id every transcript event names', async () => {
     const h = await opened();
-    const session = h.kaana!.session;
-    const userDone = (transcript: string) =>
+    const session = h.session();
+    // Kaana's one canonical shape (contract set 6.0.0): deltas that only append,
+    // and exactly one final transcript.done per item.
+    session.emit({ type: 'input_audio.speech_started', itemId: 'u1', audioStartMs: 0 });
+    for (const text of [
+      'Please tell me,',
+      ' in one short sentence,',
+      ' what is the capital of France?',
+    ])
       session.emit({
-        type: 'transcript.done',
+        type: 'transcript.delta',
         source: 'input_audio',
         itemId: 'u1',
         contentIndex: 0,
-        transcript,
+        text,
       });
-    // Measured from xAI (2026-10-16): growing transcripts at every pause, repeats, the
-    // item reused across pauses, a response opened mid-sentence, the final one after commit.
-    session.emit({ type: 'input_audio.speech_started', itemId: 'u1', audioStartMs: 0 });
-    userDone('Please tell');
-    session.emit({ type: 'input_audio.speech_stopped', itemId: 'u1', audioEndMs: 0 });
-    userDone('Please tell me.');
-    userDone('Please tell me.');
-    session.emit({ type: 'input_audio.speech_started', itemId: 'u1', audioStartMs: 0 });
-    userDone('Please tell me, in one short sentence, what is the capital of France?');
-    session.emit({ type: 'response.created', responseId: 'r1' });
+    session.emit({ type: 'input_audio.speech_stopped', itemId: 'u1', audioEndMs: 4_000 });
     session.emit({ type: 'input_audio.committed', itemId: 'u1' });
-    userDone('Please tell me, in one short sentence, what is the capital of France?');
+    session.emit({
+      type: 'transcript.done',
+      source: 'input_audio',
+      itemId: 'u1',
+      contentIndex: 0,
+      transcript: 'Please tell me, in one short sentence, what is the capital of France?',
+    });
+    session.emit({ type: 'response.created', responseId: 'r1' });
     session.emit({
       type: 'transcript.delta',
       source: 'output_audio',
@@ -465,11 +482,8 @@ describe('barge-in and transcripts', () => {
       units: [],
       usageSource: 'oxy_measured',
     });
-    // xAI repeats the final transcript once more after it was stored.
-    userDone('Please tell me, in one short sentence, what is the capital of France?');
 
     await until('persisted', () => h.persisted.flat().length === 2);
-    await new Promise((resolve) => setTimeout(resolve, 20));
     const stored = h.persisted.flat();
     expect(stored.map((message) => [message.role, message.content])).toEqual([
       ['user', 'Please tell me, in one short sentence, what is the capital of France?'],
@@ -496,7 +510,7 @@ describe('barge-in and transcripts', () => {
 
   it('truncates the interrupted item at what was played and stores the answer whole, marked', async () => {
     const h = await opened();
-    const session = h.kaana!.session;
+    const session = h.session();
     session.emit({ type: 'input_audio.speech_started', itemId: 'u1', audioStartMs: 0 });
     session.emit({ type: 'input_audio.speech_stopped', itemId: 'u1', audioEndMs: 900 });
     session.emit({ type: 'input_audio.committed', itemId: 'u1' });
@@ -540,7 +554,7 @@ describe('barge-in and transcripts', () => {
     session.emit({ type: 'input_audio.speech_started', itemId: 'u2', audioStartMs: 1_000 });
     await until('user.speech_started', () => h.sink.find('user.speech_started').length === 2);
     h.call.onPlaybackInterrupted('a1', 50);
-    expect(session.commands('conversation.item.truncate')).toEqual([
+    expect(h.commands('conversation.item.truncate')).toEqual([
       expect.objectContaining({ itemId: 'a1', contentIndex: 0, audioEndMs: 50 }),
     ]);
     session.emit({
@@ -566,7 +580,7 @@ describe('barge-in and transcripts', () => {
 
   it('does not truncate an item that was played to the end', async () => {
     const h = await opened();
-    const session = h.kaana!.session;
+    const session = h.session();
     session.emit({ type: 'response.created', responseId: 'r1' });
     session.emit({
       type: 'output_audio.delta',
@@ -578,13 +592,13 @@ describe('barge-in and transcripts', () => {
     });
     await until('audio', () => h.sink.audio.length === 1);
     h.call.onPlaybackInterrupted('a1', 400);
-    expect(session.commands('conversation.item.truncate')).toHaveLength(0);
+    expect(h.commands('conversation.item.truncate')).toHaveLength(0);
     await h.call.end('hangup');
   });
 
   it('keeps the order user → assistant when the input transcript arrives late, and stores nothing for an empty response', async () => {
     const h = await opened();
-    const session = h.kaana!.session;
+    const session = h.session();
     session.emit({ type: 'input_audio.speech_started', itemId: 'u1', audioStartMs: 0 });
     session.emit({ type: 'response.created', responseId: 'r1' });
     session.emit({
@@ -646,11 +660,11 @@ describe('barge-in and transcripts', () => {
 
 describe('limits', () => {
   it('ends an idle call with idle-timeout, once, and settles', async () => {
-    const h = await opened({ limits: { idleTimeoutMs: 40 } });
+    const h = await opened({ limits: { idleTimeoutMs: 1_000 } });
     await until('closed', () => h.sink.types().includes('session.closed'), 2_000);
     expect(h.sink.find('session.closed')[0]?.reason).toBe('idle-timeout');
     expect(h.finishCall).toHaveBeenCalledWith(h.call.callId, 'idle_timeout');
-    expect(h.kaana!.session.closeCount).toBe(1);
+    expect(h.session().closed).toBe(true);
     expect(h.finalize).toHaveBeenCalledOnce();
   });
 
@@ -666,7 +680,7 @@ describe('limits', () => {
 
   it('follows the upstream when Kaana closes the session for its own limit', async () => {
     const h = await opened();
-    h.kaana!.session.emit({
+    h.session().emit({
       type: 'session.closed',
       reason: 'idle_timeout',
       units: [],
@@ -681,7 +695,7 @@ describe('limits', () => {
 describe('one call per person', () => {
   it('hangs up with call-moved-elsewhere when another device takes over, storing what it had', async () => {
     const h = await opened();
-    const session = h.kaana!.session;
+    const session = h.session();
     session.emit({ type: 'input_audio.speech_started', itemId: 'u1', audioStartMs: 0 });
     session.emit({ type: 'input_audio.committed', itemId: 'u1' });
     session.emit({
@@ -698,31 +712,32 @@ describe('one call per person', () => {
     expect(h.persisted.flat().map((message) => message.content)).toContain('Último');
     // The takeover already ended the row; this task does not end it again.
     expect(h.finishCall).not.toHaveBeenCalled();
-    expect(session.closeCount).toBe(1);
+    expect(session.closed).toBe(true);
   });
 });
 
 describe('reconnection', () => {
   it('resumes the same upstream session after a dropped connection', async () => {
     const h = await opened();
-    const session = h.kaana!.session;
-    session.dropConnection();
-    await until('resumed', () => session.resumeCount === 1);
-    expect(h.sink.types()).toContain('session.reconnecting');
-    expect(h.kaana!.sessions).toHaveLength(1);
+    const session = h.session();
+    session.drop();
+    await until('reconnecting', () => h.sink.types().includes('session.reconnecting'));
+    // The same session, resumed: an event after the drop reaches the client.
     session.emit({ type: 'input_audio.speech_started', itemId: 'u9', audioStartMs: 0 });
     await until('event after resume', () => h.sink.find('user.speech_started').length === 1);
+    expect(h.server.sessions).toHaveLength(1);
     await h.call.end('hangup');
   });
 
   it('opens a new session under the same call, from the stored messages, when resume cannot work', async () => {
     const h = await opened({ history: [{ role: 'user', content: 'antes' }] });
-    const first = h.kaana!.session;
-    first.failResume = true;
-    first.dropConnection();
-    await until('second session', () => h.kaana!.sessions.length === 2);
+    const first = h.session();
+    // Gone while the connection was down: the resume is refused.
+    first.drop();
+    first.end('upstream_error');
+    await until('second session', () => h.server.sessions.length === 2);
     await until('ready again', () => h.sink.find('session.ready').length === 2);
-    expect(h.kaana!.sessions[1]!.request.model).toBe(first.request.model);
+    expect(h.server.sessions[1]!.model.modelId).toBe(first.model.modelId);
     expect(h.instructionsFor).toHaveBeenLastCalledWith([{ role: 'user', content: 'antes' }]);
     expect(h.startCall).toHaveBeenCalledOnce();
     await h.call.end('hangup');
@@ -730,14 +745,14 @@ describe('reconnection', () => {
 
   it('opens a new session when the Kaana task shuts down', async () => {
     const h = await opened();
-    h.kaana!.session.emit({
+    h.session().emit({
       type: 'session.closed',
       reason: 'server_shutdown',
       units: [],
       usageSource: 'provider_reported',
       closedAt: new Date().toISOString(),
     });
-    await until('second session', () => h.kaana!.sessions.length === 2);
+    await until('second session', () => h.server.sessions.length === 2);
     await h.call.end('hangup');
   });
 
@@ -745,7 +760,7 @@ describe('reconnection', () => {
     const h = await opened({ limits: { resumeWindowMs: 60 } });
     const lastSeen = h.sink.events.at(-1)!.seq;
     h.call.detach(h.sink);
-    h.kaana!.session.emit({ type: 'input_audio.speech_started', itemId: 'u1', audioStartMs: 0 });
+    h.session().emit({ type: 'input_audio.speech_started', itemId: 'u1', audioStartMs: 0 });
     await new Promise((resolve) => setTimeout(resolve, 5));
     const { RecordingSink } = await import('./support.js');
     const back = new RecordingSink();
@@ -759,25 +774,29 @@ describe('reconnection', () => {
 });
 
 describe('credits per minute, at the real cost', () => {
-  it('settles from the session units Kaana measured, at the served model price', async () => {
-    const h = await opened();
-    // 90 s at $0.08 per minute = $0.12.
-    h.kaana!.session.closeUnits = [{ unit: 'session_milliseconds', quantity: 90_000 }];
-    await h.call.end('hangup');
-    expect(h.finalize).toHaveBeenCalledWith(h.reservations[0], creditsForCost(0.12));
+  it("settles the call's minutes at the served model's price per minute", async () => {
+    let clock = 1_000_000;
+    const h = await opened({ now: () => clock });
+    const perMinute = Number(REALTIME.pricePerMinute!.amount);
     // The block held five minutes at the catalogue's minute.
-    expect(h.reservations[0]!.creditsReserved).toBe(creditsForCost(0.08 * 5));
+    expect(h.reservations[0]!.creditsReserved).toBe(creditsForCost(perMinute * 5));
+    clock += 90_000;
+    await h.call.end('hangup');
+    // 90 s, silence included, at the published minute.
+    expect(h.finalize).toHaveBeenCalledWith(h.reservations[0], creditsForCost(perMinute * 1.5));
     expect(h.recordAnalytics).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'fake/realtime-voice',
-        resolvedModelReference: 'fake/realtime-voice@2026-10-01',
+        model: REALTIME.modelId,
+        resolvedModelReference: `${REALTIME.modelId}@${REALTIME.currentRevision}`,
       }),
     );
   });
 
   it('ends with credits-exhausted after the spoken item when the next block is refused', async () => {
     let calls = 0;
+    let clock = 1_000_000;
     const h = await opened({
+      now: () => clock,
       limits: { creditCheckMs: 10 },
       reserve: async (userId, credits) => {
         calls += 1;
@@ -792,15 +811,19 @@ describe('credits per minute, at the real cost', () => {
           : null;
       },
     });
-    const session = h.kaana!.session;
+    const session = h.session();
     session.emit({ type: 'response.created', responseId: 'r1' });
-    // Four and a half minutes of audio out, reported: the block is nearly spent.
+    // Four and a half minutes into a five-minute block, mid-answer.
+    clock += 270_000;
+    await until('next block asked', () => calls === 2);
+    expect(h.sink.types()).not.toContain('session.closed');
+    // Never mid-word: the answer being spoken finishes first.
     session.emit({
       type: 'response.done',
       responseId: 'r1',
       status: 'completed',
-      units: [{ unit: 'session_milliseconds', quantity: 270_000 }],
-      usageSource: 'provider_reported',
+      units: [],
+      usageSource: 'oxy_measured',
     });
     await until('closed', () => h.sink.types().includes('session.closed'));
     expect(h.sink.find('error')[0]?.code).toBe('credits-exhausted');
@@ -812,7 +835,7 @@ describe('typed failures', () => {
   it('a fatal upstream error ends the call typed, with no filler audio or text', async () => {
     const h = await opened();
     const audioBefore = h.sink.audio.length;
-    h.kaana!.session.emit({
+    h.session().emit({
       type: 'error',
       fatal: true,
       error: {

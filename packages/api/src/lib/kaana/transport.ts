@@ -2,8 +2,8 @@
  * The one module that constructs Alia's Kaana client (ADR 0017 §6).
  *
  * Voice calls (`lib/voice/`) and dictation (`lib/voice/transcribe.ts`) reach
- * Kaana only through {@link getKaanaClient}, typed by the port in `./port.ts`,
- * which the real `Kaana` class of `@kaana.ai/sdk` satisfies structurally.
+ * Kaana only through {@link getKaanaClient}, typed by the narrow port in
+ * `./port.ts`, whose members are the `Kaana` client's own.
  *
  * ## Credential
  *
@@ -17,34 +17,19 @@
  * asks Oxy for the grant, and Oxy Console holds the app's limits.
  *
  * A process with no Oxy service identity has no client (`null`), and both
- * features answer their typed "unavailable" error, never a stand-in.
- *
- * ## Development
- *
- * On a developer machine (`NODE_ENV` neither `production` nor `staging`),
- * `ALIA_VOICE_FAKE_UPSTREAM=1` serves calls and dictation from the
- * contract-faithful fake (`./fake.ts`) in its scripted mode, so the app's
- * capture, playback, echo cancellation and barge-in can be validated on a real
- * device without Kaana. A deployed task never reads it.
+ * features answer their typed "unavailable" error, never a stand-in. Tests
+ * use `@kaana.ai/sdk/testing`, the same client against Kaana's own rules in
+ * memory.
  */
 
 import { Kaana } from '@kaana.ai/sdk';
-import { resolveOxyDeploymentEnvironment } from '../inference/oxy-inference.js';
 import { canAuthenticateAsOxyService, oxyServiceTokenFor } from '../oxy-service-client.js';
-import { createFakeKaana } from './fake.js';
 import type { KaanaClient } from './port.js';
-
-export const VOICE_FAKE_UPSTREAM_ENV = 'ALIA_VOICE_FAKE_UPSTREAM';
 
 /** The audience of the service token `kaana.ai/v1` accepts. */
 export const KAANA_SERVICE_TOKEN_AUDIENCE = 'kaana.ai';
 
 function construct(env: NodeJS.ProcessEnv): KaanaClient | null {
-  if (
-    resolveOxyDeploymentEnvironment(env) === 'development' &&
-    env[VOICE_FAKE_UPSTREAM_ENV] === '1'
-  )
-    return createFakeKaana({ scripted: true });
   if (!canAuthenticateAsOxyService(env)) return null;
   return new Kaana({ credential: () => oxyServiceTokenFor(KAANA_SERVICE_TOKEN_AUDIENCE) });
 }
@@ -57,7 +42,7 @@ export function getKaanaClient(env: NodeJS.ProcessEnv = process.env): KaanaClien
   return cached;
 }
 
-/** Test seam: install a client (a fake), or `undefined` to rebuild from the env. */
+/** Test seam: install a client, or `undefined` to rebuild from the env. */
 export function setKaanaClientForTests(client: KaanaClient | null | undefined): void {
   cached = client;
 }

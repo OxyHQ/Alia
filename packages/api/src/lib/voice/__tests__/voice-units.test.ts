@@ -5,8 +5,23 @@ vi.mock('../../logger.js', () => {
   return { log: new Proxy({}, { get: () => quiet }) };
 });
 
-const { FakeKaanaError, FakeKaanaConnectionError } = await import('../../kaana/fake.js');
-const { KAANA_PUBLIC_ERROR_CODES } = await import('../../kaana/port.js');
+const { KaanaConnectionError, KaanaError, KaanaProtocolError } = await import('@kaana.ai/sdk');
+const { PUBLIC_ERROR_CODES } = await import('@kaana.ai/contracts');
+
+/** What the SDK throws for a refusal with this code. */
+function refusal(
+  code: (typeof PUBLIC_ERROR_CODES)[number],
+  options: { param?: string; afterOutput?: boolean } = {},
+) {
+  return new KaanaError({
+    code,
+    message: code,
+    status: 400,
+    requestId: 'req_1',
+    retryable: false,
+    ...options,
+  });
+}
 const { isModelRefusal, voiceFailureFromKaana, VOICE_ERROR_TEXT } = await import('../errors.js');
 const {
   decodeAssistantAudioFrame,
@@ -49,8 +64,8 @@ describe('every Kaana failure is a typed VoiceErrorCode (ADR 0017 §3 table)', (
     internal_error: 'realtime-failed',
   };
 
-  it.each(KAANA_PUBLIC_ERROR_CODES)('%s', (code) => {
-    const failure = voiceFailureFromKaana(new FakeKaanaError(code));
+  it.each(PUBLIC_ERROR_CODES)('%s', (code) => {
+    const failure = voiceFailureFromKaana(refusal(code));
     expect(failure.code).toBe(expected[code]);
     expect(VOICE_SERVER_ERROR_CODES).toContain(failure.code);
     // The person is told Alia's fixed sentence, never the upstream's words.
@@ -58,26 +73,22 @@ describe('every Kaana failure is a typed VoiceErrorCode (ADR 0017 §3 table)', (
   });
 
   it('a lost connection, a contract violation and anything unknown are realtime-failed', () => {
-    expect(voiceFailureFromKaana(new FakeKaanaConnectionError()).code).toBe('realtime-failed');
-    expect(
-      voiceFailureFromKaana(Object.assign(new Error('x'), { name: 'KaanaProtocolError' })).code,
-    ).toBe('realtime-failed');
+    expect(voiceFailureFromKaana(new KaanaConnectionError('gone')).code).toBe('realtime-failed');
+    expect(voiceFailureFromKaana(new KaanaProtocolError('broken', 'req_1')).code).toBe(
+      'realtime-failed',
+    );
     expect(voiceFailureFromKaana(new Error('boom')).code).toBe('realtime-failed');
   });
 
   it('moves to the next model only on the model’s own refusal before any output', () => {
-    expect(isModelRefusal(new FakeKaanaError('model_not_found'))).toBe(true);
-    expect(isModelRefusal(new FakeKaanaError('unsupported_modality'))).toBe(true);
-    expect(isModelRefusal(new FakeKaanaError('invalid_request', { param: 'config.voice' }))).toBe(
-      true,
-    );
-    expect(isModelRefusal(new FakeKaanaError('invalid_request', { param: 'limits' }))).toBe(false);
-    expect(isModelRefusal(new FakeKaanaError('authentication_failed'))).toBe(false);
-    expect(isModelRefusal(new FakeKaanaError('insufficient_balance'))).toBe(false);
-    expect(isModelRefusal(new FakeKaanaError('rate_limited'))).toBe(false);
-    expect(isModelRefusal(new FakeKaanaError('model_not_found', { afterOutput: true }))).toBe(
-      false,
-    );
+    expect(isModelRefusal(refusal('model_not_found'))).toBe(true);
+    expect(isModelRefusal(refusal('unsupported_modality'))).toBe(true);
+    expect(isModelRefusal(refusal('invalid_request', { param: 'config.voice' }))).toBe(true);
+    expect(isModelRefusal(refusal('invalid_request', { param: 'limits' }))).toBe(false);
+    expect(isModelRefusal(refusal('authentication_failed'))).toBe(false);
+    expect(isModelRefusal(refusal('insufficient_balance'))).toBe(false);
+    expect(isModelRefusal(refusal('rate_limited'))).toBe(false);
+    expect(isModelRefusal(refusal('model_not_found', { afterOutput: true }))).toBe(false);
   });
 });
 
@@ -122,7 +133,7 @@ describe('the wire', () => {
 });
 
 describe('the tool bridge', () => {
-  it('serializes schemas for the session and caps the set at 128', () => {
+  it('serializes the named tools for the session, in order, skipping one that does not exist', () => {
     const tools = weatherTools();
     expect(toRealtimeTools(tools, ['lookupWeather', 'missing'])).toEqual([
       expect.objectContaining({
@@ -132,10 +143,6 @@ describe('the tool bridge', () => {
         parameters: expect.objectContaining({ type: 'object' }),
       }),
     ]);
-    const many = Object.fromEntries(
-      Array.from({ length: 140 }, (_, index) => [`t${index}`, tools.lookupWeather!]),
-    );
-    expect(toRealtimeTools(many, Object.keys(many))).toHaveLength(128);
   });
 
   it('turns every failure into a typed tool error', async () => {
