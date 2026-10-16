@@ -41,6 +41,8 @@ describe('opening', () => {
       type: 'server_vad',
       createResponse: true,
       interruptResponse: true,
+      // Alia's rule: half a second of silence ends the person's turn.
+      silenceDurationMs: 500,
     });
     expect(request.config.inputAudioTranscription).toEqual({ language: 'es' });
     expect(request.config.voice).toBe('fake-voice-a');
@@ -347,6 +349,57 @@ describe('tools run in Alia, never on the device', () => {
 });
 
 describe('barge-in and transcripts', () => {
+  it('never adds an answer the person talked over to the one that follows it', async () => {
+    const h = await opened();
+    const session = h.kaana!.session;
+    const answer = (
+      responseId: string,
+      itemId: string,
+      transcript: string,
+      status: 'completed' | 'cancelled',
+    ) => {
+      session.emit({ type: 'response.created', responseId });
+      session.emit({
+        type: 'transcript.done',
+        source: 'output_audio',
+        itemId,
+        contentIndex: 0,
+        responseId,
+        transcript,
+      });
+      session.emit({
+        type: 'response.done',
+        responseId,
+        status,
+        units: [],
+        usageSource: 'oxy_measured',
+      });
+    };
+    session.emit({ type: 'input_audio.speech_started', itemId: 'u1', audioStartMs: 0 });
+    // The provider answered a pause, the person went on, the answer was cancelled.
+    answer('r1', 'a1', 'Sure, what', 'cancelled');
+    session.emit({ type: 'input_audio.committed', itemId: 'u1' });
+    session.emit({
+      type: 'transcript.done',
+      source: 'input_audio',
+      itemId: 'u1',
+      contentIndex: 0,
+      transcript: 'Hey, which city is the capital of France?',
+    });
+    answer('r2', 'a2', 'The capital of France is Paris.', 'completed');
+
+    await until('stored', () =>
+      h.persisted.flat().some((message) => message.content.includes('Paris')),
+    );
+    const assistant = h.persisted.flat().filter((message) => message.role === 'assistant');
+    expect(assistant.at(-1)?.content).toBe('The capital of France is Paris.');
+    const transcripts = h.sink.events.filter(
+      (event) => event.type === 'transcript.done' && event.role === 'assistant',
+    ) as Array<{ messageId: string; itemId: string }>;
+    // Two answers, two messages: never one message holding both.
+    expect(new Set(transcripts.map((event) => event.messageId)).size).toBe(2);
+  });
+
   it('stores one message per spoken item, under the id every transcript event names, as xAI sends them', async () => {
     const h = await opened();
     const session = h.kaana!.session;

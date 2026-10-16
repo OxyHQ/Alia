@@ -94,6 +94,12 @@ export interface VoiceCallLimits {
   readonly warningBeforeMs: number;
   /** A dropped socket may resume within this. */
   readonly resumeWindowMs: number;
+  /**
+   * How long a pause ends the person's turn (`turnDetection.silenceDurationMs`).
+   * Long enough that a breath between two clauses is not the end of what they
+   * are saying, short enough that the answer still comes at once.
+   */
+  readonly endOfTurnSilenceMs: number;
   /** How long an interrupted answer waits for the client's played milliseconds. */
   readonly interruptWaitMs: number;
   /**
@@ -113,6 +119,7 @@ export const VOICE_CALL_LIMITS: VoiceCallLimits = {
   idleTimeoutMs: 2 * 60_000,
   warningBeforeMs: 60_000,
   resumeWindowMs: 30_000,
+  endOfTurnSilenceMs: 500,
   interruptWaitMs: 1_500,
   userTranscriptWaitMs: 8_000,
   creditCheckMs: 15_000,
@@ -556,7 +563,12 @@ export class VoiceCall {
               inputAudioFormat: 'pcm16_24khz',
               outputAudioFormat: 'pcm16_24khz',
               // The only mode every provider accepts; barge-in is the provider's.
-              turnDetection: { type: 'server_vad', createResponse: true, interruptResponse: true },
+              turnDetection: {
+                type: 'server_vad',
+                createResponse: true,
+                interruptResponse: true,
+                silenceDurationMs: this.limits.endOfTurnSilenceMs,
+              },
               // The person's words become messages: transcribed inside the session.
               inputAudioTranscription: { language: candidate.language },
               ...(tools.length > 0 ? { tools, toolChoice: 'auto' as const } : {}),
