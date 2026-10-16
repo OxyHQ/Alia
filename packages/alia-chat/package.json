@@ -1,6 +1,6 @@
 {
   "name": "@alia.onl/sdk",
-  "version": "17.1.0",
+  "version": "18.1.0",
   "description": "Alia AI chat SDK — the conversation runtime, chat UI, voice calls and dictation for Oxy apps",
   "main": "src/index.ts",
   "react-native": "src/index.ts",
@@ -10,6 +10,7 @@
     ".": "./src/index.ts",
     "./avatar": "./src/avatar.ts",
     "./content": "./src/lib/content-utils.ts",
+    "./csp": "./src/csp.ts",
     "./model": "./src/runtime/model.ts",
     "./runtime": "./src/runtime/index.ts",
     "./tools": "./src/tools.ts",
@@ -18,6 +19,7 @@
   },
   "files": [
     "src",
+    "worklets",
     "NOTICE",
     "tsconfig.json",
     "CHANGELOG.md"

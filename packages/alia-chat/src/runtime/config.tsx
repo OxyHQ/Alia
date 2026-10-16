@@ -1,5 +1,5 @@
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
-import { ALIA_API_URL } from '../lib/api-url';
+import { ALIA_API_URL } from '../lib/origins';
 import type { AgentRun, Message } from './types';
 
 /**

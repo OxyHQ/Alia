@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "setup-character-runtime": "bun scripts/setup-character-runtime.mjs",
+    "stamp:voice-worklets": "bun scripts/stamp-voice-worklets.mjs",
     "prestart": "bun run setup-character-runtime",
     "start": "RCT_METRO_PORT=8150 expo start --clear --tunnel",
     "predev": "bun run setup-character-runtime",

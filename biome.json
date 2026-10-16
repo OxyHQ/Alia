@@ -24,7 +24,8 @@
       "!packages/app/scripts/perf/baseline",
       "!packages/app/scripts/visual/baseline",
       "!packages/app/scripts/visual/baseline-firefox",
-      "!packages/app/src/shared/ui/icons"
+      "!packages/app/src/shared/ui/icons",
+      "!packages/app/public/sdk"
     ]
   },
   "formatter": {
