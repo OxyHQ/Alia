@@ -338,10 +338,11 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     // Estimate system prompt tokens (for credit calculation)
     const systemPromptTokens = estimateMessageTokens('system', systemMessage);
 
-    // Convert OpenAI-format messages to AI SDK format (handles tool messages), and
-    // give each host action the app reported its real outcome (`lib/host-tools.ts`).
+    // Convert OpenAI-format messages to AI SDK format (handles tool messages, and
+    // puts each attached document's content where its `file` part was), and give
+    // each host action the app reported its real outcome (`lib/host-tools.ts`).
     const convertedMessages = applyHostOutcomes(
-      convertToAISDKMessages(rawMessages, toolNameMapping),
+      convertToAISDKMessages(rawMessages, toolNameMapping, ctx.files),
       host?.outcomes,
     );
     if (host?.outcomes?.length && conversationId && req.user?.id) {

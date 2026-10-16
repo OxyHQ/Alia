@@ -80,6 +80,7 @@ import { checkOneOf } from './columns';
 import { AGENT_ACCESS, AGENT_ARCHETYPES, AGENT_STATUSES } from '../../domain/agent.js';
 import type { AvatarCharacter } from '@oxy.so/contracts';
 import { STORED_OXY_APP_LEVELS, type StoredOxyAppLevel } from '../../domain/agent-oxy-app-level.js';
+import type { AgentFeatureGates, AgentStarter } from '../../domain/agent-features.js';
 import { skills } from './skills';
 import { libraryFiles } from './library';
 
@@ -140,8 +141,30 @@ export const agents = pgTable(
      * SHAPE (known keys, short ids, a hex paint, a bounded spacing); the client resolves the ids.
      */
     character: jsonb().notNull().$type<AvatarCharacter>(),
+    /** One line. It is also the agent's greeting in an empty chat (`GET /v1/agents/:id/profile`). */
     tagline: text().notNull(),
     description: text().notNull(),
+    /**
+     * What the agent's empty chat offers to send, as `{ title, prompt }`, in order.
+     *
+     * Its own column because nothing else holds it: an agent's starters are its
+     * owner's words (Sindi's "Can you review my lease for red flags?"), and a
+     * list derived from tags or the description would be prompts nobody wrote.
+     * `jsonb` because the list is read and written whole, never queried into.
+     * Validated where it is written (`routes/agents/crud.ts`), at most
+     * `MAX_AGENT_STARTERS`.
+     */
+    starters: jsonb().notNull().default([]).$type<AgentStarter[]>(),
+    /**
+     * Alia features its owner put behind an app's entitlement (ADR 0020 §6):
+     * `{ "attachments.documents": { "app": "homiio", "feature": "files" } }`.
+     *
+     * Each `{ app, feature }` names a feature the app declares in its Oxy
+     * capability catalogue, checked against the LIVE catalogue when the owner
+     * saves it. A key that is absent is not gated. Read whole, beside the row,
+     * by the chat turn that carries such a part and by `GET /v1/agents/:id/features`.
+     */
+    featureGates: jsonb().notNull().default({}).$type<AgentFeatureGates>(),
     /**
      * The Oxy account that created the agent. A LISTING INDEX, never a
      * permission — see the file comment.

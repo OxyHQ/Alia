@@ -41,6 +41,7 @@
 
 import type { ExpirySweepTarget } from '@oxy.so/db/expiry';
 import { moderationEvents, moderationOutboxes } from './schema/moderation';
+import { conversationShares } from './schema/chat';
 import { audioJobs, notifications } from './schema/notifications';
 import { MCP_OAUTH_STATE_TTL_SECONDS, mcpOauthStates, oauthStates } from './schema/integrations';
 import { emailOutreachDecisions } from './schema/proactive';
@@ -127,6 +128,17 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
     column: oauthStates.expiresAt,
     retentionSeconds: 0,
     reason: 'Abandoned integrations OAuth handshakes; the row carries its own deadline.',
+  },
+  {
+    table: conversationShares,
+    /**
+     * `expires_at` IS the deadline, so retention is ZERO. The public read
+     * already refuses an expired link; this only removes the row that would
+     * otherwise outlive it forever.
+     */
+    column: conversationShares.expiresAt,
+    retentionSeconds: 0,
+    reason: 'Conversation share links past their own deadline (at most 168 hours after sharing).',
   },
   {
     table: emailOutreachDecisions,

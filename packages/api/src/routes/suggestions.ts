@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { zodSchema } from 'ai';
 import { OxyInferenceError } from '@oxy.so/core/inference';
 import { z } from 'zod';
@@ -7,6 +7,7 @@ import { findUserMemory } from '../db/memory/userMemoryRepository.js';
 import {
   createSuggestion,
   deleteOwnSuggestion,
+  deriveTemplateFields,
   findOwnSuggestion,
   incrementSuggestionUsage,
   listOwnSuggestions,
@@ -18,6 +19,9 @@ import {
 } from '../db/notifications/suggestionRepository.js';
 import type { SuggestionSearchHit } from '../db/notifications/suggestionRepository.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
+import { findAgentById } from '../db/agents/agentRepository.js';
+import { canReachAgent } from '../lib/agent-account.js';
+import type { AgentStarter } from '../domain/agent-features.js';
 import { getUserLanguage } from '../lib/memory/user-memory-service.js';
 import { log } from '../lib/logger.js';
 import { generateTextViaKaana } from '../lib/inference/kaana-text.js';
@@ -188,18 +192,96 @@ router.post('/list', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
+/** The most of `clientContext` the welcome pool is scored against. */
+const MAX_CLIENT_CONTEXT_CHARS = 4096;
+
+/**
+ * An agent's starters in the shape of a welcome suggestion, so a client draws
+ * both the same way. The id names the agent and the position; `POST /:id/use`
+ * on it counts nothing, because no suggestion row stands behind it.
+ */
+function agentStarterSuggestions(
+  agentId: string,
+  starters: readonly AgentStarter[],
+  language: string,
+) {
+  return starters.map((starter, index) => ({
+    suggestionId: `agent:${agentId}:${index}`,
+    title: starter.title,
+    text: starter.prompt,
+    description: null,
+    ...deriveTemplateFields(starter.prompt),
+    type: 'welcome' as const,
+    category: 'agent',
+    triggerWords: [],
+    scope: 'global' as const,
+    language,
+    usageCount: 0,
+    priority: 0,
+    isBuiltIn: false,
+    isAiGenerated: false,
+    tags: [],
+    occupations: [],
+    interests: [],
+  }));
+}
+
+/** The words of the embedding app's context, for scoring the pool against. */
+function contextWords(clientContext: string): Set<string> {
+  return new Set(
+    clientContext
+      .slice(0, MAX_CLIENT_CONTEXT_CHARS)
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter((word) => word.length > 2),
+  );
+}
+
 /**
  * POST /suggestions/welcome
  * Get welcome card suggestions. Language resolved server-side.
- * Body: { count? }
+ * Body: { count?, agentId?, clientContext? }
+ *
+ * With `agentId`, the suggestions are THAT agent's starters, and only for an
+ * agent the caller may use (`canReachAgent`); every other agent is the same
+ * 404, so an id cannot be probed. Without one they are Alia's pool, and
+ * `clientContext` — what the embedding app says the person is looking at —
+ * puts first the suggestions whose tags or category it mentions.
  */
 router.post('/welcome', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const { count = 4 } = req.body || {};
+    const { count = 4, agentId, clientContext } = req.body || {};
+    if (agentId !== undefined && (typeof agentId !== 'string' || agentId === '')) {
+      return res.status(400).json({ error: 'agentId must be a non-empty agent id' });
+    }
+    if (clientContext !== undefined && typeof clientContext !== 'string') {
+      return res.status(400).json({ error: 'clientContext must be a string' });
+    }
     const language = await getUserLanguage(req.user?.id);
 
     // Base query: global welcome suggestions in user's language (exclude expired)
     const requestedCount = Math.min(Number(count) || 4, 20);
+
+    if (agentId !== undefined) {
+      const agent = await findAgentById(getDb(), agentId);
+      if (
+        agent === null ||
+        (await canReachAgent(agent, {
+          // Without a bearer only a public agent is reachable, and the id is never read.
+          oxyUserId: req.user?.id ?? '',
+          accessToken: req.user?.id === undefined ? undefined : req.accessToken,
+        })) !== 'reachable'
+      ) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      return res.json({
+        suggestions: agentStarterSuggestions(agent.id, agent.starters, language).slice(
+          0,
+          requestedCount,
+        ),
+      });
+    }
+    const context = typeof clientContext === 'string' ? contextWords(clientContext) : null;
 
     // Fetch a larger pool to randomly pick from
     let pool = await listWelcomePool(getDb(), language, req.user?.id, requestedCount * 5);
@@ -208,6 +290,14 @@ router.post('/welcome', optionalAuth, async (req: Request, res: Response) => {
     if (pool.length === 0 && language !== 'en-US') {
       pool = await listWelcomePool(getDb(), 'en-US', req.user?.id, requestedCount * 5);
     }
+
+    // How many of a suggestion's tags and category the embedding app's context mentions.
+    const contextScore = (suggestion: (typeof pool)[number]): number =>
+      context === null
+        ? 0
+        : [...suggestion.tags, ...(suggestion.category ? [suggestion.category] : [])].filter(
+            (word) => context.has(word.toLowerCase()),
+          ).length * 4;
 
     // If authenticated, try to personalize scoring
     if (req.user?.id && pool.length > 0) {
@@ -240,6 +330,10 @@ router.post('/welcome', optionalAuth, async (req: Request, res: Response) => {
         const j = Math.floor(Math.random() * (i + 1));
         [pool[i], pool[j]] = [pool[j], pool[i]];
       }
+    }
+    if (context !== null) {
+      // The context first; stable, so the order above stands among suggestions it scores alike.
+      pool = [...pool].sort((a, b) => contextScore(b) - contextScore(a));
     }
 
     // Pick requested count from the (scored or shuffled) pool

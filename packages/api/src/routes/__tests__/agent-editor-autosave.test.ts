@@ -118,6 +118,19 @@ vi.mock('../../lib/logger.js', () => ({
 vi.mock('../../lib/chat-core.js', () => ({
   resolveModel: vi.fn(async (modelId: string) => ({ modelId })),
 }));
+// The live catalogue is the app's; this file is about what the route does with its answer.
+const gates = vi.hoisted(() => ({
+  refusal: null as string | null,
+  unreadable: false,
+  refuseFeatureGates: vi.fn(),
+}));
+vi.mock('../../lib/agent-features.js', () => ({
+  refuseFeatureGates: async (...args: unknown[]) => {
+    gates.refuseFeatureGates(...args);
+    if (gates.unreadable) throw new Error('catalogue unavailable');
+    return gates.refusal;
+  },
+}));
 vi.mock('../../lib/trigger-engine.js', () => ({
   reloadTrigger: vi.fn(),
   generateWebhookToken: () => 'tok',
@@ -741,5 +754,65 @@ describe('the editor screen reports a failed save instead of swallowing it', () 
       encoding: 'utf8',
     });
     expect(tracked.trim().split('\n').sort()).toEqual([...EDITOR, FAMILIES].sort());
+  });
+});
+
+describe('the owner edits starters and feature gates on the same route', () => {
+  beforeEach(() => {
+    gates.refusal = null;
+    gates.unreadable = false;
+  });
+
+  it('stores the starters and a gate the live catalogue declares', async () => {
+    const starters = [{ title: 'Lease review', prompt: 'Can you review my lease for red flags?' }];
+    const featureGates = { 'attachments.documents': { app: 'homiio', feature: 'files' } };
+    const res = await patch({ starters, featureGates });
+    expect(res.status).toBe(200);
+    expect(gates.refuseFeatureGates).toHaveBeenCalledWith(featureGates);
+    expect(repository.updateAgent.mock.calls[0][2]).toMatchObject({ starters, featureGates });
+  });
+
+  it('refuses a gate the app does not declare, and writes nothing', async () => {
+    gates.refusal = 'featureGates.attachments.documents: homiio declares no feature "files"';
+    const res = await patch({
+      featureGates: { 'attachments.documents': { app: 'homiio', feature: 'files' } },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ param: 'featureGates' });
+    expect(repository.updateAgent).not.toHaveBeenCalled();
+  });
+
+  it('answers 503 when the catalogues cannot be read, rather than saving an unchecked gate', async () => {
+    gates.unreadable = true;
+    const res = await patch({
+      featureGates: { 'attachments.images': { app: 'homiio', feature: 'photos' } },
+    });
+    expect(res.status).toBe(503);
+    expect(repository.updateAgent).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'an Alia feature that does not exist',
+      { featureGates: { 'voice.calls': { app: 'a', feature: 'b' } } },
+    ],
+    [
+      'a malformed feature key',
+      { featureGates: { 'attachments.images': { app: 'a', feature: 'B!' } } },
+    ],
+    [
+      'too many starters',
+      { starters: Array.from({ length: 7 }, () => ({ title: 't', prompt: 'p' })) },
+    ],
+    ['an empty starter', { starters: [{ title: ' ', prompt: 'p' }] }],
+  ])('refuses %s', async (_label, body) => {
+    const res = await patch(body);
+    expect(res.status).toBe(400);
+    expect(repository.updateAgent).not.toHaveBeenCalled();
+  });
+
+  it('does not ask the catalogue when no gate is being saved', async () => {
+    await patch({ tagline: 'a tagline' });
+    expect(gates.refuseFeatureGates).not.toHaveBeenCalled();
   });
 });

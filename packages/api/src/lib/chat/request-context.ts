@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { parseHostRequest, type HostRequest } from '../host-tools.js';
 import { productCreditPlanId } from '../product-credit-contract';
 import { USAGE_WINDOW_CREDITS } from '../usage-window';
@@ -60,7 +61,22 @@ import { refusalMessage, refusalStatus } from '../agent-account.js';
 import type { HydratedAgent } from '../agent-identity.js';
 import { findMcpServerForUser } from '../../db/integrations/mcpServerRepository.js';
 import { runAutonomyBeforeChat, type AutonomyRuntimeContext } from '../autonomy/runtime.js';
-import type { ChatMessage } from '../message-converter.js';
+import type { ChatMessage, FilePartRef } from '../message-converter.js';
+import {
+  FilePartError,
+  filePartsOf,
+  resolveFileParts,
+  type ResolvedFiles,
+} from '../files/person-files.js';
+import {
+  attachedPartsOf,
+  checkGatedParts,
+  gatedPartsFor,
+  spendGatedParts,
+  type FeatureRefusal,
+  type GatedPart,
+} from '../agent-features.js';
+import type { TurnAgentResolution } from './turn-inputs.js';
 import { usableMessageId } from '../../domain/conversation.js';
 import type { OpenAITool } from '../tool-converter.js';
 import type { SSEWriter } from './sse-writer.js';
@@ -109,6 +125,12 @@ export interface ChatRequestContext {
   responseMode: 'voice' | null;
   /** The embedding app's UI effects and the outcomes of earlier ones (`lib/host-tools.ts`). */
   host: HostRequest | undefined;
+  /**
+   * What the model reads for each `file` part, by Oxy Files id: read as the
+   * person before the turn was admitted (`lib/files/person-files.ts`). The
+   * messages themselves keep the reference, which is what is stored.
+   */
+  files: ResolvedFiles;
   deepResearch: boolean | undefined;
   /**
    * Whether Alia may reach the open web for this turn.
@@ -320,6 +342,27 @@ export async function buildChatRequestContext(
     return null;
   }
   const host = parsedHost.host;
+
+  /**
+   * The `file` parts, by id, refused here when malformed: before the stream
+   * opens and before anything is read, spent or reserved.
+   */
+  let fileRefs: Map<string, FilePartRef>;
+  try {
+    fileRefs = filePartsOf(messages);
+  } catch (error: unknown) {
+    if (!(error instanceof FilePartError)) throw error;
+    clearTimeout(globalTimer);
+    res.status(400).json({
+      error: {
+        message: error.message,
+        type: 'invalid_request_error',
+        param: 'messages',
+        code: error.code,
+      },
+    });
+    return null;
+  }
   // Deep research is a request flag, never implied by the model (ADR 0012).
   const deepResearch = body.deepResearch as boolean | undefined;
   // Absent means ON, which is what every request did before the switch existed.
@@ -765,66 +808,112 @@ export async function buildChatRequestContext(
    * TURN is for, named by the request rather than inferred; `loadTurnAgent`
    * owns the authorisation and an unresolvable selector is never `none`.
    */
-  const [creditResult, { userMemory, oxyUser, entitlements, turnAgent }] = await Promise.all([
-    // Credits: sequential pair (getOrCreate → reserve), parallel with everything else
-    // Skip for internal service requests (no credits charged)
-    /**
-     * A local turn reserves nothing. It is not a discount — no inference of
-     * Alia's is spent — and the skip has to be here rather than a refund later:
-     * any exit that neither charges nor refunds silently costs the person the
-     * reserved credit.
-     */
-    creditAccountId !== undefined && !req.serviceApp && localRuntime === null
-      ? (async () => {
-          await getOrCreateUserCredits(creditAccountId);
-          // The rolling window first (`lib/usage-window.ts`): a turn that
-          // would start with it spent reserves nothing and is refused below.
-          // It fails OPEN — a window that cannot be read never stops a turn;
-          // the balance still bounds it.
-          const productCreditSnapshot =
-            req.user?.id === creditAccountId
-              ? await readConfiguredProductCreditSnapshot(creditAccountId, req.accessToken).catch(
-                  () => undefined,
-                )
-              : undefined;
-          const window = await usageWindowFor(
-            creditAccountId,
-            productCreditPlanId(productCreditSnapshot, creditAccountId),
-          );
-          if (window?.exhausted) {
-            return { reservation: null, error: false as const, window };
-          }
-          const priceBook = await captureCreditPriceBook();
-          const reservation = await reserveCredits(creditAccountId, undefined, {
-            priceBook,
-            requestedModel,
-            aliaRequestId,
-            productCreditSnapshot,
-          });
-          if (reservation?.productAllocationId)
-            reservation.refreshProductCreditSnapshot = () =>
-              readConfiguredProductCreditSnapshot(creditAccountId, req.accessToken);
-          return { reservation, error: false as const, window: null };
-        })().catch((error) => {
-          log.v1.error({ err: error }, 'Error reserving credits');
-          return { reservation: null, error: true as const, window: null };
-        })
-      : Promise.resolve({
-          reservation: null,
-          error: false as const,
-          window: null as UsageWindow | null,
-        }),
+  const turnInputs = prefetchTurnInputs({
+    oxyUserId: req.user?.id,
+    accessToken: req.accessToken,
+    isDirectUserSession,
+    requestedAgentId,
+    applicationId: req.serviceApp?.appId,
+  });
 
-    prefetchTurnInputs({
-      oxyUserId: req.user?.id,
-      accessToken: req.accessToken,
-      isDirectUserSession,
-      requestedAgentId,
-      applicationId: req.serviceApp?.appId,
-    }),
-  ]);
+  /**
+   * The turn's attachments are ADMITTED before any credit is reserved
+   * (ADR 0020 §6): the agent's feature gates are checked, every document is
+   * read as the person, and only then is each gated part spent. A refusal at
+   * any step reserves nothing. A turn with no attachment skips all of it and
+   * reserves in parallel with the reads, as before.
+   */
+  const turnRequestId = aliaRequestId ?? randomUUID();
+  const attachedParts = attachedPartsOf(messages, turnRequestId);
+  const admission: Promise<AttachmentAdmission> =
+    attachedParts.length === 0
+      ? Promise.resolve({ ok: true, files: new Map() })
+      : admitAttachments({
+          turnAgent: requestedAgentId === undefined ? null : turnInputs.then((i) => i.turnAgent),
+          parts: attachedParts,
+          fileRefs,
+          person: {
+            accountId: req.user?.id,
+            // The person's own bearer only: a service token is not them.
+            accessToken: isDirectUserSession ? req.accessToken : undefined,
+            runId: turnRequestId,
+          },
+          modelAcceptsFiles: resolved.catalogue?.inputModalities.includes('file') === true,
+        });
+
+  const [admitted, creditResult, { userMemory, oxyUser, entitlements, turnAgent }] =
+    await Promise.all([
+      admission,
+      // Credits: sequential pair (getOrCreate → reserve), parallel with everything else
+      // Skip for internal service requests (no credits charged)
+      /**
+       * A local turn reserves nothing. It is not a discount — no inference of
+       * Alia's is spent — and the skip has to be here rather than a refund later:
+       * any exit that neither charges nor refunds silently costs the person the
+       * reserved credit.
+       */
+      admission.then((admitted) =>
+        admitted.ok && creditAccountId !== undefined && !req.serviceApp && localRuntime === null
+          ? (async () => {
+              await getOrCreateUserCredits(creditAccountId);
+              // The rolling window first (`lib/usage-window.ts`): a turn that
+              // would start with it spent reserves nothing and is refused below.
+              // It fails OPEN — a window that cannot be read never stops a turn;
+              // the balance still bounds it.
+              const productCreditSnapshot =
+                req.user?.id === creditAccountId
+                  ? await readConfiguredProductCreditSnapshot(
+                      creditAccountId,
+                      req.accessToken,
+                    ).catch(() => undefined)
+                  : undefined;
+              const window = await usageWindowFor(
+                creditAccountId,
+                productCreditPlanId(productCreditSnapshot, creditAccountId),
+              );
+              if (window?.exhausted) {
+                return { reservation: null, error: false as const, window };
+              }
+              const priceBook = await captureCreditPriceBook();
+              const reservation = await reserveCredits(creditAccountId, undefined, {
+                priceBook,
+                requestedModel,
+                aliaRequestId,
+                productCreditSnapshot,
+              });
+              if (reservation?.productAllocationId)
+                reservation.refreshProductCreditSnapshot = () =>
+                  readConfiguredProductCreditSnapshot(creditAccountId, req.accessToken);
+              return { reservation, error: false as const, window: null };
+            })().catch((error) => {
+              log.v1.error({ err: error }, 'Error reserving credits');
+              return { reservation: null, error: true as const, window: null };
+            })
+          : {
+              reservation: null,
+              error: false as const,
+              window: null as UsageWindow | null,
+            },
+      ),
+
+      turnInputs,
+    ]);
 
   log.v1.info({ durationMs: Date.now() - preStreamStart }, 'Pre-stream setup complete');
+
+  /**
+   * An attachment the turn may not carry. Nothing was reserved: admission runs
+   * before the reservation and the reservation does not run after a refusal.
+   */
+  if (!admitted.ok) {
+    clearTimeout(globalTimer);
+    if (sse.sent) {
+      sse.writeError(admitted.refusal);
+    } else {
+      res.status(admitted.status).json({ error: admitted.refusal });
+    }
+    return null;
+  }
 
   // Validate credit reservation
   // Only return 402 if reserveCredits explicitly returned null (insufficient credits),
@@ -1050,6 +1139,7 @@ export async function buildChatRequestContext(
     reasoningEffort,
     responseMode: body.responseMode === 'voice' ? 'voice' : null,
     host,
+    files: admitted.files,
     deepResearch,
     webSearch,
     mcpServerId,
@@ -1098,4 +1188,110 @@ async function usageWindowFor(
     );
     return null;
   }
+}
+
+/** What admitting a turn's attachments came to. */
+type AttachmentAdmission =
+  | { readonly ok: true; readonly files: ResolvedFiles }
+  | {
+      readonly ok: false;
+      readonly status: number;
+      readonly refusal: {
+        readonly message: string;
+        readonly type: 'invalid_request_error' | 'server_error';
+        readonly param: 'messages';
+        readonly code: string;
+        readonly retryable: boolean;
+        readonly feature?: string;
+      };
+    };
+
+const FEATURE_REFUSAL_MESSAGE: Record<FeatureRefusal['code'], string> = {
+  feature_entitlement_required: 'This agent needs an upgrade in its app to read this attachment.',
+  feature_check_unavailable:
+    'The app that unlocks this attachment could not be asked. Please try again.',
+};
+
+function featureRefusal(refusal: FeatureRefusal): AttachmentAdmission {
+  return {
+    ok: false,
+    status: refusal.code === 'feature_entitlement_required' ? 403 : 503,
+    refusal: {
+      message: FEATURE_REFUSAL_MESSAGE[refusal.code],
+      type:
+        refusal.code === 'feature_entitlement_required' ? 'invalid_request_error' : 'server_error',
+      param: 'messages',
+      code: refusal.code,
+      feature: refusal.feature,
+      retryable: refusal.retryable,
+    },
+  };
+}
+
+/**
+ * Check the agent's gates for the parts this turn carries, read every
+ * document, then spend each gated part — in that order, so a locked feature
+ * downloads nothing and an unreadable document spends nothing. Called before
+ * the credit reservation, which it gates.
+ */
+async function admitAttachments(input: {
+  /** The turn's agent, when the request names one. */
+  turnAgent: Promise<TurnAgentResolution> | null;
+  parts: readonly GatedPart[];
+  fileRefs: ReadonlyMap<string, FilePartRef>;
+  person: { accountId: string | undefined; accessToken: string | undefined; runId: string };
+  modelAcceptsFiles: boolean;
+}): Promise<AttachmentAdmission> {
+  const resolution = input.turnAgent === null ? null : await input.turnAgent;
+  // An agent that did not resolve is refused after admission; it gates nothing.
+  const agent = resolution?.kind === 'agent' ? resolution.agent : null;
+  const gated = agent === null ? [] : gatedPartsFor(agent, input.parts);
+  const person =
+    input.person.accountId === undefined
+      ? null
+      : {
+          accountId: input.person.accountId,
+          accessToken: input.person.accessToken,
+          runId: input.person.runId,
+        };
+
+  if (agent !== null && gated.length > 0) {
+    if (person === null) {
+      return featureRefusal({
+        code: 'feature_entitlement_required',
+        feature: gated[0].feature,
+        retryable: false,
+      });
+    }
+    const locked = await checkGatedParts(agent, person, gated);
+    if (locked !== null) return featureRefusal(locked);
+  }
+
+  let files: ResolvedFiles;
+  try {
+    files = await resolveFileParts(input.fileRefs, {
+      personAccountId: input.person.accountId,
+      accessToken: input.person.accessToken,
+      modelAcceptsFiles: input.modelAcceptsFiles,
+    });
+  } catch (error: unknown) {
+    if (!(error instanceof FilePartError)) throw error;
+    return {
+      ok: false,
+      status: 400,
+      refusal: {
+        message: error.message,
+        type: 'invalid_request_error',
+        param: 'messages',
+        code: error.code,
+        retryable: false,
+      },
+    };
+  }
+
+  if (agent !== null && person !== null && gated.length > 0) {
+    const refused = await spendGatedParts(agent, person, gated);
+    if (refused !== null) return featureRefusal(refused);
+  }
+  return { ok: true, files };
 }

@@ -16,6 +16,7 @@ import {
   type ActorRef,
   type AppCapabilityCatalog,
   type AutonomyLevel,
+  type CatalogFeature,
   type CatalogTool,
   type ResourceRef,
 } from '@oxy.so/contracts';
@@ -931,15 +932,18 @@ async function callInternalBoundTool(
   context: OxyToolExecutionContext,
   toolCallId: string | undefined,
   retirements: InternalRetirements,
+  operationKey: string | undefined,
 ): Promise<unknown> {
   const definition = binding.compiled.definition;
   const runId = context.runId ?? '';
-  const operationId = idempotencyKey(
-    runId,
-    oxyExecutionAuthorizationKey(binding.resource, definition.name),
-    args,
-    toolCallId,
-  );
+  const operationId =
+    operationKey ??
+    idempotencyKey(
+      runId,
+      oxyExecutionAuthorizationKey(binding.resource, definition.name),
+      args,
+      toolCallId,
+    );
   const inputDigest = createHash('sha256').update(canonicalCapabilityJson(args)).digest('hex');
   const previous = retirements.get(operationId);
   // A retry of an operation with pending retirement must not issue new authority
@@ -1036,15 +1040,21 @@ async function callInternalBoundTool(
     : internalOutcome(outcome);
 }
 
+/**
+ * `operationKey` replaces the derived idempotency key when the CALLER owns the
+ * operation's identity — a feature gate spends once per attached part, across
+ * requests, so its key cannot come from this run's id.
+ */
 async function callBoundTool(
   binding: BoundTool,
   args: Record<string, unknown>,
   context: OxyToolExecutionContext,
   toolCallId?: string,
   retirements: InternalRetirements = new Map(),
+  operationKey?: string,
 ): Promise<unknown> {
   if (binding.compiled.internalCatalogBinding) {
-    return callInternalBoundTool(binding, args, context, toolCallId, retirements);
+    return callInternalBoundTool(binding, args, context, toolCallId, retirements, operationKey);
   }
   const runId = context.runId ?? randomUUID();
   const stepId =
@@ -1066,12 +1076,8 @@ async function callBoundTool(
     };
     if (body) headers['content-type'] = 'application/json';
     if (binding.compiled.definition.idempotency === 'required') {
-      headers['idempotency-key'] = idempotencyKey(
-        runId,
-        binding.compiled.definition.name,
-        args,
-        toolCallId,
-      );
+      headers['idempotency-key'] =
+        operationKey ?? idempotencyKey(runId, binding.compiled.definition.name, args, toolCallId);
     }
     let response: Response;
     try {
@@ -1327,6 +1333,100 @@ export async function buildOxyServiceTools(
 /** The live app catalogues, for the per-agent permissions editor. */
 export async function listOxyAppCatalogs(): Promise<AppCapabilityCatalog[]> {
   return (await getCatalogDefs()).map((entry) => entry.catalog);
+}
+
+/**
+ * The Oxy context of an agent turn for the PERSON present in it: the owner on
+ * the levels they set, anybody else on the owner's published ceilings (ADR
+ * 0020 §2) — the two lanes `ToolPipeline.forUser` binds an agent's `oxy_*`
+ * tools on. `null` for an agent whose bot has no reconciled owner, which gets
+ * no Oxy tools on either lane.
+ */
+export function presentPersonAgentContext(params: {
+  agent: { oxyAccountId: string; ownerOxyAccountId: string | null };
+  personAccountId: string;
+  accessToken: string;
+  runId: string;
+}): OxyToolExecutionContext | null {
+  if (params.agent.ownerOxyAccountId === null) return null;
+  const ownerIsPresent = params.agent.ownerOxyAccountId === params.personAccountId;
+  return {
+    requesterAccountId: params.personAccountId,
+    ownerAccountId: params.personAccountId,
+    actor: { type: 'agent', accountId: params.agent.oxyAccountId },
+    agentIdentity: { forUser: ownerIsPresent ? 'owner' : 'requester', self: false },
+    runId: params.runId,
+    userAccessToken: params.accessToken,
+  };
+}
+
+/**
+ * A feature `appId` declares in its live catalogue (`features[]`), with
+ * whether its tools take the empty input a gate sends them — the agent
+ * editor's check before a gate is saved. `null` when the app or the feature
+ * is not in the catalogue.
+ */
+export async function findOxyAppFeature(
+  appId: string,
+  featureKey: string,
+): Promise<{ feature: CatalogFeature; toolsTakeNoInput: boolean } | null> {
+  const service = (await getCatalogDefs()).find((entry) => entry.catalog.appId === appId);
+  const feature = service?.catalog.features?.find((entry) => entry.key === featureKey);
+  if (!service || !feature) return null;
+  const takesNoInput = (name: string | undefined): boolean => {
+    if (name === undefined) return true;
+    const compiled = service.compiledTools.find((entry) => entry.definition.name === name);
+    return compiled !== undefined && compiled.validator.safeParse({}).success;
+  };
+  return {
+    feature,
+    toolsTakeNoInput: takesNoInput(feature.checkTool) && takesNoInput(feature.consumeTool),
+  };
+}
+
+/** What asking an app about a feature came to. */
+export type OxyFeatureCall =
+  /** The app answered; its answer is the tool's result, unparsed. */
+  | { readonly status: 'answered'; readonly result: unknown }
+  /** The person's lane does not reach the tool: no level or ceiling covers it. */
+  | { readonly status: 'unbound' }
+  /** Oxy or the app could not answer. Not a verdict. */
+  | { readonly status: 'unavailable' };
+
+/**
+ * Call one of an app's feature tools (`checkTool` or `consumeTool`) with no
+ * input, on exactly the binding the context's lane gives the model — the same
+ * capability map, ticket and transport as an `oxy_*` tool call, never a second
+ * path. `operationKey` is the idempotency key of a spend.
+ */
+export async function callOxyFeatureTool(
+  context: OxyToolExecutionContext,
+  appId: string,
+  toolName: string,
+  operationKey?: string,
+): Promise<OxyFeatureCall> {
+  try {
+    const defs = defsFor(await getCatalogDefs(), context.actor.type).filter(
+      (entry) => entry.catalog.appId === appId,
+    );
+    const bindings =
+      context.actor.type === 'agent'
+        ? agentBindings(defs, await agentAssignments(context))
+        : regularAliaBindings(defs, context);
+    const binding = bindings.find(
+      (candidate) =>
+        candidate.compiled.definition.name === toolName &&
+        candidate.resource.effectiveAccountId === context.requesterAccountId,
+    );
+    if (!binding) return { status: 'unbound' };
+    return {
+      status: 'answered',
+      result: await callBoundTool(binding, {}, context, undefined, new Map(), operationKey),
+    };
+  } catch (error: unknown) {
+    log.general.warn({ err: error, appId, tool: toolName }, 'Oxy feature tool unavailable');
+    return { status: 'unavailable' };
+  }
 }
 
 export async function getOxyServiceContext(userId: string, accessToken: string): Promise<string> {

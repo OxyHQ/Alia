@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import type { User } from '@oxy.so/core';
 import chatCompletionsRouter from './v1/chat-completions.js';
 import responsesRouter from './v1/responses.js';
@@ -6,6 +6,8 @@ import modelsRouter from './v1/models.js';
 import audioRouter from './v1/audio.js';
 import imagesRouter from './v1/images.js';
 import conversationsRouter from './conversations.js';
+import sharedRouter from './shared.js';
+import agentsV1Router from './v1/agents.js';
 import {
   authenticateRequesterAssertion,
   authenticateToken,
@@ -51,6 +53,13 @@ router.use('/models', modelsRouter);
  * for exactly that reason.
  */
 router.use('/conversations', authenticateToken, apiKeyRateLimit, conversationsRouter);
+
+// A shared conversation is read by whoever holds its link: no auth, by design
+// (`routes/shared.ts`).
+router.use('/shared', sharedRouter);
+
+// What an embedding app reads about an agent before opening it: the person's own session.
+router.use('/agents', authenticateToken, apiKeyRateLimit, agentsV1Router);
 
 // Channel bot auth: validates x-channel-bot-secret against registered channels
 // and sets req.user from x-oxy-user-id for trusted bot services.

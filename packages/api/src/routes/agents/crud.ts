@@ -58,6 +58,14 @@ import {
   type IntegrationSafeRow,
 } from '../../db/integrations/integrationRepository.js';
 import { revokeAllAgentOxyApps } from '../../lib/agent-oxy-apps.js';
+import { refuseFeatureGates } from '../../lib/agent-features.js';
+import {
+  GATED_FEATURES,
+  MAX_AGENT_STARTERS,
+  MAX_STARTER_PROMPT_LENGTH,
+  MAX_STARTER_TITLE_LENGTH,
+  type GatedFeature,
+} from '../../domain/agent-features.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -536,6 +544,43 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
+/** What the agent's empty chat offers to send, replaced whole. */
+const startersSchema = z
+  .array(
+    z
+      .object({
+        title: z.string().trim().min(1).max(MAX_STARTER_TITLE_LENGTH),
+        prompt: z.string().trim().min(1).max(MAX_STARTER_PROMPT_LENGTH),
+      })
+      .strict(),
+  )
+  .max(MAX_AGENT_STARTERS);
+
+/**
+ * An app id and one of its feature keys, in the catalogue's own spelling
+ * (`@oxy.so/contracts` `catalogFeatureSchema`). Whether they name something
+ * real is asked of the live catalogue in the handler, not here.
+ */
+const featureGateSchema = z
+  .object({
+    app: z.string().trim().min(1).max(255),
+    feature: z
+      .string()
+      .max(128)
+      .regex(/^[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)*$/),
+  })
+  .strict();
+
+/** Alia feature → the app feature that unlocks it, replaced whole. Only Alia's gated features. */
+const featureGatesSchema = z
+  .object(
+    Object.fromEntries(GATED_FEATURES.map((key) => [key, featureGateSchema.optional()])) as Record<
+      GatedFeature,
+      z.ZodOptional<typeof featureGateSchema>
+    >,
+  )
+  .strict();
+
 /**
  * What `PATCH /agents/:id` accepts.
  *
@@ -554,6 +599,8 @@ const updateAgentSchema = z
     character: characterSchema.optional(),
     tagline: z.string().min(1).max(200).optional(),
     description: z.string().min(1).max(5000).optional(),
+    starters: startersSchema.optional(),
+    featureGates: featureGatesSchema.optional(),
     category: z.string().min(1).max(100).optional(),
     tags: z.array(z.string()).optional(),
     price: z.number().int().nullable().optional(),
@@ -583,6 +630,20 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
     const data = updateAgentSchema.parse(req.body);
     const modelRefusal = await refuseUnknownModel(data.modelId);
     if (modelRefusal) return res.status(400).json(modelRefusal);
+    if (data.featureGates !== undefined) {
+      let gateRefusal: string | null;
+      try {
+        gateRefusal = await refuseFeatureGates(data.featureGates);
+      } catch (error: unknown) {
+        log.agents.warn({ err: error, agentId: id }, 'Could not read the catalogues for a gate');
+        return res.status(503).json({
+          error: 'The app catalogues could not be read to check the feature gates. Try again.',
+        });
+      }
+      if (gateRefusal !== null) {
+        return res.status(400).json({ error: gateRefusal, param: 'featureGates' });
+      }
+    }
 
     const loaded = await loadAgentForActor(getDb(), {
       agentId: id,

@@ -68,6 +68,7 @@ import { libraryFiles } from '../schema/library';
 import { skills } from '../schema/skills';
 import type { AvatarCharacter } from '@oxy.so/contracts';
 import type { AgentAccess, AgentArchetype, AgentStatus } from '../../domain/agent';
+import type { AgentFeatureGates, AgentStarter } from '../../domain/agent-features';
 import { withoutRetiredGrants } from '../../domain/capability-grants';
 import { escapeLikePattern } from '@oxy.so/utils/sql';
 
@@ -118,8 +119,13 @@ export interface AgentRecord {
   applicationId: string | null;
   /** What the agent looks like: a Bloom avatar character, stored whole. */
   character: AvatarCharacter;
+  /** One line; also the greeting of the agent's empty chat. */
   tagline: string;
   description: string;
+  /** What its empty chat offers to send. */
+  starters: AgentStarter[];
+  /** Alia features behind an app's entitlement (ADR 0020 §6). */
+  featureGates: AgentFeatureGates;
   author: string;
   category: string;
   tags: string[];
@@ -214,6 +220,8 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     character: row.character,
     tagline: row.tagline,
     description: row.description,
+    starters: row.starters,
+    featureGates: row.featureGates,
     author: row.authorOxyUserId,
     category: row.category,
     tags: row.tags,
@@ -891,6 +899,10 @@ export interface UpdateAgentInput {
   character?: AvatarCharacter;
   tagline?: string;
   description?: string;
+  /** Replaced whole. */
+  starters?: AgentStarter[];
+  /** Replaced whole; validated against the live catalogues by the caller. */
+  featureGates?: AgentFeatureGates;
   category?: string;
   tags?: string[];
   price?: number | null;

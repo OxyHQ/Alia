@@ -41,10 +41,11 @@ export interface ChatHeaderActionsProps {
  * The chat's own actions, in the container's breadcrumb row: Bloom's
  * `DropdownMenu` behind the row's "more" glyph.
  *
- * There is deliberately no share item: Alia has no share backend — no public
- * link, no `/conversations/:id/share` — and a share button that could only copy
- * text would be a stub dressed as an action. Bloom's `AgentChatActions` always
- * draws one, which is why this is a menu of Alia's real actions instead.
+ * There is no share item yet. The backend exists (`POST /conversations/:id/share`
+ * mints an expiring read-only link, `docs/agent-embedding.md` §6), but nothing in
+ * this menu calls it, and a share button that could only copy text would be a stub
+ * dressed as an action. Bloom's `AgentChatActions` always draws one, which is why
+ * this is a menu of Alia's real actions instead.
  *
  * It also shows and hides the right panel, which otherwise opens only when the
  * agent starts working. Shown from here, it is the workspace: the files Alia

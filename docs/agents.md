@@ -495,6 +495,55 @@ it grants one family, runs the real assembler and asserts the set gained exactly
 that family's tools. A grant that reaches nothing produces an empty difference
 and fails — which is the control the two dead vocabularies never had.
 
+## What an app shows before it opens an agent
+
+An embedding app (ADR 0020 §6) draws the agent as the lead participant from
+`GET /v1/agents/:id/profile` ([Embedding an agent](./agent-embedding.md) §1): the
+bot account's name, handle and colour, the agent's character and description, its
+`access`, which of Alia's features it gates, and two things of its own:
+
+- **`greeting` is the agent's `tagline`.** The one line its owner already writes in the
+  editor. No second column: a greeting and a tagline would be two lines describing
+  the same agent, free to disagree.
+- **`starters`** (`agents.starters`, `[{ title, prompt }]`, at most 6) are the empty
+  chat's suggestions, set with `PATCH /agents/:id`. They are a column of their own
+  because nothing else holds them: they are the owner's words ("Can you review my
+  lease for red flags?"), and a list derived from tags would be prompts nobody wrote.
+  `POST /suggestions/welcome` with `{ agentId }` answers these same starters.
+
+### Feature gates
+
+An owner can put one of Alia's features behind a feature an Oxy app sells
+(`agents.feature_gates`, ADR 0020 §6). The keys are Alia's — `attachments.documents`
+(a `file` part) and `attachments.images` (an `image_url` part) — and each maps to
+`{ app, feature }`, a feature the app declares in its capability catalogue
+(`features[{ key, checkTool, consumeTool? }]`, `@oxy.so/contracts` 4.20). Sindi's
+`{ "attachments.documents": { "app": "homiio", "feature": "files" } }` is how
+Homiio+ unlocks documents without Alia knowing what Homiio+ is.
+
+- **Saved through `PATCH /agents/:id`** (`featureGates`, replaced whole), and checked
+  against the LIVE catalogue first: an undeclared feature is a 400, a feature whose
+  tools need an input is a 400, and catalogues Alia cannot read are a 503 rather
+  than an unchecked save (`refuseFeatureGates`, `lib/agent-features.ts`).
+- **Asked under the person's own lane.** `checkTool` and `consumeTool` run on exactly
+  the binding the agent's `oxy_*` tools use for the person present
+  (`callOxyFeatureTool`, `lib/tools/oxy-services.ts`): the owner's levels for the
+  owner, the owner's ceilings for anybody else. A lane that does not reach the tool
+  is LOCKED — the person cannot be entitled through this agent — so a gate the owner
+  sets needs the app at a level (and for a spend, Ver y actuar) on that lane.
+- **What the app answers.** `checkTool` → `{ available, remaining? }`, `consumeTool`
+  → `{ consumed, remaining? }`, both called with no input. Anything else, or no
+  answer, is `feature_check_unavailable` (retryable) and never read as either verdict.
+- **On a turn**, before any credit is reserved (`lib/chat/request-context.ts`): every
+  gated part of every user message — the history's too, which is the client's to
+  send — is checked, then the documents are read, then each part is spent under
+  `sha256(turnId + partHash)`, where `turnId` is the id of the message that carries
+  it. A retried turn and a resent history spend nothing new. A refusal is
+  `{ code: 'feature_entitlement_required', feature, retryable: false }` and reserves
+  nothing.
+- `GET /v1/agents/:id/features` answers the same check for the app's upsell:
+  `{ features: [{ key, state, remaining? }] }`.
+
 ## Oxy apps: for the person and as itself
 
 [ADR 0015](./adr/0015-actors-and-identities.md). An agent has two identities in

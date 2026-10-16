@@ -20,6 +20,10 @@ import {
   type MessageRow,
   type NewMessage,
 } from '../db/chat/messageRepository.js';
+import {
+  revokeConversationShare,
+  shareConversation,
+} from '../db/chat/conversationShareRepository.js';
 import { keepAgentOutreach } from '../lib/conversation-saver.js';
 import {
   CONVERSATION_SOURCES,
@@ -36,6 +40,7 @@ import {
 import { authenticateToken, authenticateTokenOrApiKey } from '../middleware/auth.js';
 import type { Request, Response } from 'express';
 import { log } from '../lib/logger.js';
+import { z } from 'zod';
 
 const router = Router();
 
@@ -270,9 +275,21 @@ router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) =
     if (before !== undefined && Number.isNaN(before.getTime())) {
       return res.status(400).json({ error: 'Invalid cursor' });
     }
+    /**
+     * `?agentId=` narrows to the person's conversations with that agent. An id
+     * naming no agent is an empty list, like any filter that matches nothing:
+     * the list is the person's own, so it confirms nothing about the agent.
+     */
+    const agentId = req.query.agentId;
+    if (agentId !== undefined && (typeof agentId !== 'string' || agentId === '')) {
+      return res.status(400).json({ error: 'agentId must be a non-empty agent id' });
+    }
 
     // One extra row decides `hasMore` without a second count query.
-    const rows = await listConversations(getDb(), req.user.id, limit + 1, before);
+    const rows = await listConversations(getDb(), req.user.id, limit + 1, {
+      ...(before === undefined ? {} : { before }),
+      ...(agentId === undefined ? {} : { agentId }),
+    });
 
     const hasMore = rows.length > limit;
     const results = hasMore ? rows.slice(0, limit) : rows;
@@ -495,6 +512,61 @@ router.delete('/:id/messages', authenticateToken, async (req: Request, res: Resp
   }
 });
 
+/** Hours a share link lives: at least one, at most a week. */
+const shareSchema = z.object({ ttlHours: z.number().int().min(1).max(168) }).strict();
+
+/**
+ * Share a conversation: a link anyone holding it can read, until `expiresAt`
+ * (`GET /v1/shared/:token`, `routes/shared.ts`).
+ *
+ * The token is answered ONCE, here; only its hash is stored. Sharing again
+ * replaces the link, so the previous one stops working. What a reader sees is
+ * `lib/shared-conversation.ts`'s allow-list: text, images and who said them,
+ * never a tool's input or output.
+ */
+router.post('/:id/share', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const parsed = shareSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'ttlHours must be a whole number from 1 to 168' });
+    }
+    const conversationId = String(req.params.id);
+    const conversation = await findConversation(getDb(), req.user.id, conversationId);
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+    const share = await shareConversation(getDb(), {
+      oxyUserId: req.user.id,
+      conversationId,
+      expiresAt: new Date(Date.now() + parsed.data.ttlHours * 60 * 60 * 1000),
+    });
+    res.status(201).json({ token: share.token, expiresAt: share.expiresAt });
+  } catch (error: unknown) {
+    log.chat.error({ err: error }, 'Error sharing conversation');
+    res.status(500).json({ error: 'Failed to share conversation' });
+  }
+});
+
+/** Revoke the conversation's share link. 404 when it has none. */
+router.delete('/:id/share', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const removed = await revokeConversationShare(getDb(), req.user.id, String(req.params.id));
+    if (removed === 0) {
+      return res.status(404).json({ error: 'Share link not found' });
+    }
+    res.json({ success: true });
+  } catch (error: unknown) {
+    log.chat.error({ err: error }, 'Error revoking a conversation share');
+    res.status(500).json({ error: 'Failed to revoke the share link' });
+  }
+});
+
 // Delete a conversation
 router.delete('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
@@ -503,7 +575,7 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
     }
 
     /**
-     * Both statements, concurrently, exactly as the source ran them. There is no
+     * The statements run concurrently, as the source ran the first two. There is no
      * cascade to lean on — `db/schema/chat.ts` refuses the foreign key — so the
      * messages are removed here or not at all, and the messages are removed even
      * when no conversation row matched, which is how orphans left by an earlier
@@ -516,6 +588,8 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
     const [removed] = await Promise.all([
       deleteConversation(getDb(), req.user.id, conversationId),
       deleteMessages(getDb(), req.user.id, conversationId),
+      // A link to a conversation that no longer exists opens nothing; the row goes with it.
+      revokeConversationShare(getDb(), req.user.id, conversationId),
     ]);
 
     if (removed === 0) {

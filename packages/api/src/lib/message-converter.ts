@@ -3,18 +3,40 @@
  *
  * Handles:
  *   - System, user, assistant messages
- *   - Multi-part content (text + images)
+ *   - Multi-part content (text, images, and `file` parts already read from Oxy
+ *     Files by `lib/files/person-files.ts`)
  *   - Tool calls (OpenAI format from editors + Alia toolInvocations format)
  *   - Tool results (role "tool" in OpenAI format)
  *   - Tool name mapping (sanitized names for Google Gemini compatibility)
  */
 
 import type { ModelMessage } from 'ai';
+import type { ResolvedFiles } from './files/person-files.js';
+
+/** An Oxy Files document attached to a user message (`docs/agent-embedding.md` §5). */
+export interface FilePartRef {
+  file_id: string;
+  filename?: string;
+  mime?: string;
+}
+
+/**
+ * One part of a multi-part message body, as a client sends it. A type alias,
+ * not an interface, so it stays assignable to the stored `MessageContentPart`.
+ */
+export type ChatContentPart = {
+  type: string;
+  text?: string;
+  image_url?: { url: string };
+  file?: FilePartRef;
+};
 
 /** Minimal type for OpenAI-format chat messages from request body */
 export interface ChatMessage {
+  /** The client's id for the message, when it sends one (the SDK always does). */
+  id?: string;
   role: string;
-  content?: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+  content?: string | ChatContentPart[];
   name?: string;
   tool_call_id?: string;
   tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
@@ -30,10 +52,15 @@ export interface ChatMessage {
 /**
  * Convert OpenAI-format messages to AI SDK ModelMessage format.
  * Handles tool result messages which have role "tool" in OpenAI format.
+ *
+ * `files` holds every `file` part's model content, read before the turn was
+ * admitted (`lib/chat/request-context.ts`). A part missing from it is a bug in
+ * that admission, so it throws rather than sending the model a turn without it.
  */
 export function convertToAISDKMessages(
   messages: ChatMessage[],
   toolNameMapping: Map<string, string>,
+  files: ResolvedFiles = new Map(),
 ): ModelMessage[] {
   // biome-ignore lint/suspicious/noExplicitAny: AI SDK ModelMessage types are complex/dynamic
   const result: any[] = [];
@@ -52,17 +79,22 @@ export function convertToAISDKMessages(
       });
     } else if (msg.role === 'user') {
       if (Array.isArray(msg.content)) {
-        // Multi-part content (text + images): convert OpenAI image_url format to AI SDK image format
+        // Multi-part content: OpenAI `image_url` becomes an AI SDK image, and an
+        // Oxy Files `file` part the content it was read into.
         result.push({
           role: 'user',
-          content: (msg.content as Array<{ type: string; image_url?: { url: string } }>).map(
-            (part) => {
-              if (part.type === 'image_url' && part.image_url?.url) {
-                return { type: 'image', image: part.image_url.url };
-              }
-              return part;
-            },
-          ),
+          content: msg.content.map((part) => {
+            if (part.type === 'image_url' && part.image_url?.url) {
+              return { type: 'image', image: part.image_url.url };
+            }
+            if (part.type === 'file') {
+              const resolved = part.file ? files.get(part.file.file_id) : undefined;
+              if (resolved === undefined)
+                throw new Error('A file part was not read before the turn');
+              return resolved;
+            }
+            return part;
+          }),
         });
       } else {
         result.push({

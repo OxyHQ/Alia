@@ -44,6 +44,13 @@ is [`docs/index.mdx`](../../docs/index.mdx).
 - `GET /v1/models`
 - `GET /v1/models/:modelId`
 
+### Embedding an agent (`docs/agent-embedding.md`)
+
+- `GET /v1/agents/:id/profile`, `GET /v1/agents/:id/features`
+- `GET /v1/conversations?agentId=<id>`
+- `POST /v1/conversations/:id/share`, `DELETE /v1/conversations/:id/share`
+- `GET /v1/shared/:token` (no auth)
+
 ### Oxy Event Ingestion
 
 - `POST /webhooks/oxy`

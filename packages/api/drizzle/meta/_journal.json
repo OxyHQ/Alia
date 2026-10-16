@@ -694,6 +694,20 @@
       "when": 1792160321814,
       "tag": "0098_retire_agent_approvals",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1792173458205,
+      "tag": "0099_agent_gates_starters_and_shares",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1792173462954,
+      "tag": "0100_drop_conversation_is_public",
+      "breakpoints": true
     }
   ]
 }

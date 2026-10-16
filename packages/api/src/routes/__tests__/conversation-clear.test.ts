@@ -120,6 +120,16 @@ vi.mock('../../db/chat/messageRepository.js', async () => {
   };
 });
 
+vi.mock('../../db/chat/conversationShareRepository.js', () => ({
+  shareConversation: async () => {
+    throw new Error('not used here');
+  },
+  revokeConversationShare: async (_db: unknown, oxyUserId: string, conversationId: string) => {
+    sequence.push(`revokeShare:${oxyUserId}:${conversationId}`);
+    return 0;
+  },
+}));
+
 vi.mock('../../lib/speech-clips.js', () => ({
   purgeConversationSpeechClips: async (_db: unknown, oxyUserId: string, conversationId: string) => {
     sequence.push(`purgeClips:${oxyUserId}:${conversationId}`);
@@ -244,11 +254,13 @@ describe('DELETE /conversations/:id/messages', () => {
 
     expect(response.status).toBe(200);
     // The whole-thread delete is a different route with a different shape: the
-    // row goes, and it runs on the root handle exactly as before.
+    // row goes, and it runs on the root handle exactly as before — its share
+    // link with it, while the clear above leaves the link alone.
     expect(sequence).toEqual([
       `purgeClips:${USER_ID}:${CONVERSATION_ID}`,
       `deleteConversation:${USER_ID}:${CONVERSATION_ID}`,
       `deleteMessages:root:${USER_ID}:${CONVERSATION_ID}`,
+      `revokeShare:${USER_ID}:${CONVERSATION_ID}`,
     ]);
   });
 });

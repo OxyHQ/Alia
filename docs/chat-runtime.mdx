@@ -30,7 +30,10 @@ credential never join Kaana's hosted credential pool.
 
 1. Auth resolves the Oxy user or application credential.
 2. `buildChatRequestContext` resolves the level or model (absent is `auto`),
-   validates `reasoningEffort` against it, then reserves product credits.
+   validates `reasoningEffort` against it, admits the turn's attachments (the
+   agent's feature gates are checked, `file` parts are read from Oxy Files as the
+   person, gated parts are spent — [Embedding an agent](./agent-embedding.md) §5),
+   then reserves product credits. A refused attachment reserves nothing.
 3. Alia assembles conversation context, memory, agent instructions and tools.
 4. The inference seam calls `@oxy.so/core`'s `OxyInferenceClient` with the
    `model`, `reasoning: { effort }` when requested, and Alia's service credential.
