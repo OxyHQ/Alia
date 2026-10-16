@@ -2237,21 +2237,15 @@ describe('fixture: a turn served by the user own device', () => {
     expect(H.timeline.filter((entry) => entry.startsWith('credits:'))).toEqual([]);
   });
 
-  it('refuses agent mode, whose delegation tool resolves a hosted model too', async () => {
+  it('never offers consultAgent, which runs a hosted agent turn', async () => {
     const res = recordingRes();
     await run(
       recordingReq({
-        body: {
-          messages: [{ role: 'user', content: 'go' }],
-          model: LOCAL_MODEL,
-          stream: true,
-          agentMode: true,
-        },
+        body: { messages: [{ role: 'user', content: 'hola' }], model: LOCAL_MODEL, stream: true },
       }),
       res,
     );
-    expect(res.jsonBody).toMatchObject({ error: { code: 'local_runtime_capability_unavailable' } });
-    expect(H.timeline).not.toContain('model:doStream');
+    expect(toolNamesSeenByModel()).not.toContain('consultAgent');
   });
 
   it('never offers the deep-research tool, which reaches the same engine', async () => {

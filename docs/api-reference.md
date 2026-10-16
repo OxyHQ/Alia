@@ -87,7 +87,8 @@ Product extras: `conversationId`, `reasoningEffort` (`low` | `medium` | `high`, 
 with any power level, and with a model only when the model lists that level in `reasoningEfforts`, else `400`
 `invalid_reasoning_effort`; forwarded to Oxy as `reasoning: { effort }`), `surface`
 (`chat` | `codea` | `cowork`, default `chat` — selects the system prompt, never the
-model), `responseMode: "voice"`, `agentMode`, `deepResearch`, `tools`,
+model), `responseMode: "voice"`, `deepResearch`, `tools`, `host` (the embedding app's UI
+effects, [Embedding an agent](./agent-embedding.md) §2),
 `stream_options.include_usage`.
 
 **`GET /alia/chat`** returns a service status object, not a completion.

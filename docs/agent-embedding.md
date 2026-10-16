@@ -33,7 +33,7 @@ is that agent. Without `agentId`, the lead is Alia.
 
 ## 2. Host tools: UI effects in the embedding client
 
-A request may declare the UI effects its own client can perform:
+A request may declare the UI effects its own client can perform. What is on the person's screen is sent the usual way, in `clientContext`; `host` carries only the actions and the outcomes of earlier ones:
 
 ```json
 "host": {
@@ -42,7 +42,6 @@ A request may declare the UI effects its own client can perform:
   "tools": [
     { "name": "apply_search", "description": "…", "inputSchema": { "type": "object", "…": "…" } }
   ],
-  "context": { "…": "≤ 4 KB, opaque to Alia, shown to the model" },
   "outcomes": [
     { "toolCallId": "call_1", "outcome": "applied", "detail": "optional, ≤ 500 chars" }
   ]
@@ -91,7 +90,7 @@ When it shows these frames, the SDK does the following:
 - Its reply is drawn under its own identity.
 - `agent_tool` results go through the same renderers as the lead's results.
 
-The stored conversation keeps one assistant message per consulted agent, carrying `agentInfo`.
+The stored conversation keeps one assistant message per consulted agent, carrying `agentInfo`, with the id `<assistantMessageId>-agent-<n>`, where `n` (0-based) is the order of its `alia.agent_start` in the turn. A client names the message it drew live the same way.
 
 ## 5. Feature gates
 

@@ -80,7 +80,6 @@ async function chatTools(opts: { direct: boolean }) {
     accessToken: 'token',
     isDirectSession: opts.direct,
     actsForPerson: opts.direct,
-    agentMode: opts.direct,
     requestId: 'r1',
     toolsEnabled: true,
     webSearch: true,

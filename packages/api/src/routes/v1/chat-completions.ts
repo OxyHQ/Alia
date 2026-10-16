@@ -6,6 +6,9 @@ import { ToolPipeline } from '../../lib/tool-pipeline.js';
 import { createResponseSSEEmitter } from '../../lib/sse-emitter.js';
 import { SystemPromptBuilder } from '../../lib/system-prompt-builder.js';
 import { convertToAISDKMessages, priorToolCallsOf } from '../../lib/message-converter.js';
+import { applyHostOutcomes, hostOutcomeResult } from '../../lib/host-tools.js';
+import { recordToolResults } from '../../db/chat/messageRepository.js';
+import { getDb } from '../../db/index.js';
 import { ToolLimitExceededError } from '../../lib/inference/tool-limit.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
 import { measureContext } from '../../lib/chat/context-breakdown.js';
@@ -144,6 +147,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       assistantMessageId,
       reasoningEffort,
       responseMode,
+      host,
       deepResearch,
       webSearch,
       mcpServerId,
@@ -244,13 +248,13 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
             isDirectSession: isDirectUserSession,
             // A session acts for the person holding it; an API key does not.
             actsForPerson: isDirectUserSession,
-            agentMode: agentRuntimeEnabled,
             requestId,
             // The tools this conversation already used stay loaded (`lib/tool-budget.ts`).
             priorToolCalls: priorToolCallsOf(messages),
             // The tool definitions' share of the request is the model's (`request-budget.ts`).
             inputLimits: ctx.resolved.catalogue,
             editorToolDefinitions: body.tools,
+            ...(host ? { host } : {}),
             sseEmitter,
             webSearch,
             mcpServerId,
@@ -334,8 +338,23 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     // Estimate system prompt tokens (for credit calculation)
     const systemPromptTokens = estimateMessageTokens('system', systemMessage);
 
-    // Convert OpenAI-format messages to AI SDK format (handles tool messages)
-    const convertedMessages = convertToAISDKMessages(rawMessages, toolNameMapping);
+    // Convert OpenAI-format messages to AI SDK format (handles tool messages), and
+    // give each host action the app reported its real outcome (`lib/host-tools.ts`).
+    const convertedMessages = applyHostOutcomes(
+      convertToAISDKMessages(rawMessages, toolNameMapping),
+      host?.outcomes,
+    );
+    if (host?.outcomes?.length && conversationId && req.user?.id) {
+      const userId = req.user.id;
+      void recordToolResults(
+        getDb(),
+        userId,
+        conversationId,
+        new Map(host.outcomes.map((outcome) => [outcome.toolCallId, hostOutcomeResult(outcome)])),
+      ).catch((err: unknown) =>
+        log.v1.warn({ err, conversationId }, 'Could not store host action outcomes'),
+      );
+    }
 
     // Tool results are already bounded by the assembler (`lib/tool-pipeline.ts`).
     const truncatedTools = allTools;

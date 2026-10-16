@@ -626,7 +626,6 @@ function forUser(over: Partial<ForUserOptions> = {}) {
     accessToken: 'token-1',
     isDirectSession: true,
     actsForPerson: true,
-    agentMode: true,
     toolsEnabled: true,
     webSearch: true,
     isLocalRuntime: false,

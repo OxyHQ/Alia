@@ -23,6 +23,7 @@
  * `../streaming-helpers.js`, `../observability/index.js`) match the paths the
  * route used inline so the timeout suite's module mocks keep intercepting them.
  */
+import { CONSULT_AGENT_TOOL } from '../tools/consult-agent.js';
 import type { AgentInfo } from '../../domain/conversation.js';
 import type { AvatarCharacter } from '@oxy.so/contracts';
 import type { Response } from 'express';
@@ -43,18 +44,13 @@ import { isInvalidToolCall, toolRoundTrip } from './tool-calls.js';
 import { ASK_USER_QUESTION_TOOL } from '../tools/ask-user-question.js';
 
 /**
- * The tools whose result IS another agent's answer, and is drawn as one.
+ * The consultation's result: another agent's whole answer, with its identity.
  *
- * Both run a nested turn through `lib/tools/agent-turn.ts` and both come back
- * with the answering agent's identity attached, so the client draws one bubble
- * for "an agent other than this one said something" rather than two renderings
- * of one idea. A tool added to that runner and not to this set silently
- * degrades into a tool result the calling model paraphrases.
+ * The answer already reached the client live, as `alia.agent_*` frames emitted
+ * by the tool itself (`lib/tools/consult-agent.ts`); here it is only recorded,
+ * as that agent's own message in the conversation.
  */
-const AGENT_ANSWER_TOOLS: ReadonlySet<string> = new Set(['delegateToAgent', 'askAgent']);
-
-/** Shape of the tool result the loop unpacks into an alia.agent event. */
-interface DelegateAgentToolOutput {
+interface ConsultAgentToolOutput {
   error?: unknown;
   agentId: string;
   agentName: string;
@@ -428,24 +424,13 @@ export async function runStream<TOOLS extends ToolSet>(
         });
       }
 
-      // Emit agent message as named SSE event (non-standard, Alia extension)
+      // A consulted agent's answer becomes that agent's own message.
       if (
-        AGENT_ANSWER_TOOLS.has(originalToolName ?? '') &&
+        originalToolName === CONSULT_AGENT_TOOL &&
         chunk.output &&
-        !(chunk.output as DelegateAgentToolOutput).error
+        !(chunk.output as ConsultAgentToolOutput).error
       ) {
-        const ar = chunk.output as DelegateAgentToolOutput;
-        res.write(
-          `event: alia.agent\ndata: ${JSON.stringify({
-            eventVersion: 1,
-            agentId: ar.agentId,
-            agentName: ar.agentName,
-            agentHandle: ar.agentHandle,
-            agentColor: ar.agentColor,
-            agentCharacter: ar.agentCharacter,
-            content: ar.response,
-          })}\n\n`,
-        );
+        const ar = chunk.output as ConsultAgentToolOutput;
         agentMessages.push({
           role: 'assistant',
           content: ar.response,

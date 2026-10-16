@@ -157,7 +157,7 @@ describe('an agent-reach verdict is compared, never coerced', () => {
    */
   it('found the calls it thinks it found', () => {
     expect(sites.length).toBeGreaterThanOrEqual(3);
-    expect(sites.map((s) => s.file)).toContain('src/lib/tools/agent-delegate.ts');
+    expect(sites.map((s) => s.file)).toContain('src/lib/tools/consult-agent.ts');
     expect(sites.map((s) => s.file)).toContain('src/lib/agent-account.ts');
   });
 

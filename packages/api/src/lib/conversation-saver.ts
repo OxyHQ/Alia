@@ -93,14 +93,12 @@ export interface SaveConversationParams {
 }
 
 /**
- * The id of the `index`-th delegated-agent answer of a turn whose reply is
- * `assistantMessageId`.
+ * The id of the `index`-th consulted agent's answer (0-based, in the order of
+ * its `alia.agent_start`) of a turn whose reply is `assistantMessageId`.
  *
- * Derived rather than sent: `alia.agent` carries no id, and cannot grow one —
- * `@alia.onl/sdk`'s stream parser refuses a key it does not know, for the whole
- * stream. The app draws the n-th `alia.agent` of a turn under this same name
- * (`packages/app/src/features/chat/model/chat-message-history.ts` `agentMessageId`), so the two
- * agree without a wire change.
+ * Derived on both sides rather than sent, so a client that drew the answer
+ * live and the conversation it reloads later name it the same way
+ * (`docs/agent-embedding.md` §4).
  */
 export function agentMessageId(assistantMessageId: string, index: number): string {
   return `${assistantMessageId}-agent-${index}`;

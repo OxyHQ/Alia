@@ -1,23 +1,11 @@
 /**
- * Another agent's answer reaches the person as THAT AGENT, not as a tool result.
+ * A consulted agent's answer is recorded as THAT AGENT's message, not as a
+ * tool result the lead paraphrases (ADR 0020 §5).
  *
- * `askAgent` and `delegateToAgent` both run a nested turn and both come back
- * with the answering agent's identity attached. The stream loop unpacks either
- * one into an `alia.agent` frame, which is what a client draws as a second
- * speaker — name, handle and colour included.
- *
- * ## Why this is worth a test of its own
- *
- * The unpacking is a NAME COMPARISON in the middle of a long chunk loop. A tool
- * that runs an agent and is not in the set degrades silently and plausibly:
- * nothing errors, nothing is red, the calling model simply paraphrases the
- * other agent's answer in its own voice and the second speaker disappears from
- * the conversation. There was no test at all before, so the delegation half is
- * covered here for the first time too.
- *
- * The pair is asserted TOGETHER, and that is the point: one passing and the
- * other not is exactly the divergence the shared nested-turn runner exists to
- * prevent.
+ * The answer already reached the client live — `consultAgent` emits
+ * `alia.agent_start|delta|tool|end` itself (`lib/tools/consult-agent.ts`) — so
+ * the stream loop writes no frame for it any more; what it still owns is the
+ * conversation record, so the thread shows two speakers when it is read back.
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -40,22 +28,13 @@ vi.mock('../../chat-core.js', () => ({ reportModelUsage: vi.fn() }));
 
 const { runChunks } = await import('./stream-harness.js');
 
-/** The `alia.agent` frames, parsed. */
-function agentFrames(written: string[]): Record<string, unknown>[] {
-  return written
-    .filter((frame) => frame.startsWith('event: alia.agent\n'))
-    .map((frame) => {
-      const payload = frame.slice(frame.indexOf('data: ') + 'data: '.length).trim();
-      return JSON.parse(payload) as Record<string, unknown>;
-    });
-}
-
 const ANSWER = {
   agentId: 'ag-1',
-  agentName: 'Archivist',
-  agentHandle: 'archivist',
-  agentColor: 'lagoon',
-  response: 'It was 1969.',
+  agentName: 'Sindi',
+  agentHandle: 'sindibot',
+  agentColor: 'teal',
+  agentCharacter: null,
+  response: 'Hay tres pisos en Gràcia.',
 };
 
 async function run(toolName: string, output: unknown) {
@@ -63,47 +42,40 @@ async function run(toolName: string, output: unknown) {
     { type: 'tool-call', toolCallId: 'call-1', toolName, input: {} },
     { type: 'tool-result', toolCallId: 'call-1', toolName, input: {}, output },
   ]);
-  return { frames: agentFrames(written), agentMessages };
+  return { written, agentMessages };
 }
 
-describe('an agent that answered inside a turn is drawn as that agent', () => {
-  it.each(['askAgent', 'delegateToAgent'])('emits an alia.agent frame for %s', async (toolName) => {
-    const { frames, agentMessages } = await run(toolName, ANSWER);
+describe('a consulted agent is recorded as that agent', () => {
+  it("stores consultAgent's answer as the agent's own message, with no frame from the loop", async () => {
+    const { written, agentMessages } = await run('consultAgent', ANSWER);
 
-    expect(frames).toEqual([
-      {
-        eventVersion: 1,
-        agentId: 'ag-1',
-        agentName: 'Archivist',
-        agentHandle: 'archivist',
-        agentColor: 'lagoon',
-        content: 'It was 1969.',
-      },
-    ]);
-    // And it is saved as a message of its own, so the thread still shows two
-    // speakers when it is read back rather than only while it streamed.
     expect(agentMessages).toEqual([
       {
         role: 'assistant',
-        content: 'It was 1969.',
-        agentInfo: { id: 'ag-1', name: 'Archivist', color: 'lagoon', handle: 'archivist' },
+        content: 'Hay tres pisos en Gràcia.',
+        agentInfo: {
+          id: 'ag-1',
+          name: 'Sindi',
+          color: 'teal',
+          character: null,
+          handle: 'sindibot',
+        },
       },
     ]);
+    expect(written.some((frame) => frame.startsWith('event: alia.agent\n'))).toBe(false);
   });
 
-  it('emits nothing for a tool that is not another agent speaking', async () => {
-    // The negative control. Without it, a loop that emitted a frame for EVERY
-    // tool result would satisfy both cases above.
-    const { frames } = await run('webSearch', { results: [] });
-
-    expect(frames).toEqual([]);
+  it('records nothing for a tool that is not another agent speaking', async () => {
+    const { agentMessages } = await run('webSearch', { results: [] });
+    expect(agentMessages).toEqual([]);
   });
 
-  it('emits nothing when the agent could not answer', async () => {
-    // An error is a tool result the calling model has to read and act on, not
-    // a bubble with an empty body in the person's thread.
-    const { frames } = await run('askAgent', { ...ANSWER, response: '', error: 'no credits' });
-
-    expect(frames).toEqual([]);
+  it('records nothing when the agent could not answer', async () => {
+    const { agentMessages } = await run('consultAgent', {
+      ...ANSWER,
+      response: '',
+      error: 'no credits',
+    });
+    expect(agentMessages).toEqual([]);
   });
 });
