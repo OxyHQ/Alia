@@ -253,32 +253,3 @@ describe('a PUBLIC agent never asks Oxy at all', () => {
     expect(oxy.calls).toBe(0);
   });
 });
-
-describe('an application-bound product agent', () => {
-  const productAgent = {
-    ...CLAUDIO,
-    access: 'public',
-    applicationId: 'homiio-app-id',
-  } as never;
-
-  it('is unreachable to a human bearer even when the id and public flag are known', async () => {
-    expect(await canReachAgent(productAgent, CALLER)).toBe('out_of_reach');
-    expect(oxy.calls).toBe(0);
-  });
-
-  it('is reachable only to the exact credential-derived service application', async () => {
-    expect(
-      await canReachAgent(productAgent, {
-        ...CALLER,
-        applicationId: 'homiio-app-id',
-      }),
-    ).toBe('reachable');
-    expect(
-      await canReachAgent(productAgent, {
-        ...CALLER,
-        applicationId: 'mention-app-id',
-      }),
-    ).toBe('out_of_reach');
-    expect(oxy.calls).toBe(0);
-  });
-});

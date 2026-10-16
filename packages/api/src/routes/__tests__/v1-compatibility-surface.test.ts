@@ -63,7 +63,6 @@ import aliaChatRouter from '../chat.js';
 import v1Router from '../v1.js';
 import {
   authenticateChannelBotSecret,
-  authenticateRequesterAssertion,
   authenticateTelegramBot,
   authenticateToken,
   authenticateTokenOrApiKey,
@@ -122,7 +121,6 @@ const KNOWN_MIDDLEWARE: ReadonlyArray<readonly [unknown, string]> = [
   [authenticateTokenOrApiKey, 'authenticateTokenOrApiKey'],
   [authenticateTelegramBot, 'authenticateTelegramBot'],
   [authenticateChannelBotSecret, 'authenticateChannelBotSecret'],
-  [authenticateRequesterAssertion, 'authenticateRequesterAssertion'],
   [apiKeyRateLimit, 'apiKeyRateLimit'],
   [handleChatCompletions, 'handleChatCompletions'],
 ];
@@ -372,24 +370,8 @@ const AUTHENTICATED: readonly string[] = [
   'apiKeyRateLimit',
 ];
 /**
- * The chat surface alone also accepts a product's present-requester assertion
- * (ADR 0025 in OxyHQServices). It is not a new credential: the bearer is still
- * an Oxy service token verified by `authenticateTokenOrApiKey`, and the
- * assertion is Oxy-signed and consumed through Oxy's live introspection, so
- * condition 1 of ADR 0004 — authenticate through Oxy — holds. It sits before the
- * limiter so the limiter keys on the requester it attaches, and `/alia/chat`
- * mounts the same function in the same position.
- */
-const CHAT: readonly string[] = [
-  '?anonymous',
-  'authenticateTokenOrApiKey',
-  'authenticateRequesterAssertion',
-  'apiKeyRateLimit',
-];
-
-/**
  * A person's session and nothing else, in front of the conversations: no application key, no
- * channel-bot or Telegram secret, no requester assertion. The bots keep `/conversations`.
+ * channel-bot or Telegram secret. The bots keep `/conversations`.
  */
 const PERSON: readonly string[] = ['authenticateToken', 'apiKeyRateLimit'];
 
@@ -417,8 +399,8 @@ const FROZEN_CHAINS: Readonly<Record<string, readonly string[]>> = {
   'GET /v1/me': AUTHENTICATED,
   'POST /v1/resolve-model': AUTHENTICATED,
   'POST /v1/report-usage': AUTHENTICATED,
-  'POST /v1/chat/completions': CHAT,
-  'GET /v1/chat/completions': CHAT,
+  'POST /v1/chat/completions': AUTHENTICATED,
+  'GET /v1/chat/completions': AUTHENTICATED,
   'POST /v1/responses': AUTHENTICATED,
   'POST /v1/audio/speech': AUTHENTICATED,
   'POST /v1/audio/transcriptions': AUTHENTICATED,
@@ -462,13 +444,12 @@ describe('the compatibility surface gains no auth mechanism (#139 ws6, ADR 0004)
     const control = aliaChat.find((e) => e.signature === 'POST /alia/chat');
     expect(control?.own).toEqual([
       'authenticateTokenOrApiKey',
-      'authenticateRequesterAssertion',
       'apiKeyRateLimit',
       'handleChatCompletions',
     ]);
   });
 
-  it('admits only a person on the conversations: no key, no bot secret, no assertion', () => {
+  it('admits only a person on the conversations: no key, no bot secret', () => {
     const conversations = v1.filter((e) => e.signature.includes('/v1/conversations'));
     expect(conversations).toHaveLength(9);
     for (const endpoint of conversations) {
@@ -919,13 +900,11 @@ describe('the two chat surfaces differ only where it is recorded (#139 ws6, ADR 
       [...endpoint.chain, ...endpoint.own].filter((name) => name !== 'handleChatCompletions');
     expect(effective(product as Endpoint)).toEqual([
       'authenticateTokenOrApiKey',
-      'authenticateRequesterAssertion',
       'apiKeyRateLimit',
     ]);
     expect(effective(generic as Endpoint)).toEqual([
       '?anonymous',
       'authenticateTokenOrApiKey',
-      'authenticateRequesterAssertion',
       'apiKeyRateLimit',
     ]);
   });

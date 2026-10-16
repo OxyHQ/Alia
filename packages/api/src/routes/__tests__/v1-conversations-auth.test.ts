@@ -22,7 +22,6 @@ vi.mock('../../middleware/auth.js', () => {
   return {
     oxyClient: { users: { get: vi.fn(async () => null) }, middleware: { socket: vi.fn() } },
     optionalAuth: vi.fn(next),
-    authenticateRequesterAssertion: vi.fn(next),
     authenticateToken: vi.fn(
       (
         req: { headers: Record<string, string | undefined>; user?: { id: string } },

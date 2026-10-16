@@ -86,7 +86,7 @@ cada paquete son su `prepublishOnly`; el SDK 15.x sale de `release/sdk-15.x` con
 - **Runtime: Bun** para la API y el control del computer host (imagen
   `oven/bun`, CMD `bun ...`); `packages/integrations` y la imagen workspace
   siguen en Node. Todo one-shot que arranca la imagen de la API nombra `bun`
-  (`MIGRATION_RUNTIME`, comando post-rollout, bootstrap, canary): un `bun`
+  (`MIGRATION_RUNTIME`, comando post-rollout, canary): un `bun`
   contra una imagen Node muere — `src/__tests__/dockerfileRuntime.test.ts`.
 - **Upgrades WebSocket: un solo enrutador** (`lib/websocket-upgrades.ts`). Socket.IO sirve su ruta con
   `destroyUpgrade: false`; voz, relay MCP y cualquier ruta nueva son un `WebSocketRoute`; lo demás

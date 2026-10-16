@@ -64,7 +64,7 @@ vi.mock('../../../db/agents/agentRepository.js', () => ({
   incrementAgentUsage: vi.fn(),
   withoutSystemPrompt: <T>(agent: T) => agent,
   withoutInternalAgentBindings: <T extends Record<string, unknown>>(agent: T) => {
-    const { applicationId: _applicationId, ownerOxyAccountId: _owner, ...rest } = agent;
+    const { ownerOxyAccountId: _owner, ...rest } = agent;
     return rest;
   },
 }));

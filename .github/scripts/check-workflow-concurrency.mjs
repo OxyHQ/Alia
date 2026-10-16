@@ -56,14 +56,6 @@ const EXPECTED = {
   // One instance restarted over SSM: two overlapping restarts could leave the
   // unit on the older digest pair.
   'deploy-computer-host.yml': 'serialised',
-  // The native product-agent bootstrap writes two rows on the LIVE image. It is
-  // serialised for the ordinary reason — two dispatches would each observe,
-  // plan and write over the other's review — and the group is the weaker half:
-  // the script's transaction-scoped advisory lock is what actually stops it
-  // interleaving with a deploy's one-shots. Never cancelling matters more here
-  // than for a rollout: a cancelled run abandons a task that is mid-transaction
-  // and reports nothing about whether it committed.
-  'bootstrap-native-product-agents.yml': 'serialised',
   'refresh-build-cache.yml': 'serialised',
   // One npm release at a time: two dispatches of the same version would both
   // pass the registry preflight and race to publish.

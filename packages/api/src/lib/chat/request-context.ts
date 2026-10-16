@@ -182,11 +182,9 @@ export interface ChatRequestContext {
   entitlements: Entitlements | null;
   linkedAgent: HydratedAgent | null;
   /**
-   * The verified inbound caller bearer: an application-bound agent service
-   * token or an app-only machine credential. Undefined means the ordinary
-   * Alia credential lane. This is selected only
-   * after exact application and delegation checks, so `agentId` never chooses
-   * the billing principal.
+   * The verified inbound app-only machine credential. Undefined means the
+   * ordinary Alia credential lane. `agentId` never chooses the billing
+   * principal: an agent turn is paid by the person present (ADR 0020 §4).
    */
   inferenceServiceToken: string | undefined;
   /** Initial values for the handler's retry-mutable state. */
@@ -400,43 +398,8 @@ export async function buildChatRequestContext(
   // session would erase the application boundary and expose direct-only
   // context/tools to a machine caller.
   const isDirectUserSession = !!req.user && !req.serviceApp;
-  /**
-   * A present requester (ADR 0025 in OxyHQServices): a person signed in to a
-   * first-party product that entered with a requester assertion Oxy consumed
-   * live. It admits exactly the one native agent the assertion names, checked
-   * below and again when the agent's application binding is read.
-   */
-  const isPresentRequesterSession =
-    !!req.user?.id &&
-    !!req.serviceApp &&
-    req.oxyRequester?.userId === req.user.id &&
-    req.oxyRequester.applicationId === req.serviceApp.appId &&
-    req.oxyRequester.credentialId === req.serviceApp.credentialId;
   const isDelegatedServiceSession =
-    !!req.user?.id &&
-    !!req.serviceApp &&
-    (req.serviceActingAs?.userId === req.user.id || isPresentRequesterSession);
-
-  /**
-   * An assertion is for ONE agent. Without this, a verified requester could
-   * omit `agentId` (ordinary Alia, with the person's memory) or name a public
-   * agent, and use a product's entry to reach what that product never asked for.
-   * Same neutral refusal as every other unavailable agent.
-   */
-  if (
-    req.oxyRequester !== undefined &&
-    (!isPresentRequesterSession || body.agentId !== req.oxyRequester.agentId)
-  ) {
-    res.status(404).json({
-      error: {
-        message: 'The selected agent is unavailable.',
-        type: 'invalid_request_error',
-        param: 'agentId',
-        code: 'agent_unavailable',
-      },
-    });
-    return null;
-  }
+    !!req.user?.id && !!req.serviceApp && req.serviceActingAs?.userId === req.user.id;
 
   /**
    * An agent id is an exact identity selector, never a hint.
@@ -819,7 +782,6 @@ export async function buildChatRequestContext(
     accessToken: req.accessToken,
     isDirectUserSession,
     requestedAgentId,
-    applicationId: req.serviceApp?.appId,
   });
 
   /**
@@ -1069,52 +1031,11 @@ export async function buildChatRequestContext(
 
   const linkedAgent = turnAgent.kind === 'agent' ? turnAgent.agent : null;
 
-  /**
-   * Product-agent inference is charged to the product application that entered
-   * this request. The same already-verified service token is forwarded to Oxy;
-   * Oxy therefore derives payer, application and credential from its claims.
-   * The delegated user remains attribution only. No request body field and no
-   * agent row can choose the payer.
-   */
   // The caller's already verified machine bearer reaches only Oxy inference,
   // which revalidates it and derives the application's payer. Never fall back
-  // to Alia's process credential for this lane.
-  let inferenceServiceToken: string | undefined = machineTurn?.bearer;
-  if (linkedAgent?.applicationId != null) {
-    const exactApplication = req.serviceApp?.appId === linkedAgent.applicationId;
-    /**
-     * Two ways a person can be behind a product's service token: an offline
-     * delegation grant (its scopes narrow the token), or a present requester
-     * whose assertion named exactly this agent (its authority is the person's
-     * own, so only the product credential's scopes apply). Payer is the product
-     * application either way.
-     */
-    const presentRequesterForThisAgent =
-      isPresentRequesterSession && req.oxyRequester?.agentId === linkedAgent._id;
-    const exactDelegation =
-      req.user?.id !== undefined &&
-      (req.serviceActingAs?.userId === req.user.id || presentRequesterForThisAgent);
-    const hasInferenceScope =
-      req.serviceApp?.scopes.includes('inference:invoke') === true &&
-      (presentRequesterForThisAgent ||
-        req.serviceActingAs?.scopes.includes('inference:invoke') === true);
-    if (!exactApplication || !exactDelegation || !hasInferenceScope || !req.accessToken) {
-      clearTimeout(globalTimer);
-      const refusal = {
-        message: 'The selected agent is unavailable.',
-        type: 'invalid_request_error',
-        param: 'agentId',
-        code: 'agent_unavailable',
-      };
-      if (sse.sent) {
-        sse.writeError(refusal);
-      } else {
-        res.status(404).json({ error: refusal });
-      }
-      return null;
-    }
-    inferenceServiceToken = req.accessToken;
-  }
+  // to Alia's process credential for this lane. An agent turn has no payer of
+  // its own: the person present pays (ADR 0020 §4).
+  const inferenceServiceToken: string | undefined = machineTurn?.bearer;
 
   /**
    * Skills, after the batch rather than inside it: the candidate set includes

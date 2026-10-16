@@ -654,17 +654,6 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
     });
     if (!loaded.ok) return answerRefusal(res, loaded.refusal);
 
-    if (
-      typeof loaded.agent.applicationId === 'string' &&
-      (data.systemPrompt !== undefined ||
-        data.capabilityGrants !== undefined ||
-        data.access !== undefined ||
-        data.isPublished !== undefined ||
-        data.status !== undefined)
-    ) {
-      return res.status(400).json({ error: 'Product-agent policy is managed internally' });
-    }
-
     // The look lives on the Oxy account too, and every other app draws it from there: change it
     // there first, so a refusal leaves the agent as it was.
     if (data.character !== undefined) {
@@ -729,10 +718,6 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
       cache: false,
     });
     if (!loaded.ok) return answerRefusal(res, loaded.refusal);
-
-    if (typeof loaded.agent.applicationId === 'string') {
-      return res.status(400).json({ error: 'Product-agent policy is managed internally' });
-    }
 
     /**
      * The Oxy `bot` account SURVIVES the agent, and that is the deliberate

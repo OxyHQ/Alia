@@ -41,7 +41,6 @@ async function reachableAgent(req: Request, res: Response) {
     (await canReachAgent(agent, {
       oxyUserId: req.user.id,
       accessToken: req.accessToken,
-      applicationId: req.serviceApp?.appId,
     })) !== 'reachable'
   ) {
     res.status(404).json({ error: 'Agent not found' });
@@ -209,7 +208,6 @@ router.post(
       (await canReachAgent(agent, {
         oxyUserId: req.user.id,
         accessToken: req.accessToken,
-        applicationId: req.serviceApp?.appId,
       })) !== 'reachable'
     )
       return res.status(404).json({ error: 'Agent not found' });

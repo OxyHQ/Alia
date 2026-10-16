@@ -34,8 +34,6 @@ export interface TurnIdentity {
   readonly isDirectUserSession: boolean;
   /** An exact agent selector the caller already validated, or `undefined` for Alia. */
   readonly requestedAgentId?: string;
-  /** The verified calling application, for a delegated or present-requester turn. */
-  readonly applicationId?: string;
 }
 
 /** What `loadTurnAgent` answered, plus the two failures this module adds. */
@@ -92,7 +90,6 @@ export async function prefetchTurnInputs(identity: TurnIdentity): Promise<Prefet
           agentId: requestedAgentId,
           oxyUserId,
           accessToken: identity.accessToken,
-          applicationId: identity.applicationId,
         }).catch((err: unknown): TurnAgentResolution => {
           log.v1.warn({ err, agentId: requestedAgentId }, 'Could not resolve the turn agent');
           return { kind: 'resolution_unavailable' };

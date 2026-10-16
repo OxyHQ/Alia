@@ -97,8 +97,9 @@ Alia is present only when the feature is an assistant or agent with conversation
 state, memory, tools or its own bot identity. A bounded product-owned
 operation such as translate, classify, summarize, rewrite or smart reply uses
 `app -> Oxy -> Kaana` and does not detour through Alia. Sindi and Clarity are the
-other case: they are private Alia product agents, so their path is
-`product -> Alia agent -> Oxy -> Kaana`.
+other case: they are ordinary Alia agents that their apps open through the SDK, so
+their path is `app -> Alia agent -> Oxy -> Kaana`, paid by the person using them
+([ADR 0020](docs/adr/0020-every-agent-is-the-same-agent.md)).
 
 Alia’s Oxy-only inference boundary was deployed and read back on 2026-09-10 with
 Alia task definition `oxy-alia:311`: pre-phase migrations and the authenticated

@@ -429,8 +429,6 @@ export class VoiceCall {
 
       const agent = inputs.turnAgent;
       if (agent.kind === 'agent') {
-        // A product's agent is reached through its application's lane, never a call.
-        if (agent.agent.applicationId != null) throw new VoiceFailure('agent-unavailable');
         this.linkedAgent = agent.agent;
       } else if (agent.kind !== 'none') {
         throw new VoiceFailure(

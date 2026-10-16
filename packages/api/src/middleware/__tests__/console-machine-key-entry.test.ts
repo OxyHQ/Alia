@@ -98,14 +98,11 @@ describe('Console machine credential on the actual Alia HTTP auth entry', () => 
     expect((await send(route, {}, route.endsWith('/me') ? 'GET' : 'POST')).status).toBe(403);
     expect(introspect).not.toHaveBeenCalled();
   });
-  it.each(['x-oxy-user-id', 'x-oxy-requester-assertion'])(
-    'does not manufacture a person from %s',
-    async (header) => {
-      expect((await send('/alia/chat', { [header]: 'claimed-person' })).status).toBe(403);
-      expect(handlerEntries).toBe(0);
-      expect(introspect).not.toHaveBeenCalled();
-    },
-  );
+  it('does not manufacture a person from x-oxy-user-id', async () => {
+    expect((await send('/alia/chat', { 'x-oxy-user-id': 'claimed-person' })).status).toBe(403);
+    expect(handlerEntries).toBe(0);
+    expect(introspect).not.toHaveBeenCalled();
+  });
   it('preserves the invalid JWT refusal path', async () => {
     expect((await send('/alia/chat', { Authorization: 'Bearer not-a-jwt' })).status).toBe(401);
     expect(observedRefusals.at(-1)).toBe('INVALID_TOKEN_FORMAT');

@@ -27,7 +27,6 @@ async function authorizeMembers(req: Request, ids: string[]) {
       (await canReachAgent(agent, {
         oxyUserId: req.user!.id,
         accessToken: req.accessToken,
-        applicationId: req.serviceApp?.appId,
       })) !== 'reachable'
     )
       return false;

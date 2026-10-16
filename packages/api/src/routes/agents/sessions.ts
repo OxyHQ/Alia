@@ -156,10 +156,6 @@ router.patch('/:id/status', authenticateToken, async (req: Request, res: Respons
       });
     }
     const agent = loaded.agent;
-    if (typeof agent.applicationId === 'string') {
-      return res.status(400).json({ error: 'Product-agent policy is managed internally' });
-    }
-
     /**
      * The OPERATOR's availability toggle, through the ordinary patch — not
      * through `setAgentCatalogueFlags`, which is enforcement's narrow power and

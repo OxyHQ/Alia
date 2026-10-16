@@ -119,14 +119,6 @@ export const agents = pgTable(
      */
     ownerOxyAccountId: text(),
     /**
-     * An Oxy Application id allowed to invoke this product agent.
-     *
-     * NULL means this is an ordinary Alia agent governed by `access`. A value
-     * means only a verified service credential for that exact application may
-     * run it; the id is never accepted from a chat request.
-     */
-    applicationId: text(),
-    /**
      * What the agent looks like: a Bloom avatar character, stored whole (`shape`, `eyes`, `eyewear`,
      * `accessory`, a paint, an optional `preset` and `eyeSpacing`).
      *
@@ -241,7 +233,6 @@ export const agents = pgTable(
   (t) => [
     uniqueIndex('agents_oxy_account_id_key').on(t.oxyAccountId),
     index('agents_owner_oxy_account_id_idx').on(t.ownerOxyAccountId),
-    index('agents_application_id_idx').on(t.applicationId),
     index('agents_author_oxy_user_id_idx').on(t.authorOxyUserId),
     index('agents_category_idx').on(t.category),
     index('agents_archetype_idx').on(t.archetype),

@@ -681,7 +681,7 @@ export class ToolPipeline {
      *
      * `agent` is the fourth, and its rows are the person's OWN agents: one tool
      * whose schema names exactly the ones this turn may talk to. It is here
-     * rather than beside `delegateToAgent` below because the selection is a
+     * rather than beside the catalogue tools below because the selection is a
      * database read, and reading it in parallel with the other three is the
      * difference between one round trip and four in series. It is under
      * `actsForPerson` for the same reason the three are — and that is also what

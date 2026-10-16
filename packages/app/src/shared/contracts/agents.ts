@@ -66,8 +66,6 @@ export interface Agent {
   character: unknown;
   /** The bot's parent in Oxy's account graph; null until a legacy row is reconciled. */
   ownerOxyAccountId: string | null;
-  /** Credential-derived Oxy application allowed to invoke this product agent. */
-  applicationId: string | null;
   name: string | null;
   handle: string | null;
   color: string | null;
@@ -156,7 +154,6 @@ export type AgentUpdate = Partial<
     | 'avatar'
     | 'oxyAccountId'
     | 'ownerOxyAccountId'
-    | 'applicationId'
     | '_id'
   >
 > & {

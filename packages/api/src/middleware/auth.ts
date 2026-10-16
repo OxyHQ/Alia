@@ -5,11 +5,8 @@ import {
   type OxyAliaMachinePrincipal,
   createOptionalOxyAuth,
   createOxyAuthMiddleware,
-  createOxyRequesterAssertionAuth,
-  OXY_REQUESTER_ASSERTION_HEADER,
   type OxyAuthRefusal,
   type OxyRequestUser,
-  type OxyRequesterContext,
   type OxyServiceAppContext,
   type OxyServiceActingAsContext,
 } from '@oxy.so/core/server';
@@ -40,13 +37,6 @@ declare global {
       serviceActingAs?: OxyServiceActingAsContext;
       /** Oxy-verified app-only principal, never an owner mapped onto req.user. */
       machineCredential?: OxyAliaMachinePrincipal;
-      /**
-       * Present only after a product's requester assertion was verified against
-       * Oxy's JWKS, bound to the verified service token and consumed through
-       * Oxy's live introspection (ADR 0025 in OxyHQServices). The requester was
-       * signed in to that product when the turn was sent.
-       */
-      oxyRequester?: OxyRequesterContext;
     }
   }
 }
@@ -108,8 +98,7 @@ type AuthLane = (req: Request, res: Response, next: NextFunction) => unknown;
  *
  * So the lane is chosen per request: plain traffic keeps the credential-free
  * client, and a request that claims delegation is verified by Alia's own
- * credentialed client (`lib/oxy-service-client.ts`) — the same one that
- * introspects requester assertions.
+ * credentialed client (`lib/oxy-service-client.ts`).
  *
  * Built lazily and rebuilt only if the credentialed client itself changes,
  * because `oxyServiceClient()` reads the environment on first use and caches
@@ -226,66 +215,6 @@ export const oxyServiceAuth = delegationAware(
 );
 
 /**
- * The audience name Oxy mints present-requester assertions for.
- */
-export const ALIA_REQUESTER_ASSERTION_AUDIENCE = 'alia';
-
-let requesterAssertionAuth: ReturnType<typeof createOxyRequesterAssertionAuth> | undefined;
-
-/**
- * Accepts `X-Oxy-Requester-Assertion` beside a verified product service token
- * (ADR 0025 in OxyHQServices): a signed-in person chatting in a first-party
- * product reaches that product's native agent without any consent grant, and
- * without the product forwarding the person's bearer to Alia.
- *
- * Mounted after `authenticateTokenOrApiKey`, only on `/v1/chat/completions`.
- * Without the header it does nothing. With it, the request is refused unless
- * the assertion verifies against Oxy's JWKS, was minted for exactly the
- * presenting application and credential, and Oxy's introspection consumes it
- * live — which Oxy only lets ALIA's own credential do. So the introspecting
- * client is Alia's service client, never `oxyClient` (which has no credential)
- * and never anything derived from the request.
- *
- * `req.user` is then the requester from the verified claims; nothing about the
- * identity is read from a header.
- */
-export function authenticateRequesterAssertion(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void {
-  if (req.headers[OXY_REQUESTER_ASSERTION_HEADER] === undefined) {
-    next();
-    return;
-  }
-  const introspector = oxyServiceClient();
-  if (!introspector) {
-    log.auth.error(
-      'Requester assertion received but Alia has no Oxy service credential to introspect it',
-    );
-    res.status(503).json({
-      error: 'REQUESTER_ASSERTION_UNAVAILABLE',
-      code: 'introspection_unavailable',
-      message: 'The requester assertion was not accepted',
-      status: 503,
-    });
-    return;
-  }
-  requesterAssertionAuth ??= createOxyRequesterAssertionAuth(introspector, {
-    audience: ALIA_REQUESTER_ASSERTION_AUDIENCE,
-    onRejected: ({ code, status, applicationId }) => {
-      log.auth.warn({ code, status, appId: applicationId }, 'Requester assertion rejected');
-    },
-  });
-  void requesterAssertionAuth(req, res, next);
-}
-
-/** Test seam: the middleware closes over the service client it was built with. */
-export function resetRequesterAssertionAuth(): void {
-  requesterAssertionAuth = undefined;
-}
-
-/**
  * Optional auth - attaches user if token present, doesn't block if absent
  * Tries bot auth first (Telegram), then Oxy JWT auth
  */
@@ -348,19 +277,6 @@ export function authenticateTokenOrApiKey(req: Request, res: Response, next: Nex
   // Already authenticated (e.g., by channel bot pre-middleware)
   if (req.user) {
     return next();
-  }
-
-  // A present-requester assertion (ADR 0025) carries the identity, and the
-  // product's own SERVICE token carries the caller — so this request has no
-  // user bearer by design. `authenticateToken` requires a user and answered 401
-  // before `authenticateRequesterAssertion` could ever look at the header, which
-  // is why Sindi's chat kept failing after the rest of the lane shipped. Verify
-  // the service token WITHOUT requiring a user and let the assertion middleware
-  // (mounted right after, on the chat surface) accept or refuse it; a request
-  // that carries the header and no valid assertion is refused there, never here.
-  if (req.headers[OXY_REQUESTER_ASSERTION_HEADER] !== undefined) {
-    oxyOptionalAuth(req, res, next);
-    return;
   }
 
   // Check for Telegram bot authentication first

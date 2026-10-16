@@ -36,7 +36,7 @@ describe('prompt text that names a tool', () => {
   it('never names the messaging, agent-mode or clock tools itself', async () => {
     const prompt = await SystemPromptBuilder.build({
       isDirectUserSession: true,
-      toolNames: ['sendTelegramMessage', 'searchAgents', 'delegateToAgent', 'getCurrentDate'],
+      toolNames: ['sendTelegramMessage', 'searchAgents', 'consultAgent', 'getCurrentDate'],
     });
     for (const name of [
       'sendTelegramMessage',

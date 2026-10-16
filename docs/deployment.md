@@ -20,8 +20,8 @@ pinned image the dependencies are installed with, and its CMD is
 `bun packages/api/dist/index.js`. Every one-shot that overrides the command names `bun`
 too: the pre-rollout migrator (`MIGRATION_RUNTIME: bun` in `deploy-aws.yml`, read by
 `.github/scripts/deploy-ecs-image.sh`, whose default stays `node` for
-`packages/integrations`, still on Node), the post-rollout migrator and seeder, the native
-product-agent bootstrap and the production chat canary. CI's `API image (Bun runtime)` job
+`packages/integrations`, still on Node), the post-rollout migrator and seeder, and the
+production chat canary. CI's `API image (Bun runtime)` job
 boots the built arm64 image against Postgres (`.github/scripts/smoke-api-image.sh`), and
 `src/__tests__/dockerfileRuntime.test.ts` holds the Dockerfile and those commands
 together. To return to Node, revert the change that made the switch: it moved the
@@ -312,9 +312,9 @@ healthy and still receives traffic. Moving the target group to `/health/ready` i
 
 - Roll the ECS service back to the previous task definition revision. Across the
   2026-10 Node-to-Bun switch this is safe in both directions for the service itself:
-  each revision carries its own image and CMD. The live-image one-shots
-  (`bootstrap-native-product-agents.yml`, `production-chat-canary.yml`) name `bun`, so
-  against a pre-switch Node revision their task fails to start until a Bun image serves. A revision that was
+  each revision carries its own image and CMD. The live-image one-shot
+  (`production-chat-canary.yml`) names `bun`, so
+  against a pre-switch Node revision its task fails to start until a Bun image serves. A revision that was
   registered but never rolled out is invisible to the next deploy, which derives its
   revision from the one the service is running.
 - For runtime actions rather than deploys, `R1` writes leave a `rollback_records` row with

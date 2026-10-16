@@ -506,23 +506,8 @@ export async function canReachAgent(
   caller: {
     oxyUserId: string;
     accessToken: string | undefined;
-    /** Verified service-token application id, never a request-body value. */
-    applicationId?: string;
   },
 ): Promise<AgentReach> {
-  /**
-   * A product-bound agent has a separate ingress rule from marketplace access.
-   * Matching is against `req.serviceApp.appId`, which the Oxy middleware reads
-   * from a verified service-token claim. A human bearer, developer key or
-   * client-supplied id therefore cannot select a product-bound agent just by
-   * knowing the agent id. The delegated end user remains `oxyUserId`; it is not the
-   * application identity.
-   */
-  if (agent.applicationId != null) {
-    return agent.status === 'active' && caller.applicationId === agent.applicationId
-      ? 'reachable'
-      : 'out_of_reach';
-  }
   if (agent.access === 'public' && agent.status === 'active') return 'reachable';
   // No bearer is not a failure to ask; it is an answer, and the answer is no.
   if (caller.accessToken === undefined) return 'out_of_reach';
@@ -609,7 +594,6 @@ export async function loadThreadAgent(
     username: string;
     oxyUserId: string;
     accessToken: string | undefined;
-    applicationId?: string;
   },
 ): Promise<HydratedAgent | null> {
   const agent = await findAgentByOxyHandle(db, params.username, { hireableOnly: false });
@@ -673,7 +657,6 @@ export async function loadTurnAgent(
     agentId: string;
     oxyUserId: string;
     accessToken: string | undefined;
-    applicationId?: string;
   },
 ): Promise<TurnAgent> {
   const agent = await findAgentById(db, params.agentId);

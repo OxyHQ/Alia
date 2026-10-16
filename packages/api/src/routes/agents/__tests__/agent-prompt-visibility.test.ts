@@ -139,7 +139,6 @@ const AGENT_ROW = {
   id: 'agent-1',
   oxyAccountId: 'acct-bot',
   ownerOxyAccountId: 'oxy-owner',
-  applicationId: null,
   tagline: 'keeps the roadmap honest',
   description: 'a description',
   author: 'oxy-owner',

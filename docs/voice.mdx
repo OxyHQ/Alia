@@ -86,8 +86,8 @@ refused with `credential-not-supported` (third parties are a later decision).
    agent — through `prefetchTurnInputs` (`lib/chat/turn-inputs.ts`), the same reads
    a typed turn makes (extracted from `buildChatRequestContext`).
 2. **`voice-mode` is enforced by the server** (`plan-required`), not only by the app.
-3. The agent: a person's own or a public one (`loadTurnAgent`); a product's agent is
-   refused (`agent-unavailable`) — it is reached through its application's lane.
+3. The agent: one the person can open (`loadTurnAgent`), from the app the call is in
+   (an agent Oxy confines elsewhere is `agent-unavailable`, ADR 0021).
 4. The realtime model, computed (below). No candidate: `realtime-unavailable`.
 5. The first credit block (below). Refused: `credits-exhausted`.
 6. **One call per person** (below): this call takes over any other.

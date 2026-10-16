@@ -133,17 +133,11 @@ describe('opening', () => {
     expect(h.server.sessions).toHaveLength(0);
   });
 
-  it('refuses an agent it cannot verify, and a product agent, as agent-unavailable', async () => {
+  it('refuses an agent it cannot reach as agent-unavailable', async () => {
     const missing = harness({ turnAgent: { kind: 'unavailable', reason: 'not_found' } });
     await missing.call.open({ ...START, agentId: 'agent-1' });
     expect(missing.sink.find('error')[0]?.code).toBe('agent-unavailable');
-
-    const product = harness({
-      turnAgent: { kind: 'agent', agent: { _id: 'agent-2', applicationId: 'app-9' } as never },
-    });
-    await product.call.open({ ...START, agentId: 'agent-2' });
-    expect(product.sink.find('error')[0]?.code).toBe('agent-unavailable');
-    expect(product.server.sessions).toHaveLength(0);
+    expect(missing.server.sessions).toHaveLength(0);
   });
 
   it('is realtime-unavailable without a Kaana client, or with no model that can hold the call', async () => {

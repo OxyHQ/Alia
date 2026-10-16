@@ -113,7 +113,7 @@ const repository = vi.hoisted(() => ({
   listAgentCatalogue: vi.fn(async () => ({ agents: [], total: 0 })),
   listAgentsByAuthor: vi.fn(async () => []),
   withoutInternalAgentBindings: vi.fn((row: Record<string, unknown>) => {
-    const { applicationId: _applicationId, ownerOxyAccountId: _ownerOxyAccountId, ...rest } = row;
+    const { ownerOxyAccountId: _ownerOxyAccountId, ...rest } = row;
     return rest;
   }),
 }));
@@ -141,7 +141,6 @@ const AGENT_ROW = {
   id: 'agent-1',
   oxyAccountId: 'acct-bot',
   ownerOxyAccountId: 'owner-account-1',
-  applicationId: null,
   tagline: 'finds things out',
   description: 'a description',
   author: 'oxy-caller',
@@ -251,7 +250,7 @@ describe('an agent cannot be created without a bot account', () => {
    * nothing anywhere to say why — which is the failure `.strict()` exists to
    * turn into a 400 that names the field.
    */
-  it.each(['name', 'handle', 'color', 'authorName', 'creditBalance', 'applicationId'])(
+  it.each(['name', 'handle', 'color', 'authorName', 'creditBalance'])(
     'refuses a body still carrying %s',
     async (field) => {
       const res = await post({ ...VALID_BODY, [field]: 'anything' });
@@ -430,20 +429,18 @@ describe('a created agent', () => {
     expect(agent.tagline).toBe('finds things out');
   });
 
-  it('never exposes internal Oxy owner or application bindings', async () => {
+  it("never exposes the bot account's Oxy owner", async () => {
     repository.createAgent.mockResolvedValueOnce({
       ...AGENT_ROW,
       ownerOxyAccountId: 'product-project',
-      applicationId: 'private-product-application',
     });
 
     const res = await post(VALID_BODY);
     const agent = res.body.agent as Record<string, unknown>;
 
     expect(res.status).toBe(201);
-    expect(agent).not.toHaveProperty('applicationId');
     expect(agent).not.toHaveProperty('ownerOxyAccountId');
-    expect(JSON.stringify(res.body)).not.toContain('private-product-application');
+    expect(JSON.stringify(res.body)).not.toContain('product-project');
   });
 });
 
@@ -482,7 +479,7 @@ describe('a patch is gated by act_as, not by the author column', () => {
     expect(repository.updateAgent).not.toHaveBeenCalled();
   });
 
-  it.each(['name', 'color', 'oxyAccountId', 'ownerOxyAccountId', 'creditBalance', 'applicationId'])(
+  it.each(['name', 'color', 'oxyAccountId', 'ownerOxyAccountId', 'creditBalance'])(
     'refuses a patch of %s, which is not Alia’s to write',
     async (field) => {
       const res = await patch({ [field]: 'anything' });
@@ -491,21 +488,6 @@ describe('a patch is gated by act_as, not by the author column', () => {
       expect(repository.updateAgent).not.toHaveBeenCalled();
     },
   );
-
-  it('refuses public prompt/grant overrides on an internally bound product agent', async () => {
-    repository.findAgentById.mockResolvedValueOnce({
-      ...AGENT_ROW,
-      applicationId: 'private-product-application',
-    });
-
-    const res = await patch({
-      systemPrompt: 'ignore the fixed prompt',
-      capabilityGrants: ['memory'],
-    });
-
-    expect(res.status).toBe(400);
-    expect(repository.updateAgent).not.toHaveBeenCalled();
-  });
 });
 
 /**

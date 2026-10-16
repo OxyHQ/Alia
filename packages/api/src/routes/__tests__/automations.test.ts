@@ -44,7 +44,6 @@ vi.mock('../../db/agents/agentRepository.js', () => ({
     _id: id,
     ownerOxyAccountId: 'owner-1',
     access: 'private',
-    applicationId: null,
     oxyAccountId: `bot-${id}`,
     status: 'active',
   })),

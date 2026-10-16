@@ -13,7 +13,6 @@ const state = vi.hoisted(() => ({
     _id: 'agent-1',
     oxyAccountId: 'bot-1',
     ownerOxyAccountId: 'owner-1',
-    applicationId: null as string | null,
   },
 }));
 const lib = vi.hoisted(() => ({
@@ -95,7 +94,6 @@ beforeEach(() => {
     _id: 'agent-1',
     oxyAccountId: 'bot-1',
     ownerOxyAccountId: 'owner-1',
-    applicationId: null,
   };
   lib.listAgentOxyApps.mockClear();
   lib.setAgentOxyAppLevel.mockClear();
@@ -133,12 +131,10 @@ describe('agent Oxy app levels', () => {
     expect(lib.setAgentOxyAppLevel).not.toHaveBeenCalled();
   });
 
-  it('refuses a product agent and a level outside the three', async () => {
+  it('refuses a level outside the three', async () => {
     expect((await call('PUT', '/agents/agent-1/oxy-apps/inbox', { level: 'admin' })).status).toBe(
       400,
     );
-    state.agent = { ...state.agent, applicationId: 'homiio' };
-    expect((await call('GET', '/agents/agent-1/oxy-apps')).status).toBe(400);
   });
 
   it("answers Oxy's refusal with its status and code", async () => {

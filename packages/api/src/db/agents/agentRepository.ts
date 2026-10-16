@@ -115,8 +115,6 @@ export interface AgentRecord {
   oxyAccountId: string;
   /** Exact bot parent from Oxy; null only on unreconciled legacy rows. */
   ownerOxyAccountId: string | null;
-  /** Exact Oxy application allowed to invoke this product agent. */
-  applicationId: string | null;
   /** What the agent looks like: a Bloom avatar character, stored whole. */
   character: AvatarCharacter;
   /** One line; also the greeting of the agent's empty chat. */
@@ -216,7 +214,6 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     id: row.id,
     oxyAccountId: row.oxyAccountId,
     ownerOxyAccountId: row.ownerOxyAccountId,
-    applicationId: row.applicationId,
     character: row.character,
     tagline: row.tagline,
     description: row.description,
@@ -478,15 +475,11 @@ export function withoutSystemPrompt(record: AgentRecord): AgentRecord {
   return { ...record, systemPrompt: null };
 }
 
-/** Oxy product bindings are authorization facts and never public API fields. */
-export function withoutInternalAgentBindings<
-  T extends { applicationId: string | null; ownerOxyAccountId: string | null },
->(record: T): Omit<T, 'applicationId' | 'ownerOxyAccountId'> {
-  const {
-    applicationId: _applicationId,
-    ownerOxyAccountId: _ownerOxyAccountId,
-    ...publicRecord
-  } = record;
+/** The bot account's Oxy parent is an authorization fact and never a public API field. */
+export function withoutInternalAgentBindings<T extends { ownerOxyAccountId: string | null }>(
+  record: T,
+): Omit<T, 'ownerOxyAccountId'> {
+  const { ownerOxyAccountId: _ownerOxyAccountId, ...publicRecord } = record;
   return publicRecord;
 }
 
@@ -822,8 +815,6 @@ export interface CreateAgentInput {
   oxyAccountId: string;
   /** The bot's exact direct parent, resolved from Oxy rather than `author`. */
   ownerOxyAccountId: string;
-  /** Restrict invocation to one credential-derived Oxy application id. */
-  applicationId?: string | null;
   /** What the agent looks like. A new agent has one picked (`avatarCharacterFor`) when the person did not choose. */
   character: AvatarCharacter;
   tagline: string;
@@ -862,7 +853,6 @@ export async function createAgent(db: ApiDatabase, input: CreateAgentInput): Pro
       .values({
         oxyAccountId: input.oxyAccountId,
         ownerOxyAccountId: input.ownerOxyAccountId,
-        applicationId: input.applicationId ?? null,
         character: input.character,
         tagline: input.tagline,
         description: input.description,
@@ -918,8 +908,6 @@ export interface UpdateAgentInput {
   archetypeConfig?: unknown;
   skillIds?: string[];
   libraryFileIds?: string[];
-  /** Binding only narrows which verified Oxy application may invoke the agent. */
-  applicationId?: string | null;
 }
 
 /**

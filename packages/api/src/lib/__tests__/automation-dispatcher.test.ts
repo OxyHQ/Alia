@@ -145,7 +145,6 @@ beforeEach(() => {
     id,
     ownerOxyAccountId: 'owner-1',
     access: 'private',
-    applicationId: null,
     oxyAccountId: `bot-${id}`,
     status: 'active',
   }));
@@ -228,7 +227,6 @@ describe('normalized automation dispatch', () => {
       id,
       ownerOxyAccountId: 'owner-1',
       access: 'private',
-      applicationId: null,
       oxyAccountId: `bot-${id}`,
       status: 'offline',
     }));
@@ -249,7 +247,6 @@ describe('normalized automation dispatch', () => {
       author: 'owner-1',
       ownerOxyAccountId: 'someone-else',
       access: 'private',
-      applicationId: null,
       oxyAccountId: `bot-${id}`,
       status: 'active',
     }));
@@ -265,7 +262,6 @@ describe('normalized automation dispatch', () => {
       id,
       ownerOxyAccountId: 'someone-else',
       access: 'public',
-      applicationId: null,
       oxyAccountId: `bot-${id}`,
       status: 'active',
     }));

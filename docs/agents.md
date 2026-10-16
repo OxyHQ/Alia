@@ -34,87 +34,52 @@ one column, no foreign key, UNIQUE.
   is minted under their tree and they become its owner. The app does it in one
   tap: generate → `createAccount` → `POST /agents`.
 
-### Product-bound agents
+### An app's agent is an ordinary agent (ADR 0020)
 
-A product agent has two additional server-managed bindings:
-`owner_oxy_account_id`, the bot account's exact parent returned by Oxy, and
-`application_id`, the one verified Oxy application allowed to invoke it.
-Neither field is accepted by public `POST/PATCH /agents`; an internal bootstrap
-or reconciliation writes them from authoritative Oxy records. A null owner
-fails closed for Oxy tools, and `author_oxy_user_id` is never a fallback.
+There is no product-agent lane. An app's agent — Homiio's Sindi, Clarity's
+assistant — is an agent like any other: an Oxy `bot` account, an `agents` row,
+a prompt, families and a ceiling its owner edits in the agent editor. The app
+opens it through the SDK with the person's own session, and the person present
+pays for the turn. No application id is stored on an agent, no service token
+selects one and no product pays for one.
 
-Product ingress always uses that product's Oxy service token as the bearer,
-and names the person in one of two ways:
+`owner_oxy_account_id` is the bot account's exact parent, returned by Oxy when
+the agent is created; a null owner fails closed for Oxy tools, and
+`author_oxy_user_id` is never a fallback.
 
-- **Present requester** (OxyHQServices ADR 0025) — the person is signed in to
-  the product right now. The product trades their live session with Oxy for a
-  one-use, 120-second `X-Oxy-Requester-Assertion`; the person's bearer never
-  reaches Alia. `authenticateRequesterAssertion` (both chat surfaces, before the
-  limiter) verifies it against Oxy's JWKS, requires it to name exactly the
-  presenting application and credential, and has Oxy consume it through live
-  introspection with Alia's own service credential. The turn must then name the
-  one agent the assertion admits. No consent grant is involved.
-- **Offline delegation** — `X-Oxy-User-Id`, for work with no present person.
-  Alia accepts it only after Oxy verifies the `acting-as:offline` grant.
+| Agent | Alia agent | `access` | Published | Where it opens |
+|---|---|---|---|---|
+| Sindi (Homiio) | `01a0646a-078f-7514-9800-9f43ceed7df8` | `public` | yes | anywhere |
+| Clarity's assistant | `01a0646a-078f-7642-95ef-439952f4f3f9` | `public` | no (not in the catalogue) | only in Clarity, by Oxy's registry (Oxy ADR 0044) |
 
-Either way the credential-derived application must exactly match
-`application_id` and the service token must carry `inference:invoke` (plus the
-delegation grant's scopes, for offline delegation). Alia reuses that verified
-inbound token for `Alia -> Oxy -> Kaana`, so Oxy charges the product
-application's owner/cost centre. A human bearer, a mismatched app, a missing or
-spent assertion, a missing delegation or a known agent id alone all receive a
-refusal that says nothing about which check failed.
+Migration `0101` turned both former product agents into these rows (by id,
+never by name) before `0102` dropped `agents.application_id`.
 
-A new or unreconciled agent inherits no user name, memory, Inbox/Oxy context,
-installed skill shelf or messaging/delegation hint in its prompt. Empty
-`capability_grants` denies; only explicit grants and explicitly linked skills
-can add agent context.
+### Where an agent opens is Oxy's (ADR 0021)
 
-#### Sindi and Clarity
+An Oxy application may confine its own agent to its own app (Oxy ADR 0044).
+Alia stores no copy of that and offers no editor control for it; it reads it
+live:
 
-Sindi is Homiio's private Alia agent and Clarity's assistant is another private
-Alia agent. They are Oxy `bot` principals, not provider identities, and neither
-holds a provider credential. Their core cross-service bindings are:
+- **The surface** is the application named by the Oxy-signed app assertion
+  (`X-Oxy-App-Assertion`, Oxy ADR 0045) that the SDK sends from inside an Oxy
+  app. `lib/app-surface.ts` verifies it once per request with
+  `verifyAppAssertion`, bound to the request's verified person and session.
+  Anything else — no header, a forged or expired one, another session's — is
+  no surface. A service token, an API key or a bot secret has no surface.
+- **The answer** is `agency.agentAvailability(agentAccountId)` on Alia's
+  service lane, cached 60 seconds per agent (`lib/agent-availability.ts`).
+- **The rule** is one branch of `canReachAgent`: an agent that is otherwise
+  reachable is `out_of_reach` when Oxy confines it and the surface is not one
+  of its applications. An answer Oxy could not give is `identity_unavailable`
+  — never `reachable` — so an Oxy outage fails closed, and the turn is refused
+  as retryable instead of telling the person the agent does not exist.
 
-| Product agent | Owner project | Bot account | Alia agent | Bound Oxy application | Granted capabilities |
-|---|---|---|---|---|---|
-| Sindi | `6a50444ce8026582b949089d` | `01a0646a-078f-7974-9645-a5e8be237f47` | `01a0646a-078f-7514-9800-9f43ceed7df8` | `6a2f851751b784a86fd0e922` | `web`, `artifacts`, `memory` |
-| Clarity | `01a0646a-078f-7f53-848d-a0f82d9f7fa6` | `01a0646a-078f-7120-a993-a03c180c81b0` | `01a0646a-078f-7642-95ef-439952f4f3f9` | `01a0648b-8d73-70ad-8e67-1c07ddc5eb6e` | (none) |
-
-The last column is `capability_grants`, and it is published in the same hashed
-manifest as the ids beside it rather than decided in Alia alone — a grant is
-what the agent may DO, so widening one is a change both repositories merge.
-Sindi reads and answers: `web` (search, page reading, deep research and
-the weather/quote/FairCoin cards), `artifacts` (canvas, generated files) and
-`memory` (saving and searching what the person has already said). It has no
-`browser`, `messaging`, `automation` or `delegation`, and no
-connector row of any kind. Clarity's `(none)` is a decision that denies
-everything, not an unset field. Oxy app tools are not expressible here at all:
-Oxy's normalized DelegationGrant records are their sole authority.
-
-These are exact opaque primary keys. A bootstrap or runtime must compare them
-byte for byte; a name, handle, query order or first result is diagnostic data,
-never identity. Oxy owns the complete binding and credential manifest in its
-[`Alia inference guide`](https://github.com/OxyHQ/oxy/blob/main/docs/inference/alia.md)
-and
-[`native-agent bootstrap runbook`](https://github.com/OxyHQ/oxy/blob/main/docs/runbooks/native-product-agent-bootstrap.md).
-The table is a source contract, not proof that both repositories' rows or live
-service credentials have been provisioned and read back in production.
-
-**Alia's half of that contract is a reviewed one-shot, not a hand-edited row.**
-Oxy provisions the project, bot account, application and credential and
-publishes the four ids above; the `agents` row they describe is Alia's, and for
-as long as it did not exist a correctly authenticated Homiio turn reached
-`Pre-stream setup complete` and was then refused with `agent_unavailable` — the
-gap between a published contract and a consumed one, with no warning anywhere in
-between. `packages/api/src/config/native-product-agents.ts` pins what Oxy
-publishes (with a SHA-256 Oxy's own suite asserts, so neither repository can
-drift quietly), `packages/api/src/scripts/bootstrap-native-product-agents.ts`
-applies it, and the `Bootstrap native product agents` workflow dispatches it
-against the live image: `dry-run` executes the plan and rolls it back, `apply`
-takes that exact plan hash plus a reason. It creates or updates only the agents
-above, never widens an agent's reach, and refuses any existing row it did not
-expect rather than repairing it.
+Every reach path takes the surface: opening an agent (`loadTurnAgent`,
+`loadThreadAgent`), a chat or voice turn, `consultAgent`, `searchAgents`,
+`/v1/agents/:id/profile|features`, its threads, teams, computer and
+suggestions. The owner is not exempt: a confined agent is invisible outside its
+app to everybody.
 
   **An agent has no picture.** It is drawn as a glyph tinted with its Oxy
   account's `User.color`, a Bloom preset key — so `AgentIdentity` carries
@@ -624,8 +589,8 @@ actions under her own standing Oxy authority; a watch task only wakes her when
 its source changed — see `docs/proactive-intelligence.md`. When a person names one of
 their agents instead, which agent may run it is one rule, shared by creation and
 dispatch (`lib/automation-actors.ts`): the owner's own agent (`owner_oxy_account_id`), or
-a public, active marketplace agent — never by `author`, and never a
-product-bound one. Every stage holds credits like a goal does.
+a public, active marketplace agent — never by `author`, and never one Oxy
+confines to an app (ADR 0021). Every stage holds credits like a goal does.
 
 ### An agent writing first
 

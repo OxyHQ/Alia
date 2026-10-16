@@ -1,12 +1,12 @@
 /**
  * Every command that runs this image names the runtime the image ships.
  *
- * The API image runs on Bun (`oven/bun:*-slim`, CMD `bun ...`). Five other
+ * The API image runs on Bun (`oven/bun:*-slim`, CMD `bun ...`). Four other
  * places start a process in it by naming a runtime explicitly: the pre-rollout
  * migrator (`MIGRATION_RUNTIME` in deploy-aws.yml, read by
  * deploy-ecs-image.sh), the post-rollout migrator and seeder (the `phases`
- * step of deploy-aws.yml), the native product-agent bootstrap and the
- * production chat canary. They are one fact written six times.
+ * step of deploy-aws.yml) and the production chat canary. They are one fact
+ * written five times.
  *
  * The asymmetry is why it is a gate: `oven/bun` ships a `node` that is a
  * symlink to bun, so a stale `node` against this image still runs (on Bun,
@@ -25,7 +25,6 @@ const read = (relative: string) =>
 
 const dockerfile = read('../../Dockerfile');
 const deploy = read('../../../../.github/workflows/deploy-aws.yml');
-const bootstrap = read('../../../../.github/workflows/bootstrap-native-product-agents.yml');
 const canary = read('../../../../.github/workflows/production-chat-canary.yml');
 
 /** The images the build and runtime stages start FROM, and the command it runs. */
@@ -56,17 +55,14 @@ describe('the API image and the commands that run it agree on Bun', () => {
     expect(deploy).toContain("MIGRATE='bun packages/api/dist/db/migrate.js");
   });
 
-  it('runs the live-image one-shots with bun', () => {
-    expect(bootstrap).toContain(
-      'command:["bun","packages/api/dist/scripts/bootstrap-native-product-agents.js"',
-    );
+  it('runs the live-image one-shot with bun', () => {
     expect(canary).toContain(
       'command:["bun","packages/api/dist/scripts/production-chat-canary.js"]',
     );
   });
 
   it('names no API entrypoint with node anywhere in those workflows', () => {
-    for (const workflow of [deploy, bootstrap, canary]) {
+    for (const workflow of [deploy, canary]) {
       expect(workflow).not.toMatch(/\bnode packages\/api\/dist\//);
       expect(workflow).not.toMatch(/"node",\s*"packages\/api\/dist\//);
     }

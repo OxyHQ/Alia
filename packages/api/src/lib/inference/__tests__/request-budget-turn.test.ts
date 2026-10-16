@@ -109,7 +109,7 @@ function coreTools(): ToolSet {
       execute: async () => ({ ok: true }),
     });
   }
-  for (const name of ['searchMemory', 'listAgents', 'askAgent', 'useSkill']) {
+  for (const name of ['searchMemory', 'listAgents', 'consultAgent', 'useSkill']) {
     tools[name] = tool({
       description: `${name}: a core tool that is always sent.`,
       inputSchema: jsonSchema({ type: 'object', properties: { query: { type: 'string' } } }),

@@ -187,13 +187,6 @@ vi.mock('@oxy.so/core/server', () => ({
       service: vi.fn(() => vi.fn((_req: Request, _res: Response, next: NextFunction) => next())),
     };
   },
-  // The entry middleware reads this header name to route a present-requester
-  // request (ADR 0025) past the user requirement; this suite's subject is the
-  // service principal, so the real constant is enough.
-  OXY_REQUESTER_ASSERTION_HEADER: 'x-oxy-requester-assertion',
-  createOxyRequesterAssertionAuth: vi.fn(() =>
-    vi.fn((_req: Request, _res: Response, next: NextFunction) => next()),
-  ),
 }));
 
 const { authenticateTokenOrApiKey } = await import('../../middleware/auth.js');

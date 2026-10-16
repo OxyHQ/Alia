@@ -10,7 +10,7 @@
  * `{ name, description, parameters }` as JSON.
  *
  * Out of scope on purpose: tools the turn's SOURCES contribute at runtime (MCP
- * connectors, integrations, the Oxy-app catalogue, `askAgent`) and the client's
+ * connectors, integrations, the Oxy-app catalogue, `consultAgent`) and the client's
  * own editor tools. They are not defined in this repository, so they are stubbed
  * to nothing.
  */

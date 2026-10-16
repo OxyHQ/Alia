@@ -102,7 +102,6 @@ export async function ownComputer(req: Request, res: Response): Promise<Owned | 
   const reach = await canReachAgent(agent, {
     oxyUserId,
     accessToken: req.accessToken,
-    applicationId: req.serviceApp?.appId,
   });
   if (reach === 'out_of_reach') {
     res.status(404).json({ error: 'Agent not found' });

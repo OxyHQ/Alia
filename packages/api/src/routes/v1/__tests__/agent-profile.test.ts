@@ -43,7 +43,6 @@ const SINDI = {
   id: 'sindi',
   oxyAccountId: 'sindi-bot',
   ownerOxyAccountId: 'homiio-project',
-  applicationId: null,
   name: 'Sindi',
   handle: 'sindibot',
   color: 'teal',

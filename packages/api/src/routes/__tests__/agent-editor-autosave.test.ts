@@ -98,7 +98,7 @@ const repository = vi.hoisted(() => ({
   listAgentCatalogue: vi.fn(async () => ({ agents: [], total: 0 })),
   listAgentsByAuthor: vi.fn(async () => []),
   withoutInternalAgentBindings: vi.fn((agent: Record<string, unknown>) => {
-    const { applicationId: _applicationId, ownerOxyAccountId: _owner, ...rest } = agent;
+    const { ownerOxyAccountId: _owner, ...rest } = agent;
     return rest;
   }),
 }));

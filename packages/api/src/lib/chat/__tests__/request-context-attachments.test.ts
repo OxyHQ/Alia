@@ -133,7 +133,6 @@ const SINDI = {
   id: 'sindi',
   oxyAccountId: 'sindi-bot',
   ownerOxyAccountId: 'homiio-project',
-  applicationId: null,
   featureGates: { 'attachments.documents': { app: 'homiio', feature: 'files' } },
 };
 
