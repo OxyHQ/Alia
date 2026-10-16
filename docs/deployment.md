@@ -125,6 +125,15 @@ single-use ingest ticket that the route minted while that token was live. There
 is no service credential to hold, because service-token delegation is closed
 platform-wide until ADR 0012 lands.
 
+**Oxy Files** ([Alia on Oxy Files](./oxy-files.md)): `OXY_FILES_WEBHOOK_SECRET`
+(SSM `/oxy/alia/OXY_FILES_WEBHOOK_SECRET`) is the `whsec_…` secret Oxy Console
+shows once when the file-events endpoint `https://api.alia.onl/webhooks/oxy-files`
+is registered; without it the route answers 404. `OXY_FILES_PRIVATE_CONTENT`
+stays unset until Oxy stage 4b ships and the private-content migration has run.
+Alia's Oxy application needs `files:app:write`, `files:app:delete`,
+`files:references:write`, `files:read` and `files:linked:read` (staff-granted).
+`AWS_S3_BUCKET` stays until the bucket's retirement gate is met.
+
 **One prerequisite lives in SYRA, not here.** Web playback fetches an episode's
 audio from `api.syra.fm` with the listener's bearer token, so Alia's web origin
 must be in Syra's CORS allow-list (`packages/backend/server.ts`, `ALLOWED_ORIGINS`).
