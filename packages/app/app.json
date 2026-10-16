@@ -70,7 +70,8 @@
       "expo-asset",
       "expo-notifications",
       "expo-status-bar",
-      "@oxy.so/services/plugins/withOxySharedPermissions"
+      "@oxy.so/services/plugins/withOxySharedPermissions",
+      "@oxy.so/app-preset/plugin/withOxyAndroidRelease"
     ],
     "experiments": {
       "typedRoutes": true
