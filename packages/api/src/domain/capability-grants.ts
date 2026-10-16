@@ -73,9 +73,10 @@ export const FIXED_CAPABILITY_FAMILIES = [
  * inheriting *all* of its owner's connectors was.
  *
  * `agent` is instanced for the first reason and not the second: its single tool
- * is written here (`askAgent`), and what the grant names is which of the
- * owner's agents that tool may reach. The tool is not built at all when the
- * selection resolves to none, so the family is still absent rather than inert.
+ * is written here (`consultAgent`), and what the grant names is which agents
+ * that tool may consult, within what the person could open themselves. The tool
+ * is not built at all when the selection resolves to none, so the family is
+ * still absent rather than inert.
  * {@link EVERY_ROW_FAMILIES} is where its bare grant is argued.
  */
 export const INSTANCED_CAPABILITY_FAMILIES = ['mcp', 'integration', 'agent'] as const;
@@ -105,17 +106,13 @@ export const OXY_SERVICE_TOOL_SOURCE = 'oxy_service' as const;
  * grant.
  *
  * `agent` is the case where that argument does not hold, because its rows are
- * themselves SUBJECTS of this vocabulary. Another of the owner's agents reaches
- * only what its own `capability_grants` allow, and an agent nobody has
- * configured reaches {@link UNGRANTED_TOOLS} and nothing else — so a row
- * created after the grant was written cannot widen it. What the bare grant
- * actually authorises is a CONVERSATION with agents the owner already governs
- * one by one, which is why "a new agent joins on its own, a deactivated one
- * drops out" is the feature rather than the hazard.
- *
- * The owner keeps a per-row off switch either way: `agents.status`, the
- * active/idle/offline toggle `PATCH /agents/:id/status` writes, is what the
- * resolution reads.
+ * themselves SUBJECTS of this vocabulary. A consulted agent reaches only what
+ * its own configuration allows for the person present (its families, its
+ * owner's levels or ceilings), so an agent created after the grant was written
+ * cannot widen it. What the bare grant actually authorises is a CONVERSATION
+ * with agents the person could open themselves (`canReachAgent`), which is why
+ * "a new agent joins on its own, a deactivated one drops out" is the feature
+ * rather than the hazard.
  */
 export const EVERY_ROW_FAMILIES = ['agent'] as const;
 
@@ -208,7 +205,7 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
     'sendWhatsAppMessage',
   ],
   automation: ['createAutomation'],
-  delegation: ['createAgent', 'searchAgents', 'delegateToAgent', 'delegate'],
+  delegation: ['createAgent', 'searchAgents', 'delegate'],
   /**
    * The agent's own sandboxed Linux machine (`lib/computer/computer-tools.ts`)
    * and the browser on it (`lib/computer/browser-tools.ts`) — one machine, one

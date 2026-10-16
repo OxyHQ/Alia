@@ -215,7 +215,7 @@ describe('the in-chat planner reaches the client (#139 ws6)', () => {
      * is the source-level half, and it exists for the EVENT NAME above, which
      * no behavioural test can see.
      */
-    const guardAt = pipeline.indexOf(snippet('if (sseEmitter && isDirectSession) {'));
+    const guardAt = pipeline.indexOf(snippet('if (sseEmitter && isDirectSession && !nested) {'));
     const planAt = pipeline.indexOf(snippet('aliaTools.planPreview ='));
     expect(guardAt).toBeGreaterThan(-1);
     expect(planAt).toBeGreaterThan(guardAt);

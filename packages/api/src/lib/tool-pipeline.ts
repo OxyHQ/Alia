@@ -72,7 +72,6 @@ import {
   createGetWhatsAppMessagesTool,
   createSendWhatsAppMessageTool,
   createSearchAgentsTool,
-  createDelegateToAgentTool,
   createAgentTool,
   createDeepResearchTool,
   createPlanPreviewTool,
@@ -85,7 +84,7 @@ import { getWeatherTool } from './tools/weather.js';
 import { getMarketQuoteTool } from './tools/market.js';
 import { getFairCoinTool } from './tools/faircoin.js';
 import { buildMcpTools } from './tools/mcp.js';
-import { buildAskAgentTool } from './tools/ask-agent.js';
+import { buildConsultAgentTool } from './tools/consult-agent.js';
 import { buildIntegrationTools } from './tools/integrations.js';
 import {
   buildOxyServiceTools,
@@ -93,6 +92,7 @@ import {
   type OxyToolAutonomy,
 } from './tools/oxy-services.js';
 import { convertOpenAIToolsToToolSet, type OpenAITool } from './tool-converter.js';
+import { buildHostTools, type HostRequest } from './host-tools.js';
 import { log } from './logger.js';
 import type { SSEEmitter } from './sse-emitter.js';
 import type { HydratedAgent } from './agent-identity.js';
@@ -160,7 +160,13 @@ export interface ForUserOptions {
    * `userId`.
    */
   requesterAccountId?: string | null;
-  agentMode: boolean;
+  /**
+   * A consulted agent's turn inside another conversation (`consultAgent`,
+   * ADR 0020 §5). It never receives `consultAgent`, the catalogue search, agent
+   * creation, automations, deep research or the SSE tools: there is no second
+   * surface to draw them, and depth is one by construction.
+   */
+  nested?: boolean;
   requestId?: string;
   /** Correlation id shared by every Oxy subaction in this run. */
   runId?: string;
@@ -216,6 +222,12 @@ export interface ForUserOptions {
   runtime?: AgentRuntimeContext | null;
   /** Raw OpenAI-format tools from the client (VS Code, Cursor, Cowork) */
   editorToolDefinitions?: OpenAITool[];
+  /**
+   * The UI effects the embedding app can perform on the person's screen
+   * (`lib/host-tools.ts`). Built only for a person's own session with a stream
+   * to dispatch them on, and never inside a consultation.
+   */
+  host?: HostRequest;
   /** SSE emitter for tools that need to push events (planPreview, suggestNewConversation) */
   sseEmitter?: SSEEmitter;
   /**
@@ -236,8 +248,8 @@ export interface ForUserOptions {
    * `lib/research/research-engine.ts`, which runs hosted catalogue models
    * several times; offered on an unreserved turn it is free hosted inference behind a
    * tool call. The matching request FLAGS are refused at the boundary
-   * (`lib/chat/request-context.ts`), and `delegateToAgent` needs `agentMode`,
-   * which is refused there too — so this is the remaining door.
+   * (`lib/chat/request-context.ts`), and `consultAgent` is withheld here for
+   * the same reason — so this is the remaining door.
    *
    * Everything else here stays: the web tools reach Clarity Search,
    * and the rest touch the person's own data.
@@ -378,7 +390,7 @@ export class ToolPipeline {
       isDirectSession,
       actsForPerson,
       requesterAccountId = opts.userId,
-      agentMode,
+      nested = false,
       toolsEnabled,
       agent,
       deviceInfo,
@@ -390,6 +402,7 @@ export class ToolPipeline {
       oxyAgentRunSessionId,
       onOxyStepStatus,
       editorToolDefinitions,
+      host,
       sseEmitter,
       webSearch,
       mcpServerId,
@@ -580,7 +593,7 @@ export class ToolPipeline {
             sendWhatsAppMessage: createSendWhatsAppMessageTool(userId),
           });
       }
-      if (grants.allows('automation')) {
+      if (grants.allows('automation') && !nested) {
         if (isDirectSession) {
           aliaTools.createAutomation = createAutomationTool(userId, accessToken);
         }
@@ -588,13 +601,13 @@ export class ToolPipeline {
       // `web`, not a family of its own: what it does is read the open web, and
       // it is withheld from an unreserved turn for the reason `isLocalRuntime`
       // gives above.
-      if (webSearch && !isLocalRuntime && grants.allows('web')) {
+      if (webSearch && !isLocalRuntime && !nested && grants.allows('web')) {
         aliaTools.deepResearch = createDeepResearchTool(userId);
       }
     }
 
     // Minting an agent needs the caller's own credential, so only a session has it.
-    if (isDirectSession && grants.allows('delegation')) {
+    if (isDirectSession && !nested && grants.allows('delegation')) {
       aliaTools.createAgent = createAgentTool(userId, accessToken);
     }
 
@@ -608,7 +621,7 @@ export class ToolPipeline {
      * them there is a tool the model can call whose whole effect is a frame
      * nobody draws.
      */
-    if (sseEmitter && isDirectSession) {
+    if (sseEmitter && isDirectSession && !nested) {
       aliaTools[ASK_USER_QUESTION_TOOL] = createAskUserQuestionTool();
       aliaTools.planPreview = createPlanPreviewTool((steps) => {
         sseEmitter.emit('alia.plan_preview', {
@@ -736,12 +749,19 @@ export class ToolPipeline {
             executionAuthorizations: oxyExecutionAuthorizations,
             onStepStatus: onOxyStepStatus,
           }).catch(bulkFailure('oxy-service')),
-      actsForPerson && wants('agent')
-        ? buildAskAgentTool(
-            userId,
-            ownAgentSelection(grants, agent, userId),
-            agent?._id ?? null,
-          ).catch(bulkFailure('agent'))
+      // A local turn reserved no credits, and a consultation runs hosted inference.
+      actsForPerson && !nested && !isLocalRuntime && wants('agent')
+        ? buildConsultAgentTool({
+            person: {
+              oxyUserId: userId,
+              ...(accessToken ? { accessToken } : {}),
+              isDirectSession,
+            },
+            payerOxyUserId: userId,
+            callerAgentId: agent?._id ?? null,
+            ...consultSelection(grants),
+            ...(sseEmitter ? { sseEmitter } : {}),
+          }).catch(bulkFailure('agent'))
         : {},
     ]);
     // The four sources come from rows in no promised order. Sorted by name, the
@@ -761,19 +781,14 @@ export class ToolPipeline {
     // depending on the session kind.
     if (skills && (!agent || skills.agentScoped)) Object.assign(aliaTools, skills.tools);
 
-    // 5. Merge server tools with editor tools
-    const tools: ToolSet = { ...aliaTools, ...editorTools };
+    // 5. Merge server tools with the caller's editor and host tools (never inside a consultation).
+    const hostTools =
+      host && sseEmitter && isDirectSession && !nested ? buildHostTools(host, sseEmitter) : {};
+    const tools: ToolSet = { ...aliaTools, ...(nested ? {} : editorTools), ...hostTools };
 
-    // 6. Agent mode: add search & delegation tools
-    if (agentMode && isDirectSession && grants.allows('delegation')) {
+    // 6. The catalogue of agents `consultAgent` can reach, for finding a specialist.
+    if (actsForPerson && !nested && grants.allows('delegation')) {
       tools.searchAgents = createSearchAgentsTool();
-      /**
-       * The caller is BOTH inputs: the account that pays for the delegate's
-       * turn (`agent-turn.ts`) and the identity `canReachAgent` asks about
-       * before running an agent the model named. It took neither before, and
-       * ran any id it was given.
-       */
-      tools.delegateToAgent = createDelegateToAgentTool(userId, accessToken);
     }
 
     /**
@@ -820,35 +835,17 @@ function byName(tools: ToolSet): ToolSet {
 }
 
 /**
- * Which of the owner's own agents this turn may talk to.
+ * Which agents this turn may consult, beyond what `canReachAgent` already
+ * decides for the person present.
  *
- * `undefined` is every ACTIVE one, resolved by the source at the moment it is
- * asked — a bare `agent` grant, or a turn with no agent at all. An array is the
- * ids the owner named, and `[]` reaches none and costs no query.
- *
- * ## A grant written by one owner cannot resolve against another's agents
- *
- * An agent whose `access` is `public` runs inside a STRANGER's turn, where
- * `userId` is the stranger. Per-id grants handle that on their own — the source
- * scopes rows to `userId`, so ids naming the author's agents match nothing —
- * but "every active agent" would silently re-point at whoever is talking, and
- * hand an agent its own conversation partner's private agents.
- *
- * So the bare grant resolves only when the turn's user IS the bot's exact Oxy
- * parent. `author` is marketplace/listing metadata and cannot authorize
- * delegation, even when legacy rows happen to contain the same id.
- * Under anyone else it reaches none, which is the same answer the per-id form
- * already gives, rather than a different one for the same grant.
+ * Ordinary Alia, and an agent whose owner wrote the bare `agent` grant, consult
+ * any agent the person could open themselves. An agent granted named ids
+ * consults only those, and an agent without the grant consults none (`[]`, and
+ * the tool is not built).
  */
-function ownAgentSelection(
-  grants: CapabilityGrantSet,
-  agent: HydratedAgent | null | undefined,
-  userId: string,
-): readonly string[] | undefined {
+function consultSelection(grants: CapabilityGrantSet): { allowedAgentIds?: readonly string[] } {
   const granted = grants.instances('agent');
-  if (granted !== null) return granted;
-  if (agent === undefined || agent === null) return undefined;
-  return agent.ownerOxyAccountId === userId ? undefined : [];
+  return granted === null ? {} : { allowedAgentIds: granted };
 }
 
 /**

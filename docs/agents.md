@@ -464,30 +464,31 @@ Two properties are worth stating outright, because both reverse what came before
   are not in this vocabulary at all — see "Oxy apps: for the person and as
   itself" below.
 
-### Talking to your own agents
+### Consulting another agent
 
-`agent:<agentId>` is the fourth row-at-a-time family, and it is separate from
-`delegation` on purpose: that one finds, hires and creates agents from the
-CATALOGUE, this one reaches the agents you already have. Granting it exposes one
-tool, `askAgent`, whose schema names exactly the agents the grant resolved to.
+`consultAgent` (ADR 0020 §5) is the one way an agent is asked something inside
+another conversation. Ordinary Alia always has it; an agent has it through the
+`agent` family, separate from `delegation` (which finds and creates agents in the
+catalogue, `searchAgents` / `createAgent`).
 
-Two shapes, both real:
+Reach is the ordinary rule: an agent can be consulted exactly when the person
+present could open it themselves (`canReachAgent`) — their own agents, agents
+shared with them, and public active agents such as Homiio's Sindi. An agent's
+grant narrows it further:
 
 - `agent:<agentId>` — that agent, and no other.
-- `agent` — every one of your agents whose `status` is `active`, resolved again
-  on every turn, so a new agent joins on its own and switching one off removes
-  it. The only bare instanced grant the vocabulary accepts; `EVERY_ROW_FAMILIES`
-  argues why this family may and the connector families may not.
+- `agent` — any agent the person can reach. The only bare instanced grant the
+  vocabulary accepts; `EVERY_ROW_FAMILIES` argues why this family may and the
+  connector families may not.
 
-The id the model names is re-checked in `execute` against the allow-list the
-server resolved AND against the row itself — same owner, still active. A grant
-written by one owner never resolves against another person's agents, including
-when a `public` agent runs inside a stranger's turn.
-
-The answer comes from a nested turn (`lib/tools/agent-turn.ts`): the target's own
-prompt, the target's own capability grants, reserved and settled against the
-account that funds the outer turn. It does not act for a person, so it holds no
-`askAgent` of its own — A can ask B, and B cannot ask back.
+The consulted agent answers in a nested turn (`lib/tools/agent-turn.ts`) that is
+the SAME person's turn with the callee as the agent: its own prompt, families and
+memory of this person, and the person's Oxy apps on the lane the person stands in
+(the owner's levels for its owner, the owner's ceilings for anybody else). It is
+reserved and settled against the account that funds the outer turn, and it
+streams: the client draws it joining the conversation (`alia.agent_start` …
+`alia.agent_end`, [Embedding an agent](./agent-embedding.md) §4). A nested turn
+never holds `consultAgent` itself — A can consult B, and B cannot consult back.
 
 `lib/__tests__/capability-grants.test.ts` is what says the vocabulary is wired:
 it grants one family, runs the real assembler and asserts the set gained exactly

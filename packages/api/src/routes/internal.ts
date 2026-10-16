@@ -142,7 +142,6 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
       isDirectSession: false,
       // A service token delegates a named end user, and acts for them.
       actsForPerson: true,
-      agentMode: false,
       toolsEnabled: true,
       webSearch: true,
       isLocalRuntime: false,

@@ -122,14 +122,14 @@ vi.mock('../tools/oxy-services.js', () => ({
  *
  * It mirrors the real one where the difference is observable — an EMPTY
  * selection builds no tool, so "granted nothing" and "granted one" are
- * different set comparisons rather than one constant. What each id resolves to
- * is `tools/__tests__/ask-agent.test.ts`, against the real builder.
+ * different set comparisons rather than one constant. What reach each id has is
+ * `tools/__tests__/consult-agent.test.ts`, against the real builder.
  */
-vi.mock('../tools/ask-agent.js', () => ({
-  buildAskAgentTool: vi.fn(async (_userId: string, selection: readonly string[] | undefined) => {
-    asked.agent.push(selection);
-    if (selection !== undefined && selection.length === 0) return {};
-    return { askAgent: { description: 'ask' } };
+vi.mock('../tools/consult-agent.js', () => ({
+  buildConsultAgentTool: vi.fn(async (options: { allowedAgentIds?: readonly string[] }) => {
+    asked.agent.push(options.allowedAgentIds);
+    if (options.allowedAgentIds !== undefined && options.allowedAgentIds.length === 0) return {};
+    return { consultAgent: { description: 'consult' } };
   }),
 }));
 
@@ -142,7 +142,7 @@ vi.mock('../logger.js', () => {
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
 
 const { ToolPipeline } = await import('../tool-pipeline.js');
-const { buildAskAgentTool } = await import('../tools/ask-agent.js');
+const { buildConsultAgentTool } = await import('../tools/consult-agent.js');
 const { GRANTS_EVERYTHING, readCapabilityGrants } = await import(
   '../../domain/capability-grants.js'
 );
@@ -183,7 +183,6 @@ async function namesFor(
     accessToken: 'token-1',
     isDirectSession: true,
     actsForPerson: true,
-    agentMode: true,
     toolsEnabled: true,
     webSearch: true,
     isLocalRuntime: false,
@@ -238,7 +237,7 @@ const INSTANCE_TOOLS: Readonly<Record<string, string>> = {
   integration: 'integration_row-a__act',
   // ONE name however many agents are granted: what narrows is the tool's
   // schema, which is why the assertion below also reads the selection.
-  agent: 'askAgent',
+  agent: 'consultAgent',
 };
 
 beforeEach(() => {
@@ -579,6 +578,33 @@ describe('a turn with NO agent is not partitioned', () => {
   });
 });
 
+describe("the embedding app's host tools", () => {
+  const host = {
+    app: 'homiio',
+    version: 1 as const,
+    tools: [
+      {
+        name: 'apply_search',
+        description: 'Show listings.',
+        inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      },
+    ],
+  };
+
+  it("reach the person's own session, and nothing else", async () => {
+    expect(await namesFor(null, { host })).toContain('host_homiio__apply_search');
+    expect(await namesFor(null, { host, isDirectSession: false })).not.toContain(
+      'host_homiio__apply_search',
+    );
+    expect(await namesFor(null, { host, sseEmitter: undefined })).not.toContain(
+      'host_homiio__apply_search',
+    );
+    expect(await namesFor(['agent'], { host, nested: true })).not.toContain(
+      'host_homiio__apply_search',
+    );
+  });
+});
+
 describe('the composer selection and the grants are intersected, never substituted', () => {
   it('exposes nothing when the picked connector was not granted', async () => {
     const base = await namesFor([]);
@@ -603,7 +629,7 @@ describe('the composer selection and the grants are intersected, never substitut
   });
 });
 
-describe("the `agent` family: the owner's own agents, and what a bare grant means", () => {
+describe('the `agent` family: which agents this one may consult, and what a bare grant means', () => {
   it('asks for EVERY active agent when the grant names none, where a bare `mcp` asks for nothing', async () => {
     /**
      * The one instanced family whose bare grant is a decision rather than a
@@ -623,7 +649,7 @@ describe("the `agent` family: the owner's own agents, and what a bare grant mean
 
     // The positive control the two dead vocabularies never had, for the shape
     // that is easiest to accept and never wire: a family-wide grant.
-    expect(granted.filter((name) => !base.includes(name))).toEqual(['askAgent']);
+    expect(granted.filter((name) => !base.includes(name))).toEqual(['consultAgent']);
   });
 
   it('widens the selection when a second agent is granted, and not before', async () => {
@@ -643,39 +669,47 @@ describe("the `agent` family: the owner's own agents, and what a bare grant mean
     // Passed to the source rather than filtered afterwards: the source is what
     // knows whether anything is left, and an agent asking itself is a loop with
     // a bill attached.
-    const calls = vi.mocked(buildAskAgentTool).mock.calls;
-    expect(calls.at(-1)?.[2]).toBe('caller-agent');
+    const calls = vi.mocked(buildConsultAgentTool).mock.calls;
+    expect(calls.at(-1)?.[0]).toMatchObject({ callerAgentId: 'caller-agent' });
   });
 
-  it('resolves a bare grant to NOTHING when the turn belongs to someone else', async () => {
+  it('consults, on a bare grant, only what the person present could open themselves', async () => {
     /**
      * A `public` agent runs inside a stranger's turn, where `userId` is the
-     * stranger. "All my active agents" must not silently re-point at whoever is
-     * talking — that would hand an agent a conversation with its own user's
-     * private agents, which its owner never granted and its user never agreed
-     * to. The per-id form is already safe (the source scopes rows to `userId`),
-     * so this is the bare form being given the same answer rather than a
-     * different one.
+     * stranger. Its bare grant is not "the owner's agents": it is whatever that
+     * person can reach (`canReachAgent`, ADR 0020 §5) — the same agents they
+     * could open directly, each acting only within what it may do for them.
      */
-    const names = await namesFor(null, { agent: agentWith(['agent'], 'somebody-else') });
+    await namesFor(null, { userId: 'stranger', agent: agentWith(['agent'], 'somebody-else') });
 
-    expect(asked.agent.at(-1)).toEqual([]);
-    expect(names).not.toContain('askAgent');
+    expect(asked.agent.at(-1)).toBeUndefined();
+    const calls = vi.mocked(buildConsultAgentTool).mock.calls;
+    expect(calls.at(-1)?.[0]).toMatchObject({
+      person: { oxyUserId: 'stranger' },
+      payerOxyUserId: 'stranger',
+    });
   });
 
-  it('is absent from a turn that does not act for a person, which is the recursion bound', async () => {
+  it('is absent from a consultation itself, which is the recursion bound', async () => {
     /**
      * THE LIMIT ON A HAS B ASK A, and it is structural rather than a counter.
-     * `lib/tools/agent-turn.ts` runs the nested agent with `actsForPerson:
-     * false`, so the callee never receives this tool and cannot call back.
-     * Depth is one by construction, with no number to keep in sync — and if the
-     * family were ever moved out from under that flag, this is what goes red.
+     * `lib/tools/agent-turn.ts` runs the consulted agent with `nested: true`,
+     * so the callee never receives this tool and cannot call back. Depth is one
+     * by construction — and if the family were ever moved out from under that
+     * flag, this is what goes red.
      */
-    const names = await namesFor(['agent'], { actsForPerson: false });
+    const names = await namesFor(['agent', 'delegation'], { nested: true });
 
-    expect(names).not.toContain('askAgent');
-    // Not merely absent from the set: the source was never even asked, so a
-    // nested turn costs no query either.
+    expect(names).not.toContain('consultAgent');
+    expect(names).not.toContain('searchAgents');
+    expect(names).not.toContain('createAgent');
+    // Not merely absent from the set: the source was never even asked.
+    expect(asked.agent).toEqual([]);
+  });
+
+  it('is absent from a turn that does not act for a person, and from a local one', async () => {
+    expect(await namesFor(['agent'], { actsForPerson: false })).not.toContain('consultAgent');
+    expect(await namesFor(['agent'], { isLocalRuntime: true })).not.toContain('consultAgent');
     expect(asked.agent).toEqual([]);
   });
 });
@@ -738,7 +772,7 @@ describe("the native product agent's published grant", () => {
   it('reaches no connector, MCP server, Oxy app or other agent', async () => {
     const names = await namesFor([...SINDI]);
 
-    expect(names).not.toContain('askAgent');
+    expect(names).not.toContain('consultAgent');
     expect(names.filter((name) => name.startsWith('mcp_'))).toEqual([]);
     expect(names.filter((name) => name.startsWith('integration_'))).toEqual([]);
     expect(names.filter((name) => name.startsWith('oxy_'))).toEqual([]);

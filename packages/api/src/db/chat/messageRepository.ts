@@ -656,6 +656,54 @@ export async function replaceMessages(
 }
 
 /**
+ * Rewrite the stored RESULT of earlier tool calls in one thread, by call id.
+ *
+ * The one writer is a host tool's outcome (`lib/host-tools.ts`): the call was
+ * stored with the dispatched placeholder, and the embedding app reports what
+ * actually happened with the next request. `tool_invocations` is read whole
+ * (see the `messages` table comment), so the element is replaced in memory and
+ * the array written back, inside one transaction per message. A call id the
+ * thread does not hold changes nothing.
+ */
+export async function recordToolResults(
+  db: ApiDatabase,
+  oxyUserId: string,
+  conversationId: string,
+  results: ReadonlyMap<string, unknown>,
+): Promise<number> {
+  if (results.size === 0) return 0;
+  let updated = 0;
+  await db.transaction(async (tx) => {
+    const rows = await tx
+      .select({ id: messages.id, toolInvocations: messages.toolInvocations })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.oxyUserId, oxyUserId),
+          eq(messages.conversationId, conversationId),
+          sql`${messages.toolInvocations} is not null`,
+        ),
+      )
+      .for('update');
+    for (const row of rows) {
+      if (!Array.isArray(row.toolInvocations)) continue;
+      let changed = false;
+      const next = row.toolInvocations.map((invocation: unknown) => {
+        if (typeof invocation !== 'object' || invocation === null) return invocation;
+        const callId = (invocation as { toolCallId?: unknown }).toolCallId;
+        if (typeof callId !== 'string' || !results.has(callId)) return invocation;
+        changed = true;
+        return { ...invocation, state: 'result', result: results.get(callId) };
+      });
+      if (!changed) continue;
+      await tx.update(messages).set({ toolInvocations: next }).where(eq(messages.id, row.id));
+      updated += 1;
+    }
+  });
+  return updated;
+}
+
+/**
  * Record or clear a vote on one message, returning the message's vote after.
  *
  * ## Exactly one row, chosen deterministically

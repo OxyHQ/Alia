@@ -176,7 +176,6 @@ export async function buildVoiceTurn(input: VoiceTurnInput): Promise<VoiceTurnCo
     actsForPerson: true,
     // The person on the socket: an agent's owner data only for its owner (ADR 0015).
     requesterAccountId: oxyUserId,
-    agentMode: false,
     requestId: input.requestId,
     priorToolCalls: priorToolCallsOf(asChat),
     webSearch: true,

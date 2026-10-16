@@ -448,7 +448,6 @@ async function driveAgentSession(
     isDirectSession: false,
     // The run belongs to the account that started the session.
     actsForPerson: true,
-    agentMode: false,
     toolsEnabled: true,
     webSearch: true,
     isLocalRuntime: false,

@@ -190,7 +190,6 @@ export async function runAliaTask(
       isDirectSession: false,
       // Alia acts for the task's owner, who asked for it.
       actsForPerson: true,
-      agentMode: false,
       agent: null,
       toolsEnabled: true,
       webSearch: true,

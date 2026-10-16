@@ -91,7 +91,7 @@ When it shows these frames, the SDK does the following:
 - Its reply is drawn under its own identity.
 - `agent_tool` results go through the same renderers as the lead's results.
 
-The stored conversation keeps one assistant message per consulted agent, carrying `agentInfo`.
+The stored conversation keeps one assistant message per consulted agent, carrying `agentInfo`, with the id `<assistantMessageId>-agent-<n>`, where `n` (0-based) is the order of its `alia.agent_start` in the turn. A client names the message it drew live the same way.
 
 ## 5. Feature gates
 

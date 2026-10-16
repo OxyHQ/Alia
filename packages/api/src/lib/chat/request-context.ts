@@ -1,3 +1,4 @@
+import { parseHostRequest, type HostRequest } from '../host-tools.js';
 import { productCreditPlanId } from '../product-credit-contract';
 import { USAGE_WINDOW_CREDITS } from '../usage-window';
 import { readConfiguredProductCreditSnapshot } from '../product-credit-access';
@@ -106,7 +107,8 @@ export interface ChatRequestContext {
    * are the same as for a typed turn.
    */
   responseMode: 'voice' | null;
-  agentMode: boolean;
+  /** The embedding app's UI effects and the outcomes of earlier ones (`lib/host-tools.ts`). */
+  host: HostRequest | undefined;
   deepResearch: boolean | undefined;
   /**
    * Whether Alia may reach the open web for this turn.
@@ -304,7 +306,20 @@ export async function buildChatRequestContext(
 
   // Extract optional parameters for Alia internal features
   const conversationId = body.conversationId as string | undefined;
-  const agentMode = (body.agentMode as boolean | undefined) ?? false;
+  const parsedHost = parseHostRequest(body.host);
+  if (!parsedHost.ok) {
+    clearTimeout(globalTimer);
+    res.status(400).json({
+      error: {
+        message: parsedHost.message,
+        type: 'invalid_request_error',
+        param: 'host',
+        code: 'invalid_host',
+      },
+    });
+    return null;
+  }
+  const host = parsedHost.host;
   // Deep research is a request flag, never implied by the model (ADR 0012).
   const deepResearch = body.deepResearch as boolean | undefined;
   // Absent means ON, which is what every request did before the switch existed.
@@ -316,7 +331,6 @@ export async function buildChatRequestContext(
     {
       messageCount: messages.length,
       conversationId,
-      agentMode,
       deepResearch,
       webSearch,
     },
@@ -615,32 +629,31 @@ export async function buildChatRequestContext(
    * A local turn may not escalate into inference Alia pays for.
    *
    * This is the whole safety argument for reserving no credits. The saving is
-   * real only while the turn stays on the person's own hardware, and two
-   * request flags take it straight back off:
+   * real only while the turn stays on the person's own hardware, and one
+   * request flag takes it straight back off:
    *
    *  - **`deepResearch`** runs `lib/research/research-engine.ts`, which resolves
    *    hosted catalogue models and calls them several times per turn. `lib/chat-modes/deep-research-handler.ts`
    *    finalizes credits under `if (creditReservation)`, so with no reservation
    *    that work is charged to nobody.
-   *  - **`agentMode`** adds `delegateToAgent`, and `lib/tools/agent-delegate.ts`
-   *    resolves a hosted model the same way (line 70).
    *
    * Refused rather than silently downgraded: a person who asked for deep
    * research and got an ordinary answer has been told something untrue about
-   * the turn they paid nothing for. The composer hides both controls for a local
-   * model; this is what answers a client that asks anyway.
+   * the turn they paid nothing for. The composer hides the control for a local
+   * model; this is what answers a client that asks anyway. `consultAgent`, the
+   * other way into hosted inference, is withheld by `lib/tool-pipeline.ts`.
    *
    * The `deepResearch` TOOL is withheld separately, in `lib/tool-pipeline.ts` —
    * the model can reach the same engine by calling it, and a flag check here
    * would not see that.
    */
-  if (localRuntime !== null && (deepResearch === true || agentMode)) {
+  if (localRuntime !== null && deepResearch === true) {
     clearTimeout(globalTimer);
     const refusal = {
       message:
-        'Deep research and agent mode run on hosted models, so they are not available for a model running on your device. Pick a model from the catalogue to use them.',
+        'Deep research runs on hosted models, so it is not available for a model running on your device. Pick a model from the catalogue to use it.',
       type: 'invalid_request_error',
-      param: deepResearch === true ? 'deepResearch' : 'agentMode',
+      param: 'deepResearch',
       code: 'local_runtime_capability_unavailable',
     };
     if (sse.sent) {
@@ -1036,7 +1049,7 @@ export async function buildChatRequestContext(
     assistantMessageId,
     reasoningEffort,
     responseMode: body.responseMode === 'voice' ? 'voice' : null,
-    agentMode,
+    host,
     deepResearch,
     webSearch,
     mcpServerId,

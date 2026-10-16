@@ -539,7 +539,6 @@ export async function processAgentBotMessage(
       actsForPerson: speakerIsOwner,
       requesterAccountId: speakerAccountId,
       inputLimits: resolved.catalogue,
-      agentMode: false,
       toolsEnabled: true,
       webSearch: true,
       isLocalRuntime: false,

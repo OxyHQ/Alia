@@ -57,7 +57,6 @@ region or permissive fallback may be invented in Alia.
   "conversationId": "conv_…",
   "assistantMessageId": "0b0f…",
   "reasoningEffort": "medium",
-  "agentMode": "research",
   "deepResearch": true,
   "tools": ["webSearch", "webScraper"],
   "stream_options": { "include_usage": true }
@@ -165,7 +164,7 @@ where the host passes `openAutomation`.
 **Power levels** (ADR 0014) are the SDK's: `POWER_LEVELS`, `buildPowerLevelOptions` and the
 selector in the composer, on every surface that lets the person choose. Which of the person's own
 devices run a model (`local/…`) is the host's, handed in as `deviceModels`. The add menu stays
-the host's: web search, deep research, agent mode, skills and connected apps are rows with plan
+the host's: web search, deep research, skills and connected apps are rows with plan
 gates, a router and a library behind them, so the SDK offers the slot (`addMenu`) and photos by
 default.
 
@@ -213,7 +212,7 @@ It is enforced twice:
 
 - **`ToolPipeline.forUser`** (`lib/tool-budget.ts`) never lets a request carry
   more. Every path that runs a model with tools — chat streaming and
-  non-streaming, the autonomous runner, `askAgent`/delegation turns, Telegram
+  non-streaming, the autonomous runner, `consultAgent` turns, Telegram
   bot turns (`routes/webhooks.ts`) and service-token triggers
   (`routes/internal.ts`) — assembles through it and spreads its `routing`
   beside `tools`.
@@ -346,9 +345,9 @@ returns and the per-message routes address (`PATCH
 /conversations/:id/messages/:messageId/vote`, `POST /v1/audio/speech` with
 `conversationId` and `messageId`). A client that wants to address a reply it
 is still showing sends each message with its `id` and names the reply it is
-drawing in `assistantMessageId`; a delegated agent's answers in that turn are
-stored as `<assistantMessageId>-agent-<n>`, in the order their `alia.agent`
-events arrived, because that event carries no id of its own. A message sent
+drawing in `assistantMessageId`; a consulted agent's answers in that turn are
+stored as `<assistantMessageId>-agent-<n>`, in the order of their
+`alia.agent_start` events (`docs/agent-embedding.md` §4). A message sent
 without an id is named by its position, `msg-<seq>`. A malformed
 `assistantMessageId` (not a string of 1–128 characters) is refused with `400
 invalid_request`. A turn is stored when it completes, so a failed turn has no
