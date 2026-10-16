@@ -61,15 +61,15 @@ refusal):
 ```text
 client: auth { token }                       an Oxy session of Alia's own apps
 alia:   auth.ok
-client: session.start { protocol: 1, conversationId, agentId?, voice, locale }
-        | session.resume { protocol: 1, voiceSessionId, afterSeq }
+client: session.start { protocol: 2, conversationId, agentId?, voice, locale }
+        | session.resume { protocol: 2, voiceSessionId, afterSeq }
 alia:   session.accepted { voiceSessionId, callId }     still connecting
 alia:   session.ready { model, maxDurationMs, … }       Kaana created the session
 client: <binary PCM16 24 kHz mono, ~40 ms frames>
 alia:   input.ready                                     the first frame was appended
 alia:   user.speech_started / user.speech_stopped, transcript.delta|done { role, messageId, itemId },
         <binary [u8 n][item id][PCM16]>, assistant.audio_done, assistant.done,
-        tool.started / tool.finished { name }, approval.requested, messages.saved,
+        tool.started / tool.finished { messageId, name }, approval.requested, messages.saved,
         session.warning { ending-soon }, session.reconnecting, session.resumed,
         error { code, retryable, reference }, session.closed { reason }
 client: playback.interrupted { itemId, playedMs }, session.end, auth { token } (refresh)
@@ -165,11 +165,15 @@ stores nothing. The open client is told twice: `messages.saved` on the call's so
 and `conversation:message` on socket.io, which appends to the open thread. The first
 words of a new conversation title it.
 
-**One id per message, from the first word.** Every `transcript.delta|done` names
-`messageId`, the id the message is stored and announced under; the client draws one
-message per `messageId` (an assistant turn's items, tool round trip included, are one
-message). So the stored copy that `conversation:message` brings is the message already
-on screen, never a second one.
+**One id per message, from the first word.** Every `transcript.delta|done` and
+`tool.started|finished` names `messageId`, the id the message is stored and announced
+under; the client draws one message per `messageId` (an assistant turn's items and its
+tools are one message, as stored). So the stored copy that `conversation:message`
+brings is the message already on screen, never a second one, and once a message is
+saved the thread shows the stored copy (`lib/call-thread.ts`): the one a reload or a
+resume shows, with its tools' arguments and results, which the call's socket never
+carries. That wire is protocol 2; a protocol-1 client (one bubble per audio item) is
+refused with `invalid-request` rather than served wrongly.
 
 **When the person's words are final.** A provider may send several `transcript.done`
 for one input item: xAI sends a growing transcript at every pause, repeats it, reuses

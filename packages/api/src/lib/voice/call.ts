@@ -444,7 +444,15 @@ export class VoiceCall {
       // `voice-mode` is enforced by the server, not only by the app.
       if (inputs.entitlements === null)
         throw new VoiceFailure('realtime-unavailable', { retryable: true });
-      if (!inputs.entitlements.features['voice-mode']) throw new VoiceFailure('plan-required');
+      if (!inputs.entitlements.features['voice-mode']) {
+        // The one refusal the person is told to pay for: which account and plan
+        // decided it is what makes a wrong one traceable.
+        log.voice.warn(
+          { callId: this.callId, oxyUserId: this.oxyUserId, planId: inputs.entitlements.planId },
+          'Voice call refused: the plan has no voice mode',
+        );
+        throw new VoiceFailure('plan-required');
+      }
 
       const agent = inputs.turnAgent;
       if (agent.kind === 'agent') {
@@ -883,7 +891,8 @@ export class VoiceCall {
     const tools = this.turn?.tools ?? {};
     const name = state.name;
     this.activity();
-    this.emit({ type: 'tool.started', callId: event.toolCallId, name });
+    const messageId = response.turn.messageId;
+    this.emit({ type: 'tool.started', messageId, callId: event.toolCallId, name });
     const running = runTool(tools, name, state.args, {
       toolCallId: event.toolCallId,
       signal: this.toolAbort.signal,
@@ -906,7 +915,13 @@ export class VoiceCall {
           type: 'conversation.item.create',
           item: { type: 'function_call_output', callId: event.toolCallId, output: result.output },
         });
-      this.emit({ type: 'tool.finished', callId: event.toolCallId, name, ok: result.ok });
+      this.emit({
+        type: 'tool.finished',
+        messageId,
+        callId: event.toolCallId,
+        name,
+        ok: result.ok,
+      });
       this.activity();
     });
     response.pending.push(running);

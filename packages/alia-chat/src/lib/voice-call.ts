@@ -386,11 +386,13 @@ export class VoiceCall {
         if (this.state.kind === 'thinking' && this.playingItem === null) this.afterSpeech();
         return;
       case 'tool.started':
+        this.recordTool(event, 'call');
         this.activeTools.set(event.callId, event.name);
         this.toolRan = true;
         if (LIVE.has(this.state.kind)) this.setState({ kind: 'using-tool', tool: event.name });
         return;
       case 'tool.finished': {
+        this.recordTool(event, 'result');
         this.activeTools.delete(event.callId);
         if (this.state.kind !== 'using-tool') return;
         const still = [...this.activeTools.values()].at(-1);
@@ -472,30 +474,60 @@ export class VoiceCall {
     text: (previous: string) => string,
     isStreaming: boolean,
   ): void {
-    const { role, messageId, itemId } = event;
+    const { messageId, itemId } = event;
     const items = this.itemTexts.get(messageId) ?? new Map<string, string>();
     this.itemTexts.set(messageId, items);
     this.messageOfItem.set(itemId, messageId);
     items.set(itemId, text(items.get(itemId) ?? ''));
     const content = [...items.values()].filter((part) => part !== '').join(' ');
+    this.writeMessage(messageId, event.role, (message) => ({ ...message, content, isStreaming }));
+  }
+
+  /**
+   * A tool the answer ran, inside the answer's message, by name and state: the
+   * device never receives its arguments or result, and the stored message that
+   * carries them replaces this one once it is saved.
+   */
+  private recordTool(
+    event: { messageId: string; callId: string; name: string },
+    state: 'call' | 'result',
+  ): void {
+    this.writeMessage(event.messageId, 'assistant', (message) => {
+      const invocation = { toolCallId: event.callId, toolName: event.name, state };
+      const tools = message.toolInvocations ?? [];
+      const index = tools.findIndex((tool) => tool.toolCallId === event.callId);
+      return {
+        ...message,
+        toolInvocations:
+          index === -1
+            ? [...tools, invocation]
+            : tools.map((tool, at) => (at === index ? invocation : tool)),
+      };
+    });
+  }
+
+  private writeMessage(
+    messageId: string,
+    role: 'user' | 'assistant',
+    change: (message: VoiceMessage) => VoiceMessage,
+  ): void {
     const index = this.messages.findIndex((message) => message.id === messageId);
-    if (index === -1) {
-      this.messages = [
-        ...this.messages,
-        {
-          id: messageId,
-          role,
-          ...(role === 'assistant' ? { speaker: 'primary' as const } : {}),
-          content,
-          timestamp: Date.now(),
-          isStreaming,
-        },
-      ];
-    } else {
-      const next = [...this.messages];
-      next[index] = { ...next[index]!, content, isStreaming };
-      this.messages = next;
-    }
+    const current: VoiceMessage =
+      index === -1
+        ? {
+            id: messageId,
+            role,
+            ...(role === 'assistant' ? { speaker: 'primary' as const } : {}),
+            content: '',
+            timestamp: Date.now(),
+            isStreaming: false,
+          }
+        : this.messages[index]!;
+    const next = change(current);
+    this.messages =
+      index === -1
+        ? [...this.messages, next]
+        : this.messages.map((message, at) => (at === index ? next : message));
     this.emit();
   }
 

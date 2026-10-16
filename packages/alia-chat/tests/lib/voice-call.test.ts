@@ -87,7 +87,7 @@ describe('opening a call', () => {
     socket().receive({ type: 'auth.ok' });
     expect(socket().events()[1]).toEqual({
       type: 'session.start',
-      protocol: 1,
+      protocol: 2,
       conversationId: 'conv-1',
       agentId: 'agent-1',
       voice: 'female',
@@ -269,6 +269,60 @@ describe('the conversation', () => {
     ]);
   });
 
+  it("draws an answer's tools inside its message, by name and state", async () => {
+    const call = newCall();
+    await live(call);
+    let seq = 3;
+    const receive = (event: Record<string, unknown>) => socket().receive({ ...event, seq: seq++ });
+    receive({
+      type: 'transcript.done',
+      role: 'assistant',
+      messageId: 'voice-turn-1',
+      itemId: 'a1',
+      text: 'Busco tus posts.',
+    });
+    receive({
+      type: 'tool.started',
+      messageId: 'voice-turn-1',
+      callId: 'c1',
+      name: 'oxy_mention__search',
+    });
+    receive({
+      type: 'tool.started',
+      messageId: 'voice-turn-1',
+      callId: 'c2',
+      name: 'oxy_mention__get_user_feed',
+    });
+    receive({
+      type: 'tool.finished',
+      messageId: 'voice-turn-1',
+      callId: 'c1',
+      name: 'oxy_mention__search',
+      ok: false,
+    });
+    receive({
+      type: 'transcript.done',
+      role: 'assistant',
+      messageId: 'voice-turn-1',
+      itemId: 'a2',
+      text: 'No pude recuperarlos.',
+    });
+    const [message, ...rest] = call.snapshot().messages;
+    expect(rest).toEqual([]);
+    expect(message?.content).toBe('Busco tus posts. No pude recuperarlos.');
+    expect(message?.toolInvocations).toEqual([
+      { toolCallId: 'c1', toolName: 'oxy_mention__search', state: 'result' },
+      { toolCallId: 'c2', toolName: 'oxy_mention__get_user_feed', state: 'call' },
+    ]);
+  });
+
+  it('ignores a tool event without the message it belongs to', async () => {
+    const call = newCall();
+    await live(call);
+    socket().receive({ type: 'tool.started', callId: 'c1', name: 'x', seq: 3 });
+    expect(call.snapshot().messages).toEqual([]);
+  });
+
   it('ignores a transcript event without the message it belongs to', async () => {
     const call = newCall();
     await live(call);
@@ -280,9 +334,22 @@ describe('the conversation', () => {
     const call = newCall();
     await live(call);
     socket().receive({ type: 'user.speech_stopped', itemId: 'u1', seq: 3 });
-    socket().receive({ type: 'tool.started', callId: 't1', name: 'getWeather', seq: 4 });
+    socket().receive({
+      type: 'tool.started',
+      messageId: 'voice-turn-1',
+      callId: 't1',
+      name: 'getWeather',
+      seq: 4,
+    });
     expect(call.snapshot().state).toEqual({ kind: 'using-tool', tool: 'getWeather' });
-    socket().receive({ type: 'tool.finished', callId: 't1', name: 'getWeather', ok: true, seq: 5 });
+    socket().receive({
+      type: 'tool.finished',
+      messageId: 'voice-turn-1',
+      callId: 't1',
+      name: 'getWeather',
+      ok: true,
+      seq: 5,
+    });
     expect(kind(call)).toBe('thinking');
     // The response that called the tool ends; the one that answers follows.
     socket().receive({ type: 'assistant.done', itemId: null, status: 'completed', seq: 6 });
@@ -312,7 +379,13 @@ describe('the conversation', () => {
   it('ignores an event it has already seen (a replay)', async () => {
     const call = newCall();
     await live(call);
-    socket().receive({ type: 'tool.started', callId: 't1', name: 'x', seq: 2 });
+    socket().receive({
+      type: 'tool.started',
+      messageId: 'voice-turn-1',
+      callId: 't1',
+      name: 'x',
+      seq: 2,
+    });
     expect(kind(call)).toBe('listening');
   });
 });
@@ -360,8 +433,21 @@ describe('reconnection', () => {
   it('resumes a dropped socket from the last event seen, reading reconnecting meanwhile', async () => {
     const call = newCall();
     await live(call);
-    socket().receive({ type: 'tool.started', callId: 't', name: 'x', seq: 7 });
-    socket().receive({ type: 'tool.finished', callId: 't', name: 'x', ok: true, seq: 8 });
+    socket().receive({
+      type: 'tool.started',
+      messageId: 'voice-turn-1',
+      callId: 't',
+      name: 'x',
+      seq: 7,
+    });
+    socket().receive({
+      type: 'tool.finished',
+      messageId: 'voice-turn-1',
+      callId: 't',
+      name: 'x',
+      ok: true,
+      seq: 8,
+    });
     socket().drop();
     expect(kind(call)).toBe('reconnecting');
 
@@ -370,7 +456,7 @@ describe('reconnection', () => {
     socket().receive({ type: 'auth.ok' });
     expect(socket().events().at(-1)).toEqual({
       type: 'session.resume',
-      protocol: 1,
+      protocol: 2,
       voiceSessionId: 'vs-1',
       afterSeq: 8,
     });

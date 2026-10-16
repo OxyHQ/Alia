@@ -94,23 +94,23 @@ describe('the wire', () => {
   it('parses only the events the protocol defines', () => {
     expect(
       parseVoiceClientEvent(
-        '{"type":"session.start","protocol":1,"conversationId":"c-1","voice":"male","locale":"es-ES"}',
+        '{"type":"session.start","protocol":2,"conversationId":"c-1","voice":"male","locale":"es-ES"}',
       ),
     ).toEqual({
       type: 'session.start',
-      protocol: 1,
+      protocol: 2,
       conversationId: 'c-1',
       voice: 'male',
       locale: 'es-ES',
     });
     expect(
       parseVoiceClientEvent(
-        '{"type":"session.start","protocol":1,"conversationId":"c 1","voice":"male","locale":"es"}',
+        '{"type":"session.start","protocol":2,"conversationId":"c 1","voice":"male","locale":"es"}',
       ),
     ).toBeNull();
     expect(
       parseVoiceClientEvent(
-        '{"type":"session.start","protocol":1,"conversationId":"c1","voice":"alloy","locale":"es"}',
+        '{"type":"session.start","protocol":2,"conversationId":"c1","voice":"alloy","locale":"es"}',
       ),
     ).toBeNull();
     expect(
