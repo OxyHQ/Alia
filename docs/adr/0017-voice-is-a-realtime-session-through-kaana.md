@@ -377,8 +377,11 @@ Oxy Console (§5).
 | `maxDurationMs` | 30 min (contract ≤ 60 min; OpenAI 60, xAI 120) |
 | `idleTimeoutMs` | 2 min |
 | `maxResponses` | 500 (the edge default of 20 would end a call after 20 answers, `O:services/inferenceRealtime.service.ts:171-177`) |
-| `maxTextItems` | 0 (history travels in the instructions) |
 | Audio bytes | sized to 30 min of PCM16 per direction |
+
+History travels in the instructions, never as text items. No `maxTextItems` is sent:
+Kaana refuses a limit it does not enforce (`invalid_request`, param
+`limits.maxTextItems`), and sending `0` refused every call before it opened.
 
 The client shows a notice one minute before the duration ends. A new call in the same
 conversation starts from the persisted messages.

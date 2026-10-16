@@ -60,7 +60,13 @@ import {
 } from '../models/voice-models.js';
 import type { startCall } from './call-registry.js';
 import { type VoiceCreditDeps, VoiceCreditMeter } from './credits.js';
-import { isModelRefusal, VoiceFailure, voiceFailureFromKaana, VOICE_ERROR_TEXT } from './errors.js';
+import {
+  isModelRefusal,
+  VoiceFailure,
+  voiceFailureFromKaana,
+  upstreamOfFailure,
+  VOICE_ERROR_TEXT,
+} from './errors.js';
 import {
   encodeAssistantAudioFrame,
   MAX_CLIENT_AUDIO_FRAME_BYTES,
@@ -120,8 +126,6 @@ function sessionLimits(maxDurationMs: number, idleTimeoutMs: number) {
     maxInputAudioBytes: audioBytes,
     maxOutputAudioBytes: audioBytes,
     maxResponses: 500,
-    // History travels in the instructions, never as billable text items.
-    maxTextItems: 0,
   };
 }
 
@@ -1106,7 +1110,10 @@ export class VoiceCall {
       this.toolAbort.abort();
 
       if (failure) {
-        log.voice.warn({ code: failure.code, reason, callId: this.callId }, 'Voice call failed');
+        log.voice.warn(
+          { code: failure.code, reason, callId: this.callId, upstream: upstreamOfFailure(failure) },
+          'Voice call failed',
+        );
         this.emit({
           type: 'error',
           code: failure.code,

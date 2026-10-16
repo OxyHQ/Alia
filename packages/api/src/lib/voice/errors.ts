@@ -102,3 +102,33 @@ export function isModelRefusal(error: unknown): boolean {
     /voice|config/i.test(kaana.param)
   );
 }
+
+/** Why Kaana or the connection refused a call, as the log carries it. */
+export type VoiceFailureUpstream =
+  | {
+      readonly kind: 'kaana';
+      readonly code: KaanaPublicErrorCode;
+      readonly param: string | null;
+      readonly requestId: string | null;
+      readonly status: number | null;
+    }
+  | { readonly kind: 'connection' | 'protocol' };
+
+/**
+ * What an operator needs to read a failure from the log alone: Kaana's code,
+ * param and request id when Kaana refused, the kind of a transport failure
+ * otherwise, nothing for a failure Alia decided itself. Never what the person
+ * hears (that is {@link VOICE_ERROR_TEXT}).
+ */
+export function upstreamOfFailure(failure: VoiceFailure): VoiceFailureUpstream | null {
+  const upstream = kaanaErrorOf(failure.cause);
+  if (upstream === null) return null;
+  if (upstream.kind !== 'kaana') return { kind: upstream.kind };
+  return {
+    kind: 'kaana',
+    code: upstream.code,
+    param: upstream.param ?? null,
+    requestId: upstream.requestId,
+    status: upstream.status,
+  };
+}

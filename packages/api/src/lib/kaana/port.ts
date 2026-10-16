@@ -293,7 +293,7 @@ export interface KaanaRealtimeSessionOpen {
   kind: 'conversation' | 'transcription' | 'translation';
   transport?: 'websocket';
   config: KaanaRealtimeSessionConfig;
-  limits?: Partial<KaanaRealtimeSessionLimits> & { maxTextItems?: number };
+  limits?: Partial<KaanaRealtimeSessionLimits>;
   clientSessionId?: string;
   labels?: Record<string, string>;
 }
