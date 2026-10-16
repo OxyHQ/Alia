@@ -340,8 +340,6 @@ function AliaConversationView({
     stopGeneration: stop,
     startOver,
     clearConversation,
-    approvePlan,
-    rejectPlan,
     suggestedNewConversation,
     dismissSuggestedNewConversation,
     agentRun,
@@ -675,8 +673,6 @@ function AliaConversationView({
           onRetryTurn={retryFailedTurn}
           onRegenerate={composer.regenerate}
           onStartEdit={edit.start}
-          onApprovePlan={approvePlan}
-          onRejectPlan={rejectPlan}
           newConversationOffer={newConversationOffer}
           agentActivity={agentRun === null ? null : agentActivity}
           call={voice.isActive ? { agentState: voice.agentState } : undefined}

@@ -209,8 +209,6 @@ vi.mock('../../../src/runtime/use-conversation-stream', () => ({
         typeof next === 'function' ? (next as (p: unknown) => unknown)(chat.messages) : next;
     },
     stop: () => {},
-    approvePlan: () => {},
-    rejectPlan: () => {},
     suggestedNewConversation: null,
     dismissSuggestedNewConversation: () => {},
     failedTurn: null,

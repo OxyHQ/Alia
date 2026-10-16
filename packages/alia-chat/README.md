@@ -223,7 +223,7 @@ The sheet, the screen and the Alia app draw ONE thread, `AliaThread` (inside `Al
 and nothing else draws turns: Bloom's AI Chat turns with their reveal, the feedback row and the
 long-press menu; the reply's Markdown with its rich blocks, its code card and its references;
 the work log (`WebSearch`, `TaskList`) and the "Worked for…" line; tool cards; the questions Alia
-asked; plan approval; the failed turn's toast with its Retry; day lines; the window over a long
+asked; the plan an agent shows; the failed turn's toast with its Retry; day lines; the window over a long
 history with the scroll that goes with it; and the card of an agent's run. What a frame adds is
 around it, never in it (`tests/components/thread/one-thread.test.tsx` mounts it both ways and
 holds the rows equal, and fails if anything else imports Bloom's thread).

@@ -424,12 +424,7 @@ const RESEARCH_PHASES: ReadonlySet<string> = new Set([
  */
 export interface AuditEntry {
   id: string;
-  type:
-    | 'tool_call'
-    | 'research_phase'
-    | 'agent_delegation'
-    | 'plan_approved'
-    | 'artifact_generated';
+  type: 'tool_call' | 'research_phase' | 'agent_delegation' | 'plan' | 'artifact_generated';
   label: AuditText;
   description: AuditText;
   /** `interrupted` is a tool call that never returned in a turn that is over. */
@@ -471,12 +466,12 @@ export function buildAuditTimeline(
       });
     }
 
-    // Plan approved
-    if (msg.pendingPlan?.approved) {
+    // The plan it showed
+    if (msg.pendingPlan) {
       entries.push({
         id: `plan-${msg.id}`,
-        type: 'plan_approved',
-        label: { key: 'thought.audit.planApproved' },
+        type: 'plan',
+        label: { key: 'thought.audit.plan' },
         description: {
           key: 'thought.audit.planSteps',
           params: { count: msg.pendingPlan.steps?.length || 0 },

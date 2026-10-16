@@ -363,16 +363,16 @@ describe('buildAuditTimeline', () => {
 describe('the audit timeline’s words', () => {
   const en = englishCopy;
 
-  it('names an approved plan and counts its steps', () => {
+  it('names the plan it showed and counts its steps', () => {
     const [entry] = buildAuditTimeline([
       {
         id: 'a1',
         role: 'assistant',
         content: '',
-        pendingPlan: { approved: true, steps: [{}, {}, {}] },
+        pendingPlan: { planId: 'p1', steps: [{}, {}, {}] },
       } as never,
     ]);
-    expect(auditText(entry!.label, en)).toBe('Plan approved');
+    expect(auditText(entry!.label, en)).toBe('Plan');
     expect(auditText(entry!.description, en)).toBe('3 steps');
   });
 

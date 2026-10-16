@@ -949,8 +949,6 @@ export function useConversationStream({
                           pendingPlan: {
                             planId: parsed.planId,
                             steps: parsed.steps || [],
-                            approved: false,
-                            rejected: false,
                           },
                         };
                       }
@@ -1398,31 +1396,6 @@ export function useConversationStream({
     retryRef.current = null;
   }, []);
 
-  const approvePlan = useCallback((planId: string) => {
-    setMessages((prev) =>
-      prev.map((m) => {
-        const plan = m.pendingPlan;
-        if (!plan || plan.planId !== planId) return m;
-        return { ...m, pendingPlan: { ...plan, approved: true } };
-      }),
-    );
-    // Backend integration: POST plan approval (follow-up task)
-  }, []);
-
-  const rejectPlan = useCallback(
-    (planId: string) => {
-      setMessages((prev) =>
-        prev.map((m) => {
-          const plan = m.pendingPlan;
-          if (!plan || plan.planId !== planId) return m;
-          return { ...m, pendingPlan: { ...plan, rejected: true } };
-        }),
-      );
-      stop();
-    },
-    [stop],
-  );
-
   /** Put the offer away. It wrote nothing, so there is nothing else to undo. */
   const dismissSuggestedNewConversation = useCallback(() => {
     setSuggestedNewConversation(null);
@@ -1443,8 +1416,6 @@ export function useConversationStream({
     setMessages: setMessagesAndRef,
     conversationTitle,
     clearError,
-    approvePlan,
-    rejectPlan,
     suggestedNewConversation,
     dismissSuggestedNewConversation,
     agentRun,

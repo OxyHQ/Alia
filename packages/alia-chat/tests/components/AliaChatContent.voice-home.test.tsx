@@ -136,8 +136,6 @@ vi.mock('../../src/runtime/use-conversation-stream', () => ({
     clearError: () => {},
     setMessages: () => {},
     stop: () => {},
-    approvePlan: () => {},
-    rejectPlan: () => {},
     suggestedNewConversation: null,
     dismissSuggestedNewConversation: () => {},
     failedTurn: null,

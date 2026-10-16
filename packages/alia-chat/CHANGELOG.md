@@ -3,7 +3,7 @@
 ## 19.0.0
 
 Every agent is the same agent, and any app embeds any of them (ADR 0020; the wire contract is
-`docs/agent-embedding.md`). A clean cut: the retired frames and props are deleted, not deprecated,
+[`docs/agent-embedding.md`](../../docs/agent-embedding.md), kept with the API). A clean cut: the retired frames and props are deleted, not deprecated,
 and there is no compatibility path — a build on an older SDK cannot read the new stream.
 
 ### Added
@@ -69,6 +69,13 @@ and there is no compatibility path — a build on an older SDK cannot read the n
   the `waiting_approval` turn lifecycle and the `waiting` thought step (copy
   `thought.waitingApproval`); the voice protocol's `approval.requested` and
   `onApprovalRequested`. A question the agent asks (`askUserQuestion`) stays.
+- **A plan is shown, never approved.** `alia.plan_preview` still draws `PlanPreviewCard`, now the
+  steps alone: its Approve and Cancel are gone, and so are what they did. Removed:
+  `approvePlan` / `rejectPlan` of `useConversationStream` and `useConversationThread`,
+  `onApprovePlan` / `onRejectPlan` of `AliaThread`, `PendingPlan.approved` / `rejected`,
+  `PlanPreviewCard`'s `onApprove` / `onReject` / `approved` / `rejected`, and the labels
+  `planApprove`, `planCancel`, `planApproved`, `planCancelled`. The work log's `plan_approved`
+  entry is `plan` (copy `thought.audit.plan`, "Plan"), listed for every plan shown.
 - **No agent mode.** `AliaTurnRequest.agentMode` is gone and no `agentMode` is sent: Alia consults
   agents with `consultAgent` whenever she needs to. The work-log copy of `askAgent` /
   `delegateToAgent` is `consultAgent`'s.

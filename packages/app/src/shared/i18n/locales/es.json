@@ -1887,7 +1887,7 @@
     "output": "Salida",
     "audit": {
       "agent": "Agente: {{name}}",
-      "planApproved": "Plan aprobado",
+      "plan": "Plan",
       "planSteps": {
         "one": "1 paso",
         "other": "{{count}} pasos"

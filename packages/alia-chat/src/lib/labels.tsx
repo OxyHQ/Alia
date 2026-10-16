@@ -76,10 +76,6 @@ export interface AliaChatLabels {
   stopReading: string;
   // Plan
   planTitle: string;
-  planApprove: string;
-  planCancel: string;
-  planApproved: string;
-  planCancelled: string;
   // Reasoning
   reasoning: string;
   thoughtFor: (seconds: number) => string;
@@ -164,10 +160,6 @@ export const DEFAULT_LABELS: AliaChatLabels = {
   readAloud: 'Read aloud',
   stopReading: 'Stop reading',
   planTitle: "Here's my plan",
-  planApprove: 'Approve',
-  planCancel: 'Cancel',
-  planApproved: 'Plan approved',
-  planCancelled: 'Plan cancelled',
   reasoning: 'Reasoning',
   thoughtFor: (seconds) => `Thought for ${seconds} seconds`,
   t: englishCopy,

@@ -48,8 +48,6 @@ export interface ThreadActions {
   copy: (text: string) => Promise<boolean>;
   vote: (messageId: string, vote: Vote, conversationId: string | undefined) => void;
   readAloud: (messageId: string, text: string, conversationId: string | undefined) => void;
-  approvePlan?: (planId: string) => void;
-  rejectPlan?: (planId: string) => void;
   /** Absent where the host has no thought panel: the "worked for" line is then plain text. */
   openThought?: OpenThought;
   /** A thread read by somebody it was shared with: words to copy, nothing to vote on or play. */
@@ -332,13 +330,7 @@ function ReplyTurn({
       {/* Plan Preview — shown before tool execution */}
       {plan && (
         <MessageBlockBoundary>
-          <PlanPreviewCard
-            steps={plan.steps}
-            approved={plan.approved}
-            rejected={plan.rejected}
-            onApprove={() => actions.approvePlan?.(plan.planId)}
-            onReject={() => actions.rejectPlan?.(plan.planId)}
-          />
+          <PlanPreviewCard steps={plan.steps} />
         </MessageBlockBoundary>
       )}
 

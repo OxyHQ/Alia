@@ -1,6 +1,5 @@
-import { Button } from '@oxy.so/bloom/button';
-import { Card, CardBody, CardFooter, CardHeader, CardTitle } from '@oxy.so/bloom/card';
-import { RiCheckLine, RiCloseLine, RiListCheck3 } from '@oxy.so/bloom/icons';
+import { Card, CardBody, CardHeader, CardTitle } from '@oxy.so/bloom/card';
+import { RiListCheck3 } from '@oxy.so/bloom/icons';
 import { Item } from '@oxy.so/bloom/item';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
@@ -12,34 +11,15 @@ import type { PlanStep } from '../types';
 
 interface PlanPreviewCardProps {
   steps: PlanStep[];
-  onApprove: () => void;
-  onReject: () => void;
-  approved?: boolean;
-  rejected?: boolean;
 }
 
-/** The plan Alia proposes, until the person approves or cancels it; then one line saying which. */
-export function PlanPreviewCard({
-  steps,
-  onApprove,
-  onReject,
-  approved,
-  rejected,
-}: PlanPreviewCardProps) {
+/**
+ * The plan the agent shows before it works. It is only shown: the agent does not wait on it, and
+ * nobody is asked to approve it.
+ */
+export function PlanPreviewCard({ steps }: PlanPreviewCardProps) {
   const labels = useLabels();
   const { colors } = useTheme();
-
-  if (approved || rejected) {
-    const Icon = approved ? RiCheckLine : RiCloseLine;
-    return (
-      <View className="flex-row items-center gap-1.5 py-1">
-        <Icon width={14} height={14} fill={approved ? colors.success : colors.error} />
-        <Text className="text-xs text-text-secondary">
-          {approved ? labels.planApproved : labels.planCancelled}
-        </Text>
-      </View>
-    );
-  }
 
   return (
     <Animated.View entering={planPreviewEnter} className="my-2">
@@ -67,28 +47,6 @@ export function PlanPreviewCard({
             />
           ))}
         </CardBody>
-        <CardFooter>
-          <View className="flex-1 flex-row gap-2">
-            <Button
-              tone="action"
-              size="sm"
-              className="flex-1"
-              leadingIcon={RiCheckLine}
-              onPress={onApprove}
-            >
-              {labels.planApprove}
-            </Button>
-            <Button
-              tone="neutral"
-              appearance="subtle"
-              size="sm"
-              className="flex-1"
-              onPress={onReject}
-            >
-              {labels.planCancel}
-            </Button>
-          </View>
-        </CardFooter>
       </Card>
     </Animated.View>
   );

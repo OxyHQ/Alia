@@ -210,7 +210,7 @@ export const COPY_EN: Readonly<Record<string, CopyEntry>> = {
   'thought.activity': 'Activity',
   'thought.audit.agent': 'Agent: {{name}}',
   'thought.audit.fileGenerated': 'File generated',
-  'thought.audit.planApproved': 'Plan approved',
+  'thought.audit.plan': 'Plan',
   'thought.audit.planSteps': { one: '1 step', other: '{{count}} steps' },
   'thought.audit.researchComplete': 'Research complete',
   'thought.audit.researchIncomplete': 'Research incomplete',

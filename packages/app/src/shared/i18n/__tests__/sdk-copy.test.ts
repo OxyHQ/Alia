@@ -45,17 +45,17 @@ describe('the SDK’s English against the app’s catalogues', () => {
 describe('the activity rows in Spanish, through the app’s catalogue', () => {
   const t = translator('es');
 
-  it('names an approved plan and counts its steps', async () => {
+  it('names the plan it showed and counts its steps', async () => {
     const { auditText, buildAuditTimeline } = await import('@alia.onl/sdk/model');
     const [entry] = buildAuditTimeline([
       {
         id: 'a1',
         role: 'assistant',
         content: '',
-        pendingPlan: { approved: true, steps: [{}, {}, {}] },
+        pendingPlan: { planId: 'p1', steps: [{}, {}, {}] },
       } as never,
     ]);
-    expect(auditText(entry!.label, t)).toBe('Plan aprobado');
+    expect(auditText(entry!.label, t)).toBe('Plan');
     expect(auditText(entry!.description, t)).toBe('3 pasos');
   });
 
