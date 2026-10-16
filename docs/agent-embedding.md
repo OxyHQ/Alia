@@ -33,7 +33,7 @@ is that agent. Without `agentId`, the lead is Alia.
 
 ## 2. Host tools: UI effects in the embedding client
 
-A request may declare the UI effects its own client can perform:
+A request may declare the UI effects its own client can perform. What is on the person's screen is sent the usual way, in `clientContext`; `host` carries only the actions and the outcomes of earlier ones:
 
 ```json
 "host": {
@@ -42,7 +42,6 @@ A request may declare the UI effects its own client can perform:
   "tools": [
     { "name": "apply_search", "description": "…", "inputSchema": { "type": "object", "…": "…" } }
   ],
-  "context": { "…": "≤ 4 KB, opaque to Alia, shown to the model" },
   "outcomes": [
     { "toolCallId": "call_1", "outcome": "applied", "detail": "optional, ≤ 500 chars" }
   ]
