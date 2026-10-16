@@ -139,4 +139,36 @@ describe('consultAgent', () => {
     ]);
     expect(result).toMatchObject({ error: 'Not enough credits to consult that agent' });
   });
+
+  it("hands the outer turn's attachments to the callee's turn, where its gates apply", async () => {
+    const attachments = [{ feature: 'attachments.documents' as const, operationKey: 'K1' }];
+    await consult({ attachments });
+    expect(H.turn).toHaveBeenCalledWith(expect.objectContaining({ attachments }));
+  });
+
+  it("ends a consultation the callee's gate refused with the typed code and feature", async () => {
+    H.turn.mockImplementation(async () => ({
+      response: '',
+      tokensUsed: 0,
+      creditsCharged: 0,
+      error: 'This agent needs an upgrade in its app…',
+      refusal: {
+        code: 'feature_entitlement_required',
+        feature: 'attachments.documents',
+        retryable: false,
+      },
+    }));
+    const { events, result } = await consult();
+    expect(events.at(-1)).toEqual([
+      'alia.agent_end',
+      expect.objectContaining({
+        status: 'failed',
+        error: { code: 'feature_entitlement_required', feature: 'attachments.documents' },
+      }),
+    ]);
+    expect(result).toMatchObject({
+      errorCode: 'feature_entitlement_required',
+      feature: 'attachments.documents',
+    });
+  });
 });

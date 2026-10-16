@@ -30,13 +30,38 @@ import { reserveBackgroundProductCredits } from '../product-credit-access';
  * usage is assigned from its own stream and never covers tokens spent inside a
  * tool — and every exit either settles or refunds.
  *
+ * ## The CALLEE's feature gates apply
+ *
+ * The outer turn's attachments (`attachments`) are checked, and spent where
+ * the callee's app sells them, against the CALLEE's gates on the person's lane,
+ * before the nested reservation — exactly as if the person had opened the callee
+ * with them (ADR 0020 §6). The nested turn receives no parts, but the lead can
+ * hand it any of them as text in `task`, and Alia cannot tell which it will; so
+ * every attachment the outer turn carries is one the callee could read. The
+ * spend key is the attachment's own (`attachedPartsOf`), so a document already
+ * spent for the same app feature is not spent again.
+ *
+ * Refusing gated parts outright in a consultation would be the wrong rule: it
+ * would lock out a person who IS entitled (a Homiio+ subscriber asking Alia,
+ * who consults Sindi about their lease) — the gate sells the feature, it does
+ * not forbid the path. A refusal is `refusal` on the result, typed, so the
+ * client can show the app's own upsell.
+ *
  * ## It answers as ITSELF
  *
  * The system message is the identity guard plus the agent's remit — the same
  * composition every agent surface uses.
  */
 
+import { randomUUID } from 'node:crypto';
 import { stepCountIs, streamText } from 'ai';
+import {
+  checkGatedParts,
+  gatedPartsFor,
+  spendGatedParts,
+  type FeatureRefusal,
+  type GatedPart,
+} from '../agent-features.js';
 import { agentPromptName, type HydratedAgent } from '../agent-identity.js';
 import { agentRemitPrompt } from '../agent/archetype-prompts.js';
 import { buildIdentityGuard } from '../identity-guard.js';
@@ -66,6 +91,8 @@ export interface AgentTurnResult {
    * as a value rather than a throw that would abort the whole turn.
    */
   error?: string;
+  /** Set when the callee's feature gate refused one of the outer turn's attachments. */
+  refusal?: FeatureRefusal;
 }
 
 /** The person the nested turn is for, exactly as the outer turn holds them. */
@@ -99,6 +126,8 @@ export async function runAgentTurn(input: {
   person: AgentTurnPerson;
   payerOxyUserId: string;
   observer?: AgentTurnObserver;
+  /** The outer turn's attachments, which the callee's gates are applied to. */
+  attachments?: readonly GatedPart[];
 }): Promise<AgentTurnResult> {
   const { agent, task, person, payerOxyUserId, observer } = input;
   const start = Date.now();
@@ -135,6 +164,34 @@ export async function runAgentTurn(input: {
     isLocalRuntime: false,
     agent,
   });
+
+  /** The callee's gates, checked then spent, before anything is reserved. */
+  const gated = gatedPartsFor(agent, input.attachments ?? []);
+  if (gated.length > 0) {
+    const featurePerson = {
+      accountId: person.oxyUserId,
+      // The person's own bearer only: without one no lane can be authorized.
+      accessToken: person.isDirectSession ? person.accessToken : undefined,
+      runId: randomUUID(),
+    };
+    const refused =
+      (await checkGatedParts(agent, featurePerson, gated)) ??
+      (await spendGatedParts(agent, featurePerson, gated));
+    if (refused !== null) {
+      log.general.info(
+        { agentId: agent._id, feature: refused.feature, code: refused.code },
+        'Consultation refused by the consulted agent’s feature gate',
+      );
+      return {
+        ...failed(
+          refused.code === 'feature_entitlement_required'
+            ? `This agent needs an upgrade in its app before it can work with the person's ${refused.feature.slice('attachments.'.length)}. Tell the person; do not pass the attachment's content to it another way.`
+            : 'The app that unlocks this agent’s attachments could not be asked. Try again later.',
+        ),
+        refusal: refused,
+      };
+    }
+  }
 
   /** Reserved after everything that can refuse without spending. */
   const reservation: CreditReservation | null =

@@ -33,8 +33,7 @@ is that agent. Without `agentId`, the lead is Alia.
 
 - `greeting` is the agent's tagline, the one line its owner writes in the editor.
 - `starters` are the owner's, set with `PATCH /agents/:id` (`starters`, at most 6).
-- `features` lists every Alia feature an owner can gate, `attachments.documents` and
-  `attachments.images`, and whether this agent gates it.
+- `features` lists every Alia feature an owner can gate (§5) and whether this agent gates it.
 - Missing, private, and not confirmable because Oxy could not be asked are all the same
   404. The system prompt is never in the answer.
 
@@ -88,7 +87,7 @@ A surface registers renderers by `<app>:<tool>`, which is parsed from `oxy_<app>
 event: alia.agent_start   {"eventVersion":1,"consultId":"…","agent":{"id","name","handle","color","character"},"task":"…"}
 event: alia.agent_delta   {"eventVersion":1,"consultId":"…","content":"…"}
 event: alia.agent_tool    {"eventVersion":1,"consultId":"…","phase":"call"|"result","toolCallId":"…","name":"…","input"?:{…},"output"?:{…}}
-event: alia.agent_end     {"eventVersion":1,"consultId":"…","status":"completed"|"failed","content"?:"…","error"?:{"code":"…"}}
+event: alia.agent_end     {"eventVersion":1,"consultId":"…","status":"completed"|"failed","content"?:"…","error"?:{"code":"…","feature"?:"…"}}
 ```
 
 When it shows these frames, the SDK does the following:
@@ -101,30 +100,55 @@ The stored conversation keeps one assistant message per consulted agent, carryin
 
 ## 5. Feature gates
 
+An agent's owner can put these Alia features behind a feature an app declares in its capability catalogue (`agents.feature_gates`, `{ "<key>": { "app", "feature" } }`, checked against the app's live catalogue when it is saved):
+
+| Key | What a turn uses |
+|---|---|
+| `attachments.documents` | a `file` part in any user message |
+| `attachments.images` | an `image_url` part in any user message |
+| `deep_research` | the request's `deepResearch: true` |
+| `power_level.pro`, `power_level.ultra` | the request's `model` naming that level |
+
+Only `pro` and `ultra` can be gated, because they are the levels a turn reaches only by naming them. `auto`, which every request that names nothing runs on, climbs on its own through `instant`, `medium`, `high` and `xhigh` but never chooses `pro` or `ultra`. A gate on `auto` would gate the agent itself (that is `access`), and a gate on a level `auto` reaches would be walked around by not choosing a level. The other level keys are refused with a 400.
+
+Two rules keep these gates from being walked around:
+
+- **An exact model.** On an agent that gates a power level, a request naming a hosted model exactly (`publisher/model`) is refused with `400 power_level_required` (`param: "model"`). Alia does not know an exact model's level, so allowing it would bypass the gate. A model on the person's own device (`local/…`) is not gated.
+- **The deep research tool.** An agent that gates `deep_research` never offers the model the `deepResearch` tool. The gate is checked and spent before credits are reserved, and a tool call happens after, so on such an agent deep research is the request flag alone.
+
+A power level the agent's OWNER pinned (its `modelId`, used when it is consulted) is the owner's configuration, not the person's choice, and is not gated.
+
 `GET /v1/agents/:id/features` answers:
 
 ```json
 { "features": [{ "key": "attachments.documents", "state": "available" | "locked", "remaining": 3 }] }
 ```
 
-Alia asks the publishing app, through the gate's `checkTool` and under the person's ticket. A turn that carries a gated part (a document or an image) is checked, and spent through `consumeTool` when the feature has one, BEFORE any credit is reserved.
+Alia asks the publishing app, through the gate's `checkTool` and under the person's ticket. A turn that uses a gated feature is checked, and spent through `consumeTool` when the feature has one, BEFORE any credit is reserved.
 
 The app's two tools are called with no input, on the binding the agent's `oxy_*` tools use for the person present (the owner's levels, or the owner's ceilings for anybody else):
 
 - `checkTool` answers `{ "available": boolean, "remaining"?: integer }`.
 - `consumeTool` answers `{ "consumed": boolean, "remaining"?: integer }`, idempotently under the `Idempotency-Key` Alia sends.
 
-On a turn, the order is fixed: check, then read the documents, then spend each gated part, then reserve credits. A part is spent under `sha256(turnId + partHash)`, where `turnId` is the id of the user message that carries it. A retried turn, and the same message resent as history, spend nothing new. The history's parts are gated too, because the history is the client's to send.
+On a turn, the order is fixed: check, then read the documents, then spend each gated use, then reserve credits. Each use is spent once:
 
-A refusal ends the stream with:
+- A part is spent under `sha256(turnId + partHash)`, where `turnId` is the id of the user message that carries it. A retried turn, and the same message resent as history, spend nothing new. The history's parts are gated too, because the history is the client's to send.
+- `deep_research` and `power_level.*` belong to this turn only. They are spent under `sha256(turnId + key)`, where `turnId` is the id of the last user message, so a retry spends nothing new and the next turn spends again.
+
+A refusal ends the stream with the feature's key:
 
 ```json
 {"error":{"code":"feature_entitlement_required","feature":"attachments.documents","retryable":false}}
 ```
 
+`param` names what to change: `messages` for an attachment, `deepResearch`, or `model` for a power level.
+
 The same body is the JSON answer (HTTP 403) when the stream is not open. An app that could not answer, or answered something else, is `feature_check_unavailable` (`retryable: true`, HTTP 503), never read as either verdict. `GET /v1/agents/:id/features` answers 503 with that code for the same reason.
 
 The SDK calls the surface's `onFeatureLocked(key)`, and the surface shows its own upsell.
+
+**A consultation applies the CONSULTED agent's gates.** When Alia (or any agent) consults an agent with `consultAgent` (§4), the consulted agent's gates are checked, and spent, against every attachment the outer turn carries, on the person's lane, before the nested turn reserves anything. The nested turn receives no parts, but the lead can hand it any of them as text, and Alia cannot tell which it will. The spend key is the attachment's own, so an attachment already spent for the same app feature is not spent again. A refusal does not end the outer turn: the consultation ends with `alia.agent_end` `{ "status": "failed", "error": { "code": "feature_entitlement_required", "feature": "attachments.documents" } }`, the lead is told the person needs the upgrade, and the surface can show its upsell. Gated parts are not refused outright in a consultation, because that would lock out a person who IS entitled; the gate sells the feature, it does not forbid the path. The consulted agent's own deep research and power level are its owner's configuration, so they are not gated there.
 
 Documents are a content part:
 

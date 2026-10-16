@@ -54,6 +54,7 @@
  * would mean fetching a connector's tools in order to discard them.
  */
 
+import type { GatedPart } from './agent-features.js';
 import { getToolResultBudget, wrapToolsWithTruncation } from './tools/result-truncation.js';
 import type { ToolSet } from 'ai';
 import {
@@ -167,6 +168,12 @@ export interface ForUserOptions {
    * surface to draw them, and depth is one by construction.
    */
   nested?: boolean;
+  /**
+   * The attachments this turn carries (`turnFeatureUsesOf`), so a consulted
+   * agent's feature gates are applied to what it could be handed
+   * (`consultAgent`, ADR 0020 §6). Absent: none.
+   */
+  attachments?: readonly GatedPart[];
   requestId?: string;
   /** Correlation id shared by every Oxy subaction in this run. */
   runId?: string;
@@ -391,6 +398,7 @@ export class ToolPipeline {
       actsForPerson,
       requesterAccountId = opts.userId,
       nested = false,
+      attachments = [],
       toolsEnabled,
       agent,
       deviceInfo,
@@ -600,8 +608,17 @@ export class ToolPipeline {
       }
       // `web`, not a family of its own: what it does is read the open web, and
       // it is withheld from an unreserved turn for the reason `isLocalRuntime`
-      // gives above.
-      if (webSearch && !isLocalRuntime && !nested && grants.allows('web')) {
+      // gives above. An agent whose owner GATES deep research never offers the
+      // tool either: the gate is checked and spent before the credit reservation,
+      // and a tool call happens after it, so on such an agent deep research is
+      // the `deepResearch` request flag alone (`lib/chat/request-context.ts`).
+      if (
+        webSearch &&
+        !isLocalRuntime &&
+        !nested &&
+        grants.allows('web') &&
+        agent?.featureGates.deep_research === undefined
+      ) {
         aliaTools.deepResearch = createDeepResearchTool(userId);
       }
     }
@@ -759,6 +776,7 @@ export class ToolPipeline {
             },
             payerOxyUserId: userId,
             callerAgentId: agent?._id ?? null,
+            attachments,
             ...consultSelection(grants),
             ...(sseEmitter ? { sseEmitter } : {}),
           }).catch(bulkFailure('agent'))

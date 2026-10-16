@@ -1,8 +1,9 @@
 /**
  * Feature gates (ADR 0020 §6, `docs/agent-embedding.md` §5).
  *
- * An agent's owner can put an Alia feature — attaching documents, attaching
- * images — behind a feature an Oxy app declares in its capability catalogue
+ * An agent's owner can put an Alia feature — attaching documents or images,
+ * deep research, the `pro` and `ultra` power levels — behind a feature an Oxy
+ * app declares in its capability catalogue
  * (`features[{ key, checkTool, consumeTool? }]`). Alia never learns what the
  * entitlement IS (Homiio+, a quota, a trial): it asks the app, through the
  * person's own lane, and does what the app answers.
@@ -27,7 +28,9 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import {
+  GATEABLE_POWER_LEVELS,
   GATED_FEATURES,
+  powerLevelFeature,
   type AgentFeatureGate,
   type AgentFeatureGates,
   type GatedFeature,
@@ -191,6 +194,40 @@ export function attachedPartsOf(messages: readonly ChatMessage[], requestId: str
       return [];
     });
   });
+}
+
+/**
+ * Everything a turn uses that an agent can gate: its attached parts
+ * ({@link attachedPartsOf}), `deep_research` when the request sets the flag, and
+ * `power_level.<level>` when it names a gateable level.
+ *
+ * The last two belong to THIS turn only, so they are keyed by the turn's own
+ * message — the last user message — and a retried turn spends them once.
+ */
+export function turnFeatureUsesOf(
+  messages: readonly ChatMessage[],
+  requestId: string,
+  turn: { readonly deepResearch: boolean; readonly powerLevel: string | null },
+): GatedPart[] {
+  let lastUser = -1;
+  messages.forEach((message, index) => {
+    if (message.role === 'user') lastUser = index;
+  });
+  const turnId =
+    usableMessageId(messages[lastUser]?.id) ?? `${requestId}:${lastUser < 0 ? 'turn' : lastUser}`;
+  const level = powerLevelFeature(turn.powerLevel);
+  return [
+    ...attachedPartsOf(messages, requestId),
+    ...(turn.deepResearch
+      ? [{ feature: 'deep_research' as const, operationKey: sha256(`${turnId}deep_research`) }]
+      : []),
+    ...(level === null ? [] : [{ feature: level, operationKey: sha256(`${turnId}${level}`) }]),
+  ];
+}
+
+/** Whether this agent gates any power level. */
+export function gatesAnyPowerLevel(agent: GatedAgent): boolean {
+  return GATEABLE_POWER_LEVELS.some((level) => agent.featureGates[`power_level.${level}`]);
 }
 
 /** The parts this agent gates, among `parts`. */

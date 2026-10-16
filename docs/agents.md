@@ -515,7 +515,10 @@ bot account's name, handle and colour, the agent's character and description, it
 
 An owner can put one of Alia's features behind a feature an Oxy app sells
 (`agents.feature_gates`, ADR 0020 §6). The keys are Alia's — `attachments.documents`
-(a `file` part) and `attachments.images` (an `image_url` part) — and each maps to
+(a `file` part), `attachments.images` (an `image_url` part), `deep_research` (the
+request flag) and `power_level.pro` / `power_level.ultra` (the request naming that
+level; only the two levels `auto` never reaches on its own can be gated, see
+[Embedding an agent](./agent-embedding.md) §5) — and each maps to
 `{ app, feature }`, a feature the app declares in its capability catalogue
 (`features[{ key, checkTool, consumeTool? }]`, `@oxy.so/contracts` 4.20). Sindi's
 `{ "attachments.documents": { "app": "homiio", "feature": "files" } }` is how
@@ -543,6 +546,11 @@ Homiio+ unlocks documents without Alia knowing what Homiio+ is.
   nothing.
 - `GET /v1/agents/:id/features` answers the same check for the app's upsell:
   `{ features: [{ key, state, remaining? }] }`.
+- **Walk-arounds closed.** On an agent that gates a level, an exact hosted
+  `publisher/model` is refused (`power_level_required`); an agent that gates
+  `deep_research` is never offered the `deepResearch` tool; and a consultation
+  applies the CONSULTED agent's gates to the outer turn's attachments before the
+  nested turn reserves (`lib/tools/agent-turn.ts`).
 
 ## Oxy apps: for the person and as itself
 

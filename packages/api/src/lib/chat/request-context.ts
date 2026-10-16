@@ -69,7 +69,8 @@ import {
   type ResolvedFiles,
 } from '../files/person-files.js';
 import {
-  attachedPartsOf,
+  turnFeatureUsesOf,
+  gatesAnyPowerLevel,
   checkGatedParts,
   gatedPartsFor,
   spendGatedParts,
@@ -131,6 +132,11 @@ export interface ChatRequestContext {
    * messages themselves keep the reference, which is what is stored.
    */
   files: ResolvedFiles;
+  /**
+   * Everything this turn uses that an agent can gate (`turnFeatureUsesOf`). A
+   * consulted agent's gates are applied to its attachments (`consultAgent`).
+   */
+  featureUses: GatedPart[];
   deepResearch: boolean | undefined;
   /**
    * Whether Alia may reach the open web for this turn.
@@ -817,21 +823,30 @@ export async function buildChatRequestContext(
   });
 
   /**
-   * The turn's attachments are ADMITTED before any credit is reserved
-   * (ADR 0020 §6): the agent's feature gates are checked, every document is
-   * read as the person, and only then is each gated part spent. A refusal at
-   * any step reserves nothing. A turn with no attachment skips all of it and
-   * reserves in parallel with the reads, as before.
+   * What the turn uses that an agent can gate — its attachments, deep research,
+   * a `pro`/`ultra` level — is ADMITTED before any credit is reserved (ADR 0020
+   * §6): the agent's gates are checked, every document is read as the person,
+   * and only then is each gated use spent. A refusal at any step reserves
+   * nothing. A turn with nothing to admit (no document, and no agent or nothing
+   * it could gate) skips all of it and reserves in parallel with the reads, as
+   * before.
    */
   const turnRequestId = aliaRequestId ?? randomUUID();
-  const attachedParts = attachedPartsOf(messages, turnRequestId);
-  const admission: Promise<AttachmentAdmission> =
-    attachedParts.length === 0
+  const featureUses = turnFeatureUsesOf(messages, turnRequestId, {
+    deepResearch: deepResearch === true,
+    powerLevel: resolved.powerLevel,
+  });
+  /** A hosted model named exactly, which no power-level gate can see (`admitTurnFeatures`). */
+  const exactHostedModel = localRuntime === null && resolved.powerLevel === null;
+  const admission: Promise<FeatureAdmission> =
+    fileRefs.size === 0 &&
+    (requestedAgentId === undefined || (featureUses.length === 0 && !exactHostedModel))
       ? Promise.resolve({ ok: true, files: new Map() })
-      : admitAttachments({
+      : admitTurnFeatures({
           turnAgent: requestedAgentId === undefined ? null : turnInputs.then((i) => i.turnAgent),
-          parts: attachedParts,
+          uses: featureUses,
           fileRefs,
+          exactHostedModel,
           person: {
             accountId: req.user?.id,
             // The person's own bearer only: a service token is not them.
@@ -1140,6 +1155,7 @@ export async function buildChatRequestContext(
     responseMode: body.responseMode === 'voice' ? 'voice' : null,
     host,
     files: admitted.files,
+    featureUses,
     deepResearch,
     webSearch,
     mcpServerId,
@@ -1190,8 +1206,8 @@ async function usageWindowFor(
   }
 }
 
-/** What admitting a turn's attachments came to. */
-type AttachmentAdmission =
+/** What admitting a turn's gated uses came to. */
+type FeatureAdmission =
   | { readonly ok: true; readonly files: ResolvedFiles }
   | {
       readonly ok: false;
@@ -1199,28 +1215,33 @@ type AttachmentAdmission =
       readonly refusal: {
         readonly message: string;
         readonly type: 'invalid_request_error' | 'server_error';
-        readonly param: 'messages';
+        readonly param: 'messages' | 'model' | 'deepResearch';
         readonly code: string;
         readonly retryable: boolean;
         readonly feature?: string;
       };
     };
 
-const FEATURE_REFUSAL_MESSAGE: Record<FeatureRefusal['code'], string> = {
-  feature_entitlement_required: 'This agent needs an upgrade in its app to read this attachment.',
-  feature_check_unavailable:
-    'The app that unlocks this attachment could not be asked. Please try again.',
-};
-
-function featureRefusal(refusal: FeatureRefusal): AttachmentAdmission {
+function featureRefusal(refusal: FeatureRefusal): FeatureAdmission {
+  const entitlement = refusal.code === 'feature_entitlement_required';
+  const what = refusal.feature.startsWith('attachments.')
+    ? 'this attachment'
+    : refusal.feature === 'deep_research'
+      ? 'deep research'
+      : `the ${refusal.feature.slice('power_level.'.length)} level`;
   return {
     ok: false,
-    status: refusal.code === 'feature_entitlement_required' ? 403 : 503,
+    status: entitlement ? 403 : 503,
     refusal: {
-      message: FEATURE_REFUSAL_MESSAGE[refusal.code],
-      type:
-        refusal.code === 'feature_entitlement_required' ? 'invalid_request_error' : 'server_error',
-      param: 'messages',
+      message: entitlement
+        ? `This agent needs an upgrade in its app for ${what}.`
+        : `The app that unlocks ${what} could not be asked. Please try again.`,
+      type: entitlement ? 'invalid_request_error' : 'server_error',
+      param: refusal.feature.startsWith('power_level.')
+        ? 'model'
+        : refusal.feature === 'deep_research'
+          ? 'deepResearch'
+          : 'messages',
       code: refusal.code,
       feature: refusal.feature,
       retryable: refusal.retryable,
@@ -1229,23 +1250,45 @@ function featureRefusal(refusal: FeatureRefusal): AttachmentAdmission {
 }
 
 /**
- * Check the agent's gates for the parts this turn carries, read every
- * document, then spend each gated part — in that order, so a locked feature
- * downloads nothing and an unreadable document spends nothing. Called before
- * the credit reservation, which it gates.
+ * Check the agent's gates for what this turn uses, read every document, then
+ * spend each gated use — in that order, so a locked feature downloads nothing
+ * and an unreadable document spends nothing. Called before the credit
+ * reservation, which it gates.
+ *
+ * An agent that gates a power level refuses a hosted model named EXACTLY
+ * (`power_level_required`): Alia does not know an exact model's level (that is
+ * Oxy's reviewed catalogue data), so a `pro` gate an exact `publisher/model`
+ * could reach around would be no gate. A level is what a person chooses in the
+ * product (ADR 0014); the exact-model lane is for pinned agents and background
+ * calls, which never pass through here. A model on the person's own device
+ * (`local/…`) is not Alia's inference and is not gated.
  */
-async function admitAttachments(input: {
+async function admitTurnFeatures(input: {
   /** The turn's agent, when the request names one. */
   turnAgent: Promise<TurnAgentResolution> | null;
-  parts: readonly GatedPart[];
+  uses: readonly GatedPart[];
   fileRefs: ReadonlyMap<string, FilePartRef>;
+  exactHostedModel: boolean;
   person: { accountId: string | undefined; accessToken: string | undefined; runId: string };
   modelAcceptsFiles: boolean;
-}): Promise<AttachmentAdmission> {
+}): Promise<FeatureAdmission> {
   const resolution = input.turnAgent === null ? null : await input.turnAgent;
   // An agent that did not resolve is refused after admission; it gates nothing.
   const agent = resolution?.kind === 'agent' ? resolution.agent : null;
-  const gated = agent === null ? [] : gatedPartsFor(agent, input.parts);
+  if (agent !== null && input.exactHostedModel && gatesAnyPowerLevel(agent)) {
+    return {
+      ok: false,
+      status: 400,
+      refusal: {
+        message: "This agent's power levels are unlocked through its app; choose a power level.",
+        type: 'invalid_request_error',
+        param: 'model',
+        code: 'power_level_required',
+        retryable: false,
+      },
+    };
+  }
+  const gated = agent === null ? [] : gatedPartsFor(agent, input.uses);
   const person =
     input.person.accountId === undefined
       ? null

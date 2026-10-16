@@ -28,8 +28,12 @@ vi.mock('../tools/oxy-services.js', () => ({
   },
 }));
 
+import { DEFAULT_POWER_LEVEL, POWER_LEVELS } from '../models/power-levels.js';
+import { GATEABLE_POWER_LEVELS, GATED_FEATURES } from '../../domain/agent-features.js';
 import {
   attachedPartsOf,
+  gatesAnyPowerLevel,
+  turnFeatureUsesOf,
   checkGatedParts,
   gatedPartsFor,
   readAgentFeatures,
@@ -182,6 +186,9 @@ describe('readAgentFeatures', () => {
     expect(await readAgentFeatures(agent, person)).toEqual([
       { key: 'attachments.documents', state: 'available', remaining: 3 },
       { key: 'attachments.images', state: 'available' },
+      { key: 'deep_research', state: 'available' },
+      { key: 'power_level.pro', state: 'available' },
+      { key: 'power_level.ultra', state: 'available' },
     ]);
   });
 
@@ -198,5 +205,72 @@ describe('refuseFeatureGates', () => {
     expect(await refuseFeatureGates(agent.featureGates)).toBeNull();
     mocks.declared = null;
     expect(await refuseFeatureGates(agent.featureGates)).toContain('declares no feature "files"');
+  });
+});
+
+describe('the gateable vocabulary', () => {
+  it('gates only the levels a turn reaches by naming them, never auto or what auto climbs to', () => {
+    expect(GATEABLE_POWER_LEVELS).toEqual(['pro', 'ultra']);
+    for (const level of GATEABLE_POWER_LEVELS) expect(POWER_LEVELS).toContain(level);
+    expect(GATEABLE_POWER_LEVELS).not.toContain(DEFAULT_POWER_LEVEL);
+    expect(GATED_FEATURES).toEqual([
+      'attachments.documents',
+      'attachments.images',
+      'deep_research',
+      'power_level.pro',
+      'power_level.ultra',
+    ]);
+  });
+});
+
+describe('turnFeatureUsesOf', () => {
+  const history = [
+    turn('m1'),
+    { id: 'a1', role: 'assistant', content: 'ok' },
+    { id: 'm2', role: 'user', content: 'go deeper' },
+  ];
+
+  it('adds deep research and a gateable level to the attachments, keyed by the turn’s own message', () => {
+    const uses = turnFeatureUsesOf(history, 'req-1', { deepResearch: true, powerLevel: 'pro' });
+    expect(uses.map((use) => use.feature)).toEqual([
+      'attachments.documents',
+      'attachments.images',
+      'deep_research',
+      'power_level.pro',
+    ]);
+    // A retry of the same turn spends nothing new; the next turn is a new use.
+    expect(turnFeatureUsesOf(history, 'req-2', { deepResearch: true, powerLevel: 'pro' })).toEqual(
+      uses,
+    );
+    const next = turnFeatureUsesOf(
+      [...history, { id: 'm3', role: 'user', content: 'again' }],
+      'req-3',
+      {
+        deepResearch: true,
+        powerLevel: 'pro',
+      },
+    );
+    expect(next[2].operationKey).not.toBe(uses[2].operationKey);
+  });
+
+  it('never makes a use of auto, instant or a level auto climbs to', () => {
+    for (const powerLevel of ['auto', 'instant', 'medium', 'high', 'xhigh', null]) {
+      expect(
+        turnFeatureUsesOf([{ role: 'user', content: 'hi' }], 'r', {
+          deepResearch: false,
+          powerLevel,
+        }),
+      ).toEqual([]);
+    }
+  });
+
+  it('knows when an agent gates a level', () => {
+    expect(gatesAnyPowerLevel(agent)).toBe(false);
+    expect(
+      gatesAnyPowerLevel({
+        ...agent,
+        featureGates: { 'power_level.ultra': { app: 'clarity', feature: 'ultra' } },
+      }),
+    ).toBe(true);
   });
 });

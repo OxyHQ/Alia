@@ -772,6 +772,25 @@ describe('the owner edits starters and feature gates on the same route', () => {
     expect(repository.updateAgent.mock.calls[0][2]).toMatchObject({ starters, featureGates });
   });
 
+  it('stores the deep research and power level gates Clarity sells', async () => {
+    const featureGates = {
+      deep_research: { app: 'clarity', feature: 'research' },
+      'power_level.pro': { app: 'clarity', feature: 'pro' },
+      'power_level.ultra': { app: 'clarity', feature: 'ultra' },
+    };
+    expect((await patch({ featureGates })).status).toBe(200);
+    expect(repository.updateAgent.mock.calls[0][2]).toMatchObject({ featureGates });
+  });
+
+  it.each(['power_level.auto', 'power_level.instant', 'power_level.xhigh'])(
+    'refuses %s: auto reaches it without being asked, so a gate on it would be no gate',
+    async (key) => {
+      const res = await patch({ featureGates: { [key]: { app: 'clarity', feature: 'x' } } });
+      expect(res.status).toBe(400);
+      expect(repository.updateAgent).not.toHaveBeenCalled();
+    },
+  );
+
   it('refuses a gate the app does not declare, and writes nothing', async () => {
     gates.refusal = 'featureGates.attachments.documents: homiio declares no feature "files"';
     const res = await patch({

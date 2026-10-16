@@ -108,6 +108,9 @@ describe('GET /v1/agents/:id/profile', () => {
       features: [
         { key: 'attachments.documents', gated: true },
         { key: 'attachments.images', gated: false },
+        { key: 'deep_research', gated: false },
+        { key: 'power_level.pro', gated: false },
+        { key: 'power_level.ultra', gated: false },
       ],
     });
     expect(state.loadTurnAgent).toHaveBeenCalledWith(
