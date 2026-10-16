@@ -150,8 +150,9 @@ function logRefusal(row: ClaimedReferenceSync): void {
 
 /**
  * The entity types worth reconciling now: covers always; the private kinds
- * only once their content can be in Oxy — before that every inventory is
- * empty and a reconciliation would only remove references nobody made.
+ * once their content is written to Oxy (`OXY_FILES_PRIVATE_CONTENT`, which the
+ * backfill also requires) — before that every inventory is empty and a
+ * reconciliation would only remove references nobody made.
  */
 export function reconciledEntityTypes(env: NodeJS.ProcessEnv = process.env): OxyFileEntityType[] {
   return OXY_FILE_ENTITY_TYPES.filter(

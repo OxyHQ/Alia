@@ -10,10 +10,10 @@ the code is `packages/api/src/lib/files/`.
 | What | Owner | Visibility | Reference (`entityType`/`entityId`) | Where today |
 |---|---|---|---|---|
 | A show's cover art | **Alia** (Alia draws it) | public | `show_series`/series id | **Oxy Files** once `SYRA_COVER_FILE_IDS=enabled`; until then Syra's image store, as before |
-| A library upload | **the person** | private | `library_file`/row id | legacy bucket — waits for Oxy 4c |
-| A spoken clip (TTS cache) | **Alia** (a cache Alia expires) | private | `speech_clip`/cache key | legacy bucket — waits for Oxy 4c |
-| A catalogue skill's bundled file | **Alia** | private | `skill_file`/row id | legacy bucket — waits for Oxy 4c |
-| A person's own skill's bundled file | **the person** | private | `skill_file`/row id | legacy bucket — waits for Oxy 4c |
+| A library upload | **the person** | private | `library_file`/row id | **Oxy Files** (`uploadUserMedia` for media ≤ 40 MiB, else `uploadUserMediaLarge`) once `OXY_FILES_PRIVATE_CONTENT=enabled`; legacy bucket until then |
+| A spoken clip (TTS cache) | **Alia** (a cache Alia expires) | private | `speech_clip`/cache key | **Oxy Files** (`uploadAppFile`, audio) once switched on; legacy bucket until then |
+| A catalogue skill's bundled file | **Alia** | private | `skill_file`/row id | **Oxy Files** (`uploadAppFileLarge`; small media streamed) once switched on; legacy bucket until then |
+| A person's own skill's bundled file | **the person** | private | `skill_file`/row id | **Oxy Files** (`uploadUserMediaLarge`; small media streamed) once switched on; legacy bucket until then |
 | A show's working segments | — | — | — | **not stored at all** |
 | A published episode's audio | Syra | — | — | Syra (unchanged) |
 
@@ -139,45 +139,62 @@ as the read fallback until the bucket is retired.
 The app reads `coverFileId` first (through Bloom's image resolver, bound to
 `oxyServices.assets.publicUrl`) and Syra's legacy image only when there is none.
 
-### Library files, spoken clips, skill files: after Oxy stage 4c
+### Library files, spoken clips, skill files: after Oxy stage 4c is deployed
 
-`--kind library|speech|skills` refuses to run while
-`OXY_FILES_PRIVATE_CONTENT` is off. Once Oxy ships what is listed below:
-preview, apply with `--limit` as a canary, apply, then set
-`OXY_FILES_PRIVATE_CONTENT=enabled` on the API task so new writes go to Oxy too.
+1. Only once stage 4c (OxyHQ/oxy#1774) is deployed, set
+   `OXY_FILES_PRIVATE_CONTENT=enabled` on the API task, so new writes go to
+   Oxy. Not before: an Oxy without 4c stores a person's small upload PUBLIC
+   before Alia sees the answer. Alia then refuses to record it and writes the
+   bucket instead, but that public copy is already in the person's files.
+   Watch `alia_oxy_files_fallback_writes_total` (by kind and reason): a steady
+   `not_private` or `oxy_404` means the API does not serve 4c — switch it off
+   at once.
+2. Backfill each kind, preview first, then a canary, then the rest:
 
-## What waits for Oxy stage 4c
+   ```bash
+   bun run --cwd packages/api migrate:oxy-files --target-database <db> --kind library \
+     --report library-preview.jsonl                                   # preview
+   bun run --cwd packages/api migrate:oxy-files --target-database <db> --kind library \
+     --apply --limit 20 --report library-canary.jsonl                 # canary
+   bun run --cwd packages/api migrate:oxy-files --target-database <db> --kind library \
+     --apply --report library-apply.jsonl
+   ```
 
-Everything is in ONE module, `packages/api/src/lib/files/oxy-files.ts`, under the
-`oxy-4c` TODO marker (a test fails if the marker appears anywhere else in the
-repository). With `OXY_FILES_PRIVATE_CONTENT` off (the default) nothing in that
-module calls Oxy for private content, so this release is safe to deploy before
-4c: library files, spoken clips and skill files keep the legacy bucket.
+   and the same for `--kind speech` and `--kind skills`. `--kind
+   library|speech|skills` refuses to run while the switch is off. An item Oxy
+   does not take (below) is reported `failed` and stays on legacy storage; the
+   next run tries it again.
 
-Stage 4b (deployed) added large, any-type uploads
-(`uploadAppFileLarge` / `uploadUserMediaLarge`, presigned multipart up to
-8 GiB, PDFs and text included) and `adoptAppFile`. What still keeps Alia's
-private content in its bucket is stage 4c:
+## How private content is stored (stage 4c)
 
-1. **Audio, and the types Oxy refuses.** Spoken clips are `audio/mpeg`, which
-   waits for 4c's audio work; skill bundles carry scripts and active documents,
-   which every upload path refuses (415, `fileContentPolicy`). When this is
-   switched on, files over 40 MiB use the 4b large-upload calls.
-2. **Visibility on the account-owned upload (private person media).** `POST /assets/service/user-media`
-   ignores visibility and stores every file **public**
-   (`assetService.uploadUserMediaStream` passes `'public'`). A person's library
-   file must be `private`; `uploadUserMedia` needs `visibility`, as
-   `uploadAppFile` has.
-3. **Read-back of an account's file by the application that stored it.**
-   `linkedDownloadUrls` serves an account's private file only when the OWNER
-   made the link (`isOwnerReferencedToApp` requires `createdByUserId ===
-   ownerUserId`); a service-made reference has no creator, so Alia could store a
-   person's private file and never read it back. Oxy must let the uploading
-   application read (or link on the owner's behalf) the account file it stored
-   That is stage 4c's application read-back.
+Everything is in ONE module, `packages/api/src/lib/files/oxy-files.ts`; a test
+fails if any other source stores bytes in Oxy or reads them back.
 
-Alia's own private files (catalogue skills, clips) need only item 1:
-`linkedDownloadUrls` already serves an application's own files.
+- **Always `visibility: 'private'`.** A person's file is theirs (the library,
+  their own skills): Oxy writes Alia a consent grant when Alia stores it for
+  them, so `linkedDownloadUrls` serves it back to Alia — until the person
+  revokes Alia's access in their file manager. Alia's own files (clips,
+  catalogue skills) are always readable by Alia.
+- **Which upload.** Media (image, video, audio) of at most 40 MiB is streamed
+  (`uploadAppFile` / `uploadUserMedia`); anything else — PDFs, documents, text,
+  archives, skill binaries, files over 40 MiB — is a resumable large upload
+  (`uploadAppFileLarge` / `uploadUserMediaLarge`, up to 8 GiB).
+- **Checked before it is recorded.** Oxy must report the sha256 of the bytes
+  sent and `private`. A deduplicated file comes back as it was, and an Oxy
+  without stage 4c stores a person's small upload public, so either check
+  failing means the row is not pointed at that file.
+- **Falls back, never fails a person's action.** With the switch on, a write
+  Oxy does not take — a type its content policy refuses (executables and active
+  documents, 415), an API without stage 4c, a file not stored private, an
+  SVG (stored sanitized, so another hash), Oxy unreachable — is written to the
+  legacy bucket instead, logged and counted in
+  `alia_oxy_files_fallback_writes_total{kind,reason}`. The one exception is
+  taken-down bytes (451 `CONTENT_BLOCKED`): the upload fails, as it would for
+  any owner.
+- **Reads.** The Oxy file first; the legacy copy when there is no Oxy file, or
+  when Oxy fails to answer during the move (counted as a legacy read). When
+  Oxy REFUSES — the person revoked Alia's access, the file is gone or taken
+  down — the answer stands and the legacy copy is not read around it.
 
 ## Retiring the bucket
 
@@ -205,13 +222,15 @@ expire after a day, so that kind reaches zero by itself.
 ## Scopes and configuration
 
 Alia's Oxy application (internal tier, granted by staff): `files:app:write`
-(covers once Syra takes them; private content after 4c), `files:app:delete`,
+(covers, clips, catalogue skill files), `files:app:delete`,
 `files:references:write` (outbox, reconciliation), `files:read`
 (`metadataByIds` for the cover handover record), `files:linked:read` (read-back),
-and — after 4c, for the person-owned kinds — `files:user-media:write`.
+and `files:user-media:write` (staff-granted act-as: the library and a person's
+own skill files, stored for them as their private files — the grant Oxy's
+consent for Alia to read them back rests on).
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `OXY_FILES_WEBHOOK_SECRET` | unset → route 404 | the file-events endpoint's `whsec_…` secret (SSM) |
-| `OXY_FILES_PRIVATE_CONTENT` | off | `enabled` writes library files, clips and skill files to Oxy — only after Oxy 4c and the migration |
+| `OXY_FILES_PRIVATE_CONTENT` | off | `enabled` writes new library files, clips and skill files to Oxy (with the legacy fallback) and lets the backfill run — only once Oxy stage 4c is deployed |
 | `SYRA_COVER_FILE_IDS` | off | `enabled` stores a new cover as Alia's Oxy file and hands Syra `imageFileId` — only after Syra #214 is deployed and trusts Alia |

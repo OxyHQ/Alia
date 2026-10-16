@@ -1,6 +1,7 @@
 /**
- * Where Alia's stored bytes live: Oxy Files (oxy ADR 0043), or — for what Oxy
- * cannot hold yet — Alia's own bucket, behind this one module.
+ * Where Alia's stored bytes live: Oxy Files (oxy ADR 0043), or — until the
+ * switch below is on and for what Oxy does not take — Alia's own bucket, behind
+ * this one module.
  *
  * ## Who owns what
  *
@@ -22,23 +23,35 @@
  * Show working segments are not here at all: they were pipeline scratch that
  * nothing read, and the pipeline no longer stores them (`show-pipeline.ts`).
  *
- * ## What can move today, and what waits for Oxy stage 4c
+ * ## How each kind reaches Oxy (stage 4c)
  *
- * Covers move now: an application-owned public image is exactly what Oxy
- * stores today (they reach Syra as a file once Syra takes one —
- * `syraTakesCoverFiles`). Everything else in the table is private, much of it
- * audio or a script, and a person's private file is not something Alia can yet
- * store and read back; that is Oxy stage 4c. Every place that has to change
- * when it can is in THIS file, marked `TODO(oxy-4c)`; nothing outside this
- * module knows which backend a byte is in. See `docs/oxy-files.md` for the
- * exact list of what Oxy has to add.
+ * - Covers: Alia's public image (`uploadAppFile`), handed to Syra as a file
+ *   once Syra takes one (`syraTakesCoverFiles`).
+ * - Private content (`storePrivateContent`), always `visibility: 'private'`:
+ *   media (image, video, audio) of at most 40 MiB is streamed
+ *   (`uploadAppFile` / `uploadUserMedia`); anything else — a PDF, a document,
+ *   a skill bundle's binary, a file over 40 MiB — is a resumable large upload
+ *   (`uploadAppFileLarge` / `uploadUserMediaLarge`, up to 8 GiB). A person's
+ *   file stored this way is readable by Alia under the consent grant Oxy
+ *   writes when Alia stores it for them, until the person revokes it.
+ *
+ * Private content goes to Oxy only while `OXY_FILES_PRIVATE_CONTENT=enabled`
+ * (default: the legacy bucket), and even then a write Oxy does not take — a
+ * refused type, an API without stage 4c, a person's file not stored private,
+ * bytes other than the ones sent — is written to the legacy bucket instead,
+ * logged and counted (`alia_oxy_files_fallback_writes_total`). Taken-down bytes
+ * (451) are the one refusal never routed around. Nothing outside this module
+ * knows which backend a byte is in.
  *
  * ## Reads are dual during the move
  *
  * A row may name an Oxy file, a legacy key, or both while it is being copied.
- * The Oxy file is read first; the legacy key only when there is none, and every
- * such read is counted (`legacy_storage_reads` and
+ * The Oxy file is read first; the legacy key only when there is none (or Oxy
+ * failed to answer), and every such read is counted (`legacy_storage_reads` and
  * `alia_legacy_storage_reads_total`) — the count that gates retiring the bucket.
+ * When Oxy answers that Alia may NOT read a file (the person revoked Alia's
+ * access, or the file was taken down), that answer stands: the legacy copy is
+ * not read around it.
  */
 
 import { createHash, randomUUID } from 'node:crypto';
@@ -51,7 +64,10 @@ import {
   markLegacyObjectsMaybeGarbage,
 } from '../../db/files/oxyFileRepository.js';
 import { log } from '../logger.js';
-import { legacyStorageReadRecorded } from '../observability/metrics.js';
+import {
+  legacyStorageReadRecorded,
+  privateContentFallbackRecorded,
+} from '../observability/metrics.js';
 import { oxyServiceClient } from '../oxy-service-client.js';
 import { readS3Object, uploadToS3Deterministic, type S3ObjectStream } from '../s3.js';
 
@@ -178,9 +194,9 @@ export function seriesCoverColumns(cover: ShowCover): {
     : { coverFileId: null, coverImageAssetId: cover.imageId };
 }
 
-// ── Private content: the legacy bucket until Oxy stage 4c ───────────────────
+// ── Private content ─────────────────────────────────────────────────────────
 
-/** The kinds of private content that wait for Oxy stage 4c. */
+/** The kinds of private content: library uploads, spoken clips, skill files. */
 export type PrivateContentKind = LegacyStoredObjectKind;
 
 /** Who owns a stored file: Alia itself, or one person. */
@@ -195,23 +211,14 @@ export interface StoredContent {
 }
 
 /**
- * Whether private content is written to Oxy Files.
+ * Whether NEW private content is written to Oxy Files.
  *
- * TODO(oxy-4c): OFF until Oxy can hold all of it. Stage 4b (deployed) added
- * large, any-type application uploads (`uploadAppFileLarge`), but three gaps
- * remain, each of which alone is enough (`docs/oxy-files.md`):
- *  1. private PERSON media is stage 4c: `/assets/service/user-media` stores a
- *     person's small upload PUBLIC, so a private library upload would become
- *     world-readable;
- *  2. audio (spoken clips) is stage 4c, and every upload path refuses scripts
- *     and active documents (415), which skill bundles carry;
- *  3. a service-made reference has no creator, so it never satisfies ADR
- *     0021's owner-linked read: Alia could store a person's private file and
- *     never read it back (`linkedDownloadUrls` omits it) — app read-back is
- *     stage 4c.
- * Turn it on with `OXY_FILES_PRIVATE_CONTENT=enabled` once Oxy ships 4c, after
- * migrating with `src/scripts/migrate-to-oxy-files.ts`. Until then no call
- * below this line reaches Oxy at runtime.
+ * Off by default, so this release is safe on an Oxy API without stage 4c: a
+ * person's small upload there is stored public whatever it asks for, and Alia
+ * could not read a person's private file back. Switch it on with
+ * `OXY_FILES_PRIVATE_CONTENT=enabled` once Oxy's stage 4c is deployed (ADR 0043
+ * "stage 4c as built"); the backfill (`src/scripts/migrate-to-oxy-files.ts`)
+ * runs after it. Writes Oxy does not take still fall back to the legacy bucket.
  */
 export function oxyHoldsPrivateContent(env: NodeJS.ProcessEnv = process.env): boolean {
   return (env.OXY_FILES_PRIVATE_CONTENT ?? '').trim() === 'enabled';
@@ -220,6 +227,12 @@ export function oxyHoldsPrivateContent(env: NodeJS.ProcessEnv = process.env): bo
 /** How long a legacy upload may take to be recorded before its object counts as garbage. */
 const LEGACY_UPLOAD_GRACE_SECONDS = 60 * 60;
 
+/** The largest file Oxy's streamed service uploads take; anything bigger is a large upload. */
+export const STREAMED_UPLOAD_MAX_BYTES = 40 * 1024 * 1024;
+
+/** How long one streamed upload, or one large upload's verification, may take. */
+const UPLOAD_TIMEOUT_MS = 10 * 60_000;
+
 export interface StoreContentInput {
   readonly kind: PrivateContentKind;
   readonly owner: ContentOwner;
@@ -227,8 +240,16 @@ export interface StoreContentInput {
   readonly mime: string;
   /** The file's own name, kept as Oxy's original name. */
   readonly name: string;
-  /** The legacy key to write when Oxy cannot hold it — unique per upload. */
+  /** The legacy key to write when Oxy does not hold it — unique per upload. */
   readonly legacyKey: string;
+}
+
+/** Raised when Oxy stored a private file as something other than private. Never recorded. */
+export class OxyFileVisibilityError extends Error {
+  constructor(kind: PrivateContentKind, visibility: string) {
+    super(`Oxy stored a private ${kind} as ${visibility}`);
+    this.name = 'OxyFileVisibilityError';
+  }
 }
 
 /**
@@ -245,8 +266,19 @@ export interface StoreContentInput {
  */
 export async function storePrivateContent(input: StoreContentInput): Promise<StoredContent> {
   if (oxyHoldsPrivateContent()) {
-    const fileId = await storeInOxy(input);
-    return { objectKey: null, oxyFileId: fileId };
+    try {
+      const fileId = await storeInOxy(input);
+      return { objectKey: null, oxyFileId: fileId };
+    } catch (error: unknown) {
+      // Taken-down bytes are refused for every owner (ADR 0043 D10); storing
+      // them in the bucket instead would route around the takedown.
+      if (isContentBlocked(error)) throw error;
+      privateContentFallbackRecorded(input.kind, fallbackReason(error));
+      log.files.warn(
+        { err: error, kind: input.kind, reason: fallbackReason(error) },
+        'Oxy did not take private content; storing it in the legacy bucket',
+      );
+    }
   }
   await markLegacyObjectsMaybeGarbage(
     getDb(),
@@ -258,41 +290,114 @@ export async function storePrivateContent(input: StoreContentInput): Promise<Sto
 }
 
 /**
- * Copy bytes into Oxy for an existing legacy row — the migration's write.
- * Answers the file and the sha256 Oxy reports, which the caller compares with
- * the hash of what it read before recording anything.
+ * Copy bytes into Oxy for an existing legacy row — the migration's write. No
+ * fallback: an item Oxy does not take stays on legacy storage and is reported.
+ * Answers the file id only when Oxy stored exactly these bytes, privately.
  */
 export async function copyIntoOxy(input: Omit<StoreContentInput, 'legacyKey'>): Promise<string> {
   return storeInOxy(input);
 }
 
+/** Whether a type is one Oxy's streamed service uploads take (image, video, audio). */
+export function isStreamedMedia(mime: string): boolean {
+  const type = mime.toLowerCase();
+  return type.startsWith('image/') || type.startsWith('video/') || type.startsWith('audio/');
+}
+
+/** Which Oxy upload a file takes: streamed for small media, the large upload for the rest. */
+export function uploadRoute(mime: string, size: number): 'streamed' | 'large' {
+  return isStreamedMedia(mime) && size <= STREAMED_UPLOAD_MAX_BYTES ? 'streamed' : 'large';
+}
+
 async function storeInOxy(input: Omit<StoreContentInput, 'legacyKey'>): Promise<string> {
   const expected = sha256Hex(input.bytes);
-  const originalName = input.name;
-  // TODO(oxy-4c): both calls are written against the API stage 4c completes —
-  // private person media, audio and app read-back. Files beyond 40 MiB need
-  // the 4b large-upload calls (`uploadAppFileLarge` / `uploadUserMediaLarge`)
-  // when this is switched on; `oxyHoldsPrivateContent()` keeps this path off.
-  if (input.owner.kind === 'alia') {
-    const { file } = await oxy().assets.uploadAppFile(input.bytes, input.mime, {
-      visibility: 'private',
-      originalName,
-      timeout: 10 * 60_000,
-    });
-    if (file.sha256 !== expected) throw new OxyFileIntegrityError(expected, file.sha256);
-    return file.id;
-  }
-  const file = await oxy().assets.uploadUserMedia(input.owner.oxyUserId, input.bytes, input.mime, {
-    originalName,
-    timeout: 10 * 60_000,
-  });
-  if (file.visibility !== 'private') {
-    // Refuse rather than record: a person's private file that Oxy stored as
-    // public is exactly the leak the switch exists to prevent.
-    throw new Error(`Oxy stored a private ${input.kind} as ${file.visibility}`);
-  }
+  const file = await uploadPrivate(input, expected);
+  // A deduplicated file comes back as it already was, visibility included, and
+  // an Oxy without stage 4c stores a person's small upload public whatever it
+  // asks: either way, recording it would publish private content.
+  if (file.visibility !== 'private') throw new OxyFileVisibilityError(input.kind, file.visibility);
+  // An SVG is stored sanitized, so its hash is not the one sent; every other
+  // mismatch is a fault. Either way the exact bytes stay where they can be read.
   if (file.sha256 !== expected) throw new OxyFileIntegrityError(expected, file.sha256);
   return file.id;
+}
+
+interface UploadedPrivateFile {
+  readonly id: string;
+  readonly sha256: string;
+  readonly visibility: string;
+}
+
+async function uploadPrivate(
+  input: Omit<StoreContentInput, 'legacyKey'>,
+  sha256: string,
+): Promise<UploadedPrivateFile> {
+  const assets = oxy().assets;
+  const route = uploadRoute(input.mime, input.bytes.length);
+  if (input.owner.kind === 'alia') {
+    if (route === 'streamed') {
+      const { file } = await assets.uploadAppFile(input.bytes, input.mime, {
+        visibility: 'private',
+        originalName: input.name,
+        timeout: UPLOAD_TIMEOUT_MS,
+      });
+      return file;
+    }
+    const { file } = await assets.uploadAppFileLarge(input.bytes, {
+      mime: input.mime,
+      sha256,
+      filename: input.name,
+      visibility: 'private',
+      verifyTimeoutMs: UPLOAD_TIMEOUT_MS,
+    });
+    return file;
+  }
+  if (route === 'streamed') {
+    return assets.uploadUserMedia(input.owner.oxyUserId, input.bytes, input.mime, {
+      visibility: 'private',
+      originalName: input.name,
+      timeout: UPLOAD_TIMEOUT_MS,
+    });
+  }
+  const { file } = await assets.uploadUserMediaLarge(input.owner.oxyUserId, input.bytes, {
+    mime: input.mime,
+    sha256,
+    filename: input.name,
+    visibility: 'private',
+    verifyTimeoutMs: UPLOAD_TIMEOUT_MS,
+  });
+  return file;
+}
+
+/** The HTTP status an Oxy SDK error carries, when it carries one. */
+function errorStatus(error: unknown): number | undefined {
+  if (error === null || typeof error !== 'object') return undefined;
+  const record = error as { status?: unknown; response?: { status?: unknown } };
+  if (typeof record.status === 'number') return record.status;
+  if (typeof record.response?.status === 'number') return record.response.status;
+  return undefined;
+}
+
+/** Whether Oxy refused the bytes because they were taken down (451 `CONTENT_BLOCKED`). */
+export function isContentBlocked(error: unknown): boolean {
+  if (errorStatus(error) === 451) return true;
+  return (
+    error !== null &&
+    typeof error === 'object' &&
+    (error as { code?: unknown }).code === 'CONTENT_BLOCKED'
+  );
+}
+
+/** A closed label for why a write fell back, for the metric and the log. */
+function fallbackReason(error: unknown): string {
+  if (error instanceof OxyFilesUnavailableError) return 'no_service_identity';
+  if (error instanceof OxyFileVisibilityError) return 'not_private';
+  if (error instanceof OxyFileIntegrityError) return 'hash_mismatch';
+  const status = errorStatus(error);
+  if (status !== undefined) return status >= 500 ? 'oxy_5xx' : `oxy_${status}`;
+  if (error instanceof Error && error.name === 'LargeUploadFailedError')
+    return 'large_upload_failed';
+  return 'unreachable';
 }
 
 /** One readable stored file. */
@@ -300,37 +405,48 @@ export type StoredContentStream = S3ObjectStream;
 
 /**
  * Open stored content for streaming: the Oxy file first, the legacy object
- * only when there is no Oxy file (or Oxy will not serve it during the move).
+ * when there is no Oxy file, or when Oxy failed to answer during the move.
+ * Oxy's REFUSAL — the person revoked Alia's access, the file is gone or taken
+ * down — is final and answers `null`, never the legacy copy.
  */
 export async function openStoredContent(
   stored: StoredContent,
   kind: LegacyReadKind,
 ): Promise<StoredContentStream | null> {
   if (stored.oxyFileId !== null) {
-    const fromOxy = await openOxyFile(stored.oxyFileId);
-    if (fromOxy !== null || stored.objectKey === null) return fromOxy;
-    log.files.warn({ kind }, 'Oxy did not serve a migrated file; reading the legacy copy');
+    try {
+      return await openOxyFile(stored.oxyFileId);
+    } catch (error: unknown) {
+      if (stored.objectKey === null) throw error;
+      log.files.warn(
+        { err: error, kind },
+        'Oxy did not serve a migrated file; reading the legacy copy',
+      );
+    }
   }
   if (stored.objectKey === null) return null;
   return openLegacyObject(stored.objectKey, kind);
 }
 
+/** Raised when an Oxy download link Alia was given did not serve the file. */
+export class OxyDownloadError extends Error {
+  constructor(readonly status: number) {
+    super(`An Oxy download link answered ${status}`);
+    this.name = 'OxyDownloadError';
+  }
+}
+
 /**
- * Stream one Oxy file Alia may read.
- *
- * TODO(oxy-4c): `linkedDownloadUrls` answers for Alia's OWN files (catalogue
- * skills, spoken clips) today, but omits a PERSON's private file Alia stored
- * for them — the owner-linked predicate needs a reference the owner made. Oxy
- * must let the application that stored an account's file read it back (4c).
+ * Stream one Oxy file Alia may read: its own files, and a person's file Alia
+ * stored for them or that they attached to Alia, until they revoke that
+ * (`linkedDownloadUrls`, ADR 0043 stage 4c). `null` is Oxy's refusal; a
+ * failure to answer throws.
  */
 export async function openOxyFile(fileId: string): Promise<StoredContentStream | null> {
   const [link] = await oxy().assets.linkedDownloadUrls([fileId]);
   if (link === undefined) return null;
   const response = await fetch(link.url);
-  if (!response.ok || response.body === null) {
-    log.files.warn({ status: response.status }, 'An Oxy download link did not answer');
-    return null;
-  }
+  if (!response.ok || response.body === null) throw new OxyDownloadError(response.status);
   return {
     body: Readable.fromWeb(response.body as import('node:stream/web').ReadableStream),
     contentType: link.mime,

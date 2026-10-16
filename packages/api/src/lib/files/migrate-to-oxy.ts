@@ -86,9 +86,11 @@ export async function* migrateKind(
   options: { apply: boolean; limit?: number },
 ): AsyncGenerator<MigrationLine> {
   if (kind !== 'show-covers' && !oxyHoldsPrivateContent()) {
-    // The switch, and why it is off, is `oxyHoldsPrivateContent` in `oxy-files.ts`.
+    // The backfill follows the switch: it is turned on once Oxy's stage 4c is
+    // deployed (`oxyHoldsPrivateContent` in `oxy-files.ts`), so new writes go
+    // to Oxy before old ones are copied there.
     throw new Error(
-      `${kind} cannot move yet: Oxy does not hold private content (OXY_FILES_PRIVATE_CONTENT is off)`,
+      `${kind} does not move while OXY_FILES_PRIVATE_CONTENT is off: switch it on once Oxy stage 4c is deployed`,
     );
   }
   const limit = options.limit ?? Number.POSITIVE_INFINITY;

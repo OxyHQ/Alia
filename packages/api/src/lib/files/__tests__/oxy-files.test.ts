@@ -6,9 +6,10 @@ import type { OxyServer } from '@oxy.so/core/server';
 /**
  * The storage seam (`lib/files/oxy-files.ts`): covers go to Oxy as Alia's
  * public files and must come back with the hash of the bytes sent; private
- * content stays on the legacy path until Oxy stage 4c, marked as garbage
- * BEFORE it is written; reads take the Oxy file first and count every legacy
- * read.
+ * content goes to Oxy (stage 4c) only behind its switch, by the upload its type
+ * and size need, always private, and falls back to the legacy path — marked as
+ * garbage BEFORE it is written — whenever Oxy does not take it; reads take the
+ * Oxy file first, honour Oxy's refusal and count every legacy read.
  */
 
 const H = vi.hoisted(() => ({
@@ -18,6 +19,7 @@ const H = vi.hoisted(() => ({
   upload: vi.fn(),
   read: vi.fn(),
   metric: vi.fn(),
+  fallback: vi.fn(),
 }));
 
 vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
@@ -37,7 +39,10 @@ vi.mock('../../s3.js', () => ({
   },
   readS3Object: async (key: string) => H.read(key),
 }));
-vi.mock('../../observability/metrics.js', () => ({ legacyStorageReadRecorded: H.metric }));
+vi.mock('../../observability/metrics.js', () => ({
+  legacyStorageReadRecorded: H.metric,
+  privateContentFallbackRecorded: H.fallback,
+}));
 vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   return { log: { files: child, general: child } };
@@ -45,6 +50,7 @@ vi.mock('../../logger.js', () => {
 vi.mock('../../oxy-service-client.js', () => ({ oxyServiceClient: () => null }));
 
 const {
+  copyIntoOxy,
   legacyKindOfKey,
   newLegacyKey,
   openStoredContent,
@@ -54,6 +60,7 @@ const {
   setOxyFilesClientForTests,
   storePrivateContent,
   storeShowCover,
+  uploadRoute,
 } = await import('../oxy-files.js');
 const { parseStoredLocator, storedLocator } = await import('../../../domain/oxy-files.js');
 
@@ -112,13 +119,22 @@ describe('private content', () => {
     name: 'a.pdf',
     legacyKey: 'test/library/u1/file-1.pdf',
   };
+  const legacy = { objectKey: 'test/library/u1/file-1.pdf', oxyFileId: null };
+  const switchOn = () => {
+    process.env.OXY_FILES_PRIVATE_CONTENT = 'enabled';
+  };
+  const stored = (visibility = 'private', bytes: Uint8Array = input.bytes) => ({
+    id: 'oxy-f',
+    sha256: sha(bytes),
+    visibility,
+  });
 
-  it('stays in the legacy bucket until Oxy holds it, marked as garbage before it is written', async () => {
+  it('stays in the legacy bucket while the switch is off, marked as garbage before it is written', async () => {
+    const uploadUserMediaLarge = vi.fn();
+    setOxyFilesClientForTests(() => fakeOxy({ uploadUserMediaLarge }));
     expect(oxyHoldsPrivateContent()).toBe(false);
-    await expect(storePrivateContent(input)).resolves.toEqual({
-      objectKey: 'test/library/u1/file-1.pdf',
-      oxyFileId: null,
-    });
+    await expect(storePrivateContent(input)).resolves.toEqual(legacy);
+    expect(uploadUserMediaLarge).not.toHaveBeenCalled();
     expect(H.order).toEqual(['mark', 'upload']);
     expect(H.marked).toHaveBeenCalledWith(
       {},
@@ -127,62 +143,204 @@ describe('private content', () => {
     );
   });
 
-  it('when switched on, refuses a person’s file that Oxy stored as public', async () => {
-    process.env.OXY_FILES_PRIVATE_CONTENT = 'enabled';
-    setOxyFilesClientForTests(() =>
-      fakeOxy({
-        uploadUserMedia: async () => ({ id: 'f', sha256: sha(input.bytes), visibility: 'public' }),
+  it('stores a person’s document as their PRIVATE file by the large upload', async () => {
+    switchOn();
+    const uploadUserMediaLarge = vi.fn(async () => ({ file: stored(), deduplicated: false }));
+    setOxyFilesClientForTests(() => fakeOxy({ uploadUserMediaLarge }));
+    await expect(storePrivateContent(input)).resolves.toEqual({
+      objectKey: null,
+      oxyFileId: 'oxy-f',
+    });
+    expect(uploadUserMediaLarge).toHaveBeenCalledWith(
+      'u1',
+      input.bytes,
+      expect.objectContaining({
+        mime: 'application/pdf',
+        sha256: sha(input.bytes),
+        filename: 'a.pdf',
+        visibility: 'private',
       }),
-    );
-    await expect(storePrivateContent(input)).rejects.toThrow(
-      /stored a private library_file as public/,
     );
     expect(H.upload).not.toHaveBeenCalled();
   });
 
-  it('when switched on, stores Alia’s content as a private application file', async () => {
-    process.env.OXY_FILES_PRIVATE_CONTENT = 'enabled';
-    const uploadAppFile = vi.fn(async () => ({ file: { id: 'app-f', sha256: sha(input.bytes) } }));
+  it('streams a person’s small image as their PRIVATE media', async () => {
+    switchOn();
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    const uploadUserMedia = vi.fn(async () => stored('private', png));
+    setOxyFilesClientForTests(() => fakeOxy({ uploadUserMedia }));
+    await expect(
+      storePrivateContent({ ...input, bytes: png, mime: 'image/png', name: 'a.png' }),
+    ).resolves.toEqual({ objectKey: null, oxyFileId: 'oxy-f' });
+    expect(uploadUserMedia).toHaveBeenCalledWith(
+      'u1',
+      png,
+      'image/png',
+      expect.objectContaining({ visibility: 'private', originalName: 'a.png' }),
+    );
+  });
+
+  it('stores a spoken clip as Alia’s private application file', async () => {
+    switchOn();
+    const mp3 = Buffer.from('ID3');
+    const uploadAppFile = vi.fn(async () => ({ file: stored('private', mp3) }));
     setOxyFilesClientForTests(() => fakeOxy({ uploadAppFile }));
     await expect(
-      storePrivateContent({ ...input, kind: 'speech_clip', owner: { kind: 'alia' } }),
-    ).resolves.toEqual({ objectKey: null, oxyFileId: 'app-f' });
+      storePrivateContent({
+        ...input,
+        kind: 'speech_clip',
+        owner: { kind: 'alia' },
+        bytes: mp3,
+        mime: 'audio/mpeg',
+      }),
+    ).resolves.toEqual({ objectKey: null, oxyFileId: 'oxy-f' });
     expect(uploadAppFile).toHaveBeenCalledWith(
-      input.bytes,
-      'application/pdf',
+      mp3,
+      'audio/mpeg',
       expect.objectContaining({ visibility: 'private' }),
     );
+  });
+
+  it('stores a catalogue skill’s binary as Alia’s private file by the large upload', async () => {
+    switchOn();
+    const uploadAppFileLarge = vi.fn(async () => ({ file: stored(), deduplicated: false }));
+    setOxyFilesClientForTests(() => fakeOxy({ uploadAppFileLarge }));
+    await expect(
+      storePrivateContent({
+        ...input,
+        kind: 'skill_file',
+        owner: { kind: 'alia' },
+        mime: 'application/zip',
+      }),
+    ).resolves.toEqual({ objectKey: null, oxyFileId: 'oxy-f' });
+    expect(uploadAppFileLarge).toHaveBeenCalledWith(
+      input.bytes,
+      expect.objectContaining({ mime: 'application/zip', visibility: 'private' }),
+    );
+  });
+
+  it('streams only media of at most 40 MiB; everything else is a large upload', () => {
+    expect(uploadRoute('image/png', 40 * 1024 * 1024)).toBe('streamed');
+    expect(uploadRoute('audio/mpeg', 1024)).toBe('streamed');
+    expect(uploadRoute('video/mp4', 40 * 1024 * 1024 + 1)).toBe('large');
+    expect(uploadRoute('application/pdf', 10)).toBe('large');
+    expect(uploadRoute('text/plain', 10)).toBe('large');
+  });
+
+  it('falls back to the legacy bucket when Oxy stores a person’s file as public (no stage 4c)', async () => {
+    switchOn();
+    setOxyFilesClientForTests(() =>
+      fakeOxy({ uploadUserMediaLarge: async () => ({ file: stored('public') }) }),
+    );
+    await expect(storePrivateContent(input)).resolves.toEqual(legacy);
+    expect(H.order).toEqual(['mark', 'upload']);
+    expect(H.fallback).toHaveBeenCalledWith('library_file', 'not_private');
+  });
+
+  it('falls back to the legacy bucket when Oxy refuses the type', async () => {
+    switchOn();
+    setOxyFilesClientForTests(() =>
+      fakeOxy({
+        uploadUserMediaLarge: async () => {
+          throw Object.assign(new Error('Unsupported Media Type'), { status: 415 });
+        },
+      }),
+    );
+    await expect(storePrivateContent(input)).resolves.toEqual(legacy);
+    expect(H.fallback).toHaveBeenCalledWith('library_file', 'oxy_415');
+  });
+
+  it('falls back to the legacy bucket when Oxy holds other bytes than the ones sent', async () => {
+    switchOn();
+    setOxyFilesClientForTests(() =>
+      fakeOxy({
+        uploadUserMediaLarge: async () => ({ file: { ...stored(), sha256: 'f'.repeat(64) } }),
+      }),
+    );
+    await expect(storePrivateContent(input)).resolves.toEqual(legacy);
+    expect(H.fallback).toHaveBeenCalledWith('library_file', 'hash_mismatch');
+  });
+
+  it('falls back to the legacy bucket when Alia has no Oxy identity', async () => {
+    switchOn();
+    await expect(storePrivateContent(input)).resolves.toEqual(legacy);
+    expect(H.fallback).toHaveBeenCalledWith('library_file', 'no_service_identity');
+  });
+
+  it('never routes taken-down bytes around the takedown', async () => {
+    switchOn();
+    setOxyFilesClientForTests(() =>
+      fakeOxy({
+        uploadUserMediaLarge: async () => {
+          throw Object.assign(new Error('Unavailable For Legal Reasons'), { status: 451 });
+        },
+      }),
+    );
+    await expect(storePrivateContent(input)).rejects.toThrow(/Legal Reasons/);
+    expect(H.order).toEqual([]);
+  });
+
+  it('copies for the migration without any fallback', async () => {
+    setOxyFilesClientForTests(() =>
+      fakeOxy({ uploadUserMediaLarge: async () => ({ file: stored('public') }) }),
+    );
+    await expect(copyIntoOxy(input)).rejects.toThrow(/stored a private library_file as public/);
+    expect(H.order).toEqual([]);
   });
 });
 
 describe('reading', () => {
+  const link = {
+    id: 'f',
+    url: 'data:application/octet-stream;base64,AQID',
+    mime: 'audio/mpeg',
+    size: 3,
+    sha256: 'a'.repeat(64),
+    expiresIn: 60,
+  };
+
   it('takes the Oxy file first, and never counts that as a legacy read', async () => {
-    setOxyFilesClientForTests(() =>
-      fakeOxy({
-        linkedDownloadUrls: async () => [
-          {
-            id: 'f',
-            url: 'data:application/octet-stream;base64,AQID',
-            mime: 'audio/mpeg',
-            size: 3,
-          },
-        ],
-      }),
-    );
+    setOxyFilesClientForTests(() => fakeOxy({ linkedDownloadUrls: async () => [link] }));
     const opened = await openStoredContent({ objectKey: 'legacy', oxyFileId: 'f' }, 'speech_clip');
     expect(opened?.contentType).toBe('audio/mpeg');
     expect(H.read).not.toHaveBeenCalled();
     expect(H.metric).not.toHaveBeenCalled();
   });
 
-  it('falls back to the legacy object when Oxy will not serve it, and counts the read', async () => {
+  it('honours Oxy’s refusal (a revoked consent, a taken-down file): no legacy read around it', async () => {
     setOxyFilesClientForTests(() => fakeOxy({ linkedDownloadUrls: async () => [] }));
+    const opened = await openStoredContent({ objectKey: 'legacy', oxyFileId: 'f' }, 'library_file');
+    expect(opened).toBeNull();
+    expect(H.read).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the legacy copy when Oxy fails to answer, and counts the read', async () => {
+    setOxyFilesClientForTests(() =>
+      fakeOxy({
+        linkedDownloadUrls: async () => {
+          throw Object.assign(new Error('Bad Gateway'), { status: 502 });
+        },
+      }),
+    );
     H.read.mockResolvedValue({ body: Readable.from([]), contentType: 'audio/mpeg' });
     const opened = await openStoredContent({ objectKey: 'legacy', oxyFileId: 'f' }, 'speech_clip');
     expect(opened).not.toBeNull();
     expect(H.read).toHaveBeenCalledWith('legacy');
     expect(H.metric).toHaveBeenCalledWith('speech_clip');
     await vi.waitFor(() => expect(H.counted).toHaveBeenCalledWith({}, 'speech_clip'));
+  });
+
+  it('surfaces Oxy’s failure when there is no legacy copy to fall back to', async () => {
+    setOxyFilesClientForTests(() =>
+      fakeOxy({
+        linkedDownloadUrls: async () => {
+          throw new Error('unreachable');
+        },
+      }),
+    );
+    await expect(
+      openStoredContent({ objectKey: null, oxyFileId: 'f' }, 'library_file'),
+    ).rejects.toThrow('unreachable');
   });
 });
 
