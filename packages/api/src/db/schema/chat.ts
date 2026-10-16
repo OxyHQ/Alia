@@ -15,7 +15,7 @@
 import type { AvatarCharacter } from '@oxy.so/contracts';
 import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { CONVERSATION_SOURCES, MESSAGE_ROLES, MESSAGE_VOTES } from '../../domain/conversation.js';
 import { checkOneOf } from './columns';
 
@@ -71,7 +71,6 @@ export const conversations = pgTable(
     icon: text(),
     iconColor: text(),
     isFavorite: boolean().notNull().default(false),
-    isPublic: boolean().notNull().default(false),
     /** An `agents` row. No foreign key — that table is a later batch. */
     agentId: text(),
     /** The durable agent thread this bounded conversation stretch belongs to. */
@@ -271,5 +270,42 @@ export const messages = pgTable(
     index('messages_search_idx')
       .using('gin', sql`to_tsvector('simple', alia_message_text(${t.content}))`)
       .where(sql`${t.role} in ('user', 'assistant')`),
+  ],
+);
+
+/**
+ * A conversation's public read-only link (`POST /v1/conversations/:id/share`).
+ *
+ * At most ONE per conversation: sharing again replaces the link (and so retires
+ * the old one), and `DELETE …/share` deletes the row. A revoked link is a row
+ * that is gone, not a row marked revoked: nothing would ever read the mark, and
+ * the public read must answer the same 404 for "revoked", "expired" and "never
+ * existed" anyway.
+ *
+ * `token_hash` is the SHA-256 of the token, never the token: the database holds
+ * nothing that opens a conversation. The token exists once, in the answer to
+ * the person who shared.
+ *
+ * No foreign key to `conversations`, for the reason that table gives for
+ * `messages`; `DELETE /conversations/:id` removes the share with it. Swept by
+ * `db/expiryTargets.ts` once `expires_at` passes.
+ */
+export const conversationShares = pgTable(
+  'conversation_shares',
+  {
+    id: generatedId(),
+    tokenHash: text().notNull(),
+    /** The conversation's owner. An Oxy account; no foreign key. */
+    oxyUserId: text().notNull(),
+    /** The client's business key, as `conversations.conversation_id`. */
+    conversationId: text().notNull(),
+    expiresAt: timestamptz().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('conversation_shares_token_hash_key').on(t.tokenHash),
+    uniqueIndex('conversation_shares_oxy_user_conversation_key').on(t.oxyUserId, t.conversationId),
+    // The expiry sweep's predicate column. Indexed because the sweep scans it.
+    index('conversation_shares_expires_at_idx').on(t.expiresAt),
   ],
 );

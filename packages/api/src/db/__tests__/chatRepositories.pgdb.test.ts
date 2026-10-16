@@ -224,7 +224,7 @@ describe('reads and ownership', () => {
     const first = await listConversations(db, 'page-user', 2);
     expect(first.map((row) => row.conversationId)).toEqual(['page-c', 'page-b']);
 
-    const second = await listConversations(db, 'page-user', 2, first[1].updatedAt);
+    const second = await listConversations(db, 'page-user', 2, { before: first[1].updatedAt });
     // STRICTLY older: a `<=` here repeats the cursor row on every page.
     expect(second.map((row) => row.conversationId)).toEqual(['page-a']);
   });

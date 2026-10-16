@@ -102,8 +102,9 @@ no `access-control-allow-origin` at all. `/v1/*` answers `*` instead. A request 
 `Origin` header — a server, a native app, `curl` — is never subject to either. The policy
 is pinned by `packages/api/src/middleware/__tests__/chat-origin-policy.test.ts`. That is why
 `@alia.onl/sdk`, embedded by every Oxy app on its own web origin, speaks only to `/v1`
-(`POST /v1/chat/completions`, `/v1/conversations`): the same handler and the same router, on the
-surface any origin may read. `/v1/conversations` admits a person's session alone.
+(`POST /v1/chat/completions`, `/v1/conversations`, `/v1/agents`, `/v1/shared`): the same handler
+and the same router, on the surface any origin may read. `/v1/conversations` and `/v1/agents`
+admit a person's session alone; `/v1/shared/:token` admits anyone holding the link.
 
 The SSE contract, with each event's emitting line and exact payload fields, is in
 [the chat runtime page](./chat-runtime.mdx). Two corrections worth carrying here, because
@@ -120,10 +121,21 @@ earlier revisions of this page had both wrong:
 |---|---|
 | `/conversations` | `routes/conversations.ts` |
 | `/v1/conversations` | `routes/conversations.ts` (the same router, mounted in `routes/v1.ts` behind a person's session only; the SDK's door) |
+| `/v1/shared` | `routes/shared.ts` — `GET /v1/shared/:token`, a shared conversation, no auth |
 | `/memory` | `routes/memory.ts` |
 | `/library` | `routes/library.ts` |
 | `/writing-style` | `routes/writing-style.ts` |
 | `/suggestions` | `routes/suggestions.ts` |
+
+The conversation routes an embedding app uses ([agent-embedding.md](./agent-embedding.md) §6):
+
+| Route | Purpose |
+|---|---|
+| `GET /conversations?agentId=<id>` | The person's conversations with one agent, newest first, with the usual `limit`/`cursor` |
+| `POST /conversations/:id/share` | `{ "ttlHours": 1..168 }` → `201 { token, expiresAt }`. One link per conversation: sharing again replaces it. Only the SHA-256 of the token is stored (`conversation_shares`) |
+| `DELETE /conversations/:id/share` | Revokes the link; `404` when there is none. Deleting the conversation revokes it too |
+| `GET /v1/shared/:token` | No auth, `X-Robots-Tag: noindex`, `Cache-Control: no-store`, 60 reads per minute per link. `{ title, agent?, messages: [{ role, content, agent? }], expiresAt }` — text, images and who spoke, never a tool's input or output, a document or the system prompt (`lib/shared-conversation.ts`). Unknown, expired and revoked are the same `404` |
+| `POST /suggestions/welcome` | `{ count?, agentId?, clientContext? }`. With `agentId`, that agent's starters (`404` for one the caller may not use); without, Alia's pool with the suggestions `clientContext` names first |
 
 ### Agents and execution
 
@@ -141,6 +153,9 @@ The actor-model routes under `/agents` ([actors](./actors.mdx)):
 | `GET /agents/:id/oxy-apps`, `PUT /agents/:id/oxy-apps/:appId` | An agent's level per Oxy app (Nada · Ver · Ver y actuar); owner only (`routes/agents/oxy-apps.ts`) |
 | `GET\|PUT\|DELETE /agents/:id/memory` | The agent's memory files about the caller (`routes/agents/memory.ts`) |
 | `/agents/:id/computer/*` | The live view of the agent's computer: status, files, receipts, browser screenshot and take-over (`routes/agents/computer.ts`) |
+| `PATCH /agents/:id` with `starters`, `featureGates` | The empty chat's starters (`[{ title, prompt }]`, at most 6) and the agent's feature gates (`attachments.documents`, `attachments.images`, `deep_research`, `power_level.pro`, `power_level.ultra`), each checked against the app's live catalogue before it is saved (`400` for an undeclared feature, `503` when the catalogues cannot be read) — [agents](./agents.md#feature-gates) |
+| `GET /v1/agents/:id/profile` | The lead participant an embedding app draws: `{ id, name, handle, character, color, description, greeting, starters, access, features: [{ key, gated }] }` (`routes/v1/agents.ts`); `404` for any agent the person may not use |
+| `GET /v1/agents/:id/features` | `{ features: [{ key, state: 'available' \| 'locked', remaining? }] }`, asked of the app behind each gate under the person's own lane; `503 feature_check_unavailable` when an app cannot answer |
 
 ### Structured automations
 
@@ -247,12 +262,17 @@ Routes mounted in `packages/api/src/routes/v1.ts`:
 | `/v1/responses` | `:130` | Oxy session or service token |
 | `/v1/audio` | `:136` | Oxy session or service token |
 | `/v1/images` | `:139` | Oxy session or service token |
+| `/v1/conversations` | `routes/v1.ts` | a person's session only |
+| `/v1/agents` | `routes/v1.ts` | a person's session only |
+| `GET /v1/shared/:token` | `routes/v1.ts`, ahead of the auth middleware | none: the link is the authority |
 
 **What still works.** These routes are served with their existing request and response
 shapes. Product `alia.*` SSE events may still appear on them, because this surface is the
 product runtime under an older name.
 
-**What does not.** The surface gains no new route, no new capability and no new model.
+**What does not.** The surface gains no new model, and a new route only as a deliberate,
+reviewed edit of the list `routes/__tests__/v1-compatibility-surface.test.ts` freezes (ADR
+0010): the conversations, and the agent-embedding routes of ADR 0020, came in that way.
 
 **Removal gate, per route.** A measurement over `api_key_usage` filtered to that
 `endpoint`, across a window shorter than the 90-day retention and covering at least one

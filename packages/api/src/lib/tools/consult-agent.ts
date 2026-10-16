@@ -36,6 +36,7 @@ import {
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import type { SSEEmitter } from '../sse-emitter.js';
+import type { GatedPart } from '../agent-features.js';
 import { runAgentTurn, type AgentTurnPerson } from './agent-turn.js';
 
 export const CONSULT_AGENT_TOOL = 'consultAgent';
@@ -51,6 +52,9 @@ export interface ConsultAgentResult {
   /** What the answer cost the payer. The calling model is told, so it can stop. */
   creditsCharged: number;
   error?: string;
+  /** Set when the consulted agent's feature gate refused (ADR 0020 §6). */
+  errorCode?: 'feature_entitlement_required' | 'feature_check_unavailable';
+  feature?: string;
 }
 
 export interface ConsultAgentOptions {
@@ -63,6 +67,8 @@ export interface ConsultAgentOptions {
   allowedAgentIds?: readonly string[];
   /** The outer stream; without one (a channel turn) the consultation still runs, unseen. */
   sseEmitter?: SSEEmitter;
+  /** The outer turn's attachments; the CONSULTED agent's gates apply to them (`agent-turn.ts`). */
+  attachments?: readonly GatedPart[];
 }
 
 function refusal(agentId: string, error: string): ConsultAgentResult {
@@ -166,6 +172,7 @@ export async function buildConsultAgentTool(options: ConsultAgentOptions): Promi
             task,
             person: options.person,
             payerOxyUserId: options.payerOxyUserId,
+            ...(options.attachments ? { attachments: options.attachments } : {}),
             observer: {
               onTextDelta: (content) => emit('alia.agent_delta', { consultId, content }),
               onToolCall: ({ toolCallId, name, input }) =>
@@ -178,7 +185,14 @@ export async function buildConsultAgentTool(options: ConsultAgentOptions): Promi
             'alia.agent_end',
             outcome.error === undefined
               ? { consultId, status: 'completed', content: outcome.response }
-              : { consultId, status: 'failed', error: { code: 'agent_unavailable' } },
+              : {
+                  consultId,
+                  status: 'failed',
+                  // A gate's refusal is typed, so the surface can show the app's upsell.
+                  error: outcome.refusal
+                    ? { code: outcome.refusal.code, feature: outcome.refusal.feature }
+                    : { code: 'agent_unavailable' },
+                },
           );
           return {
             ...identity,
@@ -186,6 +200,9 @@ export async function buildConsultAgentTool(options: ConsultAgentOptions): Promi
             tokensUsed: outcome.tokensUsed,
             creditsCharged: outcome.creditsCharged,
             ...(outcome.error === undefined ? {} : { error: outcome.error }),
+            ...(outcome.refusal
+              ? { errorCode: outcome.refusal.code, feature: outcome.refusal.feature }
+              : {}),
           };
         } catch (error: unknown) {
           log.general.error({ err: error, agentId }, 'consultAgent failed');

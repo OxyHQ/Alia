@@ -29,13 +29,19 @@ interface LimitCheckResult {
  * Uses Redis sorted sets for distributed state.
  */
 export async function checkLimit(userId: string, tier: string): Promise<LimitCheckResult> {
+  const rpmLimit = RPM_LIMITS[tier] ?? RPM_LIMITS.free;
+  if (rpmLimit <= 0) return { allowed: true }; // Unlimited tier
+  return checkWindowLimit(`rl:user:${userId}:rpm`, rpmLimit);
+}
+
+/**
+ * The same one-minute sliding window, for any key: what a route with no
+ * account to key on (a public share link) limits by.
+ */
+export async function checkWindowLimit(key: string, rpmLimit: number): Promise<LimitCheckResult> {
   const redis = getRedisClient();
   if (!redis) return { allowed: true }; // Fail-open if no Redis
 
-  const rpmLimit = RPM_LIMITS[tier] ?? RPM_LIMITS.free;
-  if (rpmLimit <= 0) return { allowed: true }; // Unlimited tier
-
-  const key = `rl:user:${userId}:rpm`;
   const now = Date.now();
   const windowMs = 60_000;
   const windowStart = now - windowMs;

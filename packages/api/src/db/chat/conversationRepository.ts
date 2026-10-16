@@ -39,7 +39,6 @@ export interface ConversationRow {
   readonly icon: string | null;
   readonly iconColor: string | null;
   readonly isFavorite: boolean;
-  readonly isPublic: boolean;
   readonly agentId: string | null;
   readonly agentThreadId: string | null;
   readonly createdAt: Date;
@@ -60,7 +59,7 @@ export interface NewConversation {
  * Create a thread.
  *
  * Every field is named. The route builds this object from a whitelist rather
- * than from `req.body`, so a client cannot set `is_public`, `folder_id` or
+ * than from `req.body`, so a client cannot set `folder_id` or
  * somebody else's `oxy_user_id` by sending them.
  */
 export async function createConversation(
@@ -90,21 +89,32 @@ export async function createConversation(
  * through unchanged — the route asks for one more row than it will return and
  * reads the extra as `hasMore`, so clamping here would silently break that.
  *
- * Served by `conversations_oxy_user_updated_at_idx`.
+ * `agentId` narrows to the person's conversations with one agent — the
+ * embedding app's "my chats with Sindi" (`GET /v1/conversations?agentId=`).
+ *
+ * Served by `conversations_oxy_user_updated_at_idx`, or with an agent by
+ * `conversations_oxy_user_agent_updated_at_idx`.
  */
 export async function listConversations(
   db: ApiDatabase,
   oxyUserId: string,
   limit: number,
-  before?: Date,
+  options: {
+    /** Only threads last updated before this instant: the page cursor. */
+    readonly before?: Date;
+    /** Only the person's conversations with this agent (`?agentId=`). */
+    readonly agentId?: string;
+  } = {},
 ): Promise<ConversationRow[]> {
   return db
     .select()
     .from(conversations)
     .where(
-      before
-        ? and(eq(conversations.oxyUserId, oxyUserId), lt(conversations.updatedAt, before))
-        : eq(conversations.oxyUserId, oxyUserId),
+      and(
+        eq(conversations.oxyUserId, oxyUserId),
+        options.agentId === undefined ? undefined : eq(conversations.agentId, options.agentId),
+        options.before === undefined ? undefined : lt(conversations.updatedAt, options.before),
+      ),
     )
     .orderBy(desc(conversations.updatedAt))
     .limit(limit);

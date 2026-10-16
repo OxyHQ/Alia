@@ -276,11 +276,24 @@ const aliaChat = surface(aliaChatRouter, '/alia/chat');
  * person's session (`authenticateToken`) and no other credential — see `routes/v1.ts`. This is
  * the second addition to the list, after ADR 0017 §7, for the same reason: it is Alia's PRODUCT
  * API (ADR 0010 keeps `/v1/*` permanent for Alia's own surfaces), not a compatibility route.
+ *
+ * ## 22 became 27: embedding an agent (ADR 0020 §6, `docs/agent-embedding.md`)
+ *
+ * For the same reason as the conversations: the SDK opens any agent from any Oxy app's origin, so
+ * what it reads about that agent and its conversations must answer a browser from any origin.
+ * `GET /v1/agents/:id/profile` and `/features` and the conversation share pair sit behind a
+ * person's session only (PERSON). `GET /v1/shared/:token` is PUBLIC on purpose: the token is the
+ * authority, it is minted by the conversation's owner, expires within a week and shows no tool
+ * output (`lib/shared-conversation.ts`). No new auth mechanism comes with any of them.
  */
 const FROZEN_ROUTES: readonly string[] = [
   'DELETE /v1/conversations/:id',
   'DELETE /v1/conversations/:id/messages',
+  'DELETE /v1/conversations/:id/share',
   'GET /v1',
+  'GET /v1/agents/:id/features',
+  'GET /v1/agents/:id/profile',
+  'GET /v1/shared/:token',
   'GET /v1/conversations',
   'GET /v1/conversations/:id',
   'GET /v1/audio/jobs/:jobId',
@@ -298,6 +311,7 @@ const FROZEN_ROUTES: readonly string[] = [
   'POST /v1/audio/transcriptions',
   'POST /v1/chat/completions',
   'POST /v1/conversations',
+  'POST /v1/conversations/:id/share',
   'POST /v1/conversations/new',
   'POST /v1/images/generations',
   'POST /v1/report-usage',
@@ -320,7 +334,7 @@ describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => 
     // removal is what the compatibility window gates and an unrecorded removal
     // is the other way this list stops describing the surface.
     expect(v1.map((e) => e.signature)).toEqual([...FROZEN_ROUTES].sort());
-    expect(FROZEN_ROUTES).toHaveLength(22);
+    expect(FROZEN_ROUTES).toHaveLength(27);
     expect(new Set(FROZEN_ROUTES).size).toBe(FROZEN_ROUTES.length);
   });
 
@@ -382,11 +396,17 @@ const PERSON: readonly string[] = ['authenticateToken', 'apiKeyRateLimit'];
 const FROZEN_CHAINS: Readonly<Record<string, readonly string[]>> = {
   'DELETE /v1/conversations/:id': PERSON,
   'DELETE /v1/conversations/:id/messages': PERSON,
+  'DELETE /v1/conversations/:id/share': PERSON,
   'GET /v1/conversations': PERSON,
   'GET /v1/conversations/:id': PERSON,
   'PATCH /v1/conversations/:id/messages/:messageId/vote': PERSON,
   'POST /v1/conversations': PERSON,
+  'POST /v1/conversations/:id/share': PERSON,
   'POST /v1/conversations/new': PERSON,
+  'GET /v1/agents/:id/profile': PERSON,
+  'GET /v1/agents/:id/features': PERSON,
+  // Public: a share link is its own authority (`routes/shared.ts`).
+  'GET /v1/shared/:token': [],
   // Public: the catalogue is readable without a credential, which is what makes
   // `GET /v1/models` usable as a discovery endpoint.
   'GET /v1': [],
@@ -450,7 +470,7 @@ describe('the compatibility surface gains no auth mechanism (#139 ws6, ADR 0004)
 
   it('admits only a person on the conversations: no key, no bot secret, no assertion', () => {
     const conversations = v1.filter((e) => e.signature.includes('/v1/conversations'));
-    expect(conversations).toHaveLength(7);
+    expect(conversations).toHaveLength(9);
     for (const endpoint of conversations) {
       // Person auth first, mounted before the channel-bot pre-auth and the blanket lane, so
       // neither of those can have admitted the request.

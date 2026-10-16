@@ -160,6 +160,7 @@ function agentWith(
 ): NonNullable<Parameters<typeof ToolPipeline.forUser>[0]['agent']> {
   return {
     capabilityGrants: [...capabilityGrants],
+    featureGates: {},
     author,
     _id: 'caller-agent',
     oxyAccountId: 'bot-account-1',
@@ -602,6 +603,19 @@ describe("the embedding app's host tools", () => {
     expect(await namesFor(['agent'], { host, nested: true })).not.toContain(
       'host_homiio__apply_search',
     );
+  });
+});
+
+describe('a gated deep research', () => {
+  it('is never a tool on an agent that gates it: the gate is admitted before credits, a tool call is not', async () => {
+    expect(await namesFor(['web'])).toContain('deepResearch');
+    const gated = {
+      ...agentWith(['web']),
+      featureGates: { deep_research: { app: 'clarity', feature: 'research' } },
+    };
+    expect(await namesFor(['web'], { agent: gated })).not.toContain('deepResearch');
+    // Only that tool: the rest of the web family stays.
+    expect(await namesFor(['web'], { agent: gated })).toContain('webSearch');
   });
 });
 

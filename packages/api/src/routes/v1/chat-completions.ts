@@ -3,6 +3,7 @@ import { Router, type Request, type Response } from 'express';
 import { safeRefund } from '../../lib/credits-manager.js';
 import { handleDeepResearch } from '../../lib/chat-modes/deep-research-handler.js';
 import { ToolPipeline } from '../../lib/tool-pipeline.js';
+import { isAttachmentFeature } from '../../domain/agent-features.js';
 import { createResponseSSEEmitter } from '../../lib/sse-emitter.js';
 import { SystemPromptBuilder } from '../../lib/system-prompt-builder.js';
 import { convertToAISDKMessages, priorToolCallsOf } from '../../lib/message-converter.js';
@@ -238,6 +239,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     // Assemble all tools via the unified pipeline
     const sseEmitter = createResponseSSEEmitter(res, sse.ensureHeaders);
+    // The turn's attachments: a consulted agent's gates apply to them (`lib/tools/agent-turn.ts`).
+    const consultAttachments = ctx.featureUses.filter((use) => isAttachmentFeature(use.feature));
     let assembled: Awaited<ReturnType<typeof ToolPipeline.forUser>>;
     try {
       assembled = req.machineCredential
@@ -255,6 +258,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
             inputLimits: ctx.resolved.catalogue,
             editorToolDefinitions: body.tools,
             ...(host ? { host } : {}),
+            attachments: consultAttachments,
             sseEmitter,
             webSearch,
             mcpServerId,
@@ -338,10 +342,11 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     // Estimate system prompt tokens (for credit calculation)
     const systemPromptTokens = estimateMessageTokens('system', systemMessage);
 
-    // Convert OpenAI-format messages to AI SDK format (handles tool messages), and
-    // give each host action the app reported its real outcome (`lib/host-tools.ts`).
+    // Convert OpenAI-format messages to AI SDK format (handles tool messages, and
+    // puts each attached document's content where its `file` part was), and give
+    // each host action the app reported its real outcome (`lib/host-tools.ts`).
     const convertedMessages = applyHostOutcomes(
-      convertToAISDKMessages(rawMessages, toolNameMapping),
+      convertToAISDKMessages(rawMessages, toolNameMapping, ctx.files),
       host?.outcomes,
     );
     if (host?.outcomes?.length && conversationId && req.user?.id) {

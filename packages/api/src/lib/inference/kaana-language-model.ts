@@ -23,12 +23,17 @@
  *
  * ## The parts that are deliberately absent
  *
- * Images, audio and files in the PROMPT are refused with a warning rather than
+ * Images and audio in the PROMPT are refused with a warning rather than
  * dropped: the current Oxy inference surface serves text today and answers any
  * other modality with `unsupported_modality`, so silently discarding an image
  * would produce an answer about a question the user did not ask. A warning is
  * what the AI SDK has for "I could not do this part", and `streamText` surfaces
  * it.
+ *
+ * A DOCUMENT in a user message is the one exception, and it is sent: a turn
+ * only carries one when its model's catalogue entry takes `file` input
+ * (`lib/files/person-files.ts`; every other turn gets the document's text
+ * instead), so the contract's `file` part goes to a model that reads it.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -47,6 +52,7 @@ import type {
   LanguageModelV3CallOptions,
   SharedV3Warning,
   LanguageModelV3Content,
+  LanguageModelV3FilePart,
   LanguageModelV3FinishReason,
   LanguageModelV3Prompt,
   LanguageModelV3StreamPart,
@@ -215,6 +221,24 @@ function toolResultText(output: LanguageModelV3ToolResultOutput): {
   }
 }
 
+/** A document as the contract carries it: inline base64, or the URL it lives at. */
+function documentPart(part: LanguageModelV3FilePart): InferenceContentPart {
+  const source =
+    part.data instanceof URL
+      ? { kind: 'url' as const, url: part.data.href }
+      : {
+          kind: 'inline' as const,
+          mediaType: part.mediaType,
+          data:
+            typeof part.data === 'string' ? part.data : Buffer.from(part.data).toString('base64'),
+        };
+  return {
+    type: 'file',
+    source,
+    ...(part.filename === undefined ? {} : { filename: part.filename.slice(0, 255) }),
+  };
+}
+
 /**
  * The prompt, message by message.
  *
@@ -277,7 +301,14 @@ function translatePrompt(
         break;
 
       case 'user':
-        messages.push({ role: 'user', content: textOf(message.content) });
+        messages.push({
+          role: 'user',
+          content: message.content.flatMap((part) =>
+            part.type === 'file' && !part.mediaType.startsWith('image/')
+              ? [documentPart(part)]
+              : textOf([part]),
+          ),
+        });
         break;
 
       case 'assistant': {

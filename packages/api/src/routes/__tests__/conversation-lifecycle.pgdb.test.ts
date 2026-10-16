@@ -645,6 +645,8 @@ describe('every stage of the lifecycle is scoped to the owner (#139 ws6)', () =>
         ['post', '/'],
         ['patch', '/:id/messages/:messageId/vote'],
         ['delete', '/:id/messages'],
+        ['post', '/:id/share'],
+        ['delete', '/:id/share'],
         ['delete', '/:id'],
       ].sort(),
     );
@@ -652,7 +654,7 @@ describe('every stage of the lifecycle is scoped to the owner (#139 ws6)', () =>
     for (const [method, routePath] of mounted) {
       const anonymous = await call(method, routePath, {
         params: { id: 'x', messageId: 'y' },
-        body: { conversationId: 'x', messages: [], vote: 'up' },
+        body: { conversationId: 'x', messages: [], vote: 'up', ttlHours: 1 },
       });
       expect(
         anonymous.status,

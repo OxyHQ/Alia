@@ -8,6 +8,7 @@ import {
   isUniqueViolation,
 } from '@oxy.so/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
+import { findAgentById, updateAgent } from '../agents/agentRepository';
 import { agentKnowledge, agents, agentSkills } from '../schema/agents';
 import { skills } from '../schema/skills';
 import { libraryFiles } from '../schema/library';
@@ -185,6 +186,22 @@ describe('agents', () => {
       expect(constraintNameOf(error)).toBe('agents_oxy_account_id_key');
       return true;
     });
+  });
+
+  it('starts an agent with no starters and no gates, and stores both whole', async () => {
+    const [inserted] = await db
+      .insert(agents)
+      .values(agentValues({ id: 'ag-gates' }))
+      .returning();
+    expect(inserted.starters).toEqual([]);
+    expect(inserted.featureGates).toEqual({});
+
+    const starters = [{ title: 'Lease review', prompt: 'Can you review my lease for red flags?' }];
+    const featureGates = { 'attachments.documents': { app: 'homiio', feature: 'files' } };
+    const updated = await updateAgent(db, 'ag-gates', { starters, featureGates });
+    expect(updated?.starters).toEqual(starters);
+    expect(updated?.featureGates).toEqual(featureGates);
+    expect((await findAgentById(db, 'ag-gates'))?.featureGates).toEqual(featureGates);
   });
 
   it('defaults capability_grants to an EMPTY ARRAY, never to NULL', async () => {

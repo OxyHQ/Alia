@@ -29,11 +29,11 @@ import type { ModerationSubjectProvider } from './types.js';
  * because every honest way of filing one fails:
  *
  * **There is no audience, so there is no reporter.** Conversations, messages and
- * generated shows are scoped to their owner on every route. `Conversation` carries
- * an `isPublic` flag that nothing in this repository reads, and the app's "Share
- * conversation" menu item is a "coming soon" toast. Nobody but the author can ever
- * see a generated turn, so the only possible reporter is the person who prompted
- * it — and that is product feedback, which Alia already collects as
+ * generated shows are scoped to their owner on every route. The one way out is a
+ * share link (`GET /v1/shared/:token`): the owner's own choice, read-only, expiring
+ * within a week, and revocable by the owner alone. Whoever reads one was handed it
+ * by the author, so the only reporter who matters is still the person who prompted
+ * the turn — and that is product feedback, which Alia already collects as
  * `IMessage.vote`. A jury of strangers is the wrong instrument for it.
  *
  * **Neither available subject author is honest.** `ReportSubjectInput.author` has
