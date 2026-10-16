@@ -65,6 +65,9 @@ const EXPECTED = {
   // and reports nothing about whether it committed.
   'bootstrap-native-product-agents.yml': 'serialised',
   'refresh-build-cache.yml': 'serialised',
+  // One npm release at a time: two dispatches of the same version would both
+  // pass the registry preflight and race to publish.
+  'release-packages.yml': 'serialised',
 };
 
 /**
