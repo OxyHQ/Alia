@@ -1,3 +1,4 @@
+import { useDisplayPrice } from '@oxy.so/services';
 import {
   useCancelSubscription,
   useCreateCheckout,
@@ -38,6 +39,7 @@ interface BillingSectionProps {
 }
 
 export function BillingSection({ success }: BillingSectionProps) {
+  const display = useDisplayPrice();
   const router = useRouter();
   const { data: creditsInfo, isLoading, refetch } = useCredits();
   const { data: subscription, refetch: refetchSubscription } = useSubscription();
@@ -69,10 +71,10 @@ export function BillingSection({ success }: BillingSectionProps) {
       refetch();
       refetchSubscription();
       refetchTransactions();
-      toast.success(t('billing.paymentSuccess'));
-      setTimeout(() => router.replace('/(app)/settings/usage'), 100);
+      // Existing access may predate this return; it proves no new payment.
+      toast.info(t('billing.paymentPending'));
     }
-  }, [success, polledSubscription]);
+  }, [success, polledSubscription, refetch, refetchTransactions, refetchSubscription, t]);
 
   // Timeout fallback
   useEffect(() => {
@@ -84,12 +86,12 @@ export function BillingSection({ success }: BillingSectionProps) {
         refetch();
         refetchSubscription();
         refetchTransactions();
-        toast.success(t('billing.paymentSuccess'));
-        setTimeout(() => router.replace('/(app)/settings/usage'), 100);
+        // A redirect or timeout is not payment evidence. Keep the page pending.
+        toast.info(t('billing.paymentPending'));
       }
     }, 32000);
     return () => clearTimeout(timeout);
-  }, [success]);
+  }, [success, t, refetchSubscription, refetchTransactions, refetch]);
 
   const handleCancelSubscription = async () => {
     try {
@@ -129,7 +131,7 @@ export function BillingSection({ success }: BillingSectionProps) {
     }
   };
 
-  const parsedCustomCredits = parseInt(customCredits) || 0;
+  const parsedCustomCredits = parseInt(customCredits, 10) || 0;
   const customPriceCents = creditPrice
     ? Math.round(parsedCustomCredits * creditPrice.pricePerCreditCents)
     : 0;
@@ -197,7 +199,7 @@ export function BillingSection({ success }: BillingSectionProps) {
   const plan = isSubscribed
     ? {
         badge: t('settings.account.currentPlan'),
-        title: `${subscription.plan.name} ${dollars(subscription.plan.price)}${t('credits.perMonth')}`,
+        title: `${subscription.plan.name} ${display.formatUsd(subscription.plan.price)}${t('credits.perMonth')}`,
         description: `${t('billing.creditsPerMonth', {
           count: subscription.plan.creditsPerMonth.toLocaleString(),
         })} · ${renewal}`,
@@ -220,7 +222,7 @@ export function BillingSection({ success }: BillingSectionProps) {
     : activeBundle
       ? {
           badge: t('settings.account.currentPlan'),
-          title: 'Oxy One',
+          title: bundle.source === 'oxy_one' ? 'Oxy One' : `Alia ${bundle.planId}`,
           description: `${bundle.included.toLocaleString()} ${t('credits.credits')} · ${t('billing.creditsEvery24h', { count: creditsInfo.dailyRefresh })}`,
         }
       : {
@@ -283,7 +285,7 @@ export function BillingSection({ success }: BillingSectionProps) {
   if (bundle && activeBundle) {
     sections.unshift({
       key: 'oxy-one',
-      label: 'Oxy One',
+      label: bundle.source === 'oxy_one' ? 'Oxy One' : `Alia ${bundle.planId}`,
       description: `${bundle.included.toLocaleString()} ${t('credits.credits')} · ${new Date(bundle.periodEnd).toLocaleDateString()}`,
       rows: [
         {

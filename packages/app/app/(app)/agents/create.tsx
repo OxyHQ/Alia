@@ -17,6 +17,8 @@ import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, View } from 'react-native';
+import type { AgentTemplateId } from '@/features/agents/model/templates';
+import { AgentTemplatePicker } from '@/features/agents/ui/agent-template-picker';
 type Archetype = 'general' | 'qa' | 'task_router' | 'status_update';
 
 interface ArchetypeOption {
@@ -61,6 +63,7 @@ export default function CreateAgentScreen() {
   const generateAgent = useGenerateAgent();
 
   const [inputValue, setInputValue] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState<AgentTemplateId | null>(null);
   const [generating, setGenerating] = useState(false);
   /**
    * The power level the new agent answers at, kept for this screen rather than
@@ -89,6 +92,7 @@ export default function CreateAgentScreen() {
         inputValue.trim(),
         selectedArchetype,
         modelId,
+        { startWithoutCapabilities: selectedTemplate !== null },
       );
 
       /**
@@ -114,7 +118,16 @@ export default function CreateAgentScreen() {
     } finally {
       setGenerating(false);
     }
-  }, [inputValue, generating, generateAgent, router, t, selectedArchetype, modelId]);
+  }, [
+    inputValue,
+    generating,
+    generateAgent,
+    router,
+    t,
+    selectedArchetype,
+    modelId,
+    selectedTemplate,
+  ]);
 
   if (generating) {
     return (
@@ -133,6 +146,15 @@ export default function CreateAgentScreen() {
         <Text className="text-center text-lg font-semibold leading-[26px] text-foreground">
           {t('agents.createTitle')}
         </Text>
+
+        <AgentTemplatePicker
+          selected={selectedTemplate}
+          onSelect={(id, prompt) => {
+            setSelectedTemplate(id);
+            setInputValue(prompt);
+            setSelectedArchetype('general');
+          }}
+        />
 
         {/* Archetype picker: one radio row per archetype. */}
         <View className="gap-2">

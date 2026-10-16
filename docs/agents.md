@@ -736,3 +736,11 @@ model from Oxy's catalogue as `<publisher>/<model>` (`agents.model_id`,
 modes. The serving
 operator and deployment ids are never returned to users — see
 [models in Alia](./model-abstraction.mdx).
+
+## Editable communication and materials templates
+
+The existing create screen offers Communication and Materials starting text. Selecting one fills the editable composer and keeps the existing generation, bot creation and editor flow. Generated local capability suggestions are discarded for template-created agents; Oxy app grants still start at None. Editing instructions does not grant access. The editor's Oxy apps controls remain the owner-authorized grant writer; Accounts Agency is linked for exact organization/resource grants.
+
+Communication uses Schedio's signed catalog (`listDestinations`, `createDraft`). Only drafts are exposed: the human reviews, approves, schedules or publishes in Schedio. Schedio binds retry keys to account and actor and serializes concurrent retries. Materials uses Mercaria's `listPendingMaterialPickups`, paginated over accepted reservations for the delegated account. It returns references and an existing Mercaria review link, never exact location or copied Moovo facts. A Moovo reference triggers human review, not an assumption that transport is active or complete; cancelled transports can retain a reference. The person checks live transport status, fills missing structured addresses/contact/parcel details, chooses pickup or transport and confirms the current payer and quote in Mercaria/Moovo. No booking or payment tool is introduced.
+
+The runtime remains catalog-driven through the shared Oxy SDK/ticket transport, with live revocation and exact-resource authorization. No app-specific runtime manifest, user-token forwarding, recurring task or silent grant is created by either template. The owning Schedio and Mercaria API/catalog changes must be deployed and registered with Oxy before the new tools appear. Until then the editor must not imply that access was granted or an action succeeded.

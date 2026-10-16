@@ -6,7 +6,7 @@ import { useAuthQuery } from '@/shared/api/create-query';
 export interface CreditsInfo {
   subjectAccountId?: string;
   productAllowance?: {
-    source: 'oxy_one';
+    source: 'oxy_one' | 'oxy_product';
     planId: string;
     periodStart: string;
     periodEnd: string;
