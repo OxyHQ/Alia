@@ -2,7 +2,7 @@
 
 *El agente de una app puede quedarse dentro de esa app, por decisión de Oxy.*
 
-**Status:** Accepted
+**Status:** Accepted; amended 2026-10-16 by Oxy ADR 0045 — the surface is read from the Oxy-signed app assertion (`OXY-APP+JWT`) the SDK sends, not from the session, because the official apps share one session that names no application (Oxy ADR 0029)
 
 **Date:** 2026-10-16
 
@@ -24,9 +24,11 @@ special lane.
    (`GET /capabilities/agent-availability/:agentAccountId`) whether an agent is
    confined and to which applications, caching the answer briefly. Alia stores
    no copy and offers no editor control for it.
-2. **The surface is the session's application.** Oxy's validation of the
-   person's session gives the `applicationId` of the client that session
-   belongs to. Alia never reads a surface from the request.
+2. **The surface is the app assertion's application.** The SDK sends the
+   Oxy-signed app assertion for the person's session (Oxy ADR 0045); Alia
+   verifies it against Oxy's JWKS, binds it to the request's verified session
+   and reads its `app`. Without a valid assertion there is no surface. Alia
+   never reads an app identity from anything else.
 3. **One reach rule.** `canReachAgent` answers `out_of_reach` for a confined
    agent when the session's application is not one it is confined to. Opening
    the agent, `consultAgent`, `searchAgents` and every agent read route go
