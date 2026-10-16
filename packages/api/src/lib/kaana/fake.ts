@@ -551,7 +551,7 @@ export class FakeKaana implements KaanaClient {
         const session = new FakeRealtimeSession(request, options, scripted);
         this.sessions.push(session);
         if (this.autoCreate) {
-          const limits = { ...DEFAULT_LIMITS, ...stripTextItems(request.limits) };
+          const limits = { ...DEFAULT_LIMITS, ...request.limits };
           const started = new Date();
           session.emit({
             type: 'session.created',
@@ -613,19 +613,13 @@ export class FakeKaana implements KaanaClient {
   }
 }
 
-function stripTextItems(
-  limits: KaanaRealtimeConnectRequest['limits'],
-): Partial<KaanaRealtimeSessionLimits> {
-  if (!limits) return {};
-  const { maxTextItems: _ignored, ...rest } = limits;
-  return rest;
-}
-
 /** The checks `realtimeSessionOpenSchema` and the catalogue make before a grant. */
 function validateOpen(request: KaanaRealtimeConnectRequest, model: KaanaModel): void {
   const { config, limits } = request;
   const invalid = (param: string) => new FakeKaanaError('invalid_request', { param });
   if (request.kind !== 'conversation') throw new FakeKaanaError('unsupported_modality');
+  // Kaana refuses a limit it does not enforce, whatever its value.
+  if (limits !== undefined && 'maxTextItems' in limits) throw invalid('limits.maxTextItems');
   if (
     config.instructions !== undefined &&
     config.instructions.length > KAANA_MAX_REALTIME_INSTRUCTIONS

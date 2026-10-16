@@ -56,8 +56,9 @@ describe('opening', () => {
       maxDurationMs: 30 * 60_000,
       idleTimeoutMs: 2 * 60_000,
       maxResponses: 500,
-      maxTextItems: 0,
     });
+    // Kaana refuses limits it does not enforce (`limits.maxTextItems`): never sent.
+    expect(request.limits).not.toHaveProperty('maxTextItems');
     expect(h.kaana!.session.options?.onBehalfOfUserId).toBe('user-1');
     expect(h.sink.types().slice(0, 2)).toEqual(['session.accepted', 'session.ready']);
     const ready = h.sink.find('session.ready')[0]!;
