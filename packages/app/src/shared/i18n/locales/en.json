@@ -604,6 +604,7 @@
   "billing": {
     "title": "Billing",
     "subtitle": "Manage your subscription and payment methods",
+    "paymentPending": "Payment confirmation is still pending.",
     "paymentSuccess": "Payment successful! Your credits have been added.",
     "currentBalance": "Current balance",
     "credits": "credits",
@@ -638,7 +639,8 @@
     "aboutHours": "About {{count}} hours",
     "customAmountPlaceholder": "Custom amount",
     "buy": "Buy",
-    "customAmount": "Custom amount"
+    "customAmount": "Custom amount",
+    "manageOxySubscription": "Manage or renew in Oxy"
   },
   "library": {
     "title": "Library",
@@ -1124,6 +1126,7 @@
     "monthly": "Monthly",
     "annuallySave": "Annual · Save 20%",
     "perMonth": "/mo",
+    "usdReferencePerMonth": "{{price}} USD/mo",
     "perMonthBilledYearly": "/mo billed yearly",
     "perYear": "/yr",
     "then": "then",
@@ -1181,7 +1184,9 @@
       "googlePlay": "Get it on Google Play",
       "iosTitle": "Coming soon",
       "iosDescription": "The iOS app is on the way."
-    }
+    },
+    "paymentReview": "Payment needs review in Peable. Do not send funds again.",
+    "reviewPayment": "Review payment in Peable"
   },
   "usageLimit": {
     "outOfCreditsTitle": "Out of credits",
@@ -1603,6 +1608,24 @@
           "download": "Downloaded a file"
         }
       }
+    },
+    "templates": {
+      "title": "Start from a template",
+      "hint": "Choose an editable starting point, or describe your own agent below. Templates do not grant access.",
+      "communication": {
+        "label": "Communication",
+        "description": "Prepare publications for review in Schedio.",
+        "access": "After creating, choose Schedio access in Oxy apps. For an organization, choose its exact resources in Accounts → Agency. You review and publish in Schedio.",
+        "prompt": "Help me prepare communications. Ask for the audience, message, tone and desired destinations. Read only the explicitly delegated Schedio account and its connected destinations. Prepare a draft through Schedio, using a stable idempotency key for retries. Show the draft and its Schedio review link to the person. Never approve, schedule or publish it. If the account or destination is unavailable, explain what access the owner must choose in the agent editor or Accounts Agency; never fabricate a publication result. Keep source content in its owning application and use references. These instructions are editable; access is chosen separately."
+      },
+      "materials": {
+        "label": "Materials",
+        "description": "Find pending collections and propose transport for a person to confirm.",
+        "access": "After creating, choose Mercaria → View in Oxy apps. For an organization, select its exact resources in Accounts → Agency. Confirm transport, payer and price in Mercaria and Moovo.",
+        "prompt": "Help coordinate donated materials. Use Mercaria listPendingMaterialPickups for the exact explicitly delegated account, following pagination. Consider accepted reservations only; completed or cancelled reservations are not pending collections. Keep reservation and offer references; do not copy private addresses into posts or memory. If a reservation already has a Moovo transport reference, ask the person to review that transport rather than propose another booking. For reservations needing transport, propose collection or personal pickup with the Mercaria review link and reservation ID. Ask for missing structured pickup and dropoff addresses, contacts and parcel details in the transport form; freeform pickup instructions are not coordinates. The person must choose the payer, review the current quote and explicitly authorize and book through Mercaria/Moovo. Never book, pay or claim payment occurred. Do not treat editing these instructions as a permission grant."
+      },
+      "organizationAccess": "Choose organization and resource access",
+      "organizationAccessHint": "Open Accounts Agency to select the exact account, app and resources this agent may use."
     }
   },
   "authorize": {

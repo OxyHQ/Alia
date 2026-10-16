@@ -1,5 +1,13 @@
+import { useBillingActionScope } from './use-billing-action-scope';
+import { type ProductPlanCatalogue, oxyAccountIdSchema } from '@oxy.so/contracts';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useOxy } from '@oxy.so/services';
+import { useOxy, useDisplayCurrency } from '@oxy.so/services';
+import { authenticatedApiCall } from '@oxy.so/core';
+import {
+  getProductCheckoutKey,
+  clearProductCheckoutKey,
+  productCheckoutStorageKey,
+} from './product-checkout';
 import apiClient from '@/shared/api/client';
 import { queryKeys } from '@/shared/api/query-keys';
 import { useAuthQuery } from '@/shared/api/create-query';
@@ -158,11 +166,13 @@ export function useSubscriptionPolling(
   options?: { enabled?: boolean; intervalMs?: number; maxAttempts?: number },
 ) {
   const { enabled = false, intervalMs = 2000, maxAttempts = 15 } = options || {};
+  const { user, activeSessionId, isAuthenticated } = useOxy();
 
   return useQuery({
-    queryKey: queryKeys.billing.subscriptionPoll(product),
+    queryKey: [...queryKeys.billing.subscriptionPoll(product), user?.id, activeSessionId],
     queryFn: () => fetchSubscription(product),
-    enabled,
+    enabled: enabled && isAuthenticated && !!user?.id && !!activeSessionId,
+    gcTime: 0,
     refetchInterval: (query) => {
       const data = query.state.data;
       if (data && (data.status === 'active' || data.status === 'trialing')) {
@@ -252,26 +262,130 @@ export function useCreditPrice() {
   );
 }
 
+interface ProductCheckoutConfig {
+  productId: string | null;
+  plans: Array<{
+    planId: string;
+    billingPeriod: 'monthly' | 'annual';
+    offerId: string;
+    offerVersion: number;
+  }>;
+}
+
+export function useProductCheckoutOptions() {
+  const { oxyServices, isAuthenticated, user, activeSessionId } = useOxy();
+  return useQuery({
+    queryKey: ['billing', 'product-checkout', user?.id, activeSessionId],
+    enabled: isAuthenticated && !!user?.id,
+    staleTime: 0,
+    gcTime: 0,
+    queryFn: async () => {
+      const { data } = await apiClient.get<ProductCheckoutConfig>('/billing/product-checkout');
+      if (!data.productId)
+        return {
+          available: false,
+          plans: [] as Array<
+            ProductCheckoutConfig['plans'][number] & {
+              price: ProductPlanCatalogue['plans'][number]['price'];
+            }
+          >,
+          productId: null,
+          currentPlan: null as { planId: string; sourceId: string } | null,
+        };
+      const catalogue = await oxyServices.billing.productPlans(data.productId);
+      if (!user?.id || !activeSessionId) throw new Error('Sign in to continue');
+      const subscriptions = await authenticatedApiCall(oxyServices, activeSessionId, () =>
+        oxyServices.billing.productSubscriptions(user.id),
+      );
+      const held = subscriptions
+        .filter((source) => ['active', 'past_due', 'unpaid', 'incomplete'].includes(source.status))
+        .flatMap((source) =>
+          source.offers.flatMap((offer) => {
+            const binding = data.plans.find(
+              (plan) =>
+                offer.origin === 'individual' &&
+                offer.offerId === plan.offerId &&
+                offer.offerVersion === plan.offerVersion,
+            );
+            return binding ? [{ planId: binding.planId, sourceId: source.sourceId }] : [];
+          }),
+        );
+      return {
+        productId: data.productId,
+        currentPlan: held[0] ?? null,
+        available: catalogue.purchase === 'available',
+        plans: data.plans.flatMap((binding) => {
+          const offer = catalogue.plans.find(
+            (offer) =>
+              offer.offerId === binding.offerId &&
+              offer.offerVersion === binding.offerVersion &&
+              offer.price.interval === (binding.billingPeriod === 'annual' ? 'year' : 'month'),
+          );
+          return offer ? [{ ...binding, price: offer.price }] : [];
+        }),
+      };
+    },
+  });
+}
+
 export function useCreateSubscriptionCheckout() {
+  const captureScope = useBillingActionScope();
+  const { oxyServices, user, activeSessionId } = useOxy();
+  const { currency } = useDisplayCurrency();
   return useMutation({
     mutationFn: async ({
       planId,
       billingPeriod,
-      successUrl,
-      cancelUrl,
     }: {
       planId: string;
       billingPeriod: 'monthly' | 'annual';
-      successUrl: string;
-      cancelUrl: string;
     }) => {
-      const response = await apiClient.post('/billing/checkout/subscription', {
-        planId,
-        billingPeriod,
-        successUrl,
-        cancelUrl,
+      const isCurrent = captureScope();
+      const assertCurrent = () => {
+        if (!isCurrent()) throw new Error('Account changed');
+      };
+      assertCurrent();
+      if (!user?.id || !activeSessionId) throw new Error('Sign in to continue');
+      const { data } = await apiClient.get<ProductCheckoutConfig>('/billing/product-checkout');
+      assertCurrent();
+      const binding = data.plans.find(
+        (item) => item.planId === planId && item.billingPeriod === billingPeriod,
+      );
+      if (!data.productId || !binding) throw new Error('This subscription is unavailable');
+      const productId = data.productId;
+      const key = productCheckoutStorageKey(
+        user.id,
+        productId,
+        binding.offerId,
+        binding.offerVersion,
+      );
+      const idempotencyKey = await getProductCheckoutKey(key);
+      assertCurrent();
+      const result = await authenticatedApiCall(oxyServices, activeSessionId, () => {
+        assertCurrent();
+        return oxyServices.billing.startProductPlanCheckout({
+          expectedSubjectAccountId: oxyAccountIdSchema.parse(user.id),
+          productId,
+          offerId: binding.offerId,
+          offerVersion: binding.offerVersion,
+          idempotencyKey,
+        });
       });
-      return response.data;
+      assertCurrent();
+      if (result.state === 'closed' || result.state === 'fulfilled')
+        await clearProductCheckoutKey(key);
+      assertCurrent();
+      if (result.state === 'unconfigured') throw new Error('This subscription is unavailable');
+      if (result.state === 'closed')
+        throw new Error(
+          'Checkout is closed. If funds were sent, check its status in Peable before paying again.',
+        );
+      if (result.state === 'fulfilled') return { state: result.state };
+      if (!result.checkoutUrl)
+        throw new Error('Checkout is pending. Retry to continue the same payment.');
+      const url = new URL(result.checkoutUrl);
+      url.searchParams.set('displayCurrency', currency);
+      return { state: result.state, url: url.toString() };
     },
   });
 }
@@ -293,8 +407,8 @@ export function useChangePlan() {
       return response.data as { subscription: Subscription; direction: 'upgrade' | 'downgrade' };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.billing.entitlements });
-      queryClient.invalidateQueries({ queryKey: queryKeys.billing.subscription() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.billing.entitlements });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.billing.subscription() });
     },
   });
 }
@@ -307,8 +421,8 @@ export function useCancelSubscription() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.billing.entitlements });
-      queryClient.invalidateQueries({ queryKey: queryKeys.billing.subscription() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.billing.entitlements });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.billing.subscription() });
     },
   });
 }
