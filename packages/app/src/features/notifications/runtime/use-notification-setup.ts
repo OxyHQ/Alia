@@ -200,8 +200,6 @@ export function useNotificationSetup() {
           queryKey: queryKeys.conversations.detail(event.conversationId),
         });
       }
-      // The message may be the agent asking for an approval.
-      queryClient.invalidateQueries({ queryKey: ['agent-approvals'] });
       if (event.agentHandle) {
         queryClient.invalidateQueries({ queryKey: queryKeys.agents.thread(event.agentHandle) });
         queryClient.invalidateQueries({
@@ -211,19 +209,11 @@ export function useNotificationSetup() {
     };
     socket.on('conversation:message', onConversationMessage);
 
-    // A request was filed or answered (a payment or deletion asked for in a
-    // chat posts no message): the cards above the conversation refetch.
-    const onApprovalsChanged = () => {
-      queryClient.invalidateQueries({ queryKey: ['agent-approvals'] });
-    };
-    socket.on('approvals:changed', onApprovalsChanged);
-
     return () => {
       // Remove only THIS listener; the connection belongs to whoever still
       // holds it.
       socket.off('notification', onNotification);
       socket.off('conversation:message', onConversationMessage);
-      socket.off('approvals:changed', onApprovalsChanged);
       release();
     };
   }, [isAuthenticated, user?.id, queryClient]);

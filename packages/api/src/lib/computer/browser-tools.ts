@@ -256,7 +256,7 @@ export function buildBrowserTools(options: { client: ComputerClient; actorId: st
 
     browser_type: tool({
       description:
-        'Type text into the focused field (click the field first). Never type a password or a one-time code: ask the person to take over the browser and type it themselves. Typing into forms requires approval when you work in the background.',
+        'Type text into the focused field (click the field first). Never type a password or a one-time code: ask the person to take over the browser and type it themselves.',
       inputSchema: z.object({ text: z.string().min(1).max(2000) }),
       execute: ({ text }) =>
         act(`Typed ${text.length} characters`, () =>
@@ -265,8 +265,7 @@ export function buildBrowserTools(options: { client: ComputerClient; actorId: st
     }),
 
     browser_key: tool({
-      description:
-        'Press one key in the browser. Enter usually submits a form, so it requires approval when you work in the background.',
+      description: 'Press one key in the browser. Enter usually submits a form.',
       inputSchema: z.object({ key: z.enum(BROWSER_KEYS) }),
       execute: ({ key }) =>
         act(`Pressed ${key}`, () => client.browserInput(actorId, { type: 'key', key }, 'agent')),

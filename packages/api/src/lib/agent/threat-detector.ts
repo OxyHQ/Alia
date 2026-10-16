@@ -17,8 +17,8 @@ export interface ThreatResult {
   maxSeverity: ThreatSeverity | 'none';
   /** Automatically block — do not execute */
   shouldBlock: boolean;
-  /** Requires user approval before execution */
-  shouldApprove: boolean;
+  /** Executed, but flagged in the run's events and logs (ADR 0020 §3: nothing asks) */
+  shouldFlag: boolean;
 }
 
 const SEVERITY_ORDER: Record<ThreatSeverity | 'none', number> = {
@@ -33,7 +33,7 @@ const EMPTY_RESULT: ThreatResult = {
   threats: [],
   maxSeverity: 'none',
   shouldBlock: false,
-  shouldApprove: false,
+  shouldFlag: false,
 };
 
 /**
@@ -68,7 +68,7 @@ export function analyzeThreat(toolName: string, args: Record<string, unknown>): 
     threats,
     maxSeverity,
     shouldBlock: maxSeverity === 'block',
-    shouldApprove: maxSeverity === 'warning' || maxSeverity === 'critical',
+    shouldFlag: maxSeverity === 'warning' || maxSeverity === 'critical',
   };
 }
 

@@ -21,10 +21,10 @@ export function isDeclaredReadOnly(tool: object): boolean {
  * Tools built from an Oxy app catalog (`lib/tools/oxy-services.ts`).
  *
  * Oxy authorizes each of their calls itself — the person's bearer, or an
- * agent's level — and the builder files a payment or a deletion for review
- * before it can run. The runtime policy (`actions.ts`) reads this mark so it
- * does not treat an Oxy write as an unknown tool needing a second approval:
- * an agent at *Ver y actuar* acts without asking.
+ * agent's level, ceiling or `finance` grant and its limits — and that is the
+ * whole permission (ADR 0020 §3). The runtime policy (`actions.ts`) reads this
+ * mark so it classifies an Oxy call by the catalog's effect, never by its name
+ * or by a word in its arguments.
  */
 const declaredOxyApp = new WeakSet<object>();
 

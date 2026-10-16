@@ -176,7 +176,7 @@ export function buildComputerTools(options: {
       description:
         'Run a bash command on your computer (no internet access; /workspace persists, /tmp does not and cannot hold executables). ' +
         'Give every distinct command its own operationId; repeating a call with the same operationId returns the first result instead of running it again. ' +
-        'A foreground command is stopped after timeoutSeconds (default 60, max 300). Set background=true for a long-running process; its output goes to a log file under /workspace/.alia/jobs/ that you can read later, and it requires approval. ' +
+        'A foreground command is stopped after timeoutSeconds (default 60, max 300). Set background=true for a long-running process; its output goes to a log file under /workspace/.alia/jobs/ that you can read later. ' +
         UNTRUSTED_NOTE,
       inputSchema: z.object({
         command: z.string().min(1).max(16_000).describe('The bash command'),

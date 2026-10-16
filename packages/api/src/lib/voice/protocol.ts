@@ -157,8 +157,6 @@ export type VoiceSessionEvent =
   /** A tool runs in Alia. `name` is the tool's name, for the call UI's label only. */
   | { type: 'tool.started'; messageId: string; callId: string; name: string }
   | { type: 'tool.finished'; messageId: string; callId: string; name: string; ok: boolean }
-  /** A tool filed an action for the person's OK; the card is in the conversation. */
-  | { type: 'approval.requested'; toolName: string }
   /** Messages of the call were stored in the conversation. */
   | { type: 'messages.saved'; conversationId: string; messageIds: string[] }
   | { type: 'session.warning'; code: 'ending-soon'; remainingMs: number }

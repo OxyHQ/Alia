@@ -10,7 +10,6 @@ import memoryRouter from './memory.js';
 import computerRouter from './computer.js';
 import teamsRouter from './teams.js';
 import coworkDevicesRouter from './cowork-devices.js';
-import approvalsRouter from './approvals.js';
 import oxyAppsRouter from './oxy-apps.js';
 
 const router = Router();
@@ -34,7 +33,6 @@ router.use('/', memoryRouter);
 router.use('/', computerRouter);
 router.use('/', teamsRouter);
 router.use('/', coworkDevicesRouter);
-router.use('/', approvalsRouter);
 router.use('/', oxyAppsRouter);
 
 // Session-specific routes (sessions/:sid/...) before parameterized /:id routes

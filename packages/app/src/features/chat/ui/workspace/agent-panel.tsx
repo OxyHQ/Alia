@@ -23,7 +23,6 @@ import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { LinkPreviewCard } from '@oxy.so/bloom/link-preview';
-import { Notification } from '@oxy.so/bloom/notification';
 import { StatBar } from '@oxy.so/bloom/stat-bar';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -36,8 +35,8 @@ import { Platform, ScrollView, View } from 'react-native';
  * AgentPanel — the right panel showing an agent run as it happens.
  *
  * Two tabs (Steps | Sources) over the run's live events, the plan as Bloom's
- * `AgentProgress`, a pending approval as a warning `Notification` with its two
- * answers, and the action in flight as `AgentThinking` at the foot.
+ * `AgentProgress`, and the action in flight as `AgentThinking` at the foot.
+ * Nothing here asks the person to approve anything (ADR 0020 §3).
  *
  * There is no Files tab and no Browser tab. An agent has no workspace
  * filesystem — the `files` capability was retired with the sandbox it needed —
@@ -242,7 +241,6 @@ export function AgentPanel() {
 
   const activity = useAgentActivity(activeAgentSessionId, activeAgentId);
   const isActive = !activity.isComplete && !activity.hasError;
-  const approval = activity.approvalRequest;
   const current = activity.currentAction;
   const currentLabel = current
     ? `${current.toolName} ${current.content.length > 60 ? `${current.content.slice(0, 60)}…` : current.content}`.trim()
@@ -301,27 +299,6 @@ export function AgentPanel() {
       {activity.plan && activity.plan.total > 0 ? (
         <View className="px-4">
           <PlanProgressView plan={activity.plan} />
-        </View>
-      ) : null}
-
-      {approval ? (
-        <View className="px-4">
-          <Notification
-            status="warning"
-            title={t('panels.agent.approvalRequired')}
-            description={`${approval.toolName}: ${approval.description}`}
-            dismissible={false}
-            actions={[
-              {
-                label: t('panels.agent.deny'),
-                onPress: () => activity.respondApproval(approval.requestId, false),
-              },
-              {
-                label: t('panels.agent.approve'),
-                onPress: () => activity.respondApproval(approval.requestId, true),
-              },
-            ]}
-          />
         </View>
       ) : null}
 

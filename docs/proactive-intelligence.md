@@ -172,11 +172,12 @@ A task's `maximumAutonomy` bounds its connected actions: manual execution requir
 `execute_on_request` or `autonomous`; background event and schedule execution
 requires `autonomous`; `draft` and `read_only` definitions produce no effects.
 
-## Governance and Approvals
+## Governance
 
-The risk classes (`R0`–`R3`) and approvals are documented once, in
-[Agents → Governance](./agents.md#governance); a background run never waits for an
-approval ([Agents → Approvals nobody is waiting for](./agents.md#approvals-nobody-is-waiting-for)).
+The risk classes (`R0`–`R3`) are documented once, in
+[Agents → Governance](./agents.md#governance). No run — background or attended,
+Alia's or an agent's — asks for approval (ADR 0020 §3): R2 runs flagged, R3 is
+blocked.
 
 The Oxy autonomy vocabulary is `read_only`, `draft`, `execute_on_request` and
 `autonomous`; the most restrictive live policy wins. Risk classes still govern

@@ -94,7 +94,7 @@ Oxy resolves identity, policy and the exact ordered deployments; Kaana executes
 only that signed order and performs failover only within it.
 
 Alia is present only when the feature is an assistant or agent with conversation
-state, memory, tools, approvals or its own bot identity. A bounded product-owned
+state, memory, tools or its own bot identity. A bounded product-owned
 operation such as translate, classify, summarize, rewrite or smart reply uses
 `app -> Oxy -> Kaana` and does not detour through Alia. Sindi and Clarity are the
 other case: they are private Alia product agents, so their path is

@@ -1,4 +1,3 @@
-import { AgentApprovalsBanner } from '@/features/agents/ui/agent-approvals-banner';
 import { ChatWorkspace } from '@/features/chat/ui/chat-workspace';
 import { ConversationScreen } from '@/features/chat/ui/conversation-screen';
 import { readAgentCharacter } from '@alia.onl/sdk';
@@ -152,7 +151,6 @@ const AgentThreadPage = () => {
       asChild
     >
       <View className="flex-1 web:z-auto">
-        <AgentApprovalsBanner agentId={thread.agent._id} />
         <ConversationScreen
           conversationId={thread.conversationId}
           agentId={thread.agent._id}

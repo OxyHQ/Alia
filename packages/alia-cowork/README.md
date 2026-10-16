@@ -14,8 +14,6 @@ Supported named events:
 - `alia.reasoning`
 - `alia.tool_result`
 - `alia.plan_preview`
-- `alia.approval_request`
-- `alia.approval_result`
 - `alia.research_progress`
 - `alia.agent_session`
 - `alia.title`

@@ -43,7 +43,7 @@ for an agent ([memory](./memory-system.md)). The 128-tool request limit and the
 `loadTools` tool loader are in [chat runtime](./chat-runtime.mdx#tool-budget-and-the-tool-loader).
 
 Risk is classified per call by `classifyActionRisk` (`lib/agent/governance.ts`):
-`R2` asks for approval in an attended turn, `R3` is blocked — see
+`R2` runs flagged, `R3` is blocked, and nothing asks for approval — see
 [governance](./agents.md#governance).
 
 ### Adding a tool
@@ -134,7 +134,7 @@ Inbound messages arrive at the API as either:
 - **Oxy application events** — authenticated service publishers send normalized events to
   `/webhooks/oxy`, where structured automations match explicit app, event and resource fields
 
-Outbound tools (e.g. `sendTelegramMessage`, `sendWhatsAppMessage`) require `R2` approval by default. Structured automation actions remain bound by their exact Oxy authority and Alia risk policy.
+Outbound tools (e.g. `sendTelegramMessage`, `sendWhatsAppMessage`) are `R2`: they run, flagged. Structured automation actions remain bound by their exact Oxy authority and Alia risk policy.
 
 ## Structured Automations
 

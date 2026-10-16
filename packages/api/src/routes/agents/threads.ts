@@ -120,7 +120,6 @@ router.post(
       agentId: agent._id,
       title,
       modelId,
-      approvalMode: req.body?.approvalMode === 'supervised_auto' ? 'supervised_auto' : 'ask',
       executionTarget,
       coworkDeviceId,
     });
@@ -172,9 +171,6 @@ router.patch(
         : {}),
       ...(req.body?.status === 'open' || req.body?.status === 'closed'
         ? { status: req.body.status }
-        : {}),
-      ...(req.body?.approvalMode === 'ask' || req.body?.approvalMode === 'supervised_auto'
-        ? { approvalMode: req.body.approvalMode }
         : {}),
       ...(executionTarget === 'sandbox' || executionTarget === 'cowork'
         ? { executionTarget, coworkDeviceId: executionTarget === 'cowork' ? coworkDeviceId : null }

@@ -15,9 +15,6 @@ vi.mock('../../../db/agents/agentSessionRepository.js', () => ({
   failExhaustedAgentSessionRun: H.failExhausted,
   RUNNER_MAX_ATTEMPTS: 3,
 }));
-vi.mock('../../../db/agents/agentRuntimeRepository.js', () => ({
-  expireAgentApprovals: vi.fn(async () => []),
-}));
 vi.mock('../../../db/automation/automationDefinitionRepository.js', () => ({
   markAutomationRunForSession: H.markRun,
 }));

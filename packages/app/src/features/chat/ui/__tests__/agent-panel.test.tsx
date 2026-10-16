@@ -2,14 +2,13 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The agent panel over a live run: what each event reads as, where the plan,
- * the approval and the action in flight go, and that the answers to an
- * approval reach the run. Bloom is stubbed at its boundary
+ * The agent panel over a live run: what each event reads as, and where the
+ * plan and the action in flight go. Bloom is stubbed at its boundary
  * (`panel-bloom-stubs.tsx`); the activity hook is replaced by the state a
  * run's socket would have built.
  */
 
-const state = vi.hoisted(() => ({ activity: {} as Record<string, unknown>, respond: vi.fn() }));
+const state = vi.hoisted(() => ({ activity: {} as Record<string, unknown> }));
 
 vi.mock('react-native', async () => {
   const { host } = await import('@/shared/testing/panel-bloom-stubs');
@@ -21,7 +20,7 @@ vi.mock('react-native', async () => {
   };
 });
 vi.mock('@alia.onl/sdk/runtime', () => ({
-  useAgentActivity: () => ({ ...state.activity, respondApproval: state.respond }),
+  useAgentActivity: () => state.activity,
 }));
 vi.mock('@/features/chat/runtime/ui-store', () => ({
   useUIStore: (select: (s: Record<string, unknown>) => unknown) =>
@@ -134,7 +133,6 @@ const idle = {
   events: [],
   sources: [],
   files: [],
-  approvalRequest: null,
 };
 
 let renderer: ReactTestRenderer | null = null;
@@ -151,7 +149,6 @@ const hosts = (r: ReactTestRenderer, name: string) =>
 afterEach(() => {
   if (renderer !== null) act(() => renderer?.unmount());
   renderer = null;
-  state.respond.mockReset();
 });
 
 describe('what an event reads as', () => {
@@ -200,25 +197,12 @@ describe('a live run', () => {
     expect(hosts(r, 'AgentThinking')[0].props.label).toBe('shell ls');
   });
 
-  it('asks for an approval with its two answers, and sends the one chosen', () => {
+  it('never asks the person to approve anything (ADR 0020 §3)', () => {
     const r = render({
-      approvalRequest: {
-        requestId: 'q1',
-        toolName: 'shell',
-        description: 'rm -rf build',
-        severity: 'high',
-        timeout: 60,
-      },
+      events: [event({ metadata: { toolName: 'shell', args: { command: 'ls' } } })],
+      currentAction: { toolName: 'shell', content: 'ls' },
     });
-    const notification = hosts(r, 'Notification')[0];
-    expect(notification.props.status).toBe('warning');
-    expect(notification.props.dismissible).toBe(false);
-    const [deny, approve] = notification.props.actions as { label: string; onPress: () => void }[];
-    expect([deny.label, approve.label]).toEqual(['panels.agent.deny', 'panels.agent.approve']);
-    approve.onPress();
-    expect(state.respond).toHaveBeenCalledWith('q1', true);
-    deny.onPress();
-    expect(state.respond).toHaveBeenCalledWith('q1', false);
+    expect(hosts(r, 'Notification')).toHaveLength(0);
   });
 
   it('waits on the log’s working row before the first step, and says "no steps" once it is over', () => {

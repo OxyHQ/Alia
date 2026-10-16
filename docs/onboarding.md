@@ -34,7 +34,7 @@ model providers directly.
                                              +-----------------------+
      +--------v--------+
      |  Redis (Valkey) |      Socket.IO (real-time events,
-     |  rate limits,   |      approval requests, streaming)
+     |  rate limits,   |      notifications, streaming)
      |  caching        |
      +-----------------+
 ```
@@ -59,10 +59,10 @@ Canonical: [agents → governance](./agents.md#governance).
 |-------|---------|----------|
 | R0 | Read-only | Fully autonomous |
 | R1 | Reversible write | Autonomous + rollback record saved |
-| R2 | External/unknown impact | Requires user approval |
+| R2 | External/unknown impact | Runs, flagged |
 | R3 | Destructive | Blocked |
 
-Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_result`). They are Socket.IO events only — nothing writes them to the chat SSE stream.
+No level asks for approval (ADR 0020 §3): an agent's configuration is its permission, enforced by Oxy per call.
 
 ---
 

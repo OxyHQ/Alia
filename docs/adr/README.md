@@ -14,14 +14,14 @@ An ADR records a decision that is **in force now**, the context that forced it, 
 | [0006](./0006-the-destination-of-api-alia-onl-v1-is-recorded-twice.md) | The destination of `api.alia.onl/v1/*` is recorded twice, differently | Superseded by 0010 | 2026-08-19 |
 | [0007](./0007-a-users-own-machine-as-an-inference-runtime.md) | A user's own machine as an inference runtime | Accepted | 2026-08-24 |
 | [0008](./0008-skills-are-agent-skills.md) | A skill is an Agent Skill, not a prompt fragment | Accepted | 2026-08-26 |
-| [0009](./0009-agent-threads-are-durable-execution-units.md) | Agent threads are durable execution units | Accepted | 2026-09-10 |
+| [0009](./0009-agent-threads-are-durable-execution-units.md) | Agent threads are durable execution units | Accepted; amended by 0020 | 2026-09-10 |
 | [0010](./0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md) | Alia keeps a product API; credentials come from Oxy Console | Accepted | 2026-09-10 |
-| [0011](./0011-autonomous-agents-run-durably-and-speak-first.md) | Autonomous agents run durably and may speak first | Proposed (implemented; extended by 0015) | 2026-09-24 |
+| [0011](./0011-autonomous-agents-run-durably-and-speak-first.md) | Autonomous agents run durably and may speak first | Proposed (implemented; extended by 0015; amended by 0020) | 2026-09-24 |
 | [0012](./0012-alia-uses-real-models.md) | Alia uses real models from Oxy's catalogue | Accepted; superseded in part by 0014 | 2026-09-25 |
 | [0013](./0013-voice-runs-on-the-device-livekit-and-cohost-are-retired.md) | Voice runs on the device; LiveKit, cohost and voice minutes are retired | Accepted | 2026-09-24 |
 | [0014](./0014-people-choose-power-levels-not-models.md) | People choose power levels, not models | Accepted | 2026-10-01 |
 | [0015](./0015-actors-and-identities.md) | Actors and identities: Alia and agents, for the person and as themselves | Accepted; amended by 0020 | 2026-10-06 |
-| [0017](./0017-voice-is-a-realtime-session-through-kaana.md) | Voice is a realtime speech-to-speech session through Kaana; dictation is Kaana transcription | Accepted (supersedes 0013 §1–3) | 2026-10-15 |
+| [0017](./0017-voice-is-a-realtime-session-through-kaana.md) | Voice is a realtime speech-to-speech session through Kaana; dictation is Kaana transcription | Accepted (supersedes 0013 §1–3); amended by 0020 | 2026-10-15 |
 | [0018](./0018-the-conversation-screen-is-the-sdks.md) | The conversation screen is the SDK's; the app keeps its layout | Accepted | 2026-10-15 |
 | [0020](./0020-every-agent-is-the-same-agent.md) | Every agent is the same agent: one base for Alia, people's agents and app agents | Accepted | 2026-10-16 |
 | [0021](./0021-app-confined-agents.md) | An app's agent may be confined to that app, by Oxy | Accepted | 2026-10-16 |

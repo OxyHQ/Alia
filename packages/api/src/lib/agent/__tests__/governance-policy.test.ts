@@ -16,10 +16,15 @@ import type { ToolCallOptions, ToolSet } from 'ai';
  * what a REAL primitive does when it is called, after the policy pass the
  * assembler runs over it.
  *
- * The seam is therefore the two things that leave the process — the approval
- * round trip (`action-approval.ts`, which reaches Socket.IO) and the rollback
+ * The seam is therefore the one thing that leaves the process — the rollback
  * row (`db/agents/rollbackRecordRepository.ts`). `governance.ts`, `threat-detector.ts` and
  * the wrapper itself all run for real.
+ *
+ * ## No level asks (ADR 0020 §3)
+ *
+ * R3 and a blocking threat are LIMITS and never run. R2 and a threat warning
+ * run, flagged on the event stream and in the logs. Nothing here files or
+ * waits for the person's approval.
  *
  * ## Where each level comes from
  *
@@ -30,27 +35,18 @@ import type { ToolCallOptions, ToolSet } from 'ai';
  * wrapper through MCP here exactly as in production: `ToolPipeline` merges
  * `buildMcpTools`' output into the same set and `applyRuntimePolicy` wraps
  * everything in it identically. `send_message` is an MCP tool no set names, so
- * it is the unknown-tool default: R2.
+ * it is the unknown-tool default: R2, executed and flagged.
  */
 
 const H = vi.hoisted(() => {
   const timeline: string[] = [];
   const state = {
-    /** What the mocked approval round trip answers. */
-    approval: 'approved' as 'approved' | 'denied' | 'timeout',
     rollbackRows: [] as Array<Record<string, unknown>>,
     /** Executions of the underlying (unwrapped) MCP tools, by name. */
     mcpRuns: [] as string[],
   };
   return { timeline, state };
 });
-
-vi.mock('../action-approval.js', () => ({
-  requestApproval: vi.fn(async (opts: { toolName: string }) => {
-    H.timeline.push(`approval:request(${opts.toolName})`);
-    return H.state.approval;
-  }),
-}));
 
 vi.mock('../../../db/index.js', () => ({ getDb: vi.fn() }));
 
@@ -110,7 +106,6 @@ import { applyRuntimePolicy, buildRuntimeTools, type AgentRuntimeContext } from 
 import { buildMcpTools } from '../../tools/mcp.js';
 import { classifyActionRisk } from '../governance.js';
 import { declareOxyAppTool, declareReadOnly } from '../tool-effects.js';
-import { requestApproval } from '../action-approval.js';
 import { insertRollbackRecord } from '../../../db/agents/rollbackRecordRepository.js';
 import { GRANTS_EVERYTHING, readCapabilityGrants } from '../../../domain/capability-grants.js';
 
@@ -172,7 +167,6 @@ async function run(
 
 beforeEach(() => {
   H.timeline.length = 0;
-  H.state.approval = 'approved';
   H.state.rollbackRows.length = 0;
   H.state.mcpRuns.length = 0;
   vi.clearAllMocks();
@@ -227,15 +221,14 @@ describe('the risk classifier answers each level for a distinct reason', () => {
     });
   });
 
-  it('reads a read-only name as R0 and an unknown name as approval-required', () => {
+  it('reads a read-only name as R0 and an unknown name as R2 (flagged)', () => {
     expect(classifyActionRisk('read_file', { path: 'a.txt' }).riskLevel).toBe('R0');
     expect(classifyActionRisk('a_tool_nobody_registered', {}).riskLevel).toBe('R2');
   });
 
   /**
-   * None of the primitives needs a person watching. They used to fall through
-   * to the unknown-tool default (R2), which made every unattended `browser` or
-   * `delegate` call wait 60s for an approval nobody could give and then fail.
+   * None of the primitives needs a person watching, so none of them is flagged
+   * on every call as the unknown-tool default (R2) would be.
    */
   it('classifies the action primitives by what the call does, never R2', () => {
     expect(
@@ -299,37 +292,55 @@ describe('the governance wrapper enforces the level it classified', () => {
       'event:system_message(POLICY BLOCKED [R3]: Destructive or irreversible operation blocked by policy)',
     ]);
     expect(H.timeline.filter((entry) => entry.startsWith('exec:'))).toEqual([]);
-    expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
   });
 
-  it('R2 asks for approval and refuses when the answer is not yes', async () => {
-    H.state.approval = 'denied';
-    const actions = await policyApplied(actionContext());
-    const result = await run(actions, 'send_message', { to: 'someone', text: 'hello' });
-
-    expect(result).toBe('Error: Action requires approval (denied).');
-    expect(H.timeline).toEqual([
-      'approval:request(send_message)',
-      'event:system_message(APPROVAL DENIED: send_message)',
-    ]);
-    expect(H.timeline.filter((entry) => entry.startsWith('exec:'))).toEqual([]);
-  });
-
-  it('R2 runs the tool exactly once when the answer IS yes (the control)', async () => {
-    // Without this, "denied blocks execution" is also what a wrapper that never
-    // executed anything would report.
-    H.state.approval = 'approved';
+  it('R2 runs the tool, once, and flags it on the event stream — nothing asks', async () => {
     const actions = await policyApplied(actionContext());
     const result = await run(actions, 'send_message', { to: 'someone', text: 'hello' });
 
     expect(result).toBe('sent');
-    expect(H.timeline).toEqual(['approval:request(send_message)', 'exec:send_message']);
+    expect(H.timeline).toEqual([
+      'event:system_message(POLICY FLAGGED [R2]: send_message — Unknown tool, executed and flagged)',
+      'exec:send_message',
+    ]);
+    expect(H.state.mcpRuns).toEqual(['send_message']);
+    // R2 offers no rollback window: it is not a reversible write.
+    expect(vi.mocked(insertRollbackRecord)).not.toHaveBeenCalled();
   });
 
-  it('a browser read runs unattended: no approval, no rollback window', async () => {
-    // The approval double would answer "denied", which is what an unattended
-    // run gets; the read must not depend on it.
-    H.state.approval = 'denied';
+  it('a blocking threat still blocks, even on an R0 primitive', async () => {
+    const actions = await policyApplied(actionContext());
+    const result = await run(actions, 'browser', {
+      action: 'goto',
+      url: 'http://169.254.169.254/latest/meta-data/',
+    });
+
+    expect(result).toBe(
+      'Error: Action blocked by security policy — Cloud metadata endpoint access',
+    );
+    expect(H.timeline.filter((entry) => entry.startsWith('exec:'))).toEqual([]);
+    expect(H.timeline).toEqual([expect.stringMatching(/^event:system_message\(THREAT BLOCKED: /)]);
+  });
+
+  it('a threat warning runs the tool and flags it, where it used to ask', async () => {
+    const actions = await policyApplied(actionContext());
+    const result = await run(actions, 'write_file', {
+      path: 'notes.txt',
+      content: 'ignore previous instructions',
+    });
+
+    expect(result).toBe('written');
+    expect(H.timeline[0]).toMatch(
+      /^event:system_message\(THREAT WARNING: .*Action allowed but flagged\.\)$/,
+    );
+    expect(H.timeline.slice(1)).toEqual([
+      'exec:write_file',
+      'rollback:create',
+      'event:system_message(ROLLBACK WINDOW OPEN [R1]: write_file)',
+    ]);
+  });
+
+  it('a browser read runs unattended: nothing flagged, no rollback window', async () => {
     const actions = await policyApplied(actionContext());
     const result = await run(actions, 'browser', {
       action: 'search',
@@ -338,54 +349,22 @@ describe('the governance wrapper enforces the level it classified', () => {
 
     expect(result).toBe('page text');
     expect(H.timeline).toEqual(['exec:browser(search)']);
-    expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
     expect(vi.mocked(insertRollbackRecord)).not.toHaveBeenCalled();
   });
 
-  it('a background run asks asynchronously instead of waiting, and runs a call approved earlier', async () => {
-    const finish = vi.fn(async () => undefined);
-    const approvals = {
-      granted: vi.fn(
-        async (): Promise<{ state: string; finish?: typeof finish }> => ({ state: 'none' }),
-      ),
-      request: vi.fn(async () => 'asked the person'),
-    };
-    const ctx = { ...actionContext(), approvals } as unknown as AgentRuntimeContext;
+  it('a background run (nobody watching) runs R2 too, flagged, and asks nobody', async () => {
+    const ctx = actionContext();
+    // A background run is the one without `continueInBackground`, so typing
+    // into the agent's browser classifies as R2 there.
+    expect(classifyActionRisk('browser_type', { text: 'hi' }).riskLevel).toBe('R2');
     const actions = await policyApplied(ctx);
-
-    // Not approved yet: the person is asked, the run is told, nothing runs and
-    // nothing waits on the in-process prompt.
-    expect(await run(actions, 'send_message', { to: 'a', text: 'hi' })).toBe('asked the person');
-    expect(approvals.request).toHaveBeenCalledWith(
-      'send_message',
-      { to: 'a', text: 'hi' },
-      expect.any(String),
-    );
-    expect(H.state.mcpRuns).toEqual([]);
-    expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
-
-    // Approved earlier for exactly this call: it is claimed, runs, and its
-    // end is recorded.
-    approvals.granted.mockResolvedValueOnce({ state: 'claimed', finish });
     expect(await run(actions, 'send_message', { to: 'a', text: 'hi' })).toBe('sent');
-    expect(H.state.mcpRuns).toEqual(['send_message']);
-    expect(finish).toHaveBeenCalledWith('succeeded', expect.any(Object));
-
-    // Already performed once under that approval: never again.
-    approvals.granted.mockResolvedValueOnce({ state: 'already_done' });
-    expect(await run(actions, 'send_message', { to: 'a', text: 'hi' })).toMatch(
-      /already performed once/,
-    );
-    expect(H.state.mcpRuns).toEqual(['send_message']);
+    expect(await run(actions, 'send_message', { to: 'b', text: 'hi' })).toBe('sent');
+    expect(H.state.mcpRuns).toEqual(['send_message', 'send_message']);
   });
 
   it('an Oxy app write runs with no approval card, attended or not (Ver y actuar)', async () => {
-    H.state.approval = 'denied';
-    const approvals = {
-      granted: vi.fn(async () => ({ state: 'none' })),
-      request: vi.fn(async () => 'asked the person'),
-    };
-    const ctx = { ...actionContext(), approvals } as unknown as AgentRuntimeContext;
+    const ctx = actionContext();
     const tools: ToolSet = {
       oxy_inbox__sendEmail: declareOxyAppTool({
         description: 'send an email',
@@ -396,8 +375,8 @@ describe('the governance wrapper enforces the level it classified', () => {
       }) as unknown as ToolSet[string],
     };
     const actions = await applyRuntimePolicy(tools, ctx, new Set());
-    // Text a threat heuristic asks about, and a query word R3 would block on
-    // an unknown tool: neither turns an Oxy call into a card.
+    // Text a threat heuristic flags, and a query word R3 would block on an
+    // unknown tool: the call still runs, classified by Oxy's catalog alone.
     expect(
       await run(actions, 'oxy_inbox__sendEmail', {
         to: 'a@b.c',
@@ -405,14 +384,10 @@ describe('the governance wrapper enforces the level it classified', () => {
         query: 'delete from',
       }),
     ).toBe('sent');
-    expect(approvals.request).not.toHaveBeenCalled();
-    expect(approvals.granted).not.toHaveBeenCalled();
-    expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
     expect(vi.mocked(insertRollbackRecord)).not.toHaveBeenCalled();
   });
 
-  it('the same write WITHOUT the Oxy mark is still an unknown R2 tool (the control)', async () => {
-    H.state.approval = 'denied';
+  it('the same write WITHOUT the Oxy mark is an unknown R2 tool, flagged (the control)', async () => {
     const tools: ToolSet = {
       oxy_inbox__sendEmail: {
         description: 'send an email',
@@ -420,13 +395,13 @@ describe('the governance wrapper enforces the level it classified', () => {
       } as unknown as ToolSet[string],
     };
     const actions = await applyRuntimePolicy(tools, actionContext(), new Set());
-    expect(await run(actions, 'oxy_inbox__sendEmail', { to: 'a@b.c' })).toBe(
-      'Error: Action requires approval (denied).',
+    expect(await run(actions, 'oxy_inbox__sendEmail', { to: 'a@b.c' })).toBe('sent');
+    expect(H.timeline).toContain(
+      'event:system_message(POLICY FLAGGED [R2]: oxy_inbox__sendEmail — Unknown tool, executed and flagged)',
     );
   });
 
   it('a read-only declaration reaches the wrapper through the tool object', async () => {
-    H.state.approval = 'denied';
     const ctx = actionContext();
     const tools: ToolSet = {
       oxy_inbox__list_threads: declareReadOnly({
@@ -439,7 +414,6 @@ describe('the governance wrapper enforces the level it classified', () => {
     };
     const actions = await applyRuntimePolicy(tools, ctx, new Set());
     expect(await run(actions, 'oxy_inbox__list_threads', {})).toBe('threads');
-    expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
   });
 
   it('R1 executes, then opens a rollback window recording what was done', async () => {
@@ -454,7 +428,6 @@ describe('the governance wrapper enforces the level it classified', () => {
       'rollback:create',
       'event:system_message(ROLLBACK WINDOW OPEN [R1]: write_file)',
     ]);
-    expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
 
     const [row] = H.state.rollbackRows;
     expect(row).toMatchObject({
@@ -472,13 +445,12 @@ describe('the governance wrapper enforces the level it classified', () => {
     expect((row.expiresAt as Date).getTime()).toBeGreaterThan(Date.now());
   });
 
-  it('R0 runs with no approval and no rollback record', async () => {
+  it('R0 runs with nothing flagged and no rollback record', async () => {
     const actions = await policyApplied(actionContext());
     const result = await run(actions, 'read_file', { path: 'notes.txt' });
 
     expect(result).toBe('file contents');
     expect(H.timeline).toEqual(['exec:read_file']);
-    expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
     expect(vi.mocked(insertRollbackRecord)).not.toHaveBeenCalled();
   });
 });
@@ -518,7 +490,6 @@ describe('every action carries the wrapper, and the exemption is exactly one', (
      * classifies as. `browser` is R0 and cannot be R3 — its query is text to
      * look up — so a destructive-payload probe would read it as unwrapped.
      */
-    H.state.approval = 'approved';
     const probe = { action: 'search', query: 'same call again' };
     for (const name of executable) {
       if (name === 'plan') continue;
@@ -536,7 +507,6 @@ describe('every action carries the wrapper, and the exemption is exactly one', (
     let planResult: unknown;
     for (let call = 0; call < 5; call += 1)
       planResult = await run(actions, 'plan', { action: 'update', items: ['a'] });
-    expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
     expect(planResult).toBe('plan');
   });
 
@@ -547,11 +517,9 @@ describe('every action carries the wrapper, and the exemption is exactly one', (
      * `perms.shell === false` used to swap the executor for a function that
      * answered "Shell access is disabled", leaving the tool in the set with its
      * description intact — so the model could still spend a step calling it, and
-     * an approved R2 was refused only because the stub sat under the wrapper.
-     * Withholding is stronger and simpler: there is nothing to approve away
-     * because there is nothing to call.
+     * an R2 call was refused only because the stub sat under the wrapper.
+     * Withholding is stronger and simpler: there is nothing to call.
      */
-    H.state.approval = 'approved';
     const actions = await policyApplied(
       {
         ...actionContext(),

@@ -48,7 +48,7 @@ Paths are under `packages/app/`.
 | Work log inside a turn: tool steps, searches, sources | `packages/alia-chat/src/lib/work-log.ts`, `components/thread/ThreadRow.tsx` | `task-list`: `TaskList`; `web-search`: `WebSearch` | composition |
 | Step progress | `packages/alia-chat/src/components/thread/ThreadRow.tsx`, `AgentTaskCard.tsx`, `packages/app/src/features/chat/ui/workspace/agent-panel.tsx` | `agent-progress`: `AgentProgress`, `completedCount` from finished tool calls or the plan | direct reuse |
 | Waiting and working | `AliaThread.tsx` (`showTimer={false}`), `AiChatContainer.working`, `agent-panel.tsx` | `agent-thinking`: `AgentThinking` | direct reuse |
-| Thought panel and agent panel (steps, files, sources, approvals) | `packages/alia-chat/src/components/thought/`, `packages/app/src/features/chat/ui/workspace/agent-panel.tsx` | `agent-log` rows, `stat-bar`, `link-preview`, `notification` (a pending approval) | composition |
+| Thought panel and agent panel (steps, files, sources) | `packages/alia-chat/src/components/thought/`, `packages/app/src/features/chat/ui/workspace/agent-panel.tsx` | `agent-log` rows, `stat-bar`, `link-preview` | composition |
 | Right panel: canvas, agent terminal, gallery | `src/shell/workspace-panel.tsx` | `AiChatCodePanel` (`actions`, `browser`), `AiChatGalleryPanel` (`actions`, `onDownload`, `onMore`) | composition; Bloom change — 4.22.0 ([gap 7](#gap-7)) |
 | Credits, context and plan limits | `src/features/chat/ui/workspace/credits-limits.tsx`, `src/features/settings/ui/usage-section.tsx`, `src/features/billing/model/credits-limits.ts`, `src/features/chat/model/context-usage.ts` | `agent-limits-card`: `AgentLimitsCard` | composition |
 | Composer | `@alia.onl/sdk`'s `AliaComposer` (`packages/alia-chat/src/components/AliaComposer.tsx`, `ComposerDropZone.tsx`, `hooks/useAttachmentIntake.ts`, `lib/attachment-tiles.ts`), fed by the app's `src/features/chat/ui/composer/` (`use-alia-composer.ts`, `add-menu.tsx`, `power-level-options.ts`, `composer-suggestions.ts`, `use-composer-host.ts`) | `composer-panel`: `ComposerPanel` (`onStop`/`busy`, `providers` of `{id, name}`, nullable `effort`, `emptyAction`, `onKeyPress`, tiles with `progress`/`error` and `onAttachmentRetry`), `ComposerPanelStatusTab` | Bloom change — 3.3.0 (stop, identity, effort), 4.7.0 (`emptyAction` on the panel), 4.11.0 (`onKeyPress` on the panel), 4.20.0 (failed tiles) |
@@ -82,7 +82,7 @@ Every family #608 §2 names, against 4.20.0.
 | `agent-progress` | yes | direct reuse | `completedCount` is controlled by finished tool calls or the agent's plan; `steps` never come from `DEFAULT_AGENT_PROGRESS_STEPS`. |
 | `task-list` | yes | composition | Tool steps inside a turn, built in `work-log.ts`. |
 | `web-search` | yes | composition | Searches and sources inside a turn; web calls are left to it rather than to `AgentProgress`. |
-| `questionnaire` | no | not applicable | The runtime has no structured-question event. Approvals are a two-answer decision with a deadline and arrive over Socket.IO (`use-agent-activity.ts`); they are a `Notification` in the agent panel, not a questionnaire. |
+| `questionnaire` | no | not applicable | The runtime has no structured-question event, and no approval event: no agent asks for approval (ADR 0020 §3). |
 | `agent-limits-card` | yes | composition | Fed only what Alia measures: credits and the plan's windows, and the context the chat reports. |
 | `ai-chat` + `code` | `AiChatCodePanel`, `CodeBlock`, `Pre` | composition | The canvas is the code panel; the agent terminal is its second tab. |
 | `ai-chat` + media | `AiChatGalleryPanel` | composition | Library images and the images generated in the chat. See [gap 7](#gap-7). |
@@ -154,7 +154,6 @@ mounts the real panels and fails on any control without a handler.
 | Canvas renderers | `packages/alia-chat/src/components/canvas/` | Chart, table, code, form and Markdown artifacts, each drawn with the Bloom family that fits. |
 | Agent terminal | `src/features/chat/ui/workspace/agent-terminal.tsx` | xterm.js (a WebView on native), in the code panel's second tab; loaded only when shown. |
 | Call controls | `VoiceControls` from `@alia.onl/sdk`; `src/features/voice/ui/voice-mode-icon.tsx` | See `call-ui` in §2. The call runs on the device ([Voice](./voice.mdx)). |
-| Approvals | `src/features/chat/runtime/use-agent-activity.ts`, `agent-panel.tsx` | Socket.IO `alia.approval_request` / `agent-approval-response`; drawn as a `Notification`. |
 | Timeline window and scroll restore | `useTimelineWindow.ts`, `timeline.ts` | [Gap 3](#gap-3). |
 
 ## 5. Still different from the template, or from the app before #608

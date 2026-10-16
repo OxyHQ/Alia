@@ -21,11 +21,6 @@ interface UserMemory {
     voice?: string;
     responseLength?: 'short' | 'medium' | 'long';
     interests?: string[];
-    securityPreferences?: {
-      requireApproval?: boolean;
-      approvalTimeout?: number;
-      autoDenyOnTimeout?: boolean;
-    };
     [key: string]: unknown;
   };
   context: {

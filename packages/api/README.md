@@ -11,7 +11,7 @@ is [`docs/index.mdx`](../../docs/index.mdx).
 - Structured automation control plane (`/automations`): every task has an actor, Alia by
   default (`docs/proactive-intelligence.md`).
 - Oxy service event ingestion with idempotency and autonomous session creation.
-- Governance by risk level (`R0` read, `R1` reversible write + rollback record, `R2` approval required, `R3` blocked).
+- Governance by risk level (`R0` read, `R1` reversible write + rollback record, `R2` runs flagged, `R3` blocked). No agent asks for approval (ADR 0020 §3).
 - Real models from Oxy's catalogue: a power level (`auto` … `ultra`) or `<publisher>/<model>`;
   the serving operator and deployment ids stay off the product surface (`docs/model-abstraction.mdx`).
 - PostgreSQL through drizzle as the only store.
@@ -30,7 +30,6 @@ is [`docs/index.mdx`](../../docs/index.mdx).
 - `src/lib/autonomy/runtime.ts` - Before/after chat autonomy orchestration.
 - `src/lib/autonomy/context-graph.ts` - Recall/learning engine.
 - `src/lib/agent/governance.ts` - Risk policy and rollback registration.
-- `src/lib/agent/action-approval.ts` - Approval request/decision lifecycle.
 - `src/lib/trigger-engine.ts` - Elected structured-automation scheduler.
 - `src/lib/automation-dispatcher.ts` - Deterministic structured automation coordinator.
 - `src/routes/oxy-service-events.ts` - Oxy event webhook + autonomous execution.
@@ -81,9 +80,6 @@ Named SSE events written to the chat response stream:
 - `alia.title`
 - `alia.research_progress`
 - `alia.suggest_new_conversation`
-
-`alia.approval_request` and `alia.approval_result` are **Socket.IO** events
-(`src/socket.ts`), not SSE. Nothing writes them to the HTTP stream.
 
 These are Alia **product** events. They are not part of any generic inference contract —
 see `docs/adr/0004-product-endpoints-versus-generic-inference-endpoints.md`. Exact payload

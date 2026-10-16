@@ -168,7 +168,7 @@ describe('the computer tools', () => {
 });
 
 describe('the risk of each computer call', () => {
-  it('reads autonomously, changes at R1, and holds a background process for approval', () => {
+  it('reads autonomously, changes at R1, and flags a background process (R2)', () => {
     expect(classifyActionRisk('computer_status', {}).riskLevel).toBe('R0');
     expect(classifyActionRisk('list_computer_files', {}).riskLevel).toBe('R0');
     expect(classifyActionRisk('read_computer_file', { path: '/workspace/a' }).riskLevel).toBe('R0');

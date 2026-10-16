@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Accepted; amended by 0020
+
+> **Note (2026-10-16):** ADR 0020 §3 — no agent asks for approval, so approvals, their rows and their events are deleted (`0098_retire_agent_approvals`). The consequence below about approval decisions as durable rows no longer holds.
 
 ## Date
 
