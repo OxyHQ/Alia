@@ -52,7 +52,7 @@ describe('the activity rows in Spanish, through the app’s catalogue', () => {
         id: 'a1',
         role: 'assistant',
         content: '',
-        pendingPlan: { planId: 'p1', steps: [{}, {}, {}] },
+        plan: { planId: 'p1', steps: [{}, {}, {}] },
       } as never,
     ]);
     expect(auditText(entry!.label, t)).toBe('Plan');

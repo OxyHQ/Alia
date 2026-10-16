@@ -102,7 +102,7 @@ export type {
   AliaSuggestion,
   ResearchProgress,
   ResearchSource,
-  PendingPlan,
+  MessagePlan,
   PlanStep,
 } from './types';
 

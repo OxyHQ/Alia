@@ -355,7 +355,7 @@ export function buildSteps(
  * Text an audit row shows, before it is translated.
  *
  * The timeline is built outside React, with no translator, and it used to
- * build its rows' words in English right here ("Plan approved", "3 steps",
+ * build its rows' words in English right here ("Plan", "3 steps",
  * "Research: synthesizing") — so the Activity tab was English in every
  * locale. It now says WHAT to show and the panel says it:
  *
@@ -467,14 +467,14 @@ export function buildAuditTimeline(
     }
 
     // The plan it showed
-    if (msg.pendingPlan) {
+    if (msg.plan) {
       entries.push({
         id: `plan-${msg.id}`,
         type: 'plan',
         label: { key: 'thought.audit.plan' },
         description: {
           key: 'thought.audit.planSteps',
-          params: { count: msg.pendingPlan.steps?.length || 0 },
+          params: { count: msg.plan.steps?.length || 0 },
         },
         status: 'complete',
         messageId: msg.id,

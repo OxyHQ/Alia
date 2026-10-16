@@ -1,4 +1,4 @@
-import type { PendingPlan, ResearchProgress } from '../types';
+import type { MessagePlan, ResearchProgress } from '../types';
 
 /**
  * The canonical tool invocation: streaming, the conversation hooks and the
@@ -77,7 +77,7 @@ export interface Message {
   createdAt?: string;
   // Streaming UI metadata (deep research, plan preview)
   researchProgress?: ResearchProgress;
-  pendingPlan?: PendingPlan;
+  plan?: MessagePlan;
 }
 
 export interface Conversation {

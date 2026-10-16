@@ -76,6 +76,8 @@ and there is no compatibility path — a build on an older SDK cannot read the n
   `PlanPreviewCard`'s `onApprove` / `onReject` / `approved` / `rejected`, and the labels
   `planApprove`, `planCancel`, `planApproved`, `planCancelled`. The work log's `plan_approved`
   entry is `plan` (copy `thought.audit.plan`, "Plan"), listed for every plan shown.
+  `Message.pendingPlan` is `Message.plan`, and its type `PendingPlan` is `MessagePlan`
+  (`{ planId, steps }`): nothing about it is pending.
 - **No agent mode.** `AliaTurnRequest.agentMode` is gone and no `agentMode` is sent: Alia consults
   agents with `consultAgent` whenever she needs to. The work-log copy of `askAgent` /
   `delegateToAgent` is `consultAgent`'s.

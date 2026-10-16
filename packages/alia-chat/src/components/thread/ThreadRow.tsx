@@ -214,7 +214,7 @@ function ReplyTurn({
   const renderers = useToolRenderers();
   const flights = useAliaFlights();
   const toolInvocations = message.toolInvocations ?? [];
-  const plan = message.pendingPlan;
+  const plan = message.plan;
   const agent = message.agentInfo;
   const { readOnly = false } = actions;
 

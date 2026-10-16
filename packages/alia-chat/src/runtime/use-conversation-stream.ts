@@ -946,7 +946,7 @@ export function useConversationStream({
                       if (lastMessage?.role === 'assistant') {
                         updated[updated.length - 1] = {
                           ...lastMessage,
-                          pendingPlan: {
+                          plan: {
                             planId: parsed.planId,
                             steps: parsed.steps || [],
                           },

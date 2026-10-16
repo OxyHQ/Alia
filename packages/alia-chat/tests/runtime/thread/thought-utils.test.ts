@@ -369,7 +369,7 @@ describe('the audit timeline’s words', () => {
         id: 'a1',
         role: 'assistant',
         content: '',
-        pendingPlan: { planId: 'p1', steps: [{}, {}, {}] },
+        plan: { planId: 'p1', steps: [{}, {}, {}] },
       } as never,
     ]);
     expect(auditText(entry!.label, en)).toBe('Plan');
