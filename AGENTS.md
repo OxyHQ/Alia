@@ -65,6 +65,9 @@ cada paquete son su `prepublishOnly`; el SDK 15.x sale de `release/sdk-15.x` con
   persona con sesión propia recibe SUS PROPIAS apps según el techo que publicó el
   dueño (`/agents/:id/requester-apps`, Oxy ADR 0042); nadie recibe las del dueño.
   Ningún agente pide aprobación: su configuración es su permiso.
+- **Dónde abre un agente lo dice Oxy (ADR 0021).** `canReachAgent` exige `surfaceApplicationId`,
+  la app de la aserción `X-Oxy-App-Assertion` verificada en `lib/app-surface.ts` y nada más; un
+  agente confinado no abre sin ella. Una respuesta de Oxy ilegible nunca es «en cualquier sitio».
 - **Agente: dos identidades (ADR 0015).** `self_*` = su propia cuenta bot (sin
   grant); `oxy_*` = datos del dueño según su nivel por app (Nada · Ver · Ver y
   actuar), que ES un `DelegationGrant` de Oxy escrito con el bearer del dueño.

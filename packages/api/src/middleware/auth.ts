@@ -19,7 +19,7 @@ import {
 } from '../lib/inference/oxy-inference.js';
 
 // Initialize Oxy client
-const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
+export const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
 export const oxyClient = new OxyServer({
   baseURL: OXY_API_URL,
 });
@@ -30,6 +30,8 @@ declare global {
   namespace Express {
     interface Request {
       userId?: string;
+      /** The verified session's id, set by Oxy's user-token middleware with `userId`. */
+      sessionId?: string;
       accessToken?: string;
       user?: OxyRequestUser | null;
       serviceApp?: OxyServiceAppContext;

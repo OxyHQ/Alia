@@ -101,6 +101,8 @@ export interface AgentTurnPerson {
   /** The person's live bearer, for Oxy direct requests; absent on a channel turn. */
   accessToken?: string;
   isDirectSession: boolean;
+  /** The app the person is in, by its verified app assertion (ADR 0021), or `null`. */
+  surfaceApplicationId: string | null;
 }
 
 /** What the nested turn shows while it runs. Each callback is best effort. */
@@ -157,6 +159,7 @@ export async function runAgentTurn(input: {
     isDirectSession: person.isDirectSession,
     actsForPerson: true,
     requesterAccountId: person.oxyUserId,
+    surfaceApplicationId: person.surfaceApplicationId,
     nested: true,
     inputLimits: resolved.catalogue,
     toolsEnabled: true,

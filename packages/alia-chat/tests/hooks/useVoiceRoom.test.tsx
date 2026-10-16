@@ -101,8 +101,13 @@ describe('useVoiceRoom', () => {
     });
     expect(latest.roomState).toBe('connecting');
     expect(latest.isConnected).toBe(false);
-    act(() => {
+    // The auth frame waits for the host's app assertion (none here, ADR 0021).
+    await act(async () => {
       socket().open();
+      await Promise.resolve();
+    });
+    expect(socket().events()[0]).toEqual({ type: 'auth', token: expect.any(String) });
+    act(() => {
       socket().receive({ type: 'auth.ok' });
     });
     expect(socket().events()[1]).toMatchObject({

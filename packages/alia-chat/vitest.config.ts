@@ -10,6 +10,8 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
   test: {
+    // The host's app assertion, which no suite has an `OxyProvider` for (`tests/support/app-assertion-host.ts`).
+    setupFiles: ['./tests/support/app-assertion-host.ts'],
     server: {
       deps: {
         inline: [/@oxy\.so[\\/]bloom/, /react-native-css/],

@@ -143,6 +143,7 @@ export async function buildConsultAgentTool(options: ConsultAgentOptions): Promi
             (await canReachAgent(found, {
               oxyUserId: options.person.oxyUserId,
               accessToken: options.person.accessToken,
+              surfaceApplicationId: options.person.surfaceApplicationId,
             })) !== 'reachable'
           ) {
             return refusal(agentId, 'Agent not found');

@@ -25,6 +25,7 @@ import { VoiceCall, type VoiceCallSnapshot, type VoiceSocketFactory } from '../l
 import { VoiceLevelChannel, type VoiceLevelSource } from '../lib/voice-levels';
 import type { ProductVoice, VoiceCloseReason } from '../lib/voice-protocol';
 import { ALIA_API_URL } from '../lib/origins';
+import { useAppAssertionToken } from '../runtime/app-assertion';
 
 export interface UseVoiceRoomOptions {
   apiUrl?: string;
@@ -99,6 +100,7 @@ export function agentStateOf(state: VoiceCallState): AgentState {
 
 export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
   const { oxyServices } = useOxy();
+  const getAppAssertion = useAppAssertionToken();
   const levels = useMemo(() => new VoiceLevelChannel(), []);
   const [snapshot, setSnapshot] = useState<VoiceCallSnapshot>(IDLE);
   const callRef = useRef<VoiceCall | null>(null);
@@ -119,6 +121,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     const call = new VoiceCall({
       apiUrl: current.apiUrl || ALIA_API_URL,
       getToken,
+      getAppAssertion,
       conversationId: current.conversationId ?? newConversationId(),
       ...(current.agentId === undefined ? {} : { agentId: current.agentId }),
       voice: current.voicePreference ?? 'female',
@@ -134,7 +137,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     });
     callRef.current = call;
     await call.start();
-  }, [getToken, levels]);
+  }, [getToken, getAppAssertion, levels]);
 
   /** Hang up and forget the call: the room is back to `disconnected`. */
   const disconnect = useCallback(() => {

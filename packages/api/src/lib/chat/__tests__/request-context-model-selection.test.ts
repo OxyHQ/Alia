@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+// Where an agent opens (ADR 0021) is `app-confined-agents.test.ts`'s subject, not this file's.
+vi.mock('../../agent-availability.js', () => ({ agentOpensOn: async () => 'reachable' }));
 vi.mock('@oxy.so/core/server', async () => {
   const { createRequire } = await import('node:module');
   return createRequire(import.meta.url)('@oxy.so/core/server') as Record<string, unknown>;

@@ -77,6 +77,11 @@ export interface VoiceCallOptions {
   readonly apiUrl: string;
   /** The person's Oxy session token, read at connect and every few minutes. */
   readonly getToken: () => string | null;
+  /**
+   * The host's Oxy app assertion, sent with the first `auth` of each socket so
+   * an agent Oxy confines to an app opens only there (ADR 0021). Absent: none.
+   */
+  readonly getAppAssertion?: () => Promise<string | null>;
   readonly conversationId: string;
   readonly agentId?: string;
   readonly voice: ProductVoice;
@@ -251,7 +256,23 @@ export class VoiceCall {
         return;
       }
       this.lastToken = token;
-      socket.send(JSON.stringify({ type: 'auth', token } satisfies VoiceClientEvent));
+      const getAppAssertion = this.options.getAppAssertion;
+      if (getAppAssertion === undefined) {
+        socket.send(JSON.stringify({ type: 'auth', token } satisfies VoiceClientEvent));
+        return;
+      }
+      void getAppAssertion()
+        .catch(() => null)
+        .then((appAssertion) => {
+          if (this.socket !== socket || this.finished || socket.readyState !== OPEN) return;
+          socket.send(
+            JSON.stringify({
+              type: 'auth',
+              token,
+              ...(appAssertion ? { appAssertion } : {}),
+            } satisfies VoiceClientEvent),
+          );
+        });
     };
     socket.onmessage = (event) => {
       if (this.socket !== socket || this.finished) return;

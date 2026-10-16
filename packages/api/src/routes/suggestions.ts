@@ -21,6 +21,7 @@ import type { SuggestionSearchHit } from '../db/notifications/suggestionReposito
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { findAgentById } from '../db/agents/agentRepository.js';
 import { canReachAgent } from '../lib/agent-account.js';
+import { appSurfaceOf } from '../lib/app-surface.js';
 import type { AgentStarter } from '../domain/agent-features.js';
 import { getUserLanguage } from '../lib/memory/user-memory-service.js';
 import { log } from '../lib/logger.js';
@@ -270,6 +271,7 @@ router.post('/welcome', optionalAuth, async (req: Request, res: Response) => {
           // Without a bearer only a public agent is reachable, and the id is never read.
           oxyUserId: req.user?.id ?? '',
           accessToken: req.user?.id === undefined ? undefined : req.accessToken,
+          surfaceApplicationId: await appSurfaceOf(req),
         })) !== 'reachable'
       ) {
         return res.status(404).json({ error: 'Agent not found' });

@@ -41,7 +41,12 @@ interface Executable {
   execute: (input: { agentId: string; task: string }) => Promise<Record<string, unknown>>;
 }
 
-const person = { oxyUserId: 'person-1', accessToken: 'PERSON-TOKEN', isDirectSession: true };
+const person = {
+  oxyUserId: 'person-1',
+  accessToken: 'PERSON-TOKEN',
+  isDirectSession: true,
+  surfaceApplicationId: null,
+};
 
 async function consult(
   overrides: Partial<Parameters<typeof buildConsultAgentTool>[0]> = {},

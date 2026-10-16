@@ -69,7 +69,12 @@ const SINDI = {
   featureGates: { 'attachments.documents': { app: 'homiio', feature: 'files' } },
 } as unknown as Parameters<typeof runAgentTurn>[0]['agent'];
 
-const person = { oxyUserId: 'person-1', accessToken: 'PERSON-TOKEN', isDirectSession: true };
+const person = {
+  oxyUserId: 'person-1',
+  accessToken: 'PERSON-TOKEN',
+  isDirectSession: true,
+  surfaceApplicationId: null,
+};
 const lease = { feature: 'attachments.documents' as const, operationKey: 'LEASE' };
 const photo = { feature: 'attachments.images' as const, operationKey: 'PHOTO' };
 

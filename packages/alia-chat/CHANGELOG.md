@@ -1,5 +1,25 @@
 # @alia.onl/sdk
 
+## 19.1.0
+
+An app's own agent may be confined to that app by Oxy (Alia ADR 0021, Oxy ADRs 0044 and 0045).
+
+### Added
+
+- **The SDK says which Oxy app it is in.** Every request that can open an agent — the REST API
+  (`useAliaApi`: profiles, features, conversations, threads), the chat stream and the voice call —
+  carries the host's Oxy-signed app assertion as `X-Oxy-App-Assertion` (on the voice socket, as
+  `appAssertion` in the `auth` frame, because a socket cannot carry a header). It is read at send
+  time from the host's `OxyProvider` (`useAppAssertion()` of `@oxy.so/services`), and nothing is
+  sent when the provider has none. Alia verifies it and opens an agent Oxy confines to an app only
+  inside that app; every other agent is unaffected. Dictation and read-aloud reach no agent and
+  send none.
+
+### Changed
+
+- **Peer `@oxy.so/services` >= 11.12.0**, the first release whose `OxyProvider` obtains the app
+  assertion.
+
 ## 19.0.0
 
 Every agent is the same agent, and any app embeds any of them (ADR 0020; the wire contract is

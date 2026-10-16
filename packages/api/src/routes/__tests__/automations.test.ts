@@ -26,6 +26,8 @@ const state = vi.hoisted(() => ({
 
 const database = { transaction: vi.fn(async (callback) => callback(database)) };
 
+// Where an agent opens (ADR 0021) is `app-confined-agents.test.ts`'s subject, not this file's.
+vi.mock('../../lib/agent-availability.js', () => ({ agentOpensOn: async () => 'reachable' }));
 vi.mock('../../db/index.js', () => ({ getDb: () => database }));
 vi.mock('../../middleware/auth.js', () => ({
   authenticateToken: (

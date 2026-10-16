@@ -9,6 +9,7 @@ import {
 } from '../../db/agents/agentTeamRepository.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { canReachAgent } from '../../lib/agent-account.js';
+import { appSurfaceOf } from '../../lib/app-surface.js';
 import { parseAliaTeamMarkdown, serializeAliaTeamMarkdown } from '../../lib/agent/team-package.js';
 
 const router = Router();
@@ -27,6 +28,7 @@ async function authorizeMembers(req: Request, ids: string[]) {
       (await canReachAgent(agent, {
         oxyUserId: req.user!.id,
         accessToken: req.accessToken,
+        surfaceApplicationId: await appSurfaceOf(req),
       })) !== 'reachable'
     )
       return false;

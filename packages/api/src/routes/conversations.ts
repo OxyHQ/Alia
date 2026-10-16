@@ -2,6 +2,9 @@ import { parseAvatarCharacter } from '@oxy.so/contracts';
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { getDb } from '../db/index.js';
+import { findAgentById } from '../db/agents/agentRepository.js';
+import { canReachAgent } from '../lib/agent-account.js';
+import { appSurfaceOf } from '../lib/app-surface.js';
 import { purgeConversationSpeechClips } from '../lib/speech-clips.js';
 import {
   clearConversationPreview,
@@ -222,10 +225,25 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
 
     const conversationId = randomUUID();
     /**
-     * Any string. `agent_id` is `text` with no foreign key (`db/schema/chat.ts`
-     * says why). An id naming no agent is inert — the only reader joins on it.
+     * `agent_id` is `text` with no foreign key (`db/schema/chat.ts` says why),
+     * but a conversation is only started with an agent this person can open from
+     * this app (`canReachAgent`, ADR 0021): every other id — missing, private,
+     * or confined to another app — is the same 404.
      */
     const agentId = typeof req.body?.agentId === 'string' ? req.body.agentId : undefined;
+    if (agentId !== undefined) {
+      const agent = await findAgentById(getDb(), agentId);
+      if (
+        agent === null ||
+        (await canReachAgent(agent, {
+          oxyUserId: req.user.id,
+          accessToken: req.accessToken,
+          surfaceApplicationId: await appSurfaceOf(req),
+        })) !== 'reachable'
+      ) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+    }
 
     const conversation = await createConversation(getDb(), {
       oxyUserId: req.user.id,

@@ -49,6 +49,13 @@ vi.mock('@oxy.so/services/ui/client', () => ({
   }),
 }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn() } }));
+// A host inside an Oxy app that has proved which app it is (ADR 0021).
+vi.mock('@oxy.so/services/ui', () => ({
+  useAppAssertion: () => ({
+    getAppAssertion: async () => 'clarity-assertion',
+    getAppAssertionHeaders: async () => ({ 'X-Oxy-App-Assertion': 'clarity-assertion' }),
+  }),
+}));
 
 import { AliaRuntimeProvider, type AliaRuntimeHost } from '../../src/runtime/config';
 import { aliaQueryKeys } from '../../src/runtime/query-keys';
@@ -122,6 +129,8 @@ describe('the request a turn makes', () => {
     const [request] = harness.requests;
     expect(request?.url).toBe('http://api.test|/v1/chat/completions');
     expect(request?.headers['X-Device-Info']).toBe(JSON.stringify({ platformOS: 'test' }));
+    // Which app the turn is in, so an agent Oxy confines to an app opens only there.
+    expect(request?.headers['X-Oxy-App-Assertion']).toBe('clarity-assertion');
     expect(request?.body).toMatchObject({
       stream: true,
       conversationId: 'c1',

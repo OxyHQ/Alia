@@ -94,9 +94,13 @@ async function eligibleAgents(automation: AutomationDefinitionRecord) {
         ? selection.eligibleAgentIds
         : [];
   const agents = await Promise.all(candidateIds.map((agentId) => findAgentById(getDb(), agentId)));
+  const may = await Promise.all(
+    agents.map((agent) =>
+      agent === null ? false : mayRunForAutomationOwner(agent, automation.ownerAccountId),
+    ),
+  );
   return agents.filter(
-    (agent): agent is NonNullable<typeof agent> =>
-      agent !== null && mayRunForAutomationOwner(agent, automation.ownerAccountId),
+    (agent, index): agent is NonNullable<typeof agent> => agent !== null && may[index] === true,
   );
 }
 

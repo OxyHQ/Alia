@@ -50,6 +50,17 @@ export const canAttestWorkloadIdentity: OxyCoreServer['canAttestWorkloadIdentity
   real.canAttestWorkloadIdentity;
 
 /**
+ * REAL, for the same reason as `createOxyCors`: which app a request comes from
+ * (ADR 0021) is decided by the assertion's verification, which is the subject
+ * of `lib/__tests__/app-confined-agents.test.ts`. A stub would pass with the
+ * signature, the session binding and the issuer checks deleted.
+ */
+export const readAppAssertionHeader: OxyCoreServer['readAppAssertionHeader'] =
+  real.readAppAssertionHeader;
+export const verifyAppAssertion: OxyCoreServer['verifyAppAssertion'] = real.verifyAppAssertion;
+export const signOxyAppAssertion: OxyCoreServer['signOxyAppAssertion'] = real.signOxyAppAssertion;
+
+/**
  * REAL: `OxyServer` is the API's Oxy client itself (`middleware/auth.ts`,
  * `lib/oxy-service-client.ts`), constructed at import. Constructing it reaches
  * no network; only its calls do, and those are what tests stub.

@@ -72,6 +72,7 @@ import {
   findAgentByOxyHandle,
   type HydratedAgent,
 } from './agent-identity.js';
+import { agentOpensOn } from './agent-availability.js';
 import { log } from './logger.js';
 
 /** Why a caller may not act as an account. Maps 1:1 onto an HTTP status. */
@@ -500,13 +501,35 @@ function isConflict(error: unknown): boolean {
  * surface because a handle is guessable. {@link loadTurnAgent} keeps the
  * outcomes typed so a request that explicitly selected an agent can fail
  * closed without confirming whether that id exists.
+ *
+ * ## And WHERE: an agent Oxy confines to an app opens only in that app
+ *
+ * After WHO, the surface (Alia ADR 0021). An Oxy application may confine its
+ * own agent to its own app (Oxy ADR 0044); Oxy is asked, live and cached a
+ * minute (`lib/agent-availability.ts`), and an agent that is otherwise
+ * reachable is `out_of_reach` unless `surfaceApplicationId` — the application
+ * of the request's verified app assertion (`lib/app-surface.ts`), or `null` —
+ * is one it is confined to. The owner is not exempt. An answer Oxy could not
+ * give is `identity_unavailable`, never `reachable`. Asked only once WHO said
+ * yes, so a refusal costs no Oxy round trip.
  */
 export async function canReachAgent(
   agent: AgentRecord,
   caller: {
     oxyUserId: string;
     accessToken: string | undefined;
+    /** The verified app assertion's application (`appSurfaceOf`), or `null`. Never a client value. */
+    surfaceApplicationId: string | null;
   },
+): Promise<AgentReach> {
+  const who = await whoMayReach(agent, caller);
+  if (who !== 'reachable') return who;
+  return agentOpensOn(agent.oxyAccountId, caller.surfaceApplicationId);
+}
+
+async function whoMayReach(
+  agent: AgentRecord,
+  caller: { oxyUserId: string; accessToken: string | undefined },
 ): Promise<AgentReach> {
   if (agent.access === 'public' && agent.status === 'active') return 'reachable';
   // No bearer is not a failure to ask; it is an answer, and the answer is no.
@@ -594,6 +617,7 @@ export async function loadThreadAgent(
     username: string;
     oxyUserId: string;
     accessToken: string | undefined;
+    surfaceApplicationId: string | null;
   },
 ): Promise<HydratedAgent | null> {
   const agent = await findAgentByOxyHandle(db, params.username, { hireableOnly: false });
@@ -657,6 +681,7 @@ export async function loadTurnAgent(
     agentId: string;
     oxyUserId: string;
     accessToken: string | undefined;
+    surfaceApplicationId: string | null;
   },
 ): Promise<TurnAgent> {
   const agent = await findAgentById(db, params.agentId);

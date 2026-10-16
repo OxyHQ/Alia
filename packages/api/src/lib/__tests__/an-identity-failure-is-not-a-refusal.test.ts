@@ -38,6 +38,9 @@ class NotFound extends Error {
   status = 404;
 }
 
+// WHO may reach is this file's subject; WHERE (ADR 0021) is `app-confined-agents.test.ts`'s.
+vi.mock('../agent-availability.js', () => ({ agentOpensOn: async () => 'reachable' }));
+
 vi.mock('@oxy.so/core', async () => {
   const actual = await vi.importActual<typeof import('@oxy.so/core')>('@oxy.so/core');
   return {
@@ -105,7 +108,12 @@ vi.mock('../../middleware/auth.js', () => ({
 const { loadTurnAgent, canReachAgent, verifyAgentAccount, clearAgentAccountVerdicts } =
   await import('../agent-account.js');
 
-const CALLER = { agentId: 'agent-1', oxyUserId: 'user-1', accessToken: 'bearer-abc' };
+const CALLER = {
+  agentId: 'agent-1',
+  oxyUserId: 'user-1',
+  accessToken: 'bearer-abc',
+  surfaceApplicationId: null,
+};
 
 beforeEach(() => {
   clearAgentAccountVerdicts();

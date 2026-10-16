@@ -162,6 +162,14 @@ export interface ForUserOptions {
    */
   requesterAccountId?: string | null;
   /**
+   * The app the person is in, by the request's verified app assertion
+   * (`lib/app-surface.ts`, ADR 0021). `consultAgent` and `searchAgents` reach
+   * an agent Oxy confines to an app only from that app. Absent: no surface,
+   * which reaches no confined agent — the safe answer for every turn with no
+   * person's app behind it (a channel, a trigger, an autonomous run).
+   */
+  surfaceApplicationId?: string | null;
+  /**
    * A consulted agent's turn inside another conversation (`consultAgent`,
    * ADR 0020 §5). It never receives `consultAgent`, the catalogue search, agent
    * creation, automations, deep research or the SSE tools: there is no second
@@ -397,6 +405,7 @@ export class ToolPipeline {
       isDirectSession,
       actsForPerson,
       requesterAccountId = opts.userId,
+      surfaceApplicationId = null,
       nested = false,
       attachments = [],
       toolsEnabled,
@@ -773,6 +782,7 @@ export class ToolPipeline {
               oxyUserId: userId,
               ...(accessToken ? { accessToken } : {}),
               isDirectSession,
+              surfaceApplicationId,
             },
             payerOxyUserId: userId,
             callerAgentId: agent?._id ?? null,
@@ -806,7 +816,7 @@ export class ToolPipeline {
 
     // 6. The catalogue of agents `consultAgent` can reach, for finding a specialist.
     if (actsForPerson && !nested && grants.allows('delegation')) {
-      tools.searchAgents = createSearchAgentsTool();
+      tools.searchAgents = createSearchAgentsTool(surfaceApplicationId);
     }
 
     /**

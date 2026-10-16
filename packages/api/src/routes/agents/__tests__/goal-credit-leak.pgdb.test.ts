@@ -24,6 +24,8 @@ import { eq } from 'drizzle-orm';
  * A test that checked the 500 passes against the code that leaks.
  */
 
+// Where an agent opens (ADR 0021) is `app-confined-agents.test.ts`'s subject, not this file's.
+vi.mock('../../../lib/agent-availability.js', () => ({ agentOpensOn: async () => 'reachable' }));
 vi.mock('../../../middleware/auth.js', () => {
   /** The caller is whoever the request names — the route's own rules decide the rest. */
   const signIn = (req: Request, _res: Response, next: NextFunction): void => {

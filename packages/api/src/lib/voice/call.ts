@@ -178,6 +178,8 @@ export interface VoiceCallStart {
   readonly agentId?: string;
   readonly voice: ProductVoice;
   readonly locale: string;
+  /** The app the call comes from, by the socket's verified app assertion (ADR 0021), or `null`. */
+  readonly surfaceApplicationId: string | null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -413,6 +415,7 @@ export class VoiceCall {
         accessToken: this.accessToken,
         isDirectUserSession: true,
         ...(start.agentId === undefined ? {} : { requestedAgentId: start.agentId }),
+        surfaceApplicationId: start.surfaceApplicationId,
       });
       // `voice-mode` is enforced by the server, not only by the app.
       if (inputs.entitlements === null)
@@ -478,6 +481,7 @@ export class VoiceCall {
         conversationId: start.conversationId,
         requestId: this.callId,
         linkedAgent: this.linkedAgent,
+        surfaceApplicationId: start.surfaceApplicationId,
         userMemory: inputs.userMemory,
         oxyUser: inputs.oxyUser,
         language: start.locale,

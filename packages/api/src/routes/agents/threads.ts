@@ -18,6 +18,7 @@ import {
   findActiveAgentThreadConversation,
 } from '../../db/chat/conversationRepository.js';
 import { canReachAgent } from '../../lib/agent-account.js';
+import { appSurfaceOf } from '../../lib/app-surface.js';
 import { agentHirePrice, startAgentSession } from '../../lib/agent/session-handoff.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { resolveModel } from '../../lib/chat-core.js';
@@ -41,6 +42,7 @@ async function reachableAgent(req: Request, res: Response) {
     (await canReachAgent(agent, {
       oxyUserId: req.user.id,
       accessToken: req.accessToken,
+      surfaceApplicationId: await appSurfaceOf(req),
     })) !== 'reachable'
   ) {
     res.status(404).json({ error: 'Agent not found' });
@@ -208,6 +210,7 @@ router.post(
       (await canReachAgent(agent, {
         oxyUserId: req.user.id,
         accessToken: req.accessToken,
+        surfaceApplicationId: await appSurfaceOf(req),
       })) !== 'reachable'
     )
       return res.status(404).json({ error: 'Agent not found' });

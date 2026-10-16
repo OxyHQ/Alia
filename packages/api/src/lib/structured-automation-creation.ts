@@ -177,12 +177,14 @@ export class AutomationCreationError extends Error {
 
 export async function ownedAutomationAgents(ownerAccountId: string, agentIds: readonly string[]) {
   const agents = await Promise.all(agentIds.map((agentId) => findAgentById(getDb(), agentId)));
+  const may = await Promise.all(
+    agents.map((agent) =>
+      agent === null ? false : mayRunForAutomationOwner(agent, ownerAccountId),
+    ),
+  );
   if (
     !agents.every(
-      (agent, index) =>
-        agent !== null &&
-        mayRunForAutomationOwner(agent, ownerAccountId) &&
-        agent.id === agentIds[index],
+      (agent, index) => agent !== null && may[index] === true && agent.id === agentIds[index],
     )
   )
     return null;

@@ -13,6 +13,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({}) }));
+// The SDK reads the host's app assertion from here (ADR 0021); this host has none.
+vi.mock('@oxy.so/services/ui', () => ({
+  useAppAssertion: () => ({
+    getAppAssertion: async () => null,
+    getAppAssertionHeaders: async () => ({}),
+  }),
+}));
 
 const addMenu = vi.hoisted(() => ({ options: [] as Array<{ canAttach: boolean }> }));
 

@@ -85,7 +85,8 @@ const CLOSE_REASONS: ReadonlySet<string> = new Set<VoiceCloseReason>([
 export type VoiceRole = 'user' | 'assistant';
 
 export type VoiceClientEvent =
-  | { type: 'auth'; token: string }
+  /** `appAssertion`: the host's Oxy app assertion (ADR 0021); a socket cannot carry the header. */
+  | { type: 'auth'; token: string; appAssertion?: string }
   | {
       type: 'session.start';
       protocol: number;

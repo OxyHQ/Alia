@@ -29,6 +29,8 @@ const database = {
   transaction: vi.fn(async (callback: (transaction: unknown) => unknown) => callback(database)),
 };
 
+// Where an agent opens (ADR 0021) is `app-confined-agents.test.ts`'s subject, not this file's.
+vi.mock('../agent-availability.js', () => ({ agentOpensOn: async () => 'reachable' }));
 vi.mock('../../db/index.js', () => ({ getDb: () => database }));
 vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
   claimAutomationRunPlan: state.createRun,

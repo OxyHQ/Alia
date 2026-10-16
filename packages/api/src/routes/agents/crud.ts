@@ -26,6 +26,8 @@ import {
   verifyAgentAccount,
   type AgentAccountRefusal,
 } from '../../lib/agent-account.js';
+import { agentOpensOn } from '../../lib/agent-availability.js';
+import { appSurfaceOf } from '../../lib/app-surface.js';
 import {
   agentPromptName,
   attachAgentIdentities,
@@ -336,6 +338,14 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
 
     // A draft is not in the catalogue and not addressable by a stranger.
     if (!found.isPublished && !mayEdit) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+    // Nor is an agent Oxy confines to another app (ADR 0021). Its editors still
+    // load it to edit it: editing is not opening.
+    if (
+      !mayEdit &&
+      (await agentOpensOn(found.oxyAccountId, await appSurfaceOf(req))) !== 'reachable'
+    ) {
       return res.status(404).json({ error: 'Agent not found' });
     }
 

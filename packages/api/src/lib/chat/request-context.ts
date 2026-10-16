@@ -78,6 +78,7 @@ import {
   type GatedPart,
 } from '../agent-features.js';
 import type { TurnAgentResolution } from './turn-inputs.js';
+import { appSurfaceOf } from '../app-surface.js';
 import { usableMessageId } from '../../domain/conversation.js';
 import type { OpenAITool } from '../tool-converter.js';
 import type { SSEWriter } from './sse-writer.js';
@@ -181,6 +182,8 @@ export interface ChatRequestContext {
   skills: SkillRuntime;
   entitlements: Entitlements | null;
   linkedAgent: HydratedAgent | null;
+  /** The app the turn comes from, by its verified app assertion (ADR 0021), or `null`. */
+  surfaceApplicationId: string | null;
   /**
    * The verified inbound app-only machine credential. Undefined means the
    * ordinary Alia credential lane. `agentId` never chooses the billing
@@ -777,11 +780,14 @@ export async function buildChatRequestContext(
    * TURN is for, named by the request rather than inferred; `loadTurnAgent`
    * owns the authorisation and an unresolvable selector is never `none`.
    */
+  /** Which Oxy app this turn comes from, read once from its app assertion (ADR 0021). */
+  const surfaceApplicationId = await appSurfaceOf(req);
   const turnInputs = prefetchTurnInputs({
     oxyUserId: req.user?.id,
     accessToken: req.accessToken,
     isDirectUserSession,
     requestedAgentId,
+    surfaceApplicationId,
   });
 
   /**
@@ -1091,6 +1097,7 @@ export async function buildChatRequestContext(
     skills: skills ?? EMPTY_SKILL_RUNTIME,
     entitlements,
     linkedAgent,
+    surfaceApplicationId,
     inferenceServiceToken,
     creditReservation,
     resolved,

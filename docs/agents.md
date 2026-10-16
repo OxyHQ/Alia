@@ -76,10 +76,14 @@ live:
   as retryable instead of telling the person the agent does not exist.
 
 Every reach path takes the surface: opening an agent (`loadTurnAgent`,
-`loadThreadAgent`), a chat or voice turn, `consultAgent`, `searchAgents`,
-`/v1/agents/:id/profile|features`, its threads, teams, computer and
-suggestions. The owner is not exempt: a confined agent is invisible outside its
-app to everybody.
+`loadThreadAgent`), a chat or voice turn (the voice socket carries the
+assertion as `appAssertion` in its `auth` frame), `consultAgent`,
+`searchAgents`, `/v1/agents/:id/profile|features`, `POST /conversations/new`
+with an `agentId`, its threads, teams, computer and suggestions, and its card
+(`GET /agents/:id`, except for its editors: editing is not opening). The owner
+is not exempt: a confined agent is invisible outside its app to everybody.
+What runs with no person's app around it — an automation, a delegation inside
+an agent session — has no surface, so a confined agent never runs there.
 
   **An agent has no picture.** It is drawn as a glyph tinted with its Oxy
   account's `User.color`, a Bloom preset key — so `AgentIdentity` carries

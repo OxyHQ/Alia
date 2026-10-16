@@ -9,7 +9,8 @@ vi.mock('../../logger.js', () => {
 });
 // The socket's default environment is never built here: every server gets the harness's.
 vi.mock('../environment.js', () => ({ createVoiceEnvironment: vi.fn() }));
-vi.mock('../../socket-session-auth.js', () => ({ authenticateSocketToken: vi.fn() }));
+vi.mock('../../socket-session-auth.js', () => ({ authenticateSocketSession: vi.fn() }));
+vi.mock('../../app-surface.js', () => ({ verifySurface: vi.fn(async () => null) }));
 
 const { log } = await import('../../logger.js');
 const { voiceSessionRoute } = await import('../voice-socket.js');
@@ -37,7 +38,13 @@ async function serve(env = harness().env) {
     routes: [
       voiceSessionRoute(undefined, {
         environment: () => env,
-        authenticate: async (token) => (token === 'good-token' ? 'user-1' : null),
+        authenticate: async (token) =>
+          token === 'good-token' ? { userId: 'user-1', sessionId: 'session-1' } : null,
+        // The real check is `verifyAppAssertion` (`app-confined-agents.test.ts`); here, the wiring.
+        surface: async (assertion, session) =>
+          assertion === 'clarity-assertion' && session.sessionId === 'session-1'
+            ? 'clarity-app'
+            : null,
       }),
     ],
   });
@@ -119,6 +126,45 @@ describe('who may call', () => {
     });
     await until('closed', () => client.closed !== null);
     expect(client.events.at(-1)).toMatchObject({ type: 'error', code: 'invalid-request' });
+  });
+});
+
+describe('which app the call is in (ADR 0021)', () => {
+  async function startCall(auth: Record<string, unknown>) {
+    const h = harness();
+    const client = await connect(await serve(h.env));
+    client.send({ type: 'auth', token: 'good-token', ...auth });
+    await until('auth.ok', () => types(client).includes('auth.ok'));
+    client.send({
+      type: 'session.start',
+      protocol: 2,
+      conversationId: 'conv-1',
+      voice: 'female',
+      locale: 'es-ES',
+    });
+    await until('prefetched', () => h.prefetched.length === 1);
+    client.send({ type: 'session.end' });
+    client.ws.close();
+    await until('closed', () => client.closed !== null);
+    return h.prefetched[0];
+  }
+
+  it("reads the surface from the auth frame's app assertion, bound to its session", async () => {
+    expect((await startCall({ appAssertion: 'clarity-assertion' }))?.surfaceApplicationId).toBe(
+      'clarity-app',
+    );
+  });
+
+  it('has no surface without an assertion, or with one that does not verify', async () => {
+    expect((await startCall({}))?.surfaceApplicationId).toBeNull();
+    expect((await startCall({ appAssertion: 'forged' }))?.surfaceApplicationId).toBeNull();
+  });
+
+  it('refuses an auth frame whose appAssertion is not a string', async () => {
+    const client = await connect(await serve());
+    client.send({ type: 'auth', token: 'good-token', appAssertion: 42 });
+    await until('closed', () => client.closed !== null);
+    expect(client.events[0]).toMatchObject({ type: 'error', code: 'invalid-request' });
   });
 });
 

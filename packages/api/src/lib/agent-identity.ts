@@ -43,6 +43,7 @@ import {
   type AgentRecord,
 } from '../db/agents/agentRepository.js';
 import { oxyClient } from '../middleware/auth.js';
+import { agentOpensOn } from './agent-availability.js';
 import { log } from './logger.js';
 import { hydrateOxyUsers } from './oxy-user-hydration.js';
 
@@ -186,6 +187,10 @@ export function agentPromptName(agent: AgentIdentity): string {
  * agent that is unpublished, and Oxy being unreachable all mean "you cannot
  * delegate to this right now". The Oxy failure is logged so a spike is visible
  * as something other than users mistyping handles.
+ *
+ * A hireable agent is also one that opens with no app around it: delegation
+ * runs inside an agent session, which is in no app, so an agent Oxy confines
+ * to an app is never hireable (ADR 0021).
  */
 export async function findAgentByOxyHandle(
   db: Executor,
@@ -211,9 +216,10 @@ export async function findAgentByOxyHandle(
     return null;
   }
 
-  return options.hireableOnly
-    ? findHireableAgentByOxyAccountId(db, accountId)
-    : findAgentByOxyAccountId(db, accountId);
+  if (!options.hireableOnly) return findAgentByOxyAccountId(db, accountId);
+  const hireable = await findHireableAgentByOxyAccountId(db, accountId);
+  if (hireable === null) return null;
+  return (await agentOpensOn(hireable.oxyAccountId, null)) === 'reachable' ? hireable : null;
 }
 
 /** The label a bot's handle ends in. Lower-case: the comparison folds case. */
