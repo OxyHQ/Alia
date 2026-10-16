@@ -60,6 +60,9 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
   let token: string | null = null;
   let call: VoiceCall | null = null;
   let authenticating = false;
+  const connectedAt = Date.now();
+  /** Whether this side sent the close frame; otherwise the device or the network ended it. */
+  let closedHere = false;
 
   const sendPre = (event: VoicePreSessionEvent) => {
     if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(event));
@@ -72,6 +75,7 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
       retryable: false,
       reference: `voice-${Date.now().toString(36)}`,
     });
+    closedHere = true;
     ws.close(closeCode, code);
   };
 
@@ -91,7 +95,9 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
       ws.send(frame, { binary: true });
     },
     close: () => {
-      if (ws.readyState === WebSocket.OPEN) ws.close(1000, 'call ended');
+      if (ws.readyState !== WebSocket.OPEN) return;
+      closedHere = true;
+      ws.close(1000, 'call ended');
     },
   };
 
@@ -203,9 +209,20 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
     }
   });
 
-  ws.on('close', () => {
+  ws.on('close', (closeCode) => {
     clearTimeout(authTimer);
     clearInterval(ping);
+    // The close code is the only trace of a drop: 1006 is the network or the
+    // load balancer, 1001 the device going away, 1002/1007/1009 a frame the
+    // device refused. A drop with a call attached is what `session.resume` heals.
+    const fields = {
+      closeCode,
+      closedHere,
+      connectedMs: Date.now() - connectedAt,
+      callId: call?.callId ?? null,
+    };
+    if (closedHere || closeCode === 1000) log.voice.info(fields, 'Voice socket closed');
+    else log.voice.warn(fields, 'Voice socket dropped');
     // Not a hang-up: the call waits out the resume window.
     call?.detach(sink);
   });
