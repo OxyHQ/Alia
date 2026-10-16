@@ -228,17 +228,10 @@ interface ToolCallState {
 }
 
 /**
- * Close a session Alia is done with. One that is already gone or detached has
- * nothing to close: the SDK's `close()` throws then rather than rejecting, so
- * it is awaited inside the `try`.
+ * What a failed `close()` leaves Alia to do: nothing. Kaana settles every
+ * session it ends, including one closed here that it had already ended.
  */
-async function closeQuietly(session: RealtimeSession): Promise<void> {
-  try {
-    await session.close();
-  } catch {
-    // Nothing left to settle from here: Kaana settles the session it closed.
-  }
-}
+function settledByKaana(): void {}
 
 interface UpstreamState {
   readonly session: RealtimeSession;
@@ -572,7 +565,7 @@ export class VoiceCall {
     if (!session || !this.candidate) throw new VoiceFailure('realtime-unavailable');
     this.meter?.reprice(this.candidate.usdPerMinute);
     if (this.isClosed) {
-      await closeQuietly(session);
+      await session.close().catch(settledByKaana);
       return;
     }
     const upstream: UpstreamState = {
@@ -634,7 +627,7 @@ export class VoiceCall {
       previous.endedAt ??= this.now();
       this.pastUsd += this.usdOf(previous);
       this.upstream = null;
-      void closeQuietly(previous.session);
+      void previous.session.close().catch(settledByKaana);
     }
     // What the old session said is in the new one's instructions.
     this.closeOpenTurn('cancelled');
@@ -1162,7 +1155,7 @@ export class VoiceCall {
         upstream.endedAt ??= this.now();
         // Settles exactly once upstream; bounded so a hung close never holds the call.
         await Promise.race([
-          closeQuietly(upstream.session),
+          upstream.session.close().catch(settledByKaana),
           new Promise((resolve) => setTimeout(resolve, 5_000).unref?.()),
         ]);
       }
