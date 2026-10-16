@@ -135,8 +135,12 @@ export type VoiceSessionEvent =
   | { type: 'input.ready' }
   | { type: 'user.speech_started'; itemId: string }
   | { type: 'user.speech_stopped'; itemId: string }
-  | { type: 'transcript.delta'; role: VoiceRole; itemId: string; text: string }
-  | { type: 'transcript.done'; role: VoiceRole; itemId: string; text: string }
+  /**
+   * `messageId` is the message the text belongs to, the id it is stored and
+   * announced under: an assistant turn's items are one message.
+   */
+  | { type: 'transcript.delta'; role: VoiceRole; messageId: string; itemId: string; text: string }
+  | { type: 'transcript.done'; role: VoiceRole; messageId: string; itemId: string; text: string }
   /** No more audio will come for this assistant item. */
   | { type: 'assistant.audio_done'; itemId: string }
   /** A response ended; `itemId` is its audio item, when it spoke. */

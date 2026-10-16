@@ -183,6 +183,7 @@ describe('the conversation', () => {
     socket().receive({
       type: 'transcript.delta',
       role: 'user',
+      messageId: 'voice-user-1',
       itemId: 'u1',
       text: 'Hola',
       seq: 3,
@@ -190,6 +191,7 @@ describe('the conversation', () => {
     socket().receive({
       type: 'transcript.done',
       role: 'user',
+      messageId: 'voice-user-1',
       itemId: 'u1',
       text: 'Hola, Alia',
       seq: 4,
@@ -197,6 +199,7 @@ describe('the conversation', () => {
     socket().receive({
       type: 'transcript.delta',
       role: 'assistant',
+      messageId: 'voice-turn-1',
       itemId: 'a1',
       text: 'Hola',
       seq: 5,
@@ -204,17 +207,73 @@ describe('the conversation', () => {
     socket().receive({
       type: 'transcript.delta',
       role: 'assistant',
+      messageId: 'voice-turn-1',
       itemId: 'a1',
       text: ', ¿qué tal?',
       seq: 6,
     });
     const messages = call.snapshot().messages;
-    expect(messages.map((m) => [m.role, m.content, m.isStreaming])).toEqual([
-      ['user', 'Hola, Alia', false],
-      ['assistant', 'Hola, ¿qué tal?', true],
+    expect(messages.map((m) => [m.id, m.role, m.content, m.isStreaming])).toEqual([
+      ['voice-user-1', 'user', 'Hola, Alia', false],
+      ['voice-turn-1', 'assistant', 'Hola, ¿qué tal?', true],
     ]);
     socket().receive({ type: 'assistant.done', itemId: 'a1', status: 'completed', seq: 7 });
     expect(call.snapshot().messages[1]?.isStreaming).toBe(false);
+  });
+
+  it('is one message per stored message: repeated transcripts, and a turn of two items', async () => {
+    const call = newCall();
+    await live(call);
+    let seq = 3;
+    const receive = (event: Record<string, unknown>) => socket().receive({ ...event, seq: seq++ });
+    // xAI: a growing transcript at every pause, and the final one repeated.
+    for (const text of [
+      'Busca',
+      'Busca el tiempo',
+      'Busca el tiempo en Madrid',
+      'Busca el tiempo en Madrid',
+    ])
+      receive({
+        type: 'transcript.done',
+        role: 'user',
+        messageId: 'voice-user-1',
+        itemId: 'u1',
+        text,
+      });
+    // A turn that called a tool, then answered: two items, one message.
+    receive({
+      type: 'transcript.done',
+      role: 'assistant',
+      messageId: 'voice-turn-1',
+      itemId: 'a1',
+      text: 'Lo miro.',
+    });
+    receive({
+      type: 'transcript.delta',
+      role: 'assistant',
+      messageId: 'voice-turn-1',
+      itemId: 'a2',
+      text: 'Hace sol',
+    });
+    receive({
+      type: 'transcript.delta',
+      role: 'assistant',
+      messageId: 'voice-turn-1',
+      itemId: 'a2',
+      text: ', 24 grados.',
+    });
+    receive({ type: 'assistant.done', itemId: 'a2', status: 'completed' });
+    expect(call.snapshot().messages.map((m) => [m.id, m.role, m.content, m.isStreaming])).toEqual([
+      ['voice-user-1', 'user', 'Busca el tiempo en Madrid', false],
+      ['voice-turn-1', 'assistant', 'Lo miro. Hace sol, 24 grados.', false],
+    ]);
+  });
+
+  it('ignores a transcript event without the message it belongs to', async () => {
+    const call = newCall();
+    await live(call);
+    socket().receive({ type: 'transcript.done', role: 'user', itemId: 'u1', text: 'Hola', seq: 3 });
+    expect(call.snapshot().messages).toEqual([]);
   });
 
   it('shows a running tool by name, and thinks until the answer comes', async () => {

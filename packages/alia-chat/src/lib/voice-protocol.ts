@@ -107,8 +107,12 @@ export type VoiceServerEvent =
   | { type: 'input.ready' }
   | { type: 'user.speech_started'; itemId: string }
   | { type: 'user.speech_stopped'; itemId: string }
-  | { type: 'transcript.delta'; role: VoiceRole; itemId: string; text: string }
-  | { type: 'transcript.done'; role: VoiceRole; itemId: string; text: string }
+  /**
+   * `messageId` is the message the text belongs to, the id it is stored and
+   * announced under: an assistant turn's items are one message.
+   */
+  | { type: 'transcript.delta'; role: VoiceRole; messageId: string; itemId: string; text: string }
+  | { type: 'transcript.done'; role: VoiceRole; messageId: string; itemId: string; text: string }
   | { type: 'assistant.audio_done'; itemId: string }
   | {
       type: 'assistant.done';
@@ -196,9 +200,17 @@ export function parseVoiceServerEvent(raw: string): ReceivedVoiceEvent | null {
     case 'transcript.delta':
     case 'transcript.done':
       return (event.role === 'user' || event.role === 'assistant') &&
+        isString(event.messageId) &&
         isString(event.itemId) &&
         isString(event.text)
-        ? { type: event.type, role: event.role, itemId: event.itemId, text: event.text, ...seq }
+        ? {
+            type: event.type,
+            role: event.role,
+            messageId: event.messageId,
+            itemId: event.itemId,
+            text: event.text,
+            ...seq,
+          }
         : null;
     case 'assistant.done':
       return event.itemId === null || isString(event.itemId)

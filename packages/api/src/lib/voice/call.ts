@@ -96,7 +96,10 @@ export interface VoiceCallLimits {
   readonly resumeWindowMs: number;
   /** How long an interrupted answer waits for the client's played milliseconds. */
   readonly interruptWaitMs: number;
-  /** How long a person's turn waits for its transcript before it is dropped. */
+  /**
+   * How long a person's turn waits, after its last sign of life, for its final
+   * transcript before what it has is stored (or nothing, when it has none).
+   */
   readonly userTranscriptWaitMs: number;
   readonly creditCheckMs: number;
   /** New upstream sessions one call may open after the first. */
@@ -189,15 +192,31 @@ export interface VoiceCallStart {
 /*  The exchange ledger                                                        */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * What the person said in one input item.
+ *
+ * A provider may send several `transcript.done` for one item: xAI sends a
+ * growing transcript at every pause, repeats, and its final one only after the
+ * item is committed (measured 2026-10-16). OpenAI commits first and sends one.
+ * So the transcript is final at the first `done` after the commit, and until
+ * then each `done` replaces the last.
+ */
 interface UserEntry {
   kind: 'user';
+  /** Stored under this id, and named by every transcript event of the item. */
+  messageId: string;
   itemId: string;
   text: string | null;
+  committed: boolean;
+  final: boolean;
+  /** Refreshed by every event of the item: stored as it is once this passes. */
   deadline: number;
 }
 
 interface TurnEntry {
   kind: 'assistant';
+  /** Stored under this id, and named by every transcript event of the turn. */
+  messageId: string;
   /** Output transcripts by audio item, in the order the items began. */
   texts: Map<string, string>;
   toolInvocations: ToolInvocation[];
@@ -277,6 +296,8 @@ export class VoiceCall {
   private sentToolNames: string[] = [];
 
   private readonly ledger: LedgerEntry[] = [];
+  /** Input items already stored, by item id, with the message they were stored as. */
+  private readonly storedUserItems = new Map<string, string>();
   private currentTurn: TurnEntry | null = null;
   private readonly responses = new Map<string, ResponseState>();
   private readonly toolCalls = new Map<string, ToolCallState>();
@@ -656,27 +677,60 @@ export class VoiceCall {
         return;
       case 'input_audio.speech_stopped':
         this.activity();
+        this.userEntry(event.itemId);
         this.emit({ type: 'user.speech_stopped', itemId: event.itemId });
         return;
+      case 'input_audio.committed': {
+        const entry = this.userEntry(event.itemId);
+        if (entry) entry.committed = true;
+        return;
+      }
       case 'transcript.delta': {
-        const role = event.source === 'input_audio' ? 'user' : 'assistant';
-        if (role === 'assistant') {
-          const turn = this.openTurn();
-          turn.texts.set(event.itemId, (turn.texts.get(event.itemId) ?? '') + event.text);
+        if (event.source === 'input_audio') {
+          const messageId = this.userMessageId(event.itemId);
+          this.emit({
+            type: 'transcript.delta',
+            role: 'user',
+            messageId,
+            itemId: event.itemId,
+            text: event.text,
+          });
+          return;
         }
-        this.emit({ type: 'transcript.delta', role, itemId: event.itemId, text: event.text });
+        const turn = this.openTurn();
+        turn.texts.set(event.itemId, (turn.texts.get(event.itemId) ?? '') + event.text);
+        this.emit({
+          type: 'transcript.delta',
+          role: 'assistant',
+          messageId: turn.messageId,
+          itemId: event.itemId,
+          text: event.text,
+        });
         return;
       }
       case 'transcript.done': {
         if (event.source === 'input_audio') {
-          this.userEntry(event.itemId).text = event.transcript;
+          const entry = this.userEntry(event.itemId);
+          if (entry) {
+            entry.text = event.transcript;
+            if (entry.committed) entry.final = true;
+          }
+          this.emit({
+            type: 'transcript.done',
+            role: 'user',
+            messageId: this.userMessageId(event.itemId),
+            itemId: event.itemId,
+            text: event.transcript,
+          });
           this.flushLedger(false);
-        } else {
-          this.openTurn().texts.set(event.itemId, event.transcript);
+          return;
         }
+        const turn = this.openTurn();
+        turn.texts.set(event.itemId, event.transcript);
         this.emit({
           type: 'transcript.done',
-          role: event.source === 'input_audio' ? 'user' : 'assistant',
+          role: 'assistant',
+          messageId: turn.messageId,
           itemId: event.itemId,
           text: event.transcript,
         });
@@ -888,20 +942,38 @@ export class VoiceCall {
 
   /* -------------------------------- ledger -------------------------------- */
 
-  private userEntry(itemId: string): UserEntry {
+  /**
+   * The ledger entry of an input item, its deadline refreshed; created on its
+   * first event. `null` once the item is stored: a later event of it (xAI
+   * repeats its final transcript) is never a second message.
+   */
+  private userEntry(itemId: string): UserEntry | null {
+    if (this.storedUserItems.has(itemId)) return null;
+    const deadline = this.now() + this.limits.userTranscriptWaitMs;
     const existing = this.ledger.find(
       (entry): entry is UserEntry => entry.kind === 'user' && entry.itemId === itemId,
     );
-    if (existing) return existing;
+    if (existing) {
+      existing.deadline = deadline;
+      return existing;
+    }
     const entry: UserEntry = {
       kind: 'user',
+      messageId: `voice-${randomUUID()}`,
       itemId,
       text: null,
-      deadline: this.now() + this.limits.userTranscriptWaitMs,
+      committed: false,
+      final: false,
+      deadline,
     };
     this.ledger.push(entry);
     this.scheduleLedger();
     return entry;
+  }
+
+  /** The message an input item is (or was) stored as. */
+  private userMessageId(itemId: string): string {
+    return this.storedUserItems.get(itemId) ?? this.userEntry(itemId)!.messageId;
   }
 
   /** The answer being built: chained responses (tool round trips) are one turn. */
@@ -909,6 +981,7 @@ export class VoiceCall {
     if (this.currentTurn && !this.currentTurn.done) return this.currentTurn;
     const turn: TurnEntry = {
       kind: 'assistant',
+      messageId: `voice-${randomUUID()}`,
       texts: new Map(),
       toolInvocations: [],
       audioItems: new Set(),
@@ -940,7 +1013,7 @@ export class VoiceCall {
 
   private ready(entry: LedgerEntry, force: boolean): boolean {
     if (force) return true;
-    if (entry.kind === 'user') return entry.text !== null || this.now() >= entry.deadline;
+    if (entry.kind === 'user') return entry.final || this.now() >= entry.deadline;
     if (!entry.done) return false;
     return (
       entry.interruptDeadline === undefined ||
@@ -953,9 +1026,9 @@ export class VoiceCall {
     if (this.ledgerTimer || this.isClosed) return;
     const deadlines = this.ledger.flatMap((entry) =>
       entry.kind === 'user'
-        ? entry.text === null
-          ? [entry.deadline]
-          : []
+        ? entry.final
+          ? []
+          : [entry.deadline]
         : entry.done &&
             entry.interruptDeadline !== undefined &&
             entry.interruptedAfterMs === undefined
@@ -977,15 +1050,16 @@ export class VoiceCall {
     while (this.ledger.length > 0 && this.ready(this.ledger[0]!, force)) {
       const entry = this.ledger.shift()!;
       if (entry.kind === 'user') {
+        this.storedUserItems.set(entry.itemId, entry.messageId);
         const text = entry.text?.trim() ?? '';
-        if (text !== '') batch.push({ id: `voice-${randomUUID()}`, role: 'user', content: text });
+        if (text !== '') batch.push({ id: entry.messageId, role: 'user', content: text });
         continue;
       }
       if (entry === this.currentTurn) this.currentTurn = null;
       const text = [...entry.texts.values()].join(' ').replace(/\s+/g, ' ').trim();
       if (text === '' && entry.toolInvocations.length === 0) continue;
       batch.push({
-        id: `voice-${randomUUID()}`,
+        id: entry.messageId,
         role: 'assistant',
         content: text,
         ...(entry.toolInvocations.length > 0 ? { toolInvocations: entry.toolInvocations } : {}),
