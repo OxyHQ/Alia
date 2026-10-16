@@ -24,6 +24,7 @@ An ADR records a decision that is **in force now**, the context that forced it, 
 | [0017](./0017-voice-is-a-realtime-session-through-kaana.md) | Voice is a realtime speech-to-speech session through Kaana; dictation is Kaana transcription | Accepted (supersedes 0013 §1–3) | 2026-10-15 |
 | [0018](./0018-the-conversation-screen-is-the-sdks.md) | The conversation screen is the SDK's; the app keeps its layout | Accepted | 2026-10-15 |
 | [0020](./0020-every-agent-is-the-same-agent.md) | Every agent is the same agent: one base for Alia, people's agents and app agents | Accepted | 2026-10-16 |
+| [0021](./0021-app-confined-agents.md) | An app's agent may be confined to that app, by Oxy | Accepted | 2026-10-16 |
 
 Companion document: [the compatibility window and sunset criteria](../migration/compatibility-window.md), which binds ADR 0002, ADR 0003 and ADR 0004 to measurable removal gates — for paths (a) and (c); path (b) left the window under ADR 0010.
 
@@ -42,6 +43,8 @@ ADR 0017 is the owner's decision of 2026-10-15 that voice calls run on realtime 
 ADR 0018 is the owner's decision of 2026-10-15 that the bottom sheet and the app are one product: everything that is a conversation — the thread, its cards, the thought panel, the composer's levels, the voice call — is drawn by the SDK's `AliaChatContent`, and the app keeps only the sidebar, the right panel, the layout that mounts them, its routes and its callbacks.
 
 ADR 0020 is the owner's decision of 2026-10-16 that there is one agent model. The native-product-agent lane (pinned manifest, requester assertions, application-bound reach, product-paid inference) is retired; an app's agent such as Homiio's Sindi is an ordinary agent its owner publishes, reaching a person's own app data under the owner's published ceiling (Oxy ADR 0042), consulted by Alia through one streaming `consultAgent`, fully autonomous within its configuration (no approval cards), and embedded by any app through the SDK with host tools, renderers and feature gates. It amends ADR 0015 §1–4 and ADR 0018.
+
+ADR 0021 is the owner's decision of 2026-10-16 that an Oxy application's own agent may be confined to that application. It is Oxy's platform fact (Oxy ADR 0044), read live and enforced in `canReachAgent` against the application of the person's session; it is not an agent-editor setting and does not re-add `agents.application_id`.
 
 ## Conventions
 
