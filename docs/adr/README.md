@@ -23,6 +23,7 @@ An ADR records a decision that is **in force now**, the context that forced it, 
 | [0015](./0015-actors-and-identities.md) | Actors and identities: Alia and agents, for the person and as themselves | Accepted | 2026-10-06 |
 | [0017](./0017-voice-is-a-realtime-session-through-kaana.md) | Voice is a realtime speech-to-speech session through Kaana; dictation is Kaana transcription | Accepted (supersedes 0013 §1–3) | 2026-10-15 |
 | [0018](./0018-the-conversation-screen-is-the-sdks.md) | The conversation screen is the SDK's; the app keeps its layout | Accepted | 2026-10-15 |
+| [0020](./0020-every-agent-is-the-same-agent.md) | Every agent is the same agent: one base for Alia, people's agents and app agents | Proposed | 2026-10-16 |
 
 Companion document: [the compatibility window and sunset criteria](../migration/compatibility-window.md), which binds ADR 0002, ADR 0003 and ADR 0004 to measurable removal gates — for paths (a) and (c); path (b) left the window under ADR 0010.
 
@@ -39,6 +40,8 @@ ADR 0015 is the owner's actor model: **Alia** (one for everybody, the default ac
 ADR 0017 is the owner's decision of 2026-10-15 that voice calls run on realtime speech-to-speech models served by Kaana, with turn detection and barge-in on the server, and that dictation is transcribed by a Kaana model; on-device recognition goes. The device talks to Alia over Alia's own WebSocket and Alia holds the Kaana session, so tools, memory and the owner's data stay in Alia. It is accepted and builds on Kaana ADR 0002 (`kaana.ai/v1`, `@kaana.ai/sdk`); number 0016 is reserved by that record for Alia's adoption of `@kaana.ai/sdk`. When accepted, a note at the top of ADR 0013 records what it supersedes.
 
 ADR 0018 is the owner's decision of 2026-10-15 that the bottom sheet and the app are one product: everything that is a conversation — the thread, its cards, the thought panel, the composer's levels, the voice call — is drawn by the SDK's `AliaChatContent`, and the app keeps only the sidebar, the right panel, the layout that mounts them, its routes and its callbacks.
+
+ADR 0020 is the owner's decision of 2026-10-16 that there is one agent model. The native-product-agent lane (pinned manifest, requester assertions, application-bound reach, product-paid inference) is retired; an app's agent such as Homiio's Sindi is an ordinary agent its owner publishes, reaching a person's own app data under the owner's published ceiling (Oxy ADR 0042), consulted by Alia through one streaming `consultAgent`, and embedded by any app through the SDK with host tools, renderers and feature gates. It amends ADR 0015 §1–4 and ADR 0018.
 
 ## Conventions
 
