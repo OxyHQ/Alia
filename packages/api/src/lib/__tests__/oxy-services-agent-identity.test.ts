@@ -162,7 +162,7 @@ function body(call: unknown[] | undefined): Record<string, unknown> {
 
 describe('an agent with its owner present', () => {
   it('holds BOTH sets, and says plainly whose account each one reaches', async () => {
-    const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: true, self: true }));
+    const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: 'owner', self: true }));
     expect(Object.keys(tools).sort()).toEqual([
       // Ver: the owner's read only, never the send the package also lists.
       'oxy_inbox__searchEmails',
@@ -179,7 +179,7 @@ describe('an agent with its owner present', () => {
 
   it("gives the owner's writes only at Ver y actuar", async () => {
     grantAutonomy = 'autonomous';
-    const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: true, self: false }));
+    const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: 'owner', self: false }));
     expect(Object.keys(tools).sort()).toEqual(['oxy_inbox__searchEmails', 'oxy_inbox__sendEmail']);
   });
 
@@ -215,7 +215,7 @@ describe('an agent with its owner present', () => {
 
 describe('an agent running with nobody present', () => {
   const unattended: OxyAgentIdentity = {
-    forUser: true,
+    forUser: 'owner',
     self: true,
     unattendedSessionId: 'session-9',
   };
@@ -287,7 +287,7 @@ describe("when Oxy refuses the owner's capability map (403 requester_lacks_grant
   });
 
   it("keeps the agent's own account and the other identity's tools", async () => {
-    const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: true, self: true }));
+    const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: 'owner', self: true }));
     expect(Object.keys(tools).sort()).toEqual([
       'oxy_apps__status',
       'self_inbox__searchEmails',
@@ -296,7 +296,7 @@ describe("when Oxy refuses the owner's capability map (403 requester_lacks_grant
   });
 
   it('tells the model the owner’s apps are unavailable — typed, never Oxy’s reason', async () => {
-    const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: true, self: false }));
+    const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: 'owner', self: false }));
     expect(Object.keys(tools)).toEqual(['oxy_apps__status']);
     const status = tools.oxy_apps__status as unknown as ExecutableTool;
     const answer = await status.execute({});
@@ -315,7 +315,7 @@ describe("when Oxy refuses the owner's capability map (403 requester_lacks_grant
 
   it('the same agent with the refusal lifted gets its owner’s tools back — the control', async () => {
     capabilityMapRefusal = null;
-    const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: true, self: false }));
+    const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: 'owner', self: false }));
     expect(Object.keys(tools)).toEqual(['oxy_inbox__searchEmails']);
   });
 });

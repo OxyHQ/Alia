@@ -111,7 +111,6 @@ beforeEach(async () => {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   vi.stubEnv('OXY_API_URL', origin);
-  vi.stubEnv('ALIA_INTERNAL_MCP_PILOT', undefined);
   const realFetch = globalThis.fetch;
   vi.stubGlobal('fetch', (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
     if (new URL(String(url)).origin !== origin)

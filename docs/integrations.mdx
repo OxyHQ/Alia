@@ -94,8 +94,10 @@ app-specific code in Alia.
 - Each call carries one idempotency key per tool call (`idempotencyKey` in
   `oxy-services.ts`); Inbox's catalog 2.0.0 takes it only from that header, not
   from a model-written argument.
-- What still uses each app's advertised HTTP invocation, and the Mention MCP pilot,
-  are in [Oxy application authority](./oxy-capability-boundaries.md).
+- Each catalogue says how its internal tools are reached (`internalTransport`):
+  `mcp` is `<internalBaseUrl>/_oxy/mcp`, pinned to the exact registration it was
+  read from; absent or `http` is each tool's advertised invocation. See
+  [Oxy application authority](./oxy-capability-boundaries.md).
 
 Inbound service events go through `POST /webhooks/oxy`:
 

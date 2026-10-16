@@ -71,6 +71,8 @@ export interface CreateOxyExecutionAuthorizationInput {
   automationId?: string;
   maximumAutonomy: AutonomyLevel;
   limits: OxyExecutionLimit[];
+  /** The agent owner's ceiling bounding an agent acting for the requester (Oxy ADR 0042). */
+  ceilingId?: string;
   expiresAt: Date;
 }
 
@@ -116,6 +118,7 @@ export async function createOxyExecutionAuthorization(
     resource: input.resource,
     tool: input.tool,
     limits: input.limits,
+    ...(input.ceilingId ? { ceilingId: input.ceilingId } : {}),
     expiresAt: input.expiresAt.toISOString(),
   };
   if (input.kind === 'automation') {
