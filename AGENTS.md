@@ -83,6 +83,10 @@ a pelo: los paquetes usan vitest.
   siguen en Node. Todo one-shot que arranca la imagen de la API nombra `bun`
   (`MIGRATION_RUNTIME`, comando post-rollout, bootstrap, canary): un `bun`
   contra una imagen Node muere — `src/__tests__/dockerfileRuntime.test.ts`.
+- **Upgrades WebSocket: un solo enrutador** (`lib/websocket-upgrades.ts`). Socket.IO sirve su ruta con
+  `destroyUpgrade: false`; voz, relay MCP y cualquier ruta nueva son un `WebSocketRoute`; lo demás
+  es 404. Nunca otro `server.on('upgrade')`: en Bun, engine.io cerraba al segundo todo socket ajeno.
+  `test:bun-runtime` lo prueba en el runtime real.
 - `Relay` es un nombre retirado; el único origen de Kaana es `https://kaana.ai`.
   `lib/mcp-relay.ts` es el transporte WebSocket de MCP y no se renombra.
 - **Shows** (podcasts en Syra): la ruta acuña un ticket de ingesta de un solo

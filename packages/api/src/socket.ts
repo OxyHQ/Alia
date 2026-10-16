@@ -91,6 +91,11 @@ export function initSocket(server: http.Server) {
       credentials: true,
     },
     transports: ['websocket', 'polling'],
+    // Upgrades to other paths belong to `lib/websocket-upgrades.ts`, which
+    // refuses unknown ones itself. engine.io's default ends any upgrade it did
+    // not serve after 1 s unless `socket.bytesWritten > 0`, which an upgraded
+    // socket reports as 0 under Bun: it killed every voice and MCP socket.
+    destroyUpgrade: false,
   });
 
   /**
