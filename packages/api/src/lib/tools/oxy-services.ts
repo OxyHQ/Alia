@@ -43,10 +43,6 @@ import { oxyServiceClient, oxyServiceToken } from '../oxy-service-client.js';
 import { TTLCache } from '../ttl-cache.js';
 
 const TOOL_TIMEOUT_MS = 15_000;
-const INTERNAL_MCP_PILOT = process.env.ALIA_INTERNAL_MCP_PILOT;
-if (INTERNAL_MCP_PILOT !== undefined && INTERNAL_MCP_PILOT !== 'mention') {
-  throw new Error('ALIA_INTERNAL_MCP_PILOT must name the explicit Mention pilot');
-}
 function agency() {
   const client = oxyServiceClient();
   if (!client) throw new OxyAuthorityUnavailableError('Alia service identity is unavailable');
@@ -56,19 +52,25 @@ const OXY_API_URL = (process.env.OXY_API_URL || 'https://api.oxy.so').replace(/\
 
 export type OxyToolAutonomy = AutonomyLevel;
 
-const assignmentSchema = z.object({
-  grantId: z.string().min(1),
+const assignmentTermsSchema = z.object({
   resource: resourceRefSchema,
   maximumAutonomy: autonomyLevelSchema,
   limits: z.array(z.object({ key: z.string(), value: z.unknown() })),
   toolNames: z.array(z.string()),
 });
-const mapResponseSchema = z.object({ assignments: z.array(assignmentSchema) });
+/** The owner's grant to the agent over the owner's data (`/capability-map`). */
+const grantMapResponseSchema = z.object({
+  assignments: z.array(assignmentTermsSchema.extend({ grantId: z.string().min(1) })),
+});
+/** The owner's ceiling for the person present, on that person's data (`/requester-capability-map`). */
+const ceilingMapResponseSchema = z.object({
+  assignments: z.array(assignmentTermsSchema.extend({ ceilingId: z.string().min(1) })),
+});
 const ticketResponseSchema = z.object({
   decision: z.object({ allowed: z.boolean(), reason: z.string() }).passthrough(),
   ticket: z.string().min(1).optional(),
 });
-type Assignment = z.infer<typeof assignmentSchema>;
+type Assignment = z.infer<typeof assignmentTermsSchema> & { ceilingId?: string };
 
 export interface OxyExecutionAuthorizationRef {
   id: string;
@@ -104,11 +106,16 @@ function parseExecutionAuthorizationKey(
 }
 
 /**
- * Which of an AGENT's two identities its toolset carries (ADR 0015).
+ * Which of an AGENT's identities its toolset carries (ADR 0015, ADR 0020 §2).
  *
- *  - `forUser`: its owner's apps, exactly as the agent's Oxy grants allow —
- *    the per-app levels the owner set (*Ver* / *Ver y actuar*). Tools keep the
- *    `oxy_<app>__<tool>` names and say whose account they reach.
+ *  - `forUser`: the PERSON present's apps, named `oxy_<app>__<tool>`.
+ *    - `'owner'`: the person is the agent's owner, so their data is reached
+ *      exactly as the agent's Oxy grants allow — the per-app levels the owner
+ *      set (*Ver* / *Ver y actuar*).
+ *    - `'requester'`: anybody else using the agent; their OWN data is reached
+ *      as the owner's published ceiling for each app allows (Oxy ADR 0042),
+ *      never the owner's data.
+ *    - `false`: none of the person's apps.
  *  - `self`: the agent's OWN bot account — its own Inbox, its own posts —
  *    named `self_<app>__<tool>`. Oxy authorizes it without a grant: the bot is
  *    the agent.
@@ -117,11 +124,11 @@ function parseExecutionAuthorizationKey(
  *    the bot's owner; owner effects then need a *Ver y actuar* (autonomous)
  *    grant.
  *
- * Absent on an agent means `{ forUser: true, self: false }`: the preauthorized
+ * Absent on an agent means `{ forUser: 'owner', self: false }`: the preauthorized
  * automation stage, whose exact steps already name their resources.
  */
 export interface OxyAgentIdentity {
-  forUser: boolean;
+  forUser: 'owner' | 'requester' | false;
   self: boolean;
   unattendedSessionId?: string;
 }
@@ -191,6 +198,8 @@ interface BoundTool {
   suffix: string | null;
   /** Bound to the agent's own bot account rather than to the person's. */
   self?: boolean;
+  /** Bounded by the agent owner's ceiling for the person present (Oxy ADR 0042). */
+  ceilingId?: string;
 }
 
 const defsCache = new TTLCache<CatalogDef[]>({ ttlMs: 60_000, maxSize: 1 });
@@ -357,7 +366,9 @@ function describeIssues(error: ValidationFailure): string {
 function compileRegistration(registration: Registration): CatalogDef {
   const catalog = parseRegistryCatalog(registration.catalog);
   let internalCatalogBinding: CapabilityCatalogBinding | undefined;
-  if (catalog.appId === INTERNAL_MCP_PILOT) {
+  // The app says how its internal tools are reached; a catalogue on the
+  // internal MCP lane is pinned to the exact registration it was read from.
+  if (catalog.internalTransport === 'mcp') {
     if (!('id' in registration) || !('version' in registration) || !('digest' in registration)) {
       throw new Error('Internal MCP requires complete registry provenance');
     }
@@ -414,12 +425,28 @@ function getCatalogDefs(): Promise<CatalogDef[]> {
 }
 
 function agentIdentityOf(context: OxyToolExecutionContext): OxyAgentIdentity {
-  return context.agentIdentity ?? { forUser: true, self: false };
+  return context.agentIdentity ?? { forUser: 'owner', self: false };
 }
 
 async function agentAssignments(context: OxyToolExecutionContext): Promise<Assignment[]> {
-  if (context.actor.type !== 'agent' || !agentIdentityOf(context).forUser) return [];
-  const parsed = mapResponseSchema.parse(
+  const forUser = agentIdentityOf(context).forUser;
+  if (context.actor.type !== 'agent' || forUser === false) return [];
+  if (forUser === 'requester') {
+    // The person's OWN account, under the owner's ceilings: Oxy answers only
+    // for an account the requester operates (their own).
+    const parsed = ceilingMapResponseSchema.parse(
+      await oxyAuthorityFetch('/capabilities/requester-capability-map', {
+        method: 'POST',
+        body: JSON.stringify({
+          requesterAccountId: context.requesterAccountId,
+          effectiveAccountId: context.requesterAccountId,
+          actorAccountId: context.actor.accountId,
+        }),
+      }),
+    );
+    return parsed.assignments;
+  }
+  const parsed = grantMapResponseSchema.parse(
     await oxyAuthorityFetch('/capabilities/capability-map', {
       method: 'POST',
       body: JSON.stringify({
@@ -429,7 +456,7 @@ async function agentAssignments(context: OxyToolExecutionContext): Promise<Assig
       }),
     }),
   );
-  return parsed.assignments;
+  return parsed.assignments.map(({ grantId: _grantId, ...terms }) => terms);
 }
 
 /** Capability-only view used by the coordinator; it contains no app content. */
@@ -603,6 +630,7 @@ function agentBindings(
       compiled,
       resource: assignment.resource,
       suffix: (counts.get(key) ?? 0) > 1 ? digest : null,
+      ...(assignment.ceilingId ? { ceilingId: assignment.ceilingId } : {}),
     };
   });
 }
@@ -694,6 +722,7 @@ async function createDirectExecutionAuthorization(
   resource: ResourceRef,
   definition: CatalogTool,
   runId: string,
+  ceilingId: string | undefined,
 ): Promise<string> {
   if (!context.userAccessToken) {
     throw new Error(`No direct or automation authority exists for ${definition.name}`);
@@ -708,6 +737,7 @@ async function createDirectExecutionAuthorization(
     runId,
     maximumAutonomy: directMaximumAutonomy(context, definition),
     limits: [],
+    ...(ceilingId ? { ceilingId } : {}),
     expiresAt: new Date(Date.now() + 2 * 60_000),
   });
 }
@@ -777,12 +807,13 @@ async function revokeTransientAuthorization(
 
 async function issueTicket(
   context: OxyToolExecutionContext,
-  resource: ResourceRef,
-  definition: CatalogTool,
+  binding: BoundTool,
   runId: string,
   expectedCatalog?: CapabilityCatalogBinding,
   onPendingRetirement?: (authorizationId: string) => void,
 ): Promise<IssuedTicket> {
+  const { resource } = binding;
+  const definition = binding.compiled.definition;
   const preauthorized =
     context.executionAuthorizations?.[oxyExecutionAuthorizationKey(resource, definition.name)];
   const unattendedSessionId =
@@ -802,7 +833,13 @@ async function issueTicket(
             definition,
             unattendedSessionId,
           )
-        : await createDirectExecutionAuthorization(context, resource, definition, runId));
+        : await createDirectExecutionAuthorization(
+            context,
+            resource,
+            definition,
+            runId,
+            binding.ceilingId,
+          ));
   } catch (error: unknown) {
     if (expectedCatalog)
       throw new OxyAuthorityUnavailableError('Internal MCP requester approval unavailable');
@@ -929,8 +966,7 @@ async function callInternalBoundTool(
   try {
     issued = await issueTicket(
       context,
-      binding.resource,
-      definition,
+      binding,
       runId,
       binding.compiled.internalCatalogBinding,
       (authorizationId) => {
@@ -1018,13 +1054,7 @@ async function callBoundTool(
   if (stepId) await context.onStepStatus?.(stepId, 'running');
   let issued: IssuedTicket | undefined;
   try {
-    issued = await issueTicket(
-      context,
-      binding.resource,
-      binding.compiled.definition,
-      runId,
-      binding.compiled.internalCatalogBinding,
-    );
+    issued = await issueTicket(context, binding, runId, binding.compiled.internalCatalogBinding);
     const { url, body } = resolveInvocation(
       binding.compiled.catalog,
       binding.compiled.definition,
@@ -1111,6 +1141,9 @@ function toolDescription(binding: BoundTool, context: OxyToolExecutionContext): 
   const resource = `Resource: ${binding.resource.resourceType}/${binding.resource.resourceId}.`;
   if (binding.self) {
     return `[Your own ${app}] YOUR account as this agent (your own ${app.toLowerCase()}, not the person's): ${binding.compiled.definition.description} ${resource}`;
+  }
+  if (binding.ceilingId) {
+    return `[${app}] The PERSON you are talking to — their own account, used on their behalf within what you may do for the people who use you: ${binding.compiled.definition.description} ${resource}`;
   }
   if (context.actor.type === 'agent') {
     return `[${app}] The PERSON you work for — their account, used on their behalf within the permissions they gave you: ${binding.compiled.definition.description} ${resource}`;

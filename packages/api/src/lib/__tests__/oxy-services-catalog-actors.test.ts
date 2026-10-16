@@ -142,7 +142,7 @@ describe('catalogue actors', () => {
       requesterAccountId: USER,
       ownerAccountId: USER,
       actor: { type: 'agent', accountId: AGENT },
-      agentIdentity: { forUser: true, self: true },
+      agentIdentity: { forUser: 'owner', self: true },
       userAccessToken: 'USER-BEARER',
     });
     // `listPublicProfiles` names Alia but not agents; `readViewerGraph` names

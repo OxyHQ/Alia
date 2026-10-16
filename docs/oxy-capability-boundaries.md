@@ -12,8 +12,8 @@ These remaining callers are active contracts, not unreachable compatibility code
 | Boundary | Current callers and reason to retain |
 | --- | --- |
 | Agent capability-map lookup | `automation-coordination.ts` calls `getOxyAgentCapabilityMap`, which POSTs requester/owner/actor identifiers to Oxy. The published agency namespace has no equivalent capability-map method. Removing it would erase assigned resource/limit checks. |
-| Generic app HTTP invocation | `tool-pipeline.ts` builds tools from registered catalogs; non-Mention apps still use each catalog's advertised HTTP invocation. No replacement handler/catalog binding has been demonstrated for those apps. |
-| Mention internal MCP | Only the explicit Mention pilot uses shared MCP, exact catalog provenance and independent requester/ticket authority. Failure never falls back to generic HTTP. |
+| Generic app HTTP invocation | `tool-pipeline.ts` builds tools from registered catalogs; a catalogue without `internalTransport: 'mcp'` uses each tool's advertised HTTP invocation. |
+| Internal MCP | A catalogue that declares `internalTransport: 'mcp'` is reached through shared MCP at `/_oxy/mcp`, with exact catalog provenance and independent requester/ticket authority. Failure never falls back to generic HTTP. |
 | Automation coordination | `structured-automation-creation.ts`, `automation-coordination.ts` and `automation-authority.ts` create and use standing authority for background tasks. This is not interchangeable with a direct chat request. |
 | Alia product API | `/alia/chat` and `/v1/*` are permanent assistant APIs. Console-issued app-only machine-key admission is implemented with published core4.4.0 and adopted by Alia#666. The positive Console issuance/chat/revocation journey remains pending; see [machine chat contract](./machine-chat-contract.md). |
 

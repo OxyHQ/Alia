@@ -674,22 +674,41 @@ export class ToolPipeline {
     // Owner data only for the owner: see `ForUserOptions.requesterAccountId`.
     const ownerIsPresent = oxyOwnerAccountId != null && requesterAccountId === oxyOwnerAccountId;
     /**
-     * An agent's two identities (ADR 0015): the owner's apps per the levels the
-     * owner set, and its own bot account (`self_*`). Both only when the person
-     * in the turn IS the owner — a stranger on a shared agent gets neither the
-     * owner's inbox nor the agent's, whose mail may well be about the owner.
+     * Anybody else using an agent reaches their OWN apps through it, as the
+     * owner's published ceilings allow (ADR 0020 §2, Oxy ADR 0042) — never the
+     * owner's. Only with that person's live bearer, which is what lets Oxy see
+     * them present and authorize each call as their own request.
+     */
+    // A legacy agent whose bot has no reconciled owner gets no Oxy tools on
+    // either lane: nobody can stand behind its ceilings.
+    const requesterIsPresent =
+      agent != null &&
+      agent.ownerOxyAccountId != null &&
+      !ownerIsPresent &&
+      requesterAccountId != null &&
+      isDirectSession &&
+      accessToken !== undefined;
+    /**
+     * The person's apps (`oxy_*`) — the owner's per the levels they set, or
+     * anybody else's per the ceilings — and the agent's own bot account
+     * (`self_*`), which only its owner's turn carries: a stranger on a shared
+     * agent never gets the agent's mail, which may well be about the owner.
      */
     const unattendedSessionId = !isDirectSession ? oxyAgentRunSessionId : undefined;
     const agentIdentity = agent
-      ? {
-          forUser: true,
-          // Only where a call can be authorized at all: the owner's bearer, or
-          // the runner's agent-run lane. Elsewhere (a Telegram turn) the agent's
-          // own account would be a list of tools Oxy refuses every time.
-          self: (isDirectSession && accessToken !== undefined) || unattendedSessionId !== undefined,
-          ...(unattendedSessionId !== undefined ? { unattendedSessionId } : {}),
-        }
+      ? requesterIsPresent
+        ? { forUser: 'requester' as const, self: false }
+        : {
+            forUser: 'owner' as const,
+            // Only where a call can be authorized at all: the owner's bearer, or
+            // the runner's agent-run lane. Elsewhere (a Telegram turn) the agent's
+            // own account would be a list of tools Oxy refuses every time.
+            self:
+              (isDirectSession && accessToken !== undefined) || unattendedSessionId !== undefined,
+            ...(unattendedSessionId !== undefined ? { unattendedSessionId } : {}),
+          }
       : undefined;
+    const oxyPersonAccountId = requesterIsPresent ? requesterAccountId : oxyOwnerAccountId;
     const [mcpTools, integrationTools, oxyServiceTools, ownAgentTools] = await Promise.all([
       actsForPerson && wants('mcp')
         ? buildMcpTools(userId, mcpSelection(mcpServerId, grants)).catch(bulkFailure('mcp'))
@@ -699,14 +718,17 @@ export class ToolPipeline {
             bulkFailure('integration'),
           )
         : {},
-      !wants('oxy_service') || (!actsForPerson && !agent) || !ownerIsPresent
+      !wants('oxy_service') ||
+      (!actsForPerson && !agent) ||
+      (!ownerIsPresent && !requesterIsPresent) ||
+      oxyPersonAccountId == null
         ? {}
         : buildOxyServiceTools(userId, {
-            requesterAccountId: oxyOwnerAccountId,
-            ownerAccountId: oxyOwnerAccountId,
+            requesterAccountId: oxyPersonAccountId,
+            ownerAccountId: oxyPersonAccountId,
             actor: agent
               ? { type: 'agent', accountId: agent.oxyAccountId }
-              : { type: 'alia', ownerAccountId: oxyOwnerAccountId },
+              : { type: 'alia', ownerAccountId: oxyPersonAccountId },
             ...(agentIdentity ? { agentIdentity } : {}),
             runId: runId ?? requestId,
             autonomy: oxyAutonomy,

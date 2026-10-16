@@ -239,6 +239,7 @@ beforeEach(async () => {
     audience: 'mention-api',
     internalBaseUrl: origin,
     accountResourceType: 'mention_account',
+    internalTransport: 'mcp',
     tools: [
       {
         name: 'savePost',
@@ -345,7 +346,6 @@ beforeEach(async () => {
     serviceAuth: { apiKey: 'oxy_dk_fixture_alia', apiSecret: 'fixture-only-service-secret' },
   });
   vi.stubEnv('OXY_API_URL', issuer);
-  vi.stubEnv('ALIA_INTERNAL_MCP_PILOT', 'mention');
   toolsModule = await import('../tools/oxy-services.js');
 });
 afterEach(async () => {
@@ -528,11 +528,6 @@ describe('Alia installed common agency and internal MCP pilot', () => {
     expect(effects).toBe(0);
     expect(retirements).toBe(1);
     expect(legacyCalls).toBe(0);
-  });
-  it('rejects an unrecognized transport activation value', async () => {
-    vi.stubEnv('ALIA_INTERNAL_MCP_PILOT', 'inbox');
-    vi.resetModules();
-    await expect(import('../tools/oxy-services.js')).rejects.toThrow('explicit Mention pilot');
   });
   it('requires a named run and a real requester for direct use', async () => {
     for (const ctx of [

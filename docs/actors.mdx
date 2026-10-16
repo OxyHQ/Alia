@@ -34,9 +34,12 @@ own computer and its own mailbox.
 ## Who is in the turn decides what is reachable
 
 The **requester** is the authenticated person in the turn (`requesterAccountId`).
-An agent's tools reach its owner's data only when that requester IS the owner;
-a stranger on a shared or public agent, or on its Telegram bot, gets neither the
-owner's apps nor the agent's own mailbox (which may hold mail about the owner).
+An agent's tools reach its owner's data only when that requester IS the owner.
+Anybody else using a shared or public agent in their own session reaches their
+OWN apps through it, as far as the owner's published ceiling for each app allows
+(ADR 0020 §2, Oxy ADR 0042), and never the owner's apps or the agent's own
+mailbox (which may hold mail about the owner). Nobody is ever asked to approve
+an action: the agent's configuration is its permission.
 
 | Turn | Owner's apps (`oxy_<app>__<tool>`) | Agent's own account (`self_<app>__<tool>`) |
 |---|---|---|
@@ -44,7 +47,8 @@ owner's apps nor the agent's own mailbox (which may hold mail about the owner).
 | Owner in the agent's chat | `direct_request`, owner's bearer, trimmed by Oxy to the levels | `direct_request`, no grant |
 | Agent run, nobody present | Oxy agent-run lane; effects need *Ver y actuar* | same lane, no grant |
 | Automation stage | its exact preauthorized steps only | — |
-| Somebody else on the agent | never | not in this phase |
+| Somebody else on the agent, in their own session | their OWN apps: `direct_request` with their bearer naming the owner's ceiling (`/capabilities/requester-capability-map`) | never |
+| Somebody else on the agent's bot (no session of theirs) | never | never |
 
 A voice call is a turn like any other here: its tools are assembled with the
 person on the call's socket as the requester, and run in Alia, never on the
@@ -52,7 +56,8 @@ device ([Voice](./voice.mdx#tools-run-in-alia)). An agent's call has the agent's
 memory, never Alia's.
 
 - Detail: [Agents → Oxy apps: for the person and as itself](./agents.md#oxy-apps-for-the-person-and-as-itself).
-- Code: `ownerIsPresent` in `lib/tool-pipeline.ts` (the one place this is decided),
+- Code: `ownerIsPresent` / `requesterIsPresent` in `lib/tool-pipeline.ts` (the one place this is decided),
+  `lib/agent-requester-apps.ts` and `routes/agents/requester-apps.ts` (the ceilings the operator publishes),
   `lib/tools/oxy-services.ts` (both toolsets, `agentIdentityPrompt`),
   `lib/oxy-capability-authority.ts` (the agent-run lane).
 

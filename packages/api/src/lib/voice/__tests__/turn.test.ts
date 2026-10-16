@@ -93,7 +93,7 @@ describe('the call’s tools', () => {
     expect(options).not.toHaveProperty('oxyApprovals');
   });
 
-  it('an owner’s agent reaches the owner’s apps only when the owner is the one talking', async () => {
+  it('an agent reaches the owner’s apps only for the owner, and anybody else’s own apps for them', async () => {
     const actual =
       await vi.importActual<typeof import('../../tool-pipeline.js')>('../../tool-pipeline.js');
     const agent = {
@@ -111,9 +111,24 @@ describe('the call’s tools', () => {
     };
     // The control: the owner on the socket gets them, so the stranger's empty list means something.
     expect(await oxyToolsOf('owner-1')).toEqual(['oxy_inbox__search']);
+    expect(H.oxyTools).toHaveBeenLastCalledWith(
+      'owner-1',
+      expect.objectContaining({
+        requesterAccountId: 'owner-1',
+        agentIdentity: expect.objectContaining({ forUser: 'owner' }),
+      }),
+    );
     H.oxyTools.mockClear();
-    expect(await oxyToolsOf('stranger')).toEqual([]);
-    expect(H.oxyTools).not.toHaveBeenCalled();
+    // Somebody else on the call: their OWN apps, under the owner's ceilings (ADR 0020 §2).
+    await oxyToolsOf('stranger');
+    expect(H.oxyTools).toHaveBeenCalledWith(
+      'stranger',
+      expect.objectContaining({
+        requesterAccountId: 'stranger',
+        ownerAccountId: 'stranger',
+        agentIdentity: { forUser: 'requester', self: false },
+      }),
+    );
   });
 
   it('speak with the voice prompt layer and no question card', async () => {

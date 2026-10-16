@@ -305,15 +305,13 @@ describe('an agent reaches exactly what it was granted', () => {
   });
 
   it("reaches its owner's Oxy apps only when the owner is the one present", async () => {
-    // A public agent answering somebody else: the turn is the stranger's.
-    await namesFor([...EVERY_GRANT], {
-      userId: 'stranger',
-      agent: agentWith([...EVERY_GRANT], 'owner-1'),
-    });
-    // A stranger on the agent's bot, where the turn runs as the owner.
+    // A stranger on the agent's bot, where the turn runs as the owner and the
+    // stranger holds no session of their own.
     await namesFor([...EVERY_GRANT], {
       userId: 'owner-1',
       requesterAccountId: 'stranger',
+      isDirectSession: false,
+      accessToken: undefined,
       agent: agentWith([...EVERY_GRANT], 'owner-1'),
     });
     await namesFor([...EVERY_GRANT], {
@@ -330,6 +328,21 @@ describe('an agent reaches exactly what it was granted', () => {
       agent: agentWith([...EVERY_GRANT], 'owner-1'),
     });
     expect(asked.oxy_context).toEqual([expect.objectContaining({ requesterAccountId: 'owner-1' })]);
+  });
+
+  it("reaches a stranger's OWN apps, under the owner's ceilings, when the stranger is present", async () => {
+    // A public agent answering somebody else in their own session (ADR 0020 §2).
+    await namesFor([...EVERY_GRANT], {
+      userId: 'stranger',
+      agent: agentWith([...EVERY_GRANT], 'owner-1'),
+    });
+    expect(asked.oxy_context).toEqual([
+      expect.objectContaining({
+        requesterAccountId: 'stranger',
+        ownerAccountId: 'stranger',
+        agentIdentity: { forUser: 'requester', self: false },
+      }),
+    ]);
   });
 
   it('gets ONLY the ungranted tools when its grant list is empty', async () => {

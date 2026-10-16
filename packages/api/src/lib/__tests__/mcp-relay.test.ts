@@ -27,7 +27,11 @@ import { routeWebSocketUpgrades } from '../websocket-upgrades.js';
  * what proves anything here, and it is not.
  */
 
-/** The user rows the fake `GET /session/validate/:id` resolves, keyed by session id. */
+/**
+ * The user rows the fake `GET /session/validate-header/:id` resolves, keyed by
+ * session id. The SDK (core 4.17+) validates a session WITH the bearer it was
+ * handed, on the header lane, so Oxy also cross-checks the token against it.
+ */
 const sessions = new Map<string, { id: string }>();
 
 /** Every URL `fetch` was called with, so a test can assert which endpoint ran. */
@@ -53,7 +57,7 @@ function fakeOxyApi(input: string | URL): Promise<Response> {
   const url = String(input);
   fetchCalls.push(url);
 
-  const match = /\/session\/validate\/([^?/]+)/.exec(url);
+  const match = /\/session\/validate-header\/([^?/]+)/.exec(url);
   if (!match) return Promise.resolve(jsonResponse({ error: 'NOT_FOUND' }, 404));
 
   const user = sessions.get(decodeURIComponent(match[1]));
@@ -169,13 +173,14 @@ describe('MCP relay authentication', () => {
     );
 
     expect(reply.type).toBe('auth-ok');
-    expect(fetchCalls.some((url) => url.includes('/session/validate/sess-1'))).toBe(true);
+    expect(fetchCalls.some((url) => url.includes('/session/validate-header/sess-1'))).toBe(true);
     expect(fetchCalls.filter((url) => new URL(url).pathname === '/me')).toEqual([]);
   });
 
   /**
-   * The load-bearing case. `GET /session/validate/:id` is UNAUTHENTICATED and
-   * returns whoever owns the session id it was handed, so a caller holding any
+   * The load-bearing case. Session validation returns whoever owns the session
+   * id it was handed (the unauthenticated `GET /session/validate/:id` did so
+   * for any caller), so a caller holding any
    * live session id could pair it with a forged `userId` claim. The SDK
    * cross-checks the two and refuses; an implementation that read the claim
    * would admit `attacker`, and one that read the session blindly would admit
@@ -189,7 +194,9 @@ describe('MCP relay authentication', () => {
     );
 
     expect(reply.type).toBe('auth-error');
-    expect(fetchCalls.some((url) => url.includes('/session/validate/sess-victim'))).toBe(true);
+    expect(fetchCalls.some((url) => url.includes('/session/validate-header/sess-victim'))).toBe(
+      true,
+    );
     expect(getLocalTools('attacker')).toEqual([]);
     expect(getLocalTools('victim')).toEqual([]);
   });
@@ -222,7 +229,9 @@ describe('MCP relay authentication', () => {
     );
 
     expect(reply.type).toBe('auth-error');
-    expect(fetchCalls.some((url) => url.includes('/session/validate/sess-revoked'))).toBe(true);
+    expect(fetchCalls.some((url) => url.includes('/session/validate-header/sess-revoked'))).toBe(
+      true,
+    );
   });
 
   it('refuses a token that is not a JWT at all', async () => {
