@@ -10,7 +10,11 @@
  */
 
 import { asSchema, type Tool, type ToolSet } from 'ai';
-import type { RealtimeSessionConfig } from '@kaana.ai/contracts';
+import {
+  MAX_REALTIME_ITEM_TEXT_CHARS,
+  type RealtimeSessionConfig,
+  realtimeToolDefinitionSchema,
+} from '@kaana.ai/contracts';
 
 /** One tool as the session declares it. */
 type RealtimeToolDefinition = NonNullable<RealtimeSessionConfig['tools']>[number];
@@ -18,9 +22,9 @@ type RealtimeToolDefinition = NonNullable<RealtimeSessionConfig['tools']>[number
 /** A tool call that runs longer than this answers the model with a typed tool error. */
 export const VOICE_TOOL_TIMEOUT_MS = 60_000;
 
-/** The contract's bound on one `function_call_output`. */
-const MAX_TOOL_OUTPUT_CHARS = 1_048_576;
-const MAX_DESCRIPTION_CHARS = 2_000;
+/** The contract's bound on a tool's description, read from its schema. */
+const MAX_DESCRIPTION_CHARS =
+  realtimeToolDefinitionSchema.shape.description.unwrap().maxLength ?? Number.POSITIVE_INFINITY;
 
 /** The JSON Schema of a tool's input, or an empty object schema when it cannot be read synchronously. */
 function parametersOf(built: Tool): Record<string, unknown> {
@@ -79,7 +83,7 @@ function serialize(value: unknown): string {
   } catch {
     text = String(value);
   }
-  return text.length > MAX_TOOL_OUTPUT_CHARS ? text.slice(0, MAX_TOOL_OUTPUT_CHARS) : text;
+  return text.slice(0, MAX_REALTIME_ITEM_TEXT_CHARS);
 }
 
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
