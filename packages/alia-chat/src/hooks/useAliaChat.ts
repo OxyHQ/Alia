@@ -7,7 +7,7 @@ import { agentMessageId, delegatedAgent } from '../lib/delegation';
 import { streamAliaChat } from '../lib/chat-transport';
 import type { AliaChatStreamEvent } from '../lib/chat-stream';
 
-import { ALIA_API_URL } from '../lib/api-url';
+import { ALIA_API_URL } from '../lib/origins';
 import { useAliaActivityStore } from '../lib/activity-store';
 import { turnActivityState } from '../lib/turn-state';
 

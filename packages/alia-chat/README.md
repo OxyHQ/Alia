@@ -28,11 +28,24 @@ The chat is built from Bloom (`@oxy.so/bloom`, a peer dependency): mount Bloom's
 Alia's avatar is Bloom's 3D character (`AgentAvatar`). It draws through a runtime of
 static files (about 214 MB), which the chat loads from Alia's own origin
 (`ALIA_CHARACTER_RUNTIME_URL`, served with CORS open), so the app hosts nothing and mounts
-no avatar provider. An app with a strict CSP allows `https://alia.onl` in `script-src` and
-`connect-src` (and `'wasm-unsafe-eval'`). To serve your own copy instead, serve the Bloom
+no avatar provider. To serve your own copy instead, serve the Bloom
 package's `assets/character-runtime/` directory unchanged and pass the URL of `runtime.mjs`
 as `characterRuntimeUrl` to `AliaChatSheet` or `AliaChatScreen`; native avatars run in a
 WebView, so there the URL must be absolute and reachable from the device.
+
+A web app with a Content-Security-Policy composes the SDK's into its own instead of listing
+Alia's origins by hand: `@alia.onl/sdk/csp` exports `ALIA_SDK_CSP` and `withAliaSdkCsp(extensions)`
+in the shape of `@oxy.so/core`'s `OxyCspExtensions` (a leaf entry, safe on a server):
+
+```ts
+import { withAliaSdkCsp } from '@alia.onl/sdk/csp';
+app.use(createOxySecurityHeaders({ csp: withAliaSdkCsp(APP_CSP_EXTENSIONS) }));
+```
+
+It declares the API and its WebSocket (`connect-src`), the avatar runtime and the voice call's
+worklets on `https://alia.onl` (`script-src`, with `'wasm-unsafe-eval'` for the runtime's
+WebAssembly), attachments and read-aloud clips (`img-src`, `media-src`). No `blob:` script:
+the worklets are a content-addressed file on `alia.onl`, not a blob URL.
 
 The empty chat greets the signed-in person by name ("Hi Nate, what's on your mind?"); pass
 `welcomeGreeting` to say something else, or `labels.greeting` / `labels.greetingNamed` to translate it.
@@ -44,9 +57,10 @@ The chat's own copy is English. Pass `labels` to `AliaChatSheet` or
 `AliaChatScreen` to translate it (`AliaChatLabels`; anything omitted stays
 English). Bloom's own strings follow `BloomProvider`'s `locale`.
 
-Two entry points:
+Entry points:
 
 - `@alia.onl/sdk` — text chat, dictation, read-aloud, catalogue, primitives.
+- `@alia.onl/sdk/csp` — the CSP the SDK needs from a host page (above).
 - `@alia.onl/sdk/voice` — `VoiceSession` and `useVoiceRoom`, the voice call.
   Pass `VoiceSession` to the shell as `voiceSession` to offer calls; leave it
   out for text-only chat and the call is never compiled.

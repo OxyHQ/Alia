@@ -1,6 +1,6 @@
 {
   "name": "@alia.onl/sdk",
-  "version": "15.7.0",
+  "version": "15.8.0",
   "main": "src/index.ts",
   "react-native": "src/index.ts",
   "source": "src/index.ts",
@@ -9,12 +9,14 @@
     ".": "./src/index.ts",
     "./avatar": "./src/avatar.ts",
     "./content": "./src/lib/content-utils.ts",
+    "./csp": "./src/csp.ts",
     "./tools": "./src/tools.ts",
     "./voice": "./src/voice.ts",
     "./package.json": "./package.json"
   },
   "files": [
     "src",
+    "worklets",
     "NOTICE",
     "tsconfig.json",
     "CHANGELOG.md"

@@ -28,8 +28,7 @@ import {
 import { DictationRecorderError, useDictationRecorder } from '../lib/dictation-recorder';
 import { defaultSpeechLanguage } from '../lib/speech-language';
 import { VOICE_ERROR_MESSAGES, type VoiceErrorCode } from '../lib/speech-messages';
-
-const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
+import { ALIA_API_URL } from '../lib/origins';
 
 /** The remaining time is shown from here on. */
 const COUNTDOWN_FROM_MS = 30_000;
@@ -132,7 +131,7 @@ export function useDictation(options: UseDictationOptions = {}) {
       abortRef.current = controller;
       try {
         const result = await requestTranscription({
-          apiUrl: optionsRef.current.apiUrl || API_URL,
+          apiUrl: optionsRef.current.apiUrl || ALIA_API_URL,
           token,
           clip,
           language: optionsRef.current.lang ?? defaultSpeechLanguage(),
