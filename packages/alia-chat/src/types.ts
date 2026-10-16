@@ -52,11 +52,10 @@ export interface PlanStep {
   toolName?: string;
 }
 
-export interface PendingPlan {
+/** A plan the agent shows before it works (`alia.plan_preview`). Shown only: nothing waits on it. */
+export interface MessagePlan {
   planId: string;
   steps: PlanStep[];
-  approved: boolean;
-  rejected: boolean;
 }
 
 // ── Voice Types ──

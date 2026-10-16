@@ -32,8 +32,6 @@ export type {
   ConversationsPage,
   Message,
   MessageContent,
-  PendingApproval,
-  PendingApprovalResult,
   SendOptions,
   ToolInvocation,
 } from './types';

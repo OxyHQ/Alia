@@ -24,7 +24,16 @@ export const API_ROUTES = {
      */
     clearMessages: (id: string) => `/v1/conversations/${id}/messages`,
     vote: (id: string, messageId: string) => `/v1/conversations/${id}/messages/${messageId}/vote`,
+    /** Mint (`POST { ttlHours }`) or revoke (`DELETE`) the conversation's read-only share link. */
+    share: (id: string) => `/v1/conversations/${id}/share`,
   },
+  /** An agent any app can open: who it is, and which of Alia's features it gates. */
+  agents: {
+    profile: (id: string) => `/v1/agents/${encodeURIComponent(id)}/profile`,
+    features: (id: string) => `/v1/agents/${encodeURIComponent(id)}/features`,
+  },
+  /** A shared conversation, read without a session. */
+  shared: (token: string) => `/v1/shared/${encodeURIComponent(token)}`,
 } as const;
 
 /**

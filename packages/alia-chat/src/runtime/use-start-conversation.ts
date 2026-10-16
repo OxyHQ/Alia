@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import { type AliaChatLabels, useLabels } from '../lib/labels';
 import type { AliaAttachment } from '../types';
 import { buildMessageContent, type DroppedAttachment } from './attachment-utils';
+import { useDocumentUpload } from './oxy-files';
 import { useComposerDraftStore, type DraftTarget } from './composer-draft-store';
 import { useAliaRuntime } from './config';
 import { useConversationStore } from './conversation-store';
@@ -63,6 +64,7 @@ export function useStartConversation({ agentId }: { agentId?: string } = {}) {
   const labels = useLabels();
   const { host } = useAliaRuntime();
   const { mutateAsync: createConversation } = useCreateConversation();
+  const upload = useDocumentUpload();
 
   return useCallback(
     async (
@@ -74,7 +76,8 @@ export function useStartConversation({ agentId }: { agentId?: string } = {}) {
 
       // Attachments become multi-part content. The raw text and attachments ride along so a
       // failed send can restore them.
-      const built = attachments.length > 0 ? await buildMessageContent(text, attachments) : null;
+      const built =
+        attachments.length > 0 ? await buildMessageContent(text, attachments, upload) : null;
       reportDroppedAttachments(built?.dropped, labels);
       try {
         const conversation = await createConversation({ agentId });
@@ -99,6 +102,6 @@ export function useStartConversation({ agentId }: { agentId?: string } = {}) {
         return false;
       }
     },
-    [labels, host, createConversation, agentId],
+    [labels, host, createConversation, agentId, upload],
   );
 }

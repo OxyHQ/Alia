@@ -16,9 +16,12 @@ export interface AliaChatLabels {
   more: string;
   chatActions: string;
   // Composer
-  placeholder: string;
+  /** The empty composer's prompt, naming the conversation's lead ("Ask Sindi..."). */
+  placeholder: (leadName: string) => string;
   addMenuGroup: string;
   addPhotos: string;
+  /** The add menu's row for documents, where the lead takes them. */
+  addDocuments: string;
   startVoice: string;
   /** The call bar's words (status, mute, end). */
   voiceControls: VoiceControlsLabels;
@@ -73,10 +76,6 @@ export interface AliaChatLabels {
   stopReading: string;
   // Plan
   planTitle: string;
-  planApprove: string;
-  planCancel: string;
-  planApproved: string;
-  planCancelled: string;
   // Reasoning
   reasoning: string;
   thoughtFor: (seconds: number) => string;
@@ -123,9 +122,10 @@ export const DEFAULT_LABELS: AliaChatLabels = {
   share: 'Share',
   more: 'More',
   chatActions: 'Chat actions',
-  placeholder: 'Ask Alia...',
+  placeholder: (leadName) => `Ask ${leadName}...`,
   addMenuGroup: 'Add',
   addPhotos: 'Photos',
+  addDocuments: 'Files',
   startVoice: 'Start voice',
   voiceControls: VOICE_CONTROLS_LABELS,
   voiceEnded: (reason) => ENDED_ENGLISH[reason] ?? null,
@@ -160,10 +160,6 @@ export const DEFAULT_LABELS: AliaChatLabels = {
   readAloud: 'Read aloud',
   stopReading: 'Stop reading',
   planTitle: "Here's my plan",
-  planApprove: 'Approve',
-  planCancel: 'Cancel',
-  planApproved: 'Plan approved',
-  planCancelled: 'Plan cancelled',
   reasoning: 'Reasoning',
   thoughtFor: (seconds) => `Thought for ${seconds} seconds`,
   t: englishCopy,

@@ -6,7 +6,16 @@ export const aliaQueryKeys = {
   conversations: {
     all: ['conversations'] as const,
     detail: (id: string) => ['conversation', id] as const,
+    /** The person's conversations with one agent: under `all`, so every write to the list reaches it. */
+    withAgent: (agentId: string) => ['conversations', { agentId }] as const,
   },
+  /** An agent the chat is opened on: its profile and the state of its feature gates. */
+  agents: {
+    profile: (id: string) => ['alia-agent-profile', id] as const,
+    features: (id: string) => ['alia-agent-features', id] as const,
+  },
+  /** A conversation somebody shared, by its token. */
+  shared: (token: string) => ['alia-shared-conversation', token] as const,
   /** An agent's permanent thread: the stretches behind the open conversation, and finding in them. */
   threads: {
     /** The thread itself (which conversation is active): the host's own query lives under it. */

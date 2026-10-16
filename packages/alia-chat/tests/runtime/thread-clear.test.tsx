@@ -47,8 +47,6 @@ vi.mock('../../src/runtime/use-conversation-stream', () => ({
     stop: vi.fn(() => {
       chat.sequence.push('stop');
     }),
-    approvePlan: vi.fn(),
-    rejectPlan: vi.fn(),
     suggestedNewConversation: null,
     dismissSuggestedNewConversation: vi.fn(),
     failedTurn: null,

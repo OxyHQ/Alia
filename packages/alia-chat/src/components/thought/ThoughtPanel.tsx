@@ -36,7 +36,6 @@ import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiForbidLine } from '@oxy.so/bloom/icons/RiForbidLine';
-import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -74,7 +73,6 @@ function TabToggle({ value, onChange }: { value: ThoughtTab; onChange: (t: Thoug
 const STEP_LABEL_KEYS: Record<Exclude<ThoughtStep['type'], 'tool'>, string> = {
   thinking: 'thought.thinking',
   writing: 'thought.writing',
-  waiting: 'thought.waitingApproval',
   done: 'thought.done',
   failed: 'thought.failed',
   cancelled: 'thought.cancelled',
@@ -85,10 +83,9 @@ type PhaseStep = Omit<ThoughtStep, 'type'> & {
   type: Exclude<ThoughtStep['type'], 'tool'>;
 };
 
-/** The glyph of a pause or an ending; a phase that is working has none — the log's own shimmer says so. */
+/** The glyph of an ending; a phase that is working has none — the log's own shimmer says so. */
 function PhaseIcon({ type }: { type: PhaseStep['type'] }) {
   const { colors } = useTheme();
-  if (type === 'waiting') return <RiTimeLine size="sm" fill={colors.warning} />;
   if (type === 'done') return <RiCheckboxCircleLine size="sm" fill={colors.success} />;
   if (type === 'failed') return <RiCloseCircleLine size="sm" fill={colors.error} />;
   if (type === 'cancelled') return <RiForbidLine size="sm" fill={colors.textSecondary} />;

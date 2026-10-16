@@ -3,7 +3,8 @@ import { useOxy } from '@oxy.so/services/ui/client';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { NativeSyntheticEvent, TextInput, TextInputKeyPressEventData } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
-import { ALIA_TO_PROFILE } from '../lib/flights';
+import { leadToProfile } from '../lib/flights';
+import type { AliaLead } from '../lib/participants';
 import { imageUriToDataUrl } from '../lib/image-data-url';
 import {
   useComposerDraft,
@@ -39,6 +40,8 @@ export interface UseChatComposerOptions {
   onStart: ((turn: AliaTurn) => void) | undefined;
   /** The avatar flights: the greeting leaves with the first turn. */
   flights: AvatarFlights;
+  /** Whose greeting it is: the lead's avatar is the one that flies. */
+  lead: AliaLead;
   /** A turn sent once as the chat mounts: the conversation a sheet was opened for. */
   initialTurn: AliaTurn | undefined;
   /** The signed-out person sent a turn: the host asks them to sign in. */
@@ -84,6 +87,7 @@ export function useChatComposer({
   onWrite,
   onStart,
   flights,
+  lead,
   initialTurn,
   onSignInRequired,
   reportError,
@@ -155,14 +159,14 @@ export function useChatComposer({
         // The host's conversation sheet opens first so that the flight, drawn when it launches, is
         // above it; this chat stays on the greeting, so the avatar can still be measured.
         onStart({ text, ...(images.length > 0 ? { images } : {}) });
-        await flights.launch([ALIA_TO_PROFILE]);
+        await flights.launch([leadToProfile(lead)]);
         return;
       }
       // The greeting leaves with the first turn: measure it before it does.
-      if (firstTurn) await flights.launch([ALIA_TO_PROFILE]);
+      if (firstTurn) await flights.launch([leadToProfile(lead)]);
       await sendTurn(text, attachments, options);
     },
-    [startsElsewhere, onStart, firstTurn, flights, sendTurn, onWrite],
+    [startsElsewhere, onStart, firstTurn, flights, lead, sendTurn, onWrite],
   );
 
   // The conversation this chat was opened for, sent once.

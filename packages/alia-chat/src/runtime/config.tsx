@@ -38,7 +38,6 @@ export interface AliaUsageFrame {
 export interface AliaTurnRequest {
   /** Only `false` is sent: `true` is the server's default. */
   webSearch?: boolean;
-  agentMode?: boolean;
   deepResearch?: boolean;
 }
 
@@ -87,6 +86,12 @@ export interface AliaRuntimeHost {
   onArtifact?: (artifact: AliaArtifact) => void;
   /** What this turn put in the context window (`alia.context`), raw. */
   onContext?: (conversationId: string | null, payload: unknown) => void;
+  /**
+   * An agent's feature gate refused what the person tried (`feature_entitlement_required`, or a
+   * locked row of the attach menu): `key` is the feature, e.g. `attachments.documents`. The host
+   * shows its own upsell; the person's words stay in the composer.
+   */
+  onFeatureLocked?: (key: string) => void;
   /** A delegated agent started a run of its own for this turn. */
   onAgentTurn?: (turn: AgentRun & { conversationId: string | null }) => void;
   /** The agent's row in the host's list, ahead of the server: your line, then her answer. */

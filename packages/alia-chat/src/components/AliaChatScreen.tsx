@@ -24,14 +24,30 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
 import { ALIA_CHARACTER_RUNTIME_URL } from '../lib/character-runtime';
 import { KeyboardAvoidingView } from '../lib/keyboard';
-import { AliaChatContent, type AliaChatContentProps } from './AliaChatContent';
+import {
+  type AliaChatAgentRef,
+  AliaChatContent,
+  type AliaChatContentProps,
+} from './AliaChatContent';
 import { AliaChatHeader } from './AliaChatHeader';
 import type { AliaSuggestion } from '../types';
 import type { AliaChatLabels } from '../lib/labels';
+import type { AliaToolRenderers } from '../lib/tool-renderers';
+import { useShareHandler } from '../hooks/useShareHandler';
+import type { AliaHostTools } from '../runtime/host-tools';
+import type { AliaConversationShare } from '../runtime/sharing';
 
 export interface AliaChatScreenProps {
+  /** The agent the screen is with, any agent the person can reach; omitted, Alia. */
+  agent?: AliaChatAgentRef;
   /** App context injected into system prompt */
   clientContext?: string;
+  /** The UI effects this app performs for the lead (see `AliaChatContentProps.hostTools`). */
+  hostTools?: AliaHostTools;
+  /** The app's own drawing of catalogue tools' results, keyed `<app>:<tool>`. */
+  toolRenderers?: AliaToolRenderers;
+  /** The lead's feature gate refused something: show the app's upsell for `key`. */
+  onFeatureLocked?: (key: string) => void;
   /** The power level (`auto`, `instant`, `medium`, `high`, `xhigh`, `pro`, `ultra`) or an exact `publisher/model` every turn is sent with; omitted, the server picks. */
   model?: string;
   /** API URL override */
@@ -40,8 +56,11 @@ export interface AliaChatScreenProps {
   onBack?: () => void;
   /** Optional header left content instead of the back button (e.g. a drawer's menu button) */
   headerLeft?: React.ReactNode;
-  /** Draws the header's share button once there is a conversation; omitted, no share button. */
-  onShare?: () => void;
+  /**
+   * Draws the header's share button once there is a conversation; omitted, no share button.
+   * Pressed, the conversation's read-only link is minted and handed here for the app to show.
+   */
+  onShare?: (share: AliaConversationShare) => void;
   /** More rows for the header's menu (`DropdownMenuItem`s from `@oxy.so/bloom/dropdown-menu`). */
   headerMenu?: React.ReactNode;
   /** Optional header right action (e.g., settings button) */
@@ -67,7 +86,11 @@ export interface AliaChatScreenProps {
 }
 
 export function AliaChatScreen({
+  agent,
   clientContext,
+  hostTools,
+  toolRenderers,
+  onFeatureLocked,
   model,
   apiUrl,
   onBack,
@@ -96,22 +119,23 @@ export function AliaChatScreen({
   // keyboard's height minus the inset: the composer sits on the keyboard, not
   // one inset above it. (Its parent-relative layout would read as zero overlap
   // this deep in a host's tree, which is why the offset is measured.)
+  const share = useShareHandler(onShare);
   const chrome = useCallback<NonNullable<AliaChatContentProps['chrome']>>(
-    ({ hasMessages, startOver, agents: answered }) => ({
+    ({ hasMessages, startOver, participants, conversationId }) => ({
       header: (
         <AliaChatHeader
           hasMessages={hasMessages}
-          agents={answered}
+          participants={participants}
           onClear={startOver}
           onBack={onBack}
-          onShare={onShare}
+          onShare={share && conversationId !== undefined ? () => share(conversationId) : undefined}
           menu={headerMenu}
           leading={headerLeft}
           trailing={headerRight}
         />
       ),
     }),
-    [onBack, onShare, headerMenu, headerLeft, headerRight],
+    [onBack, share, headerMenu, headerLeft, headerRight],
   );
 
   return (
@@ -122,7 +146,11 @@ export function AliaChatScreen({
       >
         <KeyboardAvoidingView behavior="padding" automaticOffset style={{ flex: 1 }}>
           <AliaChatContent
+            agent={agent}
             clientContext={clientContext}
+            hostTools={hostTools}
+            toolRenderers={toolRenderers}
+            onFeatureLocked={onFeatureLocked}
             model={model}
             apiUrl={apiUrl}
             welcomeGreeting={welcomeGreeting}

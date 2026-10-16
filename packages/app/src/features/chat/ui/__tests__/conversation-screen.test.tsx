@@ -33,6 +33,8 @@ vi.mock('@alia.onl/sdk', async () => {
       world.props = props;
       return ReactModule.createElement('AliaChatContent', null);
     },
+    AliaParticipantsHeader: (props: object) =>
+      ReactModule.createElement('ParticipantsHeader', props),
   };
 });
 vi.mock('@alia.onl/sdk/model', () => ({
@@ -49,9 +51,6 @@ vi.mock('@alia.onl/sdk/runtime', () => ({
 }));
 vi.mock('@oxy.so/services', () => ({
   useAuth: () => ({ isAuthenticated: world.authenticated, signIn: world.signIn }),
-}));
-vi.mock('@oxy.so/bloom/ai-chat', () => ({
-  AiChatMobileHeader: (props: object) => React.createElement('MobileHeader', props),
 }));
 vi.mock('@oxy.so/bloom/composer-panel', () => ({
   ComposerPanelStatusTab: (props: object) => React.createElement('StatusTab', props),
@@ -168,7 +167,11 @@ beforeEach(() => {
 describe('the conversation the screen names', () => {
   it('passes the conversation, its agent and its thread to the SDK screen as they are', () => {
     mount({ conversationId: 'c1', agentId: 'a1', threadHandle: 'pepe' });
-    expect(content()).toMatchObject({ conversationId: 'c1', agentId: 'a1', threadHandle: 'pepe' });
+    expect(content()).toMatchObject({
+      conversationId: 'c1',
+      agent: { id: 'a1' },
+      threadHandle: 'pepe',
+    });
   });
 
   it('names none on the new-chat screen, which is what makes its first turn create one', () => {
@@ -232,6 +235,15 @@ describe('the breadcrumb', () => {
 
     mount({ conversationId: 'c1' });
     expect(content().chrome({}).title).toBe('chat.newChat');
+  });
+
+  it('puts the SDK’s participants in the header, and draws no title of its own there', () => {
+    mount({ conversationId: 'c1', agentName: 'Atlas' });
+    const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
+    const header = content().chrome({ participants }).header as React.ReactElement<
+      Record<string, unknown>
+    >;
+    expect(header.props).toEqual({ participants });
   });
 
   it('files a chat under the project that holds it, else its folder, else the tree', () => {

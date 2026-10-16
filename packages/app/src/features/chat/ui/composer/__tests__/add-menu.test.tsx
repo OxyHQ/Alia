@@ -8,7 +8,7 @@ import type { ComposerPanelAddMenuGroup } from '@oxy.so/bloom/composer-panel';
  * ## What this is guarding
  *
  * Seven of the composer's rows are SWITCHES — web search, deep research,
- * ghost, agent, every installed skill and every connected app — and the
+ * ghost, every installed skill and every connected app — and the
  * composer is where their state is read. Bloom's `AddMenu` draws a tick from
  * `ComposerPanelAddMenuRow.checked` and nothing else, so a row that forgets to
  * carry it is a switch with no visible state: identical whether it turned
@@ -106,7 +106,7 @@ function base(over: Partial<ComposerAddMenuOptions> = {}): ComposerAddMenuOption
   return {
     addAttachment: vi.fn(),
     canAttach: true,
-    modes: { ghost: false, agent: false, deepResearch: false },
+    modes: { ghost: false, deepResearch: false },
     toggleMode: vi.fn(),
     webSearch: false,
     onToggleWebSearch: vi.fn(),
@@ -150,9 +150,7 @@ function row(groups: readonly ComposerPanelAddMenuGroup[], id: string) {
 
 describe('every switch says which way it is', () => {
   it('ticks a capability that is on and holds the space for one that is not', () => {
-    const on = run(
-      base({ webSearch: true, modes: { ghost: true, agent: false, deepResearch: false } }),
-    );
+    const on = run(base({ webSearch: true, modes: { ghost: true, deepResearch: false } }));
     expect(row(on.groups, 'cap:web-search').checked).toBe(true);
     expect(row(on.groups, 'cap:ghost').checked).toBe(true);
     // `false`, NOT undefined: the difference is a tick column the row keeps
@@ -161,17 +159,14 @@ describe('every switch says which way it is', () => {
     expect(row(off.groups, 'cap:web-search').checked).toBe(false);
   });
 
-  it('offers agent and deep research as switches: the mode pill is the power level', () => {
-    const off = run(base());
-    expect(row(off.groups, 'cap:agent').checked).toBe(false);
-    const options = base({ modes: { ghost: false, agent: true, deepResearch: true } });
+  it('offers deep research as a switch, and no agent mode: the mode pill is the power level', () => {
+    const options = base({ modes: { ghost: false, deepResearch: true } });
     const menu = run(options);
     expect(row(menu.groups, 'cap:deep-research').checked).toBe(true);
     menu.onSelect('cap:deep-research');
     expect(options.toggleMode).toHaveBeenLastCalledWith('deepResearch');
-    expect(row(menu.groups, 'cap:agent').checked).toBe(true);
-    menu.onSelect('cap:agent');
-    expect(options.toggleMode).toHaveBeenLastCalledWith('agent');
+    const ids = menu.groups.flatMap((g) => g.rows.map((r) => r.id));
+    expect(ids).not.toContain('cap:agent');
   });
 
   it('offers no model to pin: there are no models to choose', () => {

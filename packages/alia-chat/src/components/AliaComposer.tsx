@@ -321,7 +321,7 @@ function AliaComposerBody<T extends AliaSuggestion>({
           busy={busy}
           onStop={onStop}
           disabled={disabled || intake.isBusy || !hasContent}
-          placeholder={placeholder ?? labels.placeholder}
+          placeholder={placeholder ?? labels.placeholder('Alia')}
           addMenu={addMenu ?? EMPTY_ADD_MENU}
           onAddMenuSelect={onAddMenuSelect}
           permissions={modes ?? NO_MODES}

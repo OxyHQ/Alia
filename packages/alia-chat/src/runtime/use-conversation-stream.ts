@@ -8,8 +8,15 @@ import { errorCode, errorMessage as getErrorMessage, errorName, errorStatus } fr
 import { agentMessageId, buildOutboundMessages, isAgentMessageOf } from './message-history';
 import { aliaQueryKeys } from './query-keys';
 import { createRandomUuid } from './random-uuid';
+import { type AliaHostTools, HostOutcomeQueue, hostRequest } from './host-tools';
 import { API_ROUTES } from './routes';
 import { createSseFrameReader } from './sse-frame-reader';
+import {
+  type ConsultEvent,
+  lockedFeatureOf,
+  parseConsultEvent,
+  parseHostAction,
+} from './stream-events';
 import { hasUsableStreamOutput, type StreamOutputEvidence } from './stream-outcome';
 import { failureDetail, readAliaMeta, type FailedTurn } from './turn-failure';
 import type {
@@ -119,8 +126,13 @@ export interface UseConversationStreamOptions {
   conversationId?: string;
   /** The power level (or a device model) every turn is sent with. */
   model?: string;
-  /** The agent whose thread this is, when there is one. */
+  /** The agent this conversation is with — its lead — when it is not Alia. */
   agentId?: string | null;
+  /**
+   * The UI effects the host's client performs (`docs/agent-embedding.md` §2): declared with every
+   * request, performed once when the stream asks, and their outcomes sent with the next request.
+   */
+  hostTools?: AliaHostTools;
   /**
    * What the host app is, for Alia to know where the person is ("Notes — viewing note #42").
    * Sent as the request's leading system message, which the server reads as client context.
@@ -128,13 +140,24 @@ export interface UseConversationStreamOptions {
   clientContext?: string;
 }
 
+/** The words a message holds, as text: a consulted agent's reply is plain text as it streams. */
+function messageWords(message: Message): string {
+  return typeof message.content === 'string' ? message.content : '';
+}
+
 export function useConversationStream({
   conversationId,
   model,
   agentId,
   clientContext,
+  hostTools,
 }: UseConversationStreamOptions = {}) {
   const { apiUrl, streamFetch, host } = useAliaRuntime();
+  /** Read at send time and when an action arrives: the host's declaration may change between turns. */
+  const hostToolsRef = useRef(hostTools);
+  hostToolsRef.current = hostTools;
+  /** This conversation's host actions: performed once, their outcomes held until a request carries them. */
+  const hostOutcomesRef = useRef(new HostOutcomeQueue());
   const labels = useLabels();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -184,20 +207,29 @@ export function useConversationStream({
   // Batching refs: accumulate streaming text and flush at ~20fps instead of per-chunk
   const pendingContentRef = useRef('');
   const pendingReasoningRef = useRef('');
+  /** A consulted agent's streamed words, by the id of the message they belong to. */
+  const pendingAgentContentRef = useRef(new Map<string, string>());
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const flushPendingUpdates = useCallback(() => {
     const content = pendingContentRef.current;
     const reasoning = pendingReasoningRef.current;
-    if (!content && !reasoning) return;
+    const agentContent = pendingAgentContentRef.current;
+    if (!content && !reasoning && agentContent.size === 0) return;
 
     pendingContentRef.current = '';
     pendingReasoningRef.current = '';
+    pendingAgentContentRef.current = new Map();
 
     setMessages((prev) => {
-      const updated = [...prev];
+      const updated = prev.map((message) => {
+        const words = agentContent.get(message.id);
+        return words === undefined
+          ? message
+          : { ...message, content: messageWords(message) + words };
+      });
       const lastMessage = updated[updated.length - 1];
-      if (lastMessage?.role === 'assistant') {
+      if (lastMessage?.role === 'assistant' && (content || reasoning)) {
         const changes: Partial<Message> = {};
         if (content) changes.content = lastMessage.content + content;
         if (reasoning) changes.thinking = (lastMessage.thinking || '') + reasoning;
@@ -205,6 +237,17 @@ export function useConversationStream({
       }
       return updated;
     });
+  }, []);
+
+  /** Drop everything still batched: the turn it belonged to is being undone. */
+  const dropPendingUpdates = useCallback(() => {
+    pendingContentRef.current = '';
+    pendingReasoningRef.current = '';
+    pendingAgentContentRef.current = new Map();
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
   }, []);
 
   const scheduleFlush = useCallback(() => {
@@ -253,10 +296,16 @@ export function useConversationStream({
    * A different conversation is a different thread: a failure from the last
    * one must not be drawn under a message in this one.
    */
+  const conversationRef = useRef(conversationId);
   useEffect(() => {
     setFailedTurn(null);
     retryRef.current = null;
     turnOptionsRef.current.clear();
+    // Outcomes answer this conversation's calls. The first turn of a new chat gives it its id,
+    // which is the same conversation; any other change is a different one.
+    const was = conversationRef.current;
+    conversationRef.current = conversationId;
+    if (was !== undefined && was !== conversationId) hostOutcomesRef.current.clear();
   }, [conversationId]);
 
   /**
@@ -277,8 +326,8 @@ export function useConversationStream({
     if (was === null || was === accountId) return;
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
-    pendingContentRef.current = '';
-    pendingReasoningRef.current = '';
+    dropPendingUpdates();
+    hostOutcomesRef.current.clear();
     setMessagesAndRef([]);
     setIsLoading(false);
     setError(null);
@@ -288,7 +337,7 @@ export function useConversationStream({
     setFailedTurn(null);
     retryRef.current = null;
     turnOptionsRef.current.clear();
-  }, [accountId, setMessagesAndRef]);
+  }, [accountId, setMessagesAndRef, dropPendingUpdates]);
 
   const append = useCallback(
     async (message: Omit<Message, 'id'>, options?: SendOptions): Promise<SendOutcome> => {
@@ -319,12 +368,7 @@ export function useConversationStream({
         // Drop anything still batched first: flushPendingUpdates appends to
         // whichever message is last, so a buffered fragment surviving the restore
         // would land on the previous turn's reply.
-        pendingContentRef.current = '';
-        pendingReasoningRef.current = '';
-        if (flushTimerRef.current) {
-          clearTimeout(flushTimerRef.current);
-          flushTimerRef.current = null;
-        }
+        dropPendingUpdates();
         setMessagesAndRef(snapshot);
         return 'failed';
       };
@@ -365,12 +409,7 @@ export function useConversationStream({
           // the buffer drew the "interrupted" card under an empty bubble.
           flushPendingUpdates();
         } else {
-          pendingContentRef.current = '';
-          pendingReasoningRef.current = '';
-          if (flushTimerRef.current) {
-            clearTimeout(flushTimerRef.current);
-            flushTimerRef.current = null;
-          }
+          dropPendingUpdates();
         }
         if (partial) {
           settleAssistant('failed');
@@ -437,9 +476,11 @@ export function useConversationStream({
         unsaved: true,
       };
       setMessages((prev) => [...prev, assistantMessage]);
-      /** How many delegated agents have answered in this turn: the next one's `agentMessageId` index. */
+      /** How many agents the lead has consulted in this turn: the next one's `agentMessageId` index. */
       let agentAnswers = 0;
       const nextAgentMessageId = (): string => agentMessageId(assistantMessage.id, agentAnswers++);
+      /** Each consultation of this turn, by `consultId`: the message its agent writes into. */
+      const consults = new Map<string, string>();
       /** Whether `id` names a message this turn wrote: the question, the reply, an agent's answer. */
       const isThisTurn = (id: string): boolean =>
         id === userMessage.id ||
@@ -460,8 +501,11 @@ export function useConversationStream({
           // A turn that completed is one the server has stored, under these ids.
           const stored = outcome === 'completed';
           return prev.map((m) => {
-            let next =
-              m.id === assistantMessage.id ? { ...m, isStreaming: false, turnOutcome: outcome } : m;
+            // A consultation still open when the turn ends ends with it.
+            const settles =
+              m.id === assistantMessage.id ||
+              (m.isStreaming === true && isAgentMessageOf(m.id, assistantMessage.id));
+            let next = settles ? { ...m, isStreaming: false, turnOutcome: outcome } : m;
             if (stored && next.unsaved === true && isThisTurn(next.id)) {
               const { unsaved: _unsaved, ...rest } = next;
               next = rest;
@@ -469,6 +513,80 @@ export function useConversationStream({
             return next;
           });
         });
+      };
+
+      /** What a consult frame does to the thread: the agent's own message, from start to end. */
+      const applyConsult = (event: ConsultEvent): void => {
+        if (event.type === 'start') {
+          if (consults.has(event.consultId)) return;
+          const id = nextAgentMessageId();
+          consults.set(event.consultId, id);
+          const agentMessage: Message = {
+            id,
+            unsaved: true,
+            role: 'assistant',
+            content: '',
+            toolInvocations: [],
+            createdAt: new Date().toISOString(),
+            isStreaming: true,
+            agentInfo: { ...event.agent },
+          };
+          // Above the lead's own reply, which is still being written under it.
+          setMessages((prev) => {
+            const at = prev.findIndex((m) => m.id === assistantMessage.id);
+            return at < 0
+              ? [...prev, agentMessage]
+              : [...prev.slice(0, at), agentMessage, ...prev.slice(at)];
+          });
+          return;
+        }
+        const id = consults.get(event.consultId);
+        if (id === undefined) return;
+        if (event.type === 'delta') {
+          if (event.content === '') return;
+          outputEvidence.agentOutputChars += event.content.length;
+          const map = pendingAgentContentRef.current;
+          map.set(id, (map.get(id) ?? '') + event.content);
+          scheduleFlush();
+          return;
+        }
+        if (event.type === 'tool') {
+          if (event.phase === 'call') outputEvidence.toolInvocationCount += 1;
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== id) return m;
+              const invocations = [...(m.toolInvocations ?? [])];
+              const at = invocations.findIndex((call) => call.toolCallId === event.toolCallId);
+              const previous = at < 0 ? undefined : invocations[at];
+              const invocation: ToolInvocation = {
+                toolCallId: event.toolCallId,
+                toolName: event.name,
+                state: event.phase,
+                args: event.input ?? previous?.args,
+                ...(event.phase === 'result' ? { result: event.output } : {}),
+              };
+              if (at < 0) invocations.push(invocation);
+              else invocations[at] = invocation;
+              return { ...m, toolInvocations: invocations };
+            }),
+          );
+          return;
+        }
+        // The end: what was streamed lands first, then the agent's final words, if it sent them.
+        flushPendingUpdates();
+        if (event.content !== undefined) outputEvidence.agentOutputChars += event.content.length;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id !== id
+              ? m
+              : {
+                  ...m,
+                  ...(event.content === undefined ? {} : { content: event.content }),
+                  isStreaming: false,
+                  turnOutcome: event.status === 'completed' ? 'completed' : 'failed',
+                },
+          ),
+        );
       };
 
       /** The request's own controller: `finally` asks it whether the person stopped the turn. */
@@ -489,7 +607,11 @@ export function useConversationStream({
          * when the callback was built would send the state the composer had
          * before the person touched it.
          */
-        const { agentMode, deepResearch: deepResearchMode, webSearch } = host.turnRequest?.() ?? {};
+        const { deepResearch: deepResearchMode, webSearch } = host.turnRequest?.() ?? {};
+
+        // The host's tools, and the outcomes of the actions it performed since the last request.
+        const outcomes = hostOutcomesRef.current.pending();
+        const hostMember = hostRequest(hostToolsRef.current, outcomes);
 
         // Authentication, the preflight refresh and the single 401 replay belong
         // to the linked Oxy client; this layer never reads or writes a bearer.
@@ -517,9 +639,9 @@ export function useConversationStream({
             ...(model && { model }),
             ...(options?.skillNames?.length ? { skillIds: options.skillNames } : {}),
             ...(agentId && { agentId }),
-            ...(agentMode && { agentMode: true }),
             ...(deepResearchMode && { deepResearch: true }),
             ...(options?.mcpServerId === undefined ? {} : { mcpServerId: options.mcpServerId }),
+            ...(hostMember === undefined ? {} : { host: hostMember }),
           }),
           signal: controller.signal,
           ...(streamFetch ? { fetch: streamFetch } : {}),
@@ -540,6 +662,16 @@ export function useConversationStream({
           } catch {
             // Best-effort: if the error body isn't readable/JSON, fall through to
             // the generic status-based error message below.
+          }
+
+          // An agent's feature gate refused the turn: the host shows its own upsell, and the
+          // person's words go back to the composer for after.
+          const lockedFeature = lockedFeatureOf(
+            errorData?.error && typeof errorData.error === 'object' ? errorData.error : null,
+          );
+          if (lockedFeature !== null) {
+            host.onFeatureLocked?.(lockedFeature);
+            return rollback();
           }
 
           // Detect usage limit errors (429 rate limit, 402 insufficient credits, 403 model access)
@@ -622,6 +754,8 @@ export function useConversationStream({
         if (!response.body) {
           throw new Error('No response received from server');
         }
+        // The server has the outcomes this request carried: they are its calls' results now.
+        hostOutcomesRef.current.delivered(outcomes);
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -636,7 +770,7 @@ export function useConversationStream({
          * OpenAI-shaped branch below, found no `choices[0]`, and was dropped in
          * silence — most often for the largest payloads, which are the ones that
          * do not fit in one read: `alia.title`, `alia.tool_result`,
-         * `alia.plan_preview`, `alia.approval_request`, `alia.agent_session`.
+         * `alia.plan_preview`, `alia.agent_start`, `alia.host_action`.
          *
          * Two pieces of state that must both outlive a chunk are fields of one
          * object now, and its test feeds a stream split at every byte offset —
@@ -733,31 +867,21 @@ export function useConversationStream({
                     }
                     continue;
                   }
-                  case 'alia.agent': {
-                    const am = parsed;
-                    if (typeof am.content === 'string') {
-                      outputEvidence.agentOutputChars += am.content.length;
+                  case 'alia.agent_start':
+                  case 'alia.agent_delta':
+                  case 'alia.agent_tool':
+                  case 'alia.agent_end': {
+                    const consult = parseConsultEvent(currentEventType, parsed);
+                    if (consult !== null) applyConsult(consult);
+                    continue;
+                  }
+                  case 'alia.host_action': {
+                    // Performed here, by the client that declared it, once; its outcome rides
+                    // the next request. The stream does not wait for it.
+                    const action = parseHostAction(parsed);
+                    if (action !== null) {
+                      void hostOutcomesRef.current.dispatch(action, hostToolsRef.current);
                     }
-                    // Named outside the updater, which React may run twice.
-                    const agentMessageIdForTurn = nextAgentMessageId();
-                    setMessages((prev) => {
-                      const updated = [...prev];
-                      const agentMsg: Message = {
-                        id: agentMessageIdForTurn,
-                        unsaved: true,
-                        role: 'assistant',
-                        content: am.content,
-                        agentInfo: {
-                          id: am.agentId,
-                          name: am.agentName,
-                          character: am.agentCharacter ?? undefined,
-                          handle: am.agentHandle,
-                        },
-                      };
-                      const lastIdx = updated.length - 1;
-                      updated.splice(lastIdx, 0, agentMsg);
-                      return updated;
-                    });
                     continue;
                   }
                   case 'alia.title': {
@@ -822,49 +946,9 @@ export function useConversationStream({
                       if (lastMessage?.role === 'assistant') {
                         updated[updated.length - 1] = {
                           ...lastMessage,
-                          pendingPlan: {
+                          plan: {
                             planId: parsed.planId,
                             steps: parsed.steps || [],
-                            approved: false,
-                            rejected: false,
-                          },
-                        };
-                      }
-                      return updated;
-                    });
-                    continue;
-                  }
-                  case 'alia.approval_request': {
-                    setMessages((prev) => {
-                      const updated = [...prev];
-                      const lastMessage = updated[updated.length - 1];
-                      if (lastMessage?.role === 'assistant') {
-                        updated[updated.length - 1] = {
-                          ...lastMessage,
-                          pendingApproval: {
-                            requestId: parsed.requestId,
-                            toolName: parsed.toolName,
-                            description: parsed.description,
-                            severity: parsed.severity,
-                            timeout: parsed.timeout,
-                            args: parsed.args,
-                          },
-                        };
-                      }
-                      return updated;
-                    });
-                    continue;
-                  }
-                  case 'alia.approval_result': {
-                    setMessages((prev) => {
-                      const updated = [...prev];
-                      const lastMessage = updated[updated.length - 1];
-                      if (lastMessage?.role === 'assistant') {
-                        updated[updated.length - 1] = {
-                          ...lastMessage,
-                          pendingApprovalResult: {
-                            requestId: parsed.requestId,
-                            decision: parsed.decision,
                           },
                         };
                       }
@@ -916,6 +1000,17 @@ export function useConversationStream({
               // Handle structured error events sent via SSE
               if (parsed.error) {
                 const err = parsed.error;
+                // An agent's feature gate refused the turn before anything was spent: the host
+                // shows its own upsell, and the person's words go back to the composer.
+                const lockedFeature = lockedFeatureOf(err);
+                if (lockedFeature !== null) {
+                  setIsLoading(false);
+                  abortControllerRef.current?.abort();
+                  abortControllerRef.current = null;
+                  reader.cancel();
+                  host.onFeatureLocked?.(lockedFeature);
+                  return settleError();
+                }
                 // Check for usage limit errors (rate limit, credits, model access)
                 if (
                   errorCode(err) === 'MODEL_NOT_IN_PLAN' ||
@@ -1118,34 +1213,6 @@ export function useConversationStream({
                 }
               }
 
-              // Handle agent delegation messages (agent mode)
-              if (delta.agent_message) {
-                const am = delta.agent_message;
-                if (typeof am.content === 'string') {
-                  outputEvidence.agentOutputChars += am.content.length;
-                }
-                const agentMessageIdForTurn = nextAgentMessageId();
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  const agentMsg: Message = {
-                    id: agentMessageIdForTurn,
-                    unsaved: true,
-                    role: 'assistant',
-                    content: am.content,
-                    agentInfo: {
-                      id: am.agentId,
-                      name: am.agentName,
-                      character: am.agentCharacter ?? undefined,
-                      handle: am.agentHandle,
-                    },
-                  };
-                  // Insert before the last message (Alia's in-progress response)
-                  const lastIdx = updated.length - 1;
-                  updated.splice(lastIdx, 0, agentMsg);
-                  return updated;
-                });
-              }
-
               // Handle error events from server
               if (parsed.type === 'error') {
                 const errMsg =
@@ -1287,6 +1354,7 @@ export function useConversationStream({
       clientContext,
       scheduleFlush,
       flushPendingUpdates,
+      dropPendingUpdates,
       setMessagesAndRef,
     ],
   );
@@ -1328,31 +1396,6 @@ export function useConversationStream({
     retryRef.current = null;
   }, []);
 
-  const approvePlan = useCallback((planId: string) => {
-    setMessages((prev) =>
-      prev.map((m) => {
-        const plan = m.pendingPlan;
-        if (!plan || plan.planId !== planId) return m;
-        return { ...m, pendingPlan: { ...plan, approved: true } };
-      }),
-    );
-    // Backend integration: POST plan approval (follow-up task)
-  }, []);
-
-  const rejectPlan = useCallback(
-    (planId: string) => {
-      setMessages((prev) =>
-        prev.map((m) => {
-          const plan = m.pendingPlan;
-          if (!plan || plan.planId !== planId) return m;
-          return { ...m, pendingPlan: { ...plan, rejected: true } };
-        }),
-      );
-      stop();
-    },
-    [stop],
-  );
-
   /** Put the offer away. It wrote nothing, so there is nothing else to undo. */
   const dismissSuggestedNewConversation = useCallback(() => {
     setSuggestedNewConversation(null);
@@ -1373,8 +1416,6 @@ export function useConversationStream({
     setMessages: setMessagesAndRef,
     conversationTitle,
     clearError,
-    approvePlan,
-    rejectPlan,
     suggestedNewConversation,
     dismissSuggestedNewConversation,
     agentRun,

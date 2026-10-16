@@ -21,6 +21,7 @@ vi.mock('../../src/runtime/conversations', () => ({
   }),
 }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn() } }));
+vi.mock('../../src/runtime/oxy-files', () => ({ useDocumentUpload: () => async () => 'file-1' }));
 
 import { useComposerDraftStore } from '../../src/runtime/composer-draft-store';
 import { AliaRuntimeProvider, type AliaRuntimeHost } from '../../src/runtime/config';

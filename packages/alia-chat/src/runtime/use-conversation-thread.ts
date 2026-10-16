@@ -8,6 +8,8 @@ import { useLabels } from '../lib/labels';
 import { getTextFromContent } from '../lib/content-utils';
 import type { AliaAttachment } from '../types';
 import { buildMessageContent } from './attachment-utils';
+import type { AliaHostTools } from './host-tools';
+import { useDocumentUpload } from './oxy-files';
 import { useAliaRuntime } from './config';
 import { releaseAttachments, useComposerDraftStore } from './composer-draft-store';
 import { useConversationStore } from './conversation-store';
@@ -30,6 +32,8 @@ export interface UseConversationThreadOptions {
   agentId?: string;
   /** What the host app is; see `useConversationStream`. */
   clientContext?: string;
+  /** The UI effects the host performs; see `useConversationStream`. */
+  hostTools?: AliaHostTools;
 }
 
 type MessageContent = Message['content'];
@@ -82,6 +86,7 @@ export function useConversationThread({
   model,
   agentId,
   clientContext,
+  hostTools,
 }: UseConversationThreadOptions = {}) {
   const queryClient = useQueryClient();
   const labels = useLabels();
@@ -129,8 +134,6 @@ export function useConversationThread({
     clearError,
     setMessages,
     stop,
-    approvePlan,
-    rejectPlan,
     suggestedNewConversation,
     dismissSuggestedNewConversation,
     agentRun,
@@ -143,7 +146,9 @@ export function useConversationThread({
     model,
     agentId,
     clientContext,
+    hostTools,
   });
+  const upload = useDocumentUpload();
 
   // The turn's lifecycle, published for every "Ask Alia" button (`useAliaActivity`).
   const activitySource = useId();
@@ -287,7 +292,9 @@ export function useConversationThread({
 
       host.onTurnStart?.();
 
-      const built = attachments?.length ? await buildMessageContent(content, attachments) : null;
+      const built = attachments?.length
+        ? await buildMessageContent(content, attachments, upload)
+        : null;
       const messageContent = built ? built.content : content;
       reportDroppedAttachments(built?.dropped, labels);
 
@@ -312,7 +319,7 @@ export function useConversationThread({
       releaseAttachments(attachments ?? []);
       return true;
     },
-    [isLoading, append, conversationId, host, labels],
+    [isLoading, append, conversationId, host, labels, upload],
   );
 
   const startConversation = useStartConversation({ agentId });
@@ -372,7 +379,7 @@ export function useConversationThread({
       // array replaces them. See `EditedContent`.
       let content = mergeEditedContent(original.content, newContent);
       if (attachments?.length && typeof newContent === 'string') {
-        const built = await buildMessageContent(newContent, attachments);
+        const built = await buildMessageContent(newContent, attachments, upload);
         reportDroppedAttachments(built.dropped, labels);
         const added =
           typeof built.content === 'string'
@@ -413,7 +420,7 @@ export function useConversationThread({
       releaseAttachments(attachments ?? []);
       return true;
     },
-    [setMessages, append, messages, conversationId, labels],
+    [setMessages, append, messages, conversationId, labels, upload],
   );
 
   /** The user turn a reply answers: the nearest one before it, or `undefined`. */
@@ -537,8 +544,6 @@ export function useConversationThread({
     clearConversation,
     clearError,
     setMessages,
-    approvePlan,
-    rejectPlan,
     suggestedNewConversation,
     dismissSuggestedNewConversation,
     agentRun,

@@ -22,8 +22,6 @@ vi.mock('../../src/runtime/use-conversation-stream', () => ({
     clearError: vi.fn(),
     setMessages: vi.fn(),
     stop: vi.fn(),
-    approvePlan: vi.fn(),
-    rejectPlan: vi.fn(),
     suggestedNewConversation: null,
     dismissSuggestedNewConversation: vi.fn(),
     failedTurn: null,

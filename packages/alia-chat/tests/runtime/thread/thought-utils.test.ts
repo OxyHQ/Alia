@@ -227,27 +227,6 @@ describe('turnLifecycle', () => {
     });
     expect(turnLifecycle(interrupted)).toBe('cancelled');
   });
-
-  it('is waiting while an approval request has no decision, and running once it has one', () => {
-    const asked = base({
-      isStreaming: true,
-      pendingApproval: {
-        requestId: 'r1',
-        toolName: 'sendEmail',
-        description: '',
-        severity: 'high',
-        timeout: 60,
-      },
-    });
-    expect(turnLifecycle(asked)).toBe('waiting_approval');
-    expect(
-      turnLifecycle({ ...asked, pendingApprovalResult: { requestId: 'r1', decision: 'approved' } }),
-    ).toBe('running');
-    // A decision for an earlier request does not answer this one.
-    expect(
-      turnLifecycle({ ...asked, pendingApprovalResult: { requestId: 'r0', decision: 'approved' } }),
-    ).toBe('waiting_approval');
-  });
 });
 
 describe('buildSteps', () => {
@@ -323,9 +302,8 @@ describe('buildSteps', () => {
     expect(buildSteps(message, 'cancelled').map((s) => s.type)).toEqual(['tool', 'cancelled']);
   });
 
-  it('shows a queued turn as thinking, and a paused one as waiting', () => {
+  it('shows a queued turn as thinking', () => {
     expect(buildSteps({ content: '' }, 'queued').map((s) => s.type)).toEqual(['thinking']);
-    expect(buildSteps({ content: '' }, 'waiting_approval').map((s) => s.type)).toEqual(['waiting']);
   });
 
   it('attaches the search results to the step that produced them', () => {
@@ -385,16 +363,16 @@ describe('buildAuditTimeline', () => {
 describe('the audit timeline’s words', () => {
   const en = englishCopy;
 
-  it('names an approved plan and counts its steps', () => {
+  it('names the plan it showed and counts its steps', () => {
     const [entry] = buildAuditTimeline([
       {
         id: 'a1',
         role: 'assistant',
         content: '',
-        pendingPlan: { approved: true, steps: [{}, {}, {}] },
+        plan: { planId: 'p1', steps: [{}, {}, {}] },
       } as never,
     ]);
-    expect(auditText(entry!.label, en)).toBe('Plan approved');
+    expect(auditText(entry!.label, en)).toBe('Plan');
     expect(auditText(entry!.description, en)).toBe('3 steps');
   });
 

@@ -23,6 +23,7 @@ const thread = vi.hoisted(() => ({
   scrollToOffset: [] as number[],
 }));
 
+vi.mock('@oxy.so/bloom/agent-reply', () => ({ AgentReplyIdentity: () => null }));
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =

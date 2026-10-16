@@ -37,16 +37,20 @@ import { useAmbientWave } from '../hooks/useAmbientWave';
 import { useAtBottom } from '../hooks/useAtBottom';
 import { type AliaTurn, useChatComposer } from '../hooks/useChatComposer';
 import { type AliaVoiceOptions, useChatVoice } from '../hooks/useChatVoice';
+import { useAttachMenu } from '../hooks/useAttachMenu';
 import { usePendingQuestions } from '../hooks/usePendingQuestions';
-import { usePhotosMenu } from '../hooks/usePhotosMenu';
 import { useThreadView } from '../hooks/useThreadView';
 import { useTTS } from '../hooks/useTTS';
 import type { AliaAddMenu } from '../lib/add-menu';
 import { AliaFlightsProvider } from '../lib/flights';
+import { type AliaChatParticipants, leadOf } from '../lib/participants';
+import { type AliaToolRenderers, AliaToolRenderersProvider } from '../lib/tool-renderers';
 import { KeyboardSafeAreaFloor } from '../lib/keyboard';
 import { type AliaChatLabels, AliaChatLabelsProvider, useLabels } from '../lib/labels';
 import { type DeviceModel, buildPowerLevelOptions } from '../lib/power-level-options';
+import { ALIA_FEATURES, featureOffer, useAgentFeatures, useAgentProfile } from '../runtime/agents';
 import { type AliaRuntimeHost, AliaRuntimeProvider, useAliaRuntime } from '../runtime/config';
+import type { AliaHostTools } from '../runtime/host-tools';
 import { useCreateConversation } from '../runtime/conversations';
 import { aliaQueryKeys } from '../runtime/query-keys';
 import type { Message } from '../runtime/types';
@@ -56,6 +60,7 @@ import { UsageLimitError } from '../runtime/usage-limit-error';
 import type { AliaSuggestion } from '../types';
 import type { AliaAvatarState } from './AliaAvatar';
 import { AliaComposer } from './AliaComposer';
+import { useParticipants } from './AliaParticipants';
 import { AliaWelcomeMessage } from './AliaWelcomeMessage';
 import { AmbientField } from './AmbientField';
 import { AliaThread } from './thread/AliaThread';
@@ -63,24 +68,12 @@ import { ThreadSearch } from './thread/ThreadSearch';
 import { VoiceModeIcon } from './VoiceModeIcon';
 import { AliaVoiceCall } from './voice/AliaVoiceCall';
 
-/** The distinct delegated agents among `messages`, in the order they first answered. */
-function participatingAgents(messages: readonly Message[]): AliaChatAgent[] {
-  const seen = new Map<string, AliaChatAgent>();
-  for (const { agentInfo } of messages) {
-    if (agentInfo && !seen.has(agentInfo.id)) seen.set(agentInfo.id, agentInfo);
-  }
-  return [...seen.values()];
-}
-
-/** An agent that answered in the conversation, as the header shows it beside Alia. */
-export interface AliaChatAgent {
+/** The agent a chat is opened on: its lead instead of Alia. */
+export interface AliaChatAgentRef {
   id: string;
-  name: string;
-  /** Its look, as the server stores it (JSON); absent, the default look. */
-  character?: unknown;
 }
 
-/** What the chat tells its chrome: whether there is a conversation to act on, who took part, what Alia is doing. */
+/** What the chat tells its chrome: whether there is a conversation to act on, who takes part, what the lead is doing. */
 export interface AliaChatState {
   /** The conversation open, or `undefined` before the first turn creates one. */
   conversationId: string | undefined;
@@ -89,10 +82,13 @@ export interface AliaChatState {
   startOver: () => void;
   /** Empty the open conversation, on the server and on screen. */
   clearMessages: () => Promise<unknown>;
-  /** What Alia is doing; the header's avatar shows it. */
+  /** What the lead is doing; the header's avatar shows it. */
   markState: AliaAvatarState;
-  /** The delegated agents that have answered, in the order they first did. */
-  agents: AliaChatAgent[];
+  /**
+   * Who is in the conversation — the lead, and the agents it consulted once they have joined.
+   * Draw it with `AliaParticipants` wherever the chrome puts the conversation's title.
+   */
+  participants: AliaChatParticipants;
   /** Search what was said in the agent's thread. Present only on a thread (`threadHandle`). */
   openSearch: (() => void) | undefined;
   /** The conversation as it stands now, for an export. Read when called, not when rendered. */
@@ -120,8 +116,11 @@ export interface AliaChatContentProps {
    * creates its conversation with the first turn, or the first call.
    */
   conversationId?: string;
-  /** The agent whose conversation this is; omitted, Alia's own. */
-  agentId?: string;
+  /**
+   * The agent this chat is with, any agent the person can reach: it leads the conversation — its
+   * greeting, name, character and starters, and the header's first avatar. Omitted, Alia.
+   */
+  agent?: AliaChatAgentRef;
   /**
    * The handle of the agent's permanent thread, when this conversation is the active stretch of
    * one: the conversations behind it are paged in above, and the thread can be searched. Omitted,
@@ -140,6 +139,19 @@ export interface AliaChatContentProps {
   apiUrl?: string;
   /** App context injected into the system prompt. */
   clientContext?: string;
+  /**
+   * The UI effects this app's client performs for the lead (`docs/agent-embedding.md` §2). Declared
+   * with every turn; an action the stream asks for is performed once, by `execute`, and its
+   * outcome reaches the model with the next turn.
+   */
+  hostTools?: AliaHostTools;
+  /** The app's own drawing of a catalogue tool's result, keyed `<app>:<tool>`, before the generic card. */
+  toolRenderers?: AliaToolRenderers;
+  /**
+   * The lead's feature gate refused something (`attachments.documents`…): the host shows its own
+   * upsell. Also called for a locked row of the attach menu.
+   */
+  onFeatureLocked?: (key: string) => void;
   // ── The power level ──
   /**
    * The power level (`auto`, `instant`, `medium`, `high`, `xhigh`, `pro`, `ultra`) or exact
@@ -153,10 +165,10 @@ export interface AliaChatContentProps {
   // ── Words ──
   /** Overrides for the chat's own copy; anything omitted is English. */
   labels?: Partial<AliaChatLabels>;
-  /** The empty chat's greeting; omitted, Alia greets the signed-in person by name (`labels`). */
+  /** The empty chat's greeting; omitted, the agent's own, or Alia greets the signed-in person by name (`labels`). */
   welcomeGreeting?: string;
   welcomeSubtitle?: string;
-  /** The lines offered over the composer on an empty chat. */
+  /** The lines offered over the composer on an empty chat; omitted, the agent's starters. */
   welcomeSuggestions?: AliaSuggestion[];
   /** What the host found for the typed text (see `onSuggestionQuery`). */
   suggestionMatches?: AliaSuggestion[];
@@ -188,7 +200,7 @@ export interface AliaChatContentProps {
    */
   bottomInset?: number;
   // ── The composer ──
-  /** The host's rows in the add menu. Omitted, the menu offers photos. */
+  /** The host's rows in the add menu. Omitted, the menu offers photos and files, as the lead takes them. */
   addMenu?: AliaAddMenu;
   /** The tab on the composer's top edge (the project the chat is filed under). Replaced by the edit strip while a question is rewritten. */
   composerStatus?: ReactNode;
@@ -235,16 +247,22 @@ export interface AliaChatContentProps {
   onStopReady?: (stop: (() => void) | null) => void;
 }
 
-/** The chat API carries photos (`image_url` parts) and nothing else. */
-const PHOTOS_ONLY = ['image'] as const;
-
 /** No live conversation while the thread looks at a moment of its past, as ONE array. */
 const NO_MESSAGES: Message[] = [];
+
+/** A host without renderers, as ONE object, so the thread's rows do not re-render for a new `{}`. */
+const NO_RENDERERS: AliaToolRenderers = {};
 
 /** The conversation view: everything of `AliaChatContentProps` that is not about which conversation is open. */
 type ConversationViewProps = Omit<
   AliaChatContentProps,
-  'labels' | 'onConversationChange' | 'runtime' | 'conversationId' | 'apiUrl'
+  | 'labels'
+  | 'onConversationChange'
+  | 'runtime'
+  | 'conversationId'
+  | 'apiUrl'
+  | 'toolRenderers'
+  | 'onFeatureLocked'
 > & { conversationId: string | undefined };
 
 function AliaConversationView({
@@ -253,7 +271,8 @@ function AliaConversationView({
   onModelChange,
   deviceModels,
   conversationId,
-  agentId,
+  agent,
+  hostTools,
   threadHandle,
   ephemeral = false,
   onError,
@@ -287,6 +306,12 @@ function AliaConversationView({
   const runtime = useAliaRuntime();
   const queryClient = useQueryClient();
   const { user, isAuthenticated } = useOxy();
+  const agentId = agent?.id;
+
+  // ── Who leads: the agent the chat was opened on, or Alia ──
+  const { data: profile, isLoading: profileLoading } = useAgentProfile(agentId);
+  const lead = useMemo(() => leadOf(profile), [profile]);
+  const { data: features } = useAgentFeatures(agentId);
 
   // A failure reaches the host's handler when it has one, and Bloom's toast otherwise.
   const reportError = useCallback(
@@ -298,7 +323,13 @@ function AliaConversationView({
   );
 
   // ── The conversation ──
-  const thread = useConversationThread({ conversationId, agentId, model, clientContext });
+  const thread = useConversationThread({
+    conversationId,
+    agentId,
+    model,
+    clientContext,
+    hostTools,
+  });
   const {
     messages,
     setMessages,
@@ -309,15 +340,13 @@ function AliaConversationView({
     stopGeneration: stop,
     startOver,
     clearConversation,
-    approvePlan,
-    rejectPlan,
     suggestedNewConversation,
     dismissSuggestedNewConversation,
     agentRun,
     failedTurn,
     retryFailedTurn,
   } = thread;
-  const agents = useMemo(() => participatingAgents(messages), [messages]);
+  const participants = useParticipants({ lead, messages, flights });
   const asked = usePendingQuestions(messages, isLoading);
   const view = useThreadView(threadHandle, conversationId);
   const agentActivity = useAgentActivity(agentRun?.turnId ?? null, agentRun?.agentId);
@@ -336,6 +365,17 @@ function AliaConversationView({
   }, [onStopReady, stop]);
 
   // ── What the person does: write, send, rewrite, call ──
+  // An agent's starters are its welcome suggestions, unless the host brought its own.
+  const starters = useMemo<AliaSuggestion[] | undefined>(
+    () =>
+      lead.starters.length === 0
+        ? undefined
+        : lead.starters.map((starter, index) => ({
+            id: `starter-${index}`,
+            text: starter.prompt,
+          })),
+    [lead.starters],
+  );
   const composer = useChatComposer({
     conversationId,
     thread,
@@ -344,10 +384,11 @@ function AliaConversationView({
     onWrite: view.backToLatest,
     onStart,
     flights,
+    lead,
     initialTurn,
     onSignInRequired,
     reportError,
-    welcomeSuggestions,
+    welcomeSuggestions: welcomeSuggestions ?? starters,
     suggestionMatches,
     onSuggestionQuery,
     onSuggestionPicked,
@@ -364,8 +405,17 @@ function AliaConversationView({
     storedMessages: thread.conversation?.messages,
     isLoading,
   });
-  const photosMenu = usePhotosMenu(composer.address);
-  const menu = addMenu ?? photosMenu;
+  // The default menu offers what the lead takes: Alia every attachment; an agent what its feature
+  // answer lists, nothing until it has answered.
+  const offers = useMemo(() => {
+    const states = agentId === undefined ? undefined : (features ?? []);
+    return {
+      images: featureOffer(states, ALIA_FEATURES.images),
+      documents: featureOffer(states, ALIA_FEATURES.documents),
+    };
+  }, [agentId, features]);
+  const attachMenu = useAttachMenu(composer.address, offers, runtime.host.onFeatureLocked);
+  const menu = addMenu ?? attachMenu;
   const modes = useMemo(
     () => (onModelChange ? buildPowerLevelOptions(t, deviceModels ?? []) : undefined),
     [onModelChange, t, deviceModels],
@@ -413,12 +463,17 @@ function AliaConversationView({
   // ── The greeting of an empty chat ──
   const greeting =
     welcomeGreeting ??
+    lead.greeting ??
     (isAuthenticated && user
       ? labels.greetingNamed(getAccountDisplayName(user, labels.locale))
       : labels.greeting);
+  // An agent's chat greets as the agent: nothing, rather than Alia, until its profile is read.
   const welcome = useMemo(
-    () => <AliaWelcomeMessage greeting={greeting} subtitle={welcomeSubtitle} />,
-    [greeting, welcomeSubtitle],
+    () =>
+      profileLoading ? null : (
+        <AliaWelcomeMessage greeting={greeting} subtitle={welcomeSubtitle} lead={lead} />
+      ),
+    [profileLoading, greeting, welcomeSubtitle, lead],
   );
 
   // ── The agent's offer to start the next stretch fresh ──
@@ -482,7 +537,7 @@ function AliaConversationView({
       startOver,
       clearMessages: clearConversation,
       markState: voice.markState,
-      agents,
+      participants,
       openSearch: threadHandle === undefined ? undefined : view.openSearch,
       getMessages: () => latestMessages.current,
     }),
@@ -492,7 +547,7 @@ function AliaConversationView({
       startOver,
       clearConversation,
       voice.markState,
-      agents,
+      participants,
       threadHandle,
       view.openSearch,
     ],
@@ -569,7 +624,7 @@ function AliaConversationView({
               ? t('usageLimit.inputDisabledPlaceholder')
               : editing !== undefined
                 ? t('composer.editPlaceholder')
-                : labels.placeholder
+                : labels.placeholder(lead.name)
           }
           status={status}
           // The mode selector is the power level: how much power this turn gets.
@@ -581,7 +636,7 @@ function AliaConversationView({
           attachments={composer.photos}
           onAddAttachment={composer.addAttachment}
           onRemoveAttachment={composer.removeAttachment}
-          attachmentKinds={addMenu === undefined ? PHOTOS_ONLY : undefined}
+          attachmentKinds={addMenu === undefined ? attachMenu.kinds : undefined}
           onError={onError}
         />
       )}
@@ -618,8 +673,6 @@ function AliaConversationView({
           onRetryTurn={retryFailedTurn}
           onRegenerate={composer.regenerate}
           onStartEdit={edit.start}
-          onApprovePlan={approvePlan}
-          onRejectPlan={rejectPlan}
           newConversationOffer={newConversationOffer}
           agentActivity={agentRun === null ? null : agentActivity}
           call={voice.isActive ? { agentState: voice.agentState } : undefined}
@@ -656,6 +709,8 @@ export function AliaChatContent({
   onConversationChange,
   runtime,
   apiUrl,
+  toolRenderers,
+  onFeatureLocked,
   ...props
 }: AliaChatContentProps) {
   const [ownId, setOwnId] = useState<string | undefined>(undefined);
@@ -668,6 +723,7 @@ export function AliaChatContent({
   const host = useMemo<AliaRuntimeHost>(
     () => ({
       ...runtime,
+      ...(onFeatureLocked === undefined ? {} : { onFeatureLocked }),
       openConversation: (id) => {
         hostOpens?.(id);
         if (!hostNavigates) setOwnId(id);
@@ -679,13 +735,15 @@ export function AliaChatContent({
         onConversationChange?.(undefined);
       },
     }),
-    [runtime, hostOpens, hostCloses, hostNavigates, onConversationChange],
+    [runtime, onFeatureLocked, hostOpens, hostCloses, hostNavigates, onConversationChange],
   );
 
   return (
     <AliaChatLabelsProvider labels={labels}>
       <AliaRuntimeProvider apiUrl={apiUrl ?? parent.apiUrl} host={host}>
-        <AliaConversationView {...props} conversationId={controlledId ?? ownId} />
+        <AliaToolRenderersProvider value={toolRenderers ?? NO_RENDERERS}>
+          <AliaConversationView {...props} conversationId={controlledId ?? ownId} />
+        </AliaToolRenderersProvider>
       </AliaRuntimeProvider>
     </AliaChatLabelsProvider>
   );

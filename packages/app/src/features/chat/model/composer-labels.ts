@@ -6,7 +6,7 @@ type Translate = (key: string, params?: Record<string, unknown>) => string;
 /** The words of the SDK's composer, in the person's language. */
 export function composerLabels(t: Translate): Partial<AliaChatLabels> {
   return {
-    placeholder: t('composer.placeholder'),
+    placeholder: (name) => t('composer.placeholder', { name }),
     composerMessage: t('composer.message'),
     composerAddMenu: t('composer.addMenu'),
     composerModes: t('composer.powerLevel'),
