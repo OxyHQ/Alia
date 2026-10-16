@@ -244,6 +244,7 @@ export default function SeriesDetailScreen() {
     <View className="gap-5 pb-1">
       <View className="flex-row gap-4">
         <ShowArtwork
+          fileId={series.coverFileId}
           assetId={series.coverImageAssetId}
           title={series.title}
           size={112}
