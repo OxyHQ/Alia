@@ -378,6 +378,7 @@ Oxy Console (§5).
 | `idleTimeoutMs` | 2 min |
 | `maxResponses` | 500 (the edge default of 20 would end a call after 20 answers, `O:services/inferenceRealtime.service.ts:171-177`) |
 | Audio bytes | sized to 30 min of PCM16 per direction |
+| End of turn | `turnDetection.silenceDurationMs` 500: a pause that long ends the person's turn |
 
 History travels in the instructions, never as text items. No `maxTextItems` is sent:
 Kaana refuses a limit it does not enforce (`invalid_request`, param
