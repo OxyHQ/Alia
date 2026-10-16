@@ -225,7 +225,7 @@ export const showSeries = pgTable(
      */
     coverImageAssetId: text(),
     /**
-     * The cover art as an Oxy file ALIA owns (oxy ADR 0041), public, with an
+     * The cover art as an Oxy file ALIA owns (oxy ADR 0043), public, with an
      * Oxy reference `show_series`/<id> registered through the reference outbox.
      * Read FIRST; `cover_image_asset_id` is the legacy Syra image, read only
      * while this is NULL and kept for the soak until every series has moved

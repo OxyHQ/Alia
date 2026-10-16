@@ -1,5 +1,5 @@
 /**
- * Alia's side of Oxy Files (oxy ADR 0041): which file uses Oxy has to be told
+ * Alia's side of Oxy Files (oxy ADR 0043): which file uses Oxy has to be told
  * about, which file events it has already handled, when each entity type was
  * last reconciled, how often the legacy bucket is still read, and which legacy
  * objects may be garbage.
@@ -114,7 +114,7 @@ export const oxyFileEvents = pgTable(
 );
 
 /**
- * The last reconciliation of each entity type with Oxy (ADR 0041 D6) — what
+ * The last reconciliation of each entity type with Oxy (ADR 0043 D6) — what
  * makes the nightly run once a day across restarts and tasks, and what an
  * operator reads to see that it ran and what it changed.
  */

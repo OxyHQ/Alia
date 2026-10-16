@@ -74,7 +74,7 @@ export const getOxyAliaMachineCredentialBearer = real.getOxyAliaMachineCredentia
 export type OxyAliaMachinePrincipal = import('@oxy.so/core/server').OxyAliaMachinePrincipal;
 
 /**
- * Oxy's file-event signature check (oxy ADR 0041 D9) is REAL, for the reason
+ * Oxy's file-event signature check (oxy ADR 0043 D9) is REAL, for the reason
  * the lanes above are: verifying the signature, the replay window and the
  * challenge IS the subject of `routes/__tests__/oxy-files-webhook.test.ts`, and
  * a stub would let that suite pass with every check deleted.

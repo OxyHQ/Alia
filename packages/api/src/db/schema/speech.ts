@@ -66,7 +66,7 @@ export const speechClips = pgTable(
      * address. NULL for a clip stored in Oxy Files instead.
      */
     objectKey: text(),
-    /** The clip as an Oxy file Alia owns, private (oxy ADR 0041). Read first. */
+    /** The clip as an Oxy file Alia owns, private (oxy ADR 0043). Read first. */
     oxyFileId: text(),
     createdAt: createdAt(),
     lastUsedAt: timestamptz().notNull().default(sql`now()`),

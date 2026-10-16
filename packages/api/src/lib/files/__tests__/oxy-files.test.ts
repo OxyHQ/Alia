@@ -6,7 +6,7 @@ import type { OxyServer } from '@oxy.so/core/server';
 /**
  * The storage seam (`lib/files/oxy-files.ts`): covers go to Oxy as Alia's
  * public files and must come back with the hash of the bytes sent; private
- * content stays on the legacy path until Oxy stage 4b, marked as garbage
+ * content stays on the legacy path until Oxy stage 4c, marked as garbage
  * BEFORE it is written; reads take the Oxy file first and count every legacy
  * read.
  */

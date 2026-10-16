@@ -2,11 +2,11 @@
 
 *Alia guarda sus archivos en Oxy Files; lo que Oxy aún no admite espera tras una sola costura.*
 
-**Status:** Accepted (covers implemented; private content waits for Oxy stage 4b)
+**Status:** Accepted (covers implemented, switched on after Syra #214; private content waits for Oxy stage 4c)
 
 **Date:** 2026-10-16
 
-**Builds on:** Oxy ADR 0041 (who owns a file, who uses it, and when it goes
+**Builds on:** Oxy ADR 0043 (who owns a file, who uses it, and when it goes
 away), stage 4: "own-bucket products move into Oxy Files … Syra (catalogue
 artwork, and Alia's show covers move to Alia) … Alia (skill bundles)".
 
@@ -24,12 +24,14 @@ show pipeline's segments, left behind by any worker that died mid-run.
 1. **Ownership follows who makes the bytes.** A cover Alia draws is ALIA's
    public Oxy file (no person uploads one). A library upload is the person's. A
    spoken clip is Alia's private file, because it is a cache Alia expires and an
-   account's file is never deleted behind its owner's back (ADR 0041 D5). A
+   account's file is never deleted behind its owner's back (ADR 0043 D5). A
    catalogue skill's files are Alia's; a person's own skill's files are theirs.
 2. **Syra uses Alia's cover; Alia owns it.** Syra receives `imageFileId` and
    holds its own reference. Existing covers move in two steps: Alia copies the
    exact bytes into its own file, then Syra repoints each Alia podcast to the
-   Oxy file with the same sha256 that Alia owns.
+   Oxy file with the same sha256 that Alia owns. Until Syra is deployed with
+   `imageFileId`, a cover is still uploaded into Syra (`SYRA_COVER_FILE_IDS`
+   switches it), because a Syra without it would drop the field.
 3. **Every use is recorded in the transaction of the row that makes it**
    (`oxy_file_reference_sync`, a desired state per file and entity), drained to
    `references.add` / `remove` by a worker, reconciled nightly (D6). Stored
@@ -38,9 +40,9 @@ show pipeline's segments, left behind by any worker that died mid-run.
    written; a person's file stays theirs.
 4. **Show segments are not stored.** They were never read back.
 5. **Private content waits behind ONE module** (`lib/files/oxy-files.ts`, the
-   only place carrying the `oxy-4b` TODO marker): Oxy cannot yet take non-image
-   types, store an account's file as private, or let the storing application
-   read it back. Until it can, those kinds stay in the legacy bucket, with
+   only place carrying the `oxy-4c` TODO marker): Oxy stage 4b (deployed) takes
+   large, any-type application files, but audio, private person media and the
+   storing application's read-back of an account's file are stage 4c. Until it can, those kinds stay in the legacy bucket, with
    reads counted.
 6. **The bucket is retired on evidence**: zero counted legacy reads for 14 days
    and zero rows on legacy storage (`docs/oxy-files.md`).
@@ -49,9 +51,9 @@ show pipeline's segments, left behind by any worker that died mid-run.
 
 - Alia's Oxy application needs `files:app:write`, `files:app:delete`,
   `files:references:write`, `files:read` and `files:linked:read` now, and
-  `files:user-media:write` after stage 4b.
+  `files:user-media:write` after stage 4c.
 - Alia must receive Oxy's file events (`OXY_FILES_WEBHOOK_SECRET`); a deleted or
   taken-down cover is removed rather than replaced by the legacy copy of the
   same bytes.
-- Until stage 4b, Alia runs two backends. The cost is bounded by the seam: no
+- Until stage 4c, Alia runs two backends. The cost is bounded by the seam: no
   other module knows which backend holds a byte.

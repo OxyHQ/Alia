@@ -73,7 +73,7 @@ export const libraryFiles = pgTable(
      * `oxy_file_id` is read first.
      */
     url: text(),
-    /** The file in Oxy Files, owned by the person (oxy ADR 0041). See `lib/files/oxy-files.ts`. */
+    /** The file in Oxy Files, owned by the person (oxy ADR 0043). See `lib/files/oxy-files.ts`. */
     oxyFileId: text(),
     /** The upload's MIME type. No CHECK — see the table comment. */
     type: text().notNull(),

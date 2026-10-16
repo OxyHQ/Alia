@@ -26,7 +26,7 @@ export interface LibraryFileRow {
   readonly name: string;
   /** The legacy object KEY, or NULL for a file stored only in Oxy Files. */
   readonly url: string | null;
-  /** The person's Oxy file (oxy ADR 0041). Read before `url`. */
+  /** The person's Oxy file (oxy ADR 0043). Read before `url`. */
   readonly oxyFileId: string | null;
   readonly type: string;
   readonly size: number;
@@ -239,7 +239,7 @@ export async function deleteLibraryFile(
       });
     // What the row named goes with it, in this transaction: the person's Oxy
     // file loses Alia's reference (it stays theirs, "not in use", never deleted
-    // behind their back — ADR 0041 D5), and a legacy object becomes garbage the
+    // behind their back — ADR 0043 D5), and a legacy object becomes garbage the
     // collector deletes. Before, the route deleted the object first with a call
     // that swallowed its own failure, so a failed delete leaked it for good.
     for (const row of removed) {

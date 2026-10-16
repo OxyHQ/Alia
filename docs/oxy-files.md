@@ -1,6 +1,6 @@
 # Alia on Oxy Files
 
-How Alia stores bytes under oxy ADR 0041 (application-owned files, references,
+How Alia stores bytes under oxy ADR 0043 (application-owned files, references,
 lifecycle), how existing bytes move out of Alia's own bucket, and when that
 bucket can be retired. The decision is [ADR 0019](./adr/0019-alia-stores-files-in-oxy-files.md);
 the code is `packages/api/src/lib/files/`.
@@ -9,17 +9,17 @@ the code is `packages/api/src/lib/files/`.
 
 | What | Owner | Visibility | Reference (`entityType`/`entityId`) | Where today |
 |---|---|---|---|---|
-| A show's cover art | **Alia** (Alia draws it) | public | `show_series`/series id | **Oxy Files** |
-| A library upload | **the person** | private | `library_file`/row id | legacy bucket — waits for Oxy 4b |
-| A spoken clip (TTS cache) | **Alia** (a cache Alia expires) | private | `speech_clip`/cache key | legacy bucket — waits for Oxy 4b |
-| A catalogue skill's bundled file | **Alia** | private | `skill_file`/row id | legacy bucket — waits for Oxy 4b |
-| A person's own skill's bundled file | **the person** | private | `skill_file`/row id | legacy bucket — waits for Oxy 4b |
+| A show's cover art | **Alia** (Alia draws it) | public | `show_series`/series id | **Oxy Files** once `SYRA_COVER_FILE_IDS=enabled`; until then Syra's image store, as before |
+| A library upload | **the person** | private | `library_file`/row id | legacy bucket — waits for Oxy 4c |
+| A spoken clip (TTS cache) | **Alia** (a cache Alia expires) | private | `speech_clip`/cache key | legacy bucket — waits for Oxy 4c |
+| A catalogue skill's bundled file | **Alia** | private | `skill_file`/row id | legacy bucket — waits for Oxy 4c |
+| A person's own skill's bundled file | **the person** | private | `skill_file`/row id | legacy bucket — waits for Oxy 4c |
 | A show's working segments | — | — | — | **not stored at all** |
 | A published episode's audio | Syra | — | — | Syra (unchanged) |
 
 - **A spoken clip is Alia's, not the person's.** It is a 30-day cache that Alia
   deletes when unused and with its conversation. An account's file is never
-  deleted behind its owner's back (ADR 0041 D5), so a clip owned by the person
+  deleted behind its owner's back (ADR 0043 D5), so a clip owned by the person
   could never expire; it would pile up as "not in use" in their file manager.
   As Alia's, releasing the reference IS the expiry: Oxy trashes an unreferenced
   application file after 24 hours and purges it 30 days later.
@@ -29,11 +29,19 @@ the code is `packages/api/src/lib/files/`.
   and a worker that died mid-run leaked them. They are now joined in memory and
   never stored; the published file lives in Syra.
 - **Syra uses Alia's cover; it does not own it.** `createPodcast` /
-  `updatePodcast` receive `imageFileId` (`@syra.fm/sdk` 0.20.0); Syra accepts
+  `updatePodcast` receive `imageFileId` (Syra #214, `@syra.fm/sdk` 0.20.0); Syra accepts
   only an active public image owned by the caller or by an application in its
   `SYRA_COVER_APPLICATION_IDS` (Alia's id), and registers its own `podcast`
   reference. Deleting a series releases Alia's reference; deleting the podcast
   releases Syra's; Oxy collects the file when neither uses it.
+- **Until Syra takes a file, a cover is uploaded into Syra.** A Syra without
+  `imageFileId` would drop the field and leave the show without art, so
+  `storeCoverForShow` (`lib/files/oxy-files.ts`) uploads it with
+  `uploadPodcastImage` and records `cover_image_asset_id`, exactly as before
+  this change, unless `SYRA_COVER_FILE_IDS=enabled`. Switch it on only after
+  Syra is deployed with #214 and Alia's application id is in its
+  `SYRA_COVER_APPLICATION_IDS`; a series made before the switch keeps its Syra
+  cover until the cover migration below moves it.
 
 ## How a use reaches Oxy
 
@@ -55,7 +63,7 @@ by construction:
 - an Oxy file **Alia** owns has no reference, so Oxy trashes it after 24 hours;
 - a legacy object was marked in `storage_gc_candidates` **before** it was
   written, with an hour's grace; the collector deletes it once no row names it;
-- a **person's** Oxy file stays theirs, shown as "not in use" — ADR 0041 D5 —
+- a **person's** Oxy file stays theirs, shown as "not in use" — ADR 0043 D5 —
   never deleted behind their back.
 
 This is what fixes the skill store's old "uploaded, then the transaction
@@ -64,7 +72,7 @@ deterministic keys never covered): skill rows and their file references commit
 together, and keys are unique per upload so the collector can never take a key
 another import is rewriting.
 
-**Nightly reconciliation** (ADR 0041 D6) sends Oxy the full inventory of each
+**Nightly reconciliation** (ADR 0043 D6) sends Oxy the full inventory of each
 entity type, streamed from Postgres in keyset pages. It runs once a day per type
 on the trigger-engine leader, claimed through `oxy_file_reconcile_runs` (which
 also records the last result), so restarts and several tasks still run it once.
@@ -104,7 +112,7 @@ file", and an applied item sets its Oxy column and reference in one
 transaction, so a stopped run resumes where it stopped. The legacy copy is kept
 as the read fallback until the bucket is retired.
 
-### Covers: two steps, Alia first
+### Covers: two steps, Alia first, after Syra #214 is deployed
 
 1. **Alia** copies each legacy cover — the EXACT bytes Syra serves at
    `GET {SYRA_API_URL}/api/images/:id`, never re-encoded — into an Alia-owned
@@ -131,26 +139,31 @@ as the read fallback until the bucket is retired.
 The app reads `coverFileId` first (through Bloom's image resolver, bound to
 `oxyServices.assets.publicUrl`) and Syra's legacy image only when there is none.
 
-### Library files, spoken clips, skill files: after Oxy stage 4b
+### Library files, spoken clips, skill files: after Oxy stage 4c
 
 `--kind library|speech|skills` refuses to run while
 `OXY_FILES_PRIVATE_CONTENT` is off. Once Oxy ships what is listed below:
 preview, apply with `--limit` as a canary, apply, then set
 `OXY_FILES_PRIVATE_CONTENT=enabled` on the API task so new writes go to Oxy too.
 
-## What waits for Oxy stage 4b
+## What waits for Oxy stage 4c
 
 Everything is in ONE module, `packages/api/src/lib/files/oxy-files.ts`, under the
-`oxy-4b` TODO marker (a test fails if the marker appears anywhere else in the
-repository). Alia's private content cannot move
-until Oxy has all three:
+`oxy-4c` TODO marker (a test fails if the marker appears anywhere else in the
+repository). With `OXY_FILES_PRIVATE_CONTENT` off (the default) nothing in that
+module calls Oxy for private content, so this release is safe to deploy before
+4c: library files, spoken clips and skill files keep the legacy bucket.
 
-1. **Any MIME type and large files** on `POST /assets/service/app` and
-   `POST /assets/service/user-media` (today image/video only, ≤ 40 MiB, 415
-   otherwise): PDFs, office documents and text in the library, `audio/mpeg`
-   clips, scripts and archives in skill bundles. Stage 4b's planned presigned
-   multipart for service tokens covers it.
-2. **Visibility on the account-owned upload.** `POST /assets/service/user-media`
+Stage 4b (deployed) added large, any-type uploads
+(`uploadAppFileLarge` / `uploadUserMediaLarge`, presigned multipart up to
+8 GiB, PDFs and text included) and `adoptAppFile`. What still keeps Alia's
+private content in its bucket is stage 4c:
+
+1. **Audio, and the types Oxy refuses.** Spoken clips are `audio/mpeg`, which
+   waits for 4c's audio work; skill bundles carry scripts and active documents,
+   which every upload path refuses (415, `fileContentPolicy`). When this is
+   switched on, files over 40 MiB use the 4b large-upload calls.
+2. **Visibility on the account-owned upload (private person media).** `POST /assets/service/user-media`
    ignores visibility and stores every file **public**
    (`assetService.uploadUserMediaStream` passes `'public'`). A person's library
    file must be `private`; `uploadUserMedia` needs `visibility`, as
@@ -161,7 +174,7 @@ until Oxy has all three:
    ownerUserId`); a service-made reference has no creator, so Alia could store a
    person's private file and never read it back. Oxy must let the uploading
    application read (or link on the owner's behalf) the account file it stored
-   — the same fix stage 4b lists as "adopt / owner-linked reference".
+   That is stage 4c's application read-back.
 
 Alia's own private files (catalogue skills, clips) need only item 1:
 `linkedDownloadUrls` already serves an application's own files.
@@ -192,12 +205,13 @@ expire after a day, so that kind reaches zero by itself.
 ## Scopes and configuration
 
 Alia's Oxy application (internal tier, granted by staff): `files:app:write`
-(covers today; private content after 4b), `files:app:delete`,
+(covers once Syra takes them; private content after 4c), `files:app:delete`,
 `files:references:write` (outbox, reconciliation), `files:read`
 (`metadataByIds` for the cover handover record), `files:linked:read` (read-back),
-and — after 4b, for the person-owned kinds — `files:user-media:write`.
+and — after 4c, for the person-owned kinds — `files:user-media:write`.
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `OXY_FILES_WEBHOOK_SECRET` | unset → route 404 | the file-events endpoint's `whsec_…` secret (SSM) |
-| `OXY_FILES_PRIVATE_CONTENT` | off | `enabled` writes library files, clips and skill files to Oxy — only after Oxy 4b and the migration |
+| `OXY_FILES_PRIVATE_CONTENT` | off | `enabled` writes library files, clips and skill files to Oxy — only after Oxy 4c and the migration |
+| `SYRA_COVER_FILE_IDS` | off | `enabled` stores a new cover as Alia's Oxy file and hands Syra `imageFileId` — only after Syra #214 is deployed and trusts Alia |

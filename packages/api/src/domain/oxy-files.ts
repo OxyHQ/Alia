@@ -1,5 +1,5 @@
 /**
- * Closed value sets for Alia's use of Oxy Files (oxy ADR 0041).
+ * Closed value sets for Alia's use of Oxy Files (oxy ADR 0043).
  *
  * A LEAF module, like every file in `src/domain/`: the schema renders its CHECK
  * constraints from these tuples and the code that writes the same columns

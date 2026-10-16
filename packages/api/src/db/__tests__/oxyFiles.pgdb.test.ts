@@ -40,7 +40,7 @@ import {
 } from '../../lib/files/oxy-file-sync';
 
 /**
- * Alia's Oxy Files bookkeeping against a real Postgres (oxy ADR 0041): the
+ * Alia's Oxy Files bookkeeping against a real Postgres (oxy ADR 0043): the
  * reference outbox and its claim, the storage CHECKs, the transactional
  * reference writes of every row that names a file, the legacy garbage
  * collector, the legacy-read gate and the event dedupe.

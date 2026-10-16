@@ -1,5 +1,5 @@
 /**
- * Alia's bookkeeping for Oxy Files (oxy ADR 0041), on Postgres: the reference
+ * Alia's bookkeeping for Oxy Files (oxy ADR 0043), on Postgres: the reference
  * outbox, the file-event dedupe, the reconciliation ledger, the legacy-read
  * counter and the legacy-object garbage candidates. `db/schema/oxy-files.ts`
  * says what each table is for; this module is the only writer of all five.
@@ -215,7 +215,7 @@ const INVENTORY_PAGE = 1000;
 /**
  * Every (file, entity) pair Alia uses for one entity type, streamed by keyset
  * pages so a large table is never held in memory — the inventory
- * `references.reconcile` sends to Oxy (ADR 0041 D6). One query per type; the
+ * `references.reconcile` sends to Oxy (ADR 0043 D6). One query per type; the
  * entity id is each table's own primary key.
  */
 export async function* referenceInventory(

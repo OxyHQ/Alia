@@ -1,5 +1,5 @@
 /**
- * Where Alia's stored bytes live: Oxy Files (oxy ADR 0041), or — for what Oxy
+ * Where Alia's stored bytes live: Oxy Files (oxy ADR 0043), or — for what Oxy
  * cannot hold yet — Alia's own bucket, behind this one module.
  *
  * ## Who owns what
@@ -14,7 +14,7 @@
  *
  * A spoken clip is Alia's and not the person's on purpose: it is a cache Alia
  * deletes after 30 days unused and with the conversation it was spoken from.
- * An account's file is never deleted behind its owner's back (ADR 0041 D5), so
+ * An account's file is never deleted behind its owner's back (ADR 0043 D5), so
  * a clip stored as the person's could never be expired — it would pile up as
  * "not in use" in their file manager forever. As Alia's, removing the reference
  * is the expiry: Oxy trashes an unreferenced application file after 24 hours.
@@ -22,13 +22,15 @@
  * Show working segments are not here at all: they were pipeline scratch that
  * nothing read, and the pipeline no longer stores them (`show-pipeline.ts`).
  *
- * ## What can move today, and what waits for Oxy stage 4b
+ * ## What can move today, and what waits for Oxy stage 4c
  *
  * Covers move now: an application-owned public image is exactly what Oxy
- * stores today. Everything else in the table is private, and most of it is not
- * an image or a video, and Oxy cannot hold it yet. Every place that has to
- * change when it can is in THIS file, marked `TODO(oxy-4b)`; nothing outside
- * this module knows which backend a byte is in. See `docs/oxy-files.md` for the
+ * stores today (they reach Syra as a file once Syra takes one —
+ * `syraTakesCoverFiles`). Everything else in the table is private, much of it
+ * audio or a script, and a person's private file is not something Alia can yet
+ * store and read back; that is Oxy stage 4c. Every place that has to change
+ * when it can is in THIS file, marked `TODO(oxy-4c)`; nothing outside this
+ * module knows which backend a byte is in. See `docs/oxy-files.md` for the
  * exact list of what Oxy has to add.
  *
  * ## Reads are dual during the move
@@ -101,7 +103,7 @@ export interface StoredCover {
  * same transaction as the row that names it (`recordFileReferences`). That is
  * deliberate rather than a gap: if the series is never written, the file is an
  * unreferenced application file, and Oxy trashes it 24 hours later and purges
- * it 30 days after that (ADR 0041 D5). Nothing here has to clean up.
+ * it 30 days after that (ADR 0043 D5). Nothing here has to clean up.
  *
  * Idempotent per bytes: Oxy answers the file Alia already holds for the same
  * bytes (`deduplicated`), so a retried cover is one file, not two.
@@ -116,9 +118,69 @@ export async function storeShowCover(bytes: Uint8Array, mime: string): Promise<S
   return { fileId: file.id, sha256: file.sha256 };
 }
 
-// ── Private content: the legacy bucket until Oxy stage 4b ───────────────────
+/**
+ * Whether Syra takes a show's cover as an Oxy file (`imageFileId`).
+ *
+ * Syra learns `imageFileId` in Syra #214 (`@syra.fm/sdk` 0.20.0), and accepts
+ * one only from an application it trusts to supply covers. A Syra without it
+ * would drop the field and leave the show without art, so until Syra is
+ * deployed with it and trusts Alia, a cover is uploaded into Syra as before
+ * (`uploadPodcastImage`) and Alia holds no file for it. Switch it with
+ * `SYRA_COVER_FILE_IDS=enabled`, AFTER Syra (`docs/oxy-files.md`).
+ */
+export function syraTakesCoverFiles(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (env.SYRA_COVER_FILE_IDS ?? '').trim() === 'enabled';
+}
 
-/** The kinds of private content that wait for Oxy stage 4b. */
+/** Where a newly drawn cover went: Alia's Oxy file, or Syra's own image store. */
+export type ShowCover =
+  | { readonly kind: 'oxy_file'; readonly fileId: string }
+  | { readonly kind: 'syra_image'; readonly imageId: string };
+
+/** The one Syra call `storeCoverForShow` may make. */
+export interface SyraCoverUploader {
+  uploadPodcastImage(image: Blob, filename?: string): Promise<{ readonly id: string }>;
+}
+
+/** Store a cover Alia drew wherever Syra can take it from today. */
+export async function storeCoverForShow(
+  syra: SyraCoverUploader,
+  bytes: Uint8Array,
+  mime: string,
+): Promise<ShowCover> {
+  if (syraTakesCoverFiles()) {
+    const stored = await storeShowCover(bytes, mime);
+    return { kind: 'oxy_file', fileId: stored.fileId };
+  }
+  const uploaded = await syra.uploadPodcastImage(
+    new Blob([new Uint8Array(bytes)], { type: mime }),
+    mime === 'image/png' ? 'cover.png' : 'cover',
+  );
+  return { kind: 'syra_image', imageId: uploaded.id };
+}
+
+/** The podcast field that names a cover, for `createPodcast` / `updatePodcast`. */
+export function syraCoverFields(cover: ShowCover | null): { image?: string; imageFileId?: string } {
+  if (cover === null) return {};
+  return cover.kind === 'oxy_file' ? { imageFileId: cover.fileId } : { image: cover.imageId };
+}
+
+/**
+ * The series columns that name a cover. Each kind clears the other: a new
+ * cover supersedes whichever one the series had.
+ */
+export function seriesCoverColumns(cover: ShowCover): {
+  coverFileId: string | null;
+  coverImageAssetId: string | null;
+} {
+  return cover.kind === 'oxy_file'
+    ? { coverFileId: cover.fileId, coverImageAssetId: null }
+    : { coverFileId: null, coverImageAssetId: cover.imageId };
+}
+
+// ── Private content: the legacy bucket until Oxy stage 4c ───────────────────
+
+/** The kinds of private content that wait for Oxy stage 4c. */
 export type PrivateContentKind = LegacyStoredObjectKind;
 
 /** Who owns a stored file: Alia itself, or one person. */
@@ -135,17 +197,21 @@ export interface StoredContent {
 /**
  * Whether private content is written to Oxy Files.
  *
- * TODO(oxy-4b): OFF until Oxy can hold it, and it cannot today, for three
- * reasons each of which alone is enough (`docs/oxy-files.md`):
- *  1. `POST /assets/service/app` and `/assets/service/user-media` accept image
- *     and video only, at most 40 MiB — a PDF, an MP3 or a script is a 415;
- *  2. `/assets/service/user-media` ignores visibility and stores every file
- *     PUBLIC, so a person's private library upload would become world-readable;
+ * TODO(oxy-4c): OFF until Oxy can hold all of it. Stage 4b (deployed) added
+ * large, any-type application uploads (`uploadAppFileLarge`), but three gaps
+ * remain, each of which alone is enough (`docs/oxy-files.md`):
+ *  1. private PERSON media is stage 4c: `/assets/service/user-media` stores a
+ *     person's small upload PUBLIC, so a private library upload would become
+ *     world-readable;
+ *  2. audio (spoken clips) is stage 4c, and every upload path refuses scripts
+ *     and active documents (415), which skill bundles carry;
  *  3. a service-made reference has no creator, so it never satisfies ADR
  *     0021's owner-linked read: Alia could store a person's private file and
- *     never read it back (`linkedDownloadUrls` omits it).
- * Turn it on with `OXY_FILES_PRIVATE_CONTENT=enabled` once Oxy ships all three,
- * after migrating with `src/scripts/migrate-to-oxy-files.ts`.
+ *     never read it back (`linkedDownloadUrls` omits it) — app read-back is
+ *     stage 4c.
+ * Turn it on with `OXY_FILES_PRIVATE_CONTENT=enabled` once Oxy ships 4c, after
+ * migrating with `src/scripts/migrate-to-oxy-files.ts`. Until then no call
+ * below this line reaches Oxy at runtime.
  */
 export function oxyHoldsPrivateContent(env: NodeJS.ProcessEnv = process.env): boolean {
   return (env.OXY_FILES_PRIVATE_CONTENT ?? '').trim() === 'enabled';
@@ -173,7 +239,7 @@ export interface StoreContentInput {
  * as possible garbage BEFORE it is written, with an hour's grace; if the row
  * never commits, `storage-gc.ts` deletes it after that hour. An Oxy file needs
  * no such mark — an unreferenced application file is Oxy's to collect — but a
- * PERSON's is never collected (ADR 0041 D5), which is why the reference is
+ * PERSON's is never collected (ADR 0043 D5), which is why the reference is
  * recorded in the same transaction as the row, and why a person's file that
  * lost its row stays visible to them as "not in use" rather than vanishing.
  */
@@ -203,10 +269,10 @@ export async function copyIntoOxy(input: Omit<StoreContentInput, 'legacyKey'>): 
 async function storeInOxy(input: Omit<StoreContentInput, 'legacyKey'>): Promise<string> {
   const expected = sha256Hex(input.bytes);
   const originalName = input.name;
-  // TODO(oxy-4b): both calls are written against the API stage 4b plans — any
-  // MIME type, files beyond 40 MiB, and `visibility` on the account-owned
-  // upload. Today the first is image/video-only and the second is image/video
-  // only AND always public; `oxyHoldsPrivateContent()` keeps this path off.
+  // TODO(oxy-4c): both calls are written against the API stage 4c completes —
+  // private person media, audio and app read-back. Files beyond 40 MiB need
+  // the 4b large-upload calls (`uploadAppFileLarge` / `uploadUserMediaLarge`)
+  // when this is switched on; `oxyHoldsPrivateContent()` keeps this path off.
   if (input.owner.kind === 'alia') {
     const { file } = await oxy().assets.uploadAppFile(input.bytes, input.mime, {
       visibility: 'private',
@@ -252,10 +318,10 @@ export async function openStoredContent(
 /**
  * Stream one Oxy file Alia may read.
  *
- * TODO(oxy-4b): `linkedDownloadUrls` answers for Alia's OWN files (catalogue
+ * TODO(oxy-4c): `linkedDownloadUrls` answers for Alia's OWN files (catalogue
  * skills, spoken clips) today, but omits a PERSON's private file Alia stored
  * for them — the owner-linked predicate needs a reference the owner made. Oxy
- * must let the application that stored an account's file read it back.
+ * must let the application that stored an account's file read it back (4c).
  */
 export async function openOxyFile(fileId: string): Promise<StoredContentStream | null> {
   const [link] = await oxy().assets.linkedDownloadUrls([fileId]);

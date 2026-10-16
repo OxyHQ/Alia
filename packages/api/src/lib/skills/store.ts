@@ -30,7 +30,7 @@
  *    collector deletes it (`lib/files/oxy-file-sync.ts`);
  *  - an Oxy file Alia owns (the shared catalogue) has no reference until the
  *    version commits, and Oxy trashes an unreferenced application file after 24
- *    hours (oxy ADR 0041 D5);
+ *    hours (oxy ADR 0043 D5);
  *  - a person's Oxy file (their own skill) is theirs: it stays in their file
  *    manager marked "not in use" for them to keep or delete (D5) — never
  *    deleted behind their back.

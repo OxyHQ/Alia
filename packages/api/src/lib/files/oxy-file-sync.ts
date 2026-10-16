@@ -1,5 +1,5 @@
 /**
- * The three loops that keep Alia's stored files honest (oxy ADR 0041):
+ * The three loops that keep Alia's stored files honest (oxy ADR 0043):
  *
  * - **Reference sync** drains `oxy_file_reference_sync` — every use of an Oxy
  *   file that a transaction recorded — into `references.add` / `remove`. Not
@@ -192,7 +192,17 @@ export async function reconcileReferencesOnce(
       };
       if (options.dryRun !== true) await finishReconcileRun(db, entityType, { result: summary });
       outcomes[entityType] = summary;
-      log.files.info({ entityType, ...summary }, 'Oxy file references reconciled');
+      log.files.info(
+        {
+          entityType,
+          added: summary.added,
+          removed: summary.removed,
+          unchanged: summary.unchanged,
+          refused: summary.refused,
+          dryRun: summary.dryRun,
+        },
+        'Oxy file references reconciled',
+      );
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       await finishReconcileRun(db, entityType, { error: message });

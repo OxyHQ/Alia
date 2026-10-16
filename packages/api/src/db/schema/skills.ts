@@ -233,7 +233,7 @@ export const skillFiles = pgTable(
     /** The legacy S3 object key. NULL when the content is inline or in Oxy Files. */
     s3Key: text(),
     /**
-     * The content as an Oxy file (oxy ADR 0041): the person's own for their
+     * The content as an Oxy file (oxy ADR 0043): the person's own for their
      * skill, Alia's for the shared catalogue. Read before `s3_key`.
      */
     oxyFileId: text(),

@@ -129,7 +129,9 @@ platform-wide until ADR 0012 lands.
 (SSM `/oxy/alia/OXY_FILES_WEBHOOK_SECRET`) is the `whsec_…` secret Oxy Console
 shows once when the file-events endpoint `https://api.alia.onl/webhooks/oxy-files`
 is registered; without it the route answers 404. `OXY_FILES_PRIVATE_CONTENT`
-stays unset until Oxy stage 4b ships and the private-content migration has run.
+stays unset until Oxy stage 4c ships and the private-content migration has run;
+`SYRA_COVER_FILE_IDS` stays unset until Syra is deployed with `imageFileId`
+(Syra #214) and lists Alia in `SYRA_COVER_APPLICATION_IDS`.
 Alia's Oxy application needs `files:app:write`, `files:app:delete`,
 `files:references:write`, `files:read` and `files:linked:read` (staff-granted).
 `AWS_S3_BUCKET` stays until the bucket's retirement gate is met.

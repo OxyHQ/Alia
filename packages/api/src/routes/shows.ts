@@ -68,7 +68,12 @@ import { enqueueShowGeneration } from '../lib/show/show-queue.js';
 import { buildSeriesCast, FORMAT_DEFAULTS, SHOW_VOICES } from '../lib/show/voice-roster.js';
 import { generateCoverArt } from '../lib/show/cover-art.js';
 import { syraForRequest } from '../lib/syra/syra.js';
-import { storeShowCover } from '../lib/files/oxy-files.js';
+import {
+  seriesCoverColumns,
+  storeCoverForShow,
+  syraCoverFields,
+  type ShowCover,
+} from '../lib/files/oxy-files.js';
 import { SyraApiError } from '@syra.fm/sdk';
 import { refundReservation, finalizeFixedCredits } from '../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
@@ -215,8 +220,10 @@ router.put('/preferences', async (req: Request, res: Response) => {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Draw a cover and store it as ALIA's public Oxy file, answering with its file
- * id — which Syra is then given as the podcast's artwork (`imageFileId`).
+ * Draw a cover and store it where Syra can take it from: as ALIA's public Oxy
+ * file, which Syra is given as the podcast's artwork (`imageFileId`), once
+ * Syra accepts that; until then uploaded into Syra as before. The choice is
+ * `lib/files/oxy-files.ts`'s (`storeCoverForShow`).
  *
  * Charged, because it is a real image generation and an uncharged one is an
  * unlimited free image endpoint wearing a different name. Refunded whenever no
@@ -242,7 +249,7 @@ async function mintCover(
   title: string,
   brief: string,
   format: ShowFormat,
-): Promise<string | null> {
+): Promise<ShowCover | null> {
   // `err` is named rather than spread in conditionally: pino omits an undefined
   // value, and `lib/__tests__/log-content.test.ts` freezes which two files may
   // spread into a log at all — a spread hides its keys from that census.
@@ -272,13 +279,13 @@ async function mintCover(
       return noCover('no_image_generated');
     }
 
-    // Alia drew it, so it is ALIA's file in Oxy (ADR 0041), not an upload into
-    // Syra: Syra is told the file id and uses it as the podcast's artwork. The
-    // series row that names it records Alia's reference in its own transaction;
-    // if that row never commits, the file is unreferenced and Oxy collects it.
-    const stored = await storeShowCover(art, 'image/png');
+    // Alia drew it, so once Syra takes covers as Oxy files it is ALIA's file in
+    // Oxy (oxy ADR 0043), not an upload into Syra. The series row that names it
+    // records Alia's reference in its own transaction; if that row never
+    // commits, the file is unreferenced and Oxy collects it.
+    const cover = await storeCoverForShow(syraForRequest(req), art, 'image/png');
     await finalizeFixedCredits(reservation, COVER_ART_CREDITS, 'show-cover');
-    return stored.fileId;
+    return cover;
   } catch (err: unknown) {
     // The art may have been drawn and the upload may have failed, so this can
     // refund work that really happened. That is the right side to err on: the
@@ -318,12 +325,12 @@ router.post('/series', async (req: Request, res: Response) => {
     // and its podcast has to exist before the row that would generate one.
     const seriesId = uuidv7();
     const speakers = buildSeriesCast(format, input.voiceIds);
-    const coverFileId = await mintCover(req, userId, seriesId, input.title, input.brief, format);
+    const cover = await mintCover(req, userId, seriesId, input.title, input.brief, format);
 
     const podcast = await syraForRequest(req).createPodcast({
       title: input.title,
       ...(input.description === undefined ? {} : { description: input.description }),
-      ...(coverFileId === null ? {} : { imageFileId: coverFileId }),
+      ...syraCoverFields(cover),
       visibility,
       type: 'episodic',
       aliaSeriesId: seriesId,
@@ -342,7 +349,11 @@ router.post('/series', async (req: Request, res: Response) => {
       brief: input.brief,
       speakers,
       visibility,
-      coverFileId: coverFileId ?? undefined,
+      ...(cover === null
+        ? {}
+        : cover.kind === 'oxy_file'
+          ? { coverFileId: cover.fileId }
+          : { coverImageAssetId: cover.imageId }),
     });
 
     res.status(201).json(series);
@@ -444,7 +455,7 @@ router.patch('/series/:id', async (req: Request, res: Response) => {
         ...(input.title === undefined ? {} : { title: input.title }),
         ...(input.description === undefined ? {} : { description: input.description }),
         ...(input.visibility === undefined ? {} : { visibility: input.visibility }),
-        ...(cover === null ? {} : { imageFileId: cover }),
+        ...syraCoverFields(cover),
       });
     }
 
@@ -453,8 +464,8 @@ router.patch('/series/:id', async (req: Request, res: Response) => {
       ...(input.description === undefined ? {} : { description: input.description }),
       ...(input.brief === undefined ? {} : { brief: input.brief }),
       ...(input.visibility === undefined ? {} : { visibility: input.visibility }),
-      // A new cover supersedes the legacy Syra one as well as the old file.
-      ...(cover === null ? {} : { coverFileId: cover, coverImageAssetId: null }),
+      // A new cover supersedes whichever one the series had.
+      ...(cover === null ? {} : seriesCoverColumns(cover)),
     };
 
     const updated = await updateSeriesForUser(getDb(), id, userId, patch);
@@ -556,10 +567,11 @@ async function syraLetGoOf(
  * `syraPodcastKept`, because it no longer is.
  *
  * IRREVERSIBLE on both sides. Syra's delete takes the episodes, their audio,
- * every subscriber's subscription and every listener's saved position. The
- * cover is Alia's Oxy file: the series' delete releases Alia's reference in
- * its own transaction, Syra's delete releases Syra's, and Oxy collects the file
- * once nothing uses it (oxy ADR 0041 D5). See `docs/oxy-files.md`.
+ * every subscriber's subscription and every listener's saved position. A
+ * cover that is Alia's Oxy file: the series' delete releases Alia's reference
+ * in its own transaction, Syra's delete releases Syra's, and Oxy collects the
+ * file once nothing uses it (oxy ADR 0043 D5). A cover still in Syra's image
+ * store stays Syra's, as before. See `docs/oxy-files.md`.
  */
 router.delete('/series/:id', async (req: Request, res: Response) => {
   try {

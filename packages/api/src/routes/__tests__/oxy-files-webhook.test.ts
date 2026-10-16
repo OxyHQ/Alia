@@ -6,7 +6,7 @@ import express from 'express';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Oxy's file events (oxy ADR 0041 D9), through the real signature check of
+ * Oxy's file events (oxy ADR 0043 D9), through the real signature check of
  * `@oxy.so/core/server`: the challenge, the refusals, the dedupe, and what a
  * deleted or taken-down file does to the rows that use it. The SQL of those
  * writes is `db/__tests__/oxyFiles.pgdb.test.ts`.

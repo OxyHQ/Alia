@@ -177,10 +177,11 @@ de la verdad" is the requirement that came out of it.
 
 Its episodes, their audio across three S3 trees, the HLS ladder, transcripts,
 AES keys, outstanding ingest tickets, every subscriber's subscription and every
-listener's saved position. **Not the cover artwork**, which is not Syra's: the
-cover is Alia's Oxy file. Deleting the series releases Alia's reference in the
+listener's saved position. **Not the cover artwork.** Once
+`SYRA_COVER_FILE_IDS` is on, the cover is Alia's Oxy file, not Syra's (until
+then a new cover is uploaded into Syra's image store, as before). Deleting the series releases Alia's reference in the
 same transaction as the row, deleting the podcast releases Syra's, and Oxy
-collects the file once nothing uses it (oxy ADR 0041 D5). A series still on a
+collects the file once nothing uses it (oxy ADR 0043 D5). A series still on a
 legacy Syra cover (`cover_image_asset_id`) leaves that image to Syra until the
 cover handover (`docs/oxy-files.md`).
 
