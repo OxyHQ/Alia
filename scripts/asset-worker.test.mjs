@@ -63,6 +63,18 @@ const asset = (status = 200, type = 'application/octet-stream') =>
   });
 const IMMUTABLE = 'public, max-age=31536000, immutable';
 
+test("app serves the SDK's voice worklets to any origin, immutable", async () => {
+  const response = await get(
+    '/sdk/voice-worklets/543d4a8e42937e99.js',
+    asset(200, 'text/javascript'),
+  );
+  assert.equal(response.headers.get('access-control-allow-origin'), '*');
+  assert.equal(response.headers.get('cache-control'), IMMUTABLE);
+  const missing = await get('/sdk/voice-worklets/0000000000000000.js', asset(200, 'text/html'));
+  assert.equal(missing.status, 404);
+  assert.equal(missing.headers.get('cache-control'), 'no-store');
+});
+
 test('app serves content-hashed files for a year, immutable', async () => {
   for (const path of [
     '/bloom-character/assets/furCards-Bsdd0YY1.bin',

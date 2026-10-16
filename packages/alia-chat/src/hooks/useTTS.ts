@@ -6,8 +6,7 @@ import { errorMessage } from '../lib/utils';
 import { create } from 'zustand';
 import { createAudioLevelMeter } from '../lib/audio-level';
 import { requestSpeechClip } from '../lib/speech-synthesis';
-
-const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
+import { ALIA_API_URL } from '../lib/origins';
 
 // ============== OPTIONS ==============
 
@@ -83,7 +82,7 @@ useTTSStore.subscribe((state, previous) => {
 // ============== HOOK ==============
 
 export function useTTS(options: UseTTSOptions = {}) {
-  const apiUrl = options.apiUrl || API_URL;
+  const apiUrl = options.apiUrl || ALIA_API_URL;
   const voicePref = options.voice ?? 'female';
   const voiceModel = options.model;
   const tonePref = options.tone ?? 'default';
