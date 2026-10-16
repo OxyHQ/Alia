@@ -14,13 +14,29 @@
  *     install is still reading one.
  *   - New name: a new skill at version 1.
  *
- * ## Object storage happens BEFORE the transaction, and is not rolled back
+ * ## Storage happens BEFORE the transaction, and nothing it leaves is an orphan
  *
- * Uploading inside the transaction would hold a database transaction open across
- * a network call to S3. So binary files are uploaded first, keyed by the bundle
- * checksum, and a failed transaction leaves them orphaned — harmless, because
- * the key is deterministic: the retry of the same bundle overwrites exactly the
- * same objects rather than accumulating new ones.
+ * Uploading inside the transaction would hold a database transaction open
+ * across a network call. So binary files are stored first and the rows that
+ * name them are written after, in ONE transaction with the skill row itself.
+ *
+ * A transaction that fails leaves stored bytes nothing names, and each kind is
+ * collected by construction rather than by a retry happening to overwrite them
+ * (the old answer, which held only for a bundle that WAS retried — an abandoned
+ * import kept its objects forever, and so did every deleted skill):
+ *
+ *  - a legacy object is marked as garbage BEFORE it is written, with an hour's
+ *    grace; once the hour passes and no `skill_files` row names it, the
+ *    collector deletes it (`lib/files/oxy-file-sync.ts`);
+ *  - an Oxy file Alia owns (the shared catalogue) has no reference until the
+ *    version commits, and Oxy trashes an unreferenced application file after 24
+ *    hours (oxy ADR 0041 D5);
+ *  - a person's Oxy file (their own skill) is theirs: it stays in their file
+ *    manager marked "not in use" for them to keep or delete (D5) — never
+ *    deleted behind their back.
+ *
+ * Keys are unique per upload rather than derived from the checksum: a shared
+ * key could be collected while another import was rewriting it.
  */
 
 import type { SkillSource, SkillVisibility } from '../../domain/skill.js';
@@ -36,7 +52,7 @@ import {
   updateCatalogueSkill,
   updateOwnedSkill,
 } from '../../db/agents/skillRepository.js';
-import { uploadToS3Deterministic } from '../s3.js';
+import { newLegacyKey, storePrivateContent, type ContentOwner } from '../files/oxy-files.js';
 import type { SkillBundle } from './bundle.js';
 
 export interface StoreSkillOptions {
@@ -82,32 +98,38 @@ export async function storeSkillBundle(
     }
   }
 
-  const files = await uploadBinaryFiles(bundle, existing?._id ?? frontmatter.name);
+  const files = await uploadBinaryFiles(
+    bundle,
+    existing?._id ?? frontmatter.name,
+    owner === null ? { kind: 'alia' } : { kind: 'person', oxyUserId: owner },
+  );
 
-  const skill =
-    existing ??
-    (await createSkill(db, {
-      name: frontmatter.name,
-      displayName: opts.displayName ?? displayNameFor(frontmatter.name, bundle.document.body),
-      description: frontmatter.description,
-      license: frontmatter.license,
-      compatibility: frontmatter.compatibility,
-      allowedTools: frontmatter.allowedTools,
-      specMetadata: frontmatter.metadata,
-      source: opts.source,
-      sourceRepo: opts.sourceRepo,
-      sourcePath: opts.sourcePath,
-      sourceUrl: opts.sourceUrl,
-      publisher: opts.publisher,
-      tags: opts.tags,
-      icon: opts.icon,
-      color: opts.color,
-      ownerOxyUserId: owner,
-      visibility: opts.visibility ?? (owner === null ? 'public' : 'private'),
-    }));
+  // The skill (when new) and its version commit together: a version whose
+  // files were stored cannot exist without its skill, nor the reverse.
+  const { skill, version } = await db.transaction(async (tx) => {
+    const skill =
+      existing ??
+      (await createSkill(tx, {
+        name: frontmatter.name,
+        displayName: opts.displayName ?? displayNameFor(frontmatter.name, bundle.document.body),
+        description: frontmatter.description,
+        license: frontmatter.license,
+        compatibility: frontmatter.compatibility,
+        allowedTools: frontmatter.allowedTools,
+        specMetadata: frontmatter.metadata,
+        source: opts.source,
+        sourceRepo: opts.sourceRepo,
+        sourcePath: opts.sourcePath,
+        sourceUrl: opts.sourceUrl,
+        publisher: opts.publisher,
+        tags: opts.tags,
+        icon: opts.icon,
+        color: opts.color,
+        ownerOxyUserId: owner,
+        visibility: opts.visibility ?? (owner === null ? 'public' : 'private'),
+      }));
 
-  const version = await db.transaction((tx) =>
-    insertSkillVersion(
+    const version = await insertSkillVersion(
       tx,
       {
         skillId: skill._id,
@@ -119,8 +141,9 @@ export async function storeSkillBundle(
         createdByOxyUserId: opts.createdByOxyUserId,
       },
       files,
-    ),
-  );
+    );
+    return { skill, version };
+  });
 
   // A later version may rename the display text, widen the description or move
   // to a different licence. The metadata a person browses has to follow the
@@ -155,11 +178,15 @@ async function refreshMetadata(
 }
 
 /**
- * Text stays in the row it will be read from; everything else goes to S3 under a
- * key derived from the bundle checksum, so re-storing the same bundle writes the
- * same objects instead of new ones.
+ * Text stays in the row it will be read from; everything else is stored by
+ * `lib/files/oxy-files.ts` — Alia's for the catalogue, the person's for their
+ * own skill — and named by the row the caller's transaction writes.
  */
-async function uploadBinaryFiles(bundle: SkillBundle, skillKey: string): Promise<NewSkillFile[]> {
+async function uploadBinaryFiles(
+  bundle: SkillBundle,
+  skillKey: string,
+  owner: ContentOwner,
+): Promise<NewSkillFile[]> {
   const stored: NewSkillFile[] = [];
   for (const file of bundle.files) {
     if (file.contentText !== undefined) {
@@ -174,15 +201,24 @@ async function uploadBinaryFiles(bundle: SkillBundle, skillKey: string): Promise
       });
       continue;
     }
-    const key = `${process.env.NODE_ENV || 'development'}/skills/${skillKey}/${bundle.checksum}/${file.path}`;
-    await uploadToS3Deterministic(file.content!, key, file.mime);
+    const location = await storePrivateContent({
+      kind: 'skill_file',
+      owner,
+      bytes: file.content!,
+      mime: file.mime,
+      name: file.path.split('/').pop() ?? file.path,
+      // Under the bundle's checksum for whoever reads the bucket, unique per
+      // upload so no two imports ever share a key.
+      legacyKey: newLegacyKey(`skills/${skillKey}/${bundle.checksum}`, 'file', file.path),
+    });
     stored.push({
       path: file.path,
       kind: file.kind,
       mime: file.mime,
       bytes: file.bytes,
       sha256: file.sha256,
-      s3Key: key,
+      s3Key: location.objectKey,
+      oxyFileId: location.oxyFileId,
       executable: file.executable,
     });
   }

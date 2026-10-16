@@ -21,7 +21,8 @@
     "db:migrate": "bun src/db/migrate.ts",
     "test:pg": "vitest run --config vitest.pg.config.ts",
     "test:bun-runtime": "bun test src/lib/__tests__/websocket-upgrades.test.ts",
-    "scan:credentials": "bun src/scripts/scan-credential-history.ts"
+    "scan:credentials": "bun src/scripts/scan-credential-history.ts",
+    "migrate:oxy-files": "bun src/scripts/migrate-to-oxy-files.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "3.0.84",

@@ -5,7 +5,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { index, pgTable, text } from 'drizzle-orm/pg-core';
+import { check, index, pgTable, text } from 'drizzle-orm/pg-core';
 import { createdAt, timestamptz } from '@oxy.so/db';
 
 /**
@@ -61,13 +61,23 @@ export const speechClips = pgTable(
     oxyUserId: text().notNull(),
     /** A client-visible conversation id (`conversations.conversation_id`), or NULL. */
     conversationId: text(),
-    /** The stored object's KEY (`lib/s3.ts`), never an address. */
-    objectKey: text().notNull(),
+    /**
+     * The stored object's KEY in Alia's legacy bucket (`lib/s3.ts`), never an
+     * address. NULL for a clip stored in Oxy Files instead.
+     */
+    objectKey: text(),
+    /** The clip as an Oxy file Alia owns, private (oxy ADR 0041). Read first. */
+    oxyFileId: text(),
     createdAt: createdAt(),
     lastUsedAt: timestamptz().notNull().default(sql`now()`),
   },
   (t) => [
     index('speech_clips_oxy_user_conversation_idx').on(t.oxyUserId, t.conversationId),
     index('speech_clips_last_used_at_idx').on(t.lastUsedAt),
+    index('speech_clips_oxy_file_id_idx').on(t.oxyFileId),
+    check(
+      'speech_clips_storage_check',
+      sql`${t.objectKey} is not null or ${t.oxyFileId} is not null`,
+    ),
   ],
 );

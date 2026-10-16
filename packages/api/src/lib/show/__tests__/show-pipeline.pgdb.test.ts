@@ -87,9 +87,21 @@ vi.mock('../../synthesize-speech.js', () => ({
   synthesizeSpeech: (options: { input: string; voice: string }) => synthesizeSpeech(options),
 }));
 
+/**
+ * Segments are joined in memory and never stored: nothing read them back, and
+ * a worker that died mid-run left them in the bucket for good. Any call into
+ * storage from the pipeline is that regression, so the fake records it.
+ */
+const storageCalls: string[] = [];
 vi.mock('../../s3.js', () => ({
-  uploadToS3: vi.fn(async () => 'test/show-segments/key.mp3'),
-  deleteS3Objects: vi.fn(async () => 0),
+  uploadToS3: vi.fn(async () => {
+    storageCalls.push('upload');
+    return 'test/show-segments/key.mp3';
+  }),
+  deleteS3Objects: vi.fn(async () => {
+    storageCalls.push('delete');
+    return 0;
+  }),
 }));
 
 /**
@@ -417,6 +429,9 @@ describe('an episode says which of its segments never rendered', () => {
     const episode = await findEpisodeById(db, episodeId);
     expect(episode?.segments).toHaveLength(3);
     expect(episode?.segments.some((segment) => segment.renderFailed === true)).toBe(false);
+    // Published from memory: no segment was stored, and none names a key.
+    expect(storageCalls).toEqual([]);
+    expect(episode?.segments.some((segment) => segment.audioUrl !== undefined)).toBe(false);
   });
 
   it('serves the mark to the screen, through the projection a route reads', async () => {

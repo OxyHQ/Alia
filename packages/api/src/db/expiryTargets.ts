@@ -46,6 +46,7 @@ import { audioJobs, notifications } from './schema/notifications';
 import { MCP_OAUTH_STATE_TTL_SECONDS, mcpOauthStates, oauthStates } from './schema/integrations';
 import { emailOutreachDecisions } from './schema/proactive';
 import { apiKeyUsage } from './schema/telemetry';
+import { oxyFileEvents } from './schema/oxy-files';
 
 const DAY = 24 * 60 * 60;
 
@@ -110,6 +111,17 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
     retentionSeconds: 0,
     reason:
       'Inbound dedupe claims; the claim must outlive every redelivery of its event and nothing after.',
+  },
+  {
+    table: oxyFileEvents,
+    /**
+     * From receipt. A file event's id is remembered only so a redelivery is not
+     * handled twice; Oxy dead-letters a delivery after 16 attempts over about
+     * four days, so a month outlives every redelivery with room to spare.
+     */
+    column: oxyFileEvents.createdAt,
+    retentionSeconds: 30 * DAY,
+    reason: 'Handled Oxy file events, kept only to dedupe at-least-once redeliveries.',
   },
   {
     table: mcpOauthStates,

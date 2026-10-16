@@ -123,10 +123,12 @@ export interface ShowSpeaker {
  * One spoken segment of an episode (or, on an older row, a legacy sound cue —
  * see `LEGACY_SHOW_SEGMENT_TYPES`).
  *
- * `audioUrl` is an S3 KEY for the working copy of that segment, never an
- * address: it exists so the concatenation step can be resumed and inspected, and
- * no route renders it. The old shape handed each segment's link to the client,
- * which is what made a show's raw dialogue individually downloadable.
+ * `audioUrl` is LEGACY: older rows name an S3 key for a working copy of the
+ * segment that the pipeline deleted after the join (or leaked when a worker
+ * died). Nothing reads it and it is never written now — segments are joined in
+ * memory and never stored. No route renders it; the old shape handed each
+ * segment's link to the client, which made a show's raw dialogue individually
+ * downloadable.
  */
 export interface ShowSegment {
   index: number;
@@ -223,6 +225,15 @@ export const showSeries = pgTable(
      */
     coverImageAssetId: text(),
     /**
+     * The cover art as an Oxy file ALIA owns (oxy ADR 0041), public, with an
+     * Oxy reference `show_series`/<id> registered through the reference outbox.
+     * Read FIRST; `cover_image_asset_id` is the legacy Syra image, read only
+     * while this is NULL and kept for the soak until every series has moved
+     * (`docs/oxy-files.md`). Alia draws the cover, so Alia owns it; Syra uses it
+     * as the podcast's artwork and holds its own reference.
+     */
+    coverFileId: text(),
+    /**
      * The number the NEXT episode will take, allocated by an atomic increment
      * rather than by counting rows. Two concurrent requests reading a count
      * would both see the same value; `UPDATE … SET n = n + 1 RETURNING` cannot,
@@ -240,6 +251,8 @@ export const showSeries = pgTable(
     // podcast" a single-row lookup, which is how a Syra-side event would be
     // attributed back.
     uniqueIndex('show_series_syra_podcast_id_key').on(t.syraPodcastId),
+    // The file-event handler finds the series a cover belongs to by the file.
+    index('show_series_cover_file_id_idx').on(t.coverFileId),
     checkOneOf('show_series_format_check', t.format, SHOW_FORMATS),
     checkOneOf('show_series_visibility_check', t.visibility, SHOW_VISIBILITIES),
   ],

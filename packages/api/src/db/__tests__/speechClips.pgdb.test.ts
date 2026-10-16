@@ -23,6 +23,10 @@ vi.mock('../../lib/s3.js', () => ({
     H.uploads += 1;
     return `test/${folder}/speech-${H.uploads}.mp3`;
   }),
+  uploadToS3Deterministic: vi.fn(async (_audio: Buffer, key: string) => {
+    H.uploads += 1;
+    return key;
+  }),
   deleteS3Objects: vi.fn(async (keys: readonly string[]) => {
     H.removed.push(...keys);
     return keys.length;
@@ -30,7 +34,7 @@ vi.mock('../../lib/s3.js', () => ({
 }));
 vi.mock('../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { speech: child, general: child } };
+  return { log: { speech: child, general: child, files: child } };
 });
 
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index.js';
@@ -92,7 +96,7 @@ describe('the index', () => {
   it('finds a clip only for its owner', async () => {
     await indexSpeechClip(db, { cacheKey: `${ALICE}-k1`, oxyUserId: ALICE, objectKey: 'o1' });
     expect(await findSpeechClips(db, ALICE, [`${ALICE}-k1`, `${ALICE}-k2`])).toEqual([
-      { cacheKey: `${ALICE}-k1`, objectKey: 'o1' },
+      { cacheKey: `${ALICE}-k1`, objectKey: 'o1', oxyFileId: null },
     ]);
     expect(await findSpeechClips(db, BOB, [`${ALICE}-k1`])).toEqual([]);
     expect(await findSpeechClips(db, ALICE, [])).toEqual([]);
@@ -101,10 +105,10 @@ describe('the index', () => {
   it('keeps the first object indexed under a key, and answers it to the second', async () => {
     expect(
       await indexSpeechClip(db, { cacheKey: `${ALICE}-k`, oxyUserId: ALICE, objectKey: 'first' }),
-    ).toBe('first');
+    ).toMatchObject({ objectKey: 'first', oxyFileId: null });
     expect(
       await indexSpeechClip(db, { cacheKey: `${ALICE}-k`, oxyUserId: ALICE, objectKey: 'second' }),
-    ).toBe('first');
+    ).toMatchObject({ objectKey: 'first', oxyFileId: null });
     expect(await rowsOf(ALICE)).toEqual([
       { cacheKey: `${ALICE}-k`, conversationId: null, objectKey: 'first' },
     ]);
@@ -129,7 +133,9 @@ describe('the index', () => {
       await indexSpeechClip(db, { cacheKey: key, oxyUserId: user, objectKey: `${key}.mp3` });
       await touchSpeechClip(db, user, key, conversation);
     }
-    expect(await deleteConversationSpeechClips(db, ALICE, 'c1')).toEqual([`${ALICE}-a.mp3`]);
+    expect(await deleteConversationSpeechClips(db, ALICE, 'c1')).toEqual([
+      { cacheKey: `${ALICE}-a`, objectKey: `${ALICE}-a.mp3`, oxyFileId: null },
+    ]);
     expect((await rowsOf(ALICE)).map((row) => row.conversationId)).toEqual(['c2']);
     expect(await rowsOf(BOB)).toHaveLength(1);
   });
@@ -153,9 +159,10 @@ describe('the index', () => {
           .set({ lastUsedAt: sql`now()` })
           .where(eq(speechClips.cacheKey, `${ALICE}-used`));
         const swept = await deleteStaleSpeechClips(tx, SPEECH_CLIP_RETENTION_DAYS, 500);
-        expect(swept.objectKeys).toContain('old.mp3');
-        expect(swept.objectKeys).not.toContain('used.mp3');
-        expect(swept.objectKeys).not.toContain('new.mp3');
+        const keys = swept.clips.map((clip) => clip.objectKey);
+        expect(keys).toContain('old.mp3');
+        expect(keys).not.toContain('used.mp3');
+        expect(keys).not.toContain('new.mp3');
         expect(swept.truncated).toBe(false);
         const left = await tx
           .select({ cacheKey: speechClips.cacheKey })
@@ -182,7 +189,7 @@ describe('the index', () => {
           })),
         );
         const swept = await deleteStaleSpeechClips(tx, SPEECH_CLIP_RETENTION_DAYS, 2);
-        expect(swept.objectKeys).toHaveLength(2);
+        expect(swept.clips).toHaveLength(2);
         expect(swept.truncated).toBe(true);
         throw new Error('rollback');
       })
@@ -206,7 +213,7 @@ describe('the cache over the real index', () => {
     const first = await ask(ALICE, { conversationId: 'c1' });
     const second = await ask(ALICE);
     expect(first.cache).toBe('miss');
-    expect(second).toMatchObject({ cache: 'hit', objectKey: first.objectKey });
+    expect(second).toMatchObject({ cache: 'hit', locator: first.locator });
     expect((await ask(ALICE, { voice: 'male' })).cache).toBe('miss');
     expect((await ask(BOB)).cache).toBe('miss');
     expect(H.synthesize).toHaveBeenCalledTimes(3);
@@ -217,7 +224,7 @@ describe('the cache over the real index', () => {
     const clip = await ask(ALICE, { conversationId: 'c1' });
     await ask(BOB, { conversationId: 'c1' });
     expect(await purgeConversationSpeechClips(db, ALICE, 'c1')).toBe(1);
-    expect(H.removed).toEqual([clip.objectKey]);
+    expect(H.removed).toEqual([clip.locator]);
     expect(await rowsOf(ALICE)).toEqual([]);
     expect(await rowsOf(BOB)).toHaveLength(1);
     expect((await ask(ALICE)).cache).toBe('miss');

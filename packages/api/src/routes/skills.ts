@@ -52,7 +52,7 @@ import {
 import { SKILL_SOURCES, type SkillSource } from '../domain/skill.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { resolveUtilityModel, getAIModel } from '../lib/chat-core.js';
-import { readS3Object } from '../lib/s3.js';
+import { openStoredContent } from '../lib/files/oxy-files.js';
 import { log } from '../lib/logger.js';
 import { MAX_BUNDLE_BYTES, buildSkillBundle, SkillBundleError } from '../lib/skills/bundle.js';
 import { readZipArchive, SkillArchiveError } from '../lib/skills/archive.js';
@@ -498,10 +498,9 @@ router.get('/:idOrName/versions', optionalAuth, async (req: Request, res: Respon
 /**
  * One bundled file.
  *
- * Text comes back as text and binary comes back as bytes, from S3 through this
- * API rather than from a URL: the media bucket is private, and it stays that way
- * — a canonical object URL answers 403, which is the correct behaviour and not
- * something to fix by opening the bucket.
+ * Text comes back as text and binary comes back as bytes, through this API
+ * rather than from a URL: the stored file is private — an Oxy file only Alia
+ * may read, or an object in the private legacy bucket — and it stays that way.
  */
 router.get('/:idOrName/files/*', optionalAuth, async (req: Request, res: Response) => {
   const skill = await resolveVisibleSkill(param(req, 'idOrName'), req.user?.id);
@@ -518,9 +517,13 @@ router.get('/:idOrName/files/*', optionalAuth, async (req: Request, res: Respons
     res.type(file.mime).send(file.contentText);
     return;
   }
-  const object = await readS3Object(file.s3Key!);
+  // The Oxy file first; the legacy object only while there is none (counted).
+  const object = await openStoredContent(
+    { objectKey: file.s3Key, oxyFileId: file.oxyFileId },
+    'skill_file',
+  );
   if (!object) {
-    log.skills.error({ path, key: file.s3Key }, 'A bundled skill file is missing from storage');
+    log.skills.error({ path }, 'A bundled skill file is missing from storage');
     return fail(res, 500, 'Failed to read that file', 'skill_error');
   }
   res.type(object.contentType);
@@ -535,7 +538,7 @@ router.get('/:idOrName/files/*', optionalAuth, async (req: Request, res: Respons
    * cleanly reads as a complete file. Same shape as `routes/media.ts`.
    */
   object.body.on('error', (err: unknown) => {
-    log.skills.warn({ err, path, key: file.s3Key }, 'Skill file stream failed mid-flight');
+    log.skills.warn({ err, path }, 'Skill file stream failed mid-flight');
     res.destroy();
   });
   object.body.pipe(res);

@@ -9,6 +9,8 @@ import { createInternalCors } from './lib/cors-origins.js';
 import { startExpirySweeper, stopExpirySweeper } from './db/expirySweeper.js';
 import { isTriggerLeader } from './lib/trigger-engine.js';
 import { startSpeechClipSweeper, stopSpeechClipSweeper } from './lib/speech-clips.js';
+import { startOxyFileSync, stopOxyFileSync } from './lib/files/oxy-file-sync.js';
+import oxyFilesWebhookRouter from './routes/oxy-files-webhook.js';
 import { log } from './lib/logger.js';
 import { isAbortError, isFatalError, isTransientNetworkError } from './lib/error-classification.js';
 
@@ -183,6 +185,17 @@ app.use('/billing/webhook', express.raw({ type: 'application/json' }));
  * falls through to `webhooksRouter` below, which still gets a parsed body.
  */
 app.use('/webhooks', createCrowdSourceWebhookRoutes());
+
+/**
+ * Oxy's file events (`routes/oxy-files-webhook.ts`) MUST stay above
+ * `express.json()` too: the `oxy-signature` HMAC covers the exact bytes Oxy
+ * sent, so the body is taken raw here and the handler refuses a parsed one.
+ */
+app.use(
+  '/webhooks/oxy-files',
+  express.raw({ type: 'application/json', limit: '1mb' }),
+  oxyFilesWebhookRouter,
+);
 
 // `rawBody` is declared here because this hook is the only thing that sets it.
 // It outlived its original consumer: the declaration used to sit in the
@@ -406,6 +419,13 @@ server.listen(PORT, '0.0.0.0', () => {
   startSpeechClipSweeper(isTriggerLeader);
 
   /**
+   * Oxy Files bookkeeping (`lib/files/oxy-file-sync.ts`): the reference outbox
+   * drains on every task under leases; the nightly reconciliation and the
+   * legacy-bucket garbage collector run on the leader, like the sweeps above.
+   */
+  startOxyFileSync(isTriggerLeader);
+
+  /**
    * The trigger engine, the moderation-outbox dispatcher and both queues.
    *
    * Started unconditionally: every one of them reads Postgres or self-gates on
@@ -488,6 +508,7 @@ const shutdown = async (signal: string) => {
     // mid-statement by the handle disappearing underneath it.
     stopExpirySweeper();
     stopSpeechClipSweeper();
+    stopOxyFileSync();
 
     // Close the Postgres pool last: it is the store every ported route reads, so
     // it stays open until everything that could still be using it has stopped.

@@ -68,6 +68,7 @@ import { enqueueShowGeneration } from '../lib/show/show-queue.js';
 import { buildSeriesCast, FORMAT_DEFAULTS, SHOW_VOICES } from '../lib/show/voice-roster.js';
 import { generateCoverArt } from '../lib/show/cover-art.js';
 import { syraForRequest } from '../lib/syra/syra.js';
+import { storeShowCover } from '../lib/files/oxy-files.js';
 import { SyraApiError } from '@syra.fm/sdk';
 import { refundReservation, finalizeFixedCredits } from '../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
@@ -214,7 +215,8 @@ router.put('/preferences', async (req: Request, res: Response) => {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Draw a cover and store it in Syra, answering with Syra's image id.
+ * Draw a cover and store it as ALIA's public Oxy file, answering with its file
+ * id — which Syra is then given as the podcast's artwork (`imageFileId`).
  *
  * Charged, because it is a real image generation and an uncharged one is an
  * unlimited free image endpoint wearing a different name. Refunded whenever no
@@ -270,12 +272,13 @@ async function mintCover(
       return noCover('no_image_generated');
     }
 
-    const uploaded = await syraForRequest(req).uploadPodcastImage(
-      new Blob([new Uint8Array(art)], { type: 'image/png' }),
-      'cover.png',
-    );
+    // Alia drew it, so it is ALIA's file in Oxy (ADR 0041), not an upload into
+    // Syra: Syra is told the file id and uses it as the podcast's artwork. The
+    // series row that names it records Alia's reference in its own transaction;
+    // if that row never commits, the file is unreferenced and Oxy collects it.
+    const stored = await storeShowCover(art, 'image/png');
     await finalizeFixedCredits(reservation, COVER_ART_CREDITS, 'show-cover');
-    return uploaded.id;
+    return stored.fileId;
   } catch (err: unknown) {
     // The art may have been drawn and the upload may have failed, so this can
     // refund work that really happened. That is the right side to err on: the
@@ -315,19 +318,12 @@ router.post('/series', async (req: Request, res: Response) => {
     // and its podcast has to exist before the row that would generate one.
     const seriesId = uuidv7();
     const speakers = buildSeriesCast(format, input.voiceIds);
-    const coverImageAssetId = await mintCover(
-      req,
-      userId,
-      seriesId,
-      input.title,
-      input.brief,
-      format,
-    );
+    const coverFileId = await mintCover(req, userId, seriesId, input.title, input.brief, format);
 
     const podcast = await syraForRequest(req).createPodcast({
       title: input.title,
       ...(input.description === undefined ? {} : { description: input.description }),
-      ...(coverImageAssetId === null ? {} : { image: coverImageAssetId }),
+      ...(coverFileId === null ? {} : { imageFileId: coverFileId }),
       visibility,
       type: 'episodic',
       aliaSeriesId: seriesId,
@@ -346,7 +342,7 @@ router.post('/series', async (req: Request, res: Response) => {
       brief: input.brief,
       speakers,
       visibility,
-      coverImageAssetId: coverImageAssetId ?? undefined,
+      coverFileId: coverFileId ?? undefined,
     });
 
     res.status(201).json(series);
@@ -448,7 +444,7 @@ router.patch('/series/:id', async (req: Request, res: Response) => {
         ...(input.title === undefined ? {} : { title: input.title }),
         ...(input.description === undefined ? {} : { description: input.description }),
         ...(input.visibility === undefined ? {} : { visibility: input.visibility }),
-        ...(cover === null ? {} : { image: cover }),
+        ...(cover === null ? {} : { imageFileId: cover }),
       });
     }
 
@@ -457,7 +453,8 @@ router.patch('/series/:id', async (req: Request, res: Response) => {
       ...(input.description === undefined ? {} : { description: input.description }),
       ...(input.brief === undefined ? {} : { brief: input.brief }),
       ...(input.visibility === undefined ? {} : { visibility: input.visibility }),
-      ...(cover === null ? {} : { coverImageAssetId: cover }),
+      // A new cover supersedes the legacy Syra one as well as the old file.
+      ...(cover === null ? {} : { coverFileId: cover, coverImageAssetId: null }),
     };
 
     const updated = await updateSeriesForUser(getDb(), id, userId, patch);
@@ -559,10 +556,10 @@ async function syraLetGoOf(
  * `syraPodcastKept`, because it no longer is.
  *
  * IRREVERSIBLE on both sides. Syra's delete takes the episodes, their audio,
- * every subscriber's subscription and every listener's saved position. It does
- * NOT take the cover artwork: `image_assets` is referenced `ON DELETE set
- * null` and one asset may back several shows, so reclaiming those bytes needs
- * a sweeper that can prove non-reference. See `docs/shows.mdx`.
+ * every subscriber's subscription and every listener's saved position. The
+ * cover is Alia's Oxy file: the series' delete releases Alia's reference in
+ * its own transaction, Syra's delete releases Syra's, and Oxy collects the file
+ * once nothing uses it (oxy ADR 0041 D5). See `docs/oxy-files.md`.
  */
 router.delete('/series/:id', async (req: Request, res: Response) => {
   try {

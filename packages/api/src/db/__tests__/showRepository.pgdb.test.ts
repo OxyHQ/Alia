@@ -154,6 +154,7 @@ describe('the schema really carries the indexes it declares', () => {
       'show_episodes_series_number_key',
       'show_episodes_user_status_idx',
       'show_preferences_pkey',
+      'show_series_cover_file_id_idx',
       'show_series_pkey',
       'show_series_syra_podcast_id_key',
       'show_series_user_created_at_idx',

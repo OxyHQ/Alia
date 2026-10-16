@@ -186,6 +186,12 @@ registry.register(
   [0.5, 1, 2, 5, 10, 30],
 );
 
+registry.register(
+  'alia_legacy_storage_reads_total',
+  "Reads served from Alia's own bucket instead of Oxy Files, by kind (gates the bucket's retirement)",
+  'counter',
+);
+
 // ── Convenience Functions ──
 
 export function agentSessionStarted(labels: { agentId?: string; userId?: string }): void {
@@ -228,6 +234,11 @@ export function chatRequestRecorded(
 ): void {
   registry.inc('alia_chat_requests_total', labels);
   registry.observe('alia_chat_stream_duration_seconds', labels, durationSec);
+}
+
+/** One read served from the legacy bucket. The durable count is `legacy_storage_reads`. */
+export function legacyStorageReadRecorded(kind: string): void {
+  registry.inc('alia_legacy_storage_reads_total', { kind });
 }
 
 /** Export all metrics in Prometheus text format */

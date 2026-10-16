@@ -12,9 +12,11 @@
  * written out here, once, at the only boundary that performs it.
  */
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNull } from 'drizzle-orm';
 import type { FileCategory } from '../../domain/library-file.js';
+import { storedLocator } from '../../domain/oxy-files.js';
 import type { ApiDatabase } from '../index';
+import { markLegacyObjectsMaybeGarbage, recordFileReferences } from '../files/oxyFileRepository';
 import { libraryFiles } from '../schema/library';
 
 /** A stored library file, as this repository reads it. */
@@ -22,7 +24,10 @@ export interface LibraryFileRow {
   readonly id: string;
   readonly ownerOxyUserId: string;
   readonly name: string;
-  readonly url: string;
+  /** The legacy object KEY, or NULL for a file stored only in Oxy Files. */
+  readonly url: string | null;
+  /** The person's Oxy file (oxy ADR 0041). Read before `url`. */
+  readonly oxyFileId: string | null;
   readonly type: string;
   readonly size: number;
   readonly category: string;
@@ -48,6 +53,10 @@ export interface LibraryFileRow {
 export interface LibraryFileResponse {
   readonly _id: string;
   readonly name: string;
+  /**
+   * Where the file is, as a stored LOCATOR (`storedLocator`) — never sent as
+   * is: `routes/library.ts` turns it into a playback link.
+   */
   readonly url: string;
   readonly type: string;
   readonly size: number;
@@ -74,14 +83,23 @@ export function toLibraryFileResponse(row: LibraryFileRow): LibraryFileResponse 
   return {
     _id: row.id,
     name: row.name,
-    url: row.url,
+    // The CHECK keeps one of the two set, so a locator always exists.
+    url: storedLocator(row.url, row.oxyFileId) ?? '',
     type: row.type,
     size: row.size,
     category: row.category,
-    ...(row.thumbnail === null ? {} : { thumbnail: row.thumbnail }),
+    ...(thumbnailOf(row) === null ? {} : { thumbnail: thumbnailOf(row) as string }),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+/** An image is its own thumbnail — its legacy key, or its Oxy file once it has no other. */
+function thumbnailOf(row: LibraryFileRow): string | null {
+  if (row.thumbnail !== null) return row.thumbnail;
+  if (row.category === 'images' && row.oxyFileId !== null)
+    return storedLocator(null, row.oxyFileId);
+  return null;
 }
 
 /**
@@ -130,32 +148,70 @@ export async function findLibraryFile(
 export interface NewLibraryFile {
   readonly ownerOxyUserId: string;
   readonly name: string;
-  readonly url: string;
+  /** The legacy object key, when the bytes went to Alia's bucket. */
+  readonly url: string | null;
+  /** The person's Oxy file, when the bytes went to Oxy Files. */
+  readonly oxyFileId?: string | null;
   readonly type: string;
   readonly size: number;
   readonly category: FileCategory;
   readonly thumbnail?: string;
 }
 
-/** Record an uploaded file, returning the stored row. */
+/**
+ * Record an uploaded file, returning the stored row — and, in the same
+ * transaction, that Alia uses its Oxy file, so the use exists exactly when the
+ * row does.
+ */
 export async function createLibraryFile(
   db: ApiDatabase,
   input: NewLibraryFile,
 ): Promise<LibraryFileRow> {
-  const [row] = await db
-    .insert(libraryFiles)
-    .values({
-      ownerOxyUserId: input.ownerOxyUserId,
-      name: input.name,
-      url: input.url,
-      type: input.type,
-      size: input.size,
-      category: input.category,
-      thumbnail: input.thumbnail ?? null,
-    })
-    .returning();
-  if (!row) throw new Error('library file insert returned no row');
-  return row;
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(libraryFiles)
+      .values({
+        ownerOxyUserId: input.ownerOxyUserId,
+        name: input.name,
+        url: input.url,
+        oxyFileId: input.oxyFileId ?? null,
+        type: input.type,
+        size: input.size,
+        category: input.category,
+        thumbnail: input.thumbnail ?? null,
+      })
+      .returning();
+    if (!row) throw new Error('library file insert returned no row');
+    if (row.oxyFileId !== null) {
+      await recordFileReferences(tx, [
+        { fileId: row.oxyFileId, entityType: 'library_file', entityId: row.id, desired: 'present' },
+      ]);
+    }
+    return row;
+  });
+}
+
+/**
+ * The migration's write: a legacy file now also lives in the person's Oxy file.
+ * Only while it has none yet; the legacy key stays as the dual-read fallback.
+ */
+export async function adoptLibraryOxyFile(
+  db: ApiDatabase,
+  id: string,
+  fileId: string,
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(libraryFiles)
+      .set({ oxyFileId: fileId })
+      .where(and(eq(libraryFiles.id, id), isNull(libraryFiles.oxyFileId)))
+      .returning({ id: libraryFiles.id });
+    if (!row) return false;
+    await recordFileReferences(tx, [
+      { fileId, entityType: 'library_file', entityId: id, desired: 'present' },
+    ]);
+    return true;
+  });
 }
 
 /**
@@ -171,8 +227,78 @@ export async function deleteLibraryFile(
   id: string,
   ownerOxyUserId: string,
 ): Promise<number> {
-  const result = await db
-    .delete(libraryFiles)
-    .where(and(eq(libraryFiles.id, id), eq(libraryFiles.ownerOxyUserId, ownerOxyUserId)));
-  return result.count;
+  return db.transaction(async (tx) => {
+    const removed = await tx
+      .delete(libraryFiles)
+      .where(and(eq(libraryFiles.id, id), eq(libraryFiles.ownerOxyUserId, ownerOxyUserId)))
+      .returning({
+        id: libraryFiles.id,
+        url: libraryFiles.url,
+        thumbnail: libraryFiles.thumbnail,
+        oxyFileId: libraryFiles.oxyFileId,
+      });
+    // What the row named goes with it, in this transaction: the person's Oxy
+    // file loses Alia's reference (it stays theirs, "not in use", never deleted
+    // behind their back — ADR 0041 D5), and a legacy object becomes garbage the
+    // collector deletes. Before, the route deleted the object first with a call
+    // that swallowed its own failure, so a failed delete leaked it for good.
+    for (const row of removed) {
+      if (row.oxyFileId !== null) {
+        await recordFileReferences(tx, [
+          {
+            fileId: row.oxyFileId,
+            entityType: 'library_file',
+            entityId: row.id,
+            desired: 'absent',
+          },
+        ]);
+      }
+      const keys = [row.url, row.thumbnail].filter((key): key is string => key !== null);
+      await markLegacyObjectsMaybeGarbage(
+        tx,
+        [...new Set(keys)].map((key) => ({ key, kind: 'library_file' as const })),
+        0,
+      );
+    }
+    return removed.length;
+  });
+}
+
+/** Legacy files with no Oxy copy yet, by id after `afterId` — the migration's work list. */
+export async function listLibraryFilesOnLegacyStorage(
+  db: ApiDatabase,
+  afterId: string,
+  limit: number,
+): Promise<LibraryFileRow[]> {
+  return db
+    .select()
+    .from(libraryFiles)
+    .where(and(isNull(libraryFiles.oxyFileId), gt(libraryFiles.id, afterId)))
+    .orderBy(asc(libraryFiles.id))
+    .limit(limit);
+}
+
+/** A file whose Oxy copy Oxy says is gone (deleted or taken down): the row goes too. */
+export async function deleteLibraryFilesByOxyFile(
+  db: ApiDatabase,
+  fileId: string,
+): Promise<number> {
+  return db.transaction(async (tx) => {
+    const removed = await tx
+      .delete(libraryFiles)
+      .where(eq(libraryFiles.oxyFileId, fileId))
+      .returning({ id: libraryFiles.id, url: libraryFiles.url, thumbnail: libraryFiles.thumbnail });
+    for (const row of removed) {
+      await recordFileReferences(tx, [
+        { fileId, entityType: 'library_file', entityId: row.id, desired: 'absent' },
+      ]);
+      const keys = [row.url, row.thumbnail].filter((key): key is string => key !== null);
+      await markLegacyObjectsMaybeGarbage(
+        tx,
+        [...new Set(keys)].map((key) => ({ key, kind: 'library_file' as const })),
+        0,
+      );
+    }
+    return removed.length;
+  });
 }

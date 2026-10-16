@@ -100,7 +100,8 @@ export interface AgentKnowledgeRef {
   type: string;
   /** `notNull` with a CHECK over `FILE_CATEGORIES` — never absent. */
   category: string;
-  url: string;
+  /** The library file's legacy object key, or NULL once it lives only in Oxy Files. */
+  url: string | null;
 }
 
 /** An agent in the shape `res.json({ agent })` has always answered. */

@@ -51,6 +51,16 @@ vi.mock('../../lib/show/cover-art.js', () => ({
   generateCoverArt: async () => drawnCover,
 }));
 
+/** Every cover stored in Oxy this run, so "drawn and stored as Alia's" is measured. */
+let coversStored: { bytes: Uint8Array; mime: string }[] = [];
+
+vi.mock('../../lib/files/oxy-files.js', () => ({
+  storeShowCover: async (bytes: Uint8Array, mime: string) => {
+    coversStored.push({ bytes, mime });
+    return { fileId: 'oxy-cover-1', sha256: 'a'.repeat(64) };
+  },
+}));
+
 vi.mock('../../lib/syra/syra.js', async () => {
   const actual =
     await vi.importActual<typeof import('../../lib/syra/syra.js')>('../../lib/syra/syra.js');
@@ -61,7 +71,10 @@ vi.mock('../../lib/syra/syra.js', async () => {
         podcastsCreated.push(payload);
         return { id: PODCAST_ID };
       },
-      uploadPodcastImage: async () => ({ id: 'syra-image-1' }),
+      // Covers are Alia's Oxy files now; an upload into Syra is a regression.
+      uploadPodcastImage: async () => {
+        throw new Error('a cover must not be uploaded into Syra');
+      },
     }),
   };
 });
@@ -134,6 +147,7 @@ afterAll(
 beforeEach(() => {
   drawnCover = null;
   podcastsCreated = [];
+  coversStored = [];
   warned = [];
   refunded = 0;
   finalized = 0;
@@ -168,7 +182,9 @@ describe('a series created without a cover', () => {
     expect(status).toBe(201);
     expect(podcastsCreated).toHaveLength(1);
     expect(podcastsCreated[0]).not.toHaveProperty('image');
-    expect(body.coverImageAssetId).toBeUndefined();
+    expect(podcastsCreated[0]).not.toHaveProperty('imageFileId');
+    expect(body.coverFileId).toBeUndefined();
+    expect(coversStored).toEqual([]);
 
     // The property that was missing. One message, so a single search over the
     // logs answers "which series have no artwork, and why".
@@ -195,8 +211,12 @@ describe('a series created without a cover', () => {
 
     expect(status).toBe(201);
     expect(warned.filter((entry) => entry.message === NO_COVER)).toEqual([]);
-    expect(podcastsCreated[0]?.image).toBe('syra-image-1');
-    expect(body.coverImageAssetId).toBe('syra-image-1');
+    // Stored as ALIA's file, and Syra is handed the file id — not an upload.
+    expect(coversStored).toEqual([{ bytes: drawnCover, mime: 'image/png' }]);
+    expect(podcastsCreated[0]?.imageFileId).toBe('oxy-cover-1');
+    expect(podcastsCreated[0]).not.toHaveProperty('image');
+    expect(body.coverFileId).toBe('oxy-cover-1');
+    expect(body.coverImageAssetId).toBeUndefined();
     expect(finalized).toBe(1);
     expect(refunded).toBe(0);
   });

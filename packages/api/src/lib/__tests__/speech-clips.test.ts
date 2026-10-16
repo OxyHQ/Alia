@@ -27,7 +27,33 @@ vi.mock('../synthesize-speech.js', () => ({
   speechModelCandidates: H.candidates,
   synthesizeSpeech: H.synthesize,
 }));
-vi.mock('../s3.js', () => ({ uploadToS3: H.upload, deleteS3Objects: H.remove }));
+vi.mock('../s3.js', () => ({ deleteS3Objects: H.remove }));
+/**
+ * Storage is `lib/files/oxy-files.ts`'s, faked at its seam: the legacy path —
+ * the one live until Oxy holds private content — answers the key it was given.
+ */
+vi.mock('../files/oxy-files.js', () => ({
+  newLegacyKey: (folder: string, descriptor: string, filename: string) =>
+    `${folder}|${descriptor}|${filename}`,
+  storePrivateContent: async (input: {
+    bytes: Buffer;
+    legacyKey: string;
+    owner: unknown;
+    kind: string;
+  }) => {
+    const [folder, descriptor, filename] = input.legacyKey.split('|');
+    const objectKey = await H.upload(
+      input.bytes,
+      filename,
+      folder,
+      descriptor,
+      input.owner,
+      input.kind,
+    );
+    return { objectKey, oxyFileId: null };
+  },
+}));
+vi.mock('../../db/files/oxyFileRepository.js', () => ({ recordFileReferences: vi.fn() }));
 vi.mock('../logger.js', () => ({
   log: { speech: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
 }));
@@ -36,7 +62,7 @@ vi.mock('../../db/chat/speechClipRepository.js', () => ({
   findSpeechClips: async (_db: unknown, user: string, keys: readonly string[]) =>
     [...H.rows.values()]
       .filter((row) => row.oxyUserId === user && keys.includes(row.cacheKey))
-      .map(({ cacheKey, objectKey }) => ({ cacheKey, objectKey })),
+      .map(({ cacheKey, objectKey }) => ({ cacheKey, objectKey, oxyFileId: null })),
   touchSpeechClip: async (
     _db: unknown,
     user: string,
@@ -52,7 +78,11 @@ vi.mock('../../db/chat/speechClipRepository.js', () => ({
       (row) => row.oxyUserId === user && row.conversationId === conversationId,
     );
     for (const row of gone) H.rows.delete(row.cacheKey);
-    return gone.map((row) => row.objectKey);
+    return gone.map((row) => ({
+      cacheKey: row.cacheKey,
+      objectKey: row.objectKey,
+      oxyFileId: null,
+    }));
   },
   deleteStaleSpeechClips: vi.fn(),
 }));
@@ -97,9 +127,15 @@ beforeEach(() => {
   H.index.mockImplementation(
     async (_db: unknown, clip: { cacheKey: string; oxyUserId: string; objectKey: string }) => {
       const standing = H.rows.get(clip.cacheKey);
-      if (standing) return standing.objectKey;
-      H.rows.set(clip.cacheKey, { ...clip, conversationId: null });
-      return clip.objectKey;
+      if (standing)
+        return { cacheKey: clip.cacheKey, objectKey: standing.objectKey, oxyFileId: null };
+      H.rows.set(clip.cacheKey, {
+        cacheKey: clip.cacheKey,
+        oxyUserId: clip.oxyUserId,
+        objectKey: clip.objectKey,
+        conversationId: null,
+      });
+      return { cacheKey: clip.cacheKey, objectKey: clip.objectKey, oxyFileId: null };
     },
   );
 });
@@ -151,7 +187,7 @@ describe('a clip is made once', () => {
   it('synthesizes and stores on a miss', async () => {
     const clip = await ask();
     expect(clip).toEqual({
-      objectKey: 'test/tts/u1/speech-1.mp3',
+      locator: 'test/tts/u1/speech-1.mp3',
       model: 'acme/voice',
       cache: 'miss',
       inflight: false,
@@ -164,7 +200,15 @@ describe('a clip is made once', () => {
       userId: 'u1',
       signal: expect.any(AbortSignal),
     });
-    expect(H.upload).toHaveBeenCalledWith(expect.any(Buffer), 'speech.mp3', 'tts/u1', 'speech');
+    // A clip is a cache Alia expires, so it is stored as ALIA's, never the person's.
+    expect(H.upload).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      'speech.mp3',
+      'tts/u1',
+      'speech',
+      { kind: 'alia' },
+      'speech_clip',
+    );
     expect([...H.rows.values()]).toEqual([
       {
         cacheKey: speechClipKey({
@@ -186,7 +230,7 @@ describe('a clip is made once', () => {
     await ask();
     const clip = await ask();
     expect(clip).toEqual({
-      objectKey: 'test/tts/u1/speech-1.mp3',
+      locator: 'test/tts/u1/speech-1.mp3',
       model: 'acme/voice',
       cache: 'hit',
       inflight: false,
@@ -280,7 +324,7 @@ describe('two identical requests at once', () => {
     const [a, b] = await Promise.all([first, second]);
     expect(a).toMatchObject({ cache: 'miss', inflight: false, requestId: 'req_1' });
     expect(b).toEqual({
-      objectKey: a.objectKey,
+      locator: a.locator,
       model: 'acme/voice',
       cache: 'hit',
       inflight: true,
@@ -333,9 +377,13 @@ describe('two identical requests at once', () => {
   });
 
   it('across tasks: the clip indexed first stands, and the surplus object is deleted', async () => {
-    H.index.mockResolvedValueOnce('test/tts/u1/from-another-task.mp3');
+    H.index.mockResolvedValueOnce({
+      cacheKey: 'k',
+      objectKey: 'test/tts/u1/from-another-task.mp3',
+      oxyFileId: null,
+    });
     const clip = await ask();
-    expect(clip.objectKey).toBe('test/tts/u1/from-another-task.mp3');
+    expect(clip.locator).toBe('test/tts/u1/from-another-task.mp3');
     expect(H.remove).toHaveBeenCalledWith(['test/tts/u1/speech-1.mp3']);
   });
 });
