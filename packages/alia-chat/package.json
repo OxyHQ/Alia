@@ -30,7 +30,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check:entries": "node scripts/check-entry-isolation.mjs",
-    "render:avatar-still": "bun scripts/render-avatar-still.ts"
+    "render:avatar-still": "bun scripts/render-avatar-still.ts",
+    "prepublishOnly": "bun run typecheck && bun run test && bun run check:entries"
   },
   "dependencies": {
     "clsx": "^2.1.1",
