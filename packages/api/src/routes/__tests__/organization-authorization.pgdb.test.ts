@@ -139,6 +139,16 @@ beforeAll(async () => {
       );
     else if (path === '/accounts')
       res.end(JSON.stringify({ accounts: [node('canonical', role), node('not-local', role)] }));
+    else if (path.includes('/invitations'))
+      res.end(
+        JSON.stringify(
+          req.method === 'GET'
+            ? { invitations: [] }
+            : req.method === 'DELETE'
+              ? { success: true }
+              : { invitation: { id: 'invitation-1', email: body?.email, role: body?.role } },
+        ),
+      );
     else if (path.includes('/members'))
       res.end(
         JSON.stringify(
@@ -284,33 +294,49 @@ describe('Oxy permission authority', () => {
     const [row] = await db.select().from(organizations).where(eq(organizations.id, workspaceId));
     expect(row).toMatchObject({ creditsPaid: 37, stripeCustomerId: 'cus_preserved' });
   });
-  it('forwards membership operations to Oxy with organization-global semantics and no owner invitations', async () => {
+  it('invites through Oxy consent, never adds members directly, and forbids owner invitations', async () => {
     expect(
       (
-        await call('POST', `/${workspaceId}/members`, 'viewer', {
-          usernameOrEmail: 'colleague',
+        await call('POST', `/${workspaceId}/invitations`, 'viewer', {
+          email: 'colleague@example.com',
           role: 'admin',
         })
       ).status,
     ).toBe(403);
-    const result = await call('POST', `/${workspaceId}/members`, 'admin', {
-      usernameOrEmail: 'colleague',
+    const result = await call('POST', `/${workspaceId}/invitations`, 'admin', {
+      email: 'colleague@example.com',
       role: 'viewer',
     });
     expect(result.status).toBe(201);
     expect(result.body.membershipScope).toBe('organization');
-    expect(seen.find((r) => r.path === '/accounts/canonical/members')?.body).toEqual({
-      usernameOrEmail: 'colleague',
+    expect(seen.find((r) => r.path === '/accounts/canonical/invitations')?.body).toEqual({
+      email: 'colleague@example.com',
       role: 'viewer',
     });
     expect(
       (
-        await call('POST', `/${workspaceId}/members`, 'owner', {
-          usernameOrEmail: 'colleague',
+        await call('POST', `/${workspaceId}/invitations`, 'owner', {
+          email: 'colleague@example.com',
           role: 'owner',
         })
       ).status,
     ).toBe(400);
+    expect((await call('GET', `/${workspaceId}/invitations`, 'viewer')).status).toBe(200);
+    expect(
+      (await call('POST', `/${workspaceId}/invitations/invitation-1/resend`, 'admin')).status,
+    ).toBe(200);
+    expect((await call('DELETE', `/${workspaceId}/invitations/invitation-1`, 'admin')).status).toBe(
+      200,
+    );
+    expect(
+      (
+        await call('POST', `/${workspaceId}/members`, 'admin', {
+          usernameOrEmail: 'colleague',
+          role: 'viewer',
+        })
+      ).status,
+    ).toBe(410);
+    expect(seen.some((r) => r.path === '/accounts/canonical/members')).toBe(false);
     expect(
       (await call('PATCH', `/${workspaceId}/members/member-1`, 'admin', { role: 'editor' })).status,
     ).toBe(200);

@@ -16,7 +16,10 @@ Every request uses a disposable canonical SDK client with the original verified 
 | Change billing contact | `billing:manage` |
 | Change API call limit | `account:update` |
 | List members | `members:read` |
-| Add / update / remove member | `members:invite` / `members:update` / `members:remove` |
+| List invitations | `members:read` |
+| Invite / resend invitation | `members:invite` |
+| Cancel invitation | `members:remove` |
+| Update / remove member | `members:update` / `members:remove` |
 | List shared agents | `apps:read` |
 | Share / unshare agent | `apps:update` |
 
@@ -24,7 +27,7 @@ Effective permissions come from Oxy, including explicit grants, revocations and 
 
 Sharing an agent additionally requires a fresh Oxy bot-operator check and the requesting person to be its recorded owner. It creates only the Alia sharing relationship; it does not delegate the owner's Oxy app data. Existing actor/present-owner checks and immutable financial receipts are unchanged.
 
-The member endpoints operate on the **whole Oxy organization**, not an Alia-only roster. Responses explicitly carry `membershipScope: "organization"`; a future management UI must label that scope. Oxy enforces mutation scope, inherited-member restrictions and ownership protection. Alia cannot invite an owner or transfer legacy members implicitly. No current organization-management UI exists in the app; the old invitation URL now shows plain guidance to ask an administrator for access in Oxy.
+The member endpoints operate on the **whole Oxy organization**, not an Alia-only roster. Responses explicitly carry `membershipScope: "organization"`; a future management UI must label that scope. Oxy enforces mutation scope, inherited-member restrictions and ownership protection. Nobody is added directly: `POST /organization/:id/invitations` (email and role) creates an Oxy invitation, and the person joins only after accepting it at accounts.oxy.so/invitation. `GET`, `POST …/:invitationId/resend` and `DELETE …/:invitationId` list, resend and cancel pending invitations. The former direct-add `POST /organization/:id/members` answers 410. Alia cannot invite an owner or transfer legacy members implicitly. No current organization-management UI exists in the app; the old invitation URL now shows plain guidance to ask an administrator for access in Oxy.
 
 ## Legacy evidence
 

@@ -173,18 +173,64 @@ router.get(
   }),
 );
 const memberRole = z.enum(['admin', 'editor', 'developer', 'billing', 'viewer']);
+// Oxy grants access only after the invitee confirms, so a member is never
+// added directly: create an invitation and let the recipient accept it in Oxy.
 router.post(
   '/:id/members',
+  session(async (req, _res, client) => {
+    await workspace(req, client, 'members:read');
+    throw new OrganizationAccessError(
+      410,
+      'Members join by invitation: POST /organization/:id/invitations with an email and role',
+    );
+  }),
+);
+router.get(
+  '/:id/invitations',
+  session(async (req, res, client) => {
+    const { organization } = await workspace(req, client, 'members:read');
+    res.json({
+      membershipScope: 'organization',
+      invitations: await client.accounts.invitations.list(organization.accountId),
+    });
+  }),
+);
+router.post(
+  '/:id/invitations',
   session(async (req, res, client) => {
     const body = z
-      .object({ usernameOrEmail: z.string().trim().min(1).max(320), role: memberRole })
+      .object({ email: z.string().trim().email().max(254), role: memberRole })
       .strict()
       .parse(req.body);
     const { organization } = await workspace(req, client, 'members:invite');
     res.status(201).json({
       membershipScope: 'organization',
-      member: await client.accounts.members.invite(organization.accountId, body),
+      invitation: await client.accounts.invitations.create(organization.accountId, body),
     });
+  }),
+);
+router.post(
+  '/:id/invitations/:invitationId/resend',
+  session(async (req, res, client) => {
+    const { organization } = await workspace(req, client, 'members:invite');
+    res.json({
+      membershipScope: 'organization',
+      invitation: await client.accounts.invitations.resend(
+        organization.accountId,
+        String(req.params.invitationId),
+      ),
+    });
+  }),
+);
+router.delete(
+  '/:id/invitations/:invitationId',
+  session(async (req, res, client) => {
+    const { organization } = await workspace(req, client, 'members:remove');
+    await client.accounts.invitations.cancel(
+      organization.accountId,
+      String(req.params.invitationId),
+    );
+    res.json({ membershipScope: 'organization', cancelled: true });
   }),
 );
 router.patch(
