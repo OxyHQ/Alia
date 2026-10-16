@@ -24,6 +24,41 @@ export type {
   ThoughtOpening,
 } from './config';
 export { AliaApiError, useAliaApi } from './api';
+export {
+  ALIA_FEATURES,
+  featureOffer,
+  readAgentFeatures,
+  readAgentProfile,
+  useAgentFeatures,
+  useAgentProfile,
+} from './agents';
+export type { AliaAgentFeature, AliaAgentProfile, AliaAgentStarter, FeatureOffer } from './agents';
+export { HOST_OUTCOMES, HostOutcomeQueue, hostRequest } from './host-tools';
+export type {
+  AliaHostAction,
+  AliaHostOutcome,
+  AliaHostOutcomeKind,
+  AliaHostToolDefinition,
+  AliaHostTools,
+} from './host-tools';
+export { FEATURE_ENTITLEMENT_REQUIRED, parseConsultEvent, parseHostAction } from './stream-events';
+export type { ConsultAgent, ConsultEvent } from './stream-events';
+export {
+  DEFAULT_SHARE_TTL_HOURS,
+  readSharedConversation,
+  SharedConversationGoneError,
+  sharedMessages,
+  useShareConversation,
+  useSharedConversation,
+} from './sharing';
+export type {
+  AliaConversationShare,
+  AliaSharedAgent,
+  AliaSharedConversationData,
+  AliaSharedMessage,
+} from './sharing';
+export { uploadToOxyFiles, useDocumentUpload } from './oxy-files';
+export type { OxyFilesClient } from './oxy-files';
 export type { AliaApi, AliaApiRequest, AliaApiResult } from './api';
 export { aliaQueryKeys } from './query-keys';
 export {
@@ -72,7 +107,7 @@ export { useStartConversation } from './use-start-conversation';
 export type { StartConversationOptions } from './use-start-conversation';
 export { useTurnEdit } from './use-turn-edit';
 export { buildMessageContent } from './attachment-utils';
-export type { BuiltMessageContent, DroppedAttachment } from './attachment-utils';
+export type { BuiltMessageContent, DroppedAttachment, UploadDocument } from './attachment-utils';
 
 // The conversation as data (also the leaf entry `@alia.onl/sdk/model`).
 export * from './model';

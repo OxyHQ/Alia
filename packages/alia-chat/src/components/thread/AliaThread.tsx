@@ -99,6 +99,8 @@ export interface AliaThreadProps {
    */
   threadRef: RefObject<AiChatThreadHandle | null>;
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  /** A conversation read by somebody it was shared with: no votes, no read-aloud, no regenerate. */
+  readOnly?: boolean;
 }
 
 /** True for a reply with no word and no tool call yet: the thinking indicator's moment. */
@@ -162,6 +164,7 @@ export const AliaThread = memo(function AliaThread({
   empty,
   threadRef,
   onScroll,
+  readOnly = false,
 }: AliaThreadProps) {
   const { t } = useLabels();
   const callActive = call !== undefined;
@@ -205,8 +208,9 @@ export const AliaThread = memo(function AliaThread({
       approvePlan: onApprovePlan,
       rejectPlan: onRejectPlan,
       openThought,
+      readOnly,
     }),
-    [copy, vote, readAloud.toggle, onApprovePlan, onRejectPlan, openThought],
+    [copy, vote, readAloud.toggle, onApprovePlan, onRejectPlan, openThought, readOnly],
   );
 
   /**

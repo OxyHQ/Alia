@@ -1,5 +1,5 @@
-import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
 import { AgentProgress } from '@oxy.so/bloom/agent-progress';
+import { AgentReplyIdentity } from '@oxy.so/bloom/agent-reply';
 import {
   AiChatAssistantMessage,
   AiChatUserMessage,
@@ -22,8 +22,10 @@ import type { ReadAloudState } from '../../hooks/useReadAloud';
 import type { Vote } from '../../hooks/useMessageVote';
 import { readAgentCharacter } from '../../lib/agent-character';
 import { getImagesFromContent, messageText } from '../../lib/content-utils';
+import { ANCHORS, useAliaFlights } from '../../lib/flights';
 import { useLabels } from '../../lib/labels';
 import { askedQuestions, isQuestionInvocation } from '../../lib/questions';
+import { parseCatalogueTool, useToolRenderers } from '../../lib/tool-renderers';
 import { isWebInvocation, taskListLog, webSearchLog } from '../../lib/work-log';
 import { useAliaRuntime } from '../../runtime/config';
 import { type Message, cardOf, formatElapsed, getToolPillLabel } from '../../runtime/model';
@@ -50,6 +52,8 @@ export interface ThreadActions {
   rejectPlan?: (planId: string) => void;
   /** Absent where the host has no thought panel: the "worked for" line is then plain text. */
   openThought?: OpenThought;
+  /** A thread read by somebody it was shared with: words to copy, nothing to vote on or play. */
+  readOnly?: boolean;
 }
 
 export interface ThreadRowProps {
@@ -209,16 +213,45 @@ function ReplyTurn({
 }: ReplyTurnProps) {
   const { t } = useLabels();
   const { faviconUrl } = useAliaRuntime().host;
+  const renderers = useToolRenderers();
+  const flights = useAliaFlights();
   const toolInvocations = message.toolInvocations ?? [];
   const plan = message.pendingPlan;
+  const agent = message.agentInfo;
+  const { readOnly = false } = actions;
+
+  // A host's own drawing of a catalogue tool's result, before any generic card: keyed by the
+  // tool's canonical name (`oxy_<app>__<tool>`), never by anything the model wrote.
+  const rendered = toolInvocations.flatMap((call, index) => {
+    if (call.state !== 'result') return [];
+    const parsed = parseCatalogueTool(call.toolName);
+    const render = parsed ? renderers[`${parsed.app}:${parsed.tool}`] : undefined;
+    if (!parsed || render === undefined) return [];
+    return [
+      {
+        key: call.toolCallId || `rendered-${message.id}-${index}`,
+        call,
+        node: render({
+          app: parsed.app,
+          tool: parsed.tool,
+          toolCallId: call.toolCallId,
+          input: call.args,
+          output: call.result,
+          ...(agent ? { agentId: agent.id } : {}),
+        }),
+      },
+    ];
+  });
+  const renderedCalls = new Set(rendered.map(({ call }) => call));
 
   // The calls the work summary lists: every one that did not draw its own card. Read on each
   // render — the list changes per streamed tool event and the row is memoised on `message`.
   const workInvocations = toolInvocations.filter(
-    (call) => cardOf(call) === null && !isQuestionInvocation(call),
+    (call) => cardOf(call) === null && !isQuestionInvocation(call) && !renderedCalls.has(call),
   );
   const questions = toolInvocations.flatMap((call) => askedQuestions(call) ?? []);
   const toolCards = toolInvocations.flatMap((call, index) => {
+    if (renderedCalls.has(call)) return [];
     const card = cardOf(call);
     return card === null ? [] : [{ key: call.toolCallId || `tool-${message.id}-${index}`, card }];
   });
@@ -236,18 +269,19 @@ function ReplyTurn({
 
   const reading =
     readAloudState === 'loading' || readAloudState === 'playing' || readAloudState === 'paused';
-  const readAloudAction: AiChatTurnAction | null = !text
-    ? null
-    : {
-        key: 'read-aloud',
-        label: reading ? t('chat.stopReading') : t('chat.readAloud'),
-        icon: reading ? RiStopFill : RiVolumeUpLine,
-        active: reading,
-        disabled: readAloudBlocked && !reading,
-        onPress: () => actions.readAloud(message.id, text, storedIn),
-      };
+  const readAloudAction: AiChatTurnAction | null =
+    !text || readOnly
+      ? null
+      : {
+          key: 'read-aloud',
+          label: reading ? t('chat.stopReading') : t('chat.readAloud'),
+          icon: reading ? RiStopFill : RiVolumeUpLine,
+          active: reading,
+          disabled: readAloudBlocked && !reading,
+          onPress: () => actions.readAloud(message.id, text, storedIn),
+        };
   const regenerateAction: AiChatTurnAction | null =
-    onRegenerate === undefined || message.isStreaming || isLoading
+    onRegenerate === undefined || message.isStreaming || isLoading || readOnly
       ? null
       : {
           key: 'regenerate',
@@ -257,7 +291,7 @@ function ReplyTurn({
         };
   /** Under a reply, after Bloom's like / dislike / copy. */
   const replyActions = [readAloudAction, regenerateAction].filter(isPresent);
-  const hasFeedback = !message.isStreaming && text.length > 0;
+  const hasFeedback = !message.isStreaming && text.length > 0 && !readOnly;
   /** The long-press menu: everything the rows offer, likes included. */
   const menuActions: AiChatTurnAction[] = hasFeedback
     ? [
@@ -281,11 +315,17 @@ function ReplyTurn({
 
   const { openThought } = actions;
   const viewDetails = openThought && (() => openThought(message.id, 'steps'));
+  /** A consulted agent's reply is drawn from its first frame: its identity is where it joins from. */
   const showsContent =
+    agent !== undefined ||
     text.length > 0 ||
     hasWorkLog ||
     toolCards.length > 0 ||
+    rendered.length > 0 ||
     (message.isStreaming === true && message.source === 'voice');
+  /** Its avatar is the source of the flight into the header while it is answering. */
+  const agentLive = agent !== undefined && message.isStreaming === true;
+  const agentAnchor = agent ? ANCHORS.reply(agent.id) : undefined;
 
   return (
     <>
@@ -317,16 +357,16 @@ function ReplyTurn({
           indicator's until its first token arrives. */}
       {showsContent && (
         <View className="w-full flex-col">
-          {message.agentInfo ? (
-            <View className="mb-0.5 flex-row items-center gap-2">
-              <AgentAvatar
-                character={readAgentCharacter(message.agentInfo.character)}
-                size={24}
-                label={message.agentInfo.name}
+          {agent && agentAnchor ? (
+            <View className="mb-0.5">
+              <AgentReplyIdentity
+                character={readAgentCharacter(agent.character)}
+                name={agent.name}
+                thinking={agentLive && text.length === 0}
+                workingKey={agent.id}
+                avatarRef={agentLive && flights ? flights.anchor(agentAnchor) : undefined}
+                avatarHidden={agentLive && flights ? flights.isLeaving(agentAnchor) : false}
               />
-              <Text className="text-xs font-semibold text-foreground">
-                {message.agentInfo.name}
-              </Text>
             </View>
           ) : null}
           {/* Bloom's reply: its reveal and its own feedback row (like / dislike / copy), then read
@@ -385,6 +425,9 @@ function ReplyTurn({
                   labels={{ sources: t('chat.sources') }}
                 />
               )}
+              {rendered.map(({ key, node }) => (
+                <MessageBlockBoundary key={key}>{node}</MessageBlockBoundary>
+              ))}
               {/* Each card in its own boundary: `cardOf` checks the card's NAME, and its data is
                   cast unchecked. */}
               {toolCards.map(({ key, card }) => (
@@ -397,6 +440,11 @@ function ReplyTurn({
                   <AskedQuestions questions={questions} />
                 </MessageBlockBoundary>
               )}
+              {agent && message.turnOutcome === 'failed' && text.length === 0 ? (
+                <Text className="text-sm text-muted-foreground">
+                  {t('chat.consultFailed', { name: agent.name })}
+                </Text>
+              ) : null}
               {message.source === 'voice' ? (
                 <Text className="text-base leading-7 text-foreground">
                   {text}

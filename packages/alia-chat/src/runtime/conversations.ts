@@ -112,6 +112,7 @@ export function useConversationsClient(): ConversationsClient {
 async function fetchConversationsPage(
   client: ConversationsClient,
   pageParam: string | undefined,
+  agentId: string | undefined,
 ): Promise<ConversationsPage> {
   try {
     const { data } = await client.api.get<{
@@ -119,7 +120,11 @@ async function fetchConversationsPage(
       nextCursor: string | null;
       hasMore: boolean;
     }>(API_ROUTES.conversations.list, {
-      params: { limit: PAGE_SIZE, ...(pageParam ? { cursor: pageParam } : {}) },
+      params: {
+        limit: PAGE_SIZE,
+        ...(pageParam ? { cursor: pageParam } : {}),
+        ...(agentId === undefined ? {} : { agentId }),
+      },
     });
     return {
       conversations: data.conversations.map((conv) => ({
@@ -132,8 +137,9 @@ async function fetchConversationsPage(
       hasMore: data.hasMore,
     };
   } catch (error: unknown) {
-    // If unauthorized, fall back to the offline copy
-    if (errorStatus(error) === 401) {
+    // If unauthorized, fall back to the offline copy (Alia's own conversations: an agent's are
+    // never kept offline).
+    if (errorStatus(error) === 401 && agentId === undefined) {
       const conversations = (await client.offline.read()).map((c) => ({
         ...c,
         messages: [] as Message[],
@@ -150,15 +156,21 @@ async function fetchConversationsPage(
   }
 }
 
-/** The person's conversations, newest first, a page at a time. The sidebar and the sheet read this. */
-export function useConversations() {
+/**
+ * The person's conversations, newest first, a page at a time. The sidebar and the sheet read this.
+ * Given `agentId`, only the conversations with that agent (`GET /v1/conversations?agentId=`).
+ */
+export function useConversations({ agentId }: { agentId?: string } = {}) {
   const { isAuthenticated } = useOxy();
   const client = useConversationsClient();
 
   return useInfiniteQuery({
-    queryKey: aliaQueryKeys.conversations.all,
+    queryKey:
+      agentId === undefined
+        ? aliaQueryKeys.conversations.all
+        : aliaQueryKeys.conversations.withAgent(agentId),
     queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
-      fetchConversationsPage(client, pageParam),
+      fetchConversationsPage(client, pageParam, agentId),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
     staleTime: FIVE_MINUTES,

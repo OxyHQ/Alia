@@ -140,6 +140,55 @@ The sheet, the screen and the Alia app are three frames around ONE conversation 
 stop, retry, edit and clear conversations through the same hooks, and a conversation started in
 one is the same conversation in the others.
 
+## Any agent, from any app
+
+Every agent — Alia included — is the same agent (ADR 0020), and any Oxy app opens any agent the
+person can reach. The wire contract is [`docs/agent-embedding.md`](../../docs/agent-embedding.md).
+
+```tsx
+import { AliaAskProvider, useAskAgent } from '@alia.onl/sdk';
+
+<AliaAskProvider
+  agents={{ alia: {}, sindi: { id: SINDI_AGENT_ID } }}  // no id = Alia
+  clientContext={`Homiio — viewing listing ${listing.id}`}   // the screen, built per turn
+  hostTools={{
+    app: 'homiio',
+    definitions: [{ name: 'apply_search', description: '…', inputSchema: { type: 'object' } }],
+    execute: async (action) => applySearch(action.input),  // → { outcome: 'applied' | … }
+  }}
+  toolRenderers={{ 'homiio:searchListings': (r) => <ListingCards data={r.output} /> }}
+  onFeatureLocked={(key) => showHomiioPlus(key)}
+  onShare={({ token }) => shareSheet(`https://homiio.com/shared/${token}`)}
+>
+  {children}
+</AliaAskProvider>;
+
+const { ask } = useAskAgent();
+ask('sindi', { text: 'Is this flat a good price?' }); // signed out: Oxy's sign-in instead
+```
+
+- **The lead.** `agent={{ id }}` (on `AliaChatSheet`, `AliaChatScreen` and `AliaChatContent`) makes
+  that agent the conversation's lead: its greeting, name, character and starters
+  (`GET /v1/agents/:id/profile`) and the header's first avatar. Omitted, Alia.
+- **The participants.** `AliaChatState.participants` is `{ lead, joined }`; draw it with
+  `AliaParticipants` (or `AliaParticipantsHeader` inside Bloom's AI chat shell) wherever the
+  chrome puts the conversation's title. When the lead consults an agent (`alia.agent_start`), the
+  agent's reply is drawn under its own identity and its avatar flies from there into the header —
+  Bloom's multi-agent join — which gains the agent when it lands.
+- **Host tools** are UI effects the app's own client performs. An `alia.host_action` is executed
+  once, by `execute`, and its outcome is sent with the next request; an outcome whose request did
+  not get through goes with the one after. They are never authority over data.
+- **Tool renderers** are keyed `<app>:<tool>`, parsed only from `oxy_<app>__<tool>` /
+  `self_<app>__<tool>`, and drawn before the generic tool card — for consulted agents too.
+- **Feature gates.** The attach menu offers photos and files as the lead offers them
+  (`GET /v1/agents/:id/features`); a locked row, and a turn refused with
+  `feature_entitlement_required`, call `onFeatureLocked(key)`. Documents are uploaded to the
+  person's Oxy Files (`oxyServices.assets.upload`) and sent as a `file` part.
+- **Sharing.** `onShare` receives `{ conversationId, token, expiresAt }` once the SDK has minted
+  the link; `useShareConversation()` mints and revokes, and `<AliaSharedConversation token>` reads
+  one, signed in or not. `useConversations({ agentId })` lists the person's conversations with one
+  agent.
+
 ## An "Ask Alia" button with her avatar
 
 ```tsx
@@ -277,7 +326,7 @@ const host: AliaRuntimeHost = {
   // what only the host can show: credits, an artifact panel, a haptic tick
   onUsage: (frame) => updateCredits(frame.credits_remaining),
   onArtifact: (artifact) => rightPanel.show(artifact),
-  turnRequest: () => ({ webSearch: composerMenu.webSearch, agentMode: composerMenu.agentMode }),
+  turnRequest: () => ({ webSearch: composerMenu.webSearch, deepResearch: composerMenu.deepResearch }),
   // where the work of a turn is read; return false to decline an automatic opening
   showThought: (opening) => (opening === 'automatic' && panel.isOpen ? false : panel.show('thought')),
   openAutomation: (id) => router.push(`/automations/${id}`), // a scheduled-task card is a link

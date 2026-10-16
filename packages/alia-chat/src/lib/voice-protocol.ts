@@ -125,7 +125,6 @@ export type VoiceServerEvent =
     }
   | { type: 'tool.started'; messageId: string; callId: string; name: string }
   | { type: 'tool.finished'; messageId: string; callId: string; name: string; ok: boolean }
-  | { type: 'approval.requested'; toolName: string }
   | { type: 'messages.saved'; conversationId: string; messageIds: string[] }
   | { type: 'session.warning'; code: 'ending-soon'; remainingMs: number }
   | { type: 'session.reconnecting' }
@@ -250,10 +249,6 @@ export function parseVoiceServerEvent(raw: string): ReceivedVoiceEvent | null {
             ok: event.ok === true,
             ...seq,
           }
-        : null;
-    case 'approval.requested':
-      return isString(event.toolName)
-        ? { type: 'approval.requested', toolName: event.toolName, ...seq }
         : null;
     case 'messages.saved':
       return isString(event.conversationId) && Array.isArray(event.messageIds)

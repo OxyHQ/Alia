@@ -1,5 +1,5 @@
 /**
- * The three capabilities a person switches on for their turns, and the one
+ * The two capabilities a person switches on for their turns, and the one
  * place that owns whether each is on.
  *
  * They used to be owned twice. `ChatPageContent` held a component-local
@@ -17,7 +17,7 @@
  * on, and the second press turned it off again. Two presses to undo something
  * the menu said was not happening.
  *
- * This hook is that single owner. It reads the store's three booleans and
+ * This hook is that single owner. It reads the store's two booleans and
  * writes them, so the checkmark is a statement about the next request rather
  * than about the current mount. Toggling it is also where the entitlement
  * check belongs — a capability the plan does not include is never switched on
@@ -32,7 +32,7 @@ import { useStore } from '@/features/chat/runtime/global-store';
 import { useEntitlements } from '@/features/billing/runtime/use-billing';
 import { useTranslation } from '@/shared/i18n/use-translation';
 
-export type CapabilityMode = 'agent' | 'ghost' | 'deepResearch';
+export type CapabilityMode = 'ghost' | 'deepResearch';
 
 const CAPABILITY_MODE_CONFIG: Record<
   CapabilityMode,
@@ -48,12 +48,6 @@ const CAPABILITY_MODE_CONFIG: Record<
     label: 'modes.ghostLabel',
     onToast: 'modes.ghostOn',
     offToast: 'modes.ghostOff',
-  },
-  agent: {
-    label: 'modes.agentLabel',
-    onToast: 'modes.agentOn',
-    offToast: 'modes.agentOff',
-    featureId: 'agent-mode',
   },
   deepResearch: {
     label: 'modes.deepResearchLabel',
@@ -71,7 +65,6 @@ export interface CapabilityModes {
 
 export function useCapabilityModes(): CapabilityModes {
   const ghost = useStore((state) => state.ghostMode);
-  const agent = useStore((state) => state.agentMode);
   const deepResearch = useStore((state) => state.deepResearchMode);
   const { data: entitlements } = useEntitlements();
   const { t } = useTranslation();
@@ -83,7 +76,6 @@ export function useCapabilityModes(): CapabilityModes {
       const store = useStore.getState();
       const current = {
         ghost: store.ghostMode,
-        agent: store.agentMode,
         deepResearch: store.deepResearchMode,
       }[mode];
 
@@ -101,7 +93,6 @@ export function useCapabilityModes(): CapabilityModes {
 
       const next = !current;
       if (mode === 'ghost') store.setGhostMode(next);
-      if (mode === 'agent') store.setAgentMode(next);
       if (mode === 'deepResearch') store.setDeepResearchMode(next);
 
       toast.info(t(next ? config.onToast : config.offToast));
@@ -110,7 +101,7 @@ export function useCapabilityModes(): CapabilityModes {
   );
 
   return {
-    active: { ghost, agent, deepResearch },
+    active: { ghost, deepResearch },
     toggle,
   };
 }

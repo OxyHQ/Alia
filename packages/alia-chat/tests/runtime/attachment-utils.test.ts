@@ -101,6 +101,43 @@ describe('documents', () => {
     expect(built.dropped).toEqual([{ name: 'b.pdf', reason: 'unsupported' }]);
     expect(Array.isArray(built.content)).toBe(true);
   });
+  it('go as a `file` part naming their Oxy Files id, once uploaded', async () => {
+    const upload = vi.fn(async () => 'file_42');
+    const built = await buildMessageContent(
+      'read my contract',
+      [
+        attachment({
+          id: 'contrato.pdf',
+          type: 'document',
+          mimeType: 'application/pdf',
+          uri: 'file:///c.pdf',
+        }),
+      ],
+      upload,
+    );
+
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(built.dropped).toEqual([]);
+    expect(built.content).toEqual([
+      { type: 'text', text: 'read my contract' },
+      {
+        type: 'file',
+        file: { file_id: 'file_42', filename: 'contrato.pdf', mime: 'application/pdf' },
+      },
+    ]);
+  });
+
+  it('that could not be uploaded are reported, and the text still goes', async () => {
+    const built = await buildMessageContent(
+      'read it',
+      [attachment({ id: 'x.pdf', type: 'document', uri: 'file:///x.pdf' })],
+      async () => {
+        throw new Error('quota');
+      },
+    );
+    expect(built.dropped).toEqual([{ name: 'x.pdf', reason: 'unreadable' }]);
+    expect(built.content).toBe('read it');
+  });
 });
 
 describe('web object URLs', () => {

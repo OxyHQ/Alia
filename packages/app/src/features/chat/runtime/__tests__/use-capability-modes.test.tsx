@@ -3,7 +3,7 @@ import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * One owner for ghost, agent mode and deep research.
+ * One owner for ghost and deep research.
  *
  * They were owned twice: a `Set<Mode>` inside `ChatPageContent`, which drew the
  * menu's checkmarks, and the global store, which is what `use-streaming-chat`
@@ -25,7 +25,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const store = vi.hoisted(() => ({
   ghostMode: false,
-  agentMode: false,
   deepResearchMode: false,
 }));
 
@@ -53,18 +52,11 @@ vi.mock('@/features/chat/runtime/global-store', async () => {
     get ghostMode() {
       return store.ghostMode;
     },
-    get agentMode() {
-      return store.agentMode;
-    },
     get deepResearchMode() {
       return store.deepResearchMode;
     },
     setGhostMode: (v: boolean) => {
       store.ghostMode = v;
-      notify();
-    },
-    setAgentMode: (v: boolean) => {
-      store.agentMode = v;
       notify();
     },
     setDeepResearchMode: (v: boolean) => {
@@ -146,9 +138,8 @@ function mount() {
 
 beforeEach(() => {
   store.ghostMode = false;
-  store.agentMode = false;
   store.deepResearchMode = false;
-  env.features = { 'agent-mode': true, 'deep-research': true };
+  env.features = { 'deep-research': true };
   env.pushed = [];
   env.toasts = [];
 });
@@ -156,14 +147,14 @@ beforeEach(() => {
 describe('useCapabilityModes', () => {
   it('still reports a capability as on after a remount', () => {
     const first = mount();
-    first.toggle('agent');
-    expect(first.active.agent).toBe(true);
-    expect(store.agentMode).toBe(true);
+    first.toggle('deepResearch');
+    expect(first.active.deepResearch).toBe(true);
+    expect(store.deepResearchMode).toBe(true);
 
     // What the drawer does when it swaps screens, and what the old local `Set`
     // silently reset while the request body kept carrying the flag.
     const second = mount();
-    expect(second.active.agent).toBe(true);
+    expect(second.active.deepResearch).toBe(true);
   });
 
   it('turns a capability back off in one press', () => {
@@ -180,9 +171,9 @@ describe('useCapabilityModes', () => {
     env.features = {};
     const screen = mount();
 
-    screen.toggle('agent');
+    screen.toggle('deepResearch');
 
-    expect(store.agentMode).toBe(false);
+    expect(store.deepResearchMode).toBe(false);
     expect(env.pushed).toEqual(['/(biglayout)/subscribe']);
   });
 
@@ -209,9 +200,9 @@ describe('useCapabilityModes', () => {
 
   it('announces the direction it actually moved', () => {
     const screen = mount();
-    screen.toggle('agent');
-    screen.toggle('agent');
+    screen.toggle('deepResearch');
+    screen.toggle('deepResearch');
 
-    expect(env.toasts).toEqual(['modes.agentOn', 'modes.agentOff']);
+    expect(env.toasts).toEqual(['modes.deepResearchOn', 'modes.deepResearchOff']);
   });
 });

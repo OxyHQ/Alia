@@ -11,12 +11,12 @@ export interface Source {
 
 export interface ThoughtStep {
   /**
-   * `thinking`, `tool` and `writing` are phases of the work; the other four are
+   * `thinking`, `tool` and `writing` are phases of the work; the other three are
    * how it ENDED, and at most one of them closes a list. The panel translates
    * every non-tool type itself — `label` is the English default, kept so a
    * caller without a translator still has something to print.
    */
-  type: 'thinking' | 'tool' | 'writing' | 'waiting' | 'done' | 'failed' | 'cancelled';
+  type: 'thinking' | 'tool' | 'writing' | 'done' | 'failed' | 'cancelled';
   label: string;
   toolName?: string;
   sources?: Source[];
@@ -35,19 +35,12 @@ export interface ThoughtStep {
  *
  *  - `queued`: the turn is in flight and nothing has arrived for it yet.
  *  - `running`: tokens, reasoning or tool calls are arriving.
- *  - `waiting_approval`: the run is paused on a tool the person has to allow.
  *  - `completed`: the run ended on its own terms.
  *  - `failed`: the run ended with an error — the failed-turn card is its twin.
  *  - `cancelled`: the person stopped it, or a persisted turn shows a tool that
  *    never returned, which is a run that was interrupted before it finished.
  */
-export type TurnLifecycle =
-  | 'queued'
-  | 'running'
-  | 'waiting_approval'
-  | 'completed'
-  | 'failed'
-  | 'cancelled';
+export type TurnLifecycle = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 /** The three ways a settled turn can have ended, as stamped on its message. */
 export type TurnOutcome = NonNullable<Message['turnOutcome']>;
@@ -80,8 +73,6 @@ export type LifecycleMessage = Pick<
   | 'toolInvocations'
   | 'isStreaming'
   | 'turnOutcome'
-  | 'pendingApproval'
-  | 'pendingApprovalResult'
   | 'researchProgress'
 >;
 
@@ -96,26 +87,14 @@ function hasContent(content: LifecycleMessage['content'] | undefined): boolean {
     : Array.isArray(content) && content.length > 0;
 }
 
-/**
- * Anything at all has arrived for the turn: text, reasoning, a tool call, a
- * research phase, or an approval request — which is the run asking a
- * question, and so proof that it started.
- */
+/** Anything at all has arrived for the turn: text, reasoning, a tool call or a research phase. */
 function hasAnyOutput(message: LifecycleMessage): boolean {
   return (
     hasContent(message.content) ||
     (message.thinking !== undefined && message.thinking.length > 0) ||
     (message.toolInvocations?.length ?? 0) > 0 ||
-    message.researchProgress !== undefined ||
-    message.pendingApproval !== undefined
+    message.researchProgress !== undefined
   );
-}
-
-/** An approval was asked for and no decision has answered THAT request yet. */
-function awaitingApproval(message: LifecycleMessage): boolean {
-  const request = message.pendingApproval;
-  if (request === undefined) return false;
-  return message.pendingApprovalResult?.requestId !== request.requestId;
 }
 
 /**
@@ -148,17 +127,14 @@ export function turnLifecycle(message: LifecycleMessage, ctx: TurnContext = {}):
 
   const stamped = message.isStreaming === true && ctx.isLoading !== false;
   const inferred = ctx.isLoading === true && ctx.isLastAssistant === true;
-  if (stamped || inferred) {
-    if (awaitingApproval(message)) return 'waiting_approval';
-    return hasAnyOutput(message) ? 'running' : 'queued';
-  }
+  if (stamped || inferred) return hasAnyOutput(message) ? 'running' : 'queued';
 
   return hasUnresolvedTool(message) ? 'cancelled' : 'completed';
 }
 
 /** The lifecycles during which the panel still animates. */
 export function isLiveLifecycle(lifecycle: TurnLifecycle): boolean {
-  return lifecycle === 'queued' || lifecycle === 'running' || lifecycle === 'waiting_approval';
+  return lifecycle === 'queued' || lifecycle === 'running';
 }
 
 function getDomain(url: string): string {
@@ -357,9 +333,6 @@ export function buildSteps(
       // A tool that has not returned is the live step; otherwise the model is
       // writing, whether or not its first token has been flushed yet.
       if (!hasUnresolvedTool(message)) steps.push({ type: 'writing', label: 'Writing' });
-      break;
-    case 'waiting_approval':
-      steps.push({ type: 'waiting', label: 'Waiting for approval' });
       break;
     case 'completed':
       // "Done" under a message that holds nothing at all would be a step

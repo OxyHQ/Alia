@@ -41,12 +41,12 @@ function formatOutboundMessage(message: Message): OutboundMessage {
 }
 
 /**
- * The id of the `index`-th delegated agent's answer (`alia.agent`) in the turn
- * whose reply is `assistantMessageId`.
+ * The id of the `index`-th consulted agent's answer (`alia.agent_start`, in the
+ * order the consultations started) in the turn whose reply is `assistantMessageId`.
  *
- * Derived, not received: the event carries no id and cannot grow one, since
- * `@alia.onl/sdk` refuses a key it does not know. The server stores the same
- * answer under the same derivation (`conversation-saver.ts` `agentMessageId`).
+ * Derived, not received: the frames name a consultation (`consultId`), not a
+ * message. The server stores the same answer under the same derivation
+ * (`conversation-saver.ts` `agentMessageId`).
  */
 export function agentMessageId(assistantMessageId: string, index: number): string {
   return `${agentMessagePrefix(assistantMessageId)}${index}`;

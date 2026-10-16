@@ -93,8 +93,13 @@ async function mount() {
 
 const contentFrame = (content: string, meta?: { synthetic: boolean; retryable: boolean }) =>
   `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content }, finish_reason: null }], ...(meta ? { alia_meta: meta } : {}) })}\n\n`;
+/** One whole consultation of `agentId`: it starts, says `content`, and ends. */
 const agentFrame = (agentId: string, content: string) =>
-  `event: alia.agent\ndata: ${JSON.stringify({ eventVersion: 1, agentId, agentName: agentId, agentHandle: agentId, agentColor: null, content })}\n\n`;
+  [
+    `event: alia.agent_start\ndata: ${JSON.stringify({ eventVersion: 1, consultId: `c-${agentId}`, agent: { id: agentId, name: agentId, handle: agentId }, task: 't' })}\n\n`,
+    `event: alia.agent_delta\ndata: ${JSON.stringify({ eventVersion: 1, consultId: `c-${agentId}`, content })}\n\n`,
+    `event: alia.agent_end\ndata: ${JSON.stringify({ eventVersion: 1, consultId: `c-${agentId}`, status: 'completed' })}\n\n`,
+  ].join('');
 const stopFrame = `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\n`;
 const done = 'data: [DONE]\n\n';
 

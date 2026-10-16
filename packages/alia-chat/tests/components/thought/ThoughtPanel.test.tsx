@@ -430,31 +430,6 @@ describe('watching a turn run (#543)', () => {
     setTab('activity');
     expect(hosts(r, 'RiForbidLine')).toHaveLength(1);
   });
-
-  it('shows the pause on an approval', () => {
-    open(
-      'a1',
-      scope(
-        'c1',
-        [
-          user('u1'),
-          assistant('a1', {
-            isStreaming: true,
-            pendingApproval: {
-              requestId: 'r1',
-              toolName: 'sendEmail',
-              description: '',
-              severity: 'high',
-              timeout: 60,
-            },
-          }),
-        ],
-        { isLoading: true },
-      ),
-    );
-    const r = render();
-    expect(text(r)).toContain('thought.waitingApproval');
-  });
 });
 
 vi.mock('@oxy.so/bloom/ai-chat', () => ({

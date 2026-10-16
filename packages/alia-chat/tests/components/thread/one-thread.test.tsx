@@ -62,7 +62,16 @@ vi.mock('@oxy.so/bloom/ai-chat', async (importOriginal) => {
 });
 vi.mock('@oxy.so/bloom/avatar-flight', () => ({
   AvatarFlightLayer: () => null,
-  useAvatarFlights: () => ({ launch: async () => {}, anchor: () => undefined }),
+  centeredLanding: () => () => ({}),
+  useAvatarFlights: () => ({
+    launch: async () => false,
+    anchor: () => undefined,
+    isLanding: () => false,
+    isLeaving: () => false,
+  }),
+}));
+vi.mock('../../../src/runtime/oxy-files', () => ({
+  useDocumentUpload: () => async () => 'file-1',
 }));
 vi.mock('@oxy.so/bloom/chat-screen', async () => {
   const ReactModule = await import('react');
@@ -328,6 +337,32 @@ describe('one place draws the thread', () => {
     expect(importers.sort()).toEqual([...OWNERS].sort());
     // Positive control: the pattern above must be able to see an importer at all.
     expect(THREAD_PIECES.test("import { AiChatThread } from '@oxy.so/bloom/ai-chat'")).toBe(true);
+  });
+
+  it('draws the participants, and builds a join flight, nowhere but `AliaParticipants`', () => {
+    const files = [
+      ...sources(join(PACKAGES, 'alia-chat/src')),
+      ...sources(join(PACKAGES, 'app/src')),
+      ...sources(join(PACKAGES, 'app/app')),
+    ];
+    const owners = (pattern: RegExp) =>
+      files
+        .filter((file) => pattern.test(code(file)))
+        .map((file) => file.slice(PACKAGES.length + 1));
+    /** Bloom's `AgentProfile`, imported by name from its entry. */
+    const PROFILE =
+      /import\s*\{[^}]*\bAgentProfile\b[^}]*\}\s*from\s*'@oxy\.so\/bloom\/agent-reply'/;
+    /** What a join flight is made of: Bloom's merge landing, or a flight out of a reply. */
+    const JOIN =
+      /\bcenteredLanding\b|\bmerge:\s*true\b|from:\s*ANCHORS\.reply\(|from:\s*[`'"]reply:/;
+    const OWNER = ['alia-chat/src/components/AliaParticipants.tsx'];
+
+    expect(owners(PROFILE)).toEqual(OWNER);
+    expect(owners(JOIN)).toEqual(OWNER);
+    // Positive controls: the patterns see an importer and a spec at all.
+    expect(PROFILE.test("import { AgentProfile } from '@oxy.so/bloom/agent-reply'")).toBe(true);
+    expect(JOIN.test('landing: centeredLanding(14), merge: true')).toBe(true);
+    expect(JOIN.test('from: ANCHORS.reply(agent.id)')).toBe(true);
   });
 
   it.each([

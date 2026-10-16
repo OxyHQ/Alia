@@ -794,7 +794,11 @@
     "readAloudFailed": "Couldn't read this aloud",
     "stopReading": "Stop reading",
     "copied": "Copied!",
-    "turnActions": "Message actions"
+    "turnActions": "Message actions",
+    "consultFailed": "%{name} couldn't answer.",
+    "shareFailed": "Couldn't create the share link.",
+    "sharedFailed": "Couldn't load this conversation.",
+    "sharedGone": "This shared conversation is no longer available."
   },
   "credits": {
     "title": "Credits",
@@ -1017,27 +1021,25 @@
         "sendDiscord": "Discord",
         "sendSignal": "Signal",
         "sendEmail": "Email",
-        "delegateToAgent": "Delegating",
-        "askAgent": "Asking an agent",
         "loadTools": "Loading tools",
         "agentSearch": "Searching agents",
         "userMemory": "Remembering",
         "shellExec": "Running command",
         "fileEdit": "Editing file",
-        "codeInterpreter": "Running code"
+        "codeInterpreter": "Running code",
+        "consultAgent": "Consulting an agent"
       },
       "done": {
         "browse": "Browsed",
         "webScraper": "Read page",
         "generateFile": "Generated file",
-        "delegateToAgent": "Delegated",
-        "askAgent": "Asked an agent",
         "loadTools": "Loaded tools",
         "agentSearch": "Searched agents",
         "userMemory": "Remembered",
         "shellExec": "Ran command",
         "fileEdit": "Edited file",
-        "codeInterpreter": "Ran code"
+        "codeInterpreter": "Ran code",
+        "consultAgent": "Consulted an agent"
       }
     }
   },
@@ -1728,13 +1730,10 @@
     "searchOff": "Web search off — Alia will answer without the web",
     "ghostOn": "Conversations will not be saved",
     "ghostOff": "Conversations will be saved normally",
-    "agentOn": "I can now perform actions autonomously",
-    "agentOff": "Agent mode disabled",
     "deepResearchOn": "Deep research mode activated",
     "deepResearchOff": "Deep research disabled",
     "searchLabel": "Search",
     "ghostLabel": "Ghost",
-    "agentLabel": "Agent",
     "deepResearchLabel": "Deep research",
     "voiceMode": "Voice mode"
   },
@@ -1868,7 +1867,6 @@
     "sourceLabel": "Source {{n}}: {{title}}",
     "activity": "Activity",
     "writing": "Writing",
-    "waitingApproval": "Waiting for approval",
     "failed": "Failed",
     "cancelled": "Stopped",
     "noActivity": "No actions recorded yet",
@@ -2147,10 +2145,9 @@
     "searchDescription": "Look things up on the web",
     "deepResearchDescription": "Go deep on a topic",
     "ghostDescription": "Don't save this chat",
-    "agentDescription": "Work through longer tasks",
     "canvasDescription": "Write and edit files",
     "removeShort": "Remove",
-    "placeholder": "Ask Alia anything",
+    "placeholder": "Ask {{name}} anything",
     "editPlaceholder": "Edit your message",
     "editingMessage": "Editing message",
     "cancelEdit": "Cancel",

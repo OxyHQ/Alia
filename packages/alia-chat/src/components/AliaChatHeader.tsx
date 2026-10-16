@@ -7,19 +7,16 @@ import {
 } from '@oxy.so/bloom/dropdown-menu';
 import { RiArrowLeftLine, RiDeleteBin6Line, RiMoreFill, RiShare2Line } from '@oxy.so/bloom/icons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { AgentProfile } from '@oxy.so/bloom/agent-reply';
-import { memo, type ReactNode, useMemo } from 'react';
-import { readAgentCharacter } from '../lib/agent-character';
+import { memo, type ReactNode } from 'react';
 import { useLabels } from '../lib/labels';
-import { ALIA_ANCHORS, useAliaFlights } from '../lib/flights';
-import { ALIA_AVATAR } from './AliaAvatar';
-import type { AliaChatAgent } from './AliaChatContent';
+import type { AliaChatParticipants } from '../lib/participants';
+import { AliaParticipants } from './AliaParticipants';
 
 export interface AliaChatHeaderProps {
   /** The chat has messages: there is something to share and to clear. */
   hasMessages: boolean;
-  /** Delegated agents that have answered: they join Alia in the profile, up to three in all. */
-  agents?: AliaChatAgent[];
+  /** Who is in the conversation (`AliaChatState.participants`): the bar's title. */
+  participants: AliaChatParticipants;
   /** Clears the conversation, from the menu. */
   onClear: () => void;
   /** Draws the back button at the start of the bar; omit where there is nowhere to go back to. */
@@ -32,44 +29,19 @@ export interface AliaChatHeaderProps {
   leading?: ReactNode;
   /** The host's own actions, before share and the menu. */
   trailing?: ReactNode;
-  /** Pressing Alia's avatar or name. Omitted, the avatar waves. */
+  /** Pressing the participants. Omitted, every avatar in it waves. */
   onProfilePress?: () => void;
 }
 
 /**
- * Alia's profile, Bloom's `AgentProfile`: her avatar above a name capsule, joined by the agents
- * that answered ("Alia + Lumi + Atlas"). Pressing it makes every avatar wave.
- */
-function AliaProfile({ agents, onPress }: { agents: AliaChatAgent[]; onPress?: () => void }) {
-  const flights = useAliaFlights();
-  const team = useMemo(
-    () => [
-      { id: 'alia', name: 'Alia', avatar: ALIA_AVATAR },
-      ...agents.map((agent) => ({ ...agent, avatar: readAgentCharacter(agent.character) })),
-    ],
-    [agents],
-  );
-  return (
-    <AgentProfile
-      agents={team}
-      onPress={onPress ?? noop}
-      avatarRef={flights?.anchor(ALIA_ANCHORS.profile)}
-      avatarHidden={flights?.isLanding(ALIA_ANCHORS.profile)}
-    />
-  );
-}
-
-const noop = () => undefined;
-
-/**
  * The chat's top bar: Bloom's `PageHeader`, set up as the shell sets it up for the
- * agents' screens (inline, no scrim, no safe area). Alia's profile is its title only once
- * there is a conversation: the empty chat already shows the avatar beside its greeting,
+ * agents' screens (inline, no scrim, no safe area). The participants are its title only once
+ * there is a conversation: the empty chat already shows the lead's avatar beside its greeting,
  * so the bar carries just its buttons until then.
  */
 export const AliaChatHeader = memo(function AliaChatHeader({
   hasMessages,
-  agents = [],
+  participants,
   onClear,
   onBack,
   onShare,
@@ -98,7 +70,11 @@ export const AliaChatHeader = memo(function AliaChatHeader({
           </ButtonGroup>
         ) : undefined)
       }
-      title={hasMessages ? <AliaProfile agents={agents} onPress={onProfilePress} /> : undefined}
+      title={
+        hasMessages ? (
+          <AliaParticipants participants={participants} onPress={onProfilePress} />
+        ) : undefined
+      }
       titleAlign="center"
       actions={
         <>

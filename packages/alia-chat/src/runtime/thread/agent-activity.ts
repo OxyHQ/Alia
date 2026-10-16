@@ -30,11 +30,7 @@ export type AgentActivityEventType =
   | 'plan_progress'
   | 'file_change'
   | 'source_found'
-  | 'threat'
-  | 'approval_request'
-  | 'approval_result';
-
-export type ApprovalDecision = 'approved' | 'denied' | 'timeout';
+  | 'threat';
 
 export interface AgentActivityEvent {
   type: AgentActivityEventType;
@@ -56,22 +52,12 @@ export interface AgentActivityEvent {
     url?: string;
     title?: string;
     domain?: string;
-    requestId?: string;
-    decision?: ApprovalDecision;
   };
   data?: {
     url?: string;
     plan?: PlanProgress;
     currentStep?: number;
     maxSteps?: number;
-    approval?: {
-      requestId: string;
-      toolName: string;
-      args: Record<string, unknown>;
-      description: string;
-      severity: string;
-      timeout: number;
-    };
   };
 }
 
@@ -81,15 +67,6 @@ export interface AgentSource {
   domain: string;
   snippet: string;
   timestamp: number;
-}
-
-export interface AgentApprovalRequest {
-  requestId: string;
-  toolName: string;
-  description: string;
-  severity: string;
-  timeout: number;
-  args?: Record<string, unknown>;
 }
 
 export interface AgentActivityState {
@@ -113,10 +90,6 @@ export interface AgentActivityState {
   sources: AgentSource[];
   /** Latest text response from agent */
   latestResponse: string | null;
-  /** Pending approval request for this session */
-  approvalRequest: AgentApprovalRequest | null;
-  /** Last approval decision */
-  approvalResult: { requestId: string; decision: ApprovalDecision } | null;
   /** Total credits charged for this session (present once the run settles) */
   creditsCharged?: number;
 }
@@ -132,8 +105,6 @@ export const INITIAL_ACTIVITY: AgentActivityState = {
   startedAt: null,
   sources: [],
   latestResponse: null,
-  approvalRequest: null,
-  approvalResult: null,
 };
 
 /** How many events the state keeps. */
@@ -198,23 +169,6 @@ export function applyActivityEvent(
 
     case 'response':
       next.latestResponse = event.content;
-      break;
-
-    case 'approval_request':
-      if (event.data?.approval) {
-        const { requestId, toolName, description, severity, timeout, args } = event.data.approval;
-        next.approvalRequest = { requestId, toolName, description, severity, timeout, args };
-      }
-      break;
-
-    case 'approval_result':
-      if (event.metadata?.requestId && event.metadata?.decision) {
-        next.approvalResult = {
-          requestId: event.metadata.requestId,
-          decision: event.metadata.decision,
-        };
-      }
-      next.approvalRequest = null;
       break;
   }
 

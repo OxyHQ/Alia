@@ -5,11 +5,24 @@
 // ── Main components ──
 export { AliaChatContent } from './components/AliaChatContent';
 export type {
-  AliaChatAgent,
+  AliaChatAgentRef,
   AliaChatChrome,
   AliaChatContentProps,
   AliaChatState,
 } from './components/AliaChatContent';
+export { AliaParticipants, joinFlights, useParticipants } from './components/AliaParticipants';
+export type { AliaParticipantsProps, UseParticipantsOptions } from './components/AliaParticipants';
+export { AliaParticipantsHeader } from './components/AliaParticipantsHeader';
+export type { AliaParticipantsHeaderProps } from './components/AliaParticipantsHeader';
+export { ALIA_LEAD, leadOf } from './lib/participants';
+export type { AliaChatParticipants, AliaLead, AliaParticipant } from './lib/participants';
+export { ANCHORS, leadToProfile } from './lib/flights';
+export { parseCatalogueTool, toolRendererKey } from './lib/tool-renderers';
+export type { AliaToolRenderers, AliaToolResult } from './lib/tool-renderers';
+export { AliaAskProvider, useAskAgent } from './components/AliaAskProvider';
+export type { AliaAsk, AliaAskAgents, AliaAskProviderProps } from './components/AliaAskProvider';
+export { AliaSharedConversation } from './components/AliaSharedConversation';
+export type { AliaSharedConversationProps } from './components/AliaSharedConversation';
 export type { AliaAddMenu } from './lib/add-menu';
 export type { AliaVoiceOptions } from './hooks/useChatVoice';
 export { AliaChatSheet } from './components/AliaChatSheet';

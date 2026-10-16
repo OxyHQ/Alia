@@ -794,7 +794,11 @@
     "readAloudFailed": "No se pudo leer en voz alta",
     "stopReading": "Dejar de leer",
     "copied": "¡Copiado!",
-    "turnActions": "Acciones del mensaje"
+    "turnActions": "Acciones del mensaje",
+    "consultFailed": "%{name} no pudo responder.",
+    "shareFailed": "No se pudo crear el enlace para compartir.",
+    "sharedFailed": "No se pudo cargar esta conversación.",
+    "sharedGone": "Esta conversación compartida ya no está disponible."
   },
   "credits": {
     "title": "Créditos",
@@ -1017,27 +1021,25 @@
         "sendDiscord": "Discord",
         "sendSignal": "Signal",
         "sendEmail": "Correo",
-        "delegateToAgent": "Delegando",
-        "askAgent": "Consultando a un agente",
         "loadTools": "Cargando herramientas",
         "agentSearch": "Buscando agentes",
         "userMemory": "Recordando",
         "shellExec": "Ejecutando comando",
         "fileEdit": "Editando archivo",
-        "codeInterpreter": "Ejecutando código"
+        "codeInterpreter": "Ejecutando código",
+        "consultAgent": "Consultando a un agente"
       },
       "done": {
         "browse": "Navegó",
         "webScraper": "Leyó la página",
         "generateFile": "Generó un archivo",
-        "delegateToAgent": "Delegó",
-        "askAgent": "Consultó a un agente",
         "loadTools": "Cargó herramientas",
         "agentSearch": "Buscó agentes",
         "userMemory": "Recordó",
         "shellExec": "Ejecutó un comando",
         "fileEdit": "Editó un archivo",
-        "codeInterpreter": "Ejecutó código"
+        "codeInterpreter": "Ejecutó código",
+        "consultAgent": "Consultó a un agente"
       }
     }
   },
@@ -1728,13 +1730,10 @@
     "searchOff": "Búsqueda web desactivada — Alia responderá sin la web",
     "ghostOn": "Las conversaciones no se guardarán",
     "ghostOff": "Las conversaciones se guardarán normalmente",
-    "agentOn": "Ahora puedo actuar de forma autónoma",
-    "agentOff": "Modo agente desactivado",
     "deepResearchOn": "Investigación profunda activada",
     "deepResearchOff": "Investigación profunda desactivada",
     "searchLabel": "Búsqueda",
     "ghostLabel": "Fantasma",
-    "agentLabel": "Agente",
     "deepResearchLabel": "Investigación profunda",
     "voiceMode": "Modo de voz"
   },
@@ -1868,7 +1867,6 @@
     "sourceLabel": "Fuente {{n}}: {{title}}",
     "activity": "Actividad",
     "writing": "Escribiendo",
-    "waitingApproval": "Esperando aprobación",
     "failed": "Falló",
     "cancelled": "Detenido",
     "noActivity": "Aún no hay acciones registradas",
@@ -2147,10 +2145,9 @@
     "searchDescription": "Buscar en la web",
     "deepResearchDescription": "A fondo en un tema",
     "ghostDescription": "No guardar este chat",
-    "agentDescription": "Trabajar en tareas largas",
     "canvasDescription": "Escribir y editar archivos",
     "removeShort": "Quitar",
-    "placeholder": "Pregúntale lo que quieras a Alia",
+    "placeholder": "Pregúntale lo que quieras a {{name}}",
     "editPlaceholder": "Edita tu mensaje",
     "editingMessage": "Editando mensaje",
     "cancelEdit": "Cancelar",

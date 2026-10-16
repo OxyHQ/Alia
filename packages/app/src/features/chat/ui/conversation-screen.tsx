@@ -2,10 +2,10 @@ import {
   type AliaChatChrome,
   type AliaChatState,
   AliaChatContent,
+  AliaParticipantsHeader,
   type AliaSuggestion,
 } from '@alia.onl/sdk';
 import { useConversation } from '@alia.onl/sdk/runtime';
-import { AiChatMobileHeader } from '@oxy.so/bloom/ai-chat';
 import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
 import { useAuth } from '@oxy.so/services';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -38,7 +38,7 @@ interface ConversationScreenProps {
   conversationId?: string;
   /** The agent answering, when this thread belongs to one. */
   agentId?: string;
-  /** The agent's name, for the title when the chat has none. */
+  /** The agent's name, for the breadcrumb when the chat has no title yet. */
   agentName?: string;
   /**
    * The handle whose thread this is, when it is one.
@@ -124,7 +124,7 @@ export const ConversationScreen = ({
 
   // ── Suggestions over the composer ──
   const [suggestionQuery, setSuggestionQuery] = useState('');
-  const { data: welcome } = useWelcomeSuggestions();
+  const { data: welcome } = useWelcomeSuggestions(agentId);
   const { data: matches } = useSearchSuggestions(suggestionQuery);
   const welcomeSuggestions = useMemo(() => asSuggestions(welcome), [welcome]);
   const suggestionMatches = useMemo(() => asSuggestions(matches), [matches]);
@@ -148,9 +148,11 @@ export const ConversationScreen = ({
       t('sidebar.chats'))
     : undefined;
   const title = conversationDetails?.title || agentName;
+  // The header is the conversation's participants — its lead and the agents that joined — drawn
+  // by the SDK; the app draws no title of its own there.
   const chrome = useCallback(
     (chat: AliaChatState): AliaChatChrome => ({
-      header: <AiChatMobileHeader title={title || 'Alia'} />,
+      header: <AliaParticipantsHeader participants={chat.participants} />,
       title: title || t('chat.newChat'),
       project: projectName,
       // Nothing is persisted on the new-chat screen to act on yet.
@@ -167,12 +169,14 @@ export const ConversationScreen = ({
     [title, t, projectName, conversationId, agentName, agentId, threadHandle],
   );
 
+  const agent = useMemo(() => (agentId === undefined ? undefined : { id: agentId }), [agentId]);
+
   return (
     <KeyboardFrame>
       <AliaChatContent
         surface
         conversationId={conversationId}
-        agentId={agentId}
+        agent={agent}
         threadHandle={threadHandle}
         ephemeral={ephemeral}
         model={model}

@@ -84,7 +84,9 @@ describe('the thread renders Bloom AI Chat turns', () => {
     // with Alia's own actions handed to it rather than drawn in a bar of its
     // own under a reply. A turn that is only its work log (no words) has
     // nothing to copy or rate.
-    expect(code).toContain('const hasFeedback = !message.isStreaming && text.length > 0;');
+    expect(code).toContain(
+      'const hasFeedback = !message.isStreaming && text.length > 0 && !readOnly;',
+    );
     expect(code).toContain('feedback={hasFeedback}');
     expect(code).toMatch(/actions: replyActions,/);
     expect(code).toMatch(/feedbackProps=\{\{\s*onLike:/);

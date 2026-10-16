@@ -19,22 +19,6 @@ export interface ToolInvocation {
 /** What a message carries to the model: plain text, or multi-part once images are attached. */
 export type MessageContent = string | Array<{ type: string; [key: string]: unknown }>;
 
-/** Human-in-the-loop approval requested mid-stream for a sensitive tool call. */
-export interface PendingApproval {
-  requestId: string;
-  toolName: string;
-  description: string;
-  severity: string;
-  timeout: number;
-  args?: Record<string, unknown>;
-}
-
-/** Resolution of a {@link PendingApproval}. */
-export interface PendingApprovalResult {
-  requestId: string;
-  decision: string;
-}
-
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -72,7 +56,8 @@ export interface Message {
    */
   unsaved?: true;
   /**
-   * Agent delegation metadata, when agent mode delegates to a specialist agent.
+   * The consulted agent that wrote this message (`consultAgent`, ADR 0020 §5): one message per
+   * consultation, drawn under the agent's own identity.
    *
    * `character` is the agent's look as the server stores it (JSON), parsed
    * where it is drawn; absent, the default look.
@@ -82,6 +67,7 @@ export interface Message {
     name: string;
     character?: unknown;
     handle?: string;
+    color?: string;
   };
   /**
    * When the message was written, ISO — what the date separators are derived
@@ -89,11 +75,9 @@ export interface Message {
    * persisted yet and carries no stamp of its own.
    */
   createdAt?: string;
-  // Streaming UI metadata (deep research, plan preview, tool approval)
+  // Streaming UI metadata (deep research, plan preview)
   researchProgress?: ResearchProgress;
   pendingPlan?: PendingPlan;
-  pendingApproval?: PendingApproval;
-  pendingApprovalResult?: PendingApprovalResult;
 }
 
 export interface Conversation {

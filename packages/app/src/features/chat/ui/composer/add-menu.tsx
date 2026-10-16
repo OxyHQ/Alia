@@ -10,7 +10,6 @@ import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
 import { RiBookOpenLine } from '@oxy.so/bloom/icons/RiBookOpenLine';
 import { RiPlugLine } from '@oxy.so/bloom/icons/RiPlugLine';
-import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import type { ComposerPanelAddMenuGroup } from '@oxy.so/bloom/composer-panel';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -19,7 +18,7 @@ import { useDocumentPicker } from '@/shared/platform/use-document-picker';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { classifyIntake, MAX_ATTACHMENT_BYTES } from '@alia.onl/sdk/tools';
 import type { TurnSelectionOptions } from '@/features/chat/model/turn-selection';
-import { type AliaAttachment } from '@alia.onl/sdk';
+import type { AliaAttachment } from '@alia.onl/sdk';
 
 /**
  * The plus button's menu, as DATA.
@@ -35,7 +34,7 @@ import { type AliaAttachment } from '@alia.onl/sdk';
  * ## `checked` is why this is possible at all
  *
  * More than half of Alia's rows are SWITCHES, not actions: web search, deep
- * research, ghost, agent, every installed skill and every connected app are all
+ * research, ghost, every installed skill and every connected app are all
  * things that are on or off for the next turn, and the composer is where their
  * state is read. A row that cannot draw its own state turns every one of them
  * into a button that looks identical whether it did something or undid it —
@@ -67,7 +66,6 @@ const ROW = {
   files: 'add:files',
   webSearch: 'cap:web-search',
   deepResearch: 'cap:deep-research',
-  agent: 'cap:agent',
   ghost: 'cap:ghost',
   canvas: 'cap:canvas',
 } as const;
@@ -110,8 +108,8 @@ export interface ComposerAddMenuOptions {
    */
   canAttach: boolean;
   /** The three persistent capability axes, as they stand. */
-  modes: { ghost: boolean; agent: boolean; deepResearch: boolean };
-  toggleMode: (mode: 'ghost' | 'agent' | 'deepResearch') => void;
+  modes: { ghost: boolean; deepResearch: boolean };
+  toggleMode: (mode: 'ghost' | 'deepResearch') => void;
   webSearch: boolean;
   onToggleWebSearch: () => void;
   onOpenCanvas: () => void;
@@ -187,17 +185,6 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
       {
         label: t('composer.capabilitiesGroup'),
         rows: [
-          // Working through a longer task as an agent: a switch for the next
-          // turns, at the level the mode pill shows. The plan gate and the
-          // toasts stay in `toggleMode`.
-          {
-            id: ROW.agent,
-            label: t('modes.agentLabel'),
-            description: t('composer.agentDescription'),
-            icon: RiRobot2Line,
-            iconSize: 24 as const,
-            checked: modes.agent,
-          },
           ...(offerGhost
             ? [
                 {
@@ -336,9 +323,6 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
           return;
         case ROW.deepResearch:
           toggleMode('deepResearch');
-          return;
-        case ROW.agent:
-          toggleMode('agent');
           return;
         case ROW.ghost:
           toggleMode('ghost');

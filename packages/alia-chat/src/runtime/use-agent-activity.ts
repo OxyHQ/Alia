@@ -1,6 +1,6 @@
 import { useOxy } from '@oxy.so/services/ui/client';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { io, type Socket } from 'socket.io-client';
+import { useCallback, useEffect, useState } from 'react';
+import { io } from 'socket.io-client';
 import { useAliaApi } from './api';
 import { useAliaRuntime } from './config';
 import { AGENT_ROUTES } from './routes';
@@ -13,23 +13,8 @@ import {
   INITIAL_ACTIVITY,
 } from './thread/agent-activity';
 
-export interface UseAgentActivityResult extends AgentActivityState {
-  respondApproval: (requestId: string, approved: boolean, alwaysAllow?: boolean) => void;
-}
-
-interface ApprovalRequestFrame {
-  requestId: string;
-  toolName: string;
-  args: Record<string, unknown>;
-  description: string;
-  severity: string;
-  timeout: number;
-}
-
-interface ApprovalResultFrame {
-  requestId: string;
-  decision: 'approved' | 'denied' | 'timeout';
-}
+/** What a run has done so far, live. */
+export type UseAgentActivityResult = AgentActivityState;
 
 /**
  * Follow one agent run live: the session's room over Socket.IO, seeded with what the run had
@@ -43,7 +28,6 @@ export function useAgentActivity(
   agentId?: string | null,
 ): UseAgentActivityResult {
   const [state, setState] = useState<AgentActivityState>(INITIAL_ACTIVITY);
-  const socketRef = useRef<Socket | null>(null);
   const api = useAliaApi();
   const { apiUrl } = useAliaRuntime();
   const { oxyServices } = useOxy();
@@ -76,7 +60,6 @@ export function useAgentActivity(
       reconnectionDelay: 1000,
       reconnectionDelayMax: 10000,
     });
-    socketRef.current = socket;
 
     socket.on('connect', () => {
       socket.emit('subscribe-agent-session', sessionId);
@@ -87,51 +70,11 @@ export function useAgentActivity(
       if (event.sessionId === sessionId) handleEvent(event);
     });
 
-    socket.on('alia.approval_request', (payload: ApprovalRequestFrame) => {
-      handleEvent({
-        type: 'approval_request',
-        content: payload.description || 'Approval required',
-        timestamp: Date.now(),
-        sessionId,
-        data: { approval: payload },
-      });
-    });
-
-    socket.on('alia.approval_result', (payload: ApprovalResultFrame) => {
-      handleEvent({
-        type: 'approval_result',
-        content: payload.decision || 'unknown',
-        timestamp: Date.now(),
-        sessionId,
-        metadata: { requestId: payload.requestId, decision: payload.decision },
-      });
-    });
-
     return () => {
       cancelled = true;
       socket.disconnect();
-      socketRef.current = null;
     };
   }, [sessionId, agentId, handleEvent, api, apiUrl, oxyServices]);
 
-  const respondApproval = useCallback(
-    (requestId: string, approved: boolean, alwaysAllow = false) => {
-      if (!sessionId || !socketRef.current) return;
-      socketRef.current.emit('agent-approval-response', {
-        requestId,
-        sessionId,
-        approved,
-        alwaysAllow,
-      });
-      // Optimistic local update while the server confirms.
-      setState((prev) => ({
-        ...prev,
-        approvalRequest: null,
-        approvalResult: { requestId, decision: approved ? 'approved' : 'denied' },
-      }));
-    },
-    [sessionId],
-  );
-
-  return { ...state, respondApproval };
+  return state;
 }

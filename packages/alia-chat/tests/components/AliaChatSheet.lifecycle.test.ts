@@ -79,10 +79,10 @@ describe('AliaChatSheet avatar flights', () => {
 
   it('launches the greeting avatar into the header with the first turn, once the conversation sheet is open', () => {
     expect(composer).toMatch(
-      /onStart\(\{ text, \.\.\.\(images\.length > 0 \? \{ images \} : \{\}\) \}\);\s*await flights\.launch\(\[ALIA_TO_PROFILE\]\)/,
+      /onStart\(\{ text, \.\.\.\(images\.length > 0 \? \{ images \} : \{\}\) \}\);\s*await flights\.launch\(\[leadToProfile\(lead\)\]\)/,
     );
     expect(composer).toMatch(
-      /if \(firstTurn\) await flights\.launch\(\[ALIA_TO_PROFILE\]\);\s*await sendTurn\(/,
+      /if \(firstTurn\) await flights\.launch\(\[leadToProfile\(lead\)\]\);\s*await sendTurn\(/,
     );
   });
 
@@ -92,14 +92,15 @@ describe('AliaChatSheet avatar flights', () => {
     );
   });
 
-  it('anchors the greeting avatar and the header profile under the same keys the flight names', () => {
+  it('anchors the greeting avatar and the header participants under the same keys the flight names', () => {
     const flights = read('../lib/flights.ts');
-    expect(flights).toMatch(/welcome: 'alia:welcome'/);
-    expect(flights).toMatch(/profile: 'alia:profile'/);
-    expect(read('AliaWelcomeMessage.tsx')).toMatch(/anchor=\{ALIA_ANCHORS\.welcome\}/);
-    expect(read('AliaChatHeader.tsx')).toMatch(/flights\?\.anchor\(ALIA_ANCHORS\.profile\)/);
-    expect(read('AliaChatHeader.tsx')).toMatch(
-      /avatarHidden=\{flights\?\.isLanding\(ALIA_ANCHORS\.profile\)\}/,
+    expect(flights).toMatch(/welcome: 'lead:welcome'/);
+    expect(flights).toMatch(/profile: 'participants'/);
+    expect(flights).toMatch(/from: ANCHORS\.welcome,\s*to: ANCHORS\.profile/);
+    expect(read('AliaWelcomeMessage.tsx')).toMatch(/anchor=\{ANCHORS\.welcome\}/);
+    expect(read('AliaParticipants.tsx')).toMatch(/flights\?\.anchor\(ANCHORS\.profile\)/);
+    expect(read('AliaParticipants.tsx')).toMatch(
+      /avatarHidden=\{flights\?\.isLanding\(ANCHORS\.profile\)\}/,
     );
   });
 });

@@ -53,12 +53,15 @@ vi.mock('@oxy.so/bloom/agent-reply', () => ({
     return null;
   },
 }));
-vi.mock('../../src/components/AliaAvatar', () => ({ ALIA_AVATAR: { preset: 'alia' } }));
-vi.mock('../../src/lib/agent-character', () => ({
-  readAgentCharacter: (value: unknown) => ({ value }),
-}));
+vi.mock('@oxy.so/bloom/avatar-flight', () => ({ centeredLanding: () => () => ({}) }));
+vi.mock('../../src/lib/alia-character', () => ({ ALIA_AVATAR: { preset: 'alia' } }));
+vi.mock('../../src/lib/agent-character', () => ({ readAgentCharacter: (value: unknown) => value }));
 
 import { AliaChatHeader } from '../../src/components/AliaChatHeader';
+import { ALIA_LEAD, type AliaChatParticipants } from '../../src/lib/participants';
+
+/** Alia alone: the header of a conversation nobody else has joined. */
+const ALONE: AliaChatParticipants = { lead: ALIA_LEAD, joined: [] };
 import { AliaChatLabelsProvider } from '../../src/lib/labels';
 
 function render(element: React.ReactElement): TestRenderer.ReactTestRenderer {
@@ -82,59 +85,71 @@ describe('AliaChatHeader', () => {
   const team = () => seen.profiles.at(-1)?.agents.map((agent) => agent.name);
 
   it('shows no profile on an empty chat, whose greeting already carries the avatar', () => {
-    render(<AliaChatHeader hasMessages={false} onClear={vi.fn()} />);
+    render(<AliaChatHeader participants={ALONE} hasMessages={false} onClear={vi.fn()} />);
 
     expect(seen.profiles).toEqual([]);
   });
 
   it('shows Alia alone once there is a conversation', () => {
-    render(<AliaChatHeader hasMessages onClear={vi.fn()} />);
+    render(<AliaChatHeader participants={ALONE} hasMessages onClear={vi.fn()} />);
 
     expect(team()).toEqual(['Alia']);
   });
 
-  it('joins the agents that answered to Alia, each drawn with the look it has', () => {
-    const agents = ['lumi', 'atlas'].map((id) => ({
+  it('draws the lead, then the agents that joined, each with the look it has', () => {
+    const joined = ['lumi', 'atlas'].map((id) => ({
       id,
       name: id.toUpperCase(),
-      character: { shape: 'heart', color: id },
+      character: { shape: 'heart', color: id } as never,
     }));
-    render(<AliaChatHeader hasMessages agents={agents} onClear={vi.fn()} />);
+    render(
+      <AliaChatHeader participants={{ lead: ALIA_LEAD, joined }} hasMessages onClear={vi.fn()} />,
+    );
 
     expect(team()).toEqual(['Alia', 'LUMI', 'ATLAS']);
     expect(
       seen.profiles.at(-1)?.agents.map((agent) => (agent as { avatar?: unknown }).avatar),
     ).toEqual([
       { preset: 'alia' },
-      { value: { shape: 'heart', color: 'lumi' } },
-      { value: { shape: 'heart', color: 'atlas' } },
+      { shape: 'heart', color: 'lumi' },
+      { shape: 'heart', color: 'atlas' },
     ]);
   });
 
   it('runs the host action when the profile is pressed, and is inert without one', () => {
     const onProfilePress = vi.fn();
-    render(<AliaChatHeader hasMessages onClear={vi.fn()} onProfilePress={onProfilePress} />);
+    render(
+      <AliaChatHeader
+        participants={ALONE}
+        hasMessages
+        onClear={vi.fn()}
+        onProfilePress={onProfilePress}
+      />,
+    );
     seen.profiles.at(-1)?.onPress();
     expect(onProfilePress).toHaveBeenCalledTimes(1);
 
-    render(<AliaChatHeader hasMessages onClear={vi.fn()} />);
+    render(<AliaChatHeader participants={ALONE} hasMessages onClear={vi.fn()} />);
     expect(() => seen.profiles.at(-1)?.onPress()).not.toThrow();
   });
 
   it('draws a back button at the start, named in the host’s words, only where there is somewhere to go', () => {
     const onBack = vi.fn();
-    render(<AliaChatHeader hasMessages={false} onClear={vi.fn()} onBack={onBack} />);
+    render(
+      <AliaChatHeader participants={ALONE} hasMessages={false} onClear={vi.fn()} onBack={onBack} />,
+    );
     (item('Back')?.onPress as () => void)();
     expect(onBack).toHaveBeenCalledTimes(1);
 
     seen.items = [];
-    render(<AliaChatHeader hasMessages={false} onClear={vi.fn()} />);
+    render(<AliaChatHeader participants={ALONE} hasMessages={false} onClear={vi.fn()} />);
     expect(item('Back')).toBeUndefined();
   });
 
   it('lets the host’s own start content take the back button’s place', () => {
     render(
       <AliaChatHeader
+        participants={ALONE}
         hasMessages={false}
         onClear={vi.fn()}
         onBack={vi.fn()}
@@ -146,7 +161,12 @@ describe('AliaChatHeader', () => {
 
   it('draws nothing over an empty chat: there is nothing to do there', () => {
     const renderer = render(
-      <AliaChatHeader hasMessages={false} onClear={vi.fn()} onShare={vi.fn()} />,
+      <AliaChatHeader
+        participants={ALONE}
+        hasMessages={false}
+        onClear={vi.fn()}
+        onShare={vi.fn()}
+      />,
     );
     expect(renderer.toJSON()).toBeNull();
     expect(seen.items).toEqual([]);
@@ -155,6 +175,7 @@ describe('AliaChatHeader', () => {
   it('keeps what the host brought on an empty chat, but not share or the menu', () => {
     render(
       <AliaChatHeader
+        participants={ALONE}
         hasMessages={false}
         onClear={vi.fn()}
         onBack={vi.fn()}
@@ -169,18 +190,20 @@ describe('AliaChatHeader', () => {
 
   it('draws share with a conversation, where the host can share', () => {
     const onShare = vi.fn();
-    render(<AliaChatHeader hasMessages onClear={vi.fn()} onShare={onShare} />);
+    render(<AliaChatHeader participants={ALONE} hasMessages onClear={vi.fn()} onShare={onShare} />);
     (item('Share')?.onPress as () => void)();
     expect(onShare).toHaveBeenCalledTimes(1);
 
     seen.items = [];
-    render(<AliaChatHeader hasMessages onClear={vi.fn()} />);
+    render(<AliaChatHeader participants={ALONE} hasMessages onClear={vi.fn()} />);
     expect(item('Share')).toBeUndefined();
   });
 
   it('has the three-dots menu with a conversation, Clear in it after the host’s rows', () => {
     const onClear = vi.fn();
-    render(<AliaChatHeader hasMessages onClear={onClear} menu={<>host rows</>} />);
+    render(
+      <AliaChatHeader participants={ALONE} hasMessages onClear={onClear} menu={<>host rows</>} />,
+    );
     expect(item('More')).toBeDefined();
     expect(seen.rows).toHaveLength(1);
     expect(seen.rows[0]?.tone).toBe('danger');
@@ -191,7 +214,13 @@ describe('AliaChatHeader', () => {
   it("takes the host's labels for its buttons", () => {
     render(
       <AliaChatLabelsProvider labels={{ back: 'Volver', share: 'Compartir', more: 'Más' }}>
-        <AliaChatHeader hasMessages onClear={vi.fn()} onBack={vi.fn()} onShare={vi.fn()} />
+        <AliaChatHeader
+          participants={ALONE}
+          hasMessages
+          onClear={vi.fn()}
+          onBack={vi.fn()}
+          onShare={vi.fn()}
+        />
       </AliaChatLabelsProvider>,
     );
     expect(item('Volver')).toBeDefined();

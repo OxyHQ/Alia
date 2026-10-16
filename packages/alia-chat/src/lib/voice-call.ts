@@ -88,8 +88,6 @@ export interface VoiceCallOptions {
   readonly onChange: (snapshot: VoiceCallSnapshot) => void;
   /** Alia stored messages of the call in the conversation. */
   readonly onMessagesSaved?: (conversationId: string, messageIds: readonly string[]) => void;
-  /** A tool filed an action for the person's OK; the card is in the conversation. */
-  readonly onApprovalRequested?: (toolName: string) => void;
   readonly tokenRefreshMs?: number;
   readonly resumeRetryMs?: number;
 }
@@ -401,9 +399,6 @@ export class VoiceCall {
         );
         return;
       }
-      case 'approval.requested':
-        this.options.onApprovalRequested?.(event.toolName);
-        return;
       case 'messages.saved':
         this.options.onMessagesSaved?.(event.conversationId, event.messageIds);
         return;

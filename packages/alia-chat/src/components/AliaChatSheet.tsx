@@ -17,10 +17,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BREAKPOINTS } from '@oxy.so/bloom/styles';
 import { ALIA_CHARACTER_RUNTIME_URL } from '../lib/character-runtime';
 import type { AliaChatLabels } from '../lib/labels';
+import type { AliaToolRenderers } from '../lib/tool-renderers';
+import { useShareHandler } from '../hooks/useShareHandler';
 import type { AliaRuntimeHost } from '../runtime/config';
+import type { AliaHostTools } from '../runtime/host-tools';
+import type { AliaConversationShare } from '../runtime/sharing';
 import { useThoughtStore } from '../runtime/thought-store';
 import type { AliaTurn } from '../hooks/useChatComposer';
-import { AliaChatContent, type AliaChatContentProps } from './AliaChatContent';
+import {
+  type AliaChatAgentRef,
+  AliaChatContent,
+  type AliaChatContentProps,
+} from './AliaChatContent';
 import { AliaChatHeader } from './AliaChatHeader';
 import { ThoughtPanel } from './thought/ThoughtPanel';
 import type { AliaSuggestion } from '../types';
@@ -41,8 +49,16 @@ const THOUGHT_SHEET_HEIGHT = 0.7;
 const DETACHED_FROM = BREAKPOINTS.md;
 
 export interface AliaChatSheetProps {
+  /** The agent the sheet opens on, any agent the person can reach; omitted, Alia. */
+  agent?: AliaChatAgentRef;
   /** App context injected into system prompt */
   clientContext?: string;
+  /** The UI effects this app performs for the lead (see `AliaChatContentProps.hostTools`). */
+  hostTools?: AliaHostTools;
+  /** The app's own drawing of catalogue tools' results, keyed `<app>:<tool>`. */
+  toolRenderers?: AliaToolRenderers;
+  /** The lead's feature gate refused something: show the app's upsell for `key`. */
+  onFeatureLocked?: (key: string) => void;
   /** The power level (`auto`, `instant`, `medium`, `high`, `xhigh`, `pro`, `ultra`) or an exact `publisher/model` every turn is sent with; omitted, the server picks. */
   model?: string;
   /** API URL override */
@@ -65,8 +81,11 @@ export interface AliaChatSheetProps {
   labels?: Partial<AliaChatLabels>;
   /** Where the 3D avatar's runtime is served from; omitted, Alia's shared copy (`ALIA_CHARACTER_RUNTIME_URL`). */
   characterRuntimeUrl?: string;
-  /** Draws the header's share button once there is a conversation; omitted, no share button. */
-  onShare?: () => void;
+  /**
+   * Draws the header's share button once there is a conversation; omitted, no share button.
+   * Pressed, the conversation's read-only link is minted and handed here for the app to show.
+   */
+  onShare?: (share: AliaConversationShare) => void;
   /** More rows for the header's menu (`DropdownMenuItem`s from `@oxy.so/bloom/dropdown-menu`). */
   headerMenu?: React.ReactNode;
 }
@@ -84,7 +103,11 @@ export interface AliaChatSheetRef {
 export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
   (
     {
+      agent,
       clientContext,
+      hostTools,
+      toolRenderers,
+      onFeatureLocked,
       model,
       apiUrl,
       welcomeGreeting,
@@ -198,28 +221,35 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
 
     // The avatars fly between the two sheets: one controller, one layer.
     const flights = useAvatarFlights();
-    // The conversation's bar: back to the main screen, the profile, share and the menu.
+    // The conversation's bar: back to the main screen, the participants, share and the menu.
+    const share = useShareHandler(onShare);
     const conversationChrome = useCallback<NonNullable<AliaChatContentProps['chrome']>>(
-      ({ agents }) => ({
+      ({ participants, conversationId }) => ({
         header: (
           <View className="pt-8">
             <AliaChatHeader
-              agents={agents}
+              participants={participants}
               hasMessages
               onClear={closeConversation}
               onBack={closeConversation}
-              onShare={onShare}
+              onShare={
+                share && conversationId !== undefined ? () => share(conversationId) : undefined
+              }
               menu={headerMenu}
             />
           </View>
         ),
       }),
-      [closeConversation, onShare, headerMenu],
+      [closeConversation, share, headerMenu],
     );
     const shared = {
       flights,
       layout: 'sheet' as const,
+      agent,
       clientContext,
+      hostTools,
+      toolRenderers,
+      onFeatureLocked,
       model,
       apiUrl,
       isDarkMode: isDarkMode ?? isDark,

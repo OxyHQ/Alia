@@ -17,6 +17,7 @@ vi.mock('react-native', () => ({
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => mocks.insets,
 }));
+vi.mock('../../src/hooks/useShareHandler', () => ({ useShareHandler: () => undefined }));
 
 vi.mock('@oxy.so/bloom/agent-avatar', () => ({
   AgentAvatarProvider: ({ children }: { children: React.ReactNode }) => children,

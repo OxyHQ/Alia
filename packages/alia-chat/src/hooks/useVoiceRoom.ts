@@ -43,8 +43,6 @@ export interface UseVoiceRoomOptions {
   lang?: string;
   /** Alia stored messages of the call: refresh the thread. */
   onMessagesSaved?: (conversationId: string, messageIds: readonly string[]) => void;
-  /** A tool filed an action for the person's OK; its card is in the conversation. */
-  onApprovalRequested?: (toolName: string) => void;
   /** Test seams: the device's audio and the socket. */
   createAudioEngine?: () => VoiceAudioEngine;
   openSocket?: VoiceSocketFactory;
@@ -133,7 +131,6 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
       },
       onMessagesSaved: (conversationId, ids) =>
         optionsRef.current.onMessagesSaved?.(conversationId, ids),
-      onApprovalRequested: (toolName) => optionsRef.current.onApprovalRequested?.(toolName),
     });
     callRef.current = call;
     await call.start();

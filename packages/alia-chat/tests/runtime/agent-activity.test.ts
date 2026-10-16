@@ -65,26 +65,6 @@ describe('applyActivityEvent', () => {
     ]);
   });
 
-  it('holds an approval until it is answered, and remembers the answer', () => {
-    const approval = {
-      requestId: 'r1',
-      toolName: 'shell',
-      args: {},
-      description: 'Run it?',
-      severity: 'high',
-      timeout: 30,
-    };
-    const asked = run(event('approval_request', { data: { approval } }));
-    expect(asked.approvalRequest).toMatchObject({ requestId: 'r1', toolName: 'shell' });
-
-    const answered = applyActivityEvent(
-      asked,
-      event('approval_result', { metadata: { requestId: 'r1', decision: 'approved' } }),
-    );
-    expect(answered.approvalRequest).toBeNull();
-    expect(answered.approvalResult).toEqual({ requestId: 'r1', decision: 'approved' });
-  });
-
   it('keeps the last events and no more', () => {
     const many = Array.from({ length: MAX_ACTIVITY_EVENTS + 10 }, (_, i) =>
       event('thinking', { timestamp: i }),

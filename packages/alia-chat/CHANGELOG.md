@@ -1,5 +1,80 @@
 # @alia.onl/sdk
 
+## 19.0.0
+
+Every agent is the same agent, and any app embeds any of them (ADR 0020; the wire contract is
+`docs/agent-embedding.md`). A clean cut: the retired frames and props are deleted, not deprecated,
+and there is no compatibility path — a build on an older SDK cannot read the new stream.
+
+### Added
+
+- **Any agent as lead.** `agent?: { id }` on `AliaChatSheet`, `AliaChatScreen` and
+  `AliaChatContent`. The chat reads `GET /v1/agents/:id/profile`, and that agent's greeting, name,
+  character and starters lead the conversation (`lib/participants.ts`: `lead = profile ?? ALIA_LEAD`);
+  the welcome waits for the profile rather than greeting as Alia. The composer's placeholder and
+  the welcome→header flight (`leadToProfile(lead)`) name the lead.
+- **One participants header, with Bloom's join flight.** `AliaParticipants` draws Bloom's
+  `AgentProfile` with `[lead, ...joined]`. When the lead consults an agent, the agent's reply is
+  drawn under its own `AgentReplyIdentity` (anchor `reply:<agentId>`) and its avatar flies into
+  the header — `centeredLanding(14)`, merging, 950 ms, staggered by 120 ms when several join, one
+  batch at a time — and the header gains it when the flight lands (at once with reduced motion; an
+  agent already in a loaded conversation is simply there). `useParticipants`, `joinFlights`,
+  `AliaParticipantsHeader` (the participants between the AI chat shell's own buttons, for a host
+  whose header slot takes a string title) and `ANCHORS` are exported. `one-thread.test.tsx` fails if
+  any other file imports `AgentProfile` or builds a join flight.
+- **Consult stream events.** `alia.agent_start | agent_delta | agent_tool | agent_end`, read
+  strictly (`parseConsultEvent`): a frame of another version or shape is dropped whole. Each
+  consultation is one message carrying `agentInfo`, named `<assistantMessageId>-agent-<n>` in the
+  order of its start, as the server stores it; its tool calls and results stream into it.
+- **Host tools.** `hostTools?: { app, definitions, execute }` declares the app's UI effects with
+  every request (`host: { app, version: 1, tools, outcomes? }`). An `alia.host_action` is performed
+  once by `execute`; its outcome (`applied | inline | rejected | stale | failed`) rides the next
+  request, and stays queued when a request carrying it does not get through. Screen state is the
+  existing `clientContext`, built by the host per turn.
+- **Tool-result renderers.** `toolRenderers?: Record<'<app>:<tool>', (result) => ReactNode>`, keyed
+  only from `oxy_<app>__<tool>` / `self_<app>__<tool>`, drawn before (and instead of) the generic
+  tool card, for consulted agents' results too.
+- **Feature gates.** `GET /v1/agents/:id/features`; the default attach menu (photos and files)
+  offers a row only where the lead's feature is available or locked, and a locked row calls
+  `onFeatureLocked(key)` instead of a picker. A turn refused with `feature_entitlement_required`
+  (in the stream or before it) calls `onFeatureLocked(feature)` and hands the words back to the
+  composer. Documents are uploaded to the person's Oxy Files (`oxyServices.assets.upload`,
+  private) and sent as a `{ type: 'file', file: { file_id, filename, mime } }` part.
+- **`AliaAskProvider` + `useAskAgent()`.** One mounted sheet; `ask(agentKey?, turn?)` opens it on an
+  agent of `agents: Record<string, { id?: string }>` (no id = Alia), or opens Oxy's sign-in when the
+  session cannot call Alia. It carries `hostTools`, `toolRenderers`, `labels`, `voice`,
+  `clientContext`, `onFeatureLocked` and `onShare` for every agent.
+- **Sharing.** `useShareConversation()` (`POST`/`DELETE /v1/conversations/:id/share`),
+  `useSharedConversation(token)` and `<AliaSharedConversation token>` (`GET /v1/shared/:token`,
+  no session, read-only through the SDK's own thread). `useConversations({ agentId })` lists the
+  conversations with one agent.
+
+### Breaking
+
+- `AliaChatContent`'s `agentId` prop is `agent: { id }`.
+- `AliaChatState.agents` is `AliaChatState.participants` (`{ lead, joined }`); `AliaChatAgent` is
+  gone (`AliaChatAgentRef` names the `agent` prop). `AliaChatHeader` takes `participants`, not
+  `agents`.
+- `AliaChatSheet` / `AliaChatScreen` `onShare` receives the minted share
+  (`{ conversationId, token, expiresAt }`) instead of nothing.
+- `labels.placeholder` is `(leadName) => string`; `labels.addDocuments` is new.
+- `ALIA_ANCHORS` and `ALIA_TO_PROFILE` are `ANCHORS` (`lead:welcome`, `participants`,
+  `reply:<id>`) and `leadToProfile(lead)`.
+- The retired single `alia.agent` frame and the `delta.agent_message` chunk are no longer read.
+- **No agent asks for approval.** Removed: `alia.approval_request` / `alia.approval_result` in the
+  chat stream and on the agent-session socket; `PendingApproval`, `PendingApprovalResult`,
+  `Message.pendingApproval`, `Message.pendingApprovalResult`; `ApprovalDecision`,
+  `AgentApprovalRequest`, the `approval_request` / `approval_result` activity events,
+  `AgentActivityState.approvalRequest` / `approvalResult`, `respondApproval` of `useAgentActivity`;
+  the `waiting_approval` turn lifecycle and the `waiting` thought step (copy
+  `thought.waitingApproval`); the voice protocol's `approval.requested` and
+  `onApprovalRequested`. A question the agent asks (`askUserQuestion`) stays.
+- **No agent mode.** `AliaTurnRequest.agentMode` is gone and no `agentMode` is sent: Alia consults
+  agents with `consultAgent` whenever she needs to. The work-log copy of `askAgent` /
+  `delegateToAgent` is `consultAgent`'s.
+- `usePhotosMenu` is gone (the default menu is `useAttachMenu`). `buildMessageContent` takes an
+  optional document `upload` as its third argument.
+
 ## 18.1.0
 
 - **The SDK declares its CSP, and the voice call needs no `blob:` script.** In an app with a

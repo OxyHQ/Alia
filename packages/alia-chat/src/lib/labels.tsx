@@ -16,9 +16,12 @@ export interface AliaChatLabels {
   more: string;
   chatActions: string;
   // Composer
-  placeholder: string;
+  /** The empty composer's prompt, naming the conversation's lead ("Ask Sindi..."). */
+  placeholder: (leadName: string) => string;
   addMenuGroup: string;
   addPhotos: string;
+  /** The add menu's row for documents, where the lead takes them. */
+  addDocuments: string;
   startVoice: string;
   /** The call bar's words (status, mute, end). */
   voiceControls: VoiceControlsLabels;
@@ -123,9 +126,10 @@ export const DEFAULT_LABELS: AliaChatLabels = {
   share: 'Share',
   more: 'More',
   chatActions: 'Chat actions',
-  placeholder: 'Ask Alia...',
+  placeholder: (leadName) => `Ask ${leadName}...`,
   addMenuGroup: 'Add',
   addPhotos: 'Photos',
+  addDocuments: 'Files',
   startVoice: 'Start voice',
   voiceControls: VOICE_CONTROLS_LABELS,
   voiceEnded: (reason) => ENDED_ENGLISH[reason] ?? null,

@@ -19,6 +19,8 @@ runtime (`/v1/chat/completions` is the same handler, kept for other callers):
 - `alia.reasoning`
 - `alia.tool_result`
 - `alia.plan_preview`
+- `alia.agent_start` / `alia.agent_delta` / `alia.agent_tool` / `alia.agent_end`
+- `alia.host_action`
 - `alia.research_progress`
 - `alia.model_switch`
 - `alia.agent_turn`

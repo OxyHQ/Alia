@@ -1,24 +1,33 @@
 import { createContext, useContext } from 'react';
 import type { AvatarFlights, AvatarFlightSpec } from '@oxy.so/bloom/avatar-flight';
 
-import { ALIA_AVATAR } from '../components/AliaAvatar';
+import type { AliaParticipant } from './participants';
 
-/** Where Alia's avatar is in the chat: large in the greeting, then small in the header's profile. */
-export const ALIA_ANCHORS = { welcome: 'alia:welcome', profile: 'alia:profile' } as const;
+/**
+ * Where the conversation's avatars are: the lead's, large in the greeting; everybody's, small in
+ * the header's participants; and a consulted agent's, beside the reply it is writing.
+ */
+export const ANCHORS = {
+  welcome: 'lead:welcome',
+  profile: 'participants',
+  reply: (agentId: string) => `reply:${agentId}`,
+} as const;
 
-/** The greeting's avatar flies up into the header's profile as the conversation begins. */
-export const ALIA_TO_PROFILE: AvatarFlightSpec = {
-  key: 'alia',
-  character: ALIA_AVATAR,
-  from: ALIA_ANCHORS.welcome,
-  to: ALIA_ANCHORS.profile,
-  duration: 800,
-};
+/** The greeting's avatar flies up into the header's participants as the conversation begins. */
+export function leadToProfile(lead: AliaParticipant): AvatarFlightSpec {
+  return {
+    key: 'lead',
+    character: lead.character,
+    from: ANCHORS.welcome,
+    to: ANCHORS.profile,
+    duration: 800,
+  };
+}
 
 const FlightsContext = createContext<AvatarFlights | null>(null);
 
-/** The chat's avatar flights, for the greeting and the header that share them. */
+/** The chat's avatar flights, for the greeting, the thread and the header that share them. */
 export const AliaFlightsProvider = FlightsContext.Provider;
 
-/** `null` outside a chat: the greeting and the header then draw their avatars without flying. */
+/** `null` outside a chat: the greeting, the replies and the header then draw their avatars without flying. */
 export const useAliaFlights = () => useContext(FlightsContext);

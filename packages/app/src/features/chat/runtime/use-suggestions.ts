@@ -28,12 +28,19 @@ export interface Suggestion {
  * Fetch welcome card suggestions (POST, language resolved server-side)
  * Backend returns random/personalized suggestions from the pool.
  */
-export function useWelcomeSuggestions() {
+export function useWelcomeSuggestions(agentId?: string) {
   const { isAuthenticated } = useAuth();
   return useQuery<Suggestion[]>({
-    queryKey: queryKeys.suggestions.welcome,
+    // An agent's suggestions are its own (`docs/agent-embedding.md` §7).
+    queryKey:
+      agentId === undefined
+        ? queryKeys.suggestions.welcome
+        : [...queryKeys.suggestions.welcome, agentId],
     queryFn: async () => {
-      const res = await apiClient.post(API_ROUTES.suggestions.welcome, { count: 4 });
+      const res = await apiClient.post(API_ROUTES.suggestions.welcome, {
+        count: 4,
+        ...(agentId === undefined ? {} : { agentId }),
+      });
       return res.data.suggestions;
     },
     // Suggestions are personalized — an unauthenticated request is a wasted 401.

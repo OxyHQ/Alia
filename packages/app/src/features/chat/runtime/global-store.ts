@@ -20,9 +20,6 @@ interface StoreState {
   ghostMode: boolean;
   setGhostMode: (value: boolean) => void;
 
-  agentMode: boolean;
-  setAgentMode: (value: boolean) => void;
-
   deepResearchMode: boolean;
   setDeepResearchMode: (value: boolean) => void;
 }
@@ -39,9 +36,6 @@ export const useStore = create<StoreState>((set) => ({
 
   ghostMode: false,
   setGhostMode: (value: boolean) => set({ ghostMode: value }),
-
-  agentMode: false,
-  setAgentMode: (value: boolean) => set({ agentMode: value }),
 
   deepResearchMode: false,
   setDeepResearchMode: (value: boolean) => set({ deepResearchMode: value }),

@@ -40,8 +40,25 @@ vi.mock('react-native', () => ({ View: 'View', Text: 'Text' }));
 vi.mock('react-native-reanimated', () => ({}));
 vi.mock('../../src/lib/flights', () => ({
   AliaFlightsProvider: ({ children }: { children: React.ReactNode }) => children,
-  ALIA_TO_PROFILE: 'alia:to-profile',
+  ANCHORS: {
+    welcome: 'lead:welcome',
+    profile: 'participants',
+    reply: (id: string) => `reply:${id}`,
+  },
+  leadToProfile: () => 'lead:to-profile',
 }));
+vi.mock('../../src/lib/agent-character', () => ({ readAgentCharacter: (value: unknown) => value }));
+vi.mock('../../src/lib/alia-character', () => ({ ALIA_AVATAR: { preset: 'alia' } }));
+vi.mock('../../src/components/AliaParticipants', () => ({
+  useParticipants: ({ lead }: { lead: unknown }) => ({ lead, joined: [] }),
+}));
+vi.mock('../../src/runtime/agents', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useAgentProfile: () => ({ data: undefined, isLoading: false }),
+  useAgentFeatures: () => ({ data: undefined, isLoading: false }),
+}));
+vi.mock('../../src/runtime/oxy-files', () => ({ useDocumentUpload: () => async () => 'file-1' }));
+vi.mock('@oxy.so/bloom/icons/RiFileTextLine', () => ({ RiFileTextLine: () => null }));
 vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({
     user: world.signedIn ? { id: 'u1' } : null,
