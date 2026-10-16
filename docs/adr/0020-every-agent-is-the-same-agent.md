@@ -60,19 +60,18 @@ For a person who is not the owner, the effective authority is:
 requester's live authority over their own account in the app
 ∩ the owner's published ceiling for that app on this agent
 ∩ the requester's account policy for that app
-∩ autonomy of a direct request (at most execute_on_request)
 ∩ the tool's declared actors (the tool must admit `agent`)
 ```
 
-No standing grant from the requester to the agent is created, and nothing ever runs unattended on a requester's data through this lane. The ceiling replaces the question ADR 0015 deferred ("somebody using a shared or public agent never gets its owner's data"). That rule still holds: the ceiling reaches the *requester's* data, never the owner's.
+No grant from the requester to the agent is created: using the agent is the person's whole act. A run the person starts (an autonomous task, a recurring instruction, ADR 0011) keeps that person as its requester and may continue unattended within the same ceiling; it ends when the person stops it or loses authority over the account. The ceiling replaces the question ADR 0015 deferred ("somebody using a shared or public agent never gets its owner's data"). That rule still holds: the ceiling reaches the *requester's* data, never the owner's.
 
-**The owner sets the ceiling per app in the agent editor**, under "For whoever uses it". The choices are **Nada**, **Ver** (read packages, `read_only`) and **Ver y actuar** (every non-sensitive package, `execute_on_request`). Sensitive packages (`finance`, `security`, `delegate`) are never part of a ceiling.
+**The owner sets the ceiling per app in the agent editor**, under "For whoever uses it". The choices are the same three levels as ADR 0015 §2: **Nada**, **Ver** (read packages, `read_only`) and **Ver y actuar** (every non-sensitive package, `autonomous`). Sensitive packages (`finance`, `security`, `delegate`) are never part of a level; an owner who wants them adds them explicitly with bounded limits, exactly as for a grant.
 
-### 3. An agent you do not own asks before it acts
+### 3. No agent asks for approval
 
-On the present-requester lane, every tool whose effect is not `read` proposes an approval card in the requester's chat. The proposal uses the existing review machinery (`action-proposal.ts`) with a new review kind, `third_party_agent_write`.
+**An agent's configuration is its permission.** What it may do is decided once, by its owner's levels, its ceiling, its families and its limits, and enforced by Oxy on every call. Every agent, Alia included, is fully autonomous inside those bounds and never stops a conversation to ask whether it may act.
 
-The card is skipped only when both of these allow it: the ceiling says `writes: 'on_request'`, and the requester's own account policy for that app allows direct requests without review. Payments and irreversible deletes always show a card, as `reviewKindOf` already decides.
+This retires approval cards for tool effects everywhere, including the "payments and deletes still confirm" rule of ADR 0015 §2. A payment is bounded by an explicit `finance` grant or ceiling with limits, never by a prompt. Asking the person a *question* (`askUserQuestion`, missing information, a choice between options) is not an approval and stays.
 
 ### 4. The person present pays
 
@@ -127,35 +126,42 @@ The following are deleted, not deprecated:
 - the product-payer branch;
 - `applicationId` in `canReachAgent`, `loadTurnAgent` and `loadThreadAgent`, and the `agents.application_id` column (migration `-- oxy:deploy-phase=post`);
 - `askAgent` and `delegateToAgent`;
-- `ALIA_INTERNAL_MCP_PILOT`: the internal transport is read from each app's catalogue.
+- `ALIA_INTERNAL_MCP_PILOT`: the internal transport is read from each app's catalogue;
+- approval cards for tool effects: the review proposal path, its approval events and the confirmation kinds for payments and deletes;
+- the single `alia.agent` delegation frame, replaced by the streamed `alia.agent_start | agent_delta | agent_tool | agent_end` events.
+
+**There is no compatibility code.** No flag, no negotiated stream feature, no 410 handler and no "old lane kept working" window. Each repository makes its cut in one change, and what it replaces is deleted in that same change.
 
 ## Consequences
 
 - **Sindi works everywhere a person can open an agent.** That covers Homiio's sheet, panel and screen, the Alia app, and a consultation from Alia in any app, all billed to that person.
 - **Sindi's capabilities on Homiio come from Homiio's catalogue**, the same one that serves Homiio's public MCP. Homiio's backend stops calling Alia at all.
 - **An app agent's owner now carries the responsibility of an ordinary agent's owner:** the prompt, the families and the ceiling are edited in the agent editor and audited like any other agent.
-- **Migration order is expand/contract.**
-  1. Oxy ships ceilings (ADR 0042).
-  2. Alia ships the requester lane, `consultAgent`, host tools and gates, while keeping the old lane working.
-  3. Homiio ships its catalogue, then its SDK-based chat.
-  4. Only then are the old lane's code and column removed.
-- **The wire stays compatible.** The new SSE events (`alia.agent_start | agent_delta | agent_tool | agent_end | host_action`) are emitted only to clients that send `streamFeatures`. The SDK's parser is strict, so older SDKs keep receiving the single `alia.agent` frame until every first-party client has upgraded.
-- **Clarity loses its pinned lane too.** Its owner must re-create its access through the ordinary model before the contract step.
+- **A clean cut, in dependency order.**
+  1. Oxy ships ceilings and deletes ADR 0025's lane in the same release.
+  2. Alia ships the requester lane, `consultAgent`, host tools, feature gates and the new stream events, and deletes everything in §8 in the same release.
+  3. Homiio ships its catalogue, its SDK-based chat and the deletion of its relay and conversation tables.
+
+  Database changes still follow the deploy phases (`pre` adds, `post` drops), because that is how a rolling deploy stays correct, not a compatibility window.
+- **Old native binaries stop chatting until they update.** The SDK's stream parser is strict, so an Alia or Homiio build with an older SDK fails on the new events, and Homiio's removed `/api/ai` answers 404. The owner accepted this on 2026-10-16 in favour of a clean cut.
+- **Clarity loses its pinned lane too.** Its owner gives it access through the ordinary model (ceiling or levels) in the same window.
 
 ## Alternatives considered
 
 - **Keep the native lane and add Alia beside it.** That would mean two agent models, two payer rules and two chats in Homiio, which is the duplication the owner rejected.
 - **A grant from each requester to each public agent.** It would make a consent step part of every first use and store long-lived authority nobody asked for. A ceiling bounded by the requester's live authority gives the same safety with nothing standing.
+- **Approval cards for an agent you do not own.** The owner rejected them: an agent's configuration already says what it may do, and asking again in the chat is a second permission system that the person can only rubber-stamp.
+- **A compatibility window for old clients.** The owner chose a clean cut; a window is code that outlives its reason.
 - **Run Sindi's tools as Alia.** That gives the wrong attribution: the effect would be recorded as Alia's, not the agent's. It would also give the agent Alia's unbounded reach.
 - **Keep host UI actions derived on the product's server.** That is a second decision-maker beside the model, and it drops the model's own tool results. It is the workaround Homiio's `services/sindiActions.ts` documents as temporary.
 - **Product-paid agent inference.** It contradicts the owner's billing decision, and it makes an agent's cost depend on which app opened it.
 
 ## Enforcement
 
-- **Present-requester lane:** `tool-pipeline` pgdb tests. The lane binds only the requester's account root, `self_*` is absent for a non-owner, a write proposes `third_party_agent_write`, and a revoked ceiling removes the tools on the next turn.
+- **Present-requester lane:** `tool-pipeline` pgdb tests. The lane binds only the requester's account root, `self_*` is absent for a non-owner, a write under Ver y actuar executes with no proposal, a write under Ver is not offered, and a revoked ceiling removes the tools on the next turn.
 - **`consultAgent`:** tests prove that it uses `canReachAgent`, bills the outer payer and refunds on failure, and that the nested turn has no `consultAgent` and no host tools.
-- **Wire compatibility:** `streamFeatures` negotiation tests. An old SDK receives only `alia.agent`.
+- **No approvals:** a test fails if any tool path returns an approval proposal for an effect.
 - **Feature gates:** a locked gate refuses before any reservation, and a retried turn consumes once.
 - **SDK:** `one-thread.test.tsx` fails if any file other than `AliaParticipants` imports `AgentProfile` or the join-flight spec.
-- **Contract step:** a CI grep gate fails on `native-product-agent`, `RequesterAssertion`, `ALIA_INTERNAL_MCP_PILOT` or an `applicationId` on agents.
+- **Clean cut:** a CI grep gate fails on `native-product-agent`, `RequesterAssertion`, `ALIA_INTERNAL_MCP_PILOT`, `askAgent`, `delegateToAgent`, `streamFeatures` or an `applicationId` on agents.
 - **Not yet enforced:** no check yet stops a future surface from paying an agent turn from an application. Review is the gate until the product-payer code is gone, after which there is nothing left to call.

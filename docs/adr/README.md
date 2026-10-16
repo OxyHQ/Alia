@@ -41,7 +41,7 @@ ADR 0017 is the owner's decision of 2026-10-15 that voice calls run on realtime 
 
 ADR 0018 is the owner's decision of 2026-10-15 that the bottom sheet and the app are one product: everything that is a conversation — the thread, its cards, the thought panel, the composer's levels, the voice call — is drawn by the SDK's `AliaChatContent`, and the app keeps only the sidebar, the right panel, the layout that mounts them, its routes and its callbacks.
 
-ADR 0020 is the owner's decision of 2026-10-16 that there is one agent model. The native-product-agent lane (pinned manifest, requester assertions, application-bound reach, product-paid inference) is retired; an app's agent such as Homiio's Sindi is an ordinary agent its owner publishes, reaching a person's own app data under the owner's published ceiling (Oxy ADR 0042), consulted by Alia through one streaming `consultAgent`, and embedded by any app through the SDK with host tools, renderers and feature gates. It amends ADR 0015 §1–4 and ADR 0018.
+ADR 0020 is the owner's decision of 2026-10-16 that there is one agent model. The native-product-agent lane (pinned manifest, requester assertions, application-bound reach, product-paid inference) is retired; an app's agent such as Homiio's Sindi is an ordinary agent its owner publishes, reaching a person's own app data under the owner's published ceiling (Oxy ADR 0042), consulted by Alia through one streaming `consultAgent`, fully autonomous within its configuration (no approval cards), and embedded by any app through the SDK with host tools, renderers and feature gates. It amends ADR 0015 §1–4 and ADR 0018.
 
 ## Conventions
 
