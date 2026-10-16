@@ -113,6 +113,13 @@ export class VoiceCall {
   private readonly options: VoiceCallOptions;
   private state: VoiceCallState = { kind: 'idle' };
   private messages: VoiceMessage[] = [];
+  /**
+   * Each message's text by the item it was spoken in, in the order the items
+   * began: an assistant turn that called a tool is one message of two items.
+   */
+  private readonly itemTexts = new Map<string, Map<string, string>>();
+  /** The message each item belongs to. */
+  private readonly messageOfItem = new Map<string, string>();
   private muted = false;
   private endingSoonMs: number | null = null;
   private model: VoiceCallSnapshot['model'] = null;
@@ -362,10 +369,10 @@ export class VoiceCall {
           this.setState({ kind: 'thinking' });
         return;
       case 'transcript.delta':
-        this.upsertMessage(event.role, event.itemId, (previous) => previous + event.text, true);
+        this.upsertMessage(event, (previous) => previous + event.text, true);
         return;
       case 'transcript.done':
-        this.upsertMessage(event.role, event.itemId, () => event.text, false);
+        this.upsertMessage(event, () => event.text, false);
         return;
       case 'assistant.audio_done':
         return;
@@ -455,41 +462,49 @@ export class VoiceCall {
     this.finish({ kind: 'ended', reason });
   }
 
+  /**
+   * One message per `messageId`, the id the server stores and announces it
+   * under, so the stored copy that reaches the thread is this message, not a
+   * second one. Its text is its items' texts in order.
+   */
   private upsertMessage(
-    role: 'user' | 'assistant',
-    itemId: string,
-    content: (previous: string) => string,
+    event: { role: 'user' | 'assistant'; messageId: string; itemId: string },
+    text: (previous: string) => string,
     isStreaming: boolean,
   ): void {
-    const id = `${role}-${itemId}`;
-    const index = this.messages.findIndex((message) => message.id === id);
+    const { role, messageId, itemId } = event;
+    const items = this.itemTexts.get(messageId) ?? new Map<string, string>();
+    this.itemTexts.set(messageId, items);
+    this.messageOfItem.set(itemId, messageId);
+    items.set(itemId, text(items.get(itemId) ?? ''));
+    const content = [...items.values()].filter((part) => part !== '').join(' ');
+    const index = this.messages.findIndex((message) => message.id === messageId);
     if (index === -1) {
       this.messages = [
         ...this.messages,
         {
-          id,
+          id: messageId,
           role,
           ...(role === 'assistant' ? { speaker: 'primary' as const } : {}),
-          content: content(''),
+          content,
           timestamp: Date.now(),
           isStreaming,
         },
       ];
     } else {
-      const previous = this.messages[index]!;
       const next = [...this.messages];
-      next[index] = { ...previous, content: content(previous.content), isStreaming };
+      next[index] = { ...next[index]!, content, isStreaming };
       this.messages = next;
     }
     this.emit();
   }
 
   private settleStreaming(itemId: string | null): void {
-    if (itemId === null) return;
-    const id = `assistant-${itemId}`;
-    if (!this.messages.some((message) => message.id === id && message.isStreaming)) return;
+    const messageId = itemId === null ? undefined : this.messageOfItem.get(itemId);
+    if (messageId === undefined) return;
+    if (!this.messages.some((message) => message.id === messageId && message.isStreaming)) return;
     this.messages = this.messages.map((message) =>
-      message.id === id ? { ...message, isStreaming: false } : message,
+      message.id === messageId ? { ...message, isStreaming: false } : message,
     );
     this.emit();
   }

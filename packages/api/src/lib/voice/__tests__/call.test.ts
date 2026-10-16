@@ -347,11 +347,87 @@ describe('tools run in Alia, never on the device', () => {
 });
 
 describe('barge-in and transcripts', () => {
+  it('stores one message per spoken item, under the id every transcript event names, as xAI sends them', async () => {
+    const h = await opened();
+    const session = h.kaana!.session;
+    const userDone = (transcript: string) =>
+      session.emit({
+        type: 'transcript.done',
+        source: 'input_audio',
+        itemId: 'u1',
+        contentIndex: 0,
+        transcript,
+      });
+    // Measured from xAI (2026-10-16): growing transcripts at every pause, repeats, the
+    // item reused across pauses, a response opened mid-sentence, the final one after commit.
+    session.emit({ type: 'input_audio.speech_started', itemId: 'u1', audioStartMs: 0 });
+    userDone('Please tell');
+    session.emit({ type: 'input_audio.speech_stopped', itemId: 'u1', audioEndMs: 0 });
+    userDone('Please tell me.');
+    userDone('Please tell me.');
+    session.emit({ type: 'input_audio.speech_started', itemId: 'u1', audioStartMs: 0 });
+    userDone('Please tell me, in one short sentence, what is the capital of France?');
+    session.emit({ type: 'response.created', responseId: 'r1' });
+    session.emit({ type: 'input_audio.committed', itemId: 'u1' });
+    userDone('Please tell me, in one short sentence, what is the capital of France?');
+    session.emit({
+      type: 'transcript.delta',
+      source: 'output_audio',
+      itemId: 'a1',
+      contentIndex: 0,
+      responseId: 'r1',
+      text: 'The capital of France is Paris.',
+    });
+    session.emit({
+      type: 'transcript.done',
+      source: 'output_audio',
+      itemId: 'a1',
+      contentIndex: 0,
+      responseId: 'r1',
+      transcript: 'The capital of France is Paris.',
+    });
+    session.emit({
+      type: 'response.done',
+      responseId: 'r1',
+      status: 'completed',
+      units: [],
+      usageSource: 'oxy_measured',
+    });
+    // xAI repeats the final transcript once more after it was stored.
+    userDone('Please tell me, in one short sentence, what is the capital of France?');
+
+    await until('persisted', () => h.persisted.flat().length === 2);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const stored = h.persisted.flat();
+    expect(stored.map((message) => [message.role, message.content])).toEqual([
+      ['user', 'Please tell me, in one short sentence, what is the capital of France?'],
+      ['assistant', 'The capital of France is Paris.'],
+    ]);
+    // One message id per role on the wire, and it is the stored one.
+    const transcripts = h.sink.events.filter(
+      (event) => event.type === 'transcript.delta' || event.type === 'transcript.done',
+    ) as Array<{ role: string; messageId: string }>;
+    for (const message of stored)
+      expect(
+        new Set(
+          transcripts
+            .filter((event) => event.role === message.role)
+            .map((event) => event.messageId),
+        ),
+      ).toEqual(new Set([message.id]));
+    // Announced to the person's other screens once each, under the same ids.
+    const announced = h.announce.mock.calls.flatMap(([, , messages]) =>
+      (messages as Array<{ id: string }>).map((message) => message.id),
+    );
+    expect(announced).toEqual(stored.map((message) => message.id));
+  });
+
   it('truncates the interrupted item at what was played and stores the answer whole, marked', async () => {
     const h = await opened();
     const session = h.kaana!.session;
     session.emit({ type: 'input_audio.speech_started', itemId: 'u1', audioStartMs: 0 });
     session.emit({ type: 'input_audio.speech_stopped', itemId: 'u1', audioEndMs: 900 });
+    session.emit({ type: 'input_audio.committed', itemId: 'u1' });
     session.emit({
       type: 'transcript.done',
       source: 'input_audio',
@@ -456,6 +532,7 @@ describe('barge-in and transcripts', () => {
     });
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(h.persisted).toHaveLength(0);
+    session.emit({ type: 'input_audio.committed', itemId: 'u1' });
     session.emit({
       type: 'transcript.done',
       source: 'input_audio',
@@ -472,6 +549,7 @@ describe('barge-in and transcripts', () => {
     expect(h.titleConversation).toHaveBeenCalledWith('user-1', 'conv-1', 'Hola');
 
     session.emit({ type: 'input_audio.speech_started', itemId: 'u2', audioStartMs: 0 });
+    session.emit({ type: 'input_audio.committed', itemId: 'u2' });
     session.emit({
       type: 'transcript.done',
       source: 'input_audio',
@@ -533,6 +611,7 @@ describe('one call per person', () => {
     const h = await opened();
     const session = h.kaana!.session;
     session.emit({ type: 'input_audio.speech_started', itemId: 'u1', audioStartMs: 0 });
+    session.emit({ type: 'input_audio.committed', itemId: 'u1' });
     session.emit({
       type: 'transcript.done',
       source: 'input_audio',

@@ -67,7 +67,7 @@ alia:   session.accepted { voiceSessionId, callId }     still connecting
 alia:   session.ready { model, maxDurationMs, … }       Kaana created the session
 client: <binary PCM16 24 kHz mono, ~40 ms frames>
 alia:   input.ready                                     the first frame was appended
-alia:   user.speech_started / user.speech_stopped, transcript.delta|done { role },
+alia:   user.speech_started / user.speech_stopped, transcript.delta|done { role, messageId, itemId },
         <binary [u8 n][item id][PCM16]>, assistant.audio_done, assistant.done,
         tool.started / tool.finished { name }, approval.requested, messages.saved,
         session.warning { ending-soon }, session.reconnecting, session.resumed,
@@ -164,6 +164,20 @@ with `messages.interrupted_after_ms` = what was heard. A response with no output
 stores nothing. The open client is told twice: `messages.saved` on the call's socket
 and `conversation:message` on socket.io, which appends to the open thread. The first
 words of a new conversation title it.
+
+**One id per message, from the first word.** Every `transcript.delta|done` names
+`messageId`, the id the message is stored and announced under; the client draws one
+message per `messageId` (an assistant turn's items, tool round trip included, are one
+message). So the stored copy that `conversation:message` brings is the message already
+on screen, never a second one.
+
+**When the person's words are final.** A provider may send several `transcript.done`
+for one input item: xAI sends a growing transcript at every pause, repeats it, reuses
+the item across pauses and sends its final one only after the item is committed
+(measured 2026-10-16); OpenAI commits first and sends one. Each `done` replaces the
+last, the first `done` after `input_audio.committed` is final, and an item is stored
+once: a later event of it is never a second message. An item with no final transcript
+is stored as it stands `userTranscriptWaitMs` (8 s) after its last event.
 
 ### One call per person
 
