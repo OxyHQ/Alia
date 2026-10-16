@@ -126,12 +126,25 @@ describe('useVoiceRoom', () => {
     await goLive();
     act(() => {
       socket().receive({ type: 'user.speech_stopped', itemId: 'u', seq: 3 });
-      socket().receive({ type: 'tool.started', callId: 't', name: 'webSearch', seq: 4 });
+      socket().receive({
+        type: 'tool.started',
+        messageId: 'voice-turn-1',
+        callId: 't',
+        name: 'webSearch',
+        seq: 4,
+      });
     });
     expect(latest.callState).toEqual({ kind: 'using-tool', tool: 'webSearch' });
     expect(latest.agentState).toBe('thinking');
     act(() => {
-      socket().receive({ type: 'tool.finished', callId: 't', name: 'webSearch', ok: true, seq: 5 });
+      socket().receive({
+        type: 'tool.finished',
+        messageId: 'voice-turn-1',
+        callId: 't',
+        name: 'webSearch',
+        ok: true,
+        seq: 5,
+      });
       socket().receiveAudio('a', new Uint8Array(960));
       engine.play('a');
     });

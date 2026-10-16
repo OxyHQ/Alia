@@ -13,7 +13,11 @@
  *   `session.accepted` carries `seq`; a resume replays from `afterSeq`.
  */
 
-export const VOICE_PROTOCOL_VERSION = 1;
+/**
+ * 2: every transcript and tool event names `messageId`, the message it belongs
+ * to as it is stored.
+ */
+export const VOICE_PROTOCOL_VERSION = 2;
 
 export const VOICE_SESSION_PATH = '/v1/voice/session';
 
@@ -119,8 +123,8 @@ export type VoiceServerEvent =
       itemId: string | null;
       status: 'completed' | 'cancelled' | 'incomplete' | 'failed';
     }
-  | { type: 'tool.started'; callId: string; name: string }
-  | { type: 'tool.finished'; callId: string; name: string; ok: boolean }
+  | { type: 'tool.started'; messageId: string; callId: string; name: string }
+  | { type: 'tool.finished'; messageId: string; callId: string; name: string; ok: boolean }
   | { type: 'approval.requested'; toolName: string }
   | { type: 'messages.saved'; conversationId: string; messageIds: string[] }
   | { type: 'session.warning'; code: 'ending-soon'; remainingMs: number }
@@ -227,13 +231,20 @@ export function parseVoiceServerEvent(raw: string): ReceivedVoiceEvent | null {
           }
         : null;
     case 'tool.started':
-      return isString(event.callId) && isString(event.name)
-        ? { type: 'tool.started', callId: event.callId, name: event.name, ...seq }
+      return isString(event.messageId) && isString(event.callId) && isString(event.name)
+        ? {
+            type: 'tool.started',
+            messageId: event.messageId,
+            callId: event.callId,
+            name: event.name,
+            ...seq,
+          }
         : null;
     case 'tool.finished':
-      return isString(event.callId) && isString(event.name)
+      return isString(event.messageId) && isString(event.callId) && isString(event.name)
         ? {
             type: 'tool.finished',
+            messageId: event.messageId,
             callId: event.callId,
             name: event.name,
             ok: event.ok === true,

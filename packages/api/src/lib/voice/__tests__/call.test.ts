@@ -121,6 +121,18 @@ describe('opening', () => {
     expect(h.sink.closed).toBe(true);
   });
 
+  it('never tells a person to pay when their plan could not be read: a retryable unavailable', async () => {
+    const h = harness({ entitlementsUnavailable: true });
+    await h.call.open(START);
+    expect(h.sink.find('error')[0]).toMatchObject({
+      code: 'realtime-unavailable',
+      retryable: true,
+    });
+    expect(h.sink.find('error').map((event) => event.code)).not.toContain('plan-required');
+    expect(h.reserve).not.toHaveBeenCalled();
+    expect(h.kaana!.connectRequests).toHaveLength(0);
+  });
+
   it('refuses when the credits do not cover the first block, without taking over another call', async () => {
     const h = harness({ reserve: async () => null });
     await h.call.open(START);
@@ -312,6 +324,13 @@ describe('tools run in Alia, never on the device', () => {
         ],
       }),
     ]);
+    // Its tools and its words are one message on the wire, the one stored.
+    const storedId = h.persisted[0]![0]!.id;
+    const named = h.sink.events.filter((event) =>
+      ['tool.started', 'tool.finished', 'transcript.done'].includes(event.type),
+    ) as Array<{ messageId: string }>;
+    expect(named.length).toBe(3);
+    expect(new Set(named.map((event) => event.messageId))).toEqual(new Set([storedId]));
     await h.call.end('hangup');
   });
 

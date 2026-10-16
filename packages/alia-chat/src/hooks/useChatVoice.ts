@@ -2,11 +2,11 @@ import { useOxy } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { AliaAvatarState } from '../components/AliaAvatar';
+import { callThread } from '../lib/call-thread';
 import { turnActivityState } from '../lib/turn-state';
 import { useAliaRuntime } from '../runtime/config';
 import { aliaQueryKeys } from '../runtime/query-keys';
 import type { Message } from '../runtime/types';
-import type { VoiceMessage } from '../types';
 import { type SoundSources, useVoiceSoundEffects } from './useSoundEffects';
 import { type UseVoiceLauncherOptions, useVoiceLauncher } from './useVoiceLauncher';
 
@@ -30,21 +30,10 @@ export interface UseChatVoiceOptions {
   ensureConversation: () => Promise<string | undefined>;
   messages: Message[];
   setMessages: (messages: Message[]) => void;
+  /** The conversation's stored messages: a call message shows as stored once it is. */
+  storedMessages: readonly Message[] | undefined;
   /** A text turn is in flight. */
   isLoading: boolean;
-}
-
-/** Adapt a voice message into the chat message format. */
-function adaptVoiceMessage(voiceMessage: VoiceMessage): Message {
-  return {
-    id: voiceMessage.id,
-    role: voiceMessage.role,
-    content: voiceMessage.content,
-    toolInvocations: voiceMessage.toolInvocations,
-    createdAt: new Date().toISOString(),
-    source: 'voice' as const,
-    speaker: voiceMessage.speaker,
-  };
 }
 
 /**
@@ -64,6 +53,7 @@ export function useChatVoice({
   ensureConversation,
   messages,
   setMessages,
+  storedMessages,
   isLoading,
 }: UseChatVoiceOptions) {
   const runtime = useAliaRuntime();
@@ -114,8 +104,8 @@ export function useChatVoice({
   const voiceMessages = state?.messages;
   useEffect(() => {
     if (!voiceMessages) return;
-    setMessages([...textBeforeCall.current, ...voiceMessages.map(adaptVoiceMessage)]);
-  }, [voiceMessages, setMessages]);
+    setMessages(callThread(textBeforeCall.current, voiceMessages, storedMessages));
+  }, [voiceMessages, storedMessages, setMessages]);
 
   const latestMessages = useRef(messages);
   latestMessages.current = messages;

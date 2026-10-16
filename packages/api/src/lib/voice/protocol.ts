@@ -39,7 +39,12 @@
  * makes a mismatch a refusal instead of a silent misunderstanding.
  */
 
-export const VOICE_PROTOCOL_VERSION = 1;
+/**
+ * 2: every transcript and tool event names `messageId`, the message it belongs
+ * to as it is stored. A version-1 client drew one bubble per audio item and
+ * cannot read that, so it is refused rather than served wrongly.
+ */
+export const VOICE_PROTOCOL_VERSION = 2;
 
 export const VOICE_SESSION_PATH = '/v1/voice/session';
 
@@ -150,8 +155,8 @@ export type VoiceSessionEvent =
       status: 'completed' | 'cancelled' | 'incomplete' | 'failed';
     }
   /** A tool runs in Alia. `name` is the tool's name, for the call UI's label only. */
-  | { type: 'tool.started'; callId: string; name: string }
-  | { type: 'tool.finished'; callId: string; name: string; ok: boolean }
+  | { type: 'tool.started'; messageId: string; callId: string; name: string }
+  | { type: 'tool.finished'; messageId: string; callId: string; name: string; ok: boolean }
   /** A tool filed an action for the person's OK; the card is in the conversation. */
   | { type: 'approval.requested'; toolName: string }
   /** Messages of the call were stored in the conversation. */

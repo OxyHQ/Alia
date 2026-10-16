@@ -361,6 +361,7 @@ function AliaConversationView({
     ensureConversation: thread.ensureConversation,
     messages,
     setMessages,
+    storedMessages: thread.conversation?.messages,
     isLoading,
   });
   const photosMenu = usePhotosMenu(composer.address);

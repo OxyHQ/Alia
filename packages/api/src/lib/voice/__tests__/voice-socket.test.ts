@@ -97,7 +97,7 @@ describe('who may call', () => {
     const early = await connect(await serve());
     early.send({
       type: 'session.start',
-      protocol: 1,
+      protocol: 2,
       conversationId: 'c1',
       voice: 'female',
       locale: 'es-ES',
@@ -112,7 +112,7 @@ describe('who may call', () => {
     await until('auth.ok', () => types(client).includes('auth.ok'));
     client.send({
       type: 'session.start',
-      protocol: 2,
+      protocol: 1,
       conversationId: 'c1',
       voice: 'female',
       locale: 'es-ES',
@@ -130,7 +130,7 @@ describe('a call over the socket', () => {
     await until('auth.ok', () => types(client).includes('auth.ok'));
     client.send({
       type: 'session.start',
-      protocol: 1,
+      protocol: 2,
       conversationId: 'conv-1',
       voice: 'female',
       locale: 'es-ES',
@@ -189,7 +189,7 @@ describe('a call over the socket', () => {
     await until('auth.ok', () => types(first).includes('auth.ok'));
     first.send({
       type: 'session.start',
-      protocol: 1,
+      protocol: 2,
       conversationId: 'conv-1',
       voice: 'female',
       locale: 'es-ES',
@@ -221,7 +221,7 @@ describe('a call over the socket', () => {
     await until('auth.ok', () => types(second).includes('auth.ok'));
     second.send({
       type: 'session.resume',
-      protocol: 1,
+      protocol: 2,
       voiceSessionId: accepted.voiceSessionId,
       afterSeq: lastSeq,
     });
@@ -236,7 +236,7 @@ describe('a call over the socket', () => {
     const client = await connect(await serve());
     client.send({ type: 'auth', token: 'good-token' });
     await until('auth.ok', () => types(client).includes('auth.ok'));
-    client.send({ type: 'session.resume', protocol: 1, voiceSessionId: 'vs_unknown', afterSeq: 3 });
+    client.send({ type: 'session.resume', protocol: 2, voiceSessionId: 'vs_unknown', afterSeq: 3 });
     await until('closed', () => client.closed !== null);
     expect(client.events.at(-1)).toMatchObject({ type: 'error', code: 'resume-unavailable' });
   });
