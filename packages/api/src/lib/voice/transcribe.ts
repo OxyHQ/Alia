@@ -14,12 +14,12 @@
 
 import { TTLCache } from '../ttl-cache.js';
 import {
-  kaanaErrorOf,
-  type KaanaAudioInputMediaType,
-  type KaanaClient,
-  type KaanaModel,
-} from '../kaana/port.js';
-import { KAANA_MAX_TRANSCRIPTION_FILE_BYTES } from '../kaana/port.js';
+  type AudioInputMediaType,
+  MAX_TRANSCRIPTION_FILE_BYTES,
+  type Model,
+} from '@kaana.ai/contracts';
+import { KaanaError } from '@kaana.ai/sdk';
+import type { KaanaClient } from '../kaana/port.js';
 import { log } from '../logger.js';
 import { rankTranscriptionCandidates } from '../models/voice-models.js';
 import { isModelRefusal } from './errors.js';
@@ -73,10 +73,7 @@ export class TranscriptionError extends Error {
   }
 }
 
-const MEDIA_TYPES: ReadonlyMap<string, KaanaAudioInputMediaType> = new Map<
-  string,
-  KaanaAudioInputMediaType
->([
+const MEDIA_TYPES: ReadonlyMap<string, AudioInputMediaType> = new Map<string, AudioInputMediaType>([
   ['audio/webm', 'audio/webm'],
   ['video/webm', 'audio/webm'],
   ['audio/mp4', 'audio/mp4'],
@@ -93,18 +90,16 @@ const MEDIA_TYPES: ReadonlyMap<string, KaanaAudioInputMediaType> = new Map<
 ]);
 
 /** The contract's media type for an upload's `Content-Type`, codecs dropped; `null` when not accepted. */
-export function dictationMediaType(
-  contentType: string | undefined,
-): KaanaAudioInputMediaType | null {
+export function dictationMediaType(contentType: string | undefined): AudioInputMediaType | null {
   if (!contentType) return null;
   const bare = contentType.split(';')[0]!.trim().toLowerCase();
   return MEDIA_TYPES.get(bare) ?? null;
 }
 
 function failureOf(error: unknown): TranscriptionError {
-  const kaana = kaanaErrorOf(error);
-  if (kaana === null || kaana.kind !== 'kaana')
+  if (!(error instanceof KaanaError))
     return new TranscriptionError('TRANSCRIPTION_FAILED', { retryable: true, cause: error });
+  const kaana = error;
   switch (kaana.code) {
     case 'rate_limited':
     case 'insufficient_balance':
@@ -140,11 +135,10 @@ function failureOf(error: unknown): TranscriptionError {
 }
 
 function upstreamCodeOf(error: unknown): string | null {
-  const kaana = kaanaErrorOf(error);
-  return kaana?.kind === 'kaana' ? kaana.code : null;
+  return error instanceof KaanaError ? error.code : null;
 }
 
-const catalogueCache = new TTLCache<KaanaModel[]>({ ttlMs: 60_000, maxSize: 4 });
+const catalogueCache = new TTLCache<Model[]>({ ttlMs: 60_000, maxSize: 4 });
 
 /** Test seam. */
 export function resetTranscriptionCatalogueForTests(): void {
@@ -153,7 +147,7 @@ export function resetTranscriptionCatalogueForTests(): void {
 
 export interface DictationClip {
   readonly audio: Uint8Array;
-  readonly mediaType: KaanaAudioInputMediaType;
+  readonly mediaType: AudioInputMediaType;
   /** The recorder's own measurement of the clip, in ms. */
   readonly durationMs: number;
   /** BCP 47, the app's language; omitted lets the model detect it. */
@@ -169,7 +163,7 @@ export async function transcribeDictation(
   if (clip.durationMs > MAX_DICTATION_MS + DURATION_SLACK_MS)
     throw new TranscriptionError('CLIP_TOO_LONG');
   if (clip.audio.byteLength === 0) throw new TranscriptionError('INVALID_REQUEST');
-  if (clip.audio.byteLength > KAANA_MAX_TRANSCRIPTION_FILE_BYTES)
+  if (clip.audio.byteLength > MAX_TRANSCRIPTION_FILE_BYTES)
     throw new TranscriptionError('CLIP_TOO_LONG');
   if (!kaana) throw new TranscriptionError('TRANSCRIPTION_UNAVAILABLE');
 
@@ -180,10 +174,10 @@ export async function transcribeDictation(
     });
     catalogueCache.set('models', models);
   }
-  const candidates = rankTranscriptionCandidates(models, {
-    mediaType: clip.mediaType,
-    ...(clip.language === undefined ? {} : { locale: clip.language }),
-  }).slice(0, MAX_ATTEMPTS);
+  const candidates = rankTranscriptionCandidates(models, { mediaType: clip.mediaType }).slice(
+    0,
+    MAX_ATTEMPTS,
+  );
   if (candidates.length === 0) throw new TranscriptionError('TRANSCRIPTION_UNAVAILABLE');
 
   for (const [index, candidate] of candidates.entries()) {
@@ -193,7 +187,8 @@ export async function transcribeDictation(
           model: candidate.model.modelId,
           file: clip.audio,
           mediaType: clip.mediaType,
-          ...(candidate.language === undefined ? {} : { language: candidate.language }),
+          // The person's BCP 47 tag as it is: Kaana gives every model the language.
+          ...(clip.language === undefined ? {} : { language: clip.language }),
         },
         { onBehalfOfUserId: oxyUserId },
       );

@@ -14,7 +14,6 @@ vi.mock('../../oxy-service-client.js', () => ({
 const { getKaanaClient, setKaanaClientForTests, KAANA_SERVICE_TOKEN_AUDIENCE } = await import(
   '../transport.js'
 );
-const { FakeKaana } = await import('../fake.js');
 
 const production = { NODE_ENV: 'production' } as NodeJS.ProcessEnv;
 
@@ -58,21 +57,5 @@ describe('getKaanaClient', () => {
     expect(H.tokenFor).toHaveBeenCalledTimes(2);
     expect(H.tokenFor).toHaveBeenCalledWith('kaana.ai');
     expect(authorizations).toEqual(['Bearer token-for-kaana.ai', 'Bearer token-for-kaana.ai']);
-  });
-
-  it('serves the scripted fake only on a developer machine that asks for it', () => {
-    expect(
-      getKaanaClient({
-        NODE_ENV: 'development',
-        ALIA_VOICE_FAKE_UPSTREAM: '1',
-      } as NodeJS.ProcessEnv),
-    ).toBeInstanceOf(FakeKaana);
-    setKaanaClientForTests(undefined);
-    expect(
-      getKaanaClient({
-        NODE_ENV: 'production',
-        ALIA_VOICE_FAKE_UPSTREAM: '1',
-      } as NodeJS.ProcessEnv),
-    ).toBeInstanceOf(Kaana);
   });
 });

@@ -1,17 +1,21 @@
 /**
- * A voice call wired to the Kaana fake and in-memory stores, for the voice
+ * A voice call wired to `@kaana.ai/sdk/testing` — the real `Kaana` client
+ * against Kaana's own rules in memory — and in-memory stores, for the voice
  * suites. Everything the call reaches is here and observable: the upstream
- * session (`kaana.session`), the events and audio the client received
- * (`sink`), what was stored (`persisted`), and the credit and registry calls.
+ * session (`session()`, the server's, which the test drives with `emit`), the
+ * commands it applied (`commands(type)`), the events and audio the client
+ * received (`sink`), what was stored (`persisted`), and the credit and
+ * registry calls.
  */
 
 import { tool, type ToolSet } from 'ai';
 import { vi } from 'vitest';
 import { z } from 'zod';
+import type { Model, RealtimeClientCommand } from '@kaana.ai/contracts';
+import { createFakeKaana, type FakeKaanaServer, voiceCatalogue } from '@kaana.ai/sdk/testing';
 import type { AppendedMessage } from '../../conversation-saver.js';
 import type { CreditReservation } from '../../credits-manager.js';
-import { FakeKaana, fakeRealtimeModel } from '../../kaana/fake.js';
-import type { KaanaModel } from '../../kaana/port.js';
+import type { KaanaClient } from '../../kaana/port.js';
 import {
   type VoiceCallEnvironment,
   type VoiceCallLimits,
@@ -55,8 +59,16 @@ export class RecordingSink implements VoiceClientSink {
 }
 
 export interface HarnessOptions {
-  models?: KaanaModel[];
-  kaana?: FakeKaana | null;
+  /** The catalogue Kaana serves; Kaana's own voice catalogue by default. */
+  models?: readonly Model[];
+  /** No Kaana client at all, as a process with no Oxy service identity. */
+  noKaana?: boolean;
+  /**
+   * The client the call is given, around the fake's: how a test has Kaana
+   * answer what its rules alone never produce (a billing refusal), with the
+   * SDK's own error classes.
+   */
+  wrapKaana?: (kaana: KaanaClient) => KaanaClient;
   voiceMode?: boolean;
   entitlementsUnavailable?: boolean;
   turnAgent?: Awaited<ReturnType<VoiceCallEnvironment['prefetch']>>['turnAgent'];
@@ -64,6 +76,8 @@ export interface HarnessOptions {
   history?: HistoryMessage[];
   tools?: ToolSet;
   limits?: Partial<VoiceCallLimits>;
+  /** The call's clock. */
+  now?: () => number;
 }
 
 export function weatherTools(execute?: (input: { city: string }) => Promise<unknown>): ToolSet {
@@ -77,10 +91,20 @@ export function weatherTools(execute?: (input: { city: string }) => Promise<unkn
 }
 
 export function harness(options: HarnessOptions = {}) {
-  const kaana =
-    options.kaana === null
-      ? null
-      : (options.kaana ?? new FakeKaana({ models: options.models ?? [fakeRealtimeModel()] }));
+  const fake = createFakeKaana({ models: options.models ?? voiceCatalogue });
+  const server: FakeKaanaServer = fake.server;
+  const kaana = options.noKaana ? null : (options.wrapKaana?.(fake.kaana) ?? fake.kaana);
+  /** The upstream session the call opened last. */
+  const session = () => {
+    const last = server.sessions.at(-1);
+    if (!last) throw new Error('No upstream session was opened');
+    return last;
+  };
+  /** The commands of one type the last session applied. */
+  const commands = <T extends RealtimeClientCommand['type']>(type: T) =>
+    session().commands.filter((command) => command.type === type) as Array<
+      Extract<RealtimeClientCommand, { type: T }>
+    >;
   const persisted: AppendedMessage[][] = [];
   const reservations: CreditReservation[] = [];
   const reserve = vi.fn(
@@ -153,12 +177,20 @@ export function harness(options: HarnessOptions = {}) {
     recordAnalytics,
   };
   const sink = new RecordingSink();
-  const call = new VoiceCall(env, 'user-1', 'token-1', { ...VOICE_CALL_LIMITS, ...options.limits });
+  const call = new VoiceCall(
+    env,
+    'user-1',
+    'token-1',
+    { ...VOICE_CALL_LIMITS, ...options.limits },
+    options.now,
+  );
   call.attach(sink);
   return {
     call,
     sink,
-    kaana,
+    server,
+    session,
+    commands,
     env,
     persisted,
     reservations,
@@ -174,6 +206,25 @@ export function harness(options: HarnessOptions = {}) {
     recordAnalytics,
     held: () => held,
   };
+}
+
+/** A model of Kaana's own voice catalogue, by id. */
+export function catalogueModel(modelId: string): Model {
+  const model = voiceCatalogue.find((entry) => entry.modelId === modelId);
+  if (!model) throw new Error(`No ${modelId} in Kaana's voice catalogue`);
+  return model;
+}
+
+/** Kaana's realtime voice model, the one a call opens on by default. */
+export const REALTIME = voiceCatalogue.find((model) => model.capabilities.realtime)!;
+
+/** Another realtime model like {@link REALTIME}, under its own id and price per minute. */
+export function realtimeModel(modelId: string, usdPerMinute: string): Model {
+  return {
+    ...REALTIME,
+    modelId,
+    pricePerMinute: { amount: usdPerMinute, currency: 'USD' },
+  } as Model;
 }
 
 export const START = {

@@ -226,15 +226,16 @@ session open:
    contains `websocket`; `capabilities.tools` is `true`; audio in and out; and the
    model transcribes its input inside the session (the catalogue flag Kaana adds in
    phase 1, §6), because the person's words become messages (§3).
-2. `audio.languages` covers the session language: the app's
-   (`packages/app/src/features/voice/model/speech-locale.ts`), matched on its primary
-   subtag when no regional tag is listed.
-3. `audio.voices` has a voice whose `gender` is the product voice (`male` | `female`)
-   and which speaks that language. The upstream voice id is sent to Kaana and **never
-   shown or returned** (rule kept from `docs/voice.mdx:91-93`).
-4. Not deprecated. Ordered by **cheapest estimated cost per minute** from the
-   catalogue's `pricing` (`session_milliseconds`, or audio tokens at a fixed
-   tokens-per-minute assumption), ties to the newest `releasedAt`.
+2. `audio.voices` has a voice whose `gender` is the product voice (`male` | `female`).
+   The upstream voice id is sent to Kaana and **never shown or returned** (rule kept
+   from `docs/voice.mdx:91-93`).
+3. Not deprecated. Ordered by the catalogue's **`pricePerMinute`**, cheapest first.
+
+*Amended 2026-10-16 (Kaana ADR 0003, contract set 6.0.0):* Kaana's API is one
+canonical contract that gives every model the language, so no model is chosen or
+excluded for its language any more: the app's BCP 47 locale is sent as it is. The
+order is the catalogue's own `pricePerMinute`, no longer an estimate from units, and
+a call is charged its minutes at that price.
 
 The open is tried on at most two candidates, and only when the model itself refused
 before any audio flowed (`model_not_found`, `unsupported_modality`, `invalid_request`
@@ -378,11 +379,9 @@ Oxy Console (§5).
 | `idleTimeoutMs` | 2 min |
 | `maxResponses` | 500 (the edge default of 20 would end a call after 20 answers, `O:services/inferenceRealtime.service.ts:171-177`) |
 | Audio bytes | sized to 30 min of PCM16 per direction |
-| End of turn | `turnDetection.silenceDurationMs` 500: a pause that long ends the person's turn |
 
-History travels in the instructions, never as text items. No `maxTextItems` is sent:
-Kaana refuses a limit it does not enforce (`invalid_request`, param
-`limits.maxTextItems`), and sending `0` refused every call before it opened.
+History travels in the instructions, never as text items. The silence that ends a
+turn is Kaana's default (`REALTIME_DEFAULT_SILENCE_DURATION_MS`), not Alia's.
 
 The client shows a notice one minute before the duration ends. A new call in the same
 conversation starts from the persisted messages.

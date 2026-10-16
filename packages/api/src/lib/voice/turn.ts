@@ -18,7 +18,7 @@ import { oxyApprovalGate } from '../agent/action-review.js';
 import type { OxyApprovalGate } from '../agent/action-proposal.js';
 import type { HydratedAgent } from '../agent-identity.js';
 import { buildTurnSkills, EMPTY_SKILL_RUNTIME, recallTurnMemories } from '../chat/turn-inputs.js';
-import { KAANA_MAX_REALTIME_INSTRUCTIONS } from '../kaana/port.js';
+import { realtimeSessionConfigSchema } from '@kaana.ai/contracts';
 import type { ChatMessage } from '../message-converter.js';
 import { priorToolCallsOf } from '../message-converter.js';
 import { SystemPromptBuilder, type OxyUserProfile } from '../system-prompt-builder.js';
@@ -60,6 +60,10 @@ export function textOf(content: MessageContent): string {
     .filter((text) => text !== '')
     .join('\n');
 }
+
+/** The contract's own bound on a session's instructions, read from its schema. */
+const MAX_INSTRUCTIONS =
+  realtimeSessionConfigSchema.shape.instructions.unwrap().maxLength ?? Number.POSITIVE_INFINITY;
 
 /** The most history the instructions start from, before the cap trims it further. */
 const HISTORY_START_CHARS = 16_000;
@@ -112,7 +116,7 @@ export async function composeVoiceInstructions(input: {
   readonly language: string;
   readonly cap?: number;
 }): Promise<string> {
-  const cap = input.cap ?? KAANA_MAX_REALTIME_INSTRUCTIONS;
+  const cap = input.cap ?? MAX_INSTRUCTIONS;
   const language = languageSection(input.language);
   const compose = (base: string, lines: readonly string[]) =>
     [base, historySection(lines), language].filter((part) => part !== '').join('\n\n');
