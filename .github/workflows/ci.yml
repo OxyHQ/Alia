@@ -359,6 +359,12 @@ jobs:
       - name: Run API tests
         run: bun run --filter @alia/api test
 
+      # The suite runs on Node (vitest); the API runs on Bun. What only breaks
+      # on the runtime (an upgraded socket's `bytesWritten`, which let socket.io
+      # end every voice and MCP socket after 1 s) runs here on Bun as well.
+      - name: Run API runtime tests on Bun
+        run: bun run --filter @alia/api test:bun-runtime
+
       - name: Typecheck SDK
         run: bun run --filter @alia.onl/sdk typecheck
 

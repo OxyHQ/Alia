@@ -1,6 +1,7 @@
 import express from 'express';
 import { startPlatformActivity } from './lib/platform-activity.js';
 import http from 'http';
+import type { WebSocket } from 'ws';
 import cors from 'cors';
 import { closePostgres } from './db/index.js';
 import { runBootGuards } from './lib/boot-guards.js';
@@ -55,9 +56,10 @@ import { initChannels } from './lib/channels/index.js';
 // Socket.io
 import { initSocket } from './socket.js';
 // MCP relay for local MCP tool calls via WebSocket
-import { initMcpRelay, shutdownMcpRelay } from './lib/mcp-relay.js';
+import { mcpRelayRoute, shutdownMcpRelay } from './lib/mcp-relay.js';
 // Voice calls: `GET /v1/voice/session`, a WebSocket of its own (ADR 0017)
-import { initVoiceSessions, shutdownVoiceSessions } from './lib/voice/voice-socket.js';
+import { shutdownVoiceSessions, voiceSessionRoute } from './lib/voice/voice-socket.js';
+import { routeWebSocketUpgrades } from './lib/websocket-upgrades.js';
 
 // Bun loads `.env` from the working directory before any module runs; the
 // package scripts (`bun run dev`, `bun run start`) run from packages/api, so
@@ -104,12 +106,14 @@ server.on('connection', (socket) => {
   socket.setKeepAlive(true, 60000);
 });
 
-initSocket(server).on('connection', (socket) => activity?.observeSocket(socket));
-initMcpRelay(server, (socket, headers) => {
+const io = initSocket(server);
+io.on('connection', (socket) => activity?.observeSocket(socket));
+const observeAiSocket = (socket: WebSocket, headers: http.IncomingHttpHeaders) => {
   activity?.observeWebSocket(socket, { headers, activityType: 'ai' });
-});
-initVoiceSessions(server, (socket, headers) => {
-  activity?.observeWebSocket(socket, { headers, activityType: 'ai' });
+};
+routeWebSocketUpgrades(server, {
+  socketIoPath: io.path(),
+  routes: [mcpRelayRoute(observeAiSocket), voiceSessionRoute(observeAiSocket)],
 });
 
 // Public API routes (/v1) - allow all origins (like OpenAI's API)
