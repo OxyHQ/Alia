@@ -124,7 +124,7 @@ function parseExecutionAuthorizationKey(
  *    the bot's owner; owner effects then need a *Ver y actuar* (autonomous)
  *    grant.
  *
- * Absent on an agent means `{ forUser: true, self: false }`: the preauthorized
+ * Absent on an agent means `{ forUser: 'owner', self: false }`: the preauthorized
  * automation stage, whose exact steps already name their resources.
  */
 export interface OxyAgentIdentity {

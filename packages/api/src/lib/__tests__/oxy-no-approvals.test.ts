@@ -238,7 +238,7 @@ describe('an agent', () => {
       requesterAccountId: PERSON,
       ownerAccountId: PERSON,
       actor: { type: 'agent', accountId: AGENT },
-      agentIdentity: { forUser: true, self: false },
+      agentIdentity: { forUser: 'owner', self: false },
       runId: 'run-1',
       userAccessToken: 'PERSON-TOKEN',
     });
