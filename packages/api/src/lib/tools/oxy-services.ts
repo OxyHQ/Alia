@@ -20,7 +20,11 @@ import {
   type ResourceRef,
 } from '@oxy.so/contracts';
 import { jsonSchema, tool, type Schema, type ToolSet } from 'ai';
-import { createInternalCatalogMcpClient, jsonObjectSchemaToZod } from '@oxy.so/mcp';
+import {
+  createInternalCatalogMcpClient,
+  InternalMcpRefusedError,
+  jsonObjectSchemaToZod,
+} from '@oxy.so/mcp';
 import { z } from 'zod';
 import {
   type CatalogActorType,
@@ -891,7 +895,9 @@ function internalOutcome(outcome: InternalOperationOutcome) {
         ? 'The operation succeeded. Do not execute it again. Only retry pending approval retirement with its operation ID.'
         : outcome.status === 'unknown'
           ? 'The operation outcome is unknown. Do not claim success or start a new operation. Only retry pending approval retirement; that does not resolve the operation outcome.'
-          : 'The operation was not confirmed successful. Retrying approval retirement never executes the operation.',
+          : outcome.status === 'not_executed'
+            ? 'The app refused the call before running it, so nothing happened. Tell the person it is unavailable right now; do not claim it ran.'
+            : 'The operation was not confirmed successful. Retrying approval retirement never executes the operation.',
   };
 }
 
@@ -971,10 +977,17 @@ async function callInternalBoundTool(
         (textResult.success ? parseMcpTextResult(textResult.data.content[0].text) : result);
       outcome.status = 'succeeded';
     }
-  } catch {
-    // The transport may have failed after committing the effect. No fallback,
-    // remint or retry of the operation is implied by this classification.
-    outcome.status = 'unknown';
+  } catch (error: unknown) {
+    // Refused before it ran: nothing happened. A read has no effect to be
+    // unsure about. Only an effect whose transport failed after the call was
+    // sent may have committed, and that alone is unknown. No fallback, remint
+    // or retry of the operation is implied by this classification.
+    outcome.status =
+      error instanceof InternalMcpRefusedError
+        ? 'not_executed'
+        : definition.effect === 'read'
+          ? 'failed'
+          : 'unknown';
   }
   if (issued.transientAuthorizationId) {
     outcome.retired = await revokeTransientAuthorization(

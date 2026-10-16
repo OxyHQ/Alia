@@ -35,6 +35,9 @@ let catalog: AppCapabilityCatalog;
 let binding: CapabilityCatalogBinding;
 let denyTickets = false;
 let denyReceiver = false;
+let receiverNotReady = false;
+let dropCallConnection = false;
+let receiverPosts = 0;
 let denyCleanup = false;
 let loseResponseAfterEffect = false;
 let destroyReceiverResponse: () => void;
@@ -109,7 +112,15 @@ function ticket(input: Record<string, unknown>) {
 beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
-  denyTickets = denyReceiver = denyCleanup = wrongResource = loseResponseAfterEffect = false;
+  denyTickets =
+    denyReceiver =
+    receiverNotReady =
+    dropCallConnection =
+    denyCleanup =
+    wrongResource =
+    loseResponseAfterEffect =
+      false;
+  receiverPosts = 0;
   registryFailure = undefined;
   alive = true;
   approvals = retirements = effects = legacyCalls = 0;
@@ -199,6 +210,20 @@ beforeEach(async () => {
       res.status(403).json({ message: requester });
       return;
     }
+    // The client POSTs initialize, the initialized notification, then the
+    // call: cutting the third is a network failure after the call was sent.
+    if (dropCallConnection && req.method === 'POST' && ++receiverPosts === 3) {
+      req.socket.destroy();
+      return;
+    }
+    if (receiverNotReady) {
+      res.status(503).json({
+        jsonrpc: '2.0',
+        id: null,
+        error: { code: -32000, message: 'Internal MCP catalogue is not registered with Oxy.' },
+      });
+      return;
+    }
     destroyReceiverResponse = () => res.destroy();
     void receiver.handleMcp(req, res);
   });
@@ -233,6 +258,26 @@ beforeEach(async () => {
         rollback: 'manual',
         exposure: ['internal'],
         invocation: { method: 'POST', path: '/posts/save' },
+        limitKeys: [],
+      },
+      {
+        name: 'getPost',
+        version: '1.0.0',
+        description: 'Synthetic canonical read',
+        inputSchema: {
+          type: 'object',
+          properties: { postId: { type: 'string' } },
+          required: ['postId'],
+          additionalProperties: false,
+        },
+        capabilityPackage: 'read',
+        requiredCapabilities: ['posts.read'],
+        resourceTypes: ['mention_account'],
+        effect: 'read',
+        idempotency: 'none',
+        rollback: 'none',
+        exposure: ['internal'],
+        invocation: { method: 'GET', path: '/posts/get' },
         limitKeys: [],
       },
     ],
@@ -288,6 +333,10 @@ beforeEach(async () => {
             },
           ],
         };
+      },
+      getPost: async (input) => {
+        if (loseResponseAfterEffect) destroyReceiverResponse();
+        return { content: [{ type: 'text', text: JSON.stringify({ post: input.postId }) }] };
       },
     },
   });
@@ -529,15 +578,48 @@ describe('Alia installed common agency and internal MCP pilot', () => {
       denyTickets = phase === 'ticket';
       denyReceiver = phase === 'receiver';
       const save = await tool();
+      // Refused before it ran, at the ticket or at the receiver (403): nothing happened.
       expect(
         await save.execute({ postId: 'post-1' }, { toolCallId: 'call-failure' }),
-      ).toHaveProperty(
-        'error',
-        phase === 'ticket' ? 'oxy_app_unavailable' : 'oxy_app_result_unknown',
+      ).toMatchObject(
+        phase === 'ticket'
+          ? { error: 'oxy_app_unavailable' }
+          : { error: 'oxy_app_unavailable', status: 'not_executed' },
       );
       expect(retirements).toBe(1);
       expect(legacyCalls).toBe(0);
       expect(effects).toBe(0);
     },
   );
+});
+
+describe('a refusal or a failed read is never an unknown outcome', () => {
+  it('a receiver that is not ready (503) is unavailable, not unknown', async () => {
+    receiverNotReady = true;
+    const save = await tool();
+    expect(await save.execute({ postId: 'post-1' }, { toolCallId: 'not-ready' })).toMatchObject({
+      error: 'oxy_app_unavailable',
+      status: 'not_executed',
+    });
+    expect(effects).toBe(0);
+  });
+
+  it('a read cut off after it was sent is unavailable: a read has no effect to be unsure of', async () => {
+    dropCallConnection = true;
+    const built = await toolsModule.buildOxyServiceTools(account, context());
+    const read = built.oxy_mention__getPost as unknown as Executable;
+    expect(await read.execute({ postId: 'post-1' }, { toolCallId: 'read-cut' })).toMatchObject({
+      error: 'oxy_app_unavailable',
+      status: 'failed',
+    });
+  });
+
+  it('an effect cut off after it was sent stays unknown', async () => {
+    dropCallConnection = true;
+    const save = await tool();
+    expect(await save.execute({ postId: 'post-1' }, { toolCallId: 'save-cut' })).toMatchObject({
+      error: 'oxy_app_result_unknown',
+      status: 'unknown',
+    });
+  });
 });
