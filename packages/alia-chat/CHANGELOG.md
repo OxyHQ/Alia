@@ -8,7 +8,7 @@ The SDK runs on Expo SDK 58 (React Native 0.88, React 19.3) as well as Expo 57.
 
 - **Peers admit Expo SDK 58.** Every `expo-*` peer is `^57.0.0 || ^58.0.0`, `react-native` is
   `>=0.86.0 <0.89.0` and `react-native-gesture-handler` `^2.32.0 || ^3.3.0` (SDK 58 ships 3.3).
-  `@oxy.so/bloom` is `>=BLOOM_FLOOR`, the first Bloom whose `TextInput` ref props type-check under
+  `@oxy.so/bloom` is `>=10.21.0`, the first Bloom whose `TextInput` ref props type-check under
   React Native 0.88's strict TypeScript API.
 
 ### Fixed

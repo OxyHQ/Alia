@@ -22,11 +22,9 @@
  * precedence rule would be a gate on the re-implementation, and would agree with
  * itself forever.
  *
- * `getStateFromPath` reaches one barrel that pulls the whole navigation library
- * and, through it, React Native's Flow source, which Node cannot parse. It wants
- * a single function from there, `validatePathConfig`, so that one module is
- * stubbed with expo-router's OWN copy of it before the fork is loaded. Nothing
- * about the matching is replaced.
+ * Since expo-router 58 the fork carries its own `validatePathConfig` and loads
+ * nothing from the navigation library, so Node loads all three as they are:
+ * nothing is stubbed and nothing about the matching is replaced.
  *
  * ## The routes are DISCOVERED, not listed
  *
@@ -78,18 +76,6 @@ const root = resolvePath(dirname(fileURLToPath(import.meta.url)), '..');
 const APP_DIR = join(root, 'packages/app/app');
 
 const require = createRequire(join(root, 'packages/app/package.json'));
-
-/**
- * Give the forked matcher the one function it wants from a barrel that cannot
- * be loaded outside Metro, using expo-router's own implementation of it.
- */
-const NATIVE_BARREL = require.resolve('expo-router/build/react-navigation/native');
-require.cache[NATIVE_BARREL] = {
-  id: NATIVE_BARREL,
-  filename: NATIVE_BARREL,
-  loaded: true,
-  exports: require('expo-router/build/react-navigation/core/validatePathConfig'),
-};
 
 const { getRoutes } = require('expo-router/build/getRoutes');
 const { getReactNavigationConfig } = require('expo-router/build/getReactNavigationConfig');

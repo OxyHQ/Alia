@@ -74,7 +74,7 @@ export async function saveImage(uri: string, filename: string): Promise<void> {
   const file = new File(Paths.cache, filename);
   const data = /^data:[^,]*;base64,(.*)$/s.exec(uri)?.[1];
   if (data !== undefined) {
-    file.write(data, { encoding: 'base64' });
+    await file.write(data, { encoding: 'base64' });
   } else {
     await File.downloadFileAsync(uri, file, { idempotent: true });
   }

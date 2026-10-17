@@ -163,7 +163,7 @@ workspace entry. Everything lives under `packages/`.
 
 | Path | Package | Stack |
 |---|---|---|
-| [`packages/app`](packages/app/) | `@alia/app` | Expo 57, web and iOS and Android |
+| [`packages/app`](packages/app/) | `@alia/app` | Expo 58, web and iOS and Android |
 | [`packages/alia-codea`](packages/alia-codea/) | `alia-codea` | VS Code extension |
 | [`packages/alia-cowork`](packages/alia-cowork/) | `alia-cowork` | Electron, Windows and macOS |
 | [`packages/alia-codea-cli`](packages/alia-codea-cli/) | `@alia-codea/cli` | Terminal |
