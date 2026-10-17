@@ -9,6 +9,7 @@ export {
   normalizeCitationMarkers,
 } from './lib/citations';
 export { domainOf } from './lib/domain';
+export { parseCatalogueTool, toolRendererKey } from './lib/catalogue-tool';
 export type { CitationSource } from './lib/citations';
 export { getToolDoneLabel, getToolPillLabel } from './lib/task-labels';
 export {

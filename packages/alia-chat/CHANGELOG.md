@@ -1,5 +1,14 @@
 # @alia.onl/sdk
 
+## 21.2.0
+
+### Added
+
+- **`parseCatalogueTool` and `toolRendererKey` from `@alia.onl/sdk/tools`.** Which app a tool call
+  belongs to (`oxy_<app>__<tool>` / `self_<app>__<tool>`) is now readable without loading React
+  Native, so a host's own pure models and tests — the code that decides what a screen shows —
+  can tell its catalogue's results apart. The main entry exports the same two functions as before.
+
 ## 21.1.0
 
 A shared conversation has one address, Alia's, whichever app minted it (`docs/agent-embedding.md`

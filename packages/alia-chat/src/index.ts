@@ -17,7 +17,7 @@ export type { AliaParticipantsHeaderProps } from './components/AliaParticipantsH
 export { ALIA_LEAD, leadOf } from './lib/participants';
 export type { AliaChatParticipants, AliaLead, AliaParticipant } from './lib/participants';
 export { ANCHORS, leadToProfile } from './lib/flights';
-export { parseCatalogueTool, toolRendererKey } from './lib/tool-renderers';
+export { parseCatalogueTool, toolRendererKey } from './lib/catalogue-tool';
 export type { AliaToolRenderers, AliaToolResult } from './lib/tool-renderers';
 export { AliaAskProvider, useAskAgent } from './components/AliaAskProvider';
 export type { AliaAsk, AliaAskAgents, AliaAskProviderProps } from './components/AliaAskProvider';
