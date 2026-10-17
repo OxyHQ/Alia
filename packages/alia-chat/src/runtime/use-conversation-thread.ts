@@ -394,6 +394,9 @@ export function useConversationThread({
       }
       if (isEmptyContent(content)) return false;
 
+      // An edit sends a new turn (so does a regenerate, through here).
+      host.onTurnStart?.();
+
       setMessages((prev) => {
         const idx = prev.findIndex((msg) => msg.id === messageId);
         return idx < 0 ? prev : prev.slice(0, idx);
@@ -420,7 +423,7 @@ export function useConversationThread({
       releaseAttachments(attachments ?? []);
       return true;
     },
-    [setMessages, append, messages, conversationId, labels, upload],
+    [setMessages, append, messages, conversationId, host, labels, upload],
   );
 
   /** The user turn a reply answers: the nearest one before it, or `undefined`. */

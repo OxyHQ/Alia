@@ -70,7 +70,7 @@ export interface AliaRuntimeHost {
   deviceInfo?: () => Promise<unknown>;
   /** The modes the host's composer controls own; read when the turn is sent, not when it is built. */
   turnRequest?: () => AliaTurnRequest;
-  /** A turn is about to be sent from the composer or a retry. */
+  /** A turn is about to be sent: from the composer, a retry, an edit or a regenerate. */
   onTurnStart?: () => void;
   /**
    * A turn this runtime sent has stopped streaming: it finished, was stopped, or failed. Called
