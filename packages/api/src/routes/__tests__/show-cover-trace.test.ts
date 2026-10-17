@@ -51,6 +51,11 @@ vi.mock('../../lib/show/cover-art.js', () => ({
   generateCoverArt: async () => drawnCover,
 }));
 
+/** Every cover stored in Oxy this run, so "drawn and stored as Alia's" is measured. */
+let coversStored: { bytes: Uint8Array; mime: string }[] = [];
+/** Every cover uploaded into Syra this run — the path until Syra takes Oxy files. */
+let coversUploadedToSyra: { type: string; filename: string | undefined }[] = [];
+
 vi.mock('../../lib/syra/syra.js', async () => {
   const actual =
     await vi.importActual<typeof import('../../lib/syra/syra.js')>('../../lib/syra/syra.js');
@@ -61,7 +66,10 @@ vi.mock('../../lib/syra/syra.js', async () => {
         podcastsCreated.push(payload);
         return { id: PODCAST_ID };
       },
-      uploadPodcastImage: async () => ({ id: 'syra-image-1' }),
+      uploadPodcastImage: async (image: Blob, filename?: string) => {
+        coversUploadedToSyra.push({ type: image.type, filename });
+        return { id: 'syra-image-1' };
+      },
     }),
   };
 });
@@ -107,8 +115,20 @@ vi.mock('../../db/shows/showRepository.js', async () => {
   };
 });
 
+import type { OxyServer } from '@oxy.so/core/server';
 import showsRouter from '../shows.js';
 import { log } from '../../lib/logger.js';
+import { setOxyFilesClientForTests, sha256Hex } from '../../lib/files/oxy-files.js';
+
+/** Alia's Oxy service client, as far as storing a cover goes. */
+const fakeOxy = {
+  assets: {
+    uploadAppFile: async (bytes: Uint8Array, mime: string) => {
+      coversStored.push({ bytes, mime });
+      return { file: { id: 'oxy-cover-1', sha256: sha256Hex(bytes) } };
+    },
+  },
+} as unknown as OxyServer;
 
 let server: Server;
 let base: string;
@@ -122,18 +142,21 @@ beforeAll(async () => {
     const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
   });
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  setOxyFilesClientForTests(() => fakeOxy);
 });
 
-afterAll(
-  async () =>
-    await new Promise<void>((resolve, reject) => {
-      server.close((error) => (error ? reject(error) : resolve()));
-    }),
-);
+afterAll(async () => {
+  setOxyFilesClientForTests(null);
+  await await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+});
 
 beforeEach(() => {
   drawnCover = null;
   podcastsCreated = [];
+  coversStored = [];
+  coversUploadedToSyra = [];
   warned = [];
   refunded = 0;
   finalized = 0;
@@ -149,7 +172,10 @@ beforeEach(() => {
   }) as typeof log.general.warn);
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
 
 async function createSeries(): Promise<{ status: number; body: Record<string, unknown> }> {
   const response = await fetch(`${base}/shows/series`, {
@@ -168,7 +194,10 @@ describe('a series created without a cover', () => {
     expect(status).toBe(201);
     expect(podcastsCreated).toHaveLength(1);
     expect(podcastsCreated[0]).not.toHaveProperty('image');
-    expect(body.coverImageAssetId).toBeUndefined();
+    expect(podcastsCreated[0]).not.toHaveProperty('imageFileId');
+    expect(body.coverFileId).toBeUndefined();
+    expect(coversStored).toEqual([]);
+    expect(coversUploadedToSyra).toEqual([]);
 
     // The property that was missing. One message, so a single search over the
     // logs answers "which series have no artwork, and why".
@@ -186,7 +215,7 @@ describe('a series created without a cover', () => {
     expect(finalized).toBe(0);
   });
 
-  it('says nothing when the cover was drawn', async () => {
+  it('says nothing when the cover was drawn, and uploads it into Syra until Syra takes files', async () => {
     // The positive control. Without it, a logger that emitted this line on
     // every request would satisfy the assertions above.
     drawnCover = Buffer.from('a-generated-cover', 'utf8');
@@ -195,8 +224,33 @@ describe('a series created without a cover', () => {
 
     expect(status).toBe(201);
     expect(warned.filter((entry) => entry.message === NO_COVER)).toEqual([]);
+    // The default: a Syra that does not know `imageFileId` would drop it, so
+    // the cover goes into Syra as before and Alia holds no file for it.
+    expect(coversStored).toEqual([]);
+    expect(coversUploadedToSyra).toEqual([{ type: 'image/png', filename: 'cover.png' }]);
     expect(podcastsCreated[0]?.image).toBe('syra-image-1');
+    expect(podcastsCreated[0]).not.toHaveProperty('imageFileId');
     expect(body.coverImageAssetId).toBe('syra-image-1');
+    expect(body.coverFileId).toBeUndefined();
+    expect(finalized).toBe(1);
+    expect(refunded).toBe(0);
+  });
+
+  it("stores the drawn cover as Alia's Oxy file once Syra takes files", async () => {
+    vi.stubEnv('SYRA_COVER_FILE_IDS', 'enabled');
+    drawnCover = Buffer.from('a-generated-cover', 'utf8');
+
+    const { status, body } = await createSeries();
+
+    expect(status).toBe(201);
+    expect(warned.filter((entry) => entry.message === NO_COVER)).toEqual([]);
+    // Stored as ALIA's file, and Syra is handed the file id — not an upload.
+    expect(coversStored).toEqual([{ bytes: drawnCover, mime: 'image/png' }]);
+    expect(coversUploadedToSyra).toEqual([]);
+    expect(podcastsCreated[0]?.imageFileId).toBe('oxy-cover-1');
+    expect(podcastsCreated[0]).not.toHaveProperty('image');
+    expect(body.coverFileId).toBe('oxy-cover-1');
+    expect(body.coverImageAssetId).toBeUndefined();
     expect(finalized).toBe(1);
     expect(refunded).toBe(0);
   });

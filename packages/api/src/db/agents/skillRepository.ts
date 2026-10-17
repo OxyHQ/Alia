@@ -37,10 +37,24 @@
  * probe for other people's private skills.
  */
 
-import { and, asc, desc, eq, ilike, inArray, isNull, max, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  max,
+  or,
+  sql,
+} from 'drizzle-orm';
 import type { SkillFileKind, SkillSource, SkillVisibility } from '../../domain/skill.js';
 import type { ApiDatabase, Executor } from '../index';
 import { skillFiles, skillInstalls, skillVersions, skills } from '../schema/skills';
+import { markLegacyObjectsMaybeGarbage, recordFileReferences } from '../files/oxyFileRepository';
 
 // ---------------------------------------------------------------------------
 // Shapes
@@ -141,6 +155,8 @@ export interface NewSkillFile {
   sha256: string;
   contentText?: string | null;
   s3Key?: string | null;
+  /** The content as an Oxy file (`lib/files/oxy-files.ts`). */
+  oxyFileId?: string | null;
   executable?: boolean;
 }
 
@@ -183,6 +199,7 @@ export interface SkillFileRow {
   readonly sha256: string;
   readonly contentText: string | null;
   readonly s3Key: string | null;
+  readonly oxyFileId: string | null;
   readonly executable: boolean;
 }
 
@@ -195,6 +212,7 @@ const FILE_COLUMNS = {
   sha256: skillFiles.sha256,
   contentText: skillFiles.contentText,
   s3Key: skillFiles.s3Key,
+  oxyFileId: skillFiles.oxyFileId,
   executable: skillFiles.executable,
 } as const;
 
@@ -486,10 +504,109 @@ export async function deleteOwnedSkill(
   id: string,
   oxyUserId: string,
 ): Promise<number> {
-  const result = await db
-    .delete(skills)
-    .where(and(eq(skills.id, id), eq(skills.ownerOxyUserId, oxyUserId)));
-  return result.count;
+  return db.transaction(async (tx) => {
+    // Every stored file of every version goes with the skill (the foreign keys
+    // cascade), so what they name is released in the same transaction: Oxy
+    // files lose Alia's reference, legacy objects become garbage. Before, the
+    // cascade left every bundled object in the bucket for good.
+    const stored = await tx
+      .select({ id: skillFiles.id, s3Key: skillFiles.s3Key, oxyFileId: skillFiles.oxyFileId })
+      .from(skillFiles)
+      .innerJoin(skillVersions, eq(skillFiles.versionId, skillVersions.id))
+      .innerJoin(skills, eq(skillVersions.skillId, skills.id))
+      .where(and(eq(skills.id, id), eq(skills.ownerOxyUserId, oxyUserId)));
+    const result = await tx
+      .delete(skills)
+      .where(and(eq(skills.id, id), eq(skills.ownerOxyUserId, oxyUserId)));
+    if (result.count === 0) return 0;
+    await recordFileReferences(
+      tx,
+      stored.flatMap((row) =>
+        row.oxyFileId === null
+          ? []
+          : [
+              {
+                fileId: row.oxyFileId,
+                entityType: 'skill_file' as const,
+                entityId: row.id,
+                desired: 'absent' as const,
+              },
+            ],
+      ),
+    );
+    await markLegacyObjectsMaybeGarbage(
+      tx,
+      stored.flatMap((row) =>
+        row.s3Key === null ? [] : [{ key: row.s3Key, kind: 'skill_file' as const }],
+      ),
+      0,
+    );
+    return result.count;
+  });
+}
+
+/**
+ * The migration's write: a legacy skill file now also lives in an Oxy file.
+ * Only while it has none; the legacy key stays as the dual-read fallback.
+ */
+export async function adoptSkillFileOxyFile(
+  db: ApiDatabase,
+  skillFileId: string,
+  fileId: string,
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(skillFiles)
+      .set({ oxyFileId: fileId })
+      .where(
+        and(
+          eq(skillFiles.id, skillFileId),
+          isNull(skillFiles.oxyFileId),
+          isNotNull(skillFiles.s3Key),
+        ),
+      )
+      .returning({ id: skillFiles.id });
+    if (!row) return false;
+    await recordFileReferences(tx, [
+      { fileId, entityType: 'skill_file', entityId: skillFileId, desired: 'present' },
+    ]);
+    return true;
+  });
+}
+
+/** Stored skill files with no Oxy copy yet, with their skill's owner — the migration's work list. */
+export async function listSkillFilesOnLegacyStorage(
+  db: ApiDatabase,
+  afterId: string,
+  limit: number,
+): Promise<
+  {
+    id: string;
+    path: string;
+    mime: string;
+    sha256: string;
+    s3Key: string;
+    ownerOxyUserId: string | null;
+  }[]
+> {
+  const rows = await db
+    .select({
+      id: skillFiles.id,
+      path: skillFiles.path,
+      mime: skillFiles.mime,
+      sha256: skillFiles.sha256,
+      s3Key: skillFiles.s3Key,
+      ownerOxyUserId: skills.ownerOxyUserId,
+    })
+    .from(skillFiles)
+    .innerJoin(skillVersions, eq(skillFiles.versionId, skillVersions.id))
+    .innerJoin(skills, eq(skillVersions.skillId, skills.id))
+    .where(
+      and(isNotNull(skillFiles.s3Key), isNull(skillFiles.oxyFileId), gt(skillFiles.id, afterId)),
+    )
+    .orderBy(asc(skillFiles.id))
+    .limit(limit);
+  return rows.flatMap((row) => (row.s3Key === null ? [] : [{ ...row, s3Key: row.s3Key }]));
 }
 
 /**
@@ -547,18 +664,41 @@ export async function insertSkillVersion(
   const version = inserted[0] as SkillVersionRef;
 
   if (files.length > 0) {
-    await tx.insert(skillFiles).values(
-      files.map((file) => ({
-        versionId: version._id,
-        path: file.path,
-        kind: file.kind,
-        mime: file.mime,
-        bytes: file.bytes,
-        sha256: file.sha256,
-        contentText: file.contentText ?? null,
-        s3Key: file.s3Key ?? null,
-        executable: file.executable ?? false,
-      })),
+    const stored = await tx
+      .insert(skillFiles)
+      .values(
+        files.map((file) => ({
+          versionId: version._id,
+          path: file.path,
+          kind: file.kind,
+          mime: file.mime,
+          bytes: file.bytes,
+          sha256: file.sha256,
+          contentText: file.contentText ?? null,
+          s3Key: file.s3Key ?? null,
+          oxyFileId: file.oxyFileId ?? null,
+          executable: file.executable ?? false,
+        })),
+      )
+      .returning({ id: skillFiles.id, oxyFileId: skillFiles.oxyFileId });
+    // Alia's use of each file in Oxy commits with the version that names it —
+    // which is what closes the old "uploaded, then the transaction failed"
+    // orphan: an Oxy file whose version never committed has no reference, and
+    // a legacy object was marked as garbage before it was written.
+    await recordFileReferences(
+      tx,
+      stored.flatMap((row) =>
+        row.oxyFileId === null
+          ? []
+          : [
+              {
+                fileId: row.oxyFileId,
+                entityType: 'skill_file' as const,
+                entityId: row.id,
+                desired: 'present' as const,
+              },
+            ],
+      ),
     );
   }
   return version;

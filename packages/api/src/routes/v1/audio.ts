@@ -161,7 +161,7 @@ router.post('/speech', async (req: Request, res: Response) => {
         throw new Error('Message was removed during speech generation');
       }
     }
-    const audioUrl = storedMediaUrl(req, clip.objectKey, userId);
+    const audioUrl = storedMediaUrl(req, clip.locator, userId);
     if (audioUrl === null) throw new Error('Speech playback is unavailable');
     return res.json({
       audioUrl,

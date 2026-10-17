@@ -82,7 +82,10 @@ export interface ShowSeries {
   brief: string;
   speakers: ShowSpeaker[];
   visibility: ShowVisibility;
+  /** Syra's legacy image id; read only while `coverFileId` is absent. */
   coverImageAssetId?: string | null;
+  /** The cover as Alia's public Oxy file. */
+  coverFileId?: string | null;
   nextEpisodeNumber: number;
   createdAt: string;
   updatedAt: string;

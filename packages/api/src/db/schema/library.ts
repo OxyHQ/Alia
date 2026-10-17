@@ -11,7 +11,8 @@
  * short-lived tables elsewhere in this schema.
  */
 
-import { bigint, index, pgTable, text } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { bigint, check, index, pgTable, text } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import { FILE_CATEGORIES } from '../../domain/library-file.js';
 import { checkOneOf } from './columns';
@@ -66,7 +67,14 @@ export const libraryFiles = pgTable(
     /** `owner` on the wire. An Oxy account; no foreign key. */
     ownerOxyUserId: text().notNull(),
     name: text().notNull(),
-    url: text().notNull(),
+    /**
+     * The object KEY in Alia's legacy bucket (never an address). NULL for a
+     * file stored in Oxy Files instead; during the move both may be set, and
+     * `oxy_file_id` is read first.
+     */
+    url: text(),
+    /** The file in Oxy Files, owned by the person (oxy ADR 0043). See `lib/files/oxy-files.ts`. */
+    oxyFileId: text(),
     /** The upload's MIME type. No CHECK — see the table comment. */
     type: text().notNull(),
     /** Bytes. See the table comment for why this is `bigint`. */
@@ -80,5 +88,8 @@ export const libraryFiles = pgTable(
     // Serves `GET /library` — the owner's files, newest first.
     index('library_files_owner_created_at_idx').on(t.ownerOxyUserId, t.createdAt.desc()),
     checkOneOf('library_files_category_check', t.category, FILE_CATEGORIES),
+    /** Stored somewhere: a row naming no object is a file nobody can open. */
+    check('library_files_storage_check', sql`${t.url} is not null or ${t.oxyFileId} is not null`),
+    index('library_files_oxy_file_id_idx').on(t.oxyFileId),
   ],
 );

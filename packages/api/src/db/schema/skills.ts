@@ -230,8 +230,13 @@ export const skillFiles = pgTable(
     sha256: text().notNull(),
     /** Text content, inline. NULL when the bytes live in S3 instead. */
     contentText: text(),
-    /** The S3 object key. NULL when the content is inline instead. */
+    /** The legacy S3 object key. NULL when the content is inline or in Oxy Files. */
     s3Key: text(),
+    /**
+     * The content as an Oxy file (oxy ADR 0043): the person's own for their
+     * skill, Alia's for the shared catalogue. Read before `s3_key`.
+     */
+    oxyFileId: text(),
     executable: boolean().notNull().default(false),
     createdAt: createdAt(),
   },
@@ -243,8 +248,17 @@ export const skillFiles = pgTable(
     }).onDelete('cascade'),
     uniqueIndex('skill_files_version_path_key').on(t.versionId, t.path),
     checkOneOf('skill_files_kind_check', t.kind, SKILL_FILE_KINDS),
-    /** Inline XOR object storage — neither "stored nowhere" nor "stored twice" is representable. */
-    check('skill_files_storage_check', sql`(${t.contentText} is null) <> (${t.s3Key} is null)`),
+    /**
+     * Inline XOR stored — neither "stored nowhere" nor "inline and stored" is
+     * representable. A stored file may name its legacy key and its Oxy file at
+     * once while it moves; the Oxy file is read first.
+     */
+    check(
+      'skill_files_storage_check',
+      sql`(${t.contentText} is null) <> (${t.s3Key} is null and ${t.oxyFileId} is null)`,
+    ),
+    index('skill_files_s3_key_idx').on(t.s3Key),
+    index('skill_files_oxy_file_id_idx').on(t.oxyFileId),
     check(
       'skill_files_path_safety_check',
       sql`left(${t.path}, 1) <> '/' and strpos(${t.path}, '..') = 0 and strpos(${t.path}, chr(92)) = 0`,

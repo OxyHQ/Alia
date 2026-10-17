@@ -29,29 +29,53 @@ vi.mock('../../../lib/synthesize-speech.js', async (importOriginal) => ({
   synthesizeSpeech: H.synthesizeSpeech,
   speechModelCandidates: H.candidates,
 }));
-vi.mock('../../../lib/s3.js', () => ({ uploadToS3: H.upload, deleteS3Objects: H.remove }));
+vi.mock('../../../lib/s3.js', () => ({ deleteS3Objects: H.remove }));
+/** Storage through its seam (`lib/files/oxy-files.ts`), on the legacy path live today. */
+vi.mock('../../../lib/files/oxy-files.js', () => ({
+  newLegacyKey: () => 'unused',
+  storePrivateContent: async (input: { bytes: Buffer; name: string }) => ({
+    objectKey: await H.upload(input.bytes, input.name),
+    oxyFileId: null,
+  }),
+}));
+vi.mock('../../../db/files/oxyFileRepository.js', () => ({ recordFileReferences: vi.fn() }));
 vi.mock('../../../lib/stored-media.js', () => ({ storedMediaUrl: H.link }));
 vi.mock('../../../db/chat/messageRepository.js', () => ({ clientMessageExists: H.exists }));
 /** The clip index, in memory: `db/__tests__/speechClips.pgdb.test.ts` holds the SQL to the same rules. */
 vi.mock('../../../db/chat/speechClipRepository.js', () => ({
   findSpeechClips: async (_db: unknown, user: string, keys: readonly string[]) =>
-    [...H.clips.values()].filter((row) => row.oxyUserId === user && keys.includes(row.cacheKey)),
+    [...H.clips.values()]
+      .filter((row) => row.oxyUserId === user && keys.includes(row.cacheKey))
+      .map((row) => ({ ...row, oxyFileId: null })),
   touchSpeechClip: async (_db: unknown, user: string, key: string, conversation: string | null) => {
     const row = H.clips.get(key);
     if (row?.oxyUserId === user) row.conversationId ??= conversation;
   },
-  indexSpeechClip: async (_db: unknown, clip: Omit<ClipRow, 'conversationId'>) => {
+  indexSpeechClip: async (
+    _db: unknown,
+    clip: Omit<ClipRow, 'conversationId'> & { oxyFileId: string | null },
+  ) => {
     const standing = H.clips.get(clip.cacheKey);
-    if (standing) return standing.objectKey;
-    H.clips.set(clip.cacheKey, { ...clip, conversationId: null });
-    return clip.objectKey;
+    if (standing)
+      return { cacheKey: clip.cacheKey, objectKey: standing.objectKey, oxyFileId: null };
+    H.clips.set(clip.cacheKey, {
+      cacheKey: clip.cacheKey,
+      oxyUserId: clip.oxyUserId,
+      objectKey: clip.objectKey,
+      conversationId: null,
+    });
+    return { cacheKey: clip.cacheKey, objectKey: clip.objectKey, oxyFileId: null };
   },
   deleteConversationSpeechClips: async (_db: unknown, user: string, conversation: string) => {
     const gone = [...H.clips.values()].filter(
       (row) => row.oxyUserId === user && row.conversationId === conversation,
     );
     for (const row of gone) H.clips.delete(row.cacheKey);
-    return gone.map((row) => row.objectKey);
+    return gone.map((row) => ({
+      cacheKey: row.cacheKey,
+      objectKey: row.objectKey,
+      oxyFileId: null,
+    }));
   },
   deleteStaleSpeechClips: vi.fn(),
 }));

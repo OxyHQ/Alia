@@ -9,8 +9,12 @@ import { reserveBackgroundProductCredits } from '../product-credit-access';
  * The old pipeline finished by putting an MP3 in Alia's bucket and storing the
  * key. This one redeems a single-use ingest ticket, minted while the user's
  * token was live, and Syra becomes the file's home: its visibility rules, its
- * HLS transcode, its RSS feed. Segments still reach S3 but only as working
- * storage for the join, and they are deleted as soon as the join succeeds.
+ * HLS transcode, its RSS feed. Segments are joined IN MEMORY and never stored:
+ * they used to be written to Alia's bucket as "working storage" that nothing
+ * ever read back (the join used the buffers already in hand) and were deleted
+ * in a `finally` — so a worker that died mid-run left them in the bucket for
+ * good. Not storing them is the whole fix, and it is why show audio has no
+ * place in Oxy Files: the only durable copy is Syra's.
  *
  * ## Every failure gives the credit back
  *
@@ -37,7 +41,6 @@ import {
 } from '../../db/shows/showRepository.js';
 import { resolveUtilityModel, getAIModel } from '../chat-core.js';
 import { synthesizeSpeech } from '../synthesize-speech.js';
-import { deleteS3Objects, uploadToS3 } from '../s3.js';
 import {
   finalizeFixedCredits,
   refundReservation,
@@ -263,9 +266,6 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
    */
   let published = false;
 
-  /** Keys this run wrote, deleted by key rather than by a computed prefix. */
-  const segmentKeys: string[] = [];
-
   try {
     await getOrCreateUserCredits(episode.userId);
     reservation = await reserveBackgroundProductCredits(episode.userId);
@@ -356,23 +356,17 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
       currentStep: 'Recording...',
     });
 
-    const buffers = await renderSegments(
-      episode,
-      series.speakers,
-      segments,
-      segmentKeys,
-      (done) => {
-        const progress = 15 + Math.round((done / segments.length) * 60);
-        void applyUpdate({ segments, progress });
-        emitProgress(episode, {
-          status: 'generating_audio',
-          progress,
-          currentStep: 'Recording...',
-          segmentIndex: done,
-          totalSegments: segments.length,
-        });
-      },
-    );
+    const buffers = await renderSegments(episode, series.speakers, segments, (done) => {
+      const progress = 15 + Math.round((done / segments.length) * 60);
+      void applyUpdate({ segments, progress });
+      emitProgress(episode, {
+        status: 'generating_audio',
+        progress,
+        currentStep: 'Recording...',
+        segmentIndex: done,
+        totalSegments: segments.length,
+      });
+    });
 
     if (buffers.length === 0) {
       await failRun(
@@ -515,22 +509,6 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
       'Failed',
       'alia: pipeline error before ingest',
     );
-  } finally {
-    /**
-     * The segments were working storage for the join and nothing reads them
-     * afterwards — not the app, not Syra, not a later re-run, which regenerates
-     * from the script. Leaving them was how a three-minute show cost a
-     * permanent thirty objects in a private bucket.
-     *
-     * By KEY, so nothing here computes a prefix out of `NODE_ENV` and a user id.
-     * Best-effort: a failure to tidy up must not turn a published episode into a
-     * failed one.
-     */
-    if (segmentKeys.length > 0) {
-      await deleteS3Objects(segmentKeys).catch((err: unknown) =>
-        log.general.warn({ err, episodeId }, 'Could not delete show working segments'),
-      );
-    }
   }
 }
 
@@ -549,7 +527,6 @@ async function renderSegments(
   episode: ShowEpisodeRow,
   cast: readonly ShowSpeaker[],
   segments: ShowSegment[],
-  segmentKeys: string[],
   onProgress: (completed: number) => void,
 ): Promise<Buffer[]> {
   const rendered = new Map<number, Buffer>();
@@ -569,15 +546,9 @@ async function renderSegments(
       if (segment === undefined) continue;
 
       if (result.status === 'fulfilled' && result.value !== null) {
+        // Held in memory for the join, and nowhere else: nothing reads a
+        // segment back, so storing one was cost and a leak with no reader.
         rendered.set(segment.index, result.value.buffer);
-        const key = await uploadToS3(
-          result.value.buffer,
-          `segment.${result.value.format}`,
-          `show-segments/${episode.userId}/${episode.id}`,
-          `segment-${segment.index}`,
-        );
-        segmentKeys.push(key);
-        segment.audioUrl = key;
       } else {
         /**
          * On the SEGMENT, not just in the log. Skipping is the right call and

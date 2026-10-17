@@ -51,6 +51,13 @@
  *
  * Nothing else deletes a `tts/` object, which is why a stored row is trusted
  * to name a playable one (`db/schema/speech.ts`).
+ *
+ * ## Where the bytes are
+ *
+ * `lib/files/oxy-files.ts` decides: Alia's own bucket today, an Oxy file ALIA
+ * owns once Oxy can hold private audio (a clip is a cache Alia expires, so it
+ * is Alia's, not the person's). Releasing an Oxy clip is releasing Alia's
+ * reference in the same transaction as the row; Oxy collects the file.
  */
 
 import { createHash } from 'node:crypto';
@@ -61,9 +68,13 @@ import {
   indexSpeechClip,
   touchSpeechClip,
 } from '../db/chat/speechClipRepository.js';
-import { getDb, type ApiDatabase } from '../db/index.js';
+import { getDb, type ApiDatabase, type Executor } from '../db/index.js';
 import { log } from './logger.js';
-import { deleteS3Objects, uploadToS3 } from './s3.js';
+import { deleteS3Objects } from './s3.js';
+import { recordFileReferences } from '../db/files/oxyFileRepository.js';
+import type { StoredSpeechClip } from '../db/chat/speechClipRepository.js';
+import { storedLocator } from '../domain/oxy-files.js';
+import { newLegacyKey, storePrivateContent, type StoredContent } from './files/oxy-files.js';
 import { speechModelCandidates, synthesizeSpeech } from './synthesize-speech.js';
 
 /** Part of every key: raising it makes every stored clip unreachable, and the sweep collects them. */
@@ -130,7 +141,8 @@ export interface SpeechClipRequest {
 }
 
 export interface SpeechClip {
-  readonly objectKey: string;
+  /** Where the clip is, as a stored locator for `storedMediaUrl` — never an address. */
+  readonly locator: string;
   readonly model: string;
   /** `miss` is a paid synthesis; anything else cost nothing. */
   readonly cache: 'hit' | 'miss';
@@ -142,7 +154,7 @@ export interface SpeechClip {
 
 interface MadeClip {
   readonly cacheKey: string;
-  readonly objectKey: string;
+  readonly locator: string;
   readonly model: string;
   readonly requestId: string;
 }
@@ -186,7 +198,7 @@ export async function obtainSpeechClip(
   if (best?.row !== undefined) {
     await touchSpeechClip(db, request.userId, best.row.cacheKey, request.conversationId);
     return {
-      objectKey: best.row.objectKey,
+      locator: storedLocator(best.row.objectKey, best.row.oxyFileId) ?? '',
       model: models[best.rank] ?? '',
       cache: 'hit',
       inflight: false,
@@ -203,7 +215,7 @@ export async function obtainSpeechClip(
   );
   await touchSpeechClip(db, request.userId, made.cacheKey, request.conversationId);
   return {
-    objectKey: made.objectKey,
+    locator: made.locator,
     model: made.model,
     cache: joined ? 'hit' : 'miss',
     inflight: joined,
@@ -229,23 +241,70 @@ async function makeClip(
   // Paid for from here on: the clip is stored even if every asker has left,
   // so the next one is a hit rather than a second payment.
   const cacheKey = keyFor(speech.model);
-  const objectKey = await uploadToS3(speech.audio, 'speech.mp3', `tts/${request.userId}`, 'speech');
-  let standing: string;
+  const stored = await storePrivateContent({
+    kind: 'speech_clip',
+    owner: { kind: 'alia' },
+    bytes: speech.audio,
+    mime: 'audio/mpeg',
+    name: 'speech.mp3',
+    legacyKey: newLegacyKey(`tts/${request.userId}`, 'speech', 'speech.mp3'),
+  });
+  let standing: StoredSpeechClip;
   try {
-    standing = await indexSpeechClip(db, { cacheKey, oxyUserId: request.userId, objectKey });
+    standing = await indexSpeechClip(db, { cacheKey, oxyUserId: request.userId, ...stored });
   } catch (error: unknown) {
-    await discard(objectKey);
+    await discard(stored);
     throw error;
   }
   // Another task indexed the same clip first: theirs stands, ours is surplus.
-  if (standing !== objectKey) await discard(objectKey);
-  return { cacheKey, objectKey: standing, model: speech.model, requestId: speech.requestId };
+  if (standing.objectKey !== stored.objectKey || standing.oxyFileId !== stored.oxyFileId) {
+    await discard(stored);
+  }
+  return {
+    cacheKey,
+    locator: storedLocator(standing.objectKey, standing.oxyFileId) ?? '',
+    model: speech.model,
+    requestId: speech.requestId,
+  };
 }
 
-async function discard(objectKey: string): Promise<void> {
-  await deleteS3Objects([objectKey]).catch(() => {
+/**
+ * Give up a clip no row names. A legacy object is deleted now — and was marked
+ * as garbage before it was written, so a failed delete is retried by the
+ * collector. An Oxy file needs nothing: no reference was recorded for it, so
+ * Oxy trashes it as an unused application file.
+ */
+async function discard(stored: StoredContent): Promise<void> {
+  if (stored.objectKey === null) return;
+  await deleteS3Objects([stored.objectKey]).catch(() => {
     log.speech.error('Speech object cleanup failed');
   });
+}
+
+/**
+ * Release the stored copies of clips whose rows this transaction deleted:
+ * legacy objects are deleted inside it (so the rows come back if they could
+ * not go), Oxy files lose Alia's reference with it.
+ */
+async function releaseClips(tx: Executor, clips: readonly StoredSpeechClip[]): Promise<number> {
+  await recordFileReferences(
+    tx,
+    clips.flatMap((clip) =>
+      clip.oxyFileId === null
+        ? []
+        : [
+            {
+              fileId: clip.oxyFileId,
+              entityType: 'speech_clip' as const,
+              entityId: clip.cacheKey,
+              desired: 'absent' as const,
+            },
+          ],
+    ),
+  );
+  return deleteS3Objects(
+    clips.flatMap((clip) => (clip.objectKey === null ? [] : [clip.objectKey])),
+  );
 }
 
 /**
@@ -310,9 +369,9 @@ export async function purgeConversationSpeechClips(
   conversationId: string,
 ): Promise<number> {
   return db.transaction(async (tx) => {
-    const objectKeys = await deleteConversationSpeechClips(tx, oxyUserId, conversationId);
-    await deleteS3Objects(objectKeys);
-    return objectKeys.length;
+    const clips = await deleteConversationSpeechClips(tx, oxyUserId, conversationId);
+    await releaseClips(tx, clips);
+    return clips.length;
   });
 }
 
@@ -331,8 +390,8 @@ export async function sweepSpeechClips(db: ApiDatabase): Promise<void> {
   try {
     const result = await db.transaction(async (tx) => {
       const stale = await deleteStaleSpeechClips(tx, SPEECH_CLIP_RETENTION_DAYS, SWEEP_BATCH);
-      const objects = await deleteS3Objects(stale.objectKeys);
-      return { clips: stale.objectKeys.length, objects, truncated: stale.truncated };
+      const objects = await releaseClips(tx, stale.clips);
+      return { clips: stale.clips.length, objects, truncated: stale.truncated };
     });
     log.speech.info(
       { clips: result.clips, objects: result.objects, truncated: result.truncated },

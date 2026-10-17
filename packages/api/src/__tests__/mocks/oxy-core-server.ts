@@ -72,3 +72,15 @@ export type OxyServer = InstanceType<OxyCoreServer['OxyServer']>;
 export const createOxyAliaMachineCredentialAuth = real.createOxyAliaMachineCredentialAuth;
 export const getOxyAliaMachineCredentialBearer = real.getOxyAliaMachineCredentialBearer;
 export type OxyAliaMachinePrincipal = import('@oxy.so/core/server').OxyAliaMachinePrincipal;
+
+/**
+ * Oxy's file-event signature check (oxy ADR 0043 D9) is REAL, for the reason
+ * the lanes above are: verifying the signature, the replay window and the
+ * challenge IS the subject of `routes/__tests__/oxy-files-webhook.test.ts`, and
+ * a stub would let that suite pass with every check deleted.
+ */
+export const verifyFileEventSignature: OxyCoreServer['verifyFileEventSignature'] =
+  real.verifyFileEventSignature;
+export const FileEventVerificationError: OxyCoreServer['FileEventVerificationError'] =
+  real.FileEventVerificationError;
+export type FileEvent = import('@oxy.so/core/server').FileEvent;

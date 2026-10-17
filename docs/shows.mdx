@@ -177,11 +177,13 @@ de la verdad" is the requirement that came out of it.
 
 Its episodes, their audio across three S3 trees, the HLS ladder, transcripts,
 AES keys, outstanding ingest tickets, every subscriber's subscription and every
-listener's saved position. **Not the cover artwork:** `image_assets` is
-referenced `ON DELETE set null` and the bytes live under `images/{imageId}/`,
-outside the swept trees, because one asset may back several shows and nothing
-records how many — deleting it could blank a show nobody touched. Reclaiming
-that storage needs a sweeper that can prove non-reference.
+listener's saved position. **Not the cover artwork.** Once
+`SYRA_COVER_FILE_IDS` is on, the cover is Alia's Oxy file, not Syra's (until
+then a new cover is uploaded into Syra's image store, as before). Deleting the series releases Alia's reference in the
+same transaction as the row, deleting the podcast releases Syra's, and Oxy
+collects the file once nothing uses it (oxy ADR 0043 D5). A series still on a
+legacy Syra cover (`cover_image_asset_id`) leaves that image to Syra until the
+cover handover (`docs/oxy-files.md`).
 
 Two more things that are true and reachable today:
 
@@ -300,10 +302,27 @@ wrong one shows in Syra's episode list and in the feed forever.
 
 ## Cover art
 
-Generated when the series is created, uploaded to Syra, and **never allowed to
-block creation**. Every failure answers "no image": Syra's own surfaces already
-handle a show without artwork, and a series nobody could create because an image
-model was busy would be the worse outcome. `PATCH /shows/series/:id` replaces it.
+Generated when the series is created and **never allowed to block creation**.
+Every failure answers "no image": Syra's own surfaces already handle a show
+without artwork, and a series nobody could create because an image model was
+busy would be the worse outcome. `PATCH /shows/series/:id` replaces it.
+
+**The cover is ALIA's file in Oxy Files** (ADR 0019): Alia draws it, stores it as
+its own public Oxy file (`storeShowCover`), keeps the id in
+`show_series.cover_file_id` with an Oxy reference `show_series`/<id> written in
+the same transaction, and hands Syra the same id as `imageFileId` — Syra uses it
+and holds its own reference, it does not re-host it. A replaced cover's reference
+is released with the update; the app renders `coverFileId` through Bloom's image
+resolver. Series created before this hold Syra's image id in
+`cover_image_asset_id`, which the app reads only when there is no file, until the
+two-step handover moves them (`docs/oxy-files.md`). A cover Oxy deletes or takes
+down is removed from the series — the legacy Syra image too, since it is the same
+bytes.
+
+**Segments are joined in memory and never stored.** The pipeline used to write
+each spoken line to Alia's bucket as working storage that nothing read back, and
+deleted it afterwards — or leaked it when a worker died. `audioUrl` on an older
+row's segment names one of those objects; nothing reads it.
 
 ## The script is spoken lines only
 
@@ -349,4 +368,4 @@ unaffected either way.
 
 Key files: `db/schema/shows.ts`, `db/shows/showRepository.ts` (`priorEpisodes`),
 `lib/show/` (pipeline, prompts, voices, audio, cover art, titles),
-`lib/syra/syra.ts`, `routes/shows.ts`.
+`lib/syra/syra.ts`, `lib/files/oxy-files.ts` (the cover's storage), `routes/shows.ts`.

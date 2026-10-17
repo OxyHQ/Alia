@@ -10,7 +10,7 @@ import {
   toLibraryFileResponse,
 } from '../db/library/libraryFileRepository.js';
 import { FILE_CATEGORIES, type FileCategory } from '../domain/library-file.js';
-import { uploadToS3, deleteFromS3 } from '../lib/s3.js';
+import { newLegacyKey, storePrivateContent } from '../lib/files/oxy-files.js';
 import { storedMediaUrl } from '../lib/stored-media.js';
 import { log } from '../lib/logger.js';
 
@@ -19,9 +19,11 @@ const router = Router();
 /**
  * A library file, with its stored object addressable.
  *
- * `url` and `thumbnail` hold KEYS. A key is not an address, and this is the one
- * place a library file gets one — a file whose object cannot be addressed drops
- * the field rather than carrying a string the browser cannot fetch.
+ * `url` and `thumbnail` hold stored LOCATORS (an Oxy file, a legacy key, or
+ * both while it moves — `storedLocator`). A locator is not an address, and this
+ * is the one place a library file gets one — a file whose object cannot be
+ * addressed drops the field rather than carrying a string the browser cannot
+ * fetch.
  */
 function withAddressableFile(
   req: Request,
@@ -121,28 +123,37 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
       category = 'documents';
     }
 
-    // Upload to S3
-    const url = await uploadToS3(file.buffer, file.originalname, `library/${userId}`, 'file');
-
-    // Upload thumbnail for images
-    let thumbnail: string | undefined;
-    if (category === 'images') {
-      thumbnail = url; // Use the same URL as thumbnail for now
-    }
+    // The person's own file (`lib/files/oxy-files.ts` says where it goes and
+    // why). Nothing names it until the row below commits; the row's own
+    // transaction records Alia's use of it.
+    const stored = await storePrivateContent({
+      kind: 'library_file',
+      owner: { kind: 'person', oxyUserId: userId },
+      bytes: file.buffer,
+      mime: file.mimetype,
+      name: file.originalname,
+      legacyKey: newLegacyKey(`library/${userId}`, 'file', file.originalname),
+    });
 
     // Create database record. `owner` -> `ownerOxyUserId` is the one column
-    // mapping in this domain that cannot be derived from the names.
+    // mapping in this domain that cannot be derived from the names. An image is
+    // its own thumbnail.
     const row = await createLibraryFile(getDb(), {
       ownerOxyUserId: userId,
       name: file.originalname,
-      url,
+      url: stored.objectKey,
+      oxyFileId: stored.oxyFileId,
       type: file.mimetype,
       size: file.size,
       category,
-      thumbnail,
+      ...(category === 'images' && stored.objectKey !== null
+        ? { thumbnail: stored.objectKey }
+        : {}),
     });
 
-    res.status(201).json({ file: toLibraryFileResponse(row) });
+    // Addressable, like every other read of this resource: the stored locator
+    // is not something a client can fetch.
+    res.status(201).json({ file: withAddressableFile(req, userId, toLibraryFileResponse(row)) });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error uploading library file');
     res.status(500).json({ error: 'Failed to upload file' });
@@ -156,21 +167,13 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const db = getDb();
-    const file = await findLibraryFile(db, String(req.params.id), userId);
-
-    if (!file) {
+    // One transaction removes the row and records what it named as released:
+    // the person's Oxy file loses Alia's reference and a legacy object becomes
+    // garbage for the collector (`lib/files/oxy-file-sync.ts`).
+    const removed = await deleteLibraryFile(getDb(), String(req.params.id), userId);
+    if (removed === 0) {
       return res.status(404).json({ error: 'File not found' });
     }
-
-    // Delete from S3
-    await deleteFromS3(file.url);
-    if (file.thumbnail && file.thumbnail !== file.url) {
-      await deleteFromS3(file.thumbnail);
-    }
-
-    // Delete database record
-    await deleteLibraryFile(db, file.id, userId);
 
     res.json({ success: true });
   } catch (error: unknown) {

@@ -23,6 +23,7 @@ An ADR records a decision that is **in force now**, the context that forced it, 
 | [0015](./0015-actors-and-identities.md) | Actors and identities: Alia and agents, for the person and as themselves | Accepted; amended by 0020 | 2026-10-06 |
 | [0017](./0017-voice-is-a-realtime-session-through-kaana.md) | Voice is a realtime speech-to-speech session through Kaana; dictation is Kaana transcription | Accepted (supersedes 0013 §1–3); amended by 0020 | 2026-10-15 |
 | [0018](./0018-the-conversation-screen-is-the-sdks.md) | The conversation screen is the SDK's; the app keeps its layout | Accepted | 2026-10-15 |
+| [0019](./0019-alia-stores-files-in-oxy-files.md) | Alia stores files in Oxy Files, behind one seam | Accepted (implemented; switched on per Oxy and Syra deploy) | 2026-10-16 |
 | [0020](./0020-every-agent-is-the-same-agent.md) | Every agent is the same agent: one base for Alia, people's agents and app agents | Accepted | 2026-10-16 |
 | [0021](./0021-app-confined-agents.md) | An app's agent may be confined to that app, by Oxy | Accepted | 2026-10-16 |
 
@@ -66,3 +67,5 @@ ADR 0021 is the owner's decision of 2026-10-16 that an Oxy application's own age
 **An accepted ADR is not edited to change its decision.** Correcting a typo or a broken link is fine. Changing what was decided means writing a new ADR that supersedes it, so that the reasoning behind the earlier state survives.
 
 **No invented facts.** A claim about current code cites `path:line`. A claim about a future check says it does not exist yet.
+
+ADR 0019 applies Oxy ADR 0043 to Alia: who owns each kind of stored bytes, how every use reaches Oxy (a transactional reference outbox, nightly reconciliation, file events), why show covers move out of Syra into Alia's own Oxy files, and how private content moves through one module on Oxy stage 4c (consent read-back, large uploads, a legacy fallback). The runbook is [Alia on Oxy Files](../oxy-files.md).

@@ -5,11 +5,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 /**
  * Where a show's cover actually comes from.
  *
- * `coverImageAssetId` is SYRA's image id, not an Oxy file id — `mintCover`
- * uploads the generated square through Syra's `uploadPodcastImage`. A wrong base
- * or a wrong path fails silently: `expo-image` renders nothing and the screen
- * looks like a show with no artwork, which is also a real state. So the URL is
- * asserted whole, against the app's own configured Syra base.
+ * `coverFileId` is ALIA's Oxy file and goes through Bloom's image resolver —
+ * the app's one chokepoint for Oxy URLs — with a rendition sized to the tile.
+ * `coverImageAssetId` is SYRA's legacy image id, read only when there is no
+ * file. A wrong base or a wrong path fails silently: `expo-image` renders
+ * nothing and the screen looks like a show with no artwork, which is also a
+ * real state. So both URLs are asserted whole.
  */
 
 vi.mock('react-native', async () => {
@@ -37,6 +38,11 @@ vi.mock('@oxy.so/bloom/card', async () => {
   };
 });
 
+/** The app binds this to `oxyServices.assets.publicUrl`; here it names its inputs. */
+vi.mock('@oxy.so/bloom/image-resolver', () => ({
+  useImageResolver: () => (id: string, variant?: string) => `resolved://${id}?${variant ?? ''}`,
+}));
+
 vi.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: 'grey' } }),
 }));
@@ -55,14 +61,15 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 let renderer: ReactTestRenderer | null = null;
 
-function render(assetId: string | null | undefined) {
+function render(assetId: string | null | undefined, fileId?: string | null, size = 64) {
   let next: ReactTestRenderer | undefined;
   act(() => {
     next = create(
       <ShowArtwork
+        fileId={fileId}
         assetId={assetId}
         title="The Wednesday Digest"
-        size={64}
+        size={size}
         radius="radius-12"
         iconSize={26}
       />,
@@ -90,6 +97,17 @@ afterEach(() => {
 });
 
 describe('ShowArtwork', () => {
+  it('resolves an Oxy cover file through the image resolver, sized to the tile', () => {
+    const [small] = nodes(render('legacy-ignored', 'oxy-file-1'), 'Image');
+    // The file wins over the legacy Syra id; a 64px tile asks for `thumb`.
+    expect(small.props.source).toEqual({ uri: 'resolved://oxy-file-1?thumb' });
+    act(() => renderer?.unmount());
+    renderer = null;
+
+    const [hero] = nodes(render(null, 'oxy-file-1', 140), 'Image');
+    expect(hero.props.source).toEqual({ uri: 'resolved://oxy-file-1?w640' });
+  });
+
   it("fetches the cover from Syra's public image route", () => {
     const root = render('01925f3c-cover');
     const [image] = nodes(root, 'Image');

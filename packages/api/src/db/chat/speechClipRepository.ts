@@ -10,15 +10,26 @@
  * write `last_used_at` and one compares against it.
  */
 
-import { and, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { recordFileReferences } from '../files/oxyFileRepository';
 import type { ApiDatabase, Executor } from '../index';
 import { speechClips } from '../schema/speech';
 
-/** A stored clip, as the cache reads it. */
-export interface SpeechClipRow {
+/** Where a clip's bytes are: a legacy object, an Oxy file Alia owns, or both while it moves. */
+export interface StoredSpeechClip {
   readonly cacheKey: string;
-  readonly objectKey: string;
+  readonly objectKey: string | null;
+  readonly oxyFileId: string | null;
 }
+
+/** A stored clip, as the cache reads it. */
+export type SpeechClipRow = StoredSpeechClip;
+
+const STORED = {
+  cacheKey: speechClips.cacheKey,
+  objectKey: speechClips.objectKey,
+  oxyFileId: speechClips.oxyFileId,
+} as const;
 
 /** The clips this person holds under any of these keys. Order is the caller's to impose. */
 export async function findSpeechClips(
@@ -28,7 +39,7 @@ export async function findSpeechClips(
 ): Promise<SpeechClipRow[]> {
   if (cacheKeys.length === 0) return [];
   return db
-    .select({ cacheKey: speechClips.cacheKey, objectKey: speechClips.objectKey })
+    .select(STORED)
     .from(speechClips)
     .where(
       and(eq(speechClips.oxyUserId, oxyUserId), inArray(speechClips.cacheKey, [...cacheKeys])),
@@ -59,48 +70,108 @@ export async function touchSpeechClip(
 }
 
 /**
- * Index a clip just stored, and answer the object key that now stands for it.
+ * Index a clip just stored, and answer where the clip that now stands is.
  *
  * One statement, so two tasks that made the same clip at once agree on ONE
- * object: the first insert wins, the second matches it and gets the winner's
- * key back — the caller compares and deletes its own surplus object. The
+ * stored copy: the first insert wins, the second matches it and gets the
+ * winner's back — the caller compares and gives up its own surplus. The
  * conflict branch only touches `last_used_at`, which is also what makes it
  * return the standing row.
+ *
+ * The standing clip's Oxy file reference is recorded in the SAME transaction,
+ * so Alia's use of the file exists exactly when the row does.
  */
 export async function indexSpeechClip(
   db: ApiDatabase,
   clip: {
     readonly cacheKey: string;
     readonly oxyUserId: string;
-    readonly objectKey: string;
+    readonly objectKey: string | null;
+    readonly oxyFileId?: string | null;
   },
-): Promise<string> {
-  const [standing] = await db
-    .insert(speechClips)
-    .values(clip)
-    .onConflictDoUpdate({ target: speechClips.cacheKey, set: { lastUsedAt: sql`now()` } })
-    .returning({ objectKey: speechClips.objectKey });
-  if (standing === undefined) throw new Error('Speech clip was not indexed');
-  return standing.objectKey;
+): Promise<StoredSpeechClip> {
+  return db.transaction(async (tx) => {
+    const [standing] = await tx
+      .insert(speechClips)
+      .values({ ...clip, oxyFileId: clip.oxyFileId ?? null })
+      .onConflictDoUpdate({ target: speechClips.cacheKey, set: { lastUsedAt: sql`now()` } })
+      .returning(STORED);
+    if (standing === undefined) throw new Error('Speech clip was not indexed');
+    if (standing.oxyFileId !== null) {
+      await recordFileReferences(tx, [
+        {
+          fileId: standing.oxyFileId,
+          entityType: 'speech_clip',
+          entityId: standing.cacheKey,
+          desired: 'present',
+        },
+      ]);
+    }
+    return standing;
+  });
 }
 
 /**
- * Remove every clip spoken from this person's conversation, answering the
- * object keys so the caller deletes the objects too — inside the same
- * transaction, so the rows come back if the objects could not go.
+ * The migration's write: a legacy clip now also lives in an Oxy file Alia owns.
+ * Only while it has none; the legacy key stays as the dual-read fallback.
+ */
+export async function adoptSpeechClipOxyFile(
+  db: ApiDatabase,
+  cacheKey: string,
+  fileId: string,
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(speechClips)
+      .set({ oxyFileId: fileId })
+      .where(and(eq(speechClips.cacheKey, cacheKey), isNull(speechClips.oxyFileId)))
+      .returning({ cacheKey: speechClips.cacheKey });
+    if (!row) return false;
+    await recordFileReferences(tx, [
+      { fileId, entityType: 'speech_clip', entityId: cacheKey, desired: 'present' },
+    ]);
+    return true;
+  });
+}
+
+/** Legacy clips with no Oxy copy yet, by key after `afterKey` — the migration's work list. */
+export async function listSpeechClipsOnLegacyStorage(
+  db: ApiDatabase,
+  afterKey: string,
+  limit: number,
+): Promise<(StoredSpeechClip & { readonly oxyUserId: string })[]> {
+  return db
+    .select({ ...STORED, oxyUserId: speechClips.oxyUserId })
+    .from(speechClips)
+    .where(and(isNull(speechClips.oxyFileId), gt(speechClips.cacheKey, afterKey)))
+    .orderBy(asc(speechClips.cacheKey))
+    .limit(limit);
+}
+
+/** Clips whose Oxy file Oxy says is gone: the rows go too, legacy copy and all. */
+export async function deleteSpeechClipsByOxyFile(
+  db: Executor,
+  fileId: string,
+): Promise<StoredSpeechClip[]> {
+  return db.delete(speechClips).where(eq(speechClips.oxyFileId, fileId)).returning(STORED);
+}
+
+/**
+ * Remove every clip spoken from this person's conversation, answering where
+ * each was stored so the caller releases them too — inside the same
+ * transaction, so the rows come back if that could not be done.
  */
 export async function deleteConversationSpeechClips(
   db: Executor,
   oxyUserId: string,
   conversationId: string,
-): Promise<string[]> {
-  const removed = await db
+): Promise<StoredSpeechClip[]> {
+  return db
     .delete(speechClips)
     .where(
       and(eq(speechClips.oxyUserId, oxyUserId), eq(speechClips.conversationId, conversationId)),
     )
-    .returning({ objectKey: speechClips.objectKey });
-  return removed.map((row) => row.objectKey);
+    .returning(STORED);
 }
 
 /**
@@ -112,7 +183,7 @@ export async function deleteStaleSpeechClips(
   db: Executor,
   retentionDays: number,
   limit: number,
-): Promise<{ objectKeys: string[]; truncated: boolean }> {
+): Promise<{ clips: StoredSpeechClip[]; truncated: boolean }> {
   const stale = db
     .select({ cacheKey: speechClips.cacheKey })
     .from(speechClips)
@@ -127,6 +198,6 @@ export async function deleteStaleSpeechClips(
         lt(speechClips.lastUsedAt, sql`now() - make_interval(days => ${retentionDays})`),
       ),
     )
-    .returning({ objectKey: speechClips.objectKey });
-  return { objectKeys: removed.map((row) => row.objectKey), truncated: removed.length >= limit };
+    .returning(STORED);
+  return { clips: removed, truncated: removed.length >= limit };
 }

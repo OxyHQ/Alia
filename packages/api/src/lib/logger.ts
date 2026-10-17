@@ -163,6 +163,7 @@ export const log = {
   v1: createLogger('v1'),
   models: createLogger('models'),
   speech: createLogger('speech'),
+  files: createLogger('files'),
   voice: createLogger('voice'),
   canvas: createLogger('canvas'),
   agents: createLogger('agents'),

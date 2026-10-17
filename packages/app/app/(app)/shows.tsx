@@ -70,6 +70,7 @@ function SeriesRow({ series, onOpen }: { series: ShowSeries; onOpen: (id: string
       <Item
         leading={
           <ShowArtwork
+            fileId={series.coverFileId}
             assetId={series.coverImageAssetId}
             title={series.title}
             size={64}

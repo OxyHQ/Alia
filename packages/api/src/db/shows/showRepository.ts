@@ -26,6 +26,7 @@
 
 import { and, count, desc, eq, inArray, lt, ne, sql } from 'drizzle-orm';
 import type { ApiDatabase } from '../index';
+import { recordFileReferences } from '../files/oxyFileRepository';
 import {
   ACTIVE_SHOW_EPISODE_STATUSES,
   showEpisodes,
@@ -98,27 +99,46 @@ export interface NewShowSeries {
   readonly speakers: ShowSpeaker[];
   readonly visibility: ShowVisibility;
   readonly coverImageAssetId?: string | undefined;
+  /** The cover as Alia's Oxy file (`lib/files/oxy-files.ts`). */
+  readonly coverFileId?: string | undefined;
 }
 
+/**
+ * Insert a series, and — in the SAME transaction — record that it uses its
+ * cover file, so Oxy is told about the use exactly when the series exists.
+ */
 export async function createSeries(db: ApiDatabase, input: NewShowSeries): Promise<ShowSeriesRow> {
-  const [row] = await db
-    .insert(showSeries)
-    .values({
-      id: input.id,
-      userId: input.userId,
-      syraPodcastId: input.syraPodcastId,
-      title: input.title,
-      description: input.description ?? null,
-      format: input.format,
-      brief: input.brief,
-      speakers: input.speakers,
-      visibility: input.visibility,
-      coverImageAssetId: input.coverImageAssetId ?? null,
-    })
-    .returning();
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(showSeries)
+      .values({
+        id: input.id,
+        userId: input.userId,
+        syraPodcastId: input.syraPodcastId,
+        title: input.title,
+        description: input.description ?? null,
+        format: input.format,
+        brief: input.brief,
+        speakers: input.speakers,
+        visibility: input.visibility,
+        coverImageAssetId: input.coverImageAssetId ?? null,
+        coverFileId: input.coverFileId ?? null,
+      })
+      .returning();
 
-  if (!row) throw new Error('show series insert returned no row');
-  return row;
+    if (!row) throw new Error('show series insert returned no row');
+    if (row.coverFileId !== null) {
+      await recordFileReferences(tx, [
+        {
+          fileId: row.coverFileId,
+          entityType: 'show_series',
+          entityId: row.id,
+          desired: 'present',
+        },
+      ]);
+    }
+    return row;
+  });
 }
 
 /** What the owner may change about a series after it exists. */
@@ -128,6 +148,11 @@ export interface ShowSeriesPatch {
   readonly brief?: string;
   readonly visibility?: ShowVisibility;
   readonly coverImageAssetId?: string | null;
+  /**
+   * A new cover file. Replacing it releases the old one's reference and records
+   * the new one's, in the update's own transaction.
+   */
+  readonly coverFileId?: string | null;
   readonly speakers?: ShowSpeaker[];
 }
 
@@ -148,13 +173,49 @@ export async function updateSeriesForUser(
   // with nothing to change wants the current row rather than a crash.
   if (Object.keys(patch).length === 0) return findSeriesForUser(db, seriesId, userId);
 
-  const [row] = await db
-    .update(showSeries)
-    .set(patch)
-    .where(and(eq(showSeries.id, seriesId), eq(showSeries.userId, userId)))
-    .returning();
+  return db.transaction(async (tx) => {
+    // Read the cover being replaced under the row lock, so two concurrent
+    // regenerations each release the cover the OTHER did not keep.
+    const [before] = await tx
+      .select({ coverFileId: showSeries.coverFileId })
+      .from(showSeries)
+      .where(and(eq(showSeries.id, seriesId), eq(showSeries.userId, userId)))
+      .for('update');
+    if (!before) return null;
 
-  return row ?? null;
+    const [row] = await tx
+      .update(showSeries)
+      .set(patch)
+      .where(and(eq(showSeries.id, seriesId), eq(showSeries.userId, userId)))
+      .returning();
+    if (!row) return null;
+
+    if (patch.coverFileId !== undefined && before.coverFileId !== row.coverFileId) {
+      await recordFileReferences(tx, [
+        ...(before.coverFileId === null
+          ? []
+          : [
+              {
+                fileId: before.coverFileId,
+                entityType: 'show_series' as const,
+                entityId: row.id,
+                desired: 'absent' as const,
+              },
+            ]),
+        ...(row.coverFileId === null
+          ? []
+          : [
+              {
+                fileId: row.coverFileId,
+                entityType: 'show_series' as const,
+                entityId: row.id,
+                desired: 'present' as const,
+              },
+            ]),
+      ]);
+    }
+    return row;
+  });
 }
 
 /** Unscoped by design — the pipeline owns the id it was handed. */
@@ -228,11 +289,113 @@ export async function deleteSeriesForUser(
   seriesId: string,
   userId: string,
 ): Promise<boolean> {
-  const result = await db
-    .delete(showSeries)
-    .where(and(eq(showSeries.id, seriesId), eq(showSeries.userId, userId)));
+  return db.transaction(async (tx) => {
+    const removed = await tx
+      .delete(showSeries)
+      .where(and(eq(showSeries.id, seriesId), eq(showSeries.userId, userId)))
+      .returning({ id: showSeries.id, coverFileId: showSeries.coverFileId });
+    // The cover's reference goes with the row, in the same transaction: Alia
+    // stops using the file the moment the series is gone, and Oxy collects it
+    // once nothing else (Syra's podcast, if it survives) uses it either.
+    await recordFileReferences(
+      tx,
+      removed.flatMap((row) =>
+        row.coverFileId === null
+          ? []
+          : [
+              {
+                fileId: row.coverFileId,
+                entityType: 'show_series' as const,
+                entityId: row.id,
+                desired: 'absent' as const,
+              },
+            ],
+      ),
+    );
+    return removed.length > 0;
+  });
+}
 
-  return result.count > 0;
+/**
+ * A cover file Oxy says can no longer be shown — taken down after a content
+ * claim, or deleted: every series using it loses its cover, legacy one
+ * included, because the legacy Syra image holds the SAME bytes and showing it
+ * instead would route around the takedown. Its reference is released in the
+ * same transaction. Answers the series that lost a cover.
+ */
+export async function dropSeriesCoverFile(db: ApiDatabase, fileId: string): Promise<string[]> {
+  return db.transaction(async (tx) => {
+    const cleared = await tx
+      .update(showSeries)
+      .set({ coverFileId: null, coverImageAssetId: null, updatedAt: sql`now()` })
+      .where(eq(showSeries.coverFileId, fileId))
+      .returning({ id: showSeries.id });
+    await recordFileReferences(
+      tx,
+      cleared.map((row) => ({
+        fileId,
+        entityType: 'show_series' as const,
+        entityId: row.id,
+        desired: 'absent' as const,
+      })),
+    );
+    return cleared.map((row) => row.id);
+  });
+}
+
+/**
+ * The migration's write: a series' legacy cover now lives in Alia's Oxy file.
+ * Only while the series still has that legacy cover and no Oxy file — a cover
+ * regenerated meanwhile wins — with the reference in the same transaction.
+ */
+export async function adoptSeriesCoverFile(
+  db: ApiDatabase,
+  seriesId: string,
+  legacyImageAssetId: string,
+  fileId: string,
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(showSeries)
+      .set({ coverFileId: fileId, updatedAt: sql`now()` })
+      .where(
+        and(
+          eq(showSeries.id, seriesId),
+          eq(showSeries.coverImageAssetId, legacyImageAssetId),
+          sql`${showSeries.coverFileId} is null`,
+        ),
+      )
+      .returning({ id: showSeries.id });
+    if (!row) return false;
+    await recordFileReferences(tx, [
+      { fileId, entityType: 'show_series', entityId: row.id, desired: 'present' },
+    ]);
+    return true;
+  });
+}
+
+/** Series still showing a legacy Syra cover and no Oxy file, oldest first, after `afterId`. */
+export async function listSeriesOnLegacyCover(
+  db: ApiDatabase,
+  afterId: string,
+  limit: number,
+): Promise<Pick<ShowSeriesRow, 'id' | 'syraPodcastId' | 'coverImageAssetId'>[]> {
+  return db
+    .select({
+      id: showSeries.id,
+      syraPodcastId: showSeries.syraPodcastId,
+      coverImageAssetId: showSeries.coverImageAssetId,
+    })
+    .from(showSeries)
+    .where(
+      and(
+        sql`${showSeries.coverImageAssetId} is not null`,
+        sql`${showSeries.coverFileId} is null`,
+        sql`${showSeries.id} > ${afterId}`,
+      ),
+    )
+    .orderBy(showSeries.id)
+    .limit(limit);
 }
 
 /**

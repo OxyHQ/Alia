@@ -24,7 +24,8 @@
 import { Router, type Request, type Response } from 'express';
 
 import { verifyPlaybackQuery } from '../lib/stored-media.js';
-import { readS3Object } from '../lib/s3.js';
+import { parseStoredLocator } from '../domain/oxy-files.js';
+import { legacyKindOfKey, openStoredContent } from '../lib/files/oxy-files.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
@@ -44,7 +45,13 @@ router.get('/', async (req: Request, res: Response) => {
       .json({ error: { message: 'This media link is not valid', type: 'forbidden' } });
   }
 
-  const object = await readS3Object(verdict.fields.key);
+  // The signed value is a stored locator: an Oxy file first, the legacy key
+  // only when there is none (and counted when it is read).
+  const stored = parseStoredLocator(verdict.fields.key);
+  const object = await openStoredContent(
+    stored,
+    stored.objectKey === null ? 'other' : legacyKindOfKey(stored.objectKey),
+  );
   if (object === null) {
     return res
       .status(404)
@@ -60,7 +67,7 @@ router.get('/', async (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'private, max-age=900');
 
   object.body.on('error', (err: unknown) => {
-    log.general.warn({ err, key: verdict.fields.key }, 'Playback stream failed mid-flight');
+    log.general.warn({ err }, 'Playback stream failed mid-flight');
     // Headers are already sent by then, so destroying the socket is the only
     // honest end: a truncated body that ends cleanly reads as a complete clip.
     res.destroy();
