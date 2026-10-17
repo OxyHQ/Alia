@@ -27,6 +27,7 @@ export type { AliaAddMenu } from './lib/add-menu';
 export type { AliaVoiceOptions } from './hooks/useChatVoice';
 export { AliaChatSheet } from './components/AliaChatSheet';
 export type { AliaChatSheetProps, AliaChatSheetRef } from './components/AliaChatSheet';
+export { AliaRecentConversations } from './components/AliaRecentConversations';
 export type { AliaTurn } from './hooks/useChatComposer';
 export { AliaChatScreen } from './components/AliaChatScreen';
 export type { AliaChatScreenProps } from './components/AliaChatScreen';

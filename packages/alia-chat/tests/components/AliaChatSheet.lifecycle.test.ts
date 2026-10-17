@@ -36,6 +36,15 @@ describe('AliaChatSheet stacking', () => {
     expect(source).toMatch(/initialTurn=\{conversation\.turn\}/);
   });
 
+  it('picks a stored conversation up in the same stacked sheet, offered under the greeting', () => {
+    expect(source).toMatch(/conversationId=\{conversation\.conversationId\}/);
+    expect(source).toMatch(/onConversationChange=\{followConversation\}/);
+    expect(source).toMatch(
+      /<AliaRecentConversations agentId=\{agent\?\.id\} onOpen=\{resumeConversation\} \/>/,
+    );
+    expect(content).toMatch(/\{welcomeAccessory\}/);
+  });
+
   it("takes the conversation's back button to the main screen, closing only the top sheet", () => {
     expect(source).toMatch(/onBack=\{closeConversation\}/);
     expect(source).toMatch(/onClear=\{closeConversation\}/);

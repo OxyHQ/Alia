@@ -163,9 +163,15 @@ import { AliaAskProvider, useAskAgent } from '@alia.onl/sdk';
   {children}
 </AliaAskProvider>;
 
-const { ask } = useAskAgent();
+const { ask, resume, dismiss } = useAskAgent();
 ask('sindi', { text: 'Is this flat a good price?' }); // signed out: Oxy's sign-in instead
+resume('sindi', conversationId); // a stored conversation, where the person left it
+dismiss(); // e.g. after a host tool changed the page under the sheet
 ```
+
+The sheet offers the person's latest conversations with its lead under the greeting
+(`recentConversations={false}` turns it off). The code that configures the sheet sits above it, so
+`AliaAskProvider` forwards a ref to the same `AliaAsk` for it.
 
 - **The lead.** `agent={{ id }}` (on `AliaChatSheet`, `AliaChatScreen` and `AliaChatContent`) makes
   that agent the conversation's lead: its greeting, name, character and starters

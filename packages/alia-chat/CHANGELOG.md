@@ -1,5 +1,22 @@
 # @alia.onl/sdk
 
+## 20.1.0
+
+The one sheet is the whole surface an app needs for an agent: it picks a conversation up again and
+the app can close it.
+
+### Added
+
+- **`useAskAgent().resume(agentKey, conversationId)`** opens the sheet of that agent on a stored
+  conversation, where the person left it (`AliaChatSheetRef.resume`).
+- **`useAskAgent().dismiss()`**, and `AliaAskProvider` forwards a ref to the same `AliaAsk`, for
+  the code that configures the sheet and so sits above it — a host-tool executor that changed the
+  page under the sheet closes it once the turn is written.
+- **The sheet's recent conversations.** Under the greeting, the person's three latest conversations
+  with the lead (`AliaRecentConversations`; Alia's sheet lists any). `recentConversations={false}`
+  turns it off. New label `recentConversations` (`'Recent'`).
+- **`AliaChatContent` `welcomeAccessory`**, drawn under the empty chat's greeting.
+
 ## 20.0.0
 
 Generic chat UI is Bloom's; the SDK composes it and keeps only what is Alia's. Two copies the SDK

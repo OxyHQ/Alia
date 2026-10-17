@@ -87,6 +87,8 @@ export interface AliaChatLabels {
   // Conversations (the runtime's own words: toasts and the errors it raises)
   /** A conversation's title until it has one. */
   newChat: string;
+  /** Over the sheet's recent conversations with its lead. */
+  recentConversations: string;
   /** A turn could not be sent and the composer got its text back. */
   sendFailed: string;
   /** The session ended mid-request. */
@@ -165,6 +167,7 @@ export const DEFAULT_LABELS: AliaChatLabels = {
   t: englishCopy,
   locale: 'en',
   newChat: 'New chat',
+  recentConversations: 'Recent',
   sendFailed: "Your message couldn't be sent",
   signInRequired: 'Sign in to keep chatting',
   conversationSaveFailed: 'Failed to save conversation',
