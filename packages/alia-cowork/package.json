@@ -21,7 +21,7 @@
     "dist": "bun run build && electron-builder --publish never"
   },
   "dependencies": {
-    "@browserbasehq/stagehand": "^3.7.0",
+    "@browserbasehq/stagehand": "^4.2.1",
     "@hugeicons/core-free-icons": "^3.3.0",
     "@hugeicons/react": "^1.1.9",
     "@oxy.so/bloom": "10.21.0",
