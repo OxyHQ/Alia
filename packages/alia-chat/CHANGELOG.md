@@ -1,5 +1,18 @@
 # @alia.onl/sdk
 
+## 21.1.0
+
+A shared conversation has one address, Alia's, whichever app minted it (`docs/agent-embedding.md`
+§6).
+
+### Added
+
+- **`url` on `AliaConversationShare`**: `useShareConversation().share` (and a host's `onShare`)
+  gets the link to hand on, `https://alia.onl/shared/<token>`, rather than a token to build its own
+  page around.
+- **`aliaSharedConversationUrl(token)`**: the same link, for an app that redirects the share links
+  it minted before to Alia's page.
+
 ## 21.0.0
 
 A conversation records the Oxy app it started in, so an embedding app lists only its own while

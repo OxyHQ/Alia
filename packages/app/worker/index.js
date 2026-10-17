@@ -21,12 +21,25 @@ const HASHED = [
 ];
 const IMMUTABLE = 'public, max-age=31536000, immutable';
 
+/**
+ * A shared conversation (`app/(biglayout)/shared/[token].tsx`) is somebody's conversation handed
+ * to the people they chose: never indexed. Said in the response, because the page itself is the
+ * app shell and only says so once its script runs.
+ */
+const UNINDEXED_PREFIXES = ['/shared/'];
+
 export default {
   async fetch(request, env) {
     const response = await env.ASSETS.fetch(request);
     const { pathname } = new URL(request.url);
     const shared = SHARED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
     const hashed = HASHED.some((pattern) => pattern.test(pathname));
+    const unindexed = UNINDEXED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+    if (unindexed) {
+      const page = new Response(response.body, response);
+      page.headers.set('X-Robots-Tag', 'noindex, nofollow');
+      return page;
+    }
     if (!shared && !hashed) return response;
     // `not_found_handling` answers every miss with the app shell. Under a hashed name that is a
     // file this deploy does not have (an old tab asking for last release's chunk): say so, and let

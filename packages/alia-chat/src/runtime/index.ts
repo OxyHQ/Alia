@@ -51,6 +51,7 @@ export {
   useShareConversation,
   useSharedConversation,
 } from './sharing';
+export { aliaSharedConversationUrl } from '../lib/origins';
 export type {
   AliaConversationShare,
   AliaSharedAgent,
