@@ -44,7 +44,7 @@ describe('AliaServerClient — the request', () => {
     await collect(
       await client.stream(
         { agentId: 'agent-id', messages: turn.messages },
-        { headers: { 'X-Oxy-Requester-Assertion': 'one-use-assertion' } },
+        { headers: { 'X-Request-Id': 'request-1' } },
       ),
     );
 
@@ -56,7 +56,7 @@ describe('AliaServerClient — the request', () => {
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
       Authorization: `Bearer ${TOKEN}`,
-      'X-Oxy-Requester-Assertion': 'one-use-assertion',
+      'X-Request-Id': 'request-1',
     });
     expect(JSON.parse(String(init.body))).toEqual({
       agentId: 'agent-id',
@@ -65,12 +65,12 @@ describe('AliaServerClient — the request', () => {
     });
   });
 
-  it('calls the header function once per turn, because a one-use header cannot be cached', async () => {
+  it('calls the header function once per turn, so a per-request header is never cached', async () => {
     let minted = 0;
     const client = new AliaServerClient({
       baseUrl: 'https://api.alia.onl',
       token: async () => TOKEN,
-      headers: () => ({ 'X-Oxy-Requester-Assertion': `assertion-${(minted += 1)}` }),
+      headers: () => ({ 'X-Request-Id': `request-${(minted += 1)}` }),
       fetch: (async () => {
         const wire = aliaStream();
         wire.text('ok');

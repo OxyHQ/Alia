@@ -55,9 +55,8 @@ export interface AliaServerClientOptions {
    */
   readonly token?: string | (() => string | Promise<string>);
   /**
-   * Extra headers. A function is called once per turn, which is what a one-use
-   * header such as `X-Oxy-Requester-Assertion` needs: Oxy consumes each
-   * assertion, so it must be minted per request and never cached.
+   * Extra headers. A function is called once per turn, for a header whose
+   * value changes on every request and so must never be cached.
    */
   readonly headers?: AliaHeaders | (() => AliaHeaders | Promise<AliaHeaders>);
   /** Injected for tests. Defaults to the global `fetch`. */
