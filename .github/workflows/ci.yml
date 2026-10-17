@@ -323,6 +323,13 @@ jobs:
       - name: Verify Oxy dependency health
         run: bun run doctor:oxy
 
+      # Every Oxy app shares one Postgres: a new migration may not hold a lock
+      # that stalls a hot table (NOT VALID foreign keys, hot-table DDL alone in
+      # its migration). The rules are @oxy.so/db's; baselines and hot tables are
+      # in each package's db:check-locks script.
+      - name: Migration lock gate
+        run: bun run --filter @alia/api db:check-locks && bun run --filter @alia/integrations db:check-locks
+
       # One Biome pass over the whole repository: formatting, the recommended
       # lint preset, and the guards ported from the per-package ESLint configs
       # it replaced (`biome.json` overrides; the Expo `process.env` rules are
