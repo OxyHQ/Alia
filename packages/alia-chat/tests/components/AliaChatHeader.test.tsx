@@ -53,7 +53,10 @@ vi.mock('@oxy.so/bloom/agent-reply', () => ({
     return null;
   },
 }));
-vi.mock('@oxy.so/bloom/avatar-flight', () => ({ centeredLanding: () => () => ({}) }));
+vi.mock('@oxy.so/bloom/avatar-flight', () => ({
+  useAvatarJoin: ({ arrivals }: { arrivals: Array<{ agent: unknown }> }) =>
+    arrivals.map((arrival) => arrival.agent),
+}));
 vi.mock('../../src/lib/alia-character', () => ({ ALIA_AVATAR: { preset: 'alia' } }));
 vi.mock('../../src/lib/agent-character', () => ({ readAgentCharacter: (value: unknown) => value }));
 
