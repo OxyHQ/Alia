@@ -22,8 +22,9 @@ export interface AgentOxyApp {
 export interface AgentOxyApps {
   apps: AgentOxyApp[];
   /**
-   * `hidden` when the person is not the agent's owner (403): the levels are
-   * grants over the OWNER's data, so nobody else is shown them.
+   * `hidden` when the API answers 403: the owner's levels are grants over the
+   * OWNER's data, and the ceilings are for whoever operates the agent, so
+   * nobody else is shown either.
    */
   status: 'loading' | 'ready' | 'failed' | 'hidden';
   setLevel: (app: AgentOxyApp, level: OxyAppLevel) => void;
@@ -37,18 +38,45 @@ export interface AgentOxyApps {
  * truth either way.
  */
 export function useAgentOxyApps(agentId: string): AgentOxyApps {
+  return useAppLevels({
+    key: queryKeys.agents.oxyApps(agentId),
+    list: API_ROUTES.agents.oxyApps(agentId),
+    item: (appId) => API_ROUTES.agents.oxyApp(agentId, appId),
+    saveFailed: 'agents.oxyApps.saveFailed',
+  });
+}
+
+/**
+ * What the agent may do, per Oxy app, on the data of WHOEVER uses it — its
+ * published ceiling (ADR 0020 §2, Oxy ADR 0042). The same three levels and the
+ * same optimistic change as {@link useAgentOxyApps}; hidden (403) for anybody
+ * who does not operate the agent.
+ */
+export function useAgentRequesterApps(agentId: string): AgentOxyApps {
+  return useAppLevels({
+    key: queryKeys.agents.requesterApps(agentId),
+    list: API_ROUTES.agents.requesterApps(agentId),
+    item: (appId) => API_ROUTES.agents.requesterApp(agentId, appId),
+    saveFailed: 'agents.requesterApps.saveFailed',
+  });
+}
+
+function useAppLevels(source: {
+  key: readonly unknown[];
+  list: string;
+  item: (appId: string) => string;
+  saveFailed: string;
+}): AgentOxyApps {
   const { t } = useTranslation();
   const { isAuthenticated } = useOxy();
   const queryClient = useQueryClient();
-  const key = queryKeys.agents.oxyApps(agentId);
+  const { key } = source;
 
   const query = useQuery({
     queryKey: key,
     queryFn: async (): Promise<AgentOxyApp[] | null> => {
       try {
-        const response = await apiClient.get<{ apps: AgentOxyApp[] }>(
-          API_ROUTES.agents.oxyApps(agentId),
-        );
+        const response = await apiClient.get<{ apps: AgentOxyApp[] }>(source.list);
         return response.data.apps ?? [];
       } catch (error) {
         if (errorStatus(error) === 403) return null;
@@ -61,10 +89,9 @@ export function useAgentOxyApps(agentId: string): AgentOxyApps {
 
   const mutation = useMutation({
     mutationFn: async ({ app, level }: { app: AgentOxyApp; level: OxyAppLevel }) => {
-      const response = await apiClient.put<{ app: AgentOxyApp }>(
-        API_ROUTES.agents.oxyApp(agentId, app.appId),
-        { level },
-      );
+      const response = await apiClient.put<{ app: AgentOxyApp }>(source.item(app.appId), {
+        level,
+      });
       return response.data.app;
     },
     onMutate: async ({ app, level }) => {
@@ -80,7 +107,7 @@ export function useAgentOxyApps(agentId: string): AgentOxyApps {
     },
     onError: (_error, { app }, context) => {
       queryClient.setQueryData(key, context?.previous);
-      toast.error(t('agents.oxyApps.saveFailed', { app: app.name }));
+      toast.error(t(source.saveFailed, { app: app.name }));
     },
     onSuccess: (saved) => {
       queryClient.setQueryData<AgentOxyApp[] | null>(

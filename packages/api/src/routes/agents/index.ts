@@ -12,6 +12,7 @@ import teamsRouter from './teams.js';
 import coworkDevicesRouter from './cowork-devices.js';
 import oxyAppsRouter from './oxy-apps.js';
 import requesterAppsRouter from './requester-apps.js';
+import featureGatesRouter from './feature-gates.js';
 
 const router = Router();
 
@@ -36,6 +37,7 @@ router.use('/', teamsRouter);
 router.use('/', coworkDevicesRouter);
 router.use('/', oxyAppsRouter);
 router.use('/', requesterAppsRouter);
+router.use('/', featureGatesRouter);
 
 // Session-specific routes (sessions/:sid/...) before parameterized /:id routes
 router.use('/', sessionsRouter);

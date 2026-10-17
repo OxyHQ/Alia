@@ -290,6 +290,14 @@ vi.mock('@/features/agents/ui/agent-capability-toggles', async () => {
       ReactModule.createElement('AgentCapabilityToggles', props),
   };
 });
+// Its Bloom select reaches native modules this suite does not stub; it has its own suite.
+vi.mock('@/features/agents/ui/edit/agent-feature-gates-section', async () => {
+  const ReactModule = await import('react');
+  return {
+    AgentFeatureGatesSection: (props: Record<string, unknown>) =>
+      ReactModule.createElement('AgentFeatureGatesSection', props),
+  };
+});
 vi.mock('@/features/agents/ui/agent-model-field', async () => {
   const ReactModule = await import('react');
   return {

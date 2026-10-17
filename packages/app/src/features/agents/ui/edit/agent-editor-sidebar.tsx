@@ -1,9 +1,15 @@
-import { AgentOxyAppsSection } from '@/features/agents/ui/edit/agent-oxy-apps-section';
+import { AgentFeatureGatesSection } from '@/features/agents/ui/edit/agent-feature-gates-section';
+import {
+  AgentOxyAppsSection,
+  AgentRequesterAppsSection,
+} from '@/features/agents/ui/edit/agent-oxy-apps-section';
+import { AgentStartersSection } from '@/features/agents/ui/edit/agent-starters-section';
 import { AgentResourcesPanel } from '@/features/agents/ui/edit/agent-resources-panel';
 import { AgentSettingsPanel } from '@/features/agents/ui/edit/agent-settings-panel';
 import { ConnectTelegramBotDialog } from '@/features/agents/ui/edit/telegram-bots-section';
 import type { GrantableConnector } from '@/features/chat/model/capability-families';
 import type { AgentDraft, LinkedSkill } from '@/features/agents/runtime/use-agent-autosave';
+import type { AgentFeatureGatesState } from '@/features/agents/runtime/use-agent-feature-gates';
 import type { AgentOxyApps } from '@/features/agents/runtime/use-agent-oxy-apps';
 import type { AgentTelegramBots } from '@/features/agents/runtime/use-agent-telegram-bots';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -28,6 +34,8 @@ export function AgentEditorSidebar({
   libraryFiles,
   telegram,
   oxyApps,
+  requesterApps,
+  featureGates,
 }: {
   /**
    * Held by the editor rather than here, so the side sheet reopens on the tab
@@ -43,6 +51,10 @@ export function AgentEditorSidebar({
   telegram: AgentTelegramBots;
   /** The owner's per-app levels; asked for when the editor opens, like the rest. */
   oxyApps: AgentOxyApps;
+  /** The per-app ceilings for whoever uses the agent (ADR 0020 §2). */
+  requesterApps: AgentOxyApps;
+  /** Which features an app's entitlement unlocks (ADR 0020 §6). */
+  featureGates: AgentFeatureGatesState;
 }) {
   const { t } = useTranslation();
 
@@ -62,6 +74,12 @@ export function AgentEditorSidebar({
         {tab === 'resources' ? (
           <>
             <AgentOxyAppsSection oxyApps={oxyApps} />
+            <AgentRequesterAppsSection requesterApps={requesterApps} />
+            <AgentFeatureGatesSection featureGates={featureGates} />
+            <AgentStartersSection
+              starters={draft.starters}
+              onChange={(starters) => onEdit({ starters })}
+            />
             <AgentResourcesPanel
               draft={draft}
               onEdit={onEdit}

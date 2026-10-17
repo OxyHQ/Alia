@@ -53,7 +53,18 @@ the agent is created; a null owner fails closed for Oxy tools, and
 | Clarity's assistant | `01a0646a-078f-7642-95ef-439952f4f3f9` | `public` | no (not in the catalogue) | only in Clarity, by Oxy's registry (Oxy ADR 0044) |
 
 Migration `0101` turned both former product agents into these rows (by id,
-never by name) before `0102` dropped `agents.application_id`.
+never by name) before `0102` dropped `agents.application_id`, and moved into
+them what the lane supplied from outside Alia: Sindi's persona (which Homiio
+sent with every request) and Clarity's (`prompts/base.md` in Clarity), their
+feature gates (Sindi's attachments behind Homiio's `sindi.files`; Clarity's
+deep research and `pro`/`ultra` behind Clarity's plan features) and Sindi's
+starters.
+
+Whoever operates an app's agent — an app's project operator included — edits
+all of it in the agent editor like any other agent: "Apps de Oxy" (the owner's
+levels), "Para quien lo usa" (the per-app ceiling for whoever uses it,
+`/agents/:id/requester-apps`), "Funciones con requisitos" (feature gates, below)
+and "Sugerencias de inicio" (starters).
 
 ### Where an agent opens is Oxy's (ADR 0021)
 
@@ -490,8 +501,16 @@ level; only the two levels `auto` never reaches on its own can be gated, see
 [Embedding an agent](./agent-embedding.md) §5) — and each maps to
 `{ app, feature }`, a feature the app declares in its capability catalogue
 (`features[{ key, checkTool, consumeTool? }]`, `@oxy.so/contracts` 4.20). Sindi's
-`{ "attachments.documents": { "app": "homiio", "feature": "files" } }` is how
+`{ "attachments.documents": { "app": "homiio", "feature": "sindi.files" } }` is how
 Homiio+ unlocks documents without Alia knowing what Homiio+ is.
+
+- **Edited in the agent editor** ("Funciones con requisitos"): one row per gateable
+  feature, free or one app feature from `GET /agents/:id/feature-gate-options`,
+  which lists exactly the live catalogues' features a save accepts
+  (`listGateableAppFeatures`). Saved on its own as the whole map, never with the
+  draft's autosave. A gate naming a catalogue no app has registered (yet) stays
+  LOCKED at runtime — `findOxyAppFeature` is null, so `checkGate` answers locked —
+  and the editor shows it as not available.
 
 - **Saved through `PATCH /agents/:id`** (`featureGates`, replaced whole), and checked
   against the LIVE catalogue first: an undeclared feature is a 400, a feature whose

@@ -3,7 +3,13 @@ import type { AvatarCharacter } from '@oxy.so/bloom/agent-avatar';
 import { errorStatus, errorMessage as getErrorMessage } from '@/shared/api/error-utils';
 import { useUpdateAgent } from '@/features/agents/runtime/use-agents';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import type { Agent, AgentArchetype, ArchetypeConfig } from '@/shared/contracts/agents';
+import {
+  type Agent,
+  type AgentArchetype,
+  type AgentStarter,
+  type ArchetypeConfig,
+  MAX_AGENT_STARTERS,
+} from '@/shared/contracts/agents';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services';
 import { useCallback, useRef, useState } from 'react';
@@ -58,6 +64,8 @@ export interface AgentDraft {
   modelId: string | null;
   /** What the agent looks like: a Bloom avatar character, written whole. */
   character: AvatarCharacter;
+  /** What its empty chat offers to send; rows still being written included. */
+  starters: AgentStarter[];
 }
 
 /**
@@ -86,7 +94,20 @@ export function agentDraftFrom(agent: Agent): AgentDraft {
     archetypeConfig: agent.archetypeConfig || {},
     modelId: agent.modelId ?? null,
     character: readAgentCharacter(agent.character),
+    starters: agent.starters ?? [],
   };
+}
+
+/**
+ * The starters `PATCH /agents/:id` takes: trimmed, complete, at most six. A row
+ * the owner is still writing is left out rather than refused, so the rest of
+ * the draft still saves.
+ */
+export function savableStarters(starters: readonly AgentStarter[]): AgentStarter[] {
+  return starters
+    .map((starter) => ({ title: starter.title.trim(), prompt: starter.prompt.trim() }))
+    .filter((starter) => starter.title !== '' && starter.prompt !== '')
+    .slice(0, MAX_AGENT_STARTERS);
 }
 
 /**
@@ -156,6 +177,7 @@ export function useAgentDraftAutosave(agent: Agent) {
             archetypeConfig: next.archetypeConfig,
             modelId: next.modelId,
             character: next.character,
+            starters: savableStarters(next.starters),
           },
         });
         toast.success(t('agents.autoSaved'), { id: SAVE_TOAST_ID });

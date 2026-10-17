@@ -37,9 +37,11 @@ import {
 } from '../domain/agent-features.js';
 import { usableMessageId } from '../domain/conversation.js';
 import type { ChatMessage } from './message-converter.js';
+import { oxyAppDisplayName } from './agent-oxy-apps.js';
 import {
   callOxyFeatureTool,
   findOxyAppFeature,
+  listOxyAppCatalogs,
   presentPersonAgentContext,
   type OxyToolExecutionContext,
 } from './tools/oxy-services.js';
@@ -320,4 +322,45 @@ export async function refuseFeatureGates(gates: AgentFeatureGates): Promise<stri
     }
   }
   return null;
+}
+
+/** One app feature an owner may put an Alia feature behind. */
+export interface GateableAppFeature {
+  readonly key: string;
+  readonly description: string;
+}
+
+/** An Oxy app and the features of its live catalogue that can gate (ADR 0020 §6). */
+export interface GateableApp {
+  readonly appId: string;
+  readonly name: string;
+  readonly features: readonly GateableAppFeature[];
+}
+
+/**
+ * What the agent editor offers for a gate: every live catalogue's features
+ * that `refuseFeatureGates` would accept — declared, with tools that take no
+ * input. Read from the same catalogues the gate is checked against at runtime,
+ * so the editor offers nothing the save would refuse.
+ */
+export async function listGateableAppFeatures(): Promise<GateableApp[]> {
+  const catalogs = await listOxyAppCatalogs();
+  const apps = await Promise.all(
+    catalogs.map(async (catalog): Promise<GateableApp> => {
+      const declared = await Promise.all(
+        (catalog.features ?? []).map(async (feature) => {
+          const found = await findOxyAppFeature(catalog.appId, feature.key);
+          return found?.toolsTakeNoInput === true
+            ? { key: feature.key, description: feature.description }
+            : null;
+        }),
+      );
+      return {
+        appId: catalog.appId,
+        name: oxyAppDisplayName(catalog.appId),
+        features: declared.filter((entry): entry is GateableAppFeature => entry !== null),
+      };
+    }),
+  );
+  return apps.filter((app) => app.features.length > 0).sort((a, b) => a.name.localeCompare(b.name));
 }
