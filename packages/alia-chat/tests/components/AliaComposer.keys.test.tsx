@@ -74,7 +74,6 @@ vi.mock('react-native', async () => {
     // Bloom's `styled-primitives` wraps this whole family, so every one of
     // them has to exist even though the panel draws none of them.
     Image: host('Image'),
-    ImageBackground: host('ImageBackground'),
     FlatList: host('FlatList'),
     SectionList: host('SectionList'),
     Switch: host('Switch'),
@@ -117,12 +116,6 @@ vi.mock('react-native', async () => {
     useColorScheme: () => 'light',
     findNodeHandle: () => null,
     UIManager: { measure: () => {} },
-    InteractionManager: {
-      runAfterInteractions: (fn: () => void) => {
-        fn();
-        return { cancel: () => {} };
-      },
-    },
     Keyboard: { dismiss: () => {}, addListener: () => ({ remove: () => {} }) },
     AccessibilityInfo: {
       isReduceMotionEnabled: async () => true,

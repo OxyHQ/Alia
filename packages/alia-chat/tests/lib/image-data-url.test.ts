@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const env = vi.hoisted(() => ({
   os: 'web',
-  readAsStringAsync: vi.fn(async () => 'QUJD'),
+  base64: vi.fn(async (_uri: string) => 'QUJD'),
 }));
 
 vi.mock('react-native', () => ({
@@ -13,8 +13,12 @@ vi.mock('react-native', () => ({
   },
 }));
 vi.mock('expo-file-system', () => ({
-  readAsStringAsync: env.readAsStringAsync,
-  EncodingType: { Base64: 'base64' },
+  File: class {
+    constructor(private readonly uri: string) {}
+    base64() {
+      return env.base64(this.uri);
+    }
+  },
 }));
 
 import { imageUriToDataUrl } from '../../src/lib/image-data-url';
@@ -42,7 +46,7 @@ function stubReader(result: string | Error) {
 describe('imageUriToDataUrl', () => {
   beforeEach(() => {
     env.os = 'web';
-    env.readAsStringAsync.mockClear();
+    env.base64.mockClear();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({ blob: async () => ({}) })),
@@ -62,7 +66,7 @@ describe('imageUriToDataUrl', () => {
       'data:image/png;base64,AAAA',
     );
     expect(fetch).not.toHaveBeenCalled();
-    expect(env.readAsStringAsync).not.toHaveBeenCalled();
+    expect(env.base64).not.toHaveBeenCalled();
   });
 
   it('web: reads the blob back into a data URL', async () => {
@@ -94,9 +98,7 @@ describe('imageUriToDataUrl', () => {
     await expect(imageUriToDataUrl('file:///photo.png', 'image/png')).resolves.toBe(
       'data:image/png;base64,QUJD',
     );
-    expect(env.readAsStringAsync).toHaveBeenCalledWith('file:///photo.png', {
-      encoding: 'base64',
-    });
+    expect(env.base64).toHaveBeenCalledWith('file:///photo.png');
     expect(fetch).not.toHaveBeenCalled();
   });
 
