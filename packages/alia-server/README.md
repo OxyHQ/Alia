@@ -47,11 +47,7 @@ const alia = new AliaServerClient({
 
 const stream = await alia.stream(
   { agentId: MY_AGENT_ID, messages: [{ role: 'user', content: 'Hola' }] },
-  {
-    signal: request.signal,
-    // Minted per turn: Oxy consumes each assertion on first use.
-    headers: { 'X-Oxy-Requester-Assertion': await mintAssertion() },
-  },
+  { signal: request.signal },
 );
 
 for await (const event of stream) {
@@ -112,10 +108,11 @@ for await (const event of readAliaEventStream(response.body!, { signal })) { …
 
 ## Which credential
 
-Alia receives the calling product's **Oxy service token** as the bearer, and —
-when the turn is for a signed-in person — a one-use `X-Oxy-Requester-Assertion`
-minted by Oxy for that person. The person's own bearer is never forwarded.
-`headers` accepts a function precisely because the assertion cannot be cached.
+Alia receives the calling product's **Oxy service token** as the bearer. A
+person's own bearer is never forwarded. A turn for a signed-in person does not
+go through a product backend at all: the person opens the agent with their own
+Oxy session through `@alia.onl/sdk` (Alia ADR 0020). `headers` accepts a
+function for a header whose value changes on every request.
 
 ## Tests
 
