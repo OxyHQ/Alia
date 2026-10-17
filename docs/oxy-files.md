@@ -165,10 +165,15 @@ The app reads `coverFileId` first (through Bloom's image resolver, bound to
 ### Library files, spoken clips, skill files
 
 New writes go to Oxy with no switch (stage 4c, OxyHQ/oxy#1774, is in
-production). Watch `alia_oxy_files_fallback_writes_total` (by kind and reason):
-a steady `not_private` or `oxy_404` means Oxy stopped serving 4c, which is an
-incident on Oxy's side — every such write still lands in the bucket and is
-moved by the next backfill.
+production). A write that fell back logs `Oxy did not take private content;
+storing it in the legacy bucket` with its `kind` and `reason` (CloudWatch
+`/oxy/ecs`, streams `alia/…`), and leaves a row on legacy storage that
+`--status` counts (`rowsOnLegacyStorage`). The process counters
+(`alia_oxy_files_fallback_writes_total`, `alia_legacy_storage_reads_total`) are
+not scraped — the API serves no `/metrics` — so the log and `--status` are what
+to watch. A steady `not_private` or `oxy_404` means Oxy stopped serving 4c, an
+incident on Oxy's side; every such write still lands in the bucket and is moved
+by the next backfill.
 
 Backfill each kind, preview first, then a canary, then the rest (arguments to
 the one-shot above):
@@ -219,7 +224,8 @@ The bucket (`AWS_S3_BUCKET`) is retired only when BOTH hold, measured with
 `migrate:oxy-files --status --window-days 14`:
 
 - **zero legacy reads** for 14 consecutive days in `legacy_storage_reads`
-  (also `alia_legacy_storage_reads_total` on `/metrics`, per kind) — every read
+  (the durable count; the process counter `alia_legacy_storage_reads_total` is
+  not scraped) — every read
   served from the bucket by `/media`, the skill file route and the dual-read
   fallback is counted there;
 - **zero rows still on legacy storage** (`rowsOnLegacyStorage`: series with a

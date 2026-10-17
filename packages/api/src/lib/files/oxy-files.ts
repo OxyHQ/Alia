@@ -447,7 +447,7 @@ async function openLegacyObject(
 }
 
 /**
- * Count one legacy read — in the process's `/metrics` at once and in Postgres
+ * Count one legacy read — in the process counter at once and in Postgres
  * for the retirement gate. The durable count is best effort: a read must not
  * fail because its bookkeeping did.
  */
