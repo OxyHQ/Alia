@@ -29,7 +29,7 @@ the code is `packages/api/src/lib/files/`.
   and a worker that died mid-run leaked them. They are now joined in memory and
   never stored; the published file lives in Syra.
 - **Syra uses Alia's cover; it does not own it.** `createPodcast` /
-  `updatePodcast` receive `imageFileId` (Syra #214, `@syra.fm/sdk` 0.20.0); Syra accepts
+  `updatePodcast` receive `imageFileId` (Syra #214, `@syra.fm/sdk` 0.21.0); Syra accepts
   only an active public image owned by the caller or by an application in its
   `SYRA_COVER_APPLICATION_IDS` (Alia's id), and registers its own `podcast`
   reference. Deleting a series releases Alia's reference; deleting the podcast

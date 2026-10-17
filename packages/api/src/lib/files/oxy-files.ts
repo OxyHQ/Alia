@@ -137,7 +137,7 @@ export async function storeShowCover(bytes: Uint8Array, mime: string): Promise<S
 /**
  * Whether Syra takes a show's cover as an Oxy file (`imageFileId`).
  *
- * Syra learns `imageFileId` in Syra #214 (`@syra.fm/sdk` 0.20.0), and accepts
+ * Syra learns `imageFileId` in Syra #214 (`@syra.fm/sdk` 0.21.0), and accepts
  * one only from an application it trusts to supply covers. A Syra without it
  * would drop the field and leave the show without art, so until Syra is
  * deployed with it and trusts Alia, a cover is uploaded into Syra as before
