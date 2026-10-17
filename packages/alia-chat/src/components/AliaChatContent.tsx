@@ -170,6 +170,8 @@ export interface AliaChatContentProps {
   welcomeSubtitle?: string;
   /** The lines offered over the composer on an empty chat; omitted, the agent's starters. */
   welcomeSuggestions?: AliaSuggestion[];
+  /** Drawn under the empty chat's greeting — the sheet's recent conversations with its lead. */
+  welcomeAccessory?: ReactNode;
   /** What the host found for the typed text (see `onSuggestionQuery`). */
   suggestionMatches?: AliaSuggestion[];
   /** The typed text, once typing has settled, for the host to search suggestions with. */
@@ -279,6 +281,7 @@ function AliaConversationView({
   welcomeGreeting,
   welcomeSubtitle,
   welcomeSuggestions,
+  welcomeAccessory,
   suggestionMatches,
   onSuggestionQuery,
   onSuggestionPicked,
@@ -471,9 +474,12 @@ function AliaConversationView({
   const welcome = useMemo(
     () =>
       profileLoading ? null : (
-        <AliaWelcomeMessage greeting={greeting} subtitle={welcomeSubtitle} lead={lead} />
+        <View className="items-center gap-8">
+          <AliaWelcomeMessage greeting={greeting} subtitle={welcomeSubtitle} lead={lead} />
+          {welcomeAccessory}
+        </View>
       ),
-    [profileLoading, greeting, welcomeSubtitle, lead],
+    [profileLoading, greeting, welcomeSubtitle, lead, welcomeAccessory],
   );
 
   // ── The agent's offer to start the next stretch fresh ──

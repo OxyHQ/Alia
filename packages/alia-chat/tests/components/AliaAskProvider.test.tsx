@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle } from 'react';
+import { createRef, forwardRef, useImperativeHandle } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -12,6 +12,8 @@ const world = vi.hoisted(() => ({
   signIn: vi.fn(async () => ({ status: 'dialog-opened' as const })),
   sheets: [] as Array<Record<string, unknown>>,
   presented: [] as Array<{ agent: unknown; turn: unknown }>,
+  resumed: [] as Array<{ agent: unknown; conversationId: string }>,
+  dismissed: 0,
 }));
 
 vi.mock('@oxy.so/services/ui/client', () => ({
@@ -22,7 +24,11 @@ vi.mock('../../src/components/AliaChatSheet', () => ({
     world.sheets.push(props);
     useImperativeHandle(ref, () => ({
       present: (turn?: unknown) => world.presented.push({ agent: props.agent, turn }),
-      dismiss: () => {},
+      resume: (conversationId: string) =>
+        world.resumed.push({ agent: props.agent, conversationId }),
+      dismiss: () => {
+        world.dismissed += 1;
+      },
     }));
     return null;
   }),
@@ -45,10 +51,12 @@ const hostTools = {
 };
 const onFeatureLocked = vi.fn();
 let renderer: ReactTestRenderer | null = null;
+const providerRef = createRef<AliaAsk>();
 async function mount() {
   await act(async () => {
     renderer = create(
       <AliaAskProvider
+        ref={providerRef}
         agents={{ alia: {}, sindi: { id: 'agent-sindi' } }}
         hostTools={hostTools}
         clientContext="Homiio — viewing listing 7"
@@ -66,6 +74,8 @@ beforeEach(() => {
   world.signIn.mockClear();
   world.sheets = [];
   world.presented = [];
+  world.resumed = [];
+  world.dismissed = 0;
 });
 afterEach(async () => {
   if (renderer !== null) await act(async () => renderer?.unmount());
@@ -116,5 +126,24 @@ describe('AliaAskProvider', () => {
     world.canUsePrivateApi = true;
     await mount();
     expect(() => ask.ask('nobody')).toThrow(/no agent "nobody"/);
+  });
+
+  it('picks a stored conversation up again in the sheet of its agent', async () => {
+    world.canUsePrivateApi = true;
+    await mount();
+    await act(async () => ask.resume('sindi', 'conv-7'));
+
+    expect(world.resumed).toEqual([{ agent: { id: 'agent-sindi' }, conversationId: 'conv-7' }]);
+    expect(world.presented).toEqual([]);
+  });
+
+  it('closes the sheet, through the hook and through the ref the code above it holds', async () => {
+    world.canUsePrivateApi = true;
+    await mount();
+    await act(async () => ask.ask('sindi'));
+    await act(async () => ask.dismiss());
+    await act(async () => providerRef.current?.dismiss());
+
+    expect(world.dismissed).toBe(2);
   });
 });

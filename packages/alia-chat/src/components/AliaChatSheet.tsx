@@ -30,6 +30,7 @@ import {
   type AliaChatContentProps,
 } from './AliaChatContent';
 import { AliaChatHeader } from './AliaChatHeader';
+import { AliaRecentConversations } from './AliaRecentConversations';
 import { ThoughtPanel } from './thought/ThoughtPanel';
 import type { AliaSuggestion } from '../types';
 
@@ -88,6 +89,8 @@ export interface AliaChatSheetProps {
   onShare?: (share: AliaConversationShare) => void;
   /** More rows for the header's menu (`DropdownMenuItem`s from `@oxy.so/bloom/dropdown-menu`). */
   headerMenu?: React.ReactNode;
+  /** The person's latest conversations with the lead, under the greeting. Default `true`. */
+  recentConversations?: boolean;
 }
 
 export interface AliaChatSheetRef {
@@ -97,6 +100,9 @@ export interface AliaChatSheetRef {
    * opens on its welcome, with the composer focused.
    */
   present: (turn?: AliaTurn) => void;
+  /** Opens the sheet on a stored conversation with its lead, where the person left it. */
+  resume: (conversationId: string) => void;
+  /** Closes the sheet and what is stacked on it, stopping a turn still being written. */
   dismiss: () => void;
 }
 
@@ -121,6 +127,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       characterRuntimeUrl = ALIA_CHARACTER_RUNTIME_URL,
       onShare,
       headerMenu,
+      recentConversations = true,
     },
     ref,
   ) => {
@@ -135,9 +142,13 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
     const mainStopRef = useRef<(() => void) | null>(null);
     const conversationStopRef = useRef<(() => void) | null>(null);
 
-    // The conversation sheet, stacked over the main one while a chat is open. The key makes
-    // every conversation a fresh chat.
-    const [conversation, setConversation] = useState<{ key: number; turn: AliaTurn } | null>(null);
+    // The conversation sheet, stacked over the main one while a chat is open: begun by a first
+    // turn, or a stored one picked up again. The key makes every opening a fresh chat.
+    const [conversation, setConversation] = useState<{
+      key: number;
+      turn?: AliaTurn;
+      conversationId?: string;
+    } | null>(null);
 
     const registerMainStop = useCallback((stop: (() => void) | null) => {
       mainStopRef.current = stop;
@@ -148,6 +159,13 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
 
     const startConversation = useCallback((turn: AliaTurn) => {
       setConversation((current) => ({ key: (current?.key ?? 0) + 1, turn }));
+    }, []);
+    const resumeConversation = useCallback((conversationId: string) => {
+      setConversation((current) => ({ key: (current?.key ?? 0) + 1, conversationId }));
+    }, []);
+    // The chat inside follows its conversation (a first turn creates it, "start over" leaves it).
+    const followConversation = useCallback((conversationId: string | undefined) => {
+      setConversation((current) => (current ? { ...current, conversationId } : current));
     }, []);
     useEffect(() => {
       if (conversation) conversationRef.current?.present();
@@ -197,9 +215,13 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
           mainRef.current?.present();
           if (turn) startConversation(turn);
         },
+        resume: (conversationId) => {
+          mainRef.current?.present();
+          resumeConversation(conversationId);
+        },
         dismiss: handleDismiss,
       }),
-      [handleDismiss, startConversation],
+      [handleDismiss, startConversation, resumeConversation],
     );
 
     // Closing the main sheet (a drag, backdrop press, Back or Escape) closes what is stacked on it.
@@ -282,6 +304,11 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
             welcomeSuggestions={welcomeSuggestions}
             suggestionMatches={suggestionMatches}
             onSuggestionQuery={onSuggestionQuery}
+            welcomeAccessory={
+              recentConversations ? (
+                <AliaRecentConversations agentId={agent?.id} onOpen={resumeConversation} />
+              ) : undefined
+            }
             presentedProgress={mainProgress}
             onStopReady={registerMainStop}
             onStart={startConversation}
@@ -303,6 +330,8 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
             <AliaChatContent
               {...shared}
               initialTurn={conversation.turn}
+              conversationId={conversation.conversationId}
+              onConversationChange={followConversation}
               presentedProgress={conversationProgress}
               onStopReady={registerConversationStop}
               chrome={conversationChrome}

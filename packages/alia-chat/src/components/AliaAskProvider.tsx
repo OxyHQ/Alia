@@ -10,10 +10,12 @@
 import { useAuth } from '@oxy.so/services/ui/client';
 import {
   createContext,
+  forwardRef,
   type ReactNode,
   useCallback,
   useContext,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -38,6 +40,7 @@ export interface AliaAskProviderProps
     | 'apiUrl'
     | 'characterRuntimeUrl'
     | 'headerMenu'
+    | 'recentConversations'
   > {
   /** The agents `ask` opens, by key. Omitted, the sheet only ever opens on Alia. */
   agents?: AliaAskAgents;
@@ -52,6 +55,13 @@ export interface AliaAsk {
    * ("ask Sindi about this listing"). Signed out, opens Oxy's sign-in instead.
    */
   ask: (agentKey?: string, turn?: AliaTurn) => void;
+  /** Open the sheet on the agent `agentKey` (omitted, Alia), on its stored conversation `conversationId`. */
+  resume: (agentKey: string | undefined, conversationId: string) => void;
+  /**
+   * Close the sheet — a host tool that changed the page under it shows the person the result, once
+   * the turn has been written.
+   */
+  dismiss: () => void;
 }
 
 const AskContext = createContext<AliaAsk | null>(null);
@@ -67,16 +77,20 @@ export function useAskAgent(): AliaAsk {
 interface Opening {
   key: string | undefined;
   turn: AliaTurn | undefined;
+  /** A stored conversation to open instead of the welcome. */
+  conversationId?: string;
   /** Changes on every `ask`, so asking the same agent twice opens twice. */
   serial: number;
 }
 
-export function AliaAskProvider({
-  agents,
-  welcomeSuggestions,
-  children,
-  ...sheet
-}: AliaAskProviderProps) {
+/**
+ * Mounts the app's one sheet. Its ref is the same `AliaAsk` as `useAskAgent()`, for the code that
+ * configures the sheet and so sits above it — a host-tool executor that closes it.
+ */
+export const AliaAskProvider = forwardRef<AliaAsk, AliaAskProviderProps>(function AliaAskProvider(
+  { agents, welcomeSuggestions, children, ...sheet },
+  ref,
+) {
   const { canUsePrivateApi, signIn } = useAuth();
   const sheetRef = useRef<AliaChatSheetRef>(null);
   const [opening, setOpening] = useState<Opening | null>(null);
@@ -84,8 +98,8 @@ export function AliaAskProvider({
   const agentsRef = useRef(agents);
   agentsRef.current = agents;
 
-  const ask = useCallback(
-    (agentKey?: string, turn?: AliaTurn) => {
+  const open = useCallback(
+    (agentKey: string | undefined, turn?: AliaTurn, conversationId?: string) => {
       if (agentKey !== undefined && agentsRef.current?.[agentKey] === undefined) {
         throw new Error(`AliaAskProvider has no agent "${agentKey}"`);
       }
@@ -94,21 +108,35 @@ export function AliaAskProvider({
         return;
       }
       setCurrent(agentKey);
-      setOpening((previous) => ({ key: agentKey, turn, serial: (previous?.serial ?? 0) + 1 }));
+      setOpening((previous) => ({
+        key: agentKey,
+        turn,
+        ...(conversationId === undefined ? {} : { conversationId }),
+        serial: (previous?.serial ?? 0) + 1,
+      }));
     },
     [canUsePrivateApi, signIn],
   );
+  const ask = useCallback((agentKey?: string, turn?: AliaTurn) => open(agentKey, turn), [open]);
+  const resume = useCallback(
+    (agentKey: string | undefined, conversationId: string) =>
+      open(agentKey, undefined, conversationId),
+    [open],
+  );
+  const dismiss = useCallback(() => sheetRef.current?.dismiss(), []);
 
   // Presented once the sheet for that agent is the one mounted (a different agent is a new sheet).
   useEffect(() => {
     if (opening === null || opening.key !== current) return;
-    sheetRef.current?.present(opening.turn);
+    if (opening.conversationId !== undefined) sheetRef.current?.resume(opening.conversationId);
+    else sheetRef.current?.present(opening.turn);
     setOpening(null);
   }, [opening, current]);
 
   const agentId = current === undefined ? undefined : agents?.[current]?.id;
   const agent = useMemo(() => (agentId === undefined ? undefined : { id: agentId }), [agentId]);
-  const value = useMemo<AliaAsk>(() => ({ ask }), [ask]);
+  const value = useMemo<AliaAsk>(() => ({ ask, resume, dismiss }), [ask, resume, dismiss]);
+  useImperativeHandle(ref, () => value, [value]);
 
   return (
     <AskContext.Provider value={value}>
@@ -124,4 +152,4 @@ export function AliaAskProvider({
       ) : null}
     </AskContext.Provider>
   );
-}
+});
