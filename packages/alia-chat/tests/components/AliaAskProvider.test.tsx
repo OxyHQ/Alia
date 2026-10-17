@@ -54,7 +54,6 @@ function Button() {
 }
 
 const hostTools = {
-  app: 'homiio',
   definitions: [],
   execute: async () => ({ outcome: 'applied' as const }),
 };
@@ -67,6 +66,7 @@ async function mount() {
       <AliaAskProvider
         ref={providerRef}
         agents={{ alia: {}, sindi: { id: 'agent-sindi' } }}
+        app="homiio"
         hostTools={hostTools}
         clientContext="Homiio — viewing listing 7"
         onFeatureLocked={onFeatureLocked}
@@ -113,6 +113,7 @@ describe('AliaAskProvider', () => {
     const sheet = world.sheets.at(-1);
     expect(sheet).toMatchObject({
       agent: { id: 'agent-sindi' },
+      app: 'homiio',
       hostTools,
       clientContext: 'Homiio — viewing listing 7',
       onFeatureLocked,

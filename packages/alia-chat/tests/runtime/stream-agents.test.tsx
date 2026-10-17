@@ -60,12 +60,15 @@ function Probe({ options }: { options: Parameters<typeof useConversationStream>[
   return null;
 }
 
-async function mount(options: Parameters<typeof useConversationStream>[0] = {}) {
+async function mount(
+  options: Parameters<typeof useConversationStream>[0] = {},
+  app: string | undefined = undefined,
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   await act(async () => {
     renderer = create(
       <QueryClientProvider client={client}>
-        <AliaRuntimeProvider apiUrl="http://api.test" host={host}>
+        <AliaRuntimeProvider apiUrl="http://api.test" host={host} app={app}>
           <Probe options={options} />
         </AliaRuntimeProvider>
       </QueryClientProvider>,
@@ -190,6 +193,22 @@ describe('a consultation', () => {
   });
 });
 
+describe("the chat's app", () => {
+  it('rides every turn, with no host tools an empty list, so it labels a conversation it starts', async () => {
+    harness.replies.push({ status: 200, frames: [content('Hola.'), done] });
+    await mount({ conversationId: 'c1' }, 'mercaria');
+    await send('zapatos');
+    expect(harness.requests[0]?.body.host).toEqual({ app: 'mercaria', version: 1, tools: [] });
+  });
+
+  it("is absent from Alia's own chat", async () => {
+    harness.replies.push({ status: 200, frames: [content('Hola.'), done] });
+    await mount({ conversationId: 'c1' });
+    await send('hola');
+    expect(harness.requests[0]?.body).not.toHaveProperty('host');
+  });
+});
+
 describe('host tools', () => {
   const action = (toolCallId: string) =>
     frame(
@@ -197,7 +216,6 @@ describe('host tools', () => {
       'alia.host_action',
     );
   const tools = (execute: AliaHostTools['execute']): AliaHostTools => ({
-    app: 'homiio',
     definitions: [
       { name: 'apply_search', description: 'Apply a search', inputSchema: { type: 'object' } },
     ],
@@ -211,7 +229,7 @@ describe('host tools', () => {
       { status: 200, frames: [content('Ok.'), done] },
       { status: 200, frames: [content('Again.'), done] },
     );
-    await mount({ conversationId: 'c1', hostTools: tools(execute) });
+    await mount({ conversationId: 'c1', hostTools: tools(execute) }, 'homiio');
     await send('search');
 
     expect(harness.requests[0]?.body.host).toEqual({
@@ -247,7 +265,7 @@ describe('host tools', () => {
       { throws: new Error('offline') },
       { status: 200, frames: [content('Back.'), done] },
     );
-    await mount({ conversationId: 'c1', hostTools: tools(execute) });
+    await mount({ conversationId: 'c1', hostTools: tools(execute) }, 'homiio');
     await send('search');
     await send('lost');
     await send('retry');
@@ -276,7 +294,7 @@ describe('host tools', () => {
       },
       { status: 200, frames: [content('Ok.'), done] },
     );
-    await mount({ conversationId: 'c1', hostTools: tools(execute) });
+    await mount({ conversationId: 'c1', hostTools: tools(execute) }, 'homiio');
     await send('search');
     await send('next');
 

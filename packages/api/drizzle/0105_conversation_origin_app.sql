@@ -1,0 +1,23 @@
+-- oxy:deploy-phase=pre
+--
+-- The Oxy app a conversation started in (`domain/conversation.ts`
+-- `ORIGIN_APP_PATTERN`), so an embedding app lists only its own conversations
+-- (`GET /v1/conversations?app=`) while the Alia app still lists all of them.
+-- Mercaria's "Keep shopping" showed a person's Homiio and Alia chats too.
+--
+-- A listing label, never authority. Existing rows stay NULL, which is what
+-- Alia's own surfaces write: nothing is backfilled, because nothing recorded
+-- which app a past conversation came from.
+--
+-- PRE: a nullable column and a CHECK every existing row satisfies; the image
+-- being replaced never reads or writes the column.
+--
+-- ## LOCKS
+--
+-- `conversations` is hot, so this file holds only the two catalogue changes:
+-- ADD COLUMN of a nullable column with no default is instant, and the CHECK is
+-- added NOT VALID — enforced on every write from here on, without the scan a
+-- validating ADD runs under ACCESS EXCLUSIVE. Every existing row is NULL, so it
+-- passes; 0106 validates it. The index is 0106's, in its own file.
+ALTER TABLE "conversations" ADD COLUMN "origin_app" text;--> statement-breakpoint
+ALTER TABLE "conversations" ADD CONSTRAINT "conversations_origin_app_check" CHECK ("conversations"."origin_app" is null or "conversations"."origin_app" ~ '^[a-z][a-z0-9-]{0,31}$') NOT VALID;

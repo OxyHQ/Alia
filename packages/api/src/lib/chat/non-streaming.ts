@@ -49,6 +49,8 @@ export interface NonStreamingParams {
   reasoningEffort: string | null;
   conversationId: string | undefined;
   assistantMessageId: string | undefined;
+  /** The embedding app (`host.app`), which labels a conversation this turn creates. */
+  originApp?: string;
   messages: ChatMessage[];
   creditReservation: CreditReservation | null;
   systemPromptTokens: number;
@@ -81,6 +83,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
     reasoningEffort,
     conversationId,
     assistantMessageId,
+    originApp,
     messages,
     creditReservation,
     systemPromptTokens,
@@ -143,6 +146,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
     requestStartTime,
     skillNames: skills.activated().map((skill) => skill.name),
     autonomyRuntime,
+    ...(originApp === undefined ? {} : { originApp }),
   };
 
   // Save conversation + generate title

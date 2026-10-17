@@ -132,7 +132,7 @@ The conversation routes an embedding app uses ([agent-embedding.md](./agent-embe
 
 | Route | Purpose |
 |---|---|
-| `GET /conversations?agentId=<id>` | The person's conversations with one agent, newest first, with the usual `limit`/`cursor` |
+| `GET /conversations?agentId=<id>&app=<slug>` | The person's conversations, narrowed to one agent, one app or both (`docs/agent-embedding.md` §6), newest first, with the usual `limit`/`cursor` |
 | `POST /conversations/:id/share` | `{ "ttlHours": 1..168 }` → `201 { token, expiresAt }`. One link per conversation: sharing again replaces it. Only the SHA-256 of the token is stored (`conversation_shares`) |
 | `DELETE /conversations/:id/share` | Revokes the link; `404` when there is none. Deleting the conversation revokes it too |
 | `GET /v1/shared/:token` | No auth, `X-Robots-Tag: noindex`, `Cache-Control: no-store`, 60 reads per minute per link. `{ title, agent?, messages: [{ role, content, agent? }], expiresAt }` — text, images and who spoke, never a tool's input or output, a document or the system prompt (`lib/shared-conversation.ts`). Unknown, expired and revoked are the same `404` |

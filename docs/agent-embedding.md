@@ -1,7 +1,7 @@
 # Embedding an agent: the wire contract
 
 Alia ADR 0020 §5–§7. This is the contract between Alia's API and every surface that
-opens a conversation through `@alia.onl/sdk` (19.0.0 and later): Homiio's "Ask
+opens a conversation through `@alia.onl/sdk` (21.0.0 and later): Homiio's "Ask
 Sindi", oxy accounts' "Ask Alia", and the Alia app itself.
 
 Alia is the lead of a conversation unless the surface names an agent. Any agent the
@@ -67,7 +67,7 @@ A request may declare the UI effects its own client can perform. What is on the 
 
 These are the rules for host tools:
 
-- **Naming.** `app` matches `^[a-z][a-z0-9-]{0,31}$`. A tool `name` matches `^[a-z][a-z0-9_]{0,47}$`. A request may declare at most 16 tools, and each `inputSchema` has an object root.
+- **Naming.** `app` matches `^[a-z][a-z0-9-]{0,31}$`; it is the chat's app, which also labels a conversation the turn starts (§6). A tool `name` matches `^[a-z][a-z0-9_]{0,47}$`. A request may declare at most 16 tools, and each `inputSchema` has an object root.
 - **What the model sees.** The model sees each tool as `host_<app>__<name>`. Its description is prefixed with `[In the app on the person's screen]`.
 - **Execution.** Executing a host tool on the server does nothing. Alia records the call and answers the model `{ "status": "dispatched" }`. It then emits:
 
@@ -179,17 +179,19 @@ These are the rules for documents:
 
 The conversation endpoints:
 
-- **`GET /v1/conversations?agentId=<id>`** lists the person's conversations with that agent.
+- **`GET /v1/conversations?agentId=<id>&app=<slug>`** lists the person's conversations, narrowed to one agent, one app or both. Without either it lists all of them, which is what the Alia app shows.
 - **`POST /v1/conversations/:id/share { "ttlHours": 1..168 }`** answers `{ "token", "expiresAt" }`.
 - **`DELETE /v1/conversations/:id/share`** revokes the share.
 - **`GET /v1/shared/:token`** needs no auth and is `noindex`. It answers `{ "title", "agent"?, "messages": [{ "role", "content", "agent"? }], "expiresAt" }`. That covers text, images and agent identity; tool outputs are never included, because they can hold the person's own data.
 
-The sharing rules:
+### The app a conversation started in
 
-- **One link per conversation.** Sharing again replaces the link, and the previous token stops working. Deleting the conversation revokes its link.
-- **The token is shown once.** Alia stores only its SHA-256, so a lost token is replaced by sharing again.
-- **What a reader sees.** `content` is a string, or parts of `{ "type": "text" }` and `{ "type": "image_url" }`. Documents, reasoning, tool calls and their results, and the system prompt are left out. `agent` is the conversation's agent: `{ "id", "name", "handle", "color", "character" }`.
-- **Failures.** An unknown, expired or revoked token is the same 404. A link is limited to 60 reads a minute (429 with `Retry-After`).
+A conversation records the Oxy app it started in (`app` on every conversation, `null` for Alia's own surfaces), so an embedding app can list only its own — Mercaria's "Keep shopping", Homiio's chats — while the Alia app keeps showing all of them.
+
+- **Who sets it.** The embedding app names itself once, on the chat (the SDK's `app` prop). Every turn carries it as `host.app` (with `tools: []` when the app declares no host tools), and `POST /v1/conversations/new` and `POST /v1/conversations` carry it as `app`. It is written ONCE, when that request creates the conversation; a later request naming another app never relabels it.
+- **What it is.** A slug, `^[a-z][a-z0-9-]{0,31}$` — the same name the app's host tools carry. Anything else is refused with 400, on writes and on `?app=`.
+- **What it is not: authority.** The label is the embedding client's own declaration, not the verified app assertion (`X-Oxy-App-Assertion`, ADR 0021). It only narrows the person's own list, so a client that mislabels a conversation mislabels it for the one person who could already read, rename and delete it. The assertion names an Oxy application id rather than a slug, and a native build carries one only once its platform attestation is configured; a label that existed only where an assertion verified would leave the same app's conversations unlabelled on its phones. No reach, gate, tool or bill reads the label, and none may: which app a request comes from is proven by the assertion alone.
+- **Listing.** An app that wants only its own conversations asks for them: `useConversations({ app: 'mercaria' })`. The one list the SDK draws itself, the sheet's recent conversations under its greeting, is the sheet's app's: Mercaria's sheet offers Mercaria's, Alia's own sheet offers any.
 
 ## 7. Welcome suggestions
 

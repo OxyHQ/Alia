@@ -153,10 +153,12 @@ export function useConversationStream({
   clientContext,
   hostTools,
 }: UseConversationStreamOptions = {}) {
-  const { apiUrl, streamFetch, host } = useAliaRuntime();
+  const { apiUrl, streamFetch, host, app } = useAliaRuntime();
   /** Read at send time and when an action arrives: the host's declaration may change between turns. */
   const hostToolsRef = useRef(hostTools);
   hostToolsRef.current = hostTools;
+  const appRef = useRef(app);
+  appRef.current = app;
   /** This conversation's host actions: performed once, their outcomes held until a request carries them. */
   const hostOutcomesRef = useRef(new HostOutcomeQueue());
   const labels = useLabels();
@@ -618,7 +620,7 @@ export function useConversationStream({
 
         // The host's tools, and the outcomes of the actions it performed since the last request.
         const outcomes = hostOutcomesRef.current.pending();
-        const hostMember = hostRequest(hostToolsRef.current, outcomes);
+        const hostMember = hostRequest(appRef.current, hostToolsRef.current, outcomes);
 
         // Authentication, the preflight refresh and the single 401 replay belong
         // to the linked Oxy client; this layer never reads or writes a bearer.
@@ -890,7 +892,11 @@ export function useConversationStream({
                     // the next request. The stream does not wait for it.
                     const action = parseHostAction(parsed);
                     if (action !== null) {
-                      void hostOutcomesRef.current.dispatch(action, hostToolsRef.current);
+                      void hostOutcomesRef.current.dispatch(
+                        action,
+                        hostToolsRef.current,
+                        appRef.current,
+                      );
                     }
                     continue;
                   }

@@ -887,6 +887,33 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     ]);
   });
 
+  it("labels the conversation with the embedding app's host.app, and Alia's own with none", async () => {
+    const { saveConversation } = await import('../../../lib/conversation-saver.js');
+    const turn = (extra: Record<string, unknown>) =>
+      run(
+        recordingReq({
+          body: {
+            messages: [{ role: 'user', content: 'what day is it' }],
+            model: CHAT_MODEL,
+            stream: true,
+            conversationId: 'conv-origin',
+            ...extra,
+          },
+        }),
+        recordingRes(),
+      );
+
+    await turn({ host: { app: 'mercaria', version: 1, tools: [] } });
+    expect(vi.mocked(saveConversation).mock.lastCall?.[0]).toMatchObject({
+      conversationId: 'conv-origin',
+      originApp: 'mercaria',
+    });
+
+    H.state.streamTurns = [[streamStart, ...say('t2', 'It is Tuesday.'), finish('stop')]];
+    await turn({});
+    expect(vi.mocked(saveConversation).mock.lastCall?.[0]).not.toHaveProperty('originApp');
+  });
+
   it('recall reaches the model call, not merely precedes it', async () => {
     const body = {
       messages: [{ role: 'user', content: 'what day is it' }],

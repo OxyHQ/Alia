@@ -42,6 +42,36 @@ export const CONVERSATION_SOURCES = [
 export type ConversationSource = (typeof CONVERSATION_SOURCES)[number];
 
 /**
+ * The Oxy app a conversation started in (`conversations.origin_app`), as the
+ * embedding app names itself: its slug, the same name its host tools carry
+ * (`host.app`, `docs/agent-embedding.md` §2 and §6). `null` is Alia's own
+ * surfaces — the Alia app, the API, the channels.
+ *
+ * ## A listing label, never authority
+ *
+ * The value is the embedding client's own declaration, not the verified app
+ * assertion (`lib/app-surface.ts`). That is deliberate:
+ *
+ *  - It only narrows the person's OWN list (`GET /v1/conversations?app=`). A
+ *    client that mislabels a conversation mislabels it for the one person who
+ *    could already read, rename and delete it; nothing anybody else can see or
+ *    do depends on it. No reach, gate, tool or bill reads it, and none may.
+ *  - The assertion names an Oxy application id, not the slug apps list by, and
+ *    a native build proves itself only once its platform attestation is
+ *    configured: a label that existed only where an assertion verified would
+ *    leave the same app's conversations unlabelled on its phones.
+ *
+ * Confinement and every other access decision keep reading the assertion,
+ * which is the one thing that proves an app (ADR 0021).
+ */
+export const ORIGIN_APP_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
+
+/** The slug when `value` is one, else `undefined`. */
+export function originAppOf(value: unknown): string | undefined {
+  return typeof value === 'string' && ORIGIN_APP_PATTERN.test(value) ? value : undefined;
+}
+
+/**
  * The AI SDK's tool-call lifecycle.
  *
  * `tool_invocations` is `jsonb` and cannot carry a check, so the enforcement

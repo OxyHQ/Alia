@@ -39,6 +39,7 @@ import {
   type MessageRole,
   type MessageVote,
   type ToolInvocation,
+  originAppOf,
 } from '../domain/conversation.js';
 import { authenticateToken, authenticateTokenOrApiKey } from '../middleware/auth.js';
 import type { Request, Response } from 'express';
@@ -216,12 +217,28 @@ function sourceFromBody(value: unknown): ConversationSource | undefined {
     : undefined;
 }
 
+/**
+ * The embedding app a request names (`app` in a body, `?app=` in a query):
+ * `undefined` when it names none, `null` when it names something that is not
+ * an app slug — refused with 400 rather than stored or ignored, because the
+ * caller then believes it labelled or narrowed something it did not.
+ */
+function requestedApp(value: unknown): string | undefined | null {
+  if (value === undefined) return undefined;
+  return originAppOf(value) ?? null;
+}
+
+const INVALID_APP = { error: 'app must be an app slug (^[a-z][a-z0-9-]{0,31}$)' };
+
 // Create a new empty conversation
 router.post('/new', authenticateToken, async (req: Request, res: Response) => {
   try {
     if (!req.user?.id) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+
+    const originApp = requestedApp(req.body?.app);
+    if (originApp === null) return res.status(400).json(INVALID_APP);
 
     const conversationId = randomUUID();
     /**
@@ -251,6 +268,7 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
       title: 'New chat',
       source: sourceFromBody(req.body?.source) ?? 'app',
       ...(agentId === undefined ? {} : { agentId }),
+      ...(originApp === undefined ? {} : { originApp }),
     });
 
     res.json({
@@ -258,6 +276,7 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
       title: conversation.title,
       source: conversation.source,
       agentId: conversation.agentId,
+      app: conversation.originApp,
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
     });
@@ -302,11 +321,19 @@ router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) =
     if (agentId !== undefined && (typeof agentId !== 'string' || agentId === '')) {
       return res.status(400).json({ error: 'agentId must be a non-empty agent id' });
     }
+    /**
+     * `?app=` narrows to the conversations started in one app — Mercaria's
+     * "Keep shopping", Homiio's chats. It composes with `agentId`. Without it
+     * the list is all of them, which is what the Alia app shows.
+     */
+    const originApp = requestedApp(req.query.app);
+    if (originApp === null) return res.status(400).json(INVALID_APP);
 
     // One extra row decides `hasMore` without a second count query.
     const rows = await listConversations(getDb(), req.user.id, limit + 1, {
       ...(before === undefined ? {} : { before }),
       ...(agentId === undefined ? {} : { agentId }),
+      ...(originApp === undefined ? {} : { originApp }),
     });
 
     const hasMore = rows.length > limit;
@@ -322,6 +349,7 @@ router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) =
         lastMessage: c.lastMessage,
         source: c.source,
         agentId: c.agentId,
+        app: c.originApp,
         createdAt: c.createdAt,
         updatedAt: c.updatedAt,
       })),
@@ -357,6 +385,7 @@ router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response
       lastMessage: conversation.lastMessage,
       source: conversation.source,
       agentId: conversation.agentId,
+      app: conversation.originApp,
       messages: rows.map(toStoredMessage),
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
@@ -379,6 +408,8 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
     if (!conversationId || typeof conversationId !== 'string' || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Invalid request body' });
     }
+    const originApp = requestedApp(req.body.app);
+    if (originApp === null) return res.status(400).json(INVALID_APP);
 
     // Anything that is not recognisably a message is dropped, as before.
     const validMessages = messages.flatMap((message: unknown) => {
@@ -418,6 +449,7 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
         ...(typeof title === 'string' && title.length > 0 ? { title } : {}),
         titleOnInsert,
         ...(onInsertSource === undefined ? {} : { source: onInsertSource }),
+        ...(originApp === undefined ? {} : { originApp }),
       }),
       replaceMessages(getDb(), req.user.id, conversationId, toStore),
     ]);
@@ -427,6 +459,7 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
       title: conversation.title,
       lastMessage: conversation.lastMessage,
       source: conversation.source,
+      app: conversation.originApp,
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
     });

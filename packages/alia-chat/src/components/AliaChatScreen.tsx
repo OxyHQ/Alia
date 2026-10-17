@@ -42,6 +42,8 @@ export interface AliaChatScreenProps {
   agent?: AliaChatAgentRef;
   /** App context injected into system prompt */
   clientContext?: string;
+  /** The Oxy app this chat is embedded in, by its slug (see `AliaChatContentProps.app`). */
+  app?: string;
   /** The UI effects this app performs for the lead (see `AliaChatContentProps.hostTools`). */
   hostTools?: AliaHostTools;
   /** The app's own drawing of catalogue tools' results, keyed `<app>:<tool>`. */
@@ -87,6 +89,7 @@ export interface AliaChatScreenProps {
 
 export function AliaChatScreen({
   agent,
+  app,
   clientContext,
   hostTools,
   toolRenderers,
@@ -147,6 +150,7 @@ export function AliaChatScreen({
         <KeyboardAvoidingView behavior="padding" automaticOffset style={{ flex: 1 }}>
           <AliaChatContent
             agent={agent}
+            app={app}
             clientContext={clientContext}
             hostTools={hostTools}
             toolRenderers={toolRenderers}

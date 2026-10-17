@@ -60,7 +60,7 @@ export type {
 export { uploadToOxyFiles, useDocumentUpload } from './oxy-files';
 export type { OxyFilesClient } from './oxy-files';
 export type { AliaApi, AliaApiRequest, AliaApiResult } from './api';
-export { aliaQueryKeys } from './query-keys';
+export { aliaQueryKeys, type ConversationsFilter } from './query-keys';
 export {
   ConversationNotFoundError,
   useClearConversation,

@@ -19,6 +19,7 @@
 import { jsonObjectSchemaToZod } from '@oxy.so/mcp';
 import { jsonSchema, tool, type ModelMessage, type ToolSet } from 'ai';
 import { z } from 'zod';
+import { ORIGIN_APP_PATTERN } from '../domain/conversation.js';
 import type { SSEEmitter } from './sse-emitter.js';
 
 export const HOST_TOOL_OUTCOMES = ['applied', 'inline', 'rejected', 'stale', 'failed'] as const;
@@ -47,7 +48,8 @@ const hostOutcomeSchema = z
 
 export const hostRequestSchema = z
   .object({
-    app: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/),
+    /** The embedding app's slug; it also labels a conversation the turn starts. */
+    app: z.string().regex(ORIGIN_APP_PATTERN),
     version: z.literal(1),
     tools: z.array(hostToolDefinitionSchema).max(MAX_HOST_TOOLS),
     outcomes: z.array(hostOutcomeSchema).max(MAX_OUTCOMES).optional(),

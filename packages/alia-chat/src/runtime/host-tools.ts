@@ -35,10 +35,12 @@ export interface AliaHostOutcome {
   detail?: string;
 }
 
-/** The host tools a surface declares (`hostTools` on the chat). */
+/**
+ * The host tools a surface declares (`hostTools` on the chat). They are the tools of the chat's
+ * `app`, which a surface with host tools must name: the app is said once, on the chat, and is what
+ * the model sees them under (`host_<app>__<name>`).
+ */
 export interface AliaHostTools {
-  /** The app's slug, `^[a-z][a-z0-9-]{0,31}$`. */
-  app: string;
   /**
    * At most 16. What the host's screen shows now is not part of the declaration: it is the chat's
    * `clientContext`, built by the host per turn.
@@ -80,14 +82,18 @@ export class HostOutcomeQueue {
   private ready: HostOutcomeRecord[] = [];
 
   /**
-   * Perform `action` with `tools`, once. Resolves when its outcome is queued; `false` when the
-   * action had already been performed and nothing was done.
+   * Perform `action` with the tools `app` declared, once. Resolves when its outcome is queued;
+   * `false` when the action had already been performed and nothing was done.
    */
-  async dispatch(action: HostAction, tools: AliaHostTools | undefined): Promise<boolean> {
+  async dispatch(
+    action: HostAction,
+    tools: AliaHostTools | undefined,
+    app: string | undefined,
+  ): Promise<boolean> {
     if (this.performed.has(action.toolCallId)) return false;
     this.performed.add(action.toolCallId);
     let outcome: AliaHostOutcome;
-    if (tools === undefined || action.app !== tools.app) {
+    if (tools === undefined || app === undefined || action.app !== app) {
       outcome = { outcome: 'rejected', detail: 'This app did not declare that tool.' };
     } else if (!tools.definitions.some((tool) => tool.name === action.name)) {
       outcome = { outcome: 'rejected', detail: `Unknown tool "${action.name}".` };
@@ -121,16 +127,23 @@ export class HostOutcomeQueue {
   }
 }
 
-/** The `host` member of a request, or nothing for a surface without host tools. */
+/**
+ * The `host` member of a request: the chat's `app` and its host tools (none is an empty list),
+ * or nothing for a chat that names no app — Alia's own.
+ *
+ * The app is also what labels a conversation this turn starts (`docs/agent-embedding.md` §6), so
+ * a surface without host tools still sends it.
+ */
 export function hostRequest(
+  app: string | undefined,
   tools: AliaHostTools | undefined,
   outcomes: readonly HostOutcomeRecord[],
 ): HostRequest | undefined {
-  if (tools === undefined) return undefined;
+  if (app === undefined) return undefined;
   return {
-    app: tools.app,
+    app,
     version: 1,
-    tools: tools.definitions.map(({ name, description, inputSchema }) => ({
+    tools: (tools?.definitions ?? []).map(({ name, description, inputSchema }) => ({
       name,
       description,
       inputSchema,
@@ -138,3 +151,6 @@ export function hostRequest(
     ...(outcomes.length === 0 ? {} : { outcomes: [...outcomes] }),
   };
 }
+
+/** The slug an app names itself by, here and on the server: `^[a-z][a-z0-9-]{0,31}$`. */
+export const APP_SLUG = /^[a-z][a-z0-9-]{0,31}$/;

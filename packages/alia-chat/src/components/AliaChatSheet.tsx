@@ -54,6 +54,8 @@ export interface AliaChatSheetProps {
   agent?: AliaChatAgentRef;
   /** App context injected into system prompt */
   clientContext?: string;
+  /** The Oxy app this chat is embedded in, by its slug (see `AliaChatContentProps.app`). */
+  app?: string;
   /** The UI effects this app performs for the lead (see `AliaChatContentProps.hostTools`). */
   hostTools?: AliaHostTools;
   /** The app's own drawing of catalogue tools' results, keyed `<app>:<tool>`. */
@@ -110,6 +112,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
   (
     {
       agent,
+      app,
       clientContext,
       hostTools,
       toolRenderers,
@@ -268,6 +271,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       flights,
       layout: 'sheet' as const,
       agent,
+      app,
       clientContext,
       hostTools,
       toolRenderers,
