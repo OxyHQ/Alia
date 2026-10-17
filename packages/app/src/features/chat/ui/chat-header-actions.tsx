@@ -13,6 +13,8 @@ import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiDownloadLine } from '@oxy.so/bloom/icons/RiDownloadLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
+import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
+import { RiShareLine } from '@oxy.so/bloom/icons/RiShareLine';
 import { RiSideBarLine } from '@oxy.so/bloom/icons/RiSideBarLine';
 import { RiDashboardLine } from '@oxy.so/bloom/icons/RiDashboardLine';
 import { RiDeleteBin6Line } from '@oxy.so/bloom/icons/RiDeleteBin6Line';
@@ -23,6 +25,10 @@ import React, { useRef } from 'react';
 export interface ChatHeaderActionsProps {
   /** Search what was said in this thread. Absent where there is no thread. */
   onSearch?: () => void;
+  /** Share a read-only link to the conversation. Absent where it cannot be shared. */
+  onShare?: () => Promise<unknown>;
+  /** End the conversation's share link. Offered wherever sharing is. */
+  onStopSharing?: () => Promise<unknown>;
   /** Export the conversation as a Markdown document. */
   onExport: () => void;
   /** Delete the conversation (the caller confirms). Absent where it cannot be. */
@@ -41,11 +47,11 @@ export interface ChatHeaderActionsProps {
  * The chat's own actions, in the container's breadcrumb row: Bloom's
  * `DropdownMenu` behind the row's "more" glyph.
  *
- * There is no share item yet. The backend exists (`POST /conversations/:id/share`
- * mints an expiring read-only link, `docs/agent-embedding.md` §6), but nothing in
- * this menu calls it, and a share button that could only copy text would be a stub
- * dressed as an action. Bloom's `AgentChatActions` always draws one, which is why
- * this is a menu of Alia's real actions instead.
+ * Share mints the conversation's read-only link (`POST /conversations/:id/share`,
+ * `docs/agent-embedding.md` §6) and hands it on; "Stop sharing" ends it. Both are
+ * offered only where the screen can honour them — never on a temporary chat. Bloom's
+ * `AgentChatActions` always draws a share button, which is why this is a menu of
+ * Alia's real actions instead.
  *
  * It also shows and hides the right panel, which otherwise opens only when the
  * agent starts working. Shown from here, it is the workspace: the files Alia
@@ -56,6 +62,8 @@ export interface ChatHeaderActionsProps {
  */
 export const ChatHeaderActions = React.memo(function ChatHeaderActions({
   onSearch,
+  onShare,
+  onStopSharing,
   onExport,
   onDelete,
   onClear,
@@ -64,6 +72,17 @@ export const ChatHeaderActions = React.memo(function ChatHeaderActions({
   const { t } = useTranslation();
   /** Held while a clear is in flight, so the item cannot start a second one. */
   const clearing = useRef(false);
+  /** Held while a share or a revoke is in flight, so a second press mints nothing. */
+  const sharing = useRef(false);
+  const once = (run: (() => Promise<unknown>) | undefined) => async () => {
+    if (run === undefined || sharing.current) return;
+    sharing.current = true;
+    try {
+      await run();
+    } finally {
+      sharing.current = false;
+    }
+  };
   const handleClear = async () => {
     if (onClear === undefined || clearing.current) return;
     clearing.current = true;
@@ -121,6 +140,22 @@ export const ChatHeaderActions = React.memo(function ChatHeaderActions({
         >
           {t('chatHeader.usage')}
         </DropdownMenuItem>
+        {onShare === undefined ? null : (
+          <DropdownMenuItem
+            onPress={() => void once(onShare)()}
+            leading={<RiShareLine size="sm" />}
+          >
+            {t('chatHeader.share')}
+          </DropdownMenuItem>
+        )}
+        {onStopSharing === undefined ? null : (
+          <DropdownMenuItem
+            onPress={() => void once(onStopSharing)()}
+            leading={<RiEyeOffLine size="sm" />}
+          >
+            {t('chatHeader.stopSharing')}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onPress={onExport} leading={<RiDownloadLine size="sm" />}>
           {t('chat.exportMarkdown')}
         </DropdownMenuItem>

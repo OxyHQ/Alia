@@ -1257,7 +1257,17 @@
     "moreOptions": "Más opciones",
     "showPanel": "Mostrar panel",
     "hidePanel": "Ocultar panel",
-    "usage": "Uso y contexto"
+    "usage": "Uso y contexto",
+    "share": "Compartir enlace",
+    "stopSharing": "Dejar de compartir",
+    "shareText": "Una conversación con Alia",
+    "shareCopied": "Enlace copiado",
+    "shareCopiedDescription": "Cualquiera con el enlace puede leer esta conversación durante 24 horas. Nunca incluye los resultados de las herramientas.",
+    "shareDeliverFailed": "No se pudo compartir el enlace.",
+    "sharingStopped": "Ya no se comparte",
+    "sharingStoppedDescription": "El enlace ya no abre esta conversación.",
+    "notShared": "Esta conversación no tiene enlace para compartir.",
+    "stopSharingFailed": "No se pudo dejar de compartir. Inténtalo de nuevo."
   },
   "welcome": {
     "greetingNamed": "Hola {{name}}, ¿qué tienes en mente?",

@@ -1,12 +1,12 @@
 import { buildConversationMarkdown, exportFilename } from '@alia.onl/sdk/model';
 import type { AliaChatState } from '@alia.onl/sdk';
-import { useDeleteConversation } from '@alia.onl/sdk/runtime';
+import { useDeleteConversation, useShareConversation } from '@alia.onl/sdk/runtime';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'expo-router';
 import { useCallback } from 'react';
-import { deliverMarkdownFile } from '@/features/chat/runtime/conversation-share';
+import { deliverMarkdownFile, deliverShareLink } from '@/features/chat/runtime/conversation-share';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { ChatHeaderActions } from '@/features/chat/ui/chat-header-actions';
 import { queryKeys } from '@/shared/api/query-keys';
@@ -21,17 +21,25 @@ interface ConversationActionsProps {
   agentId?: string;
   /** The handle whose thread this is, when it is one. */
   threadHandle?: string;
+  /** Whether the conversation can be shared: a temporary (ghost) chat is never stored, so it cannot. */
+  shareable?: boolean;
 }
 
+/** Whether Alia answered a request with this status (`AliaApiError.status`). */
+const hasStatus = (error: unknown, status: number): boolean =>
+  typeof error === 'object' && error !== null && (error as { status?: unknown }).status === status;
+
 /**
- * The conversation's own actions in the breadcrumb row — search, export, clear, delete and the
- * agent's terminal — wired to the app: its router, its right panel and where an export goes.
+ * The conversation's own actions in the breadcrumb row — search, share, export, clear, delete and
+ * the agent's terminal — wired to the app: its router, its right panel, where an export goes and
+ * how a share link is handed on.
  */
 export function ConversationActions({
   chat,
   agentName,
   agentId,
   threadHandle,
+  shareable = true,
 }: ConversationActionsProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -62,6 +70,53 @@ export function ConversationActions({
       toast.error(t('chat.exportFailed'));
     });
   }, [queryClient, conversationId, getMessages, agentName, t]);
+
+  /**
+   * Share the conversation: mint its read-only link (`POST /v1/conversations/:id/share`, 24 hours)
+   * and hand `share.url` — Alia's one shared page, the same link every app's sheet mints — to the
+   * platform's share sheet or the clipboard. Sharing again replaces the link, so an older one stops
+   * working. What a reader sees is text, images and who said them, never a tool's output
+   * (`docs/agent-embedding.md` §6).
+   */
+  const { share, revoke } = useShareConversation();
+  const handleShare = useCallback(async () => {
+    if (conversationId === undefined) return;
+    let url: string;
+    try {
+      ({ url } = await share(conversationId));
+    } catch {
+      toast.error(t('chat.shareFailed'));
+      return;
+    }
+    const cached = queryClient.getQueryData<{ title?: string }>(
+      queryKeys.conversations.detail(conversationId),
+    );
+    const title = cached?.title?.trim() || agentName || t('chat.newChat');
+    try {
+      const outcome = await deliverShareLink(url, title, t('chatHeader.shareText'));
+      if (outcome === 'copied') {
+        toast.success(t('chatHeader.shareCopied'), {
+          description: t('chatHeader.shareCopiedDescription'),
+        });
+      }
+    } catch {
+      toast.error(t('chatHeader.shareDeliverFailed'));
+    }
+  }, [share, conversationId, queryClient, agentName, t]);
+
+  /** End the conversation's link: whoever holds it can no longer read the conversation. */
+  const handleStopSharing = useCallback(async () => {
+    if (conversationId === undefined) return;
+    try {
+      await revoke(conversationId);
+      toast.success(t('chatHeader.sharingStopped'), {
+        description: t('chatHeader.sharingStoppedDescription'),
+      });
+    } catch (error: unknown) {
+      if (hasStatus(error, 404)) toast(t('chatHeader.notShared'));
+      else toast.error(t('chatHeader.stopSharingFailed'));
+    }
+  }, [revoke, conversationId, t]);
 
   /**
    * Delete this conversation, once the person has confirmed it, and go home.
@@ -106,6 +161,8 @@ export function ConversationActions({
   return (
     <ChatHeaderActions
       onSearch={openSearch}
+      onShare={shareable ? handleShare : undefined}
+      onStopSharing={shareable ? handleStopSharing : undefined}
       onExport={handleExport}
       onClear={clearMessages}
       onOpenTerminal={terminalAgentId === undefined ? undefined : handleOpenTerminal}

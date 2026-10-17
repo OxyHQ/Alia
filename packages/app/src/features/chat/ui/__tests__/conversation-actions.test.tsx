@@ -16,6 +16,15 @@ const world = vi.hoisted(() => ({
   deleteFails: false,
   replaced: [] as string[],
   toastErrors: [] as string[],
+  toastSuccesses: [] as string[],
+  toastInfos: [] as string[],
+  shared: [] as string[],
+  shareFails: false,
+  revoked: [] as string[],
+  revokeStatus: 0,
+  linkOutcome: 'copied' as 'shared' | 'copied' | 'dismissed',
+  linkFails: false,
+  links: [] as [string, string, string][],
   cachedTitle: undefined as string | undefined,
   ui: {
     activeAgentConversationId: null as string | null,
@@ -31,6 +40,18 @@ vi.mock('@alia.onl/sdk/model', () => ({
   exportFilename: (title: string) => `${title}.md`,
 }));
 vi.mock('@alia.onl/sdk/runtime', () => ({
+  useShareConversation: () => ({
+    share: async (id: string) => {
+      if (world.shareFails) throw new Error('refused');
+      world.shared.push(id);
+      return { conversationId: id, token: 't1', url: 'https://alia.onl/shared/t1', expiresAt: 'x' };
+    },
+    revoke: async (id: string) => {
+      if (world.revokeStatus !== 0)
+        throw Object.assign(new Error('no'), { status: world.revokeStatus });
+      world.revoked.push(id);
+    },
+  }),
   useDeleteConversation: () => ({
     mutateAsync: async (id: string) => {
       if (world.deleteFails) throw new Error('refused');
@@ -40,7 +61,10 @@ vi.mock('@alia.onl/sdk/runtime', () => ({
 }));
 vi.mock('@oxy.so/bloom/surfaces', () => ({ confirm: async () => world.confirmed }));
 vi.mock('@oxy.so/bloom/toast', () => ({
-  toast: { error: (message: string) => world.toastErrors.push(message) },
+  toast: Object.assign((message: string) => world.toastInfos.push(message), {
+    error: (message: string) => world.toastErrors.push(message),
+    success: (message: string) => world.toastSuccesses.push(message),
+  }),
 }));
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ getQueryData: () => world.cachedTitle && { title: world.cachedTitle } }),
@@ -53,6 +77,11 @@ vi.mock('@/features/chat/runtime/conversation-share', () => ({
   deliverMarkdownFile: async (...args: [string, string, string]) => {
     if (world.deliverFails) throw new Error('no share');
     world.delivered.push(args);
+  },
+  deliverShareLink: async (...args: [string, string, string]) => {
+    if (world.linkFails) throw new Error('no sheet');
+    world.links.push(args);
+    return world.linkOutcome;
   },
 }));
 vi.mock('@/features/chat/runtime/ui-store', () => ({
@@ -103,6 +132,15 @@ beforeEach(() => {
   world.deleteFails = false;
   world.replaced = [];
   world.toastErrors = [];
+  world.toastSuccesses = [];
+  world.toastInfos = [];
+  world.shared = [];
+  world.shareFails = false;
+  world.revoked = [];
+  world.revokeStatus = 0;
+  world.linkOutcome = 'copied';
+  world.linkFails = false;
+  world.links = [];
   world.cachedTitle = undefined;
   world.ui.activeAgentConversationId = null;
   world.ui.activeAgentId = null;
@@ -137,6 +175,68 @@ describe('exporting the conversation', () => {
     const menu = mount();
     await act(async () => menu.onExport());
     expect(world.toastErrors).toEqual(['chat.exportFailed']);
+  });
+});
+
+describe('sharing the conversation', () => {
+  it('mints the link and hands on Alia’s one shared page, named after the chat', async () => {
+    world.cachedTitle = 'Trip to Lugo';
+    const menu = mount();
+    await act(async () => menu.onShare());
+    expect(world.shared).toEqual(['c1']);
+    expect(world.links).toEqual([
+      ['https://alia.onl/shared/t1', 'Trip to Lugo', 'chatHeader.shareText'],
+    ]);
+  });
+
+  it('says the link was copied, and what a reader can see, only when it was copied', async () => {
+    const menu = mount();
+    await act(async () => menu.onShare());
+    expect(world.toastSuccesses).toEqual(['chatHeader.shareCopied']);
+
+    world.toastSuccesses = [];
+    world.linkOutcome = 'shared';
+    await act(async () => menu.onShare());
+    world.linkOutcome = 'dismissed';
+    await act(async () => menu.onShare());
+    expect(world.toastSuccesses).toEqual([]);
+    expect(world.toastErrors).toEqual([]);
+  });
+
+  it('says so when no link could be made, and hands nothing on', async () => {
+    world.shareFails = true;
+    const menu = mount();
+    await act(async () => menu.onShare());
+    expect(world.toastErrors).toEqual(['chat.shareFailed']);
+    expect(world.links).toEqual([]);
+  });
+
+  it('says so when the link could not be handed on', async () => {
+    world.linkFails = true;
+    const menu = mount();
+    await act(async () => menu.onShare());
+    expect(world.toastErrors).toEqual(['chatHeader.shareDeliverFailed']);
+  });
+
+  it('ends the link, and tells a conversation with none apart from a failure', async () => {
+    const menu = mount();
+    await act(async () => menu.onStopSharing());
+    expect(world.revoked).toEqual(['c1']);
+    expect(world.toastSuccesses).toEqual(['chatHeader.sharingStopped']);
+
+    world.revokeStatus = 404;
+    await act(async () => menu.onStopSharing());
+    expect(world.toastInfos).toEqual(['chatHeader.notShared']);
+
+    world.revokeStatus = 500;
+    await act(async () => menu.onStopSharing());
+    expect(world.toastErrors).toEqual(['chatHeader.stopSharingFailed']);
+  });
+
+  it('offers no sharing for a temporary chat, which is never stored', () => {
+    const menu = mount({ shareable: false });
+    expect(menu.onShare).toBeUndefined();
+    expect(menu.onStopSharing).toBeUndefined();
   });
 });
 
