@@ -207,7 +207,7 @@ export default function ShowsScreen() {
                 onPress: startShow,
               }}
             />
-          ) : null
+          ) : undefined
         }
         refreshControl={
           <RefreshControl

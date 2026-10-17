@@ -90,7 +90,7 @@ export default function TasksPage() {
     <View className="py-12">
       <Loading variant="spinner" size="sm" />
     </View>
-  ) : work.isError && work.items.length === 0 ? null : (
+  ) : work.isError && work.items.length === 0 ? undefined : (
     <EmptyState
       icon={RiInbox2Line}
       title={work.tab === 'active' ? t('tasks.emptyActive') : t('tasks.emptyHistory')}
@@ -104,7 +104,7 @@ export default function TasksPage() {
         {t('tasks.loadMore')}
       </Button>
     </View>
-  ) : null;
+  ) : undefined;
 
   return (
     <FlatList
