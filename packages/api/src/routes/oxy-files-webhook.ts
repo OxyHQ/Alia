@@ -10,11 +10,17 @@
  * if it ever arrives parsed, the handler refuses rather than verifying a
  * re-serialisation (`oxyFilesWebhookMount.test.ts`).
  *
- * ## Not mounted without a secret
+ * ## Without a secret, only the challenge is answered
  *
- * `OXY_FILES_WEBHOOK_SECRET` is the `whsec_…` Oxy returned when the endpoint
- * was registered (console → Webhooks → File events). Without it every request
- * is a 404 — never a 401 that would tell a prober the endpoint exists.
+ * `OXY_FILES_WEBHOOK_SECRET` is the `whsec_…` Oxy returns when the endpoint is
+ * registered (console → Webhooks → File events, or `apps.setFilesWebhook`).
+ * Registering it is what issues that secret, and Oxy registers the endpoint
+ * only after it echoes a `webhook.challenge` — so the challenge MUST be
+ * answered before any secret exists, or the endpoint can never be registered
+ * (it shipped that way in #812: every registration was refused 422). The
+ * challenge carries nothing to protect; `verifyFileEventSignature` returns it
+ * without a signature check by contract. Every other request without a secret
+ * is a 404 — never a 401.
  *
  * ## What each event does
  *
@@ -66,7 +72,10 @@ const router = Router();
 
 router.post('/', async (req: Request, res: Response) => {
   const secret = oxyFilesWebhookSecret();
-  if (secret === null) return res.status(404).end();
+  if (secret === null) {
+    const challenge = unregisteredChallenge(req);
+    return challenge === null ? res.status(404).end() : res.json({ challenge });
+  }
   if (!Buffer.isBuffer(req.body)) {
     // Parsed upstream: the bytes the signature covers are gone. Refuse loudly
     // rather than verify a re-serialisation that happens to match today.
@@ -101,6 +110,22 @@ router.post('/', async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'not handled' });
   }
 });
+
+/**
+ * The registration challenge, answered before Alia holds a secret; `null` for
+ * anything else. `verifyFileEventSignature` returns a challenge without
+ * checking its signature, and refuses every real event against a secret Oxy
+ * never issued.
+ */
+function unregisteredChallenge(req: Request): string | null {
+  if (!Buffer.isBuffer(req.body)) return null;
+  try {
+    const event = verifyFileEventSignature(req.body, req.headers, 'whsec_unregistered');
+    return event.type === 'webhook.challenge' ? event.challenge : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Act on one verified event. Idempotent: a redelivery changes nothing more. */
 export async function handleFileEvent(event: FileEvent): Promise<void> {
