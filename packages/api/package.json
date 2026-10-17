@@ -9,6 +9,7 @@
     "ffmpeg-static"
   ],
   "scripts": {
+    "db:check-locks": "oxy-db-check-migration-locks --migrations=drizzle --after=102 --hot-tables=agents,conversations,messages,organization_members,organizations,subscriptions,user_credits",
     "dev": "bun --watch src/index.ts",
     "build": "bun build.ts",
     "start": "bun dist/index.js",
@@ -35,7 +36,7 @@
     "@kaana.ai/sdk": "3.1.0",
     "@oxy.so/contracts": "4.24.0",
     "@oxy.so/core": "4.21.0",
-    "@oxy.so/db": "^1.1.0",
+    "@oxy.so/db": "^1.3.0",
     "@oxy.so/mcp": "1.3.0",
     "@oxy.so/utils": "^1.2.0",
     "@socket.io/redis-adapter": "^8.3.0",
