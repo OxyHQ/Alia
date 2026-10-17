@@ -89,6 +89,17 @@ function sizeForLog(value: unknown): number {
 
 const MAX_TOOL_CALLS = 15;
 
+/**
+ * A tool that ran but could not do its job answers `{ error: '…' }` — the shape
+ * Alia's tools report a failure in, so the model reads what went wrong instead
+ * of an empty result. The model gets that output either way; this is what the
+ * `tool.call` event records, which counted a timed-out web search as a success.
+ */
+function outputReportsFailure(output: unknown): boolean {
+  if (typeof output !== 'object' || output === null) return false;
+  const error = (output as { error?: unknown }).error;
+  return typeof error === 'string' && error.length > 0;
+}
 export interface ToolInvocation {
   toolCallId: string;
   toolName: string;
@@ -395,7 +406,7 @@ export async function runStream<TOOLS extends ToolSet>(
           timestamp: Date.now(),
           toolName: originalToolName,
           durationMs: Date.now() - toolStart,
-          success: true,
+          success: !outputReportsFailure(chunk.output),
         });
         toolTimers.delete(chunk.toolCallId);
       }
