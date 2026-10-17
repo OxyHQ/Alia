@@ -5,13 +5,20 @@
  * once — its host tools, renderers, words, voice, context, upsell and share. A button calls
  * `useAskAgent().ask(key, turn)`. Signed out, the sheet is not mounted (it could not call Alia):
  * `ask` opens Oxy's sign-in instead, and the person asks again once signed in.
+ *
+ * The sheet itself (`AliaAskSheet`) is loaded lazily and mounted on the first `ask`, so an app
+ * that mounts this provider at its root — imported from `@alia.onl/sdk/ask` — keeps the chat out
+ * of its entry bundle. Signed in, its module is fetched in the background so the first `ask`
+ * does not wait on the network.
  */
 
 import { useAuth } from '@oxy.so/services/ui/client';
 import {
   createContext,
   forwardRef,
+  lazy,
   type ReactNode,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -21,7 +28,11 @@ import {
   useState,
 } from 'react';
 import type { AliaTurn } from '../hooks/useChatComposer';
-import { AliaChatSheet, type AliaChatSheetProps, type AliaChatSheetRef } from './AliaChatSheet';
+import type { AliaChatSheetProps, AliaChatSheetRef } from './AliaChatSheet';
+import type { AliaAskOpening } from './AliaAskSheet';
+
+const loadSheet = () => import('./AliaAskSheet');
+const LazyAskSheet = lazy(() => loadSheet().then((module) => ({ default: module.AliaAskSheet })));
 
 /** The agents an app offers, by its own key. An entry without `id` is Alia. */
 export type AliaAskAgents = Readonly<Record<string, { id?: string }>>;
@@ -73,14 +84,9 @@ export function useAskAgent(): AliaAsk {
   return ask;
 }
 
-/** Which agent the sheet is on, and the opening that waits for that sheet to mount. */
-interface Opening {
+/** The opening that waits for the sheet of agent `key` to be the one mounted. */
+interface Opening extends AliaAskOpening {
   key: string | undefined;
-  turn: AliaTurn | undefined;
-  /** A stored conversation to open instead of the welcome. */
-  conversationId?: string;
-  /** Changes on every `ask`, so asking the same agent twice opens twice. */
-  serial: number;
 }
 
 /**
@@ -95,6 +101,8 @@ export const AliaAskProvider = forwardRef<AliaAsk, AliaAskProviderProps>(functio
   const sheetRef = useRef<AliaChatSheetRef>(null);
   const [opening, setOpening] = useState<Opening | null>(null);
   const [current, setCurrent] = useState<string | undefined>(undefined);
+  /** Nothing is mounted before the first `ask`. */
+  const [asked, setAsked] = useState(false);
   const agentsRef = useRef(agents);
   agentsRef.current = agents;
 
@@ -107,6 +115,7 @@ export const AliaAskProvider = forwardRef<AliaAsk, AliaAskProviderProps>(functio
         void signIn().catch(() => undefined);
         return;
       }
+      setAsked(true);
       setCurrent(agentKey);
       setOpening((previous) => ({
         key: agentKey,
@@ -125,13 +134,12 @@ export const AliaAskProvider = forwardRef<AliaAsk, AliaAskProviderProps>(functio
   );
   const dismiss = useCallback(() => sheetRef.current?.dismiss(), []);
 
-  // Presented once the sheet for that agent is the one mounted (a different agent is a new sheet).
+  const opened = useCallback(() => setOpening(null), []);
+
+  // Signed in, the sheet's module comes down in the background, ahead of the first `ask`.
   useEffect(() => {
-    if (opening === null || opening.key !== current) return;
-    if (opening.conversationId !== undefined) sheetRef.current?.resume(opening.conversationId);
-    else sheetRef.current?.present(opening.turn);
-    setOpening(null);
-  }, [opening, current]);
+    if (canUsePrivateApi) void loadSheet().catch(() => undefined);
+  }, [canUsePrivateApi]);
 
   const agentId = current === undefined ? undefined : agents?.[current]?.id;
   const agent = useMemo(() => (agentId === undefined ? undefined : { id: agentId }), [agentId]);
@@ -141,14 +149,19 @@ export const AliaAskProvider = forwardRef<AliaAsk, AliaAskProviderProps>(functio
   return (
     <AskContext.Provider value={value}>
       {children}
-      {canUsePrivateApi ? (
-        <AliaChatSheet
-          key={agentId ?? 'alia'}
-          ref={sheetRef}
-          {...sheet}
-          agent={agent}
-          welcomeSuggestions={agent === undefined ? welcomeSuggestions : undefined}
-        />
+      {canUsePrivateApi && asked ? (
+        <Suspense fallback={null}>
+          <LazyAskSheet
+            key={agentId ?? 'alia'}
+            ref={sheetRef}
+            {...sheet}
+            agent={agent}
+            welcomeSuggestions={agent === undefined ? welcomeSuggestions : undefined}
+            // A different agent is a new sheet: the opening waits for that one to mount.
+            opening={opening !== null && opening.key === current ? opening : null}
+            onOpened={opened}
+          />
+        </Suspense>
       ) : null}
     </AskContext.Provider>
   );

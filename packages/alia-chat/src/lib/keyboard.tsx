@@ -16,11 +16,14 @@ type KeyboardAwareScrollViewProps = ScrollViewProps & {
   extraKeyboardSpace?: number;
 };
 
-const KeyboardAwareScrollView = React.forwardRef<ScrollView, KeyboardAwareScrollViewProps>(
-  ({ bottomOffset, disableScrollOnKeyboardHide, enabled, extraKeyboardSpace, ...props }, ref) => (
-    <ScrollView ref={ref} {...props} />
-  ),
-);
+// `ComponentRef`, not `ScrollView` itself: React Native 0.88 types `ScrollView` as a function
+// component, so the class is no longer its instance type.
+const KeyboardAwareScrollView = React.forwardRef<
+  React.ComponentRef<typeof ScrollView>,
+  KeyboardAwareScrollViewProps
+>(({ bottomOffset, disableScrollOnKeyboardHide, enabled, extraKeyboardSpace, ...props }, ref) => (
+  <ScrollView ref={ref} {...props} />
+));
 KeyboardAwareScrollView.displayName = 'KeyboardAwareScrollView';
 
 // `automaticOffset` is keyboard-controller's: measure the view's position in
