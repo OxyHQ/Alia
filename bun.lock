@@ -303,7 +303,7 @@
         "cron-parser": "4.9.0",
         "drizzle-orm": "0.45.2",
         "esbuild": "^0.28.1",
-        "expo-server-sdk": "^6.1.0",
+        "expo-server-sdk": "^7.2.0",
         "express": "^4.22.2",
         "ffmpeg-static": "^5.3.0",
         "ioredis": "^5.11.1",
@@ -2593,7 +2593,7 @@
 
     "expo-server": ["expo-server@57.0.0", "", {}, "sha512-18byjwFbHVFrGzI4IH1o2MZiiYwvO/y3d+JL3sq50Lg3Id1titwIRMh1fjbHbpM+wP6x14KJY0Ers1UYsjGq8Q=="],
 
-    "expo-server-sdk": ["expo-server-sdk@6.1.0", "", { "dependencies": { "promise-limit": "^2.7.0", "promise-retry": "^2.0.1", "undici": "^7.2.0" } }, "sha512-ISuax1AQ7cpM5RAqcu8gVcoLL0ZKskJ5OLoMWmdITBe9nYjTucjdGyBq817YkIvTcj1pAUwx+9toUT7l/V7thA=="],
+    "expo-server-sdk": ["expo-server-sdk@7.2.0", "", { "dependencies": { "promise-limit": "^2.7.0", "promise-retry": "^2.0.1", "undici": "^7.2.0" } }, "sha512-np157Ylo2X+aX3VYazXoXNc/akSskzEzHmVkxlGlkzOTVkSRgzBk93BX/8fjl6+O7KfimyWx5JJmoa+D5KgXdQ=="],
 
     "expo-sharing": ["expo-sharing@57.0.23", "", { "dependencies": { "@expo/config-plugins": "^57.0.10", "@expo/config-types": "^57.0.2", "@expo/plist": "^0.8.1" }, "peerDependencies": { "expo": "*", "react": "*", "react-native": "*" } }, "sha512-fN+jrqoWwOpIo+X4utiu/ayCWym23DMgvrTJUHoopkBeO6rEa79ZY4f6ApOlRxvEx2NgQgJEQX+cbPJrjOSRog=="],
 
