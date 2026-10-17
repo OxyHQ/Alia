@@ -119,6 +119,22 @@ await esbuild.build({
   logLevel: 'info',
 });
 
+// The Oxy Files backfill (`docs/oxy-files.md`) is an ECS one-shot for the same
+// reason: it acts as Alia only through the task role's attested identity, which
+// a checkout does not have, and the runtime image has no src/ directory.
+await esbuild.build({
+  entryPoints: ['src/scripts/migrate-to-oxy-files.ts'],
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'esm',
+  outfile: 'dist/scripts/migrate-to-oxy-files.js',
+  plugins: [externalizeNodeModules],
+  sourcemap: false,
+  minify: false,
+  logLevel: 'info',
+});
+
 // Copy prompts directory to dist
 try {
   await cp('prompts', 'dist/prompts', { recursive: true });

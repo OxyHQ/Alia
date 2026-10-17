@@ -128,9 +128,9 @@ platform-wide until ADR 0012 lands.
 **Oxy Files** ([Alia on Oxy Files](./oxy-files.md)): `OXY_FILES_WEBHOOK_SECRET`
 (SSM `/oxy/alia/OXY_FILES_WEBHOOK_SECRET`) is the `whsec_…` secret Oxy Console
 shows once when the file-events endpoint `https://api.alia.onl/webhooks/oxy-files`
-is registered; without it the route answers 404. `OXY_FILES_PRIVATE_CONTENT`
-stays unset until Oxy stage 4c (OxyHQ/oxy#1774) is deployed, then is set before
-the private-content backfill runs;
+is registered; without it the route answers 404. Private content (library,
+spoken clips, skill files) always goes to Oxy first — there is no switch — and
+the backfill (`dist/scripts/migrate-to-oxy-files.js`) runs as an ECS one-shot;
 `SYRA_COVER_FILE_IDS` stays unset until Syra is deployed with `imageFileId`
 (Syra #214) and lists Alia in `SYRA_COVER_APPLICATION_IDS`.
 Alia's Oxy application needs `files:app:write`, `files:app:delete`,

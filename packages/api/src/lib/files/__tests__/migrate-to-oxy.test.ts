@@ -6,8 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * nothing, an apply copies the EXACT bytes and records the file only once
  * Oxy's hash matches, a row that changed meanwhile is skipped, and the private
  * kinds — library uploads as the person's private files, spoken clips as
- * Alia's, skill files by their owner — refuse to run while new writes still go
- * to the legacy bucket. The repository writes are
+ * Alia's, skill files by their owner — move with no switch, paced to Oxy's
+ * upload budget and resumed after a 429. The repository writes are
  * `db/__tests__/oxyFiles.pgdb.test.ts`.
  */
 
@@ -70,7 +70,8 @@ vi.mock('../oxy-files.js', async (importOriginal) => {
 });
 vi.mock('../../s3.js', () => ({ readS3Object: vi.fn() }));
 
-const { migrateKind } = await import('../migrate-to-oxy.js');
+const { migrateKind, MIGRATION_UPLOADS_PER_MINUTE, RATE_LIMITED_MAX_WAITS, RATE_LIMITED_WAIT_MS } =
+  await import('../migrate-to-oxy.js');
 
 const COVER = Buffer.from('the exact png bytes Syra serves');
 const sha = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
@@ -80,6 +81,8 @@ const deps = {
   fetchSyraImage: vi.fn(async () => ({ bytes: COVER, mime: 'image/png' })),
   oxySha256: vi.fn(async () => new Map<string, string>()),
   readLegacy: vi.fn(async () => Buffer.from('#!/bin/sh')),
+  sleep: vi.fn(async (_ms: number) => {}),
+  now: () => 0,
 };
 
 async function collect(kind: Parameters<typeof migrateKind>[0], apply: boolean) {
@@ -90,7 +93,6 @@ async function collect(kind: Parameters<typeof migrateKind>[0], apply: boolean) 
 
 beforeEach(() => {
   vi.clearAllMocks();
-  delete process.env.OXY_FILES_PRIVATE_CONTENT;
   H.series = [
     { id: 's1', syraPodcastId: 'p1', coverImageAssetId: 'img-1' },
     { id: 's2', syraPodcastId: 'p2', coverImageAssetId: 'img-2' },
@@ -148,14 +150,73 @@ describe('show covers', () => {
 });
 
 describe('private kinds', () => {
-  it('refuse to run until Oxy holds private content', async () => {
-    await expect(collect('skills', true)).rejects.toThrow(
-      /does not move while OXY_FILES_PRIVATE_CONTENT is off/,
-    );
+  const script = (id: string) => ({
+    id,
+    path: 'run.sh',
+    mime: 'text/x-sh',
+    sha256: sha(Buffer.from('#!/bin/sh')),
+    s3Key: `legacy/${id}`,
+    ownerOxyUserId: null,
+  });
+
+  it('move with no switch', async () => {
+    H.skills = [script('k1')];
+    H.adoptedSkill.mockResolvedValue(true);
+    const lines = await collect('skills', true);
+    expect(lines.map((line) => line.outcome)).toEqual(['copied']);
+  });
+
+  it('pace an apply to its share of Oxy’s upload budget — a large upload spends two', async () => {
+    // A clock that only the pacing's own waits move, so the spacing is exact.
+    let clock = 0;
+    const sleep = vi.fn(async (ms: number) => {
+      clock += ms;
+    });
+    H.skills = [script('k1'), script('k2'), script('k3')];
+    H.adoptedSkill.mockResolvedValue(true);
+    for await (const _ of migrateKind(
+      'skills',
+      { ...deps, sleep, now: () => clock },
+      { apply: true },
+    ))
+      void _;
+    const spacing = 60_000 / MIGRATION_UPLOADS_PER_MINUTE;
+    // text/x-sh is a large upload (start + complete): each item waits for two calls' worth.
+    expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([2 * spacing, 2 * spacing]);
+    expect(MIGRATION_UPLOADS_PER_MINUTE).toBeLessThan(30);
+  });
+
+  it('preview spends no upload budget at all', async () => {
+    H.skills = [script('k1'), script('k2')];
+    await collect('skills', false);
+    expect(deps.sleep).not.toHaveBeenCalled();
+  });
+
+  it('wait out a 429 and try the same item again, never reporting it failed', async () => {
+    H.skills = [script('k1'), script('k2')];
+    H.adoptedSkill.mockResolvedValue(true);
+    H.copied
+      .mockRejectedValueOnce(Object.assign(new Error('Too Many Requests'), { status: 429 }))
+      .mockResolvedValue('oxy-file');
+    const lines = await collect('skills', true);
+    expect(lines.map((line) => [line.entityId, line.outcome])).toEqual([
+      ['k1', 'copied'],
+      ['k2', 'copied'],
+    ]);
+    expect(deps.sleep).toHaveBeenCalledWith(RATE_LIMITED_WAIT_MS);
+    expect(H.copied).toHaveBeenCalledTimes(3);
+  });
+
+  it('give up on an item only after Oxy keeps answering 429', async () => {
+    H.skills = [script('k1')];
+    H.copied.mockRejectedValue(Object.assign(new Error('Too Many Requests'), { status: 429 }));
+    const [line] = await collect('skills', true);
+    expect(line).toMatchObject({ outcome: 'failed', reason: expect.stringMatching(/429/) });
+    expect(H.copied).toHaveBeenCalledTimes(RATE_LIMITED_MAX_WAITS + 1);
+    expect(H.adoptedSkill).not.toHaveBeenCalled();
   });
 
   it('a skill file whose legacy bytes differ from its recorded sha256 is never copied', async () => {
-    process.env.OXY_FILES_PRIVATE_CONTENT = 'enabled';
     H.skills = [
       {
         id: 'k1',
@@ -175,7 +236,6 @@ describe('private kinds', () => {
   });
 
   it('copies a catalogue skill file as Alia’s and a person’s as theirs', async () => {
-    process.env.OXY_FILES_PRIVATE_CONTENT = 'enabled';
     const bytes = Buffer.from('#!/bin/sh');
     H.skills = [
       {
@@ -207,7 +267,6 @@ describe('private kinds', () => {
 
 describe('library uploads and spoken clips', () => {
   beforeEach(() => {
-    process.env.OXY_FILES_PRIVATE_CONTENT = 'enabled';
     H.library = [
       {
         id: 'l1',

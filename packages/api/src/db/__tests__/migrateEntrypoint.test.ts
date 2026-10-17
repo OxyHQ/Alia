@@ -126,3 +126,39 @@ describe('the bundled migrator runs under bun and under node', () => {
     expect(built).not.toMatch(/\b__filename\b/);
   });
 });
+
+/**
+ * The Oxy Files backfill ships the same way, and for a stronger reason: it acts
+ * as Alia only through the task role's attested identity, so a checkout cannot
+ * run it at all, and a script that exists only as TypeScript is a runbook step
+ * nobody can execute (it shipped that way in #812). Built by the `beforeAll`
+ * above — one build per file, never two racing on `dist/`.
+ */
+describe('the bundled Oxy Files backfill', () => {
+  const backfill = fileURLToPath(
+    new URL('../../../dist/scripts/migrate-to-oxy-files.js', import.meta.url),
+  );
+
+  beforeAll(() => {
+    execFileSync('bun', ['build.ts'], { cwd: packageRoot, stdio: 'pipe' });
+  }, 120_000);
+
+  it('gets as far as its own database check under bun, the image runtime', () => {
+    let output = '';
+    let status = 0;
+    try {
+      output = execFileSync('bun', [backfill, '--target-database=alia', '--status'], {
+        cwd: packageRoot,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, DATABASE_URL: '' },
+      });
+    } catch (error) {
+      const e = error as { stdout?: string; stderr?: string; status?: number };
+      output = `${e.stdout ?? ''}${e.stderr ?? ''}`;
+      status = e.status ?? -1;
+    }
+    expect(output).toContain('DATABASE_URL is required');
+    expect(status).not.toBe(0);
+  });
+});
