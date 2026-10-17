@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { NativeSyntheticEvent, TextInputKeyPressEventData } from 'react-native';
+import type { TextInputKeyPressEvent } from 'react-native';
 import {
   type Completion,
   SEARCH_DEBOUNCE_MS,
@@ -62,7 +62,7 @@ export function useComposerSuggestions<T extends AliaSuggestion>({
   );
 
   const onKeyPress = useCallback(
-    (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    (event: TextInputKeyPressEvent) => {
       if (completions.length === 0) return;
       const key = event.nativeEvent.key;
       if (key === 'ArrowDown' || key === 'ArrowUp') {

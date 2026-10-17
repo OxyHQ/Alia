@@ -1,10 +1,11 @@
 import type { AvatarFlights } from '@oxy.so/bloom/avatar-flight';
 import { useOxy } from '@oxy.so/services/ui/client';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import type { NativeSyntheticEvent, TextInput, TextInputKeyPressEventData } from 'react-native';
+import type { TextInputKeyPressEvent } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import { leadToProfile } from '../lib/flights';
 import type { AliaLead } from '../lib/participants';
+import type { TextInputHandle } from '../lib/text-input';
 import { imageUriToDataUrl } from '../lib/image-data-url';
 import {
   useComposerDraft,
@@ -254,7 +255,7 @@ export function useChatComposer({
   });
 
   // ── The field: focus, and its keys ──
-  const inputRef = useRef<TextInput | null>(null);
+  const inputRef = useRef<TextInputHandle | null>(null);
   useFocusWhenPresented(presentedProgress, () => inputRef.current?.focus());
   // Starting an edit puts the caret in the composer that now holds the question: the Edit press
   // left focus on the row's button, so typing went nowhere and Escape could not reach the edit.
@@ -265,7 +266,7 @@ export function useChatComposer({
   const { onKeyPress: onSuggestionKeyPress } = suggestions;
   const cancelEdit = edit.cancel;
   const onKeyPress = useCallback(
-    (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    (event: TextInputKeyPressEvent) => {
       // Escape leaves an edit, as its Cancel does: it is the top-most thing open while the
       // question is being rewritten.
       if (editing !== undefined && event.nativeEvent.key === 'Escape') {

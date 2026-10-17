@@ -1,5 +1,26 @@
 # @alia.onl/sdk
 
+## 20.2.0
+
+An app mounts its one sheet at the root without the chat in its entry bundle.
+
+### Added
+
+- **`@alia.onl/sdk/ask`**, a leaf entry with `AliaAskProvider` and `useAskAgent` alone. The root
+  entry still exports both, but brings the whole chat with them.
+
+### Changed
+
+- **`AliaAskProvider` loads its sheet lazily** (`components/AliaAskSheet.tsx`, one `import()`) and
+  mounts it on the first `ask`. Signed in, the module is fetched in the background, so the first
+  `ask` does not wait on the network. `check:entries` holds that `./ask` loads none of the chat
+  with the entry.
+- **Ref and event types are React Native 0.88-ready.** A ref to a `ScrollView` or `TextInput` is
+  typed `ComponentRef<typeof …>` (0.88 types both as function components), and key presses are
+  `TextInputKeyPressEvent` (`TextInputKeyPressEventData` is deprecated since 0.86). Nothing
+  changes on 0.86. The peer ranges stay on Expo 57 / React Native 0.86: Bloom's own `TextInput`
+  ref props are not 0.88-ready yet.
+
 ## 20.1.0
 
 The one sheet is the whole surface an app needs for an agent: it picks a conversation up again and

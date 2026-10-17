@@ -146,7 +146,7 @@ Every agent — Alia included — is the same agent (ADR 0020), and any Oxy app 
 person can reach. The wire contract is [`docs/agent-embedding.md`](../../docs/agent-embedding.md).
 
 ```tsx
-import { AliaAskProvider, useAskAgent } from '@alia.onl/sdk';
+import { AliaAskProvider, useAskAgent } from '@alia.onl/sdk/ask';
 
 <AliaAskProvider
   agents={{ alia: {}, sindi: { id: SINDI_AGENT_ID } }}  // no id = Alia
@@ -168,6 +168,10 @@ ask('sindi', { text: 'Is this flat a good price?' }); // signed out: Oxy's sign-
 resume('sindi', conversationId); // a stored conversation, where the person left it
 dismiss(); // e.g. after a host tool changed the page under the sheet
 ```
+
+Mount it from `@alia.onl/sdk/ask`: that entry is the provider and its hook alone, and the sheet
+loads with the first `ask` (fetched in the background once the person is signed in), so the chat
+stays out of the app's entry bundle. The root entry exports the same two, with the whole chat.
 
 The sheet offers the person's latest conversations with its lead under the greeting
 (`recentConversations={false}` turns it off). The code that configures the sheet sits above it, so

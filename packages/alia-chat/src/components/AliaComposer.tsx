@@ -7,12 +7,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import {
-  View,
-  type NativeSyntheticEvent,
-  type TextInput,
-  type TextInputKeyPressEventData,
-} from 'react-native';
+import { View, type TextInputKeyPressEvent } from 'react-native';
 import {
   ComposerPill,
   type ComposerPanelAddMenuGroup,
@@ -28,6 +23,7 @@ import type { Completion } from '../lib/suggestions';
 import { composerTiles, intakeError } from '../lib/attachment-tiles';
 import type { IntakeKind } from '../lib/attachment-intake';
 import { KeyboardAvoidingView } from '../lib/keyboard';
+import type { TextInputHandle } from '../lib/text-input';
 import { type AliaChatLabels, AliaChatLabelsProvider, useLabels } from '../lib/labels';
 import type { AskedQuestion } from '../lib/questions';
 import type { VoiceErrorCode } from '../lib/speech-messages';
@@ -116,11 +112,11 @@ export interface AliaComposerProps<T extends AliaSuggestion = AliaSuggestion> {
    */
   accessory?: ReactNode;
   /** The field's keys, before the panel's own Enter rule (suggestions over it). */
-  onKeyPress?: (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => void;
+  onKeyPress?: (event: TextInputKeyPressEvent) => void;
   /** The host already avoids the keyboard. */
   disableKeyboardAvoidance?: boolean;
   /** The field itself, for a host that moves focus into it. */
-  inputRef?: RefObject<TextInput | null>;
+  inputRef?: RefObject<TextInputHandle | null>;
   /** Dictation's language, a BCP-47 tag; omitted, the platform's own. */
   speechLanguage?: string;
   /** Alia's API, which transcribes dictation; omitted, `EXPO_PUBLIC_ALIA_API_URL` or production. */

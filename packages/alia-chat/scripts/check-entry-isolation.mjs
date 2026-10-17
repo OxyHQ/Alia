@@ -70,7 +70,7 @@ function resolveRelative(fromFile, specifier) {
  * `target` (the package or any of its subpaths, or with `exact`, only the bare
  * specifier itself).
  */
-function walk(entry, target, { exact = false } = {}) {
+function walk(entry, target, { exact = false, staticOnly = false } = {}) {
   const start = path.join(SRC, entry);
   const visited = new Set([start]);
   const importedBy = new Map();
@@ -82,6 +82,8 @@ function walk(entry, target, { exact = false } = {}) {
     const source = fs.readFileSync(file, 'utf8');
 
     for (const match of source.matchAll(SPECIFIER_PATTERN)) {
+      // A lazy `import()` is a boundary when the question is what an entry LOADS with it.
+      if (staticOnly && match[3]) continue;
       const specifier = match[1] ?? match[2] ?? match[3];
       if (!specifier) continue;
       if (/^\s*(?:import|export)\s+type\s/.test(match[0])) continue;
@@ -123,7 +125,7 @@ if (root.visited.size < MIN_MODULES_FROM_ROOT) {
 }
 
 for (const retired of RETIRED_MODULES) {
-  for (const entry of ['index.ts', 'voice.ts', 'runtime/index.ts', 'avatar.ts']) {
+  for (const entry of ['index.ts', 'voice.ts', 'runtime/index.ts', 'avatar.ts', 'ask.ts']) {
     const result = walk(entry, retired);
     if (result.hits.length > 0) {
       failures.push(
@@ -144,7 +146,7 @@ if (voice.hits.length === 0) {
   );
 }
 
-for (const entry of ['index.ts', 'voice.ts', 'runtime/index.ts', 'avatar.ts']) {
+for (const entry of ['index.ts', 'voice.ts', 'runtime/index.ts', 'avatar.ts', 'ask.ts']) {
   const { hits, importedBy } = walk(entry, SERVICES_ROOT, { exact: true });
   if (hits.length > 0) {
     failures.push(
@@ -247,6 +249,44 @@ for (const heavy of [
         'The avatar entry must not reach the chat.',
     );
   }
+}
+
+/**
+ * The ask leaf (`@alia.onl/sdk/ask`) is what an app mounts at its root: the provider and its hook.
+ * The sheet it opens is loaded with the first `ask`, through ONE lazy `import()` of
+ * `components/AliaAskSheet.tsx`, so nothing of the chat is loaded WITH the entry.
+ */
+const ASK_SHEET = path.join(SRC, 'components', 'AliaAskSheet.tsx');
+const askStatic = walk('ask.ts', RETIRED_MODULES[0], { staticOnly: true });
+if (askStatic.visited.size < 2) {
+  failures.push(
+    `Only ${askStatic.visited.size} modules reachable from src/ask.ts — the walker is broken or the entry was gutted.`,
+  );
+}
+for (const heavy of [
+  ASK_SHEET,
+  path.join(SRC, 'components', 'AliaChatContent.tsx'),
+  path.join(SRC, 'components', 'AliaChatSheet.tsx'),
+  path.join(SRC, 'components', 'Markdown.tsx'),
+  path.join(SRC, 'hooks', 'useVoiceRoom.ts'),
+]) {
+  if (askStatic.visited.has(heavy)) {
+    failures.push(
+      `src/ask.ts loads ${path.relative(SRC, heavy)} with the entry: ` +
+        `${chainTo(heavy, askStatic.importedBy)}. The sheet must arrive with the first \`ask\`.`,
+    );
+  }
+}
+// Positive control: through its lazy import, the ask entry does reach the sheet and the chat.
+const askLazy = walk('ask.ts', RETIRED_MODULES[0]);
+if (
+  !askLazy.visited.has(ASK_SHEET) ||
+  !askLazy.visited.has(path.join(SRC, 'components', 'AliaChatSheet.tsx'))
+) {
+  failures.push(
+    'src/ask.ts no longer reaches components/AliaAskSheet.tsx and the chat sheet through its lazy ' +
+      'import — the sheet was removed or the walker stopped resolving.',
+  );
 }
 
 if (failures.length > 0) {
