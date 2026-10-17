@@ -1,5 +1,14 @@
 # @alia.onl/sdk
 
+## 21.3.0
+
+### Fixed
+
+- **An edit and a regenerate call `AliaRuntimeHost.onTurnStart`**, like a send from the composer
+  or a retry: each sends a new turn. A host that judges what a turn does against the moment it
+  was sent (a host tool's staleness check) used to judge an edited or regenerated turn against the
+  turn before it. An edit that sends nothing (an unknown message, empty content) calls nothing.
+
 ## 21.2.0
 
 ### Added

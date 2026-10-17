@@ -357,6 +357,8 @@ const host: AliaRuntimeHost = {
 </AliaRuntimeProvider>;
 ```
 
+`onTurnStart` is called just before each turn the runtime sends — from the composer, a retry,
+an edit or a regenerate — so a host can take what the turn will be judged against at that send.
 `onTurnEnd` is called exactly once for each turn the runtime sends, when it stops streaming —
 the answer was written, the person pressed Stop, or the turn failed — and only while the
 conversation that sent it is still mounted. A host that holds back what would take the chat off

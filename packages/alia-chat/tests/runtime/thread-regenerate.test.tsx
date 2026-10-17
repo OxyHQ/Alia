@@ -85,8 +85,13 @@ vi.mock('../../src/runtime/attachment-utils', () => ({
   }),
 }));
 
+import { AliaRuntimeProvider } from '../../src/runtime/config';
 import { useConversationThread } from '../../src/runtime/use-conversation-thread';
 import { useComposerDraftStore } from '../../src/runtime/composer-draft-store';
+
+/** How many turns had been appended each time the host heard one start. */
+const turnStarts: number[] = [];
+const host = { onTurnStart: () => turnStarts.push(chat.appended.length) };
 
 let api: ReturnType<typeof useConversationThread>;
 
@@ -100,7 +105,9 @@ async function mount() {
   await act(async () => {
     create(
       <QueryClientProvider client={client}>
-        <Probe />
+        <AliaRuntimeProvider host={host}>
+          <Probe />
+        </AliaRuntimeProvider>
       </QueryClientProvider>,
     );
   });
@@ -113,6 +120,7 @@ beforeEach(() => {
   chat.setTo = null;
   chat.outcome = 'sent';
   chat.turnOptions = {};
+  turnStarts.length = 0;
   useComposerDraftStore.setState({ account: null, drafts: {} });
 });
 
@@ -427,5 +435,54 @@ describe('editMessage', () => {
     expect(useComposerDraftStore.getState().drafts.c1).toMatchObject({
       text: 'what breed is this',
     });
+  });
+});
+
+/**
+ * An edit and a regenerate send a NEW turn, so the host hears it start, as it does for a
+ * composer send or a retry: a host that judges what the turn does against the moment it was
+ * sent (Homiio's staleness check) must not judge it against the previous turn.
+ */
+describe('a regenerate or an edit is a turn the host hears start', () => {
+  const thread = () => [
+    { id: 'u1', role: 'user', content: 'first question' },
+    { id: 'a1', role: 'assistant', content: 'first answer' },
+  ];
+
+  it('calls onTurnStart once for a regenerate, before the turn is sent', async () => {
+    chat.messages = thread();
+    await mount();
+
+    await act(async () => {
+      await api.regenerateMessage('a1');
+    });
+
+    expect(turnStarts).toEqual([0]);
+    expect(chat.appended).toHaveLength(1);
+  });
+
+  it('calls onTurnStart once for an edit, before the turn is sent', async () => {
+    chat.messages = thread();
+    await mount();
+
+    await act(async () => {
+      await api.editMessage('u1', 'a better question');
+    });
+
+    expect(turnStarts).toEqual([0]);
+    expect(chat.appended).toHaveLength(1);
+  });
+
+  it('does not call it for an edit that sends nothing', async () => {
+    chat.messages = thread();
+    await mount();
+
+    await act(async () => {
+      await api.editMessage('missing', 'a better question');
+      await api.editMessage('u1', '   ');
+    });
+
+    expect(turnStarts).toEqual([]);
+    expect(chat.appended).toEqual([]);
   });
 });
