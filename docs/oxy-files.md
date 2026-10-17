@@ -10,10 +10,10 @@ the code is `packages/api/src/lib/files/`.
 | What | Owner | Visibility | Reference (`entityType`/`entityId`) | Where today |
 |---|---|---|---|---|
 | A show's cover art | **Alia** (Alia draws it) | public | `show_series`/series id | **Oxy Files** once `SYRA_COVER_FILE_IDS=enabled`; until then Syra's image store, as before |
-| A library upload | **the person** | private | `library_file`/row id | **Oxy Files** (`uploadUserMedia` for media ≤ 40 MiB, else `uploadUserMediaLarge`) once `OXY_FILES_PRIVATE_CONTENT=enabled`; legacy bucket until then |
-| A spoken clip (TTS cache) | **Alia** (a cache Alia expires) | private | `speech_clip`/cache key | **Oxy Files** (`uploadAppFile`, audio) once switched on; legacy bucket until then |
-| A catalogue skill's bundled file | **Alia** | private | `skill_file`/row id | **Oxy Files** (`uploadAppFileLarge`; small media streamed) once switched on; legacy bucket until then |
-| A person's own skill's bundled file | **the person** | private | `skill_file`/row id | **Oxy Files** (`uploadUserMediaLarge`; small media streamed) once switched on; legacy bucket until then |
+| A library upload | **the person** | private | `library_file`/row id | **Oxy Files** (`uploadUserMedia` for media ≤ 40 MiB, else `uploadUserMediaLarge`) |
+| A spoken clip (TTS cache) | **Alia** (a cache Alia expires) | private | `speech_clip`/cache key | **Oxy Files** (`uploadAppFile`, audio) |
+| A catalogue skill's bundled file | **Alia** | private | `skill_file`/row id | **Oxy Files** (`uploadAppFileLarge`; small media streamed) |
+| A person's own skill's bundled file | **the person** | private | `skill_file`/row id | **Oxy Files** (`uploadUserMediaLarge`; small media streamed) |
 | A show's working segments | — | — | — | **not stored at all** |
 | A published episode's audio | Syra | — | — | Syra (unchanged) |
 
@@ -76,8 +76,8 @@ another import is rewriting.
 entity type, streamed from Postgres in keyset pages. It runs once a day per type
 on the trigger-engine leader, claimed through `oxy_file_reconcile_runs` (which
 also records the last result), so restarts and several tasks still run it once.
-`show_series` is reconciled from day one; the private kinds join once their
-content can be in Oxy.
+Every entity type is reconciled: `show_series`, `library_file`, `speech_clip`
+and `skill_file`.
 
 ## File events
 
@@ -102,8 +102,25 @@ only after it was handled, so a failure answers 500 and is delivered again.
 
 ## Moving what is already stored
 
-`bun run --cwd packages/api migrate:oxy-files` (`src/scripts/migrate-to-oxy-files.ts`).
-Preview is the default; `--apply` writes. Every run names its database
+`src/scripts/migrate-to-oxy-files.ts`, bundled to
+`packages/api/dist/scripts/migrate-to-oxy-files.js`. It acts as Alia through the
+task role's attested identity, which a checkout does not have, so it runs as an
+ECS one-shot on the live task definition (the same networking and role as the
+service), with the command overridden:
+
+```bash
+TD=$(aws ecs describe-services --cluster oxy-cluster --services alia \
+  --query 'services[0].taskDefinition' --output text)
+NET=$(aws ecs describe-services --cluster oxy-cluster --services alia \
+  --query 'services[0].networkConfiguration' --output json)
+aws ecs run-task --cluster oxy-cluster --launch-type FARGATE --task-definition "$TD" \
+  --network-configuration "$NET" --overrides '{"containerOverrides":[{"name":"alia",
+  "command":["bun","packages/api/dist/scripts/migrate-to-oxy-files.js",
+  "--target-database=alia","--kind","library"]}]}'
+```
+
+The report (one JSON line per item) goes to the task's log; the summary line is
+the last one. Preview is the default; `--apply` writes. Every run names its database
 (`--target-database`), reads each item, hashes it, and copies it only if the
 hash Oxy reports equals the hash of what was read (a skill file must also match
 the sha256 its row was written with). Reports are JSON lines with sha256
@@ -111,6 +128,12 @@ hashes, never URLs. The work list is "rows naming a legacy object and no Oxy
 file", and an applied item sets its Oxy column and reference in one
 transaction, so a stopped run resumes where it stopped. The legacy copy is kept
 as the read fallback until the bucket is retired.
+
+An apply is paced to Oxy's upload budget: Oxy lets an application make 30
+uploads a minute, a large upload spends two (start and complete), and the run
+spends at most 24 of them (`MIGRATION_UPLOADS_PER_MINUTE`) so Alia's live writes
+keep the rest. An item Oxy answers 429 waits a minute and is tried again; it is
+reported `failed` only after eleven 429s in a row.
 
 ### Covers: two steps, Alia first, after Syra #214 is deployed
 
@@ -139,31 +162,31 @@ as the read fallback until the bucket is retired.
 The app reads `coverFileId` first (through Bloom's image resolver, bound to
 `oxyServices.assets.publicUrl`) and Syra's legacy image only when there is none.
 
-### Library files, spoken clips, skill files: after Oxy stage 4c is deployed
+### Library files, spoken clips, skill files
 
-1. Only once stage 4c (OxyHQ/oxy#1774) is deployed, set
-   `OXY_FILES_PRIVATE_CONTENT=enabled` on the API task, so new writes go to
-   Oxy. Not before: an Oxy without 4c stores a person's small upload PUBLIC
-   before Alia sees the answer. Alia then refuses to record it and writes the
-   bucket instead, but that public copy is already in the person's files.
-   Watch `alia_oxy_files_fallback_writes_total` (by kind and reason): a steady
-   `not_private` or `oxy_404` means the API does not serve 4c — switch it off
-   at once.
-2. Backfill each kind, preview first, then a canary, then the rest:
+New writes go to Oxy with no switch (stage 4c, OxyHQ/oxy#1774, is in
+production). A write that fell back logs `Oxy did not take private content;
+storing it in the legacy bucket` with its `kind` and `reason` (CloudWatch
+`/oxy/ecs`, streams `alia/…`), and leaves a row on legacy storage that
+`--status` counts (`rowsOnLegacyStorage`). The process counters
+(`alia_oxy_files_fallback_writes_total`, `alia_legacy_storage_reads_total`) are
+not scraped — the API serves no `/metrics` — so the log and `--status` are what
+to watch. A steady `not_private` or `oxy_404` means Oxy stopped serving 4c, an
+incident on Oxy's side; every such write still lands in the bucket and is moved
+by the next backfill.
 
-   ```bash
-   bun run --cwd packages/api migrate:oxy-files --target-database <db> --kind library \
-     --report library-preview.jsonl                                   # preview
-   bun run --cwd packages/api migrate:oxy-files --target-database <db> --kind library \
-     --apply --limit 20 --report library-canary.jsonl                 # canary
-   bun run --cwd packages/api migrate:oxy-files --target-database <db> --kind library \
-     --apply --report library-apply.jsonl
-   ```
+Backfill each kind, preview first, then a canary, then the rest (arguments to
+the one-shot above):
 
-   and the same for `--kind speech` and `--kind skills`. `--kind
-   library|speech|skills` refuses to run while the switch is off. An item Oxy
-   does not take (below) is reported `failed` and stays on legacy storage; the
-   next run tries it again.
+```bash
+--target-database=alia --kind library                    # preview
+--target-database=alia --kind library --apply --limit 20 # canary
+--target-database=alia --kind library --apply
+```
+
+and the same for `--kind speech` and `--kind skills`. An item Oxy does not take
+(below) is reported `failed` and stays on legacy storage; the next run tries it
+again.
 
 ## How private content is stored (stage 4c)
 
@@ -183,8 +206,7 @@ fails if any other source stores bytes in Oxy or reads them back.
   sent and `private`. A deduplicated file comes back as it was, and an Oxy
   without stage 4c stores a person's small upload public, so either check
   failing means the row is not pointed at that file.
-- **Falls back, never fails a person's action.** With the switch on, a write
-  Oxy does not take — a type its content policy refuses (executables and active
+- **Falls back, never fails a person's action.** A write Oxy does not take — a type its content policy refuses (executables and active
   documents, 415), an API without stage 4c, a file not stored private, an
   SVG (stored sanitized, so another hash), Oxy unreachable — is written to the
   legacy bucket instead, logged and counted in
@@ -202,7 +224,8 @@ The bucket (`AWS_S3_BUCKET`) is retired only when BOTH hold, measured with
 `migrate:oxy-files --status --window-days 14`:
 
 - **zero legacy reads** for 14 consecutive days in `legacy_storage_reads`
-  (also `alia_legacy_storage_reads_total` on `/metrics`, per kind) — every read
+  (the durable count; the process counter `alia_legacy_storage_reads_total` is
+  not scraped) — every read
   served from the bucket by `/media`, the skill file route and the dual-read
   fallback is counted there;
 - **zero rows still on legacy storage** (`rowsOnLegacyStorage`: series with a
@@ -232,5 +255,4 @@ consent for Alia to read them back rests on).
 | Variable | Default | Meaning |
 |---|---|---|
 | `OXY_FILES_WEBHOOK_SECRET` | unset → route 404 | the file-events endpoint's `whsec_…` secret (SSM) |
-| `OXY_FILES_PRIVATE_CONTENT` | off | `enabled` writes new library files, clips and skill files to Oxy (with the legacy fallback) and lets the backfill run — only once Oxy stage 4c is deployed |
 | `SYRA_COVER_FILE_IDS` | off | `enabled` stores a new cover as Alia's Oxy file and hands Syra `imageFileId` — only after Syra #214 is deployed and trusts Alia |

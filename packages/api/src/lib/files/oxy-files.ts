@@ -1,7 +1,7 @@
 /**
- * Where Alia's stored bytes live: Oxy Files (oxy ADR 0043), or — until the
- * switch below is on and for what Oxy does not take — Alia's own bucket, behind
- * this one module.
+ * Where Alia's stored bytes live: Oxy Files (oxy ADR 0043), or — for what Oxy
+ * does not take, and for rows the backfill has not reached — Alia's own bucket,
+ * behind this one module.
  *
  * ## Who owns what
  *
@@ -35,13 +35,12 @@
  *   file stored this way is readable by Alia under the consent grant Oxy
  *   writes when Alia stores it for them, until the person revokes it.
  *
- * Private content goes to Oxy only while `OXY_FILES_PRIVATE_CONTENT=enabled`
- * (default: the legacy bucket), and even then a write Oxy does not take — a
- * refused type, an API without stage 4c, a person's file not stored private,
- * bytes other than the ones sent — is written to the legacy bucket instead,
- * logged and counted (`alia_oxy_files_fallback_writes_total`). Taken-down bytes
- * (451) are the one refusal never routed around. Nothing outside this module
- * knows which backend a byte is in.
+ * Private content always goes to Oxy first. A write Oxy does not take — a
+ * refused type, a person's file not stored private, bytes other than the ones
+ * sent, Oxy unreachable — is written to the legacy bucket instead, logged and
+ * counted (`alia_oxy_files_fallback_writes_total`). Taken-down bytes (451) are
+ * the one refusal never routed around. Nothing outside this module knows which
+ * backend a byte is in.
  *
  * ## Reads are dual during the move
  *
@@ -210,20 +209,6 @@ export interface StoredContent {
   readonly oxyFileId: string | null;
 }
 
-/**
- * Whether NEW private content is written to Oxy Files.
- *
- * Off by default, so this release is safe on an Oxy API without stage 4c: a
- * person's small upload there is stored public whatever it asks for, and Alia
- * could not read a person's private file back. Switch it on with
- * `OXY_FILES_PRIVATE_CONTENT=enabled` once Oxy's stage 4c is deployed (ADR 0043
- * "stage 4c as built"); the backfill (`src/scripts/migrate-to-oxy-files.ts`)
- * runs after it. Writes Oxy does not take still fall back to the legacy bucket.
- */
-export function oxyHoldsPrivateContent(env: NodeJS.ProcessEnv = process.env): boolean {
-  return (env.OXY_FILES_PRIVATE_CONTENT ?? '').trim() === 'enabled';
-}
-
 /** How long a legacy upload may take to be recorded before its object counts as garbage. */
 const LEGACY_UPLOAD_GRACE_SECONDS = 60 * 60;
 
@@ -265,20 +250,18 @@ export class OxyFileVisibilityError extends Error {
  * lost its row stays visible to them as "not in use" rather than vanishing.
  */
 export async function storePrivateContent(input: StoreContentInput): Promise<StoredContent> {
-  if (oxyHoldsPrivateContent()) {
-    try {
-      const fileId = await storeInOxy(input);
-      return { objectKey: null, oxyFileId: fileId };
-    } catch (error: unknown) {
-      // Taken-down bytes are refused for every owner (ADR 0043 D10); storing
-      // them in the bucket instead would route around the takedown.
-      if (isContentBlocked(error)) throw error;
-      privateContentFallbackRecorded(input.kind, fallbackReason(error));
-      log.files.warn(
-        { err: error, kind: input.kind, reason: fallbackReason(error) },
-        'Oxy did not take private content; storing it in the legacy bucket',
-      );
-    }
+  try {
+    const fileId = await storeInOxy(input);
+    return { objectKey: null, oxyFileId: fileId };
+  } catch (error: unknown) {
+    // Taken-down bytes are refused for every owner (ADR 0043 D10); storing
+    // them in the bucket instead would route around the takedown.
+    if (isContentBlocked(error)) throw error;
+    privateContentFallbackRecorded(input.kind, fallbackReason(error));
+    log.files.warn(
+      { err: error, kind: input.kind, reason: fallbackReason(error) },
+      'Oxy did not take private content; storing it in the legacy bucket',
+    );
   }
   await markLegacyObjectsMaybeGarbage(
     getDb(),
@@ -370,7 +353,7 @@ async function uploadPrivate(
 }
 
 /** The HTTP status an Oxy SDK error carries, when it carries one. */
-function errorStatus(error: unknown): number | undefined {
+export function errorStatus(error: unknown): number | undefined {
   if (error === null || typeof error !== 'object') return undefined;
   const record = error as { status?: unknown; response?: { status?: unknown } };
   if (typeof record.status === 'number') return record.status;
@@ -464,7 +447,7 @@ async function openLegacyObject(
 }
 
 /**
- * Count one legacy read — in the process's `/metrics` at once and in Postgres
+ * Count one legacy read — in the process counter at once and in Postgres
  * for the retirement gate. The durable count is best effort: a read must not
  * fail because its bookkeeping did.
  */

@@ -2,7 +2,7 @@
 
 *Alia guarda sus archivos en Oxy Files, tras una sola costura.*
 
-**Status:** Accepted (implemented: covers switched on after Syra #214; private content switched on after Oxy stage 4c is deployed)
+**Status:** Accepted (implemented: covers switched on after Syra #214; private content always in Oxy since Oxy stage 4c reached production)
 
 **Date:** 2026-10-16
 
@@ -43,10 +43,10 @@ show pipeline's segments, left behind by any worker that died mid-run.
    only source that stores bytes in Oxy or reads them back) on Oxy stage 4c:
    always private; a person's file stored as theirs, with the consent grant
    that lets Alia read it back until they revoke it; small media streamed,
-   everything else a large upload. It is written to Oxy only behind
-   `OXY_FILES_PRIVATE_CONTENT` (off by default, so the release is safe before
-   4c is deployed), and a write Oxy does not take falls back to the legacy
-   bucket — except taken-down bytes. Oxy's refusal to serve a file is final;
+   everything else a large upload. It is always written to Oxy first (the
+   `OXY_FILES_PRIVATE_CONTENT` switch that held it back until 4c was live was
+   removed once 4c was in production), and a write Oxy does not take falls
+   back to the legacy bucket — except taken-down bytes. Oxy's refusal to serve a file is final;
    the legacy copy is read only when Oxy fails to answer.
 6. **The bucket is retired on evidence**: zero counted legacy reads for 14 days
    and zero rows on legacy storage (`docs/oxy-files.md`).

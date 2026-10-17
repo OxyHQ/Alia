@@ -19,6 +19,12 @@
  *   always somebody's layout; the sha256 is what proves the copy.
  * - **The legacy copy stays.** It is the dual-read fallback until the bucket is
  *   retired (`docs/oxy-files.md`), never deleted here.
+ * - **Paced to Oxy's upload budget.** Oxy lets one application make 30 uploads
+ *   a minute (its `appFileUploadLimiter`, and the same ceiling for a person's
+ *   media); a large upload spends two of them (start and complete). An apply
+ *   spends at most `MIGRATION_UPLOADS_PER_MINUTE` of them, leaving the rest to
+ *   Alia's live writes, and an item Oxy answers 429 waits a minute and is tried
+ *   again rather than reported failed — a run of any size finishes unattended.
  */
 
 import type { Readable } from 'node:stream';
@@ -38,7 +44,7 @@ import {
 } from '../../db/agents/skillRepository.js';
 import { showSeries } from '../../db/schema/shows.js';
 import { and, isNotNull } from 'drizzle-orm';
-import { copyIntoOxy, oxyHoldsPrivateContent, sha256Hex, storeShowCover } from './oxy-files.js';
+import { copyIntoOxy, errorStatus, sha256Hex, storeShowCover, uploadRoute } from './oxy-files.js';
 import { readS3Object } from '../s3.js';
 
 export const MIGRATION_KINDS = ['show-covers', 'library', 'speech', 'skills'] as const;
@@ -76,23 +82,52 @@ export interface MigrationDeps {
   /** Oxy's sha256 for files Alia owns — for the handoff of covers copied by an earlier run. */
   readonly oxySha256: (fileIds: string[]) => Promise<Map<string, string>>;
   readonly readLegacy?: (key: string) => Promise<Buffer | null>;
+  /** Waits — injectable so a test does not. */
+  readonly sleep?: (ms: number) => Promise<void>;
+  /** The clock the pacing reads — injectable with `sleep`. */
+  readonly now?: () => number;
 }
 
 const PAGE = 100;
+
+/**
+ * Uploads an apply spends per minute, of the 30 Oxy allows Alia's application
+ * (`appFileUploadLimiter` in oxy `routes/assets.ts`, the same ceiling for a
+ * person's media). The six left over are for the live writes Alia makes while
+ * a backfill runs.
+ */
+export const MIGRATION_UPLOADS_PER_MINUTE = 24;
+const UPLOAD_SPACING_MS = 60_000 / MIGRATION_UPLOADS_PER_MINUTE;
+/** Oxy's upload window is one minute: a 429 is over once one has passed. */
+export const RATE_LIMITED_WAIT_MS = 60_000;
+/** A run that hears 429 this many times in a row on one item stops trying it. */
+export const RATE_LIMITED_MAX_WAITS = 10;
+
+/** How many of Oxy's uploads storing these bytes spends: a large upload is two calls. */
+function uploadCalls(kind: MigrationKind, mime: string, size: number): number {
+  if (kind === 'show-covers') return 1;
+  return uploadRoute(mime, size) === 'large' ? 2 : 1;
+}
+
+/** Spaces uploads so a run never spends more than its share of Oxy's budget. */
+function uploadPacer(sleep: (ms: number) => Promise<void>, now: () => number) {
+  let nextAt = 0;
+  return async (calls: number): Promise<void> => {
+    const wait = nextAt - now();
+    if (wait > 0) await sleep(wait);
+    nextAt = Math.max(now(), nextAt) + calls * UPLOAD_SPACING_MS;
+  };
+}
+
+const RATE_LIMITED = Symbol('rate-limited');
 
 export async function* migrateKind(
   kind: MigrationKind,
   deps: MigrationDeps,
   options: { apply: boolean; limit?: number },
 ): AsyncGenerator<MigrationLine> {
-  if (kind !== 'show-covers' && !oxyHoldsPrivateContent()) {
-    // The backfill follows the switch: it is turned on once Oxy's stage 4c is
-    // deployed (`oxyHoldsPrivateContent` in `oxy-files.ts`), so new writes go
-    // to Oxy before old ones are copied there.
-    throw new Error(
-      `${kind} does not move while OXY_FILES_PRIVATE_CONTENT is off: switch it on once Oxy stage 4c is deployed`,
-    );
-  }
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const pace = uploadPacer(sleep, deps.now ?? Date.now);
   const limit = options.limit ?? Number.POSITIVE_INFINITY;
   let done = 0;
   let after = '';
@@ -104,7 +139,21 @@ export async function* migrateKind(
       after = item.cursor;
       // In preview the work list never shrinks, so the cursor is what moves;
       // in apply a copied row leaves the list, and the cursor moves the same.
-      yield await migrateItem(kind, item, deps, options.apply);
+      let line = await migrateItem(kind, item, deps, options.apply, pace);
+      for (let waits = 0; line === RATE_LIMITED; waits += 1) {
+        if (waits === RATE_LIMITED_MAX_WAITS) {
+          line = {
+            kind,
+            entityId: item.entityId,
+            outcome: 'failed',
+            reason: `Oxy answered 429 ${RATE_LIMITED_MAX_WAITS + 1} times in a row`,
+          };
+          break;
+        }
+        await sleep(RATE_LIMITED_WAIT_MS);
+        line = await migrateItem(kind, item, deps, options.apply, pace);
+      }
+      yield line;
       done += 1;
     }
     if (page.length < PAGE) return;
@@ -187,7 +236,8 @@ async function migrateItem(
   item: WorkItem,
   deps: MigrationDeps,
   apply: boolean,
-): Promise<MigrationLine> {
+  pace: (calls: number) => Promise<void>,
+): Promise<MigrationLine | typeof RATE_LIMITED> {
   const base = { kind, entityId: item.entityId };
   try {
     const read =
@@ -205,6 +255,7 @@ async function migrateItem(
       };
     }
     if (!apply) return { ...base, outcome: 'would_copy', sha256, bytes: read.bytes.length };
+    await pace(uploadCalls(kind, read.mime, read.bytes.length));
 
     let fileId: string;
     let adopted: boolean;
@@ -236,6 +287,8 @@ async function migrateItem(
     }
     return { ...base, outcome: 'copied', sha256, bytes: read.bytes.length, fileId };
   } catch (error: unknown) {
+    // Over Oxy's upload budget: nothing was recorded, so the item is tried again.
+    if (errorStatus(error) === 429) return RATE_LIMITED;
     return {
       ...base,
       outcome: 'failed',

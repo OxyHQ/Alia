@@ -38,7 +38,6 @@ import type { OxyServer } from '@oxy.so/core/server';
 import { log } from '../logger.js';
 import { oxyServiceClient } from '../oxy-service-client.js';
 import { deleteS3Objects } from '../s3.js';
-import { oxyHoldsPrivateContent } from './oxy-files.js';
 
 /** A reference intent that fails this many times is dead-lettered for a person to read. */
 export const REFERENCE_SYNC_MAX_ATTEMPTS = 16;
@@ -149,18 +148,6 @@ function logRefusal(row: ClaimedReferenceSync): void {
 // ── Nightly reconciliation ──────────────────────────────────────────────────
 
 /**
- * The entity types worth reconciling now: covers always; the private kinds
- * once their content is written to Oxy (`OXY_FILES_PRIVATE_CONTENT`, which the
- * backfill also requires) — before that every inventory is empty and a
- * reconciliation would only remove references nobody made.
- */
-export function reconciledEntityTypes(env: NodeJS.ProcessEnv = process.env): OxyFileEntityType[] {
-  return OXY_FILE_ENTITY_TYPES.filter(
-    (type) => type === 'show_series' || oxyHoldsPrivateContent(env),
-  );
-}
-
-/**
  * Reconcile every due entity type once. `force` ignores the daily ledger (the
  * operator script's `--reconcile`); `dryRun` reports without changing Oxy.
  */
@@ -171,7 +158,7 @@ export async function reconcileReferencesOnce(
   const client = clientFactory();
   if (client === null) return {};
   const outcomes: Partial<Record<OxyFileEntityType, unknown>> = {};
-  for (const entityType of options.entityTypes ?? reconciledEntityTypes()) {
+  for (const entityType of options.entityTypes ?? OXY_FILE_ENTITY_TYPES) {
     if (
       options.force !== true &&
       !(await claimReconcileRun(db, entityType, RECONCILE_INTERVAL_HOURS))
