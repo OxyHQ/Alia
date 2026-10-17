@@ -71,6 +71,8 @@ for (const icon of [
   'RiMoreFill',
   'RiSearchLine',
   'RiMenuLine',
+  'RiShareLine',
+  'RiEyeOffLine',
 ]) {
   vi.doMock(`@oxy.so/bloom/icons/${icon}`, () => ({ [icon]: () => null }));
 }
@@ -163,7 +165,40 @@ describe('ChatHeaderActions', () => {
     const r = render(
       <ChatHeaderActions onSearch={vi.fn()} onExport={vi.fn()} onDelete={vi.fn()} />,
     );
-    expect(labels(r).some((label) => /share/i.test(label))).toBe(false);
+    expect(labels(r).some((label) => /shar/i.test(label))).toBe(false);
+  });
+
+  it('offers sharing and ending the link when the screen can share', () => {
+    const r = render(
+      <ChatHeaderActions onShare={vi.fn()} onStopSharing={vi.fn()} onExport={vi.fn()} />,
+    );
+    expect(labels(r)).toEqual([
+      'chatHeader.showPanel',
+      'chatHeader.usage',
+      'chatHeader.share',
+      'chatHeader.stopSharing',
+      'chat.exportMarkdown',
+    ]);
+  });
+
+  it('mints one link per press, however fast the second press comes', async () => {
+    let release: () => void = () => {};
+    const onShare = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const r = render(<ChatHeaderActions onShare={onShare} onExport={vi.fn()} />);
+    const item = all(r, 'MenuItem').find((node) => node.props.children === 'chatHeader.share');
+    await act(async () => {
+      item?.props.onPress();
+      item?.props.onPress();
+    });
+    expect(onShare).toHaveBeenCalledOnce();
+    await act(async () => release());
+    await act(async () => item?.props.onPress());
+    expect(onShare).toHaveBeenCalledTimes(2);
   });
 
   it('runs the matching handler', () => {

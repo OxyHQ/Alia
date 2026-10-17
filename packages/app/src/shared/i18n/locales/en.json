@@ -1257,7 +1257,17 @@
     "moreOptions": "More options",
     "showPanel": "Show panel",
     "hidePanel": "Hide panel",
-    "usage": "Usage and context"
+    "usage": "Usage and context",
+    "share": "Share link",
+    "stopSharing": "Stop sharing",
+    "shareText": "A conversation with Alia",
+    "shareCopied": "Link copied",
+    "shareCopiedDescription": "Anyone with the link can read this conversation for 24 hours. Tool results are never included.",
+    "shareDeliverFailed": "Couldn't share the link.",
+    "sharingStopped": "Sharing stopped",
+    "sharingStoppedDescription": "The link no longer opens this conversation.",
+    "notShared": "This conversation has no share link.",
+    "stopSharingFailed": "Couldn't stop sharing. Try again."
   },
   "welcome": {
     "greetingNamed": "Hi {{name}}, what's on your mind?",

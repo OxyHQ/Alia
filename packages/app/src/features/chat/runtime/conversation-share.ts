@@ -1,4 +1,5 @@
 import { Platform, Share } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { File, Paths } from 'expo-file-system';
 
 /**
@@ -39,4 +40,46 @@ export async function deliverMarkdownFile(
   const file = new File(Paths.cache, filename);
   file.write(content);
   await Share.share(Platform.OS === 'ios' ? { url: file.uri, title } : { message: content, title });
+}
+
+/** What became of a share link handed to the person. */
+export type ShareLinkOutcome = 'shared' | 'copied' | 'dismissed';
+
+/**
+ * Hand a conversation's share link (`useShareConversation` → `share.url`, Alia's one shared page)
+ * to the person, however this platform does that.
+ *
+ * On a phone it is React Native's share sheet: iOS takes the link as a `url`, Android only a
+ * `message`, so there the text carries it. On web it is the browser's own share sheet where there
+ * is one (`navigator.share`, most phones' browsers), and the clipboard everywhere else — a desktop
+ * browser's sheet, where it exists, is a worse way to get a link into a chat than pasting it.
+ * Closing the sheet is `dismissed`, not a failure; a sheet that cannot open at all falls back to
+ * the clipboard.
+ */
+export async function deliverShareLink(
+  url: string,
+  title: string,
+  text: string,
+): Promise<ShareLinkOutcome> {
+  if (Platform.OS !== 'web') {
+    const result = await Share.share(
+      Platform.OS === 'ios' ? { url, title, message: text } : { message: `${text}\n${url}`, title },
+    );
+    return result.action === Share.dismissedAction ? 'dismissed' : 'shared';
+  }
+  const touch =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(pointer: coarse)').matches;
+  if (touch && typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ url, title, text });
+      return 'shared';
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') return 'dismissed';
+      // The sheet could not open (no user activation, a blocked frame): copy instead.
+    }
+  }
+  await Clipboard.setStringAsync(url);
+  return 'copied';
 }

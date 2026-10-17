@@ -163,10 +163,11 @@ export const ConversationScreen = ({
             agentName={agentName}
             agentId={agentId}
             threadHandle={threadHandle}
+            shareable={!ephemeral}
           />
         ),
     }),
-    [title, t, projectName, conversationId, agentName, agentId, threadHandle],
+    [title, t, projectName, conversationId, agentName, agentId, threadHandle, ephemeral],
   );
 
   const agent = useMemo(() => (agentId === undefined ? undefined : { id: agentId }), [agentId]);
