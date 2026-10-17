@@ -1,4 +1,5 @@
 import { CodeBlock } from '@oxy.so/bloom/code';
+import { Markdown } from '@oxy.so/bloom/markdown';
 import { Text } from '@oxy.so/bloom/typography';
 import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
@@ -13,7 +14,6 @@ import {
 } from '../lib/citations';
 import { useLabels } from '../lib/labels';
 import type { ToolInvocation } from '../runtime/types';
-import { AliaMarkdown, type RenderCodeBlock } from './Markdown';
 import { Banner, CompactList, Comparison, Credibility, RichImage, Timeline } from './RichBlocks';
 
 // Cheap pre-check: plain markdown (the overwhelmingly common case) skips the
@@ -227,13 +227,11 @@ function openSource(url: string): void {
 /**
  * The references section of a research answer, as links.
  *
- * The API now writes each entry as a Markdown link, and the SDK's renderer
- * would make those pressable on its own — but not ACCESSIBLE: its link rule
- * is a `Text` with `onPress`, which a screen reader reads as text and a
- * keyboard cannot reach. So the section is cut off the Markdown and drawn
- * here, one `accessibilityRole="link"` per entry — an `<a href>` on web, so
- * Tab reaches it and Enter opens it — named "Source n: title". Older answers,
- * whose entries were a title over a bare URL, split the same way.
+ * The API writes each entry as a Markdown link. The section is cut off the
+ * Markdown and drawn here as a list of sources rather than running text: one
+ * `accessibilityRole="link"` per entry — an `<a href>` on web, so Tab reaches
+ * it and Enter opens it — named "Source n: title", with its domain. Older
+ * answers, whose entries were a title over a bare URL, split the same way.
  */
 function ReferenceList({
   entries,
@@ -300,10 +298,10 @@ const copyCode = async (code: string) => {
 
 /**
  * Fenced code as Bloom's code card: the language chip, a copy button and
- * numbered lines. Module-level so its identity is stable — it is part of the
- * SDK renderer's rules memo.
+ * numbered lines. Module-level so its identity is stable, as Bloom's
+ * `Markdown` asks of `renderCodeBlock`.
  */
-const renderCodeBlock: RenderCodeBlock = (code, language) => (
+const renderCodeBlock = (code: string, language?: string) => (
   <CodeBlock code={code} language={language} onCopy={copyCode} />
 );
 
@@ -318,20 +316,23 @@ const renderCodeBlock: RenderCodeBlock = (code, language) => (
  * are normalised first. A message with neither prop renders exactly as
  * before.
  *
- * `onCitationPress` replaces opening the URL for the references list. The
- * inline markers are rendered by the SDK's link rule, which opens the URL
- * itself and offers no hook, so they do not reach it.
+ * `onCitationPress` replaces opening a source's URL, for the references list
+ * and for an inline marker alike; any other link opens as Bloom's `Markdown`
+ * opens it. `streaming` is the reply still arriving: Bloom's `Markdown` closes
+ * an unfinished trailing construct instead of showing its raw markers.
  */
 export function ReplyMarkdown({
   content,
   toolInvocations,
   researchSources,
   onCitationPress,
+  streaming = false,
 }: {
   content: string;
   toolInvocations?: ToolInvocation[];
   researchSources?: Array<{ id: number; url: string; title: string }> | null;
   onCitationPress?: (source: CitationSource) => void;
+  streaming?: boolean;
 }) {
   const sources = useMemo(
     () => extractCitationSources(toolInvocations, researchSources),
@@ -340,13 +341,29 @@ export function ReplyMarkdown({
   const { body, references } = useMemo(() => splitReferences(content, sources), [content, sources]);
   const linked = useMemo(() => linkifyCitations(body, sources), [body, sources]);
   const blocks = useMemo(() => parseSpecialBlocks(linked), [linked]);
+  const onLinkPress = useMemo(() => {
+    if (!onCitationPress) return undefined;
+    return (url: string) => {
+      const source = sources.find((entry) => entry.url === url);
+      if (source) onCitationPress(source);
+      else openSource(url);
+    };
+  }, [onCitationPress, sources]);
 
   return (
     <View>
       {blocks.map((block, idx) => {
         if (block.type === 'text') {
           return (
-            <AliaMarkdown key={idx} content={block.content} renderCodeBlock={renderCodeBlock} />
+            <Markdown
+              key={idx}
+              size="lg"
+              streaming={streaming && idx === blocks.length - 1}
+              renderCodeBlock={renderCodeBlock}
+              onLinkPress={onLinkPress}
+            >
+              {block.content}
+            </Markdown>
           );
         } else if (block.type === 'block' && block.blockType) {
           return renderBlock(block.blockType, block.data, idx);

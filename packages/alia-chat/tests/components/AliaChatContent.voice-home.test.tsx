@@ -68,6 +68,8 @@ vi.mock('@oxy.so/bloom/ai-chat', () => ({
 }));
 vi.mock('@oxy.so/bloom/avatar-flight', () => ({
   AvatarFlightLayer: () => null,
+  useAvatarJoin: ({ arrivals }: { arrivals: Array<{ agent: unknown }> }) =>
+    arrivals.map((arrival) => arrival.agent),
   useAvatarFlights: () => ({ launch: async () => {}, anchor: () => undefined }),
 }));
 vi.mock('@oxy.so/bloom/icons', () => ({ RiImageLine: () => null }));

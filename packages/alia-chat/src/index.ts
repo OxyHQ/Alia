@@ -10,7 +10,7 @@ export type {
   AliaChatContentProps,
   AliaChatState,
 } from './components/AliaChatContent';
-export { AliaParticipants, joinFlights, useParticipants } from './components/AliaParticipants';
+export { AliaParticipants, useParticipants } from './components/AliaParticipants';
 export type { AliaParticipantsProps, UseParticipantsOptions } from './components/AliaParticipants';
 export { AliaParticipantsHeader } from './components/AliaParticipantsHeader';
 export type { AliaParticipantsHeaderProps } from './components/AliaParticipantsHeader';
@@ -47,8 +47,6 @@ export { useAliaActivity } from './hooks/useAliaActivity';
 export type { UseAliaActivityOptions } from './hooks/useAliaActivity';
 export { IdentityMark } from './components/IdentityMark';
 export type { IdentityMarkProps, IdentityMarkState } from './components/IdentityMark';
-export { AliaMarkdown } from './components/Markdown';
-export type { AliaMarkdownProps, RenderCodeBlock } from './components/Markdown';
 export { ReplyMarkdown } from './components/ReplyMarkdown';
 export { AliaThread } from './components/thread/AliaThread';
 export type { AliaThreadProps, NewConversationOfferProps } from './components/thread/AliaThread';

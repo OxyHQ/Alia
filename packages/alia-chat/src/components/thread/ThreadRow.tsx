@@ -447,6 +447,7 @@ function ReplyTurn({
                   content={text}
                   toolInvocations={message.toolInvocations}
                   researchSources={message.researchProgress?.sources}
+                  streaming={message.isStreaming === true}
                 />
               )}
             </AiChatAssistantMessage>

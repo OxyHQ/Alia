@@ -1,5 +1,29 @@
 # @alia.onl/sdk
 
+## 20.0.0
+
+Generic chat UI is Bloom's; the SDK composes it and keeps only what is Alia's. Two copies the SDK
+carried of things Bloom already had are deleted (a clean cut: no aliases).
+
+### Removed
+
+- **`AliaMarkdown`, `AliaMarkdownProps` and `RenderCodeBlock`.** Replies render with Bloom's
+  `Markdown` (`@oxy.so/bloom/markdown`, `size="lg"`), which streams (an unfinished trailing
+  construct is closed instead of showing its markers, and only the last block is re-read), draws
+  accessible links (`role="link"`, an anchor on web) and vets every URL. `react-native-markdown-display`
+  is no longer a dependency. A Markdown image (an exclamation mark before a link) now reads as a link carrying its alt
+  text and is not fetched; Alia's own images arrive as `[ALIA_IMAGE]` blocks and are unchanged.
+- **`joinFlights`.** The join choreography is Bloom's `useAvatarJoin` / `avatarJoinFlights`
+  (`@oxy.so/bloom/avatar-flight`), the same one Bloom's `MultiAgentChat` uses; `useParticipants`
+  wires the conversation's consulted agents into it, with the same behaviour.
+
+### Changed
+
+- **`ReplyMarkdown`** takes `streaming`, and `onCitationPress` now also receives an inline `[n]`
+  marker that names a source (Bloom's `onLinkPress`), not only the references list.
+- **`AliaParticipantsHeader`** is Bloom's `AiChatHeader` around `AliaParticipants`.
+- **Peer `@oxy.so/bloom` >= 10.17.0**, the first release with `useAvatarJoin` and `AiChatHeader`.
+
 ## 19.1.0
 
 An app's own agent may be confined to that app by Oxy (Alia ADR 0021, Oxy ADRs 0044 and 0045).

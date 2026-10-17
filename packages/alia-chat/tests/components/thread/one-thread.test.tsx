@@ -62,7 +62,8 @@ vi.mock('@oxy.so/bloom/ai-chat', async (importOriginal) => {
 });
 vi.mock('@oxy.so/bloom/avatar-flight', () => ({
   AvatarFlightLayer: () => null,
-  centeredLanding: () => () => ({}),
+  useAvatarJoin: ({ arrivals }: { arrivals: Array<{ agent: unknown }> }) =>
+    arrivals.map((arrival) => arrival.agent),
   useAvatarFlights: () => ({
     launch: async () => false,
     anchor: () => undefined,
@@ -337,7 +338,7 @@ describe('one place draws the thread', () => {
     expect(THREAD_PIECES.test("import { AiChatThread } from '@oxy.so/bloom/ai-chat'")).toBe(true);
   });
 
-  it('draws the participants, and builds a join flight, nowhere but `AliaParticipants`', () => {
+  it('draws the participants, and joins agents to them, nowhere but `AliaParticipants`', () => {
     const files = [
       ...sources(join(PACKAGES, 'alia-chat/src')),
       ...sources(join(PACKAGES, 'app/src')),
@@ -350,9 +351,12 @@ describe('one place draws the thread', () => {
     /** Bloom's `AgentProfile`, imported by name from its entry. */
     const PROFILE =
       /import\s*\{[^}]*\bAgentProfile\b[^}]*\}\s*from\s*'@oxy\.so\/bloom\/agent-reply'/;
-    /** What a join flight is made of: Bloom's merge landing, or a flight out of a reply. */
+    /**
+     * Joining agents to it: Bloom's join (`useAvatarJoin`, `avatarJoinFlights`), or a join flight
+     * built by hand — a merge landing, or a flight out of a reply.
+     */
     const JOIN =
-      /\bcenteredLanding\b|\bmerge:\s*true\b|from:\s*ANCHORS\.reply\(|from:\s*[`'"]reply:/;
+      /\buseAvatarJoin\b|\bavatarJoinFlights\b|\bcenteredLanding\b|\bmerge:\s*true\b|from:\s*ANCHORS\.reply\(|from:\s*[`'"]reply:/;
     const OWNER = ['alia-chat/src/components/AliaParticipants.tsx'];
 
     expect(owners(PROFILE)).toEqual(OWNER);
@@ -361,6 +365,7 @@ describe('one place draws the thread', () => {
     expect(PROFILE.test("import { AgentProfile } from '@oxy.so/bloom/agent-reply'")).toBe(true);
     expect(JOIN.test('landing: centeredLanding(14), merge: true')).toBe(true);
     expect(JOIN.test('from: ANCHORS.reply(agent.id)')).toBe(true);
+    expect(JOIN.test("import { useAvatarJoin } from '@oxy.so/bloom/avatar-flight'")).toBe(true);
   });
 
   it.each([
