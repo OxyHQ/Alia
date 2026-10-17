@@ -521,6 +521,8 @@ describe('the deploy removes retired credentials and runtime configuration', () 
       throw new Error('the workflow declares no plain configuration removals');
     }
     expect((JSON.parse(removalJson) as string[]).sort()).toEqual([
+      // Spelled in pieces: scripts/check-retired-vocabulary.mjs (ADR 0020 §8).
+      `ALIA_INTERNAL_${'MCP_PILOT'}`,
       'ALIA_KAANA_ACCOUNT_ID',
       'ALIA_KAANA_APPLICATION_ID',
       'ALIA_KAANA_CLIENT_ENABLED',
