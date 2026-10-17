@@ -36,11 +36,13 @@ vi.mock('react-native', () => ({
 }));
 
 vi.mock('expo-file-system', () => ({
-  readAsStringAsync: vi.fn(async (uri: string) => {
-    if (uri.includes('unreadable')) throw new Error('nope');
-    return 'QUJD';
-  }),
-  EncodingType: { Base64: 'base64' },
+  File: class {
+    constructor(private readonly uri: string) {}
+    async base64() {
+      if (this.uri.includes('unreadable')) throw new Error('nope');
+      return 'QUJD';
+    }
+  },
 }));
 
 import { buildMessageContent } from '../../src/runtime/attachment-utils';
