@@ -41,6 +41,8 @@ export interface ConversationRow {
   readonly isFavorite: boolean;
   readonly agentId: string | null;
   readonly agentThreadId: string | null;
+  /** The app the conversation started in, or `null` for Alia's own surfaces. */
+  readonly originApp: string | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -53,6 +55,8 @@ export interface NewConversation {
   readonly source: ConversationSource;
   readonly agentId?: string;
   readonly agentThreadId?: string;
+  /** The embedding app's slug (`domain/conversation.ts`); omitted for Alia's own surfaces. */
+  readonly originApp?: string;
 }
 
 /**
@@ -75,6 +79,7 @@ export async function createConversation(
       source: input.source,
       agentId: input.agentId ?? null,
       agentThreadId: input.agentThreadId ?? null,
+      originApp: input.originApp ?? null,
     })
     .returning();
   if (!row) throw new Error('conversation insert returned no row');
@@ -91,9 +96,12 @@ export async function createConversation(
  *
  * `agentId` narrows to the person's conversations with one agent — the
  * embedding app's "my chats with Sindi" (`GET /v1/conversations?agentId=`).
+ * `originApp` narrows to the ones started in one app (`?app=`); the two
+ * compose.
  *
- * Served by `conversations_oxy_user_updated_at_idx`, or with an agent by
- * `conversations_oxy_user_agent_updated_at_idx`.
+ * Served by `conversations_oxy_user_updated_at_idx`, with an agent by
+ * `conversations_oxy_user_agent_updated_at_idx`, with an app by
+ * `conversations_oxy_user_origin_app_updated_at_idx`.
  */
 export async function listConversations(
   db: ApiDatabase,
@@ -104,6 +112,8 @@ export async function listConversations(
     readonly before?: Date;
     /** Only the person's conversations with this agent (`?agentId=`). */
     readonly agentId?: string;
+    /** Only the conversations started in this app (`?app=`). */
+    readonly originApp?: string;
   } = {},
 ): Promise<ConversationRow[]> {
   return db
@@ -113,6 +123,9 @@ export async function listConversations(
       and(
         eq(conversations.oxyUserId, oxyUserId),
         options.agentId === undefined ? undefined : eq(conversations.agentId, options.agentId),
+        options.originApp === undefined
+          ? undefined
+          : eq(conversations.originApp, options.originApp),
         options.before === undefined ? undefined : lt(conversations.updatedAt, options.before),
       ),
     )
@@ -210,6 +223,8 @@ export interface ConversationUpsert {
   /** The insert branch only. */
   readonly agentId?: string;
   readonly agentThreadId?: string;
+  /** The insert branch only: an app labels the conversation it STARTS, once. */
+  readonly originApp?: string;
 }
 
 /**
@@ -258,6 +273,7 @@ export async function upsertConversation(
       ...(input.source === undefined ? {} : { source: input.source }),
       agentId: input.agentId ?? null,
       agentThreadId: input.agentThreadId ?? null,
+      originApp: input.originApp ?? null,
       ...changed,
     })
     .onConflictDoUpdate({

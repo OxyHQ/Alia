@@ -4,7 +4,6 @@ import { type AliaHostTools, HostOutcomeQueue, hostRequest } from '../../src/run
 /** The host-tool queue on its own: once per action, held until delivered. */
 
 const tools = (execute: AliaHostTools['execute']): AliaHostTools => ({
-  app: 'homiio',
   definitions: [{ name: 'apply_search', description: 'd', inputSchema: { type: 'object' } }],
   execute,
 });
@@ -19,12 +18,12 @@ describe('HostOutcomeQueue', () => {
   it('never performs one action twice', async () => {
     const execute = vi.fn(async () => ({ outcome: 'applied' as const }));
     const queue = new HostOutcomeQueue();
-    expect(await queue.dispatch(action('c1'), tools(execute))).toBe(true);
-    expect(await queue.dispatch(action('c1'), tools(execute))).toBe(false);
+    expect(await queue.dispatch(action('c1'), tools(execute), 'homiio')).toBe(true);
+    expect(await queue.dispatch(action('c1'), tools(execute), 'homiio')).toBe(false);
     // Not even after its outcome was delivered, or the conversation's outcomes were cleared.
     queue.delivered(queue.pending());
     queue.clear();
-    expect(await queue.dispatch(action('c1'), tools(execute))).toBe(false);
+    expect(await queue.dispatch(action('c1'), tools(execute), 'homiio')).toBe(false);
     expect(execute).toHaveBeenCalledTimes(1);
   });
 
@@ -33,11 +32,13 @@ describe('HostOutcomeQueue', () => {
     await queue.dispatch(
       action('c1'),
       tools(async () => ({ outcome: 'applied' })),
+      'homiio',
     );
     const sent = queue.pending();
     await queue.dispatch(
       action('c2'),
       tools(async () => ({ outcome: 'inline' })),
+      'homiio',
     );
     queue.delivered(sent);
     expect(queue.pending()).toEqual([{ toolCallId: 'c2', outcome: 'inline' }]);
@@ -46,11 +47,18 @@ describe('HostOutcomeQueue', () => {
   it('answers what it cannot perform instead of performing it', async () => {
     const execute = vi.fn(async () => ({ outcome: 'applied' as const }));
     const queue = new HostOutcomeQueue();
-    await queue.dispatch(action('c1', 'apply_search', 'other-app'), tools(execute));
-    await queue.dispatch(action('c2', 'unknown'), tools(execute));
-    await queue.dispatch(action('c3'), undefined);
+    await queue.dispatch(action('c1', 'apply_search', 'other-app'), tools(execute), 'homiio');
+    await queue.dispatch(action('c2', 'unknown'), tools(execute), 'homiio');
+    await queue.dispatch(action('c3'), undefined, 'homiio');
+    // Tools a chat declares without naming its app belong to no app.
+    await queue.dispatch(action('c4'), tools(execute), undefined);
     expect(execute).not.toHaveBeenCalled();
-    expect(queue.pending().map((o) => o.outcome)).toEqual(['rejected', 'rejected', 'rejected']);
+    expect(queue.pending().map((o) => o.outcome)).toEqual([
+      'rejected',
+      'rejected',
+      'rejected',
+      'rejected',
+    ]);
   });
 
   it('keeps an outcome to the contract: a known kind, a detail of at most 500 characters', async () => {
@@ -58,6 +66,7 @@ describe('HostOutcomeQueue', () => {
     await queue.dispatch(
       action('c1'),
       tools(async () => ({ outcome: 'weird' as never, detail: 'x'.repeat(900) })),
+      'homiio',
     );
     const [outcome] = queue.pending();
     expect(outcome?.outcome).toBe('failed');
@@ -66,16 +75,24 @@ describe('HostOutcomeQueue', () => {
 });
 
 describe('hostRequest', () => {
-  it('declares the tools, and the outcomes only when there are any', () => {
+  it("declares the chat's app and its tools, and the outcomes only when there are any", () => {
     const declared = tools(async () => ({ outcome: 'applied' }));
-    expect(hostRequest(declared, [])).toEqual({
+    expect(hostRequest('homiio', declared, [])).toEqual({
       app: 'homiio',
       version: 1,
       tools: [{ name: 'apply_search', description: 'd', inputSchema: { type: 'object' } }],
     });
-    expect(hostRequest(declared, [{ toolCallId: 'c', outcome: 'stale' }])?.outcomes).toEqual([
-      { toolCallId: 'c', outcome: 'stale' },
-    ]);
-    expect(hostRequest(undefined, [])).toBeUndefined();
+    expect(
+      hostRequest('homiio', declared, [{ toolCallId: 'c', outcome: 'stale' }])?.outcomes,
+    ).toEqual([{ toolCallId: 'c', outcome: 'stale' }]);
+  });
+
+  it('names an app without tools, and is nothing without an app', () => {
+    expect(hostRequest('mercaria', undefined, [])).toEqual({
+      app: 'mercaria',
+      version: 1,
+      tools: [],
+    });
+    expect(hostRequest(undefined, undefined, [])).toBeUndefined();
   });
 });

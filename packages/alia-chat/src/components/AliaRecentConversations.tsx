@@ -3,6 +3,7 @@ import { Text } from '@oxy.so/bloom/typography';
 import { useMemo } from 'react';
 import { View } from 'react-native';
 import { useLabels } from '../lib/labels';
+import { useAliaRuntime } from '../runtime/config';
 import { useConversations } from '../runtime/conversations';
 
 /** How many of the lead's conversations the sheet offers to pick up again. */
@@ -11,7 +12,9 @@ export const RECENT_CONVERSATIONS_SHOWN = 3;
 /**
  * The person's latest conversations with the sheet's lead, under its greeting: "Ask Sindi" picks
  * up where it left off instead of every opening being a blank page. Alia's own sheet lists the
- * person's latest conversations of any kind. Nothing while loading or when there are none.
+ * person's latest conversations of any kind. In an app's sheet (the chat's `app`) they are the ones
+ * started in that app: Mercaria's sheet offers Mercaria's, never a Homiio chat. Nothing while
+ * loading or when there are none.
  */
 export function AliaRecentConversations({
   agentId,
@@ -22,7 +25,11 @@ export function AliaRecentConversations({
   onOpen: (conversationId: string) => void;
 }) {
   const labels = useLabels();
-  const { data } = useConversations(agentId === undefined ? {} : { agentId });
+  const { app } = useAliaRuntime();
+  const { data } = useConversations({
+    ...(agentId === undefined ? {} : { agentId }),
+    ...(app === undefined ? {} : { app }),
+  });
   const recent = useMemo(
     () => data?.pages[0]?.conversations.slice(0, RECENT_CONVERSATIONS_SHOWN) ?? [],
     [data],

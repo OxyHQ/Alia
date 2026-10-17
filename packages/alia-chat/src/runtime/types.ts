@@ -93,6 +93,8 @@ export interface Conversation {
    * arrives carrying an explicit `null`.
    */
   agentId?: string | null;
+  /** The app the conversation started in, by its slug, or `null` for Alia's own surfaces. */
+  app?: string | null;
   createdAt: Date;
   updatedAt: Date;
   messages: Message[];

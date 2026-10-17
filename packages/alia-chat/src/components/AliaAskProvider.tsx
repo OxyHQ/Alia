@@ -40,6 +40,7 @@ export type AliaAskAgents = Readonly<Record<string, { id?: string }>>;
 export interface AliaAskProviderProps
   extends Pick<
     AliaChatSheetProps,
+    | 'app'
     | 'hostTools'
     | 'toolRenderers'
     | 'labels'

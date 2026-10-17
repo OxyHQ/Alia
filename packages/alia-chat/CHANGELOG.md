@@ -1,5 +1,32 @@
 # @alia.onl/sdk
 
+## 21.0.0
+
+A conversation records the Oxy app it started in, so an embedding app lists only its own while
+the Alia app lists all of them (`docs/agent-embedding.md` §6). The app is named once, on the chat.
+
+### Added
+
+- **`app` on `AliaChatContent`, `AliaChatSheet`, `AliaChatScreen`, `AliaAskProvider` and
+  `AliaRuntimeProvider`**: the embedding app's slug (`homiio`, `mercaria`). Every turn carries it
+  as `host.app` — with an empty tool list when the chat has no host tools — and
+  `POST /v1/conversations/new` and `POST /v1/conversations` carry it as `app`, so a conversation
+  the chat starts is labelled with it. Omitted, the chat is Alia's own and labels nothing.
+- **`useConversations({ app })`**: only the conversations started in that app
+  (`GET /v1/conversations?app=`), composable with `agentId`. The chat's `app` does not imply it:
+  the app that wants only its own asks for them.
+- **`Conversation.app`**: the app a conversation started in, or `null`.
+- **The sheet's recent conversations are the app's.** In a sheet with an `app`, the recents under
+  the greeting (20.1.0) are the ones started in that app; Alia's own sheet still lists any.
+
+### Changed (breaking)
+
+- **`AliaHostTools` has no `app`.** Host tools are the chat's `app`'s, which a chat with
+  `hostTools` must name; one without throws on render. Move `hostTools.app` to the chat's `app`.
+- **`hostRequest(app, tools, outcomes)`** and **`HostOutcomeQueue.dispatch(action, tools, app)`**
+  take the app.
+- **`aliaQueryKeys.conversations.withAgent(id)` is `filtered({ agentId, app })`.**
+
 ## 20.3.0
 
 A host hears when a turn has stopped streaming.

@@ -50,7 +50,7 @@ import { type AliaChatLabels, AliaChatLabelsProvider, useLabels } from '../lib/l
 import { type DeviceModel, buildPowerLevelOptions } from '../lib/power-level-options';
 import { ALIA_FEATURES, featureOffer, useAgentFeatures, useAgentProfile } from '../runtime/agents';
 import { type AliaRuntimeHost, AliaRuntimeProvider, useAliaRuntime } from '../runtime/config';
-import type { AliaHostTools } from '../runtime/host-tools';
+import { type AliaHostTools, APP_SLUG } from '../runtime/host-tools';
 import { useCreateConversation } from '../runtime/conversations';
 import { aliaQueryKeys } from '../runtime/query-keys';
 import type { Message } from '../runtime/types';
@@ -137,12 +137,20 @@ export interface AliaChatContentProps {
    */
   ephemeral?: boolean;
   apiUrl?: string;
+  /**
+   * The Oxy app this chat is embedded in, by its slug (`homiio`, `mercaria`). A conversation the
+   * chat starts is labelled with it, so the app can list only its own
+   * (`useConversations({ app })`), and its `hostTools` are this app's. Omitted, the chat is
+   * Alia's own (`docs/agent-embedding.md` §6).
+   */
+  app?: string;
   /** App context injected into the system prompt. */
   clientContext?: string;
   /**
    * The UI effects this app's client performs for the lead (`docs/agent-embedding.md` §2). Declared
-   * with every turn; an action the stream asks for is performed once, by `execute`, and its
-   * outcome reaches the model with the next turn.
+   * with every turn under the chat's `app`, which a chat with host tools must name; an action the
+   * stream asks for is performed once, by `execute`, and its outcome reaches the model with the
+   * next turn.
    */
   hostTools?: AliaHostTools;
   /** The app's own drawing of a catalogue tool's result, keyed `<app>:<tool>`, before the generic card. */
@@ -715,12 +723,24 @@ export function AliaChatContent({
   onConversationChange,
   runtime,
   apiUrl,
+  app,
   toolRenderers,
   onFeatureLocked,
   ...props
 }: AliaChatContentProps) {
   const [ownId, setOwnId] = useState<string | undefined>(undefined);
   const parent = useAliaRuntime();
+  const chatApp = app ?? parent.app;
+  if (chatApp !== undefined && !APP_SLUG.test(chatApp)) {
+    throw new Error(
+      `AliaChatContent: app "${chatApp}" is not an app slug (^[a-z][a-z0-9-]{0,31}$)`,
+    );
+  }
+  if (props.hostTools !== undefined && chatApp === undefined) {
+    throw new Error(
+      "AliaChatContent: hostTools are an app's, so a chat with hostTools names its app",
+    );
+  }
   // Who decides which conversation is open: a host that navigates (a route) does; with none, the
   // chat does (the sheet). Either way the host hears of it first, then `onConversationChange`.
   const hostOpens = runtime?.openConversation ?? parent.host.openConversation;
@@ -746,7 +766,7 @@ export function AliaChatContent({
 
   return (
     <AliaChatLabelsProvider labels={labels}>
-      <AliaRuntimeProvider apiUrl={apiUrl ?? parent.apiUrl} host={host}>
+      <AliaRuntimeProvider apiUrl={apiUrl ?? parent.apiUrl} host={host} app={chatApp}>
         <AliaToolRenderersProvider value={toolRenderers ?? NO_RENDERERS}>
           <AliaConversationView {...props} conversationId={controlledId ?? ownId} />
         </AliaToolRenderersProvider>

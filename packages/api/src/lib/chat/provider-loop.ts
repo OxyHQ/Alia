@@ -101,6 +101,8 @@ export interface ProviderLoopParams {
   conversationId: string | undefined;
   /** The client's id for this turn's reply; see `ChatRequestContext`. */
   assistantMessageId: string | undefined;
+  /** The embedding app (`host.app`), which labels a conversation this turn creates. */
+  originApp?: string;
   /** The level, resolved once at the request boundary. */
   reasoningEffort: ReasoningEffort | null;
   convertedMessages: ModelMessage[];
@@ -151,6 +153,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     messages,
     conversationId,
     assistantMessageId,
+    originApp,
     reasoningEffort,
     convertedMessages,
     truncatedTools,
@@ -211,6 +214,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     requestStartTime,
     skillNames: skills.activated().map((skill: { name: string }) => skill.name),
     autonomyRuntime,
+    ...(originApp === undefined ? {} : { originApp }),
   });
 
   /**
@@ -308,6 +312,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
             reasoningEffort,
             conversationId,
             assistantMessageId,
+            ...(originApp === undefined ? {} : { originApp }),
             messages,
             creditReservation: state.creditReservation,
             systemPromptTokens,

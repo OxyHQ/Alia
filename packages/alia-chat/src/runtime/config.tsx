@@ -140,6 +140,14 @@ export interface AliaRuntimeConfig {
   /** How read-aloud, dictation and calls speak; omitted, the server's and the platform's defaults. */
   speech: SpeechPreferences;
   host: AliaRuntimeHost;
+  /**
+   * The Oxy app the chat is embedded in, by its slug (`^[a-z][a-z0-9-]{0,31}$`): `homiio`,
+   * `mercaria`. A conversation it starts is labelled with it, and its host tools are this app's.
+   * Omitted, the chat is Alia's own and its conversations carry no app (`docs/agent-embedding.md`
+   * §6). A label for listing, never authority: which app a request comes from is proven by the
+   * app assertion, not by this.
+   */
+  app: string | undefined;
 }
 
 export interface AliaRuntimeProviderProps extends Partial<Omit<AliaRuntimeConfig, 'host'>> {
@@ -153,6 +161,7 @@ const DEFAULT_CONFIG: AliaRuntimeConfig = {
   streamFetch: undefined,
   speech: {},
   host: {},
+  app: undefined,
 };
 
 const AliaRuntimeContext = createContext<AliaRuntimeConfig>(DEFAULT_CONFIG);
@@ -170,6 +179,7 @@ export function AliaRuntimeProvider({
   streamFetch,
   speech,
   host,
+  app,
   children,
 }: AliaRuntimeProviderProps) {
   const parent = useContext(AliaRuntimeContext);
@@ -181,8 +191,9 @@ export function AliaRuntimeProvider({
       streamFetch: streamFetch ?? parent.streamFetch,
       speech: speech ?? parent.speech,
       host: host === undefined ? parent.host : { ...parent.host, ...host },
+      app: app ?? parent.app,
     };
-  }, [apiUrl, offline, streamFetch, speech, host, parent]);
+  }, [apiUrl, offline, streamFetch, speech, host, app, parent]);
   return <AliaRuntimeContext.Provider value={value}>{children}</AliaRuntimeContext.Provider>;
 }
 

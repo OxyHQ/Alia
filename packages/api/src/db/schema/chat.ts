@@ -13,7 +13,16 @@
  */
 
 import type { AvatarCharacter } from '@oxy.so/contracts';
-import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { CONVERSATION_SOURCES, MESSAGE_ROLES, MESSAGE_VOTES } from '../../domain/conversation.js';
@@ -75,6 +84,13 @@ export const conversations = pgTable(
     agentId: text(),
     /** The durable agent thread this bounded conversation stretch belongs to. */
     agentThreadId: text(),
+    /**
+     * The Oxy app the conversation started in, as that app names itself
+     * (`domain/conversation.ts` `ORIGIN_APP_PATTERN`), written once on insert.
+     * NULL is Alia's own surfaces, and every conversation from before the
+     * column. A listing label, never authority: no access decision reads it.
+     */
+    originApp: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -93,7 +109,18 @@ export const conversations = pgTable(
       t.updatedAt.desc(),
     ),
     index('conversations_agent_thread_updated_at_idx').on(t.agentThreadId, t.updatedAt.desc()),
+    // Serves `GET /v1/conversations?app=`: one person's threads from one app.
+    index('conversations_oxy_user_origin_app_updated_at_idx').on(
+      t.oxyUserId,
+      t.originApp,
+      t.updatedAt.desc(),
+    ),
     checkOneOf('conversations_source_check', t.source, CONVERSATION_SOURCES),
+    // `ORIGIN_APP_PATTERN`, spelled for Postgres.
+    check(
+      'conversations_origin_app_check',
+      sql`${t.originApp} is null or ${t.originApp} ~ '^[a-z][a-z0-9-]{0,31}$'`,
+    ),
   ],
 );
 

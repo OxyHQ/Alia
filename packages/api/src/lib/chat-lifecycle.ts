@@ -35,6 +35,8 @@ export interface LifecycleContext {
   requestStartTime: number;
   skillNames?: string[];
   autonomyRuntime: AutonomyRuntimeContext | null;
+  /** The embedding app (`host.app`), which labels a conversation this turn creates. */
+  originApp?: string;
 }
 
 /**
@@ -113,7 +115,7 @@ export async function saveConversationResult(
     agentInfo: AgentInfo;
   }>,
 ): Promise<void> {
-  const { userId, conversationId, assistantMessageId, messages } = ctx;
+  const { userId, conversationId, assistantMessageId, messages, originApp } = ctx;
   if (!conversationId || !userId || !turnProducedOutput(assistantResponse, toolInvocations)) return;
 
   try {
@@ -125,6 +127,7 @@ export async function saveConversationResult(
       assistantMessageId,
       toolInvocations,
       agentMessages: agentMessages && agentMessages.length > 0 ? agentMessages : undefined,
+      ...(originApp === undefined ? {} : { originApp }),
     });
     log.v1.info({ conversationId }, 'Conversation saved');
   } catch (error) {

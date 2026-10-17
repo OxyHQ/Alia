@@ -89,6 +89,8 @@ export interface SaveConversationParams {
   toolInvocations?: ToolInvocation[];
   source?: ConversationSource;
   agentId?: string;
+  /** The embedding app (`host.app`); it labels the conversation only if this turn creates it. */
+  originApp?: string;
   agentMessages?: Array<{ role: 'assistant'; content: string; agentInfo: AgentInfo }>;
 }
 
@@ -145,6 +147,7 @@ export async function saveConversation(params: SaveConversationParams): Promise<
     toolInvocations,
     source,
     agentId,
+    originApp,
     agentMessages,
   } = params;
   const assistantMessageId = usableMessageId(params.assistantMessageId);
@@ -200,6 +203,7 @@ export async function saveConversation(params: SaveConversationParams): Promise<
     titleOnInsert: title,
     source: source || 'app',
     ...(agentId ? { agentId } : {}),
+    ...(originApp ? { originApp } : {}),
   });
 
   const [storedCount, lastStored] = await Promise.all([

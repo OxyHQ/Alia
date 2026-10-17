@@ -13,7 +13,7 @@ import { type AliaApi, useAliaApi } from './api';
 import { type OfflineConversationStore, useAliaRuntime } from './config';
 import { errorMessage as getErrorMessage, errorStatus } from './error-utils';
 import { normalizeConversationMessages } from './message-history';
-import { aliaQueryKeys } from './query-keys';
+import { aliaQueryKeys, type ConversationsFilter } from './query-keys';
 import { API_ROUTES } from './routes';
 import { createRandomUuid } from './random-uuid';
 import type { Conversation, ConversationsInfiniteData, ConversationsPage, Message } from './types';
@@ -96,23 +96,25 @@ export interface ConversationsClient {
   offline: OfflineConversations;
   /** Read at call time: the title of a chat created while signed out. */
   newChatTitle: string;
+  /** The chat's app, which labels a conversation it creates (`AliaRuntimeConfig.app`). */
+  app: string | undefined;
 }
 
 /** The runtime's conversation client for the nearest provider. */
 export function useConversationsClient(): ConversationsClient {
   const api = useAliaApi();
-  const { offline } = useAliaRuntime();
+  const { offline, app } = useAliaRuntime();
   const { newChat } = useLabels();
   return useMemo(
-    () => ({ api, offline: new OfflineConversations(offline), newChatTitle: newChat }),
-    [api, offline, newChat],
+    () => ({ api, offline: new OfflineConversations(offline), newChatTitle: newChat, app }),
+    [api, offline, newChat, app],
   );
 }
 
 async function fetchConversationsPage(
   client: ConversationsClient,
   pageParam: string | undefined,
-  agentId: string | undefined,
+  { agentId, app }: ConversationsFilter,
 ): Promise<ConversationsPage> {
   try {
     const { data } = await client.api.get<{
@@ -124,6 +126,7 @@ async function fetchConversationsPage(
         limit: PAGE_SIZE,
         ...(pageParam ? { cursor: pageParam } : {}),
         ...(agentId === undefined ? {} : { agentId }),
+        ...(app === undefined ? {} : { app }),
       },
     });
     return {
@@ -137,9 +140,9 @@ async function fetchConversationsPage(
       hasMore: data.hasMore,
     };
   } catch (error: unknown) {
-    // If unauthorized, fall back to the offline copy (Alia's own conversations: an agent's are
-    // never kept offline).
-    if (errorStatus(error) === 401 && agentId === undefined) {
+    // If unauthorized, fall back to the offline copy (Alia's own conversations: an agent's and an
+    // app's are never kept offline).
+    if (errorStatus(error) === 401 && agentId === undefined && app === undefined) {
       const conversations = (await client.offline.read()).map((c) => ({
         ...c,
         messages: [] as Message[],
@@ -158,19 +161,21 @@ async function fetchConversationsPage(
 
 /**
  * The person's conversations, newest first, a page at a time. The sidebar and the sheet read this.
- * Given `agentId`, only the conversations with that agent (`GET /v1/conversations?agentId=`).
+ * Given `agentId`, only the conversations with that agent; given `app`, only the ones started in
+ * that app — an embedding app's own list (`GET /v1/conversations?agentId=&app=`). Neither is
+ * implied by the chat's `app`: the app that wants only its own says so here.
  */
-export function useConversations({ agentId }: { agentId?: string } = {}) {
+export function useConversations({ agentId, app }: ConversationsFilter = {}) {
   const { isAuthenticated } = useOxy();
   const client = useConversationsClient();
 
   return useInfiniteQuery({
     queryKey:
-      agentId === undefined
+      agentId === undefined && app === undefined
         ? aliaQueryKeys.conversations.all
-        : aliaQueryKeys.conversations.withAgent(agentId),
+        : aliaQueryKeys.conversations.filtered({ agentId, app }),
     queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
-      fetchConversationsPage(client, pageParam, agentId),
+      fetchConversationsPage(client, pageParam, { agentId, app }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
     staleTime: FIVE_MINUTES,
@@ -309,12 +314,14 @@ export function useSaveConversation() {
           conversationId: id,
           messages,
           ...(title && { title }),
+          ...(client.app === undefined ? {} : { app: client.app }),
         });
         return {
           id: data.id,
           title: data.title,
           lastMessage: data.lastMessage,
           source: data.source,
+          app: data.app,
           createdAt: new Date(data.createdAt),
           updatedAt: new Date(data.updatedAt),
           messages,
@@ -515,6 +522,7 @@ export function useCreateConversation() {
       try {
         const { data } = await client.api.post<ApiConversation>(API_ROUTES.conversations.create, {
           ...(params?.agentId && { agentId: params.agentId }),
+          ...(client.app === undefined ? {} : { app: client.app }),
         });
         return {
           id: data.id,
@@ -522,6 +530,7 @@ export function useCreateConversation() {
           lastMessage: undefined,
           source: data.source,
           agentId: data.agentId,
+          app: data.app,
           createdAt: new Date(data.createdAt),
           updatedAt: new Date(data.updatedAt),
           messages: [],

@@ -22,6 +22,8 @@ export interface DeepResearchContext {
   userId: string;
   conversationId?: string;
   assistantMessageId?: string;
+  /** The embedding app (`host.app`), which labels a conversation this turn creates. */
+  originApp?: string;
   messages: ChatMessage[];
   creditReservation: CreditReservation | null;
   autonomyRuntime: AutonomyRuntimeContext | null;
@@ -143,6 +145,7 @@ export async function handleDeepResearch(ctx: DeepResearchContext): Promise<bool
         assistantResponse: result.report,
         assistantMessageId: ctx.assistantMessageId,
         toolInvocations: [researchInvocation],
+        ...(ctx.originApp === undefined ? {} : { originApp: ctx.originApp }),
       }).catch((err) => log.v1.warn({ err }, 'Failed to save research conversation'));
 
       const firstUserMsg = typeof messages[0]?.content === 'string' ? messages[0].content : '';
