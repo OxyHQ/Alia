@@ -9,7 +9,7 @@
     "ffmpeg-static"
   ],
   "scripts": {
-    "db:check-locks": "oxy-db-check-migration-locks --migrations=drizzle --after=102 --hot-tables=agents,conversations,messages,organization_members,organizations,subscriptions,user_credits",
+    "db:check-locks": "oxy-db-check-migration-locks --migrations=drizzle --after=103 --hot-tables=agents,conversations,messages,organization_members,organizations,subscriptions,user_credits",
     "dev": "bun --watch src/index.ts",
     "build": "bun build.ts",
     "start": "bun dist/index.js",
