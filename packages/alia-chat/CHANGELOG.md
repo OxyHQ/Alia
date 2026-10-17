@@ -1,5 +1,17 @@
 # @alia.onl/sdk
 
+## 20.3.0
+
+A host hears when a turn has stopped streaming.
+
+### Added
+
+- **`AliaRuntimeHost.onTurnEnd`**, the pair of `onTurnStart`: called exactly once for each turn
+  the runtime sends, once it stops streaming for any reason — finished, stopped (Stop) or failed —
+  and only while the conversation that sent it is still mounted, so a surface that left mid-turn
+  is never called back. A host that holds back what would take the chat off the screen runs it
+  here, instead of watching `useConversationStore().streamingConversationId`.
+
 ## 20.2.0
 
 An app mounts its one sheet at the root without the chat in its entry bundle.
