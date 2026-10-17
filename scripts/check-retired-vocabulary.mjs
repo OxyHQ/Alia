@@ -65,9 +65,18 @@ const applicationBinding = new RegExp(`application${'Id'}|application${'_id'}`, 
 
 const failures = [];
 
+/**
+ * A deploy's removal list names what it strips from the live task definition,
+ * because the deploy copies live configuration forward: the retired variable
+ * must be spelled there for it to leave production at all.
+ */
+const removalList = /TASK_CONFIGURATION_REMOVALS_JSON/;
+
 function report(file, source, pattern, why) {
+  const lines = source.split('\n');
   for (const match of source.matchAll(pattern)) {
     const line = source.slice(0, match.index).split('\n').length;
+    if (removalList.test(lines[line - 1] ?? '')) continue;
     failures.push(`${file}:${line}: ${match[0]} (${why})`);
   }
 }
