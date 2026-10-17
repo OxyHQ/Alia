@@ -158,6 +158,13 @@ export const agents = pgTable(
      */
     featureGates: jsonb().notNull().default({}).$type<AgentFeatureGates>(),
     /**
+     * The Oxy app tools the agent works with, as `<appId>:<tool>` keys
+     * (`domain/agent-primary-tools.ts`): active from the first step of every
+     * turn it leads instead of waiting behind `loadTools`. Checked against the
+     * live catalogues when the owner saves them; naming one grants nothing.
+     */
+    primaryTools: text().array().notNull().default([]),
+    /**
      * The Oxy account that created the agent. A LISTING INDEX, never a
      * permission — see the file comment.
      */

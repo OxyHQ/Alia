@@ -697,6 +697,39 @@ describe('ToolPipeline.forUser applies the budget on every path it serves', () =
     expect(mentionNames(result.activeToolNames())).toEqual(['oxy_mention__createPost']);
   });
 
+  it("loads the agent's primary tools from the first step, on the lane the turn bound them", async () => {
+    sources.oxy = {
+      ...productionOxyServices(),
+      ...family('oxy_homiio', 'Homiio', 60),
+      oxy_homiio__searchListings: appTool('Homiio', 'Search listings'),
+      oxy_homiio__resolvePlace: appTool('Homiio', 'Resolve a place'),
+    };
+    const agent = {
+      _id: 'sindi',
+      oxyAccountId: 'sindi-bot',
+      ownerOxyAccountId: 'homiio-project',
+      capabilityGrants: ['oxy_service', 'web'],
+      featureGates: {},
+      primaryTools: ['homiio:resolvePlace', 'homiio:searchListings', 'homiio:getListing'],
+    } as unknown as NonNullable<ForUserOptions['agent']>;
+    const result = await forUser({ agent });
+    const first = result.activeToolNames();
+
+    expect(first).toContain('oxy_homiio__resolvePlace');
+    expect(first).toContain('oxy_homiio__searchListings');
+    // Not bound this turn: simply absent, never an error.
+    expect(first.some((name) => name.includes('getListing'))).toBe(false);
+    expect(first.filter((name) => name.startsWith('oxy_homiio__action'))).toEqual([]);
+    expect(first.length).toBeLessThanOrEqual(MAX_TOOLS_PER_INFERENCE_REQUEST);
+
+    // Pinned: the model cannot unload them.
+    const loader = result.tools[LOAD_TOOLS_TOOL] as unknown as {
+      execute: (input: { unload: string[] }) => Promise<unknown>;
+    };
+    await loader.execute({ unload: ['oxy_homiio__searchListings'] });
+    expect(result.activeToolNames()).toContain('oxy_homiio__searchListings');
+  });
+
   it("never defers the client's own tools", async () => {
     const result = await forUser({ editorToolDefinitions: editorTools(40) });
     const first = result.activeToolNames();

@@ -43,6 +43,8 @@ export function useAgentOxyApps(agentId: string): AgentOxyApps {
     list: API_ROUTES.agents.oxyApps(agentId),
     item: (appId) => API_ROUTES.agents.oxyApp(agentId, appId),
     saveFailed: 'agents.oxyApps.saveFailed',
+    // A level decides which tools the editor offers as primary tools.
+    reaches: queryKeys.agents.primaryTools(agentId),
   });
 }
 
@@ -58,6 +60,8 @@ export function useAgentRequesterApps(agentId: string): AgentOxyApps {
     list: API_ROUTES.agents.requesterApps(agentId),
     item: (appId) => API_ROUTES.agents.requesterApp(agentId, appId),
     saveFailed: 'agents.requesterApps.saveFailed',
+    // A level decides which tools the editor offers as primary tools.
+    reaches: queryKeys.agents.primaryTools(agentId),
   });
 }
 
@@ -66,6 +70,8 @@ function useAppLevels(source: {
   list: string;
   item: (appId: string) => string;
   saveFailed: string;
+  /** What else reads these levels, refreshed once a change is saved. */
+  reaches: readonly unknown[];
 }): AgentOxyApps {
   const { t } = useTranslation();
   const { isAuthenticated } = useOxy();
@@ -115,6 +121,7 @@ function useAppLevels(source: {
         (current) =>
           current?.map((entry) => (entry.appId === saved.appId ? saved : entry)) ?? current,
       );
+      void queryClient.invalidateQueries({ queryKey: source.reaches });
     },
   });
 

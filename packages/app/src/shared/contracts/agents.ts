@@ -134,6 +134,8 @@ export interface Agent {
   starters?: AgentStarter[];
   /** Which of Alia's features an app's entitlement unlocks (ADR 0020 §6). */
   featureGates?: AgentFeatureGates;
+  /** The app tools active from the first step of its turns, as `<appId>:<tool>` keys. */
+  primaryTools?: string[];
   createdAt: string;
   updatedAt: string;
 }

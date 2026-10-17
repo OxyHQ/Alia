@@ -32,6 +32,8 @@ export const queryKeys = {
     requesterApps: (id: string) => ['agents', 'requester-apps', id] as const,
     /** The agent's feature gates and what each could name. */
     featureGates: (id: string) => ['agents', 'feature-gates', id] as const,
+    /** The agent's primary tools and the app tools it reaches. */
+    primaryTools: (id: string) => ['agents', 'primary-tools', id] as const,
     /** What one agent remembers about the caller: its files, and one file's content. */
     memory: (id: string) => ['agents', 'memory', id] as const,
     memoryFile: (id: string, path: string) => ['agents', 'memory', id, path] as const,

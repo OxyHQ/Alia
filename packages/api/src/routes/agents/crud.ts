@@ -61,6 +61,7 @@ import {
 } from '../../db/integrations/integrationRepository.js';
 import { revokeAllAgentOxyApps } from '../../lib/agent-oxy-apps.js';
 import { refuseFeatureGates } from '../../lib/agent-features.js';
+import { refusePrimaryTools } from '../../lib/agent-primary-tools.js';
 import {
   GATED_FEATURES,
   MAX_AGENT_STARTERS,
@@ -68,6 +69,10 @@ import {
   MAX_STARTER_TITLE_LENGTH,
   type GatedFeature,
 } from '../../domain/agent-features.js';
+import {
+  MAX_AGENT_PRIMARY_TOOLS,
+  PRIMARY_TOOL_KEY_PATTERN,
+} from '../../domain/agent-primary-tools.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -591,6 +596,11 @@ const featureGatesSchema = z
   )
   .strict();
 
+/** The app tools active from an agent's first step, replaced whole (`domain/agent-primary-tools.ts`). */
+const primaryToolsSchema = z
+  .array(z.string().regex(PRIMARY_TOOL_KEY_PATTERN))
+  .max(MAX_AGENT_PRIMARY_TOOLS);
+
 /**
  * What `PATCH /agents/:id` accepts.
  *
@@ -611,6 +621,7 @@ const updateAgentSchema = z
     description: z.string().min(1).max(5000).optional(),
     starters: startersSchema.optional(),
     featureGates: featureGatesSchema.optional(),
+    primaryTools: primaryToolsSchema.optional(),
     category: z.string().min(1).max(100).optional(),
     tags: z.array(z.string()).optional(),
     price: z.number().int().nullable().optional(),
@@ -652,6 +663,20 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
       }
       if (gateRefusal !== null) {
         return res.status(400).json({ error: gateRefusal, param: 'featureGates' });
+      }
+    }
+    if (data.primaryTools !== undefined) {
+      let toolRefusal: string | null;
+      try {
+        toolRefusal = await refusePrimaryTools(data.primaryTools);
+      } catch (error: unknown) {
+        log.agents.warn({ err: error, agentId: id }, 'Could not read the catalogues for a tool');
+        return res.status(503).json({
+          error: 'The app catalogues could not be read to check the primary tools. Try again.',
+        });
+      }
+      if (toolRefusal !== null) {
+        return res.status(400).json({ error: toolRefusal, param: 'primaryTools' });
       }
     }
 
