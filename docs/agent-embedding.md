@@ -88,7 +88,7 @@ These are the rules for host tools:
 {"eventVersion":1,"tool_call_id":"…","name":"oxy_homiio__searchListings","output":{…}}
 ```
 
-A surface registers renderers by `<app>:<tool>`, which is parsed from `oxy_<app>__<tool>` or `self_<app>__<tool>`. The key is never parsed from free text.
+A surface registers renderers by `<app>:<tool>`, which is parsed from `oxy_<app>__<tool>` or `self_<app>__<tool>`. The key is never parsed from free text. `parseCatalogueTool` and `toolRendererKey` read it, from the pure `@alia.onl/sdk/tools` entry as well as the main one, so a host that draws a conversation itself can tell its catalogue's results apart without loading React Native.
 
 ## 4. Consulting another agent
 

@@ -22,23 +22,7 @@ export interface AliaToolResult {
  */
 export type AliaToolRenderers = Readonly<Record<string, (result: AliaToolResult) => ReactNode>>;
 
-/**
- * `oxy_<app>__<tool>` or `self_<app>__<tool>`: the only names a renderer is keyed from. The app
- * part is an Oxy app slug; the tool part is whatever follows the separator.
- */
-const CANONICAL_TOOL = /^(?:oxy|self)_([a-z][a-z0-9-]{0,63})__([A-Za-z0-9_-]+)$/;
-
-/** The app and tool of a canonical catalogue tool name, or `null` for any other name. */
-export function parseCatalogueTool(toolName: string): { app: string; tool: string } | null {
-  const match = CANONICAL_TOOL.exec(toolName);
-  return match ? { app: match[1], tool: match[2] } : null;
-}
-
-/** The renderer key of a tool name (`<app>:<tool>`), or `null` when it is not a catalogue tool. */
-export function toolRendererKey(toolName: string): string | null {
-  const parsed = parseCatalogueTool(toolName);
-  return parsed ? `${parsed.app}:${parsed.tool}` : null;
-}
+export { parseCatalogueTool, toolRendererKey } from './catalogue-tool';
 
 const RenderersContext = createContext<AliaToolRenderers>({});
 

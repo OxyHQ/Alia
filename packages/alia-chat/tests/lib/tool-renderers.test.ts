@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCatalogueTool, toolRendererKey } from '../../src/lib/tool-renderers';
+import { parseCatalogueTool, toolRendererKey } from '../../src/tools';
 
 /** A renderer is keyed `<app>:<tool>` from the tool's canonical name and from nothing else. */
 describe('toolRendererKey', () => {
