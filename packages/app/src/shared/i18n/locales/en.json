@@ -1530,6 +1530,39 @@
       "loadFailed": "Couldn't load your Oxy apps. Try again later.",
       "saveFailed": "Couldn't change %{app}. Nothing was changed."
     },
+    "requesterApps": {
+      "title": "For whoever uses it",
+      "footer": "What this agent may do on the data of whoever uses it, app by app — always on that person's own account, never on yours. None: nothing. View: it can read. View and act: it can read and act for them.",
+      "levelLabel": "What this agent may do in %{app} for whoever uses it",
+      "loadFailed": "Couldn't load what this agent may do for the people who use it. Try again later.",
+      "saveFailed": "Couldn't change %{app}. Nothing was changed."
+    },
+    "featureGates": {
+      "title": "Features with requirements",
+      "footer": "Put a feature behind an app's plan: whoever uses the agent gets it only if that app says they have it. None: it is free.",
+      "none": "None",
+      "gateLabel": "What unlocks %{feature}",
+      "unavailable": "%{app} · %{feature} (not available)",
+      "loadFailed": "Couldn't read the apps' catalogues. Try again later.",
+      "saveFailed": "Couldn't save the feature requirements. Nothing was changed.",
+      "features": {
+        "documents": "Attached documents",
+        "images": "Attached images",
+        "deepResearch": "Deep research",
+        "pro": "Pro power level",
+        "ultra": "Ultra power level"
+      }
+    },
+    "starters": {
+      "title": "Conversation starters",
+      "footer": "What the agent's empty chat offers to send. Up to six; a starter needs a title and a message.",
+      "titleLabel": "Title",
+      "titlePlaceholder": "Flats in Gràcia",
+      "promptLabel": "Message",
+      "promptPlaceholder": "Find flats in Gràcia under €1,200",
+      "add": "Add a starter",
+      "remove": "Remove %{title}"
+    },
     "computer": {
       "open": "Computer",
       "title": "{{name}}'s computer",

@@ -59,6 +59,7 @@ function input(overrides: Partial<Parameters<typeof buildVoiceTurn>[0]> = {}) {
     conversationId: 'conv-1',
     requestId: 'vc_1',
     linkedAgent: null,
+    surfaceApplicationId: null,
     userMemory: null,
     oxyUser: null,
     language: 'es',

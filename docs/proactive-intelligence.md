@@ -23,7 +23,8 @@ control-plane endpoints are in [API reference](./api-reference.md).
 
 Which agent may be named is one rule shared by creation and dispatch
 (`mayRunForAutomationOwner`, `lib/automation-actors.ts`): the owner's own agent, or a
-public, active marketplace agent — never by `author`, never a product-bound one.
+public, active marketplace agent — never by `author`, and never an agent Oxy confines to
+an app (ADR 0021): an unattended run has no app to be in.
 Schemas: `lib/structured-automation-creation.ts`.
 
 ## Alia's standing authority

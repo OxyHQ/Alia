@@ -8,12 +8,7 @@ import imagesRouter from './v1/images.js';
 import conversationsRouter from './conversations.js';
 import sharedRouter from './shared.js';
 import agentsV1Router from './v1/agents.js';
-import {
-  authenticateRequesterAssertion,
-  authenticateToken,
-  authenticateTokenOrApiKey,
-  oxyClient,
-} from '../middleware/auth.js';
+import { authenticateToken, authenticateTokenOrApiKey, oxyClient } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
 import { listChannels } from '../lib/channels/registry.js';
@@ -47,7 +42,7 @@ router.use('/models', modelsRouter);
  * user bearer, or a service token acting for a person under an acting-as grant — both are
  * `authenticateToken`) and nothing else: no `oxy_sk_` application key (it is already refused
  * for every route but the two chat ones), no channel-bot or Telegram secret (those bots keep
- * the server-to-server `/conversations`), no requester assertion. The owner's data only with
+ * the server-to-server `/conversations`). The owner's data only with
  * the owner present: a third party's key has no owner present to speak for. It is mounted
  * BEFORE the inline channel-bot middleware and the blanket `authenticateTokenOrApiKey` below
  * for exactly that reason.
@@ -101,11 +96,6 @@ router.use((req: Request, _res: Response, next) => {
 
 // Apply authentication to all other v1 routes (supports both JWT and API keys)
 router.use(authenticateTokenOrApiKey);
-
-// A product's present-requester assertion (ADR 0025 in OxyHQServices) is
-// accepted on the chat surface only — the same one `/alia/chat` mounts it on —
-// and BEFORE the limiter, so the limiter keys on the requester it attaches.
-router.use('/chat/completions', authenticateRequesterAssertion);
 
 // Apply rate limiting for API key authenticated requests
 router.use(apiKeyRateLimit);

@@ -20,7 +20,7 @@
  *
  * ## Opening
  *
- *   client: auth { token }                 (an Oxy session of Alia's own apps)
+ *   client: auth { token, appAssertion? }  (an Oxy session; the app's assertion, Oxy ADR 0045)
  *   alia:   auth.ok
  *   client: session.start { … }  |  session.resume { voiceSessionId, afterSeq }
  *   alia:   session.accepted { voiceSessionId, callId }      → still connecting
@@ -33,6 +33,9 @@
  *
  * `auth` may be sent again at any time with a fresher token for the same
  * person; Alia then uses it for the tools that act with the person's bearer.
+ * `appAssertion` is the `X-Oxy-App-Assertion` an HTTP request would carry: a
+ * socket cannot set a header, so it travels here, and decides whether an agent
+ * Oxy confines to an app opens on this call (ADR 0021).
  *
  * `@alia.onl/sdk` keeps its own copy of these shapes (`src/lib/voice-protocol.ts`):
  * the SDK does not depend on the API package. `VOICE_PROTOCOL_VERSION` is what
@@ -69,7 +72,7 @@ export type ProductVoice = (typeof PRODUCT_VOICES)[number];
 /* -------------------------------------------------------------------------- */
 
 export type VoiceClientEvent =
-  | { type: 'auth'; token: string }
+  | { type: 'auth'; token: string; appAssertion?: string }
   | {
       type: 'session.start';
       protocol: number;
@@ -237,10 +240,17 @@ export function parseVoiceClientEvent(raw: string): VoiceClientEvent | null {
   const event = value as Record<string, unknown>;
   switch (event.type) {
     case 'auth':
-      return typeof event.token === 'string' &&
-        event.token.length > 0 &&
-        event.token.length < 16_384
-        ? { type: 'auth', token: event.token }
+      if (
+        typeof event.token !== 'string' ||
+        event.token.length === 0 ||
+        event.token.length >= 16_384
+      )
+        return null;
+      if (event.appAssertion === undefined) return { type: 'auth', token: event.token };
+      return typeof event.appAssertion === 'string' &&
+        event.appAssertion.length > 0 &&
+        event.appAssertion.length <= 4096
+        ? { type: 'auth', token: event.token, appAssertion: event.appAssertion }
         : null;
     case 'session.start': {
       if (typeof event.protocol !== 'number') return null;

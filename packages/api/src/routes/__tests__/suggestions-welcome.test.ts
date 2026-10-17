@@ -13,6 +13,8 @@ const state = vi.hoisted(() => ({
   pool: [] as Array<Record<string, unknown>>,
 }));
 
+// Where an agent opens (ADR 0021) is `app-confined-agents.test.ts`'s subject, not this file's.
+vi.mock('../../lib/agent-availability.js', () => ({ agentOpensOn: async () => 'reachable' }));
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock('../../db/memory/userMemoryRepository.js', () => ({ findUserMemory: async () => null }));
 vi.mock('../../db/notifications/suggestionRepository.js', async (importOriginal) => ({
@@ -123,7 +125,9 @@ describe('with an agent', () => {
         },
       ],
     });
-    expect(state.reachCalls).toEqual([{ oxyUserId: 'person-1', accessToken: 'TOKEN' }]);
+    expect(state.reachCalls).toEqual([
+      { oxyUserId: 'person-1', accessToken: 'TOKEN', surfaceApplicationId: null },
+    ]);
   });
 
   it('is 404 for an agent the caller may not use, and for one that does not exist', async () => {
@@ -137,7 +141,9 @@ describe('with an agent', () => {
 
   it('asks about an anonymous caller with no bearer at all', async () => {
     await welcome({ agentId: 'sindi' });
-    expect(state.reachCalls).toEqual([{ oxyUserId: '', accessToken: undefined }]);
+    expect(state.reachCalls).toEqual([
+      { oxyUserId: '', accessToken: undefined, surfaceApplicationId: null },
+    ]);
   });
 
   it('refuses an agentId or clientContext that is not a string', async () => {

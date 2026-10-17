@@ -41,6 +41,8 @@ class NotFound extends Error {
   status = 404;
 }
 
+// Where an agent opens (ADR 0021) is `app-confined-agents.test.ts`'s subject, not this file's.
+vi.mock('../../../lib/agent-availability.js', () => ({ agentOpensOn: async () => 'reachable' }));
 vi.mock('@oxy.so/core', async () => {
   const actual = await vi.importActual<typeof import('@oxy.so/core')>('@oxy.so/core');
   return {
@@ -139,7 +141,6 @@ const AGENT_ROW = {
   id: 'agent-1',
   oxyAccountId: 'acct-bot',
   ownerOxyAccountId: 'oxy-owner',
-  applicationId: null,
   tagline: 'keeps the roadmap honest',
   description: 'a description',
   author: 'oxy-owner',

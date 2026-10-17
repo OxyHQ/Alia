@@ -149,6 +149,8 @@ export interface VoiceTurnInput {
   readonly conversationId: string;
   readonly requestId: string;
   readonly linkedAgent: HydratedAgent | null;
+  /** The app the call comes from (ADR 0021), for `consultAgent` and `searchAgents`. */
+  readonly surfaceApplicationId: string | null;
   readonly userMemory: UserMemoryProfile | null;
   readonly oxyUser: OxyUserProfile | null;
   readonly language: string;
@@ -176,6 +178,7 @@ export async function buildVoiceTurn(input: VoiceTurnInput): Promise<VoiceTurnCo
     actsForPerson: true,
     // The person on the socket: an agent's owner data only for its owner (ADR 0015).
     requesterAccountId: oxyUserId,
+    surfaceApplicationId: input.surfaceApplicationId,
     requestId: input.requestId,
     priorToolCalls: priorToolCallsOf(asChat),
     webSearch: true,

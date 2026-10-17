@@ -20,8 +20,8 @@ import { useTranslation } from '@/shared/i18n/use-translation';
  * offers, with `auto` for an agent that has none stored (what `null` means,
  * and where every agent starts). Oxy picks the model of the level per turn.
  *
- * An agent stored before levels may still pin an exact model (an operator's
- * product agent, or one saved from the old model picker). It is kept and shown
+ * An agent stored before levels may still pin an exact model (one saved from
+ * the old model picker). It is kept and shown
  * as what it is — "a pinned model" — until someone picks a level, rather than
  * drawn as `auto` while it actually runs on that model.
  */

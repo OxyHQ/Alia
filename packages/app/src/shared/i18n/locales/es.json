@@ -1530,6 +1530,39 @@
       "loadFailed": "No se han podido cargar tus apps de Oxy. Inténtalo más tarde.",
       "saveFailed": "No se ha podido cambiar %{app}. No ha cambiado nada."
     },
+    "requesterApps": {
+      "title": "Para quien lo usa",
+      "footer": "Qué puede hacer este agente con los datos de quien lo usa, app por app: siempre en la cuenta de esa persona, nunca en la tuya. Nada: nada. Ver: puede leer. Ver y actuar: puede leer y actuar por ella.",
+      "levelLabel": "Qué puede hacer este agente en %{app} para quien lo usa",
+      "loadFailed": "No se ha podido cargar qué puede hacer este agente para quien lo usa. Inténtalo más tarde.",
+      "saveFailed": "No se ha podido cambiar %{app}. No ha cambiado nada."
+    },
+    "featureGates": {
+      "title": "Funciones con requisitos",
+      "footer": "Pon una función detrás del plan de una app: quien use el agente la tiene solo si esa app dice que la tiene. Ninguno: es gratis.",
+      "none": "Ninguno",
+      "gateLabel": "Qué desbloquea %{feature}",
+      "unavailable": "%{app} · %{feature} (no disponible)",
+      "loadFailed": "No se han podido leer los catálogos de las apps. Inténtalo más tarde.",
+      "saveFailed": "No se han podido guardar los requisitos. No ha cambiado nada.",
+      "features": {
+        "documents": "Documentos adjuntos",
+        "images": "Imágenes adjuntas",
+        "deepResearch": "Investigación a fondo",
+        "pro": "Nivel de potencia Pro",
+        "ultra": "Nivel de potencia Ultra"
+      }
+    },
+    "starters": {
+      "title": "Sugerencias de inicio",
+      "footer": "Lo que ofrece enviar el chat vacío del agente. Hasta seis; cada una necesita un título y un mensaje.",
+      "titleLabel": "Título",
+      "titlePlaceholder": "Pisos en Gràcia",
+      "promptLabel": "Mensaje",
+      "promptPlaceholder": "Busca pisos en Gràcia por menos de 1.200 €",
+      "add": "Añadir una sugerencia",
+      "remove": "Quitar %{title}"
+    },
     "computer": {
       "open": "Ordenador",
       "title": "El ordenador de {{name}}",

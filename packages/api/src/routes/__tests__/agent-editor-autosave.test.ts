@@ -98,7 +98,7 @@ const repository = vi.hoisted(() => ({
   listAgentCatalogue: vi.fn(async () => ({ agents: [], total: 0 })),
   listAgentsByAuthor: vi.fn(async () => []),
   withoutInternalAgentBindings: vi.fn((agent: Record<string, unknown>) => {
-    const { applicationId: _applicationId, ownerOxyAccountId: _owner, ...rest } = agent;
+    const { ownerOxyAccountId: _owner, ...rest } = agent;
     return rest;
   }),
 }));
@@ -298,6 +298,7 @@ const VALUE_FOR: Readonly<Record<string, unknown>> = {
   scheduleInterval: 60,
   modelId: 'acme/chat-1',
   character: { shape: 'heart', eyes: 'oval', eyewear: 'none', accessory: 'bow', color: 'pink' },
+  starters: [{ title: 'Pisos en Gràcia', prompt: 'Busca pisos en Gràcia' }],
 };
 
 async function patch(body: unknown): Promise<{ status: number; body: Record<string, unknown> }> {

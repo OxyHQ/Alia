@@ -16,7 +16,8 @@
 import type http from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { log } from '../logger.js';
-import { authenticateSocketToken } from '../socket-session-auth.js';
+import { verifySurface } from '../app-surface.js';
+import { authenticateSocketSession, type SocketSession } from '../socket-session-auth.js';
 import type { WebSocketRoute } from '../websocket-upgrades.js';
 import { type VoiceCallEnvironment, type VoiceClientSink, VoiceCall } from './call.js';
 import { createVoiceEnvironment } from './environment.js';
@@ -44,8 +45,10 @@ const liveCalls = new Map<string, VoiceCall>();
 export interface VoiceSocketOptions {
   /** The call's world; tests pass one built on the Kaana fake. */
   environment?: () => VoiceCallEnvironment;
-  /** Token → Oxy user id; tests replace the Oxy round trip. */
-  authenticate?: (token: string) => Promise<string | null>;
+  /** Token → the Oxy person and session; tests replace the Oxy round trip. */
+  authenticate?: (token: string) => Promise<SocketSession | null>;
+  /** The app assertion → its application, for that session (`lib/app-surface.ts`); tests replace it. */
+  surface?: (assertion: string | undefined, session: SocketSession) => Promise<string | null>;
 }
 
 function isMachineCredential(token: string): boolean {
@@ -54,10 +57,16 @@ function isMachineCredential(token: string): boolean {
 
 /** Serve one connection: auth, then start or resume a call. */
 export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions = {}): void {
-  const authenticate = options.authenticate ?? authenticateSocketToken;
+  const authenticate = options.authenticate ?? authenticateSocketSession;
+  const surfaceOf =
+    options.surface ??
+    ((assertion: string | undefined, session: SocketSession) =>
+      verifySurface(assertion, session).catch(() => null));
   const environment = options.environment ?? createVoiceEnvironment;
   let oxyUserId: string | null = null;
   let token: string | null = null;
+  /** The app the call comes from, by the latest `auth`'s assertion (ADR 0021). */
+  let surfaceApplicationId: string | null = null;
   let call: VoiceCall | null = null;
   let authenticating = false;
   const connectedAt = Date.now();
@@ -135,7 +144,11 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
       authenticating = true;
       void authenticate(event.token)
         .catch(() => null)
-        .then((id) => {
+        .then(async (session) => {
+          const surface = session === null ? null : await surfaceOf(event.appAssertion, session);
+          return { id: session?.userId ?? null, surface };
+        })
+        .then(({ id, surface }) => {
           authenticating = false;
           if (id === null) {
             refuse('not-authenticated', 4003);
@@ -151,6 +164,7 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
           const first = oxyUserId === null;
           oxyUserId = id;
           token = event.token;
+          surfaceApplicationId = surface;
           call?.setAccessToken(event.token);
           if (first) sendPre({ type: 'auth.ok' });
         });
@@ -180,6 +194,7 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
           ...(event.agentId === undefined ? {} : { agentId: event.agentId }),
           voice: event.voice,
           locale: event.locale,
+          surfaceApplicationId,
         });
         return;
       }

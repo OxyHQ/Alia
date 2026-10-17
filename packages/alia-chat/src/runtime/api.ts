@@ -1,5 +1,10 @@
 import { useOxy } from '@oxy.so/services/ui/client';
 import { useMemo } from 'react';
+import {
+  type AppAssertionHeaders,
+  NO_APP_ASSERTION,
+  useAppAssertionHeaders,
+} from './app-assertion';
 import { useAliaRuntime } from './config';
 
 /**
@@ -79,24 +84,33 @@ export interface LinkableOxy {
   };
 }
 
-/** Build the API over an Oxy client for `apiUrl`. Exposed for tests and for non-React callers. */
-export function createAliaApi(oxyServices: LinkableOxy, apiUrl: string): AliaApi {
+/**
+ * Build the API over an Oxy client for `apiUrl`. Exposed for tests and for non-React callers.
+ *
+ * @param appAssertionHeaders the host's `X-Oxy-App-Assertion` (`app-assertion.ts`), on every request
+ */
+export function createAliaApi(
+  oxyServices: LinkableOxy,
+  apiUrl: string,
+  appAssertionHeaders: AppAssertionHeaders = NO_APP_ASSERTION,
+): AliaApi {
   async function send<T>(
     method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
     path: string,
     request: AliaApiRequest = {},
   ): Promise<AliaApiResult<T>> {
+    const assertion = await appAssertionHeaders();
     const linked = oxyServices.createLinkedClient({ baseURL: apiUrl });
     try {
+      const headers = {
+        ...assertion,
+        ...(request.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      };
       const response = await linked.client.requestAuthenticatedResponse({
         method,
         url: withParams(path, request.params),
-        ...(request.body === undefined
-          ? {}
-          : {
-              body: JSON.stringify(request.body),
-              headers: { 'Content-Type': 'application/json' },
-            }),
+        ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
+        ...(Object.keys(headers).length === 0 ? {} : { headers }),
         ...(request.signal ? { signal: request.signal } : {}),
       });
       const data = await readBody(response);
@@ -119,5 +133,9 @@ export function createAliaApi(oxyServices: LinkableOxy, apiUrl: string): AliaApi
 export function useAliaApi(): AliaApi {
   const { oxyServices } = useOxy();
   const { apiUrl } = useAliaRuntime();
-  return useMemo(() => createAliaApi(oxyServices as LinkableOxy, apiUrl), [oxyServices, apiUrl]);
+  const appAssertionHeaders = useAppAssertionHeaders();
+  return useMemo(
+    () => createAliaApi(oxyServices as LinkableOxy, apiUrl, appAssertionHeaders),
+    [oxyServices, apiUrl, appAssertionHeaders],
+  );
 }

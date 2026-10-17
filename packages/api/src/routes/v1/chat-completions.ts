@@ -251,6 +251,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
             isDirectSession: isDirectUserSession,
             // A session acts for the person holding it; an API key does not.
             actsForPerson: isDirectUserSession,
+            // The app the person is in (ADR 0021), for `consultAgent` and `searchAgents`.
+            surfaceApplicationId: ctx.surfaceApplicationId,
             requestId,
             // The tools this conversation already used stay loaded (`lib/tool-budget.ts`).
             priorToolCalls: priorToolCallsOf(messages),

@@ -156,6 +156,12 @@ export const API_ROUTES = {
     oxyApps: (id: string) => `/agents/${encodeURIComponent(id)}/oxy-apps`,
     oxyApp: (id: string, appId: string) =>
       `/agents/${encodeURIComponent(id)}/oxy-apps/${encodeURIComponent(appId)}`,
+    /** What the agent may do on the data of WHOEVER uses it, one ceiling per Oxy app (ADR 0020 §2). */
+    requesterApps: (id: string) => `/agents/${encodeURIComponent(id)}/requester-apps`,
+    requesterApp: (id: string, appId: string) =>
+      `/agents/${encodeURIComponent(id)}/requester-apps/${encodeURIComponent(appId)}`,
+    /** The app features a gate may name, from the live catalogues (ADR 0020 §6). */
+    featureGateOptions: (id: string) => `/agents/${encodeURIComponent(id)}/feature-gate-options`,
   },
 
   // Library routes

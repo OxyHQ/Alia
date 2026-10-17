@@ -56,14 +56,9 @@ Do not enable production traffic until all of these pass:
    modalities fail with the typed product error.
 6. The Oxy account behind the ApplicationCredential is allowed to spend and a
    non-production canary returns usage with the expected attribution.
-7. Every product agent has an Oxy-authoritative `owner_oxy_account_id` and fixed
-   `application_id` written by internal bootstrap, is not publicly mutable, and
-   a human bearer plus the known id is refused.
-8. Each product ingress uses its own Oxy service credential and delegated
-   `X-Oxy-User-Id`; its token and acting-as grant both carry
-   `inference:invoke`. A canary receipt must name that product application's
-   owner/credential, never Alia's credential and never the delegated user as
-   payer.
+7. Every agent turn, an app's agent included, is paid by the person using it
+   (ADR 0020 §4); no product application pays for an agent. A canary receipt
+   for an agent turn names that person, never Alia's credential.
 
 ## Rollout
 

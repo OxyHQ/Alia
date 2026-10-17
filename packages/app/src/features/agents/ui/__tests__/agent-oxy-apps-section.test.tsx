@@ -52,8 +52,12 @@ vi.mock('@/shared/api/client', () => ({
   default: { get: api.get, put: api.put, post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 
-const { AgentOxyAppsSection } = await import('@/features/agents/ui/edit/agent-oxy-apps-section');
-const { useAgentOxyApps } = await import('@/features/agents/runtime/use-agent-oxy-apps');
+const { AgentOxyAppsSection, AgentRequesterAppsSection } = await import(
+  '@/features/agents/ui/edit/agent-oxy-apps-section'
+);
+const { useAgentOxyApps, useAgentRequesterApps } = await import(
+  '@/features/agents/runtime/use-agent-oxy-apps'
+);
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -66,6 +70,10 @@ function Editor() {
   return <AgentOxyAppsSection oxyApps={useAgentOxyApps('agent-1')} />;
 }
 
+function RequesterEditor() {
+  return <AgentRequesterAppsSection requesterApps={useAgentRequesterApps('agent-1')} />;
+}
+
 async function settle(): Promise<void> {
   for (let i = 0; i < 6; i += 1) {
     await act(async () => {
@@ -74,12 +82,12 @@ async function settle(): Promise<void> {
   }
 }
 
-async function render(): Promise<ReactTestRenderer> {
+async function render(Section: () => React.ReactElement = Editor): Promise<ReactTestRenderer> {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   await act(async () => {
     renderer = create(
       <QueryClientProvider client={client}>
-        <Editor />
+        <Section />
       </QueryClientProvider>,
     );
   });
@@ -164,5 +172,54 @@ describe('Apps de Oxy', () => {
     const group = tree.root.find((node) => (node.type as unknown) === 'SettingsListGroup');
     expect(group.props.footer).toBe("Couldn't load your Oxy apps. Try again later.");
     expect(controls(tree)).toEqual([]);
+  });
+});
+
+/**
+ * "Para quien lo usa" (ADR 0020 §2): the same three levels, but a ceiling on
+ * what the agent may do on the data of WHOEVER uses it, on their own account.
+ */
+describe('For whoever uses it', () => {
+  it('reads the ceilings, not the owner levels, and says whose data they are about', async () => {
+    api.get.mockResolvedValue({ data: { apps: [INBOX, MENTION] } });
+    const tree = await render(RequesterEditor);
+    expect(api.get).toHaveBeenCalledWith('/agents/agent-1/requester-apps');
+    const group = tree.root.find((node) => (node.type as unknown) === 'SettingsListGroup');
+    expect(group.props.title).toBe('For whoever uses it');
+    expect(group.props.footer).toContain('never on yours');
+    const [inbox, mention] = controls(tree);
+    expect(inbox?.props.testID).toBe('requester-app-level-inbox');
+    expect(labels(inbox as ReactTestInstance)).toEqual(['None', 'View', 'View and act']);
+    expect(mention?.props.value).toBe('read');
+  });
+
+  it('sends exactly the ceiling picked to that app', async () => {
+    api.get.mockResolvedValue({ data: { apps: [INBOX] } });
+    api.put.mockResolvedValue({ data: { app: { ...INBOX, level: 'read' } } });
+    const tree = await render(RequesterEditor);
+    await act(async () => controls(tree)[0]?.props.onValueChange('read'));
+    await settle();
+    expect(api.put).toHaveBeenCalledWith('/agents/agent-1/requester-apps/inbox', {
+      level: 'read',
+    });
+    expect(controls(tree)[0]?.props.value).toBe('read');
+  });
+
+  it('puts it back and names the app when the change is refused', async () => {
+    api.get.mockResolvedValue({ data: { apps: [INBOX] } });
+    api.put.mockRejectedValue(Object.assign(new Error('refused'), { response: { status: 502 } }));
+    const tree = await render(RequesterEditor);
+    await act(async () => controls(tree)[0]?.props.onValueChange('act'));
+    await settle();
+    expect(controls(tree)[0]?.props.value).toBe('none');
+    expect(toastError).toHaveBeenCalledWith(expect.stringContaining('Inbox'));
+  });
+
+  it('shows nothing to somebody who does not operate the agent', async () => {
+    api.get.mockRejectedValue(
+      Object.assign(new Error('agent_operator_required'), { response: { status: 403 } }),
+    );
+    const tree = await render(RequesterEditor);
+    expect(tree.toJSON()).toBeNull();
   });
 });

@@ -219,7 +219,8 @@ async function liveGrantsByApp(
   return byApp;
 }
 
-function displayName(appId: string): string {
+/** How the editor names an Oxy app: its id, capitalised. */
+export function oxyAppDisplayName(appId: string): string {
   return appId.length === 0 ? appId : `${appId.charAt(0).toUpperCase()}${appId.slice(1)}`;
 }
 
@@ -227,7 +228,7 @@ function rowFor(catalog: AppCapabilityCatalog, level: OxyAppLevel): AgentOxyAppR
   const levels: OxyAppLevel[] = ['none'];
   if (grantTermsForLevel(catalog, 'read')) levels.push('read');
   if (grantTermsForLevel(catalog, 'act')) levels.push('act');
-  return { appId: catalog.appId, name: displayName(catalog.appId), level, levels };
+  return { appId: catalog.appId, name: oxyAppDisplayName(catalog.appId), level, levels };
 }
 
 /** One row per Oxy app, at the level Oxy currently honours. */

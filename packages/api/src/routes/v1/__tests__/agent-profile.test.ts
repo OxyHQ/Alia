@@ -14,6 +14,8 @@ const state = vi.hoisted(() => ({
   loadTurnAgent: vi.fn(),
 }));
 
+// Where an agent opens (ADR 0021) is `app-confined-agents.test.ts`'s subject, not this file's.
+vi.mock('../../../lib/agent-availability.js', () => ({ agentOpensOn: async () => 'reachable' }));
 vi.mock('../../../lib/agent-account.js', () => ({
   loadTurnAgent: async (...args: unknown[]) => {
     state.loadTurnAgent(...args);
@@ -43,7 +45,6 @@ const SINDI = {
   id: 'sindi',
   oxyAccountId: 'sindi-bot',
   ownerOxyAccountId: 'homiio-project',
-  applicationId: null,
   name: 'Sindi',
   handle: 'sindibot',
   color: 'teal',
@@ -115,7 +116,12 @@ describe('GET /v1/agents/:id/profile', () => {
     });
     expect(state.loadTurnAgent).toHaveBeenCalledWith(
       {},
-      { agentId: 'sindi', oxyUserId: 'person-1', accessToken: 'PERSON-TOKEN' },
+      {
+        agentId: 'sindi',
+        oxyUserId: 'person-1',
+        accessToken: 'PERSON-TOKEN',
+        surfaceApplicationId: null,
+      },
     );
   });
 

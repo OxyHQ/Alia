@@ -13,6 +13,7 @@ import { Router, type Request, type Response } from 'express';
 import { getDb } from '../../db/index.js';
 import { GATED_FEATURES } from '../../domain/agent-features.js';
 import { loadTurnAgent } from '../../lib/agent-account.js';
+import { appSurfaceOf } from '../../lib/app-surface.js';
 import type { HydratedAgent } from '../../lib/agent-identity.js';
 import { FeatureCheckUnavailableError, readAgentFeatures } from '../../lib/agent-features.js';
 import { log } from '../../lib/logger.js';
@@ -25,6 +26,7 @@ async function reachableAgent(req: Request): Promise<HydratedAgent | null> {
     agentId: String(req.params.id),
     oxyUserId: req.user.id,
     accessToken: req.accessToken,
+    surfaceApplicationId: await appSurfaceOf(req),
   });
   return turnAgent.kind === 'agent' ? turnAgent.agent : null;
 }

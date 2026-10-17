@@ -3,6 +3,7 @@ import { useOxy } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLabels } from '../lib/labels';
+import { useAppAssertionHeaders } from './app-assertion';
 import { type AliaArtifact, useAliaRuntime } from './config';
 import { errorCode, errorMessage as getErrorMessage, errorName, errorStatus } from './error-utils';
 import { agentMessageId, buildOutboundMessages, isAgentMessageOf } from './message-history';
@@ -201,6 +202,7 @@ export function useConversationStream({
    */
   const turnOptionsRef = useRef(new Map<string, Pick<SendOptions, 'mcpServerId' | 'skillNames'>>());
   const { oxyServices, user } = useOxy();
+  const appAssertionHeaders = useAppAssertionHeaders();
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -615,11 +617,14 @@ export function useConversationStream({
 
         // Authentication, the preflight refresh and the single 401 replay belong
         // to the linked Oxy client; this layer never reads or writes a bearer.
+        // Which Oxy app this turn is in (ADR 0021): an agent Oxy confines to an app opens only there.
+        const appAssertion = await appAssertionHeaders();
         linked = oxyServices.createLinkedClient({ baseURL: apiUrl });
         const response = await linked.client.requestAuthenticatedResponse({
           method: 'POST',
           url: API_ROUTES.chat,
           headers: {
+            ...appAssertion,
             Accept: 'text/event-stream',
             'Content-Type': 'application/json',
             ...(deviceInfo === undefined ? {} : { 'X-Device-Info': JSON.stringify(deviceInfo) }),
@@ -1347,6 +1352,7 @@ export function useConversationStream({
       host,
       labels,
       oxyServices,
+      appAssertionHeaders,
       queryClient,
       conversationId,
       model,

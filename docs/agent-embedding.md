@@ -37,6 +37,17 @@ is that agent. Without `agentId`, the lead is Alia.
 - Missing, private, and not confirmable because Oxy could not be asked are all the same
   404. The system prompt is never in the answer.
 
+### Which app the conversation is in (ADR 0021)
+
+An Oxy application may confine its own agent to its own app (Oxy ADR 0044). Every
+request the SDK sends that can open an agent — the REST routes above and in §6, the chat
+stream, the voice socket — carries the host's Oxy-signed app assertion as
+`X-Oxy-App-Assertion` (Oxy ADR 0045; `@alia.onl/sdk` 19.1.0 and later). On the voice
+socket it is `appAssertion` in the `auth` frame. Alia verifies it against Oxy's JWKS,
+bound to the request's own person and session, and `canReachAgent` refuses a confined
+agent unless the assertion names one of its applications. Without a valid assertion
+there is no app: every unconfined agent opens as before, and no confined one does.
+
 ## 2. Host tools: UI effects in the embedding client
 
 A request may declare the UI effects its own client can perform. What is on the person's screen is sent the usual way, in `clientContext`; `host` carries only the actions and the outcomes of earlier ones:

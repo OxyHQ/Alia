@@ -66,8 +66,6 @@ export interface Agent {
   character: unknown;
   /** The bot's parent in Oxy's account graph; null until a legacy row is reconciled. */
   ownerOxyAccountId: string | null;
-  /** Credential-derived Oxy application allowed to invoke this product agent. */
-  applicationId: string | null;
   name: string | null;
   handle: string | null;
   color: string | null;
@@ -132,9 +130,41 @@ export interface Agent {
   modelId?: string | null;
   archetype?: AgentArchetype;
   archetypeConfig?: ArchetypeConfig;
+  /** What its empty chat offers to send, at most {@link MAX_AGENT_STARTERS} (ADR 0020 §6). */
+  starters?: AgentStarter[];
+  /** Which of Alia's features an app's entitlement unlocks (ADR 0020 §6). */
+  featureGates?: AgentFeatureGates;
   createdAt: string;
   updatedAt: string;
 }
+
+/** A conversation starter, as `PATCH /agents/:id` takes it (`title` ≤ 60, `prompt` ≤ 500). */
+export interface AgentStarter {
+  title: string;
+  prompt: string;
+}
+
+export const MAX_AGENT_STARTERS = 6;
+export const MAX_STARTER_TITLE_LENGTH = 60;
+export const MAX_STARTER_PROMPT_LENGTH = 500;
+
+/** The Alia features an owner may put behind an app's entitlement, as the API names them. */
+export const GATED_FEATURES = [
+  'attachments.documents',
+  'attachments.images',
+  'deep_research',
+  'power_level.pro',
+  'power_level.ultra',
+] as const;
+export type GatedFeature = (typeof GATED_FEATURES)[number];
+
+/** One gate: a feature declared in an app's capability catalogue. */
+export interface AgentFeatureGate {
+  app: string;
+  feature: string;
+}
+
+export type AgentFeatureGates = Partial<Record<GatedFeature, AgentFeatureGate>>;
 
 /**
  * Write payload for agent updates. Unlike the read {@link Agent} model, `skills`
@@ -156,7 +186,6 @@ export type AgentUpdate = Partial<
     | 'avatar'
     | 'oxyAccountId'
     | 'ownerOxyAccountId'
-    | 'applicationId'
     | '_id'
   >
 > & {

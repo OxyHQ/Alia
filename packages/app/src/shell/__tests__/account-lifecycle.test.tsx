@@ -19,6 +19,13 @@ vi.mock('@oxy.so/services', () => ({
   queryKeys: { accounts: { all: ['accounts'] }, sessions: { all: ['sessions'] } },
 }));
 vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({}) }));
+// The SDK reads the host's app assertion from here (ADR 0021); this host has none.
+vi.mock('@oxy.so/services/ui', () => ({
+  useAppAssertion: () => ({
+    getAppAssertion: async () => null,
+    getAppAssertionHeaders: async () => ({}),
+  }),
+}));
 vi.mock('@/shared/i18n', () => ({ default: { t: (k: string) => k } }));
 vi.mock('react-native', () => ({ Platform: { OS: 'web' } }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));

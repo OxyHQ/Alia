@@ -131,6 +131,8 @@ export function harness(options: HarnessOptions = {}) {
   const finishCall = vi.fn(async () => undefined);
   let history = options.history ?? [];
   const turnInputs: VoiceTurnInput[] = [];
+  /** What each call asked its turn inputs for: the person, the agent and the app. */
+  const prefetched: Parameters<VoiceCallEnvironment['prefetch']>[0][] = [];
   const tools = options.tools ?? weatherTools();
   const instructionsFor = vi.fn(
     async (h: readonly HistoryMessage[]) => `INSTRUCTIONS(${h.length})`,
@@ -141,18 +143,21 @@ export function harness(options: HarnessOptions = {}) {
 
   const env: VoiceCallEnvironment = {
     kaana,
-    prefetch: async () => ({
-      userMemory: null,
-      oxyUser: null,
-      entitlements: options.entitlementsUnavailable
-        ? null
-        : {
-            features: { 'voice-mode': options.voiceMode ?? true },
-            planId: options.voiceMode === false ? 'free' : 'go',
-            entitlement: {} as never,
-          },
-      turnAgent: options.turnAgent ?? { kind: 'none' },
-    }),
+    prefetch: async (identity) => {
+      prefetched.push(identity);
+      return {
+        userMemory: null,
+        oxyUser: null,
+        entitlements: options.entitlementsUnavailable
+          ? null
+          : {
+              features: { 'voice-mode': options.voiceMode ?? true },
+              planId: options.voiceMode === false ? 'free' : 'go',
+              entitlement: {} as never,
+            },
+        turnAgent: options.turnAgent ?? { kind: 'none' },
+      };
+    },
     credits: { reserve, finalize, refund },
     startCall: startCall as unknown as VoiceCallEnvironment['startCall'],
     finishCall,
@@ -200,6 +205,7 @@ export function harness(options: HarnessOptions = {}) {
     startCall,
     finishCall,
     turnInputs,
+    prefetched,
     instructionsFor,
     announce,
     titleConversation,
@@ -231,6 +237,7 @@ export const START = {
   conversationId: 'conv-1',
   voice: 'female' as const,
   locale: 'es-ES',
+  surfaceApplicationId: null,
 };
 
 /** Poll until `ready`, or throw naming what never happened. */

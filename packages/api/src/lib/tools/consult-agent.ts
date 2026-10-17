@@ -1,7 +1,7 @@
 /**
  * `consultAgent` — the one way an agent is asked something from inside another
- * conversation (Alia ADR 0020 §5). It replaces `askAgent` (the person's own
- * agents) and `delegateToAgent` (the catalogue): both were the same act with two
+ * conversation (Alia ADR 0020 §5). It replaced two tools — one for the
+ * person's own agents, one for the catalogue — that were the same act with two
  * reach rules, and one of them could never reach an app's agent at all.
  *
  * ## Reach is the ordinary rule
@@ -143,6 +143,7 @@ export async function buildConsultAgentTool(options: ConsultAgentOptions): Promi
             (await canReachAgent(found, {
               oxyUserId: options.person.oxyUserId,
               accessToken: options.person.accessToken,
+              surfaceApplicationId: options.person.surfaceApplicationId,
             })) !== 'reachable'
           ) {
             return refusal(agentId, 'Agent not found');

@@ -38,6 +38,9 @@ class NotFound extends Error {
   status = 404;
 }
 
+// WHO may reach is this file's subject; WHERE (ADR 0021) is `app-confined-agents.test.ts`'s.
+vi.mock('../agent-availability.js', () => ({ agentOpensOn: async () => 'reachable' }));
+
 vi.mock('@oxy.so/core', async () => {
   const actual = await vi.importActual<typeof import('@oxy.so/core')>('@oxy.so/core');
   return {
@@ -105,7 +108,12 @@ vi.mock('../../middleware/auth.js', () => ({
 const { loadTurnAgent, canReachAgent, verifyAgentAccount, clearAgentAccountVerdicts } =
   await import('../agent-account.js');
 
-const CALLER = { agentId: 'agent-1', oxyUserId: 'user-1', accessToken: 'bearer-abc' };
+const CALLER = {
+  agentId: 'agent-1',
+  oxyUserId: 'user-1',
+  accessToken: 'bearer-abc',
+  surfaceApplicationId: null,
+};
 
 beforeEach(() => {
   clearAgentAccountVerdicts();
@@ -250,35 +258,6 @@ describe('a PUBLIC agent never asks Oxy at all', () => {
     const reach = await canReachAgent({ ...CLAUDIO, access: 'public' } as never, CALLER);
 
     expect(reach).toBe('reachable');
-    expect(oxy.calls).toBe(0);
-  });
-});
-
-describe('an application-bound product agent', () => {
-  const productAgent = {
-    ...CLAUDIO,
-    access: 'public',
-    applicationId: 'homiio-app-id',
-  } as never;
-
-  it('is unreachable to a human bearer even when the id and public flag are known', async () => {
-    expect(await canReachAgent(productAgent, CALLER)).toBe('out_of_reach');
-    expect(oxy.calls).toBe(0);
-  });
-
-  it('is reachable only to the exact credential-derived service application', async () => {
-    expect(
-      await canReachAgent(productAgent, {
-        ...CALLER,
-        applicationId: 'homiio-app-id',
-      }),
-    ).toBe('reachable');
-    expect(
-      await canReachAgent(productAgent, {
-        ...CALLER,
-        applicationId: 'mention-app-id',
-      }),
-    ).toBe('out_of_reach');
     expect(oxy.calls).toBe(0);
   });
 });

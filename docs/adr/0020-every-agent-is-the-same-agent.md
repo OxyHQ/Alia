@@ -163,5 +163,5 @@ The following are deleted, not deprecated:
 - **No approvals:** a test fails if any tool path returns an approval proposal for an effect.
 - **Feature gates:** a locked gate refuses before any reservation, and a retried turn consumes once.
 - **SDK:** `one-thread.test.tsx` fails if any file other than `AliaParticipants` imports `AgentProfile` or the join-flight spec.
-- **Clean cut:** a CI grep gate fails on `native-product-agent`, `RequesterAssertion`, `ALIA_INTERNAL_MCP_PILOT`, `askAgent`, `delegateToAgent`, `streamFeatures` or an `applicationId` on agents.
-- **Not yet enforced:** no check yet stops a future surface from paying an agent turn from an application. Review is the gate until the product-payer code is gone, after which there is nothing left to call.
+- **Clean cut:** a CI grep gate fails on `native-product-agent`, `RequesterAssertion`, `ALIA_INTERNAL_MCP_PILOT`, `askAgent`, `delegateToAgent`, `streamFeatures` or an `applicationId` on agents (`scripts/check-retired-vocabulary.mjs`).
+- **The person pays:** the product-payer branch is deleted, so no code path forwards a product token to pay for an agent turn; `request-context-model-selection.test.ts` asserts that a delegated product token never becomes the turn's payer.

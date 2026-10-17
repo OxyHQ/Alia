@@ -53,6 +53,7 @@ import {
 } from '../../db/chat/messageRepository.js';
 import { agentPromptName } from '../../lib/agent-identity.js';
 import { loadThreadAgent } from '../../lib/agent-account.js';
+import { appSurfaceOf } from '../../lib/app-surface.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { log } from '../../lib/logger.js';
 import type { HydratedAgent } from '../../lib/agent-identity.js';
@@ -74,7 +75,7 @@ async function reachAgent(req: Request, res: Response): Promise<HydratedAgent | 
     username: String(req.params.username),
     oxyUserId: req.user?.id ?? '',
     accessToken: req.accessToken,
-    applicationId: req.serviceApp?.appId,
+    surfaceApplicationId: await appSurfaceOf(req),
   });
   if (agent === null) {
     res.status(404).json(NO_THREAD);

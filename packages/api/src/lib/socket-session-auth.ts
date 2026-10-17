@@ -1,5 +1,11 @@
 import { oxyClient } from '../middleware/auth.js';
 
+/** The person and the session a socket's token was validated as. */
+export interface SocketSession {
+  readonly userId: string;
+  readonly sessionId: string;
+}
+
 /**
  * Validate an Oxy access token handed over a WebSocket's first message, and
  * return the user id. Shared by the MCP relay (`lib/mcp-relay.ts`) and voice
@@ -13,6 +19,13 @@ import { oxyClient } from '../middleware/auth.js';
  * JWT carrying an Oxy session.
  */
 export async function authenticateSocketToken(token: string | undefined): Promise<string | null> {
+  return (await authenticateSocketSession(token))?.userId ?? null;
+}
+
+/** {@link authenticateSocketToken}, with the validated session the token belongs to. */
+export async function authenticateSocketSession(
+  token: string | undefined,
+): Promise<SocketSession | null> {
   if (!token || typeof token !== 'string') return null;
 
   // Oxy access token — the SDK owns the session, exactly as it does for the
@@ -41,7 +54,7 @@ export async function authenticateSocketToken(token: string | undefined): Promis
   // the mismatch case red.
   const handshake: {
     handshake: { auth: { token: string } };
-    data?: { userId?: string };
+    data?: { userId?: string; sessionId?: string };
   } = { handshake: { auth: { token } } };
 
   let authError: Error | undefined;
@@ -53,5 +66,9 @@ export async function authenticateSocketToken(token: string | undefined): Promis
   });
   if (authError) return null;
 
-  return handshake.data?.userId ?? null;
+  const userId = handshake.data?.userId;
+  const sessionId = handshake.data?.sessionId;
+  return typeof userId === 'string' && typeof sessionId === 'string' && sessionId !== ''
+    ? { userId, sessionId }
+    : null;
 }

@@ -186,7 +186,7 @@ embedded by every Oxy app on that app's own web origin. So it speaks **only to `
 of the person's Oxy session, no cookies, public CORS: turns go to `POST /v1/chat/completions` (the
 handler `/alia/chat` mounts) and conversations to `/v1/conversations`. The conversations router is
 the same one `/conversations` mounts, behind a person's session alone: an application key, a
-channel-bot or Telegram secret or a requester assertion is refused, because a conversation is
+channel-bot or Telegram secret is refused, because a conversation is
 somebody's private history. `tests/runtime/v1-only.test.ts` in the SDK fails on any URL the
 transport builds outside `/v1`, and `v1-conversations-auth.test.ts` and `chat-origin-policy.test.ts`
 in the API pin the door and the preflight. `/conversations` and `/alia/chat` keep serving Alia's own

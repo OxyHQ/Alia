@@ -21,7 +21,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@oxy.so/core": "4.19.0",
+    "@oxy.so/core": "4.21.0",
     "@types/express": "^5.0.6",
     "@types/node": "^25.9.5",
     "typescript": "^5.9.3",

@@ -39,6 +39,7 @@ import { z } from 'zod';
 import { getDb } from '../../db/index.js';
 import { findAgentById } from '../../db/agents/agentRepository.js';
 import { canReachAgent } from '../../lib/agent-account.js';
+import { appSurfaceOf } from '../../lib/app-surface.js';
 import { readCapabilityGrants } from '../../domain/capability-grants.js';
 import {
   ComputerHostError,
@@ -102,7 +103,7 @@ export async function ownComputer(req: Request, res: Response): Promise<Owned | 
   const reach = await canReachAgent(agent, {
     oxyUserId,
     accessToken: req.accessToken,
-    applicationId: req.serviceApp?.appId,
+    surfaceApplicationId: await appSurfaceOf(req),
   });
   if (reach === 'out_of_reach') {
     res.status(404).json({ error: 'Agent not found' });

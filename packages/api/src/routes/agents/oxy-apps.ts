@@ -40,10 +40,6 @@ async function ownedAgent(req: Request, res: Response) {
     });
     return null;
   }
-  if (typeof loaded.agent.applicationId === 'string') {
-    res.status(400).json({ error: 'Product-agent policy is managed internally' });
-    return null;
-  }
   if (loaded.agent.ownerOxyAccountId !== req.user.id) {
     res.status(403).json({
       error: 'owner_only',

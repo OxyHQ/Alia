@@ -708,6 +708,20 @@
       "when": 1792173462954,
       "tag": "0100_drop_conversation_is_public",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1792178798057,
+      "tag": "0101_app_agents_are_ordinary_agents",
+      "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1792178821159,
+      "tag": "0102_drop_agent_application_id",
+      "breakpoints": true
     }
   ]
 }

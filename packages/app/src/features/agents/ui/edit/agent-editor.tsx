@@ -15,7 +15,11 @@ import {
   useGrantableConnectors,
   useKnowledgeLibrary,
 } from '@/features/agents/runtime/use-agent-editor-options';
-import { useAgentOxyApps } from '@/features/agents/runtime/use-agent-oxy-apps';
+import { useAgentFeatureGates } from '@/features/agents/runtime/use-agent-feature-gates';
+import {
+  useAgentOxyApps,
+  useAgentRequesterApps,
+} from '@/features/agents/runtime/use-agent-oxy-apps';
 import { useAgentTelegramBots } from '@/features/agents/runtime/use-agent-telegram-bots';
 import { useIsLargeScreen } from '@/shared/platform/use-is-large-screen';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -62,6 +66,8 @@ export function AgentEditor({ agent }: { agent: Agent }) {
   const libraryFiles = useKnowledgeLibrary();
   const telegram = useAgentTelegramBots(agent._id);
   const oxyApps = useAgentOxyApps(agent._id);
+  const requesterApps = useAgentRequesterApps(agent._id);
+  const featureGates = useAgentFeatureGates(agent._id);
 
   const [showPanel, setShowPanel] = useState(isLargeScreen);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('resources');
@@ -77,6 +83,8 @@ export function AgentEditor({ agent }: { agent: Agent }) {
       libraryFiles={libraryFiles}
       telegram={telegram}
       oxyApps={oxyApps}
+      requesterApps={requesterApps}
+      featureGates={featureGates}
     />
   );
 

@@ -29,6 +29,8 @@ const database = {
   transaction: vi.fn(async (callback: (transaction: unknown) => unknown) => callback(database)),
 };
 
+// Where an agent opens (ADR 0021) is `app-confined-agents.test.ts`'s subject, not this file's.
+vi.mock('../agent-availability.js', () => ({ agentOpensOn: async () => 'reachable' }));
 vi.mock('../../db/index.js', () => ({ getDb: () => database }));
 vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
   claimAutomationRunPlan: state.createRun,
@@ -145,7 +147,6 @@ beforeEach(() => {
     id,
     ownerOxyAccountId: 'owner-1',
     access: 'private',
-    applicationId: null,
     oxyAccountId: `bot-${id}`,
     status: 'active',
   }));
@@ -228,7 +229,6 @@ describe('normalized automation dispatch', () => {
       id,
       ownerOxyAccountId: 'owner-1',
       access: 'private',
-      applicationId: null,
       oxyAccountId: `bot-${id}`,
       status: 'offline',
     }));
@@ -249,7 +249,6 @@ describe('normalized automation dispatch', () => {
       author: 'owner-1',
       ownerOxyAccountId: 'someone-else',
       access: 'private',
-      applicationId: null,
       oxyAccountId: `bot-${id}`,
       status: 'active',
     }));
@@ -265,7 +264,6 @@ describe('normalized automation dispatch', () => {
       id,
       ownerOxyAccountId: 'someone-else',
       access: 'public',
-      applicationId: null,
       oxyAccountId: `bot-${id}`,
       status: 'active',
     }));

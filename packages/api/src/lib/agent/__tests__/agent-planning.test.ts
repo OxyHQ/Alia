@@ -52,6 +52,8 @@ const H = vi.hoisted(() => ({
   results: new Map<string, string>(),
 }));
 
+// Where an agent opens (ADR 0021) is `app-confined-agents.test.ts`'s subject, not this file's.
+vi.mock('../../agent-availability.js', () => ({ agentOpensOn: async () => 'reachable' }));
 vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return {

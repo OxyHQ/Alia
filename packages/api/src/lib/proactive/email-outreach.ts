@@ -157,7 +157,7 @@ interface Audience {
 async function resolveAudience(accountId: string): Promise<Audience | null> {
   const agent = await findAgentByOxyAccountId(getDb(), accountId);
   if (agent) {
-    // An agent with no owner (a product agent) has nobody to tell.
+    // An agent with no reconciled owner has nobody to tell.
     return agent.ownerOxyAccountId
       ? { oxyUserId: agent.ownerOxyAccountId, agentId: agent._id }
       : null;

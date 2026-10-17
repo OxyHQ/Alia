@@ -38,7 +38,7 @@
 # Rolling back to Node is reverting the change that made this switch: it
 # restores the node:22-bookworm-slim runtime stage AND every one-shot command
 # that names `bun` (MIGRATION_RUNTIME and the post-rollout command in
-# deploy-aws.yml, bootstrap-native-product-agents.yml, production-chat-canary.yml).
+# deploy-aws.yml, production-chat-canary.yml).
 # They must always name the runtime this image ships;
 # `src/__tests__/dockerfileRuntime.test.ts` holds them together.
 

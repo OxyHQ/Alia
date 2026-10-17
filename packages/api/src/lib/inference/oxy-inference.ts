@@ -105,10 +105,9 @@ export function buildOxyInferenceClient(env: NodeJS.ProcessEnv): OxyInferenceCli
 
 /**
  * Build a request-scoped client from an already VERIFIED inbound Oxy service
- * token. Product-agent turns use this lane so Oxy charges the calling product
+ * token. An Oxy Console machine turn uses this lane so Oxy charges the calling
  * application's owner/cost centre, never Alia's process credential and never
- * an `agentId`. The caller decides whether the token is eligible only after
- * matching the agent's application binding and effective inference scope.
+ * an `agentId`. An agent turn never does: the person present pays (ADR 0020 §4).
  */
 export function buildOxyInferenceClientForServiceToken(
   serviceToken: string,

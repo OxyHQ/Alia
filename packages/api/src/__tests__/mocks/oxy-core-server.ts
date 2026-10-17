@@ -33,20 +33,6 @@ const real: OxyCoreServer = createRequire(import.meta.url)('@oxy.so/core/server'
 export const createOxyCors: OxyCoreServer['createOxyCors'] = real.createOxyCors;
 
 /**
- * The present-requester assertion lane (ADR 0025 in OxyHQServices) is REAL
- * here, for the same reason `createOxyCors` is: the verification IS the subject
- * of `middleware/__tests__/requester-assertion.test.ts`, and a stub would let
- * that suite pass with the checks deleted.
- */
-export const createOxyRequesterAssertionAuth: OxyCoreServer['createOxyRequesterAssertionAuth'] =
-  real.createOxyRequesterAssertionAuth;
-export const OXY_REQUESTER_ASSERTION_HEADER: OxyCoreServer['OXY_REQUESTER_ASSERTION_HEADER'] =
-  real.OXY_REQUESTER_ASSERTION_HEADER;
-export const signOxyRequesterAssertion: OxyCoreServer['signOxyRequesterAssertion'] =
-  real.signOxyRequesterAssertion;
-export type OxyRequesterContext = import('@oxy.so/core/server').OxyRequesterContext;
-
-/**
  * REAL, and for the third time in this file the same reason: the behaviour is
  * the subject.
  *
@@ -62,6 +48,17 @@ export type OxyRequesterContext = import('@oxy.so/core/server').OxyRequesterCont
  */
 export const canAttestWorkloadIdentity: OxyCoreServer['canAttestWorkloadIdentity'] =
   real.canAttestWorkloadIdentity;
+
+/**
+ * REAL, for the same reason as `createOxyCors`: which app a request comes from
+ * (ADR 0021) is decided by the assertion's verification, which is the subject
+ * of `lib/__tests__/app-confined-agents.test.ts`. A stub would pass with the
+ * signature, the session binding and the issuer checks deleted.
+ */
+export const readAppAssertionHeader: OxyCoreServer['readAppAssertionHeader'] =
+  real.readAppAssertionHeader;
+export const verifyAppAssertion: OxyCoreServer['verifyAppAssertion'] = real.verifyAppAssertion;
+export const signOxyAppAssertion: OxyCoreServer['signOxyAppAssertion'] = real.signOxyAppAssertion;
 
 /**
  * REAL: `OxyServer` is the API's Oxy client itself (`middleware/auth.ts`,

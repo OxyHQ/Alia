@@ -20,8 +20,8 @@
  *
  *  - **Core tools are always active.** Everything that is not a connected app:
  *    the clock, built-ins and artifacts, the person's memory and messaging
- *    tools, runtime/session primitives, skills, agent search/delegation,
- *    `askAgent` — and the caller's own editor tools, which a client executes
+ *    tools, runtime/session primitives, skills, agent search and
+ *    `consultAgent` — and the caller's own editor tools, which a client executes
  *    itself and so must always see.
  *  - **App tools are deferred.** Each Oxy service (`oxy_<app>__*`), each MCP
  *    server (`mcp_<server>__*`) and each OAuth integration contributes tools

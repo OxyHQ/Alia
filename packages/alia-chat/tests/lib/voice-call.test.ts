@@ -95,6 +95,30 @@ describe('opening a call', () => {
     });
   });
 
+  it("sends the host's app assertion with auth, so a confined agent opens in its app (ADR 0021)", async () => {
+    const call = newCall({ getAppAssertion: async () => 'clarity-assertion' });
+    await call.start();
+    socket().open();
+    await settle();
+    expect(socket().events()).toEqual([
+      { type: 'auth', token: 'oxy-session', appAssertion: 'clarity-assertion' },
+    ]);
+  });
+
+  it('sends a plain auth when the host has no app assertion, or cannot get one', async () => {
+    const none = newCall({ getAppAssertion: async () => null });
+    await none.start();
+    socket().open();
+    await settle();
+    expect(socket().events()).toEqual([{ type: 'auth', token: 'oxy-session' }]);
+
+    const failing = newCall({ getAppAssertion: async () => Promise.reject(new Error('offline')) });
+    await failing.start();
+    socket().open();
+    await settle();
+    expect(socket().events()).toEqual([{ type: 'auth', token: 'oxy-session' }]);
+  });
+
   it('says listening only after the session is ready, a buffer was captured AND Alia acknowledged audio', async () => {
     const call = newCall();
     await accepted(call);
