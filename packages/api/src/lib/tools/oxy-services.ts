@@ -42,6 +42,7 @@ import {
 } from '../oxy-capability-authority.js';
 import { oxyServiceClient, oxyServiceToken } from '../oxy-service-client.js';
 import { TTLCache } from '../ttl-cache.js';
+import { sanitizeOxyToolNamePart as sanitizeName } from './oxy-tool-names.js';
 
 const TOOL_TIMEOUT_MS = 15_000;
 function agency() {
@@ -225,6 +226,20 @@ export class OxyAuthorityUnavailableError extends Error {
 }
 
 /**
+ * Oxy ANSWERED, and the answer was no (403): the requester does not operate the
+ * account the lane names — a project or organisation account present as
+ * itself, which Oxy never lets operate itself (only a personal account holds
+ * authority over its own account). A verdict about this lane, not an outage, so
+ * a feature gate reads it as locked rather than as an app that could not answer.
+ */
+export class OxyAuthorityRefusedError extends OxyAuthorityUnavailableError {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'OxyAuthorityRefusedError';
+  }
+}
+
+/**
  * The request reached the wire and no answer came back (a timeout, a reset):
  * the app may have committed the effect. Never retried, never reported as a
  * plain failure.
@@ -285,9 +300,10 @@ async function oxyAuthorityFetch(path: string, init: RequestInit = {}): Promise<
     // `OxyAuthorityUnavailableError`, never a bare Error: the body names Oxy's
     // internal reason (`requester_lacks_grant_owner_authority`) and belongs in
     // the log, not in front of the model.
-    throw new OxyAuthorityUnavailableError(
-      `Oxy authority error (${response.status}): ${(await response.text()).slice(0, 240)}`,
-    );
+    const message = `Oxy authority error (${response.status}): ${(await response.text()).slice(0, 240)}`;
+    throw response.status === 403
+      ? new OxyAuthorityRefusedError(message)
+      : new OxyAuthorityUnavailableError(message);
   }
   return response.json();
 }
@@ -1157,10 +1173,6 @@ function toolDescription(binding: BoundTool, context: OxyToolExecutionContext): 
   return `[${app}] ${binding.compiled.definition.description} ${resource}`;
 }
 
-function sanitizeName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9_]/g, '_');
-}
-
 /**
  * Stands in for the owner's apps when Oxy would not say which of them this
  * agent may use. One tool, so the model learns the apps are unavailable from the
@@ -1409,9 +1421,24 @@ export async function callOxyFeatureTool(
     const defs = defsFor(await getCatalogDefs(), context.actor.type).filter(
       (entry) => entry.catalog.appId === appId,
     );
+    let assignments: Assignment[] = [];
+    if (context.actor.type === 'agent') {
+      try {
+        assignments = await agentAssignments(context);
+      } catch (error: unknown) {
+        // The person cannot be reached through this agent at all: the same
+        // verdict as a lane that binds no tool, so the gate reads as locked.
+        if (!(error instanceof OxyAuthorityRefusedError)) throw error;
+        log.general.info(
+          { appId, tool: toolName },
+          'Oxy reaches no account of the person through this agent; the feature is locked',
+        );
+        return { status: 'unbound' };
+      }
+    }
     const bindings =
       context.actor.type === 'agent'
-        ? agentBindings(defs, await agentAssignments(context))
+        ? agentBindings(defs, assignments)
         : regularAliaBindings(defs, context);
     const binding = bindings.find(
       (candidate) =>

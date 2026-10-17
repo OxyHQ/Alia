@@ -491,6 +491,28 @@ bot account's name, handle and colour, the agent's character and description, it
   lease for red flags?"), and a list derived from tags would be prompts nobody wrote.
   `POST /suggestions/welcome` with `{ agentId }` answers these same starters.
 
+### Primary tools
+
+A turn that carries more tools than one request holds defers every app tool behind
+`loadTools` (`lib/tool-budget.ts`). An agent whose job IS one app's tools then
+depends on the model loading them, and Sindi, from a person's own account, did not:
+it searched the web and answered without a listing. So the owner names the app tools
+the agent works with (`agents.primary_tools`, `<appId>:<tool>` keys, at most 12,
+`domain/agent-primary-tools.ts`), and every turn the agent leads — its nested
+`consultAgent` turn too — loads them first as pins, never unloadable.
+
+- **Naming a tool grants nothing.** A key resolves to the name the turn bound it
+  under: the person's lane (`oxy_<app>__<tool>`, the owner's levels or the ceiling)
+  first, else the agent's own account (`self_<app>__<tool>`). A key neither lane
+  binds this turn is simply absent (`primaryToolNames`, `lib/agent-primary-tools.ts`).
+- **Edited in the agent editor** ("Herramientas principales"): the tools of every app
+  the agent reaches on either lane, at the level it reaches it
+  (`GET /agents/:id/primary-tool-options`). Saved on its own, never with the draft's
+  autosave.
+- **Saved through `PATCH /agents/:id`** (`primaryTools`, replaced whole): each key
+  must name a tool a live catalogue offers agents (`400` otherwise, `503` when the
+  catalogues cannot be read; `refusePrimaryTools`).
+
 ### Feature gates
 
 An owner can put one of Alia's features behind a feature an Oxy app sells
@@ -521,7 +543,13 @@ Homiio+ unlocks documents without Alia knowing what Homiio+ is.
   (`callOxyFeatureTool`, `lib/tools/oxy-services.ts`): the owner's levels for the
   owner, the owner's ceilings for anybody else. A lane that does not reach the tool
   is LOCKED — the person cannot be entitled through this agent — so a gate the owner
-  sets needs the app at a level (and for a spend, Ver y actuar) on that lane.
+  sets needs the app at a level (and for a spend, Ver y actuar) on that lane. That
+  includes a project- or organisation-owned agent opened by its own project account:
+  the owner lane is the turn's lane, Oxy refuses it with a 403 (only a personal
+  account operates itself), and that refusal is read as locked
+  (`OxyAuthorityRefusedError`), never as an app that could not answer. The agent's
+  own account (`self_*`) is never the lane for a gate: an entitlement is the person's,
+  not the bot's.
 - **What the app answers.** `checkTool` → `{ available, remaining? }`, `consumeTool`
   → `{ consumed, remaining? }`, both called with no input. Anything else, or no
   answer, is `feature_check_unavailable` (retryable) and never read as either verdict.

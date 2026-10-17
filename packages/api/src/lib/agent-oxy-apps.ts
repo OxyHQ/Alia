@@ -55,11 +55,11 @@ export interface GrantTerms {
   maximumAutonomy: AutonomyLevel;
 }
 
-/** The grant a level stands for on this app, or null when the app offers nothing at it. */
-export function grantTermsForLevel(
+/** The app's tools a level covers on the account root: the ones its grant or ceiling names. */
+export function toolsForLevel(
   catalog: AppCapabilityCatalog,
   level: StoredOxyAppLevel,
-): GrantTerms | null {
+): AppCapabilityCatalog['tools'] {
   const tools = catalog.tools.filter(
     (tool) =>
       tool.exposure.includes('internal') &&
@@ -69,7 +69,15 @@ export function grantTermsForLevel(
       tool.resourceTypes.includes(catalog.accountResourceType) &&
       !SENSITIVE_PACKAGES.has(tool.capabilityPackage),
   );
-  const chosen = level === 'read' ? tools.filter((tool) => tool.effect === 'read') : tools;
+  return level === 'read' ? tools.filter((tool) => tool.effect === 'read') : tools;
+}
+
+/** The grant a level stands for on this app, or null when the app offers nothing at it. */
+export function grantTermsForLevel(
+  catalog: AppCapabilityCatalog,
+  level: StoredOxyAppLevel,
+): GrantTerms | null {
+  const chosen = toolsForLevel(catalog, level);
   const capabilityPackages = [...new Set(chosen.map((tool) => tool.capabilityPackage))].sort();
   if (capabilityPackages.length === 0) return null;
   return { capabilityPackages, maximumAutonomy: level === 'read' ? 'read_only' : 'autonomous' };

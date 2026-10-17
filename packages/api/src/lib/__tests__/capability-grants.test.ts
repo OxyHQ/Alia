@@ -160,6 +160,7 @@ function agentWith(
   return {
     capabilityGrants: [...capabilityGrants],
     featureGates: {},
+    primaryTools: [] as string[],
     author,
     _id: 'caller-agent',
     oxyAccountId: 'bot-account-1',

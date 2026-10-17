@@ -1,4 +1,5 @@
 import { AgentFeatureGatesSection } from '@/features/agents/ui/edit/agent-feature-gates-section';
+import { AgentPrimaryToolsSection } from '@/features/agents/ui/edit/agent-primary-tools-section';
 import {
   AgentOxyAppsSection,
   AgentRequesterAppsSection,
@@ -10,6 +11,7 @@ import { ConnectTelegramBotDialog } from '@/features/agents/ui/edit/telegram-bot
 import type { GrantableConnector } from '@/features/chat/model/capability-families';
 import type { AgentDraft, LinkedSkill } from '@/features/agents/runtime/use-agent-autosave';
 import type { AgentFeatureGatesState } from '@/features/agents/runtime/use-agent-feature-gates';
+import type { AgentPrimaryToolsState } from '@/features/agents/runtime/use-agent-primary-tools';
 import type { AgentOxyApps } from '@/features/agents/runtime/use-agent-oxy-apps';
 import type { AgentTelegramBots } from '@/features/agents/runtime/use-agent-telegram-bots';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -36,6 +38,7 @@ export function AgentEditorSidebar({
   oxyApps,
   requesterApps,
   featureGates,
+  primaryTools,
 }: {
   /**
    * Held by the editor rather than here, so the side sheet reopens on the tab
@@ -55,6 +58,8 @@ export function AgentEditorSidebar({
   requesterApps: AgentOxyApps;
   /** Which features an app's entitlement unlocks (ADR 0020 §6). */
   featureGates: AgentFeatureGatesState;
+  /** The app tools active from the agent's first step. */
+  primaryTools: AgentPrimaryToolsState;
 }) {
   const { t } = useTranslation();
 
@@ -75,6 +80,7 @@ export function AgentEditorSidebar({
           <>
             <AgentOxyAppsSection oxyApps={oxyApps} />
             <AgentRequesterAppsSection requesterApps={requesterApps} />
+            <AgentPrimaryToolsSection primaryTools={primaryTools} />
             <AgentFeatureGatesSection featureGates={featureGates} />
             <AgentStartersSection
               starters={draft.starters}

@@ -228,6 +228,47 @@ describe('callOxyFeatureTool', () => {
   });
 });
 
+describe('a project-owned agent opened by its own project account', () => {
+  it('is unbound — locked — when Oxy refuses the owner lane, never unavailable', async () => {
+    // The owner lane is the turn's lane, and Oxy never lets a project account
+    // operate itself (only a personal account does): a verdict, not an outage.
+    fetchMock.mockImplementation(async (input: string | URL, init?: RequestInit) =>
+      String(input).endsWith('/capabilities/capability-map')
+        ? Response.json({ error: 'requester_lacks_grant_owner_authority' }, { status: 403 })
+        : respond(input, init),
+    );
+    const ownerLane = presentPersonAgentContext({
+      agent: { oxyAccountId: AGENT, ownerOxyAccountId: OWNER },
+      personAccountId: OWNER,
+      accessToken: 'PROJECT-TOKEN',
+      runId: 'run-1',
+    });
+    if (ownerLane === null) throw new Error('expected a lane');
+    expect(await callOxyFeatureTool(ownerLane, 'homiio', 'readFileEntitlement')).toEqual({
+      status: 'unbound',
+    });
+    expect(calls('/readFileEntitlement')).toHaveLength(0);
+  });
+
+  it('is still unavailable when Oxy cannot answer at all', async () => {
+    fetchMock.mockImplementation(async (input: string | URL, init?: RequestInit) =>
+      String(input).endsWith('/capabilities/capability-map')
+        ? new Response('down', { status: 503 })
+        : respond(input, init),
+    );
+    const ownerLane = presentPersonAgentContext({
+      agent: { oxyAccountId: AGENT, ownerOxyAccountId: OWNER },
+      personAccountId: OWNER,
+      accessToken: 'PROJECT-TOKEN',
+      runId: 'run-1',
+    });
+    if (ownerLane === null) throw new Error('expected a lane');
+    expect(await callOxyFeatureTool(ownerLane, 'homiio', 'readFileEntitlement')).toEqual({
+      status: 'unavailable',
+    });
+  });
+});
+
 describe('findOxyAppFeature', () => {
   it('reads a declared feature from the live catalogue', async () => {
     expect(await findOxyAppFeature('homiio', 'files')).toMatchObject({

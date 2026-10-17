@@ -304,6 +304,13 @@ vi.mock('@/features/agents/ui/edit/agent-feature-gates-section', async () => {
       ReactModule.createElement('AgentFeatureGatesSection', props),
   };
 });
+vi.mock('@/features/agents/ui/edit/agent-primary-tools-section', async () => {
+  const ReactModule = await import('react');
+  return {
+    AgentPrimaryToolsSection: (props: Record<string, unknown>) =>
+      ReactModule.createElement('AgentPrimaryToolsSection', props),
+  };
+});
 vi.mock('@/features/agents/ui/agent-model-field', async () => {
   const ReactModule = await import('react');
   return {

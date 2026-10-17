@@ -1553,6 +1553,16 @@
         "ultra": "Ultra power level"
       }
     },
+    "primaryTools": {
+      "title": "Primary tools",
+      "footer": "The app tools the agent works with: active from its first step, without loading them. Only tools it can already use, up to %{max}.",
+      "add": "Add a tool",
+      "choose": "Choose",
+      "unavailable": "%{tool} (not available)",
+      "full": "There are already %{max} primary tools. Remove one to add another.",
+      "loadFailed": "Couldn't read the apps' tools. Try again later.",
+      "saveFailed": "Couldn't save the primary tools. Nothing was changed."
+    },
     "starters": {
       "title": "Conversation starters",
       "footer": "What the agent's empty chat offers to send. Up to six; a starter needs a title and a message.",

@@ -124,6 +124,8 @@ export interface AgentRecord {
   starters: AgentStarter[];
   /** Alia features behind an app's entitlement (ADR 0020 §6). */
   featureGates: AgentFeatureGates;
+  /** `<appId>:<tool>` keys active from the first step of its turns. */
+  primaryTools: string[];
   author: string;
   category: string;
   tags: string[];
@@ -219,6 +221,7 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     description: row.description,
     starters: row.starters,
     featureGates: row.featureGates,
+    primaryTools: row.primaryTools,
     author: row.authorOxyUserId,
     category: row.category,
     tags: row.tags,
@@ -893,6 +896,8 @@ export interface UpdateAgentInput {
   starters?: AgentStarter[];
   /** Replaced whole; validated against the live catalogues by the caller. */
   featureGates?: AgentFeatureGates;
+  /** Replaced whole; validated against the live catalogues by the caller. */
+  primaryTools?: string[];
   category?: string;
   tags?: string[];
   price?: number | null;

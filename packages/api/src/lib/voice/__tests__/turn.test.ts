@@ -102,6 +102,7 @@ describe('the call’s tools', () => {
       oxyAccountId: 'bot-1',
       ownerOxyAccountId: 'owner-1',
       capabilityGrants: [],
+      primaryTools: [],
     } as never;
     const oxyToolsOf = async (oxyUserId: string) => {
       H.forUser.mockImplementationOnce((options) =>

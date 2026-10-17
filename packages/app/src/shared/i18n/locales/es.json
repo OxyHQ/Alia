@@ -1553,6 +1553,16 @@
         "ultra": "Nivel de potencia Ultra"
       }
     },
+    "primaryTools": {
+      "title": "Herramientas principales",
+      "footer": "Las herramientas de las apps con las que trabaja el agente: las tiene activas desde el primer paso, sin tener que cargarlas. Solo las que ya puede usar, hasta %{max}.",
+      "add": "Añadir herramienta",
+      "choose": "Elegir",
+      "unavailable": "%{tool} (no disponible)",
+      "full": "Ya hay %{max} herramientas principales. Quita una para añadir otra.",
+      "loadFailed": "No se han podido leer las herramientas de las apps. Inténtalo más tarde.",
+      "saveFailed": "No se han podido guardar las herramientas principales. No ha cambiado nada."
+    },
     "starters": {
       "title": "Sugerencias de inicio",
       "footer": "Lo que ofrece enviar el chat vacío del agente. Hasta seis; cada una necesita un título y un mensaje.",

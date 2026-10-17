@@ -16,6 +16,7 @@ import {
   useKnowledgeLibrary,
 } from '@/features/agents/runtime/use-agent-editor-options';
 import { useAgentFeatureGates } from '@/features/agents/runtime/use-agent-feature-gates';
+import { useAgentPrimaryTools } from '@/features/agents/runtime/use-agent-primary-tools';
 import {
   useAgentOxyApps,
   useAgentRequesterApps,
@@ -68,6 +69,7 @@ export function AgentEditor({ agent }: { agent: Agent }) {
   const oxyApps = useAgentOxyApps(agent._id);
   const requesterApps = useAgentRequesterApps(agent._id);
   const featureGates = useAgentFeatureGates(agent._id);
+  const primaryTools = useAgentPrimaryTools(agent._id);
 
   const [showPanel, setShowPanel] = useState(isLargeScreen);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('resources');
@@ -85,6 +87,7 @@ export function AgentEditor({ agent }: { agent: Agent }) {
       oxyApps={oxyApps}
       requesterApps={requesterApps}
       featureGates={featureGates}
+      primaryTools={primaryTools}
     />
   );
 

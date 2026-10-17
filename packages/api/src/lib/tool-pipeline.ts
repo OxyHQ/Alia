@@ -121,6 +121,7 @@ import {
   type ToolRouting,
 } from './tool-budget.js';
 import { requestInputBudgetBytes, type ModelInputLimits } from './inference/request-budget.js';
+import { primaryToolNames } from './agent-primary-tools.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -837,13 +838,16 @@ export class ToolPipeline {
      * at a time — `loadTools`, then
      * `prepareStep` → `activeTools` — instead of being sent all at once or
      * dropped. The composer's connector pick is the person's explicit choice
-     * and is active from the first step.
+     * and is active from the first step, and so are the agent's primary tools
+     * (`domain/agent-primary-tools.ts`) — its owner's standing choice of what
+     * it works with, on whichever lane this turn bound them.
      */
     const pins = [
       ...(typeof mcpServerId === 'string'
         ? Object.keys(mcpTools).map((name) => name.slice(0, name.indexOf('__')))
         : []),
       ...pickedApps,
+      ...(agent ? primaryToolNames(agent.primaryTools, oxyServiceTools) : []),
     ];
     return withBudget(
       budgetTools({

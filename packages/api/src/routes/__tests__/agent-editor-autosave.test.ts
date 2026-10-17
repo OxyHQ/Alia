@@ -131,6 +131,18 @@ vi.mock('../../lib/agent-features.js', () => ({
     return gates.refusal;
   },
 }));
+const tools = vi.hoisted(() => ({
+  refusal: null as string | null,
+  unreadable: false,
+  refusePrimaryTools: vi.fn(),
+}));
+vi.mock('../../lib/agent-primary-tools.js', () => ({
+  refusePrimaryTools: async (...args: unknown[]) => {
+    tools.refusePrimaryTools(...args);
+    if (tools.unreadable) throw new Error('catalogue unavailable');
+    return tools.refusal;
+  },
+}));
 vi.mock('../../lib/trigger-engine.js', () => ({
   reloadTrigger: vi.fn(),
   generateWebhookToken: () => 'tok',
@@ -834,5 +846,45 @@ describe('the owner edits starters and feature gates on the same route', () => {
   it('does not ask the catalogue when no gate is being saved', async () => {
     await patch({ tagline: 'a tagline' });
     expect(gates.refuseFeatureGates).not.toHaveBeenCalled();
+  });
+});
+
+describe('the owner names the primary tools on the same route', () => {
+  beforeEach(() => {
+    tools.refusal = null;
+    tools.unreadable = false;
+    tools.refusePrimaryTools.mockClear();
+  });
+
+  it('stores tools the live catalogue offers agents', async () => {
+    const primaryTools = ['homiio:resolvePlace', 'homiio:searchListings'];
+    const res = await patch({ primaryTools });
+    expect(res.status).toBe(200);
+    expect(tools.refusePrimaryTools).toHaveBeenCalledWith(primaryTools);
+    expect(repository.updateAgent.mock.calls[0][2]).toMatchObject({ primaryTools });
+  });
+
+  it('refuses a tool the catalogue does not offer, and writes nothing', async () => {
+    tools.refusal = 'primaryTools: homiio offers no tool "nothing"';
+    const res = await patch({ primaryTools: ['homiio:nothing'] });
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ param: 'primaryTools' });
+    expect(repository.updateAgent).not.toHaveBeenCalled();
+  });
+
+  it('answers 503 when the catalogues cannot be read, rather than saving unchecked tools', async () => {
+    tools.unreadable = true;
+    expect((await patch({ primaryTools: ['homiio:saveHome'] })).status).toBe(503);
+    expect(repository.updateAgent).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['a bare tool name', { primaryTools: ['searchListings'] }],
+    ['too many tools', { primaryTools: Array.from({ length: 13 }, (_, n) => `homiio:tool${n}`) }],
+  ])('refuses %s before asking the catalogue', async (_label, body) => {
+    const res = await patch(body);
+    expect(res.status).toBe(400);
+    expect(tools.refusePrimaryTools).not.toHaveBeenCalled();
+    expect(repository.updateAgent).not.toHaveBeenCalled();
   });
 });

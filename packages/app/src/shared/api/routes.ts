@@ -162,6 +162,8 @@ export const API_ROUTES = {
       `/agents/${encodeURIComponent(id)}/requester-apps/${encodeURIComponent(appId)}`,
     /** The app features a gate may name, from the live catalogues (ADR 0020 §6). */
     featureGateOptions: (id: string) => `/agents/${encodeURIComponent(id)}/feature-gate-options`,
+    /** The app tools the agent reaches, any of which may be one of its primary tools. */
+    primaryToolOptions: (id: string) => `/agents/${encodeURIComponent(id)}/primary-tool-options`,
   },
 
   // Library routes
