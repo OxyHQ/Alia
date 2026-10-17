@@ -38,7 +38,7 @@ export async function deliverMarkdownFile(
   }
 
   const file = new File(Paths.cache, filename);
-  file.write(content);
+  await file.write(content);
   await Share.share(Platform.OS === 'ios' ? { url: file.uri, title } : { message: content, title });
 }
 

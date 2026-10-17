@@ -67,6 +67,7 @@
       ],
       "expo-secure-store",
       "expo-web-browser",
+      "expo-sharing",
       "expo-asset",
       "expo-notifications",
       "expo-status-bar",

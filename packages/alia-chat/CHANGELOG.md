@@ -2,8 +2,20 @@
 
 ## 21.3.0
 
+The SDK runs on Expo SDK 58 (React Native 0.88, React 19.3) as well as Expo 57.
+
+### Changed
+
+- **Peers admit Expo SDK 58.** Every `expo-*` peer is `^57.0.0 || ^58.0.0`, `react-native` is
+  `^0.86.0 || ^0.88.0` and `react-native-gesture-handler` `^2.32.0 || ^3.3.0` (SDK 58 ships 3.3).
+  `@oxy.so/bloom` is `>=10.21.0`, the first Bloom whose `TextInput` ref props type-check under
+  React Native 0.88's strict TypeScript API.
+
 ### Fixed
 
+- **A picked image is read with `expo-file-system`'s `File` API** (`new File(uri).base64()`). The
+  root entry's `readAsStringAsync` is the legacy API, which throws at runtime since the package
+  moved it to `expo-file-system/legacy`, so attaching a photo on iOS or Android failed.
 - **An edit and a regenerate call `AliaRuntimeHost.onTurnStart`**, like a send from the composer
   or a retry: each sends a new turn. A host that judges what a turn does against the moment it
   was sent (a host tool's staleness check) used to judge an edited or regenerated turn against the

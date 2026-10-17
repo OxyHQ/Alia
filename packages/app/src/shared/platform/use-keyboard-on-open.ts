@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { type ComponentRef, useEffect, useRef } from 'react';
 import { Keyboard, Platform, type TextInput } from 'react-native';
 
 /**
@@ -28,7 +28,7 @@ const MAX_TRIES = 4;
  * `inputRef`.
  */
 export function useKeyboardOnOpen(open: boolean) {
-  const ref = useRef<TextInput | null>(null);
+  const ref = useRef<ComponentRef<typeof TextInput> | null>(null);
   useEffect(() => {
     if (!open || Platform.OS !== 'android') return;
     let tries = 0;

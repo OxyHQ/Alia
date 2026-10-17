@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 /**
@@ -12,9 +12,8 @@ import { Platform } from 'react-native';
 export async function imageUriToDataUrl(uri: string, mimeType?: string): Promise<string> {
   if (uri.startsWith('data:')) return uri;
   if (Platform.OS !== 'web') {
-    const base64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+    // The `File` API: the legacy `readAsStringAsync` from the package root throws at runtime.
+    const base64 = await new File(uri).base64();
     return `data:${mimeType || 'image/jpeg'};base64,${base64}`;
   }
   const blob = await (await fetch(uri)).blob();

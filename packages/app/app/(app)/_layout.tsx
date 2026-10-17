@@ -279,9 +279,11 @@ function FocusedPage({ layout }: { layout: (props: ScreenLayoutProps) => React.R
   const descriptor = descriptors[state.routes[state.index].key];
   const pathname = usePathname();
   useScrollRestoration('window', { enabled: !isChatRoute(descriptor.route.name), key: pathname });
+  const page = descriptor.render();
+  if (page === null) return null;
   return layout({
     route: descriptor.route,
     options: descriptor.options as PageHeaderOptions,
-    children: descriptor.render(),
+    children: page,
   });
 }
