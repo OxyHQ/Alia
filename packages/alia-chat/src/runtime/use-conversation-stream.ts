@@ -260,9 +260,14 @@ export function useConversationStream({
     }, 50);
   }, [flushPendingUpdates]);
 
-  // Cleanup: flush remaining content and clear timer on unmount
+  /** Whether this thread is on screen: a turn that outlives it ends without `onTurnEnd`. */
+  const mountedRef = useRef(false);
+
+  // Mounted, a turn that ends is announced (`onTurnEnd`); unmounting flushes and clears the timer.
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       flushPendingUpdates();
       if (flushTimerRef.current) {
         clearTimeout(flushTimerRef.current);
@@ -1344,6 +1349,8 @@ export function useConversationStream({
          * rendered messages, which have not caught up with the last batched flush.
          */
         if (replyText !== '') host.onTurnPreview?.(agentId, replyText);
+        // Every way a turn stops streaming — finished, stopped, failed — passes here once.
+        if (mountedRef.current) host.onTurnEnd?.();
       }
     },
     [

@@ -72,6 +72,12 @@ export interface AliaRuntimeHost {
   turnRequest?: () => AliaTurnRequest;
   /** A turn is about to be sent from the composer or a retry. */
   onTurnStart?: () => void;
+  /**
+   * A turn this runtime sent has stopped streaming: it finished, was stopped, or failed. Called
+   * exactly once per turn, after the stream has settled, and only while the conversation that
+   * sent it is still mounted: a surface that left mid-turn is never called back for it.
+   */
+  onTurnEnd?: () => void;
   /** Real answer text just arrived (throttled): a haptic tick. */
   onOutput?: () => void;
   /** The stream's usage frame: credits left and the spending warning. */

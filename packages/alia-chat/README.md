@@ -341,6 +341,9 @@ const host: AliaRuntimeHost = {
   showThought: (opening) => (opening === 'automatic' && panel.isOpen ? false : panel.show('thought')),
   openAutomation: (id) => router.push(`/automations/${id}`), // a scheduled-task card is a link
   faviconUrl: (url) => favicons.of(url), // the work log's source icons
+  // the edges of a turn this runtime sends
+  onTurnStart: () => executor.beginTurn(),
+  onTurnEnd: () => executor.runHeldBack(), // finished, stopped or failed: once per turn
 };
 
 <AliaRuntimeProvider
@@ -353,6 +356,12 @@ const host: AliaRuntimeHost = {
   {children}
 </AliaRuntimeProvider>;
 ```
+
+`onTurnEnd` is called exactly once for each turn the runtime sends, when it stops streaming —
+the answer was written, the person pressed Stop, or the turn failed — and only while the
+conversation that sent it is still mounted. A host that holds back what would take the chat off
+the screen (a host tool that navigates away) runs it there; a surface that left mid-turn is never
+called back, so what it held back goes with it.
 
 The sheet and the Alia app differ ONLY in what they put there:
 
