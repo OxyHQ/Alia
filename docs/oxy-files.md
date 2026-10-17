@@ -87,10 +87,12 @@ verified with `verifyFileEventSignature` from `@oxy.so/core/server`.
 
 1. In Oxy Console → Alia → Webhooks → **File events**, set
    `https://api.alia.onl/webhooks/oxy-files`. Oxy sends a `webhook.challenge`
-   that the endpoint echoes; the console shows the `whsec_…` secret **once**.
+   that the endpoint echoes — before Alia holds any secret, since registering
+   is what issues it; the console shows the `whsec_…` secret **once**.
 2. Write it to SSM: `/oxy/alia/OXY_FILES_WEBHOOK_SECRET`, then bind it in the
    task definition (SSM first, then the binding — `docs/deployment.md`).
-   Without the secret the route answers 404 to everything.
+   Without the secret the route answers the challenge and 404 to everything
+   else.
 
 | Event | What Alia does |
 |---|---|

@@ -115,6 +115,18 @@ describe('the endpoint', () => {
     delete process.env.OXY_FILES_WEBHOOK_SECRET;
     const body = event('file.deleted', []);
     expect((await post(body, sign(body))).status).toBe(404);
+    expect((await post(body)).status).toBe(404);
+    expect((await post('not json')).status).toBe(404);
+  });
+
+  it('answers the registration challenge before it has a secret — registering is what issues one', async () => {
+    delete process.env.OXY_FILES_WEBHOOK_SECRET;
+    // Signed, as Oxy sends it, with the NEW secret Alia cannot know yet.
+    const body = JSON.stringify({ type: 'webhook.challenge', challenge: 'c-0' });
+    const response = await post(body, sign(body, 'whsec_issued_in_the_response'));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ challenge: 'c-0' });
+    expect(H.dropCover).not.toHaveBeenCalled();
   });
 
   it('echoes the verification challenge', async () => {
