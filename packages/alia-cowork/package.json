@@ -24,7 +24,7 @@
     "@browserbasehq/stagehand": "^3.7.0",
     "@hugeicons/core-free-icons": "^3.3.0",
     "@hugeicons/react": "^1.1.9",
-    "@oxy.so/bloom": "10.9.0",
+    "@oxy.so/bloom": "10.16.0",
     "@oxy.so/core": "4.21.0",
     "@radix-ui/react-slot": "^1.4.0",
     "@radix-ui/react-use-controllable-state": "^1.2.3",

@@ -32,7 +32,7 @@
     "@clarity.surf/sdk": "^0.4.0",
     "@expo/vector-icons": "^15.1.1",
     "@oxy.so/app-preset": "^3.1.0",
-    "@oxy.so/bloom": "10.9.0",
+    "@oxy.so/bloom": "10.16.0",
     "@oxy.so/contracts": "4.24.0",
     "@oxy.so/core": "4.21.0",
     "@oxy.so/expo-splash": "^1.0.0",
