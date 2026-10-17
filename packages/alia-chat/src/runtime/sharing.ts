@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { aliaSharedConversationUrl } from '../lib/origins';
 import { useAliaApi } from './api';
 import { useAliaRuntime } from './config';
 import { aliaQueryKeys } from './query-keys';
@@ -9,8 +10,10 @@ import type { Message } from './types';
 /** A conversation's read-only link (`POST /v1/conversations/:id/share`, `docs/agent-embedding.md` §6). */
 export interface AliaConversationShare {
   conversationId: string;
-  /** What `GET /v1/shared/:token` reads it by; the host builds its own URL around it. */
+  /** What `GET /v1/shared/:token` reads it by. */
   token: string;
+  /** The link to hand on: Alia's one shared-conversation page (`aliaSharedConversationUrl`). */
+  url: string;
   expiresAt: string;
 }
 
@@ -36,7 +39,12 @@ export function useShareConversation() {
       if (typeof data?.token !== 'string' || typeof data.expiresAt !== 'string') {
         throw new Error('The share link came back without a token.');
       }
-      return { conversationId, token: data.token, expiresAt: data.expiresAt };
+      return {
+        conversationId,
+        token: data.token,
+        url: aliaSharedConversationUrl(data.token),
+        expiresAt: data.expiresAt,
+      };
     },
   });
   const revoke = useMutation({

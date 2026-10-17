@@ -182,6 +182,7 @@ The conversation endpoints:
 - **`GET /v1/conversations?agentId=<id>&app=<slug>`** lists the person's conversations, narrowed to one agent, one app or both. Without either it lists all of them, which is what the Alia app shows.
 - **`POST /v1/conversations/:id/share { "ttlHours": 1..168 }`** answers `{ "token", "expiresAt" }`.
 - **`DELETE /v1/conversations/:id/share`** revokes the share.
+- **The link is Alia's.** Every app shares `https://alia.onl/shared/<token>` (the SDK's `aliaSharedConversationUrl`, and `url` on what `useShareConversation().share` returns), a public page of the Alia web app that draws the conversation with the SDK's `AliaSharedConversation` and answers `X-Robots-Tag: noindex`. An app keeps no shared page of its own; one that minted links to its own address before redirects them there.
 - **`GET /v1/shared/:token`** needs no auth and is `noindex`. It answers `{ "title", "agent"?, "messages": [{ "role", "content", "agent"? }], "expiresAt" }`. That covers text, images and agent identity; tool outputs are never included, because they can hold the person's own data.
 
 ### The app a conversation started in

@@ -2701,5 +2701,11 @@
       "description": "Most capable; slowest and costs the most"
     },
     "onDevice": "On %{device}"
+  },
+  "sharedConversation": {
+    "pageTitle": "Shared conversation | Alia",
+    "title": "Shared conversation",
+    "open": "Open Alia",
+    "footer": "A read-only copy, shared by the person who had this conversation."
   }
 }

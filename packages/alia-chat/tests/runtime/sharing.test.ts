@@ -39,3 +39,11 @@ describe('readSharedConversation', () => {
     expect(readSharedConversation({ expiresAt: 'x' })).toBeNull();
   });
 });
+
+/** Every app shares the same link: Alia's one shared-conversation page. */
+describe('aliaSharedConversationUrl', () => {
+  it("is Alia's page for the token, encoded", async () => {
+    const { aliaSharedConversationUrl } = await import('../../src/lib/origins');
+    expect(aliaSharedConversationUrl('ab/c d')).toBe('https://alia.onl/shared/ab%2Fc%20d');
+  });
+});

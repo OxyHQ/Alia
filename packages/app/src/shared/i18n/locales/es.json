@@ -2701,5 +2701,11 @@
       "description": "El más capaz; el más lento y el más caro"
     },
     "onDevice": "En %{device}"
+  },
+  "sharedConversation": {
+    "pageTitle": "Conversación compartida | Alia",
+    "title": "Conversación compartida",
+    "open": "Abrir Alia",
+    "footer": "Una copia de solo lectura, compartida por quien tuvo esta conversación."
   }
 }
