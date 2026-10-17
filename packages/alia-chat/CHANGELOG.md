@@ -11,7 +11,7 @@ carried of things Bloom already had are deleted (a clean cut: no aliases).
   `Markdown` (`@oxy.so/bloom/markdown`, `size="lg"`), which streams (an unfinished trailing
   construct is closed instead of showing its markers, and only the last block is re-read), draws
   accessible links (`role="link"`, an anchor on web) and vets every URL. `react-native-markdown-display`
-  is no longer a dependency. A Markdown image `![alt](url)` now reads as a link carrying its alt
+  is no longer a dependency. A Markdown image (an exclamation mark before a link) now reads as a link carrying its alt
   text and is not fetched; Alia's own images arrive as `[ALIA_IMAGE]` blocks and are unchanged.
 - **`joinFlights`.** The join choreography is Bloom's `useAvatarJoin` / `avatarJoinFlights`
   (`@oxy.so/bloom/avatar-flight`), the same one Bloom's `MultiAgentChat` uses; `useParticipants`
