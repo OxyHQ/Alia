@@ -16,7 +16,7 @@ import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BREAKPOINTS } from '@oxy.so/bloom/styles';
 import { ALIA_CHARACTER_RUNTIME_URL } from '../lib/character-runtime';
-import type { AliaChatLabels } from '../lib/labels';
+import { AliaChatLabelsProvider, type AliaChatLabels } from '../lib/labels';
 import type { AliaToolRenderers } from '../lib/tool-renderers';
 import { useShareHandler } from '../hooks/useShareHandler';
 import type { AliaRuntimeHost } from '../runtime/config';
@@ -109,6 +109,16 @@ export interface AliaChatSheetRef {
 }
 
 export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
+  function AliaChatSheet(props, ref) {
+    return (
+      <AliaChatLabelsProvider labels={props.labels}>
+        <AliaChatSheetBody {...props} ref={ref} />
+      </AliaChatLabelsProvider>
+    );
+  },
+);
+
+const AliaChatSheetBody = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
   (
     {
       agent,

@@ -56,9 +56,12 @@ The empty chat greets the signed-in person by name ("Hi Nate, what's on your min
 Failures (a voice call that cannot start, a dictation error) are shown with Bloom's `toast`,
 so the app needs a `ToastOutlet` (`OxyProvider` mounts one), or pass `onError` to handle them.
 
-The chat's own copy is English. Pass `labels` to `AliaChatSheet` or
-`AliaChatScreen` to translate it (`AliaChatLabels`; anything omitted stays
-English). Bloom's own strings follow `BloomProvider`'s `locale`.
+`AliaAskProvider` follows the language Oxy Services resolves for the active account, including
+language changes while its sheet is open. The SDK ships English and Spanish (regional Spanish tags
+such as `es-ES` and `es-MX` use Spanish); other languages fall back to English. `AliaChatSheet` and
+`AliaChatScreen` select their built-in copy from `labels.locale`. Pass `labels` to override any copy
+(`AliaChatLabels`), or `labels.t` for another catalogue. Nested overrides preserve the surrounding
+chat's translations. Bloom's own strings follow `BloomProvider`'s `locale`.
 
 Entry points:
 

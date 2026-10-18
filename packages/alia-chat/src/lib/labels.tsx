@@ -1,4 +1,5 @@
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
+import { SPANISH_LABELS } from './labels-es';
 import { VOICE_ERROR_MESSAGES, type VoiceErrorCode } from './speech-messages';
 import { englishCopy, type Translate } from './copy';
 import { VOICE_CONTROLS_LABELS, type VoiceControlsLabels } from './voice-controls-labels';
@@ -178,7 +179,7 @@ export const DEFAULT_LABELS: AliaChatLabels = {
   attachmentUnreadable: (name) => `${name} couldn't be read and wasn't sent`,
 };
 
-const LabelsContext = createContext<AliaChatLabels>(DEFAULT_LABELS);
+const LabelsContext = createContext<AliaChatLabels | null>(null);
 
 /** The chat's labels: the defaults, with whatever the host overrides. */
 export function AliaChatLabelsProvider({
@@ -191,10 +192,14 @@ export function AliaChatLabelsProvider({
   // Over whatever labels are already in reach, so a part that takes its own `labels` (the
   // composer) refines the chat's copy instead of resetting it to English.
   const inherited = useContext(LabelsContext);
-  const value = useMemo(() => ({ ...inherited, ...labels }), [inherited, labels]);
+  const value = useMemo(() => {
+    const locale = labels?.locale ?? inherited?.locale ?? 'en';
+    const defaults = locale.toLowerCase().split('-')[0] === 'es' ? SPANISH_LABELS : DEFAULT_LABELS;
+    return { ...defaults, ...inherited, ...labels };
+  }, [inherited, labels]);
   return <LabelsContext.Provider value={value}>{children}</LabelsContext.Provider>;
 }
 
 export function useLabels(): AliaChatLabels {
-  return useContext(LabelsContext);
+  return useContext(LabelsContext) ?? DEFAULT_LABELS;
 }

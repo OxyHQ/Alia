@@ -62,7 +62,7 @@
     },
     "packages/alia-chat": {
       "name": "@alia.onl/sdk",
-      "version": "21.3.0",
+      "version": "21.3.1",
       "dependencies": {
         "clsx": "^2.1.1",
         "socket.io-client": "^4.8.3",
