@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const world = vi.hoisted(() => ({
   canUsePrivateApi: false,
+  currentLanguage: 'en',
   signIn: vi.fn(async () => ({ status: 'dialog-opened' as const })),
   sheets: [] as Array<Record<string, unknown>>,
   presented: [] as Array<{ agent: unknown; turn: unknown }>,
@@ -17,6 +18,7 @@ const world = vi.hoisted(() => ({
 }));
 
 vi.mock('@oxy.so/services/ui/client', () => ({
+  useOxy: () => ({ currentLanguage: world.currentLanguage }),
   useAuth: () => ({ canUsePrivateApi: world.canUsePrivateApi, signIn: world.signIn }),
 }));
 vi.mock('../../src/components/AliaChatSheet', () => ({
@@ -80,6 +82,7 @@ async function mount() {
 
 beforeEach(() => {
   world.canUsePrivateApi = false;
+  world.currentLanguage = 'en';
   world.signIn.mockClear();
   world.sheets = [];
   world.presented = [];
@@ -167,4 +170,39 @@ describe('AliaAskProvider', () => {
 
     expect(world.dismissed).toBe(2);
   });
+});
+
+it('opens in Oxy’s resolved language and updates the mounted sheet on an account language change', async () => {
+  world.canUsePrivateApi = true;
+  world.currentLanguage = 'es-ES';
+  function Host() {
+    return (
+      <AliaAskProvider app="mention">
+        <Button />
+      </AliaAskProvider>
+    );
+  }
+  await act(async () => {
+    renderer = create(<Host />);
+  });
+  await settle(() => ask.ask());
+  expect(world.sheets.at(-1)?.labels).toMatchObject({ locale: 'es-ES' });
+  world.currentLanguage = 'en-GB';
+  await settle(() => renderer?.update(<Host />));
+  expect(world.sheets.at(-1)?.labels).toMatchObject({ locale: 'en-GB' });
+  expect(world.presented).toHaveLength(1);
+});
+
+it('keeps an explicit host language and custom labels', async () => {
+  world.canUsePrivateApi = true;
+  world.currentLanguage = 'es';
+  await act(async () => {
+    renderer = create(
+      <AliaAskProvider labels={{ locale: 'en', clear: 'Reset' }}>
+        <Button />
+      </AliaAskProvider>,
+    );
+  });
+  await settle(() => ask.ask());
+  expect(world.sheets.at(-1)?.labels).toMatchObject({ locale: 'en', clear: 'Reset' });
 });

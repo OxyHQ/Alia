@@ -1,5 +1,14 @@
 # @alia.onl/sdk
 
+## 21.3.1
+
+- Ask Alia follows the active account language resolved by Oxy Services instead of defaulting to
+  English. Changes to that language update the open sheet without replacing its conversation.
+- Ship a complete Spanish chat catalogue, including composer, voice, menus, thought panel and
+  conversation errors. Regional Spanish tags use it; host label overrides remain supported.
+- Apply the sheet's labels above its hooks and all its sheets, so sharing errors and the thought
+  panel use the same language as the conversation.
+
 ## 21.3.0
 
 The SDK runs on Expo SDK 58 (React Native 0.88, React 19.3) as well as Expo 57.

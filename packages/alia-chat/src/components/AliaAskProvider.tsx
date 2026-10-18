@@ -12,7 +12,7 @@
  * does not wait on the network.
  */
 
-import { useAuth } from '@oxy.so/services/ui/client';
+import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import {
   createContext,
   forwardRef,
@@ -95,10 +95,15 @@ interface Opening extends AliaAskOpening {
  * configures the sheet and so sits above it — a host-tool executor that closes it.
  */
 export const AliaAskProvider = forwardRef<AliaAsk, AliaAskProviderProps>(function AliaAskProvider(
-  { agents, welcomeSuggestions, children, ...sheet },
+  { agents, welcomeSuggestions, children, labels, ...sheet },
   ref,
 ) {
   const { canUsePrivateApi, signIn } = useAuth();
+  const { currentLanguage } = useOxy();
+  const localizedLabels = useMemo(
+    () => ({ ...labels, locale: labels?.locale ?? currentLanguage }),
+    [labels, currentLanguage],
+  );
   const sheetRef = useRef<AliaChatSheetRef>(null);
   const [opening, setOpening] = useState<Opening | null>(null);
   const [current, setCurrent] = useState<string | undefined>(undefined);
@@ -156,6 +161,7 @@ export const AliaAskProvider = forwardRef<AliaAsk, AliaAskProviderProps>(functio
             key={agentId ?? 'alia'}
             ref={sheetRef}
             {...sheet}
+            labels={localizedLabels}
             agent={agent}
             welcomeSuggestions={agent === undefined ? welcomeSuggestions : undefined}
             // A different agent is a new sheet: the opening waits for that one to mount.

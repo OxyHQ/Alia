@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { COPY_EN } from '../../src/lib/copy-en';
+import { COPY_ES } from '../../src/lib/copy-es';
 import { englishCopy } from '../../src/lib/copy';
 
 /**
@@ -84,4 +85,13 @@ describe('the chat’s English', () => {
   it('answers a key it does not know with the key, so a missing word is seen and not blank', () => {
     expect(englishCopy('no.such.key')).toBe('no.such.key');
   });
+});
+
+it('ships every chat catalogue key in Spanish, including plural forms and parameters', () => {
+  expect(Object.keys(COPY_ES).sort()).toEqual(Object.keys(COPY_EN).sort());
+  for (const [key, english] of Object.entries(COPY_EN)) {
+    const spanish = COPY_ES[key];
+    expect(typeof spanish, key).toBe(typeof english);
+    if (typeof spanish !== 'string') expect(spanish?.other, key).toBeTypeOf('string');
+  }
 });
