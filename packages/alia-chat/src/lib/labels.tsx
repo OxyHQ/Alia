@@ -194,8 +194,10 @@ export function AliaChatLabelsProvider({
   const inherited = useContext(LabelsContext);
   const value = useMemo(() => {
     const locale = labels?.locale ?? inherited?.locale ?? 'en';
-    const defaults = locale.toLowerCase().split('-')[0] === 'es' ? SPANISH_LABELS : DEFAULT_LABELS;
-    return { ...defaults, ...inherited, ...labels };
+    const language = locale.toLowerCase().split('-')[0];
+    const defaults = language === 'es' ? SPANISH_LABELS : DEFAULT_LABELS;
+    const parent = inherited?.locale.toLowerCase().split('-')[0] === language ? inherited : null;
+    return { ...defaults, ...parent, ...labels };
   }, [inherited, labels]);
   return <LabelsContext.Provider value={value}>{children}</LabelsContext.Provider>;
 }

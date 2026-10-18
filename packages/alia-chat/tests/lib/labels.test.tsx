@@ -90,3 +90,22 @@ it('keeps the Spanish catalogue through nested label overrides', () => {
   expect(seen?.composerSend).toBe('Enviar mensaje');
   expect(seen?.t('chat.bloom.sourceCount', { count: 2 })).toBe('2 fuentes');
 });
+
+it('uses the new catalogue when an embedded chat changes its inherited language', () => {
+  let seen: AliaChatLabels | undefined;
+  function Probe() {
+    seen = useLabels();
+    return null;
+  }
+  act(() => {
+    TestRenderer.create(
+      <AliaChatLabelsProvider labels={{ locale: 'en', clear: 'Reset' }}>
+        <AliaChatLabelsProvider labels={{ locale: 'es-ES' }}>
+          <Probe />
+        </AliaChatLabelsProvider>
+      </AliaChatLabelsProvider>,
+    );
+  });
+  expect(seen?.clear).toBe('Borrar');
+  expect(seen?.composerSend).toBe('Enviar mensaje');
+});
