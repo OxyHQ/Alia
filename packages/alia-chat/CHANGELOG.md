@@ -1,5 +1,21 @@
 # @alia.onl/sdk
 
+## 21.5.0
+
+### Fixed
+
+- **The SDK no longer ships every Oxy account screen to the app.** The host's app assertion
+  (`useAppAssertion`) was read from `@oxy.so/services/ui`, the only entry that exported it, and
+  that entry registers every account screen at import (with Bloom's phone flags and the rest), so
+  every app using the SDK carried them in its first-paint JS: +0.58 MiB in CrowdSource's reviewer.
+  It now comes from the lean `@oxy.so/services/ui/client`, like `useOxy` and `useAuth`.
+  `check:entries` refuses `@oxy.so/services/ui` from every entry, as it already refused the root.
+
+### Changed
+
+- The `@oxy.so/services` peer is `>=12.1.0`, the first release whose `ui/client` exports
+  `useAppAssertion`.
+
 ## 21.4.0
 
 ### Added

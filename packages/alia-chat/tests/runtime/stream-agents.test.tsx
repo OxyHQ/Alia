@@ -16,7 +16,8 @@ const harness = vi.hoisted(() => ({
   replies: [] as Reply[],
 }));
 
-vi.mock('@oxy.so/services/ui/client', () => ({
+vi.mock('@oxy.so/services/ui/client', async () => ({
+  ...(await import('../support/app-assertion-host')).hostWithoutAppAssertion,
   useOxy: () => ({
     user: { id: 'u1' },
     oxyServices: {

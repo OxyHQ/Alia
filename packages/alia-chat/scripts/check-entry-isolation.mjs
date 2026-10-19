@@ -23,10 +23,11 @@
  *   - `src/voice.ts` still reaches both (otherwise the voice surface has been
  *     gutted and the previous assertions would pass for the wrong reason)
  *
- * It also holds that neither entry imports the `@oxy.so/services` ROOT barrel:
- * that barrel re-exports every sign-in panel and the Commons QR encoder, and
- * Metro does not tree-shake, so one `useOxy` from it ships them all to every
- * consumer. `@oxy.so/services/ui/client` exports the same hooks without them.
+ * It also holds that no entry imports the `@oxy.so/services` ROOT barrel or its
+ * `/ui` entry: both register every account screen (sign-in panels, the Commons
+ * QR encoder…) at import, and Metro does not tree-shake, so one hook from either
+ * ships them all to every consumer. `@oxy.so/services/ui/client` exports the
+ * hooks the SDK uses (`useOxy`, `useAuth`, `useAppAssertion`) without them.
  *
  * And it holds that on WEB the SDK draws no async chunk boundary of its own, but the one of
  * `@alia.onl/sdk/ask`. Metro's web serializer hoists every module two async chunks share into
@@ -171,14 +172,25 @@ if (voice.hits.length === 0) {
   );
 }
 
-for (const entry of ['index.ts', 'voice.ts', 'runtime/index.ts', 'avatar.ts', 'ask.ts']) {
-  const { hits, importedBy } = walk(entry, SERVICES_ROOT, { exact: true });
-  if (hits.length > 0) {
-    failures.push(
-      `src/${entry} imports the ${SERVICES_ROOT} root barrel, which ships every sign-in ` +
-        `panel to the consumer. Import from ${SERVICES_ROOT}/ui/client instead.\n` +
-        hits.map((file) => `    ${chainTo(file, importedBy)}`).join('\n'),
-    );
+const SERVICES_ENTRY_ENTRIES = [
+  'index.ts',
+  'voice.ts',
+  'runtime/index.ts',
+  'avatar.ts',
+  'ask.ts',
+  'text.ts',
+  'ask-text.ts',
+];
+for (const entry of SERVICES_ENTRY_ENTRIES) {
+  for (const barrel of [SERVICES_ROOT, `${SERVICES_ROOT}/ui`]) {
+    const { hits, importedBy } = walk(entry, barrel, { exact: true });
+    if (hits.length > 0) {
+      failures.push(
+        `src/${entry} imports ${barrel}, which registers every account screen at import and ` +
+          `ships them to the consumer. Import from ${SERVICES_ROOT}/ui/client instead.\n` +
+          hits.map((file) => `    ${chainTo(file, importedBy)}`).join('\n'),
+      );
+    }
   }
 }
 

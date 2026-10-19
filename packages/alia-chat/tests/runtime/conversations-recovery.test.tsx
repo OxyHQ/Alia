@@ -16,7 +16,8 @@ const server = vi.hoisted(() => ({
   calls: [] as string[],
 }));
 
-vi.mock('@oxy.so/services/ui/client', () => ({
+vi.mock('@oxy.so/services/ui/client', async () => ({
+  ...(await import('../support/app-assertion-host')).hostWithoutAppAssertion,
   useOxy: () => ({
     isAuthenticated: true,
     oxyServices: {

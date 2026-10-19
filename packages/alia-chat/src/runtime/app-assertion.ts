@@ -1,6 +1,4 @@
-// `@oxy.so/services/ui`, not the root barrel (which ships the sign-in panels, `check:entries`):
-// `ui/client` does not export `useAppAssertion`.
-import { useAppAssertion } from '@oxy.so/services/ui';
+import { useAppAssertion } from '@oxy.so/services/ui/client';
 import { useMemo } from 'react';
 
 /**
