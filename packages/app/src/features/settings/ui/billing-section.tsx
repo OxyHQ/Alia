@@ -1,4 +1,4 @@
-import { useDisplayPrice } from '@oxy.so/services';
+import { useDisplayPrice } from '@oxy.so/services/ui/client';
 import {
   useCancelSubscription,
   useCreateCheckout,

@@ -51,11 +51,10 @@ const oxy = vi.hoisted(() => ({
     },
   }),
 }));
-vi.mock('@oxy.so/services', () => ({
+vi.mock('@oxy.so/services/ui/client', () => ({
   useDisplayCurrency: () => ({ currency: 'EUR' }),
   useOxy: oxy.useOxy,
 }));
-vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: oxy.useOxy }));
 vi.mock('@oxy.so/core', () => ({
   authenticatedApiCall: async (_api: unknown, _session: unknown, request: () => unknown) =>
     request(),

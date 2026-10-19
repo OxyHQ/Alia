@@ -1,7 +1,7 @@
 import { useBillingActionScope } from './use-billing-action-scope';
 import { type ProductPlanCatalogue, oxyAccountIdSchema } from '@oxy.so/contracts';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useOxy, useDisplayCurrency } from '@oxy.so/services';
+import { useOxy, useDisplayCurrency } from '@oxy.so/services/ui/client';
 import { authenticatedApiCall } from '@oxy.so/core';
 import {
   getProductCheckoutKey,
