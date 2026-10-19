@@ -1,4 +1,4 @@
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import apiClient from '@/shared/api/client';
 import { queryKeys } from '@/shared/api/query-keys';
 import { useAuthQuery } from '@/shared/api/create-query';

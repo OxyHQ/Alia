@@ -27,7 +27,7 @@ import { Switch } from '@oxy.so/bloom/switch';
 import type { AccentTone } from '@oxy.so/bloom/theme';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Muted, Text } from '@oxy.so/bloom/typography';
-import { useAuth } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import * as ExpoNotifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';

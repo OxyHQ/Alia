@@ -49,7 +49,7 @@ vi.mock('@alia.onl/sdk/model', () => ({
 vi.mock('@alia.onl/sdk/runtime', () => ({
   useConversation: () => ({ data: world.title === undefined ? undefined : { title: world.title } }),
 }));
-vi.mock('@oxy.so/services', () => ({
+vi.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ isAuthenticated: world.authenticated, signIn: world.signIn }),
 }));
 vi.mock('@oxy.so/bloom/composer-panel', () => ({

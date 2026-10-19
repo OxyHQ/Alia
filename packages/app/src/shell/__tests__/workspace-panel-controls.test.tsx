@@ -46,7 +46,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 vi.mock('expo-router', () => ({ usePathname: () => '/c/one' }));
-vi.mock('@oxy.so/services', () => ({ useOxy: () => ({ isAuthenticated: false }) }));
+vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({ isAuthenticated: false }) }));
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({
     t: (key: string, params?: Record<string, unknown>) =>

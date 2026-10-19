@@ -19,7 +19,7 @@ const auth = vi.hoisted(() => ({ isAuthenticated: false }));
 vi.mock('@/shared/api/client', () => ({
   default: { get: getRequest, post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
-vi.mock('@oxy.so/services', () => ({ useOxy: () => auth }));
+vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => auth }));
 vi.mock('@/features/library/runtime/library-store', () => {
   const state = { files: [], loadFiles };
   return { useLibraryStore: (select: (s: typeof state) => unknown) => select(state) };

@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const session = vi.hoisted(() => ({ user: { id: 'payer-one' }, activeSessionId: 'session-one' }));
 const priorPaid = vi.hoisted(() => ({ current: { status: 'active' } }));
-vi.mock('@oxy.so/services', () => ({ useOxy: () => session }));
+vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => session }));
 vi.mock('../use-billing', () => ({ useSubscriptionPolling: () => ({ data: priorPaid.current }) }));
 const { useCheckoutConfirmation } = await import('../use-checkout-confirmation');
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

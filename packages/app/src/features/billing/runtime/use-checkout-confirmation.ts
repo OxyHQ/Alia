@@ -1,7 +1,7 @@
 import { queryKeys } from '@/shared/api/query-keys';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 
 /** A browser return only requests a refresh. It does not identify a settled
  * invoice, and an existing active subscription cannot confirm a new payment. */

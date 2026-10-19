@@ -1,6 +1,6 @@
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
-import { queryKeys as oxyQueryKeys } from '@oxy.so/services';
+import { queryKeys as oxyQueryKeys } from '@oxy.so/services/ui/client';
 import { useConversationStore, useThoughtStore } from '@alia.onl/sdk/runtime';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';

@@ -10,7 +10,7 @@
 import { useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import type { AliaVoiceOptions, VoiceBlockReason } from '@alia.onl/sdk';
 import { queryKeys } from '@/shared/api/query-keys';
 import { VOICE_SOUNDS } from '@/features/voice/model/voice-sounds';

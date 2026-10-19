@@ -6,7 +6,7 @@ const state = vi.hoisted(() => ({
 }));
 const query = vi.hoisted(() => vi.fn());
 const get = vi.hoisted(() => vi.fn());
-vi.mock('@oxy.so/services', () => ({ useOxy: () => state }));
+vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => state }));
 vi.mock('@/shared/api/create-query', () => ({ useAuthQuery: query }));
 vi.mock('@/shared/api/client', () => ({ default: { get } }));
 import { useCredits } from '../use-credits';

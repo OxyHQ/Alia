@@ -45,7 +45,7 @@ vi.mock('react-native', () => ({
   },
 }));
 
-vi.mock('@oxy.so/services', () => ({
+vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({
     oxyServices: {
       session: {

@@ -2,7 +2,7 @@ import { queryKeys } from '@/shared/api/query-keys';
 import { useCredits } from '@/features/billing/runtime/use-credits';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { toast } from '@oxy.so/bloom/toast';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';

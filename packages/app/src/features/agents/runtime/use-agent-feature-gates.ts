@@ -10,7 +10,7 @@ import type {
 } from '@/shared/contracts/agents';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { toast } from '@oxy.so/bloom/toast';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 /** An Oxy app and the features of its live catalogue a gate may name. */

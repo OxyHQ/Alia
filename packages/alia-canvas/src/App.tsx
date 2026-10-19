@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { OxyProvider } from '@oxy.so/services';
+import { OxyProvider } from '@oxy.so/services/ui/client';
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import { ThemeProvider } from '@/components/theme-provider';

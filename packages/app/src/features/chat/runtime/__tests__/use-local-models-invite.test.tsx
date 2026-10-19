@@ -31,7 +31,9 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: toastFn }));
-vi.mock('@oxy.so/services', () => ({ useAuth: () => ({ isAuthenticated: env.isAuthenticated }) }));
+vi.mock('@oxy.so/services/ui/client', () => ({
+  useAuth: () => ({ isAuthenticated: env.isAuthenticated }),
+}));
 vi.mock('@/shared/platform/use-is-large-screen', () => ({
   useIsLargeScreen: () => env.isLargeScreen,
 }));

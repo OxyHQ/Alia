@@ -15,12 +15,10 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
     removeItem: async (key: string) => void storage.delete(key),
   },
 }));
-vi.mock('@oxy.so/services', () => ({
+vi.mock('@oxy.so/services/ui/client', () => ({
   queryKeys: { accounts: { all: ['accounts'] }, sessions: { all: ['sessions'] } },
-}));
-vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({}) }));
-// The SDK reads the host's app assertion from here (ADR 0021); this host has none.
-vi.mock('@oxy.so/services/ui', () => ({
+  useOxy: () => ({}),
+  // The SDK reads the host's app assertion from here (ADR 0021); this host has none.
   useAppAssertion: () => ({
     getAppAssertion: async () => null,
     getAppAssertionHeaders: async () => ({}),

@@ -24,7 +24,7 @@ const toastFn = vi.hoisted(() => ({
 }));
 
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: toastFn }));
-vi.mock('@oxy.so/services', () => ({
+vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({ user: env.userId === null ? null : { id: env.userId } }),
 }));
 vi.mock('expo-router', () => ({

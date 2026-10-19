@@ -28,7 +28,7 @@ vi.mock('react-native', async () => {
   return { View: host('View') };
 });
 vi.mock('expo-router', () => ({ usePathname: () => env.pathname }));
-vi.mock('@oxy.so/services', () => ({ useOxy: () => ({ isAuthenticated: false }) }));
+vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({ isAuthenticated: false }) }));
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));

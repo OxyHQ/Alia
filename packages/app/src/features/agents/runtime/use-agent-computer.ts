@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import apiClient from '@/shared/api/client';

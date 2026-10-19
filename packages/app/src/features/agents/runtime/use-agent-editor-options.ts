@@ -4,7 +4,7 @@ import type { GrantableConnector } from '@/features/chat/model/capability-famili
 import { queryKeys } from '@/shared/api/query-keys';
 import type { LinkedFile, LinkedSkill } from '@/features/agents/runtime/use-agent-autosave';
 import { useLibraryStore, type LibraryFile } from '@/features/library/runtime/library-store';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 

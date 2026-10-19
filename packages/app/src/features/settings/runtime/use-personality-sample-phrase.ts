@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { fetch as expoFetch } from 'expo/fetch';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { generateAPIUrl } from '@/shared/api/generate-api-url';
 import { API_ROUTES } from '@/shared/api/routes';
 import {

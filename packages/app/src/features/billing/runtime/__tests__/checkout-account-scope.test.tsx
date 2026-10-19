@@ -9,13 +9,19 @@ const mocks = vi.hoisted(() => ({
   clearKey: vi.fn(),
   auth: vi.fn((_services: unknown, _session: unknown, run: () => unknown) => run()),
 }));
-vi.mock('@oxy.so/services', () => ({
+// One session behind both entries: the checkout reads the root entry (for the
+// display currency) and its account-scope guard reads the lean entry.
+const oxy = vi.hoisted(() => ({
   useOxy: () => ({
     ...mocks.session,
     oxyServices: { billing: { startProductPlanCheckout: mocks.checkout } },
   }),
+}));
+vi.mock('@oxy.so/services', () => ({
+  useOxy: oxy.useOxy,
   useDisplayCurrency: () => ({ currency: 'EUR' }),
 }));
+vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: oxy.useOxy }));
 vi.mock('@oxy.so/core', () => ({
   authenticatedApiCall: (...args: [unknown, unknown, () => unknown]) => mocks.auth(...args),
 }));

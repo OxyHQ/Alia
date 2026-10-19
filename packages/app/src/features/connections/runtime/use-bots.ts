@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import apiClient from '@/shared/api/client';
 
 export interface SystemBot {

@@ -5,7 +5,7 @@ import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
 import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
 import { BloomProvider } from '@oxy.so/bloom/provider';
 import { preventNativeSplashAutoHide, useHideNativeSplashWhenReady } from '@oxy.so/expo-splash';
-import { OxyProvider, useOxy } from '@oxy.so/services';
+import { OxyProvider, useOxy } from '@oxy.so/services/ui/client';
 import * as Linking from 'expo-linking';
 import { Slot, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';

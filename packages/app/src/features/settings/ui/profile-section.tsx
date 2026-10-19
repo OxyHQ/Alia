@@ -5,7 +5,7 @@ import { RiLogoutCircleLine } from '@oxy.so/bloom/icons/RiLogoutCircleLine';
 import { SettingsProfilePage, SettingsValueField } from '@oxy.so/bloom/settings-modal';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { getAccountDisplayName } from '@oxy.so/core';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useAliaSettings } from './settings-context';
 
 /**

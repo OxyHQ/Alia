@@ -137,6 +137,30 @@
   },
   "overrides": [
     {
+      "includes": [
+        "packages/app/**",
+        "packages/alia-canvas/**",
+        "packages/alia-chat/src/**",
+        "!packages/app/src/features/billing/runtime/use-billing.ts",
+        "!packages/app/src/features/billing/ui/subscribe-shared.tsx",
+        "!packages/app/src/features/settings/ui/billing-section.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@oxy.so/services": "The root entry registers every Oxy account screen at import, and on the web export any root import (even from one lazy route) lands them in the first-paint __common chunk. Import from '@oxy.so/services/ui/client'. The three billing files excluded above use the display-currency hooks, which services exports only from the root entry."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "includes": ["packages/app/**"],
       "plugins": [
         "./biome-plugins/expo-no-dynamic-env-var.grit",

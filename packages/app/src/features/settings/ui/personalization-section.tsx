@@ -12,7 +12,7 @@ import {
 } from '@oxy.so/bloom/settings-modal';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { usePersonalityStyleRow } from './personality-style-picker';

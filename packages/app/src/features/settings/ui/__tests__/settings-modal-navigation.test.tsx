@@ -7,7 +7,7 @@ const state = vi.hoisted(() => ({
   opens: [] as any[],
   close: vi.fn(),
 }));
-vi.mock('@oxy.so/services', () => ({
+vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({ isAuthenticated: state.authenticated }),
 }));
 vi.mock('@/shared/i18n/use-translation', () => ({

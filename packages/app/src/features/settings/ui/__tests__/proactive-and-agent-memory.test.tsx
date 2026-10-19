@@ -43,7 +43,7 @@ vi.mock('@oxy.so/bloom/icons/RiArrowLeftLine', () => ({ RiArrowLeftLine: 'RiArro
 vi.mock('@oxy.so/bloom/icons/RiDeleteBinLine', () => ({ RiDeleteBinLine: 'RiDeleteBinLine' }));
 vi.mock('@oxy.so/bloom/surfaces', () => ({ confirm }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
-vi.mock('@oxy.so/services', () => ({ useOxy: () => ({ isAuthenticated: true }) }));
+vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({ isAuthenticated: true }) }));
 vi.mock('@/shared/api/client', () => ({
   default: { get: api.get, put: api.put, delete: api.delete, post: vi.fn(), patch: vi.fn() },
 }));

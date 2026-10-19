@@ -39,7 +39,7 @@ vi.mock('@oxy.so/bloom/text-field', async () => hosts('TextFieldInput'));
 vi.mock('@alia.onl/sdk', () => ({ readAgentCharacter: (value: unknown) => value }));
 vi.mock('@/features/agents/runtime/use-agents', () => ({ useUpdateAgent: vi.fn() }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
-vi.mock('@oxy.so/services', () => ({ useOxy: () => ({}) }));
+vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({}) }));
 vi.mock('@oxy.so/bloom/settings-list', async () => ({
   ...(await hosts('SettingsListGroup')),
   SettingsListItem: await slotted('SettingsListItem', ['rightElement']),

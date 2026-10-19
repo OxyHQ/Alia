@@ -23,7 +23,7 @@ import { confirm } from '@oxy.so/bloom/surfaces';
 import { Switch } from '@oxy.so/bloom/switch';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
-import { useAuth, useOxy } from '@oxy.so/services';
+import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useRouter } from 'expo-router';
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';

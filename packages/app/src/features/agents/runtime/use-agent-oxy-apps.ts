@@ -4,7 +4,7 @@ import { queryKeys } from '@/shared/api/query-keys';
 import { API_ROUTES } from '@/shared/api/routes';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { toast } from '@oxy.so/bloom/toast';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 /** *Nada* · *Ver* · *Ver y actuar* — the three answers to "may this agent use my X?". */

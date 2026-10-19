@@ -11,7 +11,7 @@ import {
   MAX_AGENT_STARTERS,
 } from '@/shared/contracts/agents';
 import { toast } from '@oxy.so/bloom/toast';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useCallback, useRef, useState } from 'react';
 
 export type LinkedSkill = Agent['skills'][number];

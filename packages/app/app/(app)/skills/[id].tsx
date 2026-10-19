@@ -24,7 +24,7 @@ import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list
 import { Switch } from '@oxy.so/bloom/switch';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Muted, Text } from '@oxy.so/bloom/typography';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Linking, ScrollView, View } from 'react-native';
 

@@ -10,7 +10,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import apiClient from '@/shared/api/client';
 import i18n from '@/shared/i18n';
 import { acquireNotificationsSocket } from '@/features/notifications/runtime/notifications-socket';
