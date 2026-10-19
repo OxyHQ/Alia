@@ -2,6 +2,7 @@ import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
 import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
 import { useCallback, useMemo } from 'react';
 import type { AliaAddMenu } from '../lib/add-menu';
+import { loadDocumentPicker } from '../lib/deferred/document-picker';
 import type { IntakeKind } from '../lib/attachment-intake';
 import { useLabels } from '../lib/labels';
 import { ALIA_FEATURES, type FeatureOffer } from '../runtime/agents';
@@ -71,17 +72,15 @@ export function useAttachMenu(
               size: asset.size,
               mimeType: asset.mimeType,
             }))
-          : // The picker loads with the first document: a chat that never attaches one never does.
-            ((await (await import('../lib/document-picker')).pickDocuments()) ?? []).map(
-              (asset) => ({
-                id: attachmentId('doc'),
-                type: 'document' as const,
-                name: asset.name,
-                uri: asset.uri,
-                size: asset.size,
-                mimeType: asset.mimeType,
-              }),
-            );
+          : // On native the picker loads with the first document: a chat that never attaches one never does.
+            ((await (await loadDocumentPicker()).pickDocuments()) ?? []).map((asset) => ({
+              id: attachmentId('doc'),
+              type: 'document' as const,
+              name: asset.name,
+              uri: asset.uri,
+              size: asset.size,
+              mimeType: asset.mimeType,
+            }));
       for (const attachment of picked) store.addAttachment(address, attachment);
     },
     [offers, onFeatureLocked, pickImage, address],

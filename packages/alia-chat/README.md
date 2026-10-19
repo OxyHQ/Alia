@@ -174,7 +174,14 @@ dismiss(); // e.g. after a host tool changed the page under the sheet
 
 Mount it from `@alia.onl/sdk/ask`: that entry is the provider and its hook alone, and the sheet
 loads with the first `ask` (fetched in the background once the person is signed in), so the chat
-stays out of the app's entry bundle. The root entry exports the same two, with the whole chat.
+stays out of the app's entry bundle. The root entry exports the same two, with the whole chat
+(its provider imports the sheet statically).
+
+**On web, load the chat through ONE async boundary.** Expo's Metro serializer hoists every module
+two async chunks share into `__common.js`, which loads at first paint. The SDK draws no async chunk
+boundary of its own on web (the call, sounds and pickers import statically there), except the one
+of `@alia.onl/sdk/ask`. So either mount the provider from `@alia.onl/sdk/ask`, or lazy-import your
+own module that imports the root entry — not both, or the chat they share lands in `__common.js`.
 
 The sheet offers the person's latest conversations with its lead under the greeting
 (`recentConversations={false}` turns it off). The code that configures the sheet sits above it, so
@@ -433,7 +440,7 @@ ships no model identifier of its own.
 ```sh
 bun run typecheck       # tsc --noEmit
 bun run test            # vitest
-bun run check:entries   # the root entry reaches the call only through its lazy import; no retired modules
+bun run check:entries   # entry isolation; on web, no async chunk boundary but the ask entry's; no retired modules
 ```
 
 ## Licence

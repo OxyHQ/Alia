@@ -9,6 +9,7 @@
  */
 
 import { createAudioLevelMeter } from './audio-level';
+import { loadExpoAudio } from './deferred/expo-audio';
 
 export type ProductVoice = 'male' | 'female';
 
@@ -171,7 +172,7 @@ export interface PlayClipOptions {
 export async function playSpeechClip(uri: string, options: PlayClipOptions): Promise<void> {
   const { signal, onLevel } = options;
   if (signal.aborted) return;
-  const { createAudioPlayer } = await import('expo-audio');
+  const { createAudioPlayer } = await loadExpoAudio();
   if (signal.aborted) return;
 
   const player = createAudioPlayer({ uri }, { crossOrigin: 'anonymous' });

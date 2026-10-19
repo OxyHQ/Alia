@@ -5,6 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * One sheet an app mounts once and opens on any agent: signed out, `ask` is Oxy's sign-in; signed
  * in, it opens the sheet on the agent asked for, with the app's configuration, and the turn.
+ *
+ * Twice: the root entry's provider imports its sheet statically, the ask entry's loads it lazily;
+ * both answer the same `useAskAgent`.
  */
 
 const world = vi.hoisted(() => ({
@@ -36,7 +39,12 @@ vi.mock('../../src/components/AliaChatSheet', () => ({
   }),
 }));
 
-import { AliaAskProvider, type AliaAsk, useAskAgent } from '../../src/components/AliaAskProvider';
+import {
+  type AliaAsk,
+  AliaAskProvider as RootAskProvider,
+  useAskAgent,
+} from '../../src/components/AliaAskProvider';
+import { AliaAskProvider as LazyAskProvider } from '../../src/components/AliaAskProviderLazy';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -55,154 +63,159 @@ function Button() {
   return null;
 }
 
-const hostTools = {
-  definitions: [],
-  execute: async () => ({ outcome: 'applied' as const }),
-};
-const onFeatureLocked = vi.fn();
-let renderer: ReactTestRenderer | null = null;
-const providerRef = createRef<AliaAsk>();
-async function mount() {
-  await act(async () => {
-    renderer = create(
-      <AliaAskProvider
-        ref={providerRef}
-        agents={{ alia: {}, sindi: { id: 'agent-sindi' } }}
-        app="homiio"
-        hostTools={hostTools}
-        clientContext="Homiio — viewing listing 7"
-        onFeatureLocked={onFeatureLocked}
-        welcomeSuggestions={[{ id: 's', text: 'Find a flat' }]}
-      >
-        <Button />
-      </AliaAskProvider>,
-    );
-  });
-}
-
-beforeEach(() => {
-  world.canUsePrivateApi = false;
-  world.currentLanguage = 'en';
-  world.signIn.mockClear();
-  world.sheets = [];
-  world.presented = [];
-  world.resumed = [];
-  world.dismissed = 0;
-});
-afterEach(async () => {
-  if (renderer !== null) await act(async () => renderer?.unmount());
-  renderer = null;
-});
-
-describe('AliaAskProvider', () => {
-  it('signed out, mounts no sheet and asks Oxy to sign the person in', async () => {
-    await mount();
-    await settle(() => ask.ask('sindi'));
-
-    expect(world.signIn).toHaveBeenCalledTimes(1);
-    expect(world.sheets).toEqual([]);
-    expect(world.presented).toEqual([]);
-  });
-
-  it('signed in, opens the one sheet on the agent asked for, with the turn and the app’s setup', async () => {
-    world.canUsePrivateApi = true;
-    await mount();
-    await settle(() => ask.ask('sindi', { text: 'Is this flat a good price?' }));
-
-    expect(world.signIn).not.toHaveBeenCalled();
-    expect(world.presented).toEqual([
-      { agent: { id: 'agent-sindi' }, turn: { text: 'Is this flat a good price?' } },
-    ]);
-    const sheet = world.sheets.at(-1);
-    expect(sheet).toMatchObject({
-      agent: { id: 'agent-sindi' },
-      app: 'homiio',
-      hostTools,
-      clientContext: 'Homiio — viewing listing 7',
-      onFeatureLocked,
+describe.each([
+  ['root entry (static sheet)', RootAskProvider],
+  ['ask entry (lazy sheet)', LazyAskProvider],
+])('AliaAskProvider of the %s', (_entry, AliaAskProvider) => {
+  const hostTools = {
+    definitions: [],
+    execute: async () => ({ outcome: 'applied' as const }),
+  };
+  const onFeatureLocked = vi.fn();
+  let renderer: ReactTestRenderer | null = null;
+  const providerRef = createRef<AliaAsk>();
+  async function mount() {
+    await act(async () => {
+      renderer = create(
+        <AliaAskProvider
+          ref={providerRef}
+          agents={{ alia: {}, sindi: { id: 'agent-sindi' } }}
+          app="homiio"
+          hostTools={hostTools}
+          clientContext="Homiio — viewing listing 7"
+          onFeatureLocked={onFeatureLocked}
+          welcomeSuggestions={[{ id: 's', text: 'Find a flat' }]}
+        >
+          <Button />
+        </AliaAskProvider>,
+      );
     });
-    // An agent greets with its own starters, not the app's suggestions for Alia.
-    expect(sheet?.welcomeSuggestions).toBeUndefined();
-  });
-
-  it('opens on Alia for an entry without an id, or no key at all', async () => {
-    world.canUsePrivateApi = true;
-    await mount();
-    await settle(() => ask.ask('alia'));
-    await settle(() => ask.ask());
-
-    expect(world.presented.map((p) => p.agent)).toEqual([undefined, undefined]);
-    expect(world.sheets.at(-1)?.welcomeSuggestions).toEqual([{ id: 's', text: 'Find a flat' }]);
-  });
-
-  it('signed in, mounts nothing until the first ask, so the chat arrives with it', async () => {
-    world.canUsePrivateApi = true;
-    await mount();
-    await settle();
-    expect(world.sheets).toEqual([]);
-
-    await settle(() => ask.ask());
-    expect(world.sheets.length).toBeGreaterThan(0);
-    expect(world.presented).toEqual([{ agent: undefined, turn: undefined }]);
-  });
-
-  it('refuses a key it was not given', async () => {
-    world.canUsePrivateApi = true;
-    await mount();
-    expect(() => ask.ask('nobody')).toThrow(/no agent "nobody"/);
-  });
-
-  it('picks a stored conversation up again in the sheet of its agent', async () => {
-    world.canUsePrivateApi = true;
-    await mount();
-    await settle(() => ask.resume('sindi', 'conv-7'));
-
-    expect(world.resumed).toEqual([{ agent: { id: 'agent-sindi' }, conversationId: 'conv-7' }]);
-    expect(world.presented).toEqual([]);
-  });
-
-  it('closes the sheet, through the hook and through the ref the code above it holds', async () => {
-    world.canUsePrivateApi = true;
-    await mount();
-    await settle(() => ask.ask('sindi'));
-    await settle(() => ask.dismiss());
-    await settle(() => providerRef.current?.dismiss());
-
-    expect(world.dismissed).toBe(2);
-  });
-});
-
-it('opens in Oxy’s resolved language and updates the mounted sheet on an account language change', async () => {
-  world.canUsePrivateApi = true;
-  world.currentLanguage = 'es-ES';
-  function Host() {
-    return (
-      <AliaAskProvider app="mention">
-        <Button />
-      </AliaAskProvider>
-    );
   }
-  await act(async () => {
-    renderer = create(<Host />);
-  });
-  await settle(() => ask.ask());
-  expect(world.sheets.at(-1)?.labels).toMatchObject({ locale: 'es-ES' });
-  world.currentLanguage = 'en-GB';
-  await settle(() => renderer?.update(<Host />));
-  expect(world.sheets.at(-1)?.labels).toMatchObject({ locale: 'en-GB' });
-  expect(world.presented).toHaveLength(1);
-});
 
-it('keeps an explicit host language and custom labels', async () => {
-  world.canUsePrivateApi = true;
-  world.currentLanguage = 'es';
-  await act(async () => {
-    renderer = create(
-      <AliaAskProvider labels={{ locale: 'en', clear: 'Reset' }}>
-        <Button />
-      </AliaAskProvider>,
-    );
+  beforeEach(() => {
+    world.canUsePrivateApi = false;
+    world.currentLanguage = 'en';
+    world.signIn.mockClear();
+    world.sheets = [];
+    world.presented = [];
+    world.resumed = [];
+    world.dismissed = 0;
   });
-  await settle(() => ask.ask());
-  expect(world.sheets.at(-1)?.labels).toMatchObject({ locale: 'en', clear: 'Reset' });
+  afterEach(async () => {
+    if (renderer !== null) await act(async () => renderer?.unmount());
+    renderer = null;
+  });
+
+  describe('the provider', () => {
+    it('signed out, mounts no sheet and asks Oxy to sign the person in', async () => {
+      await mount();
+      await settle(() => ask.ask('sindi'));
+
+      expect(world.signIn).toHaveBeenCalledTimes(1);
+      expect(world.sheets).toEqual([]);
+      expect(world.presented).toEqual([]);
+    });
+
+    it('signed in, opens the one sheet on the agent asked for, with the turn and the app’s setup', async () => {
+      world.canUsePrivateApi = true;
+      await mount();
+      await settle(() => ask.ask('sindi', { text: 'Is this flat a good price?' }));
+
+      expect(world.signIn).not.toHaveBeenCalled();
+      expect(world.presented).toEqual([
+        { agent: { id: 'agent-sindi' }, turn: { text: 'Is this flat a good price?' } },
+      ]);
+      const sheet = world.sheets.at(-1);
+      expect(sheet).toMatchObject({
+        agent: { id: 'agent-sindi' },
+        app: 'homiio',
+        hostTools,
+        clientContext: 'Homiio — viewing listing 7',
+        onFeatureLocked,
+      });
+      // An agent greets with its own starters, not the app's suggestions for Alia.
+      expect(sheet?.welcomeSuggestions).toBeUndefined();
+    });
+
+    it('opens on Alia for an entry without an id, or no key at all', async () => {
+      world.canUsePrivateApi = true;
+      await mount();
+      await settle(() => ask.ask('alia'));
+      await settle(() => ask.ask());
+
+      expect(world.presented.map((p) => p.agent)).toEqual([undefined, undefined]);
+      expect(world.sheets.at(-1)?.welcomeSuggestions).toEqual([{ id: 's', text: 'Find a flat' }]);
+    });
+
+    it('signed in, mounts nothing until the first ask, so the chat arrives with it', async () => {
+      world.canUsePrivateApi = true;
+      await mount();
+      await settle();
+      expect(world.sheets).toEqual([]);
+
+      await settle(() => ask.ask());
+      expect(world.sheets.length).toBeGreaterThan(0);
+      expect(world.presented).toEqual([{ agent: undefined, turn: undefined }]);
+    });
+
+    it('refuses a key it was not given', async () => {
+      world.canUsePrivateApi = true;
+      await mount();
+      expect(() => ask.ask('nobody')).toThrow(/no agent "nobody"/);
+    });
+
+    it('picks a stored conversation up again in the sheet of its agent', async () => {
+      world.canUsePrivateApi = true;
+      await mount();
+      await settle(() => ask.resume('sindi', 'conv-7'));
+
+      expect(world.resumed).toEqual([{ agent: { id: 'agent-sindi' }, conversationId: 'conv-7' }]);
+      expect(world.presented).toEqual([]);
+    });
+
+    it('closes the sheet, through the hook and through the ref the code above it holds', async () => {
+      world.canUsePrivateApi = true;
+      await mount();
+      await settle(() => ask.ask('sindi'));
+      await settle(() => ask.dismiss());
+      await settle(() => providerRef.current?.dismiss());
+
+      expect(world.dismissed).toBe(2);
+    });
+  });
+
+  it('opens in Oxy’s resolved language and updates the mounted sheet on an account language change', async () => {
+    world.canUsePrivateApi = true;
+    world.currentLanguage = 'es-ES';
+    function Host() {
+      return (
+        <AliaAskProvider app="mention">
+          <Button />
+        </AliaAskProvider>
+      );
+    }
+    await act(async () => {
+      renderer = create(<Host />);
+    });
+    await settle(() => ask.ask());
+    expect(world.sheets.at(-1)?.labels).toMatchObject({ locale: 'es-ES' });
+    world.currentLanguage = 'en-GB';
+    await settle(() => renderer?.update(<Host />));
+    expect(world.sheets.at(-1)?.labels).toMatchObject({ locale: 'en-GB' });
+    expect(world.presented).toHaveLength(1);
+  });
+
+  it('keeps an explicit host language and custom labels', async () => {
+    world.canUsePrivateApi = true;
+    world.currentLanguage = 'es';
+    await act(async () => {
+      renderer = create(
+        <AliaAskProvider labels={{ locale: 'en', clear: 'Reset' }}>
+          <Button />
+        </AliaAskProvider>,
+      );
+    });
+    await settle(() => ask.ask());
+    expect(world.sheets.at(-1)?.labels).toMatchObject({ locale: 'en', clear: 'Reset' });
+  });
 });

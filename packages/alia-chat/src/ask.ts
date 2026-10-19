@@ -3,5 +3,9 @@
 // An app mounts the provider at its root from here rather than from the root entry, which
 // would bring the whole chat along with it.
 
-export { AliaAskProvider, useAskAgent } from './components/AliaAskProvider';
-export type { AliaAsk, AliaAskAgents, AliaAskProviderProps } from './components/AliaAskProvider';
+export { AliaAskProvider, useAskAgent } from './components/AliaAskProviderLazy';
+export type {
+  AliaAsk,
+  AliaAskAgents,
+  AliaAskProviderProps,
+} from './components/AliaAskProviderLazy';
