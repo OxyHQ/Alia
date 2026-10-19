@@ -20,9 +20,16 @@ vi.mock('react-native', async () => {
     View: host('View'),
     Text: host('Text'),
     Pressable: host('Pressable'),
-    StyleSheet: { create: <T,>(styles: T) => styles },
+    ScrollView: host('ScrollView'),
+    Platform: { OS: 'web', select: (o: Record<string, unknown>) => o.web ?? o.default },
+    StyleSheet: { create: <T,>(styles: T) => styles, flatten: (s: unknown) => s },
   };
 });
+
+/** The error-boundary entry also exports Bloom's panel boundary, whose scroll area loads reanimated. */
+vi.mock('react-native-reanimated', async () =>
+  (await import('@/shared/testing/native-module-stubs')).reanimatedModule(),
+);
 
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => key, locale: 'en' }),

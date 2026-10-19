@@ -57,13 +57,13 @@
   "author": "",
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
-    "@oxy.so/doctor": "1.1.0",
+    "@oxy.so/doctor": "1.1.1",
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@oxy.so/bloom": "12.0.0",
-    "@oxy.so/core": "5.1.0",
-    "@oxy.so/services": "11.14.0",
+    "@oxy.so/bloom": "13.0.0",
+    "@oxy.so/core": "6.0.0",
+    "@oxy.so/services": "11.16.0",
     "@tanstack/query-sync-storage-persister": "^5.102.8",
     "@tanstack/react-query": "^5.102.8",
     "@tanstack/react-query-persist-client": "^5.102.8",
@@ -92,10 +92,10 @@
     "expo-modules-jsi": "58.0.15",
     "react-native-safe-area-context": "5.10.1",
     "lightningcss": "1.30.1",
-    "@oxy.so/core": "5.1.0",
-    "@oxy.so/contracts": "4.24.0",
+    "@oxy.so/core": "6.0.0",
+    "@oxy.so/contracts": "5.0.0",
     "@oxy.so/protocol": "1.4.0",
-    "@oxy.so/services": "11.14.0",
+    "@oxy.so/services": "11.16.0",
     "@oxy.so/mcp": "1.3.0"
   }
 }
