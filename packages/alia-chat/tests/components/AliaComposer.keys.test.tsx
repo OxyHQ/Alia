@@ -143,8 +143,10 @@ vi.mock('react-native', async () => {
 vi.mock('react-native-reanimated', async () => {
   const ReactModule = await import('react');
   const { View } = await import('react-native');
+  const createAnimatedComponent = (Component: React.ComponentType) => Component;
   return {
-    default: { View },
+    // Bloom's scroll viewport wraps its ScrollView with the default export's factory.
+    default: { View, createAnimatedComponent },
     Easing: { bezier: () => () => 0, linear: () => 0 },
     /*
      * Stable across renders, via a ref, and that is not a detail.
@@ -166,7 +168,7 @@ vi.mock('react-native-reanimated', async () => {
     runOnJS: (fn: unknown) => fn,
     interpolate: () => 0,
     useAnimatedReaction: () => {},
-    createAnimatedComponent: (Component: React.ComponentType) => Component,
+    createAnimatedComponent,
     __esModule: true,
   };
 });

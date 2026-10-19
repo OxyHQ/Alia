@@ -56,6 +56,10 @@ vi.mock('react-native', async () => {
   };
 });
 
+/** The error-boundary entry also exports Bloom's panel boundary, whose scroll area loads reanimated. */
+vi.mock('react-native-reanimated', async () =>
+  (await import('../../support/native-module-stubs')).reanimatedModule(),
+);
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: () => {} }) }));
 vi.mock('@oxy.so/bloom/badge', () => ({ Badge: () => null }));
 vi.mock('@oxy.so/bloom/chart-cards', () => ({ LineChartCard: () => null }));
