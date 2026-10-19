@@ -3,6 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn<typeof fetch>(), create: vi.fn() }));
 vi.mock('@oxy.so/services/ui/client', () => ({
+  // The host's app assertion (ADR 0021): none here (`tests/support/app-assertion-host.ts`).
+  useAppAssertion: () => ({
+    getAppAssertion: async () => null,
+    getAppAssertionHeaders: async () => ({}),
+  }),
   useOxy: () => ({ oxyServices: { session: { accessToken: 'test-session' } } }),
 }));
 vi.mock('react-native-reanimated', () => ({

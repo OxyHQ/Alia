@@ -4,7 +4,14 @@ vi.mock('../../src/lib/agent-character', () => ({
   readAgentCharacter: (value: unknown) => ({ drawn: value ?? 'default' }),
 }));
 vi.mock('../../src/lib/alia-character', () => ({ ALIA_AVATAR: { preset: 'alia' } }));
-vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({}) }));
+vi.mock('@oxy.so/services/ui/client', () => ({
+  // The host's app assertion (ADR 0021): none here (`tests/support/app-assertion-host.ts`).
+  useAppAssertion: () => ({
+    getAppAssertion: async () => null,
+    getAppAssertionHeaders: async () => ({}),
+  }),
+  useOxy: () => ({}),
+}));
 
 const { ALIA_LEAD, consultedAgents, leadOf } = await import('../../src/lib/participants');
 const { leadToProfile, ANCHORS } = await import('../../src/lib/flights');

@@ -101,6 +101,11 @@ vi.mock('../../../src/lib/labels', () => ({
   useLabels: () => ({ t: (key: string) => key, locale: 'en' }),
 }));
 vi.mock('@oxy.so/services/ui/client', () => ({
+  // The host's app assertion (ADR 0021): none here (`tests/support/app-assertion-host.ts`).
+  useAppAssertion: () => ({
+    getAppAssertion: async () => null,
+    getAppAssertionHeaders: async () => ({}),
+  }),
   useOxy: () => ({ user: { id: 'me' }, isAuthenticated: true }),
 }));
 

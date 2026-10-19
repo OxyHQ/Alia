@@ -45,6 +45,11 @@ vi.mock('../../src/runtime/agents', async (importOriginal) => ({
 vi.mock('../../src/runtime/oxy-files', () => ({ useDocumentUpload: () => async () => 'file-1' }));
 vi.mock('@oxy.so/bloom/icons/RiFileTextLine', () => ({ RiFileTextLine: () => null }));
 vi.mock('@oxy.so/services/ui/client', () => ({
+  // The host's app assertion (ADR 0021): none here (`tests/support/app-assertion-host.ts`).
+  useAppAssertion: () => ({
+    getAppAssertion: async () => null,
+    getAppAssertionHeaders: async () => ({}),
+  }),
   useOxy: () => ({ user: { id: 'u1' }, isAuthenticated: true }),
 }));
 vi.mock('@oxy.so/core', () => ({ getAccountDisplayName: () => 'Nate' }));

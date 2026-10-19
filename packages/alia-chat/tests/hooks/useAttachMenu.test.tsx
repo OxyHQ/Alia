@@ -8,7 +8,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const world = vi.hoisted(() => ({ picked: 0 }));
 
-vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({}) }));
+vi.mock('@oxy.so/services/ui/client', () => ({
+  // The host's app assertion (ADR 0021): none here (`tests/support/app-assertion-host.ts`).
+  useAppAssertion: () => ({
+    getAppAssertion: async () => null,
+    getAppAssertionHeaders: async () => ({}),
+  }),
+  useOxy: () => ({}),
+}));
 vi.mock('@oxy.so/bloom/icons/RiImageLine', () => ({ RiImageLine: 'image-icon' }));
 vi.mock('@oxy.so/bloom/icons/RiFileTextLine', () => ({ RiFileTextLine: 'file-icon' }));
 vi.mock('../../src/hooks/useImagePicker', () => ({

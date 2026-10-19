@@ -7,7 +7,14 @@ const mocks = vi.hoisted(() => ({
   release: vi.fn(),
 }));
 
-vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => mocks.auth }));
+vi.mock('@oxy.so/services/ui/client', () => ({
+  // The host's app assertion (ADR 0021): none here (`tests/support/app-assertion-host.ts`).
+  useAppAssertion: () => ({
+    getAppAssertion: async () => null,
+    getAppAssertionHeaders: async () => ({}),
+  }),
+  useOxy: () => mocks.auth,
+}));
 vi.mock('../../src/lib/activity-socket', () => ({
   acquireActivitySocket: (...args: unknown[]) => {
     mocks.acquire(...args);

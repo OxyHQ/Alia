@@ -58,7 +58,14 @@ vi.mock('../../src/runtime/api', () => {
   };
   return { useAliaApi: () => stub };
 });
-vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({ isAuthenticated: true }) }));
+vi.mock('@oxy.so/services/ui/client', () => ({
+  // The host's app assertion (ADR 0021): none here (`tests/support/app-assertion-host.ts`).
+  useAppAssertion: () => ({
+    getAppAssertion: async () => null,
+    getAppAssertionHeaders: async () => ({}),
+  }),
+  useOxy: () => ({ isAuthenticated: true }),
+}));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { aliaQueryKeys as queryKeys } from '../../src/runtime/query-keys';

@@ -1,5 +1,30 @@
 # @alia.onl/sdk
 
+## 21.5.0
+
+### Changed
+
+- **The `@oxy.so/services` peer is now `>=12.1.0`.** That is the first services release whose
+  lean `@oxy.so/services/ui/client` exports `useAppAssertion`. Services 12.0.0 removed
+  `ProfileButton`'s `onNavigateManage`: delete that prop when you bump (TypeScript flags it).
+
+### Fixed
+
+- **No account screens at first paint.** `runtime/app-assertion.ts` imported `useAppAssertion`
+  from the full `@oxy.so/services/ui` barrel, which statically reaches every account screen.
+  Services also loads those screens behind its own `import()`, so on web Metro hoisted them into
+  `__common.js`, which loads at first paint. That happened in every app with the chat, including
+  `@alia.onl/sdk/ask/text`, because the conversation stream reads the assertion. The SDK now
+  imports `@oxy.so/services/ui/client`, and `check:entries` fails if any published entry imports
+  the services root or `/ui` barrel.
+
+  Measured on web, at first paint:
+
+  | | `__common.js` | Initial JS (gzip) |
+  |---|---|---|
+  | Syra (Expo SDK 58, `/ask`) | 865.8 → 72.8 KB raw (243.9 → 22.4 KB gzip) | 2141.5 → 1920.1 KB |
+  | Minimal repro | 279.5 → 48.5 KB gzip | 1111.9 → 881.0 KB |
+
 ## 21.4.0
 
 ### Added

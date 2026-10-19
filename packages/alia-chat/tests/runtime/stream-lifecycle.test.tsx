@@ -43,6 +43,11 @@ const stream = vi.hoisted(() => ({
 }));
 
 vi.mock('@oxy.so/services/ui/client', () => ({
+  // The host's app assertion (ADR 0021): none here (`tests/support/app-assertion-host.ts`).
+  useAppAssertion: () => ({
+    getAppAssertion: async () => null,
+    getAppAssertionHeaders: async () => ({}),
+  }),
   useOxy: () => ({
     user:
       typeof harness !== 'undefined' && 'user' in harness

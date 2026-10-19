@@ -51,6 +51,20 @@ const SERVICES_ROOT = '@oxy.so/services';
 const VOICE_LOOP = path.join(SRC, 'hooks', 'useVoiceRoom.ts');
 /** Below this, the walker itself is broken and a "pass" would be meaningless. */
 const MIN_MODULES_FROM_ROOT = 20;
+/** Every published entry (package.json `exports`), relative to `src/`. */
+const ALL_ENTRIES = [
+  'index.ts',
+  'ask.ts',
+  'ask-text.ts',
+  'avatar.ts',
+  'lib/content-utils.ts',
+  'csp.ts',
+  'runtime/model.ts',
+  'runtime/index.ts',
+  'text.ts',
+  'tools.ts',
+  'voice.ts',
+];
 
 const EXTENSIONS = ['.tsx', '.ts'];
 const PLATFORM_SUFFIXES = ['', '.native', '.web', '.ios', '.android'];
@@ -171,15 +185,41 @@ if (voice.hits.length === 0) {
   );
 }
 
-for (const entry of ['index.ts', 'voice.ts', 'runtime/index.ts', 'avatar.ts', 'ask.ts']) {
-  const { hits, importedBy } = walk(entry, SERVICES_ROOT, { exact: true });
-  if (hits.length > 0) {
-    failures.push(
-      `src/${entry} imports the ${SERVICES_ROOT} root barrel, which ships every sign-in ` +
-        `panel to the consumer. Import from ${SERVICES_ROOT}/ui/client instead.\n` +
-        hits.map((file) => `    ${chainTo(file, importedBy)}`).join('\n'),
-    );
+/**
+ * Neither the `@oxy.so/services` root nor its `/ui` barrel: both re-export every account screen
+ * (sign-in panels, the Commons QR encoder…). Metro does not tree-shake, so one hook from either
+ * ships them all; and since services also loads those screens behind its own `import()`, on web
+ * Metro hoists them into `__common.js`, loaded at first paint (Syra: +128.6 KB gzip). Every hook
+ * the SDK needs is in `@oxy.so/services/ui/client`.
+ */
+const SERVICES_BARRELS = [SERVICES_ROOT, `${SERVICES_ROOT}/ui`];
+const exported = Object.values(
+  JSON.parse(fs.readFileSync(path.join(SRC, '..', 'package.json'), 'utf8')).exports,
+)
+  .filter((target) => target.startsWith('./src/'))
+  .map((target) => target.slice('./src/'.length));
+for (const entry of exported) {
+  if (!ALL_ENTRIES.includes(entry)) {
+    failures.push(`package.json exports src/${entry}, which ALL_ENTRIES does not check — add it.`);
   }
+}
+for (const entry of ALL_ENTRIES) {
+  for (const barrel of SERVICES_BARRELS) {
+    const { hits, importedBy } = walk(entry, barrel, { exact: true });
+    if (hits.length > 0) {
+      failures.push(
+        `src/${entry} imports the ${barrel} barrel, which ships every account screen to the ` +
+          `consumer (and, on web, into __common.js). Import from ${SERVICES_ROOT}/ui/client instead.\n` +
+          hits.map((file) => `    ${chainTo(file, importedBy)}`).join('\n'),
+      );
+    }
+  }
+}
+// Positive control: the walker sees the lean entry, so a pass above is not a blind walker.
+if (walk('index.ts', `${SERVICES_ROOT}/ui/client`, { exact: true }).hits.length === 0) {
+  failures.push(
+    `src/index.ts no longer imports ${SERVICES_ROOT}/ui/client — the services barrel check proves nothing.`,
+  );
 }
 
 // `@alia.onl/sdk/runtime` is the data layer alone: nothing it reaches draws, and nothing in it

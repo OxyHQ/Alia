@@ -68,6 +68,11 @@ vi.mock('../../src/runtime/conversations', () => ({
   useClearConversation: () => ({ mutateAsync: vi.fn() }),
 }));
 vi.mock('@oxy.so/services/ui/client', () => ({
+  // The host's app assertion (ADR 0021): none here (`tests/support/app-assertion-host.ts`).
+  useAppAssertion: () => ({
+    getAppAssertion: async () => null,
+    getAppAssertionHeaders: async () => ({}),
+  }),
   useOxy: () => ({ user: null, isAuthenticated: true }),
 }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));

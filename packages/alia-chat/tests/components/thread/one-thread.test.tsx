@@ -118,6 +118,11 @@ vi.mock('../../../src/runtime/attachment-utils', () => ({
 }));
 vi.mock('../../../src/runtime/api', () => ({ useAliaApi: () => ({ patch: async () => ({}) }) }));
 vi.mock('@oxy.so/services/ui/client', () => ({
+  // The host's app assertion (ADR 0021): none here (`tests/support/app-assertion-host.ts`).
+  useAppAssertion: () => ({
+    getAppAssertion: async () => null,
+    getAppAssertionHeaders: async () => ({}),
+  }),
   useOxy: () => ({ user: { id: 'me' }, isAuthenticated: true }),
 }));
 vi.mock('@oxy.so/core', () => ({ getAccountDisplayName: () => 'Nate' }));

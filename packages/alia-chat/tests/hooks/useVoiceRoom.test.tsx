@@ -10,6 +10,11 @@ import { FakeEngine, FakeSocket } from '../support/fake-voice';
 const fx = vi.hoisted(() => ({ token: 'session-token' as string | null }));
 
 vi.mock('@oxy.so/services/ui/client', () => ({
+  // The host's app assertion (ADR 0021): none here (`tests/support/app-assertion-host.ts`).
+  useAppAssertion: () => ({
+    getAppAssertion: async () => null,
+    getAppAssertionHeaders: async () => ({}),
+  }),
   useOxy: () => ({
     oxyServices: {
       session: {
