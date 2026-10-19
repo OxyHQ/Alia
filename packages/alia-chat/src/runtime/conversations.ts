@@ -30,8 +30,11 @@ const FIVE_MINUTES = 1000 * 60 * 5;
 
 /** A stable signal for a URL whose server-side conversation no longer exists. */
 export class ConversationNotFoundError extends Error {
-  constructor(readonly conversationId: string) {
+  readonly conversationId: string;
+
+  constructor(conversationId: string) {
     super('Conversation not found');
+    this.conversationId = conversationId;
     this.name = 'ConversationNotFoundError';
   }
 }
@@ -54,7 +57,11 @@ function messageText(message: Message | undefined): string {
  * it holds nothing, and the 401 is the caller's to handle.
  */
 class OfflineConversations {
-  constructor(private readonly store: OfflineConversationStore | null) {}
+  private readonly store: OfflineConversationStore | null;
+
+  constructor(store: OfflineConversationStore | null) {
+    this.store = store;
+  }
 
   get available(): boolean {
     return this.store !== null;

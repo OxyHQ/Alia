@@ -37,7 +37,10 @@ vi.mock('react-native', () => ({
 
 vi.mock('expo-file-system', () => ({
   File: class {
-    constructor(private readonly uri: string) {}
+    private readonly uri: string;
+    constructor(uri: string) {
+      this.uri = uri;
+    }
     async base64() {
       if (this.uri.includes('unreadable')) throw new Error('nope');
       return 'QUJD';

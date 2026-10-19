@@ -85,7 +85,10 @@ export function reactNativeModule(platform: { OS: string }) {
     Animated: {
       View: host('View'),
       Value: class {
-        constructor(public value: number) {}
+        value: number;
+        constructor(value: number) {
+          this.value = value;
+        }
         setValue() {}
         interpolate() {
           return 0;

@@ -14,7 +14,10 @@ vi.mock('react-native', () => ({
 }));
 vi.mock('expo-file-system', () => ({
   File: class {
-    constructor(private readonly uri: string) {}
+    private readonly uri: string;
+    constructor(uri: string) {
+      this.uri = uri;
+    }
     base64() {
       return env.base64(this.uri);
     }
