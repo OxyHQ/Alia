@@ -277,58 +277,114 @@ for (const heavy of [
 }
 
 /**
- * The ask leaf (`@alia.onl/sdk/ask`) is what an app mounts at its root: the provider and its hook.
- * The sheet it opens is loaded with the first `ask`, through ONE lazy `import()` of
- * `components/AliaAskSheet.tsx`, so nothing of the chat is loaded WITH the entry.
+ * The ask leaves (`@alia.onl/sdk/ask`, and `@alia.onl/sdk/ask/text` without the call) are what an
+ * app mounts at its root: the provider and its hook. The sheet each opens is loaded with the first
+ * `ask`, through ONE lazy `import()`, so nothing of the chat is loaded WITH the entry.
  */
 const ASK_SHEET = path.join(SRC, 'components', 'AliaAskSheet.tsx');
-const askStatic = walk('ask.ts', RETIRED_MODULES[0], { staticOnly: true });
-if (askStatic.visited.size < 2) {
-  failures.push(
-    `Only ${askStatic.visited.size} modules reachable from src/ask.ts — the walker is broken or the entry was gutted.`,
-  );
-}
-for (const heavy of [
-  ASK_SHEET,
-  path.join(SRC, 'components', 'AliaChatContent.tsx'),
-  path.join(SRC, 'components', 'AliaChatSheet.tsx'),
-  path.join(SRC, 'components', 'Markdown.tsx'),
-  path.join(SRC, 'hooks', 'useVoiceRoom.ts'),
-]) {
-  if (askStatic.visited.has(heavy)) {
+const ASK_ENTRIES = [
+  {
+    entry: 'ask.ts',
+    boundary: {
+      file: path.join(SRC, 'components', 'AliaAskProviderLazy.tsx'),
+      specifier: './AliaAskSheetWithVoice',
+    },
+  },
+  {
+    entry: 'ask-text.ts',
+    boundary: {
+      file: path.join(SRC, 'components', 'AliaAskProviderText.tsx'),
+      specifier: './AliaAskSheet',
+    },
+  },
+];
+for (const { entry } of ASK_ENTRIES) {
+  const askStatic = walk(entry, RETIRED_MODULES[0], { staticOnly: true });
+  if (askStatic.visited.size < 2) {
     failures.push(
-      `src/ask.ts loads ${path.relative(SRC, heavy)} with the entry: ` +
-        `${chainTo(heavy, askStatic.importedBy)}. The sheet must arrive with the first \`ask\`.`,
+      `Only ${askStatic.visited.size} modules reachable from src/${entry} — the walker is broken or the entry was gutted.`,
+    );
+  }
+  for (const heavy of [
+    ASK_SHEET,
+    path.join(SRC, 'components', 'AliaAskSheetWithVoice.tsx'),
+    path.join(SRC, 'components', 'AliaChatContent.tsx'),
+    path.join(SRC, 'components', 'AliaChatSheet.tsx'),
+    path.join(SRC, 'components', 'Markdown.tsx'),
+    path.join(SRC, 'hooks', 'useVoiceRoom.ts'),
+  ]) {
+    if (askStatic.visited.has(heavy)) {
+      failures.push(
+        `src/${entry} loads ${path.relative(SRC, heavy)} with the entry: ` +
+          `${chainTo(heavy, askStatic.importedBy)}. The sheet must arrive with the first \`ask\`.`,
+      );
+    }
+  }
+  // Positive control: through its lazy import, the ask entry does reach the sheet and the chat.
+  const askLazy = walk(entry, RETIRED_MODULES[0]);
+  if (
+    !askLazy.visited.has(ASK_SHEET) ||
+    !askLazy.visited.has(path.join(SRC, 'components', 'AliaChatSheet.tsx'))
+  ) {
+    failures.push(
+      `src/${entry} no longer reaches components/AliaAskSheet.tsx and the chat sheet through its ` +
+        'lazy import — the sheet was removed or the walker stopped resolving.',
     );
   }
 }
-// Positive control: through its lazy import, the ask entry does reach the sheet and the chat.
-const askLazy = walk('ask.ts', RETIRED_MODULES[0]);
-if (
-  !askLazy.visited.has(ASK_SHEET) ||
-  !askLazy.visited.has(path.join(SRC, 'components', 'AliaChatSheet.tsx'))
-) {
-  failures.push(
-    'src/ask.ts no longer reaches components/AliaAskSheet.tsx and the chat sheet through its lazy ' +
-      'import — the sheet was removed or the walker stopped resolving.',
-  );
+
+/**
+ * The text-only entries (`@alia.onl/sdk/text`, `@alia.onl/sdk/ask/text`) never reach the voice
+ * call — not even behind a lazy import: its socket, protocol and audio engine are not in a
+ * text-only app's bundle. `AliaChatContent` draws the call through `VoiceCallContext`, which only
+ * `withVoiceCall` fills. Their voice counterparts (the root, `@alia.onl/sdk/ask`) do reach it.
+ */
+const CALL_MODULES = [
+  path.join(SRC, 'components', 'voice', 'withVoiceCall.tsx'),
+  path.join(SRC, 'components', 'voice', 'AliaVoiceCall.tsx'),
+  path.join(SRC, 'components', 'voice', 'AliaVoiceCall.web.tsx'),
+  path.join(SRC, 'components', 'voice', 'VoiceSession.tsx'),
+  VOICE_LOOP,
+];
+for (const entry of ['text.ts', 'ask-text.ts']) {
+  const text = walk(entry, AUDIO_ENGINE);
+  if (text.visited.size < MIN_MODULES_FROM_ROOT) {
+    failures.push(
+      `Only ${text.visited.size} modules reachable from src/${entry} — the walker is broken or the entry was gutted.`,
+    );
+  }
+  const reached = CALL_MODULES.filter((file) => text.visited.has(file));
+  if (reached.length > 0 || text.hits.length > 0) {
+    failures.push(
+      `src/${entry} is text-only but reaches the voice call. Draw the call through ` +
+        'VoiceCallContext, never import it from the chat.\n' +
+        [...reached, ...text.hits]
+          .map((file) => `    ${chainTo(file, text.importedBy)}`)
+          .join('\n'),
+    );
+  }
+}
+for (const entry of ['index.ts', 'ask.ts']) {
+  const withCall = walk(entry, AUDIO_ENGINE);
+  if (!withCall.visited.has(path.join(SRC, 'components', 'voice', 'VoiceSession.tsx'))) {
+    failures.push(
+      `src/${entry} no longer reaches components/voice/VoiceSession.tsx: its chat lost the voice ` +
+        'call, or the walker stopped resolving — and the text-only check proves nothing.',
+    );
+  }
 }
 
 /**
- * Web: no async chunk boundary inside the SDK. The leaf entries and the root draw none; the ask
- * entry draws exactly its one (`AliaAskProviderLazy` -> `AliaAskSheet`), and nothing behind it
- * draws another.
+ * Web: no async chunk boundary inside the SDK. The leaf entries and the root draw none; each ask
+ * entry draws exactly its one (provider -> sheet), and nothing behind it draws another.
  */
-const ASK_BOUNDARY = {
-  file: path.join(SRC, 'components', 'AliaAskProviderLazy.tsx'),
-  specifier: './AliaAskSheet',
-};
 const describeSites = (sites, importedBy) =>
   sites
     .map(({ file, specifier }) => `    import('${specifier}') in ${chainTo(file, importedBy)}`)
     .join('\n');
 for (const entry of [
   'index.ts',
+  'text.ts',
   'voice.ts',
   'runtime/index.ts',
   'runtime/model.ts',
@@ -347,23 +403,25 @@ for (const entry of [
     );
   }
 }
-const askWeb = walk('ask.ts', RETIRED_MODULES[0], { platform: 'web' });
-const askExtra = askWeb.dynamic.filter(
-  ({ file, specifier }) => file !== ASK_BOUNDARY.file || specifier !== ASK_BOUNDARY.specifier,
-);
-if (askExtra.length > 0) {
-  failures.push(
-    'On web, src/ask.ts reaches a lazy import() besides its one boundary to the sheet. Behind ' +
-      'that boundary everything must import statically, or Metro splits the sheet and hoists ' +
-      'what the chunks share into __common.js.\n' +
-      describeSites(askExtra, askWeb.importedBy),
+for (const { entry, boundary } of ASK_ENTRIES) {
+  const askWeb = walk(entry, RETIRED_MODULES[0], { platform: 'web' });
+  const askExtra = askWeb.dynamic.filter(
+    ({ file, specifier }) => file !== boundary.file || specifier !== boundary.specifier,
   );
-}
-if (askWeb.dynamic.length === askExtra.length) {
-  failures.push(
-    'On web, src/ask.ts no longer loads components/AliaAskSheet.tsx lazily, so the chat is in the ' +
-      'entry bundle of every app that mounts the ask provider — or the walker stopped resolving.',
-  );
+  if (askExtra.length > 0) {
+    failures.push(
+      `On web, src/${entry} reaches a lazy import() besides its one boundary to the sheet. Behind ` +
+        'that boundary everything must import statically, or Metro splits the sheet and hoists ' +
+        'what the chunks share into __common.js.\n' +
+        describeSites(askExtra, askWeb.importedBy),
+    );
+  }
+  if (askWeb.dynamic.length === askExtra.length) {
+    failures.push(
+      `On web, src/${entry} no longer loads its sheet lazily, so the chat is in the entry bundle ` +
+        'of every app that mounts the ask provider — or the walker stopped resolving.',
+    );
+  }
 }
 // Positive control: natively, the root does reach a lazy import() (the call's audio engine), so
 // the web walk passes because of the `.web` forks, not because the walker misses `import()`.
@@ -383,6 +441,6 @@ if (failures.length > 0) {
 console.log(
   `Entry check OK — the voice call and ${AUDIO_ENGINE} are reachable from src/index.ts ` +
     `(${root.visited.size} modules walked) and src/voice.ts; ` +
-    `${RETIRED_MODULES.join(' and ')} are reachable from neither; on web the SDK's only async ` +
-    "chunk boundary is the ask entry's sheet.",
+    `${RETIRED_MODULES.join(' and ')} are reachable from neither; src/text.ts and src/ask-text.ts ` +
+    "never reach the call; on web the SDK's only async chunk boundaries are the ask entries' sheets.",
 );

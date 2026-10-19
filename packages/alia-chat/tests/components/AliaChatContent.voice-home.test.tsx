@@ -160,8 +160,12 @@ vi.mock('../../src/runtime/conversations', () => ({
   useClearConversation: () => ({ mutateAsync: async () => {} }),
 }));
 
-import { AliaChatContent } from '../../src/components/AliaChatContent';
+import { AliaChatContent as TextChatContent } from '../../src/components/AliaChatContent';
+import { withVoiceCall } from '../../src/components/voice/withVoiceCall';
 import { useVoiceCallRequests } from '../../src/lib/voice-call-request';
+
+/** The chat as the root entry exports it: with the (mocked) call handed down. */
+const AliaChatContent = withVoiceCall(TextChatContent, 'AliaChatContent');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 

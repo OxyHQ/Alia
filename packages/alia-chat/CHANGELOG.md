@@ -1,5 +1,26 @@
 # @alia.onl/sdk
 
+## 21.4.0
+
+### Added
+
+- **`@alia.onl/sdk/text` and `@alia.onl/sdk/ask/text`: the chat without bundling the voice
+  call.** `voice={false}` hid the call, but its code still shipped: since 21.3.2 the web build
+  inlines the call into the chat's chunk, so a text-only app paid for it. The new entries export
+  the same `AliaChatSheet`, `AliaChatScreen` and `AliaChatContent`, and `AliaAskProvider` /
+  `useAskAgent` with a lazily loaded sheet. None of them reaches the call's modules (its socket,
+  protocol and audio engine), and they never offer a call. Read-aloud and dictation stay.
+  CrowdSource's reviewer, which switched `AliaChatSheet` to `@alia.onl/sdk/text`: lazy sheet
+  chunk 1,455,831 → 1,357,287 bytes (413.8 → 374.2 KB gzip), `__common.js` 3,978,158 →
+  3,962,370 bytes, no new chunk. The README has a table of which entry to import.
+
+### Changed
+
+- `AliaChatContent` no longer imports the call. It draws whatever call `VoiceCallContext` hands it,
+  and the root entry and `@alia.onl/sdk/ask` export their chat through `withVoiceCall`, so those
+  two behave as before. `check:entries` checks that the text entries never reach the call, on any
+  platform, and draw no async boundary on web other than the ask sheet's.
+
 ## 21.3.2
 
 ### Fixed

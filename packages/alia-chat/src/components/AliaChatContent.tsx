@@ -7,8 +7,9 @@
  * (`useChatComposer`, `useChatVoice`, `useThreadView`), and this, which draws it — the thread
  * (`AliaThread`) and the agent's history behind it, the composer with its levels, suggestions and
  * questions, and the voice call: the button that opens it, the bar that replaces the composer, the
- * notices and the transcript in the thread. The call loads on the first call, so nothing here
- * reaches its audio engine at module-evaluation time.
+ * notices and the transcript in the thread. The call itself is not imported here: the entry that
+ * bundles it hands it down (`VoiceCallContext`, `withVoiceCall`), so the text-only entries
+ * (`@alia.onl/sdk/text`, `@alia.onl/sdk/ask/text`) never reach its modules.
  *
  * What a host brings is data and places: the conversation to show, the chrome around it
  * (`chrome`), its rows in the add menu, its words (`labels`), where the thought panel and a
@@ -30,7 +31,15 @@ import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
 import { useQueryClient } from '@tanstack/react-query';
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import { useAmbientWave } from '../hooks/useAmbientWave';
@@ -66,7 +75,7 @@ import { AmbientField } from './AmbientField';
 import { AliaThread } from './thread/AliaThread';
 import { ThreadSearch } from './thread/ThreadSearch';
 import { VoiceModeIcon } from './VoiceModeIcon';
-import { AliaVoiceCall } from './voice/AliaVoiceCall';
+import { VoiceCallContext } from './voice/VoiceCallContext';
 
 /** The agent a chat is opened on: its lead instead of Alia. */
 export interface AliaChatAgentRef {
@@ -227,7 +236,8 @@ export interface AliaChatContentProps {
    */
   renderUsageLimit?: (limit: { error: UsageLimitError; dismiss: () => void }) => ReactNode;
   /**
-   * The chat's voice call. On by default; `false` makes the chat text-only. An object brings
+   * The chat's voice call. On by default where the call is bundled (the root entry and
+   * `@alia.onl/sdk/ask`); the text-only entries have none. `false` makes the chat text-only. An object brings
    * what only the host knows: the gate before a call (`canStartVoice`, `onVoiceBlocked`), what
    * to refresh when one ends (`onCallEnded`), where its notices go (`onNotice`), the sounds it
    * plays. The call always lives in the chat's conversation, made when it starts if the chat has
@@ -405,8 +415,10 @@ function AliaConversationView({
     onSuggestionPicked,
     presentedProgress,
   });
+  // Without a call handed down (a text-only entry), the chat is text-only whatever `voice` says.
+  const VoiceCall = useContext(VoiceCallContext);
   const voice = useChatVoice({
-    options: voiceOptions,
+    options: VoiceCall === null ? false : voiceOptions,
     conversationId,
     agentId,
     isFocused,
@@ -600,8 +612,8 @@ function AliaConversationView({
 
   const composerNode = (
     <>
-      {voice.enabled && voice.isActive ? (
-        <AliaVoiceCall {...voice.launcher.sessionProps} />
+      {VoiceCall !== null && voice.enabled && voice.isActive ? (
+        <VoiceCall {...voice.launcher.sessionProps} />
       ) : (
         <AliaComposer
           // A different account is a different composer: reads in flight for the last one are

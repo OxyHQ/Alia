@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * One sheet an app mounts once and opens on any agent: signed out, `ask` is Oxy's sign-in; signed
  * in, it opens the sheet on the agent asked for, with the app's configuration, and the turn.
  *
- * Twice: the root entry's provider imports its sheet statically, the ask entry's loads it lazily;
- * both answer the same `useAskAgent`.
+ * Three times: the root entry's provider imports its sheet statically, the ask entry's and the
+ * text-only ask entry's load it lazily; all answer the same `useAskAgent`.
  */
 
 const world = vi.hoisted(() => ({
@@ -45,6 +45,7 @@ import {
   useAskAgent,
 } from '../../src/components/AliaAskProvider';
 import { AliaAskProvider as LazyAskProvider } from '../../src/components/AliaAskProviderLazy';
+import { AliaAskProvider as TextAskProvider } from '../../src/components/AliaAskProviderText';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -66,6 +67,7 @@ function Button() {
 describe.each([
   ['root entry (static sheet)', RootAskProvider],
   ['ask entry (lazy sheet)', LazyAskProvider],
+  ['ask/text entry (lazy sheet, no call)', TextAskProvider],
 ])('AliaAskProvider of the %s', (_entry, AliaAskProvider) => {
   const hostTools = {
     definitions: [],

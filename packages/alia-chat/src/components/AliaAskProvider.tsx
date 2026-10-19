@@ -10,7 +10,7 @@
  */
 
 import { createAskProvider } from './AliaAskCore';
-import { AliaAskSheet } from './AliaAskSheet';
+import { AliaAskSheet } from './AliaAskSheetWithVoice';
 
 export type { AliaAsk, AliaAskAgents, AliaAskProviderProps } from './AliaAskCore';
 export { useAskAgent } from './AliaAskCore';
