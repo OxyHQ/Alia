@@ -40,8 +40,10 @@ vi.mock('../../src/runtime/use-conversation-stream', () => ({
 }));
 vi.mock('../../src/runtime/conversations', () => {
   class ConversationNotFoundError extends Error {
-    constructor(readonly conversationId: string) {
+    readonly conversationId: string;
+    constructor(conversationId: string) {
       super('Conversation not found');
+      this.conversationId = conversationId;
     }
   }
   return {

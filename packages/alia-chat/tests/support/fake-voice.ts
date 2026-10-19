@@ -24,7 +24,11 @@ export class FakeSocket implements VoiceSocket {
     this.readyState = 3;
   });
 
-  constructor(readonly url: string) {}
+  readonly url: string;
+
+  constructor(url: string) {
+    this.url = url;
+  }
 
   send(data: string | ArrayBufferLike | ArrayBufferView): void {
     if (typeof data === 'string') this.sent.push(data);

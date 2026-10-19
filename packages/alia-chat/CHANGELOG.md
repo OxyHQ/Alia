@@ -14,6 +14,12 @@
   statically on every platform (the root already holds the chat); `@alia.onl/sdk/ask` keeps its
   one lazy boundary. CrowdSource's reviewer: first-paint JS 1.57 MiB gzip → 1.23 MiB, largest
   file 5.05 MiB → 3.79 MiB, its lazy Alia chunk 29 KiB → 404 KiB gzip. `check:entries` holds it.
+- **The source compiles under `erasableSyntaxOnly`.** The SDK ships TypeScript source, and a
+  consumer that compiles it with `erasableSyntaxOnly` (OxyHQ/website, `tsc -b`) failed with TS1294
+  on two constructor parameter properties in `runtime/conversations.ts`
+  (`ConversationNotFoundError.conversationId`, the offline store). They are now declared fields
+  assigned in the constructor, and the SDK's own `tsconfig.json` sets `erasableSyntaxOnly`, so
+  `typecheck` (CI and `prepublishOnly`) refuses parameter properties, enums and namespaces.
 
 ## 21.3.1
 
