@@ -3,7 +3,7 @@
 // Reusable chat UI, voice, and streaming components for Oxy apps
 
 // ── Main components ──
-export { AliaChatContent } from './components/AliaChatContent';
+export { AliaChatContent } from './components/AliaChatWithVoice';
 export type {
   AliaChatAgentRef,
   AliaChatChrome,
@@ -25,11 +25,11 @@ export { AliaSharedConversation } from './components/AliaSharedConversation';
 export type { AliaSharedConversationProps } from './components/AliaSharedConversation';
 export type { AliaAddMenu } from './lib/add-menu';
 export type { AliaVoiceOptions } from './hooks/useChatVoice';
-export { AliaChatSheet } from './components/AliaChatSheet';
+export { AliaChatSheet } from './components/AliaChatWithVoice';
 export type { AliaChatSheetProps, AliaChatSheetRef } from './components/AliaChatSheet';
 export { AliaRecentConversations } from './components/AliaRecentConversations';
 export type { AliaTurn } from './hooks/useChatComposer';
-export { AliaChatScreen } from './components/AliaChatScreen';
+export { AliaChatScreen } from './components/AliaChatWithVoice';
 export type { AliaChatScreenProps } from './components/AliaChatScreen';
 
 // ── Chat UI components ──

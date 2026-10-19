@@ -182,10 +182,14 @@ vi.mock('../../src/runtime/attachment-utils', () => ({
   buildMessageContent: async (text: string) => ({ content: text, dropped: [] }),
 }));
 
-import { AliaChatContent } from '../../src/components/AliaChatContent';
+import { AliaChatContent as TextChatContent } from '../../src/components/AliaChatContent';
+import { withVoiceCall } from '../../src/components/voice/withVoiceCall';
 import { useComposerDraftStore } from '../../src/runtime/composer-draft-store';
 import { UsageLimitError } from '../../src/runtime/usage-limit-error';
 import { useVoiceCallRequests } from '../../src/lib/voice-call-request';
+
+/** The chat as the root entry exports it: with the (mocked) call handed down. */
+const AliaChatContent = withVoiceCall(TextChatContent, 'AliaChatContent');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -254,6 +258,19 @@ describe('a call replaces dictation', () => {
   it('is not offered where the host made the chat text-only', () => {
     mount({ voice: false });
     expect(composer().emptyAction).toBeUndefined();
+  });
+
+  it('is not offered by the text-only entry, which has no call to draw, whatever `voice` says', () => {
+    act(() => {
+      renderer = TestRenderer.create(
+        <QueryClientProvider client={new QueryClient()}>
+          <TextChatContent conversationId="c1" voice={{}} />
+        </QueryClientProvider>,
+      );
+    });
+    expect(world.composer.mounts).toBe(1);
+    expect(composer().emptyAction).toBeUndefined();
+    expect(world.startVoice).toBeNull();
   });
 });
 

@@ -143,6 +143,26 @@ The sheet, the screen and the Alia app are three frames around ONE conversation 
 stop, retry, edit and clear conversations through the same hooks, and a conversation started in
 one is the same conversation in the others.
 
+### Which entry to import
+
+| You want | Import from | Bundles the voice call |
+|---|---|---|
+| The chat with the call (`AliaChatSheet`, `AliaChatScreen`, `AliaChatContent`) | `@alia.onl/sdk` | yes |
+| The same chat, text only | `@alia.onl/sdk/text` | no |
+| One "Ask" sheet at the app's root, loaded with the first `ask` | `@alia.onl/sdk/ask` | yes, in the sheet's chunk |
+| The same, text only | `@alia.onl/sdk/ask/text` | no |
+| Data only: conversations, the stream, the model | `@alia.onl/sdk/runtime`, `@alia.onl/sdk/model` | no |
+| Her face on a button | `@alia.onl/sdk/avatar` | no |
+
+`voice={false}` hides the call, but the code still ships: the root entry and `@alia.onl/sdk/ask`
+bundle the call (its socket, protocol and audio engine) because their chat can open one. A
+text-only app imports from `@alia.onl/sdk/text` or `@alia.onl/sdk/ask/text`. Their chat never
+reaches those modules and never offers a call, whatever `voice` says. Read-aloud and dictation
+are still there, because they belong to the thread and the composer. Types can still come from
+`@alia.onl/sdk`, since type imports are erased. A value imported from the root brings the call
+along with it. In CrowdSource's reviewer, `@alia.onl/sdk/text` made its lazy sheet chunk 98 KB
+smaller (raw; 39 KB gzip).
+
 ## Any agent, from any app
 
 Every agent — Alia included — is the same agent (ADR 0020), and any Oxy app opens any agent the
@@ -181,7 +201,8 @@ stays out of the app's entry bundle. The root entry exports the same two, with t
 two async chunks share into `__common.js`, which loads at first paint. The SDK draws no async chunk
 boundary of its own on web (the call, sounds and pickers import statically there), except the one
 of `@alia.onl/sdk/ask`. So either mount the provider from `@alia.onl/sdk/ask`, or lazy-import your
-own module that imports the root entry — not both, or the chat they share lands in `__common.js`.
+own module that imports the root entry (or `@alia.onl/sdk/text`). Don't do both, or the chat they
+share lands in `__common.js`. The text-only entries draw no extra boundary either.
 
 The sheet offers the person's latest conversations with its lead under the greeting
 (`recentConversations={false}` turns it off). The code that configures the sheet sits above it, so

@@ -4,15 +4,15 @@
  * Signed in, the sheet's module is fetched in the background so the first `ask` does not wait on
  * the network.
  *
- * This `import()` is the ONE async boundary the SDK draws, and only for this entry: everything
- * behind it (`AliaAskSheet` and the chat) imports statically on web, so Metro emits one chunk for
+ * This `import()` is the ONE async boundary the SDK draws, and only for this entry (and
+ * `@alia.onl/sdk/ask/text`): everything behind it (`AliaAskSheetWithVoice` and the chat) imports statically on web, so Metro emits one chunk for
  * the sheet and hoists nothing of it into `__common.js` (`scripts/check-entry-isolation.mjs`).
  */
 
 import { lazy, Suspense } from 'react';
 import { type AskSheetComponent, createAskProvider } from './AliaAskCore';
 
-const loadSheet = () => import('./AliaAskSheet');
+const loadSheet = () => import('./AliaAskSheetWithVoice');
 const LazyAskSheet = lazy(() => loadSheet().then((module) => ({ default: module.AliaAskSheet })));
 
 const SuspendedAskSheet: AskSheetComponent = (props) => (
