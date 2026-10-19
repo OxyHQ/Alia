@@ -61,7 +61,7 @@ vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ getQueryData: vi.fn(), setQueryData: vi.fn(), prefetchQuery: vi.fn() }),
 }));
 
-vi.mock('@oxy.so/services', () => ({
+vi.mock('@oxy.so/services/ui/client', () => ({
   ProfileButton: () => null,
   useAuth: () => ({ signIn: vi.fn() }),
   useOxy: () => ({ isAuthenticated: true, user: { id: 'user-a' }, showBottomSheet: vi.fn() }),

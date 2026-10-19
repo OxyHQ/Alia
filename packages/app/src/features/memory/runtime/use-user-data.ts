@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { useUserDataStore } from '@/features/memory/runtime/user-data-store';
 import apiClient from '@/shared/api/client';
 import { currentAccountEpoch, isCurrentAccountEpoch } from '@/shared/state/account-epoch';

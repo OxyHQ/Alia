@@ -77,7 +77,7 @@ vi.mock('expo-router', () => ({
   useRouter: () => ({ back: vi.fn(), push: vi.fn() }),
 }));
 
-vi.mock('@oxy.so/services', () => ({
+vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({
     isAuthenticated: true,
     oxyServices: {

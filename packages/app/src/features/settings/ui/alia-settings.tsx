@@ -1,7 +1,7 @@
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useDialogControl } from '@oxy.so/bloom/dialog';
 import { SettingsModal, type SettingsModalPage } from '@oxy.so/bloom/settings-modal';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AccountsSection } from './accounts-section';
 import { AgentMemorySection } from './agent-memory-section';

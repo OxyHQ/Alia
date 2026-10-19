@@ -3,7 +3,7 @@ import { useColorScheme } from '@/shared/platform/useColorScheme';
 import { AliaAvatar, AmbientField, PARALLAX_DURATION, PARALLAX_EASE } from '@alia.onl/sdk';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
-import { useAuth } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { useScreenOnShow } from '@/shared/platform/use-screen-on-show';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Platform, View, type LayoutChangeEvent, type PointerEvent } from 'react-native';

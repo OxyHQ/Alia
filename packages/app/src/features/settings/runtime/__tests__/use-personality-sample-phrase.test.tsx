@@ -34,7 +34,7 @@ vi.mock('expo/fetch', () => ({
   }),
 }));
 
-vi.mock('@oxy.so/services', () => ({
+vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({ oxyServices: { session: { accessToken: 'test-token' } } }),
 }));
 

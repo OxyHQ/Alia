@@ -105,7 +105,7 @@ vi.mock('expo-router', () => ({
   useRouter: () => ({ replace: mocks.replace }),
 }));
 
-vi.mock('@oxy.so/services', () => ({
+vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({
     createAccount: mocks.createAccount,
     oxyServices: { auth: { checkUsername: mocks.checkUsernameAvailability } },

@@ -33,7 +33,7 @@ import { RiTerminalBoxLine } from '@oxy.so/bloom/icons/RiTerminalBoxLine';
 import { Loading } from '@oxy.so/bloom/loading';
 import { alert, confirm, type AlertButton } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { usePathname } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { lazy, Suspense, useCallback, useEffect, useMemo } from 'react';

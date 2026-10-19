@@ -2,7 +2,7 @@ import apiClient, { getSocketToken } from '@/shared/api/client';
 import config from '@/shared/platform/config';
 import { errorMessage as getErrorMessage } from '@/shared/api/error-utils';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { useAuth, useOxy } from '@oxy.so/services';
+import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useCallback, useEffect, useState } from 'react';
 import { io as socketIO } from 'socket.io-client';
 

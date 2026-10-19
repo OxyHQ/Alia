@@ -28,7 +28,7 @@ import { Text } from '@oxy.so/bloom/typography';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
-import { useAuth, useOxy } from '@oxy.so/services';
+import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import * as Linking from 'expo-linking';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';

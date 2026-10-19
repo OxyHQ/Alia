@@ -5,7 +5,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { SettingsGeneralPage, type SettingsPageSection } from '@oxy.so/bloom/settings-modal';
 import { APP_COLOR_NAMES, useBloomTheme } from '@oxy.so/bloom/theme';
 import { getNativeLanguageName } from '@oxy.so/core';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useRouter } from 'expo-router';
 import { SettingsPreferenceSelect } from './preference-select';
 import { useAliaSettings } from './settings-context';

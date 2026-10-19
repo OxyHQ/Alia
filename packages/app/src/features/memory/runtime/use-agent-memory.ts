@@ -2,7 +2,7 @@ import apiClient from '@/shared/api/client';
 import { errorStatus } from '@/shared/api/error-utils';
 import { queryKeys } from '@/shared/api/query-keys';
 import { API_ROUTES } from '@/shared/api/routes';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 /**

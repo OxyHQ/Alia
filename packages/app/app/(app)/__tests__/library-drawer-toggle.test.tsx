@@ -172,7 +172,7 @@ const auth = vi.hoisted(() => ({
   isAuthenticated: true,
   signIn: vi.fn(async () => undefined),
 }));
-vi.mock('@oxy.so/services', () => ({ useAuth: () => auth }));
+vi.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => auth }));
 const loadFiles = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock('@/features/library/runtime/library-store', () => {
   // One state object, so a selector reading `files` returns the same array on

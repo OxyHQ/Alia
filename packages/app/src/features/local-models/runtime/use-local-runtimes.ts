@@ -8,7 +8,7 @@
  * same one, and this is what makes that work.
  */
 import { useQuery } from '@tanstack/react-query';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import apiClient from '@/shared/api/client';
 
 interface LocalRuntimeModel {

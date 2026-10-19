@@ -1,7 +1,7 @@
 import { ChatWorkspace } from '@/features/chat/ui/chat-workspace';
 import { ConversationScreen } from '@/features/chat/ui/conversation-screen';
 import { WelcomeIntro } from '@/features/chat/ui/welcome-intro';
-import { useAuth } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { AiChatMobileHeader } from '@oxy.so/bloom/ai-chat';
 import Head from 'expo-router/head';

@@ -59,7 +59,7 @@ vi.mock('@oxy.so/bloom/settings-list', async () => ({
 }));
 vi.mock('@oxy.so/bloom/switch', async () => hosts('Switch'));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: toastError, success: vi.fn() } }));
-vi.mock('@oxy.so/services', () => ({ useOxy: () => ({ isAuthenticated: true }) }));
+vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({ isAuthenticated: true }) }));
 vi.mock('@/shared/api/client', () => ({
   default: { get: api.get, put: vi.fn(), post: vi.fn(), patch: api.patch, delete: vi.fn() },
 }));

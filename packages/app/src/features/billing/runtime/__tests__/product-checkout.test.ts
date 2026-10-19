@@ -35,8 +35,9 @@ vi.mock('@tanstack/react-query', () => ({
   useMutation: (options: unknown) => options,
   useQueryClient: () => ({}),
 }));
-vi.mock('@oxy.so/services', () => ({
-  useDisplayCurrency: () => ({ currency: 'EUR' }),
+// One session behind both entries: the checkout reads the root entry (for the
+// display currency) and its account-scope guard reads the lean entry.
+const oxy = vi.hoisted(() => ({
   useOxy: () => ({
     user: { id: state.account },
     activeSessionId: state.session,
@@ -50,6 +51,11 @@ vi.mock('@oxy.so/services', () => ({
     },
   }),
 }));
+vi.mock('@oxy.so/services', () => ({
+  useDisplayCurrency: () => ({ currency: 'EUR' }),
+  useOxy: oxy.useOxy,
+}));
+vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: oxy.useOxy }));
 vi.mock('@oxy.so/core', () => ({
   authenticatedApiCall: async (_api: unknown, _session: unknown, request: () => unknown) =>
     request(),

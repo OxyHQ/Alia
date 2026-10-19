@@ -38,7 +38,7 @@ vi.mock('@/features/agents/model/bot-account', () => ({
   applyBotUsernameSuffix: (name: string) => `${name}bot`,
 }));
 vi.mock('@oxy.so/core', () => ({ SELECTABLE_ACCOUNT_CATEGORY_IDS: [] }));
-vi.mock('@oxy.so/services', () => ({
+vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({ createAccount: vi.fn(), oxyServices: {} }),
 }));
 

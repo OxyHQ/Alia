@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   openURL: vi.fn(),
   error: vi.fn(),
 }));
-vi.mock('@oxy.so/services', () => ({
+vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => mocks.session,
   useAuth: () => ({ ...mocks.session, signIn: vi.fn() }),
 }));

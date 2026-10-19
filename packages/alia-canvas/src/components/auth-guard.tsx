@@ -1,4 +1,4 @@
-import { useAuth } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { LoginForm } from '@/components/auth/login-form';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {

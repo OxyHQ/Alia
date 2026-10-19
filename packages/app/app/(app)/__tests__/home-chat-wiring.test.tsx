@@ -28,7 +28,7 @@ const captured = vi.hoisted(() => ({
   dismiss: null as null | (() => void),
 }));
 
-vi.mock('@oxy.so/services', () => ({ useAuth: () => auth }));
+vi.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => auth }));
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => key, locale: 'en' }),
 }));

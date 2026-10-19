@@ -9,7 +9,7 @@ import { RiGiftLine } from '@oxy.so/bloom/icons/RiGiftLine';
 import { RiLoginBoxLine } from '@oxy.so/bloom/icons/RiLoginBoxLine';
 import { RiUserHeartLine } from '@oxy.so/bloom/icons/RiUserHeartLine';
 import { Loading } from '@oxy.so/bloom/loading';
-import { useAuth } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import { useEffect, useState } from 'react';

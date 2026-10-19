@@ -7,7 +7,7 @@ import {
 } from '@alia.onl/sdk';
 import { useConversation } from '@alia.onl/sdk/runtime';
 import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
-import { useAuth } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UsageLimitDialog } from '@/features/billing/ui/usage-limit-dialog';

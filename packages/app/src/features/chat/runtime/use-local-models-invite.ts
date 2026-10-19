@@ -2,7 +2,7 @@ import { useIsLargeScreen } from '@/shared/platform/use-is-large-screen';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useLocalRuntimeStore } from '@/features/local-models/runtime/local-runtime-store';
 import { toast } from '@oxy.so/bloom/toast';
-import { useAuth } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { useEffect, useRef, useState } from 'react';
 
 /** One toast for every mounted chat: the drawer keeps visited chats alive. */

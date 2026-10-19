@@ -4,7 +4,7 @@ import { API_ROUTES } from '@/shared/api/routes';
 import { useCreateAgent } from '@/features/agents/runtime/use-agents';
 import type { Agent, AgentArchetype } from '@/shared/contracts/agents';
 import { SELECTABLE_ACCOUNT_CATEGORY_IDS, type AccountCategoryId } from '@oxy.so/core';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useCallback } from 'react';
 
 /** Whether a value IS one of Oxy's offered categories. See the note at the call site. */

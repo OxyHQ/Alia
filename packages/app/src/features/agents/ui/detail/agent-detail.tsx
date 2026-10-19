@@ -18,7 +18,7 @@ import { Divider } from '@oxy.so/bloom/divider';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Switch } from '@oxy.so/bloom/switch';
 import { Text } from '@oxy.so/bloom/typography';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { Stack, useRouter } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 

@@ -37,7 +37,7 @@ import { Item } from '@oxy.so/bloom/item';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Muted, Text } from '@oxy.so/bloom/typography';
-import { useAuth } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, RefreshControl, View } from 'react-native';

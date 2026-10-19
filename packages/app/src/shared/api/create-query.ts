@@ -1,5 +1,5 @@
 import { useQuery, type UseQueryOptions } from '@tanstack/react-query';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import apiClient from '@/shared/api/client';
 
 /** Authenticated GET query — wraps the repeated useOxy + useQuery pattern. */

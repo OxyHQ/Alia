@@ -70,7 +70,7 @@ import type {
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { Text } from '@oxy.so/bloom/typography';
-import { ProfileButton, useAuth, useOxy } from '@oxy.so/services';
+import { ProfileButton, useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'expo-router';
 import React from 'react';

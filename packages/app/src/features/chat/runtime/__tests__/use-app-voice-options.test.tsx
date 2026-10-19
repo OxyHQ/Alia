@@ -17,7 +17,7 @@ const host = vi.hoisted(() => ({
   push: vi.fn(),
 }));
 
-vi.mock('@oxy.so/services', () => ({
+vi.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ isAuthenticated: host.isAuthenticated, signIn: host.signIn }),
 }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: host.push }) }));

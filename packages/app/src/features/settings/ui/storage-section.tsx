@@ -20,7 +20,7 @@ import {
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import { useCallback, useEffect, useMemo } from 'react';
